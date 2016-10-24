@@ -1,19 +1,22 @@
 //! This module contains all DICOM data element encoding logic.
 use error::Result;
 use std::io::Write;
-use data_element::DataElement;
+use data_element::DataElementHeader;
 
 /// Type trait for a data element encoder.
 pub trait Encode {
-    /// Encode and write a data element to the given destination.
-    fn encode_element<W: Write, DE: DataElement>(&self, de: DE, to: &mut W) -> Result<()>;
+    /// The encoding destination's data type.
+    type Writer: Write + ?Sized;
+
+    /// Encode and write a data element header to the given destination.
+    fn encode_element_header(&self, de: DataElementHeader, to: &mut Self::Writer) -> Result<()>;
 
     /// Encode and write a DICOM sequence item header to the given destination.
-    fn encode_item<W: Write>(&self, len: u32, to: &mut W) -> Result<()>;
+    fn encode_item(&self, len: u32, to: &mut Self::Writer) -> Result<()>;
 
     /// Encode and write a DICOM sequence item delimiter to the given destination.
-    fn encode_item_delimiter<W: Write>(&self, to: &mut W) -> Result<()>;
+    fn encode_item_delimiter(&self, to: &mut Self::Writer) -> Result<()>;
 
     /// Encode and write a DICOM sequence delimiter to the given destination.
-    fn encode_sequence_delimiter<W: Write>(&self, to: &mut W) -> Result<()>;
+    fn encode_sequence_delimiter(&self, to: &mut Self::Writer) -> Result<()>;
 }

@@ -1,12 +1,13 @@
 //! Explicit VR Little Endian syntax transfer implementation
 
-use std::io::Read;
+use std::io::{Read, Write};
 use std::fmt;
 use std::marker::PhantomData;
 use attribute::ValueRepresentation;
 use byteorder::{ByteOrder, LittleEndian};
 use error::Result;
 use super::decode::Decode;
+use super::encode::Encode;
 use data_element::{DataElementHeader, SequenceItemHeader};
 
 #[cfg(test)]
@@ -77,19 +78,19 @@ pub struct ExplicitVRLittleEndianDecoder<S: Read + ?Sized> {
     phantom: PhantomData<S>
 }
 
-impl<'s, S: Read + ?Sized + 's> Default for ExplicitVRLittleEndianDecoder<S> {
+impl<S: Read + ?Sized> Default for ExplicitVRLittleEndianDecoder<S> {
     fn default() -> ExplicitVRLittleEndianDecoder<S> {
         ExplicitVRLittleEndianDecoder{ phantom: PhantomData::default() }
     }
 }
 
-impl<'s, S: Read + ?Sized + 's> fmt::Debug for ExplicitVRLittleEndianDecoder<S> {
+impl<S: Read + ?Sized> fmt::Debug for ExplicitVRLittleEndianDecoder<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "ImplicitVRLittleEndianDecoder{{phantom}}")
     }
 }
 
-impl<'s, S: Read + ?Sized + 's> Decode for ExplicitVRLittleEndianDecoder<S> {
+impl<S: Read + ?Sized> Decode for ExplicitVRLittleEndianDecoder<S> {
     type Source = S;
 
     fn decode(&self, source: &mut S) -> Result<DataElementHeader> {
@@ -136,6 +137,46 @@ impl<'s, S: Read + ?Sized + 's> Decode for ExplicitVRLittleEndianDecoder<S> {
         let len = LittleEndian::read_u32(&buf);
 
         SequenceItemHeader::new((group, element), len)
+    }
+
+}
+
+pub struct ExplicitVRLittleEndianEncoder<W: Write + ?Sized> {
+    phantom: PhantomData<W>
+}
+
+impl<W: Write + ?Sized> Default for ExplicitVRLittleEndianEncoder<W> {
+    fn default() -> ExplicitVRLittleEndianEncoder<W> {
+        ExplicitVRLittleEndianEncoder{ phantom: PhantomData::default() }
+    }
+}
+
+impl<W: Write + ?Sized> fmt::Debug for ExplicitVRLittleEndianEncoder<W> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ImplicitVRLittleEndianEncoder{{phantom}}")
+    }
+}
+
+impl<W: Write + ?Sized> Encode for ExplicitVRLittleEndianEncoder<W> {
+    type Writer = W;
+
+    fn encode_element_header(&self, de: DataElementHeader, to: &mut W) -> Result<()> {
+        unimplemented!();
+    }
+
+    /// Encode and write a DICOM sequence item header to the given destination.
+    fn encode_item(&self, len: u32, to: &mut W) -> Result<()> {
+        unimplemented!();
+    }
+
+    /// Encode and write a DICOM sequence item delimiter to the given destination.
+    fn encode_item_delimiter(&self, to: &mut W) -> Result<()> {
+        unimplemented!();
+    }
+
+    /// Encode and write a DICOM sequence delimiter to the given destination.
+    fn encode_sequence_delimiter(&self, to: &mut W) -> Result<()> {
+        unimplemented!();
     }
 
 }

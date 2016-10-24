@@ -9,6 +9,4 @@ env:
 script: cd $TEST_DIR && cargo test
 matrix:
   allow_failures:
-    - rust: 
-      - beta
-      - nightly
+    - rust: nightly
