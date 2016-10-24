@@ -13,15 +13,7 @@ the project does not yet meet the minimum features required to be usable.
 
 ## Components
 
- - "core" represents all of the base traits, data structures and functions for
+ - [`core`](core) represents all of the base traits, data structures and functions for
  reading and writing DICOM content.
- - "dictionary_builder" is a Rust application that generates Rust code for
+ - [`dictionary_builder`](dictionary_builder) is a Rust application that generates Rust code for
    a DICOM standard dictionary using entries from the web.
-
-## Building
-
-Enter the "core" directory and run:
-
-```bash
-cargo build --release
-```
