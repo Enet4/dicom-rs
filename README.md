@@ -1,4 +1,6 @@
-# DICOM-rs
+# DICOM-rs 
+
+[![Build Status](https://travis-ci.org/Enet4/dicom-rs.svg?branch=master)](https://travis-ci.org/Enet4/dicom-rs)
 
 An efficient and practical base library for DICOM compliant systems.
 
