@@ -1,0 +1,16 @@
+[package]
+name = "dicom"
+version = "0.1.0"
+authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
+description = "Efficient and practical base library for DICOM compliant systems"
+publish = false
+
+[build-dependencies]
+xml-rs = "0.3.4"
+hyper = "0.9.10"
+
+[dependencies]
+lazy_static = "0.1.*"
+byteorder = "0.5.3"
+encoding = "0.2.33"
+quick-error = "1.1.0"
