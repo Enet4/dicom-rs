@@ -1,21 +1,25 @@
 //! Explicit VR Big Endian syntax transfer implementation.
 
-use std::io::Read;
+use std::io::{Read, Write};
 use std::fmt;
 use attribute::ValueRepresentation;
+use attribute::tag::Tag;
 use byteorder::{ByteOrder, BigEndian};
 use error::Result;
 use super::decode::Decode;
+use super::encode::Encode;
 use std::marker::PhantomData;
 use data_element::{DataElementHeader, SequenceItemHeader};
 
 #[cfg(test)]
 mod tests {
     use super::super::decode::Decode;
+    use super::super::encode::Encode;
     use super::ExplicitVRBigEndianDecoder;
-    use data_element::DataElement;
+    use super::ExplicitVRBigEndianEncoder;
+    use data_element::{DataElement, DataElementHeader};
     use attribute::ValueRepresentation;
-    use std::io::{Read, Cursor, Seek, SeekFrom};
+    use std::io::{Read, Cursor, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements
     //  Tag: (0002,0002) Media Storage SOP Class UID
@@ -69,6 +73,41 @@ mod tests {
             assert_eq!(buffer.as_slice(), b"1.2.840.10008.1.2.1\0".as_ref());
         }
     }
+
+    #[test]
+    fn encode_explicit_vr_be_works() {
+        let mut buf = [0u8; 62];
+        {
+            let enc = ExplicitVRBigEndianEncoder::default();
+            let mut writer = Cursor::new(&mut buf[..]);
+
+            // encode first element
+            let de = DataElementHeader {
+                tag: (0x0002,0x0002),
+                vr: ValueRepresentation::UI,
+                len: 26,
+            };
+            enc.encode_element_header(de, &mut writer).expect("should write it fine");
+            writer.write_all(b"1.2.840.10008.5.1.4.1.1.1\0".as_ref()).expect("should write the value fine");
+        }
+        assert_eq!(&buf[0..8], &RAW[0..8]);
+        {
+            let enc = ExplicitVRBigEndianEncoder::default();
+            let mut writer = Cursor::new(&mut buf[34..]);
+
+            // encode second element
+            let de = DataElementHeader {
+                tag: (0x0002,0x0010),
+                vr: ValueRepresentation::UI,
+                len: 20,
+            };
+            enc.encode_element_header(de, &mut writer).expect("should write it fine");
+            writer.write_all(b"1.2.840.10008.1.2.1\0".as_ref()).expect("should write the value fine");
+        }
+        assert_eq!(&buf[34..42], &RAW[34..42]);
+
+        assert_eq!(&buf[..], &RAW[..]);
+    }
 }
 
 /// A data element decoder for the Explicit VR Big Endian transfer syntax.
@@ -84,7 +123,7 @@ impl<S: Read + ?Sized> Default for ExplicitVRBigEndianDecoder<S> {
 
 impl<S: Read + ?Sized> fmt::Debug for ExplicitVRBigEndianDecoder<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ImplicitVRLittleEndianDecoder{{phantom}}")
+        write!(f, "ExplicitVRBigEndianDecoder")
     }
 }
 
@@ -135,5 +174,87 @@ impl<'s, S: Read + ?Sized + 's> Decode for ExplicitVRBigEndianDecoder<S> {
         let len = BigEndian::read_u32(&buf);
 
         SequenceItemHeader::new((group, element), len)
+    }
+}
+
+pub struct ExplicitVRBigEndianEncoder<W: Write + ?Sized> {
+    phantom: PhantomData<W>
+}
+
+impl<W: Write + ?Sized> Default for ExplicitVRBigEndianEncoder<W> {
+    fn default() -> ExplicitVRBigEndianEncoder<W> {
+        ExplicitVRBigEndianEncoder{ phantom: PhantomData::default() }
+    }
+}
+
+impl<W: Write + ?Sized> fmt::Debug for ExplicitVRBigEndianEncoder<W> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ExplicitVRBigEndianEncoder")
+    }
+}
+
+impl<W: Write + ?Sized> Encode for ExplicitVRBigEndianEncoder<W> {
+    type Writer = W;
+
+    fn encode_element_header(&self, de: DataElementHeader, to: &mut W) -> Result<()> {
+        match de.vr {
+            ValueRepresentation::OB | ValueRepresentation::OD |
+            ValueRepresentation::OF | ValueRepresentation::OL |
+            ValueRepresentation::OW | ValueRepresentation::SQ |
+            ValueRepresentation::UC | ValueRepresentation::UR |
+            ValueRepresentation::UT | ValueRepresentation::UN => {
+
+                let mut buf = [0u8 ; 12];
+                BigEndian::write_u16(&mut buf[0..], de.tag.group());
+                BigEndian::write_u16(&mut buf[2..], de.tag.element());
+                let vr_bytes = de.vr.to_bytes();
+                buf[4] = vr_bytes[0];
+                buf[5] = vr_bytes[1];
+                // buf[6..8] is kept zero'd
+                BigEndian::write_u32(&mut buf[8..], de.len);
+                try!(to.write_all(&buf));
+
+                Ok(())
+            },
+            _ => {
+                let mut buf = [0u8; 8];
+                BigEndian::write_u16(&mut buf[0..], de.tag.group());
+                BigEndian::write_u16(&mut buf[2..], de.tag.element());
+                let vr_bytes = de.vr.to_bytes();
+                buf[4] = vr_bytes[0];
+                buf[5] = vr_bytes[1];
+                BigEndian::write_u16(&mut buf[6..], de.len as u16);
+                try!(to.write_all(&buf));
+
+                Ok(())
+            }
+        }
+    }
+
+    fn encode_item_header(&self, len: u32, to: &mut W) -> Result<()> {
+        let mut buf = [0u8; 8];
+        BigEndian::write_u16(&mut buf, 0xFFFE);
+        BigEndian::write_u16(&mut buf, 0xE000);
+        BigEndian::write_u32(&mut buf[4..], len);
+        try!(to.write_all(&buf));
+        Ok(())
+    }
+
+    fn encode_item_delimiter(&self, to: &mut W) -> Result<()> {
+        let mut buf = [0u8; 8];
+        BigEndian::write_u16(&mut buf, 0xFFFE);
+        BigEndian::write_u16(&mut buf, 0xE00D);
+        BigEndian::write_u32(&mut buf[4..], 0);
+        try!(to.write_all(&buf));
+        Ok(())
+    }
+
+    fn encode_sequence_delimiter(&self, to: &mut W) -> Result<()> {
+        let mut buf = [0u8; 8];
+        BigEndian::write_u16(&mut buf, 0xFFFE);
+        BigEndian::write_u16(&mut buf, 0xE0DD);
+        BigEndian::write_u32(&mut buf[4..], 0);
+        try!(to.write_all(&buf));
+        Ok(())
     }
 }

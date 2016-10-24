@@ -4,6 +4,7 @@ use std::io::{Read, Write};
 use std::fmt;
 use std::marker::PhantomData;
 use attribute::ValueRepresentation;
+use attribute::tag::Tag;
 use byteorder::{ByteOrder, LittleEndian};
 use error::Result;
 use super::decode::Decode;
@@ -14,20 +15,22 @@ use data_element::{DataElementHeader, SequenceItemHeader};
 mod tests {
     use super::super::decode::Decode;
     use super::ExplicitVRLittleEndianDecoder;
-    use data_element::DataElement;
+    use super::super::encode::Encode;
+    use super::ExplicitVRLittleEndianEncoder;
+    use data_element::{DataElement, DataElementHeader};
     use attribute::ValueRepresentation;
-    use std::io::{Read, Cursor, Seek, SeekFrom};
+    use std::io::{Read, Cursor, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements
     //  Tag: (0002,0002) Media Storage SOP Class UID
     //  VR: UI
     //  Length: 26
-    //  Value: "1.2.840.10008.5.1.4.1.1.1" (with 1 padding '\0')
+    //  Value: "1.2.840.10008.5.1.4.1.1.1\0"
     // --
     //  Tag: (0002,0010) Transfer Syntax UID
     //  VR: UI
     //  Length: 20
-    //  Value: "1.2.840.10008.1.2.1" (w 1 padding '\0') == ExplicitVRLittleEndian
+    //  Value: "1.2.840.10008.1.2.1\0" == ExplicitVRLittleEndian
     // --
     const RAW: &'static [u8; 62] = &[
         0x02, 0x00, 0x02, 0x00, 0x55, 0x49, 0x1a, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34, 0x30, 0x2e,
@@ -39,12 +42,12 @@ mod tests {
     ];
 
     #[test]
-    fn explicit_vr_le_works() {
+    fn decode_explicit_vr_le_works() {
         
-        let reader = ExplicitVRLittleEndianDecoder::default();
+        let dec = ExplicitVRLittleEndianDecoder::default();
         let mut cursor = Cursor::new(RAW.as_ref());
         { // read first element
-            let elem = reader.decode(&mut cursor).expect("should find an element");
+            let elem = dec.decode(&mut cursor).expect("should find an element");
             assert_eq!(elem.tag(), (2, 2));
             assert_eq!(elem.vr(), ValueRepresentation::UI);
             assert_eq!(elem.len(), 26);
@@ -59,7 +62,7 @@ mod tests {
         // cursor should now be @ #34 after skipping
         assert_eq!(cursor.seek(SeekFrom::Current(13)).unwrap(), 34);
         { // read second element
-            let elem = reader.decode(&mut cursor).expect("should find an element");
+            let elem = dec.decode(&mut cursor).expect("should find an element");
             assert_eq!(elem.tag(), (2, 16));
             assert_eq!(elem.vr(), ValueRepresentation::UI);
             assert_eq!(elem.len(), 20);
@@ -71,6 +74,40 @@ mod tests {
         }
     }
 
+    #[test]
+    fn encode_explicit_vr_le_works() {
+        let mut buf = [0u8; 62];
+        {
+            let enc = ExplicitVRLittleEndianEncoder::default();
+            let mut writer = Cursor::new(&mut buf[..]);
+
+            // encode first element
+            let de = DataElementHeader {
+                tag: (0x0002,0x0002),
+                vr: ValueRepresentation::UI,
+                len: 26,
+            };
+            enc.encode_element_header(de, &mut writer).expect("should write it fine");
+            writer.write_all(b"1.2.840.10008.5.1.4.1.1.1\0".as_ref()).expect("should write the value fine");
+        }
+        assert_eq!(&buf[0..8], &RAW[0..8]);
+        {
+            let enc = ExplicitVRLittleEndianEncoder::default();
+            let mut writer = Cursor::new(&mut buf[34..]);
+
+            // encode second element
+            let de = DataElementHeader {
+                tag: (0x0002,0x0010),
+                vr: ValueRepresentation::UI,
+                len: 20,
+            };
+            enc.encode_element_header(de, &mut writer).expect("should write it fine");
+            writer.write_all(b"1.2.840.10008.1.2.1\0".as_ref()).expect("should write the value fine");
+        }
+        assert_eq!(&buf[34..42], &RAW[34..42]);
+
+        assert_eq!(&buf[..], &RAW[..]);
+    }
 }
 
 /// A data element decoder for the Explicit VR Little Endian transfer syntax.
@@ -86,7 +123,7 @@ impl<S: Read + ?Sized> Default for ExplicitVRLittleEndianDecoder<S> {
 
 impl<S: Read + ?Sized> fmt::Debug for ExplicitVRLittleEndianDecoder<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ImplicitVRLittleEndianDecoder{{phantom}}")
+        write!(f, "ExplicitVRLittleEndianDecoder")
     }
 }
 
@@ -153,7 +190,7 @@ impl<W: Write + ?Sized> Default for ExplicitVRLittleEndianEncoder<W> {
 
 impl<W: Write + ?Sized> fmt::Debug for ExplicitVRLittleEndianEncoder<W> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ImplicitVRLittleEndianEncoder{{phantom}}")
+        write!(f, "ExplicitVRLittleEndianEncoder")
     }
 }
 
@@ -161,22 +198,64 @@ impl<W: Write + ?Sized> Encode for ExplicitVRLittleEndianEncoder<W> {
     type Writer = W;
 
     fn encode_element_header(&self, de: DataElementHeader, to: &mut W) -> Result<()> {
-        unimplemented!();
+        match de.vr {
+            ValueRepresentation::OB | ValueRepresentation::OD |
+            ValueRepresentation::OF | ValueRepresentation::OL |
+            ValueRepresentation::OW | ValueRepresentation::SQ |
+            ValueRepresentation::UC | ValueRepresentation::UR |
+            ValueRepresentation::UT | ValueRepresentation::UN => {
+
+                let mut buf = [0u8 ; 12];
+                LittleEndian::write_u16(&mut buf[0..], de.tag.group());
+                LittleEndian::write_u16(&mut buf[2..], de.tag.element());
+                let vr_bytes = de.vr.to_bytes();
+                buf[4] = vr_bytes[0];
+                buf[5] = vr_bytes[1];
+                // buf[6..8] is kept zero'd
+                LittleEndian::write_u32(&mut buf[8..], de.len);
+                try!(to.write_all(&buf));
+
+                Ok(())
+            },
+            _ => {
+                let mut buf = [0u8; 8];
+                LittleEndian::write_u16(&mut buf[0..], de.tag.group());
+                LittleEndian::write_u16(&mut buf[2..], de.tag.element());
+                let vr_bytes = de.vr.to_bytes();
+                buf[4] = vr_bytes[0];
+                buf[5] = vr_bytes[1];
+                LittleEndian::write_u16(&mut buf[6..], de.len as u16);
+                try!(to.write_all(&buf));
+
+                Ok(())
+            }
+        }
     }
 
-    /// Encode and write a DICOM sequence item header to the given destination.
-    fn encode_item(&self, len: u32, to: &mut W) -> Result<()> {
-        unimplemented!();
+    fn encode_item_header(&self, len: u32, to: &mut W) -> Result<()> {
+        let mut buf = [0u8; 8];
+        LittleEndian::write_u16(&mut buf, 0xFFFE);
+        LittleEndian::write_u16(&mut buf, 0xE000);
+        LittleEndian::write_u32(&mut buf[4..], len);
+        try!(to.write_all(&buf));
+        Ok(())
     }
 
-    /// Encode and write a DICOM sequence item delimiter to the given destination.
     fn encode_item_delimiter(&self, to: &mut W) -> Result<()> {
-        unimplemented!();
+        let mut buf = [0u8; 8];
+        LittleEndian::write_u16(&mut buf, 0xFFFE);
+        LittleEndian::write_u16(&mut buf, 0xE00D);
+        LittleEndian::write_u32(&mut buf[4..], 0);
+        try!(to.write_all(&buf));
+        Ok(())
     }
 
-    /// Encode and write a DICOM sequence delimiter to the given destination.
     fn encode_sequence_delimiter(&self, to: &mut W) -> Result<()> {
-        unimplemented!();
+        let mut buf = [0u8; 8];
+        LittleEndian::write_u16(&mut buf, 0xFFFE);
+        LittleEndian::write_u16(&mut buf, 0xE0DD);
+        LittleEndian::write_u32(&mut buf[4..], 0);
+        try!(to.write_all(&buf));
+        Ok(())
     }
-
 }

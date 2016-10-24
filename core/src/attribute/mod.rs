@@ -122,11 +122,10 @@ impl ValueRepresentation {
             _ => None,
         }
     }
-}
 
-impl fmt::Display for ValueRepresentation {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(match *self {
+    /// Retrieve a string representation of this VR.
+    pub fn to_string(&self) -> &'static str {
+        match *self {
             ValueRepresentation::AE => "AE",
             ValueRepresentation::AS => "AS",
             ValueRepresentation::AT => "AT",
@@ -158,6 +157,19 @@ impl fmt::Display for ValueRepresentation {
             ValueRepresentation::UR => "UR",
             ValueRepresentation::US => "US",
             ValueRepresentation::UT => "UT",
-        })
+        }
+    }
+
+    /// Retrieve a copy of this VR's byte representation.
+    /// The function returns two alphabetic characters in upper case.
+    pub fn to_bytes(&self) -> [u8;2] {
+        let bytes = self.to_string().as_bytes();
+        [bytes[0], bytes[1]]
+    }
+}
+
+impl fmt::Display for ValueRepresentation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(self.to_string())
     }
 }
