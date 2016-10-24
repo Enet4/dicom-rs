@@ -82,16 +82,16 @@ fn init_dictionary() -> StandardAttributeDictionary {
 // meta information entries
 type E<'a> = DictionaryEntry<'a>;
 const META_ENTRIES : &'static [E<'static>] = &[
-    E {tag: (0x0002,0x0000), alias: "File​Meta​Information​Group​Length", vr: ValueRepresentation::UL},
-    E {tag: (0x0002,0x0001), alias: "File​Meta​InformationVersion", vr: ValueRepresentation::OB},
+    E {tag: (0x0002,0x0000), alias: "FileMetaInformationGroupLength", vr: ValueRepresentation::UL},
+    E {tag: (0x0002,0x0001), alias: "FileMetaInformationVersion", vr: ValueRepresentation::OB},
     E {tag: (0x0002,0x0002), alias: "MediaStorageSOPClassUID", vr: ValueRepresentation::UI},
     E {tag: (0x0002,0x0003), alias: "MediaStorageSOPInstanceUID", vr: ValueRepresentation::UI},
-    E {tag: (0x0002,0x0010), alias: "Transfer​Syntax​UID", vr: ValueRepresentation::UI},
-    E {tag: (0x0002,0x0012), alias: "Implementation​Class​UID", vr: ValueRepresentation::UI},
-    E {tag: (0x0002,0x0013), alias: "Implentation​Version​Name", vr: ValueRepresentation::SH},
-    E {tag: (0x0002,0x0016), alias: "Source​Application​Entity​Title", vr: ValueRepresentation::AE},
-    E {tag: (0x0002,0x0017), alias: "Sending​Application​Entity​Title", vr: ValueRepresentation::AE},
-    E {tag: (0x0002,0x0018), alias: "Receiving​Application​Entity​Title", vr: ValueRepresentation::AE},
-    E {tag: (0x0002,0x0100), alias: "Private​Information​Creator​UID", vr: ValueRepresentation::UI},
-    E {tag: (0x0002,0x0102), alias: "Private​Information", vr: ValueRepresentation::OB},
+    E {tag: (0x0002,0x0010), alias: "TransferSyntaxUID", vr: ValueRepresentation::UI},
+    E {tag: (0x0002,0x0012), alias: "ImplementationClassUID", vr: ValueRepresentation::UI},
+    E {tag: (0x0002,0x0013), alias: "ImplentationVersionName", vr: ValueRepresentation::SH},
+    E {tag: (0x0002,0x0016), alias: "SourceApplicationEntityTitle", vr: ValueRepresentation::AE},
+    E {tag: (0x0002,0x0017), alias: "SendingApplicationEntityTitle", vr: ValueRepresentation::AE},
+    E {tag: (0x0002,0x0018), alias: "ReceivingApplicationEntityTitle", vr: ValueRepresentation::AE},
+    E {tag: (0x0002,0x0100), alias: "PrivateInformationCreatorUID", vr: ValueRepresentation::UI},
+    E {tag: (0x0002,0x0102), alias: "PrivateInformation", vr: ValueRepresentation::OB},
 ];
