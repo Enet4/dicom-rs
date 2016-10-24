@@ -15,6 +15,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use attribute::dictionary::{AttributeDictionary, DictionaryEntry};
+use attribute::ValueRepresentation;
 use self::entries::ENTRIES;
 
 lazy_static! {
@@ -72,5 +73,25 @@ fn init_dictionary() -> StandardAttributeDictionary {
     for entry in ENTRIES {
         d.index(&entry);
     }
+    for entry in META_ENTRIES {
+        d.index(&entry);
+    }
     d
 }
+
+// meta information entries
+type E<'a> = DictionaryEntry<'a>;
+const META_ENTRIES : &'static [E<'static>] = &[
+    E {tag: (0x0002,0x0000), alias: "File​Meta​Information​Group​Length", vr: ValueRepresentation::UL},
+    E {tag: (0x0002,0x0001), alias: "File​Meta​InformationVersion", vr: ValueRepresentation::OB},
+    E {tag: (0x0002,0x0002), alias: "MediaStorageSOPClassUID", vr: ValueRepresentation::UI},
+    E {tag: (0x0002,0x0003), alias: "MediaStorageSOPInstanceUID", vr: ValueRepresentation::UI},
+    E {tag: (0x0002,0x0010), alias: "Transfer​Syntax​UID", vr: ValueRepresentation::UI},
+    E {tag: (0x0002,0x0012), alias: "Implementation​Class​UID", vr: ValueRepresentation::UI},
+    E {tag: (0x0002,0x0013), alias: "Implentation​Version​Name", vr: ValueRepresentation::SH},
+    E {tag: (0x0002,0x0016), alias: "Source​Application​Entity​Title", vr: ValueRepresentation::AE},
+    E {tag: (0x0002,0x0017), alias: "Sending​Application​Entity​Title", vr: ValueRepresentation::AE},
+    E {tag: (0x0002,0x0018), alias: "Receiving​Application​Entity​Title", vr: ValueRepresentation::AE},
+    E {tag: (0x0002,0x0100), alias: "Private​Information​Creator​UID", vr: ValueRepresentation::UI},
+    E {tag: (0x0002,0x0102), alias: "Private​Information", vr: ValueRepresentation::OB},
+];
