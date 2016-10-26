@@ -104,7 +104,7 @@ pub struct DicomMetaTable {
 /// Utility function for reading the whole DICOM element as a string with the given tag.
 fn read_str_as_tag<S: Read + Seek, D: Decode<Source=S>, T: TextCodec>(
             source: &mut S, decoder: &D, text: &T, group_length_remaining: &mut u32, tag: (u16, u16)) -> Result<String> {
-    let elem = try!(decoder.decode(source));
+    let elem = try!(decoder.decode_header(source));
     if elem.tag() != tag {
         return Err(Error::UnexpectedElement);
     }
@@ -146,7 +146,7 @@ impl DicomMetaTable {
         let builder = DicomMetaTableBuilder::new();
 
         let group_length: u32 = {
-            let elem = try!(decoder.decode(file));
+            let elem = try!(decoder.decode_header(file));
             if elem.tag() != (0x0002, 0x0000) {
                 return Err(Error::UnexpectedElement);
             }
@@ -163,7 +163,7 @@ impl DicomMetaTable {
         let mut builder = builder
             .group_length(group_length)
             .information_version({
-                let elem = try!(decoder.decode(file));
+                let elem = try!(decoder.decode_header(file));
                 if elem.tag() != (0x0002, 0x0001) {
                     return Err(Error::UnexpectedElement);
                 }
@@ -182,7 +182,7 @@ impl DicomMetaTable {
 
         // Fetch optional data elements
         while group_length_remaining > 0 {
-            let elem = try!(decoder.decode(file));
+            let elem = try!(decoder.decode_header(file));
             group_length_remaining -= elem.len();
             builder = match elem.tag() {
                 (0x0002,0x0013) => { // Implementation Version Name

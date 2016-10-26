@@ -6,11 +6,9 @@ use attribute::ValueRepresentation;
 type E<'a> = DictionaryEntry<'a>;
 
 pub const ENTRIES: &'static [E<'static>] = &[
-    E { tag: (0x0008, 0x0001), alias: "LengthToEnd", vr: ValueRepresentation::UL }, // RET
     E { tag: (0x0008, 0x0005), alias: "SpecificCharacterSet", vr: ValueRepresentation::CS },
     E { tag: (0x0008, 0x0006), alias: "LanguageCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x0008), alias: "ImageType", vr: ValueRepresentation::CS },
-    E { tag: (0x0008, 0x0010), alias: "RecognitionCode", vr: ValueRepresentation::SH }, // RET
     E { tag: (0x0008, 0x0012), alias: "InstanceCreationDate", vr: ValueRepresentation::DA },
     E { tag: (0x0008, 0x0013), alias: "InstanceCreationTime", vr: ValueRepresentation::TM },
     E { tag: (0x0008, 0x0014), alias: "InstanceCreatorUID", vr: ValueRepresentation::UI },
@@ -23,18 +21,11 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0008, 0x0021), alias: "SeriesDate", vr: ValueRepresentation::DA },
     E { tag: (0x0008, 0x0022), alias: "AcquisitionDate", vr: ValueRepresentation::DA },
     E { tag: (0x0008, 0x0023), alias: "ContentDate", vr: ValueRepresentation::DA },
-    E { tag: (0x0008, 0x0024), alias: "OverlayDate", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x0008, 0x0025), alias: "CurveDate", vr: ValueRepresentation::DA }, // RET
     E { tag: (0x0008, 0x002A), alias: "AcquisitionDateTime", vr: ValueRepresentation::DT },
     E { tag: (0x0008, 0x0030), alias: "StudyTime", vr: ValueRepresentation::TM },
     E { tag: (0x0008, 0x0031), alias: "SeriesTime", vr: ValueRepresentation::TM },
     E { tag: (0x0008, 0x0032), alias: "AcquisitionTime", vr: ValueRepresentation::TM },
     E { tag: (0x0008, 0x0033), alias: "ContentTime", vr: ValueRepresentation::TM },
-    E { tag: (0x0008, 0x0034), alias: "OverlayTime", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x0008, 0x0035), alias: "CurveTime", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x0008, 0x0040), alias: "DataSetType", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x0008, 0x0041), alias: "DataSetSubtype", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0008, 0x0042), alias: "NuclearMedicineSeriesType", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x0008, 0x0050), alias: "AccessionNumber", vr: ValueRepresentation::SH },
     E { tag: (0x0008, 0x0051), alias: "IssuerOfAccessionNumberSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x0052), alias: "QueryRetrieveLevel", vr: ValueRepresentation::CS },
@@ -105,7 +96,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0008, 0x030E), alias: "PrivateDataElementDescription", vr: ValueRepresentation::UT },
     E { tag: (0x0008, 0x030F), alias: "PrivateDataElementEncoding", vr: ValueRepresentation::UT },
     E { tag: (0x0008, 0x0310), alias: "PrivateDataElementDefinitionSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0008, 0x1000), alias: "NetworkID", vr: ValueRepresentation::AE }, // RET
     E { tag: (0x0008, 0x1010), alias: "StationName", vr: ValueRepresentation::SH },
     E { tag: (0x0008, 0x1030), alias: "StudyDescription", vr: ValueRepresentation::LO },
     E { tag: (0x0008, 0x1032), alias: "ProcedureCodeSequence", vr: ValueRepresentation::SQ },
@@ -123,17 +113,14 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0008, 0x1080), alias: "AdmittingDiagnosesDescription", vr: ValueRepresentation::LO },
     E { tag: (0x0008, 0x1084), alias: "AdmittingDiagnosesCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x1090), alias: "ManufacturerModelName", vr: ValueRepresentation::LO },
-    E { tag: (0x0008, 0x1100), alias: "ReferencedResultsSequence", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0008, 0x1110), alias: "ReferencedStudySequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x1111), alias: "ReferencedPerformedProcedureStepSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x1115), alias: "ReferencedSeriesSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x1120), alias: "ReferencedPatientSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x1125), alias: "ReferencedVisitSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0008, 0x1130), alias: "ReferencedOverlaySequence", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0008, 0x1134), alias: "ReferencedStereometricInstanceSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x113A), alias: "ReferencedWaveformSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x1140), alias: "ReferencedImageSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0008, 0x1145), alias: "ReferencedCurveSequence", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0008, 0x114A), alias: "ReferencedInstanceSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x114B), alias: "ReferencedRealWorldValueMappingInstanceSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x1150), alias: "ReferencedSOPClassUID", vr: ValueRepresentation::UI },
@@ -154,7 +141,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0008, 0x119A), alias: "OtherFailuresSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x1200), alias: "StudiesContainingOtherReferencedInstancesSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x1250), alias: "RelatedSeriesSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0008, 0x2110), alias: "LossyImageCompressionRetired", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x0008, 0x2111), alias: "DerivationDescription", vr: ValueRepresentation::ST },
     E { tag: (0x0008, 0x2112), alias: "SourceImageSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x2120), alias: "StageName", vr: ValueRepresentation::SH },
@@ -172,32 +158,15 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0008, 0x2142), alias: "StartTrim", vr: ValueRepresentation::IS },
     E { tag: (0x0008, 0x2143), alias: "StopTrim", vr: ValueRepresentation::IS },
     E { tag: (0x0008, 0x2144), alias: "RecommendedDisplayFrameRate", vr: ValueRepresentation::IS },
-    E { tag: (0x0008, 0x2200), alias: "TransducerPosition", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0008, 0x2204), alias: "TransducerOrientation", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0008, 0x2208), alias: "AnatomicStructure", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x0008, 0x2218), alias: "AnatomicRegionSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x2220), alias: "AnatomicRegionModifierSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x2228), alias: "PrimaryAnatomicStructureSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x2229), alias: "AnatomicStructureSpaceOrRegionSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x2230), alias: "PrimaryAnatomicStructureModifierSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0008, 0x2240), alias: "TransducerPositionSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0008, 0x2242), alias: "TransducerPositionModifierSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0008, 0x2244), alias: "TransducerOrientationSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0008, 0x2246), alias: "TransducerOrientationModifierSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0008, 0x2251), alias: "AnatomicStructureSpaceOrRegionCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0008, 0x2253), alias: "AnatomicPortalOfEntranceCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0008, 0x2255), alias: "AnatomicApproachDirectionCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0008, 0x2256), alias: "AnatomicPerspectiveDescriptionTrial", vr: ValueRepresentation::ST }, // RET
-    E { tag: (0x0008, 0x2257), alias: "AnatomicPerspectiveCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0008, 0x2258), alias: "AnatomicLocationOfExaminingInstrumentDescriptionTrial", vr: ValueRepresentation::ST }, // RET
-    E { tag: (0x0008, 0x2259), alias: "AnatomicLocationOfExaminingInstrumentCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0008, 0x225A), alias: "AnatomicStructureSpaceOrRegionModifierCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0008, 0x225C), alias: "OnAxisBackgroundAnatomicStructureCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0008, 0x3001), alias: "AlternateRepresentationSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x3010), alias: "IrradiationEventUID", vr: ValueRepresentation::UI },
     E { tag: (0x0008, 0x3011), alias: "SourceIrradiationEventSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x3012), alias: "RadiopharmaceuticalAdministrationEventUID", vr: ValueRepresentation::UI },
-    E { tag: (0x0008, 0x4000), alias: "IdentifyingComments", vr: ValueRepresentation::LT }, // RET
     E { tag: (0x0008, 0x9007), alias: "FrameType", vr: ValueRepresentation::CS },
     E { tag: (0x0008, 0x9092), alias: "ReferencedImageEvidenceSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0008, 0x9121), alias: "ReferencedRawDataSequence", vr: ValueRepresentation::SQ },
@@ -254,7 +223,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0010, 0x1024), alias: "MeasuredLateralDimension", vr: ValueRepresentation::DS },
     E { tag: (0x0010, 0x1030), alias: "PatientWeight", vr: ValueRepresentation::DS },
     E { tag: (0x0010, 0x1040), alias: "PatientAddress", vr: ValueRepresentation::LO },
-    E { tag: (0x0010, 0x1050), alias: "InsurancePlanIdentification", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0010, 0x1060), alias: "PatientMotherBirthName", vr: ValueRepresentation::PN },
     E { tag: (0x0010, 0x1080), alias: "MilitaryRank", vr: ValueRepresentation::LO },
     E { tag: (0x0010, 0x1081), alias: "BranchOfService", vr: ValueRepresentation::LO },
@@ -309,8 +277,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0012, 0x0085), alias: "ConsentForDistributionFlag", vr: ValueRepresentation::CS },
     E { tag: (0x0012, 0x0086), alias: "EthicsCommitteeApprovalEffectivenessStartDate", vr: ValueRepresentation::DA },
     E { tag: (0x0012, 0x0087), alias: "EthicsCommitteeApprovalEffectivenessEndDate", vr: ValueRepresentation::DA },
-    E { tag: (0x0014, 0x0023), alias: "CADFileFormat", vr: ValueRepresentation::ST }, // RET
-    E { tag: (0x0014, 0x0024), alias: "ComponentReferenceSystem", vr: ValueRepresentation::ST }, // RET
     E { tag: (0x0014, 0x0025), alias: "ComponentManufacturingProcedure", vr: ValueRepresentation::ST }, // DICONDE
     E { tag: (0x0014, 0x0028), alias: "ComponentManufacturer", vr: ValueRepresentation::ST }, // DICONDE
     E { tag: (0x0014, 0x0030), alias: "MaterialThickness", vr: ValueRepresentation::DS }, // DICONDE
@@ -318,7 +284,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0014, 0x0034), alias: "MaterialIsolationDiameter", vr: ValueRepresentation::DS }, // DICONDE
     E { tag: (0x0014, 0x0042), alias: "MaterialGrade", vr: ValueRepresentation::ST }, // DICONDE
     E { tag: (0x0014, 0x0044), alias: "MaterialPropertiesDescription", vr: ValueRepresentation::ST }, // DICONDE
-    E { tag: (0x0014, 0x0045), alias: "MaterialPropertiesFileFormatRetired", vr: ValueRepresentation::ST }, // RET
     E { tag: (0x0014, 0x0046), alias: "MaterialNotes", vr: ValueRepresentation::LT }, // DICONDE
     E { tag: (0x0014, 0x0050), alias: "ComponentShape", vr: ValueRepresentation::CS }, // DICONDE
     E { tag: (0x0014, 0x0052), alias: "CurvatureType", vr: ValueRepresentation::CS }, // DICONDE
@@ -517,16 +482,11 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0018, 0x0028), alias: "InterventionDrugDose", vr: ValueRepresentation::DS },
     E { tag: (0x0018, 0x0029), alias: "InterventionDrugCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0018, 0x002A), alias: "AdditionalDrugSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0018, 0x0030), alias: "Radionuclide", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0018, 0x0031), alias: "Radiopharmaceutical", vr: ValueRepresentation::LO },
-    E { tag: (0x0018, 0x0032), alias: "EnergyWindowCenterline", vr: ValueRepresentation::DS }, // RET
-    E { tag: (0x0018, 0x0033), alias: "EnergyWindowTotalWidth", vr: ValueRepresentation::DS }, // RET
     E { tag: (0x0018, 0x0034), alias: "InterventionDrugName", vr: ValueRepresentation::LO },
     E { tag: (0x0018, 0x0035), alias: "InterventionDrugStartTime", vr: ValueRepresentation::TM },
     E { tag: (0x0018, 0x0036), alias: "InterventionSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0018, 0x0037), alias: "TherapyType", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x0018, 0x0038), alias: "InterventionStatus", vr: ValueRepresentation::CS },
-    E { tag: (0x0018, 0x0039), alias: "TherapyDescription", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x0018, 0x003A), alias: "InterventionDescription", vr: ValueRepresentation::ST },
     E { tag: (0x0018, 0x0040), alias: "CineRate", vr: ValueRepresentation::IS },
     E { tag: (0x0018, 0x0042), alias: "InitialCineRunState", vr: ValueRepresentation::CS },
@@ -564,15 +524,11 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0018, 0x1009), alias: "UniqueDeviceIdentifier", vr: ValueRepresentation::UT },
     E { tag: (0x0018, 0x100A), alias: "UDISequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0018, 0x1010), alias: "SecondaryCaptureDeviceID", vr: ValueRepresentation::LO },
-    E { tag: (0x0018, 0x1011), alias: "HardcopyCreationDeviceID", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0018, 0x1012), alias: "DateOfSecondaryCapture", vr: ValueRepresentation::DA },
     E { tag: (0x0018, 0x1014), alias: "TimeOfSecondaryCapture", vr: ValueRepresentation::TM },
     E { tag: (0x0018, 0x1016), alias: "SecondaryCaptureDeviceManufacturer", vr: ValueRepresentation::LO },
-    E { tag: (0x0018, 0x1017), alias: "HardcopyDeviceManufacturer", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0018, 0x1018), alias: "SecondaryCaptureDeviceManufacturerModelName", vr: ValueRepresentation::LO },
     E { tag: (0x0018, 0x1019), alias: "SecondaryCaptureDeviceSoftwareVersions", vr: ValueRepresentation::LO },
-    E { tag: (0x0018, 0x101A), alias: "HardcopyDeviceSoftwareVersion", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0018, 0x101B), alias: "HardcopyDeviceManufacturerModelName", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0018, 0x1020), alias: "SoftwareVersions", vr: ValueRepresentation::LO },
     E { tag: (0x0018, 0x1022), alias: "VideoImageFormatAcquired", vr: ValueRepresentation::SH },
     E { tag: (0x0018, 0x1023), alias: "DigitalImageFormatAcquired", vr: ValueRepresentation::LO },
@@ -636,12 +592,10 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0018, 0x1138), alias: "TableAngle", vr: ValueRepresentation::DS },
     E { tag: (0x0018, 0x113A), alias: "TableType", vr: ValueRepresentation::CS },
     E { tag: (0x0018, 0x1140), alias: "RotationDirection", vr: ValueRepresentation::CS },
-    E { tag: (0x0018, 0x1141), alias: "AngularPosition", vr: ValueRepresentation::DS }, // RET
     E { tag: (0x0018, 0x1142), alias: "RadialPosition", vr: ValueRepresentation::DS },
     E { tag: (0x0018, 0x1143), alias: "ScanArc", vr: ValueRepresentation::DS },
     E { tag: (0x0018, 0x1144), alias: "AngularStep", vr: ValueRepresentation::DS },
     E { tag: (0x0018, 0x1145), alias: "CenterOfRotationOffset", vr: ValueRepresentation::DS },
-    E { tag: (0x0018, 0x1146), alias: "RotationOffset", vr: ValueRepresentation::DS }, // RET
     E { tag: (0x0018, 0x1147), alias: "FieldOfViewShape", vr: ValueRepresentation::CS },
     E { tag: (0x0018, 0x1149), alias: "FieldOfViewDimensions", vr: ValueRepresentation::IS },
     E { tag: (0x0018, 0x1150), alias: "ExposureTime", vr: ValueRepresentation::IS },
@@ -673,7 +627,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0018, 0x1201), alias: "TimeOfLastCalibration", vr: ValueRepresentation::TM },
     E { tag: (0x0018, 0x1202), alias: "DateTimeOfLastCalibration", vr: ValueRepresentation::DT },
     E { tag: (0x0018, 0x1210), alias: "ConvolutionKernel", vr: ValueRepresentation::SH },
-    E { tag: (0x0018, 0x1240), alias: "UpperLowerPixelValues", vr: ValueRepresentation::IS }, // RET
     E { tag: (0x0018, 0x1242), alias: "ActualFrameDuration", vr: ValueRepresentation::IS },
     E { tag: (0x0018, 0x1243), alias: "CountRate", vr: ValueRepresentation::IS },
     E { tag: (0x0018, 0x1244), alias: "PreferredPlaybackSequencing", vr: ValueRepresentation::US },
@@ -761,26 +714,20 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0018, 0x3103), alias: "IVUSPullbackStartFrameNumber", vr: ValueRepresentation::IS },
     E { tag: (0x0018, 0x3104), alias: "IVUSPullbackStopFrameNumber", vr: ValueRepresentation::IS },
     E { tag: (0x0018, 0x3105), alias: "LesionNumber", vr: ValueRepresentation::IS },
-    E { tag: (0x0018, 0x4000), alias: "AcquisitionComments", vr: ValueRepresentation::LT }, // RET
     E { tag: (0x0018, 0x5000), alias: "OutputPower", vr: ValueRepresentation::SH },
     E { tag: (0x0018, 0x5010), alias: "TransducerData", vr: ValueRepresentation::LO },
     E { tag: (0x0018, 0x5012), alias: "FocusDepth", vr: ValueRepresentation::DS },
     E { tag: (0x0018, 0x5020), alias: "ProcessingFunction", vr: ValueRepresentation::LO },
-    E { tag: (0x0018, 0x5021), alias: "PostprocessingFunction", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0018, 0x5022), alias: "MechanicalIndex", vr: ValueRepresentation::DS },
     E { tag: (0x0018, 0x5024), alias: "BoneThermalIndex", vr: ValueRepresentation::DS },
     E { tag: (0x0018, 0x5026), alias: "CranialThermalIndex", vr: ValueRepresentation::DS },
     E { tag: (0x0018, 0x5027), alias: "SoftTissueThermalIndex", vr: ValueRepresentation::DS },
     E { tag: (0x0018, 0x5028), alias: "SoftTissueFocusThermalIndex", vr: ValueRepresentation::DS },
     E { tag: (0x0018, 0x5029), alias: "SoftTissueSurfaceThermalIndex", vr: ValueRepresentation::DS },
-    E { tag: (0x0018, 0x5030), alias: "DynamicRange", vr: ValueRepresentation::DS }, // RET
-    E { tag: (0x0018, 0x5040), alias: "TotalGain", vr: ValueRepresentation::DS }, // RET
     E { tag: (0x0018, 0x5050), alias: "DepthOfScanField", vr: ValueRepresentation::IS },
     E { tag: (0x0018, 0x5100), alias: "PatientPosition", vr: ValueRepresentation::CS },
     E { tag: (0x0018, 0x5101), alias: "ViewPosition", vr: ValueRepresentation::CS },
     E { tag: (0x0018, 0x5104), alias: "ProjectionEponymousNameCodeSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0018, 0x5210), alias: "ImageTransformationMatrix", vr: ValueRepresentation::DS }, // RET
-    E { tag: (0x0018, 0x5212), alias: "ImageTranslationVector", vr: ValueRepresentation::DS }, // RET
     E { tag: (0x0018, 0x6000), alias: "Sensitivity", vr: ValueRepresentation::DS },
     E { tag: (0x0018, 0x6011), alias: "SequenceOfUltrasoundRegions", vr: ValueRepresentation::SQ },
     E { tag: (0x0018, 0x6012), alias: "RegionSpatialFormat", vr: ValueRepresentation::US },
@@ -803,17 +750,11 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0018, 0x6032), alias: "PulseRepetitionFrequency", vr: ValueRepresentation::UL },
     E { tag: (0x0018, 0x6034), alias: "DopplerCorrectionAngle", vr: ValueRepresentation::FD },
     E { tag: (0x0018, 0x6036), alias: "SteeringAngle", vr: ValueRepresentation::FD },
-    E { tag: (0x0018, 0x6038), alias: "DopplerSampleVolumeXPositionRetired", vr: ValueRepresentation::UL }, // RET
     E { tag: (0x0018, 0x6039), alias: "DopplerSampleVolumeXPosition", vr: ValueRepresentation::SL },
-    E { tag: (0x0018, 0x603A), alias: "DopplerSampleVolumeYPositionRetired", vr: ValueRepresentation::UL }, // RET
     E { tag: (0x0018, 0x603B), alias: "DopplerSampleVolumeYPosition", vr: ValueRepresentation::SL },
-    E { tag: (0x0018, 0x603C), alias: "TMLinePositionX0Retired", vr: ValueRepresentation::UL }, // RET
     E { tag: (0x0018, 0x603D), alias: "TMLinePositionX0", vr: ValueRepresentation::SL },
-    E { tag: (0x0018, 0x603E), alias: "TMLinePositionY0Retired", vr: ValueRepresentation::UL }, // RET
     E { tag: (0x0018, 0x603F), alias: "TMLinePositionY0", vr: ValueRepresentation::SL },
-    E { tag: (0x0018, 0x6040), alias: "TMLinePositionX1Retired", vr: ValueRepresentation::UL }, // RET
     E { tag: (0x0018, 0x6041), alias: "TMLinePositionX1", vr: ValueRepresentation::SL },
-    E { tag: (0x0018, 0x6042), alias: "TMLinePositionY1Retired", vr: ValueRepresentation::UL }, // RET
     E { tag: (0x0018, 0x6043), alias: "TMLinePositionY1", vr: ValueRepresentation::SL },
     E { tag: (0x0018, 0x6044), alias: "PixelComponentOrganization", vr: ValueRepresentation::US },
     E { tag: (0x0018, 0x6046), alias: "PixelComponentMask", vr: ValueRepresentation::UL },
@@ -950,7 +891,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0018, 0x9093), alias: "NumberOfKSpaceTrajectories", vr: ValueRepresentation::US },
     E { tag: (0x0018, 0x9094), alias: "CoverageOfKSpace", vr: ValueRepresentation::CS },
     E { tag: (0x0018, 0x9095), alias: "SpectroscopyAcquisitionPhaseRows", vr: ValueRepresentation::UL },
-    E { tag: (0x0018, 0x9096), alias: "ParallelReductionFactorInPlaneRetired", vr: ValueRepresentation::FD }, // RET
     E { tag: (0x0018, 0x9098), alias: "TransmitterFrequency", vr: ValueRepresentation::FD },
     E { tag: (0x0018, 0x9100), alias: "ResonantNucleus", vr: ValueRepresentation::CS },
     E { tag: (0x0018, 0x9101), alias: "FrequencyCorrection", vr: ValueRepresentation::CS },
@@ -973,7 +913,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0018, 0x9152), alias: "MRMetaboliteMapSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0018, 0x9155), alias: "ParallelReductionFactorOutOfPlane", vr: ValueRepresentation::FD },
     E { tag: (0x0018, 0x9159), alias: "SpectroscopyAcquisitionOutOfPlanePhaseSteps", vr: ValueRepresentation::UL },
-    E { tag: (0x0018, 0x9166), alias: "BulkMotionStatus", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x0018, 0x9168), alias: "ParallelReductionFactorSecondInPlane", vr: ValueRepresentation::FD },
     E { tag: (0x0018, 0x9169), alias: "CardiacBeatRejectionTechnique", vr: ValueRepresentation::CS },
     E { tag: (0x0018, 0x9170), alias: "RespiratoryMotionCompensationTechnique", vr: ValueRepresentation::CS },
@@ -993,8 +932,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0018, 0x9184), alias: "TaggingDelay", vr: ValueRepresentation::FD },
     E { tag: (0x0018, 0x9185), alias: "RespiratoryMotionCompensationTechniqueDescription", vr: ValueRepresentation::ST },
     E { tag: (0x0018, 0x9186), alias: "RespiratorySignalSourceID", vr: ValueRepresentation::SH },
-    E { tag: (0x0018, 0x9195), alias: "ChemicalShiftMinimumIntegrationLimitInHz", vr: ValueRepresentation::FD }, // RET
-    E { tag: (0x0018, 0x9196), alias: "ChemicalShiftMaximumIntegrationLimitInHz", vr: ValueRepresentation::FD }, // RET
     E { tag: (0x0018, 0x9197), alias: "MRVelocityEncodingSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0018, 0x9198), alias: "FirstOrderPhaseCorrection", vr: ValueRepresentation::CS },
     E { tag: (0x0018, 0x9199), alias: "WaterReferencedPhaseCorrection", vr: ValueRepresentation::CS },
@@ -1310,58 +1247,29 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0020, 0x0011), alias: "SeriesNumber", vr: ValueRepresentation::IS },
     E { tag: (0x0020, 0x0012), alias: "AcquisitionNumber", vr: ValueRepresentation::IS },
     E { tag: (0x0020, 0x0013), alias: "InstanceNumber", vr: ValueRepresentation::IS },
-    E { tag: (0x0020, 0x0014), alias: "IsotopeNumber", vr: ValueRepresentation::IS }, // RET
-    E { tag: (0x0020, 0x0015), alias: "PhaseNumber", vr: ValueRepresentation::IS }, // RET
-    E { tag: (0x0020, 0x0016), alias: "IntervalNumber", vr: ValueRepresentation::IS }, // RET
-    E { tag: (0x0020, 0x0017), alias: "TimeSlotNumber", vr: ValueRepresentation::IS }, // RET
-    E { tag: (0x0020, 0x0018), alias: "AngleNumber", vr: ValueRepresentation::IS }, // RET
     E { tag: (0x0020, 0x0019), alias: "ItemNumber", vr: ValueRepresentation::IS },
     E { tag: (0x0020, 0x0020), alias: "PatientOrientation", vr: ValueRepresentation::CS },
-    E { tag: (0x0020, 0x0022), alias: "OverlayNumber", vr: ValueRepresentation::IS }, // RET
-    E { tag: (0x0020, 0x0024), alias: "CurveNumber", vr: ValueRepresentation::IS }, // RET
-    E { tag: (0x0020, 0x0026), alias: "LUTNumber", vr: ValueRepresentation::IS }, // RET
-    E { tag: (0x0020, 0x0030), alias: "ImagePosition", vr: ValueRepresentation::DS }, // RET
     E { tag: (0x0020, 0x0032), alias: "ImagePositionPatient", vr: ValueRepresentation::DS },
-    E { tag: (0x0020, 0x0035), alias: "ImageOrientation", vr: ValueRepresentation::DS }, // RET
     E { tag: (0x0020, 0x0037), alias: "ImageOrientationPatient", vr: ValueRepresentation::DS },
-    E { tag: (0x0020, 0x0050), alias: "Location", vr: ValueRepresentation::DS }, // RET
     E { tag: (0x0020, 0x0052), alias: "FrameOfReferenceUID", vr: ValueRepresentation::UI },
     E { tag: (0x0020, 0x0060), alias: "Laterality", vr: ValueRepresentation::CS },
     E { tag: (0x0020, 0x0062), alias: "ImageLaterality", vr: ValueRepresentation::CS },
-    E { tag: (0x0020, 0x0070), alias: "ImageGeometryType", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0020, 0x0080), alias: "MaskingImage", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0020, 0x00AA), alias: "ReportNumber", vr: ValueRepresentation::IS }, // RET
     E { tag: (0x0020, 0x0100), alias: "TemporalPositionIdentifier", vr: ValueRepresentation::IS },
     E { tag: (0x0020, 0x0105), alias: "NumberOfTemporalPositions", vr: ValueRepresentation::IS },
     E { tag: (0x0020, 0x0110), alias: "TemporalResolution", vr: ValueRepresentation::DS },
     E { tag: (0x0020, 0x0200), alias: "SynchronizationFrameOfReferenceUID", vr: ValueRepresentation::UI },
     E { tag: (0x0020, 0x0242), alias: "SOPInstanceUIDOfConcatenationSource", vr: ValueRepresentation::UI },
-    E { tag: (0x0020, 0x1000), alias: "SeriesInStudy", vr: ValueRepresentation::IS }, // RET
-    E { tag: (0x0020, 0x1001), alias: "AcquisitionsInSeries", vr: ValueRepresentation::IS }, // RET
     E { tag: (0x0020, 0x1002), alias: "ImagesInAcquisition", vr: ValueRepresentation::IS },
-    E { tag: (0x0020, 0x1003), alias: "ImagesInSeries", vr: ValueRepresentation::IS }, // RET
-    E { tag: (0x0020, 0x1004), alias: "AcquisitionsInStudy", vr: ValueRepresentation::IS }, // RET
-    E { tag: (0x0020, 0x1005), alias: "ImagesInStudy", vr: ValueRepresentation::IS }, // RET
-    E { tag: (0x0020, 0x1020), alias: "Reference", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0020, 0x103F), alias: "TargetPositionReferenceIndicator", vr: ValueRepresentation::LO },
     E { tag: (0x0020, 0x1040), alias: "PositionReferenceIndicator", vr: ValueRepresentation::LO },
     E { tag: (0x0020, 0x1041), alias: "SliceLocation", vr: ValueRepresentation::DS },
-    E { tag: (0x0020, 0x1070), alias: "OtherStudyNumbers", vr: ValueRepresentation::IS }, // RET
     E { tag: (0x0020, 0x1200), alias: "NumberOfPatientRelatedStudies", vr: ValueRepresentation::IS },
     E { tag: (0x0020, 0x1202), alias: "NumberOfPatientRelatedSeries", vr: ValueRepresentation::IS },
     E { tag: (0x0020, 0x1204), alias: "NumberOfPatientRelatedInstances", vr: ValueRepresentation::IS },
     E { tag: (0x0020, 0x1206), alias: "NumberOfStudyRelatedSeries", vr: ValueRepresentation::IS },
     E { tag: (0x0020, 0x1208), alias: "NumberOfStudyRelatedInstances", vr: ValueRepresentation::IS },
     E { tag: (0x0020, 0x1209), alias: "NumberOfSeriesRelatedInstances", vr: ValueRepresentation::IS },
-    E { tag: (0x0020, 0x3401), alias: "ModifyingDeviceID", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0020, 0x3402), alias: "ModifiedImageID", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0020, 0x3403), alias: "ModifiedImageDate", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x0020, 0x3404), alias: "ModifyingDeviceManufacturer", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0020, 0x3405), alias: "ModifiedImageTime", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x0020, 0x3406), alias: "ModifiedImageDescription", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0020, 0x4000), alias: "ImageComments", vr: ValueRepresentation::LT },
-    E { tag: (0x0020, 0x5000), alias: "OriginalImageIdentification", vr: ValueRepresentation::AT }, // RET
-    E { tag: (0x0020, 0x5002), alias: "OriginalImageIdentificationNomenclature", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0020, 0x9056), alias: "StackID", vr: ValueRepresentation::SH },
     E { tag: (0x0020, 0x9057), alias: "InStackPositionNumber", vr: ValueRepresentation::UL },
     E { tag: (0x0020, 0x9071), alias: "FrameAnatomySequence", vr: ValueRepresentation::SQ },
@@ -1500,7 +1408,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0022, 0x1090), alias: "IOLPowerSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0022, 0x1092), alias: "LensConstantSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0022, 0x1093), alias: "IOLManufacturer", vr: ValueRepresentation::LO },
-    E { tag: (0x0022, 0x1094), alias: "LensConstantDescription", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0022, 0x1095), alias: "ImplantName", vr: ValueRepresentation::LO },
     E { tag: (0x0022, 0x1096), alias: "KeratometryMeasurementTypeCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0022, 0x1097), alias: "ImplantPartNumber", vr: ValueRepresentation::LO },
@@ -1520,7 +1427,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0022, 0x1135), alias: "SourceOfRefractiveMeasurementsCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0022, 0x1140), alias: "OphthalmicAxialLengthMeasurementModified", vr: ValueRepresentation::CS },
     E { tag: (0x0022, 0x1150), alias: "OphthalmicAxialLengthDataSourceCodeSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0022, 0x1153), alias: "OphthalmicAxialLengthAcquisitionMethodCodeSequence", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0022, 0x1155), alias: "SignalToNoiseRatio", vr: ValueRepresentation::FL },
     E { tag: (0x0022, 0x1159), alias: "OphthalmicAxialLengthDataSourceDescription", vr: ValueRepresentation::LO },
     E { tag: (0x0022, 0x1210), alias: "OphthalmicAxialLengthMeasurementsTotalLengthSequence", vr: ValueRepresentation::SQ },
@@ -1534,8 +1440,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0022, 0x1257), alias: "SelectedSegmentalOphthalmicAxialLengthSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0022, 0x1260), alias: "SelectedTotalOphthalmicAxialLengthSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0022, 0x1262), alias: "OphthalmicAxialLengthQualityMetricSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0022, 0x1265), alias: "OphthalmicAxialLengthQualityMetricTypeCodeSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0022, 0x1273), alias: "OphthalmicAxialLengthQualityMetricTypeDescription", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0022, 0x1300), alias: "IntraocularLensCalculationsRightEyeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0022, 0x1310), alias: "IntraocularLensCalculationsLeftEyeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0022, 0x1330), alias: "ReferencedOphthalmicAxialLengthMeasurementQCImageSequence", vr: ValueRepresentation::SQ },
@@ -1673,79 +1577,37 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0028, 0x0002), alias: "SamplesPerPixel", vr: ValueRepresentation::US },
     E { tag: (0x0028, 0x0003), alias: "SamplesPerPixelUsed", vr: ValueRepresentation::US },
     E { tag: (0x0028, 0x0004), alias: "PhotometricInterpretation", vr: ValueRepresentation::CS },
-    E { tag: (0x0028, 0x0005), alias: "ImageDimensions", vr: ValueRepresentation::US }, // RET
     E { tag: (0x0028, 0x0006), alias: "PlanarConfiguration", vr: ValueRepresentation::US },
     E { tag: (0x0028, 0x0008), alias: "NumberOfFrames", vr: ValueRepresentation::IS },
     E { tag: (0x0028, 0x0009), alias: "FrameIncrementPointer", vr: ValueRepresentation::AT },
     E { tag: (0x0028, 0x000A), alias: "FrameDimensionPointer", vr: ValueRepresentation::AT },
     E { tag: (0x0028, 0x0010), alias: "Rows", vr: ValueRepresentation::US },
     E { tag: (0x0028, 0x0011), alias: "Columns", vr: ValueRepresentation::US },
-    E { tag: (0x0028, 0x0012), alias: "Planes", vr: ValueRepresentation::US }, // RET
     E { tag: (0x0028, 0x0014), alias: "UltrasoundColorDataPresent", vr: ValueRepresentation::US },
     E { tag: (0x0028, 0x0030), alias: "PixelSpacing", vr: ValueRepresentation::DS },
     E { tag: (0x0028, 0x0031), alias: "ZoomFactor", vr: ValueRepresentation::DS },
     E { tag: (0x0028, 0x0032), alias: "ZoomCenter", vr: ValueRepresentation::DS },
     E { tag: (0x0028, 0x0034), alias: "PixelAspectRatio", vr: ValueRepresentation::IS },
-    E { tag: (0x0028, 0x0040), alias: "ImageFormat", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0028, 0x0050), alias: "ManipulatedImage", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0028, 0x0051), alias: "CorrectedImage", vr: ValueRepresentation::CS },
-    E { tag: (0x0028, 0x005F), alias: "CompressionRecognitionCode", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0028, 0x0060), alias: "CompressionCode", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0028, 0x0061), alias: "CompressionOriginator", vr: ValueRepresentation::SH }, // RET
-    E { tag: (0x0028, 0x0062), alias: "CompressionLabel", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0028, 0x0063), alias: "CompressionDescription", vr: ValueRepresentation::SH }, // RET
-    E { tag: (0x0028, 0x0065), alias: "CompressionSequence", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0028, 0x0066), alias: "CompressionStepPointers", vr: ValueRepresentation::AT }, // RET
-    E { tag: (0x0028, 0x0068), alias: "RepeatInterval", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x0028, 0x0069), alias: "BitsGrouped", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x0028, 0x0070), alias: "PerimeterTable", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x0028, 0x0071), alias: "PerimeterValue", vr: ValueRepresentation::US/* or  or SS */ }, // RET
-    E { tag: (0x0028, 0x0080), alias: "PredictorRows", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x0028, 0x0081), alias: "PredictorColumns", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x0028, 0x0082), alias: "PredictorConstants", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x0028, 0x0090), alias: "BlockedPixels", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0028, 0x0091), alias: "BlockRows", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x0028, 0x0092), alias: "BlockColumns", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x0028, 0x0093), alias: "RowOverlap", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x0028, 0x0094), alias: "ColumnOverlap", vr: ValueRepresentation::US }, // RET
     E { tag: (0x0028, 0x0100), alias: "BitsAllocated", vr: ValueRepresentation::US },
     E { tag: (0x0028, 0x0101), alias: "BitsStored", vr: ValueRepresentation::US },
     E { tag: (0x0028, 0x0102), alias: "HighBit", vr: ValueRepresentation::US },
     E { tag: (0x0028, 0x0103), alias: "PixelRepresentation", vr: ValueRepresentation::US },
-    E { tag: (0x0028, 0x0104), alias: "SmallestValidPixelValue", vr: ValueRepresentation::US/* or  or SS */ }, // RET
-    E { tag: (0x0028, 0x0105), alias: "LargestValidPixelValue", vr: ValueRepresentation::US/* or  or SS */ }, // RET
     E { tag: (0x0028, 0x0106), alias: "SmallestImagePixelValue", vr: ValueRepresentation::US/* or  or SS */ },
     E { tag: (0x0028, 0x0107), alias: "LargestImagePixelValue", vr: ValueRepresentation::US/* or  or SS */ },
     E { tag: (0x0028, 0x0108), alias: "SmallestPixelValueInSeries", vr: ValueRepresentation::US/* or  or SS */ },
     E { tag: (0x0028, 0x0109), alias: "LargestPixelValueInSeries", vr: ValueRepresentation::US/* or  or SS */ },
-    E { tag: (0x0028, 0x0110), alias: "SmallestImagePixelValueInPlane", vr: ValueRepresentation::US/* or  or SS */ }, // RET
-    E { tag: (0x0028, 0x0111), alias: "LargestImagePixelValueInPlane", vr: ValueRepresentation::US/* or  or SS */ }, // RET
     E { tag: (0x0028, 0x0120), alias: "PixelPaddingValue", vr: ValueRepresentation::US/* or  or SS */ },
     E { tag: (0x0028, 0x0121), alias: "PixelPaddingRangeLimit", vr: ValueRepresentation::US/* or  or SS */ },
     E { tag: (0x0028, 0x0122), alias: "FloatPixelPaddingValue", vr: ValueRepresentation::FL },
     E { tag: (0x0028, 0x0123), alias: "DoubleFloatPixelPaddingValue", vr: ValueRepresentation::FD },
     E { tag: (0x0028, 0x0124), alias: "FloatPixelPaddingRangeLimit", vr: ValueRepresentation::FL },
     E { tag: (0x0028, 0x0125), alias: "DoubleFloatPixelPaddingRangeLimit", vr: ValueRepresentation::FD },
-    E { tag: (0x0028, 0x0200), alias: "ImageLocation", vr: ValueRepresentation::US }, // RET
     E { tag: (0x0028, 0x0300), alias: "QualityControlImage", vr: ValueRepresentation::CS },
     E { tag: (0x0028, 0x0301), alias: "BurnedInAnnotation", vr: ValueRepresentation::CS },
     E { tag: (0x0028, 0x0302), alias: "RecognizableVisualFeatures", vr: ValueRepresentation::CS },
     E { tag: (0x0028, 0x0303), alias: "LongitudinalTemporalInformationModified", vr: ValueRepresentation::CS },
     E { tag: (0x0028, 0x0304), alias: "ReferencedColorPaletteInstanceUID", vr: ValueRepresentation::UI },
-    E { tag: (0x0028, 0x0400), alias: "TransformLabel", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0028, 0x0401), alias: "TransformVersionNumber", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0028, 0x0402), alias: "NumberOfTransformSteps", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x0028, 0x0403), alias: "SequenceOfCompressedData", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0028, 0x0404), alias: "DetailsOfCoefficients", vr: ValueRepresentation::AT }, // RET
-    E { tag: (0x0028, 0x0700), alias: "DCTLabel", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0028, 0x0701), alias: "DataBlockDescription", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0028, 0x0702), alias: "DataBlock", vr: ValueRepresentation::AT }, // RET
-    E { tag: (0x0028, 0x0710), alias: "NormalizationFactorFormat", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x0028, 0x0720), alias: "ZonalMapNumberFormat", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x0028, 0x0721), alias: "ZonalMapLocation", vr: ValueRepresentation::AT }, // RET
-    E { tag: (0x0028, 0x0722), alias: "ZonalMapFormat", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x0028, 0x0730), alias: "AdaptiveMapFormat", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x0028, 0x0740), alias: "CodeNumberFormat", vr: ValueRepresentation::US }, // RET
     E { tag: (0x0028, 0x0A02), alias: "PixelSpacingCalibrationType", vr: ValueRepresentation::CS },
     E { tag: (0x0028, 0x0A04), alias: "PixelSpacingCalibrationDescription", vr: ValueRepresentation::LO },
     E { tag: (0x0028, 0x1040), alias: "PixelIntensityRelationship", vr: ValueRepresentation::CS },
@@ -1757,26 +1619,16 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0028, 0x1054), alias: "RescaleType", vr: ValueRepresentation::LO },
     E { tag: (0x0028, 0x1055), alias: "WindowCenterWidthExplanation", vr: ValueRepresentation::LO },
     E { tag: (0x0028, 0x1056), alias: "VOILUTFunction", vr: ValueRepresentation::CS },
-    E { tag: (0x0028, 0x1080), alias: "GrayScale", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x0028, 0x1090), alias: "RecommendedViewingMode", vr: ValueRepresentation::CS },
-    E { tag: (0x0028, 0x1100), alias: "GrayLookupTableDescriptor", vr: ValueRepresentation::US/* or  or SS */ }, // RET
     E { tag: (0x0028, 0x1101), alias: "RedPaletteColorLookupTableDescriptor", vr: ValueRepresentation::US/* or  or SS */ },
     E { tag: (0x0028, 0x1102), alias: "GreenPaletteColorLookupTableDescriptor", vr: ValueRepresentation::US/* or  or SS */ },
     E { tag: (0x0028, 0x1103), alias: "BluePaletteColorLookupTableDescriptor", vr: ValueRepresentation::US/* or  or SS */ },
     E { tag: (0x0028, 0x1104), alias: "AlphaPaletteColorLookupTableDescriptor", vr: ValueRepresentation::US },
-    E { tag: (0x0028, 0x1111), alias: "LargeRedPaletteColorLookupTableDescriptor", vr: ValueRepresentation::US/* or  or SS */ }, // RET
-    E { tag: (0x0028, 0x1112), alias: "LargeGreenPaletteColorLookupTableDescriptor", vr: ValueRepresentation::US/* or  or SS */ }, // RET
-    E { tag: (0x0028, 0x1113), alias: "LargeBluePaletteColorLookupTableDescriptor", vr: ValueRepresentation::US/* or  or SS */ }, // RET
     E { tag: (0x0028, 0x1199), alias: "PaletteColorLookupTableUID", vr: ValueRepresentation::UI },
-    E { tag: (0x0028, 0x1200), alias: "GrayLookupTableData", vr: ValueRepresentation::US/* or  or SS or OW */ }, // RET
     E { tag: (0x0028, 0x1201), alias: "RedPaletteColorLookupTableData", vr: ValueRepresentation::OW },
     E { tag: (0x0028, 0x1202), alias: "GreenPaletteColorLookupTableData", vr: ValueRepresentation::OW },
     E { tag: (0x0028, 0x1203), alias: "BluePaletteColorLookupTableData", vr: ValueRepresentation::OW },
     E { tag: (0x0028, 0x1204), alias: "AlphaPaletteColorLookupTableData", vr: ValueRepresentation::OW },
-    E { tag: (0x0028, 0x1211), alias: "LargeRedPaletteColorLookupTableData", vr: ValueRepresentation::OW }, // RET
-    E { tag: (0x0028, 0x1212), alias: "LargeGreenPaletteColorLookupTableData", vr: ValueRepresentation::OW }, // RET
-    E { tag: (0x0028, 0x1213), alias: "LargeBluePaletteColorLookupTableData", vr: ValueRepresentation::OW }, // RET
-    E { tag: (0x0028, 0x1214), alias: "LargePaletteColorLookupTableUID", vr: ValueRepresentation::UI }, // RET
     E { tag: (0x0028, 0x1221), alias: "SegmentedRedPaletteColorLookupTableData", vr: ValueRepresentation::OW },
     E { tag: (0x0028, 0x1222), alias: "SegmentedGreenPaletteColorLookupTableData", vr: ValueRepresentation::OW },
     E { tag: (0x0028, 0x1223), alias: "SegmentedBluePaletteColorLookupTableData", vr: ValueRepresentation::OW },
@@ -1812,13 +1664,10 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0028, 0x3006), alias: "LUTData", vr: ValueRepresentation::US/* or  or OW */ },
     E { tag: (0x0028, 0x3010), alias: "VOILUTSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0028, 0x3110), alias: "SoftcopyVOILUTSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0028, 0x4000), alias: "ImagePresentationComments", vr: ValueRepresentation::LT }, // RET
-    E { tag: (0x0028, 0x5000), alias: "BiPlaneAcquisitionSequence", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0028, 0x6010), alias: "RepresentativeFrameNumber", vr: ValueRepresentation::US },
     E { tag: (0x0028, 0x6020), alias: "FrameNumbersOfInterest", vr: ValueRepresentation::US },
     E { tag: (0x0028, 0x6022), alias: "FrameOfInterestDescription", vr: ValueRepresentation::LO },
     E { tag: (0x0028, 0x6023), alias: "FrameOfInterestType", vr: ValueRepresentation::CS },
-    E { tag: (0x0028, 0x6030), alias: "MaskPointers", vr: ValueRepresentation::US }, // RET
     E { tag: (0x0028, 0x6040), alias: "RWavePointer", vr: ValueRepresentation::US },
     E { tag: (0x0028, 0x6100), alias: "MaskSubtractionSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0028, 0x6101), alias: "MaskOperation", vr: ValueRepresentation::CS },
@@ -1879,7 +1728,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0028, 0x9001), alias: "DataPointRows", vr: ValueRepresentation::UL },
     E { tag: (0x0028, 0x9002), alias: "DataPointColumns", vr: ValueRepresentation::UL },
     E { tag: (0x0028, 0x9003), alias: "SignalDomainColumns", vr: ValueRepresentation::CS },
-    E { tag: (0x0028, 0x9099), alias: "LargestMonochromePixelValue", vr: ValueRepresentation::US }, // RET
     E { tag: (0x0028, 0x9108), alias: "DataRepresentation", vr: ValueRepresentation::CS },
     E { tag: (0x0028, 0x9110), alias: "PixelMeasuresSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0028, 0x9132), alias: "FrameVOILUTSequence", vr: ValueRepresentation::SQ },
@@ -1904,53 +1752,22 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0028, 0x9507), alias: "LUTFrameRange", vr: ValueRepresentation::US },
     E { tag: (0x0028, 0x9520), alias: "ImageToEquipmentMappingMatrix", vr: ValueRepresentation::DS },
     E { tag: (0x0028, 0x9537), alias: "EquipmentCoordinateSystemIdentification", vr: ValueRepresentation::CS },
-    E { tag: (0x0032, 0x000A), alias: "StudyStatusID", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0032, 0x000C), alias: "StudyPriorityID", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0032, 0x0012), alias: "StudyIDIssuer", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0032, 0x0032), alias: "StudyVerifiedDate", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x0032, 0x0033), alias: "StudyVerifiedTime", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x0032, 0x0034), alias: "StudyReadDate", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x0032, 0x0035), alias: "StudyReadTime", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x0032, 0x1000), alias: "ScheduledStudyStartDate", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x0032, 0x1001), alias: "ScheduledStudyStartTime", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x0032, 0x1010), alias: "ScheduledStudyStopDate", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x0032, 0x1011), alias: "ScheduledStudyStopTime", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x0032, 0x1020), alias: "ScheduledStudyLocation", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0032, 0x1021), alias: "ScheduledStudyLocationAETitle", vr: ValueRepresentation::AE }, // RET
-    E { tag: (0x0032, 0x1030), alias: "ReasonForStudy", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0032, 0x1031), alias: "RequestingPhysicianIdentificationSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0032, 0x1032), alias: "RequestingPhysician", vr: ValueRepresentation::PN },
     E { tag: (0x0032, 0x1033), alias: "RequestingService", vr: ValueRepresentation::LO },
     E { tag: (0x0032, 0x1034), alias: "RequestingServiceCodeSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0032, 0x1040), alias: "StudyArrivalDate", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x0032, 0x1041), alias: "StudyArrivalTime", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x0032, 0x1050), alias: "StudyCompletionDate", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x0032, 0x1051), alias: "StudyCompletionTime", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x0032, 0x1055), alias: "StudyComponentStatusID", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x0032, 0x1060), alias: "RequestedProcedureDescription", vr: ValueRepresentation::LO },
     E { tag: (0x0032, 0x1064), alias: "RequestedProcedureCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0032, 0x1070), alias: "RequestedContrastAgent", vr: ValueRepresentation::LO },
-    E { tag: (0x0032, 0x4000), alias: "StudyComments", vr: ValueRepresentation::LT }, // RET
     E { tag: (0x0038, 0x0004), alias: "ReferencedPatientAliasSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0038, 0x0008), alias: "VisitStatusID", vr: ValueRepresentation::CS },
     E { tag: (0x0038, 0x0010), alias: "AdmissionID", vr: ValueRepresentation::LO },
-    E { tag: (0x0038, 0x0011), alias: "IssuerOfAdmissionID", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0038, 0x0014), alias: "IssuerOfAdmissionIDSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0038, 0x0016), alias: "RouteOfAdmissions", vr: ValueRepresentation::LO },
-    E { tag: (0x0038, 0x001A), alias: "ScheduledAdmissionDate", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x0038, 0x001B), alias: "ScheduledAdmissionTime", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x0038, 0x001C), alias: "ScheduledDischargeDate", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x0038, 0x001D), alias: "ScheduledDischargeTime", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x0038, 0x001E), alias: "ScheduledPatientInstitutionResidence", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0038, 0x0020), alias: "AdmittingDate", vr: ValueRepresentation::DA },
     E { tag: (0x0038, 0x0021), alias: "AdmittingTime", vr: ValueRepresentation::TM },
-    E { tag: (0x0038, 0x0030), alias: "DischargeDate", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x0038, 0x0032), alias: "DischargeTime", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x0038, 0x0040), alias: "DischargeDiagnosisDescription", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0038, 0x0044), alias: "DischargeDiagnosisCodeSequence", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0038, 0x0050), alias: "SpecialNeeds", vr: ValueRepresentation::LO },
     E { tag: (0x0038, 0x0060), alias: "ServiceEpisodeID", vr: ValueRepresentation::LO },
-    E { tag: (0x0038, 0x0061), alias: "IssuerOfServiceEpisodeID", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0038, 0x0062), alias: "ServiceEpisodeDescription", vr: ValueRepresentation::LO },
     E { tag: (0x0038, 0x0064), alias: "IssuerOfServiceEpisodeIDSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0038, 0x0100), alias: "PertinentDocumentsSequence", vr: ValueRepresentation::SQ },
@@ -2051,7 +1868,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0040, 0x0302), alias: "EntranceDose", vr: ValueRepresentation::US },
     E { tag: (0x0040, 0x0303), alias: "ExposedArea", vr: ValueRepresentation::US },
     E { tag: (0x0040, 0x0306), alias: "DistanceSourceToEntrance", vr: ValueRepresentation::DS },
-    E { tag: (0x0040, 0x0307), alias: "DistanceSourceToSupport", vr: ValueRepresentation::DS }, // RET
     E { tag: (0x0040, 0x030E), alias: "ExposureDoseSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x0310), alias: "CommentsOnRadiationDose", vr: ValueRepresentation::ST },
     E { tag: (0x0040, 0x0312), alias: "XRayOutput", vr: ValueRepresentation::DS },
@@ -2061,23 +1877,18 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0040, 0x0320), alias: "BillingProcedureStepSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x0321), alias: "FilmConsumptionSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x0324), alias: "BillingSuppliesAndDevicesSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0x0330), alias: "ReferencedProcedureStepSequence", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0x0340), alias: "PerformedSeriesSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x0400), alias: "CommentsOnTheScheduledProcedureStep", vr: ValueRepresentation::LT },
     E { tag: (0x0040, 0x0440), alias: "ProtocolContextSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x0441), alias: "ContentItemModifierSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x0500), alias: "ScheduledSpecimenSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0x050A), alias: "SpecimenAccessionNumber", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0040, 0x0512), alias: "ContainerIdentifier", vr: ValueRepresentation::LO },
     E { tag: (0x0040, 0x0513), alias: "IssuerOfTheContainerIdentifierSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x0515), alias: "AlternateContainerIdentifierSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x0518), alias: "ContainerTypeCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x051A), alias: "ContainerDescription", vr: ValueRepresentation::LO },
     E { tag: (0x0040, 0x0520), alias: "ContainerComponentSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0x0550), alias: "SpecimenSequence", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0x0551), alias: "SpecimenIdentifier", vr: ValueRepresentation::LO },
-    E { tag: (0x0040, 0x0552), alias: "SpecimenDescriptionSequenceTrial", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0040, 0x0553), alias: "SpecimenDescriptionTrial", vr: ValueRepresentation::ST }, // RET
     E { tag: (0x0040, 0x0554), alias: "SpecimenUID", vr: ValueRepresentation::UI },
     E { tag: (0x0040, 0x0555), alias: "AcquisitionContextSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x0556), alias: "AcquisitionContextDescription", vr: ValueRepresentation::ST },
@@ -2089,39 +1900,29 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0040, 0x0610), alias: "SpecimenPreparationSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x0612), alias: "SpecimenPreparationStepContentItemSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x0620), alias: "SpecimenLocalizationContentItemSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0x06FA), alias: "SlideIdentifier", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0040, 0x071A), alias: "ImageCenterPointCoordinatesSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x072A), alias: "XOffsetInSlideCoordinateSystem", vr: ValueRepresentation::DS },
     E { tag: (0x0040, 0x073A), alias: "YOffsetInSlideCoordinateSystem", vr: ValueRepresentation::DS },
     E { tag: (0x0040, 0x074A), alias: "ZOffsetInSlideCoordinateSystem", vr: ValueRepresentation::DS },
-    E { tag: (0x0040, 0x08D8), alias: "PixelSpacingSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0040, 0x08DA), alias: "CoordinateSystemAxisCodeSequence", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0x08EA), alias: "MeasurementUnitsCodeSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0x09F8), alias: "VitalStainCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0x1001), alias: "RequestedProcedureID", vr: ValueRepresentation::SH },
     E { tag: (0x0040, 0x1002), alias: "ReasonForTheRequestedProcedure", vr: ValueRepresentation::LO },
     E { tag: (0x0040, 0x1003), alias: "RequestedProcedurePriority", vr: ValueRepresentation::SH },
     E { tag: (0x0040, 0x1004), alias: "PatientTransportArrangements", vr: ValueRepresentation::LO },
     E { tag: (0x0040, 0x1005), alias: "RequestedProcedureLocation", vr: ValueRepresentation::LO },
-    E { tag: (0x0040, 0x1006), alias: "PlacerOrderNumberProcedure", vr: ValueRepresentation::SH }, // RET
-    E { tag: (0x0040, 0x1007), alias: "FillerOrderNumberProcedure", vr: ValueRepresentation::SH }, // RET
     E { tag: (0x0040, 0x1008), alias: "ConfidentialityCode", vr: ValueRepresentation::LO },
     E { tag: (0x0040, 0x1009), alias: "ReportingPriority", vr: ValueRepresentation::SH },
     E { tag: (0x0040, 0x100A), alias: "ReasonForRequestedProcedureCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x1010), alias: "NamesOfIntendedRecipientsOfResults", vr: ValueRepresentation::PN },
     E { tag: (0x0040, 0x1011), alias: "IntendedRecipientsOfResultsIdentificationSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x1012), alias: "ReasonForPerformedProcedureCodeSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0x1060), alias: "RequestedProcedureDescriptionTrial", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0040, 0x1101), alias: "PersonIdentificationCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x1102), alias: "PersonAddress", vr: ValueRepresentation::ST },
     E { tag: (0x0040, 0x1103), alias: "PersonTelephoneNumbers", vr: ValueRepresentation::LO },
     E { tag: (0x0040, 0x1104), alias: "PersonTelecomInformation", vr: ValueRepresentation::LT },
     E { tag: (0x0040, 0x1400), alias: "RequestedProcedureComments", vr: ValueRepresentation::LT },
-    E { tag: (0x0040, 0x2001), alias: "ReasonForTheImagingServiceRequest", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0040, 0x2004), alias: "IssueDateOfImagingServiceRequest", vr: ValueRepresentation::DA },
     E { tag: (0x0040, 0x2005), alias: "IssueTimeOfImagingServiceRequest", vr: ValueRepresentation::TM },
-    E { tag: (0x0040, 0x2006), alias: "PlacerOrderNumberImagingServiceRequestRetired", vr: ValueRepresentation::SH }, // RET
-    E { tag: (0x0040, 0x2007), alias: "FillerOrderNumberImagingServiceRequestRetired", vr: ValueRepresentation::SH }, // RET
     E { tag: (0x0040, 0x2008), alias: "OrderEnteredBy", vr: ValueRepresentation::PN },
     E { tag: (0x0040, 0x2009), alias: "OrderEntererLocation", vr: ValueRepresentation::SH },
     E { tag: (0x0040, 0x2010), alias: "OrderCallbackPhoneNumber", vr: ValueRepresentation::SH },
@@ -2130,32 +1931,21 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0040, 0x2017), alias: "FillerOrderNumberImagingServiceRequest", vr: ValueRepresentation::LO },
     E { tag: (0x0040, 0x2400), alias: "ImagingServiceRequestComments", vr: ValueRepresentation::LT },
     E { tag: (0x0040, 0x3001), alias: "ConfidentialityConstraintOnPatientDataDescription", vr: ValueRepresentation::LO },
-    E { tag: (0x0040, 0x4001), alias: "GeneralPurposeScheduledProcedureStepStatus", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0040, 0x4002), alias: "GeneralPurposePerformedProcedureStepStatus", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0040, 0x4003), alias: "GeneralPurposeScheduledProcedureStepPriority", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0040, 0x4004), alias: "ScheduledProcessingApplicationsCodeSequence", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0x4005), alias: "ScheduledProcedureStepStartDateTime", vr: ValueRepresentation::DT },
-    E { tag: (0x0040, 0x4006), alias: "MultipleCopiesFlag", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x0040, 0x4007), alias: "PerformedProcessingApplicationsCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x4009), alias: "HumanPerformerCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x4010), alias: "ScheduledProcedureStepModificationDateTime", vr: ValueRepresentation::DT },
     E { tag: (0x0040, 0x4011), alias: "ExpectedCompletionDateTime", vr: ValueRepresentation::DT },
-    E { tag: (0x0040, 0x4015), alias: "ResultingGeneralPurposePerformedProcedureStepsSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0040, 0x4016), alias: "ReferencedGeneralPurposeScheduledProcedureStepSequence", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0x4018), alias: "ScheduledWorkitemCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x4019), alias: "PerformedWorkitemCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x4020), alias: "InputAvailabilityFlag", vr: ValueRepresentation::CS },
     E { tag: (0x0040, 0x4021), alias: "InputInformationSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0x4022), alias: "RelevantInformationSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0040, 0x4023), alias: "ReferencedGeneralPurposeScheduledProcedureStepTransactionUID", vr: ValueRepresentation::UI }, // RET
     E { tag: (0x0040, 0x4025), alias: "ScheduledStationNameCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x4026), alias: "ScheduledStationClassCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x4027), alias: "ScheduledStationGeographicLocationCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x4028), alias: "PerformedStationNameCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x4029), alias: "PerformedStationClassCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x4030), alias: "PerformedStationGeographicLocationCodeSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0x4031), alias: "RequestedSubsequentWorkitemCodeSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0040, 0x4032), alias: "NonDICOMOutputCodeSequence", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0x4033), alias: "OutputInformationSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x4034), alias: "ScheduledHumanPerformersSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x4035), alias: "ActualHumanPerformersSequence", vr: ValueRepresentation::SQ },
@@ -2185,51 +1975,28 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0040, 0x9220), alias: "QuantityDefinitionSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0x9224), alias: "RealWorldValueIntercept", vr: ValueRepresentation::FD },
     E { tag: (0x0040, 0x9225), alias: "RealWorldValueSlope", vr: ValueRepresentation::FD },
-    E { tag: (0x0040, 0xA007), alias: "FindingsFlagTrial", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x0040, 0xA010), alias: "RelationshipType", vr: ValueRepresentation::CS },
-    E { tag: (0x0040, 0xA020), alias: "FindingsSequenceTrial", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0040, 0xA021), alias: "FindingsGroupUIDTrial", vr: ValueRepresentation::UI }, // RET
-    E { tag: (0x0040, 0xA022), alias: "ReferencedFindingsGroupUIDTrial", vr: ValueRepresentation::UI }, // RET
-    E { tag: (0x0040, 0xA023), alias: "FindingsGroupRecordingDateTrial", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x0040, 0xA024), alias: "FindingsGroupRecordingTimeTrial", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x0040, 0xA026), alias: "FindingsSourceCategoryCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0xA027), alias: "VerifyingOrganization", vr: ValueRepresentation::LO },
-    E { tag: (0x0040, 0xA028), alias: "DocumentingOrganizationIdentifierCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0xA030), alias: "VerificationDateTime", vr: ValueRepresentation::DT },
     E { tag: (0x0040, 0xA032), alias: "ObservationDateTime", vr: ValueRepresentation::DT },
     E { tag: (0x0040, 0xA040), alias: "ValueType", vr: ValueRepresentation::CS },
     E { tag: (0x0040, 0xA043), alias: "ConceptNameCodeSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0xA047), alias: "MeasurementPrecisionDescriptionTrial", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0040, 0xA050), alias: "ContinuityOfContent", vr: ValueRepresentation::CS },
-    E { tag: (0x0040, 0xA057), alias: "UrgencyOrPriorityAlertsTrial", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0040, 0xA060), alias: "SequencingIndicatorTrial", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0040, 0xA066), alias: "DocumentIdentifierCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0040, 0xA067), alias: "DocumentAuthorTrial", vr: ValueRepresentation::PN }, // RET
-    E { tag: (0x0040, 0xA068), alias: "DocumentAuthorIdentifierCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0040, 0xA070), alias: "IdentifierCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0xA073), alias: "VerifyingObserverSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0xA074), alias: "ObjectBinaryIdentifierTrial", vr: ValueRepresentation::OB }, // RET
     E { tag: (0x0040, 0xA075), alias: "VerifyingObserverName", vr: ValueRepresentation::PN },
-    E { tag: (0x0040, 0xA076), alias: "DocumentingObserverIdentifierCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0xA078), alias: "AuthorObserverSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0xA07A), alias: "ParticipantSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0xA07C), alias: "CustodialOrganizationSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0xA080), alias: "ParticipationType", vr: ValueRepresentation::CS },
     E { tag: (0x0040, 0xA082), alias: "ParticipationDateTime", vr: ValueRepresentation::DT },
     E { tag: (0x0040, 0xA084), alias: "ObserverType", vr: ValueRepresentation::CS },
-    E { tag: (0x0040, 0xA085), alias: "ProcedureIdentifierCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0xA088), alias: "VerifyingObserverIdentificationCodeSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0xA089), alias: "ObjectDirectoryBinaryIdentifierTrial", vr: ValueRepresentation::OB }, // RET
-    E { tag: (0x0040, 0xA090), alias: "EquivalentCDADocumentSequence", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0xA0B0), alias: "ReferencedWaveformChannels", vr: ValueRepresentation::US },
-    E { tag: (0x0040, 0xA110), alias: "DateOfDocumentOrVerbalTransactionTrial", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x0040, 0xA112), alias: "TimeOfDocumentCreationOrVerbalTransactionTrial", vr: ValueRepresentation::TM }, // RET
     E { tag: (0x0040, 0xA120), alias: "DateTime", vr: ValueRepresentation::DT },
     E { tag: (0x0040, 0xA121), alias: "Date", vr: ValueRepresentation::DA },
     E { tag: (0x0040, 0xA122), alias: "Time", vr: ValueRepresentation::TM },
     E { tag: (0x0040, 0xA123), alias: "PersonName", vr: ValueRepresentation::PN },
     E { tag: (0x0040, 0xA124), alias: "UID", vr: ValueRepresentation::UI },
-    E { tag: (0x0040, 0xA125), alias: "ReportStatusIDTrial", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x0040, 0xA130), alias: "TemporalRangeType", vr: ValueRepresentation::CS },
     E { tag: (0x0040, 0xA132), alias: "ReferencedSamplePositions", vr: ValueRepresentation::UL },
     E { tag: (0x0040, 0xA136), alias: "ReferencedFrameNumbers", vr: ValueRepresentation::US },
@@ -2239,45 +2006,20 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0040, 0xA161), alias: "FloatingPointValue", vr: ValueRepresentation::FD },
     E { tag: (0x0040, 0xA162), alias: "RationalNumeratorValue", vr: ValueRepresentation::SL },
     E { tag: (0x0040, 0xA163), alias: "RationalDenominatorValue", vr: ValueRepresentation::UL },
-    E { tag: (0x0040, 0xA167), alias: "ObservationCategoryCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0xA168), alias: "ConceptCodeSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0xA16A), alias: "BibliographicCitationTrial", vr: ValueRepresentation::ST }, // RET
     E { tag: (0x0040, 0xA170), alias: "PurposeOfReferenceCodeSequence", vr: ValueRepresentation::SQ }, // See Note
     E { tag: (0x0040, 0xA171), alias: "ObservationUID", vr: ValueRepresentation::UI },
-    E { tag: (0x0040, 0xA172), alias: "ReferencedObservationUIDTrial", vr: ValueRepresentation::UI }, // RET
-    E { tag: (0x0040, 0xA173), alias: "ReferencedObservationClassTrial", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0040, 0xA174), alias: "ReferencedObjectObservationClassTrial", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x0040, 0xA180), alias: "AnnotationGroupNumber", vr: ValueRepresentation::US },
-    E { tag: (0x0040, 0xA192), alias: "ObservationDateTrial", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x0040, 0xA193), alias: "ObservationTimeTrial", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x0040, 0xA194), alias: "MeasurementAutomationTrial", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x0040, 0xA195), alias: "ModifierCodeSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0xA224), alias: "IdentificationDescriptionTrial", vr: ValueRepresentation::ST }, // RET
-    E { tag: (0x0040, 0xA290), alias: "CoordinatesSetGeometricTypeTrial", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0040, 0xA296), alias: "AlgorithmCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0040, 0xA297), alias: "AlgorithmDescriptionTrial", vr: ValueRepresentation::ST }, // RET
-    E { tag: (0x0040, 0xA29A), alias: "PixelCoordinatesSetTrial", vr: ValueRepresentation::SL }, // RET
     E { tag: (0x0040, 0xA300), alias: "MeasuredValueSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0xA301), alias: "NumericValueQualifierCodeSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0xA307), alias: "CurrentObserverTrial", vr: ValueRepresentation::PN }, // RET
     E { tag: (0x0040, 0xA30A), alias: "NumericValue", vr: ValueRepresentation::DS },
-    E { tag: (0x0040, 0xA313), alias: "ReferencedAccessionSequenceTrial", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0040, 0xA33A), alias: "ReportStatusCommentTrial", vr: ValueRepresentation::ST }, // RET
-    E { tag: (0x0040, 0xA340), alias: "ProcedureContextSequenceTrial", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0040, 0xA352), alias: "VerbalSourceTrial", vr: ValueRepresentation::PN }, // RET
-    E { tag: (0x0040, 0xA353), alias: "AddressTrial", vr: ValueRepresentation::ST }, // RET
-    E { tag: (0x0040, 0xA354), alias: "TelephoneNumberTrial", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0040, 0xA358), alias: "VerbalSourceIdentifierCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0xA360), alias: "PredecessorDocumentsSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0xA370), alias: "ReferencedRequestSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0xA372), alias: "PerformedProcedureCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0xA375), alias: "CurrentRequestedProcedureEvidenceSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0xA380), alias: "ReportDetailSequenceTrial", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0xA385), alias: "PertinentOtherEvidenceSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0xA390), alias: "HL7StructuredDocumentReferenceSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0xA402), alias: "ObservationSubjectUIDTrial", vr: ValueRepresentation::UI }, // RET
-    E { tag: (0x0040, 0xA403), alias: "ObservationSubjectClassTrial", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0040, 0xA404), alias: "ObservationSubjectTypeCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x0040, 0xA491), alias: "CompletionFlag", vr: ValueRepresentation::CS },
     E { tag: (0x0040, 0xA492), alias: "CompletionFlagDescription", vr: ValueRepresentation::LO },
     E { tag: (0x0040, 0xA493), alias: "VerificationFlag", vr: ValueRepresentation::CS },
@@ -2285,21 +2027,9 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0040, 0xA496), alias: "PreliminaryFlag", vr: ValueRepresentation::CS },
     E { tag: (0x0040, 0xA504), alias: "ContentTemplateSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0xA525), alias: "IdenticalDocumentsSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0xA600), alias: "ObservationSubjectContextFlagTrial", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0040, 0xA601), alias: "ObserverContextFlagTrial", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0040, 0xA603), alias: "ProcedureContextFlagTrial", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x0040, 0xA730), alias: "ContentSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0040, 0xA731), alias: "RelationshipSequenceTrial", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0040, 0xA732), alias: "RelationshipTypeCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0040, 0xA744), alias: "LanguageCodeSequenceTrial", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0040, 0xA992), alias: "UniformResourceLocatorTrial", vr: ValueRepresentation::ST }, // RET
     E { tag: (0x0040, 0xB020), alias: "WaveformAnnotationSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0040, 0xDB00), alias: "TemplateIdentifier", vr: ValueRepresentation::CS },
-    E { tag: (0x0040, 0xDB06), alias: "TemplateVersion", vr: ValueRepresentation::DT }, // RET
-    E { tag: (0x0040, 0xDB07), alias: "TemplateLocalVersion", vr: ValueRepresentation::DT }, // RET
-    E { tag: (0x0040, 0xDB0B), alias: "TemplateExtensionFlag", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0040, 0xDB0C), alias: "TemplateExtensionOrganizationUID", vr: ValueRepresentation::UI }, // RET
-    E { tag: (0x0040, 0xDB0D), alias: "TemplateExtensionCreatorUID", vr: ValueRepresentation::UI }, // RET
     E { tag: (0x0040, 0xDB73), alias: "ReferencedContentItemIdentifier", vr: ValueRepresentation::UL },
     E { tag: (0x0040, 0xE001), alias: "HL7InstanceIdentifier", vr: ValueRepresentation::ST },
     E { tag: (0x0040, 0xE004), alias: "HL7DocumentEffectiveTime", vr: ValueRepresentation::DT },
@@ -2565,8 +2295,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0054, 0x1323), alias: "ScatterFractionFactor", vr: ValueRepresentation::DS },
     E { tag: (0x0054, 0x1324), alias: "DeadTimeFactor", vr: ValueRepresentation::DS },
     E { tag: (0x0054, 0x1330), alias: "ImageIndex", vr: ValueRepresentation::US },
-    E { tag: (0x0054, 0x1400), alias: "CountsIncluded", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x0054, 0x1401), alias: "DeadTimeCorrectionFlag", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x0060, 0x3000), alias: "HistogramSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0060, 0x3002), alias: "HistogramNumberOfBins", vr: ValueRepresentation::US },
     E { tag: (0x0060, 0x3004), alias: "HistogramFirstBinValue", vr: ValueRepresentation::US/* or  or SS */ },
@@ -2627,13 +2355,9 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0066, 0x001F), alias: "VectorDimensionality", vr: ValueRepresentation::US },
     E { tag: (0x0066, 0x0020), alias: "VectorAccuracy", vr: ValueRepresentation::FL },
     E { tag: (0x0066, 0x0021), alias: "VectorCoordinateData", vr: ValueRepresentation::OF },
-    E { tag: (0x0066, 0x0023), alias: "TrianglePointIndexList", vr: ValueRepresentation::OW }, // RET
-    E { tag: (0x0066, 0x0024), alias: "EdgePointIndexList", vr: ValueRepresentation::OW }, // RET
-    E { tag: (0x0066, 0x0025), alias: "VertexPointIndexList", vr: ValueRepresentation::OW }, // RET
     E { tag: (0x0066, 0x0026), alias: "TriangleStripSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0066, 0x0027), alias: "TriangleFanSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0066, 0x0028), alias: "LineSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0066, 0x0029), alias: "PrimitivePointIndexList", vr: ValueRepresentation::OW }, // RET
     E { tag: (0x0066, 0x002A), alias: "SurfaceCount", vr: ValueRepresentation::UL },
     E { tag: (0x0066, 0x002B), alias: "ReferencedSurfaceSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0066, 0x002C), alias: "ReferencedSurfaceNumber", vr: ValueRepresentation::UL },
@@ -2756,18 +2480,14 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0070, 0x0022), alias: "GraphicData", vr: ValueRepresentation::FL },
     E { tag: (0x0070, 0x0023), alias: "GraphicType", vr: ValueRepresentation::CS },
     E { tag: (0x0070, 0x0024), alias: "GraphicFilled", vr: ValueRepresentation::CS },
-    E { tag: (0x0070, 0x0040), alias: "ImageRotationRetired", vr: ValueRepresentation::IS }, // RET
     E { tag: (0x0070, 0x0041), alias: "ImageHorizontalFlip", vr: ValueRepresentation::CS },
     E { tag: (0x0070, 0x0042), alias: "ImageRotation", vr: ValueRepresentation::US },
-    E { tag: (0x0070, 0x0050), alias: "DisplayedAreaTopLeftHandCornerTrial", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x0070, 0x0051), alias: "DisplayedAreaBottomRightHandCornerTrial", vr: ValueRepresentation::US }, // RET
     E { tag: (0x0070, 0x0052), alias: "DisplayedAreaTopLeftHandCorner", vr: ValueRepresentation::SL },
     E { tag: (0x0070, 0x0053), alias: "DisplayedAreaBottomRightHandCorner", vr: ValueRepresentation::SL },
     E { tag: (0x0070, 0x005A), alias: "DisplayedAreaSelectionSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0070, 0x0060), alias: "GraphicLayerSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0070, 0x0062), alias: "GraphicLayerOrder", vr: ValueRepresentation::IS },
     E { tag: (0x0070, 0x0066), alias: "GraphicLayerRecommendedDisplayGrayscaleValue", vr: ValueRepresentation::US },
-    E { tag: (0x0070, 0x0067), alias: "GraphicLayerRecommendedDisplayRGBValue", vr: ValueRepresentation::US }, // RET
     E { tag: (0x0070, 0x0068), alias: "GraphicLayerDescription", vr: ValueRepresentation::LO },
     E { tag: (0x0070, 0x0080), alias: "ContentLabel", vr: ValueRepresentation::CS },
     E { tag: (0x0070, 0x0081), alias: "ContentDescription", vr: ValueRepresentation::LO },
@@ -3025,7 +2745,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0074, 0x100E), alias: "ProcedureStepDiscontinuationReasonCodeSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0074, 0x1020), alias: "BeamTaskSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0074, 0x1022), alias: "BeamTaskType", vr: ValueRepresentation::CS },
-    E { tag: (0x0074, 0x1024), alias: "BeamOrderIndexTrial", vr: ValueRepresentation::IS }, // RET
     E { tag: (0x0074, 0x1025), alias: "AutosequenceFlag", vr: ValueRepresentation::CS },
     E { tag: (0x0074, 0x1026), alias: "TableTopVerticalAdjustedPosition", vr: ValueRepresentation::FD },
     E { tag: (0x0074, 0x1027), alias: "TableTopLongitudinalAdjustedPosition", vr: ValueRepresentation::FD },
@@ -3038,8 +2757,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0074, 0x1032), alias: "VerificationImageTiming", vr: ValueRepresentation::CS },
     E { tag: (0x0074, 0x1034), alias: "DoubleExposureFlag", vr: ValueRepresentation::CS },
     E { tag: (0x0074, 0x1036), alias: "DoubleExposureOrdering", vr: ValueRepresentation::CS },
-    E { tag: (0x0074, 0x1038), alias: "DoubleExposureMetersetTrial", vr: ValueRepresentation::DS }, // RET
-    E { tag: (0x0074, 0x103A), alias: "DoubleExposureFieldDeltaTrial", vr: ValueRepresentation::DS }, // RET
     E { tag: (0x0074, 0x1040), alias: "RelatedReferenceRTImageSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0074, 0x1042), alias: "GeneralMachineVerificationSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0074, 0x1044), alias: "ConventionalMachineVerificationSequence", vr: ValueRepresentation::SQ },
@@ -3059,8 +2776,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0074, 0x1210), alias: "ScheduledProcessingParametersSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0074, 0x1212), alias: "PerformedProcessingParametersSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0074, 0x1216), alias: "UnifiedProcedureStepPerformedProcedureSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0074, 0x1220), alias: "RelatedProcedureStepSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x0074, 0x1222), alias: "ProcedureStepRelationshipType", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0074, 0x1224), alias: "ReplacedProcedureStepSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x0074, 0x1230), alias: "DeletionLock", vr: ValueRepresentation::LO },
     E { tag: (0x0074, 0x1234), alias: "ReceivingAE", vr: ValueRepresentation::AE },
@@ -3167,10 +2882,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x0088, 0x0130), alias: "StorageMediaFileSetID", vr: ValueRepresentation::SH },
     E { tag: (0x0088, 0x0140), alias: "StorageMediaFileSetUID", vr: ValueRepresentation::UI },
     E { tag: (0x0088, 0x0200), alias: "IconImageSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x0088, 0x0904), alias: "TopicTitle", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0088, 0x0906), alias: "TopicSubject", vr: ValueRepresentation::ST }, // RET
-    E { tag: (0x0088, 0x0910), alias: "TopicAuthor", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x0088, 0x0912), alias: "TopicKeywords", vr: ValueRepresentation::LO }, // RET
     E { tag: (0x0100, 0x0410), alias: "SOPInstanceStatus", vr: ValueRepresentation::CS },
     E { tag: (0x0100, 0x0420), alias: "SOPAuthorizationDateTime", vr: ValueRepresentation::DT },
     E { tag: (0x0100, 0x0424), alias: "SOPAuthorizationComment", vr: ValueRepresentation::LT },
@@ -3207,19 +2918,12 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x2000, 0x0050), alias: "FilmSessionLabel", vr: ValueRepresentation::LO },
     E { tag: (0x2000, 0x0060), alias: "MemoryAllocation", vr: ValueRepresentation::IS },
     E { tag: (0x2000, 0x0061), alias: "MaximumMemoryAllocation", vr: ValueRepresentation::IS },
-    E { tag: (0x2000, 0x0062), alias: "ColorImagePrintingFlag", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x2000, 0x0063), alias: "CollationFlag", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x2000, 0x0065), alias: "AnnotationFlag", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x2000, 0x0067), alias: "ImageOverlayFlag", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x2000, 0x0069), alias: "PresentationLUTFlag", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x2000, 0x006A), alias: "ImageBoxPresentationLUTFlag", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x2000, 0x00A0), alias: "MemoryBitDepth", vr: ValueRepresentation::US },
     E { tag: (0x2000, 0x00A1), alias: "PrintingBitDepth", vr: ValueRepresentation::US },
     E { tag: (0x2000, 0x00A2), alias: "MediaInstalledSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x2000, 0x00A4), alias: "OtherMediaAvailableSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x2000, 0x00A8), alias: "SupportedImageDisplayFormatsSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x2000, 0x0500), alias: "ReferencedFilmBoxSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x2000, 0x0510), alias: "ReferencedStoredPrintSequence", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x2010, 0x0010), alias: "ImageDisplayFormat", vr: ValueRepresentation::ST },
     E { tag: (0x2010, 0x0030), alias: "AnnotationDisplayFormatID", vr: ValueRepresentation::CS },
     E { tag: (0x2010, 0x0040), alias: "FilmOrientation", vr: ValueRepresentation::CS },
@@ -3255,26 +2959,11 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x2020, 0x00A2), alias: "DecimateCropResult", vr: ValueRepresentation::CS },
     E { tag: (0x2020, 0x0110), alias: "BasicGrayscaleImageSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x2020, 0x0111), alias: "BasicColorImageSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x2020, 0x0130), alias: "ReferencedImageOverlayBoxSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x2020, 0x0140), alias: "ReferencedVOILUTBoxSequence", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x2030, 0x0010), alias: "AnnotationPosition", vr: ValueRepresentation::US },
     E { tag: (0x2030, 0x0020), alias: "TextString", vr: ValueRepresentation::LO },
-    E { tag: (0x2040, 0x0010), alias: "ReferencedOverlayPlaneSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x2040, 0x0011), alias: "ReferencedOverlayPlaneGroups", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x2040, 0x0020), alias: "OverlayPixelDataSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x2040, 0x0060), alias: "OverlayMagnificationType", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x2040, 0x0070), alias: "OverlaySmoothingType", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x2040, 0x0072), alias: "OverlayOrImageMagnification", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x2040, 0x0074), alias: "MagnifyToNumberOfColumns", vr: ValueRepresentation::US }, // RET
-    E { tag: (0x2040, 0x0080), alias: "OverlayForegroundDensity", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x2040, 0x0082), alias: "OverlayBackgroundDensity", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x2040, 0x0090), alias: "OverlayMode", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x2040, 0x0100), alias: "ThresholdDensity", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x2040, 0x0500), alias: "ReferencedImageBoxSequenceRetired", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x2050, 0x0010), alias: "PresentationLUTSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x2050, 0x0020), alias: "PresentationLUTShape", vr: ValueRepresentation::CS },
     E { tag: (0x2050, 0x0500), alias: "ReferencedPresentationLUTSequence", vr: ValueRepresentation::SQ },
-    E { tag: (0x2100, 0x0010), alias: "PrintJobID", vr: ValueRepresentation::SH }, // RET
     E { tag: (0x2100, 0x0020), alias: "ExecutionStatus", vr: ValueRepresentation::CS },
     E { tag: (0x2100, 0x0030), alias: "ExecutionStatusInfo", vr: ValueRepresentation::CS },
     E { tag: (0x2100, 0x0040), alias: "CreationDate", vr: ValueRepresentation::DA },
@@ -3283,23 +2972,9 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x2100, 0x0140), alias: "DestinationAE", vr: ValueRepresentation::AE },
     E { tag: (0x2100, 0x0160), alias: "OwnerID", vr: ValueRepresentation::SH },
     E { tag: (0x2100, 0x0170), alias: "NumberOfFilms", vr: ValueRepresentation::IS },
-    E { tag: (0x2100, 0x0500), alias: "ReferencedPrintJobSequencePullStoredPrint", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x2110, 0x0010), alias: "PrinterStatus", vr: ValueRepresentation::CS },
     E { tag: (0x2110, 0x0020), alias: "PrinterStatusInfo", vr: ValueRepresentation::CS },
     E { tag: (0x2110, 0x0030), alias: "PrinterName", vr: ValueRepresentation::LO },
-    E { tag: (0x2110, 0x0099), alias: "PrintQueueID", vr: ValueRepresentation::SH }, // RET
-    E { tag: (0x2120, 0x0010), alias: "QueueStatus", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x2120, 0x0050), alias: "PrintJobDescriptionSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x2120, 0x0070), alias: "ReferencedPrintJobSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x2130, 0x0010), alias: "PrintManagementCapabilitiesSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x2130, 0x0015), alias: "PrinterCharacteristicsSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x2130, 0x0030), alias: "FilmBoxContentSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x2130, 0x0040), alias: "ImageBoxContentSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x2130, 0x0050), alias: "AnnotationContentSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x2130, 0x0060), alias: "ImageOverlayBoxContentSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x2130, 0x0080), alias: "PresentationLUTContentSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x2130, 0x00A0), alias: "ProposedStudySequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x2130, 0x00C0), alias: "OriginalImageSequence", vr: ValueRepresentation::SQ }, // RET
     E { tag: (0x2200, 0x0001), alias: "LabelUsingInformationExtractedFromInstances", vr: ValueRepresentation::CS },
     E { tag: (0x2200, 0x0002), alias: "LabelText", vr: ValueRepresentation::UT },
     E { tag: (0x2200, 0x0003), alias: "LabelStyleSelection", vr: ValueRepresentation::CS },
@@ -3410,10 +3085,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x3006, 0x00B6), alias: "ROIElementalCompositionSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x3006, 0x00B7), alias: "ROIElementalCompositionAtomicNumber", vr: ValueRepresentation::US },
     E { tag: (0x3006, 0x00B8), alias: "ROIElementalCompositionAtomicMassFraction", vr: ValueRepresentation::FL },
-    E { tag: (0x3006, 0x00B9), alias: "AdditionalRTROIIdentificationCodeSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x3006, 0x00C0), alias: "FrameOfReferenceRelationshipSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x3006, 0x00C2), alias: "RelatedFrameOfReferenceUID", vr: ValueRepresentation::UI }, // RET
-    E { tag: (0x3006, 0x00C4), alias: "FrameOfReferenceTransformationType", vr: ValueRepresentation::CS }, // RET
     E { tag: (0x3006, 0x00C6), alias: "FrameOfReferenceTransformationMatrix", vr: ValueRepresentation::DS },
     E { tag: (0x3006, 0x00C8), alias: "FrameOfReferenceTransformationComment", vr: ValueRepresentation::LO },
     E { tag: (0x3008, 0x0010), alias: "MeasuredDoseReferenceSequence", vr: ValueRepresentation::SQ },
@@ -3567,9 +3238,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x300A, 0x0082), alias: "BeamDoseSpecificationPoint", vr: ValueRepresentation::DS },
     E { tag: (0x300A, 0x0084), alias: "BeamDose", vr: ValueRepresentation::DS },
     E { tag: (0x300A, 0x0086), alias: "BeamMeterset", vr: ValueRepresentation::DS },
-    E { tag: (0x300A, 0x0088), alias: "BeamDosePointDepth", vr: ValueRepresentation::FL }, // RET
-    E { tag: (0x300A, 0x0089), alias: "BeamDosePointEquivalentDepth", vr: ValueRepresentation::FL }, // RET
-    E { tag: (0x300A, 0x008A), alias: "BeamDosePointSSD", vr: ValueRepresentation::FL }, // RET
     E { tag: (0x300A, 0x008B), alias: "BeamDoseMeaning", vr: ValueRepresentation::CS },
     E { tag: (0x300A, 0x008C), alias: "BeamDoseVerificationControlPointSequence", vr: ValueRepresentation::SQ },
     E { tag: (0x300A, 0x008D), alias: "AverageBeamDosePointDepth", vr: ValueRepresentation::FL },
@@ -3940,36 +3608,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x300E, 0x0004), alias: "ReviewDate", vr: ValueRepresentation::DA },
     E { tag: (0x300E, 0x0005), alias: "ReviewTime", vr: ValueRepresentation::TM },
     E { tag: (0x300E, 0x0008), alias: "ReviewerName", vr: ValueRepresentation::PN },
-    E { tag: (0x4000, 0x0010), alias: "Arbitrary", vr: ValueRepresentation::LT }, // RET
-    E { tag: (0x4000, 0x4000), alias: "TextComments", vr: ValueRepresentation::LT }, // RET
-    E { tag: (0x4008, 0x0040), alias: "ResultsID", vr: ValueRepresentation::SH }, // RET
-    E { tag: (0x4008, 0x0042), alias: "ResultsIDIssuer", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x4008, 0x0050), alias: "ReferencedInterpretationSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x4008, 0x00FF), alias: "ReportProductionStatusTrial", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x4008, 0x0100), alias: "InterpretationRecordedDate", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x4008, 0x0101), alias: "InterpretationRecordedTime", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x4008, 0x0102), alias: "InterpretationRecorder", vr: ValueRepresentation::PN }, // RET
-    E { tag: (0x4008, 0x0103), alias: "ReferenceToRecordedSound", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x4008, 0x0108), alias: "InterpretationTranscriptionDate", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x4008, 0x0109), alias: "InterpretationTranscriptionTime", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x4008, 0x010A), alias: "InterpretationTranscriber", vr: ValueRepresentation::PN }, // RET
-    E { tag: (0x4008, 0x010B), alias: "InterpretationText", vr: ValueRepresentation::ST }, // RET
-    E { tag: (0x4008, 0x010C), alias: "InterpretationAuthor", vr: ValueRepresentation::PN }, // RET
-    E { tag: (0x4008, 0x0111), alias: "InterpretationApproverSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x4008, 0x0112), alias: "InterpretationApprovalDate", vr: ValueRepresentation::DA }, // RET
-    E { tag: (0x4008, 0x0113), alias: "InterpretationApprovalTime", vr: ValueRepresentation::TM }, // RET
-    E { tag: (0x4008, 0x0114), alias: "PhysicianApprovingInterpretation", vr: ValueRepresentation::PN }, // RET
-    E { tag: (0x4008, 0x0115), alias: "InterpretationDiagnosisDescription", vr: ValueRepresentation::LT }, // RET
-    E { tag: (0x4008, 0x0117), alias: "InterpretationDiagnosisCodeSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x4008, 0x0118), alias: "ResultsDistributionListSequence", vr: ValueRepresentation::SQ }, // RET
-    E { tag: (0x4008, 0x0119), alias: "DistributionName", vr: ValueRepresentation::PN }, // RET
-    E { tag: (0x4008, 0x011A), alias: "DistributionAddress", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x4008, 0x0200), alias: "InterpretationID", vr: ValueRepresentation::SH }, // RET
-    E { tag: (0x4008, 0x0202), alias: "InterpretationIDIssuer", vr: ValueRepresentation::LO }, // RET
-    E { tag: (0x4008, 0x0210), alias: "InterpretationTypeID", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x4008, 0x0212), alias: "InterpretationStatusID", vr: ValueRepresentation::CS }, // RET
-    E { tag: (0x4008, 0x0300), alias: "Impressions", vr: ValueRepresentation::ST }, // RET
-    E { tag: (0x4008, 0x4000), alias: "ResultsComments", vr: ValueRepresentation::ST }, // RET
     E { tag: (0x4010, 0x0001), alias: "LowEnergyDetectors", vr: ValueRepresentation::CS }, // DICOS
     E { tag: (0x4010, 0x0002), alias: "HighEnergyDetectors", vr: ValueRepresentation::CS }, // DICOS
     E { tag: (0x4010, 0x0004), alias: "DetectorGeometrySequence", vr: ValueRepresentation::SQ }, // DICOS
@@ -4071,9 +3709,6 @@ pub const ENTRIES: &'static [E<'static>] = &[
     E { tag: (0x7FE0, 0x0008), alias: "FloatPixelData", vr: ValueRepresentation::OF },
     E { tag: (0x7FE0, 0x0009), alias: "DoubleFloatPixelData", vr: ValueRepresentation::OD },
     E { tag: (0x7FE0, 0x0010), alias: "PixelData", vr: ValueRepresentation::OB/* or  or OW */ },
-    E { tag: (0x7FE0, 0x0020), alias: "CoefficientsSDVN", vr: ValueRepresentation::OW }, // RET
-    E { tag: (0x7FE0, 0x0030), alias: "CoefficientsSDHN", vr: ValueRepresentation::OW }, // RET
-    E { tag: (0x7FE0, 0x0040), alias: "CoefficientsSDDN", vr: ValueRepresentation::OW }, // RET
     E { tag: (0xFFFA, 0xFFFA), alias: "DigitalSignaturesSequence", vr: ValueRepresentation::SQ },
     E { tag: (0xFFFC, 0xFFFC), alias: "DataSetTrailingPadding", vr: ValueRepresentation::OB },
     E { tag: (0xFFFE, 0xE000), alias: "Item", vr: ValueRepresentation::UN },

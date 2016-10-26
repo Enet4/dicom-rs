@@ -47,7 +47,7 @@ mod tests {
         let reader = ExplicitVRBigEndianDecoder::default();
         let mut cursor = Cursor::new(RAW.as_ref());
         { // read first element
-            let elem = reader.decode(&mut cursor).expect("should find an element");
+            let elem = reader.decode_header(&mut cursor).expect("should find an element");
             assert_eq!(elem.tag(), (2, 2));
             assert_eq!(elem.vr(), ValueRepresentation::UI);
             assert_eq!(elem.len(), 26);
@@ -62,7 +62,7 @@ mod tests {
         // cursor should now be @ #34 after skipping
         assert_eq!(cursor.seek(SeekFrom::Current(13)).unwrap(), 34);
         { // read second element
-            let elem = reader.decode(&mut cursor).expect("should find an element");
+            let elem = reader.decode_header(&mut cursor).expect("should find an element");
             assert_eq!(elem.tag(), (2, 16));
             assert_eq!(elem.vr(), ValueRepresentation::UI);
             assert_eq!(elem.len(), 20);
@@ -130,7 +130,7 @@ impl<S: Read + ?Sized> fmt::Debug for ExplicitVRBigEndianDecoder<S> {
 impl<'s, S: Read + ?Sized + 's> Decode for ExplicitVRBigEndianDecoder<S> {
     type Source = S;
     
-    fn decode(&self, source: &mut Self::Source) -> Result<DataElementHeader> {
+    fn decode_header(&self, source: &mut Self::Source) -> Result<DataElementHeader> {
         let mut buf = [0u8; 4];
         try!(source.read_exact(&mut buf));
         // retrieve tag
@@ -163,7 +163,7 @@ impl<'s, S: Read + ?Sized + 's> Decode for ExplicitVRBigEndianDecoder<S> {
         Ok(DataElementHeader{ tag: (group, element), vr: vr, len: len })
     }
 
-    fn decode_item(&self, source: &mut Self::Source) -> Result<SequenceItemHeader> {
+    fn decode_item_header(&self, source: &mut Self::Source) -> Result<SequenceItemHeader> {
         let mut buf = [0u8; 4];
         try!(source.read_exact(&mut buf));
         // retrieve tag
@@ -174,6 +174,30 @@ impl<'s, S: Read + ?Sized + 's> Decode for ExplicitVRBigEndianDecoder<S> {
         let len = BigEndian::read_u32(&buf);
 
         SequenceItemHeader::new((group, element), len)
+    }
+
+    fn decode_us(&self, source: &mut Self::Source) -> Result<u16> {
+        let mut buf = [0u8; 2];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(BigEndian::read_u16(&buf[..]))
+    }
+
+    fn decode_ul(&self, source: &mut Self::Source) -> Result<u32> {
+        let mut buf = [0u8; 4];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(BigEndian::read_u32(&buf[..]))
+    }
+
+    fn decode_ss(&self, source: &mut Self::Source) -> Result<i16> {
+        let mut buf = [0u8; 2];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(BigEndian::read_i16(&buf[..]))
+    }
+
+    fn decode_sl(&self, source: &mut Self::Source) -> Result<i32> {
+        let mut buf = [0u8; 4];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(BigEndian::read_i32(&buf[..]))
     }
 }
 

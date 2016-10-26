@@ -61,23 +61,51 @@ pub trait Decode: Debug {
      * This method returns only the header of the element. At the end of this operation, the source
      * will be pointing at the element's value data, which should be read or skipped as necessary.
      */
-    fn decode(&self, source: &mut Self::Source) -> Result<DataElementHeader>;
+    fn decode_header(&self, source: &mut Self::Source) -> Result<DataElementHeader>;
 
     /** Fetch and decode the next sequence item head from the given source.
      * This method returns only the header of the item. At the end of this operation, the source
      * will be pointing at the beginning of the item's data, which should be traversed if necessary.
      */
-    fn decode_item(&self, source: &mut Self::Source) -> Result<SequenceItemHeader>;
+    fn decode_item_header(&self, source: &mut Self::Source) -> Result<SequenceItemHeader>;
+
+    /// Decode an unsigned short value from the given source.
+    fn decode_us(&self, source: &mut Self::Source) -> Result<u16>;
+
+    /// Decode an unsigned long value from the given source.
+    fn decode_ul(&self, source: &mut Self::Source) -> Result<u32>;
+
+    /// Decode a signed short value from the given source.
+    fn decode_ss(&self, source: &mut Self::Source) -> Result<i16>;
+
+    /// Decode a signed long value from the given source.
+    fn decode_sl(&self, source: &mut Self::Source) -> Result<i32>;
 }
 
 impl<'s> Decode for &'s erased::Decode {
     type Source = Read;
 
-    fn decode(&self, mut source: &mut Self::Source) -> Result<DataElementHeader> {
+    fn decode_header(&self, mut source: &mut Self::Source) -> Result<DataElementHeader> {
         (**self).erased_decode(&mut source)
     }
 
-    fn decode_item(&self, mut source: &mut Self::Source) -> Result<SequenceItemHeader> {
+    fn decode_item_header(&self, mut source: &mut Self::Source) -> Result<SequenceItemHeader> {
         (**self).erased_decode_item(&mut source)
+    }
+
+    fn decode_us(&self, mut source: &mut Self::Source) -> Result<u16> {
+        (**self).erased_decode_us(&mut source)
+    }
+
+    fn decode_ul(&self, mut source: &mut Self::Source) -> Result<u32> {
+        (**self).erased_decode_ul(&mut source)
+    }
+
+    fn decode_ss(&self, mut source: &mut Self::Source) -> Result<i16> {
+        (**self).erased_decode_ss(&mut source)
+    }
+
+    fn decode_sl(&self, mut source: &mut Self::Source) -> Result<i32> {
+        (**self).erased_decode_sl(&mut source)
     }
 }

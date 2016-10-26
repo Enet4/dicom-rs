@@ -47,7 +47,7 @@ mod tests {
         let dec = ExplicitVRLittleEndianDecoder::default();
         let mut cursor = Cursor::new(RAW.as_ref());
         { // read first element
-            let elem = dec.decode(&mut cursor).expect("should find an element");
+            let elem = dec.decode_header(&mut cursor).expect("should find an element");
             assert_eq!(elem.tag(), (2, 2));
             assert_eq!(elem.vr(), ValueRepresentation::UI);
             assert_eq!(elem.len(), 26);
@@ -62,7 +62,7 @@ mod tests {
         // cursor should now be @ #34 after skipping
         assert_eq!(cursor.seek(SeekFrom::Current(13)).unwrap(), 34);
         { // read second element
-            let elem = dec.decode(&mut cursor).expect("should find an element");
+            let elem = dec.decode_header(&mut cursor).expect("should find an element");
             assert_eq!(elem.tag(), (2, 16));
             assert_eq!(elem.vr(), ValueRepresentation::UI);
             assert_eq!(elem.len(), 20);
@@ -130,7 +130,7 @@ impl<S: Read + ?Sized> fmt::Debug for ExplicitVRLittleEndianDecoder<S> {
 impl<S: Read + ?Sized> Decode for ExplicitVRLittleEndianDecoder<S> {
     type Source = S;
 
-    fn decode(&self, source: &mut S) -> Result<DataElementHeader> {
+    fn decode_header(&self, source: &mut S) -> Result<DataElementHeader> {
         let mut buf = [0u8; 4];
         try!(source.read_exact(&mut buf));
         // retrieve tag
@@ -163,7 +163,7 @@ impl<S: Read + ?Sized> Decode for ExplicitVRLittleEndianDecoder<S> {
         Ok(DataElementHeader::new((group, element), vr, len))
     }
 
-    fn decode_item(&self, source: &mut S) -> Result<SequenceItemHeader> {
+    fn decode_item_header(&self, source: &mut S) -> Result<SequenceItemHeader> {
         let mut buf = [0u8; 4];
         try!(source.read_exact(&mut buf));
         // retrieve tag
@@ -176,6 +176,29 @@ impl<S: Read + ?Sized> Decode for ExplicitVRLittleEndianDecoder<S> {
         SequenceItemHeader::new((group, element), len)
     }
 
+    fn decode_us(&self, source: &mut Self::Source) -> Result<u16> {
+        let mut buf = [0u8; 2];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(LittleEndian::read_u16(&buf[..]))
+    }
+
+    fn decode_ul(&self, source: &mut Self::Source) -> Result<u32> {
+        let mut buf = [0u8; 4];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(LittleEndian::read_u32(&buf[..]))
+    }
+
+    fn decode_ss(&self, source: &mut Self::Source) -> Result<i16> {
+        let mut buf = [0u8; 2];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(LittleEndian::read_i16(&buf[..]))
+    }
+
+    fn decode_sl(&self, source: &mut Self::Source) -> Result<i32> {
+        let mut buf = [0u8; 4];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(LittleEndian::read_i32(&buf[..]))
+    }
 }
 
 pub struct ExplicitVRLittleEndianEncoder<W: Write + ?Sized> {

@@ -29,4 +29,16 @@ pub trait Decode: Debug {
      * will be pointing at the beginning of the item's data, which should be traversed if necessary.
      */
     fn erased_decode_item(&self, source: &mut Read) -> Result<SequenceItemHeader>;
+
+    /// Decode an unsigned short value from the given source.
+    fn erased_decode_us(&self, source: &mut Read) -> Result<u16>;
+
+    /// Decode an unsigned long value from the given source.
+    fn erased_decode_ul(&self, source: &mut Read) -> Result<u32>;
+
+    /// Decode a signed short value from the given source.
+    fn erased_decode_ss(&self, source: &mut Read) -> Result<i16>;
+
+    /// Decode a signed long value from the given source.
+    fn erased_decode_sl(&self, source: &mut Read) -> Result<i32>;
 }

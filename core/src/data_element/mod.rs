@@ -98,4 +98,22 @@ impl SequenceItemHeader {
             _ => Err(Error::UnexpectedElement)
         }
     }
+
+    /// Retrieve the sequence item's attribute tag.
+    pub fn tag(&self) -> (u16, u16) {
+        match *self {
+            SequenceItemHeader::Item{ .. } => (0xFFFE, 0xE000),
+            SequenceItemHeader::ItemDelimiter => (0xFFFE, 0xE00D),
+            SequenceItemHeader::SequenceDelimiter => (0xFFFE, 0xE0DD),
+        }
+    }
+
+    /// Retrieve the sequence item's length (0 in case of a delimiter).
+    pub fn len(&self) -> u32 {
+        match *self {
+            SequenceItemHeader::Item{ len } => len,
+            SequenceItemHeader::ItemDelimiter |
+            SequenceItemHeader::SequenceDelimiter => 0,
+        }
+    }
 }

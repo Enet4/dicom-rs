@@ -1,12 +1,13 @@
 [package]
-name = "dicom"
-version = "0.1.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "Efficient and practical base library for DICOM compliant systems"
+name = "dicom"
 publish = false
+version = "0.1.0"
 
 [dependencies]
-lazy_static = "0.1.*"
 byteorder = "0.5.3"
+chrono = "0.2.25"
 encoding = "0.2.33"
+lazy_static = "0.1.*"
 quick-error = "1.1.0"

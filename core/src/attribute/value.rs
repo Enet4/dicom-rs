@@ -2,156 +2,199 @@
 
 use error::InvalidValueReadError;
 use std::result;
+use std::fmt::Debug;
+use chrono::naive::date::NaiveDate;
+use chrono::naive::time::NaiveTime;
+use chrono::datetime::DateTime;
+use chrono::offset::utc::UTC;
 
 /// Result type alias for this module.
 pub type Result<T> = result::Result<T, InvalidValueReadError>;
 
 #[inline]
-fn read_first<T: Copy>(array_res: Result<&[T]>) -> Result<T> {
-    array_res.and_then(|arr| { arr.first().map(|v|{*v}).ok_or(InvalidValueReadError::EmptyElement)})
+fn read_first<T: Copy, I: Iterator<Item=T>>(mut iter: I) -> Result<T> {
+    iter.next().ok_or(InvalidValueReadError::EmptyElement)
 }
 
-/// A trait for retrieving a value from a DICOM element.
-pub trait DicomValue {
-    /// Check whether the value is empty (0 length).
-    fn is_null(&self) -> bool { false }
+/// An enum representing a primitive value from a DICOM element. The result of decoding
+/// an element's data value may be one of the enumerated types depending on its content
+/// and value representation.
+#[derive(Debug, PartialEq, Clone)]
+pub enum DicomValue {
+    /// No data. Used for SQ (regardless of content) and any value of length 0.
+    Empty,
 
-    // possible contained data types: [i32], [i64], [u32], [u64], [f32], [f64], [String]
+    /// A sequence of strings.
+    /// Used for AE, AS, PN, SH, CS, LO, UI and UC.
+    /// Can also be used for IS, SS, DS, DA, DT and TM when decoding
+    /// with format preservation.
+    Strs(Box<[String]>),
 
-    /// Typed value getter
-    fn get_i32_array(&self) -> Result<&[i32]> { Err(InvalidValueReadError::IncompatibleType) }
-    /// Typed value getter
-    fn get_i64_array(&self) -> Result<&[i64]> { Err(InvalidValueReadError::IncompatibleType) }
-    /// Typed value getter
-    fn get_u32_array(&self) -> Result<&[u32]> { Err(InvalidValueReadError::IncompatibleType) }
-    /// Typed value getter
-    fn get_u64_array(&self) -> Result<&[u64]> { Err(InvalidValueReadError::IncompatibleType) }
-    /// Typed value getter
-    fn get_f32_array(&self) -> Result<&[f32]> { Err(InvalidValueReadError::IncompatibleType) }
-    /// Typed value getter
-    fn get_f64_array(&self) -> Result<&[f64]> { Err(InvalidValueReadError::IncompatibleType) }
-    /// Typed value getter
-    fn get_string_array(&self) -> Result<&[&str]> { Err(InvalidValueReadError::IncompatibleType) }
-    /*
-    fn get_object_array(&self) -> ReadResult<&[&DicomObject<Element=DicomElement<Value=DicomValue, Tag=Tag>>]> { Err(InvalidValueReadError::IncompatibleType) }
-    */
-    /// Typed value getter
-    fn get_i32(&self) -> Result<i32> {
-        read_first(self.get_i32_array())
-    }
+    /// A single string.
+    /// Used for ST, LT, UT and UR, which are never multi-valued.
+    Str(String),
 
-    /// Typed value getter
-    fn get_i64(&self) -> Result<i64> {
-        read_first(self.get_i64_array())
-    }
+    /// A sequence of attribute tags.
+    /// Used specifically for AT.
+    Tags(Box<[(u16, u16)]>),
 
-    /// Typed value getter
-    fn get_u32(&self) -> Result<u32> {
-        read_first(self.get_u32_array())
-    }
+    /// The value is a sequence of unsigned 16-bit integers.
+    /// Used for OB and UN.
+    U8(Box<[u8]>),
 
-    /// Typed value getter
-    fn get_u64(&self) -> Result<u64> {
-        read_first(self.get_u64_array())
-    }
+    /// The value is a sequence of signed 16-bit integers.
+    /// Used for SS.
+    I16(Box<[i16]>),
 
-    /// Typed value getter
-    fn get_f32(&self) -> Result<f32> {
-        read_first(self.get_f32_array())
-    }
+    /// A sequence of unsigned 168-bit integers.
+    /// Used for US and OW.
+    U16(Box<[u16]>),
 
-    /// Typed value getter
-    fn get_f64(&self) -> Result<f64> {
-        read_first(self.get_f64_array())
-    }
+    /// A sequence of signed 32-bit integers.
+    /// Used for SL and IS.
+    I32(Box<[i32]>),
 
-    /// Typed value getter
-    fn get_string(&self) -> Result<&str> {
-        read_first(self.get_string_array())
-    }
+    /// A sequence of unsigned 32-bit integers.
+    /// Used for UL and OL.
+    U32(Box<[u32]>),
 
-//    fn get_object(&self) -> ReadResult<&DynDicomObject> {
-//        read_first(self.get_object_array())
-//    }
+    /// The value is a sequence of 32-bit floating point numbers.
+    /// Used for OF and FL.
+    F32(Box<[f32]>),
+
+    /// The value is a sequence of 64-bit floating point numbers.
+    /// Used for OD and FD, DS.
+    F64(Box<[f64]>),
+
+    /// A sequence of dates.
+    /// Used for the DA representation.
+    Date(Box<[NaiveDate]>),
+
+    /// A sequence of date-time values.
+    /// Used for the DT representation.
+    DateTime(Box<[DateTime<UTC>]>),
+
+    /// A sequence of time values.
+    /// Used for the TM representation.
+    Time(Box<[NaiveTime]>),
+    
 }
 
-/// Data type for a value with null content
+
+/// An enum representing a programmatic abstraction of
+/// a DICOM element's data value type. This should be
+/// the equivalent of `DicomValue` without the content.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct NullValue;
-impl DicomValue for NullValue {
-    fn is_null(&self) -> bool { true }
+pub enum DataType {
+    /// No data. Used for SQ (regardless of content) and any value of length 0.
+    Empty,
+
+    /// A sequence of strings.
+    /// Used for AE, AS, PN, SH, CS, LO, UI and UC.
+    /// Can also be used for IS, SS, DS, DA, DT and TM when decoding
+    /// with format preservation.
+    Strs,
+
+    /// A single string.
+    /// Used for ST, LT, UT and UR, which are never multi-valued.
+    Str,
+
+    /// A sequence of attribute tags.
+    /// Used specifically for AT.
+    Tags,
+
+    /// The value is a sequence of unsigned 16-bit integers.
+    /// Used for OB and UN.
+    U8,
+
+    /// The value is a sequence of signed 16-bit integers.
+    /// Used for SS.
+    I16,
+
+    /// A sequence of unsigned 168-bit integers.
+    /// Used for US and OW.
+    U16,
+
+    /// A sequence of signed 32-bit integers.
+    /// Used for SL and IS.
+    I32,
+
+    /// A sequence of unsigned 32-bit integers.
+    /// Used for UL and OL.
+    U32,
+
+    /// The value is a sequence of 32-bit floating point numbers.
+    /// Used for OF and FL.
+    F32,
+
+    /// The value is a sequence of 64-bit floating point numbers.
+    /// Used for OD and FD, DS.
+    F64,
+
+    /// A sequence of dates.
+    /// Used for the DA representation.
+    Date,
+
+    /// A sequence of date-time values.
+    /// Used for the DT representation.
+    DateTime,
+
+    /// A sequence of time values.
+    /// Used for the TM representation.
+    Time,
 }
 
-macro_rules! DicomValue_slice_implement {
-    ( $t:ty, $f:ident ) => {
-        impl<'a> DicomValue for &'a[$t] {
-            fn $f(&self) -> Result<&[$t]> { Ok(self) }
+/// A trait for a value that maps to a DICOM element data value.
+pub trait DicomValueType: Clone + Debug + 'static {
+
+    /// Retrieve the specific type of this value.
+    fn get_type(&self) -> DataType;
+
+    /// The number of values contained.
+    fn size(&self) -> u32;
+
+    /// Check whether the value is empty (0 length).
+    fn is_empty(&self) -> bool { self.size() == 0 }
+}
+
+
+impl DicomValueType for DicomValue {
+
+    fn get_type(&self) -> DataType {
+        match *self {
+            DicomValue::Empty => DataType::Empty,
+            DicomValue::Date(_) => DataType::Date,
+            DicomValue::DateTime(_) => DataType::DateTime,
+            DicomValue::F32(_) => DataType::F32,
+            DicomValue::F64(_) => DataType::F64,
+            DicomValue::I16(_) => DataType::I16,
+            DicomValue::I32(_) => DataType::I32,
+            DicomValue::Str(_) => DataType::Str,
+            DicomValue::Strs(_) => DataType::Strs,
+            DicomValue::Tags(_) => DataType::Tags,
+            DicomValue::Time(_) => DataType::Time,
+            DicomValue::U16(_) => DataType::U16,
+            DicomValue::U32(_) => DataType::U32,
+            DicomValue::U8(_) => DataType::U8,
         }
-    };
-}
+    }
 
-impl<'a> DicomValue for &'a[i32] {
-    fn get_i32_array(&self) -> Result<&[i32]> { Ok(self) }
+    fn size(&self) -> u32 {
+        match *self {
+            DicomValue::Empty => 0,
+            DicomValue::Str(_) => 1,
+            DicomValue::Date(ref b) => b.len() as u32,
+            DicomValue::DateTime(ref b) => b.len() as u32,
+            DicomValue::F32(ref b) => b.len() as u32,
+            DicomValue::F64(ref b) => b.len() as u32,
+            DicomValue::I16(ref b) => b.len() as u32,
+            DicomValue::I32(ref b) => b.len() as u32,
+            DicomValue::Strs(ref b) => b.len() as u32,
+            DicomValue::Tags(ref b) => b.len() as u32,
+            DicomValue::Time(ref b) => b.len() as u32,
+            DicomValue::U16(ref b) => b.len() as u32,
+            DicomValue::U32(ref b) => b.len() as u32,
+            DicomValue::U8(ref b) => b.len() as u32,
+        }
+    }
 }
-impl<'a> DicomValue for &'a[i64] {
-    fn get_i64_array(&self) -> Result<&[i64]> { Ok(self) }
-}
-impl<'a> DicomValue for &'a[u32] {
-    fn get_u32_array(&self) -> Result<&[u32]> { Ok(self) }
-}
-impl<'a> DicomValue for &'a[u64] {
-    fn get_u64_array(&self) -> Result<&[u64]> { Ok(self) }
-}
-impl<'a> DicomValue for &'a[f32] {
-    fn get_f32_array(&self) -> Result<&[f32]> { Ok(self) }
-}
-impl<'a> DicomValue for &'a[f64] {
-    fn get_f64_array(&self) -> Result<&[f64]> { Ok(self) }
-}
-impl<'a, 'b> DicomValue for &'a[&'b str] {
-    fn get_string_array(&self) -> Result<&[&str]> { Ok(self) }
-}
-//impl<'a, 'b> DicomValue for &'a[&'b DicomObject] {
-//    fn get_object_array(&self) -> ReadResult<&[&DicomObject]> { Ok(self) }
-//}
-
-macro_rules! DicomValue_array_implement {
-    ( $t:ty, $f:ident, $($n:expr),* ) => {
-        $(// for each $n
-        impl DicomValue for [$t; $n] {
-            fn $f(&self) -> Result<&[$t]> { Ok(self.as_ref()) }
-        })*
-    };
-}
-
-// implement DICOM value for all arrays up to size 32
-DicomValue_array_implement!(i32, get_i32_array,
-    0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32);
-DicomValue_array_implement!(i64, get_i64_array,
-    0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32);
-DicomValue_array_implement!(u32, get_u32_array,
-    0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32);
-DicomValue_array_implement!(u64, get_u64_array,
-    0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32);
-DicomValue_array_implement!(f32, get_f32_array,
-    0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32);
-DicomValue_array_implement!(f64, get_f64_array,
-    0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32);
-
-macro_rules! DicomValue_array_implement_lifetime {
-    ( $t:ty, $f:ident, $($n:expr),* ) => {
-        $(// for each $n
-        impl<'a> DicomValue for [&'a $t; $n] {
-            fn $f(&self) -> Result<&[&$t]> { Ok(self.as_ref()) }
-        })*
-    };
-}
-// &str needs a specific lifetime
-DicomValue_array_implement_lifetime!(str, get_string_array,
-    0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32);
-// &DicomObject needs a specific lifetime
-//DicomValue_array_implement_lifetime!(DicomObject, get_object_array,
-//    0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32);
-
-
-

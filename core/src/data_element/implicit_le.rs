@@ -50,8 +50,8 @@ mod tests {
         let reader = ImplicitVRLittleEndianDecoder::with_dict(DICT);
         let mut cursor = Cursor::new(RAW.as_ref());
         { // read first element
-            let elem = reader.decode(&mut cursor).expect("should find an element");
-            assert_eq!(elem.tag(), (2, 2));
+            let elem = reader.decode_header(&mut cursor).expect("should find an element");
+            assert_eq!(elem.tag(), (0x0002, 0x0002));
             assert_eq!(elem.vr(), ValueRepresentation::UN);
             assert_eq!(elem.len(), 26);
             // read only half of the data
@@ -65,8 +65,8 @@ mod tests {
         // cursor should now be @ #34 after skipping
         assert_eq!(cursor.seek(SeekFrom::Current(13)).unwrap(), 34);
         { // read second element
-            let elem = reader.decode(&mut cursor).expect("should find an element");
-            assert_eq!(elem.tag(), (2, 16));
+            let elem = reader.decode_header(&mut cursor).expect("should find an element");
+            assert_eq!(elem.tag(), (0x0002, 0x0010));
             assert_eq!(elem.vr(), ValueRepresentation::UN);
             assert_eq!(elem.len(), 20);
             // read all data
@@ -83,7 +83,7 @@ mod tests {
         let reader = ImplicitVRLittleEndianDecoder::with_default_dict();
         let mut cursor = Cursor::new(RAW.as_ref());
         { // read first element
-            let elem = reader.decode(&mut cursor).expect("should find an element");
+            let elem = reader.decode_header(&mut cursor).expect("should find an element");
             assert_eq!(elem.tag(), (2, 2));
             assert_eq!(elem.vr(), ValueRepresentation::UI);
             assert_eq!(elem.len(), 26);
@@ -94,7 +94,7 @@ mod tests {
             assert_eq!(cursor.seek(SeekFrom::Current(elem.len() as i64)).unwrap(), 34);
         }
         { // read second element
-            let elem = reader.decode(&mut cursor).expect("should find an element");
+            let elem = reader.decode_header(&mut cursor).expect("should find an element");
             assert_eq!(elem.tag(), (2, 16));
             assert_eq!(elem.vr(), ValueRepresentation::UI);
             assert_eq!(elem.len(), 20);
@@ -177,7 +177,7 @@ impl<'d, 's, S: Read + ?Sized + 's> ImplicitVRLittleEndianDecoder<'d, S> {
 impl<'d, 's, S: Read + ?Sized + 's> Decode for ImplicitVRLittleEndianDecoder<'d, S>  {
     type Source = S;
 
-    fn decode(&self, source: &mut S) -> Result<DataElementHeader> {
+    fn decode_header(&self, source: &mut S) -> Result<DataElementHeader> {
         let mut buf = [0u8; 4];
         try!(source.read_exact(&mut buf));
         // retrieve tag
@@ -190,7 +190,7 @@ impl<'d, 's, S: Read + ?Sized + 's> Decode for ImplicitVRLittleEndianDecoder<'d,
         Ok(DataElementHeader::new(tag, vr, len))
     }
 
-    fn decode_item(&self, source: &mut S) -> Result<SequenceItemHeader> {
+    fn decode_item_header(&self, source: &mut S) -> Result<SequenceItemHeader> {
         let mut buf = [0u8; 4];
         try!(source.read_exact(&mut buf));
         // retrieve tag
@@ -202,6 +202,29 @@ impl<'d, 's, S: Read + ?Sized + 's> Decode for ImplicitVRLittleEndianDecoder<'d,
         SequenceItemHeader::new((group, element), len)
     }
     
+    fn decode_us(&self, source: &mut Self::Source) -> Result<u16> {
+        let mut buf = [0u8; 2];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(LittleEndian::read_u16(&buf[..]))
+    }
+
+    fn decode_ul(&self, source: &mut Self::Source) -> Result<u32> {
+        let mut buf = [0u8; 4];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(LittleEndian::read_u32(&buf[..]))
+    }
+
+    fn decode_ss(&self, source: &mut Self::Source) -> Result<i16> {
+        let mut buf = [0u8; 2];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(LittleEndian::read_i16(&buf[0..2]))
+    }
+
+    fn decode_sl(&self, source: &mut Self::Source) -> Result<i32> {
+        let mut buf = [0u8; 4];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(LittleEndian::read_i32(&buf[..]))
+    }
 }
 
 pub struct ImplicitVRLittleEndianEncoder<W: Write + ?Sized> {

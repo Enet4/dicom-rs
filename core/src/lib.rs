@@ -15,6 +15,7 @@ extern crate byteorder;
 extern crate encoding;
 #[macro_use]
 extern crate quick_error;
+extern crate chrono;
 
 
 pub mod attribute;
@@ -23,5 +24,6 @@ pub mod parser;
 pub mod transfer_syntax;
 pub mod data_element;
 pub mod meta;
+pub mod object;
 
 mod util;

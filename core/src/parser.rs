@@ -1,4 +1,4 @@
-//! This module provides a mid level abstraction for reading DICOM data.
+//! This module provides a higher level abstraction for reading DICOM data.
 //! The structures provided here can translate a byte data source into
 //! an iterator of elements, with either sequential or random access.
 
@@ -11,11 +11,14 @@ use data_element::text::SpecificCharacterSet;
 use transfer_syntax::TransferSyntax;
 use data_element::text;
 use attribute::ValueRepresentation;
+use attribute::value::DicomValue;
+use std::iter::FromIterator;
+use object::DicomObject;
+use util::SeekInterval;
 
 /// An iterator for DICOM object elements.
-///
 #[derive(Debug)]
-pub struct DicomObjectIterator<'s, S: Read + Seek + ?Sized + 's> {
+pub struct DicomElementIterator<'s, S: Read + Seek + ?Sized + 's> {
     source: &'s mut S,
     decoder: Box<Decode<Source = S> + 's>,
     text: Box<text::TextCodec>,
@@ -24,14 +27,14 @@ pub struct DicomObjectIterator<'s, S: Read + Seek + ?Sized + 's> {
     hard_break: bool,
 }
 
-impl<'s, S: Read + Seek + ?Sized + 's> DicomObjectIterator<'s, S> {
+impl<'s, S: Read + Seek + ?Sized + 's> DicomElementIterator<'s, S> {
     /// Create a new iterator with the given random access source,
     /// while considering the given decoder and text codec.
     pub fn new(mut source: &'s mut S,
                decoder: Box<Decode<Source = S> + 's>,
                text: Box<text::TextCodec>)
-               -> DicomObjectIterator<'s, S> {
-        DicomObjectIterator {
+               -> DicomElementIterator<'s, S> {
+        DicomElementIterator {
             source: source,
             decoder: decoder,
             text: text,
@@ -46,12 +49,13 @@ impl<'s, S: Read + Seek + ?Sized + 's> DicomObjectIterator<'s, S> {
     pub fn new_with(mut source: &'s mut S,
                     ts: TransferSyntax,
                     cs: SpecificCharacterSet)
-                    -> Result<DicomObjectIterator<'s, S>> {
+                    -> Result<DicomElementIterator<'s, S>> {
         let decoder: Box<Decode<Source = S>> = try!(ts.get_decoder()
             .ok_or_else(|| Error::UnsupportedTransferSyntax));
-        let text = try!(cs.get_codec().ok_or_else(|| Error::UnsupportedCharacterSet));
+        let text = try!(cs.get_codec()
+            .ok_or_else(|| Error::UnsupportedCharacterSet));
 
-        Ok(DicomObjectIterator {
+        Ok(DicomElementIterator {
             source: source,
             decoder: decoder,
             text: text,
@@ -64,8 +68,8 @@ impl<'s, S: Read + Seek + ?Sized + 's> DicomObjectIterator<'s, S> {
     fn save_element(&mut self, header: DataElementHeader) -> Result<LazyDicomElement> {
         match self.source.seek(SeekFrom::Current(0)) {
             Ok(pos) => {
-                Ok(LazyDicomElement::DataElement {
-                    header: header,
+                Ok(LazyDicomElement {
+                    header: LazyDicomElementHeader::Data(header),
                     pos: pos,
                 })
             }
@@ -79,8 +83,8 @@ impl<'s, S: Read + Seek + ?Sized + 's> DicomObjectIterator<'s, S> {
     fn save_item(&mut self, header: SequenceItemHeader) -> Result<LazyDicomElement> {
         match self.source.seek(SeekFrom::Current(0)) {
             Ok(pos) => {
-                Ok(LazyDicomElement::SequenceItem {
-                    header: header,
+                Ok(LazyDicomElement {
+                    header: LazyDicomElementHeader::Item(header),
                     pos: pos,
                 })
             }
@@ -92,7 +96,7 @@ impl<'s, S: Read + Seek + ?Sized + 's> DicomObjectIterator<'s, S> {
     }
 }
 
-impl<'a, S: Read + Seek + ?Sized + 'a> Iterator for DicomObjectIterator<'a, S> {
+impl<'a, S: Read + Seek + ?Sized + 'a> Iterator for DicomElementIterator<'a, S> {
     type Item = Result<LazyDicomElement>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -101,7 +105,7 @@ impl<'a, S: Read + Seek + ?Sized + 'a> Iterator for DicomObjectIterator<'a, S> {
         }
 
         if self.in_sequence {
-            match self.decoder.decode_item(&mut self.source) {
+            match self.decoder.decode_item_header(&mut self.source) {
                 Ok(header) => {
                     match header {
                         header @ SequenceItemHeader::Item { .. } => {
@@ -126,7 +130,7 @@ impl<'a, S: Read + Seek + ?Sized + 'a> Iterator for DicomObjectIterator<'a, S> {
             }
 
         } else {
-            match self.decoder.decode(&mut self.source) {
+            match self.decoder.decode_header(&mut self.source) {
                 Ok(header) => {
                     // check if SQ
                     if header.vr() == ValueRepresentation::SQ {
@@ -149,22 +153,73 @@ impl<'a, S: Read + Seek + ?Sized + 'a> Iterator for DicomObjectIterator<'a, S> {
 ///
 /// WIP
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum LazyDicomElement {
+pub struct LazyDicomElement {
+    /// The header, kept in memory.
+    header: LazyDicomElementHeader,
+    /// The starting position of the element's data value,
+    /// relative to the beginning of the file.
+    pos: u64,
+}
+
+impl LazyDicomElement {
+
+    /// Obtain an interval of the raw data associated to this element's data value.
+    pub fn get_data_stream<'s, S: Read + Seek + ?Sized + 's>(&self, source: &'s mut S) -> Result<SeekInterval<'s, S>> {
+        let len = self.header.len();
+        let interval = try!(SeekInterval::new(source, len));
+        Ok(interval)
+    }
+
+    /// Eagerly fetch and decode a primitive element.
+    pub fn decode_value<'s, S: Read + Seek + ?Sized + 's>(&self, source: &'s mut S) -> Result<DicomValue> {
+        unimplemented!();
+    }
+    
+}
+
+/// A data type for a DICOM element header.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum LazyDicomElementHeader {
     /// A regular data element was read.
-    DataElement {
-        /// The header, kept in memory.
-        header: DataElementHeader,
-        /// The starting position of the element's data value,
-        /// relative to the beginning of the file.
-        pos: u64,
-    },
+    Data (DataElementHeader),
     /// A sequence item was read. Item delimiters and sequence
     /// delimiters also apply to this variant.
-    SequenceItem {
-        /// The header, kept in memory.
-        header: SequenceItemHeader,
-        /// The starting position of the element's data value,
-        /// relative to the beginning of the file.
-        pos: u64,
-    },
+    Item (SequenceItemHeader),
+}
+
+impl LazyDicomElementHeader {
+
+    pub fn tag(&self) -> (u16, u16) {
+        match *self {
+            LazyDicomElementHeader::Data(h) => h.tag(),
+            LazyDicomElementHeader::Item(h) => h.tag()
+        }
+    }
+
+    pub fn len(&self) -> u32 {
+        match *self {
+            LazyDicomElementHeader::Data(h) => h.len(),
+            LazyDicomElementHeader::Item(h) => h.len()
+        }
+    }
+}
+
+
+/// Data type for a lazily loaded DICOM object builder.
+#[derive(Debug)]
+pub struct LazyDicomObject<'s, S: Read + Seek + ?Sized + 's> {
+    source: &'s mut S,
+    decoder: Box<Decode<Source = S> + 's>,
+    text: Box<text::TextCodec>,
+}
+
+
+impl<'s, S: Read + Seek + ?Sized + 's> FromIterator<Result<LazyDicomElement>> for LazyDicomObject<'s, S> {
+    fn from_iter<T>(iter: T) -> LazyDicomObject<'s, S> where T: IntoIterator<Item=Result<LazyDicomElement>> {
+        unimplemented!();
+    }
+}
+
+impl<'s, S: Read + Seek + ?Sized + 's> DicomObject for LazyDicomObject<'s, S> {
+
 }

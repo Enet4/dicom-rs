@@ -236,7 +236,7 @@ fn to_file<P: AsRef<Path>, I>(dest_path: P, entries: I) -> io::Result<()>
     let mut f = try!(File::create(&dest_path));
 
     try!(f.write_all(b"//! Automatically generated. DO NOT EDIT!\n\n\
-    use attribute::dictionary::{AttributeDictionary, DictionaryEntry};\n\
+    use attribute::dictionary::DictionaryEntry;\n\
     use attribute::ValueRepresentation;\n\n\
     type E<'a> = DictionaryEntry<'a>;\n\n\
     pub const ENTRIES: &'static [E<'static>] = &[\n"));
@@ -250,6 +250,13 @@ fn to_file<P: AsRef<Path>, I>(dest_path: P, entries: I) -> io::Result<()>
         
         if alias.is_none() {
             continue;
+        }
+
+        if let Some(ref s) = obs {
+            if s == "RET" {
+                // don't include retired attributes
+                continue;
+            }
         }
 
         let cap = regex_tag.captures(tag.as_str());
