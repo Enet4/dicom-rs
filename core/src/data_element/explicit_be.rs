@@ -17,7 +17,7 @@ mod tests {
     use super::super::encode::Encode;
     use super::ExplicitVRBigEndianDecoder;
     use super::ExplicitVRBigEndianEncoder;
-    use data_element::{DataElement, DataElementHeader};
+    use data_element::DataElementHeader;
     use attribute::ValueRepresentation;
     use std::io::{Read, Cursor, Seek, SeekFrom, Write};
 

@@ -2,7 +2,6 @@
 use std::io::{Read, Seek, SeekFrom};
 use error::{Result, Error};
 use byteorder::{ByteOrder, LittleEndian};
-use data_element::DataElement;
 use data_element::decode;
 use data_element::text;
 use data_element::text::TextCodec;
@@ -44,9 +43,9 @@ mod tests {
 
         // optional elements:
         
-        // Implementation Version Name (0002,0013) ; SH ; 
-        0x02, 0x00, 0x13, 0x00, 0x53, 0x48, 0x10, 0x00, 0x52, 0x4f, 0x47, 0x41, 0x4e, 0x5f,
-        0x44, 0x49, 0x43, 0x4f, 0x4d, 0x5f, 0x32, 0x30, 0x35, 0x20,
+        // Implementation Version Name (0002,0013) ; SH ; "RUSTY_DICOM_269"
+        0x02, 0x00, 0x13, 0x00, 0x53, 0x48, 0x10, 0x00, 0x52, 0x55, 0x53, 0x54, 0x59, 0x5f,
+        0x44, 0x49, 0x43, 0x4f, 0x4d, 0x5f, 0x32, 0x36, 0x39, 0x20,
         // Source Application Entity Title (0002, 0016) ; AE ; 0 (no data)
         0x02, 0x00, 0x16, 0x00, 0x41, 0x45, 0x00, 0x00
 
@@ -60,6 +59,17 @@ mod tests {
                 .expect("Should not yield any errors dangit!");
 
         assert_eq!(table.information_group_length, 200);
+        assert_eq!(table.information_version, [0u8, 1u8]);
+        assert_eq!(table.media_storage_sop_class_uid, "1.2.840.10008.5.1.4.1.1.1\0");
+        assert_eq!(table.media_storage_sop_instance_uid, "1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567\0");
+        assert_eq!(table.transfer_syntax, "1.2.840.10008.1.2.1\0");
+        assert_eq!(table.implementation_class_uid, "1.2.345.6.7890.1.234");
+        assert_eq!(table.implementation_version_name, Some(String::from("RUSTY_DICOM_269 ")));
+        assert_eq!(table.source_application_entity_title, None);
+        assert_eq!(table.sending_application_entity_title, None);
+        assert_eq!(table.receiving_application_entity_title, None);
+        assert_eq!(table.private_information_creator_uid, None);
+        assert_eq!(table.private_information, None);
     }
 
 }
@@ -77,7 +87,7 @@ pub struct DicomMetaTable {
     /// File Meta Information Group Length
     information_group_length: u32,         
     /// File Meta Information Version
-    information_version: u16,
+    information_version: [u8; 2],
     /// Media Storage SOP Class UID
     media_storage_sop_class_uid: String,
     /// Media Storage SOP Instance UID
@@ -170,10 +180,10 @@ impl DicomMetaTable {
                 if elem.len() != 2 {
                     return Err(Error::UnexpectedDataValueLength);
                 }
-                let hbuf = &mut buff[0..2];
-                try!(file.read_exact(hbuf));
+                let mut hbuf = [0u8; 2];
+                try!(file.read_exact(&mut hbuf[..]));
                 group_length_remaining -= 8 + elem.len();
-                LittleEndian::read_u16(hbuf)
+                hbuf
             })
             .media_storage_sop_class_uid(try!(read_str_as_tag(file, &decoder, &text, &mut group_length_remaining, (0x0002, 0x0002))))
             .media_storage_sop_instance_uid(try!(read_str_as_tag(file, &decoder, &text, &mut group_length_remaining, (0x0002, 0x0003))))
@@ -246,7 +256,7 @@ pub struct DicomMetaTableBuilder {
     /// File Meta Information Group Length (UL)
     information_group_length: Option<u32>,         
     /// File Meta Information Version (OB)
-    information_version: Option<u16>,
+    information_version: Option<[u8; 2]>,
     /// Media Storage SOP Class UID (UI)
     media_storage_sop_class_uid: Option<String>,
     /// Media Storage SOP Instance UID (UI)
@@ -303,7 +313,7 @@ impl DicomMetaTableBuilder {
     }
 
     /// Define the meta information version.
-    pub fn information_version(mut self, value: u16) -> DicomMetaTableBuilder {
+    pub fn information_version(mut self, value: [u8; 2]) -> DicomMetaTableBuilder {
         self.information_version = Some(value);
         self
     }

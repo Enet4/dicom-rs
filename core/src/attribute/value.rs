@@ -11,11 +11,6 @@ use chrono::offset::utc::UTC;
 /// Result type alias for this module.
 pub type Result<T> = result::Result<T, InvalidValueReadError>;
 
-#[inline]
-fn read_first<T: Copy, I: Iterator<Item=T>>(mut iter: I) -> Result<T> {
-    iter.next().ok_or(InvalidValueReadError::EmptyElement)
-}
-
 /// An enum representing a primitive value from a DICOM element. The result of decoding
 /// an element's data value may be one of the enumerated types depending on its content
 /// and value representation.
@@ -79,7 +74,6 @@ pub enum DicomValue {
     Time(Box<[NaiveTime]>),
     
 }
-
 
 /// An enum representing a programmatic abstraction of
 /// a DICOM element's data value type. This should be

@@ -29,7 +29,7 @@ pub trait AttributeDictionary<'a>: Debug {
     fn get_by_tag(&self, tag: (u16, u16)) -> Option<&'a DictionaryEntry<'a>>;
 }
 
-/** The dictionary entry data type, representing a DICOM attribute. */
+/// The dictionary entry data type, representing a DICOM attribute.
 #[derive(Debug, PartialEq, Eq)]
 pub struct DictionaryEntry<'a> {
     /// The attribute tag
@@ -39,3 +39,38 @@ pub struct DictionaryEntry<'a> {
     /// The _typical_  value representation of the attribute
     pub vr: ValueRepresentation,
 }
+
+/// Utility data structure that resolves to a DICOM attribute tag
+/// at a later time. 
+#[derive(Debug)]
+pub struct TagByName<'d, N: AsRef<str>, AD: AttributeDictionary<'d> + 'd> {
+    dict: &'d AD,
+    name: N,
+}
+
+impl<'d, N: AsRef<str>, AD: AttributeDictionary<'d> + 'd> TagByName<'d, N, AD> {
+    /// Create a tag resolver by name using the given dictionary.
+    pub fn new(dictionary: &'d AD, name: N) -> TagByName<'d, N, AD> {
+        TagByName {
+            dict: dictionary,
+            name: name,
+        }
+    }
+}
+
+impl<N: AsRef<str>> TagByName<'static, N, standard::StandardAttributeDictionary> {
+    /// Create a tag resolver by name using the standard dictionary.
+    pub fn with_std_dict(name: N) -> TagByName<'static, N, standard::StandardAttributeDictionary> {
+        TagByName {
+            dict: get_standard_dictionary(),
+            name: name
+        }
+    }
+}
+
+impl<'d, N: AsRef<str>, AD: AttributeDictionary<'d>> From<TagByName<'d, N, AD>> for Option<(u16, u16)> {
+    fn from(tag: TagByName<'d, N, AD>) -> Option<(u16, u16)> {
+        tag.dict.get_by_name(tag.name.as_ref()).map(|e| e.tag)
+    }
+}
+

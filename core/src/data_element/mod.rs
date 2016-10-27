@@ -8,6 +8,7 @@ mod explicit_le;
 mod implicit_le;
 mod explicit_be;
 use error::{Result, Error};
+use attribute::value::DicomValue;
 
 /// A generic trait for any data type that can represent
 /// a DICOM data element.
@@ -22,6 +23,9 @@ pub trait DataElement {
     /// According to the standard, this can be 0xFFFFFFFFu32 if the length is undefined,
     /// which can be the case for sequence elements.
     fn len(&self) -> u32;
+
+    /// Retrieve the data value.
+    fn value(&self) -> &DicomValue;
 }
 
 /// A data structure for a data element header, containing
@@ -37,23 +41,31 @@ impl DataElementHeader {
     /// Create a new data element header with the given properties.
     /// This is just a trivial constructor.
     pub fn new(tag: (u16, u16), vr: ValueRepresentation, len: u32) -> DataElementHeader {
-        DataElementHeader{ tag: tag, vr: vr, len: len }
+        DataElementHeader{
+            tag: tag,
+            vr: vr,
+            len: len
+        }
     }
-}
 
-impl DataElement for DataElementHeader {
-    fn tag(&self) -> (u16, u16) {
+    /// Retrieve the element's tag as a `(group, element)` tuple.
+    pub fn tag(&self) -> (u16, u16) {
         self.tag
     }
 
-    fn vr(&self) -> ValueRepresentation {
+    /// Retrieve the element's value representation, which can be unknown.
+    pub fn vr(&self) -> ValueRepresentation {
         self.vr
     }
 
-    fn len(&self) -> u32 {
+    /// Retrieve the value data's length as specified by the data element.
+    /// According to the standard, this can be 0xFFFFFFFFu32 if the length is undefined,
+    /// which can be the case for sequence elements.
+    pub fn len(&self) -> u32 {
         self.len
     }
 }
+
 
 /// Data type for describing a sequence item data element.
 /// If the element represents an item, it will also contain
@@ -116,4 +128,24 @@ impl SequenceItemHeader {
             SequenceItemHeader::SequenceDelimiter => 0,
         }
     }
+}
+
+impl DataElement for (DataElementHeader, DicomValue) {
+
+    fn tag(&self) -> (u16, u16) {
+        self.0.tag
+    }
+
+    fn vr(&self) -> ValueRepresentation {
+        self.0.vr
+    }
+
+    fn len(&self) -> u32 {
+        self.0.len
+    }
+
+    fn value(&self) -> &DicomValue {
+        &self.1
+    }
+
 }

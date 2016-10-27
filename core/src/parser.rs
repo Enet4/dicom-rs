@@ -5,7 +5,7 @@
 use std::io::{Read, Seek, SeekFrom};
 use std::iter::Iterator;
 use error::{Result, Error};
-use data_element::{DataElement, DataElementHeader, SequenceItemHeader};
+use data_element::{DataElementHeader, SequenceItemHeader};
 use data_element::decode::Decode;
 use data_element::text::SpecificCharacterSet;
 use transfer_syntax::TransferSyntax;
@@ -15,6 +15,7 @@ use attribute::value::DicomValue;
 use std::iter::FromIterator;
 use object::DicomObject;
 use util::SeekInterval;
+use std::collections::HashMap;
 
 /// An iterator for DICOM object elements.
 #[derive(Debug)]
@@ -65,10 +66,10 @@ impl<'s, S: Read + Seek + ?Sized + 's> DicomElementIterator<'s, S> {
         })
     }
 
-    fn save_element(&mut self, header: DataElementHeader) -> Result<LazyDicomElement> {
+    fn save_element(&mut self, header: DataElementHeader) -> Result<DicomElementMarker> {
         match self.source.seek(SeekFrom::Current(0)) {
             Ok(pos) => {
-                Ok(LazyDicomElement {
+                Ok(DicomElementMarker {
                     header: LazyDicomElementHeader::Data(header),
                     pos: pos,
                 })
@@ -80,10 +81,10 @@ impl<'s, S: Read + Seek + ?Sized + 's> DicomElementIterator<'s, S> {
         }
     }
 
-    fn save_item(&mut self, header: SequenceItemHeader) -> Result<LazyDicomElement> {
+    fn save_item(&mut self, header: SequenceItemHeader) -> Result<DicomElementMarker> {
         match self.source.seek(SeekFrom::Current(0)) {
             Ok(pos) => {
-                Ok(LazyDicomElement {
+                Ok(DicomElementMarker {
                     header: LazyDicomElementHeader::Item(header),
                     pos: pos,
                 })
@@ -97,7 +98,7 @@ impl<'s, S: Read + Seek + ?Sized + 's> DicomElementIterator<'s, S> {
 }
 
 impl<'a, S: Read + Seek + ?Sized + 'a> Iterator for DicomElementIterator<'a, S> {
-    type Item = Result<LazyDicomElement>;
+    type Item = Result<DicomElementMarker>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.hard_break {
@@ -149,11 +150,10 @@ impl<'a, S: Read + Seek + ?Sized + 'a> Iterator for DicomElementIterator<'a, S> 
 }
 
 /// A data type for a DICOM element residing in a file,
-/// or any other source with random access.
-///
-/// WIP
+/// or any other source with random access. A position
+/// in the file is kept for future 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct LazyDicomElement {
+pub struct DicomElementMarker {
     /// The header, kept in memory.
     header: LazyDicomElementHeader,
     /// The starting position of the element's data value,
@@ -161,7 +161,7 @@ pub struct LazyDicomElement {
     pos: u64,
 }
 
-impl LazyDicomElement {
+impl DicomElementMarker {
 
     /// Obtain an interval of the raw data associated to this element's data value.
     pub fn get_data_stream<'s, S: Read + Seek + ?Sized + 's>(&self, source: &'s mut S) -> Result<SeekInterval<'s, S>> {
@@ -170,11 +170,20 @@ impl LazyDicomElement {
         Ok(interval)
     }
 
+    pub fn tag(&self) -> (u16, u16) {
+        self.header.tag()
+    }
+
+    pub fn len(&self) -> u32 {
+        self.header.len()
+    }
+
+/*
     /// Eagerly fetch and decode a primitive element.
     pub fn decode_value<'s, S: Read + Seek + ?Sized + 's>(&self, source: &'s mut S) -> Result<DicomValue> {
         unimplemented!();
     }
-    
+*/  
 }
 
 /// A data type for a DICOM element header.
@@ -211,15 +220,75 @@ pub struct LazyDicomObject<'s, S: Read + Seek + ?Sized + 's> {
     source: &'s mut S,
     decoder: Box<Decode<Source = S> + 's>,
     text: Box<text::TextCodec>,
+    entries: HashMap<(u16, u16), LazyDataElement>,
+}
+
+impl<'s, S: Read + Seek + ?Sized + 's> LazyDicomObject<'s, S> {
+
+    fn read_value(&mut self, elem: &mut LazyDataElement) -> Result<()> {
+        if let LazyDicomElementHeader::Data(ref header) = elem.marker.header {
+
+            unimplemented!(); // TODO
+        }
+
+        panic!("Nope!");
+    }
 }
 
 
-impl<'s, S: Read + Seek + ?Sized + 's> FromIterator<Result<LazyDicomElement>> for LazyDicomObject<'s, S> {
-    fn from_iter<T>(iter: T) -> LazyDicomObject<'s, S> where T: IntoIterator<Item=Result<LazyDicomElement>> {
-        unimplemented!();
+impl<'s, S: Read + Seek + ?Sized + 's> FromIterator<Result<DicomElementMarker>> for LazyDicomObject<'s, S> {
+    fn from_iter<T>(iter: T) -> LazyDicomObject<'s, S> where T: IntoIterator<Item=Result<DicomElementMarker>> {
+        unimplemented!(); // TODO
     }
 }
 
 impl<'s, S: Read + Seek + ?Sized + 's> DicomObject for LazyDicomObject<'s, S> {
+    fn get<T: Into<Option<(u16, u16)>>>(&self, tag: T) -> Result<(DataElementHeader, DicomValue)> {
+        let tag: (u16, u16) = try!(tag.into().ok_or(Error::NoSuchAttributeName));
 
+        // ???
+        let value = self.entries.get(&tag).ok_or_else(|| Error::NoSuchDataElement);
+
+        unimplemented!() // TODO
+    }
+}
+
+#[derive(Debug)]
+pub struct LazyDataElement {
+    marker: DicomElementMarker,
+    value: Option<DicomValue>,
+}
+
+impl LazyDataElement {
+
+    /// Retrieve the element's tag as a `(group, element)` tuple.
+    pub fn tag(&self) -> (u16, u16) {
+        self.marker.header.tag()
+    }
+
+    /// Retrieve the element's value representation, which can be unknown or
+    /// not applicable.
+    pub fn vr(&self) -> Option<ValueRepresentation> {
+        match self.marker.header {
+            LazyDicomElementHeader::Data(h) => Some(h.vr()),
+            _ => None,
+        }
+    }
+
+    /// Retrieve the value data's length as specified by the data element.
+    /// According to the standard, this can be 0xFFFFFFFFu32 if the length is undefined,
+    /// which can be the case for sequence elements.
+    pub fn len(&self) -> u32 {
+        self.marker.header.len()
+    }
+
+    /// Getter for this element's cached data value.
+    pub fn value(&self) -> &Option<DicomValue> {
+        &self.value
+    }
+
+    /// Mutable getter for this element's cached data value.
+    pub fn value_mut(&mut self) -> &mut Option<DicomValue> {
+        &mut self.value
+    }
 }

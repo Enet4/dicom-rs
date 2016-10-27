@@ -33,6 +33,14 @@ quick_error! {
         UnsupportedCharacterSet {
             description("Unsupported character set")
         }
+        /// Raised when attempting to fetch an element by an unknown attribute name.
+        NoSuchAttributeName {
+            description("No such attribute name")
+        }
+        /// Raised when attempting to fetch an unexistent element.
+        NoSuchDataElement {
+            description("No such data element")
+        }
         /// Error related to an invalid value read.
         ValueRead(err: InvalidValueReadError) {
             description("Invalid value read")

@@ -1,4 +1,4 @@
-//! This module contains the concept of DICOM element tag. Tags in this library
+//! This module contains the concept of DICOM attribute tag. Tags in this library
 //! are typically defined as a tuple of two unsigned 16-bit integers, but the
 //! `Tag` trait provides facility methods for dealing with tags.
 //! This trait is also implemented for `[u16; 2]`.
