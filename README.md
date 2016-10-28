@@ -8,8 +8,8 @@ At its core, this library is a pure Rust implementation of the DICOM representat
 allowing users to read and write DICOM objects over files and other sources, while
 remaining intrinsically fast and safe to use.
 
-This project is a WIP. No crate has been published online to respect the fact that
-the project does not yet meet the minimum features required to be usable.
+This project is a work in progress. Nevertheless, the first usable version may hopefully arrive
+in the next few months. Any feedback during the development of these solutions is welcome.
 
 ## Components
 

@@ -3,7 +3,7 @@
 //! an iterator of elements, with either sequential or random access.
 
 use std::io::{Read, Seek, SeekFrom};
-use std::iter::Iterator;
+use std::iter::{repeat, Iterator};
 use error::{Result, Error};
 use data_element::{DataElementHeader, SequenceItemHeader};
 use data_element::decode::Decode;
@@ -170,20 +170,15 @@ impl DicomElementMarker {
         Ok(interval)
     }
 
+    /// Getter for this element's tag.
     pub fn tag(&self) -> (u16, u16) {
         self.header.tag()
     }
 
+    /// Getter for this element's length.
     pub fn len(&self) -> u32 {
         self.header.len()
-    }
-
-/*
-    /// Eagerly fetch and decode a primitive element.
-    pub fn decode_value<'s, S: Read + Seek + ?Sized + 's>(&self, source: &'s mut S) -> Result<DicomValue> {
-        unimplemented!();
-    }
-*/  
+    } 
 }
 
 /// A data type for a DICOM element header.
@@ -198,6 +193,7 @@ pub enum LazyDicomElementHeader {
 
 impl LazyDicomElementHeader {
 
+    /// Getter for this element's attribute tag.
     pub fn tag(&self) -> (u16, u16) {
         match *self {
             LazyDicomElementHeader::Data(h) => h.tag(),
@@ -205,6 +201,8 @@ impl LazyDicomElementHeader {
         }
     }
 
+    /// Getter for this element's length, as specified in
+    /// the DICOM element (can be 0xFFFFFFFF).
     pub fn len(&self) -> u32 {
         match *self {
             LazyDicomElementHeader::Data(h) => h.len(),
@@ -212,7 +210,6 @@ impl LazyDicomElementHeader {
         }
     }
 }
-
 
 /// Data type for a lazily loaded DICOM object builder.
 #[derive(Debug)]
@@ -225,7 +222,103 @@ pub struct LazyDicomObject<'s, S: Read + Seek + ?Sized + 's> {
 
 impl<'s, S: Read + Seek + ?Sized + 's> LazyDicomObject<'s, S> {
 
-    fn read_value(&mut self, elem: &mut LazyDataElement) -> Result<()> {
+    /// Eagerly read and cache the data value.
+    fn read_value<'a>(&mut self, elem: &'a mut LazyDataElement) -> Result<&'a DicomValue> {
+        if let LazyDicomElementHeader::Data(ref header) = elem.marker.header {
+            let value = match header.vr() {
+                ValueRepresentation::SQ => {
+                    // sequence objects... should not work
+                    unimplemented!()
+                }
+                ValueRepresentation::AT => {
+                    // tags
+                    //try!(self.source.read_exact(&mut buf));
+                    let ntags = {header.len() >> 2} as usize;
+                    let parts: Box<[(u16, u16)]> = try!(repeat(()).take(ntags)
+                        .map(|_| self.decoder.decode_tag(self.source))
+                        .collect::<Result<Vec<(u16, u16)>>>())
+                        .into_boxed_slice();
+                    DicomValue::Tags(parts)
+                }
+                ValueRepresentation::AE |
+                ValueRepresentation::AS |
+                ValueRepresentation::PN |
+                ValueRepresentation::SH |
+                ValueRepresentation::LO |
+                ValueRepresentation::UI |
+                ValueRepresentation::UC |
+                ValueRepresentation::CS => {
+                    // sequence of strings
+                    let mut buf = vec![0u8 ; header.len() as usize];
+                    try!(self.source.read_exact(&mut buf));
+                    let parts: Box<[String]> = try!(buf[..]
+                        .split(|v| *v == '\\' as u8)
+                        .map(|slice| self.text.as_ref().decode(slice))
+                        .collect::<Result<Vec<String>>>()).into_boxed_slice();
+
+                    DicomValue::Strs(parts)
+                }
+                ValueRepresentation::UT |
+                ValueRepresentation::ST |
+                ValueRepresentation::UR |
+                ValueRepresentation::LT => {
+                    // a single string
+                    let mut buf = vec![0u8 ; header.len() as usize];
+                    try!(self.source.read_exact(&mut buf));
+                    DicomValue::Str(try!(self.text.as_ref().decode(&buf[..])))
+                }
+                ValueRepresentation::UN |
+                ValueRepresentation::OB => {
+                    // sequence of 8-bit integers (or just byte data)
+                    let mut buf = vec![0u8 ; header.len() as usize];
+                    try!(self.source.read_exact(&mut buf));
+                    DicomValue::U8(buf.into_boxed_slice())
+                }
+                ValueRepresentation::DA => {
+                    // sequence of dates
+                    unimplemented!()
+                }
+                ValueRepresentation::DT => {
+                    // sequence of datetimes
+                    unimplemented!()
+                }
+                ValueRepresentation::TM => {
+                    // sequence of time instances
+                    unimplemented!()
+                }
+                ValueRepresentation::DS |
+                ValueRepresentation::FD |
+                ValueRepresentation::OD => {
+                    // sequence of 64-bit floats
+                    unimplemented!()
+                }
+                ValueRepresentation::FL |
+                ValueRepresentation::OF => {
+                    // sequence of 32-bit floats
+                    unimplemented!()
+                }
+                ValueRepresentation::IS |
+                ValueRepresentation::SL => {
+                    // sequence of 32-bit integers
+                    unimplemented!()
+                }
+                ValueRepresentation::OL |
+                ValueRepresentation::OW |
+                ValueRepresentation::SS |
+                ValueRepresentation::UL |
+                ValueRepresentation::US  => {
+                    unimplemented!()
+                }
+            };
+            
+            elem.value = Some(value);
+            Ok(elem.value.as_ref().unwrap())
+        } else {
+            panic!("Nope!")
+        }
+    }
+
+    fn read_value_preserved(&mut self, elem: &mut LazyDataElement) -> Result<()> {
         if let LazyDicomElementHeader::Data(ref header) = elem.marker.header {
 
             unimplemented!(); // TODO
@@ -235,9 +328,12 @@ impl<'s, S: Read + Seek + ?Sized + 's> LazyDicomObject<'s, S> {
     }
 }
 
+impl<'s, S: Read + Seek + ?Sized + 's> LazyDicomObject<'s, S> {
+    fn from<T>(iter: T) -> Result<LazyDicomObject<'s, S>> where T: IntoIterator<Item=Result<DicomElementMarker>> {
+        let entries = HashMap::<(u16, u16), LazyDataElement>::new();
+        for e in iter {
 
-impl<'s, S: Read + Seek + ?Sized + 's> FromIterator<Result<DicomElementMarker>> for LazyDicomObject<'s, S> {
-    fn from_iter<T>(iter: T) -> LazyDicomObject<'s, S> where T: IntoIterator<Item=Result<DicomElementMarker>> {
+        }
         unimplemented!(); // TODO
     }
 }

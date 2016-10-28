@@ -69,6 +69,13 @@ pub trait Decode: Debug {
      */
     fn decode_item_header(&self, source: &mut Self::Source) -> Result<SequenceItemHeader>;
 
+    /// Decode a DICOM attribute tag from the given source.
+    fn decode_tag(&self, source: &mut Self::Source) -> Result<(u16, u16)> {
+        let group = try!(self.decode_us(source));
+        let elem = try!(self.decode_us(source));
+        Ok((group, elem))
+    }
+
     /// Decode an unsigned short value from the given source.
     fn decode_us(&self, source: &mut Self::Source) -> Result<u16>;
 
