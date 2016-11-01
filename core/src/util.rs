@@ -98,3 +98,26 @@ impl<'s, S: Seek + ?Sized + 's> Write for SeekInterval<'s, S>
         self.source.flush()
     }
 }
+
+// Enumerate for the two kinds of endianness considered by the standard.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Endianness {
+    /// Little Endian
+    LE,
+    /// Big Endian
+    BE,
+}
+
+impl Endianness {
+    /// Obtain this system's endianness
+    #[cfg(target_endian = "little")]
+    pub fn system_endianness() -> Endianness {
+        Endianness::LE
+    }
+
+    /// Obtain this system's endianness
+    #[cfg(target_endian = "big")]
+    pub fn system_endianness() -> Endianness {
+        Endianness::BE
+    }
+}

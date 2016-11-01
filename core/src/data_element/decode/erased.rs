@@ -4,6 +4,7 @@ use std::io::Read;
 use error::Result;
 use data_element::{DataElementHeader, SequenceItemHeader};
 use std::fmt::Debug;
+use util::Endianness;
 
 /** Type trait for reading and decoding DICOM data elements.
  * 
@@ -18,6 +19,9 @@ use std::fmt::Debug;
  * to a type-erased decoder and vice versa.
  */
 pub trait Decode: Debug {
+    /// Retrieve the source's endianess, as expected by this decoder.
+    fn endianness(&self) -> Endianness;
+
     /** Fetch and decode the next data element header from the given source.
      * This method returns only the header of the element. At the end of this operation, the source
      * will be pointing at the element's value data, which should be read or skipped as necessary.

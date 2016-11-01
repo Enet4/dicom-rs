@@ -8,6 +8,7 @@ use std::io::Read;
 use error::Result;
 use data_element::{DataElementHeader, SequenceItemHeader};
 use std::fmt::Debug;
+use util::Endianness;
 
 pub mod erased;
 
@@ -57,6 +58,9 @@ pub trait Decode: Debug {
     /** The data source's type. */
     type Source: Read + ?Sized;
 
+    /// Retrieve the source's endianness, as expected by this decoder.
+    fn endianness(&self) -> Endianness;
+
     /** Fetch and decode the next data element header from the given source.
      * This method returns only the header of the element. At the end of this operation, the source
      * will be pointing at the element's value data, which should be read or skipped as necessary.
@@ -91,6 +95,10 @@ pub trait Decode: Debug {
 
 impl<'s> Decode for &'s erased::Decode {
     type Source = Read;
+
+    fn endianness(&self) -> Endianness {
+        (**self).endianness()
+    }
 
     fn decode_header(&self, mut source: &mut Self::Source) -> Result<DataElementHeader> {
         (**self).erased_decode(&mut source)

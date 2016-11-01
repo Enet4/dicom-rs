@@ -69,19 +69,18 @@ quick_error! {
 pub type Result<T> = result::Result<T, Error>;
 
 quick_error! {
-    /** Triggered when an invalid value read is attempted
-    * (e.g. reading an array of strings from a binary value)
+    /** Triggered when an invalid value read is attempted.
     */
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     pub enum InvalidValueReadError {
-        /// The type is incompatible.
-        IncompatibleType {
-            description("Attempted to retrieve value of incompatible type")
+        /// The value cannot be read as a primitive value.
+        NonPrimitiveType {
+            description("Attempted to retrieve complex value as primitive")
             display(self_) -> ("Value reading error: {}", self_.description())
         }
-        /// The element is empty.
-        EmptyElement {
-            description("DICOM element is empty")
+        /// The value's effective length cannot be resolved.
+        UnresolvedValueLength {
+            description("Attempted to retrieve complex value as primitive")
             display(self_) -> ("Value reading error: {}", self_.description())
         }
     }

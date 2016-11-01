@@ -2,6 +2,7 @@
 use std::io::{Read, Seek, SeekFrom};
 use error::{Result, Error};
 use byteorder::{ByteOrder, LittleEndian};
+use data_element::Header;
 use data_element::decode;
 use data_element::text;
 use data_element::text::TextCodec;

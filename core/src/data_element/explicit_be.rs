@@ -8,6 +8,7 @@ use byteorder::{ByteOrder, BigEndian};
 use error::Result;
 use super::decode::Decode;
 use super::encode::Encode;
+use util::Endianness;
 use std::marker::PhantomData;
 use data_element::{DataElementHeader, SequenceItemHeader};
 
@@ -17,7 +18,7 @@ mod tests {
     use super::super::encode::Encode;
     use super::ExplicitVRBigEndianDecoder;
     use super::ExplicitVRBigEndianEncoder;
-    use data_element::DataElementHeader;
+    use data_element::{Header, DataElementHeader};
     use attribute::ValueRepresentation;
     use std::io::{Read, Cursor, Seek, SeekFrom, Write};
 
@@ -130,6 +131,10 @@ impl<S: Read + ?Sized> fmt::Debug for ExplicitVRBigEndianDecoder<S> {
 impl<'s, S: Read + ?Sized + 's> Decode for ExplicitVRBigEndianDecoder<S> {
     type Source = S;
     
+    fn endianness(&self) -> Endianness {
+        Endianness::BE
+    }
+
     fn decode_header(&self, source: &mut Self::Source) -> Result<DataElementHeader> {
         let mut buf = [0u8; 4];
         try!(source.read_exact(&mut buf));

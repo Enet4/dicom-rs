@@ -10,6 +10,7 @@ use error::Result;
 use super::decode::Decode;
 use super::encode::Encode;
 use data_element::{DataElementHeader, SequenceItemHeader};
+use util::Endianness;
 
 #[cfg(test)]
 mod tests {
@@ -17,7 +18,7 @@ mod tests {
     use super::ExplicitVRLittleEndianDecoder;
     use super::super::encode::Encode;
     use super::ExplicitVRLittleEndianEncoder;
-    use data_element::{DataElement, DataElementHeader};
+    use data_element::{Header, DataElement, DataElementHeader};
     use attribute::ValueRepresentation;
     use std::io::{Read, Cursor, Seek, SeekFrom, Write};
 
@@ -129,6 +130,10 @@ impl<S: Read + ?Sized> fmt::Debug for ExplicitVRLittleEndianDecoder<S> {
 
 impl<S: Read + ?Sized> Decode for ExplicitVRLittleEndianDecoder<S> {
     type Source = S;
+
+    fn endianness(&self) -> Endianness {
+        Endianness::LE
+    }
 
     fn decode_header(&self, source: &mut S) -> Result<DataElementHeader> {
         let mut buf = [0u8; 4];

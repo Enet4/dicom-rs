@@ -7,6 +7,7 @@ use attribute::dictionary::{AttributeDictionary, get_standard_dictionary};
 use attribute::ValueRepresentation;
 use attribute::tag::Tag;
 use std::fmt;
+use util::Endianness;
 use error::Result;
 use super::decode::Decode;
 use super::encode::Encode;
@@ -21,7 +22,7 @@ mod tests {
     use attribute::dictionary::AttributeDictionary;
     use attribute::dictionary::stub::StubAttributeDictionary;
     use attribute::ValueRepresentation;
-    use data_element::{DataElement, DataElementHeader};
+    use data_element::{Header, DataElement, DataElementHeader};
     use std::io::{Read, Cursor, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements
@@ -176,6 +177,10 @@ impl<'d, 's, S: Read + ?Sized + 's> ImplicitVRLittleEndianDecoder<'d, S> {
 
 impl<'d, 's, S: Read + ?Sized + 's> Decode for ImplicitVRLittleEndianDecoder<'d, S>  {
     type Source = S;
+
+    fn endianness(&self) -> Endianness {
+        Endianness::LE
+    }
 
     fn decode_header(&self, source: &mut S) -> Result<DataElementHeader> {
         let mut buf = [0u8; 4];
