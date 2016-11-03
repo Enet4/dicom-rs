@@ -9,6 +9,7 @@ use error::Result;
 use data_element::{DataElementHeader, SequenceItemHeader};
 use std::fmt::Debug;
 use util::Endianness;
+use attribute::tag::Tag;
 
 pub mod erased;
 
@@ -37,13 +38,13 @@ pub fn get_decoder<'s, S: Read + ?Sized + 's>(ts: TransferSyntax)
                                               -> Option<Box<Decode<Source = S> + 's>> {
     match ts {
         TransferSyntax::ImplicitVRLittleEndian => {
-            Some(Box::new(ImplicitVRLittleEndianDecoder::<S>::with_default_dict()))
+            Some(Box::new(ImplicitVRLittleEndianDecoder::with_default_dict()))
         }
         TransferSyntax::ExplicitVRLittleEndian => {
-            Some(Box::new(ExplicitVRLittleEndianDecoder::<S>::default()))
+            Some(Box::new(ExplicitVRLittleEndianDecoder::default()))
         }
         TransferSyntax::ExplicitVRBigEndian => {
-            Some(Box::new(ExplicitVRBigEndianDecoder::<S>::default()))
+            Some(Box::new(ExplicitVRBigEndianDecoder::default()))
         }
         _ => None,
     }
@@ -74,10 +75,10 @@ pub trait Decode: Debug {
     fn decode_item_header(&self, source: &mut Self::Source) -> Result<SequenceItemHeader>;
 
     /// Decode a DICOM attribute tag from the given source.
-    fn decode_tag(&self, source: &mut Self::Source) -> Result<(u16, u16)> {
+    fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag> {
         let group = try!(self.decode_us(source));
         let elem = try!(self.decode_us(source));
-        Ok((group, elem))
+        Ok(Tag(group, elem))
     }
 
     /// Decode an unsigned short value from the given source.
@@ -106,6 +107,10 @@ impl<'s> Decode for &'s erased::Decode {
 
     fn decode_item_header(&self, mut source: &mut Self::Source) -> Result<SequenceItemHeader> {
         (**self).erased_decode_item(&mut source)
+    }
+
+    fn decode_tag(&self, mut source: &mut Self::Source) -> Result<Tag> {
+        (**self).erased_decode_tag(&mut source)
     }
 
     fn decode_us(&self, mut source: &mut Self::Source) -> Result<u16> {

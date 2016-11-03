@@ -20,6 +20,7 @@ mod tests {
     use super::ExplicitVRBigEndianEncoder;
     use data_element::{Header, DataElementHeader};
     use attribute::ValueRepresentation;
+    use attribute::tag::Tag;
     use std::io::{Read, Cursor, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements
@@ -49,7 +50,7 @@ mod tests {
         let mut cursor = Cursor::new(RAW.as_ref());
         { // read first element
             let elem = reader.decode_header(&mut cursor).expect("should find an element");
-            assert_eq!(elem.tag(), (2, 2));
+            assert_eq!(elem.tag(), Tag(2, 2));
             assert_eq!(elem.vr(), ValueRepresentation::UI);
             assert_eq!(elem.len(), 26);
             // read only half of the data
@@ -64,7 +65,7 @@ mod tests {
         assert_eq!(cursor.seek(SeekFrom::Current(13)).unwrap(), 34);
         { // read second element
             let elem = reader.decode_header(&mut cursor).expect("should find an element");
-            assert_eq!(elem.tag(), (2, 16));
+            assert_eq!(elem.tag(), Tag(2, 16));
             assert_eq!(elem.vr(), ValueRepresentation::UI);
             assert_eq!(elem.len(), 20);
             // read all data
@@ -84,7 +85,7 @@ mod tests {
 
             // encode first element
             let de = DataElementHeader {
-                tag: (0x0002,0x0002),
+                tag: Tag(0x0002,0x0002),
                 vr: ValueRepresentation::UI,
                 len: 26,
             };
@@ -98,7 +99,7 @@ mod tests {
 
             // encode second element
             let de = DataElementHeader {
-                tag: (0x0002,0x0010),
+                tag: Tag(0x0002,0x0010),
                 vr: ValueRepresentation::UI,
                 len: 20,
             };
@@ -165,7 +166,7 @@ impl<'s, S: Read + ?Sized + 's> Decode for ExplicitVRBigEndianDecoder<S> {
             }
         };
 
-        Ok(DataElementHeader{ tag: (group, element), vr: vr, len: len })
+        Ok(DataElementHeader{ tag: Tag(group, element), vr: vr, len: len })
     }
 
     fn decode_item_header(&self, source: &mut Self::Source) -> Result<SequenceItemHeader> {
@@ -178,7 +179,7 @@ impl<'s, S: Read + ?Sized + 's> Decode for ExplicitVRBigEndianDecoder<S> {
         try!(source.read_exact(&mut buf));
         let len = BigEndian::read_u32(&buf);
 
-        SequenceItemHeader::new((group, element), len)
+        SequenceItemHeader::new(Tag(group, element), len)
     }
 
     fn decode_us(&self, source: &mut Self::Source) -> Result<u16> {

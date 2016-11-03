@@ -4,7 +4,6 @@ use std::io::{Read, Write};
 use std::fmt;
 use std::marker::PhantomData;
 use attribute::ValueRepresentation;
-use attribute::tag::Tag;
 use byteorder::{ByteOrder, LittleEndian};
 use error::Result;
 use super::decode::Decode;
@@ -19,6 +18,7 @@ mod tests {
     use super::super::encode::Encode;
     use super::ExplicitVRLittleEndianEncoder;
     use data_element::{Header, DataElement, DataElementHeader};
+    use attribute::tag::Tag;
     use attribute::ValueRepresentation;
     use std::io::{Read, Cursor, Seek, SeekFrom, Write};
 
@@ -49,7 +49,7 @@ mod tests {
         let mut cursor = Cursor::new(RAW.as_ref());
         { // read first element
             let elem = dec.decode_header(&mut cursor).expect("should find an element");
-            assert_eq!(elem.tag(), (2, 2));
+            assert_eq!(elem.tag(), Tag(2, 2));
             assert_eq!(elem.vr(), ValueRepresentation::UI);
             assert_eq!(elem.len(), 26);
             // read only half of the value data
@@ -64,7 +64,7 @@ mod tests {
         assert_eq!(cursor.seek(SeekFrom::Current(13)).unwrap(), 34);
         { // read second element
             let elem = dec.decode_header(&mut cursor).expect("should find an element");
-            assert_eq!(elem.tag(), (2, 16));
+            assert_eq!(elem.tag(), Tag(2, 16));
             assert_eq!(elem.vr(), ValueRepresentation::UI);
             assert_eq!(elem.len(), 20);
             // read all data
@@ -84,7 +84,7 @@ mod tests {
 
             // encode first element
             let de = DataElementHeader {
-                tag: (0x0002,0x0002),
+                tag: Tag(0x0002,0x0002),
                 vr: ValueRepresentation::UI,
                 len: 26,
             };
@@ -98,7 +98,7 @@ mod tests {
 
             // encode second element
             let de = DataElementHeader {
-                tag: (0x0002,0x0010),
+                tag: Tag(0x0002,0x0010),
                 vr: ValueRepresentation::UI,
                 len: 20,
             };

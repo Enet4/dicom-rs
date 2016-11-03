@@ -5,6 +5,7 @@ use error::Result;
 use data_element::{DataElementHeader, SequenceItemHeader};
 use std::fmt::Debug;
 use util::Endianness;
+use attribute::tag::Tag;
 
 /** Type trait for reading and decoding DICOM data elements.
  * 
@@ -33,6 +34,13 @@ pub trait Decode: Debug {
      * will be pointing at the beginning of the item's data, which should be traversed if necessary.
      */
     fn erased_decode_item(&self, source: &mut Read) -> Result<SequenceItemHeader>;
+
+    /// Decode a DICOM attribute tag from the given source.
+    fn erased_decode_tag(&self, source: &mut Read) -> Result<Tag> {
+        let group = try!(self.erased_decode_us(source));
+        let elem = try!(self.erased_decode_us(source));
+        Ok(Tag(group, elem))
+    }
 
     /// Decode an unsigned short value from the given source.
     fn erased_decode_us(&self, source: &mut Read) -> Result<u16>;

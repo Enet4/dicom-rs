@@ -10,6 +10,7 @@ use data_element::decode::Decode;
 use data_element::text::TextCodec;
 use attribute::ValueRepresentation;
 use attribute::value::DicomValue;
+use attribute::tag::Tag;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 
@@ -68,10 +69,10 @@ impl<'s, S: Read + ?Sized + 's> DicomParser<'s, S> {
                 let ntags = {
                     header.len() >> 2
                 } as usize;
-                let parts: Box<[(u16, u16)]> = try!(repeat(())
+                let parts: Box<[Tag]> = try!(repeat(())
                         .take(ntags)
                         .map(|_| self.decoder.decode_tag(self.source))
-                        .collect::<Result<Vec<(u16, u16)>>>())
+                        .collect::<Result<Vec<_>>>())
                     .into_boxed_slice();
                 DicomValue::Tags(parts)
             }

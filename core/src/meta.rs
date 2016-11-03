@@ -2,6 +2,7 @@
 use std::io::{Read, Seek, SeekFrom};
 use error::{Result, Error};
 use byteorder::{ByteOrder, LittleEndian};
+use attribute::tag::Tag;
 use data_element::Header;
 use data_element::decode;
 use data_element::text;
@@ -114,7 +115,7 @@ pub struct DicomMetaTable {
 
 /// Utility function for reading the whole DICOM element as a string with the given tag.
 fn read_str_as_tag<S: Read + Seek, D: Decode<Source=S>, T: TextCodec>(
-            source: &mut S, decoder: &D, text: &T, group_length_remaining: &mut u32, tag: (u16, u16)) -> Result<String> {
+            source: &mut S, decoder: &D, text: &T, group_length_remaining: &mut u32, tag: Tag) -> Result<String> {
     let elem = try!(decoder.decode_header(source));
     if elem.tag() != tag {
         return Err(Error::UnexpectedElement);
@@ -186,58 +187,58 @@ impl DicomMetaTable {
                 group_length_remaining -= 8 + elem.len();
                 hbuf
             })
-            .media_storage_sop_class_uid(try!(read_str_as_tag(file, &decoder, &text, &mut group_length_remaining, (0x0002, 0x0002))))
-            .media_storage_sop_instance_uid(try!(read_str_as_tag(file, &decoder, &text, &mut group_length_remaining, (0x0002, 0x0003))))
-            .transfer_syntax(try!(read_str_as_tag(file, &decoder, &text, &mut group_length_remaining, (0x0002, 0x0010))))
-            .implementation_class_uid(try!(read_str_as_tag(file, &decoder, &text, &mut group_length_remaining, (0x0002, 0x0012))));
+            .media_storage_sop_class_uid(try!(read_str_as_tag(file, &decoder, &text, &mut group_length_remaining, Tag(0x0002, 0x0002))))
+            .media_storage_sop_instance_uid(try!(read_str_as_tag(file, &decoder, &text, &mut group_length_remaining, Tag(0x0002, 0x0003))))
+            .transfer_syntax(try!(read_str_as_tag(file, &decoder, &text, &mut group_length_remaining, Tag(0x0002, 0x0010))))
+            .implementation_class_uid(try!(read_str_as_tag(file, &decoder, &text, &mut group_length_remaining, Tag(0x0002, 0x0012))));
 
         // Fetch optional data elements
         while group_length_remaining > 0 {
             let elem = try!(decoder.decode_header(file));
             group_length_remaining -= elem.len();
             builder = match elem.tag() {
-                (0x0002,0x0013) => { // Implementation Version Name
+                Tag(0x0002,0x0013) => { // Implementation Version Name
                     let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
                     v.resize(elem.len() as usize, 0);
                     try!(file.read_exact(&mut v));
                     group_length_remaining -= 4 + elem.len();
                     builder.implementation_version_name(try!(text.decode(&v)))
                 }
-                (0x0002,0x0016) => { // Source Application Entity Title
+                Tag(0x0002,0x0016) => { // Source Application Entity Title
                     let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
                     v.resize(elem.len() as usize, 0);
                     try!(file.read_exact(&mut v));
                     group_length_remaining -= 4 + elem.len();
                     builder.source_application_entity_title(try!(text.decode(&v)))
                 },
-                (0x0002,0x0017) => { // Sending Application Entity Title
+                Tag(0x0002,0x0017) => { // Sending Application Entity Title
                     let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
                     v.resize(elem.len() as usize, 0);
                     try!(file.read_exact(&mut v));
                     group_length_remaining -= 4 + elem.len();
                     builder.sending_application_entity_title(try!(text.decode(&v)))
                 },
-                (0x0002,0x0018) => { // Receiving Application Entity Title
+                Tag(0x0002,0x0018) => { // Receiving Application Entity Title
                     let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
                     v.resize(elem.len() as usize, 0);
                     try!(file.read_exact(&mut v));
                     group_length_remaining -= 4 + elem.len();
                     builder.receiving_application_entity_title(try!(text.decode(&v)))
                 },
-                (0x0002,0x0100) => { // Private Information Creator UID
+                Tag(0x0002,0x0100) => { // Private Information Creator UID
                     let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
                     v.resize(elem.len() as usize, 0);
                     try!(file.read_exact(&mut v));
                     group_length_remaining -= 4 + elem.len();
                     builder.private_information_creator_uid(try!(text.decode(&v)))
                 },
-                (0x0002,0x0102) => { // Private Information
+                Tag(0x0002,0x0102) => { // Private Information
                     let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
                     v.resize(elem.len() as usize, 0);
                     try!(file.read_exact(&mut v));
                     builder.private_information(v)
                 },
-                (0x0002, _) => { // unknown tag, do nothing
+                Tag(0x0002, _) => { // unknown tag, do nothing
                     builder
                 },
                 _ => { // unexpected tag! do nothing for now, although this could represent a serious bug

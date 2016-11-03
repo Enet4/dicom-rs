@@ -1,6 +1,7 @@
 //! This module includes a high level abstraction over a DICOM data element's value.
 
 use error::InvalidValueReadError;
+use attribute::tag::Tag;
 use std::result;
 use std::fmt::Debug;
 use chrono::naive::date::NaiveDate;
@@ -31,7 +32,7 @@ pub enum DicomValue {
 
     /// A sequence of attribute tags.
     /// Used specifically for AT.
-    Tags(Box<[(u16, u16)]>),
+    Tags(Box<[Tag]>),
 
     /// The value is a sequence of unsigned 16-bit integers.
     /// Used for OB and UN.

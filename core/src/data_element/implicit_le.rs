@@ -22,6 +22,7 @@ mod tests {
     use attribute::dictionary::AttributeDictionary;
     use attribute::dictionary::stub::StubAttributeDictionary;
     use attribute::ValueRepresentation;
+    use attribute::tag::Tag;
     use data_element::{Header, DataElement, DataElementHeader};
     use std::io::{Read, Cursor, Seek, SeekFrom, Write};
 
@@ -116,7 +117,7 @@ mod tests {
 
             // encode first element
             let de = DataElementHeader {
-                tag: (0x0002,0x0002),
+                tag: Tag(0x0002,0x0002),
                 vr: ValueRepresentation::UI,
                 len: 26,
             };
@@ -130,7 +131,7 @@ mod tests {
 
             // encode second element
             let de = DataElementHeader {
-                tag: (0x0002,0x0010),
+                tag: Tag(0x0002,0x0010),
                 vr: ValueRepresentation::UI,
                 len: 20,
             };
@@ -188,7 +189,7 @@ impl<'d, 's, S: Read + ?Sized + 's> Decode for ImplicitVRLittleEndianDecoder<'d,
         // retrieve tag
         let group = LittleEndian::read_u16(&buf[0..2]);
         let element = LittleEndian::read_u16(&buf[2..4]);
-        let tag = (group, element);
+        let tag = Tag(group, element);
         try!(source.read_exact(&mut buf));
         let len = LittleEndian::read_u32(&buf);
         let vr = self.dict.get_by_tag(tag).map(|entry| entry.vr).unwrap_or(ValueRepresentation::UN);

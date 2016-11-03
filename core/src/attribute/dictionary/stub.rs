@@ -1,6 +1,7 @@
 //! This module contains a stub dictionary.
 
 use super::{AttributeDictionary, DictionaryEntry};
+use attribute::tag::Tag;
 
 /// An empty attribute dictionary.
 #[derive(Debug, Clone, Copy)]
@@ -11,7 +12,7 @@ impl<'a> AttributeDictionary<'a> for StubAttributeDictionary {
         None
     }
 
-    fn get_by_tag(&self, _: (u16, u16)) -> Option<&'a DictionaryEntry<'a>> {
+    fn get_by_tag(&self, _: Tag) -> Option<&'a DictionaryEntry<'a>> {
         None
     }
 }

@@ -1,7 +1,10 @@
-//! This module contains the concept of DICOM attribute tag. Tags in this library
-//! are typically defined as a tuple of two unsigned 16-bit integers, but the
-//! `Tag` trait provides facility methods for dealing with tags.
-//! This trait is also implemented for `[u16; 2]`.
+//! This module contains the concept of DICOM attribute tag. A proper Tag
+//! data structure is provided, containing a tuple of two unsigned 16-bit
+//! integers, but both `(u16, u16)` and `[u16; 2]` can be efficiently
+//! converted to this type.
+
+use std::fmt;
+use std::cmp::Ordering;
 
 /// Idiomatic alias for a tag's group number (always an unsigned 16-bit integer)
 pub type GroupNumber = u16;
@@ -14,67 +17,80 @@ mod tests {
 
     #[test]
     fn tag_from_u16_pair() {
-        let t = (0x0010u16, 0x0020u16);
+        let t = Tag::from((0x0010u16, 0x0020u16));
         assert_eq!(0x0010u16, t.group());
         assert_eq!(0x0020u16, t.element());
     }
 
     #[test]
     fn tag_from_u16_array() {
-        let t: [u16; 2] = [0x0010u16, 0x0020u16];
+        let t = Tag::from([0x0010u16, 0x0020u16]);
         assert_eq!(0x0010u16, t.group());
         assert_eq!(0x0020u16, t.element());
     }
 }
 
-/// Generic trait for anything that can be interpreted as a DICOM data element tag.
-/// Rather than sticking to a struct, importing this trait will automatically allow
-/// the use of `(u16, u16)` and `[u16; 2]` bindings as tags, where the first and second
-/// elements refer to the group and element values, respectively.
+/// The data type for DICOM data element tags.
 ///
-/// Certain data types will not have a monomorphized tag, and so will only support
+/// Since  types will not have a monomorphized tag, and so will only support
 /// a (group, element) pair. For this purpose, `Tag` also provides a method
 /// for converting it to a tuple.
-pub trait Tag {
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Clone, Copy)]
+pub struct Tag (pub GroupNumber,  pub ElementNumber);
+
+impl Tag {
     /// Getter for the tag's group value.
-    fn group(&self) -> GroupNumber;
+    #[inline]
+    pub fn group(&self) -> GroupNumber { self.0 }
+
     /// Getter for the tag's element value.
-    fn element(&self) -> ElementNumber;
-
-    /// Transform this tag into a tag tuple. This is useful for passin
     #[inline]
-    fn into(self) -> (GroupNumber, ElementNumber)
-        where Self: Sized
-    {
-        (self.group(), self.element())
+    pub fn element(&self) -> ElementNumber { self.1 }
+}
+
+impl fmt::Display for Tag {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "({:04X},{:04X})", self.0, self.1)
     }
 }
 
-impl Tag for (GroupNumber, ElementNumber) {
-    #[inline]
-    fn group(&self) -> GroupNumber {
-        self.0
-    }
-
-    #[inline]
-    fn element(&self) -> ElementNumber {
-        self.1
-    }
-
-    #[inline]
-    fn into(self) -> (GroupNumber, ElementNumber) {
-        self
+impl PartialEq<(u16, u16)> for Tag {
+    fn eq(&self, other: &(u16, u16)) -> bool {
+        self.0 == other.0 && self.1 == other.1
     }
 }
 
-impl Tag for [u16; 2] {
-    #[inline]
-    fn group(&self) -> GroupNumber {
-        self[0]
+impl PartialEq<[u16; 2]> for Tag {
+    fn eq(&self, other: &[u16; 2]) -> bool {
+        self.0 == other[0] && self.1 == other[1]
     }
+}
 
+/// This implementation tests for group element equality.
+impl PartialEq<u16> for Tag {
+    fn eq(&self, other: &u16) -> bool {
+        self.0 == *other
+    }
+}
+
+/// This implementation tests for this group
+/// element's order relative to the given group element number.
+impl PartialOrd<u16> for Tag {
+    fn partial_cmp(&self, other: &u16) -> Option<Ordering> {
+        Some(self.0.cmp(other))
+    }
+}
+
+impl From<(u16, u16)> for Tag {
     #[inline]
-    fn element(&self) -> ElementNumber {
-        self[1]
+    fn from(value: (u16, u16)) -> Tag {
+        Tag(value.0, value.1)
+    }
+}
+
+impl From<[u16; 2]> for Tag {
+    #[inline]
+    fn from(value: [u16; 2]) -> Tag {
+        Tag(value[0], value[1])
     }
 }

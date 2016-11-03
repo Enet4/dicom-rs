@@ -6,6 +6,7 @@
 pub mod standard;
 pub mod stub;
 
+use attribute::tag::Tag;
 use attribute::ValueRepresentation;
 use std::fmt::Debug;
 
@@ -26,14 +27,14 @@ pub trait AttributeDictionary<'a>: Debug {
     fn get_by_name(&self, name: &str) -> Option<&'a DictionaryEntry<'a>>;
 
     /// Fetch an entry by its tag.
-    fn get_by_tag(&self, tag: (u16, u16)) -> Option<&'a DictionaryEntry<'a>>;
+    fn get_by_tag(&self, tag: Tag) -> Option<&'a DictionaryEntry<'a>>;
 }
 
 /// The dictionary entry data type, representing a DICOM attribute.
 #[derive(Debug, PartialEq, Eq)]
 pub struct DictionaryEntry<'a> {
     /// The attribute tag
-    pub tag: (u16, u16),
+    pub tag: Tag,
     /// The alias of the attribute, with no spaces, usually InCapitalizedCamelCase
     pub alias: &'a str,
     /// The _typical_  value representation of the attribute
@@ -68,8 +69,8 @@ impl<N: AsRef<str>> TagByName<'static, N, standard::StandardAttributeDictionary>
     }
 }
 
-impl<'d, N: AsRef<str>, AD: AttributeDictionary<'d>> From<TagByName<'d, N, AD>> for Option<(u16, u16)> {
-    fn from(tag: TagByName<'d, N, AD>) -> Option<(u16, u16)> {
+impl<'d, N: AsRef<str>, AD: AttributeDictionary<'d>> From<TagByName<'d, N, AD>> for Option<Tag> {
+    fn from(tag: TagByName<'d, N, AD>) -> Option<Tag> {
         tag.dict.get_by_name(tag.name.as_ref()).map(|e| e.tag)
     }
 }

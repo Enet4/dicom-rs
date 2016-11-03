@@ -9,16 +9,47 @@ mod implicit_le;
 mod explicit_be;
 use error::{Result, Error};
 use attribute::value::DicomValue;
+use attribute::tag::Tag;
 
 /// A trait for a data type containing a DICOM header.
 pub trait Header {
     /// Retrieve the element's tag as a `(group, element)` tuple.
-    fn tag(&self) -> (u16, u16);
+    fn tag(&self) -> Tag;
 
     /// Retrieve the value data's length as specified by the data element.
     /// According to the standard, this can be 0xFFFFFFFFu32 if the length is undefined,
     /// which can be the case for sequence elements.
     fn len(&self) -> u32;
+
+    /// Check whether this is the header of an item.
+    fn is_item(&self) -> bool {
+        self.tag() == Tag(0xFFFE, 0xE000)
+    }
+
+    /// Check whether this is the header of an item delimiter.
+    fn is_item_delimiter(&self) -> bool {
+        self.tag() == Tag(0xFFFE,0x0E0D)
+    }
+
+    /// Check whether this is the header of a sequence delimiter.
+    fn is_sequence_delimiter(&self) -> bool {
+        self.tag() == Tag(0xFFFE, 0xE0DD)
+    }
+}
+
+/// A possible data element type.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum DataElementType {
+    /// Simple data.
+    Data,
+    /// The start of a sequence.
+    Sequence,
+    /// An item.
+    Item,
+    /// An item delimiter.
+    ItemDelimiter,
+    /// A sequence delimiter.
+    SequenceDelimiter,
 }
 
 /// A generic trait for any data type that can represent
@@ -31,7 +62,7 @@ pub struct DataElement {
 
 impl Header for DataElement {
     #[inline]
-    fn tag(&self) -> (u16, u16) {
+    fn tag(&self) -> Tag {
         self.header.tag()
     }
 
@@ -47,7 +78,6 @@ impl DataElement {
         self.header.vr()
     }
 
-
     /// Retrieve the data value.
     pub fn value(&self) -> &DicomValue {
         &self.value
@@ -58,13 +88,13 @@ impl DataElement {
 /// a tag, value representation and specified length.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct DataElementHeader {
-    tag: (u16, u16),
+    tag: Tag,
     vr: ValueRepresentation,
     len: u32,
 }
 
 impl Header for DataElementHeader {
-    fn tag(&self) -> (u16, u16) {
+    fn tag(&self) -> Tag {
         self.tag
     }
 
@@ -76,9 +106,9 @@ impl Header for DataElementHeader {
 impl DataElementHeader {
     /// Create a new data element header with the given properties.
     /// This is just a trivial constructor.
-    pub fn new(tag: (u16, u16), vr: ValueRepresentation, len: u32) -> DataElementHeader {
+    pub fn new<T: Into<Tag>>(tag: T, vr: ValueRepresentation, len: u32) -> DataElementHeader {
         DataElementHeader {
-            tag: tag,
+            tag: tag.into(),
             vr: vr,
             len: len,
         }
@@ -90,6 +120,15 @@ impl DataElementHeader {
     }
 }
 
+impl From<SequenceItemHeader> for DataElementHeader {
+    fn from(value: SequenceItemHeader) -> DataElementHeader {
+        DataElementHeader {
+            tag: value.tag(),
+            vr: ValueRepresentation::UN,
+            len: value.len(),
+        }
+    }
+}
 
 /// Data type for describing a sequence item data element.
 /// If the element represents an item, it will also contain
@@ -113,13 +152,13 @@ impl SequenceItemHeader {
     /// Create a sequence item header using the element's raw properties.
     /// An error can be raised if the given properties do not relate to a
     /// sequence item, a sequence item delimiter or a sequence delimiter.
-    pub fn new(tag: (u16, u16), len: u32) -> Result<SequenceItemHeader> {
-        match tag {
-            (0xFFFE, 0xE000) => {
+    pub fn new<T: Into<Tag>>(tag: T, len: u32) -> Result<SequenceItemHeader> {
+        match tag.into() {
+            Tag(0xFFFE, 0xE000) => {
                 // item
                 Ok(SequenceItemHeader::Item { len: len })
             }
-            (0xFFFE, 0xE00D) => {
+            Tag(0xFFFE, 0xE00D) => {
                 // item delimiter
                 // delimiters should not have a positive length
                 if len > 0 {
@@ -128,7 +167,7 @@ impl SequenceItemHeader {
                     Ok(SequenceItemHeader::ItemDelimiter)
                 }
             }
-            (0xFFFE, 0xE0DD) => {
+            Tag(0xFFFE, 0xE0DD) => {
                 // sequence delimiter
                 Ok(SequenceItemHeader::SequenceDelimiter)
             }
@@ -137,11 +176,11 @@ impl SequenceItemHeader {
     }
 
     /// Retrieve the sequence item's attribute tag.
-    pub fn tag(&self) -> (u16, u16) {
+    pub fn tag(&self) -> Tag {
         match *self {
-            SequenceItemHeader::Item { .. } => (0xFFFE, 0xE000),
-            SequenceItemHeader::ItemDelimiter => (0xFFFE, 0xE00D),
-            SequenceItemHeader::SequenceDelimiter => (0xFFFE, 0xE0DD),
+            SequenceItemHeader::Item { .. } => Tag(0xFFFE, 0xE000),
+            SequenceItemHeader::ItemDelimiter => Tag(0xFFFE, 0xE00D),
+            SequenceItemHeader::SequenceDelimiter => Tag(0xFFFE, 0xE0DD),
         }
     }
 

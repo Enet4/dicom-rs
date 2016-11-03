@@ -36,8 +36,7 @@ fn main() {
 
     let resp = xml_from_site(src).expect("should obtain response");
     let xml_entries = XmlEntryIterator::new(resp).map(|item| item.expect("Each item should be ok"));
-    to_file(dst, xml_entries).expect("Should write file");
-
+    to_code_file(dst, xml_entries).expect("Should write file");
 }
 
 fn xml_from_site<U: AsRef<str>>(url: U) -> Result<Response, hyper::Error> {
@@ -227,7 +226,7 @@ impl<R: Read> Iterator for XmlEntryIterator<R> {
     }
 }
 
-fn to_file<P: AsRef<Path>, I>(dest_path: P, entries: I) -> io::Result<()>
+fn to_code_file<P: AsRef<Path>, I>(dest_path: P, entries: I) -> io::Result<()>
     where I: Iterator<Item = Entry>
 {
     if let Some(p_dir) = dest_path.as_ref().parent() {
@@ -237,7 +236,8 @@ fn to_file<P: AsRef<Path>, I>(dest_path: P, entries: I) -> io::Result<()>
 
     try!(f.write_all(b"//! Automatically generated. DO NOT EDIT!\n\n\
     use attribute::dictionary::DictionaryEntry;\n\
-    use attribute::ValueRepresentation;\n\n\
+    use attribute::tag::Tag;\n\
+    use attribute::ValueRepresentation as VR;\n\n\
     type E<'a> = DictionaryEntry<'a>;\n\n\
     pub const ENTRIES: &'static [E<'static>] = &[\n"));
 
@@ -284,7 +284,7 @@ fn to_file<P: AsRef<Path>, I>(dest_path: P, entries: I) -> io::Result<()>
             obs = String::from(" // ") + obs.as_str();
         }
 
-        try!(writeln!(f, "    E {{ tag: (0x{}, 0x{}), alias: \"{}\", vr: ValueRepresentation::{}{} }},{}",
+        try!(writeln!(f, "    E {{ tag: Tag(0x{}, 0x{}), alias: \"{}\", vr: VR::{}{} }},{}",
                 group, elem, alias.unwrap(), vr1, second_vr, obs));
     }
     try!(f.write_all(b"];\n"));

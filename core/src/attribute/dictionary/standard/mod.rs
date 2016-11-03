@@ -14,6 +14,7 @@ mod entries;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use attribute::tag::Tag;
 use attribute::dictionary::{AttributeDictionary, DictionaryEntry};
 use attribute::ValueRepresentation;
 use self::entries::ENTRIES;
@@ -34,7 +35,7 @@ pub fn get_instance() -> &'static StandardAttributeDictionary {
 #[derive(Debug)]
 pub struct StandardAttributeDictionary {
     name_to_pair: HashMap<&'static str, &'static DictionaryEntry<'static>>,
-    pair_to_name: HashMap<(u16, u16), &'static DictionaryEntry<'static>>
+    pair_to_name: HashMap<Tag, &'static DictionaryEntry<'static>>
 }
 
 impl StandardAttributeDictionary {
@@ -57,7 +58,7 @@ impl AttributeDictionary<'static> for StandardAttributeDictionary {
         self.name_to_pair.get(name).map(|r| { *r })
     }
 
-    fn get_by_tag(&self, tag: (u16, u16)) -> Option<&'static DictionaryEntry<'static>> {
+    fn get_by_tag(&self, tag: Tag) -> Option<&'static DictionaryEntry<'static>> {
         self.pair_to_name.get(&tag).map(|r| { *r })
     }
 }
@@ -82,16 +83,16 @@ fn init_dictionary() -> StandardAttributeDictionary {
 // meta information entries
 type E<'a> = DictionaryEntry<'a>;
 const META_ENTRIES : &'static [E<'static>] = &[
-    E {tag: (0x0002,0x0000), alias: "FileMetaInformationGroupLength", vr: ValueRepresentation::UL},
-    E {tag: (0x0002,0x0001), alias: "FileMetaInformationVersion", vr: ValueRepresentation::OB},
-    E {tag: (0x0002,0x0002), alias: "MediaStorageSOPClassUID", vr: ValueRepresentation::UI},
-    E {tag: (0x0002,0x0003), alias: "MediaStorageSOPInstanceUID", vr: ValueRepresentation::UI},
-    E {tag: (0x0002,0x0010), alias: "TransferSyntaxUID", vr: ValueRepresentation::UI},
-    E {tag: (0x0002,0x0012), alias: "ImplementationClassUID", vr: ValueRepresentation::UI},
-    E {tag: (0x0002,0x0013), alias: "ImplentationVersionName", vr: ValueRepresentation::SH},
-    E {tag: (0x0002,0x0016), alias: "SourceApplicationEntityTitle", vr: ValueRepresentation::AE},
-    E {tag: (0x0002,0x0017), alias: "SendingApplicationEntityTitle", vr: ValueRepresentation::AE},
-    E {tag: (0x0002,0x0018), alias: "ReceivingApplicationEntityTitle", vr: ValueRepresentation::AE},
-    E {tag: (0x0002,0x0100), alias: "PrivateInformationCreatorUID", vr: ValueRepresentation::UI},
-    E {tag: (0x0002,0x0102), alias: "PrivateInformation", vr: ValueRepresentation::OB},
+    E {tag: Tag(0x0002,0x0000), alias: "FileMetaInformationGroupLength", vr: ValueRepresentation::UL},
+    E {tag: Tag(0x0002,0x0001), alias: "FileMetaInformationVersion", vr: ValueRepresentation::OB},
+    E {tag: Tag(0x0002,0x0002), alias: "MediaStorageSOPClassUID", vr: ValueRepresentation::UI},
+    E {tag: Tag(0x0002,0x0003), alias: "MediaStorageSOPInstanceUID", vr: ValueRepresentation::UI},
+    E {tag: Tag(0x0002,0x0010), alias: "TransferSyntaxUID", vr: ValueRepresentation::UI},
+    E {tag: Tag(0x0002,0x0012), alias: "ImplementationClassUID", vr: ValueRepresentation::UI},
+    E {tag: Tag(0x0002,0x0013), alias: "ImplentationVersionName", vr: ValueRepresentation::SH},
+    E {tag: Tag(0x0002,0x0016), alias: "SourceApplicationEntityTitle", vr: ValueRepresentation::AE},
+    E {tag: Tag(0x0002,0x0017), alias: "SendingApplicationEntityTitle", vr: ValueRepresentation::AE},
+    E {tag: Tag(0x0002,0x0018), alias: "ReceivingApplicationEntityTitle", vr: ValueRepresentation::AE},
+    E {tag: Tag(0x0002,0x0100), alias: "PrivateInformationCreatorUID", vr: ValueRepresentation::UI},
+    E {tag: Tag(0x0002,0x0102), alias: "PrivateInformation", vr: ValueRepresentation::OB},
 ];
