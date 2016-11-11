@@ -1,6 +1,34 @@
 use std::io;
 use std::io::{Read, Write, Seek, SeekFrom};
 
+#[cfg(test)]
+mod tests {
+    use super::{swap_bytes_16, swap_bytes_32, swap_bytes_64};
+
+    const TEST_DATA: [u8; 8] = [0, 10, 20, 0, 100, 200, 100, 0];
+
+    #[test]
+    fn test_swap_bytes16() {
+        let mut data: &mut [u8] = &mut TEST_DATA;
+        swap_bytes_16(data);
+        assert_eq!(data, &[10, 0, 0, 20, 200, 100, 0, 100]);
+    }
+
+    #[test]
+    fn test_swap_bytes32() {
+        let mut data: &mut [u8] = &mut TEST_DATA;
+        swap_bytes_32(data);
+        assert_eq!(data, &[0, 20, 10, 0, 0, 100, 200, 100]);
+    }
+
+    #[test]
+    fn test_swap_bytes64() {
+        let mut data: &mut [u8] = &mut TEST_DATA;
+        swap_bytes_64(data);
+        assert_eq!(data, &[0, 100, 200, 100, 0, 20, 10, 0]);
+    }
+}
+
 /** A private type trait for the ability to efficiently implement stream skipping.
  */
 pub trait ForwardSeek {
@@ -29,7 +57,6 @@ pub struct SeekInterval<'s, S: Seek + ?Sized + 's> {
 }
 
 impl<'s, S: Seek + ?Sized + 's> SeekInterval<'s, S> {
-
     pub fn new(source: &'s mut S, n: u32) -> io::Result<SeekInterval<'s, S>> {
         let pos = try!(source.seek(SeekFrom::Current(0)));
         Ok(SeekInterval {
@@ -52,11 +79,11 @@ impl<'s, S: Seek + ?Sized + 's> Seek for SeekInterval<'s, S> {
             SeekFrom::Start(o) => {
                 self.source.seek(SeekFrom::Start(self.begin + o)).map(|v| v - self.begin)
             }
-            pos @ SeekFrom::Current(_) => {
-                self.source.seek(pos).map(|v| v - self.begin)
-            }
+            pos @ SeekFrom::Current(_) => self.source.seek(pos).map(|v| v - self.begin),
             SeekFrom::End(o) => {
-                self.source.seek(SeekFrom::Start((self.end as i64 + o) as u64)).map(|v| v - self.begin)
+                self.source
+                    .seek(SeekFrom::Start((self.end as i64 + o) as u64))
+                    .map(|v| v - self.begin)
             }
         }
     }
@@ -65,14 +92,9 @@ impl<'s, S: Seek + ?Sized + 's> Seek for SeekInterval<'s, S> {
 impl<'s, S: Seek + ?Sized + 's> Read for SeekInterval<'s, S>
     where S: Read
 {
-
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         let r = self.remaining();
-        let buf = if buf.len() > r {
-            &mut buf[0..r]
-        } else {
-            buf
-        };
+        let buf = if buf.len() > r { &mut buf[0..r] } else { buf };
 
         self.source.read(buf)
     }
@@ -84,12 +106,8 @@ impl<'s, S: Seek + ?Sized + 's> Write for SeekInterval<'s, S>
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let r = self.remaining();
-        
-        let buf = if buf.len() > r {
-            &buf[0..r]
-        } else {
-            buf
-        };
+
+        let buf = if buf.len() > r { &buf[0..r] } else { buf };
 
         self.source.write(buf)
     }
@@ -111,13 +129,34 @@ pub enum Endianness {
 impl Endianness {
     /// Obtain this system's endianness
     #[cfg(target_endian = "little")]
-    pub fn system_endianness() -> Endianness {
+    pub fn system() -> Endianness {
         Endianness::LE
     }
 
     /// Obtain this system's endianness
     #[cfg(target_endian = "big")]
-    pub fn system_endianness() -> Endianness {
+    pub fn system() -> Endianness {
         Endianness::BE
+    }
+}
+
+/// Swap the bytes of 16-bit words in place.
+pub fn swap_bytes_16(data: &mut [u8]) {
+    for chunk in data.chunks_mut(2) {
+        chunk.reverse()
+    }
+}
+
+/// Swap the bytes of 32-bit words in place.
+pub fn swap_bytes_32(data: &mut [u8]) {
+    for chunk in data.chunks_mut(4) {
+        chunk.reverse()
+    }
+}
+
+/// Swap the bytes of 64-bit words in place.
+pub fn swap_bytes_64(data: &mut [u8]) {
+    for chunk in data.chunks_mut(8) {
+        chunk.reverse()
     }
 }

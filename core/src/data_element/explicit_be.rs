@@ -6,7 +6,8 @@ use attribute::ValueRepresentation;
 use attribute::tag::Tag;
 use byteorder::{ByteOrder, BigEndian};
 use error::Result;
-use super::decode::Decode;
+use super::decode::basic::BigEndianBasicDecoder;
+use super::decode::{BasicDecode, Decode};
 use super::encode::Encode;
 use util::Endianness;
 use std::marker::PhantomData;
@@ -114,12 +115,12 @@ mod tests {
 
 /// A data element decoder for the Explicit VR Big Endian transfer syntax.
 pub struct ExplicitVRBigEndianDecoder<S: Read + ?Sized> {
-    phantom: PhantomData<S>,
+    basic: BigEndianBasicDecoder<S>,
 }
 
 impl<S: Read + ?Sized> Default for ExplicitVRBigEndianDecoder<S> {
     fn default() -> ExplicitVRBigEndianDecoder<S> {
-        ExplicitVRBigEndianDecoder{ phantom: PhantomData::default() }
+        ExplicitVRBigEndianDecoder{ basic: BigEndianBasicDecoder::default() }
     }
 }
 
@@ -129,12 +130,40 @@ impl<S: Read + ?Sized> fmt::Debug for ExplicitVRBigEndianDecoder<S> {
     }
 }
 
-impl<'s, S: Read + ?Sized + 's> Decode for ExplicitVRBigEndianDecoder<S> {
+impl<'s, S: Read + ?Sized + 's> BasicDecode for ExplicitVRBigEndianDecoder<S> {
     type Source = S;
-    
+
     fn endianness(&self) -> Endianness {
         Endianness::BE
     }
+
+    fn decode_us(&self, source: &mut Self::Source) -> Result<u16> {
+        self.basic.decode_us(source)
+    }
+
+    fn decode_ul(&self, source: &mut Self::Source) -> Result<u32> {
+        self.basic.decode_ul(source)
+    }
+
+    fn decode_ss(&self, source: &mut Self::Source) -> Result<i16> {
+        self.basic.decode_ss(source)
+    }
+
+    fn decode_sl(&self, source: &mut Self::Source) -> Result<i32> {
+        self.basic.decode_sl(source)
+    }
+
+    fn decode_fl(&self, source: &mut Self::Source) -> Result<f32> {
+        self.basic.decode_fl(source)
+    }
+
+    fn decode_fd(&self, source: &mut Self::Source) -> Result<f64> {
+        self.basic.decode_fd(source)
+    }
+}
+
+impl<'s, S: Read + ?Sized + 's> Decode for ExplicitVRBigEndianDecoder<S> {
+    
 
     fn decode_header(&self, source: &mut Self::Source) -> Result<DataElementHeader> {
         let mut buf = [0u8; 4];
@@ -180,30 +209,6 @@ impl<'s, S: Read + ?Sized + 's> Decode for ExplicitVRBigEndianDecoder<S> {
         let len = BigEndian::read_u32(&buf);
 
         SequenceItemHeader::new(Tag(group, element), len)
-    }
-
-    fn decode_us(&self, source: &mut Self::Source) -> Result<u16> {
-        let mut buf = [0u8; 2];
-        try!(source.read_exact(&mut buf[..]));
-        Ok(BigEndian::read_u16(&buf[..]))
-    }
-
-    fn decode_ul(&self, source: &mut Self::Source) -> Result<u32> {
-        let mut buf = [0u8; 4];
-        try!(source.read_exact(&mut buf[..]));
-        Ok(BigEndian::read_u32(&buf[..]))
-    }
-
-    fn decode_ss(&self, source: &mut Self::Source) -> Result<i16> {
-        let mut buf = [0u8; 2];
-        try!(source.read_exact(&mut buf[..]));
-        Ok(BigEndian::read_i16(&buf[..]))
-    }
-
-    fn decode_sl(&self, source: &mut Self::Source) -> Result<i32> {
-        let mut buf = [0u8; 4];
-        try!(source.read_exact(&mut buf[..]));
-        Ok(BigEndian::read_i32(&buf[..]))
     }
 }
 

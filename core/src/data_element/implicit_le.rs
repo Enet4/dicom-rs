@@ -9,7 +9,7 @@ use attribute::tag::Tag;
 use std::fmt;
 use util::Endianness;
 use error::Result;
-use super::decode::Decode;
+use super::decode::{BasicDecode, Decode};
 use super::encode::Encode;
 use data_element::{DataElementHeader, SequenceItemHeader};
 
@@ -176,12 +176,51 @@ impl<'d, 's, S: Read + ?Sized + 's> ImplicitVRLittleEndianDecoder<'d, S> {
     }
 }
 
-impl<'d, 's, S: Read + ?Sized + 's> Decode for ImplicitVRLittleEndianDecoder<'d, S>  {
+impl<'d, 's, S: Read + ?Sized + 's> BasicDecode for ImplicitVRLittleEndianDecoder<'d, S> {
     type Source = S;
 
     fn endianness(&self) -> Endianness {
         Endianness::LE
     }
+
+    fn decode_us(&self, source: &mut Self::Source) -> Result<u16> {
+        let mut buf = [0u8; 2];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(LittleEndian::read_u16(&buf[..]))
+    }
+
+    fn decode_ul(&self, source: &mut Self::Source) -> Result<u32> {
+        let mut buf = [0u8; 4];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(LittleEndian::read_u32(&buf[..]))
+    }
+
+    fn decode_ss(&self, source: &mut Self::Source) -> Result<i16> {
+        let mut buf = [0u8; 2];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(LittleEndian::read_i16(&buf[..]))
+    }
+
+    fn decode_sl(&self, source: &mut Self::Source) -> Result<i32> {
+        let mut buf = [0u8; 4];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(LittleEndian::read_i32(&buf[..]))
+    }
+
+    fn decode_fl(&self, source: &mut Self::Source) -> Result<f32> {
+        let mut buf = [0u8; 4];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(LittleEndian::read_f32(&buf[..]))
+    }
+
+    fn decode_fd(&self, source: &mut Self::Source) -> Result<f64> {
+        let mut buf = [0u8; 8];
+        try!(source.read_exact(&mut buf[..]));
+        Ok(LittleEndian::read_f64(&buf[..]))
+    }
+}
+
+impl<'d, 's, S: Read + ?Sized + 's> Decode for ImplicitVRLittleEndianDecoder<'d, S>  {
 
     fn decode_header(&self, source: &mut S) -> Result<DataElementHeader> {
         let mut buf = [0u8; 4];
@@ -206,30 +245,6 @@ impl<'d, 's, S: Read + ?Sized + 's> Decode for ImplicitVRLittleEndianDecoder<'d,
         try!(source.read_exact(&mut buf));
         let len = LittleEndian::read_u32(&buf);
         SequenceItemHeader::new((group, element), len)
-    }
-    
-    fn decode_us(&self, source: &mut Self::Source) -> Result<u16> {
-        let mut buf = [0u8; 2];
-        try!(source.read_exact(&mut buf[..]));
-        Ok(LittleEndian::read_u16(&buf[..]))
-    }
-
-    fn decode_ul(&self, source: &mut Self::Source) -> Result<u32> {
-        let mut buf = [0u8; 4];
-        try!(source.read_exact(&mut buf[..]));
-        Ok(LittleEndian::read_u32(&buf[..]))
-    }
-
-    fn decode_ss(&self, source: &mut Self::Source) -> Result<i16> {
-        let mut buf = [0u8; 2];
-        try!(source.read_exact(&mut buf[..]));
-        Ok(LittleEndian::read_i16(&buf[0..2]))
-    }
-
-    fn decode_sl(&self, source: &mut Self::Source) -> Result<i32> {
-        let mut buf = [0u8; 4];
-        try!(source.read_exact(&mut buf[..]));
-        Ok(LittleEndian::read_i32(&buf[..]))
     }
 }
 

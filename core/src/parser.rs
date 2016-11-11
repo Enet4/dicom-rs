@@ -13,16 +13,23 @@ use attribute::value::DicomValue;
 use attribute::tag::Tag;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
+use std::fmt;
+use chrono::naive::date::NaiveDate;
 
 /// A data structure for parsing DICOM data.
 /// This type encapsulates the necessary decoders in order
 /// to be as autonomous as possible in the DICOM content reading
 /// process. 
-#[derive(Debug)]
 pub struct DicomParser<'s, S: Read + ?Sized + 's> {
     source: &'s mut S,
     decoder: Box<Decode<Source = S> + 's>,
     text: Box<TextCodec>,
+}
+
+impl<'s, S: Read + ?Sized + 's> fmt::Debug for DicomParser<'s, S> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "DicomParser{{source, decoder, text:{:?}}}", &self.text)
+    }
 }
 
 macro_rules! require_known_length {
@@ -110,20 +117,49 @@ impl<'s, S: Read + ?Sized + 's> DicomParser<'s, S> {
                 // TODO add support for OW value data length resolution
                 require_known_length!(header);
 
-                let mut buf = vec![0u8 ; header.len() as usize];
-                try!(self.source.read_exact(&mut buf));
-                // sequence of 16-bit unsigned integers
-                unimplemented!()
+                let mut vec = Vec::with_capacity(header.len() as usize / 2);
+                for _ in 0..header.len() / 2 {
+                    vec.push(try!(self.decoder.as_ref().decode_us(self.source)));
+                }
+                DicomValue::U16(vec.into_boxed_slice())
             }
             ValueRepresentation::SS => {
-                require_known_length!(header);
                 // sequence of 16-bit signed integers
-                unimplemented!()
+                require_known_length!(header);
+
+                let len = header.len() as usize / 2;
+                let mut vec = Vec::with_capacity(len);
+                for _ in 0..len{
+                    vec.push(try!(self.decoder.as_ref().decode_ss(self.source)));
+                }
+                DicomValue::I16(vec.into_boxed_slice())
             }
             ValueRepresentation::DA => {
                 require_known_length!(header);
                 // sequence of dates
-                unimplemented!()
+                let len = header.len() as usize / 8;
+                let mut vec = Vec::with_capacity(len);
+                for _ in 0..len {
+                    // YYYYMMDD
+                    let mut buf = [0u8; 8];
+                    try!(self.source.read_exact(&mut buf));
+                    let (y4, y3, y2, y1, m2, m1, d2, d1) =
+                    (buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]);
+                    const Z: i32 = '0' as i32; 
+                    let year = (y4 as i32 - Z) * 1000
+                            + (y3 as i32 - Z) * 100
+                            + (y2 as i32 - Z) * 10
+                            + y1 as i32 - Z;
+
+                    const Z2: u32 = '0' as u32;
+                    let month = m2 as u32 - Z2 * 10 + m1 as u32;
+                    let day = d2 as u32 - Z2 * 10 + d1 as u32;
+                    
+                    let date = try!(NaiveDate::from_ymd_opt(year, month, day)
+                            .ok_or_else(||Error::from(InvalidValueReadError::InvalidFormat)));
+                    vec.push(date);
+                }
+                DicomValue::Date(vec.into_boxed_slice())
             }
             ValueRepresentation::DT => {
                 require_known_length!(header);
@@ -143,9 +179,12 @@ impl<'s, S: Read + ?Sized + 's> DicomParser<'s, S> {
             }
             ValueRepresentation::FL | ValueRepresentation::OF => {
                 require_known_length!(header);
-
-                // sequence of 32-bit floats
-                unimplemented!()
+                let l = header.len() as usize / 4;
+                let mut vec = Vec::with_capacity(l);
+                for _ in 0..l {
+                    vec.push(try!(self.decoder.as_ref().decode_fl(self.source)));
+                }
+                DicomValue::F32(vec.into_boxed_slice())
             }
             ValueRepresentation::IS | ValueRepresentation::SL => {
                 require_known_length!(header);

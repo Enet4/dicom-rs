@@ -6,7 +6,8 @@ use std::marker::PhantomData;
 use attribute::ValueRepresentation;
 use byteorder::{ByteOrder, LittleEndian};
 use error::Result;
-use super::decode::Decode;
+use super::decode::basic::LittleEndianBasicDecoder;
+use super::decode::{BasicDecode, Decode};
 use super::encode::Encode;
 use data_element::{DataElementHeader, SequenceItemHeader};
 use util::Endianness;
@@ -17,7 +18,7 @@ mod tests {
     use super::ExplicitVRLittleEndianDecoder;
     use super::super::encode::Encode;
     use super::ExplicitVRLittleEndianEncoder;
-    use data_element::{Header, DataElement, DataElementHeader};
+    use data_element::{Header, DataElementHeader};
     use attribute::tag::Tag;
     use attribute::ValueRepresentation;
     use std::io::{Read, Cursor, Seek, SeekFrom, Write};
@@ -113,12 +114,12 @@ mod tests {
 
 /// A data element decoder for the Explicit VR Little Endian transfer syntax.
 pub struct ExplicitVRLittleEndianDecoder<S: Read + ?Sized> {
-    phantom: PhantomData<S>
+    basic: LittleEndianBasicDecoder<S>,
 }
 
 impl<S: Read + ?Sized> Default for ExplicitVRLittleEndianDecoder<S> {
     fn default() -> ExplicitVRLittleEndianDecoder<S> {
-        ExplicitVRLittleEndianDecoder{ phantom: PhantomData::default() }
+        ExplicitVRLittleEndianDecoder{ basic: LittleEndianBasicDecoder::default() }
     }
 }
 
@@ -128,12 +129,39 @@ impl<S: Read + ?Sized> fmt::Debug for ExplicitVRLittleEndianDecoder<S> {
     }
 }
 
-impl<S: Read + ?Sized> Decode for ExplicitVRLittleEndianDecoder<S> {
+impl<S: Read + ?Sized> BasicDecode for ExplicitVRLittleEndianDecoder<S> {
     type Source = S;
 
     fn endianness(&self) -> Endianness {
         Endianness::LE
     }
+
+    fn decode_us(&self, source: &mut Self::Source) -> Result<u16> {
+        self.basic.decode_us(source)
+    }
+
+    fn decode_ul(&self, source: &mut Self::Source) -> Result<u32> {
+        self.basic.decode_ul(source)
+    }
+
+    fn decode_ss(&self, source: &mut Self::Source) -> Result<i16> {
+        self.basic.decode_ss(source)
+    }
+
+    fn decode_sl(&self, source: &mut Self::Source) -> Result<i32> {
+        self.basic.decode_sl(source)
+    }
+
+    fn decode_fl(&self, source: &mut Self::Source) -> Result<f32> {
+        self.basic.decode_fl(source)
+    }
+
+    fn decode_fd(&self, source: &mut Self::Source) -> Result<f64> {
+        self.basic.decode_fd(source)
+    }
+}
+
+impl<S: Read + ?Sized> Decode for ExplicitVRLittleEndianDecoder<S> {
 
     fn decode_header(&self, source: &mut S) -> Result<DataElementHeader> {
         let mut buf = [0u8; 4];
@@ -179,30 +207,6 @@ impl<S: Read + ?Sized> Decode for ExplicitVRLittleEndianDecoder<S> {
         let len = LittleEndian::read_u32(&buf);
 
         SequenceItemHeader::new((group, element), len)
-    }
-
-    fn decode_us(&self, source: &mut Self::Source) -> Result<u16> {
-        let mut buf = [0u8; 2];
-        try!(source.read_exact(&mut buf[..]));
-        Ok(LittleEndian::read_u16(&buf[..]))
-    }
-
-    fn decode_ul(&self, source: &mut Self::Source) -> Result<u32> {
-        let mut buf = [0u8; 4];
-        try!(source.read_exact(&mut buf[..]));
-        Ok(LittleEndian::read_u32(&buf[..]))
-    }
-
-    fn decode_ss(&self, source: &mut Self::Source) -> Result<i16> {
-        let mut buf = [0u8; 2];
-        try!(source.read_exact(&mut buf[..]));
-        Ok(LittleEndian::read_i16(&buf[..]))
-    }
-
-    fn decode_sl(&self, source: &mut Self::Source) -> Result<i32> {
-        let mut buf = [0u8; 4];
-        try!(source.read_exact(&mut buf[..]));
-        Ok(LittleEndian::read_i32(&buf[..]))
     }
 }
 

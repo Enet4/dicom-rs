@@ -6,7 +6,9 @@ use data_element::{Header, DataElement, DataElementHeader, SequenceItemHeader};
 use data_element::decode::Decode;
 use data_element::text::{SpecificCharacterSet, TextCodec};
 use std::io::{Read, Seek, SeekFrom};
-use std::iter::{Iterator, FromIterator};
+use std::iter::Iterator;
+use std::fmt::Debug;
+use std::fmt;
 use util::SeekInterval;
 use parser::DicomParser;
 use std::collections::HashMap;
@@ -24,12 +26,13 @@ pub enum ObjectEntryValue<'a> {
 //    type SequenceIt: Iterator;
 
     Element(&'a DicomValue),
+    Item(&'a DicomObject),
 //    Sequence(Box<Iterator<Item=Self::Item> + 'a>),
 
 }
 
 /// Trait type for a high-level abstraction of DICOM object.
-pub trait DicomObject {
+pub trait DicomObject: Debug {
     /// Retrieve a particular DICOM element.
     fn get(&mut self, tag: Tag) -> Result<ObjectEntryValue>;
 }
@@ -38,7 +41,7 @@ pub trait DicomObject {
 ///
 /// This trait is for DICOM objects that are already in memory, and
 /// so do not require state mutations when getting its elements.
-pub trait LoadedDicomObject {
+pub trait LoadedDicomObject: Debug {
     /// Retrieve a particular DICOM element.
     fn get(&self, tag: Tag) -> Result<ObjectEntryValue>;
 }
@@ -205,10 +208,15 @@ impl Header for DicomElementMarker {
 }
 
 /// Data type for a lazily loaded DICOM object builder.
-#[derive(Debug)]
 pub struct LazyDicomObject<'s, S: Read + Seek + ?Sized + 's> {
     parser: DicomParser<'s, S>,
     entries: HashMap<Tag, LazyDataElement>,
+}
+
+impl<'s, S: Read + Seek + ?Sized + 's> Debug for LazyDicomObject<'s, S> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "LazyDicomObject{{parser: {:?}, entries{:?}}}", &self.parser, &self.entries)
+    }
 }
 
 impl<'s, S: Read + Seek + ?Sized + 's> LazyDicomObject<'s, S> {
@@ -227,7 +235,7 @@ impl<'s, S: Read + Seek + ?Sized + 's> LazyDicomObject<'s, S> {
     }
 }
 
-impl<'s, S: Read + Seek + ?Sized + 's> DicomObject for LazyDicomObject<'s, S> {
+impl<'s, S: Read + Seek + ?Sized + 's> DicomObject for LazyDicomObject<'s, S>{
     fn get(&mut self, tag: Tag) -> Result<ObjectEntryValue> {
         //let tag: Tag = tag.into();
 

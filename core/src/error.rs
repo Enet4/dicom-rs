@@ -83,6 +83,11 @@ quick_error! {
             description("Attempted to retrieve complex value as primitive")
             display(self_) -> ("Value reading error: {}", self_.description())
         }
+        /// The value does not have the expected format.
+        InvalidFormat {
+            description("Invalid format for the expected value representation")
+            display(self_) -> ("Value reading error: {}", self_.description())
+        }
     }
 }
 

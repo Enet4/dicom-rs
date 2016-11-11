@@ -1,7 +1,7 @@
 [package]
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "Efficient and practical base library for DICOM compliant systems"
-name = "dicom"
+name = "dicom_core"
 publish = false
 version = "0.1.0"
 

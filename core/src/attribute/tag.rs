@@ -50,7 +50,7 @@ impl Tag {
 
 impl fmt::Display for Tag {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "({:04X},{:04X})", self.0, self.1)
+        write!(f, "({:04X},{:04X})", self.0, self.1)
     }
 }
 
