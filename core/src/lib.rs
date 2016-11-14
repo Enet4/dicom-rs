@@ -16,7 +16,7 @@ extern crate encoding;
 #[macro_use]
 extern crate quick_error;
 extern crate chrono;
-
+extern crate itertools;
 
 pub mod attribute;
 pub mod error;
@@ -25,5 +25,10 @@ pub mod transfer_syntax;
 pub mod data_element;
 pub mod meta;
 pub mod object;
+
+pub use attribute::value::DicomValue;
+pub use object::DicomObject;
+pub use object::LazyDicomObject;
+pub use parser::DicomParser;
 
 mod util;

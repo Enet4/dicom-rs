@@ -9,6 +9,7 @@ use util::Endianness;
 use std::io::Read;
 use std::fmt;
 
+/// A basic decoder of DICOM primitive elements in little endian.
 pub struct LittleEndianBasicDecoder<S: Read + ?Sized> {
     phantom: PhantomData<S>,
 }
@@ -72,6 +73,7 @@ impl<'s, S: Read + ?Sized + 's> BasicDecode for LittleEndianBasicDecoder<S> {
     }
 }
 
+/// A basic decoder of DICOM primitive elements in big endian.
 pub struct BigEndianBasicDecoder<S: Read + ?Sized> {
     phantom: PhantomData<S>,
 }

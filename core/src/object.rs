@@ -90,7 +90,7 @@ impl<'s, S: Read + Seek + ?Sized + 's> DicomElementIterator<'s, S> {
     }
 
     fn save_element(&mut self, header: DataElementHeader) -> Result<DicomElementMarker> {
-        match self.parser.borrow_source().seek(SeekFrom::Current(0)) {
+        match self.parser.get_position() {
             Ok(pos) => {
                 Ok(DicomElementMarker {
                     header: header,
@@ -105,7 +105,7 @@ impl<'s, S: Read + Seek + ?Sized + 's> DicomElementIterator<'s, S> {
     }
 
     fn save_item(&mut self, header: SequenceItemHeader) -> Result<DicomElementMarker> {
-        match self.parser.borrow_source().seek(SeekFrom::Current(0)) {
+        match self.parser.get_position() {
             Ok(pos) => {
                 Ok(DicomElementMarker {
                     header: From::from(header),

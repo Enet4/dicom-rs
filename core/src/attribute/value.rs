@@ -4,10 +4,10 @@ use error::InvalidValueReadError;
 use attribute::tag::Tag;
 use std::result;
 use std::fmt::Debug;
-use chrono::naive::date::NaiveDate;
-use chrono::naive::time::NaiveTime;
-use chrono::datetime::DateTime;
-use chrono::offset::utc::UTC;
+use chrono::NaiveDate;
+use chrono::NaiveTime;
+use chrono::DateTime;
+use chrono::UTC;
 
 /// Result type alias for this module.
 pub type Result<T> = result::Result<T, InvalidValueReadError>;

@@ -3,7 +3,8 @@ use std::error::Error as BaseError;
 use std::result;
 use std::io;
 use std::string::FromUtf8Error;
-
+use std::str::Utf8Error;
+use std::num::{ParseFloatError,ParseIntError};
 
 quick_error! {
     /// The main data type for errors in the library.
@@ -48,9 +49,9 @@ quick_error! {
             cause(err)
             display(self_) -> ("{}: {}", self_.description(), err.description())
         }
-        /// Error related to a failed text encoding procedure.
+        /// Error related to a failed text encoding / decoding procedure.
         TextEncoding(err: TextEncodingError) {
-            description("Failed text encoding")
+            description("Failed text decoding")
             from()
             cause(err)
             display(self_) -> ("{}: {}", self_.description(), err.description())
@@ -71,7 +72,7 @@ pub type Result<T> = result::Result<T, Error>;
 quick_error! {
     /** Triggered when an invalid value read is attempted.
     */
-    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    #[derive(Debug, PartialEq, Eq, Clone)]
     pub enum InvalidValueReadError {
         /// The value cannot be read as a primitive value.
         NonPrimitiveType {
@@ -80,13 +81,25 @@ quick_error! {
         }
         /// The value's effective length cannot be resolved.
         UnresolvedValueLength {
-            description("Attempted to retrieve complex value as primitive")
+            description("Value length could not be resolved")
             display(self_) -> ("Value reading error: {}", self_.description())
         }
         /// The value does not have the expected format.
         InvalidFormat {
             description("Invalid format for the expected value representation")
             display(self_) -> ("Value reading error: {}", self_.description())
+        }
+        FloatParse(err: ParseFloatError) {
+            description("Failed to parse text value as a floating point number")
+            from()
+            cause(err)
+            display(self_) -> ("Value reading error: {}", self_.cause().unwrap().description())
+        }
+        IntegerParse(err: ParseIntError) {
+            description("Failed to parse text value as a floating point number")
+            from()
+            cause(err)
+            display(self_) -> ("Value reading error: {}", self_.cause().unwrap().description())
         }
     }
 }
@@ -97,6 +110,13 @@ quick_error! {
     pub enum TextEncodingError {
         /// Failed to decode from UTF-8.
         FromUtf8(err: FromUtf8Error) {
+            from()
+            cause(err)
+            description(err.description())
+            display("Encoding failed: {}", err.description())
+        }
+        /// Failed to decode UTF-8 slice
+        Utf8(err: Utf8Error) {
             from()
             cause(err)
             description(err.description())
