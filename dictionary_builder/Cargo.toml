@@ -1,16 +1,17 @@
 [package]
-name = "dicom_dictionary_builder"
-version = "0.1.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
+description = "A generator of DICOM data dictionaries"
 license = "MIT/Apache-2.0"
+name = "dicom_dictionary_builder"
 publish = false
-description = "A generator of DICOM data dictionaries in Rust code"
+version = "0.1.0"
 
 [[bin]]
 name = "dictionary_builder"
 path = "main.rs"
 
 [dependencies]
-xml-rs = "~0.3.4"
+clap = "~2.18.0"
 hyper = "~0.9.10"
 regex = "~0.1.77"
+xml-rs = "~0.3.4"

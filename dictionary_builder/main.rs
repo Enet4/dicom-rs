@@ -1,6 +1,6 @@
 //! A simple application that downloads the data dictionary
 //! from the latest DICOM standard found online, then creates
-//! code to reproduce it in the core library.
+//! code or data to reproduce it in the core library.
 //!
 //! This is a work in progress. It can already retrieve attributes with
 //! very specific tags, but might skip some patterns found in the standard
@@ -11,11 +11,14 @@
 //!
 //! Simply run the application. It will automatically retrieve the dictionary
 //! from the official DICOM website and store the result in "entries.rs".
+//! Future versions will enable different kinds of outputs.
 
 extern crate hyper;
 extern crate xml;
 extern crate regex;
+extern crate clap;
 
+use clap::{Arg, App};
 use hyper::client::Client;
 use hyper::client::Response;
 use xml::reader::{EventReader, XmlEvent};
@@ -30,13 +33,48 @@ const DEFAULT_LOCATION: &'static str = "http://dicom.nema.\
                                         org/medical/dicom/current/source/docbook/part06/part06.xml";
 
 fn main() {
+    let matches = App::new("DICOM Dictionary Builder")
+                      .version("0.1.0")
+                      .arg(Arg::with_name("OUTPUT")
+                           .short("o")
+                           .help("The path to the output file")
+                           .required(false)
+                           .takes_value(true))
+                      .arg(Arg::with_name("FORMAT")
+                           .short("f")
+                           .help("The output format")
+                           .required(false)
+                           .takes_value(true)
+                           .possible_value("rs")
+                           .possible_value("json"))
+                      .get_matches();
 
     let src = DEFAULT_LOCATION;
-    let dst = Path::new("entries.rs");
+    let format = matches.value_of("FORMAT").unwrap_or("rs");
+    
+    let out_file = matches.value_of("OUTPUT").unwrap_or_else(|| {
+        match format {
+            "rs" => "entries.rs",
+            "json" => "entries.json",
+            _ => "entries",
+        }
+    });
+    let dst = Path::new(out_file);
 
     let resp = xml_from_site(src).expect("should obtain response");
     let xml_entries = XmlEntryIterator::new(resp).map(|item| item.expect("Each item should be ok"));
-    to_code_file(dst, xml_entries).expect("Should write file");
+
+    match format {
+        "rs" => {
+            to_code_file(dst, xml_entries).expect("Should write file");
+        },
+        "json" => {
+            unimplemented!();
+        }
+        _ => {
+            unreachable!();
+        }
+    }
 }
 
 fn xml_from_site<U: AsRef<str>>(url: U) -> Result<Response, hyper::Error> {

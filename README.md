@@ -15,5 +15,5 @@ in the next few months. Any feedback during the development of these solutions i
 
  - [`core`](core) represents all of the base traits, data structures and functions for
  reading and writing DICOM content.
- - [`dictionary_builder`](dictionary_builder) is a Rust application that generates Rust
-   code for a DICOM standard dictionary using entries from the web.
+ - [`dictionary_builder`](dictionary_builder) is a Rust application that generates code and
+ other data structures for a DICOM standard dictionary using entries from the web.
