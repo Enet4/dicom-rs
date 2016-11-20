@@ -10,7 +10,7 @@ use attribute::tag::Tag;
 use attribute::ValueRepresentation;
 use std::fmt::Debug;
 
-/// Retrieve the standard DICOM dictionary.
+/// Retrieve the global standard DICOM dictionary.
 pub fn get_standard_dictionary() -> &'static standard::StandardAttributeDictionary {
     standard::get_instance()
 }
@@ -19,7 +19,8 @@ pub fn get_standard_dictionary() -> &'static standard::StandardAttributeDictiona
  * means to convert a tag to an alias and vice versa, as well as a form of retrieving
  * additional information about the attribute.
  * 
- * The methods herein have no generic parameters, so as to be used as a trait object.
+ * The methods herein have no generic parameters, so as to enable being
+ * used as a trait object.
  */
 pub trait AttributeDictionary<'a>: Debug {
     /// Fetch an entry by its usual alias (e.g. "PatientName" or "SOPInstanceUID").
@@ -28,6 +29,11 @@ pub trait AttributeDictionary<'a>: Debug {
 
     /// Fetch an entry by its tag.
     fn get_by_tag(&self, tag: Tag) -> Option<&'a DictionaryEntry<'a>>;
+
+    /// Add a dictionary entry. Returns whether the entry was effectively added.
+    fn add(&mut self, DictionaryEntry<'a>) -> bool {
+        false
+    }
 }
 
 /// The dictionary entry data type, representing a DICOM attribute.
@@ -42,7 +48,7 @@ pub struct DictionaryEntry<'a> {
 }
 
 /// Utility data structure that resolves to a DICOM attribute tag
-/// at a later time. 
+/// at a later time.
 #[derive(Debug)]
 pub struct TagByName<'d, N: AsRef<str>, AD: AttributeDictionary<'d> + 'd> {
     dict: &'d AD,
@@ -64,7 +70,7 @@ impl<N: AsRef<str>> TagByName<'static, N, standard::StandardAttributeDictionary>
     pub fn with_std_dict(name: N) -> TagByName<'static, N, standard::StandardAttributeDictionary> {
         TagByName {
             dict: get_standard_dictionary(),
-            name: name
+            name: name,
         }
     }
 }
@@ -74,4 +80,3 @@ impl<'d, N: AsRef<str>, AD: AttributeDictionary<'d>> From<TagByName<'d, N, AD>> 
         tag.dict.get_by_name(tag.name.as_ref()).map(|e| e.tag)
     }
 }
-

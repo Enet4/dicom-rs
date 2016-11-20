@@ -12,6 +12,8 @@ use chrono::UTC;
 /// Result type alias for this module.
 pub type Result<T> = result::Result<T, InvalidValueReadError>;
 
+type C<T> = Box<[T]>;
+
 /// An enum representing a primitive value from a DICOM element. The result of decoding
 /// an element's data value may be one of the enumerated types depending on its content
 /// and value representation.
@@ -24,7 +26,7 @@ pub enum DicomValue {
     /// Used for AE, AS, PN, SH, CS, LO, UI and UC.
     /// Can also be used for IS, SS, DS, DA, DT and TM when decoding
     /// with format preservation.
-    Strs(Box<[String]>),
+    Strs(C<String>),
 
     /// A single string.
     /// Used for ST, LT, UT and UR, which are never multi-valued.
@@ -32,47 +34,47 @@ pub enum DicomValue {
 
     /// A sequence of attribute tags.
     /// Used specifically for AT.
-    Tags(Box<[Tag]>),
+    Tags(C<Tag>),
 
     /// The value is a sequence of unsigned 16-bit integers.
     /// Used for OB and UN.
-    U8(Box<[u8]>),
+    U8(C<u8>),
 
     /// The value is a sequence of signed 16-bit integers.
     /// Used for SS.
-    I16(Box<[i16]>),
+    I16(C<i16>),
 
     /// A sequence of unsigned 168-bit integers.
     /// Used for US and OW.
-    U16(Box<[u16]>),
+    U16(C<u16>),
 
     /// A sequence of signed 32-bit integers.
     /// Used for SL and IS.
-    I32(Box<[i32]>),
+    I32(C<i32>),
 
     /// A sequence of unsigned 32-bit integers.
     /// Used for UL and OL.
-    U32(Box<[u32]>),
+    U32(C<u32>),
 
     /// The value is a sequence of 32-bit floating point numbers.
     /// Used for OF and FL.
-    F32(Box<[f32]>),
+    F32(C<f32>),
 
     /// The value is a sequence of 64-bit floating point numbers.
     /// Used for OD and FD, DS.
-    F64(Box<[f64]>),
+    F64(C<f64>),
 
     /// A sequence of dates.
     /// Used for the DA representation.
-    Date(Box<[NaiveDate]>),
+    Date(C<NaiveDate>),
 
     /// A sequence of date-time values.
     /// Used for the DT representation.
-    DateTime(Box<[DateTime<UTC>]>),
+    DateTime(C<DateTime<UTC>>),
 
     /// A sequence of time values.
     /// Used for the TM representation.
-    Time(Box<[NaiveTime]>),
+    Time(C<NaiveTime>),
     
 }
 
@@ -145,7 +147,7 @@ pub trait DicomValueType: Clone + Debug + 'static {
     /// Retrieve the specific type of this value.
     fn get_type(&self) -> DataType;
 
-    /// The number of values contained.
+    /// Retrieve the number of values contained.
     fn size(&self) -> u32;
 
     /// Check whether the value is empty (0 length).

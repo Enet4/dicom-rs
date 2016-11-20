@@ -34,7 +34,9 @@ pub fn get_file_header_decoder<'s, S: Read + ?Sized + 's>() -> ExplicitVRLittleE
 }
 
 /** Dynamically retrieve the appropriate decoder for the given transfer syntax and source type.
+ * Deprecated: this doesn't scale, and should be replaced in the future.
  */
+#[deprecated]
 pub fn get_decoder<'s, S: Read + ?Sized + 's>(ts: TransferSyntax)
                                               -> Option<Box<Decode<Source = S> + 's>> {
     match ts {

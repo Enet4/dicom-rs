@@ -3,30 +3,6 @@ use std::io::{Read, Write, Seek, SeekFrom};
 
 #[cfg(test)]
 mod tests {
-    use super::{swap_bytes_16, swap_bytes_32, swap_bytes_64};
-
-    const TEST_DATA: [u8; 8] = [0, 10, 20, 0, 100, 200, 100, 0];
-
-    #[test]
-    fn test_swap_bytes16() {
-        let mut data: &mut [u8] = &mut TEST_DATA;
-        swap_bytes_16(data);
-        assert_eq!(data, &[10, 0, 0, 20, 200, 100, 0, 100]);
-    }
-
-    #[test]
-    fn test_swap_bytes32() {
-        let mut data: &mut [u8] = &mut TEST_DATA;
-        swap_bytes_32(data);
-        assert_eq!(data, &[0, 20, 10, 0, 0, 100, 200, 100]);
-    }
-
-    #[test]
-    fn test_swap_bytes64() {
-        let mut data: &mut [u8] = &mut TEST_DATA;
-        swap_bytes_64(data);
-        assert_eq!(data, &[0, 100, 200, 100, 0, 20, 10, 0]);
-    }
 }
 
 /** A private type trait for the ability to efficiently implement stream skipping.
@@ -140,23 +116,33 @@ impl Endianness {
     }
 }
 
-/// Swap the bytes of 16-bit words in place.
-pub fn swap_bytes_16(data: &mut [u8]) {
-    for chunk in data.chunks_mut(2) {
-        chunk.reverse()
+/// Obtain an iterator of `n` void elements.
+/// Useful for doing something N times.
+pub fn n_times(n: usize) -> VoidRepeatN {
+    VoidRepeatN{i: n}
+}
+
+pub struct VoidRepeatN {
+    i: usize,
+}
+
+impl Iterator for VoidRepeatN {
+    type Item = ();
+
+    fn next(&mut self) -> Option<()> {
+        if self.i == 0 {
+            self.i -= 1;
+            Some(())
+        } else {
+            None
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.i, Some(self.i))
     }
 }
 
-/// Swap the bytes of 32-bit words in place.
-pub fn swap_bytes_32(data: &mut [u8]) {
-    for chunk in data.chunks_mut(4) {
-        chunk.reverse()
-    }
-}
-
-/// Swap the bytes of 64-bit words in place.
-pub fn swap_bytes_64(data: &mut [u8]) {
-    for chunk in data.chunks_mut(8) {
-        chunk.reverse()
-    }
+impl ExactSizeIterator for VoidRepeatN {
+    fn len(&self) -> usize { self.i }
 }

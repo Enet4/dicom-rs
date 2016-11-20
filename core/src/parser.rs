@@ -16,7 +16,7 @@ use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::fmt;
 use chrono::naive::date::NaiveDate;
-use itertools::Itertools;
+use util::n_times;
 
 /// A data structure for parsing DICOM data.
 /// This type encapsulates the necessary decoders in order
@@ -79,36 +79,14 @@ impl<'s, S: Read + ?Sized + 's> DicomParser<'s, S> {
                 // sequence objects... should not work
                 return Err(Error::from(InvalidValueReadError::NonPrimitiveType));
             }
-            ValueRepresentation::AT => {
-                require_known_length!(header);
-
-                // tags
-                let ntags = {
-                    header.len() >> 2
-                } as usize;
-                let parts: Box<[Tag]> = try!(repeat(())
-                        .take(ntags)
-                        .map(|_| self.decoder.decode_tag(self.source))
-                        .collect::<Result<Vec<_>>>())
-                    .into_boxed_slice();
-                Ok(DicomValue::Tags(parts))
-            }
+            ValueRepresentation::AT => self.read_value_tag(header),
             ValueRepresentation::AE | ValueRepresentation::AS | ValueRepresentation::PN |
             ValueRepresentation::SH | ValueRepresentation::LO | ValueRepresentation::UI |
             ValueRepresentation::UC | ValueRepresentation::CS => self.read_value_strs(header),
             ValueRepresentation::UT | ValueRepresentation::ST | ValueRepresentation::UR |
             ValueRepresentation::LT => self.read_value_str(header),
             ValueRepresentation::UN | ValueRepresentation::OB => self.read_value_ob(header),
-            ValueRepresentation::US | ValueRepresentation::OW => {
-                // TODO add support for OW value data length resolution
-                require_known_length!(header);
-
-                let mut vec = Vec::with_capacity(header.len() as usize / 2);
-                for _ in 0..header.len() / 2 {
-                    vec.push(try!(self.decoder.as_ref().decode_us(self.source)));
-                }
-                Ok(DicomValue::U16(vec.into_boxed_slice()))
-            }
+            ValueRepresentation::US | ValueRepresentation::OW => self.read_value_us(header),
             ValueRepresentation::SS => self.read_value_ss(header),
             ValueRepresentation::DA => {
                 require_known_length!(header);
@@ -199,8 +177,32 @@ impl<'s, S: Read + ?Sized + 's> DicomParser<'s, S> {
     /// binary number types, and date/time instances are decoded into binary
     /// date/time objects of types defined in the `chrono` crate.
     /// To avoid this conversion, see `read_value_preserved`.
-    pub fn read_value_preserved(&mut self, elem: &mut DataElementHeader) -> Result<()> {
-        unimplemented!(); // TODO
+    pub fn read_value_preserved(&mut self, header: &mut DataElementHeader) -> Result<(DicomValue)> {
+        if header.len() == 0 {
+            return Ok(DicomValue::Empty);
+        }
+
+        match header.vr() {
+            ValueRepresentation::SQ => {
+                // sequence objects... should not work
+                return Err(Error::from(InvalidValueReadError::NonPrimitiveType));
+            }
+            ValueRepresentation::AT => self.read_value_tag(header),
+            ValueRepresentation::AE | ValueRepresentation::AS | ValueRepresentation::PN |
+            ValueRepresentation::SH | ValueRepresentation::LO | ValueRepresentation::UI |
+            ValueRepresentation::UC | ValueRepresentation::CS | ValueRepresentation::IS |
+            ValueRepresentation::DS | ValueRepresentation::DA | ValueRepresentation::TM |
+            ValueRepresentation::DT => self.read_value_strs(header),
+            ValueRepresentation::UT | ValueRepresentation::ST | ValueRepresentation::UR |
+            ValueRepresentation::LT => self.read_value_str(header),
+            ValueRepresentation::UN | ValueRepresentation::OB => self.read_value_ob(header),
+            ValueRepresentation::US | ValueRepresentation::OW => self.read_value_us(header),
+            ValueRepresentation::SS => self.read_value_ss(header),
+            ValueRepresentation::FD | ValueRepresentation::OD => self.read_value_od(header),
+            ValueRepresentation::FL | ValueRepresentation::OF => self.read_value_fl(header),
+            ValueRepresentation::SL => self.read_value_sl(header),
+            ValueRepresentation::OL | ValueRepresentation::UL => self.read_value_ul(header),
+        }
     }
 
     /// Borrow this parser's source mutably.
@@ -212,6 +214,7 @@ impl<'s, S: Read + ?Sized + 's> DicomParser<'s, S> {
     pub fn borrow_source(&self) -> &S {
         self.source
     }
+
     /// Get the inner source's position in the stream using `seek()`.
     pub fn get_position(&mut self) -> Result<u64> where S: Seek {
         self.source.seek(SeekFrom::Current(0))
@@ -219,6 +222,20 @@ impl<'s, S: Read + ?Sized + 's> DicomParser<'s, S> {
     }
 
     // ---------------- private methods ---------------------
+
+    fn read_value_tag(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
+        require_known_length!(header);
+
+        // tags
+        let ntags = {
+            header.len() >> 2
+        } as usize;
+        let parts: Box<[Tag]> = try!(n_times(ntags)
+                .map(|_| self.decoder.decode_tag(self.source))
+                .collect::<Result<Vec<_>>>())
+            .into_boxed_slice();
+        Ok(DicomValue::Tags(parts))
+    }
 
     fn read_value_ob(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
         // TODO add support for OB value data length resolution
@@ -257,9 +274,9 @@ impl<'s, S: Read + ?Sized + 's> DicomParser<'s, S> {
         // sequence of 16-bit signed integers
         require_known_length!(header);
 
-        let len = header.len() as usize / 2;
+        let len = header.len() as usize >> 1;
         let mut vec = Vec::with_capacity(len);
-        for _ in 0..len {
+        for _ in n_times(len) {
             vec.push(try!(self.decoder.as_ref().decode_ss(self.source)));
         }
         Ok(DicomValue::I16(vec.into_boxed_slice()))
@@ -268,9 +285,9 @@ impl<'s, S: Read + ?Sized + 's> DicomParser<'s, S> {
     fn read_value_fl(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
         require_known_length!(header);
         // sequence of 32-bit floats
-        let l = header.len() as usize / 4;
+        let l = header.len() as usize >> 2;
         let mut vec = Vec::with_capacity(l);
-        for _ in 0..l {
+        for _ in n_times(l) {
             vec.push(try!(self.decoder.as_ref().decode_fl(self.source)));
         }
         Ok(DicomValue::F32(vec.into_boxed_slice()))
@@ -279,9 +296,9 @@ impl<'s, S: Read + ?Sized + 's> DicomParser<'s, S> {
     fn read_value_od(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
         require_known_length!(header);
         // sequence of 64-bit floats
-        let len = header.len() as usize / 8;
+        let len = header.len() as usize >> 3;
         let mut vec = Vec::with_capacity(len);
-        for _ in 0..len {
+        for _ in n_times(len) {
             vec.push(try!(self.decoder.as_ref().decode_fd(self.source)));
         }
         Ok(DicomValue::F64(vec.into_boxed_slice()))
@@ -291,21 +308,33 @@ impl<'s, S: Read + ?Sized + 's> DicomParser<'s, S> {
         require_known_length!(header);
         // sequence of 32-bit unsigned integers
 
-        let len = header.len() as usize / 4;
+        let len = header.len() as usize >> 2;
         let mut vec = Vec::with_capacity(len);
-        for _ in 0..len {
+        for _ in n_times(len) {
             vec.push(try!(self.decoder.as_ref().decode_ul(self.source)));
         }
         Ok(DicomValue::U32(vec.into_boxed_slice()))
+    }
+
+    fn read_value_us(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
+        require_known_length!(header);
+        // sequence of 16-bit unsigned integers
+
+        let len = header.len() as usize >> 1;
+        let mut vec = Vec::with_capacity(len);
+        for _ in n_times(len) {
+            vec.push(try!(self.decoder.as_ref().decode_us(self.source)));
+        }
+        Ok(DicomValue::U16(vec.into_boxed_slice()))
     }
 
     fn read_value_sl(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
         require_known_length!(header);
         // sequence of 32-bit signed integers
 
-        let len = header.len() as usize / 4;
+        let len = header.len() as usize >> 2;
         let mut vec = Vec::with_capacity(len);
-        for _ in 0..len {
+        for _ in n_times(len) {
             vec.push(try!(self.decoder.as_ref().decode_sl(self.source)));
         }
         Ok(DicomValue::I32(vec.into_boxed_slice()))

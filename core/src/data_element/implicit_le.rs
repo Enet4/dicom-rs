@@ -9,8 +9,10 @@ use attribute::tag::Tag;
 use std::fmt;
 use util::Endianness;
 use error::Result;
+use super::decode::basic::LittleEndianBasicDecoder;
 use super::decode::{BasicDecode, Decode};
-use super::encode::Encode;
+use super::encode::basic::LittleEndianBasicEncoder;
+use super::encode::{BasicEncode, Encode};
 use data_element::{DataElementHeader, SequenceItemHeader};
 
 #[cfg(test)]
@@ -23,7 +25,7 @@ mod tests {
     use attribute::dictionary::stub::StubAttributeDictionary;
     use attribute::ValueRepresentation;
     use attribute::tag::Tag;
-    use data_element::{Header, DataElement, DataElementHeader};
+    use data_element::{Header, DataElementHeader};
     use std::io::{Read, Cursor, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements
@@ -121,7 +123,8 @@ mod tests {
                 vr: ValueRepresentation::UI,
                 len: 26,
             };
-            enc.encode_element_header(de, &mut writer).expect("should write it fine");
+            let len = enc.encode_element_header(de, &mut writer).expect("should write it fine");
+            assert_eq!(len, 8);
             writer.write_all(b"1.2.840.10008.5.1.4.1.1.1\0".as_ref()).expect("should write the value fine");
         }
         assert_eq!(&buf[0..8], &RAW[0..8]);
@@ -135,7 +138,8 @@ mod tests {
                 vr: ValueRepresentation::UI,
                 len: 20,
             };
-            enc.encode_element_header(de, &mut writer).expect("should write it fine");
+            let len = enc.encode_element_header(de, &mut writer).expect("should write it fine");
+            assert_eq!(len, 8);
             writer.write_all(b"1.2.840.10008.1.2.1\0".as_ref()).expect("should write the value fine");
         }
         assert_eq!(&buf[34..42], &RAW[34..42]);
@@ -149,12 +153,12 @@ mod tests {
 /// value representations.
 pub struct ImplicitVRLittleEndianDecoder<'d, S: Read + ?Sized> {
     dict: &'d AttributeDictionary<'d>,
-    phantom: PhantomData<S>,
+    basic: LittleEndianBasicDecoder<S>,
 }
 
 impl<'d, 's, S: Read + ?Sized + 's> fmt::Debug for ImplicitVRLittleEndianDecoder<'d, S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ImplicitVRLittleEndianDecoder{{dict={:?},phantom}}", self.dict)
+        write!(f, "ImplicitVRLittleEndianDecoder{{dict={:?}, {:?}}}", self.dict, self.basic)
     }
 }
 
@@ -163,7 +167,7 @@ impl<'d, 's, S: Read + ?Sized + 's> ImplicitVRLittleEndianDecoder<'d, S> {
     pub fn with_default_dict() -> ImplicitVRLittleEndianDecoder<'static, S> {
         ImplicitVRLittleEndianDecoder::<'static, S> {
             dict: get_standard_dictionary(),
-            phantom: PhantomData::default()
+            basic: LittleEndianBasicDecoder::default()
         }
     }
 
@@ -171,7 +175,7 @@ impl<'d, 's, S: Read + ?Sized + 's> ImplicitVRLittleEndianDecoder<'d, S> {
     pub fn with_dict(dictionary: &'d AttributeDictionary<'d>) -> ImplicitVRLittleEndianDecoder<'d, S> {
         ImplicitVRLittleEndianDecoder::<'d, S> {
             dict: dictionary,
-            phantom: PhantomData::default()
+            basic: LittleEndianBasicDecoder::default()
         }
     }
 }
@@ -249,13 +253,7 @@ impl<'d, 's, S: Read + ?Sized + 's> Decode for ImplicitVRLittleEndianDecoder<'d,
 }
 
 pub struct ImplicitVRLittleEndianEncoder<W: Write + ?Sized> {
-    phantom: PhantomData<W>
-}
-
-impl<W: Write + ?Sized> Default for ImplicitVRLittleEndianEncoder<W> {
-    fn default() -> ImplicitVRLittleEndianEncoder<W> {
-        ImplicitVRLittleEndianEncoder{ phantom: PhantomData::default() }
-    }
+    basic: LittleEndianBasicEncoder<W>,
 }
 
 impl<W: Write + ?Sized> fmt::Debug for ImplicitVRLittleEndianEncoder<W> {
@@ -264,17 +262,55 @@ impl<W: Write + ?Sized> fmt::Debug for ImplicitVRLittleEndianEncoder<W> {
     }
 }
 
-impl<W: Write + ?Sized> Encode for ImplicitVRLittleEndianEncoder<W> {
+impl<W: Write + ?Sized> Default for ImplicitVRLittleEndianEncoder<W> {
+    fn default() -> ImplicitVRLittleEndianEncoder<W> {
+        ImplicitVRLittleEndianEncoder{
+            basic: LittleEndianBasicEncoder::default()
+        }
+    }
+}
+
+impl<W: Write + ?Sized> BasicEncode for ImplicitVRLittleEndianEncoder<W> {
     type Writer = W;
 
-    fn encode_element_header(&self, de: DataElementHeader, to: &mut W) -> Result<()> {
+    fn endianness(&self) -> Endianness {
+        Endianness::LE
+    }
+
+    fn encode_us(&self, value: u16, to: &mut Self::Writer) -> Result<()> {
+        self.basic.encode_us(value, to)
+    }
+
+    fn encode_ul(&self, value: u32, to: &mut Self::Writer) -> Result<()> {
+        self.basic.encode_ul(value, to)
+    }
+
+    fn encode_ss(&self, value: i16, to: &mut Self::Writer) -> Result<()> {
+        self.basic.encode_ss(value, to)
+    }
+
+    fn encode_sl(&self, value: i32, to: &mut Self::Writer) -> Result<()> {
+        self.basic.encode_sl(value, to)
+    }
+
+    fn encode_fl(&self, value: f32, to: &mut Self::Writer) -> Result<()> {
+        self.basic.encode_fl(value, to)
+    }
+    
+    fn encode_fd(&self, value: f64, to: &mut Self::Writer) -> Result<()> {
+        self.basic.encode_fd(value, to)
+    }
+}
+
+impl<W: Write + ?Sized> Encode for ImplicitVRLittleEndianEncoder<W> {
+
+    fn encode_element_header(&self, de: DataElementHeader, to: &mut W) -> Result<usize> {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf[0..], de.tag.group());
         LittleEndian::write_u16(&mut buf[2..], de.tag.element());
         LittleEndian::write_u32(&mut buf[4..], de.len);
         try!(to.write_all(&buf));
-
-        Ok(())
+        Ok(8)
     }
 
     fn encode_item_header(&self, len: u32, to: &mut W) -> Result<()> {

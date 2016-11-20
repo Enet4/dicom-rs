@@ -8,9 +8,9 @@ use byteorder::{ByteOrder, BigEndian};
 use error::Result;
 use super::decode::basic::BigEndianBasicDecoder;
 use super::decode::{BasicDecode, Decode};
-use super::encode::Encode;
+use super::encode::{BasicEncode, Encode};
+use super::encode::basic::BigEndianBasicEncoder;
 use util::Endianness;
-use std::marker::PhantomData;
 use data_element::{DataElementHeader, SequenceItemHeader};
 
 #[cfg(test)]
@@ -90,7 +90,8 @@ mod tests {
                 vr: ValueRepresentation::UI,
                 len: 26,
             };
-            enc.encode_element_header(de, &mut writer).expect("should write it fine");
+            let len = enc.encode_element_header(de, &mut writer).expect("should write it fine");
+            assert_eq!(len, 8);
             writer.write_all(b"1.2.840.10008.5.1.4.1.1.1\0".as_ref()).expect("should write the value fine");
         }
         assert_eq!(&buf[0..8], &RAW[0..8]);
@@ -104,7 +105,8 @@ mod tests {
                 vr: ValueRepresentation::UI,
                 len: 20,
             };
-            enc.encode_element_header(de, &mut writer).expect("should write it fine");
+            let len = enc.encode_element_header(de, &mut writer).expect("should write it fine");
+            assert_eq!(len, 8);
             writer.write_all(b"1.2.840.10008.1.2.1\0".as_ref()).expect("should write the value fine");
         }
         assert_eq!(&buf[34..42], &RAW[34..42]);
@@ -213,12 +215,12 @@ impl<'s, S: Read + ?Sized + 's> Decode for ExplicitVRBigEndianDecoder<S> {
 }
 
 pub struct ExplicitVRBigEndianEncoder<W: Write + ?Sized> {
-    phantom: PhantomData<W>
+    basic: BigEndianBasicEncoder<W>,
 }
 
 impl<W: Write + ?Sized> Default for ExplicitVRBigEndianEncoder<W> {
     fn default() -> ExplicitVRBigEndianEncoder<W> {
-        ExplicitVRBigEndianEncoder{ phantom: PhantomData::default() }
+        ExplicitVRBigEndianEncoder{ basic: BigEndianBasicEncoder::default() }
     }
 }
 
@@ -228,10 +230,41 @@ impl<W: Write + ?Sized> fmt::Debug for ExplicitVRBigEndianEncoder<W> {
     }
 }
 
-impl<W: Write + ?Sized> Encode for ExplicitVRBigEndianEncoder<W> {
+impl<W: Write + ?Sized> BasicEncode for ExplicitVRBigEndianEncoder<W> {
     type Writer = W;
 
-    fn encode_element_header(&self, de: DataElementHeader, to: &mut W) -> Result<()> {
+    fn endianness(&self) -> Endianness {
+        Endianness::BE
+    }
+
+    fn encode_us(&self, value: u16, to: &mut Self::Writer) -> Result<()> {
+        self.basic.encode_us(value, to)
+    }
+
+    fn encode_ul(&self, value: u32, to: &mut Self::Writer) -> Result<()> {
+        self.basic.encode_ul(value, to)
+    }
+
+    fn encode_ss(&self, value: i16, to: &mut Self::Writer) -> Result<()> {
+        self.basic.encode_ss(value, to)
+    }
+
+    fn encode_sl(&self, value: i32, to: &mut Self::Writer) -> Result<()> {
+        self.basic.encode_sl(value, to)
+    }
+
+    fn encode_fl(&self, value: f32, to: &mut Self::Writer) -> Result<()> {
+        self.basic.encode_fl(value, to)
+    }
+    
+    fn encode_fd(&self, value: f64, to: &mut Self::Writer) -> Result<()> {
+        self.basic.encode_fd(value, to)
+    }
+}
+
+impl<W: Write + ?Sized> Encode for ExplicitVRBigEndianEncoder<W> {
+
+    fn encode_element_header(&self, de: DataElementHeader, to: &mut W) -> Result<usize> {
         match de.vr {
             ValueRepresentation::OB | ValueRepresentation::OD |
             ValueRepresentation::OF | ValueRepresentation::OL |
@@ -249,7 +282,7 @@ impl<W: Write + ?Sized> Encode for ExplicitVRBigEndianEncoder<W> {
                 BigEndian::write_u32(&mut buf[8..], de.len);
                 try!(to.write_all(&buf));
 
-                Ok(())
+                Ok(12)
             },
             _ => {
                 let mut buf = [0u8; 8];
@@ -261,7 +294,7 @@ impl<W: Write + ?Sized> Encode for ExplicitVRBigEndianEncoder<W> {
                 BigEndian::write_u16(&mut buf[6..], de.len as u16);
                 try!(to.write_all(&buf));
 
-                Ok(())
+                Ok(8)
             }
         }
     }
