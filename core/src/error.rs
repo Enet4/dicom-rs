@@ -89,14 +89,16 @@ quick_error! {
             description("Invalid format for the expected value representation")
             display(self_) -> ("Value reading error: {}", self_.description())
         }
+        /// The value cannot be parsed to a floating point number.
         FloatParse(err: ParseFloatError) {
             description("Failed to parse text value as a floating point number")
             from()
             cause(err)
             display(self_) -> ("Value reading error: {}", self_.cause().unwrap().description())
         }
+        /// The value cannot be parsed to an integer.
         IntegerParse(err: ParseIntError) {
-            description("Failed to parse text value as a floating point number")
+            description("Failed to parse text value as an integer")
             from()
             cause(err)
             display(self_) -> ("Value reading error: {}", self_.cause().unwrap().description())

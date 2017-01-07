@@ -113,8 +113,8 @@ pub struct DicomMetaTable {
     private_information: Option<Vec<u8>>,
 }
 
-/// Utility function for reading the whole DICOM element as a string with the given tag.
-fn read_str_as_tag<S: Read + Seek, D: Decode<Source=S>, T: TextCodec>(
+/// Utility function for reading the whole DICOM element as a string, with the given tag.
+fn read_str_as_tag<'s, S: Read + 's, D: Decode<Source=S>, T: TextCodec>(
             source: &mut S, decoder: &D, text: &T, group_length_remaining: &mut u32, tag: Tag) -> Result<String> {
     let elem = try!(decoder.decode_header(source));
     if elem.tag() != tag {
@@ -124,7 +124,7 @@ fn read_str_as_tag<S: Read + Seek, D: Decode<Source=S>, T: TextCodec>(
 }
 
 /// Utility function for reading the body of the DICOM element as a UID.
-fn read_str_body<S: Read + Seek, T: TextCodec>(
+fn read_str_body<S: Read, T: TextCodec>(
             source: &mut S, text: &T, group_length_remaining: &mut u32, len: u32) -> Result<String> {
     let mut v = Vec::<u8>::with_capacity(len as usize);
     v.resize(len as usize, 0);

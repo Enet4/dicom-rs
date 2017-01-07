@@ -1,9 +1,7 @@
 //! This module contains all DICOM data element decoding logic.
 
-use transfer_syntax::TransferSyntax;
-use super::explicit_le::ExplicitVRLittleEndianDecoder;
-use super::explicit_be::ExplicitVRBigEndianDecoder;
-use super::implicit_le::ImplicitVRLittleEndianDecoder;
+use transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
+use transfer_syntax::implicit_le::ImplicitVRLittleEndianDecoder;
 use std::io::Read;
 use error::Result;
 use data_element::{DataElementHeader, SequenceItemHeader};
@@ -33,26 +31,6 @@ pub fn get_file_header_decoder<'s, S: Read + ?Sized + 's>() -> ExplicitVRLittleE
     ExplicitVRLittleEndianDecoder::default()
 }
 
-/** Dynamically retrieve the appropriate decoder for the given transfer syntax and source type.
- * Deprecated: this doesn't scale, and should be replaced in the future.
- */
-#[deprecated]
-pub fn get_decoder<'s, S: Read + ?Sized + 's>(ts: TransferSyntax)
-                                              -> Option<Box<Decode<Source = S> + 's>> {
-    match ts {
-        TransferSyntax::ImplicitVRLittleEndian => {
-            Some(Box::new(ImplicitVRLittleEndianDecoder::with_default_dict()))
-        }
-        TransferSyntax::ExplicitVRLittleEndian => {
-            Some(Box::new(ExplicitVRLittleEndianDecoder::default()))
-        }
-        TransferSyntax::ExplicitVRBigEndian => {
-            Some(Box::new(ExplicitVRBigEndianDecoder::default()))
-        }
-        _ => None,
-    }
-}
-
 /** Type trait for reading and decoding basic data values from a data source.
  * 
  * This trait aims to provide methods for reading binary numbers based on the
@@ -79,7 +57,7 @@ pub trait BasicDecode: Debug {
 
     /// Decode a single precision float value from the given source.
     fn decode_fl(&self, source: &mut Self::Source) -> Result<f32>;
-    
+
     /// Decode a double precision float value from the given source.
     fn decode_fd(&self, source: &mut Self::Source) -> Result<f64>;
 }
@@ -89,8 +67,7 @@ pub trait BasicDecode: Debug {
  * The specific behaviour of decoding, even when abstracted from the original source,
  * may depend on the transfer syntax.
  */
-pub trait Decode: BasicDecode + Debug {
-
+pub trait Decode: BasicDecode {
     /** Fetch and decode the next data element header from the given source.
      * This method returns only the header of the element. At the end of this operation, the source
      * will be pointing at the element's value data, which should be read or skipped as necessary.

@@ -2,10 +2,12 @@
 //! At this level, objects are comparable to a lazy dictionary of elements,
 //! in which some of them can be DICOM objects themselves.
 //! The end user should prefer using this abstraction when dealing with DICOM objects.
-use data_element::{Header, DataElement, DataElementHeader, SequenceItemHeader};
+use std::ops::DerefMut;
+use transfer_syntax::TransferSyntax;
+use data_element::{Header, DataElementHeader, SequenceItemHeader};
 use data_element::decode::Decode;
 use data_element::text::{SpecificCharacterSet, TextCodec};
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read, Seek};
 use std::iter::Iterator;
 use std::fmt::Debug;
 use std::fmt;
@@ -16,19 +18,16 @@ use error::{Result, Error};
 use attribute::ValueRepresentation;
 use attribute::tag::Tag;
 use attribute::value::DicomValue;
-use transfer_syntax::TransferSyntax;
+use util::ReadSeek;
 
 /// An enum type for an entry reference to an object, which can be
 /// a primitive element or another complex value.
 #[derive(Debug)]
 pub enum ObjectEntryValue<'a> {
-//    type Item: ;
-//    type SequenceIt: Iterator;
-
+    //    type Item: ;
+    //    type SequenceIt: Iterator;
     Element(&'a DicomValue),
-    Item(&'a DicomObject),
-//    Sequence(Box<Iterator<Item=Self::Item> + 'a>),
-
+    Item(&'a DicomObject), //    Sequence(Box<Iterator<Item=Self::Item> + 'a>),
 }
 
 /// Trait type for a high-level abstraction of DICOM object.
@@ -48,45 +47,54 @@ pub trait LoadedDicomObject: Debug {
 
 /// An iterator for DICOM object elements.
 #[derive(Debug)]
-pub struct DicomElementIterator<'s, S: Read + Seek + ?Sized + 's> {
-    parser: DicomParser<'s, S>,
+pub struct DicomElementIterator<'s,
+                                S: Read + ?Sized + 's,
+                                DS: Read + ?Sized + 's>
+    where S: DerefMut<Target = DS> {
+    parser: DicomParser<'s, S, DS>,
     depth: u32,
     in_sequence: bool,
     hard_break: bool,
 }
 
-impl<'s, S: Read + Seek + ?Sized + 's> DicomElementIterator<'s, S> {
+impl<'s, S: ?Sized + ReadSeek + 's> DicomElementIterator<'s, S, Read + 's>
+    where S: DerefMut<Target = (Read + 's)> {
+
+    /// Create a new iterator with the given random access source,
+    /// while considering the given transfer syntax and specific character set.
+    pub fn new_with(mut source: &'s mut S,
+                        ts: &TransferSyntax,
+                        cs: SpecificCharacterSet)
+                        -> Result<DicomElementIterator<'s, S, (Read + 's)>> {
+            let decoder: Box<Decode<Source = (Read + 's)> + 's> = try!(ts.get_decoder()
+                .ok_or_else(|| Error::UnsupportedTransferSyntax));
+            let text = try!(cs.get_codec()
+                .ok_or_else(|| Error::UnsupportedCharacterSet));
+
+            Ok(DicomElementIterator {
+                parser: DicomParser::new(source, decoder, text),
+                depth: 0,
+                in_sequence: false,
+                hard_break: false,
+            })
+    }
+}
+
+impl<'s, S: Read + Seek + ?Sized + 's, DS: Read + ?Sized + 's> DicomElementIterator<'s, S, DS>
+    where S: DerefMut<Target = DS> {
+    
     /// Create a new iterator with the given random access source,
     /// while considering the given decoder and text codec.
     pub fn new(mut source: &'s mut S,
-               decoder: Box<Decode<Source = S> + 's>,
+               decoder: Box<Decode<Source = DS> + 's>,
                text: Box<TextCodec>)
-               -> DicomElementIterator<'s, S> {
+               -> DicomElementIterator<'s, S, DS> {
         DicomElementIterator {
             parser: DicomParser::new(source, decoder, text),
             depth: 0,
             in_sequence: false,
             hard_break: false,
         }
-    }
-
-    /// Create a new iterator with the given random access source,
-    /// while considering the given transfer syntax and specific character set.
-    pub fn new_with(mut source: &'s mut S,
-                    ts: TransferSyntax,
-                    cs: SpecificCharacterSet)
-                    -> Result<DicomElementIterator<'s, S>> {
-        let decoder: Box<Decode<Source = S>> = try!(ts.get_decoder()
-            .ok_or_else(|| Error::UnsupportedTransferSyntax));
-        let text = try!(cs.get_codec()
-            .ok_or_else(|| Error::UnsupportedCharacterSet));
-
-        Ok(DicomElementIterator {
-            parser: DicomParser::new(source, decoder, text),
-            depth: 0,
-            in_sequence: false,
-            hard_break: false,
-        })
     }
 
     fn save_element(&mut self, header: DataElementHeader) -> Result<DicomElementMarker> {
@@ -120,7 +128,8 @@ impl<'s, S: Read + Seek + ?Sized + 's> DicomElementIterator<'s, S> {
     }
 }
 
-impl<'a, S: Read + Seek + ?Sized + 'a> Iterator for DicomElementIterator<'a, S> {
+impl<'a, S: ?Sized + Read + Seek + 'a, DS: ?Sized + Read + 'a> Iterator for DicomElementIterator<'a, S, DS>
+    where S: DerefMut<Target = DS> {
     type Item = Result<DicomElementMarker>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -208,25 +217,35 @@ impl Header for DicomElementMarker {
 }
 
 /// Data type for a lazily loaded DICOM object builder.
-pub struct LazyDicomObject<'s, S: Read + Seek + ?Sized + 's> {
-    parser: DicomParser<'s, S>,
+pub struct LazyDicomObject<'s, S: Read + Seek + ?Sized + 's, DS: Read + Seek + ?Sized + 's>
+    where S: DerefMut<Target = DS> {
+    parser: DicomParser<'s, S, DS>,
     entries: HashMap<Tag, LazyDataElement>,
 }
 
-impl<'s, S: Read + Seek + ?Sized + 's> Debug for LazyDicomObject<'s, S> {
+impl<'s, S: Read + Seek + ?Sized + 's, DS: Read + Seek + ?Sized + 's> Debug for LazyDicomObject<'s, S, DS>
+    where S: DerefMut<Target = DS> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "LazyDicomObject{{parser: {:?}, entries{:?}}}", &self.parser, &self.entries)
+        write!(f,
+               "LazyDicomObject{{parser: {:?}, entries{:?}}}",
+               &self.parser,
+               &self.entries)
     }
 }
 
-impl<'s, S: Read + Seek + ?Sized + 's> LazyDicomObject<'s, S> {
+impl<'s, S: Read + Seek + ?Sized + 's, DS: Read + Seek + ?Sized + 's> LazyDicomObject<'s, S, DS>
+    where S: DerefMut<Target = DS> {
+
     /// create a new lazy DICOM object from an element marker iterator.
-    pub fn from_iter<T>(iter: T, parser: DicomParser<'s, S>) -> Result<LazyDicomObject<'s, S>>
+    pub fn from_iter<T>(iter: T,
+                        parser: DicomParser<'s, S, DS>)
+                        -> Result<LazyDicomObject<'s, S, DS>>
         where T: IntoIterator<Item = Result<DicomElementMarker>>
     {
         // collect results into a hash map
         let entries = try!(iter.into_iter()
-            .map(|res| res.map(|e| (e.tag(), LazyDataElement::new(e)))).collect());
+            .map(|res| res.map(|e| (e.tag(), LazyDataElement::new(e))))
+            .collect());
 
         Ok(LazyDicomObject {
             parser: parser,
@@ -235,27 +254,15 @@ impl<'s, S: Read + Seek + ?Sized + 's> LazyDicomObject<'s, S> {
     }
 }
 
-impl<'s, S: Read + Seek + ?Sized + 's> DicomObject for LazyDicomObject<'s, S>{
+impl<'s, S: Read + Seek + ?Sized + 's, DS: Read + Seek + ?Sized> DicomObject for LazyDicomObject<'s, S, DS>
+    where S: DerefMut<Target = DS> {
+
     fn get(&mut self, tag: Tag) -> Result<ObjectEntryValue> {
-        //let tag: Tag = tag.into();
 
         let mut e = try!(self.entries.get_mut(&tag).ok_or_else(|| Error::NoSuchDataElement));
 
-        // TODO  
-        /*      
-        match e.marker.header {
-            LazyDicomElementHeader::Data(ref hdr) => {
-                // read primitive
-                if e.value.is_none() {
-                    e.value = Some(try!(self.parser.read_value(hdr)));
-                }
-                Ok(ObjectEntryValue::Element(e.value.as_ref().unwrap()))
-            }
-            LazyDicomElementHeader::Item(hdr) => {
-                unimplemented!()
-            }
-        }
-        */
+        // TODO
+
         unimplemented!()
     }
 }

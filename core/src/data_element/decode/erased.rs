@@ -30,10 +30,10 @@ pub trait BasicDecode: Debug {
     /// Decode a signed long value from the given source.
     fn erased_decode_sl(&self, source: &mut Read) -> Result<i32>;
 
-    // Decode a single precision float value from the given source.
+    /// Decode a single precision float value from the given source.
     fn erased_decode_fl(&self, source: &mut Read) -> Result<f32>;
     
-    // Decode a double precision float value from the given source.
+    /// Decode a double precision float value from the given source.
     fn erased_decode_fd(&self, source: &mut Read) -> Result<f64>;
 }
 
@@ -75,7 +75,7 @@ pub trait Decode: BasicDecode + Debug {
     }
 }
 
-impl<'s> super::BasicDecode for &'s self::BasicDecode  {
+impl<'s> super::BasicDecode for &'s BasicDecode  {
     type Source = Read;
 
     fn endianness(&self) -> Endianness {

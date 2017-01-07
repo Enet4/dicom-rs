@@ -2,18 +2,17 @@
 
 use byteorder::{ByteOrder, LittleEndian};
 use std::io::{Read, Write};
-use std::marker::PhantomData;
 use attribute::dictionary::{AttributeDictionary, get_standard_dictionary};
 use attribute::ValueRepresentation;
 use attribute::tag::Tag;
 use std::fmt;
 use util::Endianness;
 use error::Result;
-use super::decode::basic::LittleEndianBasicDecoder;
-use super::decode::{BasicDecode, Decode};
-use super::encode::basic::LittleEndianBasicEncoder;
-use super::encode::{BasicEncode, Encode};
-use data_element::{DataElementHeader, SequenceItemHeader};
+use data_element::decode::basic::LittleEndianBasicDecoder;
+use data_element::decode::{BasicDecode, Decode};
+use data_element::encode::basic::LittleEndianBasicEncoder;
+use data_element::encode::{BasicEncode, Encode};
+use data_element::{DataElementHeader, SequenceItemHeader, Header};
 
 #[cfg(test)]
 mod tests {
@@ -180,7 +179,7 @@ impl<'d, 's, S: Read + ?Sized + 's> ImplicitVRLittleEndianDecoder<'d, S> {
     }
 }
 
-impl<'d, 's, S: Read + ?Sized + 's> BasicDecode for ImplicitVRLittleEndianDecoder<'d, S> {
+impl<'d, S: Read + ?Sized> BasicDecode for ImplicitVRLittleEndianDecoder<'d, S> {
     type Source = S;
 
     fn endianness(&self) -> Endianness {
@@ -224,7 +223,7 @@ impl<'d, 's, S: Read + ?Sized + 's> BasicDecode for ImplicitVRLittleEndianDecode
     }
 }
 
-impl<'d, 's, S: Read + ?Sized + 's> Decode for ImplicitVRLittleEndianDecoder<'d, S>  {
+impl<'d, S: Read + ?Sized> Decode for ImplicitVRLittleEndianDecoder<'d, S>  {
 
     fn decode_header(&self, source: &mut S) -> Result<DataElementHeader> {
         let mut buf = [0u8; 4];
@@ -252,6 +251,7 @@ impl<'d, 's, S: Read + ?Sized + 's> Decode for ImplicitVRLittleEndianDecoder<'d,
     }
 }
 
+/// A concrete encoder for the transfer syntax ImplicitVRLittleEndian
 pub struct ImplicitVRLittleEndianEncoder<W: Write + ?Sized> {
     basic: LittleEndianBasicEncoder<W>,
 }
@@ -306,9 +306,9 @@ impl<W: Write + ?Sized> Encode for ImplicitVRLittleEndianEncoder<W> {
 
     fn encode_element_header(&self, de: DataElementHeader, to: &mut W) -> Result<usize> {
         let mut buf = [0u8; 8];
-        LittleEndian::write_u16(&mut buf[0..], de.tag.group());
-        LittleEndian::write_u16(&mut buf[2..], de.tag.element());
-        LittleEndian::write_u32(&mut buf[4..], de.len);
+        LittleEndian::write_u16(&mut buf[0..], de.tag().group());
+        LittleEndian::write_u16(&mut buf[2..], de.tag().element());
+        LittleEndian::write_u32(&mut buf[4..], de.len());
         try!(to.write_all(&buf));
         Ok(8)
     }

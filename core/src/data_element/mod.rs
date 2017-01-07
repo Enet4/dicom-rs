@@ -4,9 +4,7 @@ use attribute::ValueRepresentation;
 pub mod decode;
 pub mod encode;
 pub mod text;
-mod explicit_le;
-mod implicit_le;
-mod explicit_be;
+
 use error::{Result, Error};
 use attribute::value::DicomValue;
 use attribute::tag::Tag;

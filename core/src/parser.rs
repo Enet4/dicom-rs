@@ -2,9 +2,10 @@
 //! The structures provided here can translate a byte data source into
 //! an iterator of elements, with either sequential or random access.
 
+use std::ops::DerefMut;
 use std::io::{Read, Seek, SeekFrom};
 use std::str;
-use std::iter::{repeat, Iterator};
+use std::iter::Iterator;
 use error::{Result, Error, TextEncodingError, InvalidValueReadError};
 use data_element::{Header, DataElementHeader, SequenceItemHeader};
 use data_element::decode::Decode;
@@ -22,13 +23,17 @@ use util::n_times;
 /// This type encapsulates the necessary decoders in order
 /// to be as autonomous as possible in the DICOM content reading
 /// process.
-pub struct DicomParser<'s, S: Read + ?Sized + 's> {
+/// `S` is the generic parameter type for the original source's type, whereas
+/// `DS` is the parameter type that the decoder interprets as.
+pub struct DicomParser<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's>
+    where S: DerefMut<Target = DS> {
     source: &'s mut S,
-    decoder: Box<Decode<Source = S> + 's>,
+    decoder: Box<Decode<Source = DS> + 's>,
     text: Box<TextCodec>,
 }
 
-impl<'s, S: Read + ?Sized + 's> fmt::Debug for DicomParser<'s, S> {
+impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> fmt::Debug for DicomParser<'s, S, DS>
+    where S: DerefMut<Target = DS> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "DicomParser{{source, decoder, text:{:?}}}", &self.text)
     }
@@ -40,12 +45,13 @@ macro_rules! require_known_length {
     })
 }
 
-impl<'s, S: Read + ?Sized + 's> DicomParser<'s, S> {
+impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
+    where S: DerefMut<Target = DS> {
     /// Create a new DICOM parser.
     pub fn new(source: &'s mut S,
-               decoder: Box<Decode<Source = S> + 's>,
+               decoder: Box<Decode<Source = DS> + 's>,
                text: Box<TextCodec>)
-               -> DicomParser<'s, S> {
+               -> DicomParser<'s, S, DS> {
         DicomParser {
             source: source,
             decoder: decoder,
@@ -341,13 +347,15 @@ impl<'s, S: Read + ?Sized + 's> DicomParser<'s, S> {
     }
 }
 
-impl<'s, S: Read + ?Sized + 's> Borrow<S> for DicomParser<'s, S> {
+impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> Borrow<S> for DicomParser<'s, S, DS>
+    where S: DerefMut<Target = DS> {
     fn borrow(&self) -> &S {
         self.source
     }
 }
 
-impl<'s, S: Read + ?Sized + 's> BorrowMut<S> for DicomParser<'s, S> {
+impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> BorrowMut<S> for DicomParser<'s, S, DS>
+    where S: DerefMut<Target = DS> {
     fn borrow_mut(&mut self) -> &mut S {
         self.source
     }

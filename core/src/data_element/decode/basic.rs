@@ -14,7 +14,7 @@ pub struct LittleEndianBasicDecoder<S: Read + ?Sized> {
     phantom: PhantomData<S>,
 }
 
-impl<S: Read + ?Sized> fmt::Debug for LittleEndianBasicDecoder<S> {
+impl<S: ?Sized + Read> fmt::Debug for LittleEndianBasicDecoder<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "LittleEndianBasicDecoder")
     }
@@ -29,7 +29,7 @@ impl<S: Read + ?Sized> Default for LittleEndianBasicDecoder<S> {
 }
 
 
-impl<'s, S: Read + ?Sized + 's> BasicDecode for LittleEndianBasicDecoder<S> {
+impl<S: Read + ?Sized> BasicDecode for LittleEndianBasicDecoder<S> {
     type Source = S;
 
     fn endianness(&self) -> Endianness {
@@ -92,7 +92,7 @@ impl<S: Read + ?Sized> Default for BigEndianBasicDecoder<S> {
     }
 }
 
-impl<'s, S: Read + ?Sized + 's> BasicDecode for BigEndianBasicDecoder<S> {
+impl<S: Read + ?Sized> BasicDecode for BigEndianBasicDecoder<S> {
     type Source = S;
 
     fn endianness(&self) -> Endianness {
