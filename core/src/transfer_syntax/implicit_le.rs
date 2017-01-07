@@ -16,15 +16,15 @@ use data_element::{DataElementHeader, SequenceItemHeader, Header};
 
 #[cfg(test)]
 mod tests {
-    use super::super::decode::Decode;
-    use super::super::encode::Encode;
     use super::ImplicitVRLittleEndianDecoder;
     use super::ImplicitVRLittleEndianEncoder;
+    use data_element::{Header, DataElementHeader};
+    use data_element::decode::Decode;
+    use data_element::encode::Encode;
     use attribute::dictionary::AttributeDictionary;
     use attribute::dictionary::stub::StubAttributeDictionary;
     use attribute::ValueRepresentation;
     use attribute::tag::Tag;
-    use data_element::{Header, DataElementHeader};
     use std::io::{Read, Cursor, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements
@@ -117,11 +117,11 @@ mod tests {
             let mut writer = Cursor::new(&mut buf[..]);
 
             // encode first element
-            let de = DataElementHeader {
-                tag: Tag(0x0002,0x0002),
-                vr: ValueRepresentation::UI,
-                len: 26,
-            };
+            let de = DataElementHeader::new(
+                Tag(0x0002,0x0002),
+                ValueRepresentation::UI,
+                26
+            );
             let len = enc.encode_element_header(de, &mut writer).expect("should write it fine");
             assert_eq!(len, 8);
             writer.write_all(b"1.2.840.10008.5.1.4.1.1.1\0".as_ref()).expect("should write the value fine");
@@ -132,11 +132,11 @@ mod tests {
             let mut writer = Cursor::new(&mut buf[34..]);
 
             // encode second element
-            let de = DataElementHeader {
-                tag: Tag(0x0002,0x0010),
-                vr: ValueRepresentation::UI,
-                len: 20,
-            };
+            let de = DataElementHeader::new(
+                Tag(0x0002,0x0010),
+                ValueRepresentation::UI,
+                20
+            );
             let len = enc.encode_element_header(de, &mut writer).expect("should write it fine");
             assert_eq!(len, 8);
             writer.write_all(b"1.2.840.10008.1.2.1\0".as_ref()).expect("should write the value fine");
