@@ -11,7 +11,7 @@ use std::fmt;
 
 /// An enum type for a DICOM value representation.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum ValueRepresentation {
+pub enum VR {
     /// Application Entity
     AE,
     /// Age String
@@ -76,49 +76,49 @@ pub enum ValueRepresentation {
     UT,
 }
 
-impl ValueRepresentation {
+impl VR {
     /// Obtain the value representation corresponding to the given two bytes.
     /// Each byte should represent an alphabetic character in upper case.
-    pub fn from_binary(chars: [u8; 2]) -> Option<ValueRepresentation> {
-        from_utf8(chars.as_ref()).ok().and_then(|s| ValueRepresentation::from_str(s))
+    pub fn from_binary(chars: [u8; 2]) -> Option<VR> {
+        from_utf8(chars.as_ref()).ok().and_then(|s| VR::from_str(s))
     }
 
     /// Obtain the value representation corresponding to the given string.
     /// The string should hold exactly two UTF-8 encoded alphabetic characters
     /// in upper case, otherwise no match is made.
-    pub fn from_str(string: &str) -> Option<ValueRepresentation> {
+    pub fn from_str(string: &str) -> Option<VR> {
         match string {
-            "AE" => Some(ValueRepresentation::AE),
-            "AS" => Some(ValueRepresentation::AS),
-            "AT" => Some(ValueRepresentation::AT),
-            "CS" => Some(ValueRepresentation::CS),
-            "DA" => Some(ValueRepresentation::DA),
-            "DS" => Some(ValueRepresentation::DS),
-            "DT" => Some(ValueRepresentation::DT),
-            "FL" => Some(ValueRepresentation::FL),
-            "FD" => Some(ValueRepresentation::FD),
-            "IS" => Some(ValueRepresentation::IS),
-            "LO" => Some(ValueRepresentation::LO),
-            "LT" => Some(ValueRepresentation::LT),
-            "OB" => Some(ValueRepresentation::OB),
-            "OD" => Some(ValueRepresentation::OD),
-            "OF" => Some(ValueRepresentation::OF),
-            "OL" => Some(ValueRepresentation::OL),
-            "OW" => Some(ValueRepresentation::OW),
-            "PN" => Some(ValueRepresentation::PN),
-            "SH" => Some(ValueRepresentation::SH),
-            "SL" => Some(ValueRepresentation::SL),
-            "SQ" => Some(ValueRepresentation::SQ),
-            "SS" => Some(ValueRepresentation::SS),
-            "ST" => Some(ValueRepresentation::ST),
-            "TM" => Some(ValueRepresentation::TM),
-            "UC" => Some(ValueRepresentation::UC),
-            "UI" => Some(ValueRepresentation::UI),
-            "UL" => Some(ValueRepresentation::UL),
-            "UN" => Some(ValueRepresentation::UN),
-            "UR" => Some(ValueRepresentation::UR),
-            "US" => Some(ValueRepresentation::US),
-            "UT" => Some(ValueRepresentation::UT),
+            "AE" => Some(VR::AE),
+            "AS" => Some(VR::AS),
+            "AT" => Some(VR::AT),
+            "CS" => Some(VR::CS),
+            "DA" => Some(VR::DA),
+            "DS" => Some(VR::DS),
+            "DT" => Some(VR::DT),
+            "FL" => Some(VR::FL),
+            "FD" => Some(VR::FD),
+            "IS" => Some(VR::IS),
+            "LO" => Some(VR::LO),
+            "LT" => Some(VR::LT),
+            "OB" => Some(VR::OB),
+            "OD" => Some(VR::OD),
+            "OF" => Some(VR::OF),
+            "OL" => Some(VR::OL),
+            "OW" => Some(VR::OW),
+            "PN" => Some(VR::PN),
+            "SH" => Some(VR::SH),
+            "SL" => Some(VR::SL),
+            "SQ" => Some(VR::SQ),
+            "SS" => Some(VR::SS),
+            "ST" => Some(VR::ST),
+            "TM" => Some(VR::TM),
+            "UC" => Some(VR::UC),
+            "UI" => Some(VR::UI),
+            "UL" => Some(VR::UL),
+            "UN" => Some(VR::UN),
+            "UR" => Some(VR::UR),
+            "US" => Some(VR::US),
+            "UT" => Some(VR::UT),
             _ => None,
         }
     }
@@ -126,37 +126,37 @@ impl ValueRepresentation {
     /// Retrieve a string representation of this VR.
     pub fn to_string(&self) -> &'static str {
         match *self {
-            ValueRepresentation::AE => "AE",
-            ValueRepresentation::AS => "AS",
-            ValueRepresentation::AT => "AT",
-            ValueRepresentation::CS => "CS",
-            ValueRepresentation::DA => "DA",
-            ValueRepresentation::DS => "DS",
-            ValueRepresentation::DT => "DT",
-            ValueRepresentation::FL => "FL",
-            ValueRepresentation::FD => "FD",
-            ValueRepresentation::IS => "IS",
-            ValueRepresentation::LO => "LO",
-            ValueRepresentation::LT => "LT",
-            ValueRepresentation::OB => "OB",
-            ValueRepresentation::OD => "OD",
-            ValueRepresentation::OF => "OF",
-            ValueRepresentation::OL => "OL",
-            ValueRepresentation::OW => "OW",
-            ValueRepresentation::PN => "PN",
-            ValueRepresentation::SH => "SH",
-            ValueRepresentation::SL => "SL",
-            ValueRepresentation::SQ => "SQ",
-            ValueRepresentation::SS => "SS",
-            ValueRepresentation::ST => "ST",
-            ValueRepresentation::TM => "TM",
-            ValueRepresentation::UC => "UC",
-            ValueRepresentation::UI => "UI",
-            ValueRepresentation::UL => "UL",
-            ValueRepresentation::UN => "UN",
-            ValueRepresentation::UR => "UR",
-            ValueRepresentation::US => "US",
-            ValueRepresentation::UT => "UT",
+            VR::AE => "AE",
+            VR::AS => "AS",
+            VR::AT => "AT",
+            VR::CS => "CS",
+            VR::DA => "DA",
+            VR::DS => "DS",
+            VR::DT => "DT",
+            VR::FL => "FL",
+            VR::FD => "FD",
+            VR::IS => "IS",
+            VR::LO => "LO",
+            VR::LT => "LT",
+            VR::OB => "OB",
+            VR::OD => "OD",
+            VR::OF => "OF",
+            VR::OL => "OL",
+            VR::OW => "OW",
+            VR::PN => "PN",
+            VR::SH => "SH",
+            VR::SL => "SL",
+            VR::SQ => "SQ",
+            VR::SS => "SS",
+            VR::ST => "ST",
+            VR::TM => "TM",
+            VR::UC => "UC",
+            VR::UI => "UI",
+            VR::UL => "UL",
+            VR::UN => "UN",
+            VR::UR => "UR",
+            VR::US => "US",
+            VR::UT => "UT",
         }
     }
 
@@ -168,7 +168,7 @@ impl ValueRepresentation {
     }
 }
 
-impl fmt::Display for ValueRepresentation {
+impl fmt::Display for VR {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(self.to_string())
     }

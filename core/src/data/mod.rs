@@ -1,9 +1,10 @@
 //! This modules contains everything needed to access and manipulate DICOM data elements.
-use attribute::ValueRepresentation;
+use attribute::VR;
 
 pub mod decode;
 pub mod encode;
 pub mod text;
+pub mod codec;
 
 use error::{Result, Error};
 use attribute::value::DicomValue;
@@ -72,7 +73,7 @@ impl Header for DataElement {
 
 impl DataElement {
     /// Retrieve the element's value representation, which can be unknown.
-    pub fn vr(&self) -> ValueRepresentation {
+    pub fn vr(&self) -> VR {
         self.header.vr()
     }
 
@@ -87,7 +88,7 @@ impl DataElement {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct DataElementHeader {
     tag: Tag,
-    vr: ValueRepresentation,
+    vr: VR,
     len: u32,
 }
 
@@ -104,7 +105,7 @@ impl Header for DataElementHeader {
 impl DataElementHeader {
     /// Create a new data element header with the given properties.
     /// This is just a trivial constructor.
-    pub fn new<T: Into<Tag>>(tag: T, vr: ValueRepresentation, len: u32) -> DataElementHeader {
+    pub fn new<T: Into<Tag>>(tag: T, vr: VR, len: u32) -> DataElementHeader {
         DataElementHeader {
             tag: tag.into(),
             vr: vr,
@@ -113,7 +114,7 @@ impl DataElementHeader {
     }
 
     /// Retrieve the element's value representation, which can be unknown.
-    pub fn vr(&self) -> ValueRepresentation {
+    pub fn vr(&self) -> VR {
         self.vr
     }
 }
@@ -122,7 +123,7 @@ impl From<SequenceItemHeader> for DataElementHeader {
     fn from(value: SequenceItemHeader) -> DataElementHeader {
         DataElementHeader {
             tag: value.tag(),
-            vr: ValueRepresentation::UN,
+            vr: VR::UN,
             len: value.len(),
         }
     }

@@ -275,7 +275,7 @@ fn to_code_file<P: AsRef<Path>, I>(dest_path: P, entries: I) -> io::Result<()>
     try!(f.write_all(b"//! Automatically generated. DO NOT EDIT!\n\n\
     use attribute::dictionary::DictionaryEntry;\n\
     use attribute::tag::Tag;\n\
-    use attribute::ValueRepresentation as VR;\n\n\
+    use attribute::VR;\n\n\
     type E<'a> = DictionaryEntry<'a>;\n\n\
     pub const ENTRIES: &'static [E<'static>] = &[\n"));
 

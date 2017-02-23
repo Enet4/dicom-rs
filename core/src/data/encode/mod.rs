@@ -2,7 +2,7 @@
 use error::Result;
 use std::io::Write;
 use std::fmt::Debug;
-use data_element::DataElementHeader;
+use data::DataElementHeader;
 use util::Endianness;
 use attribute::tag::Tag;
 

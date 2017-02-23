@@ -7,7 +7,7 @@ pub mod standard;
 pub mod stub;
 
 use attribute::tag::Tag;
-use attribute::ValueRepresentation;
+use attribute::VR;
 use std::fmt::Debug;
 
 /// Retrieve the global standard DICOM dictionary.
@@ -44,7 +44,7 @@ pub struct DictionaryEntry<'a> {
     /// The alias of the attribute, with no spaces, usually InCapitalizedCamelCase
     pub alias: &'a str,
     /// The _typical_  value representation of the attribute
-    pub vr: ValueRepresentation,
+    pub vr: VR,
 }
 
 /// Utility data structure that resolves to a DICOM attribute tag

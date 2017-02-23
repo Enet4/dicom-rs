@@ -82,7 +82,7 @@ pub enum DicomValue {
 /// a DICOM element's data value type. This should be
 /// the equivalent of `DicomValue` without the content.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum DataType {
+pub enum ValueType {
     /// No data. Used for SQ (regardless of content) and any value of length 0.
     Empty,
 
@@ -145,7 +145,7 @@ pub enum DataType {
 pub trait DicomValueType: Clone + Debug + 'static {
 
     /// Retrieve the specific type of this value.
-    fn get_type(&self) -> DataType;
+    fn get_type(&self) -> ValueType;
 
     /// Retrieve the number of values contained.
     fn size(&self) -> u32;
@@ -157,22 +157,22 @@ pub trait DicomValueType: Clone + Debug + 'static {
 
 impl DicomValueType for DicomValue {
 
-    fn get_type(&self) -> DataType {
+    fn get_type(&self) -> ValueType {
         match *self {
-            DicomValue::Empty => DataType::Empty,
-            DicomValue::Date(_) => DataType::Date,
-            DicomValue::DateTime(_) => DataType::DateTime,
-            DicomValue::F32(_) => DataType::F32,
-            DicomValue::F64(_) => DataType::F64,
-            DicomValue::I16(_) => DataType::I16,
-            DicomValue::I32(_) => DataType::I32,
-            DicomValue::Str(_) => DataType::Str,
-            DicomValue::Strs(_) => DataType::Strs,
-            DicomValue::Tags(_) => DataType::Tags,
-            DicomValue::Time(_) => DataType::Time,
-            DicomValue::U16(_) => DataType::U16,
-            DicomValue::U32(_) => DataType::U32,
-            DicomValue::U8(_) => DataType::U8,
+            DicomValue::Empty => ValueType::Empty,
+            DicomValue::Date(_) => ValueType::Date,
+            DicomValue::DateTime(_) => ValueType::DateTime,
+            DicomValue::F32(_) => ValueType::F32,
+            DicomValue::F64(_) => ValueType::F64,
+            DicomValue::I16(_) => ValueType::I16,
+            DicomValue::I32(_) => ValueType::I32,
+            DicomValue::Str(_) => ValueType::Str,
+            DicomValue::Strs(_) => ValueType::Strs,
+            DicomValue::Tags(_) => ValueType::Tags,
+            DicomValue::Time(_) => ValueType::Time,
+            DicomValue::U16(_) => ValueType::U16,
+            DicomValue::U32(_) => ValueType::U32,
+            DicomValue::U8(_) => ValueType::U8,
         }
     }
 

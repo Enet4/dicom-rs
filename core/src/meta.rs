@@ -3,11 +3,11 @@ use std::io::{Read, Seek, SeekFrom};
 use error::{Result, Error};
 use byteorder::{ByteOrder, LittleEndian};
 use attribute::tag::Tag;
-use data_element::Header;
-use data_element::decode;
-use data_element::text;
-use data_element::text::TextCodec;
-use data_element::decode::Decode;
+use data::Header;
+use data::decode;
+use data::text;
+use data::text::TextCodec;
+use data::decode::Decode;
 
 #[cfg(test)]
 mod tests {
@@ -84,7 +84,7 @@ const DICM_MAGIC_CODE:[u8; 4] = [0x44, 0x49, 0x43, 0x4D];
 /// specified in [1].
 ///
 /// [1]: http://dicom.nema.org/medical/dicom/current/output/chtml/part06/chapter_7.html
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DicomMetaTable {
     /// File Meta Information Group Length
     information_group_length: u32,         

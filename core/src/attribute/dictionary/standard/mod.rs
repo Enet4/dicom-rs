@@ -16,7 +16,7 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 use attribute::tag::Tag;
 use attribute::dictionary::{AttributeDictionary, DictionaryEntry};
-use attribute::ValueRepresentation;
+use attribute::VR;
 use self::entries::ENTRIES;
 
 lazy_static! {
@@ -83,16 +83,16 @@ fn init_dictionary() -> StandardAttributeDictionary {
 // meta information entries
 type E<'a> = DictionaryEntry<'a>;
 const META_ENTRIES : &'static [E<'static>] = &[
-    E {tag: Tag(0x0002,0x0000), alias: "FileMetaInformationGroupLength", vr: ValueRepresentation::UL},
-    E {tag: Tag(0x0002,0x0001), alias: "FileMetaInformationVersion", vr: ValueRepresentation::OB},
-    E {tag: Tag(0x0002,0x0002), alias: "MediaStorageSOPClassUID", vr: ValueRepresentation::UI},
-    E {tag: Tag(0x0002,0x0003), alias: "MediaStorageSOPInstanceUID", vr: ValueRepresentation::UI},
-    E {tag: Tag(0x0002,0x0010), alias: "TransferSyntaxUID", vr: ValueRepresentation::UI},
-    E {tag: Tag(0x0002,0x0012), alias: "ImplementationClassUID", vr: ValueRepresentation::UI},
-    E {tag: Tag(0x0002,0x0013), alias: "ImplentationVersionName", vr: ValueRepresentation::SH},
-    E {tag: Tag(0x0002,0x0016), alias: "SourceApplicationEntityTitle", vr: ValueRepresentation::AE},
-    E {tag: Tag(0x0002,0x0017), alias: "SendingApplicationEntityTitle", vr: ValueRepresentation::AE},
-    E {tag: Tag(0x0002,0x0018), alias: "ReceivingApplicationEntityTitle", vr: ValueRepresentation::AE},
-    E {tag: Tag(0x0002,0x0100), alias: "PrivateInformationCreatorUID", vr: ValueRepresentation::UI},
-    E {tag: Tag(0x0002,0x0102), alias: "PrivateInformation", vr: ValueRepresentation::OB},
+    E {tag: Tag(0x0002,0x0000), alias: "FileMetaInformationGroupLength", vr: VR::UL},
+    E {tag: Tag(0x0002,0x0001), alias: "FileMetaInformationVersion", vr: VR::OB},
+    E {tag: Tag(0x0002,0x0002), alias: "MediaStorageSOPClassUID", vr: VR::UI},
+    E {tag: Tag(0x0002,0x0003), alias: "MediaStorageSOPInstanceUID", vr: VR::UI},
+    E {tag: Tag(0x0002,0x0010), alias: "TransferSyntaxUID", vr: VR::UI},
+    E {tag: Tag(0x0002,0x0012), alias: "ImplementationClassUID", vr: VR::UI},
+    E {tag: Tag(0x0002,0x0013), alias: "ImplentationVersionName", vr: VR::SH},
+    E {tag: Tag(0x0002,0x0016), alias: "SourceApplicationEntityTitle", vr: VR::AE},
+    E {tag: Tag(0x0002,0x0017), alias: "SendingApplicationEntityTitle", vr: VR::AE},
+    E {tag: Tag(0x0002,0x0018), alias: "ReceivingApplicationEntityTitle", vr: VR::AE},
+    E {tag: Tag(0x0002,0x0100), alias: "PrivateInformationCreatorUID", vr: VR::UI},
+    E {tag: Tag(0x0002,0x0102), alias: "PrivateInformation", vr: VR::OB},
 ];

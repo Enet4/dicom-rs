@@ -2,8 +2,7 @@
 
 use std::io::Read;
 use error::Result;
-use data_element::{DataElementHeader, SequenceItemHeader};
-use std::fmt::Debug;
+use data::{DataElementHeader, SequenceItemHeader};
 use util::Endianness;
 use attribute::tag::Tag;
 
@@ -14,7 +13,7 @@ use attribute::tag::Tag;
  * This is the type-erased version of `super::BasicDecode`, where the data source type is not
  * known in compile time. 
  */
-pub trait BasicDecode: Debug {
+pub trait BasicDecode {
     /// Retrieve the source's endianness, as expected by this decoder.
     fn endianness(&self) -> Endianness;
 
@@ -49,7 +48,7 @@ pub trait BasicDecode: Debug {
  * directly, as the given implementations provide support for converting a generic decoder
  * to a type-erased decoder and vice versa.
  */
-pub trait Decode: BasicDecode + Debug {
+pub trait Decode: BasicDecode {
 
     /** Fetch and decode the next data element header from the given source.
      * This method returns only the header of the element. At the end of this operation, the source
@@ -104,52 +103,5 @@ impl<'s> super::BasicDecode for &'s BasicDecode  {
 
     fn decode_fd(&self, mut source: &mut Self::Source) -> Result<f64> {
         (**self).erased_decode_fd(&mut source)
-    }
-}
-
-impl<'s> super::BasicDecode for &'s Decode {
-    type Source = Read;
-
-    fn endianness(&self) -> Endianness {
-        (**self).endianness()
-    }
-
-    fn decode_us(&self, mut source: &mut Self::Source) -> Result<u16> {
-        (**self).erased_decode_us(&mut source)
-    }
-
-    fn decode_ul(&self, mut source: &mut Self::Source) -> Result<u32> {
-        (**self).erased_decode_ul(&mut source)
-    }
-
-    fn decode_ss(&self, mut source: &mut Self::Source) -> Result<i16> {
-        (**self).erased_decode_ss(&mut source)
-    }
-
-    fn decode_sl(&self, mut source: &mut Self::Source) -> Result<i32> {
-        (**self).erased_decode_sl(&mut source)
-    }
-
-    fn decode_fl(&self, mut source: &mut Self::Source) -> Result<f32> {
-        (**self).erased_decode_fl(&mut source)
-    }
-
-    fn decode_fd(&self, mut source: &mut Self::Source) -> Result<f64> {
-        (**self).erased_decode_fd(&mut source)
-    }
-}
-
-impl<'s> super::Decode for &'s Decode {
-
-    fn decode_header(&self, mut source: &mut Self::Source) -> Result<DataElementHeader> {
-        (**self).erased_decode(&mut source)
-    }
-
-    fn decode_item_header(&self, mut source: &mut Self::Source) -> Result<SequenceItemHeader> {
-        (**self).erased_decode_item(&mut source)
-    }
-
-    fn decode_tag(&self, mut source: &mut Self::Source) -> Result<Tag> {
-        (**self).erased_decode_tag(&mut source)
     }
 }

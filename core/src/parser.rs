@@ -7,37 +7,47 @@ use std::io::{Read, Seek, SeekFrom};
 use std::str;
 use std::iter::Iterator;
 use error::{Result, Error, TextEncodingError, InvalidValueReadError};
-use data_element::{Header, DataElementHeader, SequenceItemHeader};
-use data_element::decode::Decode;
-use data_element::text::TextCodec;
-use attribute::ValueRepresentation;
+use data::{Header, DataElementHeader, SequenceItemHeader};
+use data::decode::{BasicDecode, Decode};
+use data::text::TextCodec;
+use attribute::VR;
 use attribute::value::DicomValue;
 use attribute::tag::Tag;
-use std::borrow::Borrow;
-use std::borrow::BorrowMut;
 use std::fmt;
 use chrono::naive::date::NaiveDate;
 use util::n_times;
 
 /// A data structure for parsing DICOM data.
-/// This type encapsulates the necessary decoders in order
+/// This type encapsulates the necessary codecs in order
 /// to be as autonomous as possible in the DICOM content reading
 /// process.
-/// `S` is the generic parameter type for the original source's type, whereas
+/// `S` is the generic parameter type for the original source's type,
 /// `DS` is the parameter type that the decoder interprets as.
-pub struct DicomParser<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's>
-    where S: DerefMut<Target = DS> {
+pub struct DicomParser<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC>
+    where D: Decode<Source = DS>,
+          BD: BasicDecode<Source = DS>,
+          S: DerefMut<Target = DS> + Read,
+          DS: Read,
+          TC: TextCodec
+{
     source: &'s mut S,
-    decoder: Box<Decode<Source = DS> + 's>,
-    text: Box<TextCodec>,
+    decoder: D,
+    basic: BD,
+    text: TC,
 }
 
-impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> fmt::Debug for DicomParser<'s, S, DS>
-    where S: DerefMut<Target = DS> {
+impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> fmt::Debug for DicomParser<'s, D, BD, S, DS, TC>
+    where D: Decode<Source = DS>,
+          BD: BasicDecode<Source = DS>,
+          S: DerefMut<Target = DS> + Read,
+          DS: Read,
+          TC: TextCodec
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "DicomParser{{source, decoder, text:{:?}}}", &self.text)
     }
 }
+
 
 macro_rules! require_known_length {
     ($header: ident) => (if $header.len() == 0xFFFFFFFF {
@@ -45,15 +55,18 @@ macro_rules! require_known_length {
     })
 }
 
-impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
-    where S: DerefMut<Target = DS> {
+impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, DS, TC>
+    where D: Decode<Source = DS>,
+          BD: BasicDecode<Source = DS>,
+          S: DerefMut<Target = DS> + Read,
+          DS: Read,
+          TC: TextCodec
+{
     /// Create a new DICOM parser.
-    pub fn new(source: &'s mut S,
-               decoder: Box<Decode<Source = DS> + 's>,
-               text: Box<TextCodec>)
-               -> DicomParser<'s, S, DS> {
+    pub fn new(source: &'s mut S, decoder: D, basic: BD, text: TC) -> DicomParser<'s, D, BD, S, DS, TC> {
         DicomParser {
             source: source,
+            basic: basic,
             decoder: decoder,
             text: text,
         }
@@ -61,12 +74,12 @@ impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
 
     /// Same as `Decode.decode_header` over the internal source.
     pub fn decode_header(&mut self) -> Result<DataElementHeader> {
-        self.decoder.as_ref().decode_header(self.source)
+        self.decoder.decode_header(self.source)
     }
 
     /// Same as `Decode.decode_item_header` over the internal source.
     pub fn decode_item_header(&mut self) -> Result<SequenceItemHeader> {
-        self.decoder.as_ref().decode_item_header(self.source)
+        self.decoder.decode_item_header(self.source)
     }
 
     /// Eagerly read the following data in the source as a data value.
@@ -81,20 +94,19 @@ impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
         }
 
         match header.vr() {
-            ValueRepresentation::SQ => {
+            VR::SQ => {
                 // sequence objects... should not work
                 return Err(Error::from(InvalidValueReadError::NonPrimitiveType));
             }
-            ValueRepresentation::AT => self.read_value_tag(header),
-            ValueRepresentation::AE | ValueRepresentation::AS | ValueRepresentation::PN |
-            ValueRepresentation::SH | ValueRepresentation::LO | ValueRepresentation::UI |
-            ValueRepresentation::UC | ValueRepresentation::CS => self.read_value_strs(header),
-            ValueRepresentation::UT | ValueRepresentation::ST | ValueRepresentation::UR |
-            ValueRepresentation::LT => self.read_value_str(header),
-            ValueRepresentation::UN | ValueRepresentation::OB => self.read_value_ob(header),
-            ValueRepresentation::US | ValueRepresentation::OW => self.read_value_us(header),
-            ValueRepresentation::SS => self.read_value_ss(header),
-            ValueRepresentation::DA => {
+            VR::AT => self.read_value_tag(header),
+            VR::AE | VR::AS | VR::PN | VR::SH | VR::LO | VR::UI | VR::UC | VR::CS => {
+                self.read_value_strs(header)
+            }
+            VR::UT | VR::ST | VR::UR | VR::LT => self.read_value_str(header),
+            VR::UN | VR::OB => self.read_value_ob(header),
+            VR::US | VR::OW => self.read_value_us(header),
+            VR::SS => self.read_value_ss(header),
+            VR::DA => {
                 require_known_length!(header);
                 // sequence of dates
                 let len = header.len() as usize / 8;
@@ -105,7 +117,7 @@ impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
                     try!(self.source.read_exact(&mut buf));
                     let (y4, y3, y2, y1, m2, m1, d2, d1) =
                         (buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]);
-                    const Z: i32 = '0' as i32;
+                    const Z: i32 = b'0' as i32;
                     let year = (y4 as i32 - Z) * 1000 + (y3 as i32 - Z) * 100 +
                                (y2 as i32 - Z) * 10 + y1 as i32 - Z;
 
@@ -118,19 +130,19 @@ impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
                 }
                 Ok(DicomValue::Date(vec.into_boxed_slice()))
             }
-            ValueRepresentation::DT => {
+            VR::DT => {
                 require_known_length!(header);
                 // sequence of datetimes
                 unimplemented!()
             }
-            ValueRepresentation::TM => {
+            VR::TM => {
                 require_known_length!(header);
                 // sequence of time instances
                 // "HHMMSS.FFFFFF"
 
                 unimplemented!()
             }
-            ValueRepresentation::DS => {
+            VR::DS => {
                 require_known_length!(header);
                 // sequence of doubles in text form
                 let mut buf = vec![0u8 ; header.len() as usize];
@@ -147,9 +159,9 @@ impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
                     .into_boxed_slice();
                 Ok(DicomValue::F64(parts))
             }
-            ValueRepresentation::FD | ValueRepresentation::OD => self.read_value_od(header),
-            ValueRepresentation::FL | ValueRepresentation::OF => self.read_value_fl(header),
-            ValueRepresentation::IS => {
+            VR::FD | VR::OD => self.read_value_od(header),
+            VR::FL | VR::OF => self.read_value_fl(header),
+            VR::IS => {
                 require_known_length!(header);
                 // sequence of signed integers in text form
                 let mut buf = vec![0u8 ; header.len() as usize];
@@ -171,8 +183,8 @@ impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
                     .into_boxed_slice();
                 Ok(DicomValue::I32(parts))
             }
-            ValueRepresentation::SL => self.read_value_sl(header),
-            ValueRepresentation::OL | ValueRepresentation::UL => self.read_value_ul(header),
+            VR::SL => self.read_value_sl(header),
+            VR::OL | VR::UL => self.read_value_ul(header),
         }
     }
 
@@ -189,25 +201,21 @@ impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
         }
 
         match header.vr() {
-            ValueRepresentation::SQ => {
+            VR::SQ => {
                 // sequence objects... should not work
                 return Err(Error::from(InvalidValueReadError::NonPrimitiveType));
             }
-            ValueRepresentation::AT => self.read_value_tag(header),
-            ValueRepresentation::AE | ValueRepresentation::AS | ValueRepresentation::PN |
-            ValueRepresentation::SH | ValueRepresentation::LO | ValueRepresentation::UI |
-            ValueRepresentation::UC | ValueRepresentation::CS | ValueRepresentation::IS |
-            ValueRepresentation::DS | ValueRepresentation::DA | ValueRepresentation::TM |
-            ValueRepresentation::DT => self.read_value_strs(header),
-            ValueRepresentation::UT | ValueRepresentation::ST | ValueRepresentation::UR |
-            ValueRepresentation::LT => self.read_value_str(header),
-            ValueRepresentation::UN | ValueRepresentation::OB => self.read_value_ob(header),
-            ValueRepresentation::US | ValueRepresentation::OW => self.read_value_us(header),
-            ValueRepresentation::SS => self.read_value_ss(header),
-            ValueRepresentation::FD | ValueRepresentation::OD => self.read_value_od(header),
-            ValueRepresentation::FL | ValueRepresentation::OF => self.read_value_fl(header),
-            ValueRepresentation::SL => self.read_value_sl(header),
-            ValueRepresentation::OL | ValueRepresentation::UL => self.read_value_ul(header),
+            VR::AT => self.read_value_tag(header),
+            VR::AE | VR::AS | VR::PN | VR::SH | VR::LO | VR::UI | VR::UC | VR::CS | VR::IS |
+            VR::DS | VR::DA | VR::TM | VR::DT => self.read_value_strs(header),
+            VR::UT | VR::ST | VR::UR | VR::LT => self.read_value_str(header),
+            VR::UN | VR::OB => self.read_value_ob(header),
+            VR::US | VR::OW => self.read_value_us(header),
+            VR::SS => self.read_value_ss(header),
+            VR::FD | VR::OD => self.read_value_od(header),
+            VR::FL | VR::OF => self.read_value_fl(header),
+            VR::SL => self.read_value_sl(header),
+            VR::OL | VR::UL => self.read_value_ul(header),
         }
     }
 
@@ -222,8 +230,11 @@ impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
     }
 
     /// Get the inner source's position in the stream using `seek()`.
-    pub fn get_position(&mut self) -> Result<u64> where S: Seek {
-        self.source.seek(SeekFrom::Current(0))
+    pub fn get_position(&mut self) -> Result<u64>
+        where S: Seek
+    {
+        self.source
+            .seek(SeekFrom::Current(0))
             .map_err(Error::from)
     }
 
@@ -260,7 +271,7 @@ impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
         try!(self.source.read_exact(&mut buf));
         let parts: Box<[String]> = try!(buf[..]
                 .split(|v| *v == '\\' as u8)
-                .map(|slice| self.text.as_ref().decode(slice))
+                .map(|slice| self.text.decode(slice))
                 .collect::<Result<Vec<String>>>())
             .into_boxed_slice();
 
@@ -273,7 +284,7 @@ impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
         // a single string
         let mut buf = vec![0u8 ; header.len() as usize];
         try!(self.source.read_exact(&mut buf));
-        Ok(DicomValue::Str(try!(self.text.as_ref().decode(&buf[..]))))
+        Ok(DicomValue::Str(try!(self.text.decode(&buf[..]))))
     }
 
     fn read_value_ss(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
@@ -283,7 +294,7 @@ impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
         let len = header.len() as usize >> 1;
         let mut vec = Vec::with_capacity(len);
         for _ in n_times(len) {
-            vec.push(try!(self.decoder.as_ref().decode_ss(self.source)));
+            vec.push(try!(self.basic.decode_ss(self.source)));
         }
         Ok(DicomValue::I16(vec.into_boxed_slice()))
     }
@@ -294,7 +305,7 @@ impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
         let l = header.len() as usize >> 2;
         let mut vec = Vec::with_capacity(l);
         for _ in n_times(l) {
-            vec.push(try!(self.decoder.as_ref().decode_fl(self.source)));
+            vec.push(try!(self.basic.decode_fl(self.source)));
         }
         Ok(DicomValue::F32(vec.into_boxed_slice()))
     }
@@ -305,7 +316,7 @@ impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
         let len = header.len() as usize >> 3;
         let mut vec = Vec::with_capacity(len);
         for _ in n_times(len) {
-            vec.push(try!(self.decoder.as_ref().decode_fd(self.source)));
+            vec.push(try!(self.basic.decode_fd(self.source)));
         }
         Ok(DicomValue::F64(vec.into_boxed_slice()))
     }
@@ -317,7 +328,7 @@ impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
         let len = header.len() as usize >> 2;
         let mut vec = Vec::with_capacity(len);
         for _ in n_times(len) {
-            vec.push(try!(self.decoder.as_ref().decode_ul(self.source)));
+            vec.push(try!(self.basic.decode_ul(self.source)));
         }
         Ok(DicomValue::U32(vec.into_boxed_slice()))
     }
@@ -329,7 +340,7 @@ impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
         let len = header.len() as usize >> 1;
         let mut vec = Vec::with_capacity(len);
         for _ in n_times(len) {
-            vec.push(try!(self.decoder.as_ref().decode_us(self.source)));
+            vec.push(try!(self.basic.decode_us(self.source)));
         }
         Ok(DicomValue::U16(vec.into_boxed_slice()))
     }
@@ -341,22 +352,10 @@ impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> DicomParser<'s, S, DS>
         let len = header.len() as usize >> 2;
         let mut vec = Vec::with_capacity(len);
         for _ in n_times(len) {
-            vec.push(try!(self.decoder.as_ref().decode_sl(self.source)));
+            vec.push(try!(self.basic.decode_sl(self.source)));
         }
         Ok(DicomValue::I32(vec.into_boxed_slice()))
     }
 }
 
-impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> Borrow<S> for DicomParser<'s, S, DS>
-    where S: DerefMut<Target = DS> {
-    fn borrow(&self) -> &S {
-        self.source
-    }
-}
 
-impl<'s, S: Read + ?Sized + 's, DS: Read + ?Sized + 's> BorrowMut<S> for DicomParser<'s, S, DS>
-    where S: DerefMut<Target = DS> {
-    fn borrow_mut(&mut self) -> &mut S {
-        self.source
-    }
-}

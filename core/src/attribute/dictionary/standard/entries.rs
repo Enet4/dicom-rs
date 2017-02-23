@@ -2,7 +2,7 @@
 
 use attribute::dictionary::DictionaryEntry;
 use attribute::tag::Tag;
-use attribute::ValueRepresentation as VR;
+use attribute::VR;
 
 type E<'a> = DictionaryEntry<'a>;
 

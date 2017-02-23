@@ -15,7 +15,6 @@
 //! At the moment, this library supports only the first repertoire.
 
 use error::{Result, TextEncodingError};
-use std::io::Write;
 use std::fmt::Debug;
 /* use encoding; */
 
@@ -52,10 +51,10 @@ pub trait TextCodec: Debug {
     /// and should be split later on if required.
     fn decode(&self, text: &[u8]) -> Result<String>;
 
-    /// Encode a text value into the given destination. The input string can
+    /// Encode a text value into a byte vector. The input string can
     /// feature multiple text values by using the backslash character ('\')
     /// as the value delimiter.
-    fn encode<W: Write>(&self, text: &str, out: &mut W) -> Result<()> where Self: Sized;
+    fn encode(&self, text: &str) -> Result<Vec<u8>>;
 }
 
 /// Data type representing the default character set.
@@ -71,11 +70,21 @@ impl TextCodec for DefaultCharacterSetCodec {
         Ok(r)
     }
 
-    fn encode<W: Write>(&self, text: &str, out: &mut W) -> Result<()> {
+    fn encode(&self, text: &str) -> Result<Vec<u8>> {
         // TODO this is NOT DICOM compliant,
         // although it will encode 7-bit ASCII text just fine
-        try!(out.write(text.as_bytes()));
-        Ok(())
+        Ok(Vec::from(text.as_bytes()))
     }
     
+}
+
+impl<T: ?Sized> TextCodec for Box<T> where T: TextCodec {
+    fn decode(&self, text: &[u8]) -> Result<String> {
+        self.as_ref().decode(text)
+    }
+
+    fn encode(&self, text: &str) -> Result<Vec<u8>> {
+        self.as_ref().encode(text)
+    }
+
 }
