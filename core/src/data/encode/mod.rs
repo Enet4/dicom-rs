@@ -4,7 +4,7 @@ use std::io::Write;
 use std::fmt::Debug;
 use data::DataElementHeader;
 use util::Endianness;
-use attribute::tag::Tag;
+use data::Tag;
 
 pub mod basic;
 

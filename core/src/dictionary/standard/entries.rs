@@ -1,8 +1,7 @@
 //! Automatically generated. DO NOT EDIT!
 
-use attribute::dictionary::DictionaryEntry;
-use attribute::tag::Tag;
-use attribute::VR;
+use dictionary::DictionaryEntry;
+use data::{Tag, VR};
 
 type E<'a> = DictionaryEntry<'a>;
 

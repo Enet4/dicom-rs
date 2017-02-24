@@ -2,8 +2,8 @@
 
 use std::io::{Read, Write};
 use std::fmt;
-use attribute::VR;
-use attribute::tag::Tag;
+use data::VR;
+use data::Tag;
 use byteorder::{ByteOrder, BigEndian};
 use error::Result;
 use data::decode::basic::BigEndianBasicDecoder;
@@ -206,8 +206,8 @@ mod tests {
     use data::encode::Encode;
     use super::ExplicitVRBigEndianDecoder;
     use super::ExplicitVRBigEndianEncoder;
-    use attribute::VR;
-    use attribute::tag::Tag;
+    use data::VR;
+    use data::Tag;
     use std::io::{Read, Cursor, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements

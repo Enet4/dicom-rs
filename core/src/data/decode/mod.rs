@@ -6,7 +6,7 @@ use std::io::Read;
 use error::Result;
 use data::{DataElementHeader, SequenceItemHeader};
 use util::Endianness;
-use attribute::tag::Tag;
+use data::Tag;
 
 pub mod erased;
 pub mod basic;

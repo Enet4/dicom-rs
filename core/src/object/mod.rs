@@ -3,9 +3,7 @@
 //! in which some of them can be DICOM objects themselves.
 //! The end user should prefer using this abstraction when dealing with DICOM objects.
 use std::ops::DerefMut;
-use std::io::Seek;
 use std::iter::Iterator;
-use std::fmt::Debug;
 use std::fmt;
 use data::Header;
 use data::decode::{BasicDecode, Decode};
@@ -13,40 +11,30 @@ use parser::DicomParser;
 use data::text::TextCodec;
 use std::collections::HashMap;
 use error::{Result, Error};
-use attribute::VR;
-use attribute::tag::Tag;
-use attribute::value::DicomValue;
+use data::VR;
+use data::Tag;
+use data::value::DicomValue;
 use iterator::DicomElementMarker;
 use util::ReadSeek;
 
-/// An enum type for an entry reference to an object, which can be
-/// a primitive element or another complex value.
-#[derive(Debug)]
-pub enum ObjectEntry<'a> {
-    //    type Item: ;
-    //    type SequenceIt: Iterator;
-    Value(&'a DicomValue),
-    Item(&'a DicomObject), //    Sequence(Box<Iterator<Item=Self::Item> + 'a>),
-}
-
-/// An enum type for an entry reference to an object, which can be
-/// a primitive element or another complex value.
-#[derive(Debug)]
-pub enum ObjectEntryMut<'a> {
-    //    type Item: ;
-    //    type SequenceIt: Iterator;
-    Element(&'a mut DicomValue),
-    Item(&'a mut DicomObject), //    Sequence(Box<Iterator<Item=Self::Item> + 'a>),
-}
+mod mem;
 
 /// Trait type for a DICOM object.
 /// This is a high-level abstraction where an object is accessed and
 /// manipulated as dictionary of entries indexed by tags, which in
 /// turn may contain a DICOM object.
 ///
-pub trait DicomObject: Debug {
-    /// Retrieve a particular DICOM element.
-    fn get<'a>(&'a mut self, tag: Tag) -> Result<ObjectEntry<'a>>;
+pub trait DicomObject {
+    type Element;
+    type Sequence;
+
+    /// Retrieve a particular DICOM element by its tag.
+    fn element(&mut self, tag: Tag) -> Result<Self::Element>;
+
+    /// Retrieve a particular DICOM element by its name.
+    fn element_by_name(&mut self, name: &str) -> Result<Self::Element>;
+
+    // TODO moar
 }
 
 /// Data type for a lazily loaded DICOM object builder.
@@ -61,7 +49,7 @@ pub struct LazyDicomObject<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC>
     entries: HashMap<Tag, LazyDataElement>,
 }
 
-impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> Debug for LazyDicomObject<'s, D, BD, S, DS, TC>
+impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> fmt::Debug for LazyDicomObject<'s, D, BD, S, DS, TC>
     where D: Decode<Source = DS>,
           BD: BasicDecode<Source = DS>,
           S: DerefMut<Target = DS> + ReadSeek,
@@ -108,14 +96,21 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized, TC> DicomObject for LazyDicomObject<
           DS: ReadSeek,
           TC: TextCodec
 {
+    type Element = (); // TODO
+    type Sequence = (); // TODO
 
-    fn get(&mut self, tag: Tag) -> Result<ObjectEntry> {
+    fn element(&mut self, tag: Tag) -> Result<Self::Element> {
 
         let mut e = try!(self.entries.get_mut(&tag).ok_or_else(|| Error::NoSuchDataElement));
 
         // TODO
 
         unimplemented!()
+    }
+
+    fn element_by_name(&mut self, name: &str) -> Result<Self::Element> {
+        let tag: Tag = unimplemented!();
+        self.element(tag)
     }
 }
 

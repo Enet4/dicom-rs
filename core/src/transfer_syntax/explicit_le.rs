@@ -2,8 +2,8 @@
 
 use std::io::{Read, Write};
 use std::fmt;
-use attribute::VR;
-use attribute::tag::Tag;
+use data::VR;
+use data::Tag;
 use byteorder::{ByteOrder, LittleEndian};
 use error::Result;
 use data::decode::{BasicDecode, Decode};
@@ -205,8 +205,8 @@ mod tests {
     use data::{Header, DataElementHeader};
     use data::decode::Decode;
     use data::encode::Encode;
-    use attribute::tag::Tag;
-    use attribute::VR;
+    use data::Tag;
+    use data::VR;
     use std::io::{Read, Cursor, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements

@@ -1,7 +1,7 @@
 //! This module contains a stub dictionary.
 
 use super::{AttributeDictionary, DictionaryEntry};
-use attribute::tag::Tag;
+use data::Tag;
 
 /// An empty attribute dictionary.
 #[derive(Debug, Clone, Copy)]

@@ -4,7 +4,7 @@ use std::io::Read;
 use error::Result;
 use data::{DataElementHeader, SequenceItemHeader};
 use util::Endianness;
-use attribute::tag::Tag;
+use data::Tag;
 
 /** Type trait for reading and decoding basic data values from a data source.
  * 

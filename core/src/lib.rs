@@ -12,10 +12,15 @@
 //! is subject to change.
 //! 
 //! ```ignore
-//! let obj = DicomLoader::load(File::new("0001.dcm")).unwrap();
-//! let patient_name = obj.element("PatientName").as_str().unwrap();
-//! let modality = obj.element("Modality").as_str().unwrap();
-//! let pixel_data = obj.pixel_data().unwrap();
+//! # extern crate dicom_core;
+//! # use dicom_core::Result;
+//! # fn foo() -> Result<()> {
+//! let obj = try!(DicomLoader::load(File::new("0001.dcm")));
+//! let patient_name = try!(try!(obj.element_by_name("PatientName")).as_str());
+//! let modality = try!(try!(obj.element_by_name("Modality")).as_str());
+//! let pixel_data = try!(obj.pixel_data());
+//! # Ok(())
+//! # }
 //! ```
 
 #[macro_use]
@@ -27,8 +32,8 @@ extern crate quick_error;
 extern crate chrono;
 extern crate itertools;
 
-pub mod attribute;
 pub mod data;
+pub mod dictionary;
 pub mod error;
 pub mod iterator;
 pub mod meta;
@@ -36,11 +41,10 @@ pub mod object;
 pub mod parser;
 pub mod transfer_syntax;
 
-pub use attribute::value::DicomValue;
-pub use attribute::VR;
+pub use data::value::DicomValue;
+pub use data::VR;
 pub use data::DataElement as DicomElement;
 pub use object::DicomObject;
-pub use object::LazyDicomObject;
-pub use parser::DicomParser;
+pub use error::{Error, Result};
 
 mod util;

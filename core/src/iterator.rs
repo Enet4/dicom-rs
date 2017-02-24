@@ -10,8 +10,8 @@ use data::decode::{BasicDecode, Decode};
 use data::text::{SpecificCharacterSet, TextCodec};
 use util::{ReadSeek, SeekInterval};
 use error::{Result, Error};
-use attribute::VR;
-use attribute::tag::Tag;
+use data::VR;
+use data::Tag;
 
 /// An iterator for DICOM object elements.
 #[derive(Debug)]

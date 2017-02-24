@@ -2,9 +2,9 @@
 
 use byteorder::{ByteOrder, LittleEndian};
 use std::io::{Read, Write};
-use attribute::dictionary::{AttributeDictionary, get_standard_dictionary};
-use attribute::VR;
-use attribute::tag::Tag;
+use dictionary::{AttributeDictionary, get_standard_dictionary};
+use data::VR;
+use data::Tag;
 use std::fmt;
 use util::Endianness;
 use error::Result;
@@ -185,10 +185,10 @@ mod tests {
     use data::{Header, DataElementHeader};
     use data::decode::Decode;
     use data::encode::Encode;
-    use attribute::dictionary::AttributeDictionary;
-    use attribute::dictionary::stub::StubAttributeDictionary;
-    use attribute::VR;
-    use attribute::tag::Tag;
+    use dictionary::AttributeDictionary;
+    use dictionary::stub::StubAttributeDictionary;
+    use data::VR;
+    use data::Tag;
     use std::io::{Read, Cursor, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements

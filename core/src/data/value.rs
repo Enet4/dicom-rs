@@ -1,7 +1,7 @@
 //! This module includes a high level abstraction over a DICOM data element's value.
 
 use error::InvalidValueReadError;
-use attribute::tag::Tag;
+use data::Tag;
 use std::result;
 use std::fmt::Debug;
 use chrono::NaiveDate;

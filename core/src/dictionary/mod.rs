@@ -6,8 +6,8 @@
 pub mod standard;
 pub mod stub;
 
-use attribute::tag::Tag;
-use attribute::VR;
+use data::Tag;
+use data::VR;
 use std::fmt::Debug;
 
 /// Retrieve the global standard DICOM dictionary.
