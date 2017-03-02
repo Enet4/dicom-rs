@@ -11,7 +11,7 @@ use data::VR;
 use std::fmt::Debug;
 
 /// Retrieve the global standard DICOM dictionary.
-pub fn get_standard_dictionary() -> &'static standard::StandardAttributeDictionary {
+pub fn get_standard_dictionary() -> &'static standard::StandardDataDictionary {
     standard::get_instance()
 }
 
@@ -22,7 +22,7 @@ pub fn get_standard_dictionary() -> &'static standard::StandardAttributeDictiona
  * The methods herein have no generic parameters, so as to enable being
  * used as a trait object.
  */
-pub trait AttributeDictionary<'a>: Debug {
+pub trait DataDictionary<'a>: Debug {
     /// Fetch an entry by its usual alias (e.g. "PatientName" or "SOPInstanceUID").
     /// Aliases are usually case sensitive and not separated by spaces.
     fn get_by_name(&self, name: &str) -> Option<&'a DictionaryEntry<'a>>;
@@ -50,12 +50,12 @@ pub struct DictionaryEntry<'a> {
 /// Utility data structure that resolves to a DICOM attribute tag
 /// at a later time.
 #[derive(Debug)]
-pub struct TagByName<'d, N: AsRef<str>, AD: AttributeDictionary<'d> + 'd> {
+pub struct TagByName<'d, N: AsRef<str>, AD: DataDictionary<'d> + 'd> {
     dict: &'d AD,
     name: N,
 }
 
-impl<'d, N: AsRef<str>, AD: AttributeDictionary<'d> + 'd> TagByName<'d, N, AD> {
+impl<'d, N: AsRef<str>, AD: DataDictionary<'d> + 'd> TagByName<'d, N, AD> {
     /// Create a tag resolver by name using the given dictionary.
     pub fn new(dictionary: &'d AD, name: N) -> TagByName<'d, N, AD> {
         TagByName {
@@ -65,9 +65,9 @@ impl<'d, N: AsRef<str>, AD: AttributeDictionary<'d> + 'd> TagByName<'d, N, AD> {
     }
 }
 
-impl<N: AsRef<str>> TagByName<'static, N, standard::StandardAttributeDictionary> {
+impl<N: AsRef<str>> TagByName<'static, N, standard::StandardDataDictionary> {
     /// Create a tag resolver by name using the standard dictionary.
-    pub fn with_std_dict(name: N) -> TagByName<'static, N, standard::StandardAttributeDictionary> {
+    pub fn with_std_dict(name: N) -> TagByName<'static, N, standard::StandardDataDictionary> {
         TagByName {
             dict: get_standard_dictionary(),
             name: name,
@@ -75,7 +75,7 @@ impl<N: AsRef<str>> TagByName<'static, N, standard::StandardAttributeDictionary>
     }
 }
 
-impl<'d, N: AsRef<str>, AD: AttributeDictionary<'d>> From<TagByName<'d, N, AD>> for Option<Tag> {
+impl<'d, N: AsRef<str>, AD: DataDictionary<'d>> From<TagByName<'d, N, AD>> for Option<Tag> {
     fn from(tag: TagByName<'d, N, AD>) -> Option<Tag> {
         tag.dict.get_by_name(tag.name.as_ref()).map(|e| e.tag)
     }

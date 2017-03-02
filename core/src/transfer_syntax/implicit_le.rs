@@ -2,7 +2,7 @@
 
 use byteorder::{ByteOrder, LittleEndian};
 use std::io::{Read, Write};
-use dictionary::{AttributeDictionary, get_standard_dictionary};
+use dictionary::{DataDictionary, get_standard_dictionary};
 use data::VR;
 use data::Tag;
 use std::fmt;
@@ -18,7 +18,7 @@ use data::{DataElementHeader, SequenceItemHeader, Header};
 /// This type contains a reference to an attribute dictionary for resolving
 /// value representations.
 pub struct ImplicitVRLittleEndianDecoder<'d, S: Read + ?Sized> {
-    dict: &'d AttributeDictionary<'d>,
+    dict: &'d DataDictionary<'d>,
     basic: LittleEndianBasicDecoder<S>,
 }
 
@@ -46,7 +46,7 @@ impl<'d, 's, S: ?Sized + 's> ImplicitVRLittleEndianDecoder<'d, S>
     }
 
     /// Retrieve this decoder using a custom data dictionary.
-    pub fn with_dict(dictionary: &'d AttributeDictionary<'d>) -> ImplicitVRLittleEndianDecoder<'d, S> {
+    pub fn with_dict(dictionary: &'d DataDictionary<'d>) -> ImplicitVRLittleEndianDecoder<'d, S> {
         ImplicitVRLittleEndianDecoder::<'d, S> {
             dict: dictionary,
             basic: LittleEndianBasicDecoder::default()
@@ -185,8 +185,8 @@ mod tests {
     use data::{Header, DataElementHeader};
     use data::decode::Decode;
     use data::encode::Encode;
-    use dictionary::AttributeDictionary;
-    use dictionary::stub::StubAttributeDictionary;
+    use dictionary::DataDictionary;
+    use dictionary::stub::StubDataDictionary;
     use data::VR;
     use data::Tag;
     use std::io::{Read, Cursor, Seek, SeekFrom, Write};
@@ -209,7 +209,7 @@ mod tests {
         0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x31, 0x2e, 0x32, 0x2e, 0x31, 0x00
     ];
 
-    const DICT: &'static AttributeDictionary<'static> = &StubAttributeDictionary;
+    const DICT: &'static DataDictionary<'static> = &StubDataDictionary;
 
     #[test]
     fn implicit_vr_le_works() {

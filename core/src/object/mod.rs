@@ -7,6 +7,7 @@ use std::iter::Iterator;
 use std::fmt;
 use data::Header;
 use data::decode::{BasicDecode, Decode};
+use dictionary::{get_standard_dictionary, DataDictionary};
 use parser::DicomParser;
 use data::text::TextCodec;
 use std::collections::HashMap;
@@ -35,21 +36,25 @@ pub trait DicomObject {
     fn element_by_name(&mut self, name: &str) -> Result<Self::Element>;
 
     // TODO moar
+
+    /// Retrieve the object's pixel data as a multi-dimensional array.
+    fn pixel_data(&mut self) -> Result<()>;
 }
 
 /// Data type for a lazily loaded DICOM object builder.
-pub struct LazyDicomObject<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC>
+pub struct LazyDicomObject<'s, 'd, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC>
     where D: Decode<Source = DS>,
           BD: BasicDecode<Source = DS>,
           S: DerefMut<Target = DS> + ReadSeek,
           DS: ReadSeek,
           TC: TextCodec
 {
+    dict: &'d DataDictionary<'d>,
     parser: DicomParser<'s, D, BD, S, DS, TC>,
     entries: HashMap<Tag, LazyDataElement>,
 }
 
-impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> fmt::Debug for LazyDicomObject<'s, D, BD, S, DS, TC>
+impl<'s, 'd, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> fmt::Debug for LazyDicomObject<'s, 'd, D, BD, S, DS, TC>
     where D: Decode<Source = DS>,
           BD: BasicDecode<Source = DS>,
           S: DerefMut<Target = DS> + ReadSeek,
@@ -64,7 +69,7 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> fmt::Debug for LazyDicomObj
     }
 }
 
-impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> LazyDicomObject<'s, D, BD, S, DS, TC>
+impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> LazyDicomObject<'s, 'static, D, BD, S, DS, TC>
     where D: Decode<Source = DS>,
           BD: BasicDecode<Source = DS>,
           S: DerefMut<Target = DS> + ReadSeek,
@@ -74,7 +79,7 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> LazyDicomObject<'s, D, BD, 
     /// create a new lazy DICOM object from an element marker iterator.
     pub fn from_iter<T>(iter: T,
                         parser: DicomParser<'s, D, BD, S, DS, TC>)
-                        -> Result<LazyDicomObject<'s, D, BD, S, DS, TC>>
+                        -> Result<LazyDicomObject<'s, 'static, D, BD, S, DS, TC>>
         where T: IntoIterator<Item = Result<DicomElementMarker>>
     {
         // collect results into a hash map
@@ -83,13 +88,14 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> LazyDicomObject<'s, D, BD, 
             .collect());
 
         Ok(LazyDicomObject {
+            dict: get_standard_dictionary(),
             parser: parser,
             entries: entries,
         })
     }
 }
 
-impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized, TC> DicomObject for LazyDicomObject<'s, D, BD, S, DS, TC>
+impl<'s, 'd, D, BD, S: ?Sized + 's, DS: ?Sized, TC> DicomObject for LazyDicomObject<'s, 'd, D, BD, S, DS, TC>
     where D: Decode<Source = DS>,
           BD: BasicDecode<Source = DS>,
           S: DerefMut<Target = DS> + ReadSeek,
@@ -109,8 +115,26 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized, TC> DicomObject for LazyDicomObject<
     }
 
     fn element_by_name(&mut self, name: &str) -> Result<Self::Element> {
-        let tag: Tag = unimplemented!();
+        let tag = self.lookup_name(name)?;
         self.element(tag)
+    }
+
+    fn pixel_data(&mut self) -> Result<()> {
+        unimplemented!()
+    }
+}
+
+impl<'s, 'd, D, BD, S: ?Sized + 's, DS: ?Sized, TC> LazyDicomObject<'s, 'd, D, BD, S, DS, TC>
+    where D: Decode<Source = DS>,
+          BD: BasicDecode<Source = DS>,
+          S: DerefMut<Target = DS> + ReadSeek,
+          DS: ReadSeek,
+          TC: TextCodec
+{
+    fn lookup_name(&self, name: &str) -> Result<Tag> {
+        self.dict.get_by_name(name)
+            .ok_or(Error::NoSuchAttributeName)
+            .map(|e| e.tag)
     }
 }
 

@@ -15,32 +15,32 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use data::Tag;
-use dictionary::{AttributeDictionary, DictionaryEntry};
+use dictionary::{DataDictionary, DictionaryEntry};
 use data::VR;
 use self::entries::ENTRIES;
 
 lazy_static! {
-    static ref DICT: StandardAttributeDictionary = {
+    static ref DICT: StandardDataDictionary = {
         init_dictionary()
     };
 }
 
 /// Retrieve a singleton instance of the standard dictionary.
-pub fn get_instance() -> &'static StandardAttributeDictionary {
+pub fn get_instance() -> &'static StandardDataDictionary {
     &DICT
 }
 
 
 /// The data struct for the standard dictionary.
 #[derive(Debug)]
-pub struct StandardAttributeDictionary {
+pub struct StandardDataDictionary {
     name_to_pair: HashMap<&'static str, &'static DictionaryEntry<'static>>,
     pair_to_name: HashMap<Tag, &'static DictionaryEntry<'static>>
 }
 
-impl StandardAttributeDictionary {
-    fn new() -> StandardAttributeDictionary {
-        StandardAttributeDictionary {
+impl StandardDataDictionary {
+    fn new() -> StandardDataDictionary {
+        StandardDataDictionary {
             name_to_pair: HashMap::new(),
             pair_to_name: HashMap::new()
         }
@@ -53,7 +53,7 @@ impl StandardAttributeDictionary {
     }
 }
 
-impl AttributeDictionary<'static> for StandardAttributeDictionary {
+impl DataDictionary<'static> for StandardDataDictionary {
     fn get_by_name(&self, name: &str) -> Option<&'static DictionaryEntry<'static>> {
         self.name_to_pair.get(name).map(|r| { *r })
     }
@@ -63,14 +63,14 @@ impl AttributeDictionary<'static> for StandardAttributeDictionary {
     }
 }
 
-impl Display for StandardAttributeDictionary {
+impl Display for StandardDataDictionary {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         f.write_str("Standard Attribute Dictionary")
     }
 }
 
-fn init_dictionary() -> StandardAttributeDictionary {
-    let mut d = StandardAttributeDictionary::new();
+fn init_dictionary() -> StandardDataDictionary {
+    let mut d = StandardDataDictionary::new();
     for entry in ENTRIES {
         d.index(&entry);
     }

@@ -1,8 +1,7 @@
 #![crate_type = "lib"]
 #![deny(missing_debug_implementations, missing_copy_implementations,
-        trivial_casts, trivial_numeric_casts, unsafe_code, unstable_features,
-        unused_import_braces)]
-#![warn(missing_docs, unused_qualifications)]
+        trivial_casts, trivial_numeric_casts, unsafe_code, unstable_features)]
+#![warn(missing_docs, unused_qualifications, unused_import_braces)]
 
 //! This is a library for basic DICOM content reading and writing.
 //! 
@@ -12,13 +11,12 @@
 //! is subject to change.
 //! 
 //! ```ignore
-//! # extern crate dicom_core;
-//! # use dicom_core::Result;
+//! # use dicom_core::{load_from_path, Result};
 //! # fn foo() -> Result<()> {
-//! let obj = try!(DicomLoader::load(File::new("0001.dcm")));
-//! let patient_name = try!(try!(obj.element_by_name("PatientName")).as_str());
-//! let modality = try!(try!(obj.element_by_name("Modality")).as_str());
-//! let pixel_data = try!(obj.pixel_data());
+//! let obj = load_from_path("0001.dcm")?;
+//! let patient_name = obj.element_by_name("PatientName")?.as_str()?;
+//! let modality = obj.element_by_name("Modality")?.as_str()?;
+//! let pixel_data = obj.pixel_data()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -47,4 +45,17 @@ pub use data::DataElement as DicomElement;
 pub use object::DicomObject;
 pub use error::{Error, Result};
 
+use std::path::Path;
+use std::fs::File;
+use std::io::{Read, Seek};
+
 mod util;
+
+pub fn load_from_path<P: AsRef<Path>>(path: P) -> Result<()> {
+    let file = File::open(path)?;
+    load_from_file(file)
+}
+
+pub fn load_from_file<F: Read + Seek>(path: F) -> Result<()> {
+    unimplemented!() // TODO
+}
