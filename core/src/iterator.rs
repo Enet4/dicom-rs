@@ -1,13 +1,13 @@
 //! This module contains a mid-level abstraction for reading DICOM content sequentially.
 //!
-use std::io::{Read, Seek};
+use std::io::{Read, Seek, SeekFrom};
 use std::ops::DerefMut;
-use parser::DicomParser;
+use std::marker::PhantomData;
+use parser::{DicomParser, DynamicDicomParser, Parse};
 use std::iter::Iterator;
-use transfer_syntax::{TransferSyntax, DynamicDecoder, DynamicBasicDecoder};
+use transfer_syntax::TransferSyntax;
 use data::{Header, DataElementHeader, SequenceItemHeader};
-use data::decode::{BasicDecode, Decode};
-use data::text::{SpecificCharacterSet, TextCodec};
+use data::text::SpecificCharacterSet;
 use util::{ReadSeek, SeekInterval};
 use error::{Result, Error};
 use data::VR;
@@ -15,35 +15,29 @@ use data::Tag;
 
 /// An iterator for DICOM object elements.
 #[derive(Debug)]
-pub struct DicomElementIterator<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC>
-    where S: DerefMut<Target = DS> + ReadSeek,
-          D: Decode<Source = DS>,
-          BD: BasicDecode<Source = DS>,
-          DS: Read,
-          TC: TextCodec
+pub struct DicomElementIterator<S: ?Sized, P>
+    where S: ReadSeek,
+          P: Parse<S>
 {
-    parser: DicomParser<'s, D, BD, S, DS, TC>,
+    source_phantom: PhantomData<S>,
+    parser: P,
     depth: u32,
     in_sequence: bool,
     hard_break: bool,
 }
 
-impl<'s, S: 's + ?Sized, D, BD> DicomElementIterator<'s, S, D, BD, (Read + 's), Box<TextCodec>>
-    where S: DerefMut<Target = (Read + 's)> + ReadSeek,
-          D: Decode<Source = (Read + 's)>,
-          BD: BasicDecode<Source = (Read + 's)>
+impl<'s, S: 's + ?Sized> DicomElementIterator<S, DynamicDicomParser<'s, S>>
+    where S: DerefMut<Target = (Read + 's)> + ReadSeek
 {
     /// Create a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
     pub fn new_with(mut source: &'s mut S, ts: &TransferSyntax, cs: SpecificCharacterSet)
-         -> Result<DicomElementIterator<'s, S, DynamicDecoder<'s>, DynamicBasicDecoder<'s>, (Read + 's), Box<TextCodec>>> {
-        let basic = ts.get_basic_decoder();
-        let decoder = try!(ts.get_decoder()
-            .ok_or_else(|| Error::UnsupportedTransferSyntax));
-        let text = cs.get_codec().ok_or_else(|| Error::UnsupportedCharacterSet)?;
+         -> Result<DicomElementIterator<S, DynamicDicomParser<'s, S>>> {
+        let parser = DicomParser::new_with(source, ts, cs)?;
 
         Ok(DicomElementIterator {
-            parser: DicomParser::new(source, decoder, basic, text),
+            source_phantom: PhantomData,
+            parser: parser,
             depth: 0,
             in_sequence: false,
             hard_break: false,
@@ -51,30 +45,32 @@ impl<'s, S: 's + ?Sized, D, BD> DicomElementIterator<'s, S, D, BD, (Read + 's), 
     }
 }
 
-impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> DicomElementIterator<'s, S, D, BD, DS, TC>
-    where S: DerefMut<Target = DS> + ReadSeek,
-          D: Decode<Source = DS>,
-          BD: BasicDecode<Source = DS>,
-          DS: Read,
-          TC: TextCodec
+impl<'s, S: ?Sized + 's, P> DicomElementIterator<S, P>
+    where S: ReadSeek,
+          P: Parse<S>
 {
-    /// Create a new iterator with the given random access source,
-    /// while considering the given decoder and text codec.
-    pub fn new(mut source: &'s mut S,
-               decoder: D,
-               basic: BD,
-               text: TC)
-               -> DicomElementIterator<'s, S, D, BD, DS, TC> {
+    /// Create a new iterator with the given parser.
+    pub fn new(parser: P) -> DicomElementIterator<S, P> {
         DicomElementIterator {
-            parser: DicomParser::new(source, decoder, basic, text),
+            source_phantom: PhantomData::default(),
+            parser: parser,
             depth: 0,
             in_sequence: false,
             hard_break: false,
         }
     }
 
+    /// Get the inner source's position in the stream using `seek()`.
+    fn get_position(&mut self) -> Result<u64>
+        where S: Seek
+    {
+        let src: &mut S = self.parser.borrow_mut();
+        src.seek(SeekFrom::Current(0))
+            .map_err(Error::from)
+    }
+
     fn create_element_marker(&mut self, header: DataElementHeader) -> Result<DicomElementMarker> {
-        match self.parser.get_position() {
+        match self.get_position() {
             Ok(pos) => {
                 Ok(DicomElementMarker {
                     header: header,
@@ -89,7 +85,7 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> DicomElementIterator<'s, S,
     }
 
     fn create_item_marker(&mut self, header: SequenceItemHeader) -> Result<DicomElementMarker> {
-        match self.parser.get_position() {
+        match self.get_position() {
             Ok(pos) => {
                 Ok(DicomElementMarker {
                     header: From::from(header),
@@ -104,12 +100,9 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> DicomElementIterator<'s, S,
     }
 }
 
-impl<'s, D, S: ?Sized + 's, BD, DS: ?Sized + Read + 's, TC> Iterator for DicomElementIterator<'s, S, D, BD, DS, TC>
-    where S: DerefMut<Target = DS> + ReadSeek,
-          D: Decode<Source = DS>,
-          BD: BasicDecode<Source = DS>,
-          DS: Read,
-          TC: TextCodec
+impl<'s, S: ?Sized + 's, P> Iterator for DicomElementIterator<S, P>
+    where S: ReadSeek,
+          P: Parse<S>
 {
     type Item = Result<DicomElementMarker>;
 
@@ -181,7 +174,7 @@ impl DicomElementMarker {
     pub fn get_data_stream<'s, S: ?Sized + 's>(&self,
                                                source: &'s mut S)
                                                -> Result<SeekInterval<'s, S>>
-        where S: Read + Seek
+        where S: ReadSeek
     {
         let len = self.header.len();
         let interval = try!(SeekInterval::new(source, len));

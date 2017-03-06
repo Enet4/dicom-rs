@@ -45,17 +45,18 @@ pub use data::DataElement as DicomElement;
 pub use object::DicomObject;
 pub use error::{Error, Result};
 
-use std::path::Path;
-use std::fs::File;
+use object::LazyDicomObject;
 use std::io::{Read, Seek};
+use std::fs::File;
+use std::path::Path;
 
 mod util;
+
+pub fn load_from_file<F: Read + Seek>(file: F) -> Result<()> {
+    unimplemented!()
+}
 
 pub fn load_from_path<P: AsRef<Path>>(path: P) -> Result<()> {
     let file = File::open(path)?;
     load_from_file(file)
-}
-
-pub fn load_from_file<F: Read + Seek>(path: F) -> Result<()> {
-    unimplemented!() // TODO
 }

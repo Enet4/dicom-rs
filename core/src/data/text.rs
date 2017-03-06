@@ -18,6 +18,9 @@ use error::{Result, TextEncodingError};
 use std::fmt::Debug;
 /* use encoding; */
 
+/// Type alias for a type erased text codec.
+pub type DynamicTextCodec = Box<TextCodec>;
+
 /// An enum type for the the supported character sets.
 #[derive(Debug, Clone, Copy)]
 pub enum SpecificCharacterSet {
@@ -75,7 +78,6 @@ impl TextCodec for DefaultCharacterSetCodec {
         // although it will encode 7-bit ASCII text just fine
         Ok(Vec::from(text.as_bytes()))
     }
-    
 }
 
 impl<T: ?Sized> TextCodec for Box<T> where T: TextCodec {
@@ -86,5 +88,14 @@ impl<T: ?Sized> TextCodec for Box<T> where T: TextCodec {
     fn encode(&self, text: &str) -> Result<Vec<u8>> {
         self.as_ref().encode(text)
     }
+}
 
+impl<'a, T: ?Sized> TextCodec for &'a T where T: TextCodec {
+    fn decode(&self, text: &[u8]) -> Result<String> {
+        (*self).decode(text)
+    }
+
+    fn encode(&self, text: &str) -> Result<Vec<u8>> {
+        (*self).encode(text)
+    }
 }

@@ -2,14 +2,15 @@
 //! At this level, objects are comparable to a lazy dictionary of elements,
 //! in which some of them can be DICOM objects themselves.
 //! The end user should prefer using this abstraction when dealing with DICOM objects.
-use std::ops::DerefMut;
 use std::iter::Iterator;
 use std::fmt;
+use std::fmt::Debug;
+use std::marker::PhantomData;
 use data::Header;
 use data::decode::{BasicDecode, Decode};
 use dictionary::{get_standard_dictionary, DataDictionary};
-use parser::DicomParser;
-use data::text::TextCodec;
+use dictionary::standard::StandardDataDictionary;
+use parser::Parse;
 use std::collections::HashMap;
 use error::{Result, Error};
 use data::VR;
@@ -18,7 +19,7 @@ use data::value::DicomValue;
 use iterator::DicomElementMarker;
 use util::ReadSeek;
 
-mod mem;
+pub mod mem;
 
 /// Trait type for a DICOM object.
 /// This is a high-level abstraction where an object is accessed and
@@ -30,36 +31,30 @@ pub trait DicomObject {
     type Sequence;
 
     /// Retrieve a particular DICOM element by its tag.
-    fn element(&mut self, tag: Tag) -> Result<Self::Element>;
+    fn element(&self, tag: Tag) -> Result<Self::Element>;
 
     /// Retrieve a particular DICOM element by its name.
-    fn element_by_name(&mut self, name: &str) -> Result<Self::Element>;
+    fn element_by_name(&self, name: &str) -> Result<Self::Element>;
+
+    /// Retrieve the object's pixel data.
+    fn pixel_data(&self) -> Result<()>;
 
     // TODO moar
-
-    /// Retrieve the object's pixel data as a multi-dimensional array.
-    fn pixel_data(&mut self) -> Result<()>;
 }
 
 /// Data type for a lazily loaded DICOM object builder.
-pub struct LazyDicomObject<'s, 'd, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC>
-    where D: Decode<Source = DS>,
-          BD: BasicDecode<Source = DS>,
-          S: DerefMut<Target = DS> + ReadSeek,
-          DS: ReadSeek,
-          TC: TextCodec
+pub struct LazyDicomObject<S, P, D>
 {
-    dict: &'d DataDictionary<'d>,
-    parser: DicomParser<'s, D, BD, S, DS, TC>,
+    dict: D,
+    source: S,
+    parser: P,
     entries: HashMap<Tag, LazyDataElement>,
 }
 
-impl<'s, 'd, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> fmt::Debug for LazyDicomObject<'s, 'd, D, BD, S, DS, TC>
-    where D: Decode<Source = DS>,
-          BD: BasicDecode<Source = DS>,
-          S: DerefMut<Target = DS> + ReadSeek,
-          DS: ReadSeek,
-          TC: TextCodec
+impl<S, P, D> Debug for LazyDicomObject<S, P, D>
+    where S: Debug,
+          P: Debug,
+          D: Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f,
@@ -69,67 +64,44 @@ impl<'s, 'd, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> fmt::Debug for LazyDico
     }
 }
 
-impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> LazyDicomObject<'s, 'static, D, BD, S, DS, TC>
-    where D: Decode<Source = DS>,
-          BD: BasicDecode<Source = DS>,
-          S: DerefMut<Target = DS> + ReadSeek,
-          DS: ReadSeek,
-          TC: TextCodec
+impl<S, P> LazyDicomObject<S, P, &'static StandardDataDictionary>
+    where S: ReadSeek,
+          P: Parse<S>
 {
-    /// create a new lazy DICOM object from an element marker iterator.
-    pub fn from_iter<T>(iter: T,
-                        parser: DicomParser<'s, D, BD, S, DS, TC>)
-                        -> Result<LazyDicomObject<'s, 'static, D, BD, S, DS, TC>>
-        where T: IntoIterator<Item = Result<DicomElementMarker>>
-    {
-        // collect results into a hash map
-        let entries = try!(iter.into_iter()
-            .map(|res| res.map(|e| (e.tag(), LazyDataElement::new(e))))
-            .collect());
 
-        Ok(LazyDicomObject {
-            dict: get_standard_dictionary(),
-            parser: parser,
-            entries: entries,
-        })
-    }
 }
 
-impl<'s, 'd, D, BD, S: ?Sized + 's, DS: ?Sized, TC> DicomObject for LazyDicomObject<'s, 'd, D, BD, S, DS, TC>
-    where D: Decode<Source = DS>,
-          BD: BasicDecode<Source = DS>,
-          S: DerefMut<Target = DS> + ReadSeek,
-          DS: ReadSeek,
-          TC: TextCodec
+impl<S, P, D> DicomObject for LazyDicomObject<S, P, D>
+    where S: ReadSeek,
+          P: Parse<S>,
+          D: DataDictionary<'static>
 {
     type Element = (); // TODO
     type Sequence = (); // TODO
 
-    fn element(&mut self, tag: Tag) -> Result<Self::Element> {
+    fn element(&self, tag: Tag) -> Result<Self::Element> {
 
-        let mut e = try!(self.entries.get_mut(&tag).ok_or_else(|| Error::NoSuchDataElement));
+        //let mut e = try!(self.entries.get_mut(&tag).ok_or_else(|| Error::NoSuchDataElement));
 
         // TODO
 
         unimplemented!()
     }
 
-    fn element_by_name(&mut self, name: &str) -> Result<Self::Element> {
+    fn element_by_name(&self, name: &str) -> Result<Self::Element> {
         let tag = self.lookup_name(name)?;
         self.element(tag)
     }
 
-    fn pixel_data(&mut self) -> Result<()> {
+    fn pixel_data(&self) -> Result<()> {
         unimplemented!()
     }
 }
 
-impl<'s, 'd, D, BD, S: ?Sized + 's, DS: ?Sized, TC> LazyDicomObject<'s, 'd, D, BD, S, DS, TC>
-    where D: Decode<Source = DS>,
-          BD: BasicDecode<Source = DS>,
-          S: DerefMut<Target = DS> + ReadSeek,
-          DS: ReadSeek,
-          TC: TextCodec
+impl<S, P, D>  LazyDicomObject<S, P, D>
+    where S: ReadSeek,
+          P: Parse<S>,
+          D: DataDictionary<'static>
 {
     fn lookup_name(&self, name: &str) -> Result<Tag> {
         self.dict.get_by_name(name)
@@ -176,12 +148,12 @@ impl LazyDataElement {
 
     /// Getter for this element's cached data value.
     /// It will only hold a value once explicitly read.
-    pub fn value(&self) -> &Option<DicomValue> {
-        &self.value
+    pub fn value(&self) -> Option<&DicomValue> {
+        self.value.as_ref()
     }
 
     /// Mutable getter for this element's cached data value.
-    pub fn value_mut(&mut self) -> &mut Option<DicomValue> {
-        &mut self.value
+    pub fn value_mut(&mut self) -> Option<&mut DicomValue> {
+        self.value.as_mut()
     }
 }
