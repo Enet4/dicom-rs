@@ -1,11 +1,11 @@
 //! Automatically generated. DO NOT EDIT!
 
-use dictionary::DictionaryEntry;
+use dictionary::DictionaryEntryRef;
 use data::{Tag, VR};
 
-type E<'a> = DictionaryEntry<'a>;
+type E = DictionaryEntryRef<'static>;
 
-pub const ENTRIES: &'static [E<'static>] = &[
+pub const ENTRIES: &'static [E] = &[
     E { tag: Tag(0x0008, 0x0005), alias: "SpecificCharacterSet", vr: VR::CS },
     E { tag: Tag(0x0008, 0x0006), alias: "LanguageCodeSequence", vr: VR::SQ },
     E { tag: Tag(0x0008, 0x0008), alias: "ImageType", vr: VR::CS },

@@ -1,7 +1,7 @@
 //! This module contains all DICOM data element decoding logic.
 
 use transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-use transfer_syntax::implicit_le::ImplicitVRLittleEndianDecoder;
+use transfer_syntax::implicit_le::{ImplicitVRLittleEndianDecoder, StandardImplicitVRLittleEndianDecoder};
 use std::io::Read;
 use error::Result;
 use data::{DataElementHeader, SequenceItemHeader};
@@ -15,9 +15,8 @@ pub mod basic;
  * According to the standard, data elements are encoded in Implicit
  * VR Little Endian by default.
  */
-pub fn get_default_reader<'s, S: Read + ?Sized + 's>
-    ()
-    -> ImplicitVRLittleEndianDecoder<'static, S>
+pub fn get_default_reader<'s, S: 's + ?Sized>() -> StandardImplicitVRLittleEndianDecoder<S>
+    where S: Read
 {
     ImplicitVRLittleEndianDecoder::default()
 }

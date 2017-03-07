@@ -2,7 +2,8 @@
 
 use byteorder::{ByteOrder, LittleEndian};
 use std::io::{Read, Write};
-use dictionary::{DataDictionary, get_standard_dictionary};
+use dictionary::{DataDictionary, DictionaryEntry, get_standard_dictionary};
+use dictionary::standard::StandardDataDictionary;
 use data::VR;
 use data::Tag;
 use std::fmt;
@@ -14,48 +15,60 @@ use data::encode::basic::LittleEndianBasicEncoder;
 use data::encode::{BasicEncode, Encode};
 use data::{DataElementHeader, SequenceItemHeader, Header};
 
+pub type StandardImplicitVRLittleEndianDecoder<S>
+    = ImplicitVRLittleEndianDecoder<'static, S, StandardDataDictionary>;
+
 /// A data element decoder for the Explicit VR Little Endian transfer syntax.
 /// This type contains a reference to an attribute dictionary for resolving
 /// value representations.
-pub struct ImplicitVRLittleEndianDecoder<'d, S: Read + ?Sized> {
-    dict: &'d DataDictionary<'d>,
+pub struct ImplicitVRLittleEndianDecoder<'d, S: ?Sized, D: 'd> {
+    dict: &'d D,
     basic: LittleEndianBasicDecoder<S>,
 }
 
-impl<'d, 's, S: Read + ?Sized + 's> fmt::Debug for ImplicitVRLittleEndianDecoder<'d, S> {
+impl<'d, 's, S: ?Sized + 's, D: 'd> fmt::Debug for ImplicitVRLittleEndianDecoder<'d, S, D> 
+    where D: fmt::Debug
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "ImplicitVRLittleEndianDecoder{{dict={:?}, {:?}}}", self.dict, self.basic)
     }
 }
 
-impl<'s , S: ?Sized + 's> Default for ImplicitVRLittleEndianDecoder<'static, S>
+impl<'s , S: ?Sized + 's> ImplicitVRLittleEndianDecoder<'static, S, StandardDataDictionary>
     where S: Read {
-    fn default() -> ImplicitVRLittleEndianDecoder<'static, S> {
-        ImplicitVRLittleEndianDecoder::with_default_dict()
-    }
-}
 
-impl<'d, 's, S: ?Sized + 's> ImplicitVRLittleEndianDecoder<'d, S>
-    where S: Read {
     /// Retrieve this decoder using the standard data dictionary.
-    pub fn with_default_dict() -> ImplicitVRLittleEndianDecoder<'static, S> {
-        ImplicitVRLittleEndianDecoder::<'static, S> {
+    pub fn with_default_dict() -> Self {
+        ImplicitVRLittleEndianDecoder {
             dict: get_standard_dictionary(),
             basic: LittleEndianBasicDecoder::default()
         }
     }
+}
 
+impl<'s , S: ?Sized + 's> Default for ImplicitVRLittleEndianDecoder<'static, S, StandardDataDictionary>
+    where S: Read
+{
+    fn default() -> Self {
+        ImplicitVRLittleEndianDecoder::with_default_dict()
+    }
+}
+
+impl<'d, 's, S: ?Sized + 's, D: 'd> ImplicitVRLittleEndianDecoder<'d, S, D>
+    where S: Read, D: DataDictionary
+{
     /// Retrieve this decoder using a custom data dictionary.
-    pub fn with_dict(dictionary: &'d DataDictionary<'d>) -> ImplicitVRLittleEndianDecoder<'d, S> {
-        ImplicitVRLittleEndianDecoder::<'d, S> {
+    pub fn with_dict(dictionary: &'d D) -> Self {
+        ImplicitVRLittleEndianDecoder {
             dict: dictionary,
             basic: LittleEndianBasicDecoder::default()
         }
     }
 }
 
-impl<'d, S: ?Sized> Decode for ImplicitVRLittleEndianDecoder<'d, S>
-    where S: Read {
+impl<'d, S: ?Sized, D> Decode for ImplicitVRLittleEndianDecoder<'d, S, D>
+    where S: Read, D: DataDictionary
+{
     type Source = S;
 
     fn decode_header(&self, source: &mut S) -> Result<DataElementHeader> {
@@ -66,7 +79,7 @@ impl<'d, S: ?Sized> Decode for ImplicitVRLittleEndianDecoder<'d, S>
         let tag = Tag(group, element);
         try!(source.read_exact(&mut buf));
         let len = LittleEndian::read_u32(&buf);
-        let vr = self.dict.get_by_tag(tag).map(|entry| entry.vr).unwrap_or(VR::UN);
+        let vr = self.dict.get_by_tag(tag).map(|entry| entry.vr()).unwrap_or(VR::UN);
         Ok(DataElementHeader::new(tag, vr, len))
     }
 
@@ -209,7 +222,7 @@ mod tests {
         0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x31, 0x2e, 0x32, 0x2e, 0x31, 0x00
     ];
 
-    const DICT: &'static DataDictionary<'static> = &StubDataDictionary;
+    const DICT: &'static StubDataDictionary = &StubDataDictionary;
 
     #[test]
     fn implicit_vr_le_works() {

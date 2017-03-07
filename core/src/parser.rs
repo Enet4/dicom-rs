@@ -136,10 +136,9 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
         let ntags = {
             header.len() >> 2
         } as usize;
-        let parts: Box<[Tag]> = try!(n_times(ntags)
+        let parts: Vec<Tag> = try!(n_times(ntags)
                 .map(|_| self.decoder.decode_tag(self.source))
-                .collect::<Result<Vec<_>>>())
-            .into_boxed_slice();
+                .collect());
         Ok(DicomValue::Tags(parts))
     }
 
@@ -150,7 +149,7 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
         // sequence of 8-bit integers (or just byte data)
         let mut buf = vec![0u8 ; header.len() as usize];
         try!(self.source.read_exact(&mut buf));
-        Ok(DicomValue::U8(buf.into_boxed_slice()))
+        Ok(DicomValue::U8(buf))
     }
 
     fn read_value_strs(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
@@ -158,11 +157,10 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
         // sequence of strings
         let mut buf = vec![0u8 ; header.len() as usize];
         try!(self.source.read_exact(&mut buf));
-        let parts: Box<[String]> = try!(buf[..]
+        let parts: Vec<String> = try!(buf[..]
                 .split(|v| *v == '\\' as u8)
                 .map(|slice| self.text.decode(slice))
-                .collect::<Result<Vec<String>>>())
-            .into_boxed_slice();
+                .collect());
 
         Ok(DicomValue::Strs(parts))
     }
@@ -185,7 +183,7 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
         for _ in n_times(len) {
             vec.push(try!(self.basic.decode_ss(self.source)));
         }
-        Ok(DicomValue::I16(vec.into_boxed_slice()))
+        Ok(DicomValue::I16(vec))
     }
 
     fn read_value_fl(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
@@ -196,7 +194,7 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
         for _ in n_times(l) {
             vec.push(try!(self.basic.decode_fl(self.source)));
         }
-        Ok(DicomValue::F32(vec.into_boxed_slice()))
+        Ok(DicomValue::F32(vec))
     }
 
     fn read_value_od(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
@@ -207,7 +205,7 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
         for _ in n_times(len) {
             vec.push(try!(self.basic.decode_fd(self.source)));
         }
-        Ok(DicomValue::F64(vec.into_boxed_slice()))
+        Ok(DicomValue::F64(vec))
     }
 
     fn read_value_ul(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
@@ -219,7 +217,7 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
         for _ in n_times(len) {
             vec.push(try!(self.basic.decode_ul(self.source)));
         }
-        Ok(DicomValue::U32(vec.into_boxed_slice()))
+        Ok(DicomValue::U32(vec))
     }
 
     fn read_value_us(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
@@ -231,7 +229,7 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
         for _ in n_times(len) {
             vec.push(try!(self.basic.decode_us(self.source)));
         }
-        Ok(DicomValue::U16(vec.into_boxed_slice()))
+        Ok(DicomValue::U16(vec))
     }
 
     fn read_value_sl(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
@@ -243,7 +241,7 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
         for _ in n_times(len) {
             vec.push(try!(self.basic.decode_sl(self.source)));
         }
-        Ok(DicomValue::I32(vec.into_boxed_slice()))
+        Ok(DicomValue::I32(vec))
     }
 }
 
@@ -303,7 +301,7 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Parse<S> for DicomParser<'s
                         .ok_or_else(|| Error::from(InvalidValueReadError::InvalidFormat)));
                     vec.push(date);
                 }
-                Ok(DicomValue::Date(vec.into_boxed_slice()))
+                Ok(DicomValue::Date(vec))
             }
             VR::DT => {
                 require_known_length!(header);
@@ -322,7 +320,7 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Parse<S> for DicomParser<'s
                 // sequence of doubles in text form
                 let mut buf = vec![0u8 ; header.len() as usize];
                 try!(self.source.read_exact(&mut buf));
-                let parts: Box<[f64]> = try!(buf[..]
+                let parts: Vec<f64> = try!(buf[..]
                         .split(|v| *v == '\\' as u8)
                         .map(|slice| {
                             let txt = try!(str::from_utf8(slice)
@@ -330,8 +328,7 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Parse<S> for DicomParser<'s
                             txt.parse::<f64>()
                                 .map_err(|e| Error::from(InvalidValueReadError::from(e)))
                         })
-                        .collect::<Result<Vec<f64>>>())
-                    .into_boxed_slice();
+                        .collect());
                 Ok(DicomValue::F64(parts))
             }
             VR::FD | VR::OD => self.read_value_od(header),
@@ -346,7 +343,7 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Parse<S> for DicomParser<'s
                 if last == ' ' as u8 {
                     buf.pop();
                 }
-                let parts: Box<[i32]> = try!(buf[..]
+                let parts: Vec<i32> = try!(buf[..]
                         .split(|v| *v == '\\' as u8)
                         .map(|slice| {
                             let txt = try!(str::from_utf8(slice)
@@ -354,8 +351,7 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Parse<S> for DicomParser<'s
                             txt.parse::<i32>()
                                 .map_err(|e| Error::from(InvalidValueReadError::from(e)))
                         })
-                        .collect::<Result<Vec<i32>>>())
-                    .into_boxed_slice();
+                        .collect());
                 Ok(DicomValue::I32(parts))
             }
             VR::SL => self.read_value_sl(header),

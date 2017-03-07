@@ -1,7 +1,6 @@
 #![crate_type = "lib"]
-#![deny(missing_debug_implementations, missing_copy_implementations,
-        trivial_casts, trivial_numeric_casts, unsafe_code, unstable_features)]
-#![warn(missing_docs, unused_qualifications, unused_import_braces)]
+#![deny(missing_debug_implementations, trivial_casts, trivial_numeric_casts, unsafe_code, unstable_features)]
+#![warn(missing_docs, unused_qualifications, unused_import_braces, missing_copy_implementations)]
 
 //! This is a library for basic DICOM content reading and writing.
 //! 
@@ -42,10 +41,11 @@ pub mod transfer_syntax;
 pub use data::value::DicomValue;
 pub use data::VR;
 pub use data::DataElement as DicomElement;
+pub use dictionary::{DataDictionary, StandardDataDictionary};
 pub use object::DicomObject;
 pub use error::{Error, Result};
 
-use object::LazyDicomObject;
+use object::lazy::LazyDicomObject;
 use std::io::{Read, Seek};
 use std::fs::File;
 use std::path::Path;

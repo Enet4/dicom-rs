@@ -40,6 +40,7 @@ pub trait TransferSyntax: Debug + Sync {
     /// Can yield none if encoding is not supported.
     fn get_encoder<'s>(&self) -> Option<DynamicEncoder<'s>> { None }
 
+    /// Obtain a dynamic basic decoder, based on this transfer syntax' expected endianness.
     fn get_basic_decoder<'s>(&self) -> DynamicBasicDecoder<'s> {
         match self.endianness() {
             Endianness::LE => Box::new(LittleEndianBasicDecoder::default()),

@@ -1,18 +1,41 @@
 //! This module contains a stub dictionary.
 
-use super::{DataDictionary, DictionaryEntry};
+use super::{DataDictionary, DictionaryEntry, DictionaryEntryRef};
 use data::Tag;
 
 /// An empty attribute dictionary.
 #[derive(Debug, Clone, Copy)]
 pub struct StubDataDictionary;
 
-impl<'a> DataDictionary<'a> for StubDataDictionary {
-    fn get_by_name(&self, _: &str) -> Option<&'a DictionaryEntry<'a>> {
+impl DataDictionary for StubDataDictionary {
+    type Entry = DictionaryEntryRef<'static>;
+    fn get_by_name(&self, _: &str) -> Option<&DictionaryEntryRef<'static>> {
         None
     }
 
-    fn get_by_tag(&self, _: Tag) -> Option<&'a DictionaryEntry<'a>> {
+    fn get_by_tag(&self, _: Tag) -> Option<&DictionaryEntryRef<'static>> {
+        None
+    }
+}
+
+impl<'a> DataDictionary for &'a StubDataDictionary {
+    type Entry = DictionaryEntryRef<'static>;
+    fn get_by_name(&self, _: &str) -> Option<&DictionaryEntryRef<'static>> {
+        None
+    }
+
+    fn get_by_tag(&self, _: Tag) -> Option<&DictionaryEntryRef<'static>> {
+        None
+    }
+}
+
+impl DataDictionary for Box<StubDataDictionary> {
+    type Entry = DictionaryEntryRef<'static>;
+    fn get_by_name(&self, _: &str) -> Option<&DictionaryEntryRef<'static>> {
+        None
+    }
+
+    fn get_by_tag(&self, _: Tag) -> Option<&DictionaryEntryRef<'static>> {
         None
     }
 }

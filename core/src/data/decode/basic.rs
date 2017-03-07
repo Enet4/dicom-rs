@@ -10,11 +10,11 @@ use std::io::Read;
 use std::fmt;
 
 /// A basic decoder of DICOM primitive elements in little endian.
-pub struct LittleEndianBasicDecoder<S: Read + ?Sized> {
+pub struct LittleEndianBasicDecoder<S: ?Sized> {
     phantom: PhantomData<S>,
 }
 
-impl<S: ?Sized + Read> fmt::Debug for LittleEndianBasicDecoder<S> {
+impl<S: ?Sized> fmt::Debug for LittleEndianBasicDecoder<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "LittleEndianBasicDecoder")
     }

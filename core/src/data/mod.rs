@@ -8,7 +8,7 @@ pub mod text;
 pub mod value;
 
 use error::{Result, Error};
-use data::value::DicomValue;
+use data::value::{DicomValue, DicomValueType};
 use std::str::from_utf8;
 use std::fmt;
 use std::cmp::Ordering;
@@ -75,6 +75,34 @@ impl Header for DataElement {
 }
 
 impl DataElement {
+
+    /// Create an empty data element.
+    pub fn empty(tag: Tag, vr: VR) -> Self {
+        DataElement {
+            header: DataElementHeader {
+                tag: tag,
+                vr: vr,
+                len: 0
+            },
+            value: DicomValue::Empty
+        }
+    }
+    
+    /// Create a data element from the given parts. This method will not check
+    /// whether the value representation is compaible with the value. Use it cautiously.
+    pub fn create(tag: Tag, vr: VR, value: DicomValue) -> Self {
+        DataElement {
+            header: DataElementHeader {
+                tag: tag,
+                vr: vr,
+                len: value.size()
+            },
+            value: value
+        }
+    }
+
+    // TODO moar
+
     /// Retrieve the element's value representation, which can be unknown.
     pub fn vr(&self) -> VR {
         self.header.vr()

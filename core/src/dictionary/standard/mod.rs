@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use data::Tag;
-use dictionary::{DataDictionary, DictionaryEntry};
+use dictionary::{DataDictionary, DictionaryEntryRef};
 use data::VR;
 use self::entries::ENTRIES;
 
@@ -34,8 +34,8 @@ pub fn get_instance() -> &'static StandardDataDictionary {
 /// The data struct for the standard dictionary.
 #[derive(Debug)]
 pub struct StandardDataDictionary {
-    name_to_pair: HashMap<&'static str, &'static DictionaryEntry<'static>>,
-    pair_to_name: HashMap<Tag, &'static DictionaryEntry<'static>>
+    name_to_pair: HashMap<&'static str, &'static DictionaryEntryRef<'static>>,
+    pair_to_name: HashMap<Tag, &'static DictionaryEntryRef<'static>>
 }
 
 impl StandardDataDictionary {
@@ -46,20 +46,46 @@ impl StandardDataDictionary {
         }
     }
     
-    fn index(&mut self, entry: &'static DictionaryEntry<'static>) -> &mut Self {
+    fn index(&mut self, entry: &'static DictionaryEntryRef<'static>) -> &mut Self {
         self.name_to_pair.insert(entry.alias, entry);
         self.pair_to_name.insert(entry.tag, entry);
         self
     }
 }
 
-impl DataDictionary<'static> for StandardDataDictionary {
-    fn get_by_name(&self, name: &str) -> Option<&'static DictionaryEntry<'static>> {
+impl DataDictionary for StandardDataDictionary {
+    type Entry = DictionaryEntryRef<'static>;
+
+    fn get_by_name(&self, name: &str) -> Option<&Self::Entry> {
         self.name_to_pair.get(name).map(|r| { *r })
     }
 
-    fn get_by_tag(&self, tag: Tag) -> Option<&'static DictionaryEntry<'static>> {
+    fn get_by_tag(&self, tag: Tag) -> Option<&Self::Entry> {
         self.pair_to_name.get(&tag).map(|r| { *r })
+    }
+}
+
+impl<'a> DataDictionary for &'a StandardDataDictionary {
+    type Entry = DictionaryEntryRef<'static>;
+
+    fn get_by_name(&self, name: &str) -> Option<&'static DictionaryEntryRef<'static>> {
+        (*self).name_to_pair.get(name).map(|r| { *r })
+    }
+
+    fn get_by_tag(&self, tag: Tag) -> Option<&'static DictionaryEntryRef<'static>> {
+        (*self).pair_to_name.get(&tag).map(|r| { *r })
+    }
+}
+
+impl DataDictionary for Box<StandardDataDictionary> {
+    type Entry = DictionaryEntryRef<'static>;
+
+    fn get_by_name(&self, name: &str) -> Option<&'static DictionaryEntryRef<'static>> {
+        (*self).name_to_pair.get(name).map(|r| { *r })
+    }
+
+    fn get_by_tag(&self, tag: Tag) -> Option<&'static DictionaryEntryRef<'static>> {
+        (*self).pair_to_name.get(&tag).map(|r| { *r })
     }
 }
 
@@ -81,7 +107,7 @@ fn init_dictionary() -> StandardDataDictionary {
 }
 
 // meta information entries
-type E<'a> = DictionaryEntry<'a>;
+type E<'a> = DictionaryEntryRef<'a>;
 const META_ENTRIES : &'static [E<'static>] = &[
     E {tag: Tag(0x0002,0x0000), alias: "FileMetaInformationGroupLength", vr: VR::UL},
     E {tag: Tag(0x0002,0x0001), alias: "FileMetaInformationVersion", vr: VR::OB},
