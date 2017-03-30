@@ -3,7 +3,7 @@
 use std::io::{Read, Seek, SeekFrom};
 use std::ops::DerefMut;
 use std::marker::PhantomData;
-use parser::{DicomParser, DynamicDicomParser, Parse};
+use data::parser::{DicomParser, DynamicDicomParser, Parse};
 use std::iter::Iterator;
 use transfer_syntax::TransferSyntax;
 use data::{Header, DataElementHeader, SequenceItemHeader};

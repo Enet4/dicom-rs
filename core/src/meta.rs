@@ -173,7 +173,7 @@ impl DicomMetaTable {
                 Tag(0x0002, _) => { // unknown tag, do nothing
                     builder
                 },
-                _ => { // unexpected tag! do nothing for now, although this could represent a serious bug
+                _ => { // unexpected tag! do nothing for now, although this could represent invalid content
                     builder
                 }
             }

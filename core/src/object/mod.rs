@@ -8,6 +8,7 @@ use data::Tag;
 
 pub mod mem;
 pub mod lazy;
+pub mod pixeldata;
 
 /// Trait type for a DICOM object.
 /// This is a high-level abstraction where an object is accessed and

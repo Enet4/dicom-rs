@@ -35,7 +35,6 @@ pub mod error;
 pub mod iterator;
 pub mod meta;
 pub mod object;
-pub mod parser;
 pub mod transfer_syntax;
 
 pub use data::value::DicomValue;

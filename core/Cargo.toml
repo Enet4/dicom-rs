@@ -4,6 +4,7 @@ description = "Efficient and practical base library for DICOM compliant systems"
 name = "dicom_core"
 publish = false
 version = "0.1.0"
+repository = "https://github.com/Enet4/dicom-rs.git"
 
 [dependencies]
 byteorder = "~0.5.3"
@@ -12,3 +13,6 @@ encoding = "~0.2.33"
 lazy_static = "0.1.*"
 quick-error = "~1.1.0"
 itertools = "~0.5.6"
+
+[badges]
+travis-ci = { repository = "https://github.com/Enet4/dicom-rs.git" }

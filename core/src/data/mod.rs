@@ -4,6 +4,7 @@
 pub mod codec;
 pub mod decode;
 pub mod encode;
+pub mod parser;
 pub mod text;
 pub mod value;
 

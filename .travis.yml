@@ -3,10 +3,7 @@ rust:
   - stable
   - beta
   - nightly
-env:
-  - TEST_DIR=core
-  - TEST_DIR=dictionary_builder
-script: cd $TEST_DIR && cargo test
+script: cargo test --all
 matrix:
   allow_failures:
     - rust: nightly

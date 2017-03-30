@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use data::Header;
 use dictionary::{get_standard_dictionary, DataDictionary, DictionaryEntry};
 use dictionary::standard::StandardDataDictionary;
-use parser::Parse;
+use data::parser::Parse;
 use std::collections::HashMap;
 use error::{Result, Error};
 use data::{Tag, VR, DataElement};

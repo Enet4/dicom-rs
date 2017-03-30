@@ -4,7 +4,7 @@ use std::result;
 use std::io;
 use std::string::FromUtf8Error;
 use std::str::Utf8Error;
-use std::num::{ParseFloatError,ParseIntError};
+use std::num::{ParseFloatError, ParseIntError};
 
 quick_error! {
     /// The main data type for errors in the library.
@@ -41,6 +41,10 @@ quick_error! {
         /// Raised when attempting to fetch an unexistent element.
         NoSuchDataElement {
             description("No such data element")
+        }
+        /// Raised when attempting to read pixel data out of bounds.
+        PixelDataOutOfBounds {
+            description("Pixel data acces index out of bounds")
         }
         /// Error related to an invalid value read.
         ValueRead(err: InvalidValueReadError) {
