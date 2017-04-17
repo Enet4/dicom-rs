@@ -8,8 +8,8 @@ pub mod implicit_le;
 
 use std::fmt::Debug;
 use std::io::{Read,Write};
-use data::decode::basic::{BigEndianBasicDecoder, LittleEndianBasicDecoder};
-use data::decode::{Decode, BasicDecode};
+use data::decode::basic::BasicDecoder;
+use data::decode::Decode;
 use data::encode::Encode;
 use util::Endianness;
 
@@ -19,7 +19,7 @@ pub type DynamicDecoder<'s> = Box<Decode<Source = (Read + 's)>>;
 pub type DynamicEncoder<'w> = Box<Encode<Writer = (Write + 'w)>>;
 
 /// A basic decoder with its type erased.
-pub type DynamicBasicDecoder<'s> = Box<BasicDecode<Source = (Read + 's)> + 's>;
+pub type DynamicBasicDecoder<'s> = BasicDecoder<(Read + 's)>;
 
 /// Trait for a DICOM transfer syntax. Trait implementers make an entry
 /// point for obtaining the decoder and/or encoder that can handle DICOM objects
@@ -41,11 +41,8 @@ pub trait TransferSyntax: Debug + Sync {
     fn get_encoder<'s>(&self) -> Option<DynamicEncoder<'s>> { None }
 
     /// Obtain a dynamic basic decoder, based on this transfer syntax' expected endianness.
-    fn get_basic_decoder<'s>(&self) -> DynamicBasicDecoder<'s> {
-        match self.endianness() {
-            Endianness::LE => Box::new(LittleEndianBasicDecoder::default()),
-            Endianness::BE => Box::new(BigEndianBasicDecoder::default())
-        }
+    fn get_basic_decoder<'s>(&self) -> BasicDecoder<(Read + 's)> {
+        BasicDecoder::from(self.endianness())
     }
 }
 
@@ -71,7 +68,7 @@ pub fn default() -> ImplicitVRLittleEndian {
 }
 
 /// A concrete encoder for the transfer syntax ExplicitVRLittleEndian
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct ImplicitVRLittleEndian;
 impl TransferSyntax for ImplicitVRLittleEndian {
     fn uid(&self) -> &'static str { "1.2.840.10008.1.2" }
@@ -88,7 +85,7 @@ impl TransferSyntax for ImplicitVRLittleEndian {
 }
 
 /// Transfer syntax: ExplicitVRLittleEndian
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct ExplicitVRLittleEndian;
 impl TransferSyntax for ExplicitVRLittleEndian {
     fn uid(&self) -> &'static str { "1.2.840.10008.1.2.1" }
@@ -105,7 +102,7 @@ impl TransferSyntax for ExplicitVRLittleEndian {
 }
 
 /// Transfer syntax: ExplicitVRBigEndian
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct ExplicitVRBigEndian;
 impl TransferSyntax for ExplicitVRBigEndian {
     fn uid(&self) -> &'static str { "1.2.840.10008.1.2.2" }
@@ -124,7 +121,7 @@ impl TransferSyntax for ExplicitVRBigEndian {
 macro_rules! declare_stub_ts {
     ($name: ident, $uid: expr) => (
         /// Transfer syntax: $name
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
         pub struct $name;
         impl TransferSyntax for $name {
             fn uid(&self) -> &'static str { $uid }

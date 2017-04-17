@@ -55,12 +55,19 @@ pub enum DataElementType {
     SequenceDelimiter,
 }
 
-/// A generic trait for any data type that can represent
-/// a DICOM data element.
+/// A data type that represents and owns a DICOM data element.
 #[derive(Debug, PartialEq, Clone)]
 pub struct DataElement {
     header: DataElementHeader,
     value: DicomValue,
+}
+
+/// A data type that represents a DICOM data element with
+/// a borrowed value.
+#[derive(Debug, PartialEq, Clone)]
+pub struct DataElementRef<'v> {
+    header: DataElementHeader,
+    value: &'v DicomValue,
 }
 
 impl Header for DataElement {
@@ -74,6 +81,19 @@ impl Header for DataElement {
         self.header.len()
     }
 }
+
+impl<'v> Header for DataElementRef<'v> {
+    #[inline]
+    fn tag(&self) -> Tag {
+        self.header.tag()
+    }
+
+    #[inline]
+    fn len(&self) -> u32 {
+        self.header.len()
+    }
+}
+
 
 impl DataElement {
 
@@ -91,7 +111,7 @@ impl DataElement {
     
     /// Create a data element from the given parts. This method will not check
     /// whether the value representation is compaible with the value. Use it cautiously.
-    pub fn create(tag: Tag, vr: VR, value: DicomValue) -> Self {
+    pub fn new(tag: Tag, vr: VR, value: DicomValue) -> Self {
         DataElement {
             header: DataElementHeader {
                 tag: tag,
@@ -112,6 +132,34 @@ impl DataElement {
     /// Retrieve the data value.
     pub fn value(&self) -> &DicomValue {
         &self.value
+    }
+}
+
+impl<'v> DataElementRef<'v> {
+
+    /// Create a data element from the given parts. This method will not check
+    /// whether the value representation is compaible with the value. Use it cautiously.
+    pub fn new(tag: Tag, vr: VR, value: &'v DicomValue) -> Self {
+        DataElementRef {
+            header: DataElementHeader {
+                tag: tag,
+                vr: vr,
+                len: value.size()
+            },
+            value: value
+        }
+    }
+
+    // TODO moar
+
+    /// Retrieve the element's value representation, which can be unknown.
+    pub fn vr(&self) -> VR {
+        self.header.vr()
+    }
+
+    /// Retrieve the data value.
+    pub fn value(&self) -> &DicomValue {
+        self.value
     }
 }
 

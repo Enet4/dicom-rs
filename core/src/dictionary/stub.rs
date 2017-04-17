@@ -1,6 +1,6 @@
 //! This module contains a stub dictionary.
 
-use super::{DataDictionary, DictionaryEntry, DictionaryEntryRef};
+use super::{DataDictionary, DictionaryEntryRef};
 use data::Tag;
 
 /// An empty attribute dictionary.

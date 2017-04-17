@@ -1,6 +1,6 @@
 #![crate_type = "lib"]
-#![deny(missing_debug_implementations, trivial_casts, trivial_numeric_casts, unsafe_code, unstable_features)]
-#![warn(missing_docs, unused_qualifications, unused_import_braces, missing_copy_implementations)]
+#![deny(trivial_casts, trivial_numeric_casts, unsafe_code, unstable_features)]
+#![warn(missing_debug_implementations, missing_docs, unused_qualifications, unused_import_braces, missing_copy_implementations)]
 
 //! This is a library for basic DICOM content reading and writing.
 //! 
@@ -33,6 +33,7 @@ pub mod data;
 pub mod dictionary;
 pub mod error;
 pub mod iterator;
+pub mod loader;
 pub mod meta;
 pub mod object;
 pub mod transfer_syntax;
@@ -44,18 +45,20 @@ pub use dictionary::{DataDictionary, StandardDataDictionary};
 pub use object::DicomObject;
 pub use error::{Error, Result};
 
-use object::lazy::LazyDicomObject;
+use object::mem::InMemDicomObject;
 use std::io::{Read, Seek};
 use std::fs::File;
 use std::path::Path;
 
 mod util;
 
-pub fn load_from_file<F: Read + Seek>(file: F) -> Result<()> {
+type DefaultDicomObject = InMemDicomObject<&'static StandardDataDictionary>;
+
+pub fn load_from_file<F: Read + Seek>(file: F) -> Result<DefaultDicomObject> {
     unimplemented!()
 }
 
-pub fn load_from_path<P: AsRef<Path>>(path: P) -> Result<()> {
+pub fn load_from_path<P: AsRef<Path>>(path: P) -> Result<DefaultDicomObject> {
     let file = File::open(path)?;
     load_from_file(file)
 }

@@ -1,14 +1,15 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Debug;
 use data::Header;
-use dictionary::{get_standard_dictionary, DataDictionary, DictionaryEntry};
-use dictionary::standard::StandardDataDictionary;
+use dictionary::{DataDictionary, DictionaryEntry};
 use data::parser::Parse;
-use std::collections::HashMap;
 use error::{Result, Error};
-use data::{Tag, VR, DataElement};
+use data::{Tag, VR};
 use data::value::DicomValue;
 use iterator::DicomElementMarker;
+use object::pixeldata::PixelData;
 use util::ReadSeek;
 use super::DicomObject;
 
@@ -18,13 +19,13 @@ pub struct LazyDicomObject<S, P, D>
     dict: D,
     source: S,
     parser: P,
-    entries: HashMap<Tag, LazyDataElement>,
+    entries: RefCell<HashMap<Tag, LazyDataElement>>,
 }
 
 impl<S, P, D> Debug for LazyDicomObject<S, P, D>
     where S: Debug,
           P: Debug,
-          D: Debug,
+          D: Debug
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f,
@@ -34,27 +35,32 @@ impl<S, P, D> Debug for LazyDicomObject<S, P, D>
     }
 }
 
-impl<S, P> LazyDicomObject<S, P, &'static StandardDataDictionary>
-    where S: ReadSeek,
-          P: Parse<S>
-{
-
-}
-
 impl<S, P, D> DicomObject for LazyDicomObject<S, P, D>
     where S: ReadSeek,
           P: Parse<S>,
           D: DataDictionary
 {
-    type Element = DataElement; // TODO
+    type Element = LazyDataElement;
     type Sequence = (); // TODO
 
     fn element(&self, tag: Tag) -> Result<&Self::Element> {
+        {
+            let mut borrow = self.entries.borrow_mut();
+            let mut e = borrow
+                .get_mut(&tag)
+                .ok_or_else(|| Error::NoSuchDataElement)?;
 
-        //let mut e = try!(self.entries.get_mut(&tag).ok_or_else(|| Error::NoSuchDataElement));
+            let data = e.value_mut();
+            if data.is_none() {
+                let v = unimplemented!();
 
-        // TODO
-
+                *data = Some(v);
+            }
+        }
+        let borrow = self.entries.borrow();
+        let e = borrow
+            .get(&tag)
+            .expect("Should always have a value here!");
         unimplemented!()
     }
 
@@ -63,7 +69,7 @@ impl<S, P, D> DicomObject for LazyDicomObject<S, P, D>
         self.element(tag)
     }
 
-    fn pixel_data(&self) -> Result<()> {
+    fn pixel_data<PV, PX: PixelData<PV>>(&self) -> Result<PX> {
         unimplemented!()
     }
 }
@@ -87,6 +93,11 @@ impl<S, P, D>  LazyDicomObject<S, P, D>
 pub struct LazyDataElement {
     marker: DicomElementMarker,
     value: Option<DicomValue>,
+}
+
+impl Header for LazyDataElement {
+    fn tag(&self) -> Tag { self.marker.tag() }
+    fn len(&self) -> u32 { self.marker.len() }
 }
 
 impl LazyDataElement {
@@ -122,8 +133,8 @@ impl LazyDataElement {
         self.value.as_ref()
     }
 
-    /// Mutable getter for this element's cached data value.
-    pub fn value_mut(&mut self) -> Option<&mut DicomValue> {
-        self.value.as_mut()
+    /// Mutable getter for this element's cached data container.
+    pub fn value_mut(&mut self) -> &mut Option<DicomValue> {
+        &mut self.value
     }
 }

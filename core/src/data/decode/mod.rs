@@ -73,31 +73,31 @@ impl<T: ?Sized> BasicDecode for Box<T> where T: BasicDecode {
     fn endianness(&self) -> Endianness { self.as_ref().endianness() }
 
     fn decode_us(&self, source: &mut Self::Source) -> Result<u16> {
-        self.as_ref().decode_us(source)
+        (**self).decode_us(source)
     }
 
     fn decode_ul(&self, source: &mut Self::Source) -> Result<u32> {
-        self.as_ref().decode_ul(source)
+        (**self).decode_ul(source)
     }
 
     fn decode_ss(&self, source: &mut Self::Source) -> Result<i16> {
-        self.as_ref().decode_ss(source)
+        (**self).decode_ss(source)
     }
 
     fn decode_sl(&self, source: &mut Self::Source) -> Result<i32> {
-        self.as_ref().decode_sl(source)
+        (**self).decode_sl(source)
     }
 
     fn decode_fl(&self, source: &mut Self::Source) -> Result<f32> {
-        self.as_ref().decode_fl(source)
+        (**self).decode_fl(source)
     }
 
     fn decode_fd(&self, source: &mut Self::Source) -> Result<f64> {
-        self.as_ref().decode_fd(source)
+        (**self).decode_fd(source)
     }
 
     fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag> {
-        self.as_ref().decode_tag(source)
+        (**self).decode_tag(source)
     }
 }
 
@@ -107,46 +107,33 @@ impl<'a, T: ?Sized> BasicDecode for &'a T where T: BasicDecode {
     fn endianness(&self) -> Endianness { (*self).endianness() }
 
     fn decode_us(&self, source: &mut Self::Source) -> Result<u16> {
-        (*self).decode_us(source)
+        (**self).decode_us(source)
     }
 
     fn decode_ul(&self, source: &mut Self::Source) -> Result<u32> {
-        (*self).decode_ul(source)
+        (**self).decode_ul(source)
     }
 
     fn decode_ss(&self, source: &mut Self::Source) -> Result<i16> {
-        (*self).decode_ss(source)
+        (**self).decode_ss(source)
     }
 
     fn decode_sl(&self, source: &mut Self::Source) -> Result<i32> {
-        (*self).decode_sl(source)
+        (**self).decode_sl(source)
     }
 
     fn decode_fl(&self, source: &mut Self::Source) -> Result<f32> {
-        (*self).decode_fl(source)
+        (**self).decode_fl(source)
     }
 
     fn decode_fd(&self, source: &mut Self::Source) -> Result<f64> {
-        (*self).decode_fd(source)
+        (**self).decode_fd(source)
     }
 
     fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag> {
-        (*self).decode_tag(source)
+        (**self).decode_tag(source)
     }
 }
-
-impl<'s, S: 's + ?Sized> From<Endianness> for Box<BasicDecode<Source = S> + 's>
-    where S: Read
-{
-
-    fn from(endianness: Endianness) -> Box<BasicDecode<Source = S> + 's> {
-        match endianness {
-            Endianness::LE => Box::new(basic::LittleEndianBasicDecoder::default()),
-            Endianness::BE => Box::new(basic::BigEndianBasicDecoder::default())
-        }
-    }
-}
-
 
 /** Type trait for reading and decoding DICOM data elements.
  * 
@@ -177,15 +164,15 @@ impl<T: ?Sized> Decode for Box<T> where T: Decode {
     type Source = <T as Decode>::Source;
 
     fn decode_header(&self, source: &mut Self::Source) -> Result<DataElementHeader> {
-        self.as_ref().decode_header(source)
+        (**self).decode_header(source)
     }
 
     fn decode_item_header(&self, source: &mut Self::Source) -> Result<SequenceItemHeader> {
-        self.as_ref().decode_item_header(source)
+        (**self).decode_item_header(source)
     }
 
     fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag> {
-        self.as_ref().decode_tag(source)
+        (**self).decode_tag(source)
     }
 }
 
@@ -193,14 +180,14 @@ impl<'a, T: ?Sized> Decode for &'a T where T: Decode {
     type Source = <T as Decode>::Source;
 
     fn decode_header(&self, source: &mut Self::Source) -> Result<DataElementHeader> {
-        (*self).decode_header(source)
+        (**self).decode_header(source)
     }
 
     fn decode_item_header(&self, source: &mut Self::Source) -> Result<SequenceItemHeader> {
-        (*self).decode_item_header(source)
+        (**self).decode_item_header(source)
     }
 
     fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag> {
-        (*self).decode_tag(source)
+        (**self).decode_tag(source)
     }
 }

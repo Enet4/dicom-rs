@@ -198,7 +198,6 @@ mod tests {
     use data::{Header, DataElementHeader};
     use data::decode::Decode;
     use data::encode::Encode;
-    use dictionary::DataDictionary;
     use dictionary::stub::StubDataDictionary;
     use data::VR;
     use data::Tag;

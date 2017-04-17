@@ -10,6 +10,8 @@ pub mod mem;
 pub mod lazy;
 pub mod pixeldata;
 
+use self::pixeldata::PixelData;
+
 /// Trait type for a DICOM object.
 /// This is a high-level abstraction where an object is accessed and
 /// manipulated as dictionary of entries indexed by tags, which in
@@ -26,7 +28,7 @@ pub trait DicomObject {
     fn element_by_name(&self, name: &str) -> Result<&Self::Element>;
 
     /// Retrieve the object's pixel data.
-    fn pixel_data(&self) -> Result<()>;
+    fn pixel_data<PV, PX: PixelData<PV>>(&self) -> Result<PX>;
 
     // TODO moar
 }

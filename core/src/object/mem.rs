@@ -6,6 +6,7 @@ use super::DicomObject;
 use data::{DataElement, Header, Tag};
 use dictionary::{DataDictionary, DictionaryEntry, StandardDataDictionary, get_standard_dictionary};
 use error::{Error, Result};
+use object::pixeldata::PixelData;
 
 /** A DICOM sequence that is fully contained in memory.
  */
@@ -44,7 +45,7 @@ impl<D> DicomObject for InMemDicomObject<D>
         self.element(tag)
     }
 
-    fn pixel_data(&self) -> Result<()> {
+    fn pixel_data<PV, PD: PixelData<PV>>(&self) -> Result<PD> {
         unimplemented!()
     }
 }

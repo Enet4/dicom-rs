@@ -99,9 +99,9 @@ impl<'d, N: AsRef<str>, AD: 'd + DataDictionary> TagByName<'d, N, AD> {
     }
 }
 
-impl<N: AsRef<str>> TagByName<'static, N, standard::StandardDataDictionary> {
+impl<N: AsRef<str>> TagByName<'static, N, StandardDataDictionary> {
     /// Create a tag resolver by name using the standard dictionary.
-    pub fn with_std_dict(name: N) -> TagByName<'static, N, standard::StandardDataDictionary> {
+    pub fn with_std_dict(name: N) -> TagByName<'static, N, StandardDataDictionary> {
         TagByName {
             dict: get_standard_dictionary(),
             name: name,

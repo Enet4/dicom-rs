@@ -39,14 +39,12 @@ pub trait BasicDecode {
 /** Type trait for reading and decoding DICOM data elements.
  * 
  * The specific behaviour of decoding, even when abstracted from the original source,
- * may depend on the given transfer syntax. As each element is retrieved, a temporary
- * cursor to the data is obtained, allowing for an optional reading of the full contents
- * of the element.
+ * may depend on the given transfer syntax.
  * 
  * This is the type-erased version of `super::Decode`, where the data source type is not
  * known in compile time. Users of this library should not need to rely on this level
  * directly, as the given implementations provide support for converting a generic decoder
- * to a type-erased decoder and vice versa.
+ * to a type-erased decoder.
  */
 pub trait Decode: BasicDecode {
 
