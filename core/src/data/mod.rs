@@ -82,6 +82,42 @@ impl Header for DataElement {
     }
 }
 
+impl<'a> Header for &'a DataElement {
+    #[inline]
+    fn tag(&self) -> Tag {
+        (**self).tag()
+    }
+
+    #[inline]
+    fn len(&self) -> u32 {
+        (**self).len()
+    }
+}
+
+impl Header for Box<DataElement> {
+    #[inline]
+    fn tag(&self) -> Tag {
+        (**self).tag()
+    }
+
+    #[inline]
+    fn len(&self) -> u32 {
+        (**self).len()
+    }
+}
+
+impl Header for ::std::rc::Rc<DataElement> {
+    #[inline]
+    fn tag(&self) -> Tag {
+        (**self).tag()
+    }
+
+    #[inline]
+    fn len(&self) -> u32 {
+        (**self).len()
+    }
+}
+
 impl<'v> Header for DataElementRef<'v> {
     #[inline]
     fn tag(&self) -> Tag {

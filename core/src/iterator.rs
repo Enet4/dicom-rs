@@ -1,5 +1,6 @@
 //! This module contains a mid-level abstraction for reading DICOM content sequentially.
 //!
+use std::borrow::BorrowMut;
 use std::io::{Read, Seek, SeekFrom};
 use std::ops::DerefMut;
 use std::marker::PhantomData;
@@ -171,9 +172,9 @@ pub struct DicomElementMarker {
 
 impl DicomElementMarker {
     /// Obtain an interval of the raw data associated to this element's data value.
-    pub fn get_data_stream<'s, S: ?Sized + 's>(&self,
-                                               source: &'s mut S)
-                                               -> Result<SeekInterval<'s, S>>
+    pub fn get_data_stream<S: ?Sized, B: BorrowMut<S>>(&self,
+                                               source: B)
+                                               -> Result<SeekInterval<S, B>>
         where S: ReadSeek
     {
         let len = self.header.len();

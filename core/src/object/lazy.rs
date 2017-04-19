@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::io::{Seek, SeekFrom};
 use std::fmt;
 use std::fmt::Debug;
+use std::rc::Rc;
 use data::Header;
 use dictionary::{DataDictionary, DictionaryEntry};
 use data::parser::Parse;
@@ -17,9 +19,9 @@ use super::DicomObject;
 pub struct LazyDicomObject<S, P, D>
 {
     dict: D,
-    source: S,
+    source: RefCell<S>,
     parser: P,
-    entries: RefCell<HashMap<Tag, LazyDataElement>>,
+    entries: RefCell<HashMap<Tag, Rc<LazyDataElement>>>,
 }
 
 impl<S, P, D> Debug for LazyDicomObject<S, P, D>
@@ -40,31 +42,32 @@ impl<S, P, D> DicomObject for LazyDicomObject<S, P, D>
           P: Parse<S>,
           D: DataDictionary
 {
-    type Element = LazyDataElement;
+    type Element = Rc<LazyDataElement>;
     type Sequence = (); // TODO
 
-    fn element(&self, tag: Tag) -> Result<&Self::Element> {
+    fn element(&self, tag: Tag) -> Result<Self::Element> {
         {
-            let mut borrow = self.entries.borrow_mut();
-            let mut e = borrow
-                .get_mut(&tag)
+            let borrow = self.entries.borrow();
+            let e = borrow.get(&tag)
                 .ok_or_else(|| Error::NoSuchDataElement)?;
 
-            let data = e.value_mut();
-            if data.is_none() {
-                let v = unimplemented!();
-
-                *data = Some(v);
+            if e.is_loaded() {
+                return Ok(e.clone());
             }
         }
-        let borrow = self.entries.borrow();
-        let e = borrow
-            .get(&tag)
-            .expect("Should always have a value here!");
-        unimplemented!()
+        let mut borrow = self.entries.borrow_mut();
+        let e = borrow.get_mut(&tag).map(|e| {
+            {
+                let v: DicomValue = self.load_value(&e.marker).unwrap();
+                let mut data = Rc::get_mut(e).unwrap().value_mut();
+                *data = Some(v);
+            }
+            e
+        }).expect("Should always have an element").clone();
+        Ok(e)
     }
 
-    fn element_by_name(&self, name: &str) -> Result<&Self::Element> {
+    fn element_by_name(&self, name: &str) -> Result<Self::Element> {
         let tag = self.lookup_name(name)?;
         self.element(tag)
     }
@@ -72,6 +75,7 @@ impl<S, P, D> DicomObject for LazyDicomObject<S, P, D>
     fn pixel_data<PV, PX: PixelData<PV>>(&self) -> Result<PX> {
         unimplemented!()
     }
+
 }
 
 impl<S, P, D>  LazyDicomObject<S, P, D>
@@ -84,12 +88,18 @@ impl<S, P, D>  LazyDicomObject<S, P, D>
             .ok_or(Error::NoSuchAttributeName)
             .map(|e| e.tag())
     }
+
+    fn load_value(&self, marker: &DicomElementMarker) -> Result<DicomValue> {
+        let mut borrow = self.source.borrow_mut();
+        //let mut stream = marker.get_data_stream(borrow);
+        unimplemented!()
+    }
 }
 
-#[derive(Debug)]
 /// A data element containing the value only after the first read.
 /// This element makes no further assumptions of where the
 /// element really comes from, and cannot retrieve the value by itself.
+#[derive(Debug, Clone, PartialEq)]
 pub struct LazyDataElement {
     marker: DicomElementMarker,
     value: Option<DicomValue>,
@@ -98,6 +108,16 @@ pub struct LazyDataElement {
 impl Header for LazyDataElement {
     fn tag(&self) -> Tag { self.marker.tag() }
     fn len(&self) -> u32 { self.marker.len() }
+}
+
+impl<'a> Header for &'a LazyDataElement {
+    fn tag(&self) -> Tag { (**self).tag() }
+    fn len(&self) -> u32 { (**self).len() }
+}
+
+impl Header for Rc<LazyDataElement> {
+    fn tag(&self) -> Tag { (**self).tag() }
+    fn len(&self) -> u32 { (**self).len() }
 }
 
 impl LazyDataElement {
@@ -136,5 +156,13 @@ impl LazyDataElement {
     /// Mutable getter for this element's cached data container.
     pub fn value_mut(&mut self) -> &mut Option<DicomValue> {
         &mut self.value
+    }
+
+    pub fn is_loaded(&self) -> bool {
+        self.value.is_some()
+    }
+
+    pub fn clear_value(&mut self) {
+        self.value = None;
     }
 }

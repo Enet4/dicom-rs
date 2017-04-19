@@ -22,10 +22,10 @@ pub trait DicomObject {
     type Sequence; // TODO add constraint
 
     /// Retrieve a particular DICOM element by its tag.
-    fn element(&self, tag: Tag) -> Result<&Self::Element>;
+    fn element(&self, tag: Tag) -> Result<Self::Element>;
 
     /// Retrieve a particular DICOM element by its name.
-    fn element_by_name(&self, name: &str) -> Result<&Self::Element>;
+    fn element_by_name(&self, name: &str) -> Result<Self::Element>;
 
     /// Retrieve the object's pixel data.
     fn pixel_data<PV, PX: PixelData<PV>>(&self) -> Result<PX>;
