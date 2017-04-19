@@ -1,6 +1,6 @@
 //! This module contains reusable components for encoding and decoding text in DICOM
 //! data structures, including support for character repertoires.
-//! 
+//!
 //! The Character Repertoires supported by DICOM are:
 //! - ISO 8859
 //! - JIS X 0201-1976 Code for Information Interchange
@@ -25,17 +25,14 @@ pub type DynamicTextCodec = Box<TextCodec>;
 #[derive(Debug, Clone, Copy)]
 pub enum SpecificCharacterSet {
     /// The default character set.
-    Default
-
-    // TODO needs more
+    Default, // TODO needs more
 }
 
 impl SpecificCharacterSet {
-
     /// Retrieve the codec.
     pub fn get_codec(&self) -> Option<Box<TextCodec>> {
         match *self {
-            SpecificCharacterSet::Default => Some(Box::new(DefaultCharacterSetCodec))
+            SpecificCharacterSet::Default => Some(Box::new(DefaultCharacterSetCodec)),
         }
     }
 }
@@ -68,8 +65,7 @@ impl TextCodec for DefaultCharacterSetCodec {
     fn decode(&self, text: &[u8]) -> Result<String> {
         // TODO this is NOT DICOM compliant,
         // although it will decode 7-bit ASCII text just fine
-        let r = try!(String::from_utf8(Vec::from(text.as_ref()))
-                            .map_err(TextEncodingError::from));
+        let r = try!(String::from_utf8(Vec::from(text.as_ref())).map_err(TextEncodingError::from));
         Ok(r)
     }
 
@@ -80,7 +76,9 @@ impl TextCodec for DefaultCharacterSetCodec {
     }
 }
 
-impl<T: ?Sized> TextCodec for Box<T> where T: TextCodec {
+impl<T: ?Sized> TextCodec for Box<T>
+    where T: TextCodec
+{
     fn decode(&self, text: &[u8]) -> Result<String> {
         self.as_ref().decode(text)
     }
@@ -90,7 +88,9 @@ impl<T: ?Sized> TextCodec for Box<T> where T: TextCodec {
     }
 }
 
-impl<'a, T: ?Sized> TextCodec for &'a T where T: TextCodec {
+impl<'a, T: ?Sized> TextCodec for &'a T
+    where T: TextCodec
+{
     fn decode(&self, text: &[u8]) -> Result<String> {
         (*self).decode(text)
     }

@@ -17,7 +17,6 @@ pub struct CodecRegistry<'ts> {
 }
 
 impl<'ts> CodecRegistry<'ts> {
-
     /// Obtain a DICOM codec by transfer syntax UID.
     pub fn get<UID: AsRef<str>>(&'ts self, uid: UID) -> Option<&'ts (TransferSyntax + Send + 'ts)> {
         self.m.get(uid.as_ref()).map(|b| b.as_ref())

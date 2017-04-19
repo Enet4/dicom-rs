@@ -31,7 +31,7 @@ pub trait BasicDecode {
 
     /// Decode a single precision float value from the given source.
     fn erased_decode_fl(&self, source: &mut Read) -> Result<f32>;
-    
+
     /// Decode a double precision float value from the given source.
     fn erased_decode_fd(&self, source: &mut Read) -> Result<f64>;
 }
@@ -47,7 +47,6 @@ pub trait BasicDecode {
  * to a type-erased decoder.
  */
 pub trait Decode: BasicDecode {
-
     /** Fetch and decode the next data element header from the given source.
      * This method returns only the header of the element. At the end of this operation, the source
      * will be pointing at the element's value data, which should be read or skipped as necessary.
@@ -72,7 +71,7 @@ pub trait Decode: BasicDecode {
     }
 }
 
-impl<'s> super::BasicDecode for &'s BasicDecode  {
+impl<'s> super::BasicDecode for &'s BasicDecode {
     type Source = Read;
 
     fn endianness(&self) -> Endianness {

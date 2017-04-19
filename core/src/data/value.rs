@@ -75,7 +75,6 @@ pub enum DicomValue {
     /// A sequence of time values.
     /// Used for the TM representation.
     Time(C<NaiveTime>),
-    
 }
 
 /// An enum representing a programmatic abstraction of
@@ -143,7 +142,6 @@ pub enum ValueType {
 
 /// A trait for a value that maps to a DICOM element data value.
 pub trait DicomValueType: Clone + Debug + 'static {
-
     /// Retrieve the specific type of this value.
     fn get_type(&self) -> ValueType;
 
@@ -151,12 +149,13 @@ pub trait DicomValueType: Clone + Debug + 'static {
     fn size(&self) -> u32;
 
     /// Check whether the value is empty (0 length).
-    fn is_empty(&self) -> bool { self.size() == 0 }
+    fn is_empty(&self) -> bool {
+        self.size() == 0
+    }
 }
 
 
 impl DicomValueType for DicomValue {
-
     fn get_type(&self) -> ValueType {
         match *self {
             DicomValue::Empty => ValueType::Empty,

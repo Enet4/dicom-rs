@@ -40,10 +40,10 @@ impl<S: Seek + ?Sized, B: BorrowMut<S>> SeekInterval<S, B> {
             current: pos,
             begin: pos,
             end: pos + n as u64,
-            marker: PhantomData
+            marker: PhantomData,
         })
     }
-    
+
     pub fn new_at(mut source: B, range: Range<u64>) -> io::Result<Self> {
         let pos = try!(source.borrow_mut().seek(SeekFrom::Start(range.start)));
         Ok(SeekInterval {
@@ -51,7 +51,7 @@ impl<S: Seek + ?Sized, B: BorrowMut<S>> SeekInterval<S, B> {
             current: pos,
             begin: pos,
             end: range.end,
-            marker: PhantomData
+            marker: PhantomData,
         })
     }
 
@@ -65,11 +65,15 @@ impl<S: ?Sized + Seek, B: BorrowMut<S>> Seek for SeekInterval<S, B> {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         match pos {
             SeekFrom::Start(o) => {
-                self.source.borrow_mut().seek(SeekFrom::Start(self.begin + o)).map(|v| v - self.begin)
+                self.source
+                    .borrow_mut()
+                    .seek(SeekFrom::Start(self.begin + o))
+                    .map(|v| v - self.begin)
             }
             pos @ SeekFrom::Current(_) => self.borrow_mut().seek(pos).map(|v| v - self.begin),
             SeekFrom::End(o) => {
-                self.source.borrow_mut()
+                self.source
+                    .borrow_mut()
                     .seek(SeekFrom::Start((self.end as i64 + o) as u64))
                     .map(|v| v - self.begin)
             }
@@ -131,7 +135,7 @@ impl Endianness {
 /// Obtain an iterator of `n` void elements.
 /// Useful for doing something N times as efficiently as possible.
 pub fn n_times(n: usize) -> VoidRepeatN {
-    VoidRepeatN{i: n}
+    VoidRepeatN { i: n }
 }
 
 pub struct VoidRepeatN {
@@ -157,7 +161,9 @@ impl Iterator for VoidRepeatN {
 }
 
 impl ExactSizeIterator for VoidRepeatN {
-    fn len(&self) -> usize { self.i }
+    fn len(&self) -> usize {
+        self.i
+    }
 }
 
 
@@ -190,7 +196,8 @@ mod tests {
             let count = interval.write(&vec![0; 8]).unwrap();
             assert_eq!(count, 5);
         }
-        assert_eq!(buf.into_inner(), vec![0, 0, 0, 0, 0, 0xFFu8, 0xFFu8, 0xFFu8])
+        assert_eq!(buf.into_inner(),
+                   vec![0, 0, 0, 0, 0, 0xFFu8, 0xFFu8, 0xFFu8])
     }
-    
+
 }

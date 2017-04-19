@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Ref, RefMut, RefCell};
 use std::collections::HashMap;
 use std::io::{Seek, SeekFrom};
 use std::fmt;
@@ -16,12 +16,11 @@ use util::ReadSeek;
 use super::DicomObject;
 
 /// Data type for a lazily loaded DICOM object builder.
-pub struct LazyDicomObject<S, P, D>
-{
+pub struct LazyDicomObject<S, P, D> {
     dict: D,
     source: RefCell<S>,
     parser: P,
-    entries: RefCell<HashMap<Tag, Rc<LazyDataElement>>>,
+    entries: RefCell<HashMap<Tag, LazyDataElement>>,
 }
 
 impl<S, P, D> Debug for LazyDicomObject<S, P, D>
@@ -37,37 +36,37 @@ impl<S, P, D> Debug for LazyDicomObject<S, P, D>
     }
 }
 
-impl<S, P, D> DicomObject for LazyDicomObject<S, P, D>
+impl<'s, S: 's, P, D> DicomObject<'s> for LazyDicomObject<S, P, D>
     where S: ReadSeek,
           P: Parse<S>,
           D: DataDictionary
 {
-    type Element = Rc<LazyDataElement>;
+    type Element = Ref<'s, LazyDataElement>;
     type Sequence = (); // TODO
 
-    fn element(&self, tag: Tag) -> Result<Self::Element> {
+    fn element(&'s self, tag: Tag) -> Result<Self::Element> {
         {
             let borrow = self.entries.borrow();
-            let e = borrow.get(&tag)
-                .ok_or_else(|| Error::NoSuchDataElement)?;
-
+            if !borrow.contains_key(&tag) {
+                return Err(Error::NoSuchDataElement);
+            }
+            let e = Ref::map(borrow, |m| m.get(&tag).expect("Element should exist"));
             if e.is_loaded() {
-                return Ok(e.clone());
+                return Ok(e);
             }
         }
-        let mut borrow = self.entries.borrow_mut();
-        let e = borrow.get_mut(&tag).map(|e| {
-            {
-                let v: DicomValue = self.load_value(&e.marker).unwrap();
-                let mut data = Rc::get_mut(e).unwrap().value_mut();
-                *data = Some(v);
-            }
-            e
-        }).expect("Should always have an element").clone();
-        Ok(e)
+        {
+            let mut borrow = self.entries.borrow_mut();
+            let mut e = borrow.get_mut(&tag).expect("Element should exist");
+            let v: DicomValue = self.load_value(&e.marker).unwrap();
+            let mut data = e.value_mut();
+            *data = Some(v);
+        }
+        Ok(Ref::map(self.entries.borrow(),
+                    |m| m.get(&tag).expect("Element should exist")))
     }
 
-    fn element_by_name(&self, name: &str) -> Result<Self::Element> {
+    fn element_by_name(&'s self, name: &str) -> Result<Self::Element> {
         let tag = self.lookup_name(name)?;
         self.element(tag)
     }
@@ -75,16 +74,16 @@ impl<S, P, D> DicomObject for LazyDicomObject<S, P, D>
     fn pixel_data<PV, PX: PixelData<PV>>(&self) -> Result<PX> {
         unimplemented!()
     }
-
 }
 
-impl<S, P, D>  LazyDicomObject<S, P, D>
+impl<S, P, D> LazyDicomObject<S, P, D>
     where S: ReadSeek,
           P: Parse<S>,
           D: DataDictionary
 {
     fn lookup_name(&self, name: &str) -> Result<Tag> {
-        self.dict.get_by_name(name)
+        self.dict
+            .get_by_name(name)
             .ok_or(Error::NoSuchAttributeName)
             .map(|e| e.tag())
     }
@@ -106,18 +105,39 @@ pub struct LazyDataElement {
 }
 
 impl Header for LazyDataElement {
-    fn tag(&self) -> Tag { self.marker.tag() }
-    fn len(&self) -> u32 { self.marker.len() }
+    fn tag(&self) -> Tag {
+        self.marker.tag()
+    }
+    fn len(&self) -> u32 {
+        self.marker.len()
+    }
 }
 
 impl<'a> Header for &'a LazyDataElement {
-    fn tag(&self) -> Tag { (**self).tag() }
-    fn len(&self) -> u32 { (**self).len() }
+    fn tag(&self) -> Tag {
+        (**self).tag()
+    }
+    fn len(&self) -> u32 {
+        (**self).len()
+    }
+}
+
+impl<'s> Header for Ref<'s, LazyDataElement> {
+    fn tag(&self) -> Tag {
+        (**self).tag()
+    }
+    fn len(&self) -> u32 {
+        (**self).len()
+    }
 }
 
 impl Header for Rc<LazyDataElement> {
-    fn tag(&self) -> Tag { (**self).tag() }
-    fn len(&self) -> u32 { (**self).len() }
+    fn tag(&self) -> Tag {
+        (**self).tag()
+    }
+    fn len(&self) -> u32 {
+        (**self).len()
+    }
 }
 
 impl LazyDataElement {

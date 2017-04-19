@@ -1,7 +1,8 @@
 //! This module contains all DICOM data element decoding logic.
 
 use transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-use transfer_syntax::implicit_le::{ImplicitVRLittleEndianDecoder, StandardImplicitVRLittleEndianDecoder};
+use transfer_syntax::implicit_le::{ImplicitVRLittleEndianDecoder,
+                                   StandardImplicitVRLittleEndianDecoder};
 use std::io::Read;
 use error::Result;
 use data::{DataElementHeader, SequenceItemHeader};
@@ -67,10 +68,14 @@ pub trait BasicDecode {
     }
 }
 
-impl<T: ?Sized> BasicDecode for Box<T> where T: BasicDecode {
+impl<T: ?Sized> BasicDecode for Box<T>
+    where T: BasicDecode
+{
     type Source = <T as BasicDecode>::Source;
 
-    fn endianness(&self) -> Endianness { self.as_ref().endianness() }
+    fn endianness(&self) -> Endianness {
+        self.as_ref().endianness()
+    }
 
     fn decode_us(&self, source: &mut Self::Source) -> Result<u16> {
         (**self).decode_us(source)
@@ -101,10 +106,14 @@ impl<T: ?Sized> BasicDecode for Box<T> where T: BasicDecode {
     }
 }
 
-impl<'a, T: ?Sized> BasicDecode for &'a T where T: BasicDecode {
+impl<'a, T: ?Sized> BasicDecode for &'a T
+    where T: BasicDecode
+{
     type Source = <T as BasicDecode>::Source;
 
-    fn endianness(&self) -> Endianness { (*self).endianness() }
+    fn endianness(&self) -> Endianness {
+        (*self).endianness()
+    }
 
     fn decode_us(&self, source: &mut Self::Source) -> Result<u16> {
         (**self).decode_us(source)
@@ -160,7 +169,9 @@ pub trait Decode {
     fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag>;
 }
 
-impl<T: ?Sized> Decode for Box<T> where T: Decode {
+impl<T: ?Sized> Decode for Box<T>
+    where T: Decode
+{
     type Source = <T as Decode>::Source;
 
     fn decode_header(&self, source: &mut Self::Source) -> Result<DataElementHeader> {
@@ -176,7 +187,9 @@ impl<T: ?Sized> Decode for Box<T> where T: Decode {
     }
 }
 
-impl<'a, T: ?Sized> Decode for &'a T where T: Decode {
+impl<'a, T: ?Sized> Decode for &'a T
+    where T: Decode
+{
     type Source = <T as Decode>::Source;
 
     fn decode_header(&self, source: &mut Self::Source) -> Result<DataElementHeader> {

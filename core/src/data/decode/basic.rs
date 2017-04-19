@@ -1,5 +1,5 @@
 //! This module provides implementations for basic decoders: little endian and big endian.
-//! 
+//!
 
 use super::BasicDecode;
 use std::marker::PhantomData;
@@ -22,9 +22,7 @@ impl<S: ?Sized> fmt::Debug for LittleEndianBasicDecoder<S> {
 
 impl<S: Read + ?Sized> Default for LittleEndianBasicDecoder<S> {
     fn default() -> LittleEndianBasicDecoder<S> {
-        LittleEndianBasicDecoder {
-            phantom: PhantomData::default()
-        }
+        LittleEndianBasicDecoder { phantom: PhantomData::default() }
     }
 }
 
@@ -73,9 +71,7 @@ impl<S: ?Sized> fmt::Debug for BigEndianBasicDecoder<S> {
 
 impl<S: ?Sized> Default for BigEndianBasicDecoder<S> {
     fn default() -> BigEndianBasicDecoder<S> {
-        BigEndianBasicDecoder {
-            phantom: PhantomData::default()
-        }
+        BigEndianBasicDecoder { phantom: PhantomData::default() }
     }
 }
 
@@ -116,7 +112,7 @@ impl<S: Read + ?Sized> BasicDecode for BigEndianBasicDecoder<S> {
 /// this enum may become more efficient than the use of a trait object.
 pub enum BasicDecoder<S: ?Sized> {
     LE(LittleEndianBasicDecoder<S>),
-    BE(BigEndianBasicDecoder<S>)
+    BE(BigEndianBasicDecoder<S>),
 }
 
 use self::BasicDecoder::{LE, BE};
@@ -124,11 +120,10 @@ use self::BasicDecoder::{LE, BE};
 impl<S: ?Sized> From<Endianness> for BasicDecoder<S>
     where S: Read
 {
-
     fn from(endianness: Endianness) -> BasicDecoder<S> {
         match endianness {
             Endianness::LE => LE(LittleEndianBasicDecoder::default()),
-            Endianness::BE => BE(BigEndianBasicDecoder::default())
+            Endianness::BE => BE(BigEndianBasicDecoder::default()),
         }
     }
 }
@@ -157,7 +152,7 @@ impl<S: ?Sized + Read> BasicDecode for BasicDecoder<S> {
     fn endianness(&self) -> Endianness {
         match *self {
             LE(_) => Endianness::LE,
-            BE(_) => Endianness::BE
+            BE(_) => Endianness::BE,
         }
     }
 

@@ -3,12 +3,12 @@
 #![warn(missing_debug_implementations, missing_docs, unused_qualifications, unused_import_braces, missing_copy_implementations)]
 
 //! This is a library for basic DICOM content reading and writing.
-//! 
+//!
 //! ## Example
 //!
 //! The following code does not depict the current functionalities, and the API
 //! is subject to change.
-//! 
+//!
 //! ```ignore
 //! # use dicom_core::{load_from_path, Result};
 //! # fn foo() -> Result<()> {
@@ -52,13 +52,13 @@ use std::path::Path;
 
 mod util;
 
-type DefaultDicomObject = InMemDicomObject<&'static StandardDataDictionary>;
+type DefaultDicomObject<'s> = InMemDicomObject<'s, &'static StandardDataDictionary>;
 
-pub fn load_from_file<F: Read + Seek>(file: F) -> Result<DefaultDicomObject> {
+pub fn load_from_file<'s, F: 's + Read + Seek>(file: F) -> Result<DefaultDicomObject<'s>> {
     unimplemented!()
 }
 
-pub fn load_from_path<P: AsRef<Path>>(path: P) -> Result<DefaultDicomObject> {
+pub fn load_from_path<'s, P: AsRef<Path>>(path: P) -> Result<DefaultDicomObject<'s>> {
     let file = File::open(path)?;
     load_from_file(file)
 }

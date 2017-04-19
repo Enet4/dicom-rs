@@ -1,10 +1,11 @@
 //! This module contains the implementation for an in-memory DICOM object.
 
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::marker::PhantomData;
 
 use super::DicomObject;
 use data::{DataElement, Header, Tag};
+use data::value::DicomValue;
 use dictionary::{DataDictionary, DictionaryEntry, StandardDataDictionary, get_standard_dictionary};
 use error::{Error, Result};
 use object::pixeldata::PixelData;
@@ -12,79 +13,83 @@ use object::pixeldata::PixelData;
 /** A DICOM sequence that is fully contained in memory.
  */
 #[derive(Debug, Clone)]
-pub struct InMemSequence<D> {
+pub struct InMemSequence<'s, D> {
     tag: Tag,
-    objects: Vec<InMemDicomObject<D>>,
+    objects: Vec<InMemDicomObject<'s, D>>,
 }
 
 /** A DICOM object that is fully contained in memory.
  */
 #[derive(Debug, Clone)]
-pub struct InMemDicomObject<D> {
-    entries: HashMap<Tag, Rc<DataElement>>,
+pub struct InMemDicomObject<'s, D> {
+    entries: HashMap<Tag, DataElement>,
     dict: D,
+    self_phantom: PhantomData<&'s ()>,
 }
 
-impl<D> PartialEq for InMemDicomObject<D> {
+impl<'s, D> PartialEq for InMemDicomObject<'s, D> {
     // This implementation ignores the data dictionary.
     fn eq(&self, other: &Self) -> bool {
         self.entries == other.entries
     }
 }
 
-impl<D> DicomObject for InMemDicomObject<D> 
-        where D: DataDictionary {
-    type Element = Rc<DataElement>;
-    type Sequence = InMemSequence<D>;
+impl<'s, D: 's> DicomObject<'s> for InMemDicomObject<'s, D>
+    where D: DataDictionary
+{
+    type Element = &'s DataElement;
+    type Sequence = InMemSequence<'s, D>;
 
-    fn element(&self, tag: Tag) -> Result<Self::Element> {
-        self.entries.get(&tag)
+    fn element(&'s self, tag: Tag) -> Result<Self::Element> {
+        self.entries
+            .get(&tag)
             .ok_or(Error::NoSuchDataElement)
-            .map(Clone::clone)
     }
 
-    fn element_by_name(&self, name: &str) -> Result<Self::Element> {
+    fn element_by_name(&'s self, name: &str) -> Result<Self::Element> {
         let tag = self.lookup_name(name)?;
         self.element(tag)
     }
 
-    fn pixel_data<PV, PD: PixelData<PV>>(&self) -> Result<PD> {
+    fn pixel_data<PV, PD: PixelData<PV>>(&'s self) -> Result<PD> {
         unimplemented!()
     }
 }
 
-impl InMemDicomObject<&'static StandardDataDictionary> {
+impl<'s> InMemDicomObject<'s, &'static StandardDataDictionary> {
     /// Create a new empty DICOM object.
     pub fn create_empty() -> Self {
         InMemDicomObject {
             entries: HashMap::new(),
-            dict: get_standard_dictionary()
+            dict: get_standard_dictionary(),
+            self_phantom: PhantomData,
         }
     }
 }
 
-impl<D> InMemDicomObject<D>
+impl<'s, D> InMemDicomObject<'s, D>
     where D: DataDictionary
 {
-
     /// Create a new empty object, using the given dictionary
     /// for name lookup.
     pub fn new_empty_with_dict(dict: D) -> Self {
         InMemDicomObject {
             entries: HashMap::new(),
-            dict: dict
+            dict: dict,
+            self_phantom: PhantomData,
         }
     }
 
     fn lookup_name(&self, name: &str) -> Result<Tag> {
-        self.dict.get_by_name(name)
+        self.dict
+            .get_by_name(name)
             .ok_or(Error::NoSuchAttributeName)
             .map(|e| e.tag())
     }
 
     /// Insert a data element to the object.
     pub fn put(&mut self, elt: DataElement) {
-        self.entries.insert(elt.tag(), Rc::new(elt));
+        self.entries.insert(elt.tag(), elt);
     }
 }
 
@@ -95,13 +100,25 @@ mod tests {
     use data::VR;
 
     #[test]
-    fn inmem_object() {
+    fn inmem_object_write() {
         let mut obj1 = InMemDicomObject::create_empty();
         let mut obj2 = InMemDicomObject::create_empty();
         assert_eq!(obj1, obj2);
-        obj1.put(DataElement::empty(Tag(0x0010, 0x0010), VR::PN));
-        assert!(obj1 != obj2);
-        obj2.put(DataElement::empty(Tag(0x0010, 0x0010), VR::PN));
+        let empty_patient_name = DataElement::empty(Tag(0x0010, 0x0010), VR::PN);
+        obj1.put(empty_patient_name.clone());
+        assert_ne!(obj1, obj2);
+        obj2.put(empty_patient_name.clone());
         assert_eq!(obj1, obj2);
+    }
+
+    #[test]
+    fn inmem_object_read() {
+        let another_patient_name = DataElement::new(Tag(0x0010, 0x0010),
+                                                    VR::PN,
+                                                    DicomValue::Str("Doe^John".to_string()));
+        let mut obj = InMemDicomObject::create_empty();
+        obj.put(another_patient_name.clone());
+        let elem1 = obj.element(Tag(0x0010, 0x0010)).unwrap();
+        assert_eq!(elem1, &another_patient_name);
     }
 }

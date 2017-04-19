@@ -31,7 +31,7 @@ pub trait Header {
 
     /// Check whether this is the header of an item delimiter.
     fn is_item_delimiter(&self) -> bool {
-        self.tag() == Tag(0xFFFE,0x0E0D)
+        self.tag() == Tag(0xFFFE, 0x0E0D)
     }
 
     /// Check whether this is the header of a sequence delimiter.
@@ -132,19 +132,18 @@ impl<'v> Header for DataElementRef<'v> {
 
 
 impl DataElement {
-
     /// Create an empty data element.
     pub fn empty(tag: Tag, vr: VR) -> Self {
         DataElement {
             header: DataElementHeader {
                 tag: tag,
                 vr: vr,
-                len: 0
+                len: 0,
             },
-            value: DicomValue::Empty
+            value: DicomValue::Empty,
         }
     }
-    
+
     /// Create a data element from the given parts. This method will not check
     /// whether the value representation is compaible with the value. Use it cautiously.
     pub fn new(tag: Tag, vr: VR, value: DicomValue) -> Self {
@@ -152,9 +151,9 @@ impl DataElement {
             header: DataElementHeader {
                 tag: tag,
                 vr: vr,
-                len: value.size()
+                len: value.size(),
             },
-            value: value
+            value: value,
         }
     }
 
@@ -172,7 +171,6 @@ impl DataElement {
 }
 
 impl<'v> DataElementRef<'v> {
-
     /// Create a data element from the given parts. This method will not check
     /// whether the value representation is compaible with the value. Use it cautiously.
     pub fn new(tag: Tag, vr: VR, value: &'v DicomValue) -> Self {
@@ -180,9 +178,9 @@ impl<'v> DataElementRef<'v> {
             header: DataElementHeader {
                 tag: tag,
                 vr: vr,
-                len: value.size()
+                len: value.size(),
             },
-            value: value
+            value: value,
         }
     }
 
@@ -462,7 +460,7 @@ impl VR {
 
     /// Retrieve a copy of this VR's byte representation.
     /// The function returns two alphabetic characters in upper case.
-    pub fn to_bytes(&self) -> [u8;2] {
+    pub fn to_bytes(&self) -> [u8; 2] {
         let bytes = self.to_string().as_bytes();
         [bytes[0], bytes[1]]
     }
@@ -486,16 +484,20 @@ pub type ElementNumber = u16;
 /// for converting it to a tuple. Both `(u16, u16)` and `[u16; 2]` can be
 /// efficiently converted to this type as well.
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Clone, Copy)]
-pub struct Tag (pub GroupNumber,  pub ElementNumber);
+pub struct Tag(pub GroupNumber, pub ElementNumber);
 
 impl Tag {
     /// Getter for the tag's group value.
     #[inline]
-    pub fn group(&self) -> GroupNumber { self.0 }
+    pub fn group(&self) -> GroupNumber {
+        self.0
+    }
 
     /// Getter for the tag's element value.
     #[inline]
-    pub fn element(&self) -> ElementNumber { self.1 }
+    pub fn element(&self) -> ElementNumber {
+        self.1
+    }
 }
 
 impl fmt::Display for Tag {

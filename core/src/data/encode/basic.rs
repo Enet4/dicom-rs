@@ -1,5 +1,5 @@
 //! This module provides implementations for basic encoders: little endian and big endian.
-//! 
+//!
 
 use super::BasicEncode;
 use std::marker::PhantomData;
@@ -22,9 +22,7 @@ impl<S: ?Sized> fmt::Debug for LittleEndianBasicEncoder<S> {
 
 impl<S: ?Sized> Default for LittleEndianBasicEncoder<S> {
     fn default() -> LittleEndianBasicEncoder<S> {
-        LittleEndianBasicEncoder {
-            phantom: PhantomData::default()
-        }
+        LittleEndianBasicEncoder { phantom: PhantomData::default() }
     }
 }
 
@@ -54,7 +52,7 @@ impl<S: Write + ?Sized> BasicEncode for LittleEndianBasicEncoder<S> {
     fn encode_fl(&self, value: f32, to: &mut Self::Writer) -> Result<()> {
         Ok(to.write_f32::<LittleEndian>(value)?)
     }
-    
+
     fn encode_fd(&self, value: f64, to: &mut Self::Writer) -> Result<()> {
         Ok(to.write_f64::<LittleEndian>(value)?)
     }
@@ -73,9 +71,7 @@ impl<S: Write + ?Sized> fmt::Debug for BigEndianBasicEncoder<S> {
 
 impl<S: Write + ?Sized> Default for BigEndianBasicEncoder<S> {
     fn default() -> BigEndianBasicEncoder<S> {
-        BigEndianBasicEncoder {
-            phantom: PhantomData::default()
-        }
+        BigEndianBasicEncoder { phantom: PhantomData::default() }
     }
 }
 
@@ -105,11 +101,10 @@ impl<S: Write + ?Sized> BasicEncode for BigEndianBasicEncoder<S> {
     fn encode_fl(&self, value: f32, to: &mut Self::Writer) -> Result<()> {
         Ok(to.write_f32::<BigEndian>(value)?)
     }
-    
+
     fn encode_fd(&self, value: f64, to: &mut Self::Writer) -> Result<()> {
         Ok(to.write_f64::<BigEndian>(value)?)
     }
-
 }
 
 /// A basic encoder with support for both Little Endian an Big Endian
@@ -117,7 +112,7 @@ impl<S: Write + ?Sized> BasicEncode for BigEndianBasicEncoder<S> {
 /// this enum may become more efficient than the use of a trait object.
 pub enum BasicEncoder<S: ?Sized> {
     LE(LittleEndianBasicEncoder<S>),
-    BE(BigEndianBasicEncoder<S>)
+    BE(BigEndianBasicEncoder<S>),
 }
 
 use self::BasicEncoder::{LE, BE};
@@ -146,7 +141,7 @@ impl<S: ?Sized + Write> BasicEncode for BasicEncoder<S> {
     fn endianness(&self) -> Endianness {
         match *self {
             LE(_) => Endianness::LE,
-            BE(_) => Endianness::BE
+            BE(_) => Endianness::BE,
         }
     }
 
@@ -169,9 +164,8 @@ impl<S: ?Sized + Write> BasicEncode for BasicEncoder<S> {
     fn encode_fl(&self, value: f32, to: &mut Self::Writer) -> Result<()> {
         for_both!(self, e => e.encode_fl(value, to))
     }
-    
+
     fn encode_fd(&self, value: f64, to: &mut Self::Writer) -> Result<()> {
         for_both!(self, e => e.encode_fd(value, to))
     }
-
 }

@@ -32,8 +32,10 @@ impl<'s, S: 's + ?Sized> DicomElementIterator<S, DynamicDicomParser<'s, S>>
 {
     /// Create a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
-    pub fn new_with(mut source: &'s mut S, ts: &TransferSyntax, cs: SpecificCharacterSet)
-         -> Result<DicomElementIterator<S, DynamicDicomParser<'s, S>>> {
+    pub fn new_with(mut source: &'s mut S,
+                    ts: &TransferSyntax,
+                    cs: SpecificCharacterSet)
+                    -> Result<DicomElementIterator<S, DynamicDicomParser<'s, S>>> {
         let parser = DicomParser::new_with(source, ts, cs)?;
 
         Ok(DicomElementIterator {
@@ -173,8 +175,8 @@ pub struct DicomElementMarker {
 impl DicomElementMarker {
     /// Obtain an interval of the raw data associated to this element's data value.
     pub fn get_data_stream<S: ?Sized, B: BorrowMut<S>>(&self,
-                                               source: B)
-                                               -> Result<SeekInterval<S, B>>
+                                                       source: B)
+                                                       -> Result<SeekInterval<S, B>>
         where S: ReadSeek
     {
         let len = self.header.len();

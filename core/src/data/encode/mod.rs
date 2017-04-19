@@ -30,14 +30,13 @@ pub trait BasicEncode: Debug {
 
     /// Encode a single precision float value to the given writer.
     fn encode_fl(&self, value: f32, to: &mut Self::Writer) -> Result<()>;
-    
+
     /// Encode a double precision float value to the given writer.
     fn encode_fd(&self, value: f64, to: &mut Self::Writer) -> Result<()>;
 }
 
 /// Type trait for a data element encoder.
 pub trait Encode: BasicEncode + Debug {
-
     /// Encode and write an element tag.
     fn encode_tag(&self, tag: Tag, to: &mut Self::Writer) -> Result<()> {
         try!(self.encode_us(tag.group(), to));

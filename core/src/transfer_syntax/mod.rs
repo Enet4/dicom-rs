@@ -7,7 +7,7 @@ pub mod explicit_be;
 pub mod implicit_le;
 
 use std::fmt::Debug;
-use std::io::{Read,Write};
+use std::io::{Read, Write};
 use data::decode::basic::BasicDecoder;
 use data::decode::Decode;
 use data::encode::Encode;
@@ -25,7 +25,6 @@ pub type DynamicBasicDecoder<'s> = BasicDecoder<(Read + 's)>;
 /// point for obtaining the decoder and/or encoder that can handle DICOM objects
 /// under a particular transfer syntax.
 pub trait TransferSyntax: Debug + Sync {
-
     /// Retrieve the UID of this transfer syntax.
     fn uid(&self) -> &'static str;
 
@@ -34,11 +33,15 @@ pub trait TransferSyntax: Debug + Sync {
 
     /// Retrieve the appropriate data element decoder for this transfer syntax.
     /// Can yield none if decoding is not supported.
-    fn get_decoder<'s>(&self) -> Option<DynamicDecoder<'s>> { None }
+    fn get_decoder<'s>(&self) -> Option<DynamicDecoder<'s>> {
+        None
+    }
 
     /// Retrieve the appropriate data element encoder for this transfer syntax.
     /// Can yield none if encoding is not supported.
-    fn get_encoder<'s>(&self) -> Option<DynamicEncoder<'s>> { None }
+    fn get_encoder<'s>(&self) -> Option<DynamicEncoder<'s>> {
+        None
+    }
 
     /// Obtain a dynamic basic decoder, based on this transfer syntax' expected endianness.
     fn get_basic_decoder<'s>(&self) -> BasicDecoder<(Read + 's)> {
@@ -64,16 +67,20 @@ pub fn from_uid(uid: &str) -> Option<Box<TransferSyntax>> {
 
 /// Retrieve the default transfer syntax.
 pub fn default() -> ImplicitVRLittleEndian {
-   ImplicitVRLittleEndian
+    ImplicitVRLittleEndian
 }
 
 /// A concrete encoder for the transfer syntax ExplicitVRLittleEndian
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ImplicitVRLittleEndian;
 impl TransferSyntax for ImplicitVRLittleEndian {
-    fn uid(&self) -> &'static str { "1.2.840.10008.1.2" }
-    
-    fn endianness(&self) -> Endianness { Endianness::LE }
+    fn uid(&self) -> &'static str {
+        "1.2.840.10008.1.2"
+    }
+
+    fn endianness(&self) -> Endianness {
+        Endianness::LE
+    }
 
     fn get_decoder<'s>(&self) -> Option<DynamicDecoder<'s>> {
         Some(Box::new(implicit_le::ImplicitVRLittleEndianDecoder::default()))
@@ -88,9 +95,13 @@ impl TransferSyntax for ImplicitVRLittleEndian {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ExplicitVRLittleEndian;
 impl TransferSyntax for ExplicitVRLittleEndian {
-    fn uid(&self) -> &'static str { "1.2.840.10008.1.2.1" }
+    fn uid(&self) -> &'static str {
+        "1.2.840.10008.1.2.1"
+    }
 
-    fn endianness(&self) -> Endianness { Endianness::LE }
+    fn endianness(&self) -> Endianness {
+        Endianness::LE
+    }
 
     fn get_decoder<'s>(&self) -> Option<DynamicDecoder<'s>> {
         Some(Box::new(explicit_le::ExplicitVRLittleEndianDecoder::default()))
@@ -105,9 +116,13 @@ impl TransferSyntax for ExplicitVRLittleEndian {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct ExplicitVRBigEndian;
 impl TransferSyntax for ExplicitVRBigEndian {
-    fn uid(&self) -> &'static str { "1.2.840.10008.1.2.2" }
+    fn uid(&self) -> &'static str {
+        "1.2.840.10008.1.2.2"
+    }
 
-    fn endianness(&self) -> Endianness { Endianness::BE }
+    fn endianness(&self) -> Endianness {
+        Endianness::BE
+    }
 
     fn get_decoder<'s>(&self) -> Option<DynamicDecoder<'s>> {
         Some(Box::new(explicit_be::ExplicitVRBigEndianDecoder::default()))

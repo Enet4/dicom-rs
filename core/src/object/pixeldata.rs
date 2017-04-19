@@ -8,7 +8,7 @@ use std::fmt;
 use error::{Error, Result};
 
 /** Implemented by DICOM pixel data blocks retrieved from objects.
- * 
+ *
  * Pixel data elements typically represent 2D images. This trait provides
  * access to Pixel Data (7FE0,0010), Overlay Data (60xx,3000), or Waveform Data (5400,1010)
  * in a similar fashion to a two-dimensional array.

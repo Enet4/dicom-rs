@@ -58,9 +58,15 @@ pub struct DictionaryEntryBuf {
 }
 
 impl DictionaryEntry for DictionaryEntryBuf {
-    fn tag(&self) -> Tag { self.tag }
-    fn alias(&self) -> &str { self.alias.as_str() }
-    fn vr(&self) -> VR { self.vr }
+    fn tag(&self) -> Tag {
+        self.tag
+    }
+    fn alias(&self) -> &str {
+        self.alias.as_str()
+    }
+    fn vr(&self) -> VR {
+        self.vr
+    }
 }
 
 /// A data type for a dictionary entry with a string slice for its alias.
@@ -75,9 +81,15 @@ pub struct DictionaryEntryRef<'a> {
 }
 
 impl<'a> DictionaryEntry for DictionaryEntryRef<'a> {
-    fn tag(&self) -> Tag { self.tag }
-    fn alias(&self) -> &str { self.alias }
-    fn vr(&self) -> VR { self.vr }
+    fn tag(&self) -> Tag {
+        self.tag
+    }
+    fn alias(&self) -> &str {
+        self.alias
+    }
+    fn vr(&self) -> VR {
+        self.vr
+    }
 }
 
 

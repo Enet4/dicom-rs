@@ -22,14 +22,14 @@ use util::n_times;
 /// abstracts the necessary parts of a full DICOM content
 /// reading process.
 pub trait Parse<S: ?Sized>: BorrowMut<S>
-        where S: Read
+    where S: Read
 {
     /// Same as `Decode.decode_header` over the bound source.
     fn decode_header(&mut self) -> Result<DataElementHeader>;
 
     /// Same as `Decode.decode_header` over the bound source.
     fn decode_item_header(&mut self) -> Result<SequenceItemHeader>;
-    
+
     /// Eagerly read the following data in the source as a data value.
     /// When reading values in text form, a conversion to a more maleable
     /// type is attempted. Namely, numbers in text form (IS, DS) are converted
@@ -37,7 +37,7 @@ pub trait Parse<S: ?Sized>: BorrowMut<S>
     /// decoded into binary date/time objects of types defined in the `chrono` crate.
     /// To avoid this conversion, see `read_value_preserved`.
     fn read_value(&mut self, header: &DataElementHeader) -> Result<DicomValue>;
-    
+
     /// Eagerly read the following data in the source as a data value.
     /// Unlike `read_value`, this method will preserve the DICOM value'see
     /// original format: numbers saved as text, as well as dates and times,
@@ -47,7 +47,12 @@ pub trait Parse<S: ?Sized>: BorrowMut<S>
 
 /// Alias for a dynamically resolved DICOM parser. Although the data source may be known
 /// in compile time, the required decoder may vary according to an object's transfer syntax.
-pub type DynamicDicomParser<'s, S> = DicomParser<'s, DynamicDecoder<'s>, DynamicBasicDecoder<'s>, S, (Read + 's), DynamicTextCodec>;
+pub type DynamicDicomParser<'s, S> = DicomParser<'s,
+                                                 DynamicDecoder<'s>,
+                                                 DynamicBasicDecoder<'s>,
+                                                 S,
+                                                 (Read + 's),
+                                                 DynamicTextCodec>;
 
 /// A data structure for parsing DICOM data.
 /// This type encapsulates the necessary codecs in order
@@ -70,7 +75,8 @@ pub struct DicomParser<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC>
     text: TC,
 }
 
-impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> fmt::Debug for DicomParser<'s, D, BD, S, DS, TC>
+impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> fmt::Debug
+    for DicomParser<'s, D, BD, S, DS, TC>
     where D: Decode<Source = DS>,
           BD: BasicDecode<Source = DS>,
           S: DerefMut<Target = DS> + Read,
@@ -89,12 +95,24 @@ macro_rules! require_known_length {
     })
 }
 
-impl<'s, S: ?Sized + 's> DicomParser<'s, DynamicDecoder<'s>, DynamicBasicDecoder<'s>, S, (Read + 's), Box<TextCodec>>
+impl<'s, S: ?Sized + 's> DicomParser<'s,
+                                     DynamicDecoder<'s>,
+                                     DynamicBasicDecoder<'s>,
+                                     S,
+                                     (Read + 's),
+                                     Box<TextCodec>>
     where S: DerefMut<Target = (Read + 's)> + Read
 {
     /// Create a new DICOM parser for the given transfer syntax and character set.
-    pub fn new_with(mut source: &'s mut S, ts: &TransferSyntax, cs: SpecificCharacterSet)
-         -> Result<DicomParser<'s, DynamicDecoder<'s>, DynamicBasicDecoder<'s>, S, (Read + 's), Box<TextCodec>>> {
+    pub fn new_with(mut source: &'s mut S,
+                    ts: &TransferSyntax,
+                    cs: SpecificCharacterSet)
+                    -> Result<DicomParser<'s,
+                                          DynamicDecoder<'s>,
+                                          DynamicBasicDecoder<'s>,
+                                          S,
+                                          (Read + 's),
+                                          Box<TextCodec>>> {
 
         let basic = ts.get_basic_decoder();
         let decoder = try!(ts.get_decoder()
@@ -118,7 +136,11 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
           TC: TextCodec
 {
     /// Create a new DICOM parser from its parts.
-    pub fn new(source: &'s mut S, decoder: D, basic: BD, text: TC) -> DicomParser<'s, D, BD, S, DS, TC> {
+    pub fn new(source: &'s mut S,
+               decoder: D,
+               basic: BD,
+               text: TC)
+               -> DicomParser<'s, D, BD, S, DS, TC> {
         DicomParser {
             source: source,
             basic: basic,
@@ -137,8 +159,8 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
             header.len() >> 2
         } as usize;
         let parts: Vec<Tag> = try!(n_times(ntags)
-                .map(|_| self.decoder.decode_tag(self.source))
-                .collect());
+            .map(|_| self.decoder.decode_tag(self.source))
+            .collect());
         Ok(DicomValue::Tags(parts))
     }
 
@@ -158,9 +180,9 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
         let mut buf = vec![0u8 ; header.len() as usize];
         try!(self.source.read_exact(&mut buf));
         let parts: Vec<String> = try!(buf[..]
-                .split(|v| *v == '\\' as u8)
-                .map(|slice| self.text.decode(slice))
-                .collect());
+            .split(|v| *v == '\\' as u8)
+            .map(|slice| self.text.decode(slice))
+            .collect());
 
         Ok(DicomValue::Strs(parts))
     }
@@ -246,13 +268,12 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
 }
 
 impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Parse<S> for DicomParser<'s, D, BD, S, DS, TC>
-  where D: Decode<Source = DS>,
+    where D: Decode<Source = DS>,
           BD: BasicDecode<Source = DS>,
           S: DerefMut<Target = DS> + Read,
           DS: Read,
           TC: TextCodec
 {
-
     fn decode_header(&mut self) -> Result<DataElementHeader> {
         self.decoder.decode_header(self.source)
     }
@@ -321,14 +342,14 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Parse<S> for DicomParser<'s
                 let mut buf = vec![0u8 ; header.len() as usize];
                 try!(self.source.read_exact(&mut buf));
                 let parts: Vec<f64> = try!(buf[..]
-                        .split(|v| *v == '\\' as u8)
-                        .map(|slice| {
-                            let txt = try!(str::from_utf8(slice)
-                                .map_err(|e| Error::from(TextEncodingError::from(e))));
-                            txt.parse::<f64>()
-                                .map_err(|e| Error::from(InvalidValueReadError::from(e)))
-                        })
-                        .collect());
+                    .split(|v| *v == '\\' as u8)
+                    .map(|slice| {
+                        let txt = try!(str::from_utf8(slice)
+                            .map_err(|e| Error::from(TextEncodingError::from(e))));
+                        txt.parse::<f64>()
+                            .map_err(|e| Error::from(InvalidValueReadError::from(e)))
+                    })
+                    .collect());
                 Ok(DicomValue::F64(parts))
             }
             VR::FD | VR::OD => self.read_value_od(header),
@@ -344,14 +365,14 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Parse<S> for DicomParser<'s
                     buf.pop();
                 }
                 let parts: Vec<i32> = try!(buf[..]
-                        .split(|v| *v == '\\' as u8)
-                        .map(|slice| {
-                            let txt = try!(str::from_utf8(slice)
-                                .map_err(|e| Error::from(TextEncodingError::from(e))));
-                            txt.parse::<i32>()
-                                .map_err(|e| Error::from(InvalidValueReadError::from(e)))
-                        })
-                        .collect());
+                    .split(|v| *v == '\\' as u8)
+                    .map(|slice| {
+                        let txt = try!(str::from_utf8(slice)
+                            .map_err(|e| Error::from(TextEncodingError::from(e))));
+                        txt.parse::<i32>()
+                            .map_err(|e| Error::from(InvalidValueReadError::from(e)))
+                    })
+                    .collect());
                 Ok(DicomValue::I32(parts))
             }
             VR::SL => self.read_value_sl(header),
@@ -385,7 +406,7 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Parse<S> for DicomParser<'s
 }
 
 impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Borrow<S> for DicomParser<'s, D, BD, S, DS, TC>
-  where D: Decode<Source = DS>,
+    where D: Decode<Source = DS>,
           BD: BasicDecode<Source = DS>,
           S: DerefMut<Target = DS> + Read,
           DS: Read,
@@ -396,8 +417,9 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Borrow<S> for DicomParser<'
     }
 }
 
-impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> BorrowMut<S> for DicomParser<'s, D, BD, S, DS, TC>
-  where D: Decode<Source = DS>,
+impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> BorrowMut<S>
+    for DicomParser<'s, D, BD, S, DS, TC>
+    where D: Decode<Source = DS>,
           BD: BasicDecode<Source = DS>,
           S: DerefMut<Target = DS> + Read,
           DS: Read,

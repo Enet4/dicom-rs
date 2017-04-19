@@ -44,7 +44,7 @@ quick_error! {
         }
         /// Raised when attempting to read pixel data out of bounds.
         PixelDataOutOfBounds {
-            description("Pixel data acces index out of bounds")
+            description("Pixel data access index out of bounds")
         }
         /// Error related to an invalid value read.
         ValueRead(err: InvalidValueReadError) {
