@@ -2,7 +2,7 @@ use std::borrow::BorrowMut;
 use std::io;
 use std::io::{Read, Write, Seek, SeekFrom};
 use std::marker::PhantomData;
-use std::ops::Range;
+use std::ops::{DerefMut, Range};
 
 /** A private type trait for the ability to efficiently implement stream skipping.
  */
@@ -24,7 +24,7 @@ pub trait ReadSeek: Read + Seek {}
 impl<T: ?Sized> ReadSeek for T where T: Read + Seek {}
 
 #[derive(Debug)]
-pub struct SeekInterval<S: ?Sized, B: BorrowMut<S>> {
+pub struct SeekInterval<S: ?Sized, B: DerefMut<Target = S>> {
     source: B,
     current: u64,
     begin: u64,
@@ -32,9 +32,14 @@ pub struct SeekInterval<S: ?Sized, B: BorrowMut<S>> {
     marker: PhantomData<S>,
 }
 
-impl<S: Seek + ?Sized, B: BorrowMut<S>> SeekInterval<S, B> {
-    pub fn new(mut source: B, n: u32) -> io::Result<Self> {
-        let pos = try!(source.borrow_mut().seek(SeekFrom::Current(0)));
+impl<S: ?Sized, B> SeekInterval<S, B>
+    where S: Seek,
+          B: DerefMut<Target = S> {
+
+    /// Create an interval from the current position and ending
+    /// after `n` bytes.
+    pub fn new_here(mut source: B, n: u32) -> io::Result<Self> {
+        let pos = try!(source.seek(SeekFrom::Current(0)));
         Ok(SeekInterval {
             source: source,
             current: pos,
@@ -44,8 +49,10 @@ impl<S: Seek + ?Sized, B: BorrowMut<S>> SeekInterval<S, B> {
         })
     }
 
+    /// Create an interval that starts and ends according to the given
+    /// range of bytes.
     pub fn new_at(mut source: B, range: Range<u64>) -> io::Result<Self> {
-        let pos = try!(source.borrow_mut().seek(SeekFrom::Start(range.start)));
+        let pos = try!(source.seek(SeekFrom::Start(range.start)));
         Ok(SeekInterval {
             source: source,
             current: pos,
@@ -61,19 +68,20 @@ impl<S: Seek + ?Sized, B: BorrowMut<S>> SeekInterval<S, B> {
     }
 }
 
-impl<S: ?Sized + Seek, B: BorrowMut<S>> Seek for SeekInterval<S, B> {
+impl<S: ?Sized, B> Seek for SeekInterval<S, B>
+    where S: Seek,
+          B: DerefMut<Target = S>
+{
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         match pos {
             SeekFrom::Start(o) => {
                 self.source
-                    .borrow_mut()
                     .seek(SeekFrom::Start(self.begin + o))
                     .map(|v| v - self.begin)
             }
-            pos @ SeekFrom::Current(_) => self.borrow_mut().seek(pos).map(|v| v - self.begin),
+            pos @ SeekFrom::Current(_) => self.source.seek(pos).map(|v| v - self.begin),
             SeekFrom::End(o) => {
                 self.source
-                    .borrow_mut()
                     .seek(SeekFrom::Start((self.end as i64 + o) as u64))
                     .map(|v| v - self.begin)
             }
@@ -81,31 +89,33 @@ impl<S: ?Sized + Seek, B: BorrowMut<S>> Seek for SeekInterval<S, B> {
     }
 }
 
-impl<S: ?Sized + Seek, B: BorrowMut<S>> Read for SeekInterval<S, B>
-    where S: Read
+impl<S: ?Sized + Seek, B> Read for SeekInterval<S, B>
+    where S: Read,
+          B: DerefMut<Target = S>
 {
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         let r = self.remaining();
         let buf = if buf.len() > r { &mut buf[0..r] } else { buf };
 
-        self.source.borrow_mut().read(buf)
+        self.source.read(buf)
     }
 }
 
 
-impl<S: ?Sized + Seek, B: BorrowMut<S>> Write for SeekInterval<S, B>
-    where S: Write
+impl<S: ?Sized, B> Write for SeekInterval<S, B>
+    where S: Write + Seek,
+          B: DerefMut<Target = S>
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let r = self.remaining();
 
         let buf = if buf.len() > r { &buf[0..r] } else { buf };
 
-        self.source.borrow_mut().write(buf)
+        self.source.write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.source.borrow_mut().flush()
+        self.source.flush()
     }
 }
 
@@ -171,7 +181,7 @@ impl ExactSizeIterator for VoidRepeatN {
 mod tests {
     use super::n_times;
     use super::SeekInterval;
-    use std::io::{Cursor, Write};
+    use std::io::{Cursor, Write, Seek, SeekFrom};
 
     #[test]
     fn void_repeat_n() {
@@ -189,10 +199,10 @@ mod tests {
     }
 
     #[test]
-    fn seek_interval_writing() {
+    fn seek_interval_writing_here() {
         let mut buf = Cursor::new(vec![0xFFu8; 8]);
         {
-            let mut interval = SeekInterval::<Cursor<_>, _>::new(&mut buf, 5).unwrap();
+            let mut interval = SeekInterval::new_here(&mut buf, 5).unwrap();
             let count = interval.write(&vec![0; 8]).unwrap();
             assert_eq!(count, 5);
         }
@@ -200,4 +210,15 @@ mod tests {
                    vec![0, 0, 0, 0, 0, 0xFFu8, 0xFFu8, 0xFFu8])
     }
 
+    #[test]
+    fn seek_interval_writing() {
+        let mut buf = Cursor::new(vec![0xFFu8; 8]);
+        {
+            let mut interval = SeekInterval::new_at(&mut buf, 2..8).unwrap();
+            let count = interval.write(&vec![0; 8]).unwrap();
+            assert_eq!(count, 6);
+        }
+        assert_eq!(buf.into_inner(),
+                   vec![0xFFu8, 0xFF, 0, 0, 0, 0, 0, 0])
+    }
 }

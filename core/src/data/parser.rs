@@ -18,7 +18,7 @@ use chrono::naive::date::NaiveDate;
 use util::n_times;
 
 /// A trait for DICOM data parsers.
-/// This type assumes a binding to a specific source and
+/// This type assumes ownership of a specific source and
 /// abstracts the necessary parts of a full DICOM content
 /// reading process.
 pub trait Parse<S: ?Sized>: BorrowMut<S>

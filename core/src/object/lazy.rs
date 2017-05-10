@@ -90,8 +90,8 @@ impl<S, P, D> LazyDicomObject<S, P, D>
 
     fn load_value(&self, marker: &DicomElementMarker) -> Result<DicomValue> {
         let mut borrow = self.source.borrow_mut();
-        //let mut stream = marker.get_data_stream(borrow);
-        unimplemented!()
+        marker.move_to_start(borrow)?;
+        self.parser.read_value(&marker.header)
     }
 }
 

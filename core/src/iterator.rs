@@ -1,6 +1,5 @@
 //! This module contains a mid-level abstraction for reading DICOM content sequentially.
 //!
-use std::borrow::BorrowMut;
 use std::io::{Read, Seek, SeekFrom};
 use std::ops::DerefMut;
 use std::marker::PhantomData;
@@ -166,22 +165,31 @@ pub struct DicomElementMarker {
     /// The header, kept in memory. At this level, the value
     /// representation "UN" may also refer to a non-applicable vr
     /// (i.e. for items and delimiters).
-    header: DataElementHeader,
+    pub header: DataElementHeader,
     /// The starting position of the element's data value,
     /// relative to the beginning of the file.
-    pos: u64,
+    pub pos: u64,
 }
 
 impl DicomElementMarker {
     /// Obtain an interval of the raw data associated to this element's data value.
-    pub fn get_data_stream<S: ?Sized, B: BorrowMut<S>>(&self,
-                                                       source: B)
-                                                       -> Result<SeekInterval<S, B>>
+    pub fn get_data_stream<S: ?Sized, B: DerefMut<Target = S>>(&self,
+                                                               source: B)
+                                                               -> Result<SeekInterval<S, B>>
         where S: ReadSeek
     {
-        let len = self.header.len();
-        let interval = try!(SeekInterval::new(source, len));
+        let len = self.header.len() as u64;
+        let interval = SeekInterval::new_at(source, self.pos..len)?;
         Ok(interval)
+    }
+
+    /// Move the source to the position indicated by the marker
+    pub fn move_to_start<S: ?Sized, B: DerefMut<Target = S>>(&self, mut source: B) -> Result<()>
+        where S: Seek
+    {
+        let len = self.header.len() as u64;
+        source.seek(SeekFrom::Start(self.pos))?;
+        Ok(())
     }
 
     /// Getter for this element's value representation. May be `UN`
