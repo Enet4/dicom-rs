@@ -14,16 +14,20 @@
 //! Future versions will enable different kinds of outputs.
 
 extern crate hyper;
-extern crate xml;
+extern crate quick_xml;
 extern crate regex;
 extern crate clap;
 
 use clap::{Arg, App};
 use hyper::client::Client;
 use hyper::client::Response;
-use xml::reader::{EventReader, XmlEvent};
+
+use quick_xml::errors::Result as XmlResult;
+use quick_xml::reader::Reader;
+use quick_xml::events::Event;
+use quick_xml::events::attributes::Attribute;
 use std::io;
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::fs::{File, create_dir_all};
 use std::path::Path;
 use regex::Regex;
@@ -35,6 +39,9 @@ const DEFAULT_LOCATION: &'static str = "http://dicom.nema.\
 fn main() {
     let matches = App::new("DICOM Dictionary Builder")
                       .version("0.1.0")
+                      .arg(Arg::with_name("FROM")
+                           .default_value(DEFAULT_LOCATION)
+                           .help("Where to fetch the dictionary from"))
                       .arg(Arg::with_name("OUTPUT")
                            .short("o")
                            .help("The path to the output file")
@@ -43,14 +50,14 @@ fn main() {
                       .arg(Arg::with_name("FORMAT")
                            .short("f")
                            .help("The output format")
-                           .required(false)
+                           .required(true)
+                           .default_value("rs")
                            .takes_value(true)
                            .possible_value("rs")
                            .possible_value("json"))
                       .get_matches();
 
-    let src = DEFAULT_LOCATION;
-    let format = matches.value_of("FORMAT").unwrap_or("rs");
+    let format = matches.value_of("FORMAT").unwrap();
     
     let out_file = matches.value_of("OUTPUT").unwrap_or_else(|| {
         match format {
@@ -61,20 +68,41 @@ fn main() {
     });
     let dst = Path::new(out_file);
 
-    let resp = xml_from_site(src).expect("should obtain response");
-    let xml_entries = XmlEntryIterator::new(resp).map(|item| item.expect("Each item should be ok"));
+    let src = matches.value_of("FROM").unwrap();
+    if src.starts_with("http:") {
+        let resp = xml_from_site(src).expect("should obtain response");
+        let resp = BufReader::new(resp);
+        let xml_entries = XmlEntryIterator::new(resp).map(|item| item.unwrap());
 
-    match format {
-        "rs" => {
-            to_code_file(dst, xml_entries).expect("Should write file");
-        },
-        "json" => {
-            unimplemented!();
+        match format {
+            "rs" => {
+                to_code_file(dst, xml_entries)
+            },
+            "json" => {
+                to_json_file(dst, xml_entries)
+            }
+            _ => {
+                unreachable!()
+            }
         }
-        _ => {
-            unreachable!();
+    } else {
+        // read from File
+        let file = File::open(src).unwrap();
+        let file = BufReader::new(file);
+        let xml_entries = XmlEntryIterator::new(file).map(|item| item.unwrap());
+
+        match format {
+            "rs" => {
+                to_code_file(dst, xml_entries)
+            },
+            "json" => {
+                to_json_file(dst, xml_entries)
+            }
+            _ => {
+                unreachable!()
+            }
         }
-    }
+    }.expect("Failed to write file")
 }
 
 fn xml_from_site<U: AsRef<str>>(url: U) -> Result<Response, hyper::Error> {
@@ -92,8 +120,6 @@ struct Entry {
     obs: Option<String>,
 }
 
-type EIt = Iterator<Item = xml::reader::Result<Entry>>;
-
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum XmlReadingState {
     Off,
@@ -108,8 +134,9 @@ enum XmlReadingState {
     InCellUnknown,
 }
 
-struct XmlEntryIterator<R: Read> {
-    parser: EventReader<R>,
+struct XmlEntryIterator<R: BufRead> {
+    parser: Reader<R>,
+    buf: Vec<u8>,
     depth: u32,
     tag: Option<String>,
     name: Option<String>,
@@ -120,10 +147,14 @@ struct XmlEntryIterator<R: Read> {
     state: XmlReadingState,
 }
 
-impl<R: Read> XmlEntryIterator<R> {
+impl<R: BufRead> XmlEntryIterator<R> {
     pub fn new(xml: R) -> XmlEntryIterator<R> {
+        let mut reader = Reader::from_reader(xml);
+        reader.expand_empty_elements(true)
+            .trim_text(true);
         XmlEntryIterator {
-            parser: EventReader::new(xml),
+            parser: reader,
+            buf: Vec::new(),
             depth: 0,
             tag: None,
             name: None,
@@ -136,77 +167,82 @@ impl<R: Read> XmlEntryIterator<R> {
     }
 }
 
-impl<R: Read> Iterator for XmlEntryIterator<R> {
-    type Item = xml::reader::Result<Entry>;
-    fn next(&mut self) -> Option<xml::reader::Result<Entry>> {
-
+impl<R: BufRead> Iterator for XmlEntryIterator<R> {
+    type Item = XmlResult<Entry>;
+    fn next(&mut self) -> Option<XmlResult<Entry>> {
         loop {
-            match self.parser.next() {
-                Ok(XmlEvent::StartElement { name, attributes, .. }) => {
+            self.buf.clear();
+            let res = self.parser.read_event(&mut self.buf);
+            match res {
+                Ok(Event::Start(ref e)) => {
                     self.depth += 1;
-                    
+                    let local_name = e.local_name();
                     match self.state {
-                        XmlReadingState::Off => {
+                        XmlReadingState::Off => if local_name == b"table" {
                             // check for attribute xml:id="table_6-1"
-                            if let Some(attr_id) = attributes.iter().find(|attr| attr.name.local_name == "label") {
-                                if attr_id.value == "6-1" {
+                            match e.attributes()
+                                .find(|attr| attr.is_err() || attr.as_ref().unwrap() == &Attribute {key: b"xml:id", value: b"table_6-1"})
+                            {
+                                Some(Ok(_)) => {
                                     // entered the table!
                                     self.state = XmlReadingState::InTableHead;
                                 }
+                                Some(Err(err)) => return Some(Err(err)),
+                                None => {}
                             }
                         },
                         XmlReadingState::InTableHead => {
-                            if name.local_name == "tbody" {
+                            if local_name == b"tbody" {
                                 self.state = XmlReadingState::InTable;
                             }
                         },
                         XmlReadingState::InTable => {
-                            if name.local_name == "para" {
+                            if local_name == b"para" {
                                 self.state = XmlReadingState::InCellTag;
                             }
                         },
                         XmlReadingState::InCellTag => {
-                            if name.local_name == "para" {
+                            if local_name == b"para" {
                                 self.state = XmlReadingState::InCellName;
                             }
                         },
                         XmlReadingState::InCellName => {
-                            if name.local_name == "para" {
+                            if local_name == b"para" {
                                 self.state = XmlReadingState::InCellKeyword;
                             }
                         },
                         XmlReadingState::InCellKeyword => {
-                            if name.local_name == "para" {
+                            if local_name == b"para" {
                                 self.state = XmlReadingState::InCellVR;
                             }
                         },
                         XmlReadingState::InCellVR => {
-                            if name.local_name == "para" {
+                            if local_name == b"para" {
                                 self.state = XmlReadingState::InCellVM;
                             }
                         },
                         XmlReadingState::InCellVM => {
-                            if name.local_name == "para" {
+                            if local_name == b"para" {
                                 self.state = XmlReadingState::InCellObs;
                             }
                         },
                         XmlReadingState::InCellObs => {
-                            if name.local_name == "para" {
+                            if local_name == b"para" {
                                 self.state = XmlReadingState::InCellUnknown;
                             }
                         },
                         _ => {}
                     }
-                }
-                Ok(XmlEvent::EndElement { name }) => {
+                },
+                Ok(Event::End(ref e)) => {
                     self.depth -= 1;
-
+                    let local_name = e.local_name();
                     match self.state {
                         XmlReadingState::Off => {
+                            // do nothing
                         },
-                        _ => if name.local_name == "tr" && self.tag.is_some() {
+                        e => if local_name == b"tr" && self.tag.is_some() {
                             let tag = self.tag.take().unwrap();
-
                             let out = Entry {
                                 tag: tag,
                                 name: self.name.take(),
@@ -217,46 +253,54 @@ impl<R: Read> Iterator for XmlEntryIterator<R> {
                             };
                             self.state = XmlReadingState::InTable;
                             return Some(Ok(out));
-                        } else if name.local_name == "tbody" {
+                        } else if local_name == b"tbody" {
                             // the table ended!
                             break;
                         }
                     }
                 }
-                Ok(XmlEvent::Characters(data)) => {
-                    let v = Some(String::from(data.trim().replace("\u{200b}", "")));
+                Ok(Event::Text(data)) => {
                     match self.state {
                         XmlReadingState::InCellTag => {
-                            self.tag = v;
+                            let data = data.unescape_and_decode(&self.parser).unwrap()
+                                .replace("\u{200b}", "");
+                            self.tag = Some(data);
                         },
                         XmlReadingState::InCellName => {
-                            self.name = v;
+                            let data = data.unescape_and_decode(&self.parser).unwrap()
+                                .replace("\u{200b}", "");
+                            self.name = Some(data);
                         },
                         XmlReadingState::InCellKeyword => {
-                            self.keyword = v;
+                            let data = data.unescape_and_decode(&self.parser).unwrap()
+                                .replace("\u{200b}", "");
+                            self.keyword = Some(data);
                         },
                         XmlReadingState::InCellVR => {
-                            self.vr = v;
+                            let data = data.unescape_and_decode(&self.parser).unwrap()
+                                .replace("\u{200b}", "");
+                            self.vr = Some(data);
                         },
                         XmlReadingState::InCellVM => {
-                            self.vm = v;
+                            let data = data.unescape_and_decode(&self.parser).unwrap()
+                                .replace("\u{200b}", "");
+                            self.vm = Some(data);
                         },
                         XmlReadingState::InCellObs => {
-                            self.obs = v;
+                            let data = data.unescape_and_decode(&self.parser).unwrap()
+                                .replace("\u{200b}", "");
+                            self.obs = Some(data);
                         },
                         _ => {}
                     }
                 }
-                Ok(XmlEvent::EndDocument { .. }) => {
+                Ok(Event::Eof { .. }) => {
                     break;
                 }
-                Err(ref e) if e.kind() == &xml::reader::ErrorKind::UnexpectedEof => {
-                    break;
-                }
+                Ok(_) => {}
                 Err(e) => {
                     return Some(Err(e));
                 }
-                _ => {}
             }
         }
 
@@ -265,18 +309,18 @@ impl<R: Read> Iterator for XmlEntryIterator<R> {
 }
 
 fn to_code_file<P: AsRef<Path>, I>(dest_path: P, entries: I) -> io::Result<()>
-    where I: Iterator<Item = Entry>
+    where I: IntoIterator<Item = Entry>
 {
     if let Some(p_dir) = dest_path.as_ref().parent() {
         try!(create_dir_all(&p_dir));
     }
     let mut f = try!(File::create(&dest_path));
 
-    try!(f.write_all(b"//! Automatically generated. DO NOT EDIT!\n\n\
+    f.write_all(b"//! Automatically generated. DO NOT EDIT!\n\n\
     use dictionary::DictionaryEntryRef;\n\
     use data::{Tag, VR};\n\n\
     type E = DictionaryEntryRef<'static>;\n\n\
-    pub const ENTRIES: &'static [E] = &[\n"));
+    pub const ENTRIES: &'static [E] = &[\n")?;
 
     let regex_tag = Regex::new(r"^\(([0-9A-F]{4}),([0-9A-F]{4})\)$").unwrap();
 
@@ -321,9 +365,15 @@ fn to_code_file<P: AsRef<Path>, I>(dest_path: P, entries: I) -> io::Result<()>
             obs = String::from(" // ") + obs.as_str();
         }
 
-        try!(writeln!(f, "    E {{ tag: Tag(0x{}, 0x{}), alias: \"{}\", vr: VR::{}{} }},{}",
-                group, elem, alias.unwrap(), vr1, second_vr, obs));
+        writeln!(f, "    E {{ tag: Tag(0x{}, 0x{}), alias: \"{}\", vr: VR::{}{} }},{}",
+                 group, elem, alias.unwrap(), vr1, second_vr, obs)?;
     }
-    try!(f.write_all(b"];\n"));
+    f.write_all(b"];\n")?;
     Ok(())
+}
+
+fn to_json_file<P: AsRef<Path>, I>(dest_path: P, entries: I) -> io::Result<()>
+    where I: IntoIterator<Item = Entry>
+{
+    unimplemented!()
 }
