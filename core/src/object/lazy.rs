@@ -18,7 +18,7 @@ use super::DicomObject;
 /// Data type for a lazily loaded DICOM object builder.
 pub struct LazyDicomObject<S, P, D> {
     dict: D,
-    source: RefCell<S>,
+    source: RefCell<S>, // FIXME can't borrow this with parser
     parser: P,
     entries: RefCell<HashMap<Tag, LazyDataElement>>,
 }
@@ -89,9 +89,10 @@ impl<S, P, D> LazyDicomObject<S, P, D>
     }
 
     fn load_value(&self, marker: &DicomElementMarker) -> Result<DicomValue> {
-        let mut borrow = self.source.borrow_mut();
+        let borrow = self.source.borrow_mut();
         marker.move_to_start(borrow)?;
-        self.parser.read_value(&marker.header)
+        //self.parser.read_value(&marker.header)
+        unimplemented!() // need to resolve source borrowing first
     }
 }
 
