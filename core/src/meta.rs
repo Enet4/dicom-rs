@@ -1,14 +1,15 @@
 //! Module containing data structures and readers of DICOM file meta information tables.
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read, SeekFrom};
 use error::{Result, Error};
 use byteorder::{ByteOrder, LittleEndian};
-use data::Tag;
-use data::Header;
+use data::{Tag, Header};
 use data::decode;
+use data::decode::Decode;
 use data::text;
 use data::text::TextCodec;
-use data::decode::Decode;
-const DICM_MAGIC_CODE: [u8; 4] = [0x44, 0x49, 0x43, 0x4D];
+use util::ReadSeek;
+
+const DICM_MAGIC_CODE: [u8; 4] = [b'D', b'I', b'C', b'M'];
 
 /// DICOM Meta Information Table.
 ///
@@ -69,14 +70,29 @@ fn read_str_body<S: Read, T: TextCodec>(source: &mut S,
 }
 
 impl DicomMetaTable {
-    /// read the full meta information from the given file source
-    pub fn read_meta_table<F: Read + Seek>(file: &mut F) -> Result<DicomMetaTable> {
-        // Check the preamble and magic code (128 bytes of preamble followed by 'DICM')
 
-        let mut buff: [u8; 4] = [0; 4];
+    pub fn from_stream<R: Read>(mut file: R) -> Result<DicomMetaTable> {
+        {
+            let mut buf = vec![0u8; 128];
+            // skip the preamble
+            file.read_exact(&mut buf)?;
+        }
+
+        DicomMetaTable::read_from(file)
+    }
+
+    /// read the full meta information from the given file source
+    pub fn from_readseek_stream<F: ReadSeek>(mut file: F) -> Result<DicomMetaTable> {
+        // Check the preamble and magic code (128 bytes of preamble followed by 'DICM')
 
         // skip the preamble
         try!(file.seek(SeekFrom::Current(128)));
+
+        DicomMetaTable::read_from(file)
+    }
+
+    fn read_from<S: Read>(mut file: S) -> Result<Self> {
+        let mut buff: [u8; 4] = [0; 4];
         {
             // check magic code
             try!(file.read_exact(&mut buff));
@@ -92,7 +108,7 @@ impl DicomMetaTable {
         let builder = DicomMetaTableBuilder::new();
 
         let group_length: u32 = {
-            let elem = try!(decoder.decode_header(file));
+            let elem = try!(decoder.decode_header(&mut file));
             if elem.tag() != (0x0002, 0x0000) {
                 return Err(Error::UnexpectedElement);
             }
@@ -108,7 +124,7 @@ impl DicomMetaTable {
 
         let mut builder = builder.group_length(group_length)
             .information_version({
-                let elem = try!(decoder.decode_header(file));
+                let elem = try!(decoder.decode_header(&mut file));
                 if elem.tag() != (0x0002, 0x0001) {
                     return Err(Error::UnexpectedElement);
                 }
@@ -120,22 +136,22 @@ impl DicomMetaTable {
                 group_length_remaining -= 8 + elem.len();
                 hbuf
             })
-            .media_storage_sop_class_uid(try!(read_str_as_tag(file,
+            .media_storage_sop_class_uid(try!(read_str_as_tag(&mut file,
                                                               &decoder,
                                                               &text,
                                                               &mut group_length_remaining,
                                                               Tag(0x0002, 0x0002))))
-            .media_storage_sop_instance_uid(try!(read_str_as_tag(file,
+            .media_storage_sop_instance_uid(try!(read_str_as_tag(&mut file,
                                                                  &decoder,
                                                                  &text,
                                                                  &mut group_length_remaining,
                                                                  Tag(0x0002, 0x0003))))
-            .transfer_syntax(try!(read_str_as_tag(file,
+            .transfer_syntax(try!(read_str_as_tag(&mut file,
                                                   &decoder,
                                                   &text,
                                                   &mut group_length_remaining,
                                                   Tag(0x0002, 0x0010))))
-            .implementation_class_uid(try!(read_str_as_tag(file,
+            .implementation_class_uid(try!(read_str_as_tag(&mut file,
                                                            &decoder,
                                                            &text,
                                                            &mut group_length_remaining,
@@ -143,7 +159,7 @@ impl DicomMetaTable {
 
         // Fetch optional data elements
         while group_length_remaining > 0 {
-            let elem = try!(decoder.decode_header(file));
+            let elem = try!(decoder.decode_header(&mut file));
             group_length_remaining -= elem.len();
             builder = match elem.tag() {
                 Tag(0x0002, 0x0013) => {
@@ -729,10 +745,10 @@ mod tests {
                                            0x00];
 
     #[test]
-    fn meta_table_ok() {
+    fn read_meta_table_from_readseek_ok() {
         let mut source = Cursor::new(TEST_PREAMBLE);
 
-        let table = DicomMetaTable::read_meta_table(&mut source)
+        let table = DicomMetaTable::from_readseek_stream(&mut source)
             .expect("Should not yield any errors dangit!");
 
         assert_eq!(table.information_group_length, 200);
@@ -751,5 +767,30 @@ mod tests {
         assert_eq!(table.private_information_creator_uid, None);
         assert_eq!(table.private_information, None);
     }
+
+    #[test]
+    fn read_meta_table_from_stream_ok() {
+        let mut source = TEST_PREAMBLE;
+
+        let table = DicomMetaTable::from_stream(&mut source)
+            .expect("Should not yield any errors dangit!");
+
+        assert_eq!(table.information_group_length, 200);
+        assert_eq!(table.information_version, [0u8, 1u8]);
+        assert_eq!(table.media_storage_sop_class_uid,
+                   "1.2.840.10008.5.1.4.1.1.1\0");
+        assert_eq!(table.media_storage_sop_instance_uid,
+                   "1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567\0");
+        assert_eq!(table.transfer_syntax, "1.2.840.10008.1.2.1\0");
+        assert_eq!(table.implementation_class_uid, "1.2.345.6.7890.1.234");
+        assert_eq!(table.implementation_version_name,
+                   Some(String::from("RUSTY_DICOM_269 ")));
+        assert_eq!(table.source_application_entity_title, None);
+        assert_eq!(table.sending_application_entity_title, None);
+        assert_eq!(table.receiving_application_entity_title, None);
+        assert_eq!(table.private_information_creator_uid, None);
+        assert_eq!(table.private_information, None);
+    }
+
 
 }

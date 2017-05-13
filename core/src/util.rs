@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 use std::io;
 use std::io::{Read, Write, Seek, SeekFrom};
 use std::marker::PhantomData;
@@ -181,7 +180,7 @@ impl ExactSizeIterator for VoidRepeatN {
 mod tests {
     use super::n_times;
     use super::SeekInterval;
-    use std::io::{Cursor, Write, Seek, SeekFrom};
+    use std::io::{Cursor, Write};
 
     #[test]
     fn void_repeat_n() {

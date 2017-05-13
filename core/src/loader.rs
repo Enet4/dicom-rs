@@ -1,8 +1,9 @@
 use std::marker::PhantomData;
-use dictionary::{DataDictionary, get_standard_dictionary, StandardDataDictionary};
+use dictionary::{get_standard_dictionary, StandardDataDictionary};
 use object::DicomObject;
 
 /// A data type
+#[derive(Debug)]
 pub struct DicomLoaderOptions<D, O> {
     dict: D,
     phantom: PhantomData<O>,

@@ -2,6 +2,10 @@
 
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::path::Path;
+use std::fs::File;
+use std::io::BufReader;
+use meta::DicomMetaTable;
 
 use super::DicomObject;
 use data::{DataElement, Header, Tag};
@@ -65,6 +69,11 @@ impl<'s> InMemDicomObject<'s, &'static StandardDataDictionary> {
             self_phantom: PhantomData,
         }
     }
+
+    /// Create a DICOM object by reading from a file.
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
+        Self::from_file_with_dict(path, get_standard_dictionary())
+    }
 }
 
 impl<'s, D> InMemDicomObject<'s, D>
@@ -78,6 +87,18 @@ impl<'s, D> InMemDicomObject<'s, D>
             dict: dict,
             self_phantom: PhantomData,
         }
+    }
+
+    /// Create a DICOM object by reading from a file.
+    pub fn from_file_with_dict<P: AsRef<Path>>(path: P, dict: D) -> Result<Self> {
+        let mut file = BufReader::new(File::open(path)?);
+
+        let meta = DicomMetaTable::from_readseek_stream(&mut file)?;
+        
+        // TODO read metadata header, feed data to object
+        // read rest of data according to metadata, feed it to object
+
+        unimplemented!()
     }
 
     fn lookup_name(&self, name: &str) -> Result<Tag> {

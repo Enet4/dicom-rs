@@ -2,18 +2,21 @@
 //! The structures provided here can translate a byte data source into
 //! an iterator of elements, with either sequential or random access.
 
-use std::borrow::{Borrow, BorrowMut};
 use std::fmt;
 use std::io::Read;
 use std::ops::DerefMut;
+use std::marker::PhantomData;
 use std::str;
 use std::iter::Iterator;
 use error::{Result, Error, TextEncodingError, InvalidValueReadError};
 use data::{VR, Tag, Header, DataElementHeader, SequenceItemHeader};
 use data::decode::{BasicDecode, Decode};
+use data::decode::basic::LittleEndianBasicDecoder;
 use data::text::{SpecificCharacterSet, TextCodec, DynamicTextCodec};
 use data::value::DicomValue;
 use transfer_syntax::{DynamicBasicDecoder, DynamicDecoder, TransferSyntax};
+use transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
+use data::text::DefaultCharacterSetCodec;
 use chrono::naive::date::NaiveDate;
 use util::n_times;
 
@@ -21,14 +24,14 @@ use util::n_times;
 /// This type assumes ownership of a specific source and
 /// abstracts the necessary parts of a full DICOM content
 /// reading process.
-pub trait Parse<S: ?Sized>: BorrowMut<S>
+pub trait Parse<S: ?Sized>
     where S: Read
 {
     /// Same as `Decode.decode_header` over the bound source.
-    fn decode_header(&mut self) -> Result<DataElementHeader>;
+    fn decode_header(&self, from: &mut S) -> Result<DataElementHeader>;
 
     /// Same as `Decode.decode_header` over the bound source.
-    fn decode_item_header(&mut self) -> Result<SequenceItemHeader>;
+    fn decode_item_header(&self, from: &mut S) -> Result<SequenceItemHeader>;
 
     /// Eagerly read the following data in the source as a data value.
     /// When reading values in text form, a conversion to a more maleable
@@ -36,13 +39,13 @@ pub trait Parse<S: ?Sized>: BorrowMut<S>
     /// to the correspoding binary number types, and date/time instances are
     /// decoded into binary date/time objects of types defined in the `chrono` crate.
     /// To avoid this conversion, see `read_value_preserved`.
-    fn read_value(&mut self, header: &DataElementHeader) -> Result<DicomValue>;
+    fn read_value(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue>;
 
     /// Eagerly read the following data in the source as a data value.
     /// Unlike `read_value`, this method will preserve the DICOM value'see
     /// original format: numbers saved as text, as well as dates and times,
     /// are read as strings.
-    fn read_value_preserved(&mut self, header: &mut DataElementHeader) -> Result<DicomValue>;
+    fn read_value_preserved(&self, from: &mut S, header: &mut DataElementHeader) -> Result<DicomValue>;
 }
 
 /// Alias for a dynamically resolved DICOM parser. Although the data source may be known
@@ -69,7 +72,7 @@ pub struct DicomParser<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC>
           DS: Read,
           TC: TextCodec
 {
-    source: &'s mut S,
+    phantom: PhantomData<&'s S>,
     decoder: D,
     basic: BD,
     text: TC,
@@ -104,8 +107,7 @@ impl<'s, S: ?Sized + 's> DicomParser<'s,
     where S: DerefMut<Target = (Read + 's)> + Read
 {
     /// Create a new DICOM parser for the given transfer syntax and character set.
-    pub fn new_with(mut source: &'s mut S,
-                    ts: &TransferSyntax,
+    pub fn new_with(ts: &TransferSyntax,
                     cs: SpecificCharacterSet)
                     -> Result<DicomParser<'s,
                                           DynamicDecoder<'s>,
@@ -120,11 +122,32 @@ impl<'s, S: ?Sized + 's> DicomParser<'s,
         let text = cs.get_codec().ok_or_else(|| Error::UnsupportedCharacterSet)?;
 
         Ok(DicomParser {
-            source: source,
+            phantom: PhantomData,
             basic: basic,
             decoder: decoder,
             text: text,
         })
+    }
+}
+
+type FileHeaderParser<'s, S> = DicomParser<'s,
+                                           ExplicitVRLittleEndianDecoder<S>,
+                                           LittleEndianBasicDecoder<S>,
+                                           &'s mut S,
+                                           S,
+                                           DefaultCharacterSetCodec>;
+
+impl<'s, S: 's> FileHeaderParser<'s, S>
+    where S: Read
+{
+    /// Create a new DICOM parser from its parts.
+    pub fn file_header_parser() -> FileHeaderParser<'s, S> {
+        DicomParser {
+            phantom: PhantomData,
+            basic: LittleEndianBasicDecoder::default(),
+            decoder: ExplicitVRLittleEndianDecoder::default(),
+            text: DefaultCharacterSetCodec,
+        }
     }
 }
 
@@ -136,13 +159,12 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
           TC: TextCodec
 {
     /// Create a new DICOM parser from its parts.
-    pub fn new(source: &'s mut S,
-               decoder: D,
+    pub fn new(decoder: D,
                basic: BD,
                text: TC)
                -> DicomParser<'s, D, BD, S, DS, TC> {
         DicomParser {
-            source: source,
+            phantom: PhantomData,
             basic: basic,
             decoder: decoder,
             text: text,
@@ -151,7 +173,7 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
 
     // ---------------- private methods ---------------------
 
-    fn read_value_tag(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_tag(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
         require_known_length!(header);
 
         // tags
@@ -159,26 +181,26 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
             header.len() >> 2
         } as usize;
         let parts: Vec<Tag> = try!(n_times(ntags)
-            .map(|_| self.decoder.decode_tag(self.source))
+            .map(|_| self.decoder.decode_tag(from))
             .collect());
         Ok(DicomValue::Tags(parts))
     }
 
-    fn read_value_ob(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_ob(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
         // TODO add support for OB value data length resolution
         require_known_length!(header);
 
         // sequence of 8-bit integers (or just byte data)
         let mut buf = vec![0u8 ; header.len() as usize];
-        try!(self.source.read_exact(&mut buf));
+        try!(from.read_exact(&mut buf));
         Ok(DicomValue::U8(buf))
     }
 
-    fn read_value_strs(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_strs(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
         require_known_length!(header);
         // sequence of strings
         let mut buf = vec![0u8 ; header.len() as usize];
-        try!(self.source.read_exact(&mut buf));
+        try!(from.read_exact(&mut buf));
         let parts: Vec<String> = try!(buf[..]
             .split(|v| *v == '\\' as u8)
             .map(|slice| self.text.decode(slice))
@@ -187,81 +209,81 @@ impl<'s, D, BD, S: ?Sized + 's, DS: ?Sized + 's, TC> DicomParser<'s, D, BD, S, D
         Ok(DicomValue::Strs(parts))
     }
 
-    fn read_value_str(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_str(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
         require_known_length!(header);
 
         // a single string
         let mut buf = vec![0u8 ; header.len() as usize];
-        try!(self.source.read_exact(&mut buf));
+        try!(from.read_exact(&mut buf));
         Ok(DicomValue::Str(try!(self.text.decode(&buf[..]))))
     }
 
-    fn read_value_ss(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_ss(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
         // sequence of 16-bit signed integers
         require_known_length!(header);
 
         let len = header.len() as usize >> 1;
         let mut vec = Vec::with_capacity(len);
         for _ in n_times(len) {
-            vec.push(try!(self.basic.decode_ss(self.source)));
+            vec.push(try!(self.basic.decode_ss(from)));
         }
         Ok(DicomValue::I16(vec))
     }
 
-    fn read_value_fl(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_fl(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
         require_known_length!(header);
         // sequence of 32-bit floats
         let l = header.len() as usize >> 2;
         let mut vec = Vec::with_capacity(l);
         for _ in n_times(l) {
-            vec.push(try!(self.basic.decode_fl(self.source)));
+            vec.push(try!(self.basic.decode_fl(from)));
         }
         Ok(DicomValue::F32(vec))
     }
 
-    fn read_value_od(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_od(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
         require_known_length!(header);
         // sequence of 64-bit floats
         let len = header.len() as usize >> 3;
         let mut vec = Vec::with_capacity(len);
         for _ in n_times(len) {
-            vec.push(try!(self.basic.decode_fd(self.source)));
+            vec.push(try!(self.basic.decode_fd(from)));
         }
         Ok(DicomValue::F64(vec))
     }
 
-    fn read_value_ul(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_ul(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
         require_known_length!(header);
         // sequence of 32-bit unsigned integers
 
         let len = header.len() as usize >> 2;
         let mut vec = Vec::with_capacity(len);
         for _ in n_times(len) {
-            vec.push(try!(self.basic.decode_ul(self.source)));
+            vec.push(try!(self.basic.decode_ul(from)));
         }
         Ok(DicomValue::U32(vec))
     }
 
-    fn read_value_us(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_us(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
         require_known_length!(header);
         // sequence of 16-bit unsigned integers
 
         let len = header.len() as usize >> 1;
         let mut vec = Vec::with_capacity(len);
         for _ in n_times(len) {
-            vec.push(try!(self.basic.decode_us(self.source)));
+            vec.push(try!(self.basic.decode_us(from)));
         }
         Ok(DicomValue::U16(vec))
     }
 
-    fn read_value_sl(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_sl(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
         require_known_length!(header);
         // sequence of 32-bit signed integers
 
         let len = header.len() as usize >> 2;
         let mut vec = Vec::with_capacity(len);
         for _ in n_times(len) {
-            vec.push(try!(self.basic.decode_sl(self.source)));
+            vec.push(try!(self.basic.decode_sl(from)));
         }
         Ok(DicomValue::I32(vec))
     }
@@ -274,15 +296,15 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Parse<S> for DicomParser<'s
           DS: Read,
           TC: TextCodec
 {
-    fn decode_header(&mut self) -> Result<DataElementHeader> {
-        self.decoder.decode_header(self.source)
+    fn decode_header(&self, from: &mut S) -> Result<DataElementHeader> {
+        self.decoder.decode_header(from)
     }
 
-    fn decode_item_header(&mut self) -> Result<SequenceItemHeader> {
-        self.decoder.decode_item_header(self.source)
+    fn decode_item_header(&self, from: &mut S) -> Result<SequenceItemHeader> {
+        self.decoder.decode_item_header(from)
     }
 
-    fn read_value(&mut self, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
         if header.len() == 0 {
             return Ok(DicomValue::Empty);
         }
@@ -292,14 +314,14 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Parse<S> for DicomParser<'s
                 // sequence objects... should not work
                 return Err(Error::from(InvalidValueReadError::NonPrimitiveType));
             }
-            VR::AT => self.read_value_tag(header),
+            VR::AT => self.read_value_tag(from, header),
             VR::AE | VR::AS | VR::PN | VR::SH | VR::LO | VR::UI | VR::UC | VR::CS => {
-                self.read_value_strs(header)
+                self.read_value_strs(from, header)
             }
-            VR::UT | VR::ST | VR::UR | VR::LT => self.read_value_str(header),
-            VR::UN | VR::OB => self.read_value_ob(header),
-            VR::US | VR::OW => self.read_value_us(header),
-            VR::SS => self.read_value_ss(header),
+            VR::UT | VR::ST | VR::UR | VR::LT => self.read_value_str(from, header),
+            VR::UN | VR::OB => self.read_value_ob(from, header),
+            VR::US | VR::OW => self.read_value_us(from, header),
+            VR::SS => self.read_value_ss(from, header),
             VR::DA => {
                 require_known_length!(header);
                 // sequence of dates
@@ -308,7 +330,7 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Parse<S> for DicomParser<'s
                 for _ in 0..len {
                     // "YYYYMMDD"
                     let mut buf = [0u8; 8];
-                    try!(self.source.read_exact(&mut buf));
+                    try!(from.read_exact(&mut buf));
                     let (y4, y3, y2, y1, m2, m1, d2, d1) =
                         (buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]);
                     const Z: i32 = b'0' as i32;
@@ -340,7 +362,7 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Parse<S> for DicomParser<'s
                 require_known_length!(header);
                 // sequence of doubles in text form
                 let mut buf = vec![0u8 ; header.len() as usize];
-                try!(self.source.read_exact(&mut buf));
+                try!(from.read_exact(&mut buf));
                 let parts: Vec<f64> = try!(buf[..]
                     .split(|v| *v == '\\' as u8)
                     .map(|slice| {
@@ -352,13 +374,13 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Parse<S> for DicomParser<'s
                     .collect());
                 Ok(DicomValue::F64(parts))
             }
-            VR::FD | VR::OD => self.read_value_od(header),
-            VR::FL | VR::OF => self.read_value_fl(header),
+            VR::FD | VR::OD => self.read_value_od(from, header),
+            VR::FL | VR::OF => self.read_value_fl(from, header),
             VR::IS => {
                 require_known_length!(header);
                 // sequence of signed integers in text form
                 let mut buf = vec![0u8 ; header.len() as usize];
-                try!(self.source.read_exact(&mut buf));
+                try!(from.read_exact(&mut buf));
 
                 let last = if let Some(c) = buf.last() { *c } else { 0u8 };
                 if last == ' ' as u8 {
@@ -375,12 +397,12 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Parse<S> for DicomParser<'s
                     .collect());
                 Ok(DicomValue::I32(parts))
             }
-            VR::SL => self.read_value_sl(header),
-            VR::OL | VR::UL => self.read_value_ul(header),
+            VR::SL => self.read_value_sl(from, header),
+            VR::OL | VR::UL => self.read_value_ul(from, header),
         }
     }
 
-    fn read_value_preserved(&mut self, header: &mut DataElementHeader) -> Result<DicomValue> {
+    fn read_value_preserved(&self, from: &mut S, header: &mut DataElementHeader) -> Result<DicomValue> {
         if header.len() == 0 {
             return Ok(DicomValue::Empty);
         }
@@ -390,42 +412,17 @@ impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Parse<S> for DicomParser<'s
                 // sequence objects... should not work
                 return Err(Error::from(InvalidValueReadError::NonPrimitiveType));
             }
-            VR::AT => self.read_value_tag(header),
+            VR::AT => self.read_value_tag(from, header),
             VR::AE | VR::AS | VR::PN | VR::SH | VR::LO | VR::UI | VR::UC | VR::CS | VR::IS |
-            VR::DS | VR::DA | VR::TM | VR::DT => self.read_value_strs(header),
-            VR::UT | VR::ST | VR::UR | VR::LT => self.read_value_str(header),
-            VR::UN | VR::OB => self.read_value_ob(header),
-            VR::US | VR::OW => self.read_value_us(header),
-            VR::SS => self.read_value_ss(header),
-            VR::FD | VR::OD => self.read_value_od(header),
-            VR::FL | VR::OF => self.read_value_fl(header),
-            VR::SL => self.read_value_sl(header),
-            VR::OL | VR::UL => self.read_value_ul(header),
+            VR::DS | VR::DA | VR::TM | VR::DT => self.read_value_strs(from, header),
+            VR::UT | VR::ST | VR::UR | VR::LT => self.read_value_str(from, header),
+            VR::UN | VR::OB => self.read_value_ob(from, header),
+            VR::US | VR::OW => self.read_value_us(from, header),
+            VR::SS => self.read_value_ss(from, header),
+            VR::FD | VR::OD => self.read_value_od(from, header),
+            VR::FL | VR::OF => self.read_value_fl(from, header),
+            VR::SL => self.read_value_sl(from, header),
+            VR::OL | VR::UL => self.read_value_ul(from, header),
         }
-    }
-}
-
-impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> Borrow<S> for DicomParser<'s, D, BD, S, DS, TC>
-    where D: Decode<Source = DS>,
-          BD: BasicDecode<Source = DS>,
-          S: DerefMut<Target = DS> + Read,
-          DS: Read,
-          TC: TextCodec
-{
-    fn borrow(&self) -> &S {
-        self.source
-    }
-}
-
-impl<'s, S: ?Sized + 's, D, BD, DS: ?Sized + 's, TC> BorrowMut<S>
-    for DicomParser<'s, D, BD, S, DS, TC>
-    where D: Decode<Source = DS>,
-          BD: BasicDecode<Source = DS>,
-          S: DerefMut<Target = DS> + Read,
-          DS: Read,
-          TC: TextCodec
-{
-    fn borrow_mut(&mut self) -> &mut S {
-        self.source
     }
 }
