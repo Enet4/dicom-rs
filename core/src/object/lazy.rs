@@ -16,6 +16,25 @@ use util::ReadSeek;
 use super::DicomObject;
 
 /// Data type for a lazily loaded DICOM object builder.
+pub struct LazyDataSequence<'p, S: 'p, P: 'p, D: 'p> {
+    parent: &'p LazyDicomObject<S, P, D>,
+    seq: Vec<LazyDataElement>,
+}
+
+impl<'p, S, P, D> Debug for LazyDataSequence<'p, S, P, D>
+    where S: Debug,
+          P: Debug,
+          D: Debug
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // ignore parent to avoid cycles
+        f.debug_struct("LazyDataSequence")
+            .field("entries", &self.seq)
+            .finish()
+    }
+}
+
+/// Data type for a lazily loaded DICOM object builder.
 pub struct LazyDicomObject<S, P, D> {
     dict: D,
     source: RefCell<S>, // FIXME can't borrow this with parser
@@ -29,22 +48,22 @@ impl<S, P, D> Debug for LazyDicomObject<S, P, D>
           D: Debug
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,
-               "LazyDicomObject{{parser: {:?}, entries{:?}}}",
-               &self.parser,
-               &self.entries)
+        f.debug_struct("LazyDicomObject")
+            .field("parser", &self.parser)
+            .field("entries", &self.entries)
+            .finish()
     }
 }
 
-impl<'s, S: 's, P, D> DicomObject<'s> for LazyDicomObject<S, P, D>
+impl<'s, S: 's, P: 's, D: 's> DicomObject<'s> for LazyDicomObject<S, P, D>
     where S: ReadSeek,
           P: Parse<S>,
           D: DataDictionary
 {
     type Element = Ref<'s, LazyDataElement>;
-    type Sequence = (); // TODO
+    type Sequence = Ref<'s, LazyDataSequence<'s, S, P, D>>;
 
-    fn element(&'s self, tag: Tag) -> Result<Self::Element> {
+    fn get_element(&'s self, tag: Tag) -> Result<Self::Element> {
         {
             let borrow = self.entries.borrow();
             if !borrow.contains_key(&tag) {
@@ -66,12 +85,12 @@ impl<'s, S: 's, P, D> DicomObject<'s> for LazyDicomObject<S, P, D>
                     |m| m.get(&tag).expect("Element should exist")))
     }
 
-    fn element_by_name(&'s self, name: &str) -> Result<Self::Element> {
+    fn get_element_by_name(&'s self, name: &str) -> Result<Self::Element> {
         let tag = self.lookup_name(name)?;
-        self.element(tag)
+        self.get_element(tag)
     }
 
-    fn pixel_data<PV, PX: PixelData<PV>>(&self) -> Result<PX> {
+    fn get_pixel_data<PV, PX: PixelData<PV>>(&self) -> Result<PX> {
         unimplemented!()
     }
 }

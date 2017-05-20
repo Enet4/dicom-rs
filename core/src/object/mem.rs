@@ -44,18 +44,18 @@ impl<'s, D: 's> DicomObject<'s> for InMemDicomObject<'s, D>
     type Element = &'s DataElement;
     type Sequence = InMemSequence<'s, D>;
 
-    fn element(&'s self, tag: Tag) -> Result<Self::Element> {
+    fn get_element(&'s self, tag: Tag) -> Result<Self::Element> {
         self.entries
             .get(&tag)
             .ok_or(Error::NoSuchDataElement)
     }
 
-    fn element_by_name(&'s self, name: &str) -> Result<Self::Element> {
+    fn get_element_by_name(&'s self, name: &str) -> Result<Self::Element> {
         let tag = self.lookup_name(name)?;
-        self.element(tag)
+        self.get_element(tag)
     }
 
-    fn pixel_data<PV, PD: PixelData<PV>>(&'s self) -> Result<PD> {
+    fn get_pixel_data<PV, PD: PixelData<PV>>(&'s self) -> Result<PD> {
         unimplemented!()
     }
 }
@@ -133,13 +133,24 @@ mod tests {
     }
 
     #[test]
-    fn inmem_object_read() {
+    fn inmem_object_get() {
         let another_patient_name = DataElement::new(Tag(0x0010, 0x0010),
                                                     VR::PN,
                                                     DicomValue::Str("Doe^John".to_string()));
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
-        let elem1 = obj.element(Tag(0x0010, 0x0010)).unwrap();
+        let elem1 = obj.get_element(Tag(0x0010, 0x0010)).unwrap();
+        assert_eq!(elem1, &another_patient_name);
+    }
+
+    #[test]
+    fn inmem_object_get_by_name() {
+        let another_patient_name = DataElement::new(Tag(0x0010, 0x0010),
+                                                    VR::PN,
+                                                    DicomValue::Str("Doe^John".to_string()));
+        let mut obj = InMemDicomObject::create_empty();
+        obj.put(another_patient_name.clone());
+        let elem1 = obj.get_element_by_name("PatientName").unwrap();
         assert_eq!(elem1, &another_patient_name);
     }
 }
