@@ -2,6 +2,7 @@
 
 use std::io::{Read, Write};
 use std::fmt;
+use std::marker::PhantomData;
 use data::VR;
 use data::Tag;
 use byteorder::{ByteOrder, LittleEndian};
@@ -14,28 +15,32 @@ use data::{DataElementHeader, SequenceItemHeader, Header};
 use util::Endianness;
 
 /// A data element decoder for the Explicit VR Little Endian transfer syntax.
-pub struct ExplicitVRLittleEndianDecoder<S: Read + ?Sized> {
-    basic: LittleEndianBasicDecoder<S>,
+pub struct ExplicitVRLittleEndianDecoder<S: ?Sized> {
+    basic: LittleEndianBasicDecoder,
+    phantom: PhantomData<S>,
 }
 
-impl<S: Read + ?Sized> Default for ExplicitVRLittleEndianDecoder<S> {
+impl<S: ?Sized> Default for ExplicitVRLittleEndianDecoder<S> {
     fn default() -> ExplicitVRLittleEndianDecoder<S> {
-        ExplicitVRLittleEndianDecoder { basic: LittleEndianBasicDecoder::default() }
+        ExplicitVRLittleEndianDecoder { basic: LittleEndianBasicDecoder, phantom: PhantomData }
     }
 }
 
-impl<S: Read + ?Sized> fmt::Debug for ExplicitVRLittleEndianDecoder<S> {
+impl<S: ?Sized + fmt::Debug> fmt::Debug for ExplicitVRLittleEndianDecoder<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ExplicitVRLittleEndianDecoder")
+        f.debug_struct("ExplicitVRLittleEndianDecoder")
+            .field("basic", &self.basic)
+            .field("phantom", &self.phantom)
+            .finish()
     }
 }
 
 impl<S: Read + ?Sized> Decode for ExplicitVRLittleEndianDecoder<S> {
     type Source = S;
 
-    fn decode_header(&self, source: &mut S) -> Result<DataElementHeader> {
+    fn decode_header(&self, mut source: &mut S) -> Result<DataElementHeader> {
         // retrieve tag
-        let Tag(group, element) = try!(self.basic.decode_tag(source));
+        let Tag(group, element) = self.basic.decode_tag(&mut source)?;
 
         let mut buf = [0u8; 4];
         // retrieve explicit VR
@@ -74,7 +79,7 @@ impl<S: Read + ?Sized> Decode for ExplicitVRLittleEndianDecoder<S> {
         SequenceItemHeader::new((group, element), len)
     }
 
-    fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag> {
+    fn decode_tag(&self, source: &mut S) -> Result<Tag> {
         let mut buf = [0u8; 4];
         try!(source.read_exact(&mut buf));
         Ok(Tag(LittleEndian::read_u16(&buf[0..2]),
@@ -83,56 +88,73 @@ impl<S: Read + ?Sized> Decode for ExplicitVRLittleEndianDecoder<S> {
 }
 
 /// A concrete encoder for the transfer syntax ExplicitVRLittleEndian
-pub struct ExplicitVRLittleEndianEncoder<W: Write + ?Sized> {
-    basic: LittleEndianBasicEncoder<W>,
+pub struct ExplicitVRLittleEndianEncoder<W: ?Sized> {
+    basic: LittleEndianBasicEncoder,
+    phantom: PhantomData<W>,
 }
 
-impl<W: Write + ?Sized> Default for ExplicitVRLittleEndianEncoder<W> {
+impl<W: ?Sized> Default for ExplicitVRLittleEndianEncoder<W> {
     fn default() -> ExplicitVRLittleEndianEncoder<W> {
-        ExplicitVRLittleEndianEncoder { basic: LittleEndianBasicEncoder::default() }
+        ExplicitVRLittleEndianEncoder {
+            basic: LittleEndianBasicEncoder::default(),
+            phantom: PhantomData
+        }
     }
 }
 
-impl<W: Write + ?Sized> fmt::Debug for ExplicitVRLittleEndianEncoder<W> {
+impl<W: ?Sized + fmt::Debug> fmt::Debug for ExplicitVRLittleEndianEncoder<W> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ExplicitVRLittleEndianEncoder")
+        f.debug_struct("ExplicitVRLittleEndianDecoder")
+            .field("basic", &self.basic)
+            .field("phantom", &self.phantom)
+            .finish()
     }
 }
 
 impl<W: Write + ?Sized> BasicEncode for ExplicitVRLittleEndianEncoder<W> {
-    type Writer = W;
 
     fn endianness(&self) -> Endianness {
         Endianness::LE
     }
 
-    fn encode_us(&self, value: u16, to: &mut Self::Writer) -> Result<()> {
-        self.basic.encode_us(value, to)
+    fn encode_us<S>(&self, to: S, value: u16) -> Result<()> where S: Write {
+        self.basic.encode_us(to, value)
     }
 
-    fn encode_ul(&self, value: u32, to: &mut Self::Writer) -> Result<()> {
-        self.basic.encode_ul(value, to)
+    fn encode_ul<S>(&self, to: S, value: u32) -> Result<()> where S: Write {
+        self.basic.encode_ul(to, value)
     }
 
-    fn encode_ss(&self, value: i16, to: &mut Self::Writer) -> Result<()> {
-        self.basic.encode_ss(value, to)
+    fn encode_ss<S>(&self, to: S, value: i16) -> Result<()> where S: Write {
+        self.basic.encode_ss(to, value)
     }
 
-    fn encode_sl(&self, value: i32, to: &mut Self::Writer) -> Result<()> {
-        self.basic.encode_sl(value, to)
+    fn encode_sl<S>(&self, to: S, value: i32) -> Result<()> where S: Write {
+        self.basic.encode_sl(to, value)
     }
 
-    fn encode_fl(&self, value: f32, to: &mut Self::Writer) -> Result<()> {
-        self.basic.encode_fl(value, to)
+    fn encode_fl<S>(&self, to: S, value: f32) -> Result<()> where S: Write {
+        self.basic.encode_fl(to, value)
     }
 
-    fn encode_fd(&self, value: f64, to: &mut Self::Writer) -> Result<()> {
-        self.basic.encode_fd(value, to)
+    fn encode_fd<S>(&self, to: S, value: f64) -> Result<()> where S: Write {
+        self.basic.encode_fd(to, value)
     }
 }
 
-impl<W: Write + ?Sized> Encode for ExplicitVRLittleEndianEncoder<W> {
-    fn encode_element_header(&self, de: DataElementHeader, to: &mut W) -> Result<usize> {
+impl<W: ?Sized> Encode for ExplicitVRLittleEndianEncoder<W> where W: Write {
+
+    type Writer = W;
+
+    fn encode_tag(&self, to: &mut W, tag: Tag) -> Result<()> {
+        let mut buf = [0u8, 4];
+        LittleEndian::write_u16(&mut buf[..], tag.group());
+        LittleEndian::write_u16(&mut buf[2..], tag.element());
+        to.write_all(&buf)?;
+        Ok(())
+    }
+
+    fn encode_element_header(&self, to: &mut W, de: DataElementHeader) -> Result<usize> {
         match de.vr() {
             VR::OB | VR::OD | VR::OF | VR::OL | VR::OW | VR::SQ | VR::UC | VR::UR | VR::UT |
             VR::UN => {
@@ -161,7 +183,7 @@ impl<W: Write + ?Sized> Encode for ExplicitVRLittleEndianEncoder<W> {
         }
     }
 
-    fn encode_item_header(&self, len: u32, to: &mut W) -> Result<()> {
+    fn encode_item_header(&self, to: &mut W, len: u32) -> Result<()> {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf, 0xFFFE);
         LittleEndian::write_u16(&mut buf, 0xE000);
@@ -174,7 +196,6 @@ impl<W: Write + ?Sized> Encode for ExplicitVRLittleEndianEncoder<W> {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf, 0xFFFE);
         LittleEndian::write_u16(&mut buf, 0xE00D);
-        LittleEndian::write_u32(&mut buf[4..], 0);
         try!(to.write_all(&buf));
         Ok(())
     }
@@ -183,7 +204,6 @@ impl<W: Write + ?Sized> Encode for ExplicitVRLittleEndianEncoder<W> {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf, 0xFFFE);
         LittleEndian::write_u16(&mut buf, 0xE0DD);
-        LittleEndian::write_u32(&mut buf[4..], 0);
         try!(to.write_all(&buf));
         Ok(())
     }
@@ -262,7 +282,7 @@ mod tests {
 
             // encode first element
             let de = DataElementHeader::new(Tag(0x0002, 0x0002), VR::UI, 26);
-            let len = enc.encode_element_header(de, &mut writer).expect("should write it fine");
+            let len = enc.encode_element_header(&mut writer, de).expect("should write it fine");
             assert_eq!(len, 8);
             writer.write_all(b"1.2.840.10008.5.1.4.1.1.1\0".as_ref())
                 .expect("should write the value fine");
@@ -274,7 +294,7 @@ mod tests {
 
             // encode second element
             let de = DataElementHeader::new(Tag(0x0002, 0x0010), VR::UI, 20);
-            let len = enc.encode_element_header(de, &mut writer).expect("should write it fine");
+            let len = enc.encode_element_header(&mut writer, de).expect("should write it fine");
             assert_eq!(len, 8);
             writer.write_all(b"1.2.840.10008.1.2.1\0".as_ref())
                 .expect("should write the value fine");

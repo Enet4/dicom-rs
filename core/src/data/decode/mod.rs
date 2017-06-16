@@ -33,37 +33,38 @@ pub fn get_file_header_decoder<'s, S: Read + ?Sized + 's>() -> ExplicitVRLittleE
 /** Type trait for reading and decoding basic data values from a data source.
  * 
  * This trait aims to provide methods for reading binary numbers based on the
- * source's endianness.
+ * source's endianness. Unlike `Decode`, this trait is not object safe.
+ * However, it doesn't have to because there are, and only will be, two
+ * possible implementations (`LittleEndianBasicDecoder` and
+ * `BigEndianBasicDecoder`). 
  */
 pub trait BasicDecode {
-    /// The data source's type.
-    type Source: ?Sized + Read;
 
     /// Retrieve the source's endianness, as expected by this decoder.
     fn endianness(&self) -> Endianness;
 
     /// Decode an unsigned short value from the given source.
-    fn decode_us(&self, source: &mut Self::Source) -> Result<u16>;
+    fn decode_us<S>(&self, source: S) -> Result<u16> where S: Read;
 
     /// Decode an unsigned long value from the given source.
-    fn decode_ul(&self, source: &mut Self::Source) -> Result<u32>;
+    fn decode_ul<S>(&self, source: S) -> Result<u32> where S: Read;
 
     /// Decode a signed short value from the given source.
-    fn decode_ss(&self, source: &mut Self::Source) -> Result<i16>;
+    fn decode_ss<S>(&self, source: S) -> Result<i16> where S: Read;
 
     /// Decode a signed long value from the given source.
-    fn decode_sl(&self, source: &mut Self::Source) -> Result<i32>;
+    fn decode_sl<S>(&self, source: S) -> Result<i32> where S: Read;
 
     /// Decode a single precision float value from the given source.
-    fn decode_fl(&self, source: &mut Self::Source) -> Result<f32>;
+    fn decode_fl<S>(&self, source: S) -> Result<f32> where S: Read;
 
     /// Decode a double precision float value from the given source.
-    fn decode_fd(&self, source: &mut Self::Source) -> Result<f64>;
+    fn decode_fd<S>(&self, source: S) -> Result<f64> where S: Read;
 
     /// Decode a DICOM attribute tag from the given source.
-    fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag> {
-        let g = try!(self.decode_us(source));
-        let e = try!(self.decode_us(source));
+    fn decode_tag<S>(&self, mut source: S) -> Result<Tag> where S: Read {
+        let g = self.decode_us(&mut source)?;
+        let e = self.decode_us(source)?;
         Ok(Tag(g, e))
     }
 }
@@ -71,37 +72,36 @@ pub trait BasicDecode {
 impl<T: ?Sized> BasicDecode for Box<T>
     where T: BasicDecode
 {
-    type Source = <T as BasicDecode>::Source;
 
     fn endianness(&self) -> Endianness {
         self.as_ref().endianness()
     }
 
-    fn decode_us(&self, source: &mut Self::Source) -> Result<u16> {
+    fn decode_us<S>(&self, source: S) -> Result<u16> where S: Read{
         (**self).decode_us(source)
     }
 
-    fn decode_ul(&self, source: &mut Self::Source) -> Result<u32> {
+    fn decode_ul<S>(&self, source: S) -> Result<u32> where S: Read {
         (**self).decode_ul(source)
     }
 
-    fn decode_ss(&self, source: &mut Self::Source) -> Result<i16> {
+    fn decode_ss<S>(&self, source: S) -> Result<i16> where S: Read {
         (**self).decode_ss(source)
     }
 
-    fn decode_sl(&self, source: &mut Self::Source) -> Result<i32> {
+    fn decode_sl<S>(&self, source: S) -> Result<i32> where S: Read {
         (**self).decode_sl(source)
     }
 
-    fn decode_fl(&self, source: &mut Self::Source) -> Result<f32> {
+    fn decode_fl<S>(&self, source: S) -> Result<f32> where S: Read {
         (**self).decode_fl(source)
     }
 
-    fn decode_fd(&self, source: &mut Self::Source) -> Result<f64> {
+    fn decode_fd<S>(&self, source: S) -> Result<f64> where S: Read {
         (**self).decode_fd(source)
     }
 
-    fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag> {
+    fn decode_tag<S>(&self, source: S) -> Result<Tag> where S: Read {
         (**self).decode_tag(source)
     }
 }
@@ -109,37 +109,35 @@ impl<T: ?Sized> BasicDecode for Box<T>
 impl<'a, T: ?Sized> BasicDecode for &'a T
     where T: BasicDecode
 {
-    type Source = <T as BasicDecode>::Source;
-
     fn endianness(&self) -> Endianness {
         (*self).endianness()
     }
 
-    fn decode_us(&self, source: &mut Self::Source) -> Result<u16> {
+    fn decode_us<S>(&self, source: S) -> Result<u16> where S: Read {
         (**self).decode_us(source)
     }
 
-    fn decode_ul(&self, source: &mut Self::Source) -> Result<u32> {
+    fn decode_ul<S>(&self, source: S) -> Result<u32> where S: Read {
         (**self).decode_ul(source)
     }
 
-    fn decode_ss(&self, source: &mut Self::Source) -> Result<i16> {
+    fn decode_ss<S>(&self, source: S) -> Result<i16> where S: Read {
         (**self).decode_ss(source)
     }
 
-    fn decode_sl(&self, source: &mut Self::Source) -> Result<i32> {
+    fn decode_sl<S>(&self, source: S) -> Result<i32> where S: Read {
         (**self).decode_sl(source)
     }
 
-    fn decode_fl(&self, source: &mut Self::Source) -> Result<f32> {
+    fn decode_fl<S>(&self, source: S) -> Result<f32> where S: Read {
         (**self).decode_fl(source)
     }
 
-    fn decode_fd(&self, source: &mut Self::Source) -> Result<f64> {
+    fn decode_fd<S>(&self, source: S) -> Result<f64> where S: Read {
         (**self).decode_fd(source)
     }
 
-    fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag> {
+    fn decode_tag<S>(&self, source: S) -> Result<Tag> where S: Read {
         (**self).decode_tag(source)
     }
 }
@@ -167,6 +165,8 @@ pub trait Decode {
 
     /// Decode a DICOM attribute tag from the given source.
     fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag>;
+
+    // TODO methods for decoding pixel data?
 }
 
 impl<T: ?Sized> Decode for Box<T>

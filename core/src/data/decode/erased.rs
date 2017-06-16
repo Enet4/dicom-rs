@@ -72,33 +72,32 @@ pub trait Decode: BasicDecode {
 }
 
 impl<'s> super::BasicDecode for &'s BasicDecode {
-    type Source = Read;
 
     fn endianness(&self) -> Endianness {
         (**self).endianness()
     }
 
-    fn decode_us(&self, mut source: &mut Self::Source) -> Result<u16> {
+    fn decode_us<S>(&self, mut source: S) -> Result<u16> where S: Read {
         (**self).erased_decode_us(&mut source)
     }
 
-    fn decode_ul(&self, mut source: &mut Self::Source) -> Result<u32> {
+    fn decode_ul<S>(&self, mut source: S) -> Result<u32> where S: Read {
         (**self).erased_decode_ul(&mut source)
     }
 
-    fn decode_ss(&self, mut source: &mut Self::Source) -> Result<i16> {
+    fn decode_ss<S>(&self, mut source: S) -> Result<i16> where S: Read {
         (**self).erased_decode_ss(&mut source)
     }
 
-    fn decode_sl(&self, mut source: &mut Self::Source) -> Result<i32> {
+    fn decode_sl<S>(&self, mut source: S) -> Result<i32> where S: Read {
         (**self).erased_decode_sl(&mut source)
     }
 
-    fn decode_fl(&self, mut source: &mut Self::Source) -> Result<f32> {
+    fn decode_fl<S>(&self, mut source: S) -> Result<f32> where S: Read {
         (**self).erased_decode_fl(&mut source)
     }
 
-    fn decode_fd(&self, mut source: &mut Self::Source) -> Result<f64> {
+    fn decode_fd<S>(&self, mut source: S) -> Result<f64> where S: Read {
         (**self).erased_decode_fd(&mut source)
     }
 }

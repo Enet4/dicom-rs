@@ -18,9 +18,6 @@ pub type DynamicDecoder<'s> = Box<Decode<Source = (Read + 's)>>;
 /// An encoder with its type erased.
 pub type DynamicEncoder<'w> = Box<Encode<Writer = (Write + 'w)>>;
 
-/// A basic decoder with its type erased.
-pub type DynamicBasicDecoder<'s> = BasicDecoder<(Read + 's)>;
-
 /// Trait for a DICOM transfer syntax. Trait implementers make an entry
 /// point for obtaining the decoder and/or encoder that can handle DICOM objects
 /// under a particular transfer syntax.
@@ -44,7 +41,7 @@ pub trait TransferSyntax: Debug + Sync {
     }
 
     /// Obtain a dynamic basic decoder, based on this transfer syntax' expected endianness.
-    fn get_basic_decoder<'s>(&self) -> BasicDecoder<(Read + 's)> {
+    fn get_basic_decoder(&self) -> BasicDecoder {
         BasicDecoder::from(self.endianness())
     }
 }

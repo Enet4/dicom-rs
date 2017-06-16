@@ -1,6 +1,5 @@
-use std::cell::{Ref, RefMut, RefCell};
+use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
-use std::io::{Seek, SeekFrom};
 use std::fmt;
 use std::fmt::Debug;
 use std::rc::Rc;
@@ -111,6 +110,7 @@ impl<S, P, D> LazyDicomObject<S, P, D>
         let borrow = self.source.borrow_mut();
         marker.move_to_start(borrow)?;
         //self.parser.read_value(&marker.header)
+
         unimplemented!() // need to resolve source borrowing first
     }
 }

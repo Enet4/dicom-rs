@@ -93,10 +93,11 @@ impl<'s, D> InMemDicomObject<'s, D>
     pub fn from_file_with_dict<P: AsRef<Path>>(path: P, dict: D) -> Result<Self> {
         let mut file = BufReader::new(File::open(path)?);
 
+        // read metadata header
         let meta = DicomMetaTable::from_readseek_stream(&mut file)?;
+        // TODO feed data to object
         
-        // TODO read metadata header, feed data to object
-        // read rest of data according to metadata, feed it to object
+        // TODO read rest of data according to metadata, feed it to object
 
         unimplemented!()
     }
