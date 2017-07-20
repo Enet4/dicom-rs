@@ -17,18 +17,18 @@ use self::pixeldata::PixelData;
 /// manipulated as dictionary of entries indexed by tags, which in
 /// turn may contain a DICOM object.
 ///
-pub trait DicomObject<'s> {
-    type Element: 's + Header; // TODO change constraint
-    type Sequence: 's; // TODO add constraint
+pub trait DicomObject {
+    type Element: Header; // TODO change constraint
+    type Sequence; // TODO add constraint
 
     /// Retrieve a particular DICOM element by its tag.
-    fn get_element(&'s self, tag: Tag) -> Result<Self::Element>;
+    fn get_element(&self, tag: Tag) -> Result<Self::Element>;
 
     /// Retrieve a particular DICOM element by its name.
-    fn get_element_by_name(&'s self, name: &str) -> Result<Self::Element>;
+    fn get_element_by_name(&self, name: &str) -> Result<Self::Element>;
 
     /// Retrieve the object's pixel data.
-    fn get_pixel_data<PV, PX: PixelData<PV>>(&'s self) -> Result<PX>;
+    fn get_pixel_data<PV, PX: PixelData<PV>>(&self) -> Result<PX>;
 
     // TODO moar
 }

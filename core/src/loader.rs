@@ -10,7 +10,7 @@ pub struct DicomLoaderOptions<D, O> {
 }
 
 impl<'s, O> DicomLoaderOptions<&'static StandardDataDictionary, O>
-    where O: DicomObject<'s>
+    where O: DicomObject
 {
     pub fn new() -> Self {
         DicomLoaderOptions {
@@ -21,7 +21,7 @@ impl<'s, O> DicomLoaderOptions<&'static StandardDataDictionary, O>
 }
 
 impl<'s, D, O> DicomLoaderOptions<D, O>
-    where O: DicomObject<'s>
+    where O: DicomObject
 {
     pub fn with_dict(self, dict: D) -> Self {
         DicomLoaderOptions {

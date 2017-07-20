@@ -54,7 +54,7 @@ impl<S, P, D> Debug for LazyDicomObject<S, P, D>
     }
 }
 
-impl<'s, S: 's, P: 's, D: 's> DicomObject<'s> for LazyDicomObject<S, P, D>
+impl<'s, S: 's, P: 's, D: 's> DicomObject for &'s LazyDicomObject<S, P, D>
     where S: ReadSeek,
           P: Parse<S>,
           D: DataDictionary
@@ -62,7 +62,7 @@ impl<'s, S: 's, P: 's, D: 's> DicomObject<'s> for LazyDicomObject<S, P, D>
     type Element = Ref<'s, LazyDataElement>;
     type Sequence = Ref<'s, LazyDataSequence<'s, S, P, D>>;
 
-    fn get_element(&'s self, tag: Tag) -> Result<Self::Element> {
+    fn get_element(&self, tag: Tag) -> Result<Self::Element> {
         {
             let borrow = self.entries.borrow();
             if !borrow.contains_key(&tag) {
@@ -84,7 +84,7 @@ impl<'s, S: 's, P: 's, D: 's> DicomObject<'s> for LazyDicomObject<S, P, D>
                     |m| m.get(&tag).expect("Element should exist")))
     }
 
-    fn get_element_by_name(&'s self, name: &str) -> Result<Self::Element> {
+    fn get_element_by_name(&self, name: &str) -> Result<Self::Element> {
         let tag = self.lookup_name(name)?;
         self.get_element(tag)
     }

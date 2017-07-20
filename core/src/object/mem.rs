@@ -17,56 +17,51 @@ use object::pixeldata::PixelData;
 /** A DICOM sequence that is fully contained in memory.
  */
 #[derive(Debug, Clone)]
-pub struct InMemSequence<'s, D> {
+pub struct InMemSequence<D> {
     tag: Tag,
-    objects: Vec<InMemDicomObject<'s, D>>,
+    objects: Vec<InMemDicomObject<D>>,
 }
 
 /** A DICOM object that is fully contained in memory.
  */
 #[derive(Debug, Clone)]
-pub struct InMemDicomObject<'s, D> {
+pub struct InMemDicomObject<D> {
     entries: HashMap<Tag, DataElement>,
     dict: D,
-    self_phantom: PhantomData<&'s ()>,
 }
 
-impl<'s, D> PartialEq for InMemDicomObject<'s, D> {
+impl<'s, D> PartialEq for InMemDicomObject<D> {
     // This implementation ignores the data dictionary.
     fn eq(&self, other: &Self) -> bool {
         self.entries == other.entries
     }
 }
 
-impl<'s, D: 's> DicomObject<'s> for InMemDicomObject<'s, D>
+impl<'s, D: 's> DicomObject for &'s InMemDicomObject<D>
     where D: DataDictionary
 {
     type Element = &'s DataElement;
-    type Sequence = InMemSequence<'s, D>;
+    type Sequence = InMemSequence<D>;
 
-    fn get_element(&'s self, tag: Tag) -> Result<Self::Element> {
-        self.entries
-            .get(&tag)
-            .ok_or(Error::NoSuchDataElement)
+    fn get_element(&self, tag: Tag) -> Result<Self::Element> {
+        (**self).get_element(tag)
     }
 
-    fn get_element_by_name(&'s self, name: &str) -> Result<Self::Element> {
-        let tag = self.lookup_name(name)?;
-        self.get_element(tag)
+    fn get_element_by_name(&self, name: &str) -> Result<Self::Element> {
+        (**self).get_element_by_name(name)
     }
 
-    fn get_pixel_data<PV, PD: PixelData<PV>>(&'s self) -> Result<PD> {
-        unimplemented!()
+    fn get_pixel_data<PV, PD: PixelData<PV>>(&self) -> Result<PD> {
+        (**self).get_pixel_data()
     }
 }
 
-impl<'s> InMemDicomObject<'s, &'static StandardDataDictionary> {
+impl InMemDicomObject<&'static StandardDataDictionary> {
     /// Create a new empty DICOM object.
     pub fn create_empty() -> Self {
         InMemDicomObject {
             entries: HashMap::new(),
             dict: get_standard_dictionary(),
-            self_phantom: PhantomData,
         }
     }
 
@@ -76,7 +71,7 @@ impl<'s> InMemDicomObject<'s, &'static StandardDataDictionary> {
     }
 }
 
-impl<'s, D> InMemDicomObject<'s, D>
+impl<D> InMemDicomObject<D>
     where D: DataDictionary
 {
     /// Create a new empty object, using the given dictionary
@@ -85,7 +80,6 @@ impl<'s, D> InMemDicomObject<'s, D>
         InMemDicomObject {
             entries: HashMap::new(),
             dict: dict,
-            self_phantom: PhantomData,
         }
     }
 
@@ -113,12 +107,28 @@ impl<'s, D> InMemDicomObject<'s, D>
     pub fn put(&mut self, elt: DataElement) {
         self.entries.insert(elt.tag(), elt);
     }
+
+    fn get_element(&self, tag: Tag) -> Result<&DataElement> {
+        self.entries
+            .get(&tag)
+            .ok_or(Error::NoSuchDataElement)
+    }
+
+    fn get_element_by_name(&self, name: &str) -> Result<&DataElement> {
+        let tag = self.lookup_name(name)?;
+        self.get_element(tag)
+    }
+
+    fn get_pixel_data<PV, PD: PixelData<PV>>(&self) -> Result<PD> {
+        unimplemented!()
+    }
 }
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
+    use object::DicomObject;
     use data::VR;
 
     #[test]
@@ -140,7 +150,7 @@ mod tests {
                                                     DicomValue::Str("Doe^John".to_string()));
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
-        let elem1 = obj.get_element(Tag(0x0010, 0x0010)).unwrap();
+        let elem1 = (&obj).get_element(Tag(0x0010, 0x0010)).unwrap();
         assert_eq!(elem1, &another_patient_name);
     }
 
@@ -151,7 +161,7 @@ mod tests {
                                                     DicomValue::Str("Doe^John".to_string()));
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
-        let elem1 = obj.get_element_by_name("PatientName").unwrap();
+        let elem1 = (&obj).get_element_by_name("PatientName").unwrap();
         assert_eq!(elem1, &another_patient_name);
     }
 }

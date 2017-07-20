@@ -157,8 +157,6 @@ impl DataElement {
         }
     }
 
-    // TODO moar
-
     /// Retrieve the element's value representation, which can be unknown.
     pub fn vr(&self) -> VR {
         self.header.vr()
@@ -183,8 +181,6 @@ impl<'v> DataElementRef<'v> {
             value: value,
         }
     }
-
-    // TODO moar
 
     /// Retrieve the element's value representation, which can be unknown.
     pub fn vr(&self) -> VR {
