@@ -150,7 +150,7 @@ mod tests {
                                                     DicomValue::Str("Doe^John".to_string()));
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
-        let elem1 = (&obj).get_element(Tag(0x0010, 0x0010)).unwrap();
+        let elem1 = obj.get_element(Tag(0x0010, 0x0010)).unwrap();
         assert_eq!(elem1, &another_patient_name);
     }
 
@@ -161,7 +161,7 @@ mod tests {
                                                     DicomValue::Str("Doe^John".to_string()));
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
-        let elem1 = (&obj).get_element_by_name("PatientName").unwrap();
+        let elem1 = obj.get_element_by_name("PatientName").unwrap();
         assert_eq!(elem1, &another_patient_name);
     }
 }
