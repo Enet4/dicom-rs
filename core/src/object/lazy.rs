@@ -15,15 +15,15 @@ use util::ReadSeek;
 use super::DicomObject;
 
 /// Data type for a lazily loaded DICOM object builder.
-pub struct LazyDataSequence<'p, S: 'p, P: 'p, D: 'p> {
-    parent: &'p LazyDicomObject<S, P, D>,
+pub struct LazyDataSequence<S, P, D> {
+    dict: D,
+    source: RefCell<S>,
+    parser: P,
     seq: Vec<LazyDataElement>,
 }
 
-impl<'p, S, P, D> Debug for LazyDataSequence<'p, S, P, D>
-    where S: Debug,
-          P: Debug,
-          D: Debug
+impl<S, P, D> Debug for LazyDataSequence<S, P, D>
+    where D: Debug
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // ignore parent to avoid cycles
@@ -36,14 +36,13 @@ impl<'p, S, P, D> Debug for LazyDataSequence<'p, S, P, D>
 /// Data type for a lazily loaded DICOM object builder.
 pub struct LazyDicomObject<S, P, D> {
     dict: D,
-    source: RefCell<S>, // FIXME can't borrow this with parser
+    source: RefCell<S>,
     parser: P,
     entries: RefCell<HashMap<Tag, LazyDataElement>>,
 }
 
 impl<S, P, D> Debug for LazyDicomObject<S, P, D>
-    where S: Debug,
-          P: Debug,
+    where P: Debug,
           D: Debug
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -60,7 +59,7 @@ impl<'s, S: 's, P: 's, D: 's> DicomObject for &'s LazyDicomObject<S, P, D>
           D: DataDictionary
 {
     type Element = Ref<'s, LazyDataElement>;
-    type Sequence = Ref<'s, LazyDataSequence<'s, S, P, D>>;
+    type Sequence = Ref<'s, LazyDataSequence<S, P, D>>;
 
     fn get_element(&self, tag: Tag) -> Result<Self::Element> {
         {
@@ -94,7 +93,7 @@ impl<'s, S: 's, P: 's, D: 's> DicomObject for &'s LazyDicomObject<S, P, D>
     }
 }
 
-impl<S, P, D> LazyDicomObject<S, P, D>
+impl<'s, S: 's, P, D> LazyDicomObject<S, P, D>
     where S: ReadSeek,
           P: Parse<S>,
           D: DataDictionary
@@ -107,11 +106,9 @@ impl<S, P, D> LazyDicomObject<S, P, D>
     }
 
     fn load_value(&self, marker: &DicomElementMarker) -> Result<DicomValue> {
-        let borrow = self.source.borrow_mut();
-        marker.move_to_start(borrow)?;
-        //self.parser.read_value(&marker.header)
-
-        unimplemented!() // need to resolve source borrowing first
+        let mut borrow = self.source.borrow_mut();
+        marker.move_to_start(&mut *borrow)?;
+        self.parser.read_value(&mut *borrow, &marker.header)
     }
 }
 
