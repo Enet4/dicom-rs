@@ -14,13 +14,18 @@
 //! Future versions will enable different kinds of outputs.
 
 extern crate hyper;
+extern crate futures;
+extern crate tokio_core;
 extern crate quick_xml;
 extern crate regex;
 extern crate clap;
 
+use tokio_core::reactor::Core;
 use clap::{Arg, App};
+use futures::{Future, Stream};
+use hyper::{Chunk, Uri};
 use hyper::client::Client;
-use hyper::client::Response;
+use hyper::client::FutureResponse;
 
 use quick_xml::errors::Result as XmlResult;
 use quick_xml::reader::Reader;
@@ -29,6 +34,7 @@ use quick_xml::events::attributes::Attribute;
 use std::io;
 use std::io::{BufRead, BufReader, Write};
 use std::fs::{File, create_dir_all};
+use std::str::FromStr;
 use std::path::Path;
 use regex::Regex;
 
@@ -68,23 +74,31 @@ fn main() {
     });
     let dst = Path::new(out_file);
 
+    let mut core = Core::new().unwrap();
+
     let src = matches.value_of("FROM").unwrap();
     if src.starts_with("http:") {
-        let resp = xml_from_site(src).expect("should obtain response");
-        let resp = BufReader::new(resp);
-        let xml_entries = XmlEntryIterator::new(resp).map(|item| item.unwrap());
-
-        match format {
-            "rs" => {
-                to_code_file(dst, xml_entries)
-            },
-            "json" => {
-                to_json_file(dst, xml_entries)
-            }
-            _ => {
-                unreachable!()
-            }
-        }
+        let src = Uri::from_str(src).unwrap();
+        println!("Downloading DICOM dictionary ...");
+        let req = xml_from_site(&core, src)
+            .and_then(|resp| resp.body().concat2().and_then(|body: Chunk| {
+                let xml_entries = XmlEntryIterator::new(&*body)
+                    .map(|item| item.unwrap());
+                println!("Writing to file ...");
+                match format {
+                    "rs" => {
+                        to_code_file(dst, xml_entries)
+                    },
+                    "json" => {
+                        to_json_file(dst, xml_entries)
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                }.expect("Failed to write file");
+                Ok(())
+            }));
+        core.run(req).unwrap();
     } else {
         // read from File
         let file = File::open(src).unwrap();
@@ -101,13 +115,13 @@ fn main() {
             _ => {
                 unreachable!()
             }
-        }
-    }.expect("Failed to write file")
+        }.expect("Failed to write file");
+    }
 }
 
-fn xml_from_site<U: AsRef<str>>(url: U) -> Result<Response, hyper::Error> {
-    let client = Client::new();
-    client.get(url.as_ref()).send()
+fn xml_from_site(core: &Core, url: Uri) -> FutureResponse {
+    let client = Client::new(&core.handle());
+    client.get(url)
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -241,7 +255,7 @@ impl<R: BufRead> Iterator for XmlEntryIterator<R> {
                         XmlReadingState::Off => {
                             // do nothing
                         },
-                        e => if local_name == b"tr" && self.tag.is_some() {
+                        _e => if local_name == b"tr" && self.tag.is_some() {
                             let tag = self.tag.take().unwrap();
                             let out = Entry {
                                 tag: tag,
