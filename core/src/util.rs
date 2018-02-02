@@ -92,7 +92,7 @@ impl<S: ?Sized + Seek, B> Read for SeekInterval<S, B>
     where S: Read,
           B: DerefMut<Target = S>
 {
-    fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let r = self.remaining();
         let buf = if buf.len() > r { &mut buf[0..r] } else { buf };
 

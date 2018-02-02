@@ -16,7 +16,7 @@ pub mod basic;
  * According to the standard, data elements are encoded in Implicit
  * VR Little Endian by default.
  */
-pub fn get_default_reader<'s, S: 's + ?Sized>() -> StandardImplicitVRLittleEndianDecoder<S>
+pub fn get_default_reader<S>() -> StandardImplicitVRLittleEndianDecoder<S>
     where S: Read
 {
     ImplicitVRLittleEndianDecoder::default()
@@ -26,7 +26,9 @@ pub fn get_default_reader<'s, S: 's + ?Sized>() -> StandardImplicitVRLittleEndia
  * file's Meta information. According to the standard, these are always
  * encoded in Explicit VR Little Endian.
  */
-pub fn get_file_header_decoder<'s, S: Read + ?Sized + 's>() -> ExplicitVRLittleEndianDecoder<S> {
+pub fn get_file_header_decoder<S>() -> ExplicitVRLittleEndianDecoder<S>
+    where S: Read
+{
     ExplicitVRLittleEndianDecoder::default()
 }
 

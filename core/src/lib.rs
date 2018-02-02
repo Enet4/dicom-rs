@@ -10,12 +10,13 @@
 //! is subject to change.
 //!
 //! ```compile
-//! # use dicom_core::{from_path, Result};
+//! use dicom_core::from_file;
+//! # use dicom_core::Result;
 //! # fn foo() -> Result<()> {
-//! let obj = from_path("0001.dcm")?;
-//! let patient_name = obj.element_by_name("PatientName")?.as_str()?;
-//! let modality = obj.element_by_name("Modality")?.as_str()?;
-//! let pixel_data = obj.pixel_data()?;
+//! let obj = from_file("0001.dcm")?;
+//! let patient_name = obj.get_element_by_name("PatientName")?.as_str()?;
+//! let modality = obj.get_element_by_name("Modality")?.as_str()?;
+//! let pixel_data = obj.get_pixel_data()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -53,4 +54,4 @@ mod util;
 type DefaultDicomObject = InMemDicomObject<&'static StandardDataDictionary>;
 
 
-pub use file::{from_path, from_file, to_file};
+pub use file::{from_stream, from_file, to_file};

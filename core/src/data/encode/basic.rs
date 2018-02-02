@@ -82,7 +82,9 @@ impl BasicEncode for BigEndianBasicEncoder {
 /// this enum may become more practical and efficient than relying on trait objects.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BasicEncoder {
+    /// Encode in Little Endian
     LE(LittleEndianBasicEncoder),
+    /// Encode in Big Endian
     BE(BigEndianBasicEncoder),
 }
 

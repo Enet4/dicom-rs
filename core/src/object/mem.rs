@@ -5,8 +5,9 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::fs::File;
 use std::io::BufReader;
-use meta::DicomMetaTable;
 
+use meta::DicomMetaTable;
+use iterator::DicomElementIterator;
 use super::DicomObject;
 use data::{DataElement, Header, Tag};
 use data::value::DicomValue;
@@ -44,15 +45,18 @@ impl<'s, D: 's> DicomObject for &'s InMemDicomObject<D>
     type Sequence = InMemSequence<D>;
 
     fn get_element(&self, tag: Tag) -> Result<Self::Element> {
-        (**self).get_element(tag)
+        self.entries
+            .get(&tag)
+            .ok_or(Error::NoSuchDataElement)
     }
 
     fn get_element_by_name(&self, name: &str) -> Result<Self::Element> {
-        (**self).get_element_by_name(name)
+        let tag = self.lookup_name(name)?;
+        self.get_element(tag)
     }
 
     fn get_pixel_data<PV, PD: PixelData<PV>>(&self) -> Result<PD> {
-        (**self).get_pixel_data()
+        unimplemented!()
     }
 }
 
@@ -89,11 +93,18 @@ impl<D> InMemDicomObject<D>
 
         // read metadata header
         let meta = DicomMetaTable::from_readseek_stream(&mut file)?;
+        let mut entries = HashMap::new();
         // TODO feed data to object
-        
-        // TODO read rest of data according to metadata, feed it to object
 
-        unimplemented!()
+        // TODO read rest of data according to metadata, feed it to object
+        let ts = unimplemented!();
+        let cs = unimplemented!();
+        let mut it = DicomElementIterator::new_with(&mut file, ts, cs);
+        
+        Ok(InMemDicomObject {
+            entries,
+            dict
+        })
     }
 
     fn lookup_name(&self, name: &str) -> Result<Tag> {
@@ -106,21 +117,6 @@ impl<D> InMemDicomObject<D>
     /// Insert a data element to the object.
     pub fn put(&mut self, elt: DataElement) {
         self.entries.insert(elt.tag(), elt);
-    }
-
-    fn get_element(&self, tag: Tag) -> Result<&DataElement> {
-        self.entries
-            .get(&tag)
-            .ok_or(Error::NoSuchDataElement)
-    }
-
-    fn get_element_by_name(&self, name: &str) -> Result<&DataElement> {
-        let tag = self.lookup_name(name)?;
-        self.get_element(tag)
-    }
-
-    fn get_pixel_data<PV, PD: PixelData<PV>>(&self) -> Result<PD> {
-        unimplemented!()
     }
 }
 
@@ -150,7 +146,7 @@ mod tests {
                                                     DicomValue::Str("Doe^John".to_string()));
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
-        let elem1 = obj.get_element(Tag(0x0010, 0x0010)).unwrap();
+        let elem1 = (&obj).get_element(Tag(0x0010, 0x0010)).unwrap();
         assert_eq!(elem1, &another_patient_name);
     }
 
@@ -161,7 +157,7 @@ mod tests {
                                                     DicomValue::Str("Doe^John".to_string()));
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
-        let elem1 = obj.get_element_by_name("PatientName").unwrap();
+        let elem1 = (&obj).get_element_by_name("PatientName").unwrap();
         assert_eq!(elem1, &another_patient_name);
     }
 }

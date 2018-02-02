@@ -14,9 +14,10 @@ use data::encode::Encode;
 use util::Endianness;
 
 /// A decoder with its type erased.
-pub type DynamicDecoder<'s> = Box<Decode<Source = (Read + 's)>>;
+pub type DynamicDecoder<'s> = Box<'s + Decode<Source = &'s mut Read>>;
+
 /// An encoder with its type erased.
-pub type DynamicEncoder<'w> = Box<Encode<Writer = (Write + 'w)>>;
+pub type DynamicEncoder<'w> = Box<'w + Encode<Writer = &'w mut Write>>;
 
 /// Trait for a DICOM transfer syntax. Trait implementers make an entry
 /// point for obtaining the decoder and/or encoder that can handle DICOM objects
@@ -36,7 +37,7 @@ pub trait TransferSyntax: Debug + Sync {
 
     /// Retrieve the appropriate data element encoder for this transfer syntax.
     /// Can yield none if encoding is not supported.
-    fn get_encoder<'s>(&self) -> Option<DynamicEncoder<'s>> {
+    fn get_encoder<'w>(&self) -> Option<DynamicEncoder<'w>> {
         None
     }
 
@@ -83,7 +84,7 @@ impl TransferSyntax for ImplicitVRLittleEndian {
         Some(Box::new(implicit_le::ImplicitVRLittleEndianDecoder::default()))
     }
 
-    fn get_encoder<'s>(&self) -> Option<DynamicEncoder<'s>> {
+    fn get_encoder<'w>(&self) -> Option<DynamicEncoder<'w>> {
         Some(Box::new(implicit_le::ImplicitVRLittleEndianEncoder::default()))
     }
 }
@@ -104,7 +105,7 @@ impl TransferSyntax for ExplicitVRLittleEndian {
         Some(Box::new(explicit_le::ExplicitVRLittleEndianDecoder::default()))
     }
 
-    fn get_encoder<'s>(&self) -> Option<DynamicEncoder<'s>> {
+    fn get_encoder<'w>(&self) -> Option<DynamicEncoder<'w>> {
         Some(Box::new(explicit_le::ExplicitVRLittleEndianEncoder::default()))
     }
 }
@@ -125,7 +126,7 @@ impl TransferSyntax for ExplicitVRBigEndian {
         Some(Box::new(explicit_be::ExplicitVRBigEndianDecoder::default()))
     }
 
-    fn get_encoder<'s>(&self) -> Option<DynamicEncoder<'s>> {
+    fn get_encoder<'w>(&self) -> Option<DynamicEncoder<'w>> {
         Some(Box::new(explicit_be::ExplicitVRBigEndianEncoder::default()))
     }
 }

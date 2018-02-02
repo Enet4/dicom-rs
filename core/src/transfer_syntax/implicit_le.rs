@@ -3,7 +3,7 @@
 use byteorder::{ByteOrder, LittleEndian};
 use std::io::{Read, Write};
 use std::marker::PhantomData;
-use dictionary::{DataDictionary, DictionaryEntry, get_standard_dictionary};
+use dictionary::{get_standard_dictionary, DataDictionary, DictionaryEntry};
 use dictionary::standard::StandardDataDictionary;
 use data::VR;
 use data::Tag;
@@ -14,8 +14,9 @@ use data::decode::basic::LittleEndianBasicDecoder;
 use data::decode::{BasicDecode, Decode};
 use data::encode::basic::LittleEndianBasicEncoder;
 use data::encode::{BasicEncode, Encode};
-use data::{DataElementHeader, SequenceItemHeader, Header};
+use data::{DataElementHeader, Header, SequenceItemHeader};
 
+/// An ImplicitVRLittleEndianDecoder which uses the standard data dictionary.
 pub type StandardImplicitVRLittleEndianDecoder<S> =
     ImplicitVRLittleEndianDecoder<S, &'static StandardDataDictionary>;
 
@@ -28,8 +29,7 @@ pub struct ImplicitVRLittleEndianDecoder<S: ?Sized, D> {
     phantom: PhantomData<S>,
 }
 
-impl<S: ?Sized, D> fmt::Debug for ImplicitVRLittleEndianDecoder<S, D>
-{
+impl<S: ?Sized, D> fmt::Debug for ImplicitVRLittleEndianDecoder<S, D> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ImplicitVRLittleEndianDecoder")
             .field("dict", &"«omitted»")
@@ -39,8 +39,7 @@ impl<S: ?Sized, D> fmt::Debug for ImplicitVRLittleEndianDecoder<S, D>
     }
 }
 
-impl<S: ?Sized> ImplicitVRLittleEndianDecoder<S, &'static StandardDataDictionary>
-{
+impl<S: ?Sized> ImplicitVRLittleEndianDecoder<S, &'static StandardDataDictionary> {
     /// Retrieve this decoder using the standard data dictionary.
     pub fn with_default_dict() -> Self {
         ImplicitVRLittleEndianDecoder {
@@ -51,17 +50,16 @@ impl<S: ?Sized> ImplicitVRLittleEndianDecoder<S, &'static StandardDataDictionary
     }
 }
 
-impl<S: ?Sized> Default
-    for ImplicitVRLittleEndianDecoder<S, &'static StandardDataDictionary>
-{
+impl<S> Default for ImplicitVRLittleEndianDecoder<S, &'static StandardDataDictionary> {
     fn default() -> Self {
         ImplicitVRLittleEndianDecoder::with_default_dict()
     }
 }
 
 impl<S: ?Sized, D> ImplicitVRLittleEndianDecoder<S, D>
-    where S: Read,
-          D: DataDictionary
+where
+    S: Read,
+    D: DataDictionary,
 {
     /// Retrieve this decoder using a custom data dictionary.
     pub fn with_dict(dictionary: D) -> Self {
@@ -74,8 +72,9 @@ impl<S: ?Sized, D> ImplicitVRLittleEndianDecoder<S, D>
 }
 
 impl<'d, S: ?Sized, D> Decode for ImplicitVRLittleEndianDecoder<S, D>
-    where S: Read,
-          D: DataDictionary
+where
+    S: Read,
+    D: DataDictionary,
 {
     type Source = S;
 
@@ -86,7 +85,10 @@ impl<'d, S: ?Sized, D> Decode for ImplicitVRLittleEndianDecoder<S, D>
         let mut buf = [0u8; 4];
         source.read_exact(&mut buf)?;
         let len = LittleEndian::read_u32(&buf);
-        let vr = self.dict.get_by_tag(tag).map(|entry| entry.vr()).unwrap_or(VR::UN);
+        let vr = self.dict
+            .get_by_tag(tag)
+            .map(|entry| entry.vr())
+            .unwrap_or(VR::UN);
         Ok(DataElementHeader::new(tag, vr, len))
     }
 
@@ -102,7 +104,7 @@ impl<'d, S: ?Sized, D> Decode for ImplicitVRLittleEndianDecoder<S, D>
     }
 
     #[inline]
-    fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag> {
+    fn decode_tag(&self, source: &mut S) -> Result<Tag> {
         self.basic.decode_tag(source)
     }
 }
@@ -126,44 +128,66 @@ impl<W: ?Sized> Default for ImplicitVRLittleEndianEncoder<W> {
     fn default() -> ImplicitVRLittleEndianEncoder<W> {
         ImplicitVRLittleEndianEncoder {
             basic: LittleEndianBasicEncoder,
-            phantom:PhantomData,
+            phantom: PhantomData,
         }
     }
 }
 
-impl<W: Write + ?Sized> BasicEncode for ImplicitVRLittleEndianEncoder<W> {
-
+impl<W: ?Sized> BasicEncode for ImplicitVRLittleEndianEncoder<W>
+where
+    W: Write,
+{
     fn endianness(&self) -> Endianness {
         Endianness::LE
     }
 
-    fn encode_us<S>(&self, to: S, value: u16) -> Result<()> where S: Write {
+    fn encode_us<S>(&self, to: S, value: u16) -> Result<()>
+    where
+        S: Write,
+    {
         self.basic.encode_us(to, value)
     }
 
-    fn encode_ul<S>(&self, to: S, value: u32) -> Result<()> where S: Write {
+    fn encode_ul<S>(&self, to: S, value: u32) -> Result<()>
+    where
+        S: Write,
+    {
         self.basic.encode_ul(to, value)
     }
 
-    fn encode_ss<S>(&self, to: S, value: i16) -> Result<()> where S: Write {
+    fn encode_ss<S>(&self, to: S, value: i16) -> Result<()>
+    where
+        S: Write,
+    {
         self.basic.encode_ss(to, value)
     }
 
-    fn encode_sl<S>(&self, to: S, value: i32) -> Result<()> where S: Write {
+    fn encode_sl<S>(&self, to: S, value: i32) -> Result<()>
+    where
+        S: Write,
+    {
         self.basic.encode_sl(to, value)
     }
 
-    fn encode_fl<S>(&self, to: S, value: f32) -> Result<()> where S: Write {
+    fn encode_fl<S>(&self, to: S, value: f32) -> Result<()>
+    where
+        S: Write,
+    {
         self.basic.encode_fl(to, value)
     }
 
-    fn encode_fd<S>(&self, to: S, value: f64) -> Result<()> where S: Write {
+    fn encode_fd<S>(&self, to: S, value: f64) -> Result<()>
+    where
+        S: Write,
+    {
         self.basic.encode_fd(to, value)
     }
 }
 
-impl<W: Write + ?Sized> Encode for ImplicitVRLittleEndianEncoder<W> {
-
+impl<W: ?Sized> Encode for ImplicitVRLittleEndianEncoder<W>
+where
+    W: Write,
+{
     type Writer = W;
 
     fn encode_tag(&self, to: &mut W, tag: Tag) -> Result<()> {
@@ -192,7 +216,6 @@ impl<W: Write + ?Sized> Encode for ImplicitVRLittleEndianEncoder<W> {
         Ok(())
     }
 
-
     fn encode_item_delimiter(&self, to: &mut W) -> Result<()> {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf, 0xFFFE);
@@ -214,13 +237,13 @@ impl<W: Write + ?Sized> Encode for ImplicitVRLittleEndianEncoder<W> {
 mod tests {
     use super::ImplicitVRLittleEndianDecoder;
     use super::ImplicitVRLittleEndianEncoder;
-    use data::{Header, DataElementHeader};
+    use data::{DataElementHeader, Header};
     use data::decode::Decode;
     use data::encode::Encode;
     use dictionary::stub::StubDataDictionary;
     use data::VR;
     use data::Tag;
-    use std::io::{Read, Cursor, Seek, SeekFrom, Write};
+    use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements
     //   Tag: (0002,0002) Media Storage SOP Class UID
@@ -231,30 +254,34 @@ mod tests {
     //   Length: 20
     //   Value: "1.2.840.10008.1.2.1" (w 1 padding '\0') == ExplicitVRLittleEndian
     // --
-    const RAW: &'static [u8; 62] =
-        &[0x02, 0x00, 0x02, 0x00, 0x1a, 0x00, 0x00, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34,
-          0x30, 0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x35, 0x2e, 0x31, 0x2e, 0x34, 0x2e,
-          0x31, 0x2e, 0x31, 0x2e, 0x31, 0x00, 0x02, 0x00, 0x10, 0x00, 0x14, 0x00, 0x00, 0x00,
-          0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34, 0x30, 0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e,
-          0x31, 0x2e, 0x32, 0x2e, 0x31, 0x00];
+    const RAW: &'static [u8; 62] = &[
+        0x02, 0x00, 0x02, 0x00, 0x1a, 0x00, 0x00, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34, 0x30,
+        0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x35, 0x2e, 0x31, 0x2e, 0x34, 0x2e, 0x31, 0x2e,
+        0x31, 0x2e, 0x31, 0x00, 0x02, 0x00, 0x10, 0x00, 0x14, 0x00, 0x00, 0x00, 0x31, 0x2e, 0x32,
+        0x2e, 0x38, 0x34, 0x30, 0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x31, 0x2e, 0x32, 0x2e,
+        0x31, 0x00,
+    ];
 
     const DICT: &'static StubDataDictionary = &StubDataDictionary;
 
     #[test]
     fn implicit_vr_le_works() {
-
         let reader = ImplicitVRLittleEndianDecoder::with_dict(DICT);
         let mut cursor = Cursor::new(RAW.as_ref());
         {
             // read first element
-            let elem = reader.decode_header(&mut cursor).expect("should find an element");
+            let elem = reader
+                .decode_header(&mut cursor)
+                .expect("should find an element");
             assert_eq!(elem.tag(), (0x0002, 0x0002));
             assert_eq!(elem.vr(), VR::UN);
             assert_eq!(elem.len(), 26);
             // read only half of the data
             let mut buffer: Vec<u8> = Vec::with_capacity(13);
             buffer.resize(13, 0);
-            cursor.read_exact(buffer.as_mut_slice()).expect("should read it fine");
+            cursor
+                .read_exact(buffer.as_mut_slice())
+                .expect("should read it fine");
             assert_eq!(buffer.as_slice(), b"1.2.840.10008".as_ref());
         }
         // cursor should now be @ #21 (there is no automatic skipping)
@@ -263,26 +290,31 @@ mod tests {
         assert_eq!(cursor.seek(SeekFrom::Current(13)).unwrap(), 34);
         {
             // read second element
-            let elem = reader.decode_header(&mut cursor).expect("should find an element");
+            let elem = reader
+                .decode_header(&mut cursor)
+                .expect("should find an element");
             assert_eq!(elem.tag(), (0x0002, 0x0010));
             assert_eq!(elem.vr(), VR::UN);
             assert_eq!(elem.len(), 20);
             // read all data
             let mut buffer: Vec<u8> = Vec::with_capacity(20);
             buffer.resize(20, 0);
-            cursor.read_exact(buffer.as_mut_slice()).expect("should read it fine");
+            cursor
+                .read_exact(buffer.as_mut_slice())
+                .expect("should read it fine");
             assert_eq!(buffer.as_slice(), b"1.2.840.10008.1.2.1\0".as_ref());
         }
     }
 
     #[test]
     fn implicit_vr_le_works_with_standard_dictionary() {
-
         let reader = ImplicitVRLittleEndianDecoder::with_default_dict();
         let mut cursor = Cursor::new(RAW.as_ref());
         {
             // read first element
-            let elem = reader.decode_header(&mut cursor).expect("should find an element");
+            let elem = reader
+                .decode_header(&mut cursor)
+                .expect("should find an element");
             assert_eq!(elem.tag(), (2, 2));
             assert_eq!(elem.vr(), VR::UI);
             assert_eq!(elem.len(), 26);
@@ -290,19 +322,25 @@ mod tests {
             assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 8);
             // don't read any data, just skip
             // cursor should be @ #34 after skipping
-            assert_eq!(cursor.seek(SeekFrom::Current(elem.len() as i64)).unwrap(),
-                       34);
+            assert_eq!(
+                cursor.seek(SeekFrom::Current(elem.len() as i64)).unwrap(),
+                34
+            );
         }
         {
             // read second element
-            let elem = reader.decode_header(&mut cursor).expect("should find an element");
+            let elem = reader
+                .decode_header(&mut cursor)
+                .expect("should find an element");
             assert_eq!(elem.tag(), (2, 16));
             assert_eq!(elem.vr(), VR::UI);
             assert_eq!(elem.len(), 20);
             // read all data
             let mut buffer: Vec<u8> = Vec::with_capacity(20);
             buffer.resize(20, 0);
-            cursor.read_exact(buffer.as_mut_slice()).expect("should read it fine");
+            cursor
+                .read_exact(buffer.as_mut_slice())
+                .expect("should read it fine");
             assert_eq!(buffer.as_slice(), b"1.2.840.10008.1.2.1\0".as_ref());
         }
     }
@@ -316,9 +354,11 @@ mod tests {
 
             // encode first element
             let de = DataElementHeader::new(Tag(0x0002, 0x0002), VR::UI, 26);
-            let len = enc.encode_element_header(&mut writer, de).expect("should write it fine");
+            let len = enc.encode_element_header(&mut writer, de)
+                .expect("should write it fine");
             assert_eq!(len, 8);
-            writer.write_all(b"1.2.840.10008.5.1.4.1.1.1\0".as_ref())
+            writer
+                .write_all(b"1.2.840.10008.5.1.4.1.1.1\0".as_ref())
                 .expect("should write the value fine");
         }
         assert_eq!(&buf[0..8], &RAW[0..8]);
@@ -328,9 +368,11 @@ mod tests {
 
             // encode second element
             let de = DataElementHeader::new(Tag(0x0002, 0x0010), VR::UI, 20);
-            let len = enc.encode_element_header(&mut writer, de).expect("should write it fine");
+            let len = enc.encode_element_header(&mut writer, de)
+                .expect("should write it fine");
             assert_eq!(len, 8);
-            writer.write_all(b"1.2.840.10008.1.2.1\0".as_ref())
+            writer
+                .write_all(b"1.2.840.10008.1.2.1\0".as_ref())
                 .expect("should write the value fine");
         }
         assert_eq!(&buf[34..42], &RAW[34..42]);

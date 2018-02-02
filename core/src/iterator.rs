@@ -2,6 +2,7 @@
 //!
 use std::io::{Read, Seek, SeekFrom};
 use std::ops::DerefMut;
+use std::marker::PhantomData;
 use data::parser::{DicomParser, DynamicDicomParser, Parse};
 use std::iter::Iterator;
 use transfer_syntax::TransferSyntax;
@@ -14,26 +15,24 @@ use data::Tag;
 
 /// An iterator for DICOM object elements.
 #[derive(Debug)]
-pub struct DicomElementIterator<S, P>
-    where S: ReadSeek,
-          P: Parse<S>
+pub struct DicomElementIterator<S, DS, P>
 {
     source: S,
     parser: P,
     depth: u32,
     in_sequence: bool,
     hard_break: bool,
+    phantom: PhantomData<DS>,
 }
 
-impl<'s, S: 's> DicomElementIterator<S, DynamicDicomParser<'s, S>>
-    where S: DerefMut<Target = (Read + 's)> + ReadSeek
+impl<'s> DicomElementIterator<&'s mut ReadSeek, &'s mut Read, DynamicDicomParser<'s>>
 {
     /// Create a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
-    pub fn new_with(source: S,
+    pub fn new_with(source: &'s mut ReadSeek,
                     ts: &TransferSyntax,
                     cs: SpecificCharacterSet)
-                    -> Result<DicomElementIterator<S, DynamicDicomParser<'s, S>>> {
+                    -> Result<Self> {
         let parser = DicomParser::new_with(ts, cs)?;
 
         Ok(DicomElementIterator {
@@ -42,22 +41,23 @@ impl<'s, S: 's> DicomElementIterator<S, DynamicDicomParser<'s, S>>
             depth: 0,
             in_sequence: false,
             hard_break: false,
+            phantom: PhantomData,
         })
     }
 }
 
-impl<'s, S: 's, P> DicomElementIterator<S, P>
+impl<S, DS, P> DicomElementIterator<S, DS, P>
     where S: ReadSeek,
-          P: Parse<S>
 {
     /// Create a new iterator with the given parser.
-    pub fn new(source: S, parser: P) -> DicomElementIterator<S, P> {
+    pub fn new(source: S, parser: P) -> DicomElementIterator<S, DS, P> {
         DicomElementIterator {
             source: source,
             parser: parser,
             depth: 0,
             in_sequence: false,
             hard_break: false,
+            phantom: PhantomData,
         }
     }
 
@@ -100,9 +100,9 @@ impl<'s, S: 's, P> DicomElementIterator<S, P>
     }
 }
 
-impl<'s, S: 's, P> Iterator for DicomElementIterator<S, P>
+impl<S, P> Iterator for DicomElementIterator<S, (), P>
     where S: ReadSeek,
-          P: Parse<S>
+          P: for<'s> Parse<&'s mut Read>,
 {
     type Item = Result<DicomElementMarker>;
 
@@ -110,7 +110,6 @@ impl<'s, S: 's, P> Iterator for DicomElementIterator<S, P>
         if self.hard_break {
             return None;
         }
-
         if self.in_sequence {
             match self.parser.decode_item_header(&mut self.source) {
                 Ok(header) => {

@@ -3,7 +3,6 @@
 use error::InvalidValueReadError;
 use data::Tag;
 use std::result;
-use std::fmt::Debug;
 use chrono::NaiveDate;
 use chrono::NaiveTime;
 use chrono::DateTime;
@@ -124,7 +123,7 @@ pub enum ValueType {
     F32,
 
     /// The value is a sequence of 64-bit floating point numbers.
-    /// Used for OD and FD, DS.
+    /// Used for OD, FD and DS.
     F64,
 
     /// A sequence of dates.
@@ -141,7 +140,7 @@ pub enum ValueType {
 }
 
 /// A trait for a value that maps to a DICOM element data value.
-pub trait DicomValueType: Clone + Debug + 'static {
+pub trait DicomValueType: Clone + 'static {
     /// Retrieve the specific type of this value.
     fn get_type(&self) -> ValueType;
 

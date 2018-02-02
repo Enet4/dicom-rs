@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Debug;
 use std::rc::Rc;
+use std::ops::DerefMut;
 use data::Header;
 use dictionary::{DataDictionary, DictionaryEntry};
-use data::parser::Parse;
+use data::parser::{DynamicDicomParser, Parse};
 use error::{Result, Error};
 use data::{Tag, VR};
 use data::value::DicomValue;
@@ -53,13 +54,12 @@ impl<S, P, D> Debug for LazyDicomObject<S, P, D>
     }
 }
 
-impl<'s, S: 's, P: 's, D: 's> DicomObject for &'s LazyDicomObject<S, P, D>
+impl<'s, S: 's, D: 's> DicomObject for &'s LazyDicomObject<S, DynamicDicomParser<'s>, D>
     where S: ReadSeek,
-          P: Parse<S>,
           D: DataDictionary
 {
     type Element = Ref<'s, LazyDataElement>;
-    type Sequence = Ref<'s, LazyDataSequence<S, P, D>>;
+    type Sequence = Ref<'s, LazyDataSequence<S, DynamicDicomParser<'s>, D>>;
 
     fn get_element(&self, tag: Tag) -> Result<Self::Element> {
         {
@@ -93,9 +93,8 @@ impl<'s, S: 's, P: 's, D: 's> DicomObject for &'s LazyDicomObject<S, P, D>
     }
 }
 
-impl<'s, S: 's, P, D> LazyDicomObject<S, P, D>
+impl<'s, S: 's, D> LazyDicomObject<S, DynamicDicomParser<'s>, D>
     where S: ReadSeek,
-          P: Parse<S>,
           D: DataDictionary
 {
     fn lookup_name(&self, name: &str) -> Result<Tag> {
@@ -108,7 +107,7 @@ impl<'s, S: 's, P, D> LazyDicomObject<S, P, D>
     fn load_value(&self, marker: &DicomElementMarker) -> Result<DicomValue> {
         let mut borrow = self.source.borrow_mut();
         marker.move_to_start(&mut *borrow)?;
-        self.parser.read_value(&mut *borrow, &marker.header)
+        self.parser.read_value(borrow.deref_mut(), &marker.header)
     }
 }
 

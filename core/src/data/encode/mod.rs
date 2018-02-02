@@ -48,7 +48,7 @@ pub trait BasicEncode {
 
 /// Type trait for a data element encoder.
 pub trait Encode {
-
+    /// The target of the encoded data.
     type Writer: ?Sized + Write;
 
     /// Encode and write an element tag.

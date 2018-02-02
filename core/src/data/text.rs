@@ -16,7 +16,20 @@
 
 use error::{Result, TextEncodingError};
 use std::fmt::Debug;
-/* use encoding; */
+
+/// A holder of encoding and decoding mechanisms for text in DICOM content,
+/// which according to the standard, depends on the specific character set.
+pub trait TextCodec: Debug {
+    /// Decode the given byte buffer as a single string. The resulting string
+    /// _will_ contain backslash character ('\') to delimit individual values,
+    /// and should be split later on if required.
+    fn decode(&self, text: &[u8]) -> Result<String>;
+
+    /// Encode a text value into a byte vector. The input string can
+    /// feature multiple text values by using the backslash character ('\')
+    /// as the value delimiter.
+    fn encode(&self, text: &str) -> Result<Vec<u8>>;
+}
 
 /// Type alias for a type erased text codec.
 pub type DynamicTextCodec = Box<TextCodec>;
@@ -43,19 +56,6 @@ impl Default for SpecificCharacterSet {
     }
 }
 
-/// A holder of encoding and decoding mechanisms for text in DICOM content,
-/// which according to the standard, depends on the specific character set.
-pub trait TextCodec: Debug {
-    /// Decode the given byte buffer as a single string. The resulting string
-    /// _will_ contain backslash character ('\') to delimit individual values,
-    /// and should be split later on if required.
-    fn decode(&self, text: &[u8]) -> Result<String>;
-
-    /// Encode a text value into a byte vector. The input string can
-    /// feature multiple text values by using the backslash character ('\')
-    /// as the value delimiter.
-    fn encode(&self, text: &str) -> Result<Vec<u8>>;
-}
 
 /// Data type representing the default character set.
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
