@@ -2,7 +2,7 @@
 //!
 
 use super::BasicEncode;
-use byteorder::{LittleEndian, BigEndian, WriteBytesExt};
+use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 use error::Result;
 use util::Endianness;
 use std::io::Write;
@@ -12,32 +12,49 @@ use std::io::Write;
 pub struct LittleEndianBasicEncoder;
 
 impl BasicEncode for LittleEndianBasicEncoder {
-
     fn endianness(&self) -> Endianness {
         Endianness::LE
     }
 
-    fn encode_us<S>(&self, mut to: S, value: u16) -> Result<()> where S: Write {
+    fn encode_us<S>(&self, mut to: S, value: u16) -> Result<()>
+    where
+        S: Write,
+    {
         Ok(to.write_u16::<LittleEndian>(value)?)
     }
 
-    fn encode_ul<S>(&self, mut to: S, value: u32) -> Result<()> where S: Write {
+    fn encode_ul<S>(&self, mut to: S, value: u32) -> Result<()>
+    where
+        S: Write,
+    {
         Ok(to.write_u32::<LittleEndian>(value)?)
     }
 
-    fn encode_ss<S>(&self, mut to: S, value: i16) -> Result<()> where S: Write {
+    fn encode_ss<S>(&self, mut to: S, value: i16) -> Result<()>
+    where
+        S: Write,
+    {
         Ok(to.write_i16::<LittleEndian>(value)?)
     }
 
-    fn encode_sl<S>(&self, mut to: S, value: i32) -> Result<()> where S: Write {
+    fn encode_sl<S>(&self, mut to: S, value: i32) -> Result<()>
+    where
+        S: Write,
+    {
         Ok(to.write_i32::<LittleEndian>(value)?)
     }
 
-    fn encode_fl<S>(&self, mut to: S, value: f32) -> Result<()> where S: Write {
+    fn encode_fl<S>(&self, mut to: S, value: f32) -> Result<()>
+    where
+        S: Write,
+    {
         Ok(to.write_f32::<LittleEndian>(value)?)
     }
 
-    fn encode_fd<S>(&self, mut to: S, value: f64) -> Result<()> where S: Write {
+    fn encode_fd<S>(&self, mut to: S, value: f64) -> Result<()>
+    where
+        S: Write,
+    {
         Ok(to.write_f64::<LittleEndian>(value)?)
     }
 }
@@ -47,32 +64,49 @@ impl BasicEncode for LittleEndianBasicEncoder {
 pub struct BigEndianBasicEncoder;
 
 impl BasicEncode for BigEndianBasicEncoder {
-
     fn endianness(&self) -> Endianness {
         Endianness::BE
     }
 
-    fn encode_us<S>(&self, mut to: S, value: u16) -> Result<()> where S: Write {
+    fn encode_us<S>(&self, mut to: S, value: u16) -> Result<()>
+    where
+        S: Write,
+    {
         Ok(to.write_u16::<BigEndian>(value)?)
     }
 
-    fn encode_ul<S>(&self, mut to: S, value: u32) -> Result<()> where S: Write {
+    fn encode_ul<S>(&self, mut to: S, value: u32) -> Result<()>
+    where
+        S: Write,
+    {
         Ok(to.write_u32::<BigEndian>(value)?)
     }
 
-    fn encode_ss<S>(&self, mut to: S, value: i16) -> Result<()> where S: Write {
+    fn encode_ss<S>(&self, mut to: S, value: i16) -> Result<()>
+    where
+        S: Write,
+    {
         Ok(to.write_i16::<BigEndian>(value)?)
     }
 
-    fn encode_sl<S>(&self, mut to: S, value: i32) -> Result<()> where S: Write {
+    fn encode_sl<S>(&self, mut to: S, value: i32) -> Result<()>
+    where
+        S: Write,
+    {
         Ok(to.write_i32::<BigEndian>(value)?)
     }
 
-    fn encode_fl<S>(&self, mut to: S, value: f32) -> Result<()> where S: Write {
+    fn encode_fl<S>(&self, mut to: S, value: f32) -> Result<()>
+    where
+        S: Write,
+    {
         Ok(to.write_f32::<BigEndian>(value)?)
     }
 
-    fn encode_fd<S>(&self, mut to: S, value: f64) -> Result<()> where S: Write {
+    fn encode_fd<S>(&self, mut to: S, value: f64) -> Result<()>
+    where
+        S: Write,
+    {
         Ok(to.write_f64::<BigEndian>(value)?)
     }
 }
@@ -88,7 +122,7 @@ pub enum BasicEncoder {
     BE(BigEndianBasicEncoder),
 }
 
-use self::BasicEncoder::{LE, BE};
+use self::BasicEncoder::{BE, LE};
 
 /// Handle multiple encoding tasks with the expected endianness. The parameter `$e`
 /// will either yield a `LittleEndianBasicEncoder` or a `BigEndianBasicEncoder`. When
@@ -104,7 +138,6 @@ macro_rules! for_both {
 }
 
 impl BasicEncode for BasicEncoder {
-
     fn endianness(&self) -> Endianness {
         match *self {
             LE(_) => Endianness::LE,
@@ -112,27 +145,45 @@ impl BasicEncode for BasicEncoder {
         }
     }
 
-    fn encode_us<S>(&self, to: S, value: u16) -> Result<()> where S: Write {
+    fn encode_us<S>(&self, to: S, value: u16) -> Result<()>
+    where
+        S: Write,
+    {
         for_both!(self, |e| e.encode_us(to, value))
     }
 
-    fn encode_ul<S>(&self, to: S, value: u32) -> Result<()> where S: Write {
+    fn encode_ul<S>(&self, to: S, value: u32) -> Result<()>
+    where
+        S: Write,
+    {
         for_both!(self, |e| e.encode_ul(to, value))
     }
 
-    fn encode_ss<S>(&self, to: S, value: i16) -> Result<()> where S: Write {
+    fn encode_ss<S>(&self, to: S, value: i16) -> Result<()>
+    where
+        S: Write,
+    {
         for_both!(self, |e| e.encode_ss(to, value))
     }
 
-    fn encode_sl<S>(&self, to: S, value: i32) -> Result<()> where S: Write {
+    fn encode_sl<S>(&self, to: S, value: i32) -> Result<()>
+    where
+        S: Write,
+    {
         for_both!(self, |e| e.encode_sl(to, value))
     }
 
-    fn encode_fl<S>(&self, to: S, value: f32) -> Result<()> where S: Write {
+    fn encode_fl<S>(&self, to: S, value: f32) -> Result<()>
+    where
+        S: Write,
+    {
         for_both!(self, |e| e.encode_fl(to, value))
     }
 
-    fn encode_fd<S>(&self, to: S, value: f64) -> Result<()> where S: Write {
+    fn encode_fd<S>(&self, to: S, value: f64) -> Result<()>
+    where
+        S: Write,
+    {
         for_both!(self, |e| e.encode_fd(to, value))
     }
 }

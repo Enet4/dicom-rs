@@ -1,5 +1,5 @@
 use std::io;
-use std::io::{Read, Write, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::marker::PhantomData;
 use std::ops::{DerefMut, Range};
 
@@ -10,7 +10,8 @@ pub trait ForwardSeek {
 }
 
 impl<S: ?Sized> ForwardSeek for S
-    where S: Seek
+where
+    S: Seek,
 {
     fn skip(&mut self, n: u64) -> io::Result<u64> {
         let curr_pos = try!(self.seek(SeekFrom::Current(0)));
@@ -20,7 +21,11 @@ impl<S: ?Sized> ForwardSeek for S
 }
 
 pub trait ReadSeek: Read + Seek {}
-impl<T: ?Sized> ReadSeek for T where T: Read + Seek {}
+impl<T: ?Sized> ReadSeek for T
+where
+    T: Read + Seek,
+{
+}
 
 #[derive(Debug)]
 pub struct SeekInterval<S: ?Sized, B: DerefMut<Target = S>> {
@@ -32,9 +37,10 @@ pub struct SeekInterval<S: ?Sized, B: DerefMut<Target = S>> {
 }
 
 impl<S: ?Sized, B> SeekInterval<S, B>
-    where S: Seek,
-          B: DerefMut<Target = S> {
-
+where
+    S: Seek,
+    B: DerefMut<Target = S>,
+{
     /// Create an interval from the current position and ending
     /// after `n` bytes.
     pub fn new_here(mut source: B, n: u32) -> io::Result<Self> {
@@ -68,29 +74,27 @@ impl<S: ?Sized, B> SeekInterval<S, B>
 }
 
 impl<S: ?Sized, B> Seek for SeekInterval<S, B>
-    where S: Seek,
-          B: DerefMut<Target = S>
+where
+    S: Seek,
+    B: DerefMut<Target = S>,
 {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         match pos {
-            SeekFrom::Start(o) => {
-                self.source
-                    .seek(SeekFrom::Start(self.begin + o))
-                    .map(|v| v - self.begin)
-            }
+            SeekFrom::Start(o) => self.source
+                .seek(SeekFrom::Start(self.begin + o))
+                .map(|v| v - self.begin),
             pos @ SeekFrom::Current(_) => self.source.seek(pos).map(|v| v - self.begin),
-            SeekFrom::End(o) => {
-                self.source
-                    .seek(SeekFrom::Start((self.end as i64 + o) as u64))
-                    .map(|v| v - self.begin)
-            }
+            SeekFrom::End(o) => self.source
+                .seek(SeekFrom::Start((self.end as i64 + o) as u64))
+                .map(|v| v - self.begin),
         }
     }
 }
 
 impl<S: ?Sized + Seek, B> Read for SeekInterval<S, B>
-    where S: Read,
-          B: DerefMut<Target = S>
+where
+    S: Read,
+    B: DerefMut<Target = S>,
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let r = self.remaining();
@@ -100,10 +104,10 @@ impl<S: ?Sized + Seek, B> Read for SeekInterval<S, B>
     }
 }
 
-
 impl<S: ?Sized, B> Write for SeekInterval<S, B>
-    where S: Write + Seek,
-          B: DerefMut<Target = S>
+where
+    S: Write + Seek,
+    B: DerefMut<Target = S>,
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let r = self.remaining();
@@ -175,7 +179,6 @@ impl ExactSizeIterator for VoidRepeatN {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::n_times;
@@ -205,8 +208,10 @@ mod tests {
             let count = interval.write(&vec![0; 8]).unwrap();
             assert_eq!(count, 5);
         }
-        assert_eq!(buf.into_inner(),
-                   vec![0, 0, 0, 0, 0, 0xFFu8, 0xFFu8, 0xFFu8])
+        assert_eq!(
+            buf.into_inner(),
+            vec![0, 0, 0, 0, 0, 0xFFu8, 0xFFu8, 0xFFu8]
+        )
     }
 
     #[test]
@@ -217,7 +222,6 @@ mod tests {
             let count = interval.write(&vec![0; 8]).unwrap();
             assert_eq!(count, 6);
         }
-        assert_eq!(buf.into_inner(),
-                   vec![0xFFu8, 0xFF, 0, 0, 0, 0, 0, 0])
+        assert_eq!(buf.into_inner(), vec![0xFFu8, 0xFF, 0, 0, 0, 0, 0, 0])
     }
 }

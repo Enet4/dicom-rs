@@ -2,7 +2,7 @@
 //!
 
 use super::BasicDecode;
-use byteorder::{LittleEndian, BigEndian, ReadBytesExt};
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use error::Result;
 use util::Endianness;
 use std::io::Read;
@@ -16,27 +16,45 @@ impl BasicDecode for LittleEndianBasicDecoder {
         Endianness::LE
     }
 
-    fn decode_us<S>(&self, mut source: S) -> Result<u16> where S: Read {
+    fn decode_us<S>(&self, mut source: S) -> Result<u16>
+    where
+        S: Read,
+    {
         source.read_u16::<LittleEndian>().map_err(Into::into)
     }
 
-    fn decode_ul<S>(&self, mut source: S) -> Result<u32> where S: Read {
+    fn decode_ul<S>(&self, mut source: S) -> Result<u32>
+    where
+        S: Read,
+    {
         source.read_u32::<LittleEndian>().map_err(Into::into)
     }
 
-    fn decode_ss<S>(&self, mut source: S) -> Result<i16> where S: Read {
+    fn decode_ss<S>(&self, mut source: S) -> Result<i16>
+    where
+        S: Read,
+    {
         source.read_i16::<LittleEndian>().map_err(Into::into)
     }
 
-    fn decode_sl<S>(&self, mut source: S) -> Result<i32> where S: Read {
+    fn decode_sl<S>(&self, mut source: S) -> Result<i32>
+    where
+        S: Read,
+    {
         source.read_i32::<LittleEndian>().map_err(Into::into)
     }
 
-    fn decode_fl<S>(&self, mut source: S) -> Result<f32> where S: Read {
+    fn decode_fl<S>(&self, mut source: S) -> Result<f32>
+    where
+        S: Read,
+    {
         source.read_f32::<LittleEndian>().map_err(Into::into)
     }
 
-    fn decode_fd<S>(&self, mut source: S) -> Result<f64> where S: Read {
+    fn decode_fd<S>(&self, mut source: S) -> Result<f64>
+    where
+        S: Read,
+    {
         source.read_f64::<LittleEndian>().map_err(Into::into)
     }
 }
@@ -46,32 +64,49 @@ impl BasicDecode for LittleEndianBasicDecoder {
 pub struct BigEndianBasicDecoder;
 
 impl BasicDecode for BigEndianBasicDecoder {
-
     fn endianness(&self) -> Endianness {
         Endianness::BE
     }
 
-    fn decode_us<S>(&self, mut source: S) -> Result<u16> where S: Read {
+    fn decode_us<S>(&self, mut source: S) -> Result<u16>
+    where
+        S: Read,
+    {
         source.read_u16::<BigEndian>().map_err(Into::into)
     }
 
-    fn decode_ul<S>(&self, mut source: S) -> Result<u32> where S: Read {
+    fn decode_ul<S>(&self, mut source: S) -> Result<u32>
+    where
+        S: Read,
+    {
         source.read_u32::<BigEndian>().map_err(Into::into)
     }
 
-    fn decode_ss<S>(&self, mut source: S) -> Result<i16> where S: Read {
+    fn decode_ss<S>(&self, mut source: S) -> Result<i16>
+    where
+        S: Read,
+    {
         source.read_i16::<BigEndian>().map_err(Into::into)
     }
 
-    fn decode_sl<S>(&self, mut source: S) -> Result<i32> where S: Read {
+    fn decode_sl<S>(&self, mut source: S) -> Result<i32>
+    where
+        S: Read,
+    {
         source.read_i32::<BigEndian>().map_err(Into::into)
     }
 
-    fn decode_fl<S>(&self, mut source: S) -> Result<f32> where S: Read {
+    fn decode_fl<S>(&self, mut source: S) -> Result<f32>
+    where
+        S: Read,
+    {
         source.read_f32::<BigEndian>().map_err(Into::into)
     }
 
-    fn decode_fd<S>(&self, mut source: S) -> Result<f64> where S: Read {
+    fn decode_fd<S>(&self, mut source: S) -> Result<f64>
+    where
+        S: Read,
+    {
         source.read_f64::<BigEndian>().map_err(Into::into)
     }
 }
@@ -87,7 +122,7 @@ pub enum BasicDecoder {
     BE(BigEndianBasicDecoder),
 }
 
-use self::BasicDecoder::{LE, BE};
+use self::BasicDecoder::{BE, LE};
 
 impl From<Endianness> for BasicDecoder {
     fn from(endianness: Endianness) -> BasicDecoder {
@@ -108,7 +143,6 @@ macro_rules! for_both {
 }
 
 impl BasicDecode for BasicDecoder {
-
     fn endianness(&self) -> Endianness {
         match *self {
             LE(_) => Endianness::LE,
@@ -116,27 +150,45 @@ impl BasicDecode for BasicDecoder {
         }
     }
 
-    fn decode_us<S>(&self, source: S) -> Result<u16> where S: Read {
+    fn decode_us<S>(&self, source: S) -> Result<u16>
+    where
+        S: Read,
+    {
         for_both!(self, |e| e.decode_us(source))
     }
 
-    fn decode_ul<S>(&self, source: S) -> Result<u32> where S: Read {
+    fn decode_ul<S>(&self, source: S) -> Result<u32>
+    where
+        S: Read,
+    {
         for_both!(self, |e| e.decode_ul(source))
     }
 
-    fn decode_ss<S>(&self, source: S) -> Result<i16> where S: Read {
+    fn decode_ss<S>(&self, source: S) -> Result<i16>
+    where
+        S: Read,
+    {
         for_both!(self, |e| e.decode_ss(source))
     }
 
-    fn decode_sl<S>(&self, source: S) -> Result<i32> where S: Read {
+    fn decode_sl<S>(&self, source: S) -> Result<i32>
+    where
+        S: Read,
+    {
         for_both!(self, |e| e.decode_sl(source))
     }
 
-    fn decode_fl<S>(&self, source: S) -> Result<f32> where S: Read {
+    fn decode_fl<S>(&self, source: S) -> Result<f32>
+    where
+        S: Read,
+    {
         for_both!(self, |e| e.decode_fl(source))
     }
 
-    fn decode_fd<S>(&self, source: S) -> Result<f64> where S: Read {
+    fn decode_fd<S>(&self, source: S) -> Result<f64>
+    where
+        S: Read,
+    {
         for_both!(self, |e| e.decode_fd(source))
     }
 }

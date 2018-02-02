@@ -56,7 +56,6 @@ impl Default for SpecificCharacterSet {
     }
 }
 
-
 /// Data type representing the default character set.
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub struct DefaultCharacterSetCodec;
@@ -77,7 +76,8 @@ impl TextCodec for DefaultCharacterSetCodec {
 }
 
 impl<T: ?Sized> TextCodec for Box<T>
-    where T: TextCodec
+where
+    T: TextCodec,
 {
     fn decode(&self, text: &[u8]) -> Result<String> {
         self.as_ref().decode(text)
@@ -89,7 +89,8 @@ impl<T: ?Sized> TextCodec for Box<T>
 }
 
 impl<'a, T: ?Sized> TextCodec for &'a T
-    where T: TextCodec
+where
+    T: TextCodec,
 {
     fn decode(&self, text: &[u8]) -> Result<String> {
         (*self).decode(text)

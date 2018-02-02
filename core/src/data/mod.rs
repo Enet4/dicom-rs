@@ -8,7 +8,7 @@ pub mod parser;
 pub mod text;
 pub mod value;
 
-use error::{Result, Error};
+use error::{Error, Result};
 use data::value::{DicomValue, DicomValueType};
 use std::str::from_utf8;
 use std::fmt;
@@ -129,7 +129,6 @@ impl<'v> Header for DataElementRef<'v> {
         self.header.len()
     }
 }
-
 
 impl DataElement {
     /// Create an empty data element.
@@ -297,8 +296,7 @@ impl SequenceItemHeader {
     pub fn len(&self) -> u32 {
         match *self {
             SequenceItemHeader::Item { len } => len,
-            SequenceItemHeader::ItemDelimiter |
-            SequenceItemHeader::SequenceDelimiter => 0,
+            SequenceItemHeader::ItemDelimiter | SequenceItemHeader::SequenceDelimiter => 0,
         }
     }
 }

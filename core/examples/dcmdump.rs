@@ -2,12 +2,11 @@
 //! WIP
 extern crate dicom_core;
 
-use dicom_core::{DicomObject, DicomElement};
+use dicom_core::{DicomElement, DicomObject};
 use std::fs::File;
 use std::path::Path;
 
 fn main() {
-
     println!("Sorry, this tool is not implemented yet.");
 }
 
@@ -20,6 +19,4 @@ fn dump<P: AsRef<Path>>(path: P) {
     //}
 }
 
-fn dump_element(elem: &DicomElement) {
-
-}
+fn dump_element(elem: &DicomElement) {}

@@ -11,7 +11,7 @@ use iterator::DicomElementIterator;
 use super::DicomObject;
 use data::{DataElement, Header, Tag};
 use data::value::DicomValue;
-use dictionary::{DataDictionary, DictionaryEntry, StandardDataDictionary, get_standard_dictionary};
+use dictionary::{get_standard_dictionary, DataDictionary, DictionaryEntry, StandardDataDictionary};
 use error::{Error, Result};
 use object::pixeldata::PixelData;
 
@@ -39,15 +39,14 @@ impl<'s, D> PartialEq for InMemDicomObject<D> {
 }
 
 impl<'s, D: 's> DicomObject for &'s InMemDicomObject<D>
-    where D: DataDictionary
+where
+    D: DataDictionary,
 {
     type Element = &'s DataElement;
     type Sequence = InMemSequence<D>;
 
     fn get_element(&self, tag: Tag) -> Result<Self::Element> {
-        self.entries
-            .get(&tag)
-            .ok_or(Error::NoSuchDataElement)
+        self.entries.get(&tag).ok_or(Error::NoSuchDataElement)
     }
 
     fn get_element_by_name(&self, name: &str) -> Result<Self::Element> {
@@ -76,7 +75,8 @@ impl InMemDicomObject<&'static StandardDataDictionary> {
 }
 
 impl<D> InMemDicomObject<D>
-    where D: DataDictionary
+where
+    D: DataDictionary,
 {
     /// Create a new empty object, using the given dictionary
     /// for name lookup.
@@ -100,11 +100,8 @@ impl<D> InMemDicomObject<D>
         let ts = unimplemented!();
         let cs = unimplemented!();
         let mut it = DicomElementIterator::new_with(&mut file, ts, cs);
-        
-        Ok(InMemDicomObject {
-            entries,
-            dict
-        })
+
+        Ok(InMemDicomObject { entries, dict })
     }
 
     fn lookup_name(&self, name: &str) -> Result<Tag> {
@@ -141,9 +138,11 @@ mod tests {
 
     #[test]
     fn inmem_object_get() {
-        let another_patient_name = DataElement::new(Tag(0x0010, 0x0010),
-                                                    VR::PN,
-                                                    DicomValue::Str("Doe^John".to_string()));
+        let another_patient_name = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            DicomValue::Str("Doe^John".to_string()),
+        );
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
         let elem1 = (&obj).get_element(Tag(0x0010, 0x0010)).unwrap();
@@ -152,9 +151,11 @@ mod tests {
 
     #[test]
     fn inmem_object_get_by_name() {
-        let another_patient_name = DataElement::new(Tag(0x0010, 0x0010),
-                                                    VR::PN,
-                                                    DicomValue::Str("Doe^John".to_string()));
+        let another_patient_name = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            DicomValue::Str("Doe^John".to_string()),
+        );
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
         let elem1 = (&obj).get_element_by_name("PatientName").unwrap();

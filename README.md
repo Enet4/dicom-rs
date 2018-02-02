@@ -1,4 +1,4 @@
-# DICOM-rs 
+# DICOM-rs
 
 [![Build Status](https://travis-ci.org/Enet4/dicom-rs.svg?branch=master)](https://travis-ci.org/Enet4/dicom-rs)
 
@@ -9,11 +9,11 @@ allowing users to read and write DICOM objects over files and other sources, whi
 remaining intrinsically fast and safe to use.
 
 This project is a work in progress. Nevertheless, the first usable version may hopefully arrive
-in the next few months. Any feedback during the development of these solutions is welcome.
+eventually. Any feedback during the development of these solutions is welcome.
 
 ## Components
 
- - [`core`](core) represents all of the base traits, data structures and functions for
+- [`core`](core) represents all of the base traits, data structures and functions for
  reading and writing DICOM content.
- - [`dictionary_builder`](dictionary_builder) is a Rust application that generates code and
+- [`dictionary_builder`](dictionary_builder) is a Rust application that generates code and
  other data structures for a DICOM standard dictionary using entries from the web.

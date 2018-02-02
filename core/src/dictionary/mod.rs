@@ -20,7 +20,7 @@ pub fn get_standard_dictionary() -> &'static StandardDataDictionary {
 /** Type trait for a dictionary of DICOM attributes. Attribute dictionaries provide the
  * means to convert a tag to an alias and vice versa, as well as a form of retrieving
  * additional information about the attribute.
- * 
+ *
  * The methods herein have no generic parameters, so as to enable being
  * used as a trait object.
  */
@@ -91,7 +91,6 @@ impl<'a> DictionaryEntry for DictionaryEntryRef<'a> {
         self.vr
     }
 }
-
 
 /// Utility data structure that resolves to a DICOM attribute tag
 /// at a later time.

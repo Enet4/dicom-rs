@@ -4,7 +4,7 @@ This sub-project implements the essential data structures and mechanisms for dea
 
 ## Building
 
-```bash
+```sh
 cargo build --release
 ```
 

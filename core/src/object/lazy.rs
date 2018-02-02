@@ -7,7 +7,7 @@ use std::ops::DerefMut;
 use data::Header;
 use dictionary::{DataDictionary, DictionaryEntry};
 use data::parser::{DynamicDicomParser, Parse};
-use error::{Result, Error};
+use error::{Error, Result};
 use data::{Tag, VR};
 use data::value::DicomValue;
 use iterator::DicomElementMarker;
@@ -24,7 +24,8 @@ pub struct LazyDataSequence<S, P, D> {
 }
 
 impl<S, P, D> Debug for LazyDataSequence<S, P, D>
-    where D: Debug
+where
+    D: Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // ignore parent to avoid cycles
@@ -43,8 +44,9 @@ pub struct LazyDicomObject<S, P, D> {
 }
 
 impl<S, P, D> Debug for LazyDicomObject<S, P, D>
-    where P: Debug,
-          D: Debug
+where
+    P: Debug,
+    D: Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("LazyDicomObject")
@@ -55,8 +57,9 @@ impl<S, P, D> Debug for LazyDicomObject<S, P, D>
 }
 
 impl<'s, S: 's, D: 's> DicomObject for &'s LazyDicomObject<S, DynamicDicomParser<'s>, D>
-    where S: ReadSeek,
-          D: DataDictionary
+where
+    S: ReadSeek,
+    D: DataDictionary,
 {
     type Element = Ref<'s, LazyDataElement>;
     type Sequence = Ref<'s, LazyDataSequence<S, DynamicDicomParser<'s>, D>>;
@@ -79,8 +82,9 @@ impl<'s, S: 's, D: 's> DicomObject for &'s LazyDicomObject<S, DynamicDicomParser
             let mut data = e.value_mut();
             *data = Some(v);
         }
-        Ok(Ref::map(self.entries.borrow(),
-                    |m| m.get(&tag).expect("Element should exist")))
+        Ok(Ref::map(self.entries.borrow(), |m| {
+            m.get(&tag).expect("Element should exist")
+        }))
     }
 
     fn get_element_by_name(&self, name: &str) -> Result<Self::Element> {
@@ -94,8 +98,9 @@ impl<'s, S: 's, D: 's> DicomObject for &'s LazyDicomObject<S, DynamicDicomParser
 }
 
 impl<'s, S: 's, D> LazyDicomObject<S, DynamicDicomParser<'s>, D>
-    where S: ReadSeek,
-          D: DataDictionary
+where
+    S: ReadSeek,
+    D: DataDictionary,
 {
     fn lookup_name(&self, name: &str) -> Result<Tag> {
         self.dict

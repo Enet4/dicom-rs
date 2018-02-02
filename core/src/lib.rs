@@ -21,14 +21,14 @@
 //! # }
 //! ```
 
+extern crate byteorder;
+extern crate chrono;
+extern crate encoding;
+extern crate itertools;
 #[macro_use]
 extern crate lazy_static;
-extern crate byteorder;
-extern crate encoding;
 #[macro_use]
 extern crate quick_error;
-extern crate chrono;
-extern crate itertools;
 
 pub mod data;
 pub mod dictionary;
@@ -53,5 +53,4 @@ mod util;
 
 type DefaultDicomObject = InMemDicomObject<&'static StandardDataDictionary>;
 
-
-pub use file::{from_stream, from_file, to_file};
+pub use file::{from_file, from_stream, to_file};

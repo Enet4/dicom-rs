@@ -38,7 +38,6 @@ pub fn get_registry() -> &'static CodecRegistry<'static> {
 //    REGISTRY.register(ts);
 //}
 
-
 fn initialize_codecs() -> HashMap<&'static str, DynTransferSyntax<'static>> {
     let mut m = HashMap::<&'static str, DynTransferSyntax<'static>>::new();
 

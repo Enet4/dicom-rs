@@ -7,11 +7,11 @@ use util::Endianness;
 use data::Tag;
 
 /** Type trait for reading and decoding basic data values from a data source.
- * 
+ *
  * This trait aims to provide methods for reading binary numbers based on the
  * source's endianness.
  * This is the type-erased version of `super::BasicDecode`, where the data source type is not
- * known in compile time. 
+ * known in compile time.
  */
 pub trait BasicDecode {
     /// Retrieve the source's endianness, as expected by this decoder.
@@ -37,10 +37,10 @@ pub trait BasicDecode {
 }
 
 /** Type trait for reading and decoding DICOM data elements.
- * 
+ *
  * The specific behaviour of decoding, even when abstracted from the original source,
  * may depend on the given transfer syntax.
- * 
+ *
  * This is the type-erased version of `super::Decode`, where the data source type is not
  * known in compile time. Users of this library should not need to rely on this level
  * directly, as the given implementations provide support for converting a generic decoder
@@ -72,32 +72,49 @@ pub trait Decode: BasicDecode {
 }
 
 impl<'s> super::BasicDecode for &'s BasicDecode {
-
     fn endianness(&self) -> Endianness {
         (**self).endianness()
     }
 
-    fn decode_us<S>(&self, mut source: S) -> Result<u16> where S: Read {
+    fn decode_us<S>(&self, mut source: S) -> Result<u16>
+    where
+        S: Read,
+    {
         (**self).erased_decode_us(&mut source)
     }
 
-    fn decode_ul<S>(&self, mut source: S) -> Result<u32> where S: Read {
+    fn decode_ul<S>(&self, mut source: S) -> Result<u32>
+    where
+        S: Read,
+    {
         (**self).erased_decode_ul(&mut source)
     }
 
-    fn decode_ss<S>(&self, mut source: S) -> Result<i16> where S: Read {
+    fn decode_ss<S>(&self, mut source: S) -> Result<i16>
+    where
+        S: Read,
+    {
         (**self).erased_decode_ss(&mut source)
     }
 
-    fn decode_sl<S>(&self, mut source: S) -> Result<i32> where S: Read {
+    fn decode_sl<S>(&self, mut source: S) -> Result<i32>
+    where
+        S: Read,
+    {
         (**self).erased_decode_sl(&mut source)
     }
 
-    fn decode_fl<S>(&self, mut source: S) -> Result<f32> where S: Read {
+    fn decode_fl<S>(&self, mut source: S) -> Result<f32>
+    where
+        S: Read,
+    {
         (**self).erased_decode_fl(&mut source)
     }
 
-    fn decode_fd<S>(&self, mut source: S) -> Result<f64> where S: Read {
+    fn decode_fd<S>(&self, mut source: S) -> Result<f64>
+    where
+        S: Read,
+    {
         (**self).erased_decode_fd(&mut source)
     }
 }

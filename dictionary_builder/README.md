@@ -7,6 +7,7 @@ This sub-project is a tool for generating machine readable attribute dictionarie
 ```bash
 cargo build --release
 ```
+
 ## Usage
 
 ```text

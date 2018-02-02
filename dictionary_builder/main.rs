@@ -13,15 +13,15 @@
 //! from the official DICOM website and store the result in "entries.rs".
 //! Future versions will enable different kinds of outputs.
 
-extern crate hyper;
+extern crate clap;
 extern crate futures;
-extern crate tokio_core;
+extern crate hyper;
 extern crate quick_xml;
 extern crate regex;
-extern crate clap;
+extern crate tokio_core;
 
 use tokio_core::reactor::Core;
-use clap::{Arg, App};
+use clap::{App, Arg};
 use futures::{Future, Stream};
 use hyper::{Chunk, Uri};
 use hyper::client::Client;
@@ -33,7 +33,7 @@ use quick_xml::events::Event;
 use quick_xml::events::attributes::Attribute;
 use std::io;
 use std::io::{BufRead, BufReader, Write};
-use std::fs::{File, create_dir_all};
+use std::fs::{create_dir_all, File};
 use std::str::FromStr;
 use std::path::Path;
 use regex::Regex;
@@ -44,33 +44,37 @@ const DEFAULT_LOCATION: &'static str = "http://dicom.nema.\
 
 fn main() {
     let matches = App::new("DICOM Dictionary Builder")
-                      .version("0.1.0")
-                      .arg(Arg::with_name("FROM")
-                           .default_value(DEFAULT_LOCATION)
-                           .help("Where to fetch the dictionary from"))
-                      .arg(Arg::with_name("OUTPUT")
-                           .short("o")
-                           .help("The path to the output file")
-                           .required(false)
-                           .takes_value(true))
-                      .arg(Arg::with_name("FORMAT")
-                           .short("f")
-                           .help("The output format")
-                           .required(true)
-                           .default_value("rs")
-                           .takes_value(true)
-                           .possible_value("rs")
-                           .possible_value("json"))
-                      .get_matches();
+        .version("0.1.0")
+        .arg(
+            Arg::with_name("FROM")
+                .default_value(DEFAULT_LOCATION)
+                .help("Where to fetch the dictionary from"),
+        )
+        .arg(
+            Arg::with_name("OUTPUT")
+                .short("o")
+                .help("The path to the output file")
+                .required(false)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("FORMAT")
+                .short("f")
+                .help("The output format")
+                .required(true)
+                .default_value("rs")
+                .takes_value(true)
+                .possible_value("rs")
+                .possible_value("json"),
+        )
+        .get_matches();
 
     let format = matches.value_of("FORMAT").unwrap();
-    
-    let out_file = matches.value_of("OUTPUT").unwrap_or_else(|| {
-        match format {
-            "rs" => "entries.rs",
-            "json" => "entries.json",
-            _ => "entries",
-        }
+
+    let out_file = matches.value_of("OUTPUT").unwrap_or_else(|| match format {
+        "rs" => "entries.rs",
+        "json" => "entries.json",
+        _ => "entries",
     });
     let dst = Path::new(out_file);
 
@@ -80,24 +84,18 @@ fn main() {
     if src.starts_with("http:") {
         let src = Uri::from_str(src).unwrap();
         println!("Downloading DICOM dictionary ...");
-        let req = xml_from_site(&core, src)
-            .and_then(|resp| resp.body().concat2().and_then(|body: Chunk| {
-                let xml_entries = XmlEntryIterator::new(&*body)
-                    .map(|item| item.unwrap());
+        let req = xml_from_site(&core, src).and_then(|resp| {
+            resp.body().concat2().and_then(|body: Chunk| {
+                let xml_entries = XmlEntryIterator::new(&*body).map(|item| item.unwrap());
                 println!("Writing to file ...");
                 match format {
-                    "rs" => {
-                        to_code_file(dst, xml_entries)
-                    },
-                    "json" => {
-                        to_json_file(dst, xml_entries)
-                    }
-                    _ => {
-                        unreachable!()
-                    }
+                    "rs" => to_code_file(dst, xml_entries),
+                    "json" => to_json_file(dst, xml_entries),
+                    _ => unreachable!(),
                 }.expect("Failed to write file");
                 Ok(())
-            }));
+            })
+        });
         core.run(req).unwrap();
     } else {
         // read from File
@@ -106,15 +104,9 @@ fn main() {
         let xml_entries = XmlEntryIterator::new(file).map(|item| item.unwrap());
 
         match format {
-            "rs" => {
-                to_code_file(dst, xml_entries)
-            },
-            "json" => {
-                to_json_file(dst, xml_entries)
-            }
-            _ => {
-                unreachable!()
-            }
+            "rs" => to_code_file(dst, xml_entries),
+            "json" => to_json_file(dst, xml_entries),
+            _ => unreachable!(),
         }.expect("Failed to write file");
     }
 }
@@ -164,8 +156,7 @@ struct XmlEntryIterator<R: BufRead> {
 impl<R: BufRead> XmlEntryIterator<R> {
     pub fn new(xml: R) -> XmlEntryIterator<R> {
         let mut reader = Reader::from_reader(xml);
-        reader.expand_empty_elements(true)
-            .trim_text(true);
+        reader.expand_empty_elements(true).trim_text(true);
         XmlEntryIterator {
             parser: reader,
             buf: Vec::new(),
@@ -194,9 +185,12 @@ impl<R: BufRead> Iterator for XmlEntryIterator<R> {
                     match self.state {
                         XmlReadingState::Off => if local_name == b"table" {
                             // check for attribute xml:id="table_6-1"
-                            match e.attributes()
-                                .find(|attr| attr.is_err() || attr.as_ref().unwrap() == &Attribute {key: b"xml:id", value: b"table_6-1"})
-                            {
+                            match e.attributes().find(|attr| {
+                                attr.is_err() || attr.as_ref().unwrap() == &Attribute {
+                                    key: b"xml:id",
+                                    value: b"table_6-1",
+                                }
+                            }) {
                                 Some(Ok(_)) => {
                                     // entered the table!
                                     self.state = XmlReadingState::InTableHead;
@@ -209,52 +203,52 @@ impl<R: BufRead> Iterator for XmlEntryIterator<R> {
                             if local_name == b"tbody" {
                                 self.state = XmlReadingState::InTable;
                             }
-                        },
+                        }
                         XmlReadingState::InTable => {
                             if local_name == b"para" {
                                 self.state = XmlReadingState::InCellTag;
                             }
-                        },
+                        }
                         XmlReadingState::InCellTag => {
                             if local_name == b"para" {
                                 self.state = XmlReadingState::InCellName;
                             }
-                        },
+                        }
                         XmlReadingState::InCellName => {
                             if local_name == b"para" {
                                 self.state = XmlReadingState::InCellKeyword;
                             }
-                        },
+                        }
                         XmlReadingState::InCellKeyword => {
                             if local_name == b"para" {
                                 self.state = XmlReadingState::InCellVR;
                             }
-                        },
+                        }
                         XmlReadingState::InCellVR => {
                             if local_name == b"para" {
                                 self.state = XmlReadingState::InCellVM;
                             }
-                        },
+                        }
                         XmlReadingState::InCellVM => {
                             if local_name == b"para" {
                                 self.state = XmlReadingState::InCellObs;
                             }
-                        },
+                        }
                         XmlReadingState::InCellObs => {
                             if local_name == b"para" {
                                 self.state = XmlReadingState::InCellUnknown;
                             }
-                        },
+                        }
                         _ => {}
                     }
-                },
+                }
                 Ok(Event::End(ref e)) => {
                     self.depth -= 1;
                     let local_name = e.local_name();
                     match self.state {
                         XmlReadingState::Off => {
                             // do nothing
-                        },
+                        }
                         _e => if local_name == b"tr" && self.tag.is_some() {
                             let tag = self.tag.take().unwrap();
                             let out = Entry {
@@ -270,44 +264,48 @@ impl<R: BufRead> Iterator for XmlEntryIterator<R> {
                         } else if local_name == b"tbody" {
                             // the table ended!
                             break;
-                        }
+                        },
                     }
                 }
-                Ok(Event::Text(data)) => {
-                    match self.state {
-                        XmlReadingState::InCellTag => {
-                            let data = data.unescape_and_decode(&self.parser).unwrap()
-                                .replace("\u{200b}", "");
-                            self.tag = Some(data);
-                        },
-                        XmlReadingState::InCellName => {
-                            let data = data.unescape_and_decode(&self.parser).unwrap()
-                                .replace("\u{200b}", "");
-                            self.name = Some(data);
-                        },
-                        XmlReadingState::InCellKeyword => {
-                            let data = data.unescape_and_decode(&self.parser).unwrap()
-                                .replace("\u{200b}", "");
-                            self.keyword = Some(data);
-                        },
-                        XmlReadingState::InCellVR => {
-                            let data = data.unescape_and_decode(&self.parser).unwrap()
-                                .replace("\u{200b}", "");
-                            self.vr = Some(data);
-                        },
-                        XmlReadingState::InCellVM => {
-                            let data = data.unescape_and_decode(&self.parser).unwrap()
-                                .replace("\u{200b}", "");
-                            self.vm = Some(data);
-                        },
-                        XmlReadingState::InCellObs => {
-                            let data = data.unescape_and_decode(&self.parser).unwrap()
-                                .replace("\u{200b}", "");
-                            self.obs = Some(data);
-                        },
-                        _ => {}
+                Ok(Event::Text(data)) => match self.state {
+                    XmlReadingState::InCellTag => {
+                        let data = data.unescape_and_decode(&self.parser)
+                            .unwrap()
+                            .replace("\u{200b}", "");
+                        self.tag = Some(data);
                     }
-                }
+                    XmlReadingState::InCellName => {
+                        let data = data.unescape_and_decode(&self.parser)
+                            .unwrap()
+                            .replace("\u{200b}", "");
+                        self.name = Some(data);
+                    }
+                    XmlReadingState::InCellKeyword => {
+                        let data = data.unescape_and_decode(&self.parser)
+                            .unwrap()
+                            .replace("\u{200b}", "");
+                        self.keyword = Some(data);
+                    }
+                    XmlReadingState::InCellVR => {
+                        let data = data.unescape_and_decode(&self.parser)
+                            .unwrap()
+                            .replace("\u{200b}", "");
+                        self.vr = Some(data);
+                    }
+                    XmlReadingState::InCellVM => {
+                        let data = data.unescape_and_decode(&self.parser)
+                            .unwrap()
+                            .replace("\u{200b}", "");
+                        self.vm = Some(data);
+                    }
+                    XmlReadingState::InCellObs => {
+                        let data = data.unescape_and_decode(&self.parser)
+                            .unwrap()
+                            .replace("\u{200b}", "");
+                        self.obs = Some(data);
+                    }
+                    _ => {}
+                },
                 Ok(Event::Eof { .. }) => {
                     break;
                 }
@@ -323,26 +321,35 @@ impl<R: BufRead> Iterator for XmlEntryIterator<R> {
 }
 
 fn to_code_file<P: AsRef<Path>, I>(dest_path: P, entries: I) -> io::Result<()>
-    where I: IntoIterator<Item = Entry>
+where
+    I: IntoIterator<Item = Entry>,
 {
     if let Some(p_dir) = dest_path.as_ref().parent() {
         try!(create_dir_all(&p_dir));
     }
     let mut f = try!(File::create(&dest_path));
 
-    f.write_all(b"//! Automatically generated. DO NOT EDIT!\n\n\
+    f.write_all(
+        b"//! Automatically generated. DO NOT EDIT!\n\n\
     use dictionary::DictionaryEntryRef;\n\
     use data::{Tag, VR};\n\n\
     type E = DictionaryEntryRef<'static>;\n\n\
-    pub const ENTRIES: &'static [E] = &[\n")?;
+    pub const ENTRIES: &'static [E] = &[\n",
+    )?;
 
     let regex_tag = Regex::new(r"^\(([0-9A-F]{4}),([0-9A-F]{4})\)$").unwrap();
 
     for e in entries {
-        let Entry {tag, alias, vr, obs, ..} = e;
+        let Entry {
+            tag,
+            alias,
+            vr,
+            obs,
+            ..
+        } = e;
 
         // sanitize components
-        
+
         if alias.is_none() {
             continue;
         }
@@ -379,15 +386,24 @@ fn to_code_file<P: AsRef<Path>, I>(dest_path: P, entries: I) -> io::Result<()>
             obs = String::from(" // ") + obs.as_str();
         }
 
-        writeln!(f, "    E {{ tag: Tag(0x{}, 0x{}), alias: \"{}\", vr: VR::{}{} }},{}",
-                 group, elem, alias.unwrap(), vr1, second_vr, obs)?;
+        writeln!(
+            f,
+            "    E {{ tag: Tag(0x{}, 0x{}), alias: \"{}\", vr: VR::{}{} }},{}",
+            group,
+            elem,
+            alias.unwrap(),
+            vr1,
+            second_vr,
+            obs
+        )?;
     }
     f.write_all(b"];\n")?;
     Ok(())
 }
 
 fn to_json_file<P: AsRef<Path>, I>(dest_path: P, entries: I) -> io::Result<()>
-    where I: IntoIterator<Item = Entry>
+where
+    I: IntoIterator<Item = Entry>,
 {
     unimplemented!()
 }

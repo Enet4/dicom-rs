@@ -52,13 +52,11 @@ pub struct InMemoryPixelData<P> {
 
 impl<P: fmt::Debug> fmt::Debug for InMemoryPixelData<P> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,
-               "InMemoryPixelData[data={:?}, rows={}, cols={}, bbp={}, samples={}]",
-               &self.data,
-               self.rows,
-               self.cols,
-               self.bpp,
-               self.samples)
+        write!(
+            f,
+            "InMemoryPixelData[data={:?}, rows={}, cols={}, bbp={}, samples={}]",
+            &self.data, self.rows, self.cols, self.bpp, self.samples
+        )
     }
 }
 
@@ -78,7 +76,8 @@ impl<P> InMemoryPixelData<P> {
 }
 
 impl<P> PixelData<P> for InMemoryPixelData<P>
-    where P: Clone
+where
+    P: Clone,
 {
     fn rows(&self) -> u32 {
         self.rows

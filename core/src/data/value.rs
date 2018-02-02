@@ -153,7 +153,6 @@ pub trait DicomValueType: Clone + 'static {
     }
 }
 
-
 impl DicomValueType for DicomValue {
     fn get_type(&self) -> ValueType {
         match *self {

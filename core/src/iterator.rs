@@ -6,17 +6,16 @@ use std::marker::PhantomData;
 use data::parser::{DicomParser, DynamicDicomParser, Parse};
 use std::iter::Iterator;
 use transfer_syntax::TransferSyntax;
-use data::{Header, DataElementHeader, SequenceItemHeader};
+use data::{DataElementHeader, Header, SequenceItemHeader};
 use data::text::SpecificCharacterSet;
 use util::{ReadSeek, SeekInterval};
-use error::{Result, Error};
+use error::{Error, Result};
 use data::VR;
 use data::Tag;
 
 /// An iterator for DICOM object elements.
 #[derive(Debug)]
-pub struct DicomElementIterator<S, DS, P>
-{
+pub struct DicomElementIterator<S, DS, P> {
     source: S,
     parser: P,
     depth: u32,
@@ -25,14 +24,14 @@ pub struct DicomElementIterator<S, DS, P>
     phantom: PhantomData<DS>,
 }
 
-impl<'s> DicomElementIterator<&'s mut ReadSeek, &'s mut Read, DynamicDicomParser<'s>>
-{
+impl<'s> DicomElementIterator<&'s mut ReadSeek, &'s mut Read, DynamicDicomParser<'s>> {
     /// Create a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
-    pub fn new_with(source: &'s mut ReadSeek,
-                    ts: &TransferSyntax,
-                    cs: SpecificCharacterSet)
-                    -> Result<Self> {
+    pub fn new_with(
+        source: &'s mut ReadSeek,
+        ts: &TransferSyntax,
+        cs: SpecificCharacterSet,
+    ) -> Result<Self> {
         let parser = DicomParser::new_with(ts, cs)?;
 
         Ok(DicomElementIterator {
@@ -47,7 +46,8 @@ impl<'s> DicomElementIterator<&'s mut ReadSeek, &'s mut Read, DynamicDicomParser
 }
 
 impl<S, DS, P> DicomElementIterator<S, DS, P>
-    where S: ReadSeek,
+where
+    S: ReadSeek,
 {
     /// Create a new iterator with the given parser.
     pub fn new(source: S, parser: P) -> DicomElementIterator<S, DS, P> {
@@ -63,20 +63,18 @@ impl<S, DS, P> DicomElementIterator<S, DS, P>
 
     /// Get the inner source's position in the stream using `seek()`.
     fn get_position(&mut self) -> Result<u64>
-        where S: Seek
+    where
+        S: Seek,
     {
-        self.source.seek(SeekFrom::Current(0))
-            .map_err(Error::from)
+        self.source.seek(SeekFrom::Current(0)).map_err(Error::from)
     }
 
     fn create_element_marker(&mut self, header: DataElementHeader) -> Result<DicomElementMarker> {
         match self.get_position() {
-            Ok(pos) => {
-                Ok(DicomElementMarker {
-                    header: header,
-                    pos: pos,
-                })
-            }
+            Ok(pos) => Ok(DicomElementMarker {
+                header: header,
+                pos: pos,
+            }),
             Err(e) => {
                 self.hard_break = true;
                 Err(Error::from(e))
@@ -86,12 +84,10 @@ impl<S, DS, P> DicomElementIterator<S, DS, P>
 
     fn create_item_marker(&mut self, header: SequenceItemHeader) -> Result<DicomElementMarker> {
         match self.get_position() {
-            Ok(pos) => {
-                Ok(DicomElementMarker {
-                    header: From::from(header),
-                    pos: pos,
-                })
-            }
+            Ok(pos) => Ok(DicomElementMarker {
+                header: From::from(header),
+                pos: pos,
+            }),
             Err(e) => {
                 self.hard_break = true;
                 Err(Error::from(e))
@@ -101,8 +97,9 @@ impl<S, DS, P> DicomElementIterator<S, DS, P>
 }
 
 impl<S, P> Iterator for DicomElementIterator<S, (), P>
-    where S: ReadSeek,
-          P: for<'s> Parse<&'s mut Read>,
+where
+    S: ReadSeek,
+    P: for<'s> Parse<&'s mut Read>,
 {
     type Item = Result<DicomElementMarker>;
 
@@ -112,29 +109,26 @@ impl<S, P> Iterator for DicomElementIterator<S, (), P>
         }
         if self.in_sequence {
             match self.parser.decode_item_header(&mut self.source) {
-                Ok(header) => {
-                    match header {
-                        header @ SequenceItemHeader::Item { .. } => {
-                            self.in_sequence = false;
-                            Some(self.create_item_marker(header))
-                        }
-                        SequenceItemHeader::ItemDelimiter => {
-                            self.in_sequence = true;
-                            Some(self.create_item_marker(header))
-                        }
-                        SequenceItemHeader::SequenceDelimiter => {
-                            self.depth -= 1;
-                            self.in_sequence = false;
-                            Some(self.create_item_marker(header))
-                        }
+                Ok(header) => match header {
+                    header @ SequenceItemHeader::Item { .. } => {
+                        self.in_sequence = false;
+                        Some(self.create_item_marker(header))
                     }
-                }
+                    SequenceItemHeader::ItemDelimiter => {
+                        self.in_sequence = true;
+                        Some(self.create_item_marker(header))
+                    }
+                    SequenceItemHeader::SequenceDelimiter => {
+                        self.depth -= 1;
+                        self.in_sequence = false;
+                        Some(self.create_item_marker(header))
+                    }
+                },
                 Err(e) => {
                     self.hard_break = true;
                     Some(Err(Error::from(e)))
                 }
             }
-
         } else {
             match self.parser.decode_header(&mut self.source) {
                 Ok(header) => {
@@ -170,10 +164,12 @@ pub struct DicomElementMarker {
 
 impl DicomElementMarker {
     /// Obtain an interval of the raw data associated to this element's data value.
-    pub fn get_data_stream<S: ?Sized, B: DerefMut<Target = S>>(&self,
-                                                               source: B)
-                                                               -> Result<SeekInterval<S, B>>
-        where S: ReadSeek
+    pub fn get_data_stream<S: ?Sized, B: DerefMut<Target = S>>(
+        &self,
+        source: B,
+    ) -> Result<SeekInterval<S, B>>
+    where
+        S: ReadSeek,
     {
         let len = self.header.len() as u64;
         let interval = SeekInterval::new_at(source, self.pos..len)?;
@@ -182,7 +178,8 @@ impl DicomElementMarker {
 
     /// Move the source to the position indicated by the marker
     pub fn move_to_start<S: ?Sized, B: DerefMut<Target = S>>(&self, mut source: B) -> Result<()>
-        where S: Seek
+    where
+        S: Seek,
     {
         source.seek(SeekFrom::Start(self.pos))?;
         Ok(())
