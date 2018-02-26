@@ -3,15 +3,13 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Debug;
 use std::rc::Rc;
-use std::ops::DerefMut;
 use data::Header;
 use dictionary::{DataDictionary, DictionaryEntry};
-use data::parser::{DynamicDicomParser, Parse};
+use data::parser::DynamicDicomParser;
 use error::{Error, Result};
 use data::{Tag, VR};
 use data::value::DicomValue;
-use iterator::DicomElementMarker;
-use object::pixeldata::PixelData;
+use data::iterator::DicomElementMarker;
 use util::ReadSeek;
 use super::DicomObject;
 
@@ -56,13 +54,13 @@ where
     }
 }
 
-impl<'s, S: 's, D: 's> DicomObject for &'s LazyDicomObject<S, DynamicDicomParser<'s>, D>
+impl<'s, S: 's, D: 's> DicomObject for &'s LazyDicomObject<S, DynamicDicomParser, D>
 where
     S: ReadSeek,
     D: DataDictionary,
 {
     type Element = Ref<'s, LazyDataElement>;
-    type Sequence = Ref<'s, LazyDataSequence<S, DynamicDicomParser<'s>, D>>;
+    type Sequence = Ref<'s, LazyDataSequence<S, DynamicDicomParser, D>>;
 
     fn get_element(&self, tag: Tag) -> Result<Self::Element> {
         {
@@ -77,9 +75,9 @@ where
         }
         {
             let mut borrow = self.entries.borrow_mut();
-            let mut e = borrow.get_mut(&tag).expect("Element should exist");
+            let e = borrow.get_mut(&tag).expect("Element should exist");
             let v: DicomValue = self.load_value(&e.marker).unwrap();
-            let mut data = e.value_mut();
+            let data = e.value_mut();
             *data = Some(v);
         }
         Ok(Ref::map(self.entries.borrow(), |m| {
@@ -91,13 +89,9 @@ where
         let tag = self.lookup_name(name)?;
         self.get_element(tag)
     }
-
-    fn get_pixel_data<PV, PX: PixelData<PV>>(&self) -> Result<PX> {
-        unimplemented!()
-    }
 }
 
-impl<'s, S: 's, D> LazyDicomObject<S, DynamicDicomParser<'s>, D>
+impl<'s, S: 's, D> LazyDicomObject<S, DynamicDicomParser, D>
 where
     S: ReadSeek,
     D: DataDictionary,
@@ -112,7 +106,7 @@ where
     fn load_value(&self, marker: &DicomElementMarker) -> Result<DicomValue> {
         let mut borrow = self.source.borrow_mut();
         marker.move_to_start(&mut *borrow)?;
-        self.parser.read_value(borrow.deref_mut(), &marker.header)
+        unimplemented!()
     }
 }
 

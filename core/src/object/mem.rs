@@ -1,23 +1,23 @@
 //! This module contains the implementation for an in-memory DICOM object.
 
 use std::collections::HashMap;
-use std::marker::PhantomData;
 use std::path::Path;
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, Read};
+use itertools::Itertools;
 
 use meta::DicomMetaTable;
-use iterator::DicomElementIterator;
+use transfer_syntax::codec::get_registry;
 use super::DicomObject;
 use data::{DataElement, Header, Tag};
-use data::value::DicomValue;
+use data::iterator::DicomElementIterator;
+use data::text::SpecificCharacterSet;
 use dictionary::{get_standard_dictionary, DataDictionary, DictionaryEntry, StandardDataDictionary};
 use error::{Error, Result};
-use object::pixeldata::PixelData;
 
 /** A DICOM sequence that is fully contained in memory.
  */
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct InMemSequence<D> {
     tag: Tag,
     objects: Vec<InMemDicomObject<D>>,
@@ -53,10 +53,6 @@ where
         let tag = self.lookup_name(name)?;
         self.get_element(tag)
     }
-
-    fn get_pixel_data<PV, PD: PixelData<PV>>(&self) -> Result<PD> {
-        unimplemented!()
-    }
 }
 
 impl InMemDicomObject<&'static StandardDataDictionary> {
@@ -71,6 +67,14 @@ impl InMemDicomObject<&'static StandardDataDictionary> {
     /// Create a DICOM object by reading from a file.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         Self::from_file_with_dict(path, get_standard_dictionary())
+    }
+
+    /// Create a DICOM object by reading from a byte sources.
+    pub fn from_stream<S>(src: S) -> Result<Self>
+    where
+        S: Read
+    {
+        Self::from_stream_with_dict(src, get_standard_dictionary())
     }
 }
 
@@ -93,15 +97,46 @@ where
 
         // read metadata header
         let meta = DicomMetaTable::from_readseek_stream(&mut file)?;
-        let mut entries = HashMap::new();
-        // TODO feed data to object
+        //let mut entries = HashMap::new();
 
-        // TODO read rest of data according to metadata, feed it to object
-        let ts = unimplemented!();
-        let cs = unimplemented!();
-        let mut it = DicomElementIterator::new_with(&mut file, ts, cs);
+        // read rest of data according to metadata, feed it to object
+        let ts = get_registry()
+            .get(&meta.transfer_syntax)
+            .ok_or(Error::UnsupportedTransferSyntax)?;
+        let cs = SpecificCharacterSet::Default;
+        let elements = DicomElementIterator::new_with(file, ts, cs)?;
 
-        Ok(InMemDicomObject { entries, dict })
+        let entries: Result<HashMap<_, _>> = elements.map_results(|e| (e.tag(), e)).collect();
+
+        Ok(InMemDicomObject {
+            entries: entries?,
+            dict,
+        })
+    }
+
+    /// Create a DICOM object by reading from a byte source.
+    pub fn from_stream_with_dict<S>(src: S, dict: D) -> Result<Self>
+    where
+        S: Read,
+    {
+        let mut file = BufReader::new(src);
+
+        // read metadata header
+        let meta = DicomMetaTable::from_stream(&mut file)?;
+        
+        // read rest of data according to metadata, feed it to object
+        let ts = get_registry()
+            .get(&meta.transfer_syntax)
+            .ok_or(Error::UnsupportedTransferSyntax)?;
+        let cs = SpecificCharacterSet::Default;
+        let elements = DicomElementIterator::new_with(file, ts, cs)?;
+
+        let entries: Result<HashMap<_, _>> = elements.map_results(|e| (e.tag(), e)).collect();
+
+        Ok(InMemDicomObject {
+            entries: entries?,
+            dict,
+        })
     }
 
     fn lookup_name(&self, name: &str) -> Result<Tag> {
@@ -123,6 +158,7 @@ mod tests {
     use super::*;
     use object::DicomObject;
     use data::VR;
+    use data::value::DicomValue;
 
     #[test]
     fn inmem_object_write() {

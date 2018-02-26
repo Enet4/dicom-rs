@@ -15,12 +15,12 @@ use data::{DataElementHeader, Header, SequenceItemHeader};
 use util::Endianness;
 
 /// A data element decoder for the Explicit VR Little Endian transfer syntax.
-pub struct ExplicitVRLittleEndianDecoder<S> {
+pub struct ExplicitVRLittleEndianDecoder<S: ?Sized> {
     basic: LittleEndianBasicDecoder,
     phantom: PhantomData<S>,
 }
 
-impl<S> Default for ExplicitVRLittleEndianDecoder<S> {
+impl<S: ?Sized> Default for ExplicitVRLittleEndianDecoder<S> {
     fn default() -> ExplicitVRLittleEndianDecoder<S> {
         ExplicitVRLittleEndianDecoder {
             basic: LittleEndianBasicDecoder,
@@ -29,7 +29,7 @@ impl<S> Default for ExplicitVRLittleEndianDecoder<S> {
     }
 }
 
-impl<S: fmt::Debug> fmt::Debug for ExplicitVRLittleEndianDecoder<S> {
+impl<S: ?Sized + fmt::Debug> fmt::Debug for ExplicitVRLittleEndianDecoder<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ExplicitVRLittleEndianDecoder")
             .field("basic", &self.basic)
@@ -38,7 +38,10 @@ impl<S: fmt::Debug> fmt::Debug for ExplicitVRLittleEndianDecoder<S> {
     }
 }
 
-impl<S: Read> Decode for ExplicitVRLittleEndianDecoder<S> {
+impl<S: ?Sized> Decode for ExplicitVRLittleEndianDecoder<S>
+where
+    S: Read,
+{
     type Source = S;
 
     fn decode_header(&self, mut source: &mut S) -> Result<DataElementHeader> {

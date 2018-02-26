@@ -1,9 +1,9 @@
 //! This modules contains everything needed to access and manipulate DICOM data elements.
 //! It comprises a variety of basic data types, such as the DICOM attribute tag.
 
-pub mod codec;
 pub mod decode;
 pub mod encode;
+pub mod iterator;
 pub mod parser;
 pub mod text;
 pub mod value;
@@ -196,9 +196,9 @@ impl<'v> DataElementRef<'v> {
 /// a tag, value representation and specified length.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct DataElementHeader {
-    tag: Tag,
-    vr: VR,
-    len: u32,
+    pub tag: Tag,
+    pub vr: VR,
+    pub len: u32,
 }
 
 impl Header for DataElementHeader {

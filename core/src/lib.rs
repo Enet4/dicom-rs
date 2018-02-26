@@ -34,7 +34,6 @@ pub mod data;
 pub mod dictionary;
 pub mod error;
 pub mod file;
-pub mod iterator;
 pub mod loader;
 pub mod meta;
 pub mod object;

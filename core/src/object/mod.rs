@@ -2,6 +2,21 @@
 //! At this level, objects are comparable to a lazy dictionary of elements,
 //! in which some of them can be DICOM objects themselves.
 //! The end user should prefer using this abstraction when dealing with DICOM objects.
+//! 
+//! # Examples
+//! 
+//! Fetching an element by tag:
+//! 
+//! ```
+//! # use dicom_core::object::DicomObject;
+//! # use dicom_core::error::Result;
+//! use dicom_core::data::Tag;
+//! # fn something<T: DicomObject>(obj: T) -> Result<()> {
+//! let e = obj.get_element(Tag(0x0002, 0x0002))?;
+//! # Ok(())
+//! # }
+//! ```
+//! 
 use data::Header;
 use error::Result;
 use data::Tag;
@@ -9,8 +24,6 @@ use data::Tag;
 pub mod mem;
 pub mod lazy;
 pub mod pixeldata;
-
-use self::pixeldata::PixelData;
 
 /// Trait type for a DICOM object.
 /// This is a high-level abstraction where an object is accessed and
@@ -26,9 +39,6 @@ pub trait DicomObject {
 
     /// Retrieve a particular DICOM element by its name.
     fn get_element_by_name(&self, name: &str) -> Result<Self::Element>;
-
-    /// Retrieve the object's pixel data.
-    fn get_pixel_data<PV, PX: PixelData<PV>>(&self) -> Result<PX>;
 
     // TODO moar
 }

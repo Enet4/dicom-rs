@@ -1,18 +1,20 @@
 [package]
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "Efficient and practical base library for DICOM compliant systems"
-name = "dicom_core"
+name = "dicom-core"
 publish = false
-version = "0.1.0"
 repository = "https://github.com/Enet4/dicom-rs.git"
+version = "0.1.0"
+
+[badges]
+
+[badges.travis-ci]
+repository = "Enet4/dicom-rs"
 
 [dependencies]
 byteorder = "~0.5.3"
 chrono = "~0.2.25"
 encoding = "~0.2.33"
+itertools = "0.7.6"
 lazy_static = "0.1.*"
 quick-error = "~1.1.0"
-itertools = "~0.5.6"
-
-[badges]
-travis-ci = { repository = "Enet4/dicom-rs" }

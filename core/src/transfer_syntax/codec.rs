@@ -1,24 +1,36 @@
 #![allow(unsafe_code)]
 //! This module contains the concept of a DICOM codec registry.
-//!
+//! A codec registry maps a DICOM UID of a transfer syntax
+//! into the respective transfer syntax object.
+//! 
 
 extern crate lazy_static;
 
 use std::collections::HashMap;
+use std::fmt;
 use transfer_syntax;
 use transfer_syntax::TransferSyntax;
 
-type DynTransferSyntax<'ts> = Box<(TransferSyntax + Send + 'ts)>;
+type DynTransferSyntax<'ts> = Box<(TransferSyntax + Send + Sync + 'ts)>;
+type DynTransferSyntaxRef<'ts> = &'ts (TransferSyntax + Send + Sync);
 
 /// Data type for a registry of DICOM codecs.
-#[derive(Debug)]
 pub struct CodecRegistry<'ts> {
     m: HashMap<&'static str, DynTransferSyntax<'ts>>,
 }
 
+impl<'ts> fmt::Debug for CodecRegistry<'ts> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let keys: Vec<_> = self.m.keys().map(|x| *x).collect();
+        f.debug_struct("CodecRegistry")
+            .field("m", &format!("{:?}", keys))
+            .finish()
+    }
+}
+
 impl<'ts> CodecRegistry<'ts> {
     /// Obtain a DICOM codec by transfer syntax UID.
-    pub fn get<UID: AsRef<str>>(&'ts self, uid: UID) -> Option<&'ts (TransferSyntax + Send + 'ts)> {
+    pub fn get<U: AsRef<str>>(&'ts self, uid: U) -> Option<DynTransferSyntaxRef<'ts>> {
         self.m.get(uid.as_ref()).map(|b| b.as_ref())
     }
 }

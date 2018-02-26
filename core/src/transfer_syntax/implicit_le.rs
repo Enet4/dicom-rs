@@ -50,7 +50,7 @@ impl<S: ?Sized> ImplicitVRLittleEndianDecoder<S, &'static StandardDataDictionary
     }
 }
 
-impl<S> Default for ImplicitVRLittleEndianDecoder<S, &'static StandardDataDictionary> {
+impl<S: ?Sized> Default for ImplicitVRLittleEndianDecoder<S, &'static StandardDataDictionary> {
     fn default() -> Self {
         ImplicitVRLittleEndianDecoder::with_default_dict()
     }

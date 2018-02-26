@@ -3,19 +3,153 @@
 use std::io::{Read, Seek, SeekFrom};
 use std::ops::DerefMut;
 use std::marker::PhantomData;
-use data::parser::{DicomParser, DynamicDicomParser, Parse};
 use std::iter::Iterator;
 use transfer_syntax::TransferSyntax;
-use data::{DataElementHeader, Header, SequenceItemHeader};
+use data::{DataElement, DataElementHeader, Header, SequenceItemHeader};
+use data::parser::{DicomParser, DynamicDicomParser, Parse};
 use data::text::SpecificCharacterSet;
+use data::value::DicomValue;
 use util::{ReadSeek, SeekInterval};
 use error::{Error, Result};
 use data::VR;
 use data::Tag;
 
-/// An iterator for DICOM object elements.
+/// An iterator for retrieving DICOM object element markers from a random
+/// access data source.
 #[derive(Debug)]
-pub struct DicomElementIterator<S, DS, P> {
+pub struct DicomElementIterator<S, P> {
+    source: S,
+    parser: P,
+    depth: u32,
+    in_sequence: bool,
+    hard_break: bool,
+}
+
+fn is_parse<S: ?Sized + Read, P>(_: &P) where P: Parse<S> {}
+
+impl<'s, S: 's> DicomElementIterator<S, DynamicDicomParser> {
+    /// Create a new iterator with the given random access source,
+    /// while considering the given transfer syntax and specific character set.
+    pub fn new_with(
+        source: S,
+        ts: &TransferSyntax,
+        cs: SpecificCharacterSet,
+    ) -> Result<Self> {
+        let parser = DynamicDicomParser::new_with(ts, cs)?;
+
+        is_parse(&parser);
+
+        Ok(DicomElementIterator {
+            source: source,
+            parser: parser,
+            depth: 0,
+            in_sequence: false,
+            hard_break: false,
+        })
+    }
+}
+
+impl<S, P> DicomElementIterator<S, P>
+where
+    S: Read,
+    P: Parse<Read>,
+{
+    /// Create a new iterator with the given parser.
+    pub fn new(source: S, parser: P) -> Self {
+        DicomElementIterator {
+            source: source,
+            parser: parser,
+            depth: 0,
+            in_sequence: false,
+            hard_break: false,
+        }
+    }
+}
+
+impl<'s, S: 's, P> DicomElementIterator<S, P>
+where
+    S: Read,
+    P: Parse<Read + 's>,
+{
+    fn read_element(&mut self, header: DataElementHeader) -> Result<DataElement> {
+        let value = self.parser.read_value(&mut self.source, &header)?;
+
+        Ok(DataElement { header, value })
+    }
+
+    fn create_item_marker(&mut self, header: SequenceItemHeader) -> Result<DataElement> {
+        Ok(DataElement {
+            header: header.into(),
+            value: DicomValue::Empty,
+        })
+    }
+}
+
+impl<'s, S: 's, P> Iterator for DicomElementIterator<S, P>
+where
+    S: Read,
+    P: Parse<Read + 's>,
+{
+    type Item = Result<DataElement>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.hard_break {
+            return None;
+        }
+        if self.in_sequence {
+            match self.parser.decode_item_header(&mut self.source) {
+                Ok(header) => match header {
+                    header @ SequenceItemHeader::Item { .. } => {
+                        self.in_sequence = false;
+                        Some(self.create_item_marker(header))
+                    }
+                    SequenceItemHeader::ItemDelimiter => {
+                        self.in_sequence = true;
+                        Some(self.create_item_marker(header))
+                    }
+                    SequenceItemHeader::SequenceDelimiter => {
+                        self.depth -= 1;
+                        self.in_sequence = false;
+                        Some(self.create_item_marker(header))
+                    }
+                },
+                Err(e) => {
+                    self.hard_break = true;
+                    Some(Err(Error::from(e)))
+                }
+            }
+        } else {
+            match self.parser.decode_header(&mut self.source) {
+                Ok(header @ DataElementHeader {
+                    tag: Tag(0x0008, 0x0005),
+                    vr: _,
+                    len: _,
+                }) => {
+                    let marker = self.read_element(header);
+
+                    Some(marker)
+                }
+                Ok(header) => {
+                    // check if SQ
+                    if header.vr() == VR::SQ {
+                        self.in_sequence = true;
+                        self.depth += 1;
+                    }
+                    Some(self.read_element(header))
+                }
+                Err(e) => {
+                    self.hard_break = true;
+                    Some(Err(Error::from(e)))
+                }
+            }
+        }
+    }
+}
+
+/// An iterator for retrieving DICOM object element markers from a random
+/// access data source.
+#[derive(Debug)]
+pub struct LazyDicomElementIterator<S, DS, P> {
     source: S,
     parser: P,
     depth: u32,
@@ -24,7 +158,7 @@ pub struct DicomElementIterator<S, DS, P> {
     phantom: PhantomData<DS>,
 }
 
-impl<'s> DicomElementIterator<&'s mut ReadSeek, &'s mut Read, DynamicDicomParser<'s>> {
+impl<'s> LazyDicomElementIterator<&'s mut ReadSeek, &'s mut Read, DynamicDicomParser> {
     /// Create a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
     pub fn new_with(
@@ -34,7 +168,7 @@ impl<'s> DicomElementIterator<&'s mut ReadSeek, &'s mut Read, DynamicDicomParser
     ) -> Result<Self> {
         let parser = DicomParser::new_with(ts, cs)?;
 
-        Ok(DicomElementIterator {
+        Ok(LazyDicomElementIterator {
             source: source,
             parser: parser,
             depth: 0,
@@ -45,13 +179,13 @@ impl<'s> DicomElementIterator<&'s mut ReadSeek, &'s mut Read, DynamicDicomParser
     }
 }
 
-impl<S, DS, P> DicomElementIterator<S, DS, P>
+impl<S, DS, P> LazyDicomElementIterator<S, DS, P>
 where
     S: ReadSeek,
 {
     /// Create a new iterator with the given parser.
-    pub fn new(source: S, parser: P) -> DicomElementIterator<S, DS, P> {
-        DicomElementIterator {
+    pub fn new(source: S, parser: P) -> LazyDicomElementIterator<S, DS, P> {
+        LazyDicomElementIterator {
             source: source,
             parser: parser,
             depth: 0,
@@ -96,10 +230,10 @@ where
     }
 }
 
-impl<S, P> Iterator for DicomElementIterator<S, (), P>
+impl<S, P> Iterator for LazyDicomElementIterator<S, (), P>
 where
     S: ReadSeek,
-    P: for<'s> Parse<&'s mut Read>,
+    P: Parse<S>,
 {
     type Item = Result<DicomElementMarker>;
 
@@ -131,6 +265,15 @@ where
             }
         } else {
             match self.parser.decode_header(&mut self.source) {
+                Ok(header @ DataElementHeader {
+                    tag: Tag(0x0008, 0x0005),
+                    vr: _,
+                    len: _,
+                }) => {
+                    let marker = self.create_element_marker(header);
+
+                    Some(marker)
+                }
                 Ok(header) => {
                     // check if SQ
                     if header.vr() == VR::SQ {

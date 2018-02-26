@@ -1,14 +1,20 @@
-use std::io::{Read, Seek, Write};
+use std::io::{Read, Write};
 use std::path::Path;
 use error::Result;
 use object::DicomObject;
 use DefaultDicomObject;
 
-pub fn from_stream<'s, F: 's + Read + Seek>(file: F) -> Result<DefaultDicomObject> {
-    unimplemented!()
+pub fn from_stream<F>(file: F) -> Result<DefaultDicomObject>
+where
+    F: Read,
+{
+    DefaultDicomObject::from_stream(file)
 }
 
-pub fn from_file<'s, P: AsRef<Path>>(path: P) -> Result<DefaultDicomObject> {
+pub fn from_file<P>(path: P) -> Result<DefaultDicomObject> 
+where
+    P: AsRef<Path>
+{
     DefaultDicomObject::from_file(path)
 }
 
