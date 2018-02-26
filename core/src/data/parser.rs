@@ -17,7 +17,7 @@ use data::value::DicomValue;
 use transfer_syntax::TransferSyntax;
 use transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
 use data::text::DefaultCharacterSetCodec;
-use chrono::naive::date::NaiveDate;
+use chrono::NaiveDate;
 use util::n_times;
 
 /// A trait for DICOM data parsers, which abstracts the necessary parts

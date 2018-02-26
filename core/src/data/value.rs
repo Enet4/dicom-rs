@@ -6,7 +6,7 @@ use std::result;
 use chrono::NaiveDate;
 use chrono::NaiveTime;
 use chrono::DateTime;
-use chrono::UTC;
+use chrono::Utc;
 
 /// Result type alias for this module.
 pub type Result<T> = result::Result<T, InvalidValueReadError>;
@@ -69,7 +69,7 @@ pub enum DicomValue {
 
     /// A sequence of date-time values.
     /// Used for the DT representation.
-    DateTime(C<DateTime<UTC>>),
+    DateTime(C<DateTime<Utc>>),
 
     /// A sequence of time values.
     /// Used for the TM representation.
