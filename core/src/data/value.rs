@@ -76,6 +76,110 @@ pub enum DicomValue {
     Time(C<NaiveTime>),
 }
 
+impl DicomValue {
+    /// Get a single string value. If it contains multiple strings,
+    /// only the first one is returned.
+    pub fn string(&self) -> Option<&str> {
+        use DicomValue::*;
+        match self {
+            &Strs(ref c) => c.get(0).map(String::as_str),
+            &Str(ref s) => Some(s),
+            _ => None,
+        }
+    }
+
+    /// Get a sequence of string values.
+    pub fn strings(&self) -> Option<Vec<&str>> {
+        use DicomValue::*;
+        match self {
+            &Strs(ref c) => Some(c.iter().map(String::as_str).collect()),
+            &Str(ref s) => Some(vec![&s]),
+            _ => None,
+        }
+    }
+
+    /// Get a single DICOM tag.
+    pub fn tag(&self) -> Option<Tag> {
+        use DicomValue::*;
+        match self {
+            &Tags(ref c) => c.get(0).map(Clone::clone),
+            _ => None,
+        }
+    }
+
+    /// Get a sequence of DICOM tags.
+    pub fn tags(&self) -> Option<&[Tag]> {
+        use DicomValue::*;
+        match self {
+            &Tags(ref c) => Some(&c),
+            _ => None,
+        }
+    }
+
+    /// Get a single 32-bit signed integer value.
+    pub fn int32(&self) -> Option<i32> {
+        use DicomValue::*;
+        match self {
+            &I32(ref c) => c.get(0).map(Clone::clone),
+            _ => None,
+        }
+    }
+
+    /// Get a single 32-bit unsigned integer value.
+    pub fn uint32(&self) -> Option<u32> {
+        use DicomValue::*;
+        match self {
+            &U32(ref c) => c.get(0).map(Clone::clone),
+            _ => None,
+        }
+    }
+
+    /// Get a single 16-bit signed integer value.
+    pub fn int16(&self) -> Option<i16> {
+        use DicomValue::*;
+        match self {
+            &I16(ref c) => c.get(0).map(Clone::clone),
+            _ => None,
+        }
+    }
+
+    /// Get a single 16-bit unsigned integer value.
+    pub fn uint16(&self) -> Option<u16> {
+        use DicomValue::*;
+        match self {
+            &U16(ref c) => c.get(0).map(Clone::clone),
+            _ => None,
+        }
+    }
+
+    /// Get a single 8-bit unsigned integer value.
+    pub fn uint8(&self) -> Option<u8> {
+        use DicomValue::*;
+        match self {
+            &U8(ref c) => c.get(0).map(Clone::clone),
+            _ => None,
+        }
+    }
+
+    /// Get a single 32-bit floating point number value.
+    pub fn float32(&self) -> Option<f32> {
+        use DicomValue::*;
+        match self {
+            &F32(ref c) => c.get(0).map(Clone::clone),
+            _ => None,
+        }
+    }
+
+    /// Get a single 64-bit floating point number value.
+    pub fn float64(&self) -> Option<f64> {
+        use DicomValue::*;
+        match self {
+            &F64(ref c) => c.get(0).map(Clone::clone),
+            _ => None,
+        }
+    }
+}
+
 /// An enum representing a programmatic abstraction of
 /// a DICOM element's data value type. This should be
 /// the equivalent of `DicomValue` without the content.
