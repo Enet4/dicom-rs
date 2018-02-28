@@ -477,7 +477,7 @@ pub type ElementNumber = u16;
 /// a (group, element) pair. For this purpose, `Tag` also provides a method
 /// for converting it to a tuple. Both `(u16, u16)` and `[u16; 2]` can be
 /// efficiently converted to this type as well.
-#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Copy)]
 pub struct Tag(pub GroupNumber, pub ElementNumber);
 
 impl Tag {

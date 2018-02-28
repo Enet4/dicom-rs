@@ -1,6 +1,6 @@
 //! This module contains the implementation for an in-memory DICOM object.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -27,7 +27,7 @@ pub struct InMemSequence<D> {
  */
 #[derive(Debug, Clone)]
 pub struct InMemDicomObject<D> {
-    entries: HashMap<Tag, DataElement>,
+    entries: BTreeMap<Tag, DataElement>,
     dict: D,
 }
 
@@ -59,7 +59,7 @@ impl InMemDicomObject<&'static StandardDataDictionary> {
     /// Create a new empty DICOM object.
     pub fn create_empty() -> Self {
         InMemDicomObject {
-            entries: HashMap::new(),
+            entries: BTreeMap::new(),
             dict: get_standard_dictionary(),
         }
     }
@@ -86,7 +86,7 @@ where
     /// for name lookup.
     pub fn new_empty_with_dict(dict: D) -> Self {
         InMemDicomObject {
-            entries: HashMap::new(),
+            entries: BTreeMap::new(),
             dict: dict,
         }
     }
@@ -97,7 +97,6 @@ where
 
         // read metadata header
         let meta = DicomMetaTable::from_readseek_stream(&mut file)?;
-        //let mut entries = HashMap::new();
 
         // read rest of data according to metadata, feed it to object
         let ts = get_registry()
@@ -106,7 +105,7 @@ where
         let cs = SpecificCharacterSet::Default;
         let elements = DicomElementIterator::new_with(file, ts, cs)?;
 
-        let entries: Result<HashMap<_, _>> = elements.map_results(|e| (e.tag(), e)).collect();
+        let entries: Result<BTreeMap<_, _>> = elements.map_results(|e| (e.tag(), e)).collect();
 
         Ok(InMemDicomObject {
             entries: entries?,
@@ -131,7 +130,7 @@ where
         let cs = SpecificCharacterSet::Default;
         let elements = DicomElementIterator::new_with(file, ts, cs)?;
 
-        let entries: Result<HashMap<_, _>> = elements.map_results(|e| (e.tag(), e)).collect();
+        let entries: Result<BTreeMap<_, _>> = elements.map_results(|e| (e.tag(), e)).collect();
 
         Ok(InMemDicomObject {
             entries: entries?,
@@ -150,6 +149,44 @@ where
     pub fn put(&mut self, elt: DataElement) {
         self.entries.insert(elt.tag(), elt);
     }
+}
+
+impl<'a, D> IntoIterator for &'a InMemDicomObject<D> {
+    type Item = &'a DataElement;
+    type IntoIter = ::std::collections::btree_map::Values<'a, Tag, DataElement>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.entries.values()
+    }
+}
+
+impl<D> IntoIterator for InMemDicomObject<D> {
+    type Item = DataElement;
+    type IntoIter = Iter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Iter { inner: self.entries.into_iter() }
+    }
+}
+
+#[derive(Debug)]
+pub struct Iter {
+    inner: ::std::collections::btree_map::IntoIter<Tag, DataElement>,
+}
+
+impl Iterator for Iter
+{
+    type Item = DataElement;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|x| x.1)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+
+    
 }
 
 #[cfg(test)]
