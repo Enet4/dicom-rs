@@ -103,7 +103,7 @@ impl DicomMetaTable {
         // Check the preamble and magic code (128 bytes of preamble followed by 'DICM')
 
         // skip the preamble
-        try!(file.seek(SeekFrom::Current(128)));
+        file.seek(SeekFrom::Current(128))?;
 
         DicomMetaTable::read_from(file)
     }
@@ -151,7 +151,7 @@ impl DicomMetaTable {
                 }
                 let mut hbuf = [0u8; 2];
                 file.read_exact(&mut hbuf[..])?;
-                group_length_remaining -= 8 + elem.len();
+                group_length_remaining -= 12 + elem.len();
                 hbuf
             })
             .media_storage_sop_class_uid(read_str_as_tag(
@@ -185,54 +185,54 @@ impl DicomMetaTable {
 
         // Fetch optional data elements
         while group_length_remaining > 0 {
-            let elem = try!(decoder.decode_header(&mut file));
-            group_length_remaining -= elem.len();
+            let elem = decoder.decode_header(&mut file)?;
             builder = match elem.tag() {
                 Tag(0x0002, 0x0013) => {
                     // Implementation Version Name
                     let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
                     v.resize(elem.len() as usize, 0);
-                    try!(file.read_exact(&mut v));
-                    group_length_remaining -= 4 + elem.len();
-                    builder.implementation_version_name(try!(text.decode(&v)))
+                    file.read_exact(&mut v)?;
+                    group_length_remaining -= 8 + elem.len();
+                    builder.implementation_version_name(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0016) => {
                     // Source Application Entity Title
                     let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
                     v.resize(elem.len() as usize, 0);
-                    try!(file.read_exact(&mut v));
-                    group_length_remaining -= 4 + elem.len();
+                    file.read_exact(&mut v)?;
+                    group_length_remaining -= 8 + elem.len();
                     builder.source_application_entity_title(try!(text.decode(&v)))
                 }
                 Tag(0x0002, 0x0017) => {
                     // Sending Application Entity Title
                     let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
                     v.resize(elem.len() as usize, 0);
-                    try!(file.read_exact(&mut v));
-                    group_length_remaining -= 4 + elem.len();
-                    builder.sending_application_entity_title(try!(text.decode(&v)))
+                    file.read_exact(&mut v)?;
+                    group_length_remaining -= 8 + elem.len();
+                    builder.sending_application_entity_title(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0018) => {
                     // Receiving Application Entity Title
                     let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
                     v.resize(elem.len() as usize, 0);
-                    try!(file.read_exact(&mut v));
-                    group_length_remaining -= 4 + elem.len();
-                    builder.receiving_application_entity_title(try!(text.decode(&v)))
+                    file.read_exact(&mut v)?;
+                    group_length_remaining -= 8 + elem.len();
+                    builder.receiving_application_entity_title(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0100) => {
                     // Private Information Creator UID
                     let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
                     v.resize(elem.len() as usize, 0);
-                    try!(file.read_exact(&mut v));
-                    group_length_remaining -= 4 + elem.len();
-                    builder.private_information_creator_uid(try!(text.decode(&v)))
+                    file.read_exact(&mut v)?;
+                    group_length_remaining -= 8 + elem.len();
+                    builder.private_information_creator_uid(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0102) => {
                     // Private Information
                     let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
                     v.resize(elem.len() as usize, 0);
-                    try!(file.read_exact(&mut v));
+                    file.read_exact(&mut v)?;
+                    group_length_remaining -= 12 + elem.len();
                     builder.private_information(v)
                 }
                 Tag(0x0002, _) => {
@@ -420,7 +420,7 @@ mod tests {
     use super::DicomMetaTable;
     use std::io::Cursor;
 
-    const TEST_PREAMBLE: &'static [u8] = &[
+    const TEST_META_1: &'static [u8] = &[
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -430,42 +430,42 @@ mod tests {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         // magic code
-        0x44, 0x49, 0x43, 0x4D,
+        b'D', b'I', b'C', b'M',
         // File Meta Information Group Length: (0000,0002) ; UL ; 4 ; 200
-        0x02, 0x00, 0x00, 0x00, 0x55, 0x4c, 0x04, 0x00, 0xc8, 0x00, 0x00, 0x00,
+        0x02, 0x00, 0x00, 0x00, b'U', b'L', 0x04, 0x00, 0xc8, 0x00, 0x00, 0x00,
         // File Meta Information Version: (0002, 0001) ; OB ; 2 ; [0x00, 0x01]
-        0x02, 0x00, 0x01, 0x00, 0x4f, 0x42, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x01,
+        0x02, 0x00, 0x01, 0x00, b'O', b'B', 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x01,
         // Media Storage SOP Class UID (0002, 0002) ; UI ; 26 ; "1.2.840.10008.5.1.4.1.1.1\0" (ComputedRadiographyImageStorage)
-        0x02, 0x00, 0x02, 0x00, 0x55, 0x49, 0x1a, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34,
+        0x02, 0x00, 0x02, 0x00, b'U', b'I', 0x1a, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34,
         0x30, 0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x35, 0x2e, 0x31, 0x2e, 0x34, 0x2e,
         0x31, 0x2e, 0x31, 0x2e, 0x31, 0x00,
         // Media Storage SOP Instance UID (0002, 0003) ; UI ; 56 ; "1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567\0"
-        0x02, 0x00, 0x03, 0x00, 0x55, 0x49, 0x38, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x33, 0x2e, 0x34, 0x2e, 0x35,
+        0x02, 0x00, 0x03, 0x00, b'U', b'I', 0x38, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x33, 0x2e, 0x34, 0x2e, 0x35,
         0x2e, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x2e, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
         0x38, 0x39, 0x30, 0x2e, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x2e, 0x31, 0x32, 0x33, 0x34, 0x35,
         0x36, 0x37, 0x38, 0x39, 0x2e, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x00,
         // Transfer Syntax UID (0002, 0010) ; UI ; 20 ; "1.2.840.10008.1.2.1\0" (LittleEndianExplicit)
-        0x02, 0x00, 0x10, 0x00, 0x55, 0x49, 0x14, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34, 0x30, 0x2e, 0x31,
+        0x02, 0x00, 0x10, 0x00, b'U', b'I', 0x14, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34, 0x30, 0x2e, 0x31,
         0x30, 0x30, 0x30, 0x38, 0x2e, 0x31, 0x2e, 0x32, 0x2e, 0x31, 0x00,
         // Implementation Class UID (0002, 0012) ; UI ; 20 ; "1.2.345.6.7890.1.234"
-        0x02, 0x00, 0x12, 0x00, 0x55, 0x49, 0x14, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x33, 0x34, 0x35, 0x2e, 0x36,
+        0x02, 0x00, 0x12, 0x00, b'U', b'I', 0x14, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x33, 0x34, 0x35, 0x2e, 0x36,
         0x2e, 0x37, 0x38, 0x39, 0x30, 0x2e, 0x31, 0x2e, 0x32, 0x33, 0x34,
         
         // optional elements:
 
         // Implementation Version Name (0002,0013) ; SH ; "RUSTY_DICOM_269"
-        0x02, 0x00, 0x13, 0x00, 0x53, 0x48, 0x10, 0x00, 0x52, 0x55, 0x53, 0x54, 0x59, 0x5f, 0x44, 0x49, 0x43,
+        0x02, 0x00, 0x13, 0x00, b'S', b'H', 0x10, 0x00, 0x52, 0x55, 0x53, 0x54, 0x59, 0x5f, 0x44, 0x49, 0x43,
         0x4f, 0x4d, 0x5f, 0x32, 0x36, 0x39, 0x20,
         // Source Application Entity Title (0002, 0016) ; AE ; 0 (no data)
-        0x02, 0x00, 0x16, 0x00, 0x41, 0x45, 0x00, 0x00
+        0x02, 0x00, 0x16, 0x00, b'A', b'E', 0x00, 0x00
     ];
 
     #[test]
     fn read_meta_table_from_readseek_ok() {
-        let mut source = Cursor::new(TEST_PREAMBLE);
+        let mut source = Cursor::new(TEST_META_1);
 
         let table = DicomMetaTable::from_readseek_stream(&mut source)
-            .expect("Should not yield any errors dangit!");
+            .unwrap();
 
         assert_eq!(table.information_group_length, 200);
         assert_eq!(table.information_version, [0u8, 1u8]);
@@ -483,7 +483,7 @@ mod tests {
             table.implementation_version_name,
             Some(String::from("RUSTY_DICOM_269 "))
         );
-        assert_eq!(table.source_application_entity_title, None);
+        assert_eq!(table.source_application_entity_title, Some("".into()));
         assert_eq!(table.sending_application_entity_title, None);
         assert_eq!(table.receiving_application_entity_title, None);
         assert_eq!(table.private_information_creator_uid, None);
@@ -492,10 +492,10 @@ mod tests {
 
     #[test]
     fn read_meta_table_from_stream_ok() {
-        let mut source = TEST_PREAMBLE;
+        let mut source = TEST_META_1;
 
         let table =
-            DicomMetaTable::from_stream(&mut source).expect("Should not yield any errors dangit!");
+            DicomMetaTable::from_stream(&mut source).unwrap();
 
         assert_eq!(table.information_group_length, 200);
         assert_eq!(table.information_version, [0u8, 1u8]);
@@ -513,7 +513,7 @@ mod tests {
             table.implementation_version_name,
             Some(String::from("RUSTY_DICOM_269 "))
         );
-        assert_eq!(table.source_application_entity_title, None);
+        assert_eq!(table.source_application_entity_title, Some("".into()));
         assert_eq!(table.sending_application_entity_title, None);
         assert_eq!(table.receiving_application_entity_title, None);
         assert_eq!(table.private_information_creator_uid, None);
