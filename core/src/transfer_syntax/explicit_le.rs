@@ -50,7 +50,7 @@ where
 
         let mut buf = [0u8; 4];
         // retrieve explicit VR
-        try!(source.read_exact(&mut buf[0..2]));
+        source.read_exact(&mut buf[0..2])?;
         let vr = VR::from_binary([buf[0], buf[1]]).unwrap_or(VR::UN);
 
         // retrieve data length
@@ -66,13 +66,13 @@ where
             | VR::UT
             | VR::UN => {
                 // read 2 reserved bytes, then 4 bytes for data length
-                try!(source.read_exact(&mut buf[0..2]));
-                try!(source.read_exact(&mut buf));
+                source.read_exact(&mut buf[0..2])?;
+                source.read_exact(&mut buf)?;
                 LittleEndian::read_u32(&buf)
             }
             _ => {
                 // read 2 bytes for the data length
-                try!(source.read_exact(&mut buf[0..2]));
+                source.read_exact(&mut buf[0..2])?;
                 LittleEndian::read_u16(&buf[0..2]) as u32
             }
         };
