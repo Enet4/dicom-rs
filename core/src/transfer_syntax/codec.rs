@@ -31,7 +31,15 @@ impl<'ts> fmt::Debug for CodecRegistry<'ts> {
 impl<'ts> CodecRegistry<'ts> {
     /// Obtain a DICOM codec by transfer syntax UID.
     pub fn get<U: AsRef<str>>(&'ts self, uid: U) -> Option<DynTransferSyntaxRef<'ts>> {
-        self.m.get(uid.as_ref()).map(|b| b.as_ref())
+        let ts_uid = {
+            let uid = uid.as_ref();
+            if uid.chars().rev().next() == Some('\0') {
+                &uid[..uid.len() - 1]
+            } else {
+                &uid
+            }
+        };
+        self.m.get(ts_uid).map(|b| b.as_ref())
     }
 }
 

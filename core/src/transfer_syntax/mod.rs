@@ -47,22 +47,6 @@ pub trait TransferSyntax {
     }
 }
 
-/// Retrieve the transfer syntax identified by its respective UID.
-/// This function will only provide some of the transfer syntaxes specified in the standard
-/// (version 2016a). For custom transfer syntaxes, consider rolling your own
-/// enumerate and element decoder factory.
-pub fn from_uid(uid: &str) -> Option<Box<TransferSyntax>> {
-    match uid {
-        "1.2.840.10008.1.2" => Some(Box::new(ImplicitVRLittleEndian)),
-        "1.2.840.10008.1.2.1" => Some(Box::new(ExplicitVRLittleEndian)),
-        "1.2.840.10008.1.2.​1.​99" => Some(Box::new(DeflatedExplicitVRLittleEndian)),
-        "1.2.840.10008.1.​2.​2" => Some(Box::new(ExplicitVRBigEndian)),
-        "1.2.840.10008.1.2.​4.​50" => Some(Box::new(JPEGBaseline)),
-        // TODO put the rest of them here
-        _ => None,
-    }
-}
-
 /// Retrieve the default transfer syntax.
 pub fn default() -> ImplicitVRLittleEndian {
     ImplicitVRLittleEndian
