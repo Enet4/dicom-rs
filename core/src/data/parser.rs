@@ -17,8 +17,10 @@ use data::value::DicomValue;
 use transfer_syntax::TransferSyntax;
 use transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
 use data::text::DefaultCharacterSetCodec;
-use chrono::NaiveDate;
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
 use util::n_times;
+
+const Z: i32 = b'0' as i32;
 
 /// A trait for DICOM data parsers, which abstracts the necessary parts
 /// of a full DICOM content reading process.
@@ -305,46 +307,39 @@ where
             VR::DA => {
                 require_known_length!(header);
                 // sequence of dates
-                let len = header.len() as usize / 8;
-                let mut vec = Vec::with_capacity(len);
-                for _ in 0..len {
-                    // "YYYYMMDD"
-                    let mut buf = [0u8; 8];
-                    from.read_exact(&mut buf)?;
-                    let (y4, y3, y2, y1, m2, m1, d2, d1) = (
-                        buf[0],
-                        buf[1],
-                        buf[2],
-                        buf[3],
-                        buf[4],
-                        buf[5],
-                        buf[6],
-                        buf[7],
-                    );
-                    const Z: i32 = b'0' as i32;
-                    let year = (y4 as i32 - Z) * 1000 + (y3 as i32 - Z) * 100 + (y2 as i32 - Z) * 10
-                        + y1 as i32 - Z;
 
-                    let month = ((m2 as i32 - Z) * 10 + m1 as i32) as u32;
-                    let day = ((d2 as i32 - Z) * 10 + d1 as i32) as u32;
-
-                    let date = NaiveDate::from_ymd_opt(year, month, day)
-                        .ok_or_else(|| Error::from(InvalidValueReadError::InvalidFormat))?;
-                    vec.push(date);
-                }
-                Ok(DicomValue::Date(vec))
+                // maybe one day I should find a way to get rid of this dynamic allocation
+                let mut buf = vec![0u8; header.len() as usize];
+                from.read_exact(&mut buf)?;
+                let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
+                    .map(|part| Ok(parse_date(part)?.0))
+                    .collect();
+                Ok(DicomValue::Date(vec?))
             }
             VR::DT => {
                 require_known_length!(header);
                 // sequence of datetimes
-                unimplemented!()
+
+                // dynamic allocation
+                let mut buf = vec![0u8; header.len() as usize];
+                from.read_exact(&mut buf)?;
+                let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
+                    .map(|part| Ok(parse_datetime(part)?))
+                    .collect();
+
+                Ok(DicomValue::DateTime(vec?))
             }
             VR::TM => {
                 require_known_length!(header);
                 // sequence of time instances
-                // "HHMMSS.FFFFFF"
 
-                unimplemented!()
+                // dynamic allocation
+                let mut buf = vec![0u8; header.len() as usize];
+                from.read_exact(&mut buf)?;
+                let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
+                    .map(|part| Ok(parse_time(part)?.0))
+                    .collect();
+                Ok(DicomValue::Time(vec?))
             }
             VR::DS => {
                 require_known_length!(header);
@@ -434,5 +429,202 @@ where
             .get_codec()
             .ok_or_else(|| Error::UnsupportedCharacterSet)?;
         Ok(())
+    }
+}
+
+fn parse_date(buf: &[u8]) -> Result<(NaiveDate, usize)> {
+    // YYYY(MM(DD)?)?
+    match buf.len() {
+        0 | 1 | 2 | 3 | 5 | 7 => Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
+        4 => {
+            let year = read_number_naive(buf);
+            Ok((NaiveDate::from_ymd(year, 0, 0), 4))
+        }
+        6 => {
+            let year = read_number_naive(&buf[0..4]);
+            let month = (buf[4] as i32 - Z) * 10 + buf[5] as i32 - Z;
+            Ok((NaiveDate::from_ymd(year, month as u32, 0), 6))
+        }
+        len => {
+            debug_assert!(len >= 8);
+            let year = read_number_naive(&buf[0..4]);
+            let month = (buf[4] as i32 - Z) * 10 + buf[5] as i32 - Z;
+            let day = (buf[6] as i32 - Z) * 10 + buf[7] as i32 - Z;
+            Ok((NaiveDate::from_ymd(year, month as u32, day as u32), 8))
+        }
+    }
+}
+
+fn parse_time(buf: &[u8]) -> Result<(NaiveTime, usize)> {
+    const Z: i32 = b'0' as i32;
+    // HH(MM(SS(.F{1,6})?)?)?
+
+    match buf.len() {
+        0 | 1 | 3 | 5 | 7 => Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
+        2 => {
+            let hour = (buf[0] as i32 - Z) * 10 + buf[1] as i32 - Z;
+            Ok((NaiveTime::from_hms(hour as u32, 0, 0), 2))
+        }
+        4 => {
+            let hour = (buf[0] as i32 - Z) * 10 + buf[1] as i32 - Z;
+            let minute = (buf[2] as i32 - Z) * 10 + buf[3] as i32 - Z;
+            Ok((NaiveTime::from_hms(hour as u32, minute as u32, 0), 4))
+        }
+        6 => {
+            let hour = (buf[0] as i32 - Z) * 10 + buf[1] as i32 - Z;
+            let minute = (buf[2] as i32 - Z) * 10 + buf[3] as i32 - Z;
+            let second = (buf[4] as i32 - Z) * 10 + buf[5] as i32 - Z;
+            Ok((
+                NaiveTime::from_hms(hour as u32, minute as u32, second as u32),
+                6,
+            ))
+        }
+        _ => {
+            let hour = (buf[0] as i32 - Z) * 10 + buf[1] as i32 - Z;
+            let minute = (buf[2] as i32 - Z) * 10 + buf[3] as i32 - Z;
+            let second = (buf[4] as i32 - Z) * 10 + buf[5] as i32 - Z;
+            if buf[6] != b'.' {
+                return Err(InvalidValueReadError::InvalidFormat.into());
+            }
+            // read at most 6 bytes
+            let n = usize::min(6, buf.len() - 7);
+            let mut fract = read_number_naive(&buf[7..7 + n]);
+            let mut acc = n;
+            while acc < 6 {
+                fract *= 10;
+                acc += 1;
+            }
+            Ok((
+                NaiveTime::from_hms_micro(hour as u32, minute as u32, second as u32, fract as u32),
+                7 + n,
+            ))
+        }
+    }
+}
+
+#[inline]
+fn read_number_naive(buf: &[u8]) -> i32 {
+    (&buf[1..])
+        .into_iter()
+        .fold(buf[0] as i32 - Z, |acc, v| acc * 10 + *v as i32 - Z)
+}
+
+fn parse_datetime(buf: &[u8]) -> Result<DateTime<FixedOffset>> {
+    let (date, bytes_read) = parse_date(buf)?;
+    if buf.len() <= 8 {
+        return Ok(FixedOffset::east(0).from_utc_date(&date).and_hms(0, 0, 0));
+    }
+
+    let (time, bytes_read) = parse_time(&buf[bytes_read..])?;
+    if buf.len() == bytes_read + 8 {
+        return FixedOffset::east(0)
+            .from_utc_date(&date)
+            .and_time(time)
+            .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
+    }
+
+    let buf = &buf[bytes_read..];
+    let len = buf.len();
+    let offset = match len {
+        0 => FixedOffset::east(0),
+        1 => return Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
+        _ => {
+            let tz_sign = buf[0];
+            let buf = &buf[1..];
+            let (tz_h, tz_m) = match buf.len() {
+                2 => (buf[0] as i32 - Z, 0),
+                3 => (read_number_naive(&buf[0..2]), 0),
+                _ => {
+                    let tz_h = read_number_naive(&buf[0..2]);
+                    let tz_m = read_number_naive(&buf[2..usize::min(4, buf.len())]);
+                    (tz_h, tz_m)
+                }
+            };
+            let s = (tz_h * 60 + tz_m) * 60;
+            match tz_sign {
+                b'+' => FixedOffset::east(s),
+                b'-' => FixedOffset::west(s),
+                _ => return Err(InvalidValueReadError::InvalidFormat.into()),
+            }
+        }
+    };
+
+    offset
+        .from_utc_date(&date)
+        .and_time(time)
+        .ok_or_else(|| InvalidValueReadError::InvalidFormat.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::{FixedOffset, NaiveDate, NaiveTime, TimeZone};
+    use super::{parse_date, parse_datetime, parse_time};
+
+    #[test]
+    fn test_parse_date() {
+        assert_eq!(
+            parse_date(b"20180101").unwrap(),
+            (NaiveDate::from_ymd(2018, 1, 1), 8)
+        );
+        assert_eq!(
+            parse_date(b"19711231").unwrap(),
+            (NaiveDate::from_ymd(1971, 12, 31), 8)
+        );
+        assert_eq!(
+            parse_date(b"20140426").unwrap(),
+            (NaiveDate::from_ymd(2014, 4, 26), 8)
+        );
+        assert_eq!(
+            parse_date(b"20180101xxxx").unwrap(),
+            (NaiveDate::from_ymd(2018, 1, 1), 8)
+        );
+    }
+
+    #[test]
+    fn test_time() {
+        assert_eq!(
+            parse_time(b"10").unwrap(),
+            (NaiveTime::from_hms(10, 0, 0), 2)
+        );
+        assert_eq!(
+            parse_time(b"0755").unwrap(),
+            (NaiveTime::from_hms(7, 55, 0), 4)
+        );
+        assert_eq!(
+            parse_time(b"075500").unwrap(),
+            (NaiveTime::from_hms(7, 55, 0), 6)
+        );
+        assert_eq!(
+            parse_time(b"075501.5").unwrap(),
+            (NaiveTime::from_hms_micro(7, 55, 1, 500_000), 8)
+        );
+        assert_eq!(
+            parse_time(b"075501.58").unwrap(),
+            (NaiveTime::from_hms_micro(7, 55, 1, 580_000), 9)
+        );
+        assert_eq!(
+            parse_time(b"075501.123456").unwrap(),
+            (NaiveTime::from_hms_micro(7, 55, 1, 123_456), 13)
+        );
+        assert_eq!(
+            parse_time(b"075501.123456...").unwrap(),
+            (NaiveTime::from_hms_micro(7, 55, 1, 123_456), 13)
+        );
+    }
+
+    #[test]
+    fn test_datetime() {
+        assert_eq!(
+            parse_datetime(b"20180101").unwrap(),
+            FixedOffset::east(0).ymd(2018, 1, 1).and_hms(0, 0, 0)
+        );
+        assert_eq!(
+            parse_datetime(b"19711231").unwrap(),
+            FixedOffset::east(0).ymd(1971, 12, 31).and_hms(0, 0, 0)
+        );
+        assert_eq!(
+            parse_datetime(b"20140426").unwrap(),
+            FixedOffset::east(0).ymd(2014, 4, 26).and_hms(0, 0, 0)
+        );
     }
 }

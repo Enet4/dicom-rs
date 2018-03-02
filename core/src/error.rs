@@ -12,7 +12,7 @@ quick_error! {
     pub enum Error {
         /// Not valid DICOM content, typically raised when checking the magic code.
         InvalidFormat {
-            description("Content is not DICOM or is not corrupted")
+            description("Content is not DICOM or is corrupted")
         }
         /// Raised when the obtained data element was not the one expected.
         UnexpectedElement {
@@ -106,6 +106,11 @@ quick_error! {
             from()
             cause(err)
             display(self_) -> ("Value reading error: {}", self_.cause().unwrap().description())
+        }
+        /// An attempt of reading more than the number of bytes in the length attribute was made.
+        UnexpectedEndOfElement {
+            description("Unexpected end of element")
+            display(self_) -> ("Value reading error: {}", self_.description())
         }
     }
 }
