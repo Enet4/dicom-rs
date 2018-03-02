@@ -379,25 +379,17 @@ impl DicomMetaTableBuilder {
 
     /// Build the table.
     pub fn build(self) -> Result<DicomMetaTable> {
-        let group_length = try!(
-            self.information_group_length
-                .ok_or_else(|| Error::InvalidFormat)
-        );
-        let information_version =
-            try!(self.information_version.ok_or_else(|| Error::InvalidFormat));
-        let media_storage_sop_class_uid = try!(
-            self.media_storage_sop_class_uid
-                .ok_or_else(|| Error::InvalidFormat)
-        );
-        let media_storage_sop_instance_uid = try!(
-            self.media_storage_sop_instance_uid
-                .ok_or_else(|| Error::InvalidFormat)
-        );
-        let transfer_syntax = try!(self.transfer_syntax.ok_or_else(|| Error::InvalidFormat));
-        let implementation_class_uid = try!(
-            self.implementation_class_uid
-                .ok_or_else(|| Error::InvalidFormat)
-        );
+        let group_length = self.information_group_length
+            .ok_or_else(|| Error::InvalidFormat)?;
+        let information_version = self.information_version
+            .ok_or_else(|| Error::InvalidFormat)?;
+        let media_storage_sop_class_uid = self.media_storage_sop_class_uid
+            .ok_or_else(|| Error::InvalidFormat)?;
+        let media_storage_sop_instance_uid = self.media_storage_sop_instance_uid
+            .ok_or_else(|| Error::InvalidFormat)?;
+        let transfer_syntax = self.transfer_syntax.ok_or_else(|| Error::InvalidFormat)?;
+        let implementation_class_uid = self.implementation_class_uid
+            .ok_or_else(|| Error::InvalidFormat)?;
         Ok(DicomMetaTable {
             information_group_length: group_length,
             information_version: information_version,
@@ -464,8 +456,7 @@ mod tests {
     fn read_meta_table_from_readseek_ok() {
         let mut source = Cursor::new(TEST_META_1);
 
-        let table = DicomMetaTable::from_readseek_stream(&mut source)
-            .unwrap();
+        let table = DicomMetaTable::from_readseek_stream(&mut source).unwrap();
 
         assert_eq!(table.information_group_length, 200);
         assert_eq!(table.information_version, [0u8, 1u8]);
@@ -494,8 +485,7 @@ mod tests {
     fn read_meta_table_from_stream_ok() {
         let mut source = TEST_META_1;
 
-        let table =
-            DicomMetaTable::from_stream(&mut source).unwrap();
+        let table = DicomMetaTable::from_stream(&mut source).unwrap();
 
         assert_eq!(table.information_group_length, 200);
         assert_eq!(table.information_version, [0u8, 1u8]);
