@@ -12,8 +12,10 @@
 //! - GB 18030
 //! - GB2312
 //!
-//! At the moment, this library supports only the first repertoire.
+//! At the moment, this library supports only IR-6 and IR-192.
 
+use encoding::{DecoderTrap, EncoderTrap, Encoding, RawDecoder, StringWriter};
+use encoding::all::{ISO_8859_1, UTF_8};
 use error::{Result, TextEncodingError};
 use std::fmt::Debug;
 
@@ -21,7 +23,7 @@ use std::fmt::Debug;
 /// which according to the standard, depends on the specific character set.
 pub trait TextCodec: Debug {
     /// Decode the given byte buffer as a single string. The resulting string
-    /// _will_ contain backslash character ('\') to delimit individual values,
+    /// _may_ contain backslash characters ('\') to delimit individual values,
     /// and should be split later on if required.
     fn decode(&self, text: &[u8]) -> Result<String>;
 
@@ -29,50 +31,6 @@ pub trait TextCodec: Debug {
     /// feature multiple text values by using the backslash character ('\')
     /// as the value delimiter.
     fn encode(&self, text: &str) -> Result<Vec<u8>>;
-}
-
-/// Type alias for a type erased text codec.
-pub type DynamicTextCodec = Box<TextCodec>;
-
-/// An enum type for the the supported character sets.
-#[derive(Debug, Clone, Copy)]
-pub enum SpecificCharacterSet {
-    /// The default character set.
-    Default, // TODO needs more
-}
-
-impl SpecificCharacterSet {
-    /// Retrieve the codec.
-    pub fn get_codec(&self) -> Option<Box<TextCodec>> {
-        match *self {
-            SpecificCharacterSet::Default => Some(Box::new(DefaultCharacterSetCodec)),
-        }
-    }
-}
-
-impl Default for SpecificCharacterSet {
-    fn default() -> SpecificCharacterSet {
-        SpecificCharacterSet::Default
-    }
-}
-
-/// Data type representing the default character set.
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
-pub struct DefaultCharacterSetCodec;
-
-impl TextCodec for DefaultCharacterSetCodec {
-    fn decode(&self, text: &[u8]) -> Result<String> {
-        // TODO this is NOT DICOM compliant,
-        // although it will decode 7-bit ASCII text just fine
-        let r = try!(String::from_utf8(Vec::from(text.as_ref())).map_err(TextEncodingError::from));
-        Ok(r)
-    }
-
-    fn encode(&self, text: &str) -> Result<Vec<u8>> {
-        // TODO this is NOT DICOM compliant,
-        // although it will encode 7-bit ASCII text just fine
-        Ok(Vec::from(text.as_bytes()))
-    }
 }
 
 impl<T: ?Sized> TextCodec for Box<T>
@@ -98,5 +56,161 @@ where
 
     fn encode(&self, text: &str) -> Result<Vec<u8>> {
         (*self).encode(text)
+    }
+}
+
+/// Type alias for a type erased text codec.
+pub type DynamicTextCodec = Box<TextCodec>;
+
+/// An enum type for the the supported character sets.
+#[derive(Debug, Clone, Copy)]
+pub enum SpecificCharacterSet {
+    /// The default character set.
+    Default, // TODO needs more
+    /// The Unicode character set defined in ISO IR 192, based on the UTF-8 encoding.
+    IsoIr192,
+}
+
+impl SpecificCharacterSet {
+    pub fn from_code(uid: &str) -> Option<Self> {
+        use self::SpecificCharacterSet::*;
+        match uid {
+            "Default" | "ISO_IR_6" => Some(Default),
+            "ISO_IR_192" => Some(IsoIr192),
+            _ => None,
+        }
+    }
+
+    /// Retrieve the respective text codec.
+    pub fn get_codec(&self) -> Option<Box<TextCodec>> {
+        match *self {
+            SpecificCharacterSet::Default => Some(Box::new(DefaultCharacterSetCodec)),
+            SpecificCharacterSet::IsoIr192 => Some(Box::new(Utf8CharacterSetCodec)),
+        }
+    }
+}
+
+fn decode_text_trap(_decoder: &mut RawDecoder, input: &[u8], output: &mut StringWriter) -> bool {
+    let c = input[0];
+    let o0 = c & 7;
+    let o1 = (c & 56) >> 3;
+    let o2 = (c & 192) >> 6;
+    output.write_char('\\');
+    output.write_char((o2 + b'0') as char);
+    output.write_char((o1 + b'0') as char);
+    output.write_char((o0 + b'0') as char);
+    true
+}
+
+impl Default for SpecificCharacterSet {
+    fn default() -> SpecificCharacterSet {
+        SpecificCharacterSet::Default
+    }
+}
+
+/// Data type representing the default character set.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Copy)]
+pub struct DefaultCharacterSetCodec;
+
+impl TextCodec for DefaultCharacterSetCodec {
+    fn decode(&self, text: &[u8]) -> Result<String> {
+        ISO_8859_1
+            .decode(text, DecoderTrap::Call(decode_text_trap))
+            .map_err(|_| TextEncodingError.into())
+    }
+
+    fn encode(&self, text: &str) -> Result<Vec<u8>> {
+        ISO_8859_1
+            .encode(text, EncoderTrap::Strict)
+            .map_err(|_| TextEncodingError.into())
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, Copy)]
+pub struct Utf8CharacterSetCodec;
+
+impl TextCodec for Utf8CharacterSetCodec {
+    fn decode(&self, text: &[u8]) -> Result<String> {
+        UTF_8
+            .decode(text, DecoderTrap::Call(decode_text_trap))
+            .map_err(|_| TextEncodingError.into())
+    }
+
+    fn encode(&self, text: &str) -> Result<Vec<u8>> {
+        UTF_8
+            .encode(text, EncoderTrap::Strict)
+            .map_err(|_| TextEncodingError.into())
+    }
+}
+
+/// The result of a text validation procedure (please see [`validate_iso_8859`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TextValidationOutcome {
+    /// The text is fully valid and can be safely decoded.
+    Ok,
+    /// Some characters may have to be replaced, other than that the text can be safely decoded.
+    BadCharacters,
+    /// The text cannot be decoded.
+    NotOk,
+}
+
+/// Check whether the given byte slice contains valid text from the default character repertoire.
+pub fn validate_iso_8859(text: &[u8]) -> TextValidationOutcome {
+    if let Err(_) = ISO_8859_1.decode(text, DecoderTrap::Strict) {
+        match ISO_8859_1.decode(text, DecoderTrap::Call(decode_text_trap)) {
+            Ok(_) => TextValidationOutcome::BadCharacters,
+            Err(_) => TextValidationOutcome::NotOk,
+        }
+    } else {
+        TextValidationOutcome::Ok
+    }
+}
+
+/// Check whether the given byte slice contains only valid characters for a
+/// Date value representation.
+pub fn validate_da(text: &[u8]) -> TextValidationOutcome {
+    if text.into_iter().cloned().all(|c| c >= b'0' && c <= b'9') {
+        TextValidationOutcome::Ok
+    } else {
+        TextValidationOutcome::NotOk
+    }
+}
+
+/// Check whether the given byte slice contains only valid characters for a
+/// Time value representation.
+pub fn validate_tm(text: &[u8]) -> TextValidationOutcome {
+    if text.into_iter()
+        .cloned()
+        .all(|c| (c >= b'0' && c <= b'9') || c == b'.')
+    {
+        TextValidationOutcome::Ok
+    } else {
+        TextValidationOutcome::NotOk
+    }
+}
+
+/// Check whether the given byte slice contains only valid characters for a
+/// Date Time value representation.
+pub fn validate_dt(text: &[u8]) -> TextValidationOutcome {
+    if text.into_iter().cloned().all(|c| match c {
+        b'.' | b'-' | b'+' | b' ' => true,
+        c => c >= b'0' && c <= b'9',
+    }) {
+        TextValidationOutcome::Ok
+    } else {
+        TextValidationOutcome::NotOk
+    }
+}
+
+/// Check whether the given byte slice contains only valid characters for a
+/// Code String value representation.
+pub fn validate_cs(text: &[u8]) -> TextValidationOutcome {
+    if text.into_iter().cloned().all(|c| match c {
+        b' ' | b'_' => true,
+        c => (c >= b'0' && c <= b'9') || (c >= b'A' && c <= b'Z'),
+    }) {
+        TextValidationOutcome::Ok
+    } else {
+        TextValidationOutcome::NotOk
     }
 }

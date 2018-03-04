@@ -1,4 +1,3 @@
-#![allow(unsafe_code)]
 //! This module implements the standard attribute dictionary.
 //!
 //! This dictionary is a singleton containing all information about the

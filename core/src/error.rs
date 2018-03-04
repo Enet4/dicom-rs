@@ -2,8 +2,7 @@
 use std::error::Error as BaseError;
 use std::result;
 use std::io;
-use std::string::FromUtf8Error;
-use std::str::Utf8Error;
+use std::fmt;
 use std::num::{ParseFloatError, ParseIntError};
 
 quick_error! {
@@ -105,7 +104,7 @@ quick_error! {
             description("Failed to parse text value as an integer")
             from()
             cause(err)
-            display(self_) -> ("Value reading error: {}", self_.cause().unwrap().description())
+            display(self_) -> ("Value reading error: {}", err.description())
         }
         /// An attempt of reading more than the number of bytes in the length attribute was made.
         UnexpectedEndOfElement {
@@ -115,23 +114,19 @@ quick_error! {
     }
 }
 
-quick_error! {
-    /// An error type for text encoding issues.
-    #[derive(Debug)]
-    pub enum TextEncodingError {
-        /// Failed to decode from UTF-8.
-        FromUtf8(err: FromUtf8Error) {
-            from()
-            cause(err)
-            description(err.description())
-            display("Encoding failed: {}", err.description())
-        }
-        /// Failed to decode UTF-8 slice
-        Utf8(err: Utf8Error) {
-            from()
-            cause(err)
-            description(err.description())
-            display("Encoding failed: {}", err.description())
-        }
+/// An error type for text encoding issues.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TextEncodingError;
+
+impl fmt::Display for TextEncodingError
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(self.description())
+    }
+}
+
+impl ::std::error::Error for TextEncodingError {
+    fn description(&self) -> &str {
+        "encoding/decoding process failed"
     }
 }

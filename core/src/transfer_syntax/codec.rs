@@ -1,4 +1,3 @@
-#![allow(unsafe_code)]
 //! This module contains the concept of a DICOM codec registry.
 //! A codec registry maps a DICOM UID of a transfer syntax
 //! into the respective transfer syntax object.
@@ -53,10 +52,6 @@ lazy_static! {
 pub fn get_registry() -> &'static CodecRegistry<'static> {
     &REGISTRY
 }
-
-//pub fn register<T: TransferSyntax + 'static>(ts: T) {
-//    REGISTRY.register(ts);
-//}
 
 fn initialize_codecs() -> HashMap<&'static str, DynTransferSyntax<'static>> {
     let mut m = HashMap::<&'static str, DynTransferSyntax<'static>>::new();

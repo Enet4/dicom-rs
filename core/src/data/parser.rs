@@ -6,9 +6,8 @@ use std::fmt;
 use std::fmt::Debug;
 use std::io::Read;
 use std::marker::PhantomData;
-use std::str;
 use std::iter::Iterator;
-use error::{Error, InvalidValueReadError, Result, TextEncodingError};
+use error::{Error, InvalidValueReadError, Result};
 use data::{DataElementHeader, Header, SequenceItemHeader, Tag, VR};
 use data::decode::{BasicDecode, Decode};
 use data::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
@@ -173,7 +172,7 @@ where
 
         // sequence of 8-bit integers (or just byte data)
         let mut buf = vec![0u8; header.len() as usize];
-        try!(from.read_exact(&mut buf));
+        from.read_exact(&mut buf)?;
         Ok(DicomValue::U8(buf))
     }
 
@@ -181,15 +180,20 @@ where
         require_known_length!(header);
         // sequence of strings
         let mut buf = vec![0u8; header.len() as usize];
-        try!(from.read_exact(&mut buf));
-        let parts: Vec<String> = try!(
-            buf[..]
-                .split(|v| *v == '\\' as u8)
-                .map(|slice| self.text.decode(slice))
-                .collect()
-        );
+        from.read_exact(&mut buf)?;
 
-        Ok(DicomValue::Strs(parts))
+        let parts: Result<Vec<_>> = match header.vr() {
+            VR::AE | VR::CS | VR::AS => buf[..]
+                    .split(|v| *v == '\\' as u8)
+                    .map(|slice| DefaultCharacterSetCodec.decode(slice))
+                    .collect(),
+            _ => buf[..]
+                    .split(|v| *v == '\\' as u8)
+                    .map(|slice| self.text.decode(slice))
+                    .collect()
+        };
+
+        Ok(DicomValue::Strs(parts?))
     }
 
     fn read_value_str(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
@@ -345,12 +349,12 @@ where
                 require_known_length!(header);
                 // sequence of doubles in text form
                 let mut buf = vec![0u8; header.len() as usize];
-                try!(from.read_exact(&mut buf));
+                from.read_exact(&mut buf)?;
                 let parts: Result<Vec<f64>> = buf[..]
                     .split(|v| *v == '\\' as u8)
                     .map(|slice| {
-                        let txt = str::from_utf8(slice)
-                            .map_err(|e| Error::from(TextEncodingError::from(e)))?;
+                        let codec = SpecificCharacterSet::Default.get_codec().unwrap();
+                        let txt = codec.decode(slice)?;
                         txt.parse::<f64>()
                             .map_err(|e| Error::from(InvalidValueReadError::from(e)))
                     })
@@ -369,20 +373,17 @@ where
                 if last == ' ' as u8 {
                     buf.pop();
                 }
-                let parts: Vec<i32> = try!(
+                let parts: Result<Vec<i32>> =
                     buf[..]
                         .split(|v| *v == '\\' as u8)
                         .map(|slice| {
-                            let txt = try!(
-                                str::from_utf8(slice)
-                                    .map_err(|e| Error::from(TextEncodingError::from(e)))
-                            );
+                            let codec = SpecificCharacterSet::Default.get_codec().unwrap();
+                            let txt = codec.decode(slice)?;
                             txt.parse::<i32>()
                                 .map_err(|e| Error::from(InvalidValueReadError::from(e)))
                         })
-                        .collect()
-                );
-                Ok(DicomValue::I32(parts))
+                        .collect();
+                Ok(DicomValue::I32(parts?))
             }
             VR::SL => self.read_value_sl(from, header),
             VR::OL | VR::UL => self.read_value_ul(from, header),
