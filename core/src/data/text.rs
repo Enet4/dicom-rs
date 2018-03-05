@@ -126,6 +126,7 @@ impl TextCodec for DefaultCharacterSetCodec {
     }
 }
 
+/// Data type representing the UTF-8 character set.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Copy)]
 pub struct Utf8CharacterSetCodec;
 
@@ -179,10 +180,10 @@ pub fn validate_da(text: &[u8]) -> TextValidationOutcome {
 /// Check whether the given byte slice contains only valid characters for a
 /// Time value representation.
 pub fn validate_tm(text: &[u8]) -> TextValidationOutcome {
-    if text.into_iter()
-        .cloned()
-        .all(|c| (c >= b'0' && c <= b'9') || c == b'.')
-    {
+    if text.into_iter().cloned().all(|c| match c {
+        b'\\' | b'.' => true,
+        c => c >= b'0' && c <= b'9',
+    }) {
         TextValidationOutcome::Ok
     } else {
         TextValidationOutcome::NotOk
@@ -193,7 +194,7 @@ pub fn validate_tm(text: &[u8]) -> TextValidationOutcome {
 /// Date Time value representation.
 pub fn validate_dt(text: &[u8]) -> TextValidationOutcome {
     if text.into_iter().cloned().all(|c| match c {
-        b'.' | b'-' | b'+' | b' ' => true,
+        b'.' | b'-' | b'+' | b' ' | b'\\' => true,
         c => c >= b'0' && c <= b'9',
     }) {
         TextValidationOutcome::Ok

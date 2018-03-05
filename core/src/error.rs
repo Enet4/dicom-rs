@@ -54,7 +54,7 @@ quick_error! {
         }
         /// Error related to a failed text encoding / decoding procedure.
         TextEncoding(err: TextEncodingError) {
-            description("Failed text decoding")
+            description("Failed text encoding/decoding")
             from()
             cause(err)
             display(self_) -> ("{}: {}", self_.description(), err.description())

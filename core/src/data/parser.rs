@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use std::io::Read;
 use std::marker::PhantomData;
 use std::iter::Iterator;
-use error::{Error, InvalidValueReadError, Result};
+use error::{Error, InvalidValueReadError, Result, TextEncodingError};
 use data::{DataElementHeader, Header, SequenceItemHeader, Tag, VR};
 use data::decode::{BasicDecode, Decode};
 use data::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
@@ -15,7 +15,8 @@ use data::text::{DynamicTextCodec, SpecificCharacterSet, TextCodec};
 use data::value::DicomValue;
 use transfer_syntax::TransferSyntax;
 use transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-use data::text::DefaultCharacterSetCodec;
+use data::text::{validate_cs, validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec,
+                 TextValidationOutcome, validate_iso_8859};
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
 use util::n_times;
 
@@ -184,13 +185,13 @@ where
 
         let parts: Result<Vec<_>> = match header.vr() {
             VR::AE | VR::CS | VR::AS => buf[..]
-                    .split(|v| *v == '\\' as u8)
-                    .map(|slice| DefaultCharacterSetCodec.decode(slice))
-                    .collect(),
+                .split(|v| *v == '\\' as u8)
+                .map(|slice| DefaultCharacterSetCodec.decode(slice))
+                .collect(),
             _ => buf[..]
-                    .split(|v| *v == '\\' as u8)
-                    .map(|slice| self.text.decode(slice))
-                    .collect()
+                .split(|v| *v == '\\' as u8)
+                .map(|slice| self.text.decode(slice))
+                .collect(),
         };
 
         Ok(DicomValue::Strs(parts?))
@@ -226,6 +227,94 @@ where
             vec.push(self.basic.decode_fl(&mut *from)?);
         }
         Ok(DicomValue::F32(vec))
+    }
+
+    fn read_value_da(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+        require_known_length!(header);
+        // sequence of dates
+
+        // maybe one day I should find a way to get rid of this dynamic allocation
+        let mut buf = vec![0u8; header.len() as usize];
+        from.read_exact(&mut buf)?;
+        if validate_da(&buf) != TextValidationOutcome::Ok {
+            return Err(TextEncodingError.into());
+        }
+        let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
+            .map(|part| Ok(parse_date(part)?.0))
+            .collect();
+        Ok(DicomValue::Date(vec?))
+    }
+
+    fn read_value_ds(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+        require_known_length!(header);
+        // sequence of doubles in text form
+        let mut buf = vec![0u8; header.len() as usize];
+        from.read_exact(&mut buf)?;
+        let parts: Result<Vec<f64>> = buf[..]
+            .split(|v| *v == '\\' as u8)
+            .map(|slice| {
+                let codec = SpecificCharacterSet::Default.get_codec().unwrap();
+                let txt = codec.decode(slice)?;
+                txt.parse::<f64>()
+                    .map_err(|e| Error::from(InvalidValueReadError::from(e)))
+            })
+            .collect();
+        Ok(DicomValue::F64(parts?))
+    }
+
+    fn read_value_dt(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+        require_known_length!(header);
+        // sequence of datetimes
+
+        // dynamic allocation
+        let mut buf = vec![0u8; header.len() as usize];
+        from.read_exact(&mut buf)?;
+        if validate_dt(&buf) != TextValidationOutcome::Ok {
+            return Err(TextEncodingError.into());
+        }
+        let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
+            .map(|part| Ok(parse_datetime(part)?))
+            .collect();
+
+        Ok(DicomValue::DateTime(vec?))
+    }
+
+    fn read_value_is(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+        require_known_length!(header);
+        // sequence of signed integers in text form
+        let mut buf = vec![0u8; header.len() as usize];
+        from.read_exact(&mut buf)?;
+
+        let last = if let Some(c) = buf.last() { *c } else { 0u8 };
+        if last == ' ' as u8 {
+            buf.pop();
+        }
+        let parts: Result<Vec<_>> = buf[..]
+            .split(|v| *v == '\\' as u8)
+            .map(|slice| {
+                let codec = SpecificCharacterSet::Default.get_codec().unwrap();
+                let txt = codec.decode(slice)?;
+                txt.parse::<i32>()
+                    .map_err(|e| Error::from(InvalidValueReadError::from(e)))
+            })
+            .collect();
+        Ok(DicomValue::I32(parts?))
+    }
+
+    fn read_value_tm(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+        require_known_length!(header);
+        // sequence of time instances
+
+        // dynamic allocation
+        let mut buf = vec![0u8; header.len() as usize];
+        from.read_exact(&mut buf)?;
+        if validate_tm(&buf) != TextValidationOutcome::Ok {
+            return Err(TextEncodingError.into());
+        }
+        let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
+            .map(|part| Ok(parse_time(part)?.0))
+            .collect();
+        Ok(DicomValue::Time(vec?))
     }
 
     fn read_value_od(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
@@ -308,83 +397,13 @@ where
             VR::UN | VR::OB => self.read_value_ob(from, header),
             VR::US | VR::OW => self.read_value_us(from, header),
             VR::SS => self.read_value_ss(from, header),
-            VR::DA => {
-                require_known_length!(header);
-                // sequence of dates
-
-                // maybe one day I should find a way to get rid of this dynamic allocation
-                let mut buf = vec![0u8; header.len() as usize];
-                from.read_exact(&mut buf)?;
-                let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
-                    .map(|part| Ok(parse_date(part)?.0))
-                    .collect();
-                Ok(DicomValue::Date(vec?))
-            }
-            VR::DT => {
-                require_known_length!(header);
-                // sequence of datetimes
-
-                // dynamic allocation
-                let mut buf = vec![0u8; header.len() as usize];
-                from.read_exact(&mut buf)?;
-                let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
-                    .map(|part| Ok(parse_datetime(part)?))
-                    .collect();
-
-                Ok(DicomValue::DateTime(vec?))
-            }
-            VR::TM => {
-                require_known_length!(header);
-                // sequence of time instances
-
-                // dynamic allocation
-                let mut buf = vec![0u8; header.len() as usize];
-                from.read_exact(&mut buf)?;
-                let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
-                    .map(|part| Ok(parse_time(part)?.0))
-                    .collect();
-                Ok(DicomValue::Time(vec?))
-            }
-            VR::DS => {
-                require_known_length!(header);
-                // sequence of doubles in text form
-                let mut buf = vec![0u8; header.len() as usize];
-                from.read_exact(&mut buf)?;
-                let parts: Result<Vec<f64>> = buf[..]
-                    .split(|v| *v == '\\' as u8)
-                    .map(|slice| {
-                        let codec = SpecificCharacterSet::Default.get_codec().unwrap();
-                        let txt = codec.decode(slice)?;
-                        txt.parse::<f64>()
-                            .map_err(|e| Error::from(InvalidValueReadError::from(e)))
-                    })
-                    .collect();
-                Ok(DicomValue::F64(parts?))
-            }
+            VR::DA => self.read_value_da(from, header),
+            VR::DT => self.read_value_dt(from, header),
+            VR::TM => self.read_value_tm(from, header),
+            VR::DS => self.read_value_ds(from, header),
             VR::FD | VR::OD => self.read_value_od(from, header),
             VR::FL | VR::OF => self.read_value_fl(from, header),
-            VR::IS => {
-                require_known_length!(header);
-                // sequence of signed integers in text form
-                let mut buf = vec![0u8; header.len() as usize];
-                from.read_exact(&mut buf)?;
-
-                let last = if let Some(c) = buf.last() { *c } else { 0u8 };
-                if last == ' ' as u8 {
-                    buf.pop();
-                }
-                let parts: Result<Vec<i32>> =
-                    buf[..]
-                        .split(|v| *v == '\\' as u8)
-                        .map(|slice| {
-                            let codec = SpecificCharacterSet::Default.get_codec().unwrap();
-                            let txt = codec.decode(slice)?;
-                            txt.parse::<i32>()
-                                .map_err(|e| Error::from(InvalidValueReadError::from(e)))
-                        })
-                        .collect();
-                Ok(DicomValue::I32(parts?))
-            }
+            VR::IS => self.read_value_is(from, header),
             VR::SL => self.read_value_sl(from, header),
             VR::OL | VR::UL => self.read_value_ul(from, header),
         }
@@ -439,24 +458,34 @@ fn parse_date(buf: &[u8]) -> Result<(NaiveDate, usize)> {
         0 | 1 | 2 | 3 | 5 | 7 => Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
         4 => {
             let year = read_number_naive(buf);
-            Ok((NaiveDate::from_ymd(year, 0, 0), 4))
+            let date: Result<_> = NaiveDate::from_ymd_opt(year, 0, 0)
+                .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
+            Ok((date?, 4))
         }
         6 => {
             let year = read_number_naive(&buf[0..4]);
             let month = (buf[4] as i32 - Z) * 10 + buf[5] as i32 - Z;
-            Ok((NaiveDate::from_ymd(year, month as u32, 0), 6))
+            let date: Result<_> = NaiveDate::from_ymd_opt(year, month as u32, 0)
+                .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
+            Ok((date?, 6))
         }
         len => {
             debug_assert!(len >= 8);
             let year = read_number_naive(&buf[0..4]);
             let month = (buf[4] as i32 - Z) * 10 + buf[5] as i32 - Z;
             let day = (buf[6] as i32 - Z) * 10 + buf[7] as i32 - Z;
-            Ok((NaiveDate::from_ymd(year, month as u32, day as u32), 8))
+            let date: Result<_> = NaiveDate::from_ymd_opt(year, month as u32, day as u32)
+                .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
+            Ok((date?, 8))
         }
     }
 }
 
 fn parse_time(buf: &[u8]) -> Result<(NaiveTime, usize)> {
+    parse_time_impl(buf, false)
+}
+
+fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, usize)> {
     const Z: i32 = b'0' as i32;
     // HH(MM(SS(.F{1,6})?)?)?
 
@@ -464,41 +493,58 @@ fn parse_time(buf: &[u8]) -> Result<(NaiveTime, usize)> {
         0 | 1 | 3 | 5 | 7 => Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
         2 => {
             let hour = (buf[0] as i32 - Z) * 10 + buf[1] as i32 - Z;
-            Ok((NaiveTime::from_hms(hour as u32, 0, 0), 2))
+            let time: Result<_> = NaiveTime::from_hms_opt(hour as u32, 0, 0)
+                .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
+            Ok((time?, 2))
         }
         4 => {
             let hour = (buf[0] as i32 - Z) * 10 + buf[1] as i32 - Z;
             let minute = (buf[2] as i32 - Z) * 10 + buf[3] as i32 - Z;
-            Ok((NaiveTime::from_hms(hour as u32, minute as u32, 0), 4))
+            let time: Result<_> = NaiveTime::from_hms_opt(hour as u32, minute as u32, 0)
+                .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
+            Ok((time?, 4))
         }
         6 => {
             let hour = (buf[0] as i32 - Z) * 10 + buf[1] as i32 - Z;
             let minute = (buf[2] as i32 - Z) * 10 + buf[3] as i32 - Z;
             let second = (buf[4] as i32 - Z) * 10 + buf[5] as i32 - Z;
-            Ok((
-                NaiveTime::from_hms(hour as u32, minute as u32, second as u32),
-                6,
-            ))
+            let time: Result<_> =
+                NaiveTime::from_hms_opt(hour as u32, minute as u32, second as u32)
+                    .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
+            Ok((time?, 6))
         }
         _ => {
             let hour = (buf[0] as i32 - Z) * 10 + buf[1] as i32 - Z;
             let minute = (buf[2] as i32 - Z) * 10 + buf[3] as i32 - Z;
             let second = (buf[4] as i32 - Z) * 10 + buf[5] as i32 - Z;
-            if buf[6] != b'.' {
-                return Err(InvalidValueReadError::InvalidFormat.into());
+            match buf[6] {
+                b'.' => { /* do nothing */ }
+                b'+' | b'-' if for_datetime => { /* do nothing */ }
+                _ => return Err(InvalidValueReadError::InvalidFormat.into()),
             }
+            let buf = &buf[7..];
             // read at most 6 bytes
-            let n = usize::min(6, buf.len() - 7);
-            let mut fract = read_number_naive(&buf[7..7 + n]);
+            let mut n = usize::min(6, buf.len());
+            if for_datetime {
+                // check for time zone suffix, restrict fraction size accordingly
+                if let Some(i) = buf.into_iter().position(|v| *v == b'+' || *v == b'-') {
+                    n = i;
+                }
+            }
+            let mut fract = read_number_naive(&buf[0..n]);
             let mut acc = n;
             while acc < 6 {
                 fract *= 10;
                 acc += 1;
             }
-            Ok((
-                NaiveTime::from_hms_micro(hour as u32, minute as u32, second as u32, fract as u32),
-                7 + n,
-            ))
+            let time: Result<_> = NaiveTime::from_hms_micro_opt(
+                hour as u32,
+                minute as u32,
+                second as u32,
+                fract as u32,
+            ).ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
+
+            Ok((time?, 7 + n))
         }
     }
 }
@@ -515,9 +561,9 @@ fn parse_datetime(buf: &[u8]) -> Result<DateTime<FixedOffset>> {
     if buf.len() <= 8 {
         return Ok(FixedOffset::east(0).from_utc_date(&date).and_hms(0, 0, 0));
     }
-
-    let (time, bytes_read) = parse_time(&buf[bytes_read..])?;
-    if buf.len() == bytes_read + 8 {
+    let buf = &buf[bytes_read..];
+    let (time, bytes_read) = parse_time_impl(buf, true)?;
+    if buf.len() == bytes_read {
         return FixedOffset::east(0)
             .from_utc_date(&date)
             .and_time(time)
@@ -527,17 +573,22 @@ fn parse_datetime(buf: &[u8]) -> Result<DateTime<FixedOffset>> {
     let buf = &buf[bytes_read..];
     let len = buf.len();
     let offset = match len {
+        // The standard states that a Date Time value without the optional suffix
+        // should be interpreted to be the local time zone of the application creating
+        // the Data Element, and can be overridden by the Timezone Offset from UTC
+        // attribute. This should be addressed eventually.
         0 => FixedOffset::east(0),
-        1 => return Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
+        1 | 2 => return Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
         _ => {
             let tz_sign = buf[0];
             let buf = &buf[1..];
             let (tz_h, tz_m) = match buf.len() {
-                2 => (buf[0] as i32 - Z, 0),
-                3 => (read_number_naive(&buf[0..2]), 0),
+                1 => (buf[0] as i32 - Z, 0),
+                2 => return Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
                 _ => {
-                    let tz_h = read_number_naive(&buf[0..2]);
-                    let tz_m = read_number_naive(&buf[2..usize::min(4, buf.len())]);
+                    let (h_buf, m_buf) = buf.split_at(2);
+                    let tz_h = read_number_naive(h_buf);
+                    let tz_m = read_number_naive(&m_buf[0..usize::min(2, m_buf.len())]);
                     (tz_h, tz_m)
                 }
             };
@@ -579,6 +630,13 @@ mod tests {
             parse_date(b"20180101xxxx").unwrap(),
             (NaiveDate::from_ymd(2018, 1, 1), 8)
         );
+        assert!(parse_date(b"").is_err());
+        assert!(parse_date(&[0x00_u8; 8]).is_err());
+        assert!(parse_date(&[0xFF_u8; 8]).is_err());
+        assert!(parse_date(b"19991313").is_err());
+        assert!(parse_date(b"20180229").is_err());
+        assert!(parse_date(b"nothing!").is_err());
+        assert!(parse_date(b"2012dec").is_err());
     }
 
     #[test]
@@ -604,28 +662,92 @@ mod tests {
             (NaiveTime::from_hms_micro(7, 55, 1, 580_000), 9)
         );
         assert_eq!(
+            parse_time(b"101010.204").unwrap(),
+            (NaiveTime::from_hms_micro(10, 10, 10, 204_000), 10)
+        );
+        assert_eq!(
             parse_time(b"075501.123456").unwrap(),
             (NaiveTime::from_hms_micro(7, 55, 1, 123_456), 13)
+        );
+        assert_eq!(
+            parse_time(b"235959.99999").unwrap(),
+            (NaiveTime::from_hms_micro(23, 59, 59, 999_990), 12)
+        );
+        assert_eq!(
+            parse_time(b"235959.999999").unwrap(),
+            (NaiveTime::from_hms_micro(23, 59, 59, 999_999), 13)
         );
         assert_eq!(
             parse_time(b"075501.123456...").unwrap(),
             (NaiveTime::from_hms_micro(7, 55, 1, 123_456), 13)
         );
+        assert!(parse_date(b"").is_err());
+        assert!(parse_date(&[0x00_u8; 8]).is_err());
+        assert!(parse_date(&[0xFF_u8; 8]).is_err());
+        assert!(parse_date(b"235959.9999").is_err());
+        assert!(parse_date(b"075501.").is_err());
+        assert!(parse_date(b"nope").is_err());
+        assert!(parse_date(b"235800.0a").is_err());
     }
 
     #[test]
     fn test_datetime() {
         assert_eq!(
-            parse_datetime(b"20180101").unwrap(),
-            FixedOffset::east(0).ymd(2018, 1, 1).and_hms(0, 0, 0)
+            parse_datetime(b"201801010930").unwrap(),
+            FixedOffset::east(0).ymd(2018, 1, 1).and_hms(9, 30, 0)
         );
         assert_eq!(
-            parse_datetime(b"19711231").unwrap(),
-            FixedOffset::east(0).ymd(1971, 12, 31).and_hms(0, 0, 0)
+            parse_datetime(b"19711231065003").unwrap(),
+            FixedOffset::east(0).ymd(1971, 12, 31).and_hms(6, 50, 3)
+        );
+        assert_eq!(
+            parse_datetime(b"20171130101010.204").unwrap(),
+            FixedOffset::east(0)
+                .ymd(2017, 11, 30)
+                .and_hms_micro(10, 10, 10, 204_000)
+        );
+        let dt = parse_datetime(b"20171130101010.204+0100").unwrap();
+        assert_eq!(
+            dt,
+            FixedOffset::east(3600)
+                .ymd(2017, 11, 30)
+                .and_hms_micro(10, 10, 10, 204_000)
+        );
+        assert_eq!(
+            format!("{:?}", dt),
+            "2017-11-30T10:10:10.204+01:00".to_string()
+        );
+
+        assert_eq!(
+            parse_datetime(b"20171130101010.204-1000").unwrap(),
+            FixedOffset::west(10 * 3600)
+                .ymd(2017, 11, 30)
+                .and_hms_micro(10, 10, 10, 204_000)
+        );
+        let dt = parse_datetime(b"20171130101010.204+0535").unwrap();
+        assert_eq!(
+            dt,
+            FixedOffset::east(5 * 3600 + 35 * 60)
+                .ymd(2017, 11, 30)
+                .and_hms_micro(10, 10, 10, 204_000)
+        );
+        assert_eq!(
+            format!("{:?}", dt),
+            "2017-11-30T10:10:10.204+05:35".to_string()
         );
         assert_eq!(
             parse_datetime(b"20140426").unwrap(),
             FixedOffset::east(0).ymd(2014, 4, 26).and_hms(0, 0, 0)
         );
+
+        assert!(parse_datetime(b"").is_err());
+        assert!(parse_datetime(&[0x00_u8; 8]).is_err());
+        assert!(parse_datetime(&[0xFF_u8; 8]).is_err());
+        assert!(parse_datetime(b"nope").is_err());
+        assert!(parse_datetime(b"2015dec").is_err());
+        assert!(parse_datetime(b"20151231162945.").is_err());
+        assert!(parse_datetime(b"20151130161445+").is_err());
+        assert!(parse_datetime(b"20100423164000.001+3").is_err());
+        assert!(parse_datetime(b"200809112945*1000").is_err());
     }
 }
