@@ -15,9 +15,9 @@ use data::text::{DynamicTextCodec, SpecificCharacterSet, TextCodec};
 use data::value::DicomValue;
 use transfer_syntax::TransferSyntax;
 use transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-use data::text::{validate_cs, validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec,
+use data::text::{validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec,
                  TextValidationOutcome, validate_iso_8859};
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
+use chrono::{DateTime, FixedOffset, Local, NaiveDate, NaiveTime, TimeZone};
 use util::n_times;
 
 const Z: i32 = b'0' as i32;
@@ -70,6 +70,7 @@ pub struct DicomParser<D, BD, S: ?Sized, TC> {
     decoder: D,
     basic: BD,
     text: TC,
+    dt_utc_offset: FixedOffset,
 }
 
 impl<S: ?Sized, D, BD, TC> Debug for DicomParser<D, BD, S, TC>
@@ -83,6 +84,7 @@ where
             .field("decoder", &self.decoder)
             .field("basic", &self.basic)
             .field("text", &self.text)
+            .field("dt_utc_offset", &self.dt_utc_offset)
             .finish()
     }
 }
@@ -107,10 +109,12 @@ impl DynamicDicomParser {
             basic: basic,
             decoder: decoder,
             text: text,
+            dt_utc_offset: FixedOffset::east(0),
         })
     }
 }
 
+/// Type alias for the DICOM parser of a file's Meta group.
 pub type FileHeaderParser<S> = DicomParser<
     ExplicitVRLittleEndianDecoder<S>,
     LittleEndianBasicDecoder,
@@ -129,6 +133,7 @@ where
             basic: LittleEndianBasicDecoder::default(),
             decoder: ExplicitVRLittleEndianDecoder::default(),
             text: DefaultCharacterSetCodec,
+            dt_utc_offset: FixedOffset::east(0),
         }
     }
 }
@@ -147,6 +152,7 @@ where
             basic: basic,
             decoder: decoder,
             text: text,
+            dt_utc_offset: FixedOffset::east(0),
         }
     }
 
@@ -273,7 +279,7 @@ where
             return Err(TextEncodingError.into());
         }
         let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
-            .map(|part| Ok(parse_datetime(part)?))
+            .map(|part| Ok(parse_datetime(part, &self.dt_utc_offset)?))
             .collect();
 
         Ok(DicomValue::DateTime(vec?))
@@ -556,7 +562,7 @@ fn read_number_naive(buf: &[u8]) -> i32 {
         .fold(buf[0] as i32 - Z, |acc, v| acc * 10 + *v as i32 - Z)
 }
 
-fn parse_datetime(buf: &[u8]) -> Result<DateTime<FixedOffset>> {
+fn parse_datetime(buf: &[u8], dt_utc_offset: &FixedOffset) -> Result<DateTime<FixedOffset>> {
     let (date, bytes_read) = parse_date(buf)?;
     if buf.len() <= 8 {
         return Ok(FixedOffset::east(0).from_utc_date(&date).and_hms(0, 0, 0));
@@ -573,11 +579,18 @@ fn parse_datetime(buf: &[u8]) -> Result<DateTime<FixedOffset>> {
     let buf = &buf[bytes_read..];
     let len = buf.len();
     let offset = match len {
-        // The standard states that a Date Time value without the optional suffix
-        // should be interpreted to be the local time zone of the application creating
-        // the Data Element, and can be overridden by the Timezone Offset from UTC
-        // attribute. This should be addressed eventually.
-        0 => FixedOffset::east(0),
+        0 => {
+            // A Date Time value without the optional suffix should be interpreted to be
+            // the local time zone of the application creating the Data Element, and can
+            // be overridden by the _Timezone Offset from UTC_ attribute.
+            let local_dt: Result<_> = Local
+                .from_local_date(&date)
+                .and_time(time)
+                .single()
+                .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
+            let dt = local_dt?.with_timezone(dt_utc_offset);
+            return Ok(dt);
+        }
         1 | 2 => return Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
         _ => {
             let tz_sign = buf[0];
@@ -692,21 +705,22 @@ mod tests {
 
     #[test]
     fn test_datetime() {
+        let default_offset = FixedOffset::east(0);
         assert_eq!(
-            parse_datetime(b"201801010930").unwrap(),
+            parse_datetime(b"201801010930", &default_offset).unwrap(),
             FixedOffset::east(0).ymd(2018, 1, 1).and_hms(9, 30, 0)
         );
         assert_eq!(
-            parse_datetime(b"19711231065003").unwrap(),
+            parse_datetime(b"19711231065003", &default_offset).unwrap(),
             FixedOffset::east(0).ymd(1971, 12, 31).and_hms(6, 50, 3)
         );
         assert_eq!(
-            parse_datetime(b"20171130101010.204").unwrap(),
+            parse_datetime(b"20171130101010.204", &default_offset).unwrap(),
             FixedOffset::east(0)
                 .ymd(2017, 11, 30)
                 .and_hms_micro(10, 10, 10, 204_000)
         );
-        let dt = parse_datetime(b"20171130101010.204+0100").unwrap();
+        let dt = parse_datetime(b"20171130101010.204+0100", &default_offset).unwrap();
         assert_eq!(
             dt,
             FixedOffset::east(3600)
@@ -719,12 +733,12 @@ mod tests {
         );
 
         assert_eq!(
-            parse_datetime(b"20171130101010.204-1000").unwrap(),
+            parse_datetime(b"20171130101010.204-1000", &default_offset).unwrap(),
             FixedOffset::west(10 * 3600)
                 .ymd(2017, 11, 30)
                 .and_hms_micro(10, 10, 10, 204_000)
         );
-        let dt = parse_datetime(b"20171130101010.204+0535").unwrap();
+        let dt = parse_datetime(b"20171130101010.204+0535", &default_offset).unwrap();
         assert_eq!(
             dt,
             FixedOffset::east(5 * 3600 + 35 * 60)
@@ -736,18 +750,18 @@ mod tests {
             "2017-11-30T10:10:10.204+05:35".to_string()
         );
         assert_eq!(
-            parse_datetime(b"20140426").unwrap(),
+            parse_datetime(b"20140426", &default_offset).unwrap(),
             FixedOffset::east(0).ymd(2014, 4, 26).and_hms(0, 0, 0)
         );
 
-        assert!(parse_datetime(b"").is_err());
-        assert!(parse_datetime(&[0x00_u8; 8]).is_err());
-        assert!(parse_datetime(&[0xFF_u8; 8]).is_err());
-        assert!(parse_datetime(b"nope").is_err());
-        assert!(parse_datetime(b"2015dec").is_err());
-        assert!(parse_datetime(b"20151231162945.").is_err());
-        assert!(parse_datetime(b"20151130161445+").is_err());
-        assert!(parse_datetime(b"20100423164000.001+3").is_err());
-        assert!(parse_datetime(b"200809112945*1000").is_err());
+        assert!(parse_datetime(b"", &default_offset).is_err());
+        assert!(parse_datetime(&[0x00_u8; 8], &default_offset).is_err());
+        assert!(parse_datetime(&[0xFF_u8; 8], &default_offset).is_err());
+        assert!(parse_datetime(b"nope", &default_offset).is_err());
+        assert!(parse_datetime(b"2015dec", &default_offset).is_err());
+        assert!(parse_datetime(b"20151231162945.", &default_offset).is_err());
+        assert!(parse_datetime(b"20151130161445+", &default_offset).is_err());
+        assert!(parse_datetime(b"20100423164000.001+3", &default_offset).is_err());
+        assert!(parse_datetime(b"200809112945*1000", &default_offset).is_err());
     }
 }
