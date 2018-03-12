@@ -1,4 +1,5 @@
 //! This module aggregates errors that may emerge from the library.
+use std::borrow::Cow;
 use std::error::Error as BaseError;
 use std::result;
 use std::io;
@@ -116,12 +117,19 @@ quick_error! {
 
 /// An error type for text encoding issues.
 #[derive(Debug, Clone, PartialEq)]
-pub struct TextEncodingError;
+pub struct TextEncodingError(Cow<'static, str>);
 
-impl fmt::Display for TextEncodingError
-{
+impl TextEncodingError {
+    /// Build an error from a cause text, as provided by the
+    /// `encoding` crate.
+    pub fn new<E: Into<Cow<'static, str>>>(cause: E) -> Self {
+        TextEncodingError(cause.into())
+    }
+}
+
+impl fmt::Display for TextEncodingError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(self.description())
+        write!(f, "{}: {}", self.description(), self.0)
     }
 }
 

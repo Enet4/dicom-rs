@@ -243,7 +243,13 @@ where
         let mut buf = vec![0u8; header.len() as usize];
         from.read_exact(&mut buf)?;
         if validate_da(&buf) != TextValidationOutcome::Ok {
-            return Err(TextEncodingError.into());
+            let lossy_str = DefaultCharacterSetCodec
+                .decode(&buf)
+                .unwrap_or_else(|_| "[byte stream]".to_string());
+            return Err(TextEncodingError::new(format!(
+                "Invalid time value element \"{}\"",
+                lossy_str
+            )).into());
         }
         let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
             .map(|part| Ok(parse_date(part)?.0))
@@ -276,7 +282,13 @@ where
         let mut buf = vec![0u8; header.len() as usize];
         from.read_exact(&mut buf)?;
         if validate_dt(&buf) != TextValidationOutcome::Ok {
-            return Err(TextEncodingError.into());
+            let lossy_str = DefaultCharacterSetCodec
+                .decode(&buf)
+                .unwrap_or_else(|_| "[byte stream]".to_string());
+            return Err(TextEncodingError::new(format!(
+                "Invalid time value element \"{}\"",
+                lossy_str
+            )).into());
         }
         let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
             .map(|part| Ok(parse_datetime(part, &self.dt_utc_offset)?))
@@ -315,7 +327,13 @@ where
         let mut buf = vec![0u8; header.len() as usize];
         from.read_exact(&mut buf)?;
         if validate_tm(&buf) != TextValidationOutcome::Ok {
-            return Err(TextEncodingError.into());
+            let lossy_str = DefaultCharacterSetCodec
+                .decode(&buf)
+                .unwrap_or_else(|_| "[byte stream]".to_string());
+            return Err(TextEncodingError::new(format!(
+                "Invalid time value element \"{}\"",
+                lossy_str
+            )).into());
         }
         let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
             .map(|part| Ok(parse_time(part)?.0))

@@ -116,13 +116,13 @@ impl TextCodec for DefaultCharacterSetCodec {
     fn decode(&self, text: &[u8]) -> Result<String> {
         ISO_8859_1
             .decode(text, DecoderTrap::Call(decode_text_trap))
-            .map_err(|_| TextEncodingError.into())
+            .map_err(|e| TextEncodingError::new(e).into())
     }
 
     fn encode(&self, text: &str) -> Result<Vec<u8>> {
         ISO_8859_1
             .encode(text, EncoderTrap::Strict)
-            .map_err(|_| TextEncodingError.into())
+            .map_err(|e| TextEncodingError::new(e).into())
     }
 }
 
@@ -134,13 +134,13 @@ impl TextCodec for Utf8CharacterSetCodec {
     fn decode(&self, text: &[u8]) -> Result<String> {
         UTF_8
             .decode(text, DecoderTrap::Call(decode_text_trap))
-            .map_err(|_| TextEncodingError.into())
+            .map_err(|e| TextEncodingError::new(e).into())
     }
 
     fn encode(&self, text: &str) -> Result<Vec<u8>> {
         UTF_8
             .encode(text, EncoderTrap::Strict)
-            .map_err(|_| TextEncodingError.into())
+            .map_err(|e| TextEncodingError::new(e).into())
     }
 }
 
@@ -181,7 +181,7 @@ pub fn validate_da(text: &[u8]) -> TextValidationOutcome {
 /// Time value representation.
 pub fn validate_tm(text: &[u8]) -> TextValidationOutcome {
     if text.into_iter().cloned().all(|c| match c {
-        b'\\' | b'.' => true,
+        b'\\' | b'.' | b'-' | b' ' => true,
         c => c >= b'0' && c <= b'9',
     }) {
         TextValidationOutcome::Ok
