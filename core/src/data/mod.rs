@@ -9,7 +9,7 @@ pub mod text;
 pub mod value;
 
 use error::{Error, Result};
-use data::value::{DicomValue, DicomValueType};
+use data::value::{PrimitiveValue, Value, DicomValueType};
 use std::str::from_utf8;
 use std::fmt;
 use std::cmp::Ordering;
@@ -57,20 +57,20 @@ pub enum DataElementType {
 
 /// A data type that represents and owns a DICOM data element.
 #[derive(Debug, PartialEq, Clone)]
-pub struct DataElement {
+pub struct DataElement<I> {
     header: DataElementHeader,
-    value: DicomValue,
+    value: Value<I>,
 }
 
 /// A data type that represents a DICOM data element with
 /// a borrowed value.
 #[derive(Debug, PartialEq, Clone)]
-pub struct DataElementRef<'v> {
+pub struct DataElementRef<'v, I: 'v> {
     header: DataElementHeader,
-    value: &'v DicomValue,
+    value: &'v Value<I>,
 }
 
-impl Header for DataElement {
+impl<I> Header for DataElement<I> {
     #[inline]
     fn tag(&self) -> Tag {
         self.header.tag()
@@ -82,7 +82,7 @@ impl Header for DataElement {
     }
 }
 
-impl<'a> Header for &'a DataElement {
+impl<'a, I> Header for &'a DataElement<I> {
     #[inline]
     fn tag(&self) -> Tag {
         (**self).tag()
@@ -94,7 +94,7 @@ impl<'a> Header for &'a DataElement {
     }
 }
 
-impl Header for Box<DataElement> {
+impl<I> Header for Box<DataElement<I>> {
     #[inline]
     fn tag(&self) -> Tag {
         (**self).tag()
@@ -106,7 +106,7 @@ impl Header for Box<DataElement> {
     }
 }
 
-impl Header for ::std::rc::Rc<DataElement> {
+impl<I> Header for ::std::rc::Rc<DataElement<I>> {
     #[inline]
     fn tag(&self) -> Tag {
         (**self).tag()
@@ -118,7 +118,7 @@ impl Header for ::std::rc::Rc<DataElement> {
     }
 }
 
-impl<'v> Header for DataElementRef<'v> {
+impl<'v, I> Header for DataElementRef<'v, I> {
     #[inline]
     fn tag(&self) -> Tag {
         self.header.tag()
@@ -130,7 +130,10 @@ impl<'v> Header for DataElementRef<'v> {
     }
 }
 
-impl DataElement {
+impl<I> DataElement<I>
+where
+    I: DicomValueType,
+{
     /// Create an empty data element.
     pub fn empty(tag: Tag, vr: VR) -> Self {
         DataElement {
@@ -139,13 +142,13 @@ impl DataElement {
                 vr: vr,
                 len: 0,
             },
-            value: DicomValue::Empty,
+            value: PrimitiveValue::Empty.into(),
         }
     }
 
-    /// Create a data element from the given parts. This method will not check
-    /// whether the value representation is compaible with the value. Use it cautiously.
-    pub fn new(tag: Tag, vr: VR, value: DicomValue) -> Self {
+    /// Creates a primitive data element from the given parts. This method will not check
+    /// whether the value representation is compatible with the given value.
+    pub fn new(tag: Tag, vr: VR, value: Value<I>) -> Self {
         DataElement {
             header: DataElementHeader {
                 tag: tag,
@@ -162,15 +165,18 @@ impl DataElement {
     }
 
     /// Retrieve the data value.
-    pub fn value(&self) -> &DicomValue {
+    pub fn value(&self) -> &Value<I> {
         &self.value
     }
 }
 
-impl<'v> DataElementRef<'v> {
+impl<'v, I> DataElementRef<'v, I>
+where
+    I: DicomValueType,
+{
     /// Create a data element from the given parts. This method will not check
     /// whether the value representation is compaible with the value. Use it cautiously.
-    pub fn new(tag: Tag, vr: VR, value: &'v DicomValue) -> Self {
+    pub fn new(tag: Tag, vr: VR, value: &'v Value<I>) -> Self {
         DataElementRef {
             header: DataElementHeader {
                 tag: tag,
@@ -181,14 +187,14 @@ impl<'v> DataElementRef<'v> {
         }
     }
 
-    /// Retrieve the element's value representation, which can be unknown.
+    /// Retrieves the element's value representation, which can be unknown.
     pub fn vr(&self) -> VR {
         self.header.vr()
     }
 
-    /// Retrieve the data value.
-    pub fn value(&self) -> &DicomValue {
-        self.value
+    /// Retrieves the DICOM value.
+    pub fn value(&self) -> &Value<I> {
+        &self.value
     }
 }
 
@@ -196,8 +202,11 @@ impl<'v> DataElementRef<'v> {
 /// a tag, value representation and specified length.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct DataElementHeader {
+    /// DICOM tag
     pub tag: Tag,
+    /// Value Representation
     pub vr: VR,
+    /// Element length
     pub len: u32,
 }
 

@@ -7,8 +7,8 @@ use data::Header;
 use dictionary::{DataDictionary, DictionaryEntry};
 use data::parser::DynamicDicomParser;
 use error::{Error, Result};
-use data::{Tag, VR};
-use data::value::DicomValue;
+use data::{Tag, VR, DataElement};
+use data::value::Value;
 use data::iterator::DicomElementMarker;
 use util::ReadSeek;
 use super::DicomObject;
@@ -20,6 +20,8 @@ pub struct LazyDataSequence<S, P, D> {
     parser: P,
     seq: Vec<LazyDataElement>,
 }
+
+type LazyObj = DataElement<()>;
 
 impl<S, P, D> Debug for LazyDataSequence<S, P, D>
 where
@@ -76,9 +78,9 @@ where
         {
             let mut borrow = self.entries.borrow_mut();
             let e = borrow.get_mut(&tag).expect("Element should exist");
-            let v: DicomValue = self.load_value(&e.marker).unwrap();
+            let v: Value<_> = self.load_value(&e.marker).unwrap();
             let data = e.value_mut();
-            *data = Some(v);
+            unimplemented!() // TODO
         }
         Ok(Ref::map(self.entries.borrow(), |m| {
             m.get(&tag).expect("Element should exist")
@@ -103,7 +105,7 @@ where
             .map(|e| e.tag())
     }
 
-    fn load_value(&self, marker: &DicomElementMarker) -> Result<DicomValue> {
+    fn load_value(&self, marker: &DicomElementMarker) -> Result<Value<LazyObj>> {
         let mut borrow = self.source.borrow_mut();
         marker.move_to_start(&mut *borrow)?;
         unimplemented!()
@@ -116,7 +118,7 @@ where
 #[derive(Debug, Clone, PartialEq)]
 pub struct LazyDataElement {
     marker: DicomElementMarker,
-    value: Option<DicomValue>,
+    value: Option<()>,
 }
 
 impl Header for LazyDataElement {
@@ -184,12 +186,12 @@ impl LazyDataElement {
 
     /// Getter for this element's cached data value.
     /// It will only hold a value once explicitly read.
-    pub fn value(&self) -> Option<&DicomValue> {
+    pub fn value(&self) -> Option<&()> {
         self.value.as_ref()
     }
 
     /// Mutable getter for this element's cached data container.
-    pub fn value_mut(&mut self) -> &mut Option<DicomValue> {
+    pub fn value_mut(&mut self) -> &mut Option<()> {
         &mut self.value
     }
 

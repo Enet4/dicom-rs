@@ -3,7 +3,7 @@
 use byteorder::{ByteOrder, LittleEndian};
 use std::io::{Read, Write};
 use std::marker::PhantomData;
-use dictionary::{get_standard_dictionary, DataDictionary, DictionaryEntry};
+use dictionary::{standard_dictionary, DataDictionary, DictionaryEntry};
 use dictionary::standard::StandardDataDictionary;
 use data::VR;
 use data::Tag;
@@ -43,7 +43,7 @@ impl<S: ?Sized> ImplicitVRLittleEndianDecoder<S, &'static StandardDataDictionary
     /// Retrieve this decoder using the standard data dictionary.
     pub fn with_default_dict() -> Self {
         ImplicitVRLittleEndianDecoder {
-            dict: get_standard_dictionary(),
+            dict: standard_dictionary(),
             basic: LittleEndianBasicDecoder,
             phantom: PhantomData,
         }

@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use dictionary::{get_standard_dictionary, StandardDataDictionary};
+use dictionary::{standard_dictionary, StandardDataDictionary};
 use object::DicomObject;
 
 /// A data type
@@ -15,7 +15,7 @@ where
 {
     pub fn new() -> Self {
         DicomLoaderOptions {
-            dict: get_standard_dictionary(),
+            dict: standard_dictionary(),
             phantom: PhantomData,
         }
     }
@@ -34,7 +34,7 @@ where
 
     pub fn with_std_dict(self) -> DicomLoaderOptions<&'static StandardDataDictionary, O> {
         DicomLoaderOptions {
-            dict: get_standard_dictionary(),
+            dict: standard_dictionary(),
             phantom: PhantomData,
         }
     }

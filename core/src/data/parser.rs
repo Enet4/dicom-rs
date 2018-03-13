@@ -12,11 +12,11 @@ use data::{DataElementHeader, Header, SequenceItemHeader, Tag, VR};
 use data::decode::{BasicDecode, Decode};
 use data::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
 use data::text::{DynamicTextCodec, SpecificCharacterSet, TextCodec};
-use data::value::DicomValue;
+use data::value::PrimitiveValue;
 use transfer_syntax::TransferSyntax;
 use transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
 use data::text::{validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec,
-                 TextValidationOutcome, validate_iso_8859};
+                 TextValidationOutcome};
 use chrono::{DateTime, FixedOffset, Local, NaiveDate, NaiveTime, TimeZone};
 use util::n_times;
 
@@ -40,13 +40,13 @@ where
     /// to the correspoding binary number types, and date/time instances are
     /// decoded into binary date/time objects of types defined in the `chrono` crate.
     /// To avoid this conversion, see `read_value_preserved`.
-    fn read_value(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue>;
+    fn read_value(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue>;
 
     /// Eagerly read the following data in the source as a data value.
     /// Unlike `read_value`, this method will preserve the DICOM value's
     /// original format: numbers saved as text, as well as dates and times,
     /// are read as strings.
-    fn read_value_preserved(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue>;
+    fn read_value_preserved(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue>;
 
     /// Define the specific character set of subsequent text elements.
     fn set_character_set(&mut self, charset: SpecificCharacterSet) -> Result<()>;
@@ -158,7 +158,7 @@ where
 
     // ---------------- private methods ---------------------
 
-    fn read_value_tag(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_tag(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         require_known_length!(header);
 
         // tags
@@ -170,20 +170,20 @@ where
                 Ok(Tag(g, e))
             })
             .collect();
-        Ok(DicomValue::Tags(parts?))
+        Ok(PrimitiveValue::Tags(parts?))
     }
 
-    fn read_value_ob(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_ob(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         // TODO add support for OB value data length resolution
         require_known_length!(header);
 
         // sequence of 8-bit integers (or just byte data)
         let mut buf = vec![0u8; header.len() as usize];
         from.read_exact(&mut buf)?;
-        Ok(DicomValue::U8(buf))
+        Ok(PrimitiveValue::U8(buf))
     }
 
-    fn read_value_strs(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_strs(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         require_known_length!(header);
         // sequence of strings
         let mut buf = vec![0u8; header.len() as usize];
@@ -200,19 +200,19 @@ where
                 .collect(),
         };
 
-        Ok(DicomValue::Strs(parts?))
+        Ok(PrimitiveValue::Strs(parts?))
     }
 
-    fn read_value_str(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_str(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         require_known_length!(header);
 
         // a single string
         let mut buf = vec![0u8; header.len() as usize];
         try!(from.read_exact(&mut buf));
-        Ok(DicomValue::Str(self.text.decode(&buf[..])?))
+        Ok(PrimitiveValue::Str(self.text.decode(&buf[..])?))
     }
 
-    fn read_value_ss(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_ss(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         // sequence of 16-bit signed integers
         require_known_length!(header);
 
@@ -221,10 +221,10 @@ where
         for _ in n_times(len) {
             vec.push(self.basic.decode_ss(&mut *from)?);
         }
-        Ok(DicomValue::I16(vec))
+        Ok(PrimitiveValue::I16(vec))
     }
 
-    fn read_value_fl(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_fl(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         require_known_length!(header);
         // sequence of 32-bit floats
         let l = header.len() as usize >> 2;
@@ -232,10 +232,10 @@ where
         for _ in n_times(l) {
             vec.push(self.basic.decode_fl(&mut *from)?);
         }
-        Ok(DicomValue::F32(vec))
+        Ok(PrimitiveValue::F32(vec))
     }
 
-    fn read_value_da(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_da(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         require_known_length!(header);
         // sequence of dates
 
@@ -254,10 +254,10 @@ where
         let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
             .map(|part| Ok(parse_date(part)?.0))
             .collect();
-        Ok(DicomValue::Date(vec?))
+        Ok(PrimitiveValue::Date(vec?))
     }
 
-    fn read_value_ds(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_ds(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         require_known_length!(header);
         // sequence of doubles in text form
         let mut buf = vec![0u8; header.len() as usize];
@@ -271,10 +271,10 @@ where
                     .map_err(|e| Error::from(InvalidValueReadError::from(e)))
             })
             .collect();
-        Ok(DicomValue::F64(parts?))
+        Ok(PrimitiveValue::F64(parts?))
     }
 
-    fn read_value_dt(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_dt(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         require_known_length!(header);
         // sequence of datetimes
 
@@ -294,10 +294,10 @@ where
             .map(|part| Ok(parse_datetime(part, &self.dt_utc_offset)?))
             .collect();
 
-        Ok(DicomValue::DateTime(vec?))
+        Ok(PrimitiveValue::DateTime(vec?))
     }
 
-    fn read_value_is(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_is(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         require_known_length!(header);
         // sequence of signed integers in text form
         let mut buf = vec![0u8; header.len() as usize];
@@ -316,10 +316,10 @@ where
                     .map_err(|e| Error::from(InvalidValueReadError::from(e)))
             })
             .collect();
-        Ok(DicomValue::I32(parts?))
+        Ok(PrimitiveValue::I32(parts?))
     }
 
-    fn read_value_tm(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_tm(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         require_known_length!(header);
         // sequence of time instances
 
@@ -338,10 +338,10 @@ where
         let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
             .map(|part| Ok(parse_time(part)?.0))
             .collect();
-        Ok(DicomValue::Time(vec?))
+        Ok(PrimitiveValue::Time(vec?))
     }
 
-    fn read_value_od(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_od(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         require_known_length!(header);
         // sequence of 64-bit floats
         let len = header.len() as usize >> 3;
@@ -349,10 +349,10 @@ where
         for _ in n_times(len) {
             vec.push(self.basic.decode_fd(&mut *from)?);
         }
-        Ok(DicomValue::F64(vec))
+        Ok(PrimitiveValue::F64(vec))
     }
 
-    fn read_value_ul(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_ul(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         require_known_length!(header);
         // sequence of 32-bit unsigned integers
 
@@ -361,10 +361,10 @@ where
         for _ in n_times(len) {
             vec.push(self.basic.decode_ul(&mut *from)?);
         }
-        Ok(DicomValue::U32(vec))
+        Ok(PrimitiveValue::U32(vec))
     }
 
-    fn read_value_us(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_us(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         require_known_length!(header);
         // sequence of 16-bit unsigned integers
 
@@ -373,10 +373,10 @@ where
         for _ in n_times(len) {
             vec.push(self.basic.decode_us(&mut *from)?);
         }
-        Ok(DicomValue::U16(vec))
+        Ok(PrimitiveValue::U16(vec))
     }
 
-    fn read_value_sl(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_sl(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         require_known_length!(header);
         // sequence of 32-bit signed integers
 
@@ -385,7 +385,7 @@ where
         for _ in n_times(len) {
             vec.push(self.basic.decode_sl(&mut *from)?);
         }
-        Ok(DicomValue::I32(vec))
+        Ok(PrimitiveValue::I32(vec))
     }
 }
 
@@ -403,14 +403,15 @@ where
         self.decoder.decode_item_header(from)
     }
 
-    fn read_value(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         if header.len() == 0 {
-            return Ok(DicomValue::Empty);
+            return Ok(PrimitiveValue::Empty);
         }
 
         match header.vr() {
             VR::SQ => {
-                // sequence objects... should not work
+                // sequence objects should not head over here, they are
+                // handled at a higher level
                 return Err(Error::from(InvalidValueReadError::NonPrimitiveType));
             }
             VR::AT => self.read_value_tag(from, header),
@@ -433,9 +434,9 @@ where
         }
     }
 
-    fn read_value_preserved(&self, from: &mut S, header: &DataElementHeader) -> Result<DicomValue> {
+    fn read_value_preserved(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         if header.len() == 0 {
-            return Ok(DicomValue::Empty);
+            return Ok(PrimitiveValue::Empty);
         }
 
         match header.vr() {

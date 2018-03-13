@@ -39,7 +39,7 @@ pub mod meta;
 pub mod object;
 pub mod transfer_syntax;
 
-pub use data::value::DicomValue;
+pub use data::value::{Value as DicomValue, PrimitiveValue};
 pub use data::VR;
 pub use data::DataElement as DicomElement;
 pub use dictionary::{DataDictionary, StandardDataDictionary};

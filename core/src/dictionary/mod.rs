@@ -13,8 +13,8 @@ use data::VR;
 use std::fmt::Debug;
 
 /// Retrieve the global standard DICOM dictionary.
-pub fn get_standard_dictionary() -> &'static StandardDataDictionary {
-    standard::get_instance()
+pub fn standard_dictionary() -> &'static StandardDataDictionary {
+    standard::instance()
 }
 
 /** Type trait for a dictionary of DICOM attributes. Attribute dictionaries provide the
@@ -114,7 +114,7 @@ impl<N: AsRef<str>> TagByName<'static, N, StandardDataDictionary> {
     /// Create a tag resolver by name using the standard dictionary.
     pub fn with_std_dict(name: N) -> TagByName<'static, N, StandardDataDictionary> {
         TagByName {
-            dict: get_standard_dictionary(),
+            dict: standard_dictionary(),
             name: name,
         }
     }

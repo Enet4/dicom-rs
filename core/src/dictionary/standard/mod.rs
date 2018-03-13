@@ -25,7 +25,7 @@ lazy_static! {
 }
 
 /// Retrieve a singleton instance of the standard dictionary.
-pub fn get_instance() -> &'static StandardDataDictionary {
+pub fn instance() -> &'static StandardDataDictionary {
     &DICT
 }
 

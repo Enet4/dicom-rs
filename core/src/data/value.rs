@@ -10,11 +10,61 @@ pub type Result<T> = result::Result<T, InvalidValueReadError>;
 
 type C<T> = Vec<T>;
 
+/// Representation of a full DICOM value, which may be either primitive or
+/// another DICOM object.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Value<I> {
+    /// Primitive value
+    Primitive(PrimitiveValue),
+    /// A complex item in a sequence
+    Item(I),
+}
+
+impl<I> Value<I> {
+    /// Gets a reference to the primitive value.
+    pub fn primitive(&self) -> Option<&PrimitiveValue> {
+        match *self {
+            Value::Primitive(ref v) => Some(v),
+            _ => None,
+        }
+    }
+
+    /// Gets a reference to the item.
+    pub fn item(&self) -> Option<&I> {
+        match *self {
+            Value::Item(ref item) => Some(item),
+            _ => None,
+        }
+    }
+
+    /// Retrieves the primitive value.
+    pub fn into_primitive(self) -> Option<PrimitiveValue> {
+        match self {
+            Value::Primitive(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    /// Retrieves the item.
+    pub fn into_item(self) -> Option<I> {
+        match self {
+            Value::Item(item) => Some(item),
+            _ => None,
+        }
+    }
+}
+
+impl<I> From<PrimitiveValue> for Value<I> {
+    fn from(v: PrimitiveValue) -> Self {
+        Value::Primitive(v)
+    }
+}
+
 /// An enum representing a primitive value from a DICOM element. The result of decoding
 /// an element's data value may be one of the enumerated types depending on its content
 /// and value representation.
 #[derive(Debug, PartialEq, Clone)]
-pub enum DicomValue {
+pub enum PrimitiveValue {
     /// No data. Used for SQ (regardless of content) and any value of length 0.
     Empty,
 
@@ -73,11 +123,11 @@ pub enum DicomValue {
     Time(C<NaiveTime>),
 }
 
-impl DicomValue {
+impl PrimitiveValue {
     /// Get a single string value. If it contains multiple strings,
     /// only the first one is returned.
     pub fn string(&self) -> Option<&str> {
-        use DicomValue::*;
+        use self::PrimitiveValue::*;
         match self {
             &Strs(ref c) => c.get(0).map(String::as_str),
             &Str(ref s) => Some(s),
@@ -87,7 +137,7 @@ impl DicomValue {
 
     /// Get a sequence of string values.
     pub fn strings(&self) -> Option<Vec<&str>> {
-        use DicomValue::*;
+        use self::PrimitiveValue::*;
         match self {
             &Strs(ref c) => Some(c.iter().map(String::as_str).collect()),
             &Str(ref s) => Some(vec![&s]),
@@ -97,7 +147,7 @@ impl DicomValue {
 
     /// Get a single DICOM tag.
     pub fn tag(&self) -> Option<Tag> {
-        use DicomValue::*;
+        use self::PrimitiveValue::*;
         match self {
             &Tags(ref c) => c.get(0).map(Clone::clone),
             _ => None,
@@ -106,7 +156,7 @@ impl DicomValue {
 
     /// Get a sequence of DICOM tags.
     pub fn tags(&self) -> Option<&[Tag]> {
-        use DicomValue::*;
+        use self::PrimitiveValue::*;
         match self {
             &Tags(ref c) => Some(&c),
             _ => None,
@@ -115,7 +165,7 @@ impl DicomValue {
 
     /// Get a single 32-bit signed integer value.
     pub fn int32(&self) -> Option<i32> {
-        use DicomValue::*;
+        use self::PrimitiveValue::*;
         match self {
             &I32(ref c) => c.get(0).map(Clone::clone),
             _ => None,
@@ -124,7 +174,7 @@ impl DicomValue {
 
     /// Get a single 32-bit unsigned integer value.
     pub fn uint32(&self) -> Option<u32> {
-        use DicomValue::*;
+        use self::PrimitiveValue::*;
         match self {
             &U32(ref c) => c.get(0).map(Clone::clone),
             _ => None,
@@ -133,7 +183,7 @@ impl DicomValue {
 
     /// Get a single 16-bit signed integer value.
     pub fn int16(&self) -> Option<i16> {
-        use DicomValue::*;
+        use self::PrimitiveValue::*;
         match self {
             &I16(ref c) => c.get(0).map(Clone::clone),
             _ => None,
@@ -142,7 +192,7 @@ impl DicomValue {
 
     /// Get a single 16-bit unsigned integer value.
     pub fn uint16(&self) -> Option<u16> {
-        use DicomValue::*;
+        use self::PrimitiveValue::*;
         match self {
             &U16(ref c) => c.get(0).map(Clone::clone),
             _ => None,
@@ -151,7 +201,7 @@ impl DicomValue {
 
     /// Get a single 8-bit unsigned integer value.
     pub fn uint8(&self) -> Option<u8> {
-        use DicomValue::*;
+        use self::PrimitiveValue::*;
         match self {
             &U8(ref c) => c.get(0).map(Clone::clone),
             _ => None,
@@ -160,7 +210,7 @@ impl DicomValue {
 
     /// Get a single 32-bit floating point number value.
     pub fn float32(&self) -> Option<f32> {
-        use DicomValue::*;
+        use self::PrimitiveValue::*;
         match self {
             &F32(ref c) => c.get(0).map(Clone::clone),
             _ => None,
@@ -169,7 +219,7 @@ impl DicomValue {
 
     /// Get a single 64-bit floating point number value.
     pub fn float64(&self) -> Option<f64> {
-        use DicomValue::*;
+        use self::PrimitiveValue::*;
         match self {
             &F64(ref c) => c.get(0).map(Clone::clone),
             _ => None,
@@ -177,13 +227,16 @@ impl DicomValue {
     }
 }
 
-/// An enum representing a programmatic abstraction of
-/// a DICOM element's data value type. This should be
-/// the equivalent of `DicomValue` without the content.
+/// An enum representing an abstraction of a DICOM element's data value type.
+/// This should be the equivalent of `PrimitiveValue` without the content,
+/// plus the `Item` entry.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ValueType {
-    /// No data. Used for SQ (regardless of content) and any value of length 0.
+    /// No data. Used for any value of length 0.
     Empty,
+
+    /// An item. Used for elements in a SQ, regardless of content.
+    Item,
 
     /// A sequence of strings.
     /// Used for AE, AS, PN, SH, CS, LO, UI and UC.
@@ -241,7 +294,7 @@ pub enum ValueType {
 }
 
 /// A trait for a value that maps to a DICOM element data value.
-pub trait DicomValueType: Clone + 'static {
+pub trait DicomValueType {
     /// Retrieve the specific type of this value.
     fn get_type(&self) -> ValueType;
 
@@ -254,42 +307,63 @@ pub trait DicomValueType: Clone + 'static {
     }
 }
 
-impl DicomValueType for DicomValue {
+impl DicomValueType for PrimitiveValue {
+    fn get_type(&self) -> ValueType {
+        use self::PrimitiveValue::*;
+        match *self {
+            Empty => ValueType::Empty,
+            Date(_) => ValueType::Date,
+            DateTime(_) => ValueType::DateTime,
+            F32(_) => ValueType::F32,
+            F64(_) => ValueType::F64,
+            I16(_) => ValueType::I16,
+            I32(_) => ValueType::I32,
+            Str(_) => ValueType::Str,
+            Strs(_) => ValueType::Strs,
+            Tags(_) => ValueType::Tags,
+            Time(_) => ValueType::Time,
+            U16(_) => ValueType::U16,
+            U32(_) => ValueType::U32,
+            U8(_) => ValueType::U8,
+        }
+    }
+
+    fn size(&self) -> u32 {
+        use self::PrimitiveValue::*;
+        match *self {
+            Empty => 0,
+            Str(_) => 1,
+            Date(ref b) => b.len() as u32,
+            DateTime(ref b) => b.len() as u32,
+            F32(ref b) => b.len() as u32,
+            F64(ref b) => b.len() as u32,
+            I16(ref b) => b.len() as u32,
+            I32(ref b) => b.len() as u32,
+            Strs(ref b) => b.len() as u32,
+            Tags(ref b) => b.len() as u32,
+            Time(ref b) => b.len() as u32,
+            U16(ref b) => b.len() as u32,
+            U32(ref b) => b.len() as u32,
+            U8(ref b) => b.len() as u32,
+        }
+    }
+}
+
+impl<I> DicomValueType for Value<I>
+where
+    I: DicomValueType,
+{
     fn get_type(&self) -> ValueType {
         match *self {
-            DicomValue::Empty => ValueType::Empty,
-            DicomValue::Date(_) => ValueType::Date,
-            DicomValue::DateTime(_) => ValueType::DateTime,
-            DicomValue::F32(_) => ValueType::F32,
-            DicomValue::F64(_) => ValueType::F64,
-            DicomValue::I16(_) => ValueType::I16,
-            DicomValue::I32(_) => ValueType::I32,
-            DicomValue::Str(_) => ValueType::Str,
-            DicomValue::Strs(_) => ValueType::Strs,
-            DicomValue::Tags(_) => ValueType::Tags,
-            DicomValue::Time(_) => ValueType::Time,
-            DicomValue::U16(_) => ValueType::U16,
-            DicomValue::U32(_) => ValueType::U32,
-            DicomValue::U8(_) => ValueType::U8,
+            Value::Primitive(ref v) => v.get_type(),
+            Value::Item(_) => ValueType::Item,
         }
     }
 
     fn size(&self) -> u32 {
         match *self {
-            DicomValue::Empty => 0,
-            DicomValue::Str(_) => 1,
-            DicomValue::Date(ref b) => b.len() as u32,
-            DicomValue::DateTime(ref b) => b.len() as u32,
-            DicomValue::F32(ref b) => b.len() as u32,
-            DicomValue::F64(ref b) => b.len() as u32,
-            DicomValue::I16(ref b) => b.len() as u32,
-            DicomValue::I32(ref b) => b.len() as u32,
-            DicomValue::Strs(ref b) => b.len() as u32,
-            DicomValue::Tags(ref b) => b.len() as u32,
-            DicomValue::Time(ref b) => b.len() as u32,
-            DicomValue::U16(ref b) => b.len() as u32,
-            DicomValue::U32(ref b) => b.len() as u32,
-            DicomValue::U8(ref b) => b.len() as u32,
+            Value::Primitive(ref v) => v.size(),
+            Value::Item(ref i) => i.size(),
         }
     }
 }

@@ -12,7 +12,8 @@ use super::DicomObject;
 use data::{DataElement, Header, Tag};
 use data::iterator::DicomElementIterator;
 use data::text::SpecificCharacterSet;
-use dictionary::{get_standard_dictionary, DataDictionary, DictionaryEntry, StandardDataDictionary};
+use data::value::{DicomValueType, ValueType};
+use dictionary::{standard_dictionary, DataDictionary, DictionaryEntry, StandardDataDictionary};
 use error::{Error, Result};
 
 /** A DICOM sequence that is fully contained in memory.
@@ -23,11 +24,13 @@ pub struct InMemSequence<D> {
     objects: Vec<InMemDicomObject<D>>,
 }
 
+type InMemElement<D> = DataElement<InMemDicomObject<D>>;
+
 /** A DICOM object that is fully contained in memory.
  */
 #[derive(Debug, Clone)]
 pub struct InMemDicomObject<D> {
-    entries: BTreeMap<Tag, DataElement>,
+    entries: BTreeMap<Tag, InMemElement<D>>,
     dict: D,
 }
 
@@ -38,11 +41,21 @@ impl<'s, D> PartialEq for InMemDicomObject<D> {
     }
 }
 
+impl<D> DicomValueType for InMemDicomObject<D> {
+    fn get_type(&self) -> ValueType {
+        ValueType::Item
+    }
+
+    fn size(&self) -> u32 {
+        panic!("Attempt to fetch the size of a DICOM object")
+    }
+}
+
 impl<'s, D: 's> DicomObject for &'s InMemDicomObject<D>
 where
     D: DataDictionary,
 {
-    type Element = &'s DataElement;
+    type Element = &'s InMemElement<D>;
     type Sequence = InMemSequence<D>;
 
     fn get_element(&self, tag: Tag) -> Result<Self::Element> {
@@ -60,13 +73,13 @@ impl InMemDicomObject<&'static StandardDataDictionary> {
     pub fn create_empty() -> Self {
         InMemDicomObject {
             entries: BTreeMap::new(),
-            dict: get_standard_dictionary(),
+            dict: standard_dictionary(),
         }
     }
 
     /// Create a DICOM object by reading from a file.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        Self::from_file_with_dict(path, get_standard_dictionary())
+        Self::from_file_with_dict(path, standard_dictionary())
     }
 
     /// Create a DICOM object by reading from a byte sources.
@@ -74,7 +87,7 @@ impl InMemDicomObject<&'static StandardDataDictionary> {
     where
         S: Read
     {
-        Self::from_stream_with_dict(src, get_standard_dictionary())
+        Self::from_stream_with_dict(src, standard_dictionary())
     }
 }
 
@@ -92,7 +105,10 @@ where
     }
 
     /// Create a DICOM object by reading from a file.
-    pub fn from_file_with_dict<P: AsRef<Path>>(path: P, dict: D) -> Result<Self> {
+    pub fn from_file_with_dict<P: AsRef<Path>>(path: P, dict: D) -> Result<Self>
+    where
+        D: Clone,
+    {
         let mut file = BufReader::new(File::open(path)?);
 
         // read metadata header
@@ -103,7 +119,7 @@ where
             .get(&meta.transfer_syntax)
             .ok_or(Error::UnsupportedTransferSyntax)?;
         let cs = SpecificCharacterSet::Default;
-        let elements = DicomElementIterator::new_with(file, ts, cs)?;
+        let elements = DicomElementIterator::new_with_dictionary(file, dict.clone(), ts, cs)?;
 
         let entries: Result<BTreeMap<_, _>> = elements.map_results(|e| (e.tag(), e)).collect();
 
@@ -117,6 +133,7 @@ where
     pub fn from_stream_with_dict<S>(src: S, dict: D) -> Result<Self>
     where
         S: Read,
+        D: Clone,
     {
         let mut file = BufReader::new(src);
 
@@ -128,7 +145,7 @@ where
             .get(&meta.transfer_syntax)
             .ok_or(Error::UnsupportedTransferSyntax)?;
         let cs = SpecificCharacterSet::Default;
-        let elements = DicomElementIterator::new_with(file, ts, cs)?;
+        let elements = DicomElementIterator::new_with_dictionary(file, dict.clone(), ts, cs)?;
 
         let entries: Result<BTreeMap<_, _>> = elements.map_results(|e| (e.tag(), e)).collect();
 
@@ -146,14 +163,14 @@ where
     }
 
     /// Insert a data element to the object.
-    pub fn put(&mut self, elt: DataElement) {
+    pub fn put(&mut self, elt: InMemElement<D>) {
         self.entries.insert(elt.tag(), elt);
     }
 }
 
 impl<'a, D> IntoIterator for &'a InMemDicomObject<D> {
-    type Item = &'a DataElement;
-    type IntoIter = ::std::collections::btree_map::Values<'a, Tag, DataElement>;
+    type Item = &'a InMemElement<D>;
+    type IntoIter = ::std::collections::btree_map::Values<'a, Tag, InMemElement<D>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.entries.values()
@@ -161,8 +178,8 @@ impl<'a, D> IntoIterator for &'a InMemDicomObject<D> {
 }
 
 impl<D> IntoIterator for InMemDicomObject<D> {
-    type Item = DataElement;
-    type IntoIter = Iter;
+    type Item = InMemElement<D>;
+    type IntoIter = Iter<D>;
 
     fn into_iter(self) -> Self::IntoIter {
         Iter { inner: self.entries.into_iter() }
@@ -170,13 +187,13 @@ impl<D> IntoIterator for InMemDicomObject<D> {
 }
 
 #[derive(Debug)]
-pub struct Iter {
-    inner: ::std::collections::btree_map::IntoIter<Tag, DataElement>,
+pub struct Iter<D> {
+    inner: ::std::collections::btree_map::IntoIter<Tag, InMemElement<D>>,
 }
 
-impl Iterator for Iter
+impl<D> Iterator for Iter<D>
 {
-    type Item = DataElement;
+    type Item = InMemElement<D>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(|x| x.1)
@@ -185,8 +202,6 @@ impl Iterator for Iter
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.inner.size_hint()
     }
-
-    
 }
 
 #[cfg(test)]
@@ -195,7 +210,7 @@ mod tests {
     use super::*;
     use object::DicomObject;
     use data::VR;
-    use data::value::DicomValue;
+    use data::value::{Value, PrimitiveValue};
 
     #[test]
     fn inmem_object_write() {
@@ -214,7 +229,7 @@ mod tests {
         let another_patient_name = DataElement::new(
             Tag(0x0010, 0x0010),
             VR::PN,
-            DicomValue::Str("Doe^John".to_string()),
+            PrimitiveValue::Str("Doe^John".to_string()).into(),
         );
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
@@ -227,7 +242,7 @@ mod tests {
         let another_patient_name = DataElement::new(
             Tag(0x0010, 0x0010),
             VR::PN,
-            DicomValue::Str("Doe^John".to_string()),
+            PrimitiveValue::Str("Doe^John".to_string()).into(),
         );
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
