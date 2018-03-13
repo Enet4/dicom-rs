@@ -18,5 +18,3 @@ fn dump<P: AsRef<Path>>(path: P) {
     //    dump_element(&elem);
     //}
 }
-
-fn dump_element(elem: &DicomElement) {}
