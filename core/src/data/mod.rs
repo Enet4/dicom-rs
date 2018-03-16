@@ -40,21 +40,6 @@ pub trait Header {
     }
 }
 
-/// A possible data element type.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum DataElementType {
-    /// Simple data.
-    Data,
-    /// The start of a sequence.
-    Sequence,
-    /// An item.
-    Item,
-    /// An item delimiter.
-    ItemDelimiter,
-    /// A sequence delimiter.
-    SequenceDelimiter,
-}
-
 /// A data type that represents and owns a DICOM data element.
 #[derive(Debug, PartialEq, Clone)]
 pub struct DataElement<I> {
