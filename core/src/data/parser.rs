@@ -7,6 +7,7 @@ use std::fmt::Debug;
 use std::io::Read;
 use std::marker::PhantomData;
 use std::iter::Iterator;
+use std::ops::{Add, Mul, Sub};
 use error::{Error, InvalidValueReadError, Result, TextEncodingError};
 use data::{DataElementHeader, Header, SequenceItemHeader, Tag, VR};
 use data::decode::{BasicDecode, Decode};
@@ -46,7 +47,11 @@ where
     /// Unlike `read_value`, this method will preserve the DICOM value's
     /// original format: numbers saved as text, as well as dates and times,
     /// are read as strings.
-    fn read_value_preserved(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue>;
+    fn read_value_preserved(
+        &self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue>;
 
     /// Define the specific character set of subsequent text elements.
     fn set_character_set(&mut self, charset: SpecificCharacterSet) -> Result<()>;
@@ -90,9 +95,11 @@ where
 }
 
 macro_rules! require_known_length {
-    ($header: ident) => (if $header.len() == 0xFFFFFFFF {
-        return Err(Error::from(InvalidValueReadError::UnresolvedValueLength))
-    })
+    ($header: ident) => {
+        if $header.len() == 0xFFFFFFFF {
+            return Err(Error::from(InvalidValueReadError::UnresolvedValueLength));
+        }
+    };
 }
 
 impl DynamicDicomParser {
@@ -434,7 +441,11 @@ where
         }
     }
 
-    fn read_value_preserved(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_preserved(
+        &self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         if header.len() == 0 {
             return Ok(PrimitiveValue::Empty);
         }
@@ -482,13 +493,13 @@ fn parse_date(buf: &[u8]) -> Result<(NaiveDate, usize)> {
     match buf.len() {
         0 | 1 | 2 | 3 | 5 | 7 => Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
         4 => {
-            let year = read_number_naive(buf);
+            let year = read_number(buf)?;
             let date: Result<_> = NaiveDate::from_ymd_opt(year, 0, 0)
                 .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
             Ok((date?, 4))
         }
         6 => {
-            let year = read_number_naive(&buf[0..4]);
+            let year = read_number(&buf[0..4])?;
             let month = (buf[4] as i32 - Z) * 10 + buf[5] as i32 - Z;
             let date: Result<_> = NaiveDate::from_ymd_opt(year, month as u32, 0)
                 .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
@@ -496,7 +507,7 @@ fn parse_date(buf: &[u8]) -> Result<(NaiveDate, usize)> {
         }
         len => {
             debug_assert!(len >= 8);
-            let year = read_number_naive(&buf[0..4]);
+            let year = read_number(&buf[0..4])?;
             let month = (buf[4] as i32 - Z) * 10 + buf[5] as i32 - Z;
             let day = (buf[6] as i32 - Z) * 10 + buf[7] as i32 - Z;
             let date: Result<_> = NaiveDate::from_ymd_opt(year, month as u32, day as u32)
@@ -510,9 +521,18 @@ fn parse_time(buf: &[u8]) -> Result<(NaiveTime, usize)> {
     parse_time_impl(buf, false)
 }
 
-fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, usize)> {
+fn parse_time_impl(mut buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, usize)> {
     const Z: i32 = b'0' as i32;
     // HH(MM(SS(.F{1,6})?)?)?
+
+    let mut suffix_offset = 0;
+    if !for_datetime {
+        // perform a single trailing space trim
+        if let Some(b' ') = buf.last().map(|x| *x) {
+            buf = &buf[..buf.len() - 1];
+            suffix_offset = 1;
+        }
+    }
 
     match buf.len() {
         0 | 1 | 3 | 5 | 7 => Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
@@ -520,14 +540,14 @@ fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, usize)>
             let hour = (buf[0] as i32 - Z) * 10 + buf[1] as i32 - Z;
             let time: Result<_> = NaiveTime::from_hms_opt(hour as u32, 0, 0)
                 .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
-            Ok((time?, 2))
+            Ok((time?, 2 + suffix_offset))
         }
         4 => {
             let hour = (buf[0] as i32 - Z) * 10 + buf[1] as i32 - Z;
             let minute = (buf[2] as i32 - Z) * 10 + buf[3] as i32 - Z;
             let time: Result<_> = NaiveTime::from_hms_opt(hour as u32, minute as u32, 0)
                 .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
-            Ok((time?, 4))
+            Ok((time?, 4 + suffix_offset))
         }
         6 => {
             let hour = (buf[0] as i32 - Z) * 10 + buf[1] as i32 - Z;
@@ -536,7 +556,7 @@ fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, usize)>
             let time: Result<_> =
                 NaiveTime::from_hms_opt(hour as u32, minute as u32, second as u32)
                     .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
-            Ok((time?, 6))
+            Ok((time?, 6 + suffix_offset))
         }
         _ => {
             let hour = (buf[0] as i32 - Z) * 10 + buf[1] as i32 - Z;
@@ -556,7 +576,7 @@ fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, usize)>
                     n = i;
                 }
             }
-            let mut fract = read_number_naive(&buf[0..n]);
+            let mut fract: u32 = read_number(&buf[0..n])?;
             let mut acc = n;
             while acc < 6 {
                 fract *= 10;
@@ -566,22 +586,89 @@ fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, usize)>
                 hour as u32,
                 minute as u32,
                 second as u32,
-                fract as u32,
+                fract,
             ).ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
 
-            Ok((time?, 7 + n))
+            Ok((time?, 7 + n + suffix_offset))
         }
     }
 }
 
-#[inline]
-fn read_number_naive(buf: &[u8]) -> i32 {
-    (&buf[1..])
-        .into_iter()
-        .fold(buf[0] as i32 - Z, |acc, v| acc * 10 + *v as i32 - Z)
+trait Ten {
+    fn ten() -> Self;
 }
 
-fn parse_datetime(buf: &[u8], dt_utc_offset: &FixedOffset) -> Result<DateTime<FixedOffset>> {
+macro_rules! impl_integral_ten {
+    ($t: ty) => {
+        impl Ten for $t {
+            fn ten() -> Self {
+                10
+            }
+        }
+    };
+}
+
+macro_rules! impl_floating_ten {
+    ($t: ty) => {
+        impl Ten for $t {
+            fn ten() -> Self {
+                10.
+            }
+        }
+    };
+}
+
+impl_integral_ten!(i16);
+impl_integral_ten!(u16);
+impl_integral_ten!(i32);
+impl_integral_ten!(u32);
+impl_integral_ten!(i64);
+impl_integral_ten!(u64);
+impl_integral_ten!(isize);
+impl_integral_ten!(usize);
+impl_floating_ten!(f32);
+impl_floating_ten!(f64);
+
+fn read_number<T>(text: &[u8]) -> Result<T>
+where
+    T: Ten,
+    T: From<u8>,
+    T: Add<T, Output = T>,
+    T: Mul<T, Output = T>,
+    T: Sub<T, Output = T>,
+{
+    if text.len() == 0 || text.len() > 9 {
+        return Err(InvalidValueReadError::InvalidFormat.into());
+    }
+    if text.into_iter().any(|b| *b < b'0' || *b > b'9') {
+        return Err(InvalidValueReadError::InvalidFormat.into());
+    }
+
+    Ok(read_number_unchecked(text))
+}
+
+#[inline]
+fn read_number_unchecked<T>(buf: &[u8]) -> T
+where
+    T: Ten,
+    T: From<u8>,
+    T: Add<T, Output = T>,
+    T: Mul<T, Output = T>,
+{
+    debug_assert!(buf.len() > 0);
+    debug_assert!(buf.len() < 10);
+    (&buf[1..])
+        .into_iter()
+        .fold((buf[0] - b'0').into(), |acc, v| {
+            acc * T::ten() + (*v - b'0').into()
+        })
+}
+
+fn parse_datetime(mut buf: &[u8], dt_utc_offset: &FixedOffset) -> Result<DateTime<FixedOffset>> {
+    // perform a single trailing space trim
+    if let Some(b' ') = buf.last().map(|x| *x) {
+        buf = &buf[..buf.len() - 1];
+    }
     let (date, bytes_read) = parse_date(buf)?;
     if buf.len() <= 8 {
         return Ok(FixedOffset::east(0).from_utc_date(&date).and_hms(0, 0, 0));
@@ -619,8 +706,8 @@ fn parse_datetime(buf: &[u8], dt_utc_offset: &FixedOffset) -> Result<DateTime<Fi
                 2 => return Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
                 _ => {
                     let (h_buf, m_buf) = buf.split_at(2);
-                    let tz_h = read_number_naive(h_buf);
-                    let tz_m = read_number_naive(&m_buf[0..usize::min(2, m_buf.len())]);
+                    let tz_h = read_number(h_buf)?;
+                    let tz_m = read_number(&m_buf[0..usize::min(2, m_buf.len())])?;
                     (tz_h, tz_m)
                 }
             };
@@ -663,8 +750,11 @@ mod tests {
             (NaiveDate::from_ymd(2018, 1, 1), 8)
         );
         assert!(parse_date(b"").is_err());
+        assert!(parse_date(b"        ").is_err());
+        assert!(parse_date(b"--------").is_err());
         assert!(parse_date(&[0x00_u8; 8]).is_err());
         assert!(parse_date(&[0xFF_u8; 8]).is_err());
+        assert!(parse_date(&[b'0'; 8]).is_err());
         assert!(parse_date(b"19991313").is_err());
         assert!(parse_date(b"20180229").is_err());
         assert!(parse_date(b"nothing!").is_err());
@@ -694,12 +784,20 @@ mod tests {
             (NaiveTime::from_hms_micro(7, 55, 1, 580_000), 9)
         );
         assert_eq!(
+            parse_time(b"075501.58 ").unwrap(),
+            (NaiveTime::from_hms_micro(7, 55, 1, 580_000), 10)
+        );
+        assert_eq!(
             parse_time(b"101010.204").unwrap(),
             (NaiveTime::from_hms_micro(10, 10, 10, 204_000), 10)
         );
         assert_eq!(
             parse_time(b"075501.123456").unwrap(),
             (NaiveTime::from_hms_micro(7, 55, 1, 123_456), 13)
+        );
+        assert_eq!(
+            parse_time(b"075501.123456 ").unwrap(),
+            (NaiveTime::from_hms_micro(7, 55, 1, 123_456), 14)
         );
         assert_eq!(
             parse_time(b"235959.99999").unwrap(),
@@ -710,14 +808,22 @@ mod tests {
             (NaiveTime::from_hms_micro(23, 59, 59, 999_999), 13)
         );
         assert_eq!(
+            parse_time(b"235959.999999 ").unwrap(),
+            (NaiveTime::from_hms_micro(23, 59, 59, 999_999), 14)
+        );
+        assert_eq!(
             parse_time(b"075501.123456...").unwrap(),
             (NaiveTime::from_hms_micro(7, 55, 1, 123_456), 13)
         );
         assert!(parse_date(b"").is_err());
-        assert!(parse_date(&[0x00_u8; 8]).is_err());
-        assert!(parse_date(&[0xFF_u8; 8]).is_err());
+        assert!(parse_date(&[0x00_u8; 6]).is_err());
+        assert!(parse_date(&[0xFF_u8; 6]).is_err());
+        assert!(parse_date(b"      ").is_err());
+        assert!(parse_date(b"------").is_err());
+        assert!(parse_date(b"------.----").is_err());
         assert!(parse_date(b"235959.9999").is_err());
         assert!(parse_date(b"075501.").is_err());
+        assert!(parse_date(b"075501.----").is_err());
         assert!(parse_date(b"nope").is_err());
         assert!(parse_date(b"235800.0a").is_err());
     }
@@ -739,7 +845,24 @@ mod tests {
                 .ymd(2017, 11, 30)
                 .and_hms_micro(10, 10, 10, 204_000)
         );
+        assert_eq!(
+            parse_datetime(b"20180314000000.25 ", &default_offset).unwrap(),
+            FixedOffset::east(0)
+                .ymd(2018, 03, 14)
+                .and_hms_micro(0, 0, 0, 250_000)
+        );
         let dt = parse_datetime(b"20171130101010.204+0100", &default_offset).unwrap();
+        assert_eq!(
+            dt,
+            FixedOffset::east(3600)
+                .ymd(2017, 11, 30)
+                .and_hms_micro(10, 10, 10, 204_000)
+        );
+        assert_eq!(
+            format!("{:?}", dt),
+            "2017-11-30T10:10:10.204+01:00".to_string()
+        );
+        let dt = parse_datetime(b"20171130101010.204+0100 ", &default_offset).unwrap();
         assert_eq!(
             dt,
             FixedOffset::east(3600)
@@ -776,10 +899,15 @@ mod tests {
         assert!(parse_datetime(b"", &default_offset).is_err());
         assert!(parse_datetime(&[0x00_u8; 8], &default_offset).is_err());
         assert!(parse_datetime(&[0xFF_u8; 8], &default_offset).is_err());
+        assert!(parse_datetime(&[b'0'; 8], &default_offset).is_err());
+        assert!(parse_datetime(&[b' '; 8], &default_offset).is_err());
         assert!(parse_datetime(b"nope", &default_offset).is_err());
         assert!(parse_datetime(b"2015dec", &default_offset).is_err());
         assert!(parse_datetime(b"20151231162945.", &default_offset).is_err());
         assert!(parse_datetime(b"20151130161445+", &default_offset).is_err());
+        assert!(parse_datetime(b"20151130161445+----", &default_offset).is_err());
+        assert!(parse_datetime(b"20151130161445. ", &default_offset).is_err());
+        assert!(parse_datetime(b"20151130161445. +0000", &default_offset).is_err());
         assert!(parse_datetime(b"20100423164000.001+3", &default_offset).is_err());
         assert!(parse_datetime(b"200809112945*1000", &default_offset).is_err());
     }
