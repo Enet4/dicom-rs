@@ -11,9 +11,9 @@ name = "dictionary_builder"
 path = "main.rs"
 
 [dependencies]
-clap = "^2.18.0"
+clap = "2.18.0"
 futures = "0.1.16"
-hyper = "^0.11.6"
+hyper = "0.11.6"
 quick-xml = "0.9.4"
-regex = "^0.1.77"
+regex = "0.2.10"
 tokio-core = "0.1.10"

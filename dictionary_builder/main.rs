@@ -366,24 +366,24 @@ where
             continue;
         }
         let cap = cap.unwrap();
-        let group = cap.at(1).expect("capture group 1");
-        let elem = cap.at(2).expect("capture group 2");
+        let group = cap.get(1).expect("capture group 1").as_str();
+        let elem = cap.get(2).expect("capture group 2").as_str();
 
-        let mut vr = vr.unwrap_or_else(|| String::from(""));
+        let mut vr = vr.unwrap_or_else(|| "".into());
         if vr == "See Note" {
-            vr = String::from("UN");
+            vr = "UN".to_string();
         }
 
         let (vr1, vr2) = vr.split_at(2);
 
-        let mut second_vr = String::from(vr2);
+        let mut second_vr = vr2.to_string();
         if vr2 != "" {
-            second_vr = String::from("/* or ") + vr2 + " */";
+            second_vr = format!("/* or {} */", vr2);
         }
 
         let mut obs = obs.unwrap_or_else(|| String::new());
         if obs != "" {
-            obs = String::from(" // ") + obs.as_str();
+            obs = format!(" // {}", obs.as_str());
         }
 
         writeln!(
