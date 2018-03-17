@@ -89,7 +89,7 @@ fn main() {
                 let xml_entries = XmlEntryIterator::new(&*body).map(|item| item.unwrap());
                 println!("Writing to file ...");
                 match format {
-                    "rs" => to_code_file(dst, xml_entries),
+                    "rs" => to_code_file(dst, xml_entries, true),
                     "json" => to_json_file(dst, xml_entries),
                     _ => unreachable!(),
                 }.expect("Failed to write file");
@@ -104,7 +104,7 @@ fn main() {
         let xml_entries = XmlEntryIterator::new(file).map(|item| item.unwrap());
 
         match format {
-            "rs" => to_code_file(dst, xml_entries),
+            "rs" => to_code_file(dst, xml_entries, true),
             "json" => to_json_file(dst, xml_entries),
             _ => unreachable!(),
         }.expect("Failed to write file");
@@ -320,7 +320,7 @@ impl<R: BufRead> Iterator for XmlEntryIterator<R> {
     }
 }
 
-fn to_code_file<P: AsRef<Path>, I>(dest_path: P, entries: I) -> io::Result<()>
+fn to_code_file<P: AsRef<Path>, I>(dest_path: P, entries: I, include_retired: bool) -> io::Result<()>
 where
     I: IntoIterator<Item = Entry>,
 {
@@ -332,7 +332,9 @@ where
     f.write_all(
         b"//! Automatically generated. DO NOT EDIT!\n\n\
     use dictionary::DictionaryEntryRef;\n\
-    use data::{Tag, VR};\n\n\
+    use data::Tag;\n\
+    use data::VR::{AE, AS, AT, CS, DA, DS, DT, FL, FD, IS, LO, LT, OB, OD, OF, OL};\n\
+    use data::VR::{OW, PN, SH, SL, SQ, SS, ST, TM, UC, UI, UL, UN, UR, US, UT};\n\n\
     type E = DictionaryEntryRef<'static>;\n\n\
     pub const ENTRIES: &'static [E] = &[\n",
     )?;
@@ -355,7 +357,7 @@ where
         }
 
         if let Some(ref s) = obs {
-            if s == "RET" {
+            if s == "RET" && !include_retired {
                 // don't include retired attributes
                 continue;
             }
@@ -388,7 +390,7 @@ where
 
         writeln!(
             f,
-            "    E {{ tag: Tag(0x{}, 0x{}), alias: \"{}\", vr: VR::{}{} }},{}",
+            "    E {{ tag: Tag(0x{}, 0x{}), alias: \"{}\", vr: {}{} }},{}",
             group,
             elem,
             alias.unwrap(),
