@@ -29,16 +29,17 @@ pub mod pixeldata;
 /// This is a high-level abstraction where an object is accessed and
 /// manipulated as dictionary of entries indexed by tags, which in
 /// turn may contain a DICOM object.
-///
+/// 
+/// This trait interface is experimental and prone to sudden changes.
 pub trait DicomObject {
     type Element: Header; // TODO change constraint
     type Sequence; // TODO add constraint
 
     /// Retrieve a particular DICOM element by its tag.
-    fn get_element(&self, tag: Tag) -> Result<Self::Element>;
+    fn element(&self, tag: Tag) -> Result<Self::Element>;
 
     /// Retrieve a particular DICOM element by its name.
-    fn get_element_by_name(&self, name: &str) -> Result<Self::Element>;
+    fn element_by_name(&self, name: &str) -> Result<Self::Element>;
 
     // TODO moar
 }

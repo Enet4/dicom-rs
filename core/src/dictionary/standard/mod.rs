@@ -6,8 +6,6 @@
 //!
 //! When not using private tags, this dictionary should suffice.
 
-extern crate lazy_static;
-
 mod entries;
 
 use std::collections::HashMap;
@@ -19,82 +17,74 @@ use data::VR;
 use self::entries::ENTRIES;
 
 lazy_static! {
-    static ref DICT: StandardDataDictionary = {
+    static ref DICT: StandardDictionaryRegistry = {
         init_dictionary()
     };
 }
 
-/// Retrieve a singleton instance of the standard dictionary.
-pub fn instance() -> &'static StandardDataDictionary {
+/// Retrieve a singleton instance of the standard dictionary registry.
+pub fn registry() -> &'static StandardDictionaryRegistry {
     &DICT
 }
 
-/// The data struct for the standard dictionary.
+/// The data struct containing the standard dictionary.
 #[derive(Debug)]
-pub struct StandardDataDictionary {
-    name_to_pair: HashMap<&'static str, &'static DictionaryEntryRef<'static>>,
-    pair_to_name: HashMap<Tag, &'static DictionaryEntryRef<'static>>,
+pub struct StandardDictionaryRegistry {
+    by_name: HashMap<&'static str, &'static DictionaryEntryRef<'static>>,
+    by_tag: HashMap<Tag, &'static DictionaryEntryRef<'static>>,
 }
 
-impl StandardDataDictionary {
-    fn new() -> StandardDataDictionary {
-        StandardDataDictionary {
-            name_to_pair: HashMap::new(),
-            pair_to_name: HashMap::new(),
+impl StandardDictionaryRegistry {
+    fn new() -> StandardDictionaryRegistry {
+        StandardDictionaryRegistry {
+            by_name: HashMap::new(),
+            by_tag: HashMap::new(),
         }
     }
 
     fn index(&mut self, entry: &'static DictionaryEntryRef<'static>) -> &mut Self {
-        self.name_to_pair.insert(entry.alias, entry);
-        self.pair_to_name.insert(entry.tag, entry);
+        self.by_name.insert(entry.alias, entry);
+        self.by_tag.insert(entry.tag, entry);
         self
     }
 }
 
+/// A data dictionary which consults the library's global DICOM attribute registry.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct StandardDataDictionary;
+
 impl DataDictionary for StandardDataDictionary {
     type Entry = DictionaryEntryRef<'static>;
 
-    fn get_by_name(&self, name: &str) -> Option<&Self::Entry> {
-        self.name_to_pair.get(name).map(|r| *r)
+    fn by_name(&self, name: &str) -> Option<&Self::Entry> {
+        registry().by_name.get(name).map(|r| *r)
     }
 
-    fn get_by_tag(&self, tag: Tag) -> Option<&Self::Entry> {
-        self.pair_to_name.get(&tag).map(|r| *r)
+    fn by_tag(&self, tag: Tag) -> Option<&Self::Entry> {
+        registry().by_tag.get(&tag).map(|r| *r)
     }
 }
 
 impl<'a> DataDictionary for &'a StandardDataDictionary {
     type Entry = DictionaryEntryRef<'static>;
 
-    fn get_by_name(&self, name: &str) -> Option<&'static DictionaryEntryRef<'static>> {
-        (*self).name_to_pair.get(name).map(|r| *r)
+    fn by_name(&self, name: &str) -> Option<&'static DictionaryEntryRef<'static>> {
+        registry().by_name.get(name).map(|r| *r)
     }
 
-    fn get_by_tag(&self, tag: Tag) -> Option<&'static DictionaryEntryRef<'static>> {
-        (*self).pair_to_name.get(&tag).map(|r| *r)
-    }
-}
-
-impl DataDictionary for Box<StandardDataDictionary> {
-    type Entry = DictionaryEntryRef<'static>;
-
-    fn get_by_name(&self, name: &str) -> Option<&'static DictionaryEntryRef<'static>> {
-        (*self).name_to_pair.get(name).map(|r| *r)
-    }
-
-    fn get_by_tag(&self, tag: Tag) -> Option<&'static DictionaryEntryRef<'static>> {
-        (*self).pair_to_name.get(&tag).map(|r| *r)
+    fn by_tag(&self, tag: Tag) -> Option<&'static DictionaryEntryRef<'static>> {
+        registry().by_tag.get(&tag).map(|r| *r)
     }
 }
 
 impl Display for StandardDataDictionary {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
-        f.write_str("Standard Attribute Dictionary")
+        f.write_str("Standard DICOM Data Dictionary")
     }
 }
 
-fn init_dictionary() -> StandardDataDictionary {
-    let mut d = StandardDataDictionary::new();
+fn init_dictionary() -> StandardDictionaryRegistry {
+    let mut d = StandardDictionaryRegistry::new();
     for entry in ENTRIES {
         d.index(&entry);
     }

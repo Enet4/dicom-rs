@@ -3,7 +3,7 @@
 use byteorder::{ByteOrder, LittleEndian};
 use std::io::{Read, Write};
 use std::marker::PhantomData;
-use dictionary::{standard_dictionary, DataDictionary, DictionaryEntry};
+use dictionary::{DataDictionary, DictionaryEntry};
 use dictionary::standard::StandardDataDictionary;
 use data::VR;
 use data::Tag;
@@ -18,7 +18,7 @@ use data::{DataElementHeader, Header, SequenceItemHeader};
 
 /// An ImplicitVRLittleEndianDecoder which uses the standard data dictionary.
 pub type StandardImplicitVRLittleEndianDecoder<S> =
-    ImplicitVRLittleEndianDecoder<S, &'static StandardDataDictionary>;
+    ImplicitVRLittleEndianDecoder<S, StandardDataDictionary>;
 
 /// A data element decoder for the Explicit VR Little Endian transfer syntax.
 /// This type contains a reference to an attribute dictionary for resolving
@@ -39,20 +39,20 @@ impl<S: ?Sized, D> fmt::Debug for ImplicitVRLittleEndianDecoder<S, D> {
     }
 }
 
-impl<S: ?Sized> ImplicitVRLittleEndianDecoder<S, &'static StandardDataDictionary> {
+impl<S: ?Sized> ImplicitVRLittleEndianDecoder<S, StandardDataDictionary> {
     /// Retrieve this decoder using the standard data dictionary.
-    pub fn with_default_dict() -> Self {
+    pub fn with_std_dict() -> Self {
         ImplicitVRLittleEndianDecoder {
-            dict: standard_dictionary(),
+            dict: StandardDataDictionary,
             basic: LittleEndianBasicDecoder,
             phantom: PhantomData,
         }
     }
 }
 
-impl<S: ?Sized> Default for ImplicitVRLittleEndianDecoder<S, &'static StandardDataDictionary> {
+impl<S: ?Sized> Default for ImplicitVRLittleEndianDecoder<S, StandardDataDictionary> {
     fn default() -> Self {
-        ImplicitVRLittleEndianDecoder::with_default_dict()
+        ImplicitVRLittleEndianDecoder::with_std_dict()
     }
 }
 
@@ -85,8 +85,13 @@ where
         let mut buf = [0u8; 4];
         source.read_exact(&mut buf)?;
         let len = LittleEndian::read_u32(&buf);
+        // !!!
+        // VR resolution is done with the help of the data dictionary.
+        // However, the value's representation isn't always what's stated
+        // in the dictionary (e.g. PixelData can be either OB or OW).
+        // These edge cases ought to be addressed eventually.
         let vr = self.dict
-            .get_by_tag(tag)
+            .by_tag(tag)
             .map(|entry| entry.vr())
             .unwrap_or(VR::UN);
         Ok(DataElementHeader::new(tag, vr, len))

@@ -64,7 +64,7 @@ where
     type Element = Ref<'s, LazyDataElement>;
     type Sequence = Ref<'s, LazyDataSequence<S, DynamicDicomParser, D>>;
 
-    fn get_element(&self, tag: Tag) -> Result<Self::Element> {
+    fn element(&self, tag: Tag) -> Result<Self::Element> {
         {
             let borrow = self.entries.borrow();
             if !borrow.contains_key(&tag) {
@@ -87,9 +87,9 @@ where
         }))
     }
 
-    fn get_element_by_name(&self, name: &str) -> Result<Self::Element> {
+    fn element_by_name(&self, name: &str) -> Result<Self::Element> {
         let tag = self.lookup_name(name)?;
-        self.get_element(tag)
+        self.element(tag)
     }
 }
 
@@ -100,7 +100,7 @@ where
 {
     fn lookup_name(&self, name: &str) -> Result<Tag> {
         self.dict
-            .get_by_name(name)
+            .by_name(name)
             .ok_or(Error::NoSuchAttributeName)
             .map(|e| e.tag())
     }

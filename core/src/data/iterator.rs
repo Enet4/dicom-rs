@@ -6,11 +6,11 @@ use std::ops::DerefMut;
 use std::marker::PhantomData;
 use std::iter::Iterator;
 use transfer_syntax::TransferSyntax;
-use dictionary::{standard_dictionary, DataDictionary, DictionaryEntry, StandardDataDictionary};
+use dictionary::{DataDictionary, StandardDataDictionary};
 use data::{DataElement, DataElementHeader, Header, SequenceItemHeader};
 use data::parser::{DicomParser, DynamicDicomParser, Parse};
 use data::text::SpecificCharacterSet;
-use data::value::{Value, PrimitiveValue};
+use data::value::PrimitiveValue;
 use util::{ReadSeek, SeekInterval};
 use error::{Error, Result};
 use object::mem::InMemDicomObject;
@@ -37,7 +37,7 @@ where
 {
 }
 
-impl<'s, S: 's> DicomElementIterator<S, DynamicDicomParser, &'static StandardDataDictionary> {
+impl<'s, S: 's> DicomElementIterator<S, DynamicDicomParser, StandardDataDictionary> {
     /// Creates a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
     pub fn new_with(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self> {
@@ -48,7 +48,7 @@ impl<'s, S: 's> DicomElementIterator<S, DynamicDicomParser, &'static StandardDat
         Ok(DicomElementIterator {
             source: source,
             parser: parser,
-            dict: standard_dictionary(),
+            dict: StandardDataDictionary,
             depth: 0,
             in_sequence: false,
             hard_break: false,
@@ -59,7 +59,12 @@ impl<'s, S: 's> DicomElementIterator<S, DynamicDicomParser, &'static StandardDat
 impl<'s, S: 's, D> DicomElementIterator<S, DynamicDicomParser, D> {
     /// Creates a new iterator with the given random access source and data dictionary,
     /// while considering the given transfer syntax and specific character set.
-    pub fn new_with_dictionary(source: S, dict: D, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self> {
+    pub fn new_with_dictionary(
+        source: S,
+        dict: D,
+        ts: &TransferSyntax,
+        cs: SpecificCharacterSet,
+    ) -> Result<Self> {
         let parser = DynamicDicomParser::new_with(ts, cs)?;
 
         is_parse(&parser);
@@ -75,7 +80,7 @@ impl<'s, S: 's, D> DicomElementIterator<S, DynamicDicomParser, D> {
     }
 }
 
-impl<S, P> DicomElementIterator<S, P, &'static StandardDataDictionary>
+impl<S, P> DicomElementIterator<S, P, StandardDataDictionary>
 where
     S: Read,
     P: Parse<Read>,
@@ -85,7 +90,7 @@ where
         DicomElementIterator {
             source: source,
             parser: parser,
-            dict: standard_dictionary(),
+            dict: StandardDataDictionary,
             depth: 0,
             in_sequence: false,
             hard_break: false,
@@ -105,7 +110,7 @@ where
 
     fn collect_item<T>(&mut self, header: &SequenceItemHeader) -> Result<T>
     where
-        T: FromIterator<Result<InMemElement<D>>>,
+        T: FromIterator<InMemElement<D>>,
     {
         unimplemented!()
     }

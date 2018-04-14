@@ -9,13 +9,13 @@
 //! The following code does not depict the current functionalities, and the API
 //! is subject to change.
 //!
-//! ```compile
+//! ```no_run
 //! use dicom_core::from_file;
 //! # use dicom_core::Result;
 //! # fn foo() -> Result<()> {
 //! let obj = from_file("0001.dcm")?;
-//! let patient_name = obj.get_element_by_name("PatientName")?.as_str()?;
-//! let modality = obj.get_element_by_name("Modality")?.as_str()?;
+//! let patient_name = obj.element_by_name("PatientName")?.as_str()?;
+//! let modality = obj.element_by_name("Modality")?.as_str()?;
 //! let pixel_data = obj.get_pixel_data()?;
 //! # Ok(())
 //! # }
@@ -50,6 +50,6 @@ pub use object::mem::InMemDicomObject;
 
 mod util;
 
-type DefaultDicomObject = InMemDicomObject<&'static StandardDataDictionary>;
+type DefaultDicomObject = InMemDicomObject<StandardDataDictionary>;
 
-pub use file::{from_file, from_stream, to_file};
+pub use file::{open_file, from_stream, to_file};

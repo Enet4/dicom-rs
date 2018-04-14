@@ -11,11 +11,11 @@ where
     DefaultDicomObject::from_stream(file)
 }
 
-pub fn from_file<P>(path: P) -> Result<DefaultDicomObject> 
+pub fn open_file<P>(path: P) -> Result<DefaultDicomObject> 
 where
     P: AsRef<Path>
 {
-    DefaultDicomObject::from_file(path)
+    DefaultDicomObject::open_file(path)
 }
 
 pub fn to_file<F: Write, D: DicomObject>(obj: &D, to: F) -> Result<()> {

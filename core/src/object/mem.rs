@@ -13,7 +13,7 @@ use data::{DataElement, Header, Tag};
 use data::iterator::DicomElementIterator;
 use data::text::SpecificCharacterSet;
 use data::value::{DicomValueType, ValueType};
-use dictionary::{standard_dictionary, DataDictionary, DictionaryEntry, StandardDataDictionary};
+use dictionary::{DataDictionary, DictionaryEntry, StandardDataDictionary};
 use error::{Error, Result};
 
 /** A DICOM sequence that is fully contained in memory.
@@ -21,7 +21,21 @@ use error::{Error, Result};
 #[derive(Debug, Clone, PartialEq)]
 pub struct InMemSequence<D> {
     tag: Tag,
+    len: u32,
     objects: Vec<InMemDicomObject<D>>,
+}
+
+impl<D> InMemSequence<D> {
+    
+    fn from_iter<I>(tag: Tag, len: u32, objects: I) -> Result<Self>
+    where
+        I: IntoIterator<Item=D>,
+    {
+        let mut objects = objects.into_iter().take_while(|e| {
+            false
+        });
+        unimplemented!()
+    }
 }
 
 type InMemElement<D> = DataElement<InMemDicomObject<D>>;
@@ -58,28 +72,28 @@ where
     type Element = &'s InMemElement<D>;
     type Sequence = InMemSequence<D>;
 
-    fn get_element(&self, tag: Tag) -> Result<Self::Element> {
+    fn element(&self, tag: Tag) -> Result<Self::Element> {
         self.entries.get(&tag).ok_or(Error::NoSuchDataElement)
     }
 
-    fn get_element_by_name(&self, name: &str) -> Result<Self::Element> {
+    fn element_by_name(&self, name: &str) -> Result<Self::Element> {
         let tag = self.lookup_name(name)?;
-        self.get_element(tag)
+        self.element(tag)
     }
 }
 
-impl InMemDicomObject<&'static StandardDataDictionary> {
+impl InMemDicomObject<StandardDataDictionary> {
     /// Create a new empty DICOM object.
     pub fn create_empty() -> Self {
         InMemDicomObject {
             entries: BTreeMap::new(),
-            dict: standard_dictionary(),
+            dict: StandardDataDictionary,
         }
     }
 
     /// Create a DICOM object by reading from a file.
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        Self::from_file_with_dict(path, standard_dictionary())
+    pub fn open_file<P: AsRef<Path>>(path: P) -> Result<Self> {
+        Self::open_file_with_dict(path, StandardDataDictionary)
     }
 
     /// Create a DICOM object by reading from a byte sources.
@@ -87,7 +101,7 @@ impl InMemDicomObject<&'static StandardDataDictionary> {
     where
         S: Read
     {
-        Self::from_stream_with_dict(src, standard_dictionary())
+        Self::from_stream_with_dict(src, StandardDataDictionary)
     }
 }
 
@@ -105,11 +119,18 @@ where
     }
 
     /// Create a DICOM object by reading from a file.
-    pub fn from_file_with_dict<P: AsRef<Path>>(path: P, dict: D) -> Result<Self>
+    pub fn open_file_with_dict<P: AsRef<Path>>(path: P, dict: D) -> Result<Self>
     where
         D: Clone,
     {
         let mut file = BufReader::new(File::open(path)?);
+
+        // skip preamble
+        {
+            let mut buf = [0u8; 128];
+            // skip the preamble
+            file.read_exact(&mut buf)?;
+        }
 
         // read metadata header
         let meta = DicomMetaTable::from_readseek_stream(&mut file)?;
@@ -157,7 +178,7 @@ where
 
     fn lookup_name(&self, name: &str) -> Result<Tag> {
         self.dict
-            .get_by_name(name)
+            .by_name(name)
             .ok_or(Error::NoSuchAttributeName)
             .map(|e| e.tag())
     }
