@@ -460,9 +460,9 @@ impl fmt::Display for VR {
     }
 }
 
-/// Idiomatic alias for a tag's group number (always an unsigned 16-bit integer)
+/// Idiomatic alias for a tag's group number.
 pub type GroupNumber = u16;
-/// Idiomatic alias for a tag's element number (always an unsigned 16-bit integer)
+/// Idiomatic alias for a tag's element number.
 pub type ElementNumber = u16;
 
 /// The data type for DICOM data element tags.
