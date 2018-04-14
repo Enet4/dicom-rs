@@ -92,16 +92,6 @@ impl DicomMetaTable {
         DicomMetaTable::read_from(file)
     }
 
-    /// read the full meta information from the given file source
-    pub fn from_readseek_stream<F: ReadSeek>(mut file: F) -> Result<DicomMetaTable> {
-        // Check the preamble and magic code (128 bytes of preamble followed by 'DICM')
-
-        // skip the preamble
-        file.seek(SeekFrom::Current(128))?;
-
-        DicomMetaTable::read_from(file)
-    }
-
     fn read_from<S: Read>(mut file: S) -> Result<Self> {
         let mut buff: [u8; 4] = [0; 4];
         {
@@ -439,36 +429,7 @@ mod tests {
     ];
 
     #[test]
-    fn read_meta_table_from_readseek_ok() {
-        let mut source = Cursor::new(TEST_META_1);
-
-        let table = DicomMetaTable::from_readseek_stream(&mut source).unwrap();
-
-        assert_eq!(table.information_group_length, 200);
-        assert_eq!(table.information_version, [0u8, 1u8]);
-        assert_eq!(
-            table.media_storage_sop_class_uid,
-            "1.2.840.10008.5.1.4.1.1.1\0"
-        );
-        assert_eq!(
-            table.media_storage_sop_instance_uid,
-            "1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567\0"
-        );
-        assert_eq!(table.transfer_syntax, "1.2.840.10008.1.2.1\0");
-        assert_eq!(table.implementation_class_uid, "1.2.345.6.7890.1.234");
-        assert_eq!(
-            table.implementation_version_name,
-            Some(String::from("RUSTY_DICOM_269 "))
-        );
-        assert_eq!(table.source_application_entity_title, Some("".into()));
-        assert_eq!(table.sending_application_entity_title, None);
-        assert_eq!(table.receiving_application_entity_title, None);
-        assert_eq!(table.private_information_creator_uid, None);
-        assert_eq!(table.private_information, None);
-    }
-
-    #[test]
-    fn read_meta_table_from_stream_ok() {
+    fn read_meta_table_from_stream() {
         let mut source = TEST_META_1;
 
         let table = DicomMetaTable::from_stream(&mut source).unwrap();

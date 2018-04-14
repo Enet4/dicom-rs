@@ -12,7 +12,7 @@
 //! # use dicom_core::error::Result;
 //! use dicom_core::data::Tag;
 //! # fn something<T: DicomObject>(obj: T) -> Result<()> {
-//! let e = obj.get_element(Tag(0x0002, 0x0002))?;
+//! let e = obj.element(Tag(0x0002, 0x0002))?;
 //! # Ok(())
 //! # }
 //! ```

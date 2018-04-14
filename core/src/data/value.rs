@@ -2,11 +2,13 @@
 
 use error::InvalidValueReadError;
 use data::Tag;
-use std::result;
-use chrono::{NaiveDate, NaiveTime, DateTime, FixedOffset};
 
-/// Result type alias for this module.
-pub type Result<T> = result::Result<T, InvalidValueReadError>;
+use std::borrow::Cow;
+use std::fmt;
+use std::result;
+use error::CastValueError;
+use chrono::{NaiveDate, NaiveTime, DateTime, FixedOffset};
+use itertools::Itertools;
 
 type C<T> = Vec<T>;
 
@@ -20,7 +22,10 @@ pub enum Value<I> {
     Item(I),
 }
 
-impl<I> Value<I> {
+impl<I> Value<I>
+where
+    I: DicomValueType,
+{
     /// Gets a reference to the primitive value.
     pub fn primitive(&self) -> Option<&PrimitiveValue> {
         match *self {
@@ -50,6 +55,42 @@ impl<I> Value<I> {
         match self {
             Value::Item(item) => Some(item),
             _ => None,
+        }
+    }
+
+    pub fn as_string(&self) -> Result<Cow<str>, CastValueError> {
+        match self {
+            &Value::Primitive(PrimitiveValue::Str(ref v)) => Ok(Cow::from(v.as_ref())),
+            &Value::Primitive(PrimitiveValue::Strs(ref v)) => Ok(Cow::from(v.into_iter().join("\\"))),
+            _ => Err(CastValueError { requested: "string", got: self.value_type() }),
+        }
+    }
+
+    pub fn as_u8(&self) -> Result<&[u8], CastValueError> {
+        match self {
+            &Value::Primitive(PrimitiveValue::U8(ref v)) => Ok(&v),
+            _ => Err(CastValueError { requested: "u8", got: self.value_type() }),
+        }
+    }
+
+    pub fn as_i32(&self) -> Result<&[i32], CastValueError> {
+        match self {
+            &Value::Primitive(PrimitiveValue::I32(ref v)) => Ok(&v),
+            _ => Err(CastValueError { requested: "i32", got: self.value_type() }),
+        }
+    }
+
+    pub fn to_tag(&self) -> Result<Tag, CastValueError> {
+        match self {
+            &Value::Primitive(PrimitiveValue::Tags(ref v)) => Ok(v[0]),
+            _ => Err(CastValueError { requested: "tag", got: self.value_type() }),
+        }
+    }
+
+    pub fn as_tags(&self) -> Result<&[Tag], CastValueError> {
+        match self {
+            &Value::Primitive(PrimitiveValue::Tags(ref v)) => Ok(&v),
+            _ => Err(CastValueError { requested: "tag", got: self.value_type() }),
         }
     }
 }
@@ -296,7 +337,7 @@ pub enum ValueType {
 /// A trait for a value that maps to a DICOM element data value.
 pub trait DicomValueType {
     /// Retrieve the specific type of this value.
-    fn get_type(&self) -> ValueType;
+    fn value_type(&self) -> ValueType;
 
     /// Retrieve the number of values contained.
     fn size(&self) -> u32;
@@ -308,7 +349,7 @@ pub trait DicomValueType {
 }
 
 impl DicomValueType for PrimitiveValue {
-    fn get_type(&self) -> ValueType {
+    fn value_type(&self) -> ValueType {
         use self::PrimitiveValue::*;
         match *self {
             Empty => ValueType::Empty,
@@ -353,9 +394,9 @@ impl<I> DicomValueType for Value<I>
 where
     I: DicomValueType,
 {
-    fn get_type(&self) -> ValueType {
+    fn value_type(&self) -> ValueType {
         match *self {
-            Value::Primitive(ref v) => v.get_type(),
+            Value::Primitive(ref v) => v.value_type(),
             Value::Item(_) => ValueType::Item,
         }
     }

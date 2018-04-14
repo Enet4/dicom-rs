@@ -313,7 +313,7 @@ mod tests {
 
     #[test]
     fn implicit_vr_le_works_with_standard_dictionary() {
-        let reader = ImplicitVRLittleEndianDecoder::with_default_dict();
+        let reader = ImplicitVRLittleEndianDecoder::with_std_dict();
         let mut cursor = Cursor::new(RAW.as_ref());
         {
             // read first element

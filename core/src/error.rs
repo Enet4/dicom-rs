@@ -1,10 +1,12 @@
 //! This module aggregates errors that may emerge from the library.
 use std::borrow::Cow;
 use std::error::Error as BaseError;
-use std::result;
-use std::io;
 use std::fmt;
+use std::io;
 use std::num::{ParseFloatError, ParseIntError};
+use std::result;
+
+use data::value::ValueType;
 
 quick_error! {
     /// The main data type for errors in the library.
@@ -60,6 +62,12 @@ quick_error! {
             cause(err)
             display(self_) -> ("{}: {}", self_.description(), err.description())
         }
+        ValueCast(err: CastValueError) {
+            description("Failed text encoding/decoding")
+            from()
+            cause(err)
+            display(self_) -> ("{}: {}", self_.description(), err.description())
+        }
         /// Other I/O errors.
         Io(err: io::Error) {
             description("I/O error")
@@ -74,7 +82,7 @@ quick_error! {
 pub type Result<T> = result::Result<T, Error>;
 
 quick_error! {
-    /** Triggered when an invalid value read is attempted.
+    /** Triggered when a value parsing attempt fails.
     */
     #[derive(Debug, PartialEq, Eq, Clone)]
     pub enum InvalidValueReadError {
@@ -136,5 +144,31 @@ impl fmt::Display for TextEncodingError {
 impl ::std::error::Error for TextEncodingError {
     fn description(&self) -> &str {
         "encoding/decoding process failed"
+    }
+}
+
+/// An error type for an attempt of accessing a value
+/// in an inappropriate format.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CastValueError {
+    pub requested: &'static str,
+    pub got: ValueType,
+}
+
+impl fmt::Display for CastValueError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}: requested {} but value is {:?}",
+            self.description(),
+            self.requested,
+            self.got
+        )
+    }
+}
+
+impl ::std::error::Error for CastValueError {
+    fn description(&self) -> &str {
+        "bad value cast"
     }
 }

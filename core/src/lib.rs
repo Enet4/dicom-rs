@@ -10,13 +10,12 @@
 //! is subject to change.
 //!
 //! ```no_run
-//! use dicom_core::from_file;
+//! use dicom_core::open_file;
 //! # use dicom_core::Result;
 //! # fn foo() -> Result<()> {
-//! let obj = from_file("0001.dcm")?;
-//! let patient_name = obj.element_by_name("PatientName")?.as_str()?;
-//! let modality = obj.element_by_name("Modality")?.as_str()?;
-//! let pixel_data = obj.get_pixel_data()?;
+//! let obj = open_file("0001.dcm")?;
+//! let patient_name = obj.element_by_name("PatientName")?.as_string()?;
+//! let modality = obj.element_by_name("Modality")?.as_string()?;
 //! # Ok(())
 //! # }
 //! ```

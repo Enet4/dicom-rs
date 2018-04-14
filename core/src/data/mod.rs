@@ -10,6 +10,7 @@ pub mod value;
 
 use error::{Error, Result};
 use data::value::{PrimitiveValue, Value, DicomValueType};
+use std::borrow::Cow;
 use std::str::from_utf8;
 use std::fmt;
 use std::cmp::Ordering;
@@ -119,7 +120,7 @@ impl<I> DataElement<I>
 where
     I: DicomValueType,
 {
-    /// Create an empty data element.
+    /// Creates an empty data element.
     pub fn empty(tag: Tag, vr: VR) -> Self {
         DataElement {
             header: DataElementHeader {
@@ -144,14 +145,19 @@ where
         }
     }
 
-    /// Retrieve the element's value representation, which can be unknown.
+    /// Retrieves the element's value representation, which can be unknown.
     pub fn vr(&self) -> VR {
         self.header.vr()
     }
 
-    /// Retrieve the data value.
+    /// Retrieves the data value.
     pub fn value(&self) -> &Value<I> {
         &self.value
+    }
+
+
+    pub fn as_string(&self) -> Result<Cow<str>> {
+        self.value.as_string().map_err(From::from)
     }
 }
 
@@ -503,21 +509,6 @@ impl PartialEq<(u16, u16)> for Tag {
 impl PartialEq<[u16; 2]> for Tag {
     fn eq(&self, other: &[u16; 2]) -> bool {
         self.0 == other[0] && self.1 == other[1]
-    }
-}
-
-/// This implementation tests for group element equality.
-impl PartialEq<u16> for Tag {
-    fn eq(&self, other: &u16) -> bool {
-        self.0 == *other
-    }
-}
-
-/// This implementation tests for this group
-/// element's order relative to the given group element number.
-impl PartialOrd<u16> for Tag {
-    fn partial_cmp(&self, other: &u16) -> Option<Ordering> {
-        Some(self.0.cmp(other))
     }
 }
 

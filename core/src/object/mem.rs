@@ -56,7 +56,7 @@ impl<'s, D> PartialEq for InMemDicomObject<D> {
 }
 
 impl<D> DicomValueType for InMemDicomObject<D> {
-    fn get_type(&self) -> ValueType {
+    fn value_type(&self) -> ValueType {
         ValueType::Item
     }
 
@@ -133,7 +133,7 @@ where
         }
 
         // read metadata header
-        let meta = DicomMetaTable::from_readseek_stream(&mut file)?;
+        let meta = DicomMetaTable::from_stream(&mut file)?;
 
         // read rest of data according to metadata, feed it to object
         let ts = get_registry()
@@ -186,6 +186,17 @@ where
     /// Insert a data element to the object.
     pub fn put(&mut self, elt: InMemElement<D>) {
         self.entries.insert(elt.tag(), elt);
+    }
+
+    /// Retrieve a particular DICOM element by its tag.
+    pub fn element(&self, tag: Tag) -> Result<&InMemElement<D>> {
+        self.entries.get(&tag).ok_or(Error::NoSuchDataElement)
+    }
+
+    /// Retrieve a particular DICOM element by its name.
+    pub fn element_by_name(&self, name: &str) -> Result<&InMemElement<D>> {
+        let tag = self.lookup_name(name)?;
+        self.element(tag)
     }
 }
 
@@ -254,7 +265,7 @@ mod tests {
         );
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
-        let elem1 = (&obj).get_element(Tag(0x0010, 0x0010)).unwrap();
+        let elem1 = (&obj).element(Tag(0x0010, 0x0010)).unwrap();
         assert_eq!(elem1, &another_patient_name);
     }
 
@@ -267,7 +278,7 @@ mod tests {
         );
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
-        let elem1 = (&obj).get_element_by_name("PatientName").unwrap();
+        let elem1 = (&obj).element_by_name("PatientName").unwrap();
         assert_eq!(elem1, &another_patient_name);
     }
 }
