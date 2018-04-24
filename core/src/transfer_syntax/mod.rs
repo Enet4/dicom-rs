@@ -26,6 +26,9 @@ pub trait TransferSyntax {
     /// Retrieve the UID of this transfer syntax.
     fn uid(&self) -> &'static str;
 
+    /// Retrieve the name of this transfer syntax.
+    fn name(&self) -> &'static str;
+
     /// Obtain this transfer syntax' expected endianness.
     fn endianness(&self) -> Endianness;
 
@@ -53,11 +56,15 @@ pub fn default() -> ImplicitVRLittleEndian {
 }
 
 /// A concrete encoder for the transfer syntax ExplicitVRLittleEndian
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd)]
 pub struct ImplicitVRLittleEndian;
 impl TransferSyntax for ImplicitVRLittleEndian {
     fn uid(&self) -> &'static str {
         "1.2.840.10008.1.2"
+    }
+
+    fn name(&self) -> &'static str {
+        "Implicit VR Little Endian"
     }
 
     fn endianness(&self) -> Endianness {
@@ -78,11 +85,15 @@ impl TransferSyntax for ImplicitVRLittleEndian {
 }
 
 /// Transfer syntax: ExplicitVRLittleEndian
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd)]
 pub struct ExplicitVRLittleEndian;
 impl TransferSyntax for ExplicitVRLittleEndian {
     fn uid(&self) -> &'static str {
         "1.2.840.10008.1.2.1"
+    }
+
+    fn name(&self) -> &'static str {
+        "Explicit VR Little Endian"
     }
 
     fn endianness(&self) -> Endianness {
@@ -103,13 +114,17 @@ impl TransferSyntax for ExplicitVRLittleEndian {
 }
 
 /// Transfer syntax: ExplicitVRBigEndian
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd)]
 pub struct ExplicitVRBigEndian;
 impl TransferSyntax for ExplicitVRBigEndian {
     fn uid(&self) -> &'static str {
         "1.2.840.10008.1.2.2"
     }
-
+    
+    fn name(&self) -> &'static str {
+        "Explicit VR Big Endian"
+    }
+    
     fn endianness(&self) -> Endianness {
         Endianness::BE
     }
@@ -124,17 +139,24 @@ impl TransferSyntax for ExplicitVRBigEndian {
 }
 
 macro_rules! declare_stub_ts {
-    ($name: ident, $uid: expr) => (
-        /// Transfer syntax: $name
-        #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+    ($name: ident, $uid: expr) => (declare_stub_ts!($name, $uid, $name));
+    ($name: ident, $uid: expr, $alias: expr) => (
+        /// Transfer syntax: $alias
+        /// 
+        /// UID: $uid
+        #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
         pub struct $name;
         impl TransferSyntax for $name {
             fn uid(&self) -> &'static str { $uid }
+
+            fn name(&self) -> &'static str { $alias }
 
             fn endianness(&self) -> Endianness { Endianness::LE }
         }
     )
 }
 
-declare_stub_ts!(DeflatedExplicitVRLittleEndian, "1.2.840.10008.1.2.1.99");
-declare_stub_ts!(JPEGBaseline, "1.2.840.10008.1.2.4.50");
+// These stub definitions provide some level of transfer syntax awareness,
+// even though they are not supported.
+declare_stub_ts!(DeflatedExplicitVRLittleEndian, "1.2.840.10008.1.2.1.99", "Deflated Explicit VR Little Endian");
+declare_stub_ts!(JPEGBaseline, "1.2.840.10008.1.2.4.50", "JPEG Baseline");

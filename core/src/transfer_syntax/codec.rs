@@ -1,6 +1,6 @@
 //! This module contains the concept of a DICOM codec registry.
-//! A codec registry maps a DICOM UID of a transfer syntax
-//! into the respective transfer syntax object.
+//! A codec registry maps a DICOM UID of a transfer syntax into the respective
+//! transfer syntax' encoding and decoding component.
 //! 
 
 extern crate lazy_static;
@@ -20,9 +20,11 @@ pub struct CodecRegistry<'ts> {
 
 impl<'ts> fmt::Debug for CodecRegistry<'ts> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let keys: Vec<_> = self.m.keys().map(|x| *x).collect();
+        let entries: HashMap<&str, &str> = self.m.iter()
+            .map(|(uid, ts)| (*uid, ts.name()))
+            .collect();
         f.debug_struct("CodecRegistry")
-            .field("m", &format!("{:?}", keys))
+            .field("m", &entries)
             .finish()
     }
 }
