@@ -270,7 +270,7 @@ mod tests {
     const DICT: &'static StubDataDictionary = &StubDataDictionary;
 
     #[test]
-    fn implicit_vr_le_works() {
+    fn implicit_vr_le() {
         let reader = ImplicitVRLittleEndianDecoder::with_dict(DICT);
         let mut cursor = Cursor::new(RAW.as_ref());
         {
@@ -312,7 +312,7 @@ mod tests {
     }
 
     #[test]
-    fn implicit_vr_le_works_with_standard_dictionary() {
+    fn implicit_vr_le_with_standard_dictionary() {
         let reader = ImplicitVRLittleEndianDecoder::with_std_dict();
         let mut cursor = Cursor::new(RAW.as_ref());
         {
@@ -351,7 +351,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_implicit_vr_le_works() {
+    fn encode_implicit_vr_le() {
         let mut buf = [0u8; 62];
         {
             let enc = ImplicitVRLittleEndianEncoder::default();

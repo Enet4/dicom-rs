@@ -284,7 +284,7 @@ mod tests {
     ];
 
     #[test]
-    fn decode_explicit_vr_be_works() {
+    fn decode_explicit_vr_be() {
         let reader = ExplicitVRBigEndianDecoder::default();
         let mut cursor = Cursor::new(RAW.as_ref());
         {
@@ -326,7 +326,7 @@ mod tests {
     }
 
     #[test]
-    fn encode_explicit_vr_be_works() {
+    fn encode_explicit_vr_be() {
         let mut buf = [0u8; 62];
         {
             let enc = ExplicitVRBigEndianEncoder::default();
