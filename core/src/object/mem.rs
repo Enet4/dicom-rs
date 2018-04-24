@@ -8,7 +8,7 @@ use itertools::Itertools;
 
 use meta::DicomMetaTable;
 use transfer_syntax::codec::get_registry;
-use super::DicomObject;
+use super::{DicomObject, DicomSequence};
 use data::{DataElement, Header, Tag};
 use data::iterator::DicomElementIterator;
 use data::text::SpecificCharacterSet;
@@ -16,20 +16,13 @@ use data::value::{DicomValueType, ValueType};
 use dictionary::{DataDictionary, DictionaryEntry, StandardDataDictionary};
 use error::{Error, Result};
 
-/** A DICOM sequence that is fully contained in memory.
- */
-#[derive(Debug, Clone, PartialEq)]
-pub struct InMemSequence<D> {
-    tag: Tag,
-    len: u32,
-    objects: Vec<InMemDicomObject<D>>,
-}
+pub type InMemSequence<D> = DicomSequence<InMemDicomObject<D>>;
 
 impl<D> InMemSequence<D> {
     
     fn from_iter<I>(tag: Tag, len: u32, objects: I) -> Result<Self>
     where
-        I: IntoIterator<Item=D>,
+        I: IntoIterator<Item=InMemDicomObject<D>>,
     {
         let mut objects = objects.into_iter().take_while(|e| {
             false

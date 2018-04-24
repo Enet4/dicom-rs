@@ -43,3 +43,12 @@ pub trait DicomObject {
 
     // TODO moar
 }
+
+
+/** A generic DICOM sequence. */
+#[derive(Debug, Clone, PartialEq)]
+pub struct DicomSequence<T> {
+    tag: Tag,
+    len: u32,
+    objects: Vec<T>,
+}
