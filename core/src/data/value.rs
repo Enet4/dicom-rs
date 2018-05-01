@@ -19,7 +19,7 @@ pub enum Value<I> {
     /// Primitive value
     Primitive(PrimitiveValue),
     /// A complex sequence of items
-    Sequence(C<I>),
+    Sequence { items: C<I>, size: u32 },
 }
 
 impl<I> Value<I>
@@ -37,7 +37,7 @@ where
     /// Gets a reference to the items.
     pub fn item(&self) -> Option<&[I]> {
         match *self {
-            Value::Sequence(ref items) => Some(items),
+            Value::Sequence { ref items, .. } => Some(items),
             _ => None,
         }
     }
@@ -53,7 +53,7 @@ where
     /// Retrieves the items.
     pub fn into_item(self) -> Option<Vec<I>> {
         match self {
-            Value::Sequence(items) => Some(items),
+            Value::Sequence { items, .. } => Some(items),
             _ => None,
         }
     }
@@ -414,14 +414,14 @@ where
     fn value_type(&self) -> ValueType {
         match *self {
             Value::Primitive(ref v) => v.value_type(),
-            Value::Sequence(_) => ValueType::Item,
+            Value::Sequence { .. } => ValueType::Item,
         }
     }
 
     fn size(&self) -> u32 {
         match *self {
             Value::Primitive(ref v) => v.size(),
-            Value::Sequence(ref i) => 0,
+            Value::Sequence { size, .. } => size,
         }
     }
 }

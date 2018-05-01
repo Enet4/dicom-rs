@@ -10,7 +10,7 @@ use super::{DicomObject, DicomSequence};
 use data::dataset::{DataSetParser, DicomDataToken};
 use data::parser::Parse;
 use data::text::SpecificCharacterSet;
-use data::value::{DicomValueType, Value, ValueType, PrimitiveValue};
+use data::value::{DicomValueType, PrimitiveValue, Value, ValueType};
 use data::{DataElement, DataElementHeader, Header, Tag, VR};
 use dictionary::{DataDictionary, DictionaryEntry, StandardDataDictionary};
 use error::{Error, Result};
@@ -202,11 +202,6 @@ where
             };
 
             let elem = match token? {
-                DicomDataToken::ElementHeader(DataElementHeader { tag, vr, len: 0, .. }) => {
-                    // insert an empty value
-                    let elem = InMemElement::new(tag, vr, Value::Primitive(PrimitiveValue::Empty));
-                    elem
-                }
                 DicomDataToken::ElementHeader(header) => {
                     // fetch respective value, place it in the entries
                     let next_token = dataset.next().ok_or_else(|| Error::MissingElementValue)??;
@@ -221,8 +216,8 @@ where
                 }
                 DicomDataToken::SequenceStart { tag, len } => {
                     // delegate sequence building to another function
-                    let seq = Self::build_sequence(tag, len, &mut dataset)?;
-                    DataElement::new(tag, VR::SQ, Value::Sequence(seq))
+                    let items = Self::build_sequence(tag, len, &mut dataset)?;
+                    DataElement::new(tag, VR::SQ, Value::Sequence { items, size: len })
                 }
                 _ => return Err(Error::DataSetSyntax),
             };
@@ -241,8 +236,7 @@ where
         S: Read,
         P: Parse<Read + 's>,
     {
-        // TODO
-        unimplemented!()
+        unimplemented!("Sequence data set parsing")
     }
 
     fn lookup_name(&self, name: &str) -> Result<Tag> {
