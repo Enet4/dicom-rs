@@ -48,7 +48,18 @@ quick_error! {
         PixelDataOutOfBounds {
             description("Pixel data access index out of bounds")
         }
+        /// Raised when a data set parser couldn't fetch a value after a primitive
+        /// data element's header.
+        MissingElementValue {
+            description("Expected value after data element header, but was missing")
+        }
+        /// TODO expand this into a sub-error? `MissingElementValue` is part of
+        /// a data set syntax.
+        DataSetSyntax {
+            description("Data set syntax error")
+        }
         /// Error related to an invalid value read.
+        /// TODO rename variant (C-WORD-ORDER)
         ValueRead(err: InvalidValueReadError) {
             description("Invalid value read")
             from()
@@ -62,6 +73,7 @@ quick_error! {
             cause(err)
             display(self_) -> ("{}: {}", self_.description(), err.description())
         }
+        /// TODO rename variant (C-WORD-ORDER)
         ValueCast(err: CastValueError) {
             description("Failed text encoding/decoding")
             from()
@@ -102,6 +114,7 @@ quick_error! {
             display(self_) -> ("Value reading error: {}", self_.description())
         }
         /// The value cannot be parsed to a floating point number.
+        /// TODO rename variant (C-WORD-ORDER)
         FloatParse(err: ParseFloatError) {
             description("Failed to parse text value as a floating point number")
             from()
@@ -109,6 +122,7 @@ quick_error! {
             display(self_) -> ("Value reading error: {}", self_.cause().unwrap().description())
         }
         /// The value cannot be parsed to an integer.
+        /// TODO rename variant (C-WORD-ORDER)
         IntegerParse(err: ParseIntError) {
             description("Failed to parse text value as an integer")
             from()

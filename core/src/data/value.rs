@@ -1,14 +1,14 @@
 //! This module includes a high level abstraction over a DICOM data element's value.
 
-use error::InvalidValueReadError;
 use data::Tag;
+use error::InvalidValueReadError;
 
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
+use error::CastValueError;
+use itertools::Itertools;
 use std::borrow::Cow;
 use std::fmt;
 use std::result;
-use error::CastValueError;
-use chrono::{NaiveDate, NaiveTime, DateTime, FixedOffset};
-use itertools::Itertools;
 
 type C<T> = Vec<T>;
 
@@ -18,8 +18,8 @@ type C<T> = Vec<T>;
 pub enum Value<I> {
     /// Primitive value
     Primitive(PrimitiveValue),
-    /// A complex item in a sequence
-    Item(I),
+    /// A complex sequence of items
+    Sequence(C<I>),
 }
 
 impl<I> Value<I>
@@ -34,10 +34,10 @@ where
         }
     }
 
-    /// Gets a reference to the item.
-    pub fn item(&self) -> Option<&I> {
+    /// Gets a reference to the items.
+    pub fn item(&self) -> Option<&[I]> {
         match *self {
-            Value::Item(ref item) => Some(item),
+            Value::Sequence(ref items) => Some(items),
             _ => None,
         }
     }
@@ -50,10 +50,10 @@ where
         }
     }
 
-    /// Retrieves the item.
-    pub fn into_item(self) -> Option<I> {
+    /// Retrieves the items.
+    pub fn into_item(self) -> Option<Vec<I>> {
         match self {
-            Value::Item(item) => Some(item),
+            Value::Sequence(items) => Some(items),
             _ => None,
         }
     }
@@ -61,36 +61,53 @@ where
     pub fn as_string(&self) -> Result<Cow<str>, CastValueError> {
         match self {
             &Value::Primitive(PrimitiveValue::Str(ref v)) => Ok(Cow::from(v.as_ref())),
-            &Value::Primitive(PrimitiveValue::Strs(ref v)) => Ok(Cow::from(v.into_iter().join("\\"))),
-            _ => Err(CastValueError { requested: "string", got: self.value_type() }),
+            &Value::Primitive(PrimitiveValue::Strs(ref v)) => {
+                Ok(Cow::from(v.into_iter().join("\\")))
+            }
+            _ => Err(CastValueError {
+                requested: "string",
+                got: self.value_type(),
+            }),
         }
     }
 
     pub fn as_u8(&self) -> Result<&[u8], CastValueError> {
         match self {
             &Value::Primitive(PrimitiveValue::U8(ref v)) => Ok(&v),
-            _ => Err(CastValueError { requested: "u8", got: self.value_type() }),
+            _ => Err(CastValueError {
+                requested: "u8",
+                got: self.value_type(),
+            }),
         }
     }
 
     pub fn as_i32(&self) -> Result<&[i32], CastValueError> {
         match self {
             &Value::Primitive(PrimitiveValue::I32(ref v)) => Ok(&v),
-            _ => Err(CastValueError { requested: "i32", got: self.value_type() }),
+            _ => Err(CastValueError {
+                requested: "i32",
+                got: self.value_type(),
+            }),
         }
     }
 
     pub fn to_tag(&self) -> Result<Tag, CastValueError> {
         match self {
             &Value::Primitive(PrimitiveValue::Tags(ref v)) => Ok(v[0]),
-            _ => Err(CastValueError { requested: "tag", got: self.value_type() }),
+            _ => Err(CastValueError {
+                requested: "tag",
+                got: self.value_type(),
+            }),
         }
     }
 
     pub fn as_tags(&self) -> Result<&[Tag], CastValueError> {
         match self {
             &Value::Primitive(PrimitiveValue::Tags(ref v)) => Ok(&v),
-            _ => Err(CastValueError { requested: "tag", got: self.value_type() }),
+            _ => Err(CastValueError {
+                requested: "tag",
+                got: self.value_type(),
+            }),
         }
     }
 }
@@ -397,14 +414,14 @@ where
     fn value_type(&self) -> ValueType {
         match *self {
             Value::Primitive(ref v) => v.value_type(),
-            Value::Item(_) => ValueType::Item,
+            Value::Sequence(_) => ValueType::Item,
         }
     }
 
     fn size(&self) -> u32 {
         match *self {
             Value::Primitive(ref v) => v.size(),
-            Value::Item(ref i) => i.size(),
+            Value::Sequence(ref i) => 0,
         }
     }
 }

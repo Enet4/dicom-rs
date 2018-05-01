@@ -13,7 +13,6 @@ use dictionary::{DataDictionary, StandardDataDictionary};
 use error::{Error, Result};
 use object::mem::InMemDicomObject;
 use std::io::{Read, Seek, SeekFrom};
-use std::iter::FromIterator;
 use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::ops::DerefMut;
@@ -120,13 +119,22 @@ where
     }
 }
 
+/// A token of a DICOM data set stream. This is part of the interpretation of a
+/// data set as a stream of symbols, which may either represent data headers or
+/// actual value data. 
 #[derive(Debug)]
 pub enum DicomDataToken {
+    /// A data header of a primitive value.
     ElementHeader(DataElementHeader),
+    /// The beginning of a sequence element.
     SequenceStart { tag: Tag, len: u32 },
+    /// The ending delimiter of a sequence.
     SequenceEnd,
+    /// The beginning of a new item in the sequence.
     ItemStart { len: u32 },
+    /// The ending delimiter of an item.
     ItemEnd,
+    /// A primitive data element value.
     PrimitiveValue(PrimitiveValue),
 }
 

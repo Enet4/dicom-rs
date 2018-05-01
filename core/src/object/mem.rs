@@ -7,10 +7,11 @@ use std::io::{BufReader, Read};
 use std::path::Path;
 
 use super::{DicomObject, DicomSequence};
-use data::dataset::DataSetParser;
+use data::dataset::{DataSetParser, DicomDataToken};
+use data::parser::Parse;
 use data::text::SpecificCharacterSet;
-use data::value::{DicomValueType, ValueType};
-use data::{DataElement, Header, Tag};
+use data::value::{DicomValueType, Value, ValueType, PrimitiveValue};
+use data::{DataElement, DataElementHeader, Header, Tag, VR};
 use dictionary::{DataDictionary, DictionaryEntry, StandardDataDictionary};
 use error::{Error, Result};
 use meta::DicomMetaTable;
@@ -183,9 +184,64 @@ where
         })
     }
 
-    fn build_entries<S, P>(dataset: DataSetParser<S, P, D>) -> Result<BTreeMap<Tag, InMemElement<D>>>
+    fn build_entries<'s, S: 's, P>(
+        mut dataset: DataSetParser<S, P, D>,
+    ) -> Result<BTreeMap<Tag, InMemElement<D>>>
+    where
+        S: Read,
+        P: Parse<Read + 's>,
     {
+        let mut entries: BTreeMap<Tag, InMemElement<D>> = BTreeMap::new();
         // TODO !!! perform a structured parsing of incoming tokens
+
+        loop {
+            let token = if let Some(t) = dataset.next() {
+                t
+            } else {
+                break;
+            };
+
+            let elem = match token? {
+                DicomDataToken::ElementHeader(DataElementHeader { tag, vr, len: 0, .. }) => {
+                    // insert an empty value
+                    let elem = InMemElement::new(tag, vr, Value::Primitive(PrimitiveValue::Empty));
+                    elem
+                }
+                DicomDataToken::ElementHeader(header) => {
+                    // fetch respective value, place it in the entries
+                    let next_token = dataset.next().ok_or_else(|| Error::MissingElementValue)??;
+                    match next_token {
+                        DicomDataToken::PrimitiveValue(v) => {
+                            InMemElement::new(header.tag, header.vr, Value::Primitive(v))
+                        }
+                        _ => {
+                            return Err(Error::DataSetSyntax);
+                        }
+                    }
+                }
+                DicomDataToken::SequenceStart { tag, len } => {
+                    // delegate sequence building to another function
+                    let seq = Self::build_sequence(tag, len, &mut dataset)?;
+                    DataElement::new(tag, VR::SQ, Value::Sequence(seq))
+                }
+                _ => return Err(Error::DataSetSyntax),
+            };
+            entries.insert(elem.tag(), elem);
+        }
+
+        Ok(entries)
+    }
+
+    fn build_sequence<'s, S: 's, P>(
+        tag: Tag,
+        len: u32,
+        dataset: &mut DataSetParser<S, P, D>,
+    ) -> Result<Vec<InMemDicomObject<D>>>
+    where
+        S: Read,
+        P: Parse<Read + 's>,
+    {
+        // TODO
         unimplemented!()
     }
 
