@@ -218,7 +218,8 @@ pub trait Decode {
      */
     fn decode_header(&self, source: &mut Self::Source) -> Result<DataElementHeader>;
 
-    /** Fetch and decode the next sequence item head from the given source.
+    /** Fetch and decode the next sequence item head from the given source. It is a separate method
+     * because value representation is always implicit when reading item headers and delimiters. 
      * This method returns only the header of the item. At the end of this operation, the source
      * will be pointing at the beginning of the item's data, which should be traversed if necessary.
      */
@@ -226,8 +227,6 @@ pub trait Decode {
 
     /// Decode a DICOM attribute tag from the given source.
     fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag>;
-
-    // TODO methods for decoding pixel data?
 }
 
 impl<T: ?Sized> Decode for Box<T>

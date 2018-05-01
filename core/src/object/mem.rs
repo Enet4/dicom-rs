@@ -1,32 +1,29 @@
 //! This module contains the implementation for an in-memory DICOM object.
 
+use itertools::Itertools;
 use std::collections::BTreeMap;
-use std::path::Path;
 use std::fs::File;
 use std::io::{BufReader, Read};
-use itertools::Itertools;
+use std::path::Path;
 
-use meta::DicomMetaTable;
-use transfer_syntax::codec::get_registry;
 use super::{DicomObject, DicomSequence};
-use data::{DataElement, Header, Tag};
-use data::iterator::DicomElementIterator;
+use data::iterator::DataSetParser;
 use data::text::SpecificCharacterSet;
 use data::value::{DicomValueType, ValueType};
+use data::{DataElement, Header, Tag};
 use dictionary::{DataDictionary, DictionaryEntry, StandardDataDictionary};
 use error::{Error, Result};
+use meta::DicomMetaTable;
+use transfer_syntax::codec::get_registry;
 
 pub type InMemSequence<D> = DicomSequence<InMemDicomObject<D>>;
 
 impl<D> InMemSequence<D> {
-    
     fn from_iter<I>(tag: Tag, len: u32, objects: I) -> Result<Self>
     where
-        I: IntoIterator<Item=InMemDicomObject<D>>,
+        I: IntoIterator<Item = InMemDicomObject<D>>,
     {
-        let mut objects = objects.into_iter().take_while(|e| {
-            false
-        });
+        let mut objects = objects.into_iter().take_while(|e| false);
         unimplemented!()
     }
 }
@@ -92,9 +89,17 @@ impl InMemDicomObject<StandardDataDictionary> {
     /// Create a DICOM object by reading from a byte sources.
     pub fn from_stream<S>(src: S) -> Result<Self>
     where
-        S: Read
+        S: Read,
     {
         Self::from_stream_with_dict(src, StandardDataDictionary)
+    }
+
+    /// Construct a DICOM object from an iterator of structured elements.
+    pub fn from_iter<I>(iter: I) -> Result<Self>
+    where
+        I: IntoIterator<Item = Result<InMemElement<StandardDataDictionary>>>,
+    {
+        Self::from_iter_with_dict(iter, StandardDataDictionary)
     }
 }
 
@@ -102,13 +107,24 @@ impl<D> InMemDicomObject<D>
 where
     D: DataDictionary,
 {
-    /// Create a new empty object, using the given dictionary
-    /// for name lookup.
+    /// Create a new empty object, using the given dictionary for name lookup.
     pub fn new_empty_with_dict(dict: D) -> Self {
         InMemDicomObject {
             entries: BTreeMap::new(),
             dict: dict,
         }
+    }
+
+    /// Construct a DICOM object from an iterator of structured elements.
+    pub fn from_iter_with_dict<I>(iter: I, dict: D) -> Result<Self>
+    where
+        I: IntoIterator<Item = Result<InMemElement<D>>>,
+    {
+        let entries: Result<_> = iter.into_iter().map_results(|e| (e.tag(), e)).collect();
+        Ok(InMemDicomObject {
+            entries: entries?,
+            dict,
+        })
     }
 
     /// Create a DICOM object by reading from a file.
@@ -133,9 +149,8 @@ where
             .get(&meta.transfer_syntax)
             .ok_or(Error::UnsupportedTransferSyntax)?;
         let cs = SpecificCharacterSet::Default;
-        let elements = DicomElementIterator::new_with_dictionary(file, dict.clone(), ts, cs)?;
-
-        let entries: Result<BTreeMap<_, _>> = elements.map_results(|e| (e.tag(), e)).collect();
+        let dataset = DataSetParser::new_with_dictionary(file, dict.clone(), ts, cs)?;
+        let entries = Self::build_entries(dataset);
 
         Ok(InMemDicomObject {
             entries: entries?,
@@ -153,20 +168,25 @@ where
 
         // read metadata header
         let meta = DicomMetaTable::from_stream(&mut file)?;
-        
+
         // read rest of data according to metadata, feed it to object
         let ts = get_registry()
             .get(&meta.transfer_syntax)
             .ok_or(Error::UnsupportedTransferSyntax)?;
         let cs = SpecificCharacterSet::Default;
-        let elements = DicomElementIterator::new_with_dictionary(file, dict.clone(), ts, cs)?;
-
-        let entries: Result<BTreeMap<_, _>> = elements.map_results(|e| (e.tag(), e)).collect();
+        let dataset = DataSetParser::new_with_dictionary(file, dict.clone(), ts, cs)?;
+        let entries = Self::build_entries(dataset);
 
         Ok(InMemDicomObject {
             entries: entries?,
             dict,
         })
+    }
+
+    fn build_entries<S, P>(dataset: DataSetParser<S, P, D>) -> Result<BTreeMap<Tag, InMemElement<D>>>
+    {
+        // TODO !!! perform a structured parsing of incoming tokens
+        unimplemented!()
     }
 
     fn lookup_name(&self, name: &str) -> Result<Tag> {
@@ -207,7 +227,9 @@ impl<D> IntoIterator for InMemDicomObject<D> {
     type IntoIter = Iter<D>;
 
     fn into_iter(self) -> Self::IntoIter {
-        Iter { inner: self.entries.into_iter() }
+        Iter {
+            inner: self.entries.into_iter(),
+        }
     }
 }
 
@@ -216,8 +238,7 @@ pub struct Iter<D> {
     inner: ::std::collections::btree_map::IntoIter<Tag, InMemElement<D>>,
 }
 
-impl<D> Iterator for Iter<D>
-{
+impl<D> Iterator for Iter<D> {
     type Item = InMemElement<D>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -227,15 +248,19 @@ impl<D> Iterator for Iter<D>
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.inner.size_hint()
     }
+
+    fn count(self) -> usize {
+        self.inner.count()
+    }
 }
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use object::DicomObject;
+    use data::value::{PrimitiveValue, Value};
     use data::VR;
-    use data::value::{Value, PrimitiveValue};
+    use object::DicomObject;
 
     #[test]
     fn inmem_object_write() {

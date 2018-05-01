@@ -29,10 +29,10 @@ pub trait Parse<S: ?Sized>
 where
     S: Read,
 {
-    /// Same as `Decode.decode_header` over the bound source.
+    /// Same as `Decode::decode_header` over the bound source.
     fn decode_header(&self, from: &mut S) -> Result<DataElementHeader>;
 
-    /// Same as `Decode.decode_header` over the bound source.
+    /// Same as `Decode::decode_item_header` over the bound source.
     fn decode_item_header(&self, from: &mut S) -> Result<SequenceItemHeader>;
 
     /// Eagerly read the following data in the source as a data value.
