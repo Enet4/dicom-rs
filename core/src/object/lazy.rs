@@ -9,7 +9,7 @@ use data::parser::DynamicDicomParser;
 use error::{Error, Result};
 use data::{Tag, VR, DataElement};
 use data::value::Value;
-use data::iterator::DicomElementMarker;
+use data::dataset::DicomElementMarker;
 use util::ReadSeek;
 use super::DicomObject;
 

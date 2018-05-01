@@ -125,7 +125,7 @@ pub enum DicomDataToken {
     ElementHeader(DataElementHeader),
     SequenceStart { tag: Tag, len: u32 },
     SequenceEnd,
-    ItemStart {len: u32},
+    ItemStart { len: u32 },
     ItemEnd,
     PrimitiveValue(PrimitiveValue),
 }
@@ -175,20 +175,24 @@ where
                 Err(e) => {
                     self.hard_break = true;
                     self.last_header = None;
-                    return Some(Err(Error::from(e)))
-                },
+                    return Some(Err(Error::from(e)));
+                }
             };
 
             // if it's a Specific Character Set, update the parser immediately.
-            if let Some(header @ DataElementHeader {
-                        tag: Tag(0x0008, 0x0005),
-                        vr: _,
-                        len: _,
-                    }) = self.last_header
+            if let Some(DataElementHeader {
+                tag: Tag(0x0008, 0x0005),
+                ..
+            }) = self.last_header
             {
-                // TODO trigger an error or warning on unsupported specific character sets
+                // TODO trigger an error or warning on unsupported specific character sets.
+                // Edge case handling strategies should be considered in the future.
                 if let Some(charset) = v.string().and_then(SpecificCharacterSet::from_code) {
-                    self.parser.set_character_set(charset);
+                    if let Err(e) = self.parser.set_character_set(charset) {
+                        self.hard_break = true;
+                        self.last_header = None;
+                        return Some(Err(Error::from(e)));
+                    }
                 }
             }
             self.last_header = None;
@@ -203,7 +207,7 @@ where
                 }) => {
                     self.in_sequence = true;
                     self.depth += 1;
-                    Some(Ok(DicomDataToken::SequenceStart { tag, len } ))
+                    Some(Ok(DicomDataToken::SequenceStart { tag, len }))
                 }
                 Ok(header) => {
                     // save it for the next step

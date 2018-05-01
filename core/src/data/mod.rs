@@ -3,7 +3,7 @@
 
 pub mod decode;
 pub mod encode;
-pub mod iterator;
+pub mod dataset;
 pub mod parser;
 pub mod text;
 pub mod value;

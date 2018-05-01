@@ -7,7 +7,7 @@ use std::io::{BufReader, Read};
 use std::path::Path;
 
 use super::{DicomObject, DicomSequence};
-use data::iterator::DataSetParser;
+use data::dataset::DataSetParser;
 use data::text::SpecificCharacterSet;
 use data::value::{DicomValueType, ValueType};
 use data::{DataElement, Header, Tag};
