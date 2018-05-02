@@ -6,6 +6,7 @@ use std::io;
 use std::num::{ParseFloatError, ParseIntError};
 use std::result;
 
+use data::dataset::DicomDataToken;
 use data::value::ValueType;
 
 quick_error! {
@@ -53,10 +54,13 @@ quick_error! {
         MissingElementValue {
             description("Expected value after data element header, but was missing")
         }
-        /// TODO expand this into a sub-error? `MissingElementValue` is part of
-        /// a data set syntax.
-        DataSetSyntax {
+        /// Raised while parsing a DICOM data set and found an unexpected
+        /// element header or value.
+        DataSetSyntax(err: DataSetSyntaxError) {
             description("Data set syntax error")
+            from()
+            cause(err)
+            display(self_) -> ("{}: {}", self_.description(), err.description())
         }
         /// Error related to an invalid value read.
         /// TODO rename variant (C-WORD-ORDER)
@@ -184,5 +188,31 @@ impl fmt::Display for CastValueError {
 impl ::std::error::Error for CastValueError {
     fn description(&self) -> &str {
         "bad value cast"
+    }
+}
+
+#[derive(Debug)]
+pub enum DataSetSyntaxError {
+    PrematureEnd,
+    UnexpectedToken(DicomDataToken),
+}
+
+impl fmt::Display for DataSetSyntaxError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &DataSetSyntaxError::PrematureEnd => f.write_str(self.description()),
+            &DataSetSyntaxError::UnexpectedToken(ref token) => {
+                write!(f, "{} {}", self.description(), token)
+            }
+        }
+    }
+}
+
+impl ::std::error::Error for DataSetSyntaxError {
+    fn description(&self) -> &str {
+        match self {
+            &DataSetSyntaxError::PrematureEnd => "data set ended prematurely",
+            &DataSetSyntaxError::UnexpectedToken(_) => "unexpected data set token",
+        }
     }
 }

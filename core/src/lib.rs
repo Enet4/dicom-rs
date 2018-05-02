@@ -1,7 +1,7 @@
 #![crate_type = "lib"]
 #![deny(trivial_casts, trivial_numeric_casts, unsafe_code, unstable_features)]
 #![warn(missing_debug_implementations, missing_docs, unused_qualifications, unused_import_braces)]
-#![recursion_limit="96"]
+#![recursion_limit="72"]
 
 //! This is a library for basic DICOM content reading and writing.
 //!

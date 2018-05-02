@@ -1,7 +1,6 @@
 //! This module includes a high level abstraction over a DICOM data element's value.
 
 use data::Tag;
-use error::InvalidValueReadError;
 
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
 use error::CastValueError;
@@ -19,7 +18,12 @@ pub enum Value<I> {
     /// Primitive value
     Primitive(PrimitiveValue),
     /// A complex sequence of items
-    Sequence { items: C<I>, size: u32 },
+    Sequence {
+        /// Item collection.
+        items: C<I>,
+        /// The size in bytes.
+        size: u32
+    },
 }
 
 impl<I> Value<I>

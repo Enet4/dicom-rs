@@ -33,7 +33,6 @@ pub mod pixeldata;
 /// This trait interface is experimental and prone to sudden changes.
 pub trait DicomObject {
     type Element: Header; // TODO change constraint
-    type Sequence; // TODO add constraint
 
     /// Retrieve a particular DICOM element by its tag.
     fn element(&self, tag: Tag) -> Result<Self::Element>;
@@ -42,34 +41,4 @@ pub trait DicomObject {
     fn element_by_name(&self, name: &str) -> Result<Self::Element>;
 
     // TODO moar
-}
-
-/** A generic DICOM sequence of objects of type `T`. */
-#[derive(Debug, Clone, PartialEq)]
-pub struct DicomSequence<T> {
-    tag: Tag,
-    len: u32,
-    objects: Vec<T>,
-}
-
-impl<T> DicomSequence<T> {
-    pub fn new(tag: Tag, len: u32, objects: Vec<T>) -> Result<Self> {
-        Ok(DicomSequence { tag, len, objects })
-    }
-
-    pub fn tag(&self) -> Tag {
-        self.tag
-    }
-
-    pub fn len(&self) -> u32 {
-        self.len
-    }
-
-    pub fn objects(&self) -> &[T] {
-        &self.objects
-    }
-
-    pub  fn objects_mut(&mut self) -> &mut Vec<T> {
-        &mut self.objects
-    }
 }

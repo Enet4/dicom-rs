@@ -79,15 +79,15 @@ where
         Ok(DataElementHeader::new(tag, vr, len))
     }
 
-    fn decode_item_header(&self, mut source: &mut Self::Source) -> Result<SequenceItemHeader> {
-        let mut buf = [0u8; 4];
-        // retrieve tag
-        let tag = self.basic.decode_tag(&mut source)?;
-        // and item sequence length
+    fn decode_item_header(&self, source: &mut Self::Source) -> Result<SequenceItemHeader> {
+        let mut buf = [0u8; 8];
         source.read_exact(&mut buf)?;
-        let len = BigEndian::read_u32(&buf);
+        // retrieve tag
+        let group = BigEndian::read_u16(&buf[0..2]);
+        let element = BigEndian::read_u16(&buf[2..4]);
+        let len = BigEndian::read_u32(&buf[4..8]);
 
-        SequenceItemHeader::new(tag, len)
+        SequenceItemHeader::new((group, element), len)
     }
 
     fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag> {

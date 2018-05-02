@@ -5,13 +5,14 @@
 //! a full data set.
 use data::parser::{DicomParser, DynamicDicomParser, Parse};
 use data::text::SpecificCharacterSet;
-use data::value::PrimitiveValue;
+use data::value::{DicomValueType, PrimitiveValue};
 use data::Tag;
 use data::VR;
 use data::{DataElement, DataElementHeader, Header, SequenceItemHeader};
 use dictionary::{DataDictionary, StandardDataDictionary};
 use error::{Error, Result};
 use object::mem::InMemDicomObject;
+use std::fmt;
 use std::io::{Read, Seek, SeekFrom};
 use std::iter::Iterator;
 use std::marker::PhantomData;
@@ -19,15 +20,15 @@ use std::ops::DerefMut;
 use transfer_syntax::TransferSyntax;
 use util::{ReadSeek, SeekInterval};
 
-/// A higher-level parser for retrieving structure in a DICOM data set from an
+/// A higher-level reader for retrieving structure in a DICOM data set from an
 /// arbitrary data source.
 #[derive(Debug)]
-pub struct DataSetParser<S, P, D> {
+pub struct DataSetReader<S, P, D> {
     source: S,
     parser: P,
     dict: D,
     depth: u32,
-    /// whether the parser is expecting an item next (or a sequence delimiter)
+    /// whether the reader is expecting an item next (or a sequence delimiter)
     in_sequence: bool,
     /// fuse the iteration process if true
     hard_break: bool,
@@ -44,7 +45,7 @@ where
 {
 }
 
-impl<'s, S: 's> DataSetParser<S, DynamicDicomParser, StandardDataDictionary> {
+impl<'s, S: 's> DataSetReader<S, DynamicDicomParser, StandardDataDictionary> {
     /// Creates a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
     pub fn new_with(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self> {
@@ -52,7 +53,7 @@ impl<'s, S: 's> DataSetParser<S, DynamicDicomParser, StandardDataDictionary> {
 
         is_parse(&parser);
 
-        Ok(DataSetParser {
+        Ok(DataSetReader {
             source: source,
             parser: parser,
             dict: StandardDataDictionary,
@@ -64,7 +65,7 @@ impl<'s, S: 's> DataSetParser<S, DynamicDicomParser, StandardDataDictionary> {
     }
 }
 
-impl<'s, S: 's, D> DataSetParser<S, DynamicDicomParser, D> {
+impl<'s, S: 's, D> DataSetReader<S, DynamicDicomParser, D> {
     /// Creates a new iterator with the given random access source and data dictionary,
     /// while considering the given transfer syntax and specific character set.
     pub fn new_with_dictionary(
@@ -77,7 +78,7 @@ impl<'s, S: 's, D> DataSetParser<S, DynamicDicomParser, D> {
 
         is_parse(&parser);
 
-        Ok(DataSetParser {
+        Ok(DataSetReader {
             source: source,
             parser: parser,
             dict,
@@ -89,14 +90,14 @@ impl<'s, S: 's, D> DataSetParser<S, DynamicDicomParser, D> {
     }
 }
 
-impl<S, P> DataSetParser<S, P, StandardDataDictionary>
+impl<S, P> DataSetReader<S, P, StandardDataDictionary>
 where
     S: Read,
     P: Parse<Read>,
 {
     /// Create a new iterator with the given parser.
     pub fn new(source: S, parser: P) -> Self {
-        DataSetParser {
+        DataSetReader {
             source: source,
             parser: parser,
             dict: StandardDataDictionary,
@@ -108,7 +109,7 @@ where
     }
 }
 
-impl<'s, S: 's, P, D> DataSetParser<S, P, D>
+impl<'s, S: 's, P, D> DataSetReader<S, P, D>
 where
     S: Read,
     P: Parse<Read + 's>,
@@ -138,7 +139,16 @@ pub enum DicomDataToken {
     PrimitiveValue(PrimitiveValue),
 }
 
-impl<'s, S: 's, P, D> Iterator for DataSetParser<S, P, D>
+impl fmt::Display for DicomDataToken {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &DicomDataToken::PrimitiveValue(ref v) => write!(f, "PrimitiveValue({:?})", v.value_type()),
+            other => write!(f, "{:?}", other)
+        }
+    }
+}
+
+impl<'s, S: 's, P, D> Iterator for DataSetReader<S, P, D>
 where
     S: Read,
     P: Parse<Read + 's>,
@@ -206,7 +216,7 @@ where
             self.last_header = None;
             Some(Ok(DicomDataToken::PrimitiveValue(v)))
         } else {
-            // a data element header is expected
+            // a data element header or item delimiter is expected
             match self.parser.decode_header(&mut self.source) {
                 Ok(DataElementHeader {
                     tag,
@@ -216,6 +226,13 @@ where
                     self.in_sequence = true;
                     self.depth += 1;
                     Some(Ok(DicomDataToken::SequenceStart { tag, len }))
+                }
+                Ok(DataElementHeader {
+                    tag: Tag(0xFFFE, 0xE00D),
+                    ..
+                }) => {
+                    self.in_sequence = true;
+                    Some(Ok(DicomDataToken::ItemEnd))
                 }
                 Ok(header) => {
                     // save it for the next step
@@ -234,7 +251,7 @@ where
 /// An iterator for retrieving DICOM object element markers from a random
 /// access data source.
 #[derive(Debug)]
-pub struct LazyDataSetParser<S, DS, P> {
+pub struct LazyDataSetReader<S, DS, P> {
     source: S,
     parser: P,
     depth: u32,
@@ -243,7 +260,7 @@ pub struct LazyDataSetParser<S, DS, P> {
     phantom: PhantomData<DS>,
 }
 
-impl<'s> LazyDataSetParser<&'s mut ReadSeek, &'s mut Read, DynamicDicomParser> {
+impl<'s> LazyDataSetReader<&'s mut ReadSeek, &'s mut Read, DynamicDicomParser> {
     /// Create a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
     pub fn new_with(
@@ -253,7 +270,7 @@ impl<'s> LazyDataSetParser<&'s mut ReadSeek, &'s mut Read, DynamicDicomParser> {
     ) -> Result<Self> {
         let parser = DicomParser::new_with(ts, cs)?;
 
-        Ok(LazyDataSetParser {
+        Ok(LazyDataSetReader {
             source: source,
             parser: parser,
             depth: 0,
@@ -264,13 +281,13 @@ impl<'s> LazyDataSetParser<&'s mut ReadSeek, &'s mut Read, DynamicDicomParser> {
     }
 }
 
-impl<S, DS, P> LazyDataSetParser<S, DS, P>
+impl<S, DS, P> LazyDataSetReader<S, DS, P>
 where
     S: ReadSeek,
 {
     /// Create a new iterator with the given parser.
-    pub fn new(source: S, parser: P) -> LazyDataSetParser<S, DS, P> {
-        LazyDataSetParser {
+    pub fn new(source: S, parser: P) -> LazyDataSetReader<S, DS, P> {
+        LazyDataSetReader {
             source: source,
             parser: parser,
             depth: 0,
@@ -315,7 +332,7 @@ where
     }
 }
 
-impl<S, P> Iterator for LazyDataSetParser<S, (), P>
+impl<S, P> Iterator for LazyDataSetReader<S, (), P>
 where
     S: ReadSeek,
     P: Parse<S>,

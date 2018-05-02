@@ -62,7 +62,6 @@ where
     D: DataDictionary,
 {
     type Element = Ref<'s, LazyDataElement>;
-    type Sequence = Ref<'s, LazyDataSequence<S, DynamicDicomParser, D>>;
 
     fn element(&self, tag: Tag) -> Result<Self::Element> {
         {

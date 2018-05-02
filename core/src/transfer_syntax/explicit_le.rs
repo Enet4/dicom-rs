@@ -81,14 +81,12 @@ where
     }
 
     fn decode_item_header(&self, source: &mut S) -> Result<SequenceItemHeader> {
-        let mut buf = [0u8; 4];
+        let mut buf = [0u8; 8];
         source.read_exact(&mut buf)?;
         // retrieve tag
         let group = LittleEndian::read_u16(&buf[0..2]);
         let element = LittleEndian::read_u16(&buf[2..4]);
-
-        source.read_exact(&mut buf)?;
-        let len = LittleEndian::read_u32(&buf);
+        let len = LittleEndian::read_u32(&buf[4..8]);
 
         SequenceItemHeader::new((group, element), len)
     }
