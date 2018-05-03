@@ -17,6 +17,7 @@ use error::{DataSetSyntaxError, Error, Result};
 use meta::DicomMetaTable;
 use transfer_syntax::codec::get_registry;
 
+/// A full in-memory DICOM data element.
 pub type InMemElement<D> = DataElement<InMemDicomObject<D>>;
 
 /** A DICOM object that is fully contained in memory.

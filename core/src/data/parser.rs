@@ -270,10 +270,11 @@ where
         let mut buf = vec![0u8; header.len() as usize];
         from.read_exact(&mut buf)?;
         let parts: Result<Vec<f64>> = buf[..]
-            .split(|v| *v == '\\' as u8)
+            .split(|b| *b == b'\\')
             .map(|slice| {
                 let codec = SpecificCharacterSet::Default.get_codec().unwrap();
                 let txt = codec.decode(slice)?;
+                let txt = txt.trim_right();
                 txt.parse::<f64>()
                     .map_err(|e| Error::from(InvalidValueReadError::from(e)))
             })
@@ -319,6 +320,7 @@ where
             .map(|slice| {
                 let codec = SpecificCharacterSet::Default.get_codec().unwrap();
                 let txt = codec.decode(slice)?;
+                let txt = txt.trim_right();
                 txt.parse::<i32>()
                     .map_err(|e| Error::from(InvalidValueReadError::from(e)))
             })

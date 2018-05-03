@@ -32,7 +32,7 @@ pub trait Header {
 
     /// Check whether this is the header of an item delimiter.
     fn is_item_delimiter(&self) -> bool {
-        self.tag() == Tag(0xFFFE, 0x0E0D)
+        self.tag() == Tag(0xFFFE, 0xE00D)
     }
 
     /// Check whether this is the header of a sequence delimiter.
@@ -282,9 +282,10 @@ impl SequenceItemHeader {
             _ => Err(Error::UnexpectedElement),
         }
     }
+}
 
-    /// Retrieve the sequence item's attribute tag.
-    pub fn tag(&self) -> Tag {
+impl Header for SequenceItemHeader {
+    fn tag(&self) -> Tag {
         match *self {
             SequenceItemHeader::Item { .. } => Tag(0xFFFE, 0xE000),
             SequenceItemHeader::ItemDelimiter => Tag(0xFFFE, 0xE00D),
@@ -292,8 +293,7 @@ impl SequenceItemHeader {
         }
     }
 
-    /// Retrieve the sequence item's length (0 in case of a delimiter).
-    pub fn len(&self) -> u32 {
+    fn len(&self) -> u32 {
         match *self {
             SequenceItemHeader::Item { len } => len,
             SequenceItemHeader::ItemDelimiter | SequenceItemHeader::SequenceDelimiter => 0,
@@ -523,6 +523,41 @@ impl From<[u16; 2]> for Tag {
     #[inline]
     fn from(value: [u16; 2]) -> Tag {
         Tag(value[0], value[1])
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Length(pub u32);
+
+impl AsRef<u32> for Length {
+    fn as_ref(&self) -> &u32 {
+        &self.0
+    }
+}
+
+impl From<u32> for Length {
+    fn from(o: u32) -> Self {
+        Length(o)
+    }
+}
+
+impl Length {
+    pub fn is_undefined(&self) -> bool {
+        self.0 == 0xFFFF_FFFF
+    }
+}
+
+impl fmt::Debug for Length {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.0 == 0xFFFF_FFFF {
+            f.debug_tuple("Length")
+                .field(&"Undefined")
+                .finish()
+        } else {
+            f.debug_tuple("Length")
+                .field(&self.0)
+                .finish()
+        }
     }
 }
 

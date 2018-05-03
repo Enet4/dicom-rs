@@ -239,6 +239,13 @@ where
                     self.last_header = Some(header);
                     Some(Ok(DicomDataToken::ElementHeader(header)))
                 }
+                Err(Error::Io(ref e)) if e.kind() == ::std::io::ErrorKind::UnexpectedEof => {
+                    // TODO there might be a better way to check for the end of
+                    // a DICOM object. This approach might ignore trailing
+                    // garbage.
+                    self.hard_break = true;
+                    None
+                }
                 Err(e) => {
                     self.hard_break = true;
                     Some(Err(Error::from(e)))

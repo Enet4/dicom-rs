@@ -45,9 +45,16 @@ where
 
     fn decode_header(&self, mut source: &mut Self::Source) -> Result<DataElementHeader> {
         // retrieve tag
-        let tag = self.basic.decode_tag(&mut source)?;
+        let Tag(group, element) = self.basic.decode_tag(&mut source)?;
 
         let mut buf = [0u8; 4];
+        if group == 0xFFFE {
+            // item delimiters do not have VR or reserved field
+            source.read_exact(&mut buf)?;
+            let len = BigEndian::read_u32(&buf);
+            return Ok(DataElementHeader::new((group, element), VR::UN, len));
+        }
+
         // retrieve explicit VR
         source.read_exact(&mut buf[0..2])?;
         let vr = VR::from_binary([buf[0], buf[1]]).unwrap_or(VR::UN);
@@ -76,7 +83,7 @@ where
             }
         };
 
-        Ok(DataElementHeader::new(tag, vr, len))
+        Ok(DataElementHeader::new((group, element), vr, len))
     }
 
     fn decode_item_header(&self, source: &mut Self::Source) -> Result<SequenceItemHeader> {

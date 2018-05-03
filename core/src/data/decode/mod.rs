@@ -215,6 +215,9 @@ pub trait Decode {
     /** Fetch and decode the next data element header from the given source.
      * This method returns only the header of the element. At the end of this operation, the source
      * will be pointing at the element's value data, which should be read or skipped as necessary.
+     * 
+     * Decoding an item or sequence delimiter is considered valid, and so should be properly handled
+     * by the decoder. The value representation in this case should be `UN`.
      */
     fn decode_header(&self, source: &mut Self::Source) -> Result<DataElementHeader>;
 
