@@ -366,4 +366,67 @@ mod tests {
 
         assert_eq!(&buf[..], &RAW[..]);
     }
+
+    // manually crafting some DICOM sequence/item delimiters
+    //  Tag: (0008,103F) Series Description Code Sequence
+    //  VR: SQ
+    //  Reserved bytes: 0x0000
+    //  Length: 0xFFFF_FFFF
+    // --
+    //  Tag: (FFFE,E000) Item
+    //  Length: 0xFFFF_FFFF (unspecified)
+    // --
+    //  Tag: (FFFE,E00D) Item Delimitation Item
+    //  Length: 0
+    // --
+    //  Tag: (FFFE,E0DD) Sequence Delimitation Item
+    //  Length: 0
+    // --
+    const RAW_SEQUENCE_ITEMS: &'static [u8] = &[
+        0x00, 0x08, 0x10, 0x3F, b'S', b'Q', 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFE, 0xE0, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFE, 0xE0, 0x0D, 0x00, 0x00, 0x00, 0x00,
+        0xFF, 0xFE, 0xE0, 0xDD, 0x00, 0x00, 0x00, 0x00,
+    ];
+
+    #[test]
+    fn decode_items() {
+        let dec = ExplicitVRBigEndianDecoder::default();
+        let mut cursor = Cursor::new(RAW_SEQUENCE_ITEMS);
+        {
+            // read first element
+            let elem = dec.decode_header(&mut cursor)
+                .expect("should find an element header");
+            assert_eq!(elem.tag(), Tag(8, 0x103F));
+            assert_eq!(elem.vr(), VR::SQ);
+            assert_eq!(elem.len(), 0xFFFF_FFFF);
+        }
+        // cursor should now be @ #12
+        assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 12);
+        {
+            let elem = dec.decode_item_header(&mut cursor)
+                .expect("should find an item header");
+            assert!(elem.is_item());
+            assert_eq!(elem.tag(), Tag(0xFFFE, 0xE000));
+            assert_eq!(elem.len(), 0xFFFF_FFFF);
+        }
+        // cursor should now be @ #20
+        assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 20);
+        {
+            let elem = dec.decode_item_header(&mut cursor)
+                .expect("should find an item header");
+            assert!(elem.is_item_delimiter());
+            assert_eq!(elem.tag(), Tag(0xFFFE, 0xE00D));
+            assert_eq!(elem.len(), 0);
+        }
+        // cursor should now be @ #28
+        assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 28);
+        {
+            let elem = dec.decode_item_header(&mut cursor)
+                .expect("should find an item header");
+            assert!(elem.is_sequence_delimiter());
+            assert_eq!(elem.tag(), Tag(0xFFFE, 0xE0DD));
+            assert_eq!(elem.len(), 0);
+        }
+    }
 }
