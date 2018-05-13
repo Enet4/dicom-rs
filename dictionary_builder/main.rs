@@ -18,25 +18,32 @@ extern crate futures;
 extern crate hyper;
 extern crate quick_xml;
 extern crate regex;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
 extern crate tokio_core;
 
-use tokio_core::reactor::Core;
 use clap::{App, Arg};
 use futures::{Future, Stream};
-use hyper::{Chunk, Uri};
 use hyper::client::Client;
 use hyper::client::FutureResponse;
+use hyper::{Chunk, Uri};
+use serde_json::to_writer;
+use tokio_core::reactor::Core;
 
-use quick_xml::errors::Result as XmlResult;
-use quick_xml::reader::Reader;
-use quick_xml::events::Event;
+use quick_xml::Error as XmlError;
 use quick_xml::events::attributes::Attribute;
-use std::io;
-use std::io::{BufRead, BufReader, Write};
-use std::fs::{create_dir_all, File};
-use std::str::FromStr;
-use std::path::Path;
+use quick_xml::events::Event;
+use quick_xml::Reader;
 use regex::Regex;
+
+use std::borrow::Cow;
+use std::collections::BTreeMap;
+use std::fs::{create_dir_all, File};
+use std::io::{BufRead, BufReader, Write};
+use std::path::Path;
+use std::str::FromStr;
 
 /// url to PS3.6 XML file
 const DEFAULT_LOCATION: &'static str = "http://dicom.nema.\
@@ -81,7 +88,7 @@ fn main() {
     let mut core = Core::new().unwrap();
 
     let src = matches.value_of("FROM").unwrap();
-    if src.starts_with("http:") {
+    if src.starts_with("http:") || src.starts_with("https:") {
         let src = Uri::from_str(src).unwrap();
         println!("Downloading DICOM dictionary ...");
         let req = xml_from_site(&core, src).and_then(|resp| {
@@ -111,18 +118,22 @@ fn main() {
     }
 }
 
+type XmlResult<T> = Result<T, XmlError>;
+type DynResult<T> = Result<T, Box<::std::error::Error>>;
+
 fn xml_from_site(core: &Core, url: Uri) -> FutureResponse {
     let client = Client::new(&core.handle());
     client.get(url)
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Clone, Serialize)]
 struct Entry {
     tag: String,
     name: Option<String>,
     alias: Option<String>,
     vr: Option<String>,
     vm: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     obs: Option<String>,
 }
 
@@ -188,7 +199,7 @@ impl<R: BufRead> Iterator for XmlEntryIterator<R> {
                             match e.attributes().find(|attr| {
                                 attr.is_err() || attr.as_ref().unwrap() == &Attribute {
                                     key: b"xml:id",
-                                    value: b"table_6-1",
+                                    value: Cow::Borrowed(b"table_6-1"),
                                 }
                             }) {
                                 Some(Ok(_)) => {
@@ -320,26 +331,25 @@ impl<R: BufRead> Iterator for XmlEntryIterator<R> {
     }
 }
 
-fn to_code_file<P: AsRef<Path>, I>(dest_path: P, entries: I, include_retired: bool) -> io::Result<()>
+fn to_code_file<P: AsRef<Path>, I>(dest_path: P, entries: I, include_retired: bool) -> DynResult<()>
 where
     I: IntoIterator<Item = Entry>,
 {
     if let Some(p_dir) = dest_path.as_ref().parent() {
-        try!(create_dir_all(&p_dir));
+        create_dir_all(&p_dir)?;
     }
-    let mut f = try!(File::create(&dest_path));
+    let mut f = File::create(&dest_path)?;
 
     f.write_all(
         b"//! Automatically generated. DO NOT EDIT!\n\n\
     use dictionary::DictionaryEntryRef;\n\
     use data::Tag;\n\
-    use data::VR::{AE, AS, AT, CS, DA, DS, DT, FL, FD, IS, LO, LT, OB, OD, OF, OL};\n\
-    use data::VR::{OW, PN, SH, SL, SQ, SS, ST, TM, UC, UI, UL, UN, UR, US, UT};\n\n\
+    use data::VR::*;\n\n\
     type E = DictionaryEntryRef<'static>;\n\n\
     pub const ENTRIES: &'static [E] = &[\n",
     )?;
 
-    let regex_tag = Regex::new(r"^\(([0-9A-F]{4}),([0-9A-F]{4})\)$").unwrap();
+    let regex_tag = Regex::new(r"^\(([0-9A-F]{4}),([0-9A-F]{4})\)$")?;
 
     for e in entries {
         let Entry {
@@ -352,9 +362,11 @@ where
 
         // sanitize components
 
-        if alias.is_none() {
+        let alias = if let Some(v) = alias {
+            v
+        } else {
             continue;
-        }
+        };
 
         if let Some(ref s) = obs {
             if s == "RET" && !include_retired {
@@ -380,7 +392,7 @@ where
 
         let mut second_vr = vr2.to_string();
         if vr2 != "" {
-            second_vr = format!("/* or {} */", vr2);
+            second_vr = format!(" /*{} */", vr2);
         }
 
         let mut obs = obs.unwrap_or_else(|| String::new());
@@ -391,21 +403,25 @@ where
         writeln!(
             f,
             "    E {{ tag: Tag(0x{}, 0x{}), alias: \"{}\", vr: {}{} }},{}",
-            group,
-            elem,
-            alias.unwrap(),
-            vr1,
-            second_vr,
-            obs
+            group, elem, alias, vr1, second_vr, obs
         )?;
     }
     f.write_all(b"];\n")?;
     Ok(())
 }
 
-fn to_json_file<P: AsRef<Path>, I>(dest_path: P, entries: I) -> io::Result<()>
+fn to_json_file<P: AsRef<Path>, I>(dest_path: P, entries: I) -> DynResult<()>
 where
     I: IntoIterator<Item = Entry>,
 {
-    unimplemented!()
+    if let Some(p_dir) = dest_path.as_ref().parent() {
+        create_dir_all(&p_dir)?;
+    }
+    let f = File::create(&dest_path)?;
+
+    let entries: BTreeMap<String, Entry> =
+        entries.into_iter().map(|v| (v.tag.clone(), v)).collect();
+
+    to_writer(f, &entries)?;
+    Ok(())
 }
