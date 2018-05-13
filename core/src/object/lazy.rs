@@ -1,17 +1,17 @@
+use super::DicomObject;
+use data::dataset::DicomElementMarker;
+use data::parser::DynamicDicomParser;
+use data::value::Value;
+use data::Header;
+use data::{DataElement, Length, Tag, VR};
+use dictionary::{DataDictionary, DictionaryEntry};
+use error::{Error, Result};
 use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Debug;
 use std::rc::Rc;
-use data::Header;
-use dictionary::{DataDictionary, DictionaryEntry};
-use data::parser::DynamicDicomParser;
-use error::{Error, Result};
-use data::{Tag, VR, DataElement};
-use data::value::Value;
-use data::dataset::DicomElementMarker;
 use util::ReadSeek;
-use super::DicomObject;
 
 /// Data type for a lazily loaded DICOM object builder.
 pub struct LazyDataSequence<S, P, D> {
@@ -124,7 +124,7 @@ impl Header for LazyDataElement {
     fn tag(&self) -> Tag {
         self.marker.tag()
     }
-    fn len(&self) -> u32 {
+    fn len(&self) -> Length {
         self.marker.len()
     }
 }
@@ -133,7 +133,7 @@ impl<'a> Header for &'a LazyDataElement {
     fn tag(&self) -> Tag {
         (**self).tag()
     }
-    fn len(&self) -> u32 {
+    fn len(&self) -> Length {
         (**self).len()
     }
 }
@@ -142,7 +142,7 @@ impl<'s> Header for Ref<'s, LazyDataElement> {
     fn tag(&self) -> Tag {
         (**self).tag()
     }
-    fn len(&self) -> u32 {
+    fn len(&self) -> Length {
         (**self).len()
     }
 }
@@ -151,7 +151,7 @@ impl Header for Rc<LazyDataElement> {
     fn tag(&self) -> Tag {
         (**self).tag()
     }
-    fn len(&self) -> u32 {
+    fn len(&self) -> Length {
         (**self).len()
     }
 }
@@ -177,18 +177,20 @@ impl LazyDataElement {
     }
 
     /// Retrieve the value data's length as specified by the data element.
-    /// According to the standard, this can be 0xFFFFFFFFu32 if the length is undefined,
+    /// According to the standard, this can be undefined,
     /// which can be the case for sequence elements.
-    pub fn len(&self) -> u32 {
+    pub fn len(&self) -> Length {
         self.marker.len()
     }
 
+    // TODO lazy value evaluation
     /// Getter for this element's cached data value.
     /// It will only hold a value once explicitly read.
     pub fn value(&self) -> Option<&()> {
         self.value.as_ref()
     }
 
+    // TODO lazy value evaluation
     /// Mutable getter for this element's cached data container.
     pub fn value_mut(&mut self) -> &mut Option<()> {
         &mut self.value

@@ -2,7 +2,7 @@
 
 use std::io::Read;
 use error::Result;
-use data::{DataElementHeader, SequenceItemHeader};
+use data::{DataElementHeader, Length, SequenceItemHeader};
 use util::Endianness;
 use data::Tag;
 
@@ -60,7 +60,7 @@ pub trait Decode: BasicDecode {
     fn erased_decode_item(&self, mut source: &mut Read) -> Result<SequenceItemHeader> {
         let tag = try!(self.erased_decode_tag(&mut source));
         let len = try!(self.erased_decode_ul(&mut source));
-        SequenceItemHeader::new(tag, len)
+        SequenceItemHeader::new(tag, Length(len))
     }
 
     /// Decode a DICOM attribute tag from the given source.

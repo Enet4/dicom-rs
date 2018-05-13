@@ -1,13 +1,11 @@
 //! This module includes a high level abstraction over a DICOM data element's value.
 
-use data::Tag;
+use data::{Tag, Length};
 
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
 use error::CastValueError;
 use itertools::Itertools;
 use std::borrow::Cow;
-use std::fmt;
-use std::result;
 
 type C<T> = Vec<T>;
 
@@ -22,7 +20,7 @@ pub enum Value<I> {
         /// Item collection.
         items: C<I>,
         /// The size in bytes.
-        size: u32
+        size: Length,
     },
 }
 
@@ -30,6 +28,15 @@ impl<I> Value<I>
 where
     I: DicomValueType,
 {
+    /// Obtain the number of individual values.
+    /// In a sequence item, this is the number of items.
+    pub fn multiplicity(&self) -> u32 {
+        match *self {
+            Value::Primitive(ref v) => v.multiplicity(),
+            Value::Sequence{ ref items, ..} => items.len() as u32,
+        }
+    }
+
     /// Gets a reference to the primitive value.
     pub fn primitive(&self) -> Option<&PrimitiveValue> {
         match *self {
@@ -186,6 +193,28 @@ pub enum PrimitiveValue {
 }
 
 impl PrimitiveValue {
+
+    /// Obtain the number of individual values.
+    pub fn multiplicity(&self) -> u32 {
+        use self::PrimitiveValue::*;
+        match self {
+            &Empty => 0,
+            &Str(_) => 1,
+            &Strs(ref c) => c.len() as u32,
+            &Tags(ref c) => c.len() as u32,
+            &U8(ref c) => c.len() as u32,
+            &I16(ref c) => c.len() as u32,
+            &U16(ref c) => c.len() as u32,
+            &I32(ref c) => c.len() as u32,
+            &U32(ref c) => c.len() as u32,
+            &F32(ref c) => c.len() as u32,
+            &F64(ref c) => c.len() as u32,
+            &Date(ref c) => c.len() as u32,
+            &DateTime(ref c) => c.len() as u32,
+            &Time(ref c) => c.len() as u32,
+        }
+    }
+
     /// Get a single string value. If it contains multiple strings,
     /// only the first one is returned.
     pub fn string(&self) -> Option<&str> {
@@ -361,11 +390,11 @@ pub trait DicomValueType {
     fn value_type(&self) -> ValueType;
 
     /// Retrieve the number of values contained.
-    fn size(&self) -> u32;
+    fn size(&self) -> Length;
 
     /// Check whether the value is empty (0 length).
     fn is_empty(&self) -> bool {
-        self.size() == 0
+        self.size() == Length(0)
     }
 }
 
@@ -390,9 +419,9 @@ impl DicomValueType for PrimitiveValue {
         }
     }
 
-    fn size(&self) -> u32 {
+    fn size(&self) -> Length {
         use self::PrimitiveValue::*;
-        match *self {
+        Length::defined(match *self {
             Empty => 0,
             Str(_) => 1,
             Date(ref b) => b.len() as u32,
@@ -407,7 +436,7 @@ impl DicomValueType for PrimitiveValue {
             U16(ref b) => b.len() as u32,
             U32(ref b) => b.len() as u32,
             U8(ref b) => b.len() as u32,
-        }
+        })
     }
 }
 
@@ -422,7 +451,7 @@ where
         }
     }
 
-    fn size(&self) -> u32 {
+    fn size(&self) -> Length {
         match *self {
             Value::Primitive(ref v) => v.size(),
             Value::Sequence { size, .. } => size,

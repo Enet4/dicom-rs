@@ -1,20 +1,20 @@
 //! Implicit VR Big Endian syntax transfer implementation
 
 use byteorder::{ByteOrder, LittleEndian};
-use std::io::{Read, Write};
-use std::marker::PhantomData;
-use dictionary::{DataDictionary, DictionaryEntry};
-use dictionary::standard::StandardDataDictionary;
-use data::VR;
-use data::Tag;
-use std::fmt;
-use util::Endianness;
-use error::Result;
 use data::decode::basic::LittleEndianBasicDecoder;
 use data::decode::{BasicDecode, Decode};
 use data::encode::basic::LittleEndianBasicEncoder;
 use data::encode::{BasicEncode, Encode};
-use data::{DataElementHeader, Header, SequenceItemHeader};
+use data::Tag;
+use data::VR;
+use data::{DataElementHeader, Header, Length, SequenceItemHeader};
+use dictionary::standard::StandardDataDictionary;
+use dictionary::{DataDictionary, DictionaryEntry};
+use error::Result;
+use std::fmt;
+use std::io::{Read, Write};
+use std::marker::PhantomData;
+use util::Endianness;
 
 /// An ImplicitVRLittleEndianDecoder which uses the standard data dictionary.
 pub type StandardImplicitVRLittleEndianDecoder<S> =
@@ -94,7 +94,7 @@ where
             .by_tag(tag)
             .map(|entry| entry.vr())
             .unwrap_or(VR::UN);
-        Ok(DataElementHeader::new(tag, vr, len))
+        Ok(DataElementHeader::new(tag, vr, Length(len)))
     }
 
     fn decode_item_header(&self, mut source: &mut S) -> Result<SequenceItemHeader> {
@@ -105,7 +105,7 @@ where
 
         source.read_exact(&mut buf)?;
         let len = LittleEndian::read_u32(&buf);
-        SequenceItemHeader::new(tag, len)
+        SequenceItemHeader::new(tag, Length(len))
     }
 
     #[inline]
@@ -207,7 +207,7 @@ where
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf[0..], de.tag().group());
         LittleEndian::write_u16(&mut buf[2..], de.tag().element());
-        LittleEndian::write_u32(&mut buf[4..], de.len());
+        LittleEndian::write_u32(&mut buf[4..], de.len().0);
         to.write_all(&buf)?;
         Ok(8)
     }
@@ -242,12 +242,10 @@ where
 mod tests {
     use super::ImplicitVRLittleEndianDecoder;
     use super::ImplicitVRLittleEndianEncoder;
-    use data::{DataElementHeader, Header};
     use data::decode::Decode;
     use data::encode::Encode;
+    use data::{DataElementHeader, Header, Length, Tag, VR};
     use dictionary::stub::StubDataDictionary;
-    use data::VR;
-    use data::Tag;
     use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements
@@ -280,7 +278,7 @@ mod tests {
                 .expect("should find an element");
             assert_eq!(elem.tag(), (0x0002, 0x0002));
             assert_eq!(elem.vr(), VR::UN);
-            assert_eq!(elem.len(), 26);
+            assert_eq!(elem.len(), Length(26));
             // read only half of the data
             let mut buffer: Vec<u8> = Vec::with_capacity(13);
             buffer.resize(13, 0);
@@ -300,7 +298,7 @@ mod tests {
                 .expect("should find an element");
             assert_eq!(elem.tag(), (0x0002, 0x0010));
             assert_eq!(elem.vr(), VR::UN);
-            assert_eq!(elem.len(), 20);
+            assert_eq!(elem.len(), Length(20));
             // read all data
             let mut buffer: Vec<u8> = Vec::with_capacity(20);
             buffer.resize(20, 0);
@@ -322,13 +320,13 @@ mod tests {
                 .expect("should find an element");
             assert_eq!(elem.tag(), (2, 2));
             assert_eq!(elem.vr(), VR::UI);
-            assert_eq!(elem.len(), 26);
+            assert_eq!(elem.len(), Length(26));
             // cursor should be @ #8
             assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 8);
             // don't read any data, just skip
             // cursor should be @ #34 after skipping
             assert_eq!(
-                cursor.seek(SeekFrom::Current(elem.len() as i64)).unwrap(),
+                cursor.seek(SeekFrom::Current(elem.len().0 as i64)).unwrap(),
                 34
             );
         }
@@ -339,7 +337,7 @@ mod tests {
                 .expect("should find an element");
             assert_eq!(elem.tag(), (2, 16));
             assert_eq!(elem.vr(), VR::UI);
-            assert_eq!(elem.len(), 20);
+            assert_eq!(elem.len(), Length(20));
             // read all data
             let mut buffer: Vec<u8> = Vec::with_capacity(20);
             buffer.resize(20, 0);
@@ -358,7 +356,7 @@ mod tests {
             let mut writer = Cursor::new(&mut buf[..]);
 
             // encode first element
-            let de = DataElementHeader::new(Tag(0x0002, 0x0002), VR::UI, 26);
+            let de = DataElementHeader::new(Tag(0x0002, 0x0002), VR::UI, Length(26));
             let len = enc.encode_element_header(&mut writer, de)
                 .expect("should write it fine");
             assert_eq!(len, 8);
@@ -372,7 +370,7 @@ mod tests {
             let mut writer = Cursor::new(&mut buf[34..]);
 
             // encode second element
-            let de = DataElementHeader::new(Tag(0x0002, 0x0010), VR::UI, 20);
+            let de = DataElementHeader::new(Tag(0x0002, 0x0010), VR::UI, Length(20));
             let len = enc.encode_element_header(&mut writer, de)
                 .expect("should write it fine");
             assert_eq!(len, 8);

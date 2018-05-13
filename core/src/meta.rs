@@ -1,13 +1,12 @@
 //! Module containing data structures and readers of DICOM file meta information tables.
-use std::io::{Read, SeekFrom};
-use error::{Error, Result};
+use std::io::Read;
+use error::{Error, Result, InvalidValueReadError};
 use byteorder::{ByteOrder, LittleEndian};
-use data::{Header, Tag};
+use data::{Header, Length, Tag};
 use data::decode;
 use data::decode::Decode;
 use data::text;
 use data::text::TextCodec;
-use util::ReadSeek;
 
 const DICM_MAGIC_CODE: [u8; 4] = [b'D', b'I', b'C', b'M'];
 
@@ -64,7 +63,12 @@ where
         if elem.tag() != tag {
             return Err(Error::UnexpectedElement);
         }
-        elem.len()
+        match elem.len().get() {
+            None => {
+                return Err(Error::from(InvalidValueReadError::UnresolvedValueLength));
+            }
+            Some(len) => len,
+        }
     };
     read_str_body(source, text, group_length_remaining, elem_len)
 }
@@ -113,7 +117,7 @@ impl DicomMetaTable {
             if elem.tag() != (0x0002, 0x0000) {
                 return Err(Error::UnexpectedElement);
             }
-            if elem.len() != 4 {
+            if elem.len() != Length(4) {
                 return Err(Error::UnexpectedDataValueLength);
             }
             let mut buff: [u8; 4] = [0; 4];
@@ -130,12 +134,12 @@ impl DicomMetaTable {
                 if elem.tag() != (0x0002, 0x0001) {
                     return Err(Error::UnexpectedElement);
                 }
-                if elem.len() != 2 {
+                if elem.len() != Length(2) {
                     return Err(Error::UnexpectedDataValueLength);
                 }
                 let mut hbuf = [0u8; 2];
                 file.read_exact(&mut hbuf[..])?;
-                group_length_remaining -= 12 + elem.len();
+                group_length_remaining -= 14;
                 hbuf
             })
             .media_storage_sop_class_uid(read_str_as_tag(
@@ -170,53 +174,59 @@ impl DicomMetaTable {
         // Fetch optional data elements
         while group_length_remaining > 0 {
             let elem = decoder.decode_header(&mut file)?;
+            let elem_len = match elem.len().get() {
+                None => {
+                    return Err(Error::from(InvalidValueReadError::UnresolvedValueLength));
+                }
+                Some(len) => len as usize,
+            };
             builder = match elem.tag() {
                 Tag(0x0002, 0x0013) => {
                     // Implementation Version Name
-                    let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
-                    v.resize(elem.len() as usize, 0);
+                    let mut v = Vec::<u8>::with_capacity(elem_len);
+                    v.resize(elem_len, 0);
                     file.read_exact(&mut v)?;
-                    group_length_remaining -= 8 + elem.len();
+                    group_length_remaining -= 8 + elem_len as u32;
                     builder.implementation_version_name(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0016) => {
                     // Source Application Entity Title
-                    let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
-                    v.resize(elem.len() as usize, 0);
+                    let mut v = Vec::<u8>::with_capacity(elem_len);
+                    v.resize(elem_len, 0);
                     file.read_exact(&mut v)?;
-                    group_length_remaining -= 8 + elem.len();
+                    group_length_remaining -= 8 + elem_len as u32;
                     builder.source_application_entity_title(try!(text.decode(&v)))
                 }
                 Tag(0x0002, 0x0017) => {
                     // Sending Application Entity Title
-                    let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
-                    v.resize(elem.len() as usize, 0);
+                    let mut v = Vec::<u8>::with_capacity(elem_len);
+                    v.resize(elem_len, 0);
                     file.read_exact(&mut v)?;
-                    group_length_remaining -= 8 + elem.len();
+                    group_length_remaining -= 8 + elem_len as u32;
                     builder.sending_application_entity_title(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0018) => {
                     // Receiving Application Entity Title
-                    let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
-                    v.resize(elem.len() as usize, 0);
+                    let mut v = Vec::<u8>::with_capacity(elem_len);
+                    v.resize(elem_len, 0);
                     file.read_exact(&mut v)?;
-                    group_length_remaining -= 8 + elem.len();
+                    group_length_remaining -= 8 + elem_len as u32;
                     builder.receiving_application_entity_title(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0100) => {
                     // Private Information Creator UID
-                    let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
-                    v.resize(elem.len() as usize, 0);
+                    let mut v = Vec::<u8>::with_capacity(elem_len);
+                    v.resize(elem_len, 0);
                     file.read_exact(&mut v)?;
-                    group_length_remaining -= 8 + elem.len();
+                    group_length_remaining -= 8 + elem_len as u32;
                     builder.private_information_creator_uid(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0102) => {
                     // Private Information
-                    let mut v = Vec::<u8>::with_capacity(elem.len() as usize);
-                    v.resize(elem.len() as usize, 0);
+                    let mut v = Vec::<u8>::with_capacity(elem_len);
+                    v.resize(elem_len, 0);
                     file.read_exact(&mut v)?;
-                    group_length_remaining -= 12 + elem.len();
+                    group_length_remaining -= 12 + elem_len as u32;
                     builder.private_information(v)
                 }
                 Tag(0x0002, _) => {

@@ -2,23 +2,24 @@
 //! The structures provided here can translate a byte data source into
 //! an iterator of elements, with either sequential or random access.
 
+use chrono::{DateTime, FixedOffset, Local, NaiveDate, NaiveTime, TimeZone};
+use data::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
+use data::decode::{BasicDecode, Decode};
+use data::text::{
+    validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, TextValidationOutcome,
+};
+use data::text::{DynamicTextCodec, SpecificCharacterSet, TextCodec};
+use data::value::PrimitiveValue;
+use data::{DataElementHeader, Header, Length, SequenceItemHeader, Tag, VR};
+use error::{Error, InvalidValueReadError, Result, TextEncodingError};
 use std::fmt;
 use std::fmt::Debug;
 use std::io::Read;
-use std::marker::PhantomData;
 use std::iter::Iterator;
+use std::marker::PhantomData;
 use std::ops::{Add, Mul, Sub};
-use error::{Error, InvalidValueReadError, Result, TextEncodingError};
-use data::{DataElementHeader, Header, SequenceItemHeader, Tag, VR};
-use data::decode::{BasicDecode, Decode};
-use data::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
-use data::text::{DynamicTextCodec, SpecificCharacterSet, TextCodec};
-use data::value::PrimitiveValue;
-use transfer_syntax::TransferSyntax;
 use transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-use data::text::{validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec,
-                 TextValidationOutcome};
-use chrono::{DateTime, FixedOffset, Local, NaiveDate, NaiveTime, TimeZone};
+use transfer_syntax::TransferSyntax;
 use util::n_times;
 
 const Z: i32 = b'0' as i32;
@@ -95,9 +96,12 @@ where
 }
 
 macro_rules! require_known_length {
-    ($header: ident) => {
-        if $header.len() == 0xFFFFFFFF {
-            return Err(Error::from(InvalidValueReadError::UnresolvedValueLength));
+    ($header:ident) => {
+        match $header.len().get() {
+            None => {
+                return Err(Error::from(InvalidValueReadError::UnresolvedValueLength));
+            }
+            Some(len) => len as usize,
         }
     };
 }
@@ -166,10 +170,10 @@ where
     // ---------------- private methods ---------------------
 
     fn read_value_tag(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        require_known_length!(header);
+        let len = require_known_length!(header);
 
         // tags
-        let ntags = { header.len() >> 2 } as usize;
+        let ntags = len >> 2;
         let parts: Result<Vec<Tag>> = n_times(ntags)
             .map(|_| {
                 let g = self.basic.decode_us(&mut *from)?;
@@ -182,18 +186,18 @@ where
 
     fn read_value_ob(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         // TODO add support for OB value data length resolution
-        require_known_length!(header);
+        let len = require_known_length!(header);
 
         // sequence of 8-bit integers (or just byte data)
-        let mut buf = vec![0u8; header.len() as usize];
+        let mut buf = vec![0u8; len];
         from.read_exact(&mut buf)?;
         Ok(PrimitiveValue::U8(buf))
     }
 
     fn read_value_strs(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        require_known_length!(header);
+        let len = require_known_length!(header);
         // sequence of strings
-        let mut buf = vec![0u8; header.len() as usize];
+        let mut buf = vec![0u8; len];
         from.read_exact(&mut buf)?;
 
         let parts: Result<Vec<_>> = match header.vr() {
@@ -211,19 +215,19 @@ where
     }
 
     fn read_value_str(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        require_known_length!(header);
+        let len = require_known_length!(header);
 
         // a single string
-        let mut buf = vec![0u8; header.len() as usize];
+        let mut buf = vec![0u8; len];
         try!(from.read_exact(&mut buf));
         Ok(PrimitiveValue::Str(self.text.decode(&buf[..])?))
     }
 
     fn read_value_ss(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         // sequence of 16-bit signed integers
-        require_known_length!(header);
+        let len = require_known_length!(header);
 
-        let len = header.len() as usize >> 1;
+        let len = len >> 1;
         let mut vec = Vec::with_capacity(len);
         for _ in n_times(len) {
             vec.push(self.basic.decode_ss(&mut *from)?);
@@ -232,9 +236,9 @@ where
     }
 
     fn read_value_fl(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        require_known_length!(header);
+        let len = require_known_length!(header);
         // sequence of 32-bit floats
-        let l = header.len() as usize >> 2;
+        let l = len >> 2;
         let mut vec = Vec::with_capacity(l);
         for _ in n_times(l) {
             vec.push(self.basic.decode_fl(&mut *from)?);
@@ -243,11 +247,11 @@ where
     }
 
     fn read_value_da(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        require_known_length!(header);
+        let len = require_known_length!(header);
         // sequence of dates
 
         // maybe one day I should find a way to get rid of this dynamic allocation
-        let mut buf = vec![0u8; header.len() as usize];
+        let mut buf = vec![0u8; len];
         from.read_exact(&mut buf)?;
         if validate_da(&buf) != TextValidationOutcome::Ok {
             let lossy_str = DefaultCharacterSetCodec
@@ -265,9 +269,11 @@ where
     }
 
     fn read_value_ds(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        require_known_length!(header);
+        let len = require_known_length!(header);
         // sequence of doubles in text form
-        let mut buf = vec![0u8; header.len() as usize];
+
+        // !!! dynamic allocation
+        let mut buf = vec![0u8; len];
         from.read_exact(&mut buf)?;
         let parts: Result<Vec<f64>> = buf[..]
             .split(|b| *b == b'\\')
@@ -283,11 +289,11 @@ where
     }
 
     fn read_value_dt(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        require_known_length!(header);
+        let len = require_known_length!(header);
         // sequence of datetimes
 
-        // dynamic allocation
-        let mut buf = vec![0u8; header.len() as usize];
+        // !!! dynamic allocation
+        let mut buf = vec![0u8; len];
         from.read_exact(&mut buf)?;
         if validate_dt(&buf) != TextValidationOutcome::Ok {
             let lossy_str = DefaultCharacterSetCodec
@@ -306,9 +312,9 @@ where
     }
 
     fn read_value_is(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        require_known_length!(header);
+        let len = require_known_length!(header);
         // sequence of signed integers in text form
-        let mut buf = vec![0u8; header.len() as usize];
+        let mut buf = vec![0u8; len];
         from.read_exact(&mut buf)?;
 
         let last = if let Some(c) = buf.last() { *c } else { 0u8 };
@@ -329,11 +335,11 @@ where
     }
 
     fn read_value_tm(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        require_known_length!(header);
+        let len = require_known_length!(header);
         // sequence of time instances
 
         // dynamic allocation
-        let mut buf = vec![0u8; header.len() as usize];
+        let mut buf = vec![0u8; len];
         from.read_exact(&mut buf)?;
         if validate_tm(&buf) != TextValidationOutcome::Ok {
             let lossy_str = DefaultCharacterSetCodec
@@ -351,9 +357,9 @@ where
     }
 
     fn read_value_od(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        require_known_length!(header);
+        let len = require_known_length!(header);
         // sequence of 64-bit floats
-        let len = header.len() as usize >> 3;
+        let len = len >> 3;
         let mut vec = Vec::with_capacity(len);
         for _ in n_times(len) {
             vec.push(self.basic.decode_fd(&mut *from)?);
@@ -362,10 +368,10 @@ where
     }
 
     fn read_value_ul(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        require_known_length!(header);
+        let len = require_known_length!(header);
         // sequence of 32-bit unsigned integers
 
-        let len = header.len() as usize >> 2;
+        let len = len >> 2;
         let mut vec = Vec::with_capacity(len);
         for _ in n_times(len) {
             vec.push(self.basic.decode_ul(&mut *from)?);
@@ -374,10 +380,10 @@ where
     }
 
     fn read_value_us(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        require_known_length!(header);
+        let len = require_known_length!(header);
         // sequence of 16-bit unsigned integers
 
-        let len = header.len() as usize >> 1;
+        let len = len >> 1;
         let mut vec = Vec::with_capacity(len);
         for _ in n_times(len) {
             vec.push(self.basic.decode_us(&mut *from)?);
@@ -386,10 +392,10 @@ where
     }
 
     fn read_value_sl(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        require_known_length!(header);
+        let len = require_known_length!(header);
         // sequence of 32-bit signed integers
 
-        let len = header.len() as usize >> 2;
+        let len = len >> 2;
         let mut vec = Vec::with_capacity(len);
         for _ in n_times(len) {
             vec.push(self.basic.decode_sl(&mut *from)?);
@@ -413,7 +419,7 @@ where
     }
 
     fn read_value(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        if header.len() == 0 {
+        if header.len() == Length(0) {
             return Ok(PrimitiveValue::Empty);
         }
 
@@ -448,7 +454,7 @@ where
         from: &mut S,
         header: &DataElementHeader,
     ) -> Result<PrimitiveValue> {
-        if header.len() == 0 {
+        if header.len() == Length(0) {
             return Ok(PrimitiveValue::Empty);
         }
 
@@ -584,12 +590,9 @@ fn parse_time_impl(mut buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, usi
                 fract *= 10;
                 acc += 1;
             }
-            let time: Result<_> = NaiveTime::from_hms_micro_opt(
-                hour as u32,
-                minute as u32,
-                second as u32,
-                fract,
-            ).ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
+            let time: Result<_> =
+                NaiveTime::from_hms_micro_opt(hour as u32, minute as u32, second as u32, fract)
+                    .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
 
             Ok((time?, 7 + n + suffix_offset))
         }
@@ -601,7 +604,7 @@ trait Ten {
 }
 
 macro_rules! impl_integral_ten {
-    ($t: ty) => {
+    ($t:ty) => {
         impl Ten for $t {
             fn ten() -> Self {
                 10
@@ -611,7 +614,7 @@ macro_rules! impl_integral_ten {
 }
 
 macro_rules! impl_floating_ten {
-    ($t: ty) => {
+    ($t:ty) => {
         impl Ten for $t {
             fn ten() -> Self {
                 10.
@@ -730,8 +733,8 @@ fn parse_datetime(mut buf: &[u8], dt_utc_offset: &FixedOffset) -> Result<DateTim
 
 #[cfg(test)]
 mod tests {
-    use chrono::{FixedOffset, NaiveDate, NaiveTime, TimeZone};
     use super::{parse_date, parse_datetime, parse_time};
+    use chrono::{FixedOffset, NaiveDate, NaiveTime, TimeZone};
 
     #[test]
     fn test_parse_date() {

@@ -1,29 +1,29 @@
 //! This modules contains everything needed to access and manipulate DICOM data elements.
 //! It comprises a variety of basic data types, such as the DICOM attribute tag.
 
+pub mod dataset;
 pub mod decode;
 pub mod encode;
-pub mod dataset;
 pub mod parser;
 pub mod text;
 pub mod value;
 
+use data::value::{DicomValueType, PrimitiveValue, Value};
 use error::{Error, Result};
-use data::value::{PrimitiveValue, Value, DicomValueType};
 use std::borrow::Cow;
-use std::str::from_utf8;
-use std::fmt;
 use std::cmp::Ordering;
+use std::fmt;
+use std::str::from_utf8;
 
 /// A trait for a data type containing a DICOM header.
 pub trait Header {
     /// Retrieve the element's tag as a `(group, element)` tuple.
     fn tag(&self) -> Tag;
 
-    /// Retrieve the value data's length as specified by the data element.
-    /// According to the standard, this can be 0xFFFFFFFFu32 if the length is undefined,
-    /// which can be the case for sequence elements.
-    fn len(&self) -> u32;
+    /// Retrieve the value data's length as specified by the data element, in bytes.
+    /// According to the standard, the concrete value size may be undefined,
+    /// which can be the case for sequence elements or specific primitive values.
+    fn len(&self) -> Length;
 
     /// Check whether this is the header of an item.
     fn is_item(&self) -> bool {
@@ -63,7 +63,7 @@ impl<I> Header for DataElement<I> {
     }
 
     #[inline]
-    fn len(&self) -> u32 {
+    fn len(&self) -> Length {
         self.header.len()
     }
 }
@@ -75,7 +75,7 @@ impl<'a, I> Header for &'a DataElement<I> {
     }
 
     #[inline]
-    fn len(&self) -> u32 {
+    fn len(&self) -> Length {
         (**self).len()
     }
 }
@@ -87,7 +87,7 @@ impl<I> Header for Box<DataElement<I>> {
     }
 
     #[inline]
-    fn len(&self) -> u32 {
+    fn len(&self) -> Length {
         (**self).len()
     }
 }
@@ -99,7 +99,7 @@ impl<I> Header for ::std::rc::Rc<DataElement<I>> {
     }
 
     #[inline]
-    fn len(&self) -> u32 {
+    fn len(&self) -> Length {
         (**self).len()
     }
 }
@@ -111,7 +111,7 @@ impl<'v, I> Header for DataElementRef<'v, I> {
     }
 
     #[inline]
-    fn len(&self) -> u32 {
+    fn len(&self) -> Length {
         self.header.len()
     }
 }
@@ -120,19 +120,19 @@ impl<I> DataElement<I>
 where
     I: DicomValueType,
 {
-    /// Creates an empty data element.
+    /// Create an empty data element.
     pub fn empty(tag: Tag, vr: VR) -> Self {
         DataElement {
             header: DataElementHeader {
                 tag: tag,
                 vr: vr,
-                len: 0,
+                len: Length(0),
             },
             value: PrimitiveValue::Empty.into(),
         }
     }
 
-    /// Creates a primitive data element from the given parts. This method will not check
+    /// Create a primitive data element from the given parts. This method will not check
     /// whether the value representation is compatible with the given value.
     pub fn new(tag: Tag, vr: VR, value: Value<I>) -> Self {
         DataElement {
@@ -145,17 +145,23 @@ where
         }
     }
 
-    /// Retrieves the element's value representation, which can be unknown.
-    pub fn vr(&self) -> VR {
-        self.header.vr()
+    /// Retrieve the element header.
+    pub fn header(&self) -> &DataElementHeader {
+        &self.header
     }
 
-    /// Retrieves the data value.
+    /// Retrieve the data value.
     pub fn value(&self) -> &Value<I> {
         &self.value
     }
 
+    /// Retrieve the value representation, which may be unknown or not
+    /// applicable.
+    pub fn vr(&self) -> VR {
+        self.header.vr()
+    }
 
+    /// Retrieve the element's value as a string.
     pub fn as_string(&self) -> Result<Cow<str>> {
         self.value.as_string().map_err(From::from)
     }
@@ -166,7 +172,8 @@ where
     I: DicomValueType,
 {
     /// Create a data element from the given parts. This method will not check
-    /// whether the value representation is compaible with the value. Use it cautiously.
+    /// whether the value representation is compatible with the value. Caution
+    /// is advised.
     pub fn new(tag: Tag, vr: VR, value: &'v Value<I>) -> Self {
         DataElementRef {
             header: DataElementHeader {
@@ -191,14 +198,14 @@ where
 
 /// A data structure for a data element header, containing
 /// a tag, value representation and specified length.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct DataElementHeader {
     /// DICOM tag
     pub tag: Tag,
     /// Value Representation
     pub vr: VR,
     /// Element length
-    pub len: u32,
+    pub len: Length,
 }
 
 impl Header for DataElementHeader {
@@ -206,7 +213,7 @@ impl Header for DataElementHeader {
         self.tag
     }
 
-    fn len(&self) -> u32 {
+    fn len(&self) -> Length {
         self.len
     }
 }
@@ -214,11 +221,11 @@ impl Header for DataElementHeader {
 impl DataElementHeader {
     /// Create a new data element header with the given properties.
     /// This is just a trivial constructor.
-    pub fn new<T: Into<Tag>>(tag: T, vr: VR, len: u32) -> DataElementHeader {
+    pub fn new<T: Into<Tag>>(tag: T, vr: VR, len: Length) -> DataElementHeader {
         DataElementHeader {
             tag: tag.into(),
-            vr: vr,
-            len: len,
+            vr,
+            len,
         }
     }
 
@@ -241,12 +248,12 @@ impl From<SequenceItemHeader> for DataElementHeader {
 /// Data type for describing a sequence item data element.
 /// If the element represents an item, it will also contain
 /// the specified length.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum SequenceItemHeader {
     /// The cursor contains an item.
     Item {
         /// the length of the item in bytes (can be 0xFFFFFFFF if undefined)
-        len: u32,
+        len: Length,
     },
     /// The cursor read an item delimiter.
     /// The element ends here and should not be read any further.
@@ -260,16 +267,16 @@ impl SequenceItemHeader {
     /// Create a sequence item header using the element's raw properties.
     /// An error can be raised if the given properties do not relate to a
     /// sequence item, a sequence item delimiter or a sequence delimiter.
-    pub fn new<T: Into<Tag>>(tag: T, len: u32) -> Result<SequenceItemHeader> {
+    pub fn new<T: Into<Tag>>(tag: T, len: Length) -> Result<SequenceItemHeader> {
         match tag.into() {
             Tag(0xFFFE, 0xE000) => {
                 // item
-                Ok(SequenceItemHeader::Item { len: len })
+                Ok(SequenceItemHeader::Item { len })
             }
             Tag(0xFFFE, 0xE00D) => {
                 // item delimiter
                 // delimiters should not have a positive length
-                if len > 0 {
+                if len != Length(0) {
                     Err(Error::UnexpectedDataValueLength)
                 } else {
                     Ok(SequenceItemHeader::ItemDelimiter)
@@ -293,10 +300,10 @@ impl Header for SequenceItemHeader {
         }
     }
 
-    fn len(&self) -> u32 {
+    fn len(&self) -> Length {
         match *self {
             SequenceItemHeader::Item { len } => len,
-            SequenceItemHeader::ItemDelimiter | SequenceItemHeader::SequenceDelimiter => 0,
+            SequenceItemHeader::ItemDelimiter | SequenceItemHeader::SequenceDelimiter => Length(0),
         }
     }
 }
@@ -526,12 +533,69 @@ impl From<[u16; 2]> for Tag {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// A type for representing data set content length, in bytes.
+/// An internal value of `0xFFFF_FFFF` represents an undefined
+/// (unspecified) length, which would have to be determined
+/// with a traversal based on the content's encoding.
+///
+/// This also means that numeric comparisons and arithmetic
+/// do not function the same way as primitive number types:
+///
+/// Two length of undefined length are not equal.
+///
+/// ```
+/// # use dicom_core::data::Length;
+/// assert_ne!(Length::undefined(), Length::undefined());
+/// ```
+///
+/// Any addition or substraction with at least one undefined
+/// length results in an undefined length.
+///
+/// ```
+/// # use dicom_core::data::Length;
+/// assert!((Length::defined(64) + Length::undefined()).is_undefined());
+/// assert!((Length::undefined() + 8).is_undefined());
+/// ```
+///
+/// Comparing between at least one undefined length is always `false`.
+///
+/// ```
+/// # use dicom_core::data::Length;
+/// assert!(Length::defined(16) < Length::defined(64));
+/// assert!(!(Length::undefined() < Length::defined(64)));
+/// assert!(!(Length::undefined() > Length::defined(64)));
+///
+/// assert!(!(Length::undefined() < Length::undefined()));
+/// assert!(!(Length::undefined() > Length::undefined()));
+/// assert!(!(Length::undefined() <= Length::undefined()));
+/// assert!(!(Length::undefined() >= Length::undefined()));
+/// ```
+///
+#[derive(Clone, Copy, Hash)]
 pub struct Length(pub u32);
 
-impl AsRef<u32> for Length {
-    fn as_ref(&self) -> &u32 {
-        &self.0
+const UNDEFINED_LEN: u32 = 0xFFFF_FFFF;
+
+impl Length {
+    /// Create a new length value from its internal representation.
+    /// This is equivalent to `Length(len)`.
+    pub fn new(len: u32) -> Self {
+        Length(len)
+    }
+
+    /// Create an undefined length.
+    pub fn undefined() -> Self {
+        Length(UNDEFINED_LEN)
+    }
+
+    /// Create a new length value with the given numbe of bytes.
+    ///
+    /// # Panic
+    ///
+    /// This function will panic if `len` represents an undefined length.
+    pub fn defined(len: u32) -> Self {
+        assert_ne!(len, UNDEFINED_LEN);
+        Length(len)
     }
 }
 
@@ -541,22 +605,139 @@ impl From<u32> for Length {
     }
 }
 
+impl PartialEq<Length> for Length {
+    fn eq(&self, rhs: &Length) -> bool {
+        match (self.0, rhs.0) {
+            (UNDEFINED_LEN, _) | (_, UNDEFINED_LEN) => false,
+            (l1, l2) => l1 == l2,
+        }
+    }
+}
+
+impl PartialOrd<Length> for Length {
+    fn partial_cmp(&self, rhs: &Length) -> Option<Ordering> {
+        match (self.0, rhs.0) {
+            (UNDEFINED_LEN, _) | (_, UNDEFINED_LEN) => None,
+            (l1, l2) => Some(l1.cmp(&l2)),
+        }
+    }
+}
+
+impl ::std::ops::Add<Length> for Length {
+    type Output = Self;
+
+    fn add(self, rhs: Length) -> Self::Output {
+        match (self.0, rhs.0) {
+            (UNDEFINED_LEN, _) | (_, UNDEFINED_LEN) => Length::undefined(),
+            (l1, l2) => {
+                let o = l1 + l2;
+                debug_assert!(
+                    o != UNDEFINED_LEN,
+                    "integer overflow (0xFFFF_FFFF reserved for undefined length)"
+                );
+                Length(o)
+            }
+        }
+    }
+}
+
+impl ::std::ops::Add<i32> for Length {
+    type Output = Self;
+
+    fn add(self, rhs: i32) -> Self::Output {
+        match self.0 {
+            UNDEFINED_LEN => Length::undefined(),
+            len => {
+                let o = (len as i32 + rhs) as u32;
+                debug_assert!(
+                    o != UNDEFINED_LEN,
+                    "integer overflow (0xFFFF_FFFF reserved for undefined length)"
+                );
+
+                Length(o)
+            }
+        }
+    }
+}
+
+impl ::std::ops::Sub<Length> for Length {
+    type Output = Self;
+
+    fn sub(self, rhs: Length) -> Self::Output {
+        match (self.0, rhs.0) {
+            (UNDEFINED_LEN, _) | (_, UNDEFINED_LEN) => Length::undefined(),
+            (l1, l2) => {
+                let o = l1 - l2;
+                debug_assert!(
+                    o != UNDEFINED_LEN,
+                    "integer overflow (0xFFFF_FFFF reserved for undefined length)"
+                );
+
+                Length(o)
+            }
+        }
+    }
+}
+
+impl ::std::ops::Sub<i32> for Length {
+    type Output = Self;
+
+    fn sub(self, rhs: i32) -> Self::Output {
+        match self.0 {
+            UNDEFINED_LEN => Length::undefined(),
+            len => {
+                let o = (len as i32 - rhs) as u32;
+                debug_assert!(
+                    o != UNDEFINED_LEN,
+                    "integer overflow (0xFFFF_FFFF reserved for undefined length)"
+                );
+
+                Length(o)
+            }
+        }
+    }
+}
+
 impl Length {
+    /// Check whether this length is undefined.
+    #[inline]
     pub fn is_undefined(&self) -> bool {
-        self.0 == 0xFFFF_FFFF
+        self.0 == UNDEFINED_LEN
+    }
+
+    /// Check whether this length is well defined.
+    #[inline]
+    pub fn is_defined(&self) -> bool {
+        !self.is_undefined()
+    }
+
+    /// Fetch the concrete length value, if available.
+    /// Returns `None` if it represents an undefined length.
+    #[inline]
+    pub fn get(&self) -> Option<u32> {
+        match self.0 {
+            UNDEFINED_LEN => None,
+            v => Some(v),
+        }
     }
 }
 
 impl fmt::Debug for Length {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.0 == 0xFFFF_FFFF {
-            f.debug_tuple("Length")
-                .field(&"Undefined")
-                .finish()
+        if self.0 == UNDEFINED_LEN {
+            f.write_str("Length(Undefined)")
         } else {
-            f.debug_tuple("Length")
-                .field(&self.0)
-                .finish()
+            f.debug_tuple("Length").field(&self.0).finish()
+        }
+    }
+}
+
+impl fmt::Display for Length {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.0 == UNDEFINED_LEN {
+            f.write_str("U/L")
+        } else {
+            write!(f, "{}", &self.0)
         }
     }
 }

@@ -1,18 +1,18 @@
 //! Explicit VR Big Endian syntax transfer implementation.
 
-use std::io::{Read, Write};
-use std::fmt;
-use std::marker::PhantomData;
-use data::VR;
-use data::Tag;
 use byteorder::{BigEndian, ByteOrder};
-use error::Result;
 use data::decode::basic::BigEndianBasicDecoder;
 use data::decode::{BasicDecode, Decode};
-use data::encode::{BasicEncode, Encode};
 use data::encode::basic::BigEndianBasicEncoder;
+use data::encode::{BasicEncode, Encode};
+use data::Tag;
+use data::VR;
+use data::{DataElementHeader, Header, Length, SequenceItemHeader};
+use error::Result;
+use std::fmt;
+use std::io::{Read, Write};
+use std::marker::PhantomData;
 use util::Endianness;
-use data::{DataElementHeader, Header, SequenceItemHeader};
 
 /// A data element decoder for the Explicit VR Big Endian transfer syntax.
 pub struct ExplicitVRBigEndianDecoder<S: ?Sized> {
@@ -52,7 +52,11 @@ where
             // item delimiters do not have VR or reserved field
             source.read_exact(&mut buf)?;
             let len = BigEndian::read_u32(&buf);
-            return Ok(DataElementHeader::new((group, element), VR::UN, len));
+            return Ok(DataElementHeader::new(
+                (group, element),
+                VR::UN,
+                Length(len),
+            ));
         }
 
         // retrieve explicit VR
@@ -83,7 +87,7 @@ where
             }
         };
 
-        Ok(DataElementHeader::new((group, element), vr, len))
+        Ok(DataElementHeader::new((group, element), vr, Length(len)))
     }
 
     fn decode_item_header(&self, source: &mut Self::Source) -> Result<SequenceItemHeader> {
@@ -94,7 +98,7 @@ where
         let element = BigEndian::read_u16(&buf[2..4]);
         let len = BigEndian::read_u32(&buf[4..8]);
 
-        SequenceItemHeader::new((group, element), len)
+        SequenceItemHeader::new((group, element), Length(len))
     }
 
     fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag> {
@@ -212,7 +216,7 @@ where
                 buf[4] = vr_bytes[0];
                 buf[5] = vr_bytes[1];
                 // buf[6..8] is kept zero'd
-                BigEndian::write_u32(&mut buf[8..], de.len());
+                BigEndian::write_u32(&mut buf[8..], de.len().0);
                 try!(to.write_all(&buf));
 
                 Ok(12)
@@ -224,7 +228,7 @@ where
                 let vr_bytes = de.vr().to_bytes();
                 buf[4] = vr_bytes[0];
                 buf[5] = vr_bytes[1];
-                BigEndian::write_u16(&mut buf[6..], de.len() as u16);
+                BigEndian::write_u16(&mut buf[6..], de.len().0 as u16);
                 try!(to.write_all(&buf));
 
                 Ok(8)
@@ -262,13 +266,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use data::{DataElementHeader, Header};
-    use data::decode::Decode;
-    use data::encode::Encode;
     use super::ExplicitVRBigEndianDecoder;
     use super::ExplicitVRBigEndianEncoder;
-    use data::VR;
+    use data::decode::Decode;
+    use data::encode::Encode;
     use data::Tag;
+    use data::VR;
+    use data::{DataElementHeader, Header, Length};
     use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements
@@ -301,7 +305,7 @@ mod tests {
                 .expect("should find an element");
             assert_eq!(elem.tag(), Tag(2, 2));
             assert_eq!(elem.vr(), VR::UI);
-            assert_eq!(elem.len(), 26);
+            assert_eq!(elem.len(), Length(26));
             // read only half of the data
             let mut buffer: Vec<u8> = Vec::with_capacity(13);
             buffer.resize(13, 0);
@@ -321,7 +325,7 @@ mod tests {
                 .expect("should find an element");
             assert_eq!(elem.tag(), Tag(2, 16));
             assert_eq!(elem.vr(), VR::UI);
-            assert_eq!(elem.len(), 20);
+            assert_eq!(elem.len(), Length(20));
             // read all data
             let mut buffer: Vec<u8> = Vec::with_capacity(20);
             buffer.resize(20, 0);
@@ -340,7 +344,7 @@ mod tests {
             let mut writer = Cursor::new(&mut buf[..]);
 
             // encode first element
-            let de = DataElementHeader::new(Tag(0x0002, 0x0002), VR::UI, 26);
+            let de = DataElementHeader::new(Tag(0x0002, 0x0002), VR::UI, Length(26));
             let len = enc.encode_element_header(&mut writer, de)
                 .expect("should write it fine");
             assert_eq!(len, 8);
@@ -354,7 +358,7 @@ mod tests {
             let mut writer = Cursor::new(&mut buf[34..]);
 
             // encode second element
-            let de = DataElementHeader::new(Tag(0x0002, 0x0010), VR::UI, 20);
+            let de = DataElementHeader::new(Tag(0x0002, 0x0010), VR::UI, Length(20));
             let len = enc.encode_element_header(&mut writer, de)
                 .expect("should write it fine");
             assert_eq!(len, 8);
@@ -383,10 +387,9 @@ mod tests {
     //  Length: 0
     // --
     const RAW_SEQUENCE_ITEMS: &'static [u8] = &[
-        0x00, 0x08, 0x10, 0x3F, b'S', b'Q', 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
-        0xFF, 0xFE, 0xE0, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
-        0xFF, 0xFE, 0xE0, 0x0D, 0x00, 0x00, 0x00, 0x00,
-        0xFF, 0xFE, 0xE0, 0xDD, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x08, 0x10, 0x3F, b'S', b'Q', 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE, 0xE0,
+        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE, 0xE0, 0x0D, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFE,
+        0xE0, 0xDD, 0x00, 0x00, 0x00, 0x00,
     ];
 
     #[test]
@@ -399,7 +402,7 @@ mod tests {
                 .expect("should find an element header");
             assert_eq!(elem.tag(), Tag(8, 0x103F));
             assert_eq!(elem.vr(), VR::SQ);
-            assert_eq!(elem.len(), 0xFFFF_FFFF);
+            assert!(elem.len().is_undefined());
         }
         // cursor should now be @ #12
         assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 12);
@@ -408,7 +411,7 @@ mod tests {
                 .expect("should find an item header");
             assert!(elem.is_item());
             assert_eq!(elem.tag(), Tag(0xFFFE, 0xE000));
-            assert_eq!(elem.len(), 0xFFFF_FFFF);
+            assert!(elem.len().is_undefined());
         }
         // cursor should now be @ #20
         assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 20);
@@ -417,7 +420,7 @@ mod tests {
                 .expect("should find an item header");
             assert!(elem.is_item_delimiter());
             assert_eq!(elem.tag(), Tag(0xFFFE, 0xE00D));
-            assert_eq!(elem.len(), 0);
+            assert_eq!(elem.len(), Length(0));
         }
         // cursor should now be @ #28
         assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 28);
@@ -426,7 +429,7 @@ mod tests {
                 .expect("should find an item header");
             assert!(elem.is_sequence_delimiter());
             assert_eq!(elem.tag(), Tag(0xFFFE, 0xE0DD));
-            assert_eq!(elem.len(), 0);
+            assert_eq!(elem.len(), Length(0));
         }
     }
 }

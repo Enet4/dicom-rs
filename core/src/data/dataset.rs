@@ -8,9 +8,9 @@ use data::text::SpecificCharacterSet;
 use data::value::{DicomValueType, PrimitiveValue};
 use data::Tag;
 use data::VR;
-use data::{DataElement, DataElementHeader, Header, SequenceItemHeader};
+use data::{DataElement, DataElementHeader, Header, Length, SequenceItemHeader};
 use dictionary::{DataDictionary, StandardDataDictionary};
-use error::{Error, Result};
+use error::{Error, InvalidValueReadError, Result};
 use object::mem::InMemDicomObject;
 use std::fmt;
 use std::io::{Read, Seek, SeekFrom};
@@ -122,17 +122,17 @@ where
 
 /// A token of a DICOM data set stream. This is part of the interpretation of a
 /// data set as a stream of symbols, which may either represent data headers or
-/// actual value data. 
+/// actual value data.
 #[derive(Debug)]
 pub enum DicomDataToken {
     /// A data header of a primitive value.
     ElementHeader(DataElementHeader),
     /// The beginning of a sequence element.
-    SequenceStart { tag: Tag, len: u32 },
+    SequenceStart { tag: Tag, len: Length },
     /// The ending delimiter of a sequence.
     SequenceEnd,
     /// The beginning of a new item in the sequence.
-    ItemStart { len: u32 },
+    ItemStart { len: Length },
     /// The ending delimiter of an item.
     ItemEnd,
     /// A primitive data element value.
@@ -142,8 +142,10 @@ pub enum DicomDataToken {
 impl fmt::Display for DicomDataToken {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &DicomDataToken::PrimitiveValue(ref v) => write!(f, "PrimitiveValue({:?})", v.value_type()),
-            other => write!(f, "{:?}", other)
+            &DicomDataToken::PrimitiveValue(ref v) => {
+                write!(f, "PrimitiveValue({:?})", v.value_type())
+            }
+            other => write!(f, "{:?}", other),
         }
     }
 }
@@ -404,7 +406,7 @@ where
 
 /// A data type for a DICOM element residing in a file, or any other source
 /// with random access. A position in the file is kept for future access.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct DicomElementMarker {
     /// The header, kept in memory. At this level, the value representation
     /// "UN" may also refer to a non-applicable vr (i.e. for items and
@@ -425,7 +427,10 @@ impl DicomElementMarker {
     where
         S: ReadSeek,
     {
-        let len = self.header.len() as u64;
+        let len = self.header
+            .len()
+            .get()
+            .ok_or(InvalidValueReadError::UnresolvedValueLength)? as u64;
         let interval = SeekInterval::new_at(source, self.pos..len)?;
         Ok(interval)
     }
@@ -451,7 +456,7 @@ impl Header for DicomElementMarker {
         self.header.tag()
     }
 
-    fn len(&self) -> u32 {
+    fn len(&self) -> Length {
         self.header.len()
     }
 }

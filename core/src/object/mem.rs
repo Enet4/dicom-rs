@@ -11,7 +11,7 @@ use data::dataset::{DataSetReader, DicomDataToken};
 use data::parser::Parse;
 use data::text::SpecificCharacterSet;
 use data::value::{DicomValueType, Value, ValueType};
-use data::{DataElement, Header, Tag, VR};
+use data::{DataElement, Header, Length, Tag, VR};
 use dictionary::{DataDictionary, DictionaryEntry, StandardDataDictionary};
 use error::{DataSetSyntaxError, Error, Result};
 use meta::DicomMetaTable;
@@ -24,8 +24,14 @@ pub type InMemElement<D> = DataElement<InMemDicomObject<D>>;
  */
 #[derive(Debug, Clone)]
 pub struct InMemDicomObject<D> {
+    /// the element map
     entries: BTreeMap<Tag, InMemElement<D>>,
+    /// the data dictionary
     dict: D,
+    /// The length of the DICOM object in bytes.
+    /// It is usually undefined, unless it is part of an item
+    /// in a sequence with a specified length in its item header.
+    len: Length,
 }
 
 impl<'s, D> PartialEq for InMemDicomObject<D> {
@@ -40,8 +46,8 @@ impl<D> DicomValueType for InMemDicomObject<D> {
         ValueType::Item
     }
 
-    fn size(&self) -> u32 {
-        panic!("Attempt to fetch the size of a DICOM object")
+    fn size(&self) -> Length {
+        self.len
     }
 }
 
@@ -68,6 +74,7 @@ impl InMemDicomObject<StandardDataDictionary> {
         InMemDicomObject {
             entries: BTreeMap::new(),
             dict: StandardDataDictionary,
+            len: Length::undefined(),
         }
     }
 
@@ -103,6 +110,7 @@ where
         InMemDicomObject {
             entries: BTreeMap::new(),
             dict: dict,
+            len: Length::undefined(),
         }
     }
 
@@ -115,12 +123,12 @@ where
         Ok(InMemDicomObject {
             entries: entries?,
             dict,
+            len: Length::undefined(),
         })
     }
 
     /// Create a DICOM object by reading from a file.
-    pub fn open_file_with_dict<P: AsRef<Path>>(path: P, dict: D) -> Result<Self>
-    {
+    pub fn open_file_with_dict<P: AsRef<Path>>(path: P, dict: D) -> Result<Self> {
         let mut file = BufReader::new(File::open(path)?);
 
         // skip preamble
@@ -139,7 +147,7 @@ where
             .ok_or(Error::UnsupportedTransferSyntax)?;
         let cs = SpecificCharacterSet::Default;
         let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)?;
-        Self::build_object(&mut dataset, dict, false)
+        Self::build_object(&mut dataset, dict, false, Length::undefined())
     }
 
     /// Create a DICOM object by reading from a byte source.
@@ -158,13 +166,14 @@ where
             .ok_or(Error::UnsupportedTransferSyntax)?;
         let cs = SpecificCharacterSet::Default;
         let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)?;
-        Self::build_object(&mut dataset, dict, false)
+        Self::build_object(&mut dataset, dict, false, Length::undefined())
     }
 
     fn build_object<'s, S: 's, P>(
         dataset: &mut DataSetReader<S, P, D>,
         dict: D,
         in_item: bool,
+        len: Length,
     ) -> Result<Self>
     where
         S: Read,
@@ -199,25 +208,19 @@ where
                 }
                 DicomDataToken::ItemEnd if in_item => {
                     // end of item, leave now
-                    return Ok(InMemDicomObject {
-                        entries,
-                        dict,
-                    });
+                    return Ok(InMemDicomObject { entries, dict, len });
                 }
                 token => return Err(DataSetSyntaxError::UnexpectedToken(token).into()),
             };
             entries.insert(elem.tag(), elem);
         }
 
-        Ok(InMemDicomObject {
-            entries,
-            dict,
-        })
+        Ok(InMemDicomObject { entries, dict, len })
     }
 
     fn build_sequence<'s, S: 's, P>(
         _tag: Tag,
-        _len: u32,
+        _len: Length,
         dataset: &mut DataSetReader<S, P, D>,
         dict: D,
     ) -> Result<Vec<InMemDicomObject<D>>>
@@ -229,9 +232,9 @@ where
         while let Some(token) = dataset.next() {
             match token? {
                 DicomDataToken::ItemStart { len } => {
-                    // TODO if length is not 0xFFFFFFFF, then it's an explicit length,
-                    // and it should be considered instead of the item delimiter
-                    items.push(Self::build_object(&mut *dataset, dict.clone(), true)?);
+                    // TODO if length is well defined, then it should be
+                    // considered instead of finding the item delimiter.
+                    items.push(Self::build_object(&mut *dataset, dict.clone(), true, len)?);
                 }
                 DicomDataToken::SequenceEnd => {
                     return Ok(items);
