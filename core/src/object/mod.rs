@@ -20,6 +20,7 @@
 use data::Header;
 use data::Tag;
 use error::Result;
+use meta::DicomMetaTable;
 
 pub mod lazy;
 pub mod mem;
@@ -41,4 +42,65 @@ pub trait DicomObject {
     fn element_by_name(&self, name: &str) -> Result<Self::Element>;
 
     // TODO moar
+}
+
+
+/** A root DICOM object contains additional meta information about the object
+ * (such as the DICOM file's meta header).
+ */
+#[derive(Debug, Clone, PartialEq)]
+pub struct RootDicomObject<T> {
+    meta: DicomMetaTable,
+    obj: T,
+}
+
+impl<T> RootDicomObject<T> {
+    /// Retrieve the processed meta header table.
+    pub fn meta(&self) -> &DicomMetaTable {
+        &self.meta
+    }
+}
+
+impl<T> ::std::ops::Deref for RootDicomObject<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.obj
+    }
+}
+
+impl<T> ::std::ops::DerefMut for RootDicomObject<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.obj
+    }
+}
+
+impl<T> DicomObject for RootDicomObject<T>
+where
+    T: DicomObject
+{
+    type Element = <T as DicomObject>::Element;
+    
+    fn element(&self, tag: Tag) -> Result<Self::Element> {
+        self.obj.element(tag)
+    }
+
+    fn element_by_name(&self, name: &str) -> Result<Self::Element> {
+        self.obj.element_by_name(name)
+    }
+}
+
+impl<'a, T: 'a> DicomObject for &'a RootDicomObject<T>
+where
+    T: DicomObject
+{
+    type Element = <T as DicomObject>::Element;
+    
+    fn element(&self, tag: Tag) -> Result<Self::Element> {
+        self.obj.element(tag)
+    }
+
+    fn element_by_name(&self, name: &str) -> Result<Self::Element> {
+        self.obj.element_by_name(name)
+    }
 }
