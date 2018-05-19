@@ -1,3 +1,4 @@
+/rls/
 .vscode/
 target/
 /Cargo.lock
