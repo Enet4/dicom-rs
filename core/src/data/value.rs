@@ -71,7 +71,7 @@ where
 
     pub fn as_string(&self) -> Result<Cow<str>, CastValueError> {
         match self {
-            &Value::Primitive(PrimitiveValue::Str(ref v)) => Ok(Cow::from(v.as_ref())),
+            &Value::Primitive(PrimitiveValue::Str(ref v)) => Ok(Cow::from(v.as_str())),
             &Value::Primitive(PrimitiveValue::Strs(ref v)) => {
                 Ok(Cow::from(v.into_iter().join("\\")))
             }
