@@ -1,5 +1,6 @@
 //! This modules contains everything needed to access and manipulate DICOM data elements.
-//! It comprises a variety of basic data types, such as the DICOM attribute tag.
+//! It comprises a variety of basic data types, such as the DICOM attribute tag, the
+//! element header, and element composite types.
 
 pub mod dataset;
 pub mod decode;
@@ -48,12 +49,37 @@ pub struct DataElement<I> {
     value: Value<I>,
 }
 
+/// A data type that represents and owns a DICOM data element
+/// containing a primitive value.
+#[derive(Debug, PartialEq, Clone)]
+pub struct PrimitiveDataElement {
+    header: DataElementHeader,
+    value: PrimitiveValue,
+}
+
+impl<I> From<PrimitiveDataElement> for DataElement<I> {
+    fn from(o: PrimitiveDataElement) -> Self {
+        DataElement {
+            header: o.header,
+            value: o.value.into(),
+        }
+    }
+}
+
 /// A data type that represents a DICOM data element with
 /// a borrowed value.
 #[derive(Debug, PartialEq, Clone)]
 pub struct DataElementRef<'v, I: 'v> {
     header: DataElementHeader,
     value: &'v Value<I>,
+}
+
+/// A data type that represents a DICOM data element with
+/// a borrowed primitive value.
+#[derive(Debug, PartialEq, Clone)]
+pub struct PrimitiveDataElementRef<'v> {
+    header: DataElementHeader,
+    value: &'v PrimitiveValue,
 }
 
 impl<I> Header for DataElement<I> {
