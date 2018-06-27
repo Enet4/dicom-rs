@@ -1,20 +1,85 @@
-//! A reimplementation of dcmdump in Rust
-//! WIP
+//! A reimplementation of dcmdump in Rust.
+//! This is a work in progress, it is not guaranteed to work yet!
 extern crate dicom_core;
 
-use dicom_core::{DicomElement, DicomObject};
-use std::fs::File;
-use std::path::Path;
+use dicom_core::data::Header;
+use dicom_core::dictionary::{DataDictionary, DictionaryEntry, StandardDataDictionary};
+use dicom_core::object::mem::InMemElement;
+use dicom_core::{open_file, DicomValue, InMemDicomObject};
 
-fn main() {
-    println!("Sorry, this tool is not implemented yet.");
+use std::io::{stdout, Write};
+
+type DynResult<T> = Result<T, Box<::std::error::Error>>;
+
+fn main() -> DynResult<()> {
+    let filename = ::std::env::args()
+        .nth(1)
+        .expect("Missing path to DICOM file");
+
+    let obj = open_file(filename)?;
+    let mut to = stdout();
+    write!(to, "# Dicom-File-Format\n\n")?;
+    dump(&mut to, &obj, 0)?;
+
+    Ok(())
 }
 
-fn dump<P: AsRef<Path>>(path: P) {
-    let file = File::open(path).unwrap();
-    //let obj = DicomLoader.load(file).unwrap();
+fn dump<W, D>(to: &mut W, obj: &InMemDicomObject<D>, depth: u32) -> DynResult<()>
+where
+    W: Write,
+    D: DataDictionary,
+{
+    for elem in obj {
+        dump_element(&mut *to, &elem, depth)?;
+    }
 
-    //for elem in obj {
-    //    dump_element(&elem);
-    //}
+    Ok(())
+}
+
+fn dump_element<W, D>(to: &mut W, elem: &InMemElement<D>, depth: u32) -> DynResult<()>
+where
+    W: Write,
+    D: DataDictionary,
+{
+    let indent = vec![b' '; (depth * 2) as usize];
+    let tag_alias = StandardDataDictionary
+        .by_tag(elem.tag())
+        .map(DictionaryEntry::alias)
+        .unwrap_or("«Unknown Attribute»");
+    to.write(&indent)?;
+    let len = elem.len();
+    let vm = elem.value().multiplicity();
+    writeln!(
+        to,
+        "{} {}                    # {}, {} {}",
+        elem.tag(),
+        elem.vr(),
+        len,
+        vm,
+        tag_alias
+    )?;
+
+    if let &DicomValue::Sequence { ref items, .. } = elem.value() {
+        for item in items {
+            dump_item(&mut *to, item, depth + 1)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn dump_item<W, D>(to: &mut W, item: &InMemDicomObject<D>, depth: u32) -> DynResult<()>
+where
+    W: Write,
+    D: DataDictionary,
+{
+    let indent = vec![b' '; (depth * 2) as usize];
+    to.write(&indent)?;
+    writeln!(to, "(FFFE,E000) na Item                    # 0, 0 Item")?;
+    dump(to, item, depth + 1)?;
+    writeln!(
+        to,
+        "(FFFE,E00D) na (ItemDelimitationItem)  # 0, 0 ItemDelimitationItem"
+    )?;
+    Ok(())
 }
