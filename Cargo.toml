@@ -3,4 +3,4 @@ members = [
     "core",
     "dictionary_builder"
 ]
-repository = "https://github.com/Enet4/dicom-rs.git"
+repository = "https://github.com/Enet4/dicom-rs"
