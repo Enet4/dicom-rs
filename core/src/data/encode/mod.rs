@@ -78,14 +78,14 @@ pub trait Encode {
     /// Encode and write a DICOM sequence item delimiter to the given destination.
     fn encode_item_delimiter(&self, to: &mut Self::Writer) -> Result<()> {
         self.encode_tag(to, Tag(0xFFFE, 0xE00D))?;
-        to.write(&[0u8; 4])?;
+        to.write_all(&[0u8; 4])?;
         Ok(())
     }
 
     /// Encode and write a DICOM sequence delimiter to the given destination.
     fn encode_sequence_delimiter(&self, to: &mut Self::Writer) -> Result<()> {
         self.encode_tag(to, Tag(0xFFFE, 0xE0DD))?;
-        to.write(&[0u8; 4])?;
+        to.write_all(&[0u8; 4])?;
         Ok(())
     }
 }

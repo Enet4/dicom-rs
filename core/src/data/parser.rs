@@ -202,11 +202,11 @@ where
 
         let parts: Result<Vec<_>> = match header.vr() {
             VR::AE | VR::CS | VR::AS => buf[..]
-                .split(|v| *v == '\\' as u8)
+                .split(|v| *v == b'\\')
                 .map(|slice| DefaultCharacterSetCodec.decode(slice))
                 .collect(),
             _ => buf[..]
-                .split(|v| *v == '\\' as u8)
+                .split(|v| *v == b'\\')
                 .map(|slice| self.text.decode(slice))
                 .collect(),
         };
@@ -318,11 +318,11 @@ where
         from.read_exact(&mut buf)?;
 
         let last = if let Some(c) = buf.last() { *c } else { 0u8 };
-        if last == ' ' as u8 {
+        if last == b' ' {
             buf.pop();
         }
         let parts: Result<Vec<_>> = buf[..]
-            .split(|v| *v == '\\' as u8)
+            .split(|v| *v == b'\\')
             .map(|slice| {
                 let codec = SpecificCharacterSet::Default.get_codec().unwrap();
                 let txt = codec.decode(slice)?;
@@ -508,7 +508,7 @@ fn parse_date(buf: &[u8]) -> Result<(NaiveDate, usize)> {
         }
         6 => {
             let year = read_number(&buf[0..4])?;
-            let month = (buf[4] as i32 - Z) * 10 + buf[5] as i32 - Z;
+            let month = (i32::from(buf[4]) - Z) * 10 + i32::from(buf[5]) - Z;
             let date: Result<_> = NaiveDate::from_ymd_opt(year, month as u32, 0)
                 .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
             Ok((date?, 6))
@@ -516,8 +516,8 @@ fn parse_date(buf: &[u8]) -> Result<(NaiveDate, usize)> {
         len => {
             debug_assert!(len >= 8);
             let year = read_number(&buf[0..4])?;
-            let month = (buf[4] as i32 - Z) * 10 + buf[5] as i32 - Z;
-            let day = (buf[6] as i32 - Z) * 10 + buf[7] as i32 - Z;
+            let month = (i32::from(buf[4]) - Z) * 10 + i32::from(buf[5]) - Z;
+            let day = (i32::from(buf[6]) - Z) * 10 + i32::from(buf[7]) - Z;
             let date: Result<_> = NaiveDate::from_ymd_opt(year, month as u32, day as u32)
                 .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
             Ok((date?, 8))
@@ -536,7 +536,7 @@ fn parse_time_impl(mut buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, usi
     let mut suffix_offset = 0;
     if !for_datetime {
         // perform a single trailing space trim
-        if let Some(b' ') = buf.last().map(|x| *x) {
+        if let Some(b' ') = buf.last().cloned() {
             buf = &buf[..buf.len() - 1];
             suffix_offset = 1;
         }
@@ -545,31 +545,31 @@ fn parse_time_impl(mut buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, usi
     match buf.len() {
         0 | 1 | 3 | 5 | 7 => Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
         2 => {
-            let hour = (buf[0] as i32 - Z) * 10 + buf[1] as i32 - Z;
+            let hour = (i32::from(buf[0]) - Z) * 10 + i32::from(buf[1]) - Z;
             let time: Result<_> = NaiveTime::from_hms_opt(hour as u32, 0, 0)
                 .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
             Ok((time?, 2 + suffix_offset))
         }
         4 => {
-            let hour = (buf[0] as i32 - Z) * 10 + buf[1] as i32 - Z;
-            let minute = (buf[2] as i32 - Z) * 10 + buf[3] as i32 - Z;
+            let hour = (i32::from(buf[0]) - Z) * 10 + i32::from(buf[1]) - Z;
+            let minute = (i32::from(buf[2]) - Z) * 10 + i32::from(buf[3]) - Z;
             let time: Result<_> = NaiveTime::from_hms_opt(hour as u32, minute as u32, 0)
                 .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
             Ok((time?, 4 + suffix_offset))
         }
         6 => {
-            let hour = (buf[0] as i32 - Z) * 10 + buf[1] as i32 - Z;
-            let minute = (buf[2] as i32 - Z) * 10 + buf[3] as i32 - Z;
-            let second = (buf[4] as i32 - Z) * 10 + buf[5] as i32 - Z;
+            let hour = (i32::from(buf[0]) - Z) * 10 + i32::from(buf[1]) - Z;
+            let minute = (i32::from(buf[2]) - Z) * 10 + i32::from(buf[3]) - Z;
+            let second = (i32::from(buf[4]) - Z) * 10 + i32::from(buf[5]) - Z;
             let time: Result<_> =
                 NaiveTime::from_hms_opt(hour as u32, minute as u32, second as u32)
                     .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
             Ok((time?, 6 + suffix_offset))
         }
         _ => {
-            let hour = (buf[0] as i32 - Z) * 10 + buf[1] as i32 - Z;
-            let minute = (buf[2] as i32 - Z) * 10 + buf[3] as i32 - Z;
-            let second = (buf[4] as i32 - Z) * 10 + buf[5] as i32 - Z;
+            let hour = (i32::from(buf[0]) - Z) * 10 + i32::from(buf[1]) - Z;
+            let minute = (i32::from(buf[2]) - Z) * 10 + i32::from(buf[3]) - Z;
+            let second = (i32::from(buf[4]) - Z) * 10 + i32::from(buf[5]) - Z;
             match buf[6] {
                 b'.' => { /* do nothing */ }
                 b'+' | b'-' if for_datetime => { /* do nothing */ }
@@ -707,7 +707,7 @@ fn parse_datetime(mut buf: &[u8], dt_utc_offset: &FixedOffset) -> Result<DateTim
             let tz_sign = buf[0];
             let buf = &buf[1..];
             let (tz_h, tz_m) = match buf.len() {
-                1 => (buf[0] as i32 - Z, 0),
+                1 => (i32::from(buf[0]) - Z, 0),
                 2 => return Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
                 _ => {
                     let (h_buf, m_buf) = buf.split_at(2);

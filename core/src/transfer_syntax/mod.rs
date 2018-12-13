@@ -71,13 +71,13 @@ impl TransferSyntax for ImplicitVRLittleEndian {
         Endianness::LE
     }
 
-    fn get_decoder<'s>(&self) -> Option<DynamicDecoder> {
+    fn get_decoder(&self) -> Option<DynamicDecoder> {
         Some(Box::new(
             implicit_le::ImplicitVRLittleEndianDecoder::default(),
         ))
     }
 
-    fn get_encoder<'w>(&self) -> Option<DynamicEncoder> {
+    fn get_encoder(&self) -> Option<DynamicEncoder> {
         Some(Box::new(
             implicit_le::ImplicitVRLittleEndianEncoder::default(),
         ))
@@ -129,11 +129,11 @@ impl TransferSyntax for ExplicitVRBigEndian {
         Endianness::BE
     }
 
-    fn get_decoder<'s>(&self) -> Option<DynamicDecoder> {
+    fn get_decoder(&self) -> Option<DynamicDecoder> {
         Some(Box::new(explicit_be::ExplicitVRBigEndianDecoder::default()))
     }
 
-    fn get_encoder<'w>(&self) -> Option<DynamicEncoder> {
+    fn get_encoder(&self) -> Option<DynamicEncoder> {
         Some(Box::new(explicit_be::ExplicitVRBigEndianEncoder::default()))
     }
 }

@@ -92,7 +92,7 @@ where
 }
 
 impl DicomMetaTable {
-    pub fn from_stream<R: Read>(mut file: R) -> Result<DicomMetaTable> {
+    pub fn from_stream<R: Read>(file: R) -> Result<DicomMetaTable> {
         DicomMetaTable::read_from(file)
     }
 

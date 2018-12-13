@@ -597,7 +597,7 @@ impl From<[u16; 2]> for Tag {
 /// assert!(!(Length::undefined() >= Length::undefined()));
 /// ```
 ///
-#[derive(Clone, Copy, Hash)]
+#[derive(Clone, Copy)]
 pub struct Length(pub u32);
 
 const UNDEFINED_LEN: u32 = 0xFFFF_FFFF;
@@ -614,7 +614,7 @@ impl Length {
         Length(UNDEFINED_LEN)
     }
 
-    /// Create a new length value with the given numbe of bytes.
+    /// Create a new length value with the given number of bytes.
     ///
     /// # Panic
     ///
@@ -727,20 +727,20 @@ impl ::std::ops::Sub<i32> for Length {
 impl Length {
     /// Check whether this length is undefined.
     #[inline]
-    pub fn is_undefined(&self) -> bool {
+    pub fn is_undefined(self) -> bool {
         self.0 == UNDEFINED_LEN
     }
 
     /// Check whether this length is well defined.
     #[inline]
-    pub fn is_defined(&self) -> bool {
+    pub fn is_defined(self) -> bool {
         !self.is_undefined()
     }
 
     /// Fetch the concrete length value, if available.
     /// Returns `None` if it represents an undefined length.
     #[inline]
-    pub fn get(&self) -> Option<u32> {
+    pub fn get(self) -> Option<u32> {
         match self.0 {
             UNDEFINED_LEN => None,
             v => Some(v),

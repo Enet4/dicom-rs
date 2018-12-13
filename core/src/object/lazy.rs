@@ -183,6 +183,11 @@ impl LazyDataElement {
         self.marker.len()
     }
 
+    /// Whether the value data length is known and is exactly zero. 
+    pub fn is_empty(&self) -> bool {
+        self.marker.len().get() == Some(0)
+    }
+
     // TODO lazy value evaluation
     /// Getter for this element's cached data value.
     /// It will only hold a value once explicitly read.
@@ -196,10 +201,12 @@ impl LazyDataElement {
         &mut self.value
     }
 
+    /// Check whether the value is locally cached.
     pub fn is_loaded(&self) -> bool {
         self.value.is_some()
     }
 
+    /// Free the cached data container.
     pub fn clear_value(&mut self) {
         self.value = None;
     }

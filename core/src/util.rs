@@ -49,7 +49,7 @@ where
             source: source,
             current: pos,
             begin: pos,
-            end: pos + n as u64,
+            end: pos + u64::from(n),
             marker: PhantomData,
         })
     }

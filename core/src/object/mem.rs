@@ -92,7 +92,7 @@ impl InMemDicomObject<StandardDataDictionary> {
     }
 
     /// Construct a DICOM object from an iterator of structured elements.
-    pub fn from_iter<I>(iter: I) -> Result<Self>
+    pub fn from_element_iter<I>(iter: I) -> Result<Self>
     where
         I: IntoIterator<Item = Result<InMemElement<StandardDataDictionary>>>,
     {
@@ -181,13 +181,7 @@ where
     {
         let mut entries: BTreeMap<Tag, InMemElement<D>> = BTreeMap::new();
         // perform a structured parsing of incoming tokens
-        loop {
-            let token = if let Some(t) = dataset.next() {
-                t
-            } else {
-                break;
-            };
-
+        while let Some(token) = dataset.next() {
             let elem = match token? {
                 DicomDataToken::ElementHeader(header) => {
                     // fetch respective value, place it in the entries
@@ -203,7 +197,7 @@ where
                 }
                 DicomDataToken::SequenceStart { tag, len } => {
                     // delegate sequence building to another function
-                    let items = Self::build_sequence(tag, len, &mut *dataset, dict.clone())?;
+                    let items = Self::build_sequence(tag, len, &mut *dataset, &dict)?;
                     DataElement::new(tag, VR::SQ, Value::Sequence { items, size: len })
                 }
                 DicomDataToken::ItemEnd if in_item => {
@@ -222,7 +216,7 @@ where
         _tag: Tag,
         _len: Length,
         dataset: &mut DataSetReader<S, P, D>,
-        dict: D,
+        dict: &D,
     ) -> Result<Vec<InMemDicomObject<D>>>
     where
         S: Read,
