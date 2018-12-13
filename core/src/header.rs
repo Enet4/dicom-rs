@@ -1,15 +1,8 @@
-//! This modules contains everything needed to access and manipulate DICOM data elements.
+//! This modules contains an assortment of types required for interpreting DICOM data elements.
 //! It comprises a variety of basic data types, such as the DICOM attribute tag, the
 //! element header, and element composite types.
 
-pub mod dataset;
-pub mod decode;
-pub mod encode;
-pub mod parser;
-pub mod text;
-pub mod value;
-
-use data::value::{DicomValueType, PrimitiveValue, Value};
+use value::{DicomValueType, PrimitiveValue, Value};
 use error::{Error, Result};
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -57,6 +50,16 @@ pub struct PrimitiveDataElement {
     value: PrimitiveValue,
 }
 
+impl PrimitiveDataElement {
+    /// Main constructor for a primitive data element.
+    pub fn new(header: DataElementHeader, value: PrimitiveValue) -> Self {
+        PrimitiveDataElement {
+            header,
+            value,
+        }
+    }
+}
+
 impl<I> From<PrimitiveDataElement> for DataElement<I> {
     fn from(o: PrimitiveDataElement) -> Self {
         DataElement {
@@ -82,6 +85,15 @@ pub struct PrimitiveDataElementRef<'v> {
     value: &'v PrimitiveValue,
 }
 
+impl<'a> PrimitiveDataElementRef<'a> {
+    /// Main constructor for a primitive data element reference.
+    pub fn new(header: DataElementHeader, value: &'a PrimitiveValue) -> Self {
+        PrimitiveDataElementRef {
+            header,
+            value,
+        }
+    }
+}
 impl<I> Header for DataElement<I> {
     #[inline]
     fn tag(&self) -> Tag {
@@ -402,86 +414,90 @@ pub enum VR {
 }
 
 impl VR {
+    
+
     /// Obtain the value representation corresponding to the given two bytes.
     /// Each byte should represent an alphabetic character in upper case.
-    pub fn from_binary(chars: [u8; 2]) -> Option<VR> {
+    pub fn from_binary(chars: [u8; 2]) -> Option<Self> {
         from_utf8(chars.as_ref()).ok().and_then(|s| VR::from_str(s))
     }
 
     /// Obtain the value representation corresponding to the given string.
     /// The string should hold exactly two UTF-8 encoded alphabetic characters
     /// in upper case, otherwise no match is made.
-    pub fn from_str(string: &str) -> Option<VR> {
+    pub fn from_str(string: &str) -> Option<Self> {
+        use VR::*;
         match string {
-            "AE" => Some(VR::AE),
-            "AS" => Some(VR::AS),
-            "AT" => Some(VR::AT),
-            "CS" => Some(VR::CS),
-            "DA" => Some(VR::DA),
-            "DS" => Some(VR::DS),
-            "DT" => Some(VR::DT),
-            "FL" => Some(VR::FL),
-            "FD" => Some(VR::FD),
-            "IS" => Some(VR::IS),
-            "LO" => Some(VR::LO),
-            "LT" => Some(VR::LT),
-            "OB" => Some(VR::OB),
-            "OD" => Some(VR::OD),
-            "OF" => Some(VR::OF),
-            "OL" => Some(VR::OL),
-            "OW" => Some(VR::OW),
-            "PN" => Some(VR::PN),
-            "SH" => Some(VR::SH),
-            "SL" => Some(VR::SL),
-            "SQ" => Some(VR::SQ),
-            "SS" => Some(VR::SS),
-            "ST" => Some(VR::ST),
-            "TM" => Some(VR::TM),
-            "UC" => Some(VR::UC),
-            "UI" => Some(VR::UI),
-            "UL" => Some(VR::UL),
-            "UN" => Some(VR::UN),
-            "UR" => Some(VR::UR),
-            "US" => Some(VR::US),
-            "UT" => Some(VR::UT),
+            "AE" => Some(AE),
+            "AS" => Some(AS),
+            "AT" => Some(AT),
+            "CS" => Some(CS),
+            "DA" => Some(DA),
+            "DS" => Some(DS),
+            "DT" => Some(DT),
+            "FL" => Some(FL),
+            "FD" => Some(FD),
+            "IS" => Some(IS),
+            "LO" => Some(LO),
+            "LT" => Some(LT),
+            "OB" => Some(OB),
+            "OD" => Some(OD),
+            "OF" => Some(OF),
+            "OL" => Some(OL),
+            "OW" => Some(OW),
+            "PN" => Some(PN),
+            "SH" => Some(SH),
+            "SL" => Some(SL),
+            "SQ" => Some(SQ),
+            "SS" => Some(SS),
+            "ST" => Some(ST),
+            "TM" => Some(TM),
+            "UC" => Some(UC),
+            "UI" => Some(UI),
+            "UL" => Some(UL),
+            "UN" => Some(UN),
+            "UR" => Some(UR),
+            "US" => Some(US),
+            "UT" => Some(UT),
             _ => None,
         }
     }
 
     /// Retrieve a string representation of this VR.
     pub fn to_string(&self) -> &'static str {
+        use VR::*;
         match *self {
-            VR::AE => "AE",
-            VR::AS => "AS",
-            VR::AT => "AT",
-            VR::CS => "CS",
-            VR::DA => "DA",
-            VR::DS => "DS",
-            VR::DT => "DT",
-            VR::FL => "FL",
-            VR::FD => "FD",
-            VR::IS => "IS",
-            VR::LO => "LO",
-            VR::LT => "LT",
-            VR::OB => "OB",
-            VR::OD => "OD",
-            VR::OF => "OF",
-            VR::OL => "OL",
-            VR::OW => "OW",
-            VR::PN => "PN",
-            VR::SH => "SH",
-            VR::SL => "SL",
-            VR::SQ => "SQ",
-            VR::SS => "SS",
-            VR::ST => "ST",
-            VR::TM => "TM",
-            VR::UC => "UC",
-            VR::UI => "UI",
-            VR::UL => "UL",
-            VR::UN => "UN",
-            VR::UR => "UR",
-            VR::US => "US",
-            VR::UT => "UT",
+            AE => "AE",
+            AS => "AS",
+            AT => "AT",
+            CS => "CS",
+            DA => "DA",
+            DS => "DS",
+            DT => "DT",
+            FL => "FL",
+            FD => "FD",
+            IS => "IS",
+            LO => "LO",
+            LT => "LT",
+            OB => "OB",
+            OD => "OD",
+            OF => "OF",
+            OL => "OL",
+            OW => "OW",
+            PN => "PN",
+            SH => "SH",
+            SL => "SL",
+            SQ => "SQ",
+            SS => "SS",
+            ST => "ST",
+            TM => "TM",
+            UC => "UC",
+            UI => "UI",
+            UL => "UL",
+            UN => "UN",
+            UR => "UR",
+            US => "US",
+            UT => "UT",
         }
     }
 
@@ -571,7 +587,7 @@ impl From<[u16; 2]> for Tag {
 ///
 /// ```
 /// # use dicom_core::data::Length;
-/// assert_ne!(Length::undefined(), Length::undefined());
+/// assert_ne!(Length::UNDEFINED, Length::UNDEFINED);
 /// ```
 ///
 /// Any addition or substraction with at least one undefined
@@ -579,8 +595,8 @@ impl From<[u16; 2]> for Tag {
 ///
 /// ```
 /// # use dicom_core::data::Length;
-/// assert!((Length::defined(64) + Length::undefined()).is_undefined());
-/// assert!((Length::undefined() + 8).is_undefined());
+/// assert!((Length::defined(64) + Length::UNDEFINED).is_undefined());
+/// assert!((Length::UNDEFINED + 8).is_undefined());
 /// ```
 ///
 /// Comparing between at least one undefined length is always `false`.
@@ -588,13 +604,13 @@ impl From<[u16; 2]> for Tag {
 /// ```
 /// # use dicom_core::data::Length;
 /// assert!(Length::defined(16) < Length::defined(64));
-/// assert!(!(Length::undefined() < Length::defined(64)));
-/// assert!(!(Length::undefined() > Length::defined(64)));
+/// assert!(!(Length::UNDEFINED < Length::defined(64)));
+/// assert!(!(Length::UNDEFINED > Length::defined(64)));
 ///
-/// assert!(!(Length::undefined() < Length::undefined()));
-/// assert!(!(Length::undefined() > Length::undefined()));
-/// assert!(!(Length::undefined() <= Length::undefined()));
-/// assert!(!(Length::undefined() >= Length::undefined()));
+/// assert!(!(Length::UNDEFINED < Length::UNDEFINED));
+/// assert!(!(Length::UNDEFINED > Length::UNDEFINED));
+/// assert!(!(Length::UNDEFINED <= Length::UNDEFINED));
+/// assert!(!(Length::UNDEFINED >= Length::UNDEFINED));
 /// ```
 ///
 #[derive(Clone, Copy)]
@@ -603,15 +619,13 @@ pub struct Length(pub u32);
 const UNDEFINED_LEN: u32 = 0xFFFF_FFFF;
 
 impl Length {
+    /// A length that is undefined.
+    pub const UNDEFINED: Self = Length(UNDEFINED_LEN);
+
     /// Create a new length value from its internal representation.
     /// This is equivalent to `Length(len)`.
     pub fn new(len: u32) -> Self {
         Length(len)
-    }
-
-    /// Create an undefined length.
-    pub fn undefined() -> Self {
-        Length(UNDEFINED_LEN)
     }
 
     /// Create a new length value with the given number of bytes.
@@ -654,7 +668,7 @@ impl ::std::ops::Add<Length> for Length {
 
     fn add(self, rhs: Length) -> Self::Output {
         match (self.0, rhs.0) {
-            (UNDEFINED_LEN, _) | (_, UNDEFINED_LEN) => Length::undefined(),
+            (UNDEFINED_LEN, _) | (_, UNDEFINED_LEN) => Length::UNDEFINED,
             (l1, l2) => {
                 let o = l1 + l2;
                 debug_assert!(
@@ -672,7 +686,7 @@ impl ::std::ops::Add<i32> for Length {
 
     fn add(self, rhs: i32) -> Self::Output {
         match self.0 {
-            UNDEFINED_LEN => Length::undefined(),
+            UNDEFINED_LEN => Length::UNDEFINED,
             len => {
                 let o = (len as i32 + rhs) as u32;
                 debug_assert!(
@@ -691,7 +705,7 @@ impl ::std::ops::Sub<Length> for Length {
 
     fn sub(self, rhs: Length) -> Self::Output {
         match (self.0, rhs.0) {
-            (UNDEFINED_LEN, _) | (_, UNDEFINED_LEN) => Length::undefined(),
+            (UNDEFINED_LEN, _) | (_, UNDEFINED_LEN) => Length::UNDEFINED,
             (l1, l2) => {
                 let o = l1 - l2;
                 debug_assert!(
@@ -710,7 +724,7 @@ impl ::std::ops::Sub<i32> for Length {
 
     fn sub(self, rhs: i32) -> Self::Output {
         match self.0 {
-            UNDEFINED_LEN => Length::undefined(),
+            UNDEFINED_LEN => Length::UNDEFINED,
             len => {
                 let o = (len as i32 - rhs) as u32;
                 debug_assert!(
@@ -728,10 +742,10 @@ impl Length {
     /// Check whether this length is undefined.
     #[inline]
     pub fn is_undefined(self) -> bool {
-        self.0 == UNDEFINED_LEN
+        self == Self::UNDEFINED
     }
 
-    /// Check whether this length is well defined.
+    /// Check whether this length is well defined (not undefined).
     #[inline]
     pub fn is_defined(self) -> bool {
         !self.is_undefined()
@@ -750,20 +764,18 @@ impl Length {
 
 impl fmt::Debug for Length {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.0 == UNDEFINED_LEN {
-            f.write_str("Length(Undefined)")
-        } else {
-            f.debug_tuple("Length").field(&self.0).finish()
+        match self.0 {
+            UNDEFINED_LEN => f.write_str("Length(Undefined)"),
+            l => f.debug_tuple("Length").field(&l).finish(),
         }
     }
 }
 
 impl fmt::Display for Length {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.0 == UNDEFINED_LEN {
-            f.write_str("U/L")
-        } else {
-            write!(f, "{}", &self.0)
+        match self.0 {
+            UNDEFINED_LEN => f.write_str("U/L"),
+            l => write!(f, "{}", &l),
         }
     }
 }

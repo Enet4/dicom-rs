@@ -1,18 +1,17 @@
 //! Explicit VR Big Endian syntax transfer implementation.
 
-use byteorder::{BigEndian, ByteOrder};
-use data::decode::basic::BigEndianBasicDecoder;
-use data::decode::{BasicDecode, Decode};
-use data::encode::basic::BigEndianBasicEncoder;
-use data::encode::{BasicEncode, Encode};
-use data::Tag;
-use data::VR;
-use data::{DataElementHeader, Header, Length, SequenceItemHeader};
+use byteordered::Endianness;
+use byteordered::byteorder::{BigEndian, ByteOrder};
+use decode::basic::BigEndianBasicDecoder;
+use decode::{BasicDecode, Decode};
+use encode::basic::BigEndianBasicEncoder;
+use encode::{BasicEncode, Encode};
+use dicom_core::{Tag, VR};
+use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
 use error::Result;
 use std::fmt;
 use std::io::{Read, Write};
 use std::marker::PhantomData;
-use util::Endianness;
 
 /// A data element decoder for the Explicit VR Big Endian transfer syntax.
 pub struct ExplicitVRBigEndianDecoder<S: ?Sized> {
@@ -98,7 +97,8 @@ where
         let element = BigEndian::read_u16(&buf[2..4]);
         let len = BigEndian::read_u32(&buf[4..8]);
 
-        SequenceItemHeader::new((group, element), Length(len))
+        let header = SequenceItemHeader::new((group, element), Length(len))?;
+        Ok(header)
     }
 
     fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag> {
@@ -137,7 +137,7 @@ impl<W: ?Sized + fmt::Debug> fmt::Debug for ExplicitVRBigEndianEncoder<W> {
 
 impl<W: ?Sized> BasicEncode for ExplicitVRBigEndianEncoder<W> {
     fn endianness(&self) -> Endianness {
-        Endianness::BE
+        Endianness::Big
     }
 
     fn encode_us<S>(&self, to: S, value: u16) -> Result<()>
@@ -268,11 +268,10 @@ where
 mod tests {
     use super::ExplicitVRBigEndianDecoder;
     use super::ExplicitVRBigEndianEncoder;
-    use data::decode::Decode;
-    use data::encode::Encode;
-    use data::Tag;
-    use data::VR;
-    use data::{DataElementHeader, Header, Length};
+    use decode::Decode;
+    use encode::Encode;
+    use dicom_core::{Tag, VR};
+    use dicom_core::header::{DataElementHeader, Header, Length};
     use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements

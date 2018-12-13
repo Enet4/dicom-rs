@@ -1,11 +1,11 @@
 use super::DicomObject;
-use data::dataset::DicomElementMarker;
-use data::parser::DynamicDicomParser;
-use data::value::Value;
-use data::Header;
-use data::{DataElement, Length, Tag, VR};
-use dictionary::{DataDictionary, DictionaryEntry};
-use error::{Error, Result};
+use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
+use dicom_core::header::Header;
+use dicom_core::value::Value;
+use dicom_core::{DataElement, Length, Tag, VR};
+use dicom_parser::dataset::DicomElementMarker;
+use dicom_parser::error::{Error, Result};
+use dicom_parser::DynamicDicomParser;
 use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
 use std::fmt;
@@ -56,42 +56,6 @@ where
     }
 }
 
-impl<'s, S: 's, D: 's> DicomObject for &'s LazyDicomObject<S, DynamicDicomParser, D>
-where
-    S: ReadSeek,
-    D: DataDictionary,
-{
-    type Element = Ref<'s, LazyDataElement>;
-
-    fn element(&self, tag: Tag) -> Result<Self::Element> {
-        {
-            let borrow = self.entries.borrow();
-            if !borrow.contains_key(&tag) {
-                return Err(Error::NoSuchDataElement);
-            }
-            let e = Ref::map(borrow, |m| m.get(&tag).expect("Element should exist"));
-            if e.is_loaded() {
-                return Ok(e);
-            }
-        }
-        {
-            let mut borrow = self.entries.borrow_mut();
-            let e = borrow.get_mut(&tag).expect("Element should exist");
-            let v: Value<_> = self.load_value(&e.marker).unwrap();
-            let data = e.value_mut();
-            unimplemented!() // TODO
-        }
-        Ok(Ref::map(self.entries.borrow(), |m| {
-            m.get(&tag).expect("Element should exist")
-        }))
-    }
-
-    fn element_by_name(&self, name: &str) -> Result<Self::Element> {
-        let tag = self.lookup_name(name)?;
-        self.element(tag)
-    }
-}
-
 impl<'s, S: 's, D> LazyDicomObject<S, DynamicDicomParser, D>
 where
     S: ReadSeek,
@@ -138,24 +102,6 @@ impl<'a> Header for &'a LazyDataElement {
     }
 }
 
-impl<'s> Header for Ref<'s, LazyDataElement> {
-    fn tag(&self) -> Tag {
-        (**self).tag()
-    }
-    fn len(&self) -> Length {
-        (**self).len()
-    }
-}
-
-impl Header for Rc<LazyDataElement> {
-    fn tag(&self) -> Tag {
-        (**self).tag()
-    }
-    fn len(&self) -> Length {
-        (**self).len()
-    }
-}
-
 impl LazyDataElement {
     /// Create a new lazy element with the given marker.
     pub fn new(marker: DicomElementMarker) -> LazyDataElement {
@@ -183,7 +129,7 @@ impl LazyDataElement {
         self.marker.len()
     }
 
-    /// Whether the value data length is known and is exactly zero. 
+    /// Whether the value data length is known and is exactly zero.
     pub fn is_empty(&self) -> bool {
         self.marker.len().get() == Some(0)
     }

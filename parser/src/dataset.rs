@@ -3,21 +3,19 @@
 //! The `parser` module is used to obtain DICOM element headers and values. At this level,
 //! headers and values are treated as tokens which can be used to form a syntax tree of
 //! a full data set.
-use data::parser::{DicomParser, DynamicDicomParser, Parse};
-use data::text::SpecificCharacterSet;
-use data::value::{DicomValueType, PrimitiveValue};
-use data::Tag;
-use data::VR;
-use data::{DataElement, DataElementHeader, Header, Length, SequenceItemHeader};
-use dictionary::{DataDictionary, StandardDataDictionary};
+use parser::{DicomParser, DynamicDicomParser, Parse};
+use text::SpecificCharacterSet;
+use dicom_core::value::{DicomValueType, PrimitiveValue};
+use dicom_core::{Tag, VR};
+use dicom_core::header::{PrimitiveDataElement, DataElement, DataElementHeader, Header, Length, SequenceItemHeader};
+use dicom_core::dictionary::{DataDictionary, StandardDataDictionary};
 use error::{Error, InvalidValueReadError, Result};
-use object::mem::InMemDicomObject;
 use std::fmt;
 use std::io::{Read, Seek, SeekFrom};
 use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::ops::DerefMut;
-use transfer_syntax::TransferSyntax;
+use transfer_syntax::{Codec, TransferSyntax};
 use util::{ReadSeek, SeekInterval};
 
 /// A higher-level reader for retrieving structure in a DICOM data set from an
@@ -36,8 +34,6 @@ pub struct DataSetReader<S, P, D> {
     last_header: Option<DataElementHeader>,
 }
 
-type InMemElement<D> = DataElement<InMemDicomObject<D>>;
-
 fn is_parse<S: ?Sized, P>(_: &P)
 where
     S: Read,
@@ -48,7 +44,7 @@ where
 impl<'s, S: 's> DataSetReader<S, DynamicDicomParser, StandardDataDictionary> {
     /// Creates a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
-    pub fn new_with(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self> {
+    pub fn new_with(source: S, ts: &dyn Codec, cs: SpecificCharacterSet) -> Result<Self> {
         let parser = DynamicDicomParser::new_with(ts, cs)?;
 
         is_parse(&parser);
@@ -71,7 +67,7 @@ impl<'s, S: 's, D> DataSetReader<S, DynamicDicomParser, D> {
     pub fn new_with_dictionary(
         source: S,
         dict: D,
-        ts: &TransferSyntax,
+        ts: &dyn Codec,
         cs: SpecificCharacterSet,
     ) -> Result<Self> {
         let parser = DynamicDicomParser::new_with(ts, cs)?;
@@ -114,9 +110,9 @@ where
     S: Read,
     P: Parse<Read + 's>,
 {
-    fn read_primitive_element(&mut self, header: DataElementHeader) -> Result<InMemElement<D>> {
-        let value = self.parser.read_value(&mut self.source, &header)?.into();
-        Ok(DataElement { header, value })
+    fn read_primitive_element<O>(&mut self, header: DataElementHeader) -> Result<PrimitiveDataElement> {
+        let v = self.parser.read_value(&mut self.source, &header)?;
+        Ok(PrimitiveDataElement::new(header, v.into()))
     }
 }
 
@@ -274,7 +270,7 @@ impl<'s> LazyDataSetReader<&'s mut ReadSeek, &'s mut Read, DynamicDicomParser> {
     /// while considering the given transfer syntax and specific character set.
     pub fn new_with(
         source: &'s mut ReadSeek,
-        ts: &TransferSyntax,
+        ts: &dyn Codec,
         cs: SpecificCharacterSet,
     ) -> Result<Self> {
         let parser = DicomParser::new_with(ts, cs)?;

@@ -1,20 +1,19 @@
 //! Implicit VR Big Endian syntax transfer implementation
 
-use byteorder::{ByteOrder, LittleEndian};
-use data::decode::basic::LittleEndianBasicDecoder;
-use data::decode::{BasicDecode, Decode};
-use data::encode::basic::LittleEndianBasicEncoder;
-use data::encode::{BasicEncode, Encode};
-use data::Tag;
-use data::VR;
-use data::{DataElementHeader, Header, Length, SequenceItemHeader};
-use dictionary::standard::StandardDataDictionary;
-use dictionary::{DataDictionary, DictionaryEntry};
+use byteordered::Endianness;
+use byteordered::byteorder::{ByteOrder, LittleEndian};
+use decode::basic::LittleEndianBasicDecoder;
+use decode::{BasicDecode, Decode};
+use encode::basic::LittleEndianBasicEncoder;
+use encode::{BasicEncode, Encode};
+use dicom_core::{Tag, VR};
+use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
+use dicom_core::dictionary::standard::StandardDataDictionary;
+use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use error::Result;
 use std::fmt;
 use std::io::{Read, Write};
 use std::marker::PhantomData;
-use util::Endianness;
 
 /// An ImplicitVRLittleEndianDecoder which uses the standard data dictionary.
 pub type StandardImplicitVRLittleEndianDecoder<S> =
@@ -105,7 +104,8 @@ where
 
         source.read_exact(&mut buf)?;
         let len = LittleEndian::read_u32(&buf);
-        SequenceItemHeader::new(tag, Length(len))
+        let header = SequenceItemHeader::new(tag, Length(len))?;
+        Ok(header)
     }
 
     #[inline]
@@ -143,7 +143,7 @@ where
     W: Write,
 {
     fn endianness(&self) -> Endianness {
-        Endianness::LE
+        Endianness::Little
     }
 
     fn encode_us<S>(&self, to: S, value: u16) -> Result<()>
@@ -242,10 +242,10 @@ where
 mod tests {
     use super::ImplicitVRLittleEndianDecoder;
     use super::ImplicitVRLittleEndianEncoder;
-    use data::decode::Decode;
-    use data::encode::Encode;
-    use data::{DataElementHeader, Header, Length, Tag, VR};
-    use dictionary::stub::StubDataDictionary;
+    use decode::Decode;
+    use encode::Encode;
+    use dicom_core::header::{DataElementHeader, Header, Length, Tag, VR};
+    use dicom_core::dictionary::stub::StubDataDictionary;
     use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements

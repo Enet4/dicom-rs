@@ -5,6 +5,7 @@ license = "MIT/Apache-2.0"
 name = "dicom-dictionary-builder"
 publish = false
 version = "0.1.0"
+repository = "https://github.com/Enet4/dicom-rs"
 
 [[bin]]
 name = "dictionary_builder"

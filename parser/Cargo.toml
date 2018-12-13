@@ -1,0 +1,15 @@
+[package]
+name = "dicom-parser"
+version = "0.1.0"
+authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
+edition = "2015"
+license = "MIT/Apache-2.0"
+repository = "https://github.com/Enet4/dicom-rs"
+
+[dependencies]
+dicom-core = { path = "../core" }
+quick-error = "1.2.2"
+lazy_static = "1.2.0"
+chrono = "0.4.6"
+encoding = "0.2.33"
+byteordered = "0.3.0"

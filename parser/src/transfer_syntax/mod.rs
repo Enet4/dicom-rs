@@ -7,11 +7,11 @@ pub mod explicit_le;
 pub mod explicit_be;
 pub mod implicit_le;
 
+use byteordered::Endianness;
 use std::io::{Read, Write};
-use data::decode::basic::BasicDecoder;
-use data::decode::Decode;
-use data::encode::Encode;
-use util::Endianness;
+use decode::basic::BasicDecoder;
+use decode::Decode;
+use encode::Encode;
 
 /// A decoder with its type erased.
 pub type DynamicDecoder = Box<Decode<Source = Read>>;
@@ -19,16 +19,19 @@ pub type DynamicDecoder = Box<Decode<Source = Read>>;
 /// An encoder with its type erased.
 pub type DynamicEncoder = Box<Encode<Writer = Write>>;
 
-/// Trait for a DICOM transfer syntax. Trait implementers make an entry
-/// point for obtaining the decoder and/or encoder that can handle DICOM objects
-/// under a particular transfer syntax.
+/// Trait for a DICOM transfer syntax.
 pub trait TransferSyntax {
     /// Retrieve the UID of this transfer syntax.
     fn uid(&self) -> &'static str;
 
     /// Retrieve the name of this transfer syntax.
     fn name(&self) -> &'static str;
+}
 
+/// Trait for a DICOM transfer syntax codec. Trait implementers make an entry
+/// point for obtaining the decoder and/or encoder that can handle DICOM objects
+/// under a particular transfer syntax.
+pub trait Codec: TransferSyntax {
     /// Obtain this transfer syntax' expected endianness.
     fn endianness(&self) -> Endianness;
 
@@ -50,6 +53,7 @@ pub trait TransferSyntax {
     }
 }
 
+
 /// Retrieve the default transfer syntax.
 pub fn default() -> ImplicitVRLittleEndian {
     ImplicitVRLittleEndian
@@ -66,9 +70,11 @@ impl TransferSyntax for ImplicitVRLittleEndian {
     fn name(&self) -> &'static str {
         "Implicit VR Little Endian"
     }
+}
 
+impl Codec for ImplicitVRLittleEndian {
     fn endianness(&self) -> Endianness {
-        Endianness::LE
+        Endianness::Little
     }
 
     fn get_decoder(&self) -> Option<DynamicDecoder> {
@@ -95,9 +101,11 @@ impl TransferSyntax for ExplicitVRLittleEndian {
     fn name(&self) -> &'static str {
         "Explicit VR Little Endian"
     }
+}
 
+impl Codec for ExplicitVRLittleEndian {
     fn endianness(&self) -> Endianness {
-        Endianness::LE
+        Endianness::Little
     }
 
     fn get_decoder(&self) -> Option<DynamicDecoder> {
@@ -124,9 +132,10 @@ impl TransferSyntax for ExplicitVRBigEndian {
     fn name(&self) -> &'static str {
         "Explicit VR Big Endian"
     }
-    
+}
+impl Codec for ExplicitVRBigEndian {
     fn endianness(&self) -> Endianness {
-        Endianness::BE
+        Endianness::Big
     }
 
     fn get_decoder(&self) -> Option<DynamicDecoder> {
@@ -150,8 +159,9 @@ macro_rules! declare_stub_ts {
             fn uid(&self) -> &'static str { $uid }
 
             fn name(&self) -> &'static str { $alias }
-
-            fn endianness(&self) -> Endianness { Endianness::LE }
+        }
+        impl Codec for $name {
+            fn endianness(&self) -> Endianness { Endianness::Little }
         }
     )
 }

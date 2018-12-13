@@ -2,9 +2,8 @@
 //!
 
 use super::BasicEncode;
-use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
+use byteordered::{ByteOrdered, Endianness};
 use error::Result;
-use util::Endianness;
 use std::io::Write;
 
 /// A basic encoder of primitive elements in little endian.
@@ -13,14 +12,14 @@ pub struct LittleEndianBasicEncoder;
 
 impl BasicEncode for LittleEndianBasicEncoder {
     fn endianness(&self) -> Endianness {
-        Endianness::LE
+        Endianness::Little
     }
 
     fn encode_us<S>(&self, mut to: S, value: u16) -> Result<()>
     where
         S: Write,
     {
-        to.write_u16::<LittleEndian>(value)?;
+        ByteOrdered::le(to).write_u16(value)?;
         Ok(())
     }
 
@@ -28,7 +27,7 @@ impl BasicEncode for LittleEndianBasicEncoder {
     where
         S: Write,
     {
-        to.write_u32::<LittleEndian>(value)?;
+        ByteOrdered::le(to).write_u32(value)?;
         Ok(())
     }
 
@@ -36,7 +35,7 @@ impl BasicEncode for LittleEndianBasicEncoder {
     where
         S: Write,
     {
-        to.write_i16::<LittleEndian>(value)?;
+        ByteOrdered::le(to).write_i16(value)?;
         Ok(())
     }
 
@@ -44,7 +43,7 @@ impl BasicEncode for LittleEndianBasicEncoder {
     where
         S: Write,
     {
-        to.write_i32::<LittleEndian>(value)?;
+        ByteOrdered::le(to).write_i32(value)?;
         Ok(())
     }
 
@@ -52,7 +51,7 @@ impl BasicEncode for LittleEndianBasicEncoder {
     where
         S: Write,
     {
-        to.write_f32::<LittleEndian>(value)?;
+        ByteOrdered::le(to).write_f32(value)?;
         Ok(())
     }
 
@@ -60,7 +59,7 @@ impl BasicEncode for LittleEndianBasicEncoder {
     where
         S: Write,
     {
-        to.write_f64::<LittleEndian>(value)?;
+        ByteOrdered::le(to).write_f64(value)?;
         Ok(())
     }
 }
@@ -71,14 +70,14 @@ pub struct BigEndianBasicEncoder;
 
 impl BasicEncode for BigEndianBasicEncoder {
     fn endianness(&self) -> Endianness {
-        Endianness::BE
+        Endianness::Big
     }
 
     fn encode_us<S>(&self, mut to: S, value: u16) -> Result<()>
     where
         S: Write,
     {
-        to.write_u16::<BigEndian>(value)?;
+        ByteOrdered::be(to).write_u16(value)?;
         Ok(())
     }
 
@@ -86,7 +85,7 @@ impl BasicEncode for BigEndianBasicEncoder {
     where
         S: Write,
     {
-        to.write_u32::<BigEndian>(value)?;
+        ByteOrdered::be(to).write_u32(value)?;
         Ok(())
     }
 
@@ -94,7 +93,7 @@ impl BasicEncode for BigEndianBasicEncoder {
     where
         S: Write,
     {
-        to.write_i16::<BigEndian>(value)?;
+        ByteOrdered::be(to).write_i16(value)?;
         Ok(())
     }
 
@@ -102,7 +101,7 @@ impl BasicEncode for BigEndianBasicEncoder {
     where
         S: Write,
     {
-        to.write_i32::<BigEndian>(value)?;
+        ByteOrdered::be(to).write_i32(value)?;
         Ok(())
     }
 
@@ -110,7 +109,7 @@ impl BasicEncode for BigEndianBasicEncoder {
     where
         S: Write,
     {
-        to.write_f32::<BigEndian>(value)?;
+        ByteOrdered::be(to).write_f32(value)?;
         Ok(())
     }
 
@@ -118,7 +117,7 @@ impl BasicEncode for BigEndianBasicEncoder {
     where
         S: Write,
     {
-        to.write_f64::<BigEndian>(value)?;
+        ByteOrdered::be(to).write_f64(value)?;
         Ok(())
     }
 }
@@ -152,8 +151,8 @@ macro_rules! for_both {
 impl BasicEncode for BasicEncoder {
     fn endianness(&self) -> Endianness {
         match *self {
-            LE(_) => Endianness::LE,
-            BE(_) => Endianness::BE,
+            LE(_) => Endianness::Little,
+            BE(_) => Endianness::Big,
         }
     }
 

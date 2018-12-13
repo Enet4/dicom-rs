@@ -1,11 +1,13 @@
 //! A reimplementation of dcmdump in Rust.
 //! This is a work in progress, it is not guaranteed to work yet!
 extern crate dicom_core;
+extern crate dicom_object;
 
-use dicom_core::data::Header;
+use dicom_core::header::Header;
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry, StandardDataDictionary};
-use dicom_core::object::mem::InMemElement;
-use dicom_core::{open_file, DicomValue, InMemDicomObject};
+use dicom_core::value::Value as DicomValue;
+use dicom_object::mem::{InMemElement, InMemDicomObject};
+use dicom_object::file::open_file;
 
 use std::io::{stdout, Write};
 

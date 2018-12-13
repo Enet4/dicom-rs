@@ -3,7 +3,8 @@ authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "Efficient and practical base library for DICOM compliant systems"
 name = "dicom-core"
 publish = false
-repository = "https://github.com/Enet4/dicom-rs.git"
+license = "MIT/Apache-2.0"
+repository = "https://github.com/Enet4/dicom-rs"
 version = "0.1.0"
 
 [badges]
@@ -12,9 +13,7 @@ version = "0.1.0"
 repository = "Enet4/dicom-rs"
 
 [dependencies]
-byteorder = "1.2.1"
-chrono = "0.4.0"
-encoding = "0.2.33"
-itertools = "0.7.6"
-lazy_static = "1.0.0"
-quick-error = "1.1.0"
+chrono = "0.4.6"
+itertools = "0.8.0"
+lazy_static = "1.2.0"
+quick-error = "1.2.2"

@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use std::path::Path;
-use error::Result;
-use object::DicomObject;
+use dicom_parser::error::Result;
+use DicomObject;
 use DefaultDicomObject;
 
 pub fn from_stream<F>(file: F) -> Result<DefaultDicomObject>

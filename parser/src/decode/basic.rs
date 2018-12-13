@@ -2,9 +2,8 @@
 //!
 
 use super::BasicDecode;
-use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
+use byteordered::{ByteOrdered, Endianness};
 use error::Result;
-use util::Endianness;
 use std::io::Read;
 
 /// A basic decoder of DICOM primitive elements in little endian.
@@ -13,49 +12,49 @@ pub struct LittleEndianBasicDecoder;
 
 impl BasicDecode for LittleEndianBasicDecoder {
     fn endianness(&self) -> Endianness {
-        Endianness::LE
+        Endianness::Little
     }
 
     fn decode_us<S>(&self, mut source: S) -> Result<u16>
     where
         S: Read,
     {
-        source.read_u16::<LittleEndian>().map_err(Into::into)
+        ByteOrdered::le(source).read_u16().map_err(Into::into)
     }
 
     fn decode_ul<S>(&self, mut source: S) -> Result<u32>
     where
         S: Read,
     {
-        source.read_u32::<LittleEndian>().map_err(Into::into)
+        ByteOrdered::le(source).read_u32().map_err(Into::into)
     }
 
     fn decode_ss<S>(&self, mut source: S) -> Result<i16>
     where
         S: Read,
     {
-        source.read_i16::<LittleEndian>().map_err(Into::into)
+        ByteOrdered::le(source).read_i16().map_err(Into::into)
     }
 
     fn decode_sl<S>(&self, mut source: S) -> Result<i32>
     where
         S: Read,
     {
-        source.read_i32::<LittleEndian>().map_err(Into::into)
+        ByteOrdered::le(source).read_i32().map_err(Into::into)
     }
 
     fn decode_fl<S>(&self, mut source: S) -> Result<f32>
     where
         S: Read,
     {
-        source.read_f32::<LittleEndian>().map_err(Into::into)
+        ByteOrdered::le(source).read_f32().map_err(Into::into)
     }
 
     fn decode_fd<S>(&self, mut source: S) -> Result<f64>
     where
         S: Read,
     {
-        source.read_f64::<LittleEndian>().map_err(Into::into)
+        ByteOrdered::le(source).read_f64().map_err(Into::into)
     }
 }
 
@@ -65,49 +64,49 @@ pub struct BigEndianBasicDecoder;
 
 impl BasicDecode for BigEndianBasicDecoder {
     fn endianness(&self) -> Endianness {
-        Endianness::BE
+        Endianness::Big
     }
 
     fn decode_us<S>(&self, mut source: S) -> Result<u16>
     where
         S: Read,
     {
-        source.read_u16::<BigEndian>().map_err(Into::into)
+        ByteOrdered::be(source).read_u16().map_err(Into::into)
     }
 
     fn decode_ul<S>(&self, mut source: S) -> Result<u32>
     where
         S: Read,
     {
-        source.read_u32::<BigEndian>().map_err(Into::into)
+        ByteOrdered::be(source).read_u32().map_err(Into::into)
     }
 
     fn decode_ss<S>(&self, mut source: S) -> Result<i16>
     where
         S: Read,
     {
-        source.read_i16::<BigEndian>().map_err(Into::into)
+        ByteOrdered::be(source).read_i16().map_err(Into::into)
     }
 
     fn decode_sl<S>(&self, mut source: S) -> Result<i32>
     where
         S: Read,
     {
-        source.read_i32::<BigEndian>().map_err(Into::into)
+        ByteOrdered::be(source).read_i32().map_err(Into::into)
     }
 
     fn decode_fl<S>(&self, mut source: S) -> Result<f32>
     where
         S: Read,
     {
-        source.read_f32::<BigEndian>().map_err(Into::into)
+        ByteOrdered::be(source).read_f32().map_err(Into::into)
     }
 
     fn decode_fd<S>(&self, mut source: S) -> Result<f64>
     where
         S: Read,
     {
-        source.read_f64::<BigEndian>().map_err(Into::into)
+        ByteOrdered::be(source).read_f64().map_err(Into::into)
     }
 }
 
@@ -127,8 +126,8 @@ use self::BasicDecoder::{BE, LE};
 impl From<Endianness> for BasicDecoder {
     fn from(endianness: Endianness) -> BasicDecoder {
         match endianness {
-            Endianness::LE => LE(LittleEndianBasicDecoder::default()),
-            Endianness::BE => BE(BigEndianBasicDecoder::default()),
+            Endianness::Little => LE(LittleEndianBasicDecoder::default()),
+            Endianness::Big => BE(BigEndianBasicDecoder::default()),
         }
     }
 }
@@ -145,8 +144,8 @@ macro_rules! for_both {
 impl BasicDecode for BasicDecoder {
     fn endianness(&self) -> Endianness {
         match *self {
-            LE(_) => Endianness::LE,
-            BE(_) => Endianness::BE,
+            LE(_) => Endianness::Little,
+            BE(_) => Endianness::Big,
         }
     }
 

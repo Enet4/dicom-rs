@@ -11,9 +11,8 @@ mod entries;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
-use data::Tag;
 use dictionary::{DataDictionary, DictionaryEntryRef};
-use data::VR;
+use header::{Tag, VR};
 use self::entries::ENTRIES;
 
 lazy_static! {

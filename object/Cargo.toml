@@ -1,0 +1,11 @@
+[package]
+name = "dicom-object"
+version = "0.1.0"
+authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
+edition = "2015"
+
+[dependencies]
+dicom-core = { path = "../core" }
+dicom-parser = { path = "../parser" }
+itertools = "0.8.0"
+byteordered = "0.3.0"

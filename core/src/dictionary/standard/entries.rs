@@ -1,9 +1,9 @@
 //! Automatically generated. DO NOT EDIT!
 
 use dictionary::DictionaryEntryRef;
-use data::Tag;
-use data::VR::{AE, AS, AT, CS, DA, DS, DT, FL, FD, IS, LO, LT, OB, OD, OF, OL};
-use data::VR::{OW, PN, SH, SL, SQ, SS, ST, TM, UC, UI, UL, UN, UR, US, UT};
+use header::Tag;
+use header::VR::{AE, AS, AT, CS, DA, DS, DT, FL, FD, IS, LO, LT, OB, OD, OF, OL};
+use header::VR::{OW, PN, SH, SL, SQ, SS, ST, TM, UC, UI, UL, UN, UR, US, UT};
 
 type E = DictionaryEntryRef<'static>;
 

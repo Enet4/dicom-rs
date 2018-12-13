@@ -1,11 +1,10 @@
 //! This module includes a high level abstraction over a DICOM data element's value.
 
-use data::{Tag, Length};
-
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
-use error::CastValueError;
-use itertools::Itertools;
 use std::borrow::Cow;
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
+use itertools::Itertools;
+use header::{Tag, Length};
+use error::CastValueError;
 
 type C<T> = Vec<T>;
 

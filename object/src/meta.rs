@@ -1,12 +1,13 @@
 //! Module containing data structures and readers of DICOM file meta information tables.
 use std::io::Read;
-use error::{Error, Result, InvalidValueReadError};
-use byteorder::{ByteOrder, LittleEndian};
-use data::{Header, Length, Tag};
-use data::decode;
-use data::decode::Decode;
-use data::text;
-use data::text::TextCodec;
+use dicom_parser::error::{Error, Result, InvalidValueReadError};
+use byteordered::byteorder::{ByteOrder, LittleEndian};
+use dicom_core::{Length, Tag};
+use dicom_core::header::Header;
+use dicom_parser::decode;
+use dicom_parser::decode::Decode;
+use dicom_parser::text;
+use dicom_parser::text::TextCodec;
 
 const DICM_MAGIC_CODE: [u8; 4] = [b'D', b'I', b'C', b'M'];
 

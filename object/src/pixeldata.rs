@@ -5,7 +5,7 @@
 //! or a multi-dimensional array.
 
 use std::fmt;
-use error::{Error, Result};
+use dicom_parser::error::{Error, Result};
 
 /** Implemented by DICOM pixel data blocks retrieved from objects.
  *

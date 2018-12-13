@@ -5,26 +5,53 @@
 //!
 //! # Examples
 //!
+//! The following code does not depict the current functionalities, and the API
+//! is subject to change.
+//!
+//! ```no_run
+//! use dicom_object::open_file;
+//! # use dicom_object::Result;
+//! # fn foo() -> Result<()> {
+//! let obj = open_file("0001.dcm")?;
+//! let patient_name = obj.element_by_name("PatientName")?.as_string()?;
+//! let modality = obj.element_by_name("Modality")?.as_string()?;
+//! # Ok(())
+//! # }
+//! ```
+//!
 //! Fetching an element by tag:
 //!
 //! ```
 //! # use dicom_core::object::DicomObject;
 //! # use dicom_core::error::Result;
-//! use dicom_core::data::Tag;
+//! use dicom_core::Tag;
 //! # fn something<T: DicomObject>(obj: T) -> Result<()> {
 //! let e = obj.element(Tag(0x0002, 0x0002))?;
 //! # Ok(())
 //! # }
 //! ```
 //!
-use data::Header;
-use data::Tag;
-use error::Result;
-use meta::DicomMetaTable;
+//!
+extern crate byteordered;
+extern crate dicom_core;
+extern crate dicom_parser;
+extern crate itertools;
 
+pub mod file;
 pub mod lazy;
 pub mod mem;
+pub mod meta;
 pub mod pixeldata;
+
+mod util;
+
+use dicom_core::dictionary::standard::StandardDataDictionary;
+use dicom_core::header::Header;
+use dicom_core::Tag;
+use dicom_parser::error::Result;
+use meta::DicomMetaTable;
+
+pub type DefaultDicomObject = mem::InMemDicomObject<StandardDataDictionary>;
 
 /// Trait type for a DICOM object.
 /// This is a high-level abstraction where an object is accessed and
@@ -43,7 +70,6 @@ pub trait DicomObject {
 
     // TODO moar
 }
-
 
 /** A root DICOM object contains additional meta information about the object
  * (such as the DICOM file's meta header).
@@ -77,10 +103,10 @@ impl<T> ::std::ops::DerefMut for RootDicomObject<T> {
 
 impl<T> DicomObject for RootDicomObject<T>
 where
-    T: DicomObject
+    T: DicomObject,
 {
     type Element = <T as DicomObject>::Element;
-    
+
     fn element(&self, tag: Tag) -> Result<Self::Element> {
         self.obj.element(tag)
     }
@@ -92,15 +118,23 @@ where
 
 impl<'a, T: 'a> DicomObject for &'a RootDicomObject<T>
 where
-    T: DicomObject
+    T: DicomObject,
 {
     type Element = <T as DicomObject>::Element;
-    
+
     fn element(&self, tag: Tag) -> Result<Self::Element> {
         self.obj.element(tag)
     }
 
     fn element_by_name(&self, name: &str) -> Result<Self::Element> {
         self.obj.element_by_name(name)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
     }
 }

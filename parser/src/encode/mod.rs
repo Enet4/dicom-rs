@@ -1,9 +1,8 @@
 //! This module contains all DICOM data element encoding logic.
+use byteordered::Endianness;
 use error::Result;
 use std::io::Write;
-use data::DataElementHeader;
-use util::Endianness;
-use data::Tag;
+use dicom_core::{DataElementHeader, Tag};
 
 pub mod basic;
 
@@ -52,8 +51,8 @@ pub trait BasicEncode {
         F2: FnOnce(self::basic::BigEndianBasicEncoder) -> T,
     {
         match self.endianness() {
-            Endianness::LE => f_le(self::basic::LittleEndianBasicEncoder),
-            Endianness::BE => f_be(self::basic::BigEndianBasicEncoder),
+            Endianness::Little => f_le(self::basic::LittleEndianBasicEncoder),
+            Endianness::Big => f_be(self::basic::BigEndianBasicEncoder),
         }
     }
 }

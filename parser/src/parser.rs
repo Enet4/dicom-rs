@@ -3,14 +3,14 @@
 //! an iterator of elements, with either sequential or random access.
 
 use chrono::{DateTime, FixedOffset, Local, NaiveDate, NaiveTime, TimeZone};
-use data::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
-use data::decode::{BasicDecode, Decode};
-use data::text::{
+use decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
+use decode::{BasicDecode, Decode};
+use text::{
     validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, TextValidationOutcome,
 };
-use data::text::{DynamicTextCodec, SpecificCharacterSet, TextCodec};
-use data::value::PrimitiveValue;
-use data::{DataElementHeader, Header, Length, SequenceItemHeader, Tag, VR};
+use text::{DynamicTextCodec, SpecificCharacterSet, TextCodec};
+use dicom_core::value::PrimitiveValue;
+use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader, Tag, VR};
 use error::{Error, InvalidValueReadError, Result, TextEncodingError};
 use std::fmt;
 use std::fmt::Debug;
@@ -19,7 +19,7 @@ use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::ops::{Add, Mul, Sub};
 use transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-use transfer_syntax::TransferSyntax;
+use transfer_syntax::{Codec, TransferSyntax};
 use util::n_times;
 
 const Z: i32 = b'0' as i32;
@@ -108,7 +108,7 @@ macro_rules! require_known_length {
 
 impl DynamicDicomParser {
     /// Create a new DICOM parser for the given transfer syntax and character set.
-    pub fn new_with(ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self> {
+    pub fn new_with(ts: &dyn Codec, cs: SpecificCharacterSet) -> Result<Self> {
         let basic = ts.get_basic_decoder();
         let decoder = ts.get_decoder()
             .ok_or_else(|| Error::UnsupportedTransferSyntax)?;

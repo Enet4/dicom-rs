@@ -3,15 +3,13 @@
 //! transfer syntax' encoding and decoding component.
 //! 
 
-extern crate lazy_static;
-
 use std::collections::HashMap;
 use std::fmt;
 use transfer_syntax;
-use transfer_syntax::TransferSyntax;
+use transfer_syntax::{TransferSyntax, Codec};
 
-type DynTransferSyntax<'ts> = Box<(TransferSyntax + Send + Sync + 'ts)>;
-type DynTransferSyntaxRef<'ts> = &'ts (TransferSyntax + Send + Sync);
+type DynTransferSyntax<'ts> = Box<(Codec + Send + Sync + 'ts)>;
+type DynTransferSyntaxRef<'ts> = &'ts (Codec + Send + Sync);
 
 /// Data type for a registry of DICOM codecs.
 pub struct CodecRegistry<'ts> {

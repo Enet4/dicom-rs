@@ -1,10 +1,10 @@
 //! This module contains the type-erased version of a decoder.
 
+use byteordered::Endianness;
 use std::io::Read;
 use error::Result;
-use data::{DataElementHeader, Length, SequenceItemHeader};
-use util::Endianness;
-use data::Tag;
+use dicom_core::header::{DataElementHeader, Length, SequenceItemHeader};
+use dicom_core::Tag;
 
 /** Type trait for reading and decoding basic data values from a data source.
  *
@@ -60,7 +60,8 @@ pub trait Decode: BasicDecode {
     fn erased_decode_item(&self, mut source: &mut Read) -> Result<SequenceItemHeader> {
         let tag = try!(self.erased_decode_tag(&mut source));
         let len = try!(self.erased_decode_ul(&mut source));
-        SequenceItemHeader::new(tag, Length(len))
+        let header = SequenceItemHeader::new(tag, Length(len))?;
+        Ok(header)
     }
 
     /// Decode a DICOM attribute tag from the given source.

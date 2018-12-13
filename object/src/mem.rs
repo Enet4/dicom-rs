@@ -7,15 +7,16 @@ use std::io::{BufReader, Read};
 use std::path::Path;
 
 use super::DicomObject;
-use data::dataset::{DataSetReader, DicomDataToken};
-use data::parser::Parse;
-use data::text::SpecificCharacterSet;
-use data::value::{DicomValueType, Value, ValueType};
-use data::{DataElement, Header, Length, Tag, VR};
-use dictionary::{DataDictionary, DictionaryEntry, StandardDataDictionary};
-use error::{DataSetSyntaxError, Error, Result};
+use dicom_core::dictionary::{DataDictionary, DictionaryEntry, StandardDataDictionary};
+use dicom_core::header::Header;
+use dicom_core::value::{DicomValueType, Value, ValueType};
+use dicom_core::{DataElement, Length, Tag, VR};
+use dicom_parser::dataset::{DataSetReader, DicomDataToken};
+use dicom_parser::error::{DataSetSyntaxError, Error, Result};
+use dicom_parser::parser::Parse;
+use dicom_parser::text::SpecificCharacterSet;
+use dicom_parser::transfer_syntax::codec::get_registry;
 use meta::DicomMetaTable;
-use transfer_syntax::codec::get_registry;
 
 /// A full in-memory DICOM data element.
 pub type InMemElement<D> = DataElement<InMemDicomObject<D>>;
@@ -74,7 +75,7 @@ impl InMemDicomObject<StandardDataDictionary> {
         InMemDicomObject {
             entries: BTreeMap::new(),
             dict: StandardDataDictionary,
-            len: Length::undefined(),
+            len: Length::UNDEFINED,
         }
     }
 
@@ -110,7 +111,7 @@ where
         InMemDicomObject {
             entries: BTreeMap::new(),
             dict: dict,
-            len: Length::undefined(),
+            len: Length::UNDEFINED,
         }
     }
 
@@ -123,7 +124,7 @@ where
         Ok(InMemDicomObject {
             entries: entries?,
             dict,
-            len: Length::undefined(),
+            len: Length::UNDEFINED,
         })
     }
 
@@ -147,7 +148,7 @@ where
             .ok_or(Error::UnsupportedTransferSyntax)?;
         let cs = SpecificCharacterSet::Default;
         let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)?;
-        Self::build_object(&mut dataset, dict, false, Length::undefined())
+        Self::build_object(&mut dataset, dict, false, Length::UNDEFINED)
     }
 
     /// Create a DICOM object by reading from a byte source.
@@ -166,7 +167,7 @@ where
             .ok_or(Error::UnsupportedTransferSyntax)?;
         let cs = SpecificCharacterSet::Default;
         let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)?;
-        Self::build_object(&mut dataset, dict, false, Length::undefined())
+        Self::build_object(&mut dataset, dict, false, Length::UNDEFINED)
     }
 
     fn build_object<'s, S: 's, P>(
@@ -310,9 +311,9 @@ impl<D> Iterator for Iter<D> {
 mod tests {
 
     use super::*;
-    use data::value::{PrimitiveValue, Value};
-    use data::VR;
-    use object::DicomObject;
+    use dicom_core::value::{PrimitiveValue};
+    use dicom_core::VR;
+    use DicomObject;
 
     #[test]
     fn inmem_object_write() {
