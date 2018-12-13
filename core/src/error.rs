@@ -169,7 +169,9 @@ impl ::std::error::Error for TextEncodingError {
 /// in an inappropriate format.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CastValueError {
+    /// The value format requested
     pub requested: &'static str,
+    /// The value's actual representation
     pub got: ValueType,
 }
 
@@ -200,8 +202,8 @@ pub enum DataSetSyntaxError {
 impl fmt::Display for DataSetSyntaxError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &DataSetSyntaxError::PrematureEnd => f.write_str(self.description()),
-            &DataSetSyntaxError::UnexpectedToken(ref token) => {
+            DataSetSyntaxError::PrematureEnd => f.write_str(self.description()),
+            DataSetSyntaxError::UnexpectedToken(ref token) => {
                 write!(f, "{} {}", self.description(), token)
             }
         }
@@ -211,8 +213,8 @@ impl fmt::Display for DataSetSyntaxError {
 impl ::std::error::Error for DataSetSyntaxError {
     fn description(&self) -> &str {
         match self {
-            &DataSetSyntaxError::PrematureEnd => "data set ended prematurely",
-            &DataSetSyntaxError::UnexpectedToken(_) => "unexpected data set token",
+            DataSetSyntaxError::PrematureEnd => "data set ended prematurely",
+            DataSetSyntaxError::UnexpectedToken(_) => "unexpected data set token",
         }
     }
 }

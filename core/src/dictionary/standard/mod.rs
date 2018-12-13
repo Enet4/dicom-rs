@@ -57,11 +57,11 @@ impl DataDictionary for StandardDataDictionary {
     type Entry = DictionaryEntryRef<'static>;
 
     fn by_name(&self, name: &str) -> Option<&Self::Entry> {
-        registry().by_name.get(name).map(|r| *r)
+        registry().by_name.get(name).cloned()
     }
 
     fn by_tag(&self, tag: Tag) -> Option<&Self::Entry> {
-        registry().by_tag.get(&tag).map(|r| *r)
+        registry().by_tag.get(&tag).cloned()
     }
 }
 
@@ -69,11 +69,11 @@ impl<'a> DataDictionary for &'a StandardDataDictionary {
     type Entry = DictionaryEntryRef<'static>;
 
     fn by_name(&self, name: &str) -> Option<&'static DictionaryEntryRef<'static>> {
-        registry().by_name.get(name).map(|r| *r)
+        registry().by_name.get(name).cloned()
     }
 
     fn by_tag(&self, tag: Tag) -> Option<&'static DictionaryEntryRef<'static>> {
-        registry().by_tag.get(&tag).map(|r| *r)
+        registry().by_tag.get(&tag).cloned()
     }
 }
 

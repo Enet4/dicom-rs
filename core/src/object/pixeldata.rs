@@ -70,7 +70,7 @@ impl<P> InMemoryPixelData<P> {
     }
 
     /// Fetch the internal data vector, destroying the slice in the process.
-    pub fn to_vector(self) -> Vec<P> {
+    pub fn into_vector(self) -> Vec<P> {
         self.data
     }
 }

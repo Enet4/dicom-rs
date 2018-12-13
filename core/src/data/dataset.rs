@@ -184,7 +184,7 @@ where
                 },
                 Err(e) => {
                     self.hard_break = true;
-                    Some(Err(Error::from(e)))
+                    Some(Err(e))
                 }
             }
         } else if self.last_header.is_some() {
@@ -195,7 +195,7 @@ where
                 Err(e) => {
                     self.hard_break = true;
                     self.last_header = None;
-                    return Some(Err(Error::from(e)));
+                    return Some(Err(e));
                 }
             };
 
@@ -211,7 +211,7 @@ where
                     if let Err(e) = self.parser.set_character_set(charset) {
                         self.hard_break = true;
                         self.last_header = None;
-                        return Some(Err(Error::from(e)));
+                        return Some(Err(e));
                     }
                 }
             }
@@ -250,7 +250,7 @@ where
                 }
                 Err(e) => {
                     self.hard_break = true;
-                    Some(Err(Error::from(e)))
+                    Some(Err(e))
                 }
             }
         }
@@ -322,7 +322,7 @@ where
             }),
             Err(e) => {
                 self.hard_break = true;
-                Err(Error::from(e))
+                Err(e)
             }
         }
     }
@@ -335,7 +335,7 @@ where
             }),
             Err(e) => {
                 self.hard_break = true;
-                Err(Error::from(e))
+                Err(e)
             }
         }
     }
@@ -371,7 +371,7 @@ where
                 },
                 Err(e) => {
                     self.hard_break = true;
-                    Some(Err(Error::from(e)))
+                    Some(Err(e))
                 }
             }
         } else {
@@ -397,7 +397,7 @@ where
                 }
                 Err(e) => {
                     self.hard_break = true;
-                    Some(Err(Error::from(e)))
+                    Some(Err(e))
                 }
             }
         }
@@ -427,10 +427,10 @@ impl DicomElementMarker {
     where
         S: ReadSeek,
     {
-        let len = self.header
+        let len = u64::from(self.header
             .len()
             .get()
-            .ok_or(InvalidValueReadError::UnresolvedValueLength)? as u64;
+            .ok_or(InvalidValueReadError::UnresolvedValueLength)?);
         let interval = SeekInterval::new_at(source, self.pos..len)?;
         Ok(interval)
     }

@@ -83,7 +83,7 @@ where
             _ => {
                 // read 2 bytes for the data length
                 source.read_exact(&mut buf[0..2])?;
-                BigEndian::read_u16(&buf[0..2]) as u32
+                u32::from(BigEndian::read_u16(&buf[0..2]))
             }
         };
 

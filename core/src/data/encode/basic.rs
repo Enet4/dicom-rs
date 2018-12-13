@@ -20,42 +20,48 @@ impl BasicEncode for LittleEndianBasicEncoder {
     where
         S: Write,
     {
-        Ok(to.write_u16::<LittleEndian>(value)?)
+        to.write_u16::<LittleEndian>(value)?;
+        Ok(())
     }
 
     fn encode_ul<S>(&self, mut to: S, value: u32) -> Result<()>
     where
         S: Write,
     {
-        Ok(to.write_u32::<LittleEndian>(value)?)
+        to.write_u32::<LittleEndian>(value)?;
+        Ok(())
     }
 
     fn encode_ss<S>(&self, mut to: S, value: i16) -> Result<()>
     where
         S: Write,
     {
-        Ok(to.write_i16::<LittleEndian>(value)?)
+        to.write_i16::<LittleEndian>(value)?;
+        Ok(())
     }
 
     fn encode_sl<S>(&self, mut to: S, value: i32) -> Result<()>
     where
         S: Write,
     {
-        Ok(to.write_i32::<LittleEndian>(value)?)
+        to.write_i32::<LittleEndian>(value)?;
+        Ok(())
     }
 
     fn encode_fl<S>(&self, mut to: S, value: f32) -> Result<()>
     where
         S: Write,
     {
-        Ok(to.write_f32::<LittleEndian>(value)?)
+        to.write_f32::<LittleEndian>(value)?;
+        Ok(())
     }
 
     fn encode_fd<S>(&self, mut to: S, value: f64) -> Result<()>
     where
         S: Write,
     {
-        Ok(to.write_f64::<LittleEndian>(value)?)
+        to.write_f64::<LittleEndian>(value)?;
+        Ok(())
     }
 }
 
@@ -72,42 +78,48 @@ impl BasicEncode for BigEndianBasicEncoder {
     where
         S: Write,
     {
-        Ok(to.write_u16::<BigEndian>(value)?)
+        to.write_u16::<BigEndian>(value)?;
+        Ok(())
     }
 
     fn encode_ul<S>(&self, mut to: S, value: u32) -> Result<()>
     where
         S: Write,
     {
-        Ok(to.write_u32::<BigEndian>(value)?)
+        to.write_u32::<BigEndian>(value)?;
+        Ok(())
     }
 
     fn encode_ss<S>(&self, mut to: S, value: i16) -> Result<()>
     where
         S: Write,
     {
-        Ok(to.write_i16::<BigEndian>(value)?)
+        to.write_i16::<BigEndian>(value)?;
+        Ok(())
     }
 
     fn encode_sl<S>(&self, mut to: S, value: i32) -> Result<()>
     where
         S: Write,
     {
-        Ok(to.write_i32::<BigEndian>(value)?)
+        to.write_i32::<BigEndian>(value)?;
+        Ok(())
     }
 
     fn encode_fl<S>(&self, mut to: S, value: f32) -> Result<()>
     where
         S: Write,
     {
-        Ok(to.write_f32::<BigEndian>(value)?)
+        to.write_f32::<BigEndian>(value)?;
+        Ok(())
     }
 
     fn encode_fd<S>(&self, mut to: S, value: f64) -> Result<()>
     where
         S: Write,
     {
-        Ok(to.write_f64::<BigEndian>(value)?)
+        to.write_f64::<BigEndian>(value)?;
+        Ok(())
     }
 }
 
