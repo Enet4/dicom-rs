@@ -405,7 +405,6 @@ impl DicomMetaTableBuilder {
 #[cfg(test)]
 mod tests {
     use super::DicomMetaTable;
-    use std::io::Cursor;
 
     const TEST_META_1: &'static [u8] = &[
         // magic code

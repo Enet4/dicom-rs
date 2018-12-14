@@ -314,7 +314,6 @@ mod tests {
     use super::*;
     use dicom_core::value::{PrimitiveValue};
     use dicom_core::VR;
-    use DicomObject;
 
     #[test]
     fn inmem_object_write() {
