@@ -22,9 +22,7 @@
 //! Fetching an element by tag:
 //!
 //! ```
-//! # use dicom_core::object::DicomObject;
-//! # use dicom_core::error::Result;
-//! use dicom_core::Tag;
+//! # use dicom_object::{DicomObject, Result, Tag};
 //! # fn something<T: DicomObject>(obj: T) -> Result<()> {
 //! let e = obj.element(Tag(0x0002, 0x0002))?;
 //! # Ok(())
@@ -45,11 +43,13 @@ pub mod pixeldata;
 
 mod util;
 
-use dicom_core::dictionary::standard::StandardDataDictionary;
+pub use dicom_core::dictionary::standard::StandardDataDictionary;
 use dicom_core::header::Header;
-use dicom_core::Tag;
-use dicom_parser::error::Result;
+pub use dicom_core::Tag;
 use meta::DicomMetaTable;
+pub use file::{from_stream, open_file};
+
+pub use dicom_parser::error::{Result, Error};
 
 pub type DefaultDicomObject = mem::InMemDicomObject<StandardDataDictionary>;
 
@@ -133,8 +133,4 @@ where
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
 }

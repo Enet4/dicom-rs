@@ -586,7 +586,7 @@ impl From<[u16; 2]> for Tag {
 /// Two length of undefined length are not equal.
 ///
 /// ```
-/// # use dicom_core::data::Length;
+/// # use dicom_core::Length;
 /// assert_ne!(Length::UNDEFINED, Length::UNDEFINED);
 /// ```
 ///
@@ -594,7 +594,7 @@ impl From<[u16; 2]> for Tag {
 /// length results in an undefined length.
 ///
 /// ```
-/// # use dicom_core::data::Length;
+/// # use dicom_core::Length;
 /// assert!((Length::defined(64) + Length::UNDEFINED).is_undefined());
 /// assert!((Length::UNDEFINED + 8).is_undefined());
 /// ```
@@ -602,7 +602,7 @@ impl From<[u16; 2]> for Tag {
 /// Comparing between at least one undefined length is always `false`.
 ///
 /// ```
-/// # use dicom_core::data::Length;
+/// # use dicom_core::Length;
 /// assert!(Length::defined(16) < Length::defined(64));
 /// assert!(!(Length::UNDEFINED < Length::defined(64)));
 /// assert!(!(Length::UNDEFINED > Length::defined(64)));
@@ -742,7 +742,7 @@ impl Length {
     /// Check whether this length is undefined.
     #[inline]
     pub fn is_undefined(self) -> bool {
-        self == Self::UNDEFINED
+        self.0 == UNDEFINED_LEN
     }
 
     /// Check whether this length is well defined (not undefined).
