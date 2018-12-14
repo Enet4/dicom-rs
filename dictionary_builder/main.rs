@@ -74,9 +74,15 @@ fn main() {
                 .possible_value("rs")
                 .possible_value("json"),
         )
+        .arg(
+            Arg::with_name("no-retired")
+                .help("Whether to ignore retired tags")
+                .takes_value(false),
+        )
         .get_matches();
 
     let format = matches.value_of("FORMAT").unwrap();
+    let ignore_retired = matches.is_present("no-retired");
 
     let out_file = matches.value_of("OUTPUT").unwrap_or_else(|| match format {
         "rs" => "entries.rs",
@@ -96,7 +102,7 @@ fn main() {
                 let xml_entries = XmlEntryIterator::new(&*body).map(|item| item.unwrap());
                 println!("Writing to file ...");
                 match format {
-                    "rs" => to_code_file(dst, xml_entries, true),
+                    "rs" => to_code_file(dst, xml_entries, !ignore_retired),
                     "json" => to_json_file(dst, xml_entries),
                     _ => unreachable!(),
                 }.expect("Failed to write file");
@@ -342,11 +348,11 @@ where
 
     f.write_all(
         b"//! Automatically generated. DO NOT EDIT!\n\n\
-    use dictionary::DictionaryEntryRef;\n\
-    use data::Tag;\n\
-    use data::VR::*;\n\n\
+    use dicom_core::dictionary::DictionaryEntryRef;\n\
+    use dicom_core::Tag;\n\
+    use dicom_core::VR::*;\n\n\
     type E = DictionaryEntryRef<'static>;\n\n\
-    pub const ENTRIES: &'static [E] = &[\n",
+    pub const ENTRIES: &[E] = &[\n",
     )?;
 
     let regex_tag = Regex::new(r"^\(([0-9A-F]{4}),([0-9A-F]{4})\)$")?;
@@ -395,7 +401,7 @@ where
             second_vr = format!(" /*{} */", vr2);
         }
 
-        let mut obs = obs.unwrap_or_else(|| String::new());
+        let mut obs = obs.unwrap_or_else(String::new);
         if obs != "" {
             obs = format!(" // {}", obs.as_str());
         }
