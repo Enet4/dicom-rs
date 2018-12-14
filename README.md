@@ -21,6 +21,22 @@ in the next few months. Any feedback during the development of these solutions i
 - [`dictionary_builder`](dictionary_builder) is a Rust application that generates code and
   other data structures for a DICOM standard dictionary using entries from the official website.
 
+## Building
+
+You can use Cargo to build all crates in the repository.
+
+```sh
+cargo build --release
+```
+
+## Roadmap
+
+Although no particular timeline is expected, and the list of features to be included here is uncertain, my intent is to publish the first version of this crate when the DICOM object abstraction becomes sufficiently functional. That is, the user should be capable of:
+
+ - Reading DICOM objects from files in one of these transfer syntaxes: _ExplicitVRLittleEndian_, _ImplicitVRLittleEndian_ and _ExplicitVRBigEndian_;
+ - Creating and writing DICOM objects;
+ - Fetching an object's pixel data as an n-dimensional array;
+
 ## License
 
 Licensed under either of
