@@ -3,6 +3,7 @@ members = [
     "core",
     "parser",
     "object",
+    "dictionary-std",
     "dictionary_builder"
 ]
 repository = "https://github.com/Enet4/dicom-rs"

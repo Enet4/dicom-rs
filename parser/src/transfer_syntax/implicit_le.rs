@@ -8,7 +8,7 @@ use encode::basic::LittleEndianBasicEncoder;
 use encode::{BasicEncode, Encode};
 use dicom_core::{Tag, VR};
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
-use dicom_core::dictionary::standard::StandardDataDictionary;
+use dicom_dictionary_std::StandardDataDictionary;
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use error::Result;
 use std::fmt;

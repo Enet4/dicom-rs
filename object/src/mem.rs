@@ -7,7 +7,8 @@ use std::io::{BufReader, Read};
 use std::path::Path;
 
 use super::DicomObject;
-use dicom_core::dictionary::{DataDictionary, DictionaryEntry, StandardDataDictionary};
+use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
+use dicom_dictionary_std::StandardDataDictionary;
 use dicom_core::header::Header;
 use dicom_core::value::{DicomValueType, Value, ValueType};
 use dicom_core::{DataElement, Length, Tag, VR};

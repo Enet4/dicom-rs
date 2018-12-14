@@ -33,6 +33,7 @@
 extern crate byteordered;
 extern crate dicom_core;
 extern crate dicom_parser;
+extern crate dicom_dictionary_std;
 extern crate itertools;
 
 pub mod file;
@@ -43,15 +44,15 @@ pub mod pixeldata;
 
 mod util;
 
-pub use dicom_core::dictionary::standard::StandardDataDictionary;
-use dicom_core::header::Header;
+pub use dicom_dictionary_std::StandardDataDictionary;
 pub use dicom_core::Tag;
-use meta::DicomMetaTable;
 pub use file::{from_stream, open_file};
-
+pub use meta::DicomMetaTable;
 pub use dicom_parser::error::{Result, Error};
 
 pub type DefaultDicomObject = mem::InMemDicomObject<StandardDataDictionary>;
+
+use dicom_core::header::Header;
 
 /// Trait type for a DICOM object.
 /// This is a high-level abstraction where an object is accessed and

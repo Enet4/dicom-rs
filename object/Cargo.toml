@@ -7,5 +7,6 @@ edition = "2015"
 [dependencies]
 dicom-core = { path = "../core" }
 dicom-parser = { path = "../parser" }
+dicom-dictionary-std = { path = "../dictionary-std/" }
 itertools = "0.8.0"
 byteordered = "0.3.0"

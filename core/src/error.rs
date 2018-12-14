@@ -1,5 +1,4 @@
 //! This module aggregates errors that may emerge from the library.
-use std::borrow::Cow;
 use std::error::Error as BaseError;
 use std::fmt;
 use std::num::{ParseFloatError, ParseIntError};

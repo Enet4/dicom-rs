@@ -20,8 +20,6 @@
 extern crate chrono;
 extern crate itertools;
 #[macro_use]
-extern crate lazy_static;
-#[macro_use]
 extern crate quick_error;
 
 pub mod dictionary;
@@ -29,7 +27,7 @@ pub mod error;
 pub mod header;
 pub mod value;
 
-pub use dictionary::{DataDictionary, StandardDataDictionary};
+pub use dictionary::DataDictionary;
 pub use error::{Error, Result};
 pub use header::{DataElement, DataElementHeader, Length, Tag, VR};
 pub use value::{PrimitiveValue, Value as DicomValue};

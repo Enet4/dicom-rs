@@ -1,12 +1,8 @@
-//! This module contains the concept of a DICOM data dictionary, and aggregates
-//! all built-in data dictionaries.
+//! This module contains the concept of a DICOM data dictionary.
 //!
-//! For most purposes, the standard data dictionary is sufficient.
+//! The standard data dictionary is available in the `dicom-std-dict` crate.
 
-pub mod standard;
 pub mod stub;
-
-pub use self::standard::StandardDataDictionary;
 
 use std::fmt::Debug;
 use header::{Tag, VR};
@@ -100,16 +96,6 @@ impl<N: AsRef<str>, D: DataDictionary> TagByName<N, D> {
     pub fn new(dictionary: D, name: N) -> TagByName<N, D> {
         TagByName {
             dict: dictionary,
-            name: name,
-        }
-    }
-}
-
-impl<N: AsRef<str>> TagByName<N, StandardDataDictionary> {
-    /// Create a tag resolver by name using the standard dictionary.
-    pub fn with_std_dict(name: N) -> TagByName<N, StandardDataDictionary> {
-        TagByName {
-            dict: StandardDataDictionary,
             name: name,
         }
     }

@@ -4,8 +4,9 @@ extern crate dicom_core;
 extern crate dicom_object;
 
 use dicom_core::header::Header;
-use dicom_core::dictionary::{DataDictionary, DictionaryEntry, StandardDataDictionary};
+use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::value::Value as DicomValue;
+use dicom_object::StandardDataDictionary;
 use dicom_object::mem::{InMemElement, InMemDicomObject};
 use dicom_object::file::open_file;
 

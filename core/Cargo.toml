@@ -15,5 +15,4 @@ repository = "Enet4/dicom-rs"
 [dependencies]
 chrono = "0.4.6"
 itertools = "0.8.0"
-lazy_static = "1.2.0"
 quick-error = "1.2.2"

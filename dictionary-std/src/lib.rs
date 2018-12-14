@@ -1,18 +1,21 @@
-//! This module implements the standard attribute dictionary.
+//! This crate implements the standard attribute dictionary.
 //!
 //! This dictionary is a singleton containing all information about the
 //! DICOM attributes specified in the standard according to DICOM PS3.6 2016c,
-//! and it will be used by default
+//! and it will be used by default in most other abstractions available.
 //!
 //! When not using private tags, this dictionary should suffice.
+
+extern crate dicom_core;
+#[macro_use] extern crate lazy_static;
 
 mod entries;
 
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
-use dictionary::{DataDictionary, DictionaryEntryRef};
-use header::{Tag, VR};
+use dicom_core::dictionary::{DataDictionary, DictionaryEntryRef};
+use dicom_core::header::{Tag, VR};
 use self::entries::ENTRIES;
 
 lazy_static! {
@@ -157,3 +160,7 @@ const META_ENTRIES: &'static [E<'static>] = &[
         vr: VR::OB,
     },
 ];
+
+#[cfg(test)]
+mod tests {
+}

@@ -1,9 +1,9 @@
 //! Automatically generated. DO NOT EDIT!
 
-use dictionary::DictionaryEntryRef;
-use header::Tag;
-use header::VR::{AE, AS, AT, CS, DA, DS, DT, FL, FD, IS, LO, LT, OB, OD, OF, OL};
-use header::VR::{OW, PN, SH, SL, SQ, SS, ST, TM, UC, UI, UL, UN, UR, US, UT};
+use dicom_core::dictionary::DictionaryEntryRef;
+use dicom_core::header::Tag;
+use dicom_core::header::VR::{AE, AS, AT, CS, DA, DS, DT, FL, FD, IS, LO, LT, OB, OD, OF, OL};
+use dicom_core::header::VR::{OW, PN, SH, SL, SQ, SS, ST, TM, UC, UI, UL, UN, UR, US, UT};
 
 type E = DictionaryEntryRef<'static>;
 

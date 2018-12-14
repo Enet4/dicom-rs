@@ -9,6 +9,7 @@ extern crate encoding;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate quick_error;
 extern crate dicom_core;
+extern crate dicom_dictionary_std;
 
 pub mod dataset;
 pub mod decode;
