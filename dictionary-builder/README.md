@@ -11,7 +11,7 @@ cargo build --release
 ## Usage
 
 ```text
-    dictionary_builder [OPTIONS]
+    dictionary-builder [OPTIONS]
 
 FLAGS:
     -h, --help       Prints help information

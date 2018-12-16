@@ -18,7 +18,7 @@ in the next few months. Any feedback during the development of these solutions i
 - [`parser`](parser) contains DICOM data encoding and decoding constructs, as well as a parser of DICOM data sets.
 - [`object`](object) provides a high-level abstraction of DICOM objects and functions for reading and writing DICOM files.
 - [`dictionary-std`](dictionary-std) contains a Rust definition of the standard data dictionary.
-- [`dictionary_builder`](dictionary_builder) is a Rust application that generates code and
+- [`dictionary-builder`](dictionary-builder) is a Rust application that generates code and
   other data structures for a DICOM standard dictionary using entries from the official website.
 
 ## Building
