@@ -15,7 +15,7 @@ impl BasicEncode for LittleEndianBasicEncoder {
         Endianness::Little
     }
 
-    fn encode_us<S>(&self, mut to: S, value: u16) -> Result<()>
+    fn encode_us<S>(&self, to: S, value: u16) -> Result<()>
     where
         S: Write,
     {
@@ -23,7 +23,7 @@ impl BasicEncode for LittleEndianBasicEncoder {
         Ok(())
     }
 
-    fn encode_ul<S>(&self, mut to: S, value: u32) -> Result<()>
+    fn encode_ul<S>(&self, to: S, value: u32) -> Result<()>
     where
         S: Write,
     {
@@ -31,7 +31,7 @@ impl BasicEncode for LittleEndianBasicEncoder {
         Ok(())
     }
 
-    fn encode_ss<S>(&self, mut to: S, value: i16) -> Result<()>
+    fn encode_ss<S>(&self, to: S, value: i16) -> Result<()>
     where
         S: Write,
     {
@@ -39,7 +39,7 @@ impl BasicEncode for LittleEndianBasicEncoder {
         Ok(())
     }
 
-    fn encode_sl<S>(&self, mut to: S, value: i32) -> Result<()>
+    fn encode_sl<S>(&self, to: S, value: i32) -> Result<()>
     where
         S: Write,
     {
@@ -47,7 +47,7 @@ impl BasicEncode for LittleEndianBasicEncoder {
         Ok(())
     }
 
-    fn encode_fl<S>(&self, mut to: S, value: f32) -> Result<()>
+    fn encode_fl<S>(&self, to: S, value: f32) -> Result<()>
     where
         S: Write,
     {
@@ -55,7 +55,7 @@ impl BasicEncode for LittleEndianBasicEncoder {
         Ok(())
     }
 
-    fn encode_fd<S>(&self, mut to: S, value: f64) -> Result<()>
+    fn encode_fd<S>(&self, to: S, value: f64) -> Result<()>
     where
         S: Write,
     {
@@ -73,7 +73,7 @@ impl BasicEncode for BigEndianBasicEncoder {
         Endianness::Big
     }
 
-    fn encode_us<S>(&self, mut to: S, value: u16) -> Result<()>
+    fn encode_us<S>(&self, to: S, value: u16) -> Result<()>
     where
         S: Write,
     {
@@ -81,7 +81,7 @@ impl BasicEncode for BigEndianBasicEncoder {
         Ok(())
     }
 
-    fn encode_ul<S>(&self, mut to: S, value: u32) -> Result<()>
+    fn encode_ul<S>(&self, to: S, value: u32) -> Result<()>
     where
         S: Write,
     {
@@ -89,7 +89,7 @@ impl BasicEncode for BigEndianBasicEncoder {
         Ok(())
     }
 
-    fn encode_ss<S>(&self, mut to: S, value: i16) -> Result<()>
+    fn encode_ss<S>(&self, to: S, value: i16) -> Result<()>
     where
         S: Write,
     {
@@ -97,7 +97,7 @@ impl BasicEncode for BigEndianBasicEncoder {
         Ok(())
     }
 
-    fn encode_sl<S>(&self, mut to: S, value: i32) -> Result<()>
+    fn encode_sl<S>(&self, to: S, value: i32) -> Result<()>
     where
         S: Write,
     {
@@ -105,7 +105,7 @@ impl BasicEncode for BigEndianBasicEncoder {
         Ok(())
     }
 
-    fn encode_fl<S>(&self, mut to: S, value: f32) -> Result<()>
+    fn encode_fl<S>(&self, to: S, value: f32) -> Result<()>
     where
         S: Write,
     {
@@ -113,7 +113,7 @@ impl BasicEncode for BigEndianBasicEncoder {
         Ok(())
     }
 
-    fn encode_fd<S>(&self, mut to: S, value: f64) -> Result<()>
+    fn encode_fd<S>(&self, to: S, value: f64) -> Result<()>
     where
         S: Write,
     {

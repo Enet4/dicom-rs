@@ -111,7 +111,7 @@ where
     pub fn new_empty_with_dict(dict: D) -> Self {
         InMemDicomObject {
             entries: BTreeMap::new(),
-            dict: dict,
+            dict,
             len: Length::UNDEFINED,
         }
     }

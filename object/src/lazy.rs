@@ -1,4 +1,3 @@
-use super::DicomObject;
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::Header;
 use dicom_core::value::Value;
@@ -6,11 +5,10 @@ use dicom_core::{DataElement, Length, Tag, VR};
 use dicom_parser::dataset::DicomElementMarker;
 use dicom_parser::error::{Error, Result};
 use dicom_parser::DynamicDicomParser;
-use std::cell::{Ref, RefCell};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Debug;
-use std::rc::Rc;
 use util::ReadSeek;
 
 /// Data type for a lazily loaded DICOM object builder.
@@ -106,7 +104,7 @@ impl LazyDataElement {
     /// Create a new lazy element with the given marker.
     pub fn new(marker: DicomElementMarker) -> LazyDataElement {
         LazyDataElement {
-            marker: marker,
+            marker,
             value: None,
         }
     }

@@ -63,12 +63,20 @@ where
 pub type DynamicTextCodec = Box<TextCodec>;
 
 /// An enum type for the the supported character sets.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub enum SpecificCharacterSet {
     /// The default character set.
-    Default, // TODO needs more
+    Default,
     /// The Unicode character set defined in ISO IR 192, based on the UTF-8 encoding.
     IsoIr192,
+
+    // TODO add more
+}
+
+impl Default for SpecificCharacterSet {
+    fn default() -> Self {
+        SpecificCharacterSet::Default
+    }
 }
 
 impl SpecificCharacterSet {
@@ -82,8 +90,8 @@ impl SpecificCharacterSet {
     }
 
     /// Retrieve the respective text codec.
-    pub fn get_codec(&self) -> Option<Box<TextCodec>> {
-        match *self {
+    pub fn get_codec(self) -> Option<Box<TextCodec>> {
+        match self {
             SpecificCharacterSet::Default => Some(Box::new(DefaultCharacterSetCodec)),
             SpecificCharacterSet::IsoIr192 => Some(Box::new(Utf8CharacterSetCodec)),
         }
@@ -100,12 +108,6 @@ fn decode_text_trap(_decoder: &mut RawDecoder, input: &[u8], output: &mut String
     output.write_char((o1 + b'0') as char);
     output.write_char((o0 + b'0') as char);
     true
-}
-
-impl Default for SpecificCharacterSet {
-    fn default() -> SpecificCharacterSet {
-        SpecificCharacterSet::Default
-    }
 }
 
 /// Data type representing the default character set.
@@ -157,7 +159,7 @@ pub enum TextValidationOutcome {
 
 /// Check whether the given byte slice contains valid text from the default character repertoire.
 pub fn validate_iso_8859(text: &[u8]) -> TextValidationOutcome {
-    if let Err(_) = ISO_8859_1.decode(text, DecoderTrap::Strict) {
+    if ISO_8859_1.decode(text, DecoderTrap::Strict).is_err() {
         match ISO_8859_1.decode(text, DecoderTrap::Call(decode_text_trap)) {
             Ok(_) => TextValidationOutcome::BadCharacters,
             Err(_) => TextValidationOutcome::NotOk,

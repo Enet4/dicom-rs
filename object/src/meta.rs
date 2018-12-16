@@ -374,7 +374,7 @@ impl DicomMetaTableBuilder {
 
     /// Build the table.
     pub fn build(self) -> Result<DicomMetaTable> {
-        let group_length = self.information_group_length
+        let information_group_length = self.information_group_length
             .ok_or_else(|| Error::InvalidFormat)?;
         let information_version = self.information_version
             .ok_or_else(|| Error::InvalidFormat)?;
@@ -386,12 +386,12 @@ impl DicomMetaTableBuilder {
         let implementation_class_uid = self.implementation_class_uid
             .ok_or_else(|| Error::InvalidFormat)?;
         Ok(DicomMetaTable {
-            information_group_length: group_length,
-            information_version: information_version,
-            media_storage_sop_class_uid: media_storage_sop_class_uid,
-            media_storage_sop_instance_uid: media_storage_sop_instance_uid,
-            transfer_syntax: transfer_syntax,
-            implementation_class_uid: implementation_class_uid,
+            information_group_length,
+            information_version,
+            media_storage_sop_class_uid,
+            media_storage_sop_instance_uid,
+            transfer_syntax,
+            implementation_class_uid,
             implementation_version_name: self.implementation_version_name,
             source_application_entity_title: self.source_application_entity_title,
             sending_application_entity_title: self.sending_application_entity_title,

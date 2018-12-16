@@ -5,12 +5,8 @@
 use chrono::{DateTime, FixedOffset, Local, NaiveDate, NaiveTime, TimeZone};
 use decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
 use decode::{BasicDecode, Decode};
-use text::{
-    validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, TextValidationOutcome,
-};
-use text::{DynamicTextCodec, SpecificCharacterSet, TextCodec};
-use dicom_core::value::PrimitiveValue;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader, Tag, VR};
+use dicom_core::value::PrimitiveValue;
 use error::{Error, InvalidValueReadError, Result, TextEncodingError};
 use std::fmt;
 use std::fmt::Debug;
@@ -18,8 +14,12 @@ use std::io::Read;
 use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::ops::{Add, Mul, Sub};
+use text::{
+    validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, TextValidationOutcome,
+};
+use text::{DynamicTextCodec, SpecificCharacterSet, TextCodec};
 use transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-use transfer_syntax::{Codec, TransferSyntax};
+use transfer_syntax::Codec;
 use util::n_times;
 
 const Z: i32 = b'0' as i32;
@@ -110,16 +110,18 @@ impl DynamicDicomParser {
     /// Create a new DICOM parser for the given transfer syntax and character set.
     pub fn new_with(ts: &dyn Codec, cs: SpecificCharacterSet) -> Result<Self> {
         let basic = ts.get_basic_decoder();
-        let decoder = ts.get_decoder()
+        let decoder = ts
+            .get_decoder()
             .ok_or_else(|| Error::UnsupportedTransferSyntax)?;
-        let text = cs.get_codec()
+        let text = cs
+            .get_codec()
             .ok_or_else(|| Error::UnsupportedCharacterSet)?;
 
         Ok(DicomParser {
             phantom: PhantomData,
-            basic: basic,
-            decoder: decoder,
-            text: text,
+            basic,
+            decoder,
+            text,
             dt_utc_offset: FixedOffset::east(0),
         })
     }
@@ -160,9 +162,9 @@ where
     pub fn new(decoder: D, basic: BD, text: TC) -> DicomParser<D, BD, S, TC> {
         DicomParser {
             phantom: PhantomData,
-            basic: basic,
-            decoder: decoder,
-            text: text,
+            basic,
+            decoder,
+            text,
             dt_utc_offset: FixedOffset::east(0),
         }
     }
@@ -179,8 +181,7 @@ where
                 let g = self.basic.decode_us(&mut *from)?;
                 let e = self.basic.decode_us(&mut *from)?;
                 Ok(Tag(g, e))
-            })
-            .collect();
+            }).collect();
         Ok(PrimitiveValue::Tags(parts?))
     }
 
@@ -262,7 +263,8 @@ where
                 lossy_str
             )).into());
         }
-        let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
+        let vec: Result<Vec<_>> = buf
+            .split(|b| *b == b'\\')
             .map(|part| Ok(parse_date(part)?.0))
             .collect();
         Ok(PrimitiveValue::Date(vec?))
@@ -283,8 +285,7 @@ where
                 let txt = txt.trim_right();
                 txt.parse::<f64>()
                     .map_err(|e| Error::from(InvalidValueReadError::from(e)))
-            })
-            .collect();
+            }).collect();
         Ok(PrimitiveValue::F64(parts?))
     }
 
@@ -304,8 +305,9 @@ where
                 lossy_str
             )).into());
         }
-        let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
-            .map(|part| Ok(parse_datetime(part, &self.dt_utc_offset)?))
+        let vec: Result<Vec<_>> = buf
+            .split(|b| *b == b'\\')
+            .map(|part| Ok(parse_datetime(part, self.dt_utc_offset)?))
             .collect();
 
         Ok(PrimitiveValue::DateTime(vec?))
@@ -329,8 +331,7 @@ where
                 let txt = txt.trim_right();
                 txt.parse::<i32>()
                     .map_err(|e| Error::from(InvalidValueReadError::from(e)))
-            })
-            .collect();
+            }).collect();
         Ok(PrimitiveValue::I32(parts?))
     }
 
@@ -350,7 +351,8 @@ where
                 lossy_str
             )).into());
         }
-        let vec: Result<Vec<_>> = buf.split(|b| *b == b'\\')
+        let vec: Result<Vec<_>> = buf
+            .split(|b| *b == b'\\')
             .map(|part| Ok(parse_time(part)?.0))
             .collect();
         Ok(PrimitiveValue::Time(vec?))
@@ -427,7 +429,7 @@ where
             VR::SQ => {
                 // sequence objects should not head over here, they are
                 // handled at a higher level
-                return Err(Error::from(InvalidValueReadError::NonPrimitiveType));
+                Err(Error::from(InvalidValueReadError::NonPrimitiveType))
             }
             VR::AT => self.read_value_tag(from, header),
             VR::AE | VR::AS | VR::PN | VR::SH | VR::LO | VR::UI | VR::UC | VR::CS => {
@@ -461,7 +463,7 @@ where
         match header.vr() {
             VR::SQ => {
                 // sequence objects... should not work
-                return Err(Error::from(InvalidValueReadError::NonPrimitiveType));
+                Err(Error::from(InvalidValueReadError::NonPrimitiveType))
             }
             VR::AT => self.read_value_tag(from, header),
             VR::AE
@@ -642,7 +644,7 @@ where
     T: Mul<T, Output = T>,
     T: Sub<T, Output = T>,
 {
-    if text.len() == 0 || text.len() > 9 {
+    if text.is_empty() || text.len() > 9 {
         return Err(InvalidValueReadError::InvalidFormat.into());
     }
     if text.into_iter().any(|b| *b < b'0' || *b > b'9') {
@@ -660,7 +662,7 @@ where
     T: Add<T, Output = T>,
     T: Mul<T, Output = T>,
 {
-    debug_assert!(buf.len() > 0);
+    debug_assert!(!buf.is_empty());
     debug_assert!(buf.len() < 10);
     (&buf[1..])
         .into_iter()
@@ -669,9 +671,9 @@ where
         })
 }
 
-fn parse_datetime(mut buf: &[u8], dt_utc_offset: &FixedOffset) -> Result<DateTime<FixedOffset>> {
+fn parse_datetime(mut buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime<FixedOffset>> {
     // perform a single trailing space trim
-    if let Some(b' ') = buf.last().map(|x| *x) {
+    if let Some(b' ') = buf.last().cloned() {
         buf = &buf[..buf.len() - 1];
     }
     let (date, bytes_read) = parse_date(buf)?;
@@ -699,7 +701,7 @@ fn parse_datetime(mut buf: &[u8], dt_utc_offset: &FixedOffset) -> Result<DateTim
                 .and_time(time)
                 .single()
                 .ok_or_else(|| InvalidValueReadError::InvalidFormat.into());
-            let dt = local_dt?.with_timezone(dt_utc_offset);
+            let dt = local_dt?.with_timezone(&dt_utc_offset);
             return Ok(dt);
         }
         1 | 2 => return Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
@@ -837,26 +839,26 @@ mod tests {
     fn test_datetime() {
         let default_offset = FixedOffset::east(0);
         assert_eq!(
-            parse_datetime(b"201801010930", &default_offset).unwrap(),
+            parse_datetime(b"201801010930", default_offset).unwrap(),
             FixedOffset::east(0).ymd(2018, 1, 1).and_hms(9, 30, 0)
         );
         assert_eq!(
-            parse_datetime(b"19711231065003", &default_offset).unwrap(),
+            parse_datetime(b"19711231065003", default_offset).unwrap(),
             FixedOffset::east(0).ymd(1971, 12, 31).and_hms(6, 50, 3)
         );
         assert_eq!(
-            parse_datetime(b"20171130101010.204", &default_offset).unwrap(),
+            parse_datetime(b"20171130101010.204", default_offset).unwrap(),
             FixedOffset::east(0)
                 .ymd(2017, 11, 30)
                 .and_hms_micro(10, 10, 10, 204_000)
         );
         assert_eq!(
-            parse_datetime(b"20180314000000.25 ", &default_offset).unwrap(),
+            parse_datetime(b"20180314000000.25 ", default_offset).unwrap(),
             FixedOffset::east(0)
                 .ymd(2018, 03, 14)
                 .and_hms_micro(0, 0, 0, 250_000)
         );
-        let dt = parse_datetime(b"20171130101010.204+0100", &default_offset).unwrap();
+        let dt = parse_datetime(b"20171130101010.204+0100", default_offset).unwrap();
         assert_eq!(
             dt,
             FixedOffset::east(3600)
@@ -867,7 +869,7 @@ mod tests {
             format!("{:?}", dt),
             "2017-11-30T10:10:10.204+01:00".to_string()
         );
-        let dt = parse_datetime(b"20171130101010.204+0100 ", &default_offset).unwrap();
+        let dt = parse_datetime(b"20171130101010.204+0100 ", default_offset).unwrap();
         assert_eq!(
             dt,
             FixedOffset::east(3600)
@@ -880,12 +882,12 @@ mod tests {
         );
 
         assert_eq!(
-            parse_datetime(b"20171130101010.204-1000", &default_offset).unwrap(),
+            parse_datetime(b"20171130101010.204-1000", default_offset).unwrap(),
             FixedOffset::west(10 * 3600)
                 .ymd(2017, 11, 30)
                 .and_hms_micro(10, 10, 10, 204_000)
         );
-        let dt = parse_datetime(b"20171130101010.204+0535", &default_offset).unwrap();
+        let dt = parse_datetime(b"20171130101010.204+0535", default_offset).unwrap();
         assert_eq!(
             dt,
             FixedOffset::east(5 * 3600 + 35 * 60)
@@ -897,23 +899,23 @@ mod tests {
             "2017-11-30T10:10:10.204+05:35".to_string()
         );
         assert_eq!(
-            parse_datetime(b"20140426", &default_offset).unwrap(),
+            parse_datetime(b"20140426", default_offset).unwrap(),
             FixedOffset::east(0).ymd(2014, 4, 26).and_hms(0, 0, 0)
         );
 
-        assert!(parse_datetime(b"", &default_offset).is_err());
-        assert!(parse_datetime(&[0x00_u8; 8], &default_offset).is_err());
-        assert!(parse_datetime(&[0xFF_u8; 8], &default_offset).is_err());
-        assert!(parse_datetime(&[b'0'; 8], &default_offset).is_err());
-        assert!(parse_datetime(&[b' '; 8], &default_offset).is_err());
-        assert!(parse_datetime(b"nope", &default_offset).is_err());
-        assert!(parse_datetime(b"2015dec", &default_offset).is_err());
-        assert!(parse_datetime(b"20151231162945.", &default_offset).is_err());
-        assert!(parse_datetime(b"20151130161445+", &default_offset).is_err());
-        assert!(parse_datetime(b"20151130161445+----", &default_offset).is_err());
-        assert!(parse_datetime(b"20151130161445. ", &default_offset).is_err());
-        assert!(parse_datetime(b"20151130161445. +0000", &default_offset).is_err());
-        assert!(parse_datetime(b"20100423164000.001+3", &default_offset).is_err());
-        assert!(parse_datetime(b"200809112945*1000", &default_offset).is_err());
+        assert!(parse_datetime(b"", default_offset).is_err());
+        assert!(parse_datetime(&[0x00_u8; 8], default_offset).is_err());
+        assert!(parse_datetime(&[0xFF_u8; 8], default_offset).is_err());
+        assert!(parse_datetime(&[b'0'; 8], default_offset).is_err());
+        assert!(parse_datetime(&[b' '; 8], default_offset).is_err());
+        assert!(parse_datetime(b"nope", default_offset).is_err());
+        assert!(parse_datetime(b"2015dec", default_offset).is_err());
+        assert!(parse_datetime(b"20151231162945.", default_offset).is_err());
+        assert!(parse_datetime(b"20151130161445+", default_offset).is_err());
+        assert!(parse_datetime(b"20151130161445+----", default_offset).is_err());
+        assert!(parse_datetime(b"20151130161445. ", default_offset).is_err());
+        assert!(parse_datetime(b"20151130161445. +0000", default_offset).is_err());
+        assert!(parse_datetime(b"20100423164000.001+3", default_offset).is_err());
+        assert!(parse_datetime(b"200809112945*1000", default_offset).is_err());
     }
 }

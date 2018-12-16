@@ -3,20 +3,22 @@
 //! The `parser` module is used to obtain DICOM element headers and values. At this level,
 //! headers and values are treated as tokens which can be used to form a syntax tree of
 //! a full data set.
-use parser::{DicomParser, DynamicDicomParser, Parse};
-use text::SpecificCharacterSet;
+use dicom_core::dictionary::DataDictionary;
+use dicom_core::header::{
+    DataElementHeader, Header, Length, PrimitiveDataElement, SequenceItemHeader,
+};
 use dicom_core::value::{DicomValueType, PrimitiveValue};
 use dicom_core::{Tag, VR};
-use dicom_core::header::{PrimitiveDataElement, DataElement, DataElementHeader, Header, Length, SequenceItemHeader};
-use dicom_core::dictionary::DataDictionary;
 use dicom_dictionary_std::StandardDataDictionary;
 use error::{Error, InvalidValueReadError, Result};
+use parser::{DicomParser, DynamicDicomParser, Parse};
 use std::fmt;
 use std::io::{Read, Seek, SeekFrom};
 use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::ops::DerefMut;
-use transfer_syntax::{Codec, TransferSyntax};
+use text::SpecificCharacterSet;
+use transfer_syntax::Codec;
 use util::{ReadSeek, SeekInterval};
 
 /// A higher-level reader for retrieving structure in a DICOM data set from an
@@ -51,8 +53,8 @@ impl<'s, S: 's> DataSetReader<S, DynamicDicomParser, StandardDataDictionary> {
         is_parse(&parser);
 
         Ok(DataSetReader {
-            source: source,
-            parser: parser,
+            source,
+            parser,
             dict: StandardDataDictionary,
             depth: 0,
             in_sequence: false,
@@ -76,8 +78,8 @@ impl<'s, S: 's, D> DataSetReader<S, DynamicDicomParser, D> {
         is_parse(&parser);
 
         Ok(DataSetReader {
-            source: source,
-            parser: parser,
+            source,
+            parser,
             dict,
             depth: 0,
             in_sequence: false,
@@ -95,8 +97,8 @@ where
     /// Create a new iterator with the given parser.
     pub fn new(source: S, parser: P) -> Self {
         DataSetReader {
-            source: source,
-            parser: parser,
+            source,
+            parser,
             dict: StandardDataDictionary,
             depth: 0,
             in_sequence: false,
@@ -111,9 +113,12 @@ where
     S: Read,
     P: Parse<Read + 's>,
 {
-    fn read_primitive_element<O>(&mut self, header: DataElementHeader) -> Result<PrimitiveDataElement> {
+    fn read_primitive_element<O>(
+        &mut self,
+        header: DataElementHeader,
+    ) -> Result<PrimitiveDataElement> {
         let v = self.parser.read_value(&mut self.source, &header)?;
-        Ok(PrimitiveDataElement::new(header, v.into()))
+        Ok(PrimitiveDataElement::new(header, v))
     }
 }
 
@@ -277,8 +282,8 @@ impl<'s> LazyDataSetReader<&'s mut ReadSeek, &'s mut Read, DynamicDicomParser> {
         let parser = DicomParser::new_with(ts, cs)?;
 
         Ok(LazyDataSetReader {
-            source: source,
-            parser: parser,
+            source,
+            parser,
             depth: 0,
             in_sequence: false,
             hard_break: false,
@@ -294,8 +299,8 @@ where
     /// Create a new iterator with the given parser.
     pub fn new(source: S, parser: P) -> LazyDataSetReader<S, DS, P> {
         LazyDataSetReader {
-            source: source,
-            parser: parser,
+            source,
+            parser,
             depth: 0,
             in_sequence: false,
             hard_break: false,
@@ -313,10 +318,7 @@ where
 
     fn create_element_marker(&mut self, header: DataElementHeader) -> Result<DicomElementMarker> {
         match self.get_position() {
-            Ok(pos) => Ok(DicomElementMarker {
-                header: header,
-                pos: pos,
-            }),
+            Ok(pos) => Ok(DicomElementMarker { header, pos }),
             Err(e) => {
                 self.hard_break = true;
                 Err(e)
@@ -328,7 +330,7 @@ where
         match self.get_position() {
             Ok(pos) => Ok(DicomElementMarker {
                 header: From::from(header),
-                pos: pos,
+                pos,
             }),
             Err(e) => {
                 self.hard_break = true;
@@ -376,8 +378,7 @@ where
                 Ok(
                     header @ DataElementHeader {
                         tag: Tag(0x0008, 0x0005),
-                        vr: _,
-                        len: _,
+                        ..
                     },
                 ) => {
                     let marker = self.create_element_marker(header);
@@ -424,10 +425,12 @@ impl DicomElementMarker {
     where
         S: ReadSeek,
     {
-        let len = u64::from(self.header
-            .len()
-            .get()
-            .ok_or(InvalidValueReadError::UnresolvedValueLength)?);
+        let len = u64::from(
+            self.header
+                .len()
+                .get()
+                .ok_or(InvalidValueReadError::UnresolvedValueLength)?,
+        );
         let interval = SeekInterval::new_at(source, self.pos..len)?;
         Ok(interval)
     }

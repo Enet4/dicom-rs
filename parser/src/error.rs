@@ -2,8 +2,6 @@ use std::borrow::Cow;
 use std::error::Error as BaseError;
 use std::fmt;
 use std::io;
-use std::num::{ParseFloatError, ParseIntError};
-use dicom_core::value::ValueType;
 use dicom_core::error::Error as CoreError;
 pub use dicom_core::error::{CastValueError, InvalidValueReadError};
 

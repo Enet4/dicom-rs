@@ -32,9 +32,9 @@ use hyper::{Chunk, Uri};
 use serde_json::to_writer;
 use tokio_core::reactor::Core;
 
-use quick_xml::Error as XmlError;
 use quick_xml::events::attributes::Attribute;
 use quick_xml::events::Event;
+use quick_xml::Error as XmlError;
 use quick_xml::Reader;
 use regex::Regex;
 
@@ -46,8 +46,8 @@ use std::path::Path;
 use std::str::FromStr;
 
 /// url to PS3.6 XML file
-const DEFAULT_LOCATION: &'static str = "http://dicom.nema.\
-                                        org/medical/dicom/current/source/docbook/part06/part06.xml";
+const DEFAULT_LOCATION: &str =
+    "http://dicom.nema.org/medical/dicom/current/source/docbook/part06/part06.xml";
 
 fn main() {
     let matches = App::new("DICOM Dictionary Builder")
@@ -56,15 +56,13 @@ fn main() {
             Arg::with_name("FROM")
                 .default_value(DEFAULT_LOCATION)
                 .help("Where to fetch the dictionary from"),
-        )
-        .arg(
+        ).arg(
             Arg::with_name("OUTPUT")
                 .short("o")
                 .help("The path to the output file")
                 .required(false)
                 .takes_value(true),
-        )
-        .arg(
+        ).arg(
             Arg::with_name("FORMAT")
                 .short("f")
                 .help("The output format")
@@ -73,13 +71,11 @@ fn main() {
                 .takes_value(true)
                 .possible_value("rs")
                 .possible_value("json"),
-        )
-        .arg(
+        ).arg(
             Arg::with_name("no-retired")
                 .help("Whether to ignore retired tags")
                 .takes_value(false),
-        )
-        .get_matches();
+        ).get_matches();
 
     let format = matches.value_of("FORMAT").unwrap();
     let ignore_retired = matches.is_present("no-retired");
@@ -269,7 +265,7 @@ impl<R: BufRead> Iterator for XmlEntryIterator<R> {
                         _e => if local_name == b"tr" && self.tag.is_some() {
                             let tag = self.tag.take().unwrap();
                             let out = Entry {
-                                tag: tag,
+                                tag,
                                 name: self.name.take(),
                                 alias: self.keyword.take(),
                                 vr: self.vr.take(),
@@ -286,37 +282,43 @@ impl<R: BufRead> Iterator for XmlEntryIterator<R> {
                 }
                 Ok(Event::Text(data)) => match self.state {
                     XmlReadingState::InCellTag => {
-                        let data = data.unescape_and_decode(&self.parser)
+                        let data = data
+                            .unescape_and_decode(&self.parser)
                             .unwrap()
                             .replace("\u{200b}", "");
                         self.tag = Some(data);
                     }
                     XmlReadingState::InCellName => {
-                        let data = data.unescape_and_decode(&self.parser)
+                        let data = data
+                            .unescape_and_decode(&self.parser)
                             .unwrap()
                             .replace("\u{200b}", "");
                         self.name = Some(data);
                     }
                     XmlReadingState::InCellKeyword => {
-                        let data = data.unescape_and_decode(&self.parser)
+                        let data = data
+                            .unescape_and_decode(&self.parser)
                             .unwrap()
                             .replace("\u{200b}", "");
                         self.keyword = Some(data);
                     }
                     XmlReadingState::InCellVR => {
-                        let data = data.unescape_and_decode(&self.parser)
+                        let data = data
+                            .unescape_and_decode(&self.parser)
                             .unwrap()
                             .replace("\u{200b}", "");
                         self.vr = Some(data);
                     }
                     XmlReadingState::InCellVM => {
-                        let data = data.unescape_and_decode(&self.parser)
+                        let data = data
+                            .unescape_and_decode(&self.parser)
                             .unwrap()
                             .replace("\u{200b}", "");
                         self.vm = Some(data);
                     }
                     XmlReadingState::InCellObs => {
-                        let data = data.unescape_and_decode(&self.parser)
+                        let data = data
+                            .unescape_and_decode(&self.parser)
                             .unwrap()
                             .replace("\u{200b}", "");
                         self.obs = Some(data);
@@ -396,10 +398,11 @@ where
 
         let (vr1, vr2) = vr.split_at(2);
 
-        let mut second_vr = vr2.to_string();
-        if vr2 != "" {
-            second_vr = format!(" /*{} */", vr2);
-        }
+        let second_vr = if vr2 != "" {
+            format!(" /*{} */", vr2)
+        } else {
+            vr2.to_string()
+        };
 
         let mut obs = obs.unwrap_or_else(String::new);
         if obs != "" {

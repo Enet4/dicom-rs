@@ -15,42 +15,42 @@ impl BasicDecode for LittleEndianBasicDecoder {
         Endianness::Little
     }
 
-    fn decode_us<S>(&self, mut source: S) -> Result<u16>
+    fn decode_us<S>(&self, source: S) -> Result<u16>
     where
         S: Read,
     {
         ByteOrdered::le(source).read_u16().map_err(Into::into)
     }
 
-    fn decode_ul<S>(&self, mut source: S) -> Result<u32>
+    fn decode_ul<S>(&self, source: S) -> Result<u32>
     where
         S: Read,
     {
         ByteOrdered::le(source).read_u32().map_err(Into::into)
     }
 
-    fn decode_ss<S>(&self, mut source: S) -> Result<i16>
+    fn decode_ss<S>(&self, source: S) -> Result<i16>
     where
         S: Read,
     {
         ByteOrdered::le(source).read_i16().map_err(Into::into)
     }
 
-    fn decode_sl<S>(&self, mut source: S) -> Result<i32>
+    fn decode_sl<S>(&self, source: S) -> Result<i32>
     where
         S: Read,
     {
         ByteOrdered::le(source).read_i32().map_err(Into::into)
     }
 
-    fn decode_fl<S>(&self, mut source: S) -> Result<f32>
+    fn decode_fl<S>(&self, source: S) -> Result<f32>
     where
         S: Read,
     {
         ByteOrdered::le(source).read_f32().map_err(Into::into)
     }
 
-    fn decode_fd<S>(&self, mut source: S) -> Result<f64>
+    fn decode_fd<S>(&self, source: S) -> Result<f64>
     where
         S: Read,
     {
@@ -67,42 +67,42 @@ impl BasicDecode for BigEndianBasicDecoder {
         Endianness::Big
     }
 
-    fn decode_us<S>(&self, mut source: S) -> Result<u16>
+    fn decode_us<S>(&self, source: S) -> Result<u16>
     where
         S: Read,
     {
         ByteOrdered::be(source).read_u16().map_err(Into::into)
     }
 
-    fn decode_ul<S>(&self, mut source: S) -> Result<u32>
+    fn decode_ul<S>(&self, source: S) -> Result<u32>
     where
         S: Read,
     {
         ByteOrdered::be(source).read_u32().map_err(Into::into)
     }
 
-    fn decode_ss<S>(&self, mut source: S) -> Result<i16>
+    fn decode_ss<S>(&self, source: S) -> Result<i16>
     where
         S: Read,
     {
         ByteOrdered::be(source).read_i16().map_err(Into::into)
     }
 
-    fn decode_sl<S>(&self, mut source: S) -> Result<i32>
+    fn decode_sl<S>(&self, source: S) -> Result<i32>
     where
         S: Read,
     {
         ByteOrdered::be(source).read_i32().map_err(Into::into)
     }
 
-    fn decode_fl<S>(&self, mut source: S) -> Result<f32>
+    fn decode_fl<S>(&self, source: S) -> Result<f32>
     where
         S: Read,
     {
         ByteOrdered::be(source).read_f32().map_err(Into::into)
     }
 
-    fn decode_fd<S>(&self, mut source: S) -> Result<f64>
+    fn decode_fd<S>(&self, source: S) -> Result<f64>
     where
         S: Read,
     {
