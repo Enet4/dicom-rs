@@ -21,6 +21,19 @@ in the next few months. Any feedback during the development of these solutions i
 - [`dictionary-builder`](dictionary-builder) is a Rust application that generates code and
   other data structures for a DICOM standard dictionary using entries from the official website.
 
+## Using as a library
+
+[`dicom-object`](object) is currently the most usable crate for reading DICOM objects. An example of use follows. For more, please visit the respective documentation.
+
+```rust
+use dicom_object::open_file;
+use dicom_object::Result;
+
+let obj = open_file("0001.dcm")?;
+let patient_name = obj.element_by_name("PatientName")?.as_string()?;
+let modality = obj.element_by_name("Modality")?.as_string()?;
+```
+
 ## Building
 
 You can use Cargo to build all crates in the repository.
