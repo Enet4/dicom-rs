@@ -224,6 +224,26 @@ where
         Ok(PrimitiveValue::Str(self.text.decode(&buf[..])?))
     }
 
+    fn read_value_ui(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+        let len = require_known_length!(header);
+        // sequence of UID's
+        let mut buf = vec![0u8; len];
+        from.read_exact(&mut buf)?;
+
+        let parts: Result<Vec<_>> = match header.vr() {
+            VR::AE | VR::CS | VR::AS => buf[..]
+                .split(|v| *v == 0)
+                .map(|slice| DefaultCharacterSetCodec.decode(slice))
+                .collect(),
+            _ => buf[..]
+                .split(|v| *v == 0)
+                .map(|slice| self.text.decode(slice))
+                .collect(),
+        };
+
+        Ok(PrimitiveValue::Strs(parts?))
+    }
+
     fn read_value_ss(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         // sequence of 16-bit signed integers
         let len = require_known_length!(header);
@@ -251,7 +271,7 @@ where
         let len = require_known_length!(header);
         // sequence of dates
 
-        // maybe one day I should find a way to get rid of this dynamic allocation
+        // !!! maybe one day I should find a way to get rid of this dynamic allocation
         let mut buf = vec![0u8; len];
         from.read_exact(&mut buf)?;
         if validate_da(&buf) != TextValidationOutcome::Ok {
@@ -432,9 +452,10 @@ where
                 Err(Error::from(InvalidValueReadError::NonPrimitiveType))
             }
             VR::AT => self.read_value_tag(from, header),
-            VR::AE | VR::AS | VR::PN | VR::SH | VR::LO | VR::UI | VR::UC | VR::CS => {
+            VR::AE | VR::AS | VR::PN | VR::SH | VR::LO | VR::UC | VR::CS => {
                 self.read_value_strs(from, header)
             }
+            VR::UI => self.read_value_ui(from, header),
             VR::UT | VR::ST | VR::UR | VR::LT => self.read_value_str(from, header),
             VR::UN | VR::OB => self.read_value_ob(from, header),
             VR::US | VR::OW => self.read_value_us(from, header),
