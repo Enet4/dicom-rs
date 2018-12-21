@@ -1,10 +1,10 @@
 //! This module includes a high level abstraction over a DICOM data element's value.
 
-use std::borrow::Cow;
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
-use itertools::Itertools;
-use header::{Tag, Length};
+use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
 use error::CastValueError;
+use header::{Length, Tag};
+use itertools::Itertools;
+use std::borrow::Cow;
 
 type C<T> = Vec<T>;
 
@@ -32,7 +32,7 @@ where
     pub fn multiplicity(&self) -> u32 {
         match *self {
             Value::Primitive(ref v) => v.multiplicity(),
-            Value::Sequence{ ref items, ..} => items.len() as u32,
+            Value::Sequence { ref items, .. } => items.len() as u32,
         }
     }
 
@@ -192,7 +192,6 @@ pub enum PrimitiveValue {
 }
 
 impl PrimitiveValue {
-
     /// Obtain the number of individual values.
     pub fn multiplicity(&self) -> u32 {
         use self::PrimitiveValue::*;
@@ -314,6 +313,84 @@ impl PrimitiveValue {
             &F64(ref c) => c.get(0).map(Clone::clone),
             _ => None,
         }
+    }
+
+    /// Determine the minimum number of bytes that this value would need to
+    /// occupy in a DICOM file, without compression and without the header.
+    /// As mandated by the standard, it is always even.
+    /// The calculated number does not need to match the size of the original
+    /// byte stream.
+    pub fn calculate_byte_len(&self) -> usize {
+        use self::PrimitiveValue::*;
+        match self {
+            Empty => 0,
+            U8(c) => c.len(),
+            I16(c) => c.len() * 2,
+            U16(c) => c.len() * 2,
+            U32(c) => c.len() * 4,
+            I32(c) => c.len() * 4,
+            F32(c) => c.len() * 4,
+            F64(c) => c.len() * 8,
+            Tags(c) => c.len() * 4,
+            Date(c) => c.len() * 8,
+            Str(s) => s.as_bytes().len(),
+            Strs(c) if c.is_empty() => 0,
+            Strs(c) => {
+                c.iter()
+                    .map(|s| ((s.as_bytes().len() + 1) & !1) + 1)
+                    .sum::<usize>()
+                    - 1
+            }
+            Time(c) if c.is_empty() => 0,
+            Time(c) => {
+                c.iter()
+                    .map(|t| ((PrimitiveValue::tm_byte_len(*t) + 1) & !1) + 1)
+                    .sum::<usize>()
+                    - 1
+            }
+            DateTime(c) if c.is_empty() => 0,
+            DateTime(c) => {
+                c.iter()
+                    .map(|dt| ((PrimitiveValue::dt_byte_len(*dt) + 1) & !1) + 1)
+                    .sum::<usize>()
+                    - 1
+            }
+        }
+    }
+
+    fn tm_byte_len(time: NaiveTime) -> usize {
+        match (time.hour(), time.minute(), time.second(), time.nanosecond()) {
+            (_, 0, 0, 0) => 2,
+            (_, _, 0, 0) => 4,
+            (_, _, _, 0) => 6,
+            (_, _, _, nano) => {
+                let mut frac = nano / 1000; // nano to microseconds
+                let mut trailing_zeros = 0;
+                while frac % 10 == 0 {
+                    frac = frac / 10;
+                    trailing_zeros += 1;
+                }
+                7 + 6 - trailing_zeros
+            }
+        }
+    }
+
+    fn dt_byte_len(datetime: DateTime<FixedOffset>) -> usize {
+        // !!! the current local definition of datetime is inaccurate, because
+        // it cannot distinguish unspecified components from their defaults
+        // (e.g. 201812 should be different from 20181201). This will have to
+        // be changed at some point.
+        (match (datetime.month(), datetime.day()) {
+            (1, 1) => 0,
+            (_, 1) => 2,
+            _ => 4,
+        }) + 8
+            + PrimitiveValue::tm_byte_len(datetime.time())
+            + if datetime.offset() == &FixedOffset::east(0) {
+                0
+            } else {
+                5
+            }
     }
 }
 
