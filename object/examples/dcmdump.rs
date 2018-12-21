@@ -59,7 +59,7 @@ where
     if let &DicomValue::Sequence { ref items, .. } = elem.value() {
         writeln!(
             to,
-            "{} {}                    # {}, {} {}",
+            "{} {}                        # {}, {} {}",
             elem.tag(),
             elem.vr(),
             len,
@@ -74,7 +74,7 @@ where
         let value = elem.value().primitive().unwrap();
         writeln!(
             to,
-            "{} {} {:34}  # {}, {} {}",
+            "{} {} {:40} # {}, {} {}",
             elem.tag(),
             vr,
             value_summary(&value, vr, 34),
@@ -92,9 +92,9 @@ where
     W: Write,
     D: DataDictionary,
 {
-    let indent = vec![b' '; (depth * 2) as usize];
-    to.write(&indent)?;
-    writeln!(to, "(FFFE,E000) na Item                    # 0, 0 Item")?;
+    let indent: String = std::iter::repeat(' ').take((depth * 2) as usize).collect();
+    let trail: String = std::iter::repeat(' ').take(usize::max(21, 19 - indent.len())).collect();
+    writeln!(to, "{}(FFFE,E000) na Item {} # 0, 0 Item", indent, trail)?;
     dump(to, item, depth + 1)?;
     writeln!(
         to,
