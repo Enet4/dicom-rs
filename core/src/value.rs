@@ -192,7 +192,8 @@ pub enum PrimitiveValue {
 }
 
 impl PrimitiveValue {
-    /// Obtain the number of individual values.
+    /// Obtain the number of individual elements. This number may not
+    /// match the DICOM value multiplicity in some value representations.
     pub fn multiplicity(&self) -> u32 {
         use self::PrimitiveValue::*;
         match self {

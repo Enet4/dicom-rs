@@ -3,13 +3,13 @@
 extern crate dicom_core;
 extern crate dicom_object;
 
-use dicom_core::header::Header;
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
-use dicom_core::value::{Value as DicomValue, PrimitiveValue};
+use dicom_core::header::Header;
+use dicom_core::value::{PrimitiveValue, Value as DicomValue};
 use dicom_core::VR;
-use dicom_object::StandardDataDictionary;
-use dicom_object::mem::{InMemElement, InMemDicomObject};
 use dicom_object::file::open_file;
+use dicom_object::mem::{InMemDicomObject, InMemElement};
+use dicom_object::StandardDataDictionary;
 
 use std::borrow::Cow;
 use std::io::{stdout, Write};
@@ -24,24 +24,24 @@ fn main() -> DynResult<()> {
     let obj = open_file(filename)?;
     let mut to = stdout();
     write!(to, "# Dicom-File-Format\n\n")?;
-    dump(&mut to, &obj, 0)?;
+    dump(&mut to, &obj, 40, 0)?;
 
     Ok(())
 }
 
-fn dump<W, D>(to: &mut W, obj: &InMemDicomObject<D>, depth: u32) -> DynResult<()>
+fn dump<W, D>(to: &mut W, obj: &InMemDicomObject<D>, width: u32, depth: u32) -> DynResult<()>
 where
     W: Write,
     D: DataDictionary,
 {
     for elem in obj {
-        dump_element(&mut *to, &elem, depth)?;
+        dump_element(&mut *to, &elem, width, depth)?;
     }
 
     Ok(())
 }
 
-fn dump_element<W, D>(to: &mut W, elem: &InMemElement<D>, depth: u32) -> DynResult<()>
+fn dump_element<W, D>(to: &mut W, elem: &InMemElement<D>, width: u32, depth: u32) -> DynResult<()>
 where
     W: Write,
     D: DataDictionary,
@@ -52,33 +52,34 @@ where
         .map(DictionaryEntry::alias)
         .unwrap_or("«Unknown Attribute»");
     to.write(&indent)?;
-    let len = elem.len();
-    let vm = elem.value().multiplicity();
-
+    let vm = match elem.vr() {
+        VR::OB | VR::OW | VR::UN => 1,
+        _ => elem.value().multiplicity(),
+    };
 
     if let &DicomValue::Sequence { ref items, .. } = elem.value() {
         writeln!(
             to,
-            "{} {}                        # {}, {} {}",
+            "{} {}                        # {},    {}",
             elem.tag(),
             elem.vr(),
-            len,
             vm,
             tag_alias
         )?;
         for item in items {
-            dump_item(&mut *to, item, depth + 1)?;
+            dump_item(&mut *to, item, width, depth + 1)?;
         }
     } else {
         let vr = elem.vr();
         let value = elem.value().primitive().unwrap();
+        let byte_len = value.calculate_byte_len();
         writeln!(
             to,
             "{} {} {:40} # {}, {} {}",
             elem.tag(),
             vr,
-            value_summary(&value, vr, 34),
-            len,
+            value_summary(&value, vr, width),
+            byte_len,
             vm,
             tag_alias
         )?;
@@ -87,15 +88,17 @@ where
     Ok(())
 }
 
-fn dump_item<W, D>(to: &mut W, item: &InMemDicomObject<D>, depth: u32) -> DynResult<()>
+fn dump_item<W, D>(to: &mut W, item: &InMemDicomObject<D>, width: u32, depth: u32) -> DynResult<()>
 where
     W: Write,
     D: DataDictionary,
 {
     let indent: String = std::iter::repeat(' ').take((depth * 2) as usize).collect();
-    let trail: String = std::iter::repeat(' ').take(usize::max(21, 19 - indent.len())).collect();
+    let trail: String = std::iter::repeat(' ')
+        .take(usize::max(21, width as usize - 21 - indent.len()))
+        .collect();
     writeln!(to, "{}(FFFE,E000) na Item {} # 0, 0 Item", indent, trail)?;
-    dump(to, item, depth + 1)?;
+    dump(to, item, width, depth + 1)?;
     writeln!(
         to,
         "(FFFE,E00D) na (ItemDelimitationItem)  # 0, 0 ItemDelimitationItem"
@@ -103,23 +106,35 @@ where
     Ok(())
 }
 
-
-fn value_summary(value: &PrimitiveValue, _vr: VR, max_characters: u32) -> Cow<str> {
-    match value {
-        PrimitiveValue::F32(values) => format_value_list(values, max_characters).into(),
-        PrimitiveValue::F64(values) => format_value_list(values, max_characters).into(),
-        PrimitiveValue::I32(values) => format_value_list(values, max_characters).into(),
-        PrimitiveValue::U32(values) => format_value_list(values, max_characters).into(),
-        PrimitiveValue::I16(values) => format_value_list(values, max_characters).into(),
-        PrimitiveValue::U16(values) => format_value_list(values, max_characters).into(),
-        PrimitiveValue::U8(values) => format_value_list(values, max_characters).into(),
-        PrimitiveValue::Tags(values) => format_value_list(values, max_characters).into(),
-        PrimitiveValue::Strs(values) => format_value_list(values, max_characters).into(),
-        PrimitiveValue::Date(values) => format_value_list(values, max_characters).into(),
-        PrimitiveValue::Time(values) => format_value_list(values, max_characters).into(),
-        PrimitiveValue::DateTime(values) => format_value_list(values, max_characters).into(),
-        PrimitiveValue::Str(value) => cut_str(&value.to_string(), max_characters).into_owned().into(),
-        PrimitiveValue::Empty => "".into(),
+fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> Cow<str> {
+    use PrimitiveValue::*;
+    match (value, vr) {
+        (F32(values), _) => format_value_list(values, max_characters).into(),
+        (F64(values), _) => format_value_list(values, max_characters).into(),
+        (I32(values), _) => format_value_list(values, max_characters).into(),
+        (U32(values), _) => format_value_list(values, max_characters).into(),
+        (I16(values), _) => format_value_list(values, max_characters).into(),
+        (U16(values), VR::OW) => format_value_list(
+            values.into_iter().map(|n| format!("{:#x}", n)),
+            max_characters,
+        )
+        .into(),
+        (U16(values), _) => format_value_list(values, max_characters).into(),
+        (U8(values), VR::OB) => format_value_list(
+            values.into_iter().map(|n| format!("{:#x}", n)),
+            max_characters,
+        )
+        .into(),
+        (U8(values), _) => format_value_list(values, max_characters).into(),
+        (Tags(values), _) => format_value_list(values, max_characters).into(),
+        (Strs(values), _) => format_value_list(values, max_characters).into(),
+        (Date(values), _) => format_value_list(values, max_characters).into(),
+        (Time(values), _) => format_value_list(values, max_characters).into(),
+        (DateTime(values), _) => format_value_list(values, max_characters).into(),
+        (Str(value), _) => cut_str(&value.to_string(), max_characters)
+            .into_owned()
+            .into(),
+        (Empty, _) => "".into(),
     }
 }
 
