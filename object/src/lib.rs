@@ -5,9 +5,6 @@
 //!
 //! # Examples
 //!
-//! The following code does not depict the current functionalities, and the API
-//! is subject to change.
-//!
 //! ```no_run
 //! use dicom_object::open_file;
 //! # use dicom_object::Result;
