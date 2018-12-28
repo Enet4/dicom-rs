@@ -13,8 +13,8 @@
 //! # use dicom_object::Result;
 //! # fn foo() -> Result<()> {
 //! let obj = open_file("0001.dcm")?;
-//! let patient_name = obj.element_by_name("PatientName")?.as_string()?;
-//! let modality = obj.element_by_name("Modality")?.as_string()?;
+//! let patient_name = obj.element_by_name("PatientName")?.to_str()?;
+//! let modality = obj.element_by_name("Modality")?.to_str()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -35,6 +35,7 @@ extern crate dicom_core;
 extern crate dicom_parser;
 extern crate dicom_dictionary_std;
 extern crate itertools;
+extern crate smallvec;
 
 pub mod file;
 pub mod lazy;

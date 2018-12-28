@@ -6,7 +6,7 @@ use chrono::{DateTime, FixedOffset, Local, NaiveDate, NaiveTime, TimeZone};
 use decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
 use decode::{BasicDecode, Decode};
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader, Tag, VR};
-use dicom_core::value::PrimitiveValue;
+use dicom_core::value::{C, PrimitiveValue};
 use error::{Error, InvalidValueReadError, Result, TextEncodingError};
 use std::fmt;
 use std::fmt::Debug;
@@ -14,6 +14,7 @@ use std::io::Read;
 use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::ops::{Add, Mul, Sub};
+use smallvec::SmallVec;
 use text::{
     validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, TextValidationOutcome,
 };
@@ -176,7 +177,7 @@ where
 
         // tags
         let ntags = len >> 2;
-        let parts: Result<Vec<Tag>> = n_times(ntags)
+        let parts: Result<C<Tag>> = n_times(ntags)
             .map(|_| {
                 let g = self.basic.decode_us(&mut *from)?;
                 let e = self.basic.decode_us(&mut *from)?;
@@ -190,7 +191,7 @@ where
         let len = require_known_length!(header);
 
         // sequence of 8-bit integers (or just byte data)
-        let mut buf = vec![0u8; len];
+        let mut buf = smallvec![0u8; len];
         from.read_exact(&mut buf)?;
         Ok(PrimitiveValue::U8(buf))
     }
@@ -198,10 +199,10 @@ where
     fn read_value_strs(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of strings
-        let mut buf = vec![0u8; len];
+        let mut buf: SmallVec<[u8; 16]> = smallvec![0u8; len];
         from.read_exact(&mut buf)?;
 
-        let parts: Result<Vec<_>> = match header.vr() {
+        let parts: Result<C<_>> = match header.vr() {
             VR::AE | VR::CS | VR::AS => buf[..]
                 .split(|v| *v == b'\\')
                 .map(|slice| DefaultCharacterSetCodec.decode(slice))
@@ -219,8 +220,8 @@ where
         let len = require_known_length!(header);
 
         // a single string
-        let mut buf = vec![0u8; len];
-        try!(from.read_exact(&mut buf));
+        let mut buf: SmallVec<[u8; 16]> = smallvec![0u8; len];
+        from.read_exact(&mut buf)?;
         Ok(PrimitiveValue::Str(self.text.decode(&buf[..])?))
     }
 
@@ -230,7 +231,7 @@ where
         let mut buf = vec![0u8; len];
         from.read_exact(&mut buf)?;
 
-        let parts: Result<Vec<_>> = match header.vr() {
+        let parts: Result<C<_>> = match header.vr() {
             VR::AE | VR::CS | VR::AS => buf[..]
                 .split(|v| *v == 0)
                 .map(|slice| DefaultCharacterSetCodec.decode(slice))
@@ -249,22 +250,20 @@ where
         let len = require_known_length!(header);
 
         let len = len >> 1;
-        let mut vec = Vec::with_capacity(len);
-        for _ in n_times(len) {
-            vec.push(self.basic.decode_ss(&mut *from)?);
-        }
-        Ok(PrimitiveValue::I16(vec))
+        let vec: Result<C<_>> = n_times(len)
+            .map(|_| self.basic.decode_ss(&mut *from))
+            .collect();
+        Ok(PrimitiveValue::I16(vec?))
     }
 
     fn read_value_fl(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 32-bit floats
-        let l = len >> 2;
-        let mut vec = Vec::with_capacity(l);
-        for _ in n_times(l) {
-            vec.push(self.basic.decode_fl(&mut *from)?);
-        }
-        Ok(PrimitiveValue::F32(vec))
+        let len = len >> 2;
+        let vec: Result<C<_>> = n_times(len)
+            .map(|_| self.basic.decode_fl(&mut *from))
+            .collect();
+        Ok(PrimitiveValue::F32(vec?))
     }
 
     fn read_value_da(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
@@ -272,7 +271,7 @@ where
         // sequence of dates
 
         // !!! maybe one day I should find a way to get rid of this dynamic allocation
-        let mut buf = vec![0u8; len];
+        let mut buf: SmallVec<[u8; 16]> = smallvec![0u8; len];
         from.read_exact(&mut buf)?;
         if validate_da(&buf) != TextValidationOutcome::Ok {
             let lossy_str = DefaultCharacterSetCodec
@@ -283,7 +282,7 @@ where
                 lossy_str
             )).into());
         }
-        let vec: Result<Vec<_>> = buf
+        let vec: Result<C<_>> = buf
             .split(|b| *b == b'\\')
             .map(|part| Ok(parse_date(part)?.0))
             .collect();
@@ -295,9 +294,9 @@ where
         // sequence of doubles in text form
 
         // !!! dynamic allocation
-        let mut buf = vec![0u8; len];
+        let mut buf: SmallVec<[u8; 16]> = smallvec![0u8; len];
         from.read_exact(&mut buf)?;
-        let parts: Result<Vec<f64>> = buf[..]
+        let parts: Result<C<f64>> = buf[..]
             .split(|b| *b == b'\\')
             .map(|slice| {
                 let codec = SpecificCharacterSet::Default.get_codec().unwrap();
@@ -314,7 +313,7 @@ where
         // sequence of datetimes
 
         // !!! dynamic allocation
-        let mut buf = vec![0u8; len];
+        let mut buf: SmallVec<[u8; 16]> = smallvec![0u8; len];
         from.read_exact(&mut buf)?;
         if validate_dt(&buf) != TextValidationOutcome::Ok {
             let lossy_str = DefaultCharacterSetCodec
@@ -325,7 +324,7 @@ where
                 lossy_str
             )).into());
         }
-        let vec: Result<Vec<_>> = buf
+        let vec: Result<C<_>> = buf
             .split(|b| *b == b'\\')
             .map(|part| Ok(parse_datetime(part, self.dt_utc_offset)?))
             .collect();
@@ -336,14 +335,14 @@ where
     fn read_value_is(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of signed integers in text form
-        let mut buf = vec![0u8; len];
+        let mut buf: SmallVec<[u8; 16]> = smallvec![0u8; len];
         from.read_exact(&mut buf)?;
 
         let last = if let Some(c) = buf.last() { *c } else { 0u8 };
         if last == b' ' {
             buf.pop();
         }
-        let parts: Result<Vec<_>> = buf[..]
+        let parts: Result<C<_>> = buf[..]
             .split(|v| *v == b'\\')
             .map(|slice| {
                 let codec = SpecificCharacterSet::Default.get_codec().unwrap();
@@ -360,7 +359,7 @@ where
         // sequence of time instances
 
         // dynamic allocation
-        let mut buf = vec![0u8; len];
+        let mut buf: SmallVec<[u8; 16]> = smallvec![0u8; len];
         from.read_exact(&mut buf)?;
         if validate_tm(&buf) != TextValidationOutcome::Ok {
             let lossy_str = DefaultCharacterSetCodec
@@ -371,9 +370,9 @@ where
                 lossy_str
             )).into());
         }
-        let vec: Result<Vec<_>> = buf
+        let vec: Result<C<_>> = buf
             .split(|b| *b == b'\\')
-            .map(|part| Ok(parse_time(part)?.0))
+            .map(|part| parse_time(part).map(|t| t.0))
             .collect();
         Ok(PrimitiveValue::Time(vec?))
     }
@@ -382,11 +381,10 @@ where
         let len = require_known_length!(header);
         // sequence of 64-bit floats
         let len = len >> 3;
-        let mut vec = Vec::with_capacity(len);
-        for _ in n_times(len) {
-            vec.push(self.basic.decode_fd(&mut *from)?);
-        }
-        Ok(PrimitiveValue::F64(vec))
+        let vec: Result<C<_>> = n_times(len)
+            .map(|_| self.basic.decode_fd(&mut *from))
+            .collect();
+        Ok(PrimitiveValue::F64(vec?))
     }
 
     fn read_value_ul(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
@@ -394,11 +392,10 @@ where
         // sequence of 32-bit unsigned integers
 
         let len = len >> 2;
-        let mut vec = Vec::with_capacity(len);
-        for _ in n_times(len) {
-            vec.push(self.basic.decode_ul(&mut *from)?);
-        }
-        Ok(PrimitiveValue::U32(vec))
+        let vec: Result<C<_>> = n_times(len)
+            .map(|_| self.basic.decode_ul(&mut *from))
+            .collect();
+        Ok(PrimitiveValue::U32(vec?))
     }
 
     fn read_value_us(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
@@ -406,11 +403,10 @@ where
         // sequence of 16-bit unsigned integers
 
         let len = len >> 1;
-        let mut vec = Vec::with_capacity(len);
-        for _ in n_times(len) {
-            vec.push(self.basic.decode_us(&mut *from)?);
-        }
-        Ok(PrimitiveValue::U16(vec))
+        let vec: Result<C<_>> = n_times(len)
+            .map(|_| self.basic.decode_us(&mut *from))
+            .collect();
+        Ok(PrimitiveValue::U16(vec?))
     }
 
     fn read_value_sl(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
@@ -418,11 +414,10 @@ where
         // sequence of 32-bit signed integers
 
         let len = len >> 2;
-        let mut vec = Vec::with_capacity(len);
-        for _ in n_times(len) {
-            vec.push(self.basic.decode_sl(&mut *from)?);
-        }
-        Ok(PrimitiveValue::I32(vec))
+        let vec: Result<C<_>> = n_times(len)
+            .map(|_| self.basic.decode_sl(&mut *from))
+            .collect();
+        Ok(PrimitiveValue::I32(vec?))
     }
 }
 

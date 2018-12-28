@@ -5,8 +5,10 @@ use error::CastValueError;
 use header::{Length, Tag};
 use itertools::Itertools;
 use std::borrow::Cow;
+use smallvec::SmallVec;
 
-type C<T> = Vec<T>;
+/// An aggregation of one or more elements in a value. 
+pub type C<T> = SmallVec<[T; 2]>;
 
 /// Representation of a full DICOM value, which may be either primitive or
 /// another DICOM object.
@@ -61,14 +63,18 @@ where
     }
 
     /// Retrieves the items.
-    pub fn into_item(self) -> Option<Vec<I>> {
+    pub fn into_item(self) -> Option<C<I>> {
         match self {
             Value::Sequence { items, .. } => Some(items),
             _ => None,
         }
     }
 
-    pub fn as_string(&self) -> Result<Cow<str>, CastValueError> {
+    /// Retrieves the primitive value as a single string.
+    /// 
+    /// If the value contains multiple strings, they are concatenated
+    /// (separated by `'\\'`) into an owned string.
+    pub fn to_str(&self) -> Result<Cow<str>, CastValueError> {
         match self {
             &Value::Primitive(PrimitiveValue::Str(ref v)) => Ok(Cow::from(v.as_str())),
             &Value::Primitive(PrimitiveValue::Strs(ref v)) => {
@@ -81,6 +87,7 @@ where
         }
     }
 
+    /// Retrieves the primitive value as a sequence of unsigned bytes.
     pub fn as_u8(&self) -> Result<&[u8], CastValueError> {
         match self {
             &Value::Primitive(PrimitiveValue::U8(ref v)) => Ok(&v),
@@ -91,6 +98,7 @@ where
         }
     }
 
+    /// Retrieves the primitive value as a sequence of signed 32-bit integers.
     pub fn as_i32(&self) -> Result<&[i32], CastValueError> {
         match self {
             &Value::Primitive(PrimitiveValue::I32(ref v)) => Ok(&v),
@@ -101,6 +109,7 @@ where
         }
     }
 
+    /// Retrieves the primitive value as a DICOM tag.
     pub fn to_tag(&self) -> Result<Tag, CastValueError> {
         match self {
             &Value::Primitive(PrimitiveValue::Tags(ref v)) => Ok(v[0]),
@@ -111,6 +120,7 @@ where
         }
     }
 
+    /// Retrieves the primitive value as a sequence of DICOM tags.
     pub fn as_tags(&self) -> Result<&[Tag], CastValueError> {
         match self {
             &Value::Primitive(PrimitiveValue::Tags(ref v)) => Ok(&v),

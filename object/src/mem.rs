@@ -5,12 +5,13 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
+use smallvec::SmallVec;
 
 use super::DicomObject;
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_core::header::Header;
-use dicom_core::value::{DicomValueType, Value, ValueType};
+use dicom_core::value::{C, DicomValueType, Value, ValueType};
 use dicom_core::{DataElement, Length, Tag, VR};
 use dicom_parser::dataset::{DataSetReader, DicomDataToken};
 use dicom_parser::error::{DataSetSyntaxError, Error, Result};
@@ -219,12 +220,12 @@ where
         _len: Length,
         dataset: &mut DataSetReader<S, P, D>,
         dict: &D,
-    ) -> Result<Vec<InMemDicomObject<D>>>
+    ) -> Result<C<InMemDicomObject<D>>>
     where
         S: Read,
         P: Parse<Read + 's>,
     {
-        let mut items = vec![];
+        let mut items: C<_> = SmallVec::new();
         while let Some(token) = dataset.next() {
             match token? {
                 DicomDataToken::ItemStart { len } => {

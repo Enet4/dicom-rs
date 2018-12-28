@@ -30,8 +30,8 @@ use dicom_object::open_file;
 use dicom_object::Result;
 
 let obj = open_file("0001.dcm")?;
-let patient_name = obj.element_by_name("PatientName")?.as_string()?;
-let modality = obj.element_by_name("Modality")?.as_string()?;
+let patient_name = obj.element_by_name("PatientName")?.to_str()?;
+let modality = obj.element_by_name("Modality")?.to_str()?;
 ```
 
 ## Building

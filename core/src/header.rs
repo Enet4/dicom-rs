@@ -199,9 +199,9 @@ where
         self.header.vr()
     }
 
-    /// Retrieve the element's value as a string.
-    pub fn as_string(&self) -> Result<Cow<str>> {
-        self.value.as_string().map_err(From::from)
+    /// Retrieve the element's value as a single string.
+    pub fn to_str(&self) -> Result<Cow<str>> {
+        self.value.to_str().map_err(From::from)
     }
 }
 

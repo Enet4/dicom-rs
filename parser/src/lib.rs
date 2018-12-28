@@ -8,6 +8,7 @@ extern crate chrono;
 extern crate encoding;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate quick_error;
+#[macro_use] extern crate smallvec;
 extern crate dicom_core;
 extern crate dicom_dictionary_std;
 

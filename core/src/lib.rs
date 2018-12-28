@@ -21,6 +21,7 @@ extern crate chrono;
 extern crate itertools;
 #[macro_use]
 extern crate quick_error;
+extern crate smallvec;
 
 pub mod dictionary;
 pub mod error;
