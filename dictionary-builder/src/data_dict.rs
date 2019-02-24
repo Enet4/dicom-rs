@@ -18,80 +18,52 @@ use futures::{Future, Stream};
 use hyper::client::Client;
 use hyper::client::FutureResponse;
 use hyper::{Chunk, Uri};
-use serde::Serialize;
-use serde_json::to_writer;
-use tokio_core::reactor::Core;
-
 use quick_xml::events::attributes::Attribute;
 use quick_xml::events::Event;
 use quick_xml::Error as XmlError;
 use quick_xml::Reader;
 use regex::Regex;
+use serde::Serialize;
+use serde_json::to_writer;
+use tokio_core::reactor::Core;
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fs::{create_dir_all, File};
-use std::io::{BufRead, BufReader, Write};
+use std::io::BufReader;
+use std::io::{BufRead, Write};
 use std::path::Path;
-use std::str::FromStr;
 
-/// url to PS3.6 XML file
-const DEFAULT_LOCATION: &str =
-    "http://dicom.nema.org/medical/dicom/current/source/docbook/part06/part06.xml";
+use crate::{DataDict, OutputFormat};
 
-fn main() {
-    let matches = App::new("DICOM Dictionary Builder")
-        .version("0.1.0")
-        .arg(
-            Arg::with_name("FROM")
-                .default_value(DEFAULT_LOCATION)
-                .help("Where to fetch the dictionary from"),
-        ).arg(
-            Arg::with_name("OUTPUT")
-                .short("o")
-                .help("The path to the output file")
-                .required(false)
-                .takes_value(true),
-        ).arg(
-            Arg::with_name("FORMAT")
-                .short("f")
-                .help("The output format")
-                .required(true)
-                .default_value("rs")
-                .takes_value(true)
-                .possible_value("rs")
-                .possible_value("json"),
-        ).arg(
-            Arg::with_name("no-retired")
-                .help("Whether to ignore retired tags")
-                .takes_value(false),
-        ).get_matches();
+type XmlResult<T> = Result<T, XmlError>;
+type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
 
-    let format = matches.value_of("FORMAT").unwrap();
-    let ignore_retired = matches.is_present("no-retired");
+pub fn run(args: DataDict) -> DynResult<()> {
+    let format = args.format;
+    let ignore_retired = args.ignore_retired;
 
-    let out_file = matches.value_of("OUTPUT").unwrap_or_else(|| match format {
-        "rs" => "entries.rs",
-        "json" => "entries.json",
-        _ => "entries",
+    let out_file = args.output.map(Cow::Owned).unwrap_or_else(|| match format {
+        OutputFormat::Rs => Path::new("entries.rs").into(),
+        OutputFormat::Json => Path::new("entries.json").into(),
     });
-    let dst = Path::new(out_file);
+    let dst = &out_file;
 
-    let mut core = Core::new().unwrap();
+    let mut core = Core::new()?;
 
-    let src = matches.value_of("FROM").unwrap();
+    let src = args.from;
     if src.starts_with("http:") || src.starts_with("https:") {
-        let src = Uri::from_str(src).unwrap();
+        let src = src.parse()?;
         println!("Downloading DICOM dictionary ...");
         let req = xml_from_site(&core, src).and_then(|resp| {
             resp.body().concat2().and_then(|body: Chunk| {
                 let xml_entries = XmlEntryIterator::new(&*body).map(|item| item.unwrap());
                 println!("Writing to file ...");
                 match format {
-                    "rs" => to_code_file(dst, xml_entries, !ignore_retired),
-                    "json" => to_json_file(dst, xml_entries),
-                    _ => unreachable!(),
-                }.expect("Failed to write file");
+                    OutputFormat::Rs => to_code_file(dst, xml_entries, !ignore_retired),
+                    OutputFormat::Json => to_json_file(dst, xml_entries),
+                }
+                .expect("Failed to write file");
                 Ok(())
             })
         });
@@ -103,15 +75,14 @@ fn main() {
         let xml_entries = XmlEntryIterator::new(file).map(|item| item.unwrap());
 
         match format {
-            "rs" => to_code_file(dst, xml_entries, true),
-            "json" => to_json_file(dst, xml_entries),
-            _ => unreachable!(),
-        }.expect("Failed to write file");
+            OutputFormat::Rs => to_code_file(dst, xml_entries, true),
+            OutputFormat::Json => to_json_file(dst, xml_entries),
+        }
+        .expect("Failed to write file");
     }
-}
 
-type XmlResult<T> = Result<T, XmlError>;
-type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
+    Ok(())
+}
 
 fn xml_from_site(core: &Core, url: Uri) -> FutureResponse {
     let client = Client::new(&core.handle());
@@ -186,22 +157,26 @@ impl<R: BufRead> Iterator for XmlEntryIterator<R> {
                     self.depth += 1;
                     let local_name = e.local_name();
                     match self.state {
-                        XmlReadingState::Off => if local_name == b"table" {
-                            // check for attribute xml:id="table_6-1"
-                            match e.attributes().find(|attr| {
-                                attr.is_err() || attr.as_ref().unwrap() == &Attribute {
-                                    key: b"xml:id",
-                                    value: Cow::Borrowed(b"table_6-1"),
+                        XmlReadingState::Off => {
+                            if local_name == b"table" {
+                                // check for attribute xml:id="table_6-1"
+                                match e.attributes().find(|attr| {
+                                    attr.is_err()
+                                        || attr.as_ref().unwrap()
+                                            == &Attribute {
+                                                key: b"xml:id",
+                                                value: Cow::Borrowed(b"table_6-1"),
+                                            }
+                                }) {
+                                    Some(Ok(_)) => {
+                                        // entered the table!
+                                        self.state = XmlReadingState::InTableHead;
+                                    }
+                                    Some(Err(err)) => return Some(Err(err)),
+                                    None => {}
                                 }
-                            }) {
-                                Some(Ok(_)) => {
-                                    // entered the table!
-                                    self.state = XmlReadingState::InTableHead;
-                                }
-                                Some(Err(err)) => return Some(Err(err)),
-                                None => {}
                             }
-                        },
+                        }
                         XmlReadingState::InTableHead => {
                             if local_name == b"tbody" {
                                 self.state = XmlReadingState::InTable;
@@ -252,22 +227,24 @@ impl<R: BufRead> Iterator for XmlEntryIterator<R> {
                         XmlReadingState::Off => {
                             // do nothing
                         }
-                        _e => if local_name == b"tr" && self.tag.is_some() {
-                            let tag = self.tag.take().unwrap();
-                            let out = Entry {
-                                tag,
-                                name: self.name.take(),
-                                alias: self.keyword.take(),
-                                vr: self.vr.take(),
-                                vm: self.vm.take(),
-                                obs: self.obs.take(),
-                            };
-                            self.state = XmlReadingState::InTable;
-                            return Some(Ok(out));
-                        } else if local_name == b"tbody" {
-                            // the table ended!
-                            break;
-                        },
+                        _e => {
+                            if local_name == b"tr" && self.tag.is_some() {
+                                let tag = self.tag.take().unwrap();
+                                let out = Entry {
+                                    tag,
+                                    name: self.name.take(),
+                                    alias: self.keyword.take(),
+                                    vr: self.vr.take(),
+                                    vm: self.vm.take(),
+                                    obs: self.obs.take(),
+                                };
+                                self.state = XmlReadingState::InTable;
+                                return Some(Ok(out));
+                            } else if local_name == b"tbody" {
+                                // the table ended!
+                                break;
+                            }
+                        }
                     }
                 }
                 Ok(Event::Text(data)) => match self.state {

@@ -9,8 +9,8 @@ publish = false
 repository = "https://github.com/Enet4/dicom-rs"
 
 [[bin]]
-name = "dictionary-builder"
-path = "main.rs"
+name = "dicom-dictionary-builder"
+path = "src/main.rs"
 
 [dependencies]
 clap = "2.18.0"
@@ -18,6 +18,10 @@ futures = "~0.1.21"
 hyper = "0.11.6"
 quick-xml = "0.12.1"
 regex = "1.0.0"
-serde = { version = "1.0.55", features = ["derive"]}
+serde = {version = "1.0.55", features = ["derive"]}
 serde_json = "1.0.17"
 tokio-core = "0.1.10"
+structopt = "0.2.14"
+sxd-document = "0.3.0"
+sxd-xpath = "0.4.2"
+reqwest = "0.9.10"
