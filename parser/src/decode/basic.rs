@@ -121,14 +121,20 @@ pub enum BasicDecoder {
     BE(BigEndianBasicDecoder),
 }
 
-use self::BasicDecoder::{BE, LE};
-
-impl From<Endianness> for BasicDecoder {
-    fn from(endianness: Endianness) -> BasicDecoder {
+impl BasicDecoder {
+    pub fn new(endianness: Endianness) -> Self {
         match endianness {
             Endianness::Little => LE(LittleEndianBasicDecoder::default()),
             Endianness::Big => BE(BigEndianBasicDecoder::default()),
         }
+    }
+}
+
+use self::BasicDecoder::{BE, LE};
+
+impl From<Endianness> for BasicDecoder {
+    fn from(endianness: Endianness) -> Self {
+        BasicDecoder::new(endianness)
     }
 }
 
@@ -189,5 +195,34 @@ impl BasicDecode for BasicDecoder {
         S: Read,
     {
         for_both!(self, |e| e.decode_fd(source))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_read_integers() {
+        let data: &[u8] = &[
+            0xC3, 0x3C, 0x33, 0xCC
+        ];
+
+        let le = LittleEndianBasicDecoder;
+        let be = BigEndianBasicDecoder;
+
+        assert_eq!(le.decode_us(data).unwrap(), 0x3CC3);
+        assert_eq!(be.decode_us(data).unwrap(), 0xC33C);
+        assert_eq!(le.decode_ul(data).unwrap(), 0xCC333CC3);
+        assert_eq!(be.decode_ul(data).unwrap(), 0xC33C33CC);
+
+        let le = BasicDecoder::new(Endianness::Little);
+        let be = BasicDecoder::new(Endianness::Big);
+
+        assert_eq!(le.decode_us(data).unwrap(), 0x3CC3);
+        assert_eq!(be.decode_us(data).unwrap(), 0xC33C);
+        assert_eq!(le.decode_ul(data).unwrap(), 0xCC333CC3);
+        assert_eq!(be.decode_ul(data).unwrap(), 0xC33C33CC);
     }
 }
