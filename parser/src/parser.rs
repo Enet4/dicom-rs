@@ -37,28 +37,29 @@ where
     /// Same as `Decode::decode_item_header` over the bound source.
     fn decode_item_header(&self, from: &mut S) -> Result<SequenceItemHeader>;
 
-    /// Eagerly read the following data in the source as a data value.
-    /// When reading values in text form, a conversion to a more maleable
-    /// type is attempted. Namely, numbers in text form (IS, DS) are converted
-    /// to the correspoding binary number types, and date/time instances are
-    /// decoded into binary date/time objects of types defined in the `chrono` crate.
-    /// To avoid this conversion, see `read_value_preserved`.
+    /// Eagerly read the following data in the source as a primitive data
+    /// value. When reading values in text form, a conversion to a more
+    /// maleable type is attempted. Namely, numbers in text form (IS, DS) are
+    /// converted to the corresponding binary number types, and date/time
+    /// instances are decoded into binary date/time objects of types defined in
+    /// the `chrono` crate. To avoid this conversion, see
+    /// `read_value_preserved`.
     ///
     /// # Errors
     ///
-    /// Returns an error on I/O problems, or if the header VR describes a sequence, which
-    /// in that case this method should not be used.
+    /// Returns an error on I/O problems, or if the header VR describes a
+    /// sequence, which in that case this method should not be used.
     fn read_value(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue>;
 
-    /// Eagerly read the following data in the source as a data value.
-    /// Unlike `read_value`, this method will preserve the DICOM value's
-    /// original format: numbers saved as text, as well as dates and times,
-    /// are read as strings.
+    /// Eagerly read the following data in the source as a primitive data
+    /// value. Unlike `read_value`, this method will preserve the DICOM value's
+    /// original format: numbers saved as text, as well as dates and times, are
+    /// read as strings.
     ///
     /// # Errors
     ///
-    /// Returns an error on I/O problems, or if the header VR describes a sequence, which
-    /// in that case this method should not be used.
+    /// Returns an error on I/O problems, or if the header VR describes a
+    /// sequence, which in that case this method should not be used.
     fn read_value_preserved(
         &self,
         from: &mut S,
