@@ -43,12 +43,22 @@ where
     /// to the correspoding binary number types, and date/time instances are
     /// decoded into binary date/time objects of types defined in the `chrono` crate.
     /// To avoid this conversion, see `read_value_preserved`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on I/O problems, or if the header VR describes a sequence, which
+    /// in that case this method should not be used.
     fn read_value(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue>;
 
     /// Eagerly read the following data in the source as a data value.
     /// Unlike `read_value`, this method will preserve the DICOM value's
     /// original format: numbers saved as text, as well as dates and times,
     /// are read as strings.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on I/O problems, or if the header VR describes a sequence, which
+    /// in that case this method should not be used.
     fn read_value_preserved(
         &self,
         from: &mut S,
@@ -69,7 +79,7 @@ pub type DynamicDicomParser =
 /// to be as autonomous as possible in the DICOM content reading
 /// process.
 /// `S` is the generic parameter type for the original source's type,
-/// `DS` is the parameter type that the decoder interprets as,
+/// `D` is the parameter type that the decoder interprets as,
 /// whereas `DB` is the parameter type for the basic decoder.
 /// `TextCodec` defines the text codec used underneath.
 pub struct DicomParser<D, BD, S: ?Sized, TC> {
