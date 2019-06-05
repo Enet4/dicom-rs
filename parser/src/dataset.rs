@@ -28,6 +28,7 @@ pub struct DataSetReader<S, P, D> {
     source: S,
     parser: P,
     dict: D,
+    /// the current depth in the sequence tree
     depth: u32,
     /// whether the reader is expecting an item next (or a sequence delimiter)
     in_sequence: bool,
@@ -125,8 +126,8 @@ where
 /// A token of a DICOM data set stream. This is part of the interpretation of a
 /// data set as a stream of symbols, which may either represent data headers or
 /// actual value data.
-#[derive(Debug)]
-pub enum DicomDataToken {
+#[derive(Debug, Clone, PartialEq)]
+pub enum DataToken {
     /// A data header of a primitive value.
     ElementHeader(DataElementHeader),
     /// The beginning of a sequence element.
@@ -141,10 +142,10 @@ pub enum DicomDataToken {
     PrimitiveValue(PrimitiveValue),
 }
 
-impl fmt::Display for DicomDataToken {
+impl fmt::Display for DataToken {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &DicomDataToken::PrimitiveValue(ref v) => {
+            &DataToken::PrimitiveValue(ref v) => {
                 write!(f, "PrimitiveValue({:?})", v.value_type())
             }
             other => write!(f, "{:?}", other),
@@ -158,7 +159,7 @@ where
     P: Parse<Read + 's>,
     D: DataDictionary,
 {
-    type Item = Result<DicomDataToken>;
+    type Item = Result<DataToken>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.hard_break {
@@ -170,18 +171,18 @@ where
                     SequenceItemHeader::Item { len } => {
                         // entered a new item
                         self.in_sequence = false;
-                        Some(Ok(DicomDataToken::ItemStart { len }))
+                        Some(Ok(DataToken::ItemStart { len }))
                     }
                     SequenceItemHeader::ItemDelimiter => {
                         // closed an item
                         self.in_sequence = true;
-                        Some(Ok(DicomDataToken::ItemEnd))
+                        Some(Ok(DataToken::ItemEnd))
                     }
                     SequenceItemHeader::SequenceDelimiter => {
                         // closed a sequence
                         self.depth -= 1;
                         self.in_sequence = false;
-                        Some(Ok(DicomDataToken::SequenceEnd))
+                        Some(Ok(DataToken::SequenceEnd))
                     }
                 },
                 Err(e) => {
@@ -218,7 +219,7 @@ where
                 }
             }
             self.last_header = None;
-            Some(Ok(DicomDataToken::PrimitiveValue(v)))
+            Some(Ok(DataToken::PrimitiveValue(v)))
         } else {
             // a data element header or item delimiter is expected
             match self.parser.decode_header(&mut self.source) {
@@ -229,19 +230,19 @@ where
                 }) => {
                     self.in_sequence = true;
                     self.depth += 1;
-                    Some(Ok(DicomDataToken::SequenceStart { tag, len }))
+                    Some(Ok(DataToken::SequenceStart { tag, len }))
                 }
                 Ok(DataElementHeader {
                     tag: Tag(0xFFFE, 0xE00D),
                     ..
                 }) => {
                     self.in_sequence = true;
-                    Some(Ok(DicomDataToken::ItemEnd))
+                    Some(Ok(DataToken::ItemEnd))
                 }
                 Ok(header) => {
                     // save it for the next step
                     self.last_header = Some(header);
-                    Some(Ok(DicomDataToken::ElementHeader(header)))
+                    Some(Ok(DataToken::ElementHeader(header)))
                 }
                 Err(Error::Io(ref e)) if e.kind() == ::std::io::ErrorKind::UnexpectedEof => {
                     // TODO there might be a better way to check for the end of

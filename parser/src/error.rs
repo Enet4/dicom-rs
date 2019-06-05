@@ -5,7 +5,7 @@ use std::io;
 use dicom_core::error::Error as CoreError;
 pub use dicom_core::error::{CastValueError, InvalidValueReadError};
 
-use dataset::DicomDataToken;
+use dataset::DataToken;
 
 /// Type alias for a result from this crate.
 pub type Result<T> = ::std::result::Result<T, Error>;
@@ -108,7 +108,7 @@ impl From<CoreError> for Error {
 #[derive(Debug)]
 pub enum DataSetSyntaxError {
     PrematureEnd,
-    UnexpectedToken(DicomDataToken),
+    UnexpectedToken(DataToken),
 }
 
 impl fmt::Display for DataSetSyntaxError {

@@ -13,7 +13,7 @@ use dicom_dictionary_std::StandardDataDictionary;
 use dicom_core::header::Header;
 use dicom_core::value::{C, DicomValueType, Value, ValueType};
 use dicom_core::{DataElement, Length, Tag, VR};
-use dicom_parser::dataset::{DataSetReader, DicomDataToken};
+use dicom_parser::dataset::{DataSetReader, DataToken};
 use dicom_parser::error::{DataSetSyntaxError, Error, Result};
 use dicom_parser::parser::Parse;
 use dicom_parser::text::SpecificCharacterSet;
@@ -186,11 +186,11 @@ where
         // perform a structured parsing of incoming tokens
         while let Some(token) = dataset.next() {
             let elem = match token? {
-                DicomDataToken::ElementHeader(header) => {
+                DataToken::ElementHeader(header) => {
                     // fetch respective value, place it in the entries
                     let next_token = dataset.next().ok_or_else(|| Error::MissingElementValue)?;
                     match next_token? {
-                        DicomDataToken::PrimitiveValue(v) => {
+                        DataToken::PrimitiveValue(v) => {
                             InMemElement::new(header.tag, header.vr, Value::Primitive(v))
                         }
                         token => {
@@ -198,12 +198,12 @@ where
                         }
                     }
                 }
-                DicomDataToken::SequenceStart { tag, len } => {
+                DataToken::SequenceStart { tag, len } => {
                     // delegate sequence building to another function
                     let items = Self::build_sequence(tag, len, &mut *dataset, &dict)?;
                     DataElement::new(tag, VR::SQ, Value::Sequence { items, size: len })
                 }
-                DicomDataToken::ItemEnd if in_item => {
+                DataToken::ItemEnd if in_item => {
                     // end of item, leave now
                     return Ok(InMemDicomObject { entries, dict, len });
                 }
@@ -228,12 +228,12 @@ where
         let mut items: C<_> = SmallVec::new();
         while let Some(token) = dataset.next() {
             match token? {
-                DicomDataToken::ItemStart { len } => {
+                DataToken::ItemStart { len } => {
                     // TODO if length is well defined, then it should be
                     // considered instead of finding the item delimiter.
                     items.push(Self::build_object(&mut *dataset, dict.clone(), true, len)?);
                 }
-                DicomDataToken::SequenceEnd => {
+                DataToken::SequenceEnd => {
                     return Ok(items);
                 }
                 token => return Err(DataSetSyntaxError::UnexpectedToken(token).into()),
