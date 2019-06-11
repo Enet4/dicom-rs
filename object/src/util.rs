@@ -20,6 +20,7 @@ where
     }
 }
 
+/// A trait that combines for `Read` and `Seek`.
 pub trait ReadSeek: Read + Seek {}
 impl<T: ?Sized> ReadSeek for T
 where
