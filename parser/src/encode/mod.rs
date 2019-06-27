@@ -1,8 +1,8 @@
 //! This module contains all DICOM data element encoding logic.
 use byteordered::Endianness;
-use error::Result;
-use std::io::Write;
+use crate::error::Result;
 use dicom_core::{DataElementHeader, Tag};
+use std::io::Write;
 
 pub mod basic;
 

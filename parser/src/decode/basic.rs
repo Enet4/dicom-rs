@@ -1,10 +1,10 @@
 //! This module provides implementations for basic decoders: little endian and big endian.
 //!
 
-use super::BasicDecode;
 use byteordered::{ByteOrdered, Endianness};
-use error::Result;
+use crate::error::Result;
 use std::io::Read;
+use super::BasicDecode;
 
 /// A basic decoder of DICOM primitive elements in little endian.
 #[derive(Debug, Default, Clone, PartialEq)]

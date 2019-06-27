@@ -1,8 +1,8 @@
 [package]
 name = "dicom-dictionary-std"
-version = "0.1.0"
+version = "0.1.0-pre.1"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
-edition = "2015"
+edition = "2018"
 
 [dependencies]
 dicom-core = { path = "../core" }

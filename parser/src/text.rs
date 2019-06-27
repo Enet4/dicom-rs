@@ -14,9 +14,9 @@
 //!
 //! At the moment, this library supports only IR-6 and IR-192.
 
+use crate::error::{Result, TextEncodingError};
 use encoding::{DecoderTrap, EncoderTrap, Encoding, RawDecoder, StringWriter};
 use encoding::all::{ISO_8859_1, UTF_8};
-use error::{Result, TextEncodingError};
 use std::fmt::Debug;
 
 /// A holder of encoding and decoding mechanisms for text in DICOM content,

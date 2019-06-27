@@ -2,13 +2,13 @@
 
 use byteordered::Endianness;
 use byteordered::byteorder::{BigEndian, ByteOrder};
-use decode::basic::BigEndianBasicDecoder;
-use decode::{BasicDecode, Decode};
-use encode::basic::BigEndianBasicEncoder;
-use encode::{BasicEncode, Encode};
+use crate::decode::basic::BigEndianBasicDecoder;
+use crate::decode::{BasicDecode, Decode};
+use crate::encode::basic::BigEndianBasicEncoder;
+use crate::encode::{BasicEncode, Encode};
+use crate::error::Result;
 use dicom_core::{Tag, VR};
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
-use error::Result;
 use std::fmt;
 use std::io::{Read, Write};
 use std::marker::PhantomData;
@@ -217,7 +217,7 @@ where
                 buf[5] = vr_bytes[1];
                 // buf[6..8] is kept zero'd
                 BigEndian::write_u32(&mut buf[8..], de.len().0);
-                try!(to.write_all(&buf));
+                to.write_all(&buf)?;
 
                 Ok(12)
             }
@@ -229,7 +229,7 @@ where
                 buf[4] = vr_bytes[0];
                 buf[5] = vr_bytes[1];
                 BigEndian::write_u16(&mut buf[6..], de.len().0 as u16);
-                try!(to.write_all(&buf));
+                to.write_all(&buf)?;
 
                 Ok(8)
             }
@@ -268,9 +268,9 @@ where
 mod tests {
     use super::ExplicitVRBigEndianDecoder;
     use super::ExplicitVRBigEndianEncoder;
-    use decode::Decode;
-    use encode::Encode;
-    use dicom_core::{Tag, VR};
+    use crate::decode::Decode;
+    use crate::encode::Encode;
+    use crate::dicom_core::{Tag, VR};
     use dicom_core::header::{DataElementHeader, Header, Length};
     use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 

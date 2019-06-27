@@ -2,13 +2,13 @@
 
 use byteordered::Endianness;
 use byteordered::byteorder::{ByteOrder, LittleEndian};
-use decode::basic::LittleEndianBasicDecoder;
-use decode::{BasicDecode, Decode};
+use crate::decode::basic::LittleEndianBasicDecoder;
+use crate::decode::{BasicDecode, Decode};
+use crate::encode::basic::LittleEndianBasicEncoder;
+use crate::encode::{BasicEncode, Encode};
+use crate::error::Result;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
 use dicom_core::{Tag, VR};
-use encode::basic::LittleEndianBasicEncoder;
-use encode::{BasicEncode, Encode};
-use error::Result;
 use std::fmt;
 use std::io::{Read, Write};
 use std::marker::PhantomData;
@@ -218,7 +218,7 @@ where
                 buf[5] = vr_bytes[1];
                 // buf[6..8] is kept zero'd
                 LittleEndian::write_u32(&mut buf[8..], de.len().0);
-                try!(to.write_all(&buf));
+                to.write_all(&buf)?;
                 Ok(12)
             }
             _ => {
@@ -229,7 +229,7 @@ where
                 buf[4] = vr_bytes[0];
                 buf[5] = vr_bytes[1];
                 LittleEndian::write_u16(&mut buf[6..], de.len().0 as u16);
-                try!(to.write_all(&buf));
+                to.write_all(&buf)?;
                 Ok(8)
             }
         }
@@ -240,7 +240,7 @@ where
         LittleEndian::write_u16(&mut buf, 0xFFFE);
         LittleEndian::write_u16(&mut buf, 0xE000);
         LittleEndian::write_u32(&mut buf[4..], len);
-        try!(to.write_all(&buf));
+        to.write_all(&buf)?;
         Ok(())
     }
 
@@ -248,7 +248,7 @@ where
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf, 0xFFFE);
         LittleEndian::write_u16(&mut buf, 0xE00D);
-        try!(to.write_all(&buf));
+        to.write_all(&buf)?;
         Ok(())
     }
 
@@ -256,7 +256,7 @@ where
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf, 0xFFFE);
         LittleEndian::write_u16(&mut buf, 0xE0DD);
-        try!(to.write_all(&buf));
+        to.write_all(&buf)?;
         Ok(())
     }
 }
@@ -265,10 +265,10 @@ where
 mod tests {
     use super::ExplicitVRLittleEndianDecoder;
     use super::ExplicitVRLittleEndianEncoder;
-    use decode::Decode;
+    use crate::decode::Decode;
+    use crate::encode::Encode;
     use dicom_core::header::{DataElementHeader, Header, Length};
     use dicom_core::{Tag, VR};
-    use encode::Encode;
     use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements

@@ -3,7 +3,7 @@
 
 use super::BasicEncode;
 use byteordered::{ByteOrdered, Endianness};
-use error::Result;
+use crate::error::Result;
 use std::io::Write;
 
 /// A basic encoder of primitive elements in little endian.

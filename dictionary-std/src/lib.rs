@@ -6,9 +6,6 @@
 //!
 //! When not using private tags, this dictionary should suffice.
 
-extern crate dicom_core;
-#[macro_use] extern crate lazy_static;
-
 mod entries;
 
 use std::collections::HashMap;
@@ -16,7 +13,8 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 use dicom_core::dictionary::{DataDictionary, DictionaryEntryRef};
 use dicom_core::header::{Tag, VR};
-use self::entries::ENTRIES;
+use lazy_static::lazy_static;
+use crate::entries::ENTRIES;
 
 lazy_static! {
     static ref DICT: StandardDictionaryRegistry = {

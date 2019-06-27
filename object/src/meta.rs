@@ -196,7 +196,7 @@ impl DicomMetaTable {
                     v.resize(elem_len, 0);
                     file.read_exact(&mut v)?;
                     group_length_remaining -= 8 + elem_len as u32;
-                    builder.source_application_entity_title(try!(text.decode(&v)))
+                    builder.source_application_entity_title(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0017) => {
                     // Sending Application Entity Title

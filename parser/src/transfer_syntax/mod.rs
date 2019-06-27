@@ -9,9 +9,9 @@ pub mod implicit_le;
 
 use byteordered::Endianness;
 use std::io::{Read, Write};
-use decode::basic::BasicDecoder;
-use decode::Decode;
-use encode::Encode;
+use crate::decode::basic::BasicDecoder;
+use crate::decode::Decode;
+use crate::encode::Encode;
 
 /// A decoder with its type erased.
 pub type DynamicDecoder = Box<Decode<Source = Read>>;

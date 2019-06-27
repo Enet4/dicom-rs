@@ -2,15 +2,15 @@
 
 use byteordered::Endianness;
 use byteordered::byteorder::{ByteOrder, LittleEndian};
-use decode::basic::LittleEndianBasicDecoder;
-use decode::{BasicDecode, Decode};
-use encode::basic::LittleEndianBasicEncoder;
-use encode::{BasicEncode, Encode};
+use crate::decode::basic::LittleEndianBasicDecoder;
+use crate::decode::{BasicDecode, Decode};
+use crate::encode::basic::LittleEndianBasicEncoder;
+use crate::encode::{BasicEncode, Encode};
+use crate::error::Result;
 use dicom_core::{Tag, VR};
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
-use error::Result;
 use std::fmt;
 use std::io::{Read, Write};
 use std::marker::PhantomData;
@@ -242,8 +242,8 @@ where
 mod tests {
     use super::ImplicitVRLittleEndianDecoder;
     use super::ImplicitVRLittleEndianEncoder;
-    use decode::Decode;
-    use encode::Encode;
+    use crate::decode::Decode;
+    use crate::encode::Encode;
     use dicom_core::header::{DataElementHeader, Header, Length, Tag, VR};
     use dicom_core::dictionary::stub::StubDataDictionary;
     use std::io::{Cursor, Read, Seek, SeekFrom, Write};

@@ -1,8 +1,8 @@
 //! This module contains the type-erased version of a decoder.
 
 use byteordered::Endianness;
+use crate::error::Result;
 use std::io::Read;
-use error::Result;
 use dicom_core::header::{DataElementHeader, Length, SequenceItemHeader};
 use dicom_core::Tag;
 
@@ -58,16 +58,16 @@ pub trait Decode: BasicDecode {
      * will be pointing at the beginning of the item's data, which should be traversed if necessary.
      */
     fn erased_decode_item(&self, mut source: &mut Read) -> Result<SequenceItemHeader> {
-        let tag = try!(self.erased_decode_tag(&mut source));
-        let len = try!(self.erased_decode_ul(&mut source));
+        let tag = self.erased_decode_tag(&mut source)?;
+        let len = self.erased_decode_ul(&mut source)?;
         let header = SequenceItemHeader::new(tag, Length(len))?;
         Ok(header)
     }
 
     /// Decode a DICOM attribute tag from the given source.
     fn erased_decode_tag(&self, source: &mut Read) -> Result<Tag> {
-        let group = try!(self.erased_decode_us(source));
-        let elem = try!(self.erased_decode_us(source));
+        let group = self.erased_decode_us(source)?;
+        let elem = self.erased_decode_us(source)?;
         Ok(Tag(group, elem))
     }
 }

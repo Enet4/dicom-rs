@@ -1,13 +1,13 @@
 //! This module contains all DICOM data element decoding logic.
 
 use byteordered::Endianness;
-use transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-use transfer_syntax::implicit_le::{ImplicitVRLittleEndianDecoder,
-                                   StandardImplicitVRLittleEndianDecoder};
-use std::io::Read;
-use error::Result;
+use crate::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
+use crate::transfer_syntax::implicit_le::{
+    ImplicitVRLittleEndianDecoder, StandardImplicitVRLittleEndianDecoder};
+use crate::error::Result;
 use dicom_core::header::{DataElementHeader, SequenceItemHeader};
 use dicom_core::Tag;
+use std::io::Read;
 
 pub mod erased;
 pub mod basic;

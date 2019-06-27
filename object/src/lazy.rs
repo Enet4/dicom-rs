@@ -9,7 +9,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Debug;
-use util::ReadSeek;
+use crate::util::ReadSeek;
 
 /// Data type for a lazily loaded DICOM object builder.
 pub struct LazyDataSequence<S, P, D> {

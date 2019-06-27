@@ -10,16 +10,16 @@ use dicom_core::header::{
 use dicom_core::value::{DicomValueType, PrimitiveValue};
 use dicom_core::{Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
-use error::{Error, InvalidValueReadError, Result};
-use parser::{DicomParser, DynamicDicomParser, Parse};
+use crate::error::{Error, InvalidValueReadError, Result};
+use crate::parser::{DicomParser, DynamicDicomParser, Parse};
+use crate::text::SpecificCharacterSet;
+use crate::transfer_syntax::Codec;
+use crate::util::{ReadSeek, SeekInterval};
 use std::fmt;
 use std::io::{Read, Seek, SeekFrom};
 use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::ops::DerefMut;
-use text::SpecificCharacterSet;
-use transfer_syntax::Codec;
-use util::{ReadSeek, SeekInterval};
 
 /// A higher-level reader for retrieving structure in a DICOM data set from an
 /// arbitrary data source.

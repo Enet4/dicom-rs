@@ -14,8 +14,8 @@ where
     S: Seek,
 {
     fn skip(&mut self, n: u64) -> io::Result<u64> {
-        let curr_pos = try!(self.seek(SeekFrom::Current(0)));
-        let new_pos = try!(self.seek(SeekFrom::Current(n as i64)));
+        let curr_pos = self.seek(SeekFrom::Current(0))?;
+        let new_pos = self.seek(SeekFrom::Current(n as i64))?;
         Ok(new_pos - curr_pos)
     }
 }
@@ -45,7 +45,7 @@ where
     /// Create an interval from the current position and ending
     /// after `n` bytes.
     pub fn new_here(mut source: B, n: u32) -> io::Result<Self> {
-        let pos = try!(source.seek(SeekFrom::Current(0)));
+        let pos = source.seek(SeekFrom::Current(0))?;
         Ok(SeekInterval {
             source,
             current: pos,
@@ -58,7 +58,7 @@ where
     /// Create an interval that starts and ends according to the given
     /// range of bytes.
     pub fn new_at(mut source: B, range: Range<u64>) -> io::Result<Self> {
-        let pos = try!(source.seek(SeekFrom::Start(range.start)));
+        let pos = source.seek(SeekFrom::Start(range.start))?;
         Ok(SeekInterval {
             source,
             current: pos,

@@ -3,11 +3,17 @@
 //! an iterator of elements, with either sequential or random access.
 
 use chrono::{DateTime, FixedOffset, Local, NaiveDate, NaiveTime, TimeZone};
-use decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
-use decode::{BasicDecode, Decode};
+use crate::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
+use crate::decode::{BasicDecode, Decode};
+use crate::error::{Error, InvalidValueReadError, Result, TextEncodingError};
+use crate::text::{
+    validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, TextValidationOutcome,
+    DynamicTextCodec, SpecificCharacterSet, TextCodec};
+use crate::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
+use crate::transfer_syntax::Codec;
+use crate::util::n_times;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader, Tag, VR};
 use dicom_core::value::{C, PrimitiveValue};
-use error::{Error, InvalidValueReadError, Result, TextEncodingError};
 use std::fmt;
 use std::fmt::Debug;
 use std::io::Read;
@@ -15,13 +21,6 @@ use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::ops::{Add, Mul, Sub};
 use smallvec::SmallVec;
-use text::{
-    validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, TextValidationOutcome,
-};
-use text::{DynamicTextCodec, SpecificCharacterSet, TextCodec};
-use transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-use transfer_syntax::Codec;
-use util::n_times;
 
 const Z: i32 = b'0' as i32;
 

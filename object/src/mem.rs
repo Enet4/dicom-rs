@@ -7,7 +7,8 @@ use std::io::{BufReader, Read};
 use std::path::Path;
 use smallvec::SmallVec;
 
-use super::DicomObject;
+use crate::DicomObject;
+use crate::meta::DicomMetaTable;
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_core::header::Header;
@@ -18,7 +19,6 @@ use dicom_parser::error::{DataSetSyntaxError, Error, Result};
 use dicom_parser::parser::Parse;
 use dicom_parser::text::SpecificCharacterSet;
 use dicom_parser::transfer_syntax::codec::get_registry;
-use meta::DicomMetaTable;
 
 /// A full in-memory DICOM data element.
 pub type InMemElement<D> = DataElement<InMemDicomObject<D>>;
