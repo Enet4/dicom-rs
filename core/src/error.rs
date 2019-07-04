@@ -46,37 +46,59 @@ quick_error! {
     pub enum InvalidValueReadError {
         /// The value cannot be read as a primitive value.
         NonPrimitiveType {
-            description("Attempted to retrieve complex value as primitive")
-            display(self_) -> ("Value reading error: {}", self_.description())
+            description("attempted to retrieve complex value as primitive")
+            display(self_) -> ("{}", self_.description())
         }
         /// The value's effective length cannot be resolved.
         UnresolvedValueLength {
-            description("Value length could not be resolved")
-            display(self_) -> ("Value reading error: {}", self_.description())
+            description("value length could not be resolved")
+            display(self_) -> ("{}", self_.description())
         }
         /// The value does not have the expected format.
-        InvalidFormat {
-            description("Invalid format for the expected value representation")
-            display(self_) -> ("Value reading error: {}", self_.description())
+        InvalidToken(got: u8, expected: &'static str) {
+            description("Invalid token received for the expected value representation")
+            display(self_) -> ("invalid token: expected {} but got {:?}", expected, got)
+        }
+        /// The value does not have the expected length.
+        InvalidLength(got: usize, expected: &'static str) {
+            description("Invalid slice length for the expected value representation")
+            display(self_) -> ("invalid length: expected {} but got {}", expected, got)
+        }
+        /// Invalid date or time component.
+        ParseDateTime(got: u32, expected: &'static str) {
+            description("Invalid date/time component")
+            display(self_) -> ("invalid date/time component: expected {} but got {}", expected, got)
+        }
+        /// Invalid or ambiguous combination of date with time.
+        DateTimeZone {
+            description("Invalid or ambiguous combination of date with time")
+            display(self_) -> ("{}", self_.description())
+        }
+        /// chrono error when parsing a date or time.
+        Chrono(err: chrono::ParseError) {
+            description("failed to parse date/time")
+            from()
+            cause(err)
+            display(self_) -> ("{}", self_.source().unwrap())
         }
         /// The value cannot be parsed to a floating point number.
         ParseFloat(err: ParseFloatError) {
             description("Failed to parse text value as a floating point number")
             from()
             cause(err)
-            display(self_) -> ("Value reading error: {}", self_.source().unwrap().description())
+            display(self_) -> ("{}", self_.description())
         }
         /// The value cannot be parsed to an integer.
         ParseInteger(err: ParseIntError) {
             description("Failed to parse text value as an integer")
             from()
             cause(err)
-            display(self_) -> ("Value reading error: {}", err.description())
+            display(self_) -> ("{}", err.description())
         }
         /// An attempt of reading more than the number of bytes in the length attribute was made.
         UnexpectedEndOfElement {
             description("Unexpected end of element")
-            display(self_) -> ("Value reading error: {}", self_.description())
+            display(self_) -> ("{}", self_.description())
         }
     }
 }
