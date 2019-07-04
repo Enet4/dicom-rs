@@ -31,10 +31,10 @@ where
     S: Read,
 {
     /// Same as `Decode::decode_header` over the bound source.
-    fn decode_header(&self, from: &mut S) -> Result<DataElementHeader>;
+    fn decode_header(&mut self, from: &mut S) -> Result<DataElementHeader>;
 
     /// Same as `Decode::decode_item_header` over the bound source.
-    fn decode_item_header(&self, from: &mut S) -> Result<SequenceItemHeader>;
+    fn decode_item_header(&mut self, from: &mut S) -> Result<SequenceItemHeader>;
 
     /// Eagerly read the following data in the source as a primitive data
     /// value. When reading values in text form, a conversion to a more
@@ -48,7 +48,7 @@ where
     ///
     /// Returns an error on I/O problems, or if the header VR describes a
     /// sequence, which in that case this method should not be used.
-    fn read_value(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue>;
+    fn read_value(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue>;
 
     /// Eagerly read the following data in the source as a primitive data
     /// value. Unlike `read_value`, this method will preserve the DICOM value's
@@ -60,7 +60,7 @@ where
     /// Returns an error on I/O problems, or if the header VR describes a
     /// sequence, which in that case this method should not be used.
     fn read_value_preserved(
-        &self,
+        &mut self,
         from: &mut S,
         header: &DataElementHeader,
     ) -> Result<PrimitiveValue>;
@@ -73,6 +73,9 @@ where
 /// in compile time, the required decoder may vary according to an object's transfer syntax.
 pub type DynamicDicomParser =
     DicomParser<Box<Decode<Source = Read>>, BasicDecoder, Read, DynamicTextCodec>;
+
+/// The initial capacity of the `DicomParser` buffer.
+const PARSER_BUFFER_CAPACITY: usize = 2048;
 
 /// A data structure for parsing DICOM data.
 /// This type encapsulates the necessary codecs in order
@@ -88,6 +91,7 @@ pub struct DicomParser<D, BD, S: ?Sized, TC> {
     basic: BD,
     text: TC,
     dt_utc_offset: FixedOffset,
+    buffer: Vec<u8>,
 }
 
 impl<S: ?Sized, D, BD, TC> Debug for DicomParser<D, BD, S, TC>
@@ -134,6 +138,7 @@ impl DynamicDicomParser {
             decoder,
             text,
             dt_utc_offset: FixedOffset::east(0),
+            buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
         })
     }
 }
@@ -158,6 +163,7 @@ where
             decoder: ExplicitVRLittleEndianDecoder::default(),
             text: DefaultCharacterSetCodec,
             dt_utc_offset: FixedOffset::east(0),
+            buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
         }
     }
 }
@@ -177,6 +183,7 @@ where
             decoder,
             text,
             dt_utc_offset: FixedOffset::east(0),
+            buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
         }
     }
 
@@ -196,28 +203,29 @@ where
         Ok(PrimitiveValue::Tags(parts?))
     }
 
-    fn read_value_ob(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_ob(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         // TODO add support for OB value data length resolution
+        // (might need to delegate pixel data reading to a separate trait)
         let len = require_known_length!(header);
 
-        // sequence of 8-bit integers (or just byte data)
+        // sequence of 8-bit integers (or arbitrary byte data)
         let mut buf = smallvec![0u8; len];
         from.read_exact(&mut buf)?;
         Ok(PrimitiveValue::U8(buf))
     }
 
-    fn read_value_strs(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_strs(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of strings
-        let mut buf: SmallVec<[u8; 16]> = smallvec![0u8; len];
-        from.read_exact(&mut buf)?;
+        self.buffer.resize_with(len, Default::default);
+        from.read_exact(&mut self.buffer)?;
 
         let parts: Result<C<_>> = match header.vr() {
-            VR::AE | VR::CS | VR::AS => buf[..]
+            VR::AE | VR::CS | VR::AS => self.buffer
                 .split(|v| *v == b'\\')
                 .map(|slice| DefaultCharacterSetCodec.decode(slice))
                 .collect(),
-            _ => buf[..]
+            _ => self.buffer
                 .split(|v| *v == b'\\')
                 .map(|slice| self.text.decode(slice))
                 .collect(),
@@ -226,7 +234,7 @@ where
         Ok(PrimitiveValue::Strs(parts?))
     }
 
-    fn read_value_str(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_str(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
 
         // a single string
@@ -235,18 +243,18 @@ where
         Ok(PrimitiveValue::Str(self.text.decode(&buf[..])?))
     }
 
-    fn read_value_ui(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_ui(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of UID's
-        let mut buf = vec![0u8; len];
-        from.read_exact(&mut buf)?;
+        self.buffer.resize_with(len, Default::default);
+        from.read_exact(&mut self.buffer)?;
 
         let parts: Result<C<_>> = match header.vr() {
-            VR::AE | VR::CS | VR::AS => buf[..]
+            VR::AE | VR::CS | VR::AS => self.buffer
                 .split(|v| *v == 0)
                 .map(|slice| DefaultCharacterSetCodec.decode(slice))
                 .collect(),
-            _ => buf[..]
+            _ => self.buffer
                 .split(|v| *v == 0)
                 .map(|slice| self.text.decode(slice))
                 .collect(),
@@ -276,65 +284,63 @@ where
         Ok(PrimitiveValue::F32(vec?))
     }
 
-    fn read_value_da(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_da(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of dates
 
-        // !!! maybe one day I should find a way to get rid of this dynamic allocation
-        let mut buf: SmallVec<[u8; 16]> = smallvec![0u8; len];
-        from.read_exact(&mut buf)?;
-        if validate_da(&buf) != TextValidationOutcome::Ok {
+        self.buffer.resize_with(len, Default::default);
+        from.read_exact(&mut self.buffer)?;
+        if validate_da(&self.buffer) != TextValidationOutcome::Ok {
             let lossy_str = DefaultCharacterSetCodec
-                .decode(&buf)
+                .decode(&self.buffer)
                 .unwrap_or_else(|_| "[byte stream]".to_string());
             return Err(TextEncodingError::new(format!(
-                "Invalid time value element \"{}\"",
+                "Invalid date value element \"{}\"",
                 lossy_str
             )).into());
         }
-        let vec: Result<C<_>> = buf
+        let vec: Result<C<_>> = self.buffer
             .split(|b| *b == b'\\')
             .map(|part| Ok(parse_date(part)?.0))
             .collect();
         Ok(PrimitiveValue::Date(vec?))
     }
 
-    fn read_value_ds(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_ds(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of doubles in text form
 
         // !!! dynamic allocation
-        let mut buf: SmallVec<[u8; 16]> = smallvec![0u8; len];
-        from.read_exact(&mut buf)?;
-        let parts: Result<C<f64>> = buf[..]
+        self.buffer.resize_with(len, Default::default);
+        from.read_exact(&mut self.buffer)?;
+        let parts: Result<C<f64>> = self.buffer
             .split(|b| *b == b'\\')
             .map(|slice| {
                 let codec = SpecificCharacterSet::Default.get_codec().unwrap();
                 let txt = codec.decode(slice)?;
-                let txt = txt.trim_right();
+                let txt = txt.trim_end();
                 txt.parse::<f64>()
                     .map_err(|e| Error::from(InvalidValueReadError::from(e)))
             }).collect();
         Ok(PrimitiveValue::F64(parts?))
     }
 
-    fn read_value_dt(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_dt(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of datetimes
 
-        // !!! dynamic allocation
-        let mut buf: SmallVec<[u8; 16]> = smallvec![0u8; len];
-        from.read_exact(&mut buf)?;
-        if validate_dt(&buf) != TextValidationOutcome::Ok {
+        self.buffer.resize_with(len, Default::default);
+        from.read_exact(&mut self.buffer)?;
+        if validate_dt(&self.buffer) != TextValidationOutcome::Ok {
             let lossy_str = DefaultCharacterSetCodec
-                .decode(&buf)
+                .decode(&self.buffer)
                 .unwrap_or_else(|_| "[byte stream]".to_string());
             return Err(TextEncodingError::new(format!(
-                "Invalid time value element \"{}\"",
+                "Invalid date-time value element \"{}\"",
                 lossy_str
             )).into());
         }
-        let vec: Result<C<_>> = buf
+        let vec: Result<C<_>> = self.buffer
             .split(|b| *b == b'\\')
             .map(|part| Ok(parse_datetime(part, self.dt_utc_offset)?))
             .collect();
@@ -342,45 +348,44 @@ where
         Ok(PrimitiveValue::DateTime(vec?))
     }
 
-    fn read_value_is(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_is(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of signed integers in text form
-        let mut buf: SmallVec<[u8; 16]> = smallvec![0u8; len];
-        from.read_exact(&mut buf)?;
+        self.buffer.resize_with(len, Default::default);
+        from.read_exact(&mut self.buffer)?;
 
-        let last = if let Some(c) = buf.last() { *c } else { 0u8 };
+        let last = if let Some(c) = self.buffer.last() { *c } else { 0u8 };
         if last == b' ' {
-            buf.pop();
+            self.buffer.pop();
         }
-        let parts: Result<C<_>> = buf[..]
+        let parts: Result<C<_>> = self.buffer[..]
             .split(|v| *v == b'\\')
             .map(|slice| {
                 let codec = SpecificCharacterSet::Default.get_codec().unwrap();
                 let txt = codec.decode(slice)?;
-                let txt = txt.trim_right();
+                let txt = txt.trim_end();
                 txt.parse::<i32>()
                     .map_err(|e| Error::from(InvalidValueReadError::from(e)))
             }).collect();
         Ok(PrimitiveValue::I32(parts?))
     }
 
-    fn read_value_tm(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_tm(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of time instances
 
-        // dynamic allocation
-        let mut buf: SmallVec<[u8; 16]> = smallvec![0u8; len];
-        from.read_exact(&mut buf)?;
-        if validate_tm(&buf) != TextValidationOutcome::Ok {
+        self.buffer.resize_with(len, Default::default);
+        from.read_exact(&mut self.buffer)?;
+        if validate_tm(&self.buffer) != TextValidationOutcome::Ok {
             let lossy_str = DefaultCharacterSetCodec
-                .decode(&buf)
+                .decode(&self.buffer)
                 .unwrap_or_else(|_| "[byte stream]".to_string());
             return Err(TextEncodingError::new(format!(
                 "Invalid time value element \"{}\"",
                 lossy_str
             )).into());
         }
-        let vec: Result<C<_>> = buf
+        let vec: Result<C<_>> = self.buffer
             .split(|b| *b == b'\\')
             .map(|part| parse_time(part).map(|t| t.0))
             .collect();
@@ -437,15 +442,15 @@ where
     BD: BasicDecode,
     S: Read,
 {
-    fn decode_header(&self, from: &mut S) -> Result<DataElementHeader> {
+    fn decode_header(&mut self, from: &mut S) -> Result<DataElementHeader> {
         self.decoder.decode_header(from)
     }
 
-    fn decode_item_header(&self, from: &mut S) -> Result<SequenceItemHeader> {
+    fn decode_item_header(&mut self, from: &mut S) -> Result<SequenceItemHeader> {
         self.decoder.decode_item_header(from)
     }
 
-    fn read_value(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         if header.len() == Length(0) {
             return Ok(PrimitiveValue::Empty);
         }
@@ -478,7 +483,7 @@ where
     }
 
     fn read_value_preserved(
-        &self,
+        &mut self,
         from: &mut S,
         header: &DataElementHeader,
     ) -> Result<PrimitiveValue> {
