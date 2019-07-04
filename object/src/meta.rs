@@ -93,7 +93,7 @@ where
 }
 
 impl DicomMetaTable {
-    pub fn from_stream<R: Read>(file: R) -> Result<DicomMetaTable> {
+    pub fn from_reader<R: Read>(file: R) -> Result<DicomMetaTable> {
         DicomMetaTable::read_from(file)
     }
 
@@ -439,10 +439,10 @@ mod tests {
     ];
 
     #[test]
-    fn read_meta_table_from_stream() {
+    fn read_meta_table_from_reader() {
         let mut source = TEST_META_1;
 
-        let table = DicomMetaTable::from_stream(&mut source).unwrap();
+        let table = DicomMetaTable::from_reader(&mut source).unwrap();
 
         assert_eq!(table.information_group_length, 200);
         assert_eq!(table.information_version, [0u8, 1u8]);

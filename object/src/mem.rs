@@ -87,11 +87,11 @@ impl InMemDicomObject<StandardDataDictionary> {
     }
 
     /// Create a DICOM object by reading from a byte sources.
-    pub fn from_stream<S>(src: S) -> Result<Self>
+    pub fn from_reader<S>(src: S) -> Result<Self>
     where
         S: Read,
     {
-        Self::from_stream_with_dict(src, StandardDataDictionary)
+        Self::from_reader_with_dict(src, StandardDataDictionary)
     }
 
     /// Construct a DICOM object from an iterator of structured elements.
@@ -142,7 +142,7 @@ where
         }
 
         // read metadata header
-        let meta = DicomMetaTable::from_stream(&mut file)?;
+        let meta = DicomMetaTable::from_reader(&mut file)?;
 
         // read rest of data according to metadata, feed it to object
         let ts = get_registry()
@@ -154,14 +154,14 @@ where
     }
 
     /// Create a DICOM object by reading from a byte source.
-    pub fn from_stream_with_dict<S>(src: S, dict: D) -> Result<Self>
+    pub fn from_reader_with_dict<S>(src: S, dict: D) -> Result<Self>
     where
         S: Read,
     {
         let mut file = BufReader::new(src);
 
         // read metadata header
-        let meta = DicomMetaTable::from_stream(&mut file)?;
+        let meta = DicomMetaTable::from_reader(&mut file)?;
 
         // read rest of data according to metadata, feed it to object
         let ts = get_registry()

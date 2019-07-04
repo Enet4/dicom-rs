@@ -42,7 +42,7 @@ mod util;
 
 pub use dicom_dictionary_std::StandardDataDictionary;
 pub use dicom_core::Tag;
-pub use crate::file::{from_stream, open_file};
+pub use crate::file::{from_reader, open_file};
 pub use crate::meta::DicomMetaTable;
 pub use dicom_parser::error::{Result, Error};
 
