@@ -23,8 +23,3 @@ pub mod transfer_syntax;
 mod util;
 
 pub use parser::{DicomParser, Parse, DynamicDicomParser};
-
-#[cfg(test)]
-mod tests {
-
-}
