@@ -1,6 +1,6 @@
 //! This module contains the high-level DICOM abstraction trait.
-//! At this level, objects are comparable to a lazy dictionary of elements,
-//! in which some of them can be DICOM objects themselves.
+//! At this level, objects are comparable to a dictionary of elements,
+//! in which some of them can have DICOM objects themselves.
 //! The end user should prefer using this abstraction when dealing with DICOM objects.
 //!
 //! # Examples
@@ -26,7 +26,6 @@
 //! # }
 //! ```
 //!
-//!
 extern crate byteordered;
 extern crate dicom_core;
 extern crate dicom_parser;
@@ -35,7 +34,6 @@ extern crate itertools;
 extern crate smallvec;
 
 pub mod file;
-pub mod lazy;
 pub mod mem;
 pub mod meta;
 pub mod pixeldata;
