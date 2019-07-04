@@ -1,6 +1,6 @@
 //! This module includes a high level abstraction over a DICOM data element's value.
 
-use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
+use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveTime, Timelike};
 use error::CastValueError;
 use header::{Length, Tag};
 use itertools::Itertools;
