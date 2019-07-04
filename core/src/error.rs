@@ -64,7 +64,7 @@ quick_error! {
             description("Failed to parse text value as a floating point number")
             from()
             cause(err)
-            display(self_) -> ("Value reading error: {}", self_.cause().unwrap().description())
+            display(self_) -> ("Value reading error: {}", self_.source().unwrap().description())
         }
         /// The value cannot be parsed to an integer.
         ParseInteger(err: ParseIntError) {
