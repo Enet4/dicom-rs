@@ -1,6 +1,6 @@
 # DICOM-rs
 
-[![Build Status](https://travis-ci.org/Enet4/dicom-rs.svg?branch=master)](https://travis-ci.org/Enet4/dicom-rs) ![Minimum Rust Version Stable](https://img.shields.io/badge/Minimum%20Rust%20Version-stable-green.svg) [![dependency status](https://deps.rs/repo/github/Enet4/dicom-rs/status.svg)](https://deps.rs/repo/github/Enet4/dicom-rs)
+[![Build Status](https://travis-ci.org/Enet4/dicom-rs.svg?branch=master)](https://travis-ci.org/Enet4/dicom-rs) ![Minimum Rust Version Stable](https://img.shields.io/badge/Minimum%20Rust%20Version-stable-green.svg) [![dependency status](https://deps.rs/repo/github/Enet4/dicom-rs/status.svg)](https://deps.rs/repo/github/Enet4/dicom-rs) [![Gitter](https://badges.gitter.im/dicom-rs/community.svg)](https://gitter.im/dicom-rs/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 
 An efficient and practical library for DICOM compliant systems.
