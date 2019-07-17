@@ -1,8 +1,8 @@
 //! This module includes a high level abstraction over a DICOM data element's value.
 
 use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveTime, Timelike};
-use error::CastValueError;
-use header::{Length, Tag};
+use crate::error::CastValueError;
+use crate::header::{Length, Tag};
 use itertools::Itertools;
 use std::borrow::Cow;
 use smallvec::SmallVec;

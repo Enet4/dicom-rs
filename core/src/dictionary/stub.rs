@@ -1,7 +1,7 @@
 //! This module contains a stub dictionary.
 
+use crate::header::Tag;
 use super::{DataDictionary, DictionaryEntryRef};
-use header::Tag;
 
 /// An empty attribute dictionary.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

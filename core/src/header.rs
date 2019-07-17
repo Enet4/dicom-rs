@@ -2,8 +2,8 @@
 //! It comprises a variety of basic data types, such as the DICOM attribute tag, the
 //! element header, and element composite types.
 
-use value::{DicomValueType, PrimitiveValue, Value};
-use error::{Error, Result};
+use crate::error::{Error, Result};
+use crate::value::{DicomValueType, PrimitiveValue, Value};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
@@ -35,7 +35,9 @@ pub trait Header {
     }
 }
 
-/// A data type that represents and owns a DICOM data element.
+/// A data type that represents and owns a DICOM data element. Unlike
+/// [`PrimitiveDataElement`], this type may contain multiple data elements
+/// through the item sequence VR (of type `I`).
 #[derive(Debug, PartialEq, Clone)]
 pub struct DataElement<I> {
     header: DataElementHeader,

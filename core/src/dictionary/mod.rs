@@ -4,8 +4,8 @@
 
 pub mod stub;
 
+use crate::header::{Tag, VR};
 use std::fmt::Debug;
-use header::{Tag, VR};
 
 /** Type trait for a dictionary of DICOM attributes. Attribute dictionaries provide the
  * means to convert a tag to an alias and vice versa, as well as a form of retrieving

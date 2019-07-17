@@ -5,7 +5,7 @@ use std::num::{ParseFloatError, ParseIntError};
 use std::result;
 
 //use data::dataset::DicomDataToken;
-use value::ValueType;
+use crate::value::ValueType;
 
 quick_error! {
     /// The main data type for errors in the library.
