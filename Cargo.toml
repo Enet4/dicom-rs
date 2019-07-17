@@ -6,4 +6,3 @@ members = [
     "dictionary-std",
     "dictionary-builder"
 ]
-repository = "https://github.com/Enet4/dicom-rs"

@@ -1,12 +1,12 @@
 [package]
-authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
-description = "Efficient and practical base library for DICOM compliant systems"
 name = "dicom-core"
-publish = false
-license = "MIT/Apache-2.0"
-repository = "https://github.com/Enet4/dicom-rs"
 version = "0.1.0-pre.1"
+authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
+description = "Efficient and practical core library for DICOM compliant systems"
 edition = "2018"
+publish = false
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/Enet4/dicom-rs"
 
 [badges]
 

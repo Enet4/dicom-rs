@@ -1,8 +1,9 @@
-//! This module contains a mid-level abstraction for reading DICOM content sequentially.
+//! This module contains a mid-level abstraction for reading DICOM content
+//! sequentially.
 //!
-//! The `parser` module is used to obtain DICOM element headers and values. At this level,
-//! headers and values are treated as tokens which can be used to form a syntax tree of
-//! a full data set.
+//! The rest of the crate is used to obtain DICOM element headers and values.
+//! At this level, headers and values are treated as tokens which can be used
+//! to form a syntax tree of a full data set.
 use dicom_core::dictionary::DataDictionary;
 use dicom_core::header::{
     DataElementHeader, Header, Length, PrimitiveDataElement, SequenceItemHeader,

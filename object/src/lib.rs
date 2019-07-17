@@ -1,9 +1,13 @@
-//! This module contains the high-level DICOM abstraction trait.
+//! This crate contains a high-level abstraction for reading and manipulating
+//! DICOM objects.
 //! At this level, objects are comparable to a dictionary of elements,
 //! in which some of them can have DICOM objects themselves.
-//! The end user should prefer using this abstraction when dealing with DICOM objects.
+//! The end user should prefer using this abstraction when dealing with DICOM
+//! objects.
 //!
 //! # Examples
+//! 
+//! Loading a file and reading some attributes by their standard alias:
 //!
 //! ```no_run
 //! use dicom_object::open_file;
@@ -16,7 +20,7 @@
 //! # }
 //! ```
 //!
-//! Fetching an element by tag:
+//! Elements can also be fetched by tag:
 //!
 //! ```
 //! # use dicom_object::{DicomObject, Result, Tag};

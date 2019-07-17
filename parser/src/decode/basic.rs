@@ -1,5 +1,5 @@
-//! This module provides implementations for basic decoders: little endian and big endian.
-//!
+//! This module provides implementations for primitive decoders of data, which
+//! may be in either Little Endian or Big Endian.
 
 use byteordered::{ByteOrdered, Endianness};
 use crate::error::Result;

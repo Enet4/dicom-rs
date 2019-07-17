@@ -1,6 +1,7 @@
-//! This modules contains everything needed to access and manipulate DICOM data elements.
-//! It comprises a variety of basic data types, such as the DICOM attribute tag, the
-//! element header, and element composite types.
+//! This crate provides interfaces and data structures for reading and writing
+//! data in accordance to the DICOM standard, at different layers of
+//! abstraction.
+//! For the time being, all APIs are based on synchronous I/O.
 #![recursion_limit="72"]
 
 extern crate byteordered;
