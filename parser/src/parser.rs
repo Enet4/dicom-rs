@@ -20,7 +20,7 @@ use std::io::Read;
 use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::ops::{Add, Mul, Sub};
-use smallvec::SmallVec;
+use smallvec::{SmallVec, smallvec};
 
 const Z: i32 = b'0' as i32;
 

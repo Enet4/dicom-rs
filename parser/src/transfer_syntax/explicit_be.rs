@@ -270,7 +270,7 @@ mod tests {
     use super::ExplicitVRBigEndianEncoder;
     use crate::decode::Decode;
     use crate::encode::Encode;
-    use crate::dicom_core::{Tag, VR};
+    use dicom_core::{Tag, VR};
     use dicom_core::header::{DataElementHeader, Header, Length};
     use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 

@@ -13,22 +13,12 @@
 //! from the official DICOM website and store the result in "entries.rs".
 //! Future versions will enable different kinds of outputs.
 
-extern crate clap;
-extern crate futures;
-extern crate hyper;
-extern crate quick_xml;
-extern crate regex;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
-extern crate tokio_core;
-
 use clap::{App, Arg};
 use futures::{Future, Stream};
 use hyper::client::Client;
 use hyper::client::FutureResponse;
 use hyper::{Chunk, Uri};
+use serde::Serialize;
 use serde_json::to_writer;
 use tokio_core::reactor::Core;
 

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::fmt;
 use crate::transfer_syntax;
 use crate::transfer_syntax::{TransferSyntax, Codec};
+use lazy_static::lazy_static;
 
 type DynTransferSyntax<'ts> = Box<(Codec + Send + Sync + 'ts)>;
 type DynTransferSyntaxRef<'ts> = &'ts (Codec + Send + Sync);

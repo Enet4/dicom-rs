@@ -1,11 +1,10 @@
 //! This module aggregates errors that may emerge from the library.
+use crate::value::ValueType;
 use std::error::Error as BaseError;
 use std::fmt;
 use std::num::{ParseFloatError, ParseIntError};
 use std::result;
-
-//use data::dataset::DicomDataToken;
-use crate::value::ValueType;
+use quick_error::quick_error;
 
 quick_error! {
     /// The main data type for errors in the library.

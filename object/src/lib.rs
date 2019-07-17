@@ -30,13 +30,6 @@
 //! # }
 //! ```
 //!
-extern crate byteordered;
-extern crate dicom_core;
-extern crate dicom_parser;
-extern crate dicom_dictionary_std;
-extern crate itertools;
-extern crate smallvec;
-
 pub mod file;
 pub mod mem;
 pub mod meta;

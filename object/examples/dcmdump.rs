@@ -1,8 +1,5 @@
 //! A reimplementation of dcmdump in Rust.
 //! This is a work in progress, it is not guaranteed to work yet!
-extern crate dicom_core;
-extern crate dicom_object;
-
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::Header;
 use dicom_core::value::{PrimitiveValue, Value as DicomValue};
