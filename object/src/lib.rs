@@ -34,9 +34,9 @@ pub mod file;
 pub mod mem;
 pub mod meta;
 pub mod pixeldata;
+pub mod loader;
 
 mod util;
-mod loader;
 
 pub use dicom_dictionary_std::StandardDataDictionary;
 pub use dicom_core::Tag;

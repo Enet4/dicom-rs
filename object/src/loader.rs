@@ -13,7 +13,7 @@ impl<'s, O> DicomLoaderOptions<StandardDataDictionary, O>
 where
     O: DicomObject,
 {
-    /// Construct a new DICOM loader
+    /// Construct a new DICOM loader with the standard data dictionary.
     pub fn new() -> Self {
         DicomLoaderOptions::default()
     }
@@ -35,17 +35,14 @@ impl<'s, D, O> DicomLoaderOptions<D, O>
 where
     O: DicomObject,
 {
-    pub fn with_dict(self, dict: D) -> Self {
+    pub fn with_dict<NewD>(self, dict: NewD) -> DicomLoaderOptions<NewD, O> {
         DicomLoaderOptions {
-            dict: dict,
+            dict,
             phantom: PhantomData,
         }
     }
 
     pub fn with_std_dict(self) -> DicomLoaderOptions<StandardDataDictionary, O> {
-        DicomLoaderOptions {
-            dict: StandardDataDictionary,
-            phantom: PhantomData,
-        }
+        self.with_dict(StandardDataDictionary)
     }
 }

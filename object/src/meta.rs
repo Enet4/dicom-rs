@@ -85,8 +85,7 @@ where
     S: Read,
     T: TextCodec,
 {
-    let mut v = Vec::<u8>::with_capacity(len as usize);
-    v.resize(len as usize, 0);
+    let mut v = vec![0; len as usize];
     source.read_exact(&mut v)?;
     *group_length_remaining -= 8 + len;
     text.decode(&v)
@@ -184,48 +183,42 @@ impl DicomMetaTable {
             builder = match elem.tag() {
                 Tag(0x0002, 0x0013) => {
                     // Implementation Version Name
-                    let mut v = Vec::<u8>::with_capacity(elem_len);
-                    v.resize(elem_len, 0);
+                    let mut v = vec![0; elem_len];
                     file.read_exact(&mut v)?;
                     group_length_remaining -= 8 + elem_len as u32;
                     builder.implementation_version_name(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0016) => {
                     // Source Application Entity Title
-                    let mut v = Vec::<u8>::with_capacity(elem_len);
-                    v.resize(elem_len, 0);
+                    let mut v = vec![0; elem_len];
                     file.read_exact(&mut v)?;
                     group_length_remaining -= 8 + elem_len as u32;
                     builder.source_application_entity_title(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0017) => {
                     // Sending Application Entity Title
-                    let mut v = Vec::<u8>::with_capacity(elem_len);
-                    v.resize(elem_len, 0);
+                    let mut v = vec![0; elem_len];
                     file.read_exact(&mut v)?;
                     group_length_remaining -= 8 + elem_len as u32;
                     builder.sending_application_entity_title(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0018) => {
                     // Receiving Application Entity Title
-                    let mut v = Vec::<u8>::with_capacity(elem_len);
-                    v.resize(elem_len, 0);
+                    let mut v = vec![0; elem_len];
                     file.read_exact(&mut v)?;
                     group_length_remaining -= 8 + elem_len as u32;
                     builder.receiving_application_entity_title(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0100) => {
                     // Private Information Creator UID
-                    let mut v = Vec::<u8>::with_capacity(elem_len);
-                    v.resize(elem_len, 0);
+                    let mut v = vec![0; elem_len];
                     file.read_exact(&mut v)?;
                     group_length_remaining -= 8 + elem_len as u32;
                     builder.private_information_creator_uid(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0102) => {
                     // Private Information
-                    let mut v = Vec::<u8>::with_capacity(elem_len);
-                    v.resize(elem_len, 0);
+                    let mut v = vec![0; elem_len];
                     file.read_exact(&mut v)?;
                     group_length_remaining -= 12 + elem_len as u32;
                     builder.private_information(v)
