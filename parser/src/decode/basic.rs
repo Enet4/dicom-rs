@@ -29,6 +29,13 @@ impl BasicDecode for LittleEndianBasicDecoder {
         ByteOrdered::le(source).read_u32().map_err(Into::into)
     }
 
+    fn decode_uv<S>(&self, source: S) -> Result<u64>
+    where
+        S: Read,
+    {
+        ByteOrdered::le(source).read_u64().map_err(Into::into)
+    }
+
     fn decode_ss<S>(&self, source: S) -> Result<i16>
     where
         S: Read,
@@ -41,6 +48,13 @@ impl BasicDecode for LittleEndianBasicDecoder {
         S: Read,
     {
         ByteOrdered::le(source).read_i32().map_err(Into::into)
+    }
+
+    fn decode_sv<S>(&self, source: S) -> Result<i64>
+    where
+        S: Read,
+    {
+        ByteOrdered::le(source).read_i64().map_err(Into::into)
     }
 
     fn decode_fl<S>(&self, source: S) -> Result<f32>
@@ -80,6 +94,13 @@ impl BasicDecode for BigEndianBasicDecoder {
     {
         ByteOrdered::be(source).read_u32().map_err(Into::into)
     }
+    
+    fn decode_uv<S>(&self, source: S) -> Result<u64>
+    where
+        S: Read,
+    {
+        ByteOrdered::be(source).read_u64().map_err(Into::into)
+    }
 
     fn decode_ss<S>(&self, source: S) -> Result<i16>
     where
@@ -93,6 +114,13 @@ impl BasicDecode for BigEndianBasicDecoder {
         S: Read,
     {
         ByteOrdered::be(source).read_i32().map_err(Into::into)
+    }
+
+    fn decode_sv<S>(&self, source: S) -> Result<i64>
+    where
+        S: Read,
+    {
+        ByteOrdered::be(source).read_i64().map_err(Into::into)
     }
 
     fn decode_fl<S>(&self, source: S) -> Result<f32>
@@ -169,6 +197,13 @@ impl BasicDecode for BasicDecoder {
         for_both!(self, |e| e.decode_ul(source))
     }
 
+    fn decode_uv<S>(&self, source: S) -> Result<u64>
+    where
+        S: Read,
+    {
+        for_both!(self, |e| e.decode_uv(source))
+    }
+
     fn decode_ss<S>(&self, source: S) -> Result<i16>
     where
         S: Read,
@@ -181,6 +216,13 @@ impl BasicDecode for BasicDecoder {
         S: Read,
     {
         for_both!(self, |e| e.decode_sl(source))
+    }
+
+    fn decode_sv<S>(&self, source: S) -> Result<i64>
+    where
+        S: Read,
+    {
+        for_both!(self, |e| e.decode_sv(source))
     }
 
     fn decode_fl<S>(&self, source: S) -> Result<f32>
@@ -206,7 +248,7 @@ mod tests {
     #[test]
     fn test_read_integers() {
         let data: &[u8] = &[
-            0xC3, 0x3C, 0x33, 0xCC
+            0xC3, 0x3C, 0x33, 0xCC, 0x55, 0xAA, 0x55, 0xAA,
         ];
 
         let le = LittleEndianBasicDecoder;
@@ -216,6 +258,8 @@ mod tests {
         assert_eq!(be.decode_us(data).unwrap(), 0xC33C);
         assert_eq!(le.decode_ul(data).unwrap(), 0xCC333CC3);
         assert_eq!(be.decode_ul(data).unwrap(), 0xC33C33CC);
+        assert_eq!(le.decode_uv(data).unwrap(), 0xAA55AA55_CC333CC3);
+        assert_eq!(be.decode_uv(data).unwrap(), 0xC33C33CC_55AA55AA);
 
         let le = BasicDecoder::new(Endianness::Little);
         let be = BasicDecoder::new(Endianness::Big);
@@ -224,5 +268,7 @@ mod tests {
         assert_eq!(be.decode_us(data).unwrap(), 0xC33C);
         assert_eq!(le.decode_ul(data).unwrap(), 0xCC333CC3);
         assert_eq!(be.decode_ul(data).unwrap(), 0xC33C33CC);
+        assert_eq!(le.decode_uv(data).unwrap(), 0xAA55AA55_CC333CC3);
+        assert_eq!(be.decode_uv(data).unwrap(), 0xC33C33CC_55AA55AA);
     }
 }

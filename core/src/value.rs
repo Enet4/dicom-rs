@@ -180,6 +180,14 @@ pub enum PrimitiveValue {
     /// Used for UL and OL.
     U32(C<u32>),
 
+    /// A sequence of signed 64-bit integers.
+    /// Used for SV.
+    I64(C<i64>),
+
+    /// A sequence of unsigned 64-bit integers.
+    /// Used for UV and OV.
+    U64(C<u64>),
+
     /// The value is a sequence of 32-bit floating point numbers.
     /// Used for OF and FL.
     F32(C<f32>),
@@ -207,20 +215,22 @@ impl PrimitiveValue {
     pub fn multiplicity(&self) -> u32 {
         use self::PrimitiveValue::*;
         match self {
-            &Empty => 0,
-            &Str(_) => 1,
-            &Strs(ref c) => c.len() as u32,
-            &Tags(ref c) => c.len() as u32,
-            &U8(ref c) => c.len() as u32,
-            &I16(ref c) => c.len() as u32,
-            &U16(ref c) => c.len() as u32,
-            &I32(ref c) => c.len() as u32,
-            &U32(ref c) => c.len() as u32,
-            &F32(ref c) => c.len() as u32,
-            &F64(ref c) => c.len() as u32,
-            &Date(ref c) => c.len() as u32,
-            &DateTime(ref c) => c.len() as u32,
-            &Time(ref c) => c.len() as u32,
+            Empty => 0,
+            Str(_) => 1,
+            Strs(c) => c.len() as u32,
+            Tags(c) => c.len() as u32,
+            U8(c) => c.len() as u32,
+            I16(c) => c.len() as u32,
+            U16(c) => c.len() as u32,
+            I32(c) => c.len() as u32,
+            U32(c) => c.len() as u32,
+            I64(c) => c.len() as u32,
+            U64(c) => c.len() as u32,
+            F32(c) => c.len() as u32,
+            F64(c) => c.len() as u32,
+            Date(c) => c.len() as u32,
+            DateTime(c) => c.len() as u32,
+            Time(c) => c.len() as u32,
         }
     }
 
@@ -263,11 +273,29 @@ impl PrimitiveValue {
         }
     }
 
+    /// Get a single 64-bit signed integer value.
+    pub fn int64(&self) -> Option<i64> {
+        use self::PrimitiveValue::*;
+        match self {
+            I64(ref c) => c.get(0).cloned(),
+            _ => None,
+        }
+    }
+
+    /// Get a single 64-bit unsigned integer value.
+    pub fn uint64(&self) -> Option<u64> {
+        use self::PrimitiveValue::*;
+        match self {
+            U64(ref c) => c.get(0).cloned(),
+            _ => None,
+        }
+    }
+
     /// Get a single 32-bit signed integer value.
     pub fn int32(&self) -> Option<i32> {
         use self::PrimitiveValue::*;
         match self {
-            &I32(ref c) => c.get(0).map(Clone::clone),
+            I32(ref c) => c.get(0).cloned(),
             _ => None,
         }
     }
@@ -276,7 +304,7 @@ impl PrimitiveValue {
     pub fn uint32(&self) -> Option<u32> {
         use self::PrimitiveValue::*;
         match self {
-            &U32(ref c) => c.get(0).map(Clone::clone),
+            U32(ref c) => c.get(0).cloned(),
             _ => None,
         }
     }
@@ -285,7 +313,7 @@ impl PrimitiveValue {
     pub fn int16(&self) -> Option<i16> {
         use self::PrimitiveValue::*;
         match self {
-            &I16(ref c) => c.get(0).map(Clone::clone),
+            I16(ref c) => c.get(0).cloned(),
             _ => None,
         }
     }
@@ -294,7 +322,7 @@ impl PrimitiveValue {
     pub fn uint16(&self) -> Option<u16> {
         use self::PrimitiveValue::*;
         match self {
-            &U16(ref c) => c.get(0).map(Clone::clone),
+            U16(ref c) => c.get(0).cloned(),
             _ => None,
         }
     }
@@ -303,7 +331,7 @@ impl PrimitiveValue {
     pub fn uint8(&self) -> Option<u8> {
         use self::PrimitiveValue::*;
         match self {
-            &U8(ref c) => c.get(0).map(Clone::clone),
+            U8(ref c) => c.get(0).cloned(),
             _ => None,
         }
     }
@@ -312,7 +340,7 @@ impl PrimitiveValue {
     pub fn float32(&self) -> Option<f32> {
         use self::PrimitiveValue::*;
         match self {
-            &F32(ref c) => c.get(0).map(Clone::clone),
+            F32(ref c) => c.get(0).cloned(),
             _ => None,
         }
     }
@@ -321,7 +349,7 @@ impl PrimitiveValue {
     pub fn float64(&self) -> Option<f64> {
         use self::PrimitiveValue::*;
         match self {
-            &F64(ref c) => c.get(0).map(Clone::clone),
+            F64(ref c) => c.get(0).cloned(),
             _ => None,
         }
     }
@@ -340,6 +368,8 @@ impl PrimitiveValue {
             U16(c) => c.len() * 2,
             U32(c) => c.len() * 4,
             I32(c) => c.len() * 4,
+            U64(c) => c.len() * 8,
+            I64(c) => c.len() * 8,
             F32(c) => c.len() * 4,
             F64(c) => c.len() * 8,
             Tags(c) => c.len() * 4,
@@ -450,6 +480,14 @@ pub enum ValueType {
     /// Used for UL and OL.
     U32,
 
+    /// A sequence of signed 64-bit integers.
+    /// Used for SV.
+    I64,
+
+    /// A sequence of unsigned 64-bit integers.
+    /// Used for UV and OV.
+    U64,
+
     /// The value is a sequence of 32-bit floating point numbers.
     /// Used for OF and FL.
     F32,
@@ -496,33 +534,37 @@ impl DicomValueType for PrimitiveValue {
             F64(_) => ValueType::F64,
             I16(_) => ValueType::I16,
             I32(_) => ValueType::I32,
+            I64(_) => ValueType::I64,
             Str(_) => ValueType::Str,
             Strs(_) => ValueType::Strs,
             Tags(_) => ValueType::Tags,
             Time(_) => ValueType::Time,
             U16(_) => ValueType::U16,
             U32(_) => ValueType::U32,
+            U64(_) => ValueType::U64,
             U8(_) => ValueType::U8,
         }
     }
 
     fn size(&self) -> Length {
         use self::PrimitiveValue::*;
-        Length::defined(match *self {
+        Length::defined(match self {
             Empty => 0,
             Str(_) => 1,
-            Date(ref b) => b.len() as u32,
-            DateTime(ref b) => b.len() as u32,
-            F32(ref b) => b.len() as u32,
-            F64(ref b) => b.len() as u32,
-            I16(ref b) => b.len() as u32,
-            I32(ref b) => b.len() as u32,
-            Strs(ref b) => b.len() as u32,
-            Tags(ref b) => b.len() as u32,
-            Time(ref b) => b.len() as u32,
-            U16(ref b) => b.len() as u32,
-            U32(ref b) => b.len() as u32,
-            U8(ref b) => b.len() as u32,
+            Date(b) => b.len() as u32,
+            DateTime(b) => b.len() as u32,
+            F32(b) => b.len() as u32,
+            F64(b) => b.len() as u32,
+            I16(b) => b.len() as u32,
+            I32(b) => b.len() as u32,
+            I64(b) => b.len() as u32,
+            Strs(b) => b.len() as u32,
+            Tags(b) => b.len() as u32,
+            Time(b) => b.len() as u32,
+            U16(b) => b.len() as u32,
+            U32(b) => b.len() as u32,
+            U64(b) => b.len() as u32,
+            U8(b) => b.len() as u32,
         })
     }
 }

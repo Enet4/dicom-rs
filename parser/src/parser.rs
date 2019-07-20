@@ -424,6 +424,17 @@ where
         Ok(PrimitiveValue::U16(vec?))
     }
 
+    fn read_value_uv(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+        let len = require_known_length!(header);
+        // sequence of 64-bit unsigned integers
+
+        let len = len >> 3;
+        let vec: Result<C<_>> = n_times(len)
+            .map(|_| self.basic.decode_uv(&mut *from))
+            .collect();
+        Ok(PrimitiveValue::U64(vec?))
+    }
+
     fn read_value_sl(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 32-bit signed integers
@@ -433,6 +444,17 @@ where
             .map(|_| self.basic.decode_sl(&mut *from))
             .collect();
         Ok(PrimitiveValue::I32(vec?))
+    }
+
+    fn read_value_sv(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+        let len = require_known_length!(header);
+        // sequence of 64-bit signed integers
+
+        let len = len >> 3;
+        let vec: Result<C<_>> = n_times(len)
+            .map(|_| self.basic.decode_sv(&mut *from))
+            .collect();
+        Ok(PrimitiveValue::I64(vec?))
     }
 }
 
@@ -478,7 +500,9 @@ where
             VR::FL | VR::OF => self.read_value_fl(from, header),
             VR::IS => self.read_value_is(from, header),
             VR::SL => self.read_value_sl(from, header),
+            VR::SV => self.read_value_sv(from, header),
             VR::OL | VR::UL => self.read_value_ul(from, header),
+            VR::OV | VR::UV => self.read_value_uv(from, header),
         }
     }
 
@@ -518,6 +542,8 @@ where
             VR::FL | VR::OF => self.read_value_fl(from, header),
             VR::SL => self.read_value_sl(from, header),
             VR::OL | VR::UL => self.read_value_ul(from, header),
+            VR::SV => self.read_value_sv(from, header),
+            VR::OV | VR::UV => self.read_value_uv(from, header),
         }
     }
 

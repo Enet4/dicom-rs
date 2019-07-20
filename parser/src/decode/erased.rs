@@ -23,11 +23,17 @@ pub trait BasicDecode {
     /// Decode an unsigned long value from the given source.
     fn erased_decode_ul(&self, source: &mut Read) -> Result<u32>;
 
+    /// Decode an unsigned very long value from the given source.
+    fn erased_decode_uv(&self, source: &mut Read) -> Result<u64>;
+
     /// Decode a signed short value from the given source.
     fn erased_decode_ss(&self, source: &mut Read) -> Result<i16>;
 
     /// Decode a signed long value from the given source.
     fn erased_decode_sl(&self, source: &mut Read) -> Result<i32>;
+
+    /// Decode a signed very long value from the given source.
+    fn erased_decode_sv(&self, source: &mut Read) -> Result<i64>;
 
     /// Decode a single precision float value from the given source.
     fn erased_decode_fl(&self, source: &mut Read) -> Result<f32>;
@@ -91,6 +97,13 @@ impl<'s> super::BasicDecode for &'s BasicDecode {
         (**self).erased_decode_ul(&mut source)
     }
 
+    fn decode_uv<S>(&self, mut source: S) -> Result<u64>
+    where
+        S: Read,
+    {
+        (**self).erased_decode_uv(&mut source)
+    }
+
     fn decode_ss<S>(&self, mut source: S) -> Result<i16>
     where
         S: Read,
@@ -103,6 +116,13 @@ impl<'s> super::BasicDecode for &'s BasicDecode {
         S: Read,
     {
         (**self).erased_decode_sl(&mut source)
+    }
+
+    fn decode_sv<S>(&self, mut source: S) -> Result<i64>
+    where
+        S: Read,
+    {
+        (**self).erased_decode_sv(&mut source)
     }
 
     fn decode_fl<S>(&self, mut source: S) -> Result<f32>

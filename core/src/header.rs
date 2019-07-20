@@ -383,6 +383,8 @@ pub enum VR {
     OF,
     /// Other Long
     OL,
+    /// Other Very Long
+    OV,
     /// Other Word
     OW,
     /// Person Name
@@ -398,6 +400,8 @@ pub enum VR {
     /// Short Text
     ST,
     /// Time
+    SV,
+    /// Signed Very Long
     TM,
     /// Unlimited Characters
     UC,
@@ -413,6 +417,8 @@ pub enum VR {
     US,
     /// Unlimited Text
     UT,
+    /// Unsigned Very Long
+    UV,
 }
 
 impl VR {
@@ -446,6 +452,7 @@ impl VR {
             "OD" => Some(OD),
             "OF" => Some(OF),
             "OL" => Some(OL),
+            "OV" => Some(OV),
             "OW" => Some(OW),
             "PN" => Some(PN),
             "SH" => Some(SH),
@@ -453,6 +460,7 @@ impl VR {
             "SQ" => Some(SQ),
             "SS" => Some(SS),
             "ST" => Some(ST),
+            "SV" => Some(SV),
             "TM" => Some(TM),
             "UC" => Some(UC),
             "UI" => Some(UI),
@@ -461,6 +469,7 @@ impl VR {
             "UR" => Some(UR),
             "US" => Some(US),
             "UT" => Some(UT),
+            "UV" => Some(UV),
             _ => None,
         }
     }
@@ -485,6 +494,7 @@ impl VR {
             OD => "OD",
             OF => "OF",
             OL => "OL",
+            OV => "OV",
             OW => "OW",
             PN => "PN",
             SH => "SH",
@@ -492,6 +502,7 @@ impl VR {
             SQ => "SQ",
             SS => "SS",
             ST => "ST",
+            SV => "SV",
             TM => "TM",
             UC => "UC",
             UI => "UI",
@@ -500,6 +511,7 @@ impl VR {
             UR => "UR",
             US => "US",
             UT => "UT",
+            UV => "UV",
         }
     }
 

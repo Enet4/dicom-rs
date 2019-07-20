@@ -56,6 +56,11 @@ pub trait BasicDecode {
     where
         S: Read;
 
+    /// Decode an unsigned very long value from the given source.
+    fn decode_uv<S>(&self, source: S) -> Result<u64>
+    where
+        S: Read;
+
     /// Decode a signed short value from the given source.
     fn decode_ss<S>(&self, source: S) -> Result<i16>
     where
@@ -63,6 +68,11 @@ pub trait BasicDecode {
 
     /// Decode a signed long value from the given source.
     fn decode_sl<S>(&self, source: S) -> Result<i32>
+    where
+        S: Read;
+
+    /// Decode a signed very long value from the given source.
+    fn decode_sv<S>(&self, source: S) -> Result<i64>
     where
         S: Read;
 
@@ -109,6 +119,13 @@ where
         (**self).decode_ul(source)
     }
 
+    fn decode_uv<S>(&self, source: S) -> Result<u64>
+    where
+        S: Read,
+    {
+        (**self).decode_uv(source)
+    }
+
     fn decode_ss<S>(&self, source: S) -> Result<i16>
     where
         S: Read,
@@ -121,6 +138,13 @@ where
         S: Read,
     {
         (**self).decode_sl(source)
+    }
+
+    fn decode_sv<S>(&self, source: S) -> Result<i64>
+    where
+        S: Read,
+    {
+        (**self).decode_sv(source)
     }
 
     fn decode_fl<S>(&self, source: S) -> Result<f32>
@@ -167,6 +191,13 @@ where
         (**self).decode_ul(source)
     }
 
+    fn decode_uv<S>(&self, source: S) -> Result<u64>
+    where
+        S: Read,
+    {
+        (**self).decode_uv(source)
+    }
+
     fn decode_ss<S>(&self, source: S) -> Result<i16>
     where
         S: Read,
@@ -179,6 +210,13 @@ where
         S: Read,
     {
         (**self).decode_sl(source)
+    }
+
+    fn decode_sv<S>(&self, source: S) -> Result<i64>
+    where
+        S: Read,
+    {
+        (**self).decode_sv(source)
     }
 
     fn decode_fl<S>(&self, source: S) -> Result<f32>

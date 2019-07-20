@@ -109,7 +109,9 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> Cow<str
         (F32(values), _) => format_value_list(values, max_characters).into(),
         (F64(values), _) => format_value_list(values, max_characters).into(),
         (I32(values), _) => format_value_list(values, max_characters).into(),
+        (I64(values), _) => format_value_list(values, max_characters).into(),
         (U32(values), _) => format_value_list(values, max_characters).into(),
+        (U64(values), _) => format_value_list(values, max_characters).into(),
         (I16(values), _) => format_value_list(values, max_characters).into(),
         (U16(values), VR::OW) => format_value_list(
             values.into_iter().map(|n| format!("{:#x}", n)),
