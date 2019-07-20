@@ -339,11 +339,12 @@ where
     let mut f = File::create(&dest_path)?;
 
     f.write_all(
-        b"//! Automatically generated. DO NOT EDIT!\n\n\
+        b"//! Automatically generated. Edit at your own risk.\n\n\
     use dicom_core::dictionary::DictionaryEntryRef;\n\
     use dicom_core::Tag;\n\
     use dicom_core::VR::*;\n\n\
     type E = DictionaryEntryRef<'static>;\n\n\
+    #[rustfmt::skip]\n\
     pub const ENTRIES: &[E] = &[\n",
     )?;
 
@@ -383,7 +384,7 @@ where
 
         let mut vr = vr.unwrap_or_else(|| "".into());
         if vr == "See Note" {
-            vr = "UN".to_string();
+            vr = "UN See Note".to_string();
         }
 
         let (vr1, vr2) = vr.split_at(2);

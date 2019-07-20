@@ -1,7 +1,7 @@
 //! This crate implements the standard attribute dictionary.
 //!
 //! This dictionary is a singleton containing all information about the
-//! DICOM attributes specified in the standard according to DICOM PS3.6 2016c,
+//! DICOM attributes specified in the standard according to DICOM PS3.6 2019c,
 //! and it will be used by default in most other abstractions available.
 //!
 //! When not using private tags, this dictionary should suffice.
@@ -161,4 +161,38 @@ const META_ENTRIES: &'static [E<'static>] = &[
 
 #[cfg(test)]
 mod tests {
+    use super::StandardDataDictionary;
+    use dicom_core::dictionary::{DataDictionary, DictionaryEntryRef};
+    use dicom_core::header::{Tag, VR};
+
+    // tests for just a few attributes to make sure that the entries
+    // were well installed into the crate 
+    #[test]
+    fn smoke_test() {
+        let dict = StandardDataDictionary::default();
+
+        assert_eq!(
+            dict.by_name("PatientName"),
+            Some(&DictionaryEntryRef {
+                tag: Tag(0x0010, 0x0010),
+                alias: "PatientName",
+                vr: VR::PN,
+            })
+        );
+
+        assert_eq!(
+            dict.by_name("Modality"),
+            Some(&DictionaryEntryRef {
+                tag: Tag(0x0008, 0x0060),
+                alias: "Modality",
+                vr: VR::CS,
+            })
+        );
+
+        let pixel_data = dict.by_tag(Tag(0x7FE0, 0x0010))
+            .expect("Pixel Data attribute should exist");
+        assert_eq!(pixel_data.tag, Tag(0x7FE0, 0x0010));
+        assert_eq!(pixel_data.alias, "PixelData");
+        assert!(pixel_data.vr == VR::OB || pixel_data.vr == VR::OW);
+    }
 }
