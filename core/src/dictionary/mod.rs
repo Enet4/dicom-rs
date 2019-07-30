@@ -6,6 +6,87 @@ pub mod stub;
 
 use crate::header::{Tag, VR};
 use std::fmt::Debug;
+use std::str::FromStr;
+
+/// Specification of a range of tags pertaining to an attribute.
+/// Very often, the dictionary of attributes indicates a unique `(group,elem)`
+/// for a specific attribute, but occasionally a range of groups or elements
+/// is indicated instead (e.g. _Pixel Data_ is associated with ).
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum TagRange {
+    /// Only a specific tag
+    Single(Tag),
+    /// The two rightmost digits of the _group_ portion are open:
+    /// `(GGxx,EEEE)`
+    Group100(Tag),
+    /// The two rightmost digits of the _element_ portion are open:
+    /// `(GGGG,EExx)`
+    Element100(Tag),
+}
+
+impl TagRange {
+    /// Retrieve the inner tag representation of this range.
+    pub fn inner(self) -> Tag {
+        match self {
+            TagRange::Single(tag) => tag, 
+            TagRange::Group100(tag) => tag,
+            TagRange::Element100(tag) => tag,
+        }
+    }
+}
+
+/// An error returned when parsing an invalid tag range.
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
+pub struct TagRangeParseError(&'static str);
+
+impl FromStr for TagRange {
+    type Err = TagRangeParseError;
+
+    fn from_str(mut s: &str) -> Result<Self, Self::Err> {
+        if s.starts_with('(') && s.ends_with(')') {
+            s = &s[1 .. s.len() - 1];
+        }
+        let mut parts = s.split(',');
+        let group = parts.next().ok_or(TagRangeParseError("not enough tag components, expected `group,element`"))?;
+        let elem = parts.next().ok_or(TagRangeParseError("not enough tag components, expected `element`"))?;
+        if group.len() != 4 {
+            return Err(TagRangeParseError("tag component `group` has an invalid length, must be 4"));
+        }
+        if elem.len() != 4 {
+            return Err(TagRangeParseError("tag component `element` has an invalid length, must be 4"));
+        }
+
+        match (&group.as_bytes()[2..], &elem.as_bytes()[2..]) {
+            (b"xx", b"xx") => {
+                return Err(TagRangeParseError("unsupported tag range"));
+            },
+            (b"xx", _) => {
+                // Group100
+                let group = u16::from_str_radix(&group[..2], 16)
+                    .map_err(|_e| TagRangeParseError("Invalid component `group`"))? << 8;
+                let elem = u16::from_str_radix(elem, 16)
+                    .map_err(|_e| TagRangeParseError("Invalid component `element`"))?;
+                Ok(TagRange::Group100(Tag(group, elem)))
+            },
+            (_, b"xx") => {
+                // Element100
+                let group = u16::from_str_radix(group, 16)
+                    .map_err(|_e| TagRangeParseError("Invalid component `group`"))?;
+                let elem = u16::from_str_radix(&elem[..2], 16)
+                    .map_err(|_e| TagRangeParseError("Invalid component `element`"))? << 8;
+                Ok(TagRange::Element100(Tag(group, elem)))
+            },
+            (_, _) => {
+                // single element
+                let group = u16::from_str_radix(group, 16)
+                    .map_err(|_e| TagRangeParseError("Invalid component `group`"))?;
+                let elem = u16::from_str_radix(elem, 16)
+                    .map_err(|_e| TagRangeParseError("Invalid component `element`"))?;
+                Ok(TagRange::Single(Tag(group, elem)))
+            }
+        }
+    }
+}
 
 /** Type trait for a dictionary of DICOM attributes. Attribute dictionaries provide the
  * means to convert a tag to an alias and vice versa, as well as a form of retrieving
@@ -104,5 +185,26 @@ impl<N: AsRef<str>, D: DataDictionary> TagByName<N, D> {
 impl<N: AsRef<str>, D: DataDictionary> From<TagByName<N, D>> for Option<Tag> {
     fn from(tag: TagByName<N, D>) -> Option<Tag> {
         tag.dict.by_name(tag.name.as_ref()).map(|e| e.tag())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::header::Tag;
+    use super::TagRange;
+
+    #[test]
+    fn test_parse_tag_range() {
+        let tag: TagRange = "(1234,5678)".parse().unwrap();
+        assert_eq!(tag, TagRange::Single(Tag(0x1234, 0x5678)));
+
+        let tag: TagRange = "1234,5678".parse().unwrap();
+        assert_eq!(tag, TagRange::Single(Tag(0x1234, 0x5678)));
+
+        let tag: TagRange = "12xx,5678".parse().unwrap();
+        assert_eq!(tag, TagRange::Group100(Tag(0x1200, 0x5678)));
+
+        let tag: TagRange = "1234,56xx".parse().unwrap();
+        assert_eq!(tag, TagRange::Element100(Tag(0x1234, 0x5600)));
     }
 }
