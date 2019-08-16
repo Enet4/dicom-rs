@@ -60,7 +60,7 @@ where
 }
 
 /// Type alias for a type erased text codec.
-pub type DynamicTextCodec = Box<TextCodec>;
+pub type DynamicTextCodec = Box<dyn TextCodec>;
 
 /// An enum type for the the supported character sets.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
@@ -90,7 +90,7 @@ impl SpecificCharacterSet {
     }
 
     /// Retrieve the respective text codec.
-    pub fn get_codec(self) -> Option<Box<TextCodec>> {
+    pub fn get_codec(self) -> Option<Box<dyn TextCodec>> {
         match self {
             SpecificCharacterSet::Default => Some(Box::new(DefaultCharacterSetCodec)),
             SpecificCharacterSet::IsoIr192 => Some(Box::new(Utf8CharacterSetCodec)),
@@ -98,7 +98,7 @@ impl SpecificCharacterSet {
     }
 }
 
-fn decode_text_trap(_decoder: &mut RawDecoder, input: &[u8], output: &mut StringWriter) -> bool {
+fn decode_text_trap(_decoder: &mut dyn RawDecoder, input: &[u8], output: &mut dyn StringWriter) -> bool {
     let c = input[0];
     let o0 = c & 7;
     let o1 = (c & 56) >> 3;

@@ -94,7 +94,7 @@ impl<'s, S: 's, D> DataSetReader<S, DynamicDicomParser, D> {
 impl<S, P> DataSetReader<S, P, StandardDataDictionary>
 where
     S: Read,
-    P: Parse<Read>,
+    P: Parse<dyn Read>,
 {
     /// Create a new iterator with the given parser.
     pub fn new(source: S, parser: P) -> Self {
@@ -113,7 +113,7 @@ where
 impl<'s, S: 's, P, D> DataSetReader<S, P, D>
 where
     S: Read,
-    P: Parse<Read + 's>,
+    P: Parse<dyn Read + 's>,
 {
     fn read_primitive_element<O>(
         &mut self,
@@ -157,7 +157,7 @@ impl fmt::Display for DataToken {
 impl<'s, S: 's, P, D> Iterator for DataSetReader<S, P, D>
 where
     S: Read,
-    P: Parse<Read + 's>,
+    P: Parse<dyn Read + 's>,
     D: DataDictionary,
 {
     type Item = Result<DataToken>;
@@ -273,11 +273,11 @@ pub struct LazyDataSetReader<S, DS, P> {
     phantom: PhantomData<DS>,
 }
 
-impl<'s> LazyDataSetReader<&'s mut ReadSeek, &'s mut Read, DynamicDicomParser> {
+impl<'s> LazyDataSetReader<&'s mut dyn ReadSeek, &'s mut dyn Read, DynamicDicomParser> {
     /// Create a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
     pub fn new_with(
-        source: &'s mut ReadSeek,
+        source: &'s mut dyn ReadSeek,
         ts: &dyn Codec,
         cs: SpecificCharacterSet,
     ) -> Result<Self> {

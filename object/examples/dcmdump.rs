@@ -11,7 +11,7 @@ use dicom_object::StandardDataDictionary;
 use std::borrow::Cow;
 use std::io::{stdout, Write};
 
-type DynResult<T> = Result<T, Box<::std::error::Error>>;
+type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 fn main() -> DynResult<()> {
     let filename = ::std::env::args()

@@ -180,7 +180,7 @@ where
     ) -> Result<Self>
     where
         S: Read,
-        P: Parse<Read + 's>,
+        P: Parse<dyn Read + 's>,
     {
         let mut entries: BTreeMap<Tag, InMemElement<D>> = BTreeMap::new();
         // perform a structured parsing of incoming tokens
@@ -223,7 +223,7 @@ where
     ) -> Result<C<InMemDicomObject<D>>>
     where
         S: Read,
-        P: Parse<Read + 's>,
+        P: Parse<dyn Read + 's>,
     {
         let mut items: C<_> = SmallVec::new();
         while let Some(token) = dataset.next() {

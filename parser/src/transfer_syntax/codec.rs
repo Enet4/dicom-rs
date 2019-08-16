@@ -9,8 +9,8 @@ use crate::transfer_syntax;
 use crate::transfer_syntax::{TransferSyntax, Codec};
 use lazy_static::lazy_static;
 
-type DynTransferSyntax<'ts> = Box<(Codec + Send + Sync + 'ts)>;
-type DynTransferSyntaxRef<'ts> = &'ts (Codec + Send + Sync);
+type DynTransferSyntax<'ts> = Box<(dyn Codec + Send + Sync + 'ts)>;
+type DynTransferSyntaxRef<'ts> = &'ts (dyn Codec + Send + Sync);
 
 /// Data type for a registry of DICOM codecs.
 pub struct CodecRegistry<'ts> {

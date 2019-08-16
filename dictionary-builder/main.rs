@@ -111,7 +111,7 @@ fn main() {
 }
 
 type XmlResult<T> = Result<T, XmlError>;
-type DynResult<T> = Result<T, Box<::std::error::Error>>;
+type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 fn xml_from_site(core: &Core, url: Uri) -> FutureResponse {
     let client = Client::new(&core.handle());

@@ -72,7 +72,7 @@ where
 /// Alias for a dynamically resolved DICOM parser. Although the data source may be known
 /// in compile time, the required decoder may vary according to an object's transfer syntax.
 pub type DynamicDicomParser =
-    DicomParser<Box<Decode<Source = Read>>, BasicDecoder, Read, DynamicTextCodec>;
+    DicomParser<Box<dyn Decode<Source = dyn Read>>, BasicDecoder, dyn Read, DynamicTextCodec>;
 
 /// The initial capacity of the `DicomParser` buffer.
 const PARSER_BUFFER_CAPACITY: usize = 2048;
@@ -458,7 +458,7 @@ where
     }
 }
 
-impl<S: ?Sized, D, BD> Parse<S> for DicomParser<D, BD, S, Box<TextCodec>>
+impl<S: ?Sized, D, BD> Parse<S> for DicomParser<D, BD, S, Box<dyn TextCodec>>
 where
     D: Decode<Source = S>,
     BD: BasicDecode,

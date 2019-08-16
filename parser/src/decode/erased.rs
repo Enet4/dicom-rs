@@ -18,28 +18,28 @@ pub trait BasicDecode {
     fn endianness(&self) -> Endianness;
 
     /// Decode an unsigned short value from the given source.
-    fn erased_decode_us(&self, source: &mut Read) -> Result<u16>;
+    fn erased_decode_us(&self, source: &mut dyn Read) -> Result<u16>;
 
     /// Decode an unsigned long value from the given source.
-    fn erased_decode_ul(&self, source: &mut Read) -> Result<u32>;
+    fn erased_decode_ul(&self, source: &mut dyn Read) -> Result<u32>;
 
     /// Decode an unsigned very long value from the given source.
-    fn erased_decode_uv(&self, source: &mut Read) -> Result<u64>;
+    fn erased_decode_uv(&self, source: &mut dyn Read) -> Result<u64>;
 
     /// Decode a signed short value from the given source.
-    fn erased_decode_ss(&self, source: &mut Read) -> Result<i16>;
+    fn erased_decode_ss(&self, source: &mut dyn Read) -> Result<i16>;
 
     /// Decode a signed long value from the given source.
-    fn erased_decode_sl(&self, source: &mut Read) -> Result<i32>;
+    fn erased_decode_sl(&self, source: &mut dyn Read) -> Result<i32>;
 
     /// Decode a signed very long value from the given source.
-    fn erased_decode_sv(&self, source: &mut Read) -> Result<i64>;
+    fn erased_decode_sv(&self, source: &mut dyn Read) -> Result<i64>;
 
     /// Decode a single precision float value from the given source.
-    fn erased_decode_fl(&self, source: &mut Read) -> Result<f32>;
+    fn erased_decode_fl(&self, source: &mut dyn Read) -> Result<f32>;
 
     /// Decode a double precision float value from the given source.
-    fn erased_decode_fd(&self, source: &mut Read) -> Result<f64>;
+    fn erased_decode_fd(&self, source: &mut dyn Read) -> Result<f64>;
 }
 
 /** Type trait for reading and decoding DICOM data elements.
@@ -57,13 +57,13 @@ pub trait Decode: BasicDecode {
      * This method returns only the header of the element. At the end of this operation, the source
      * will be pointing at the element's value data, which should be read or skipped as necessary.
      */
-    fn erased_decode(&self, source: &mut Read) -> Result<DataElementHeader>;
+    fn erased_decode(&self, source: &mut dyn Read) -> Result<DataElementHeader>;
 
     /** Fetch and decode the next sequence item head from the given source.
      * This method returns only the header of the item. At the end of this operation, the source
      * will be pointing at the beginning of the item's data, which should be traversed if necessary.
      */
-    fn erased_decode_item(&self, mut source: &mut Read) -> Result<SequenceItemHeader> {
+    fn erased_decode_item(&self, mut source: &mut dyn Read) -> Result<SequenceItemHeader> {
         let tag = self.erased_decode_tag(&mut source)?;
         let len = self.erased_decode_ul(&mut source)?;
         let header = SequenceItemHeader::new(tag, Length(len))?;
@@ -71,14 +71,14 @@ pub trait Decode: BasicDecode {
     }
 
     /// Decode a DICOM attribute tag from the given source.
-    fn erased_decode_tag(&self, source: &mut Read) -> Result<Tag> {
+    fn erased_decode_tag(&self, source: &mut dyn Read) -> Result<Tag> {
         let group = self.erased_decode_us(source)?;
         let elem = self.erased_decode_us(source)?;
         Ok(Tag(group, elem))
     }
 }
 
-impl<'s> super::BasicDecode for &'s BasicDecode {
+impl<'s> super::BasicDecode for &'s dyn BasicDecode {
     fn endianness(&self) -> Endianness {
         (**self).endianness()
     }

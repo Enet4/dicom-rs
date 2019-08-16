@@ -14,10 +14,10 @@ use crate::decode::Decode;
 use crate::encode::Encode;
 
 /// A decoder with its type erased.
-pub type DynamicDecoder = Box<Decode<Source = Read>>;
+pub type DynamicDecoder = Box<dyn Decode<Source = dyn Read>>;
 
 /// An encoder with its type erased.
-pub type DynamicEncoder = Box<Encode<Writer = Write>>;
+pub type DynamicEncoder = Box<dyn Encode<Writer = dyn Write>>;
 
 /// Trait for a DICOM transfer syntax.
 pub trait TransferSyntax {
