@@ -340,7 +340,7 @@ where
 
     f.write_all(
         b"//! Automatically generated. Edit at your own risk.\n\n\
-    use dicom_core::dictionary::DictionaryEntryRef;\n\
+    use dicom_core::dictionary::{DictionaryEntryRef, TagRange::*};\n\
     use dicom_core::Tag;\n\
     use dicom_core::VR::*;\n\n\
     type E = DictionaryEntryRef<'static>;\n\n\
@@ -349,6 +349,8 @@ where
     )?;
 
     let regex_tag = Regex::new(r"^\(([0-9A-F]{4}),([0-9A-F]{4})\)$")?;
+    let regex_tag_group100 = Regex::new(r"^\(([0-9A-F]{2})xx,([0-9A-F]{4})\)$")?;
+    let regex_tag_element100 = Regex::new(r"^\(([0-9A-F]{4}),([0-9A-F]{2})xx\)$")?;
 
     for e in entries {
         let Entry {
@@ -373,14 +375,25 @@ where
                 continue;
             }
         }
-
         let cap = regex_tag.captures(tag.as_str());
-        if cap.is_none() {
-            continue;
-        }
-        let cap = cap.unwrap();
-        let group = cap.get(1).expect("capture group 1").as_str();
-        let elem = cap.get(2).expect("capture group 2").as_str();
+        let tag_txt = if let Some(cap) = cap {
+            // single tag
+            let group = cap.get(1).expect("capture group 1: group").as_str();
+            let elem = cap.get(2).expect("capture group 2: element").as_str();
+            format!("Single(Tag(0x{}, 0x{}))", group, elem)
+        } else if let Some(cap) = regex_tag_group100.captures(tag.as_str()) {
+            // tag range over groups: (ggxx, eeee)
+            let group = cap.get(1).expect("capture group 1: group portion").as_str();
+            let elem = cap.get(2).expect("capture group 2: element").as_str();
+            format!("Group100(Tag(0x{}00, 0x{}))", group, elem)
+        } else if let Some(cap) = regex_tag_element100.captures(tag.as_str()) {
+            // tag range over elements: (gggg, eexx)
+            let group = cap.get(1).expect("capture group 1: group").as_str();
+            let elem = cap.get(2).expect("capture group 2: element portion").as_str();
+            format!("Element100(Tag(0x{}, 0x{}00))", group, elem)
+        } else {
+            continue
+        };
 
         let mut vr = vr.unwrap_or_else(|| "".into());
         if vr == "See Note" {
@@ -402,8 +415,8 @@ where
 
         writeln!(
             f,
-            "    E {{ tag: Tag(0x{}, 0x{}), alias: \"{}\", vr: {}{} }},{}",
-            group, elem, alias, vr1, second_vr, obs
+            "    E {{ tag: {}, alias: \"{}\", vr: {}{} }},{}",
+            tag_txt, alias, vr1, second_vr, obs
         )?;
     }
     f.write_all(b"];\n")?;

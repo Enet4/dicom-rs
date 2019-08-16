@@ -109,8 +109,16 @@ pub trait DataDictionary: Debug {
 
 /// The dictionary entry data type, representing a DICOM attribute.
 pub trait DictionaryEntry {
-    /// The attribute tag.
-    fn tag(&self) -> Tag;
+    /// The full possible tag range of this attribute.
+    fn tag_range(&self) -> TagRange;
+    /// The attribute single tag.
+    fn tag(&self) -> Tag {
+        match self.tag_range() {
+            TagRange::Single(tag) => tag,
+            TagRange::Group100(tag) => tag,
+            TagRange::Element100(tag) => tag,
+        }
+    }
     /// The alias of the attribute, with no spaces, usually in UpperCamelCase.
     fn alias(&self) -> &str;
     /// The _typical_ value representation of the attribute.
@@ -119,10 +127,10 @@ pub trait DictionaryEntry {
 }
 
 /// A data type for a dictionary entry with full ownership.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DictionaryEntryBuf {
-    /// The attribute tag
-    pub tag: Tag,
+    /// The attribute tag range
+    pub tag: TagRange,
     /// The alias of the attribute, with no spaces, usually InCapitalizedCamelCase
     pub alias: String,
     /// The _typical_  value representation of the attribute
@@ -130,7 +138,7 @@ pub struct DictionaryEntryBuf {
 }
 
 impl DictionaryEntry for DictionaryEntryBuf {
-    fn tag(&self) -> Tag {
+    fn tag_range(&self) -> TagRange {
         self.tag
     }
     fn alias(&self) -> &str {
@@ -142,10 +150,10 @@ impl DictionaryEntry for DictionaryEntryBuf {
 }
 
 /// A data type for a dictionary entry with a string slice for its alias.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DictionaryEntryRef<'a> {
-    /// The attribute tag
-    pub tag: Tag,
+    /// The attribute tag or tag range
+    pub tag: TagRange,
     /// The alias of the attribute, with no spaces, usually InCapitalizedCamelCase
     pub alias: &'a str,
     /// The _typical_  value representation of the attribute
@@ -153,7 +161,7 @@ pub struct DictionaryEntryRef<'a> {
 }
 
 impl<'a> DictionaryEntry for DictionaryEntryRef<'a> {
-    fn tag(&self) -> Tag {
+    fn tag_range(&self) -> TagRange {
         self.tag
     }
     fn alias(&self) -> &str {
@@ -166,13 +174,17 @@ impl<'a> DictionaryEntry for DictionaryEntryRef<'a> {
 
 /// Utility data structure that resolves to a DICOM attribute tag
 /// at a later time.
-#[derive(Debug)]
-pub struct TagByName<N: AsRef<str>, D: DataDictionary> {
+#[derive(Debug, Clone)]
+pub struct TagByName<N, D> {
     dict: D,
     name: N,
 }
 
-impl<N: AsRef<str>, D: DataDictionary> TagByName<N, D> {
+impl<N, D> TagByName<N, D>
+where
+    N: AsRef<str>,
+    D: DataDictionary,
+{
     /// Create a tag resolver by name using the given dictionary.
     pub fn new(dictionary: D, name: N) -> TagByName<N, D> {
         TagByName {
@@ -182,7 +194,11 @@ impl<N: AsRef<str>, D: DataDictionary> TagByName<N, D> {
     }
 }
 
-impl<N: AsRef<str>, D: DataDictionary> From<TagByName<N, D>> for Option<Tag> {
+impl<N, D> From<TagByName<N, D>> for Option<Tag>
+where
+    N: AsRef<str>,
+    D: DataDictionary,
+{
     fn from(tag: TagByName<N, D>) -> Option<Tag> {
         tag.dict.by_name(tag.name.as_ref()).map(|e| e.tag())
     }

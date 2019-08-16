@@ -8,10 +8,10 @@
 
 mod entries;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fmt::{Display, Formatter};
-use dicom_core::dictionary::{DataDictionary, DictionaryEntryRef};
+use dicom_core::dictionary::{DataDictionary, DictionaryEntryRef, TagRange::*};
 use dicom_core::header::{Tag, VR};
 use lazy_static::lazy_static;
 use crate::entries::ENTRIES;
@@ -30,8 +30,14 @@ pub fn registry() -> &'static StandardDictionaryRegistry {
 /// The data struct containing the standard dictionary.
 #[derive(Debug)]
 pub struct StandardDictionaryRegistry {
+    /// mapping: name → tag
     by_name: HashMap<&'static str, &'static DictionaryEntryRef<'static>>,
+    /// mapping: tag → name
     by_tag: HashMap<Tag, &'static DictionaryEntryRef<'static>>,
+    /// repeating elements of the form (ggxx, eeee). The `xx` portion is zeroed.
+    repeating_ggxx: HashSet<Tag>,
+    /// repeating elements of the form (gggg, eexx). The `xx` portion is zeroed.
+    repeating_eexx: HashSet<Tag>,
 }
 
 impl StandardDictionaryRegistry {
@@ -39,12 +45,24 @@ impl StandardDictionaryRegistry {
         StandardDictionaryRegistry {
             by_name: HashMap::new(),
             by_tag: HashMap::new(),
+            repeating_ggxx: HashSet::new(),
+            repeating_eexx: HashSet::new(),
         }
     }
 
+    /// record the given dictionary entry reference
     fn index(&mut self, entry: &'static DictionaryEntryRef<'static>) -> &mut Self {
         self.by_name.insert(entry.alias, entry);
-        self.by_tag.insert(entry.tag, entry);
+        self.by_tag.insert(entry.tag.inner(), entry);
+        match entry.tag {
+            Group100(tag) => {
+                self.repeating_ggxx.insert(tag);
+            },
+            Element100(tag) => {
+                self.repeating_eexx.insert(tag);
+            },
+            _ => {}
+        }
         self
     }
 }
@@ -52,6 +70,29 @@ impl StandardDictionaryRegistry {
 /// A data dictionary which consults the library's global DICOM attribute registry.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct StandardDataDictionary;
+
+impl StandardDataDictionary {
+    fn indexed_tag(tag: Tag) -> Option<&'static DictionaryEntryRef<'static>> {
+        let r = registry();
+        
+        r.by_tag.get(&tag)
+            .or_else(|| {
+                let group_trimmed = Tag(tag.0 & 0xFF00, tag.1);
+                
+                if r.repeating_ggxx.contains(&group_trimmed) {
+                    eprintln!("Found ranged group {:x} for tag {:x?}", group_trimmed.0, tag);
+                    r.by_tag.get(&group_trimmed)
+                } else {
+                    let elem_trimmed = Tag(tag.0, tag.1 & 0xFF00);
+                    if r.repeating_eexx.contains(&elem_trimmed) {
+                        r.by_tag.get(&elem_trimmed)
+                    } else {
+                        None
+                    }
+                }
+            }).cloned()
+    }
+}
 
 impl DataDictionary for StandardDataDictionary {
     type Entry = DictionaryEntryRef<'static>;
@@ -61,7 +102,7 @@ impl DataDictionary for StandardDataDictionary {
     }
 
     fn by_tag(&self, tag: Tag) -> Option<&Self::Entry> {
-        registry().by_tag.get(&tag).cloned()
+        StandardDataDictionary::indexed_tag(tag)
     }
 }
 
@@ -73,7 +114,7 @@ impl<'a> DataDictionary for &'a StandardDataDictionary {
     }
 
     fn by_tag(&self, tag: Tag) -> Option<&'static DictionaryEntryRef<'static>> {
-        registry().by_tag.get(&tag).cloned()
+        StandardDataDictionary::indexed_tag(tag)
     }
 }
 
@@ -98,62 +139,62 @@ fn init_dictionary() -> StandardDictionaryRegistry {
 type E<'a> = DictionaryEntryRef<'a>;
 const META_ENTRIES: &'static [E<'static>] = &[
     E {
-        tag: Tag(0x0002, 0x0000),
+        tag: Single(Tag(0x0002, 0x0000)),
         alias: "FileMetaInformationGroupLength",
         vr: VR::UL,
     },
     E {
-        tag: Tag(0x0002, 0x0001),
+        tag: Single(Tag(0x0002, 0x0001)),
         alias: "FileMetaInformationVersion",
         vr: VR::OB,
     },
     E {
-        tag: Tag(0x0002, 0x0002),
+        tag: Single(Tag(0x0002, 0x0002)),
         alias: "MediaStorageSOPClassUID",
         vr: VR::UI,
     },
     E {
-        tag: Tag(0x0002, 0x0003),
+        tag: Single(Tag(0x0002, 0x0003)),
         alias: "MediaStorageSOPInstanceUID",
         vr: VR::UI,
     },
     E {
-        tag: Tag(0x0002, 0x0010),
+        tag: Single(Tag(0x0002, 0x0010)),
         alias: "TransferSyntaxUID",
         vr: VR::UI,
     },
     E {
-        tag: Tag(0x0002, 0x0012),
+        tag: Single(Tag(0x0002, 0x0012)),
         alias: "ImplementationClassUID",
         vr: VR::UI,
     },
     E {
-        tag: Tag(0x0002, 0x0013),
+        tag: Single(Tag(0x0002, 0x0013)),
         alias: "ImplentationVersionName",
         vr: VR::SH,
     },
     E {
-        tag: Tag(0x0002, 0x0016),
+        tag: Single(Tag(0x0002, 0x0016)),
         alias: "SourceApplicationEntityTitle",
         vr: VR::AE,
     },
     E {
-        tag: Tag(0x0002, 0x0017),
+        tag: Single(Tag(0x0002, 0x0017)),
         alias: "SendingApplicationEntityTitle",
         vr: VR::AE,
     },
     E {
-        tag: Tag(0x0002, 0x0018),
+        tag: Single(Tag(0x0002, 0x0018)),
         alias: "ReceivingApplicationEntityTitle",
         vr: VR::AE,
     },
     E {
-        tag: Tag(0x0002, 0x0100),
+        tag: Single(Tag(0x0002, 0x0100)),
         alias: "PrivateInformationCreatorUID",
         vr: VR::UI,
     },
     E {
-        tag: Tag(0x0002, 0x0102),
+        tag: Single(Tag(0x0002, 0x0102)),
         alias: "PrivateInformation",
         vr: VR::OB,
     },
@@ -162,7 +203,7 @@ const META_ENTRIES: &'static [E<'static>] = &[
 #[cfg(test)]
 mod tests {
     use super::StandardDataDictionary;
-    use dicom_core::dictionary::{DataDictionary, DictionaryEntryRef};
+    use dicom_core::dictionary::{DataDictionary, DictionaryEntryRef, TagRange::*};
     use dicom_core::header::{Tag, VR};
 
     // tests for just a few attributes to make sure that the entries
@@ -174,7 +215,7 @@ mod tests {
         assert_eq!(
             dict.by_name("PatientName"),
             Some(&DictionaryEntryRef {
-                tag: Tag(0x0010, 0x0010),
+                tag: Single(Tag(0x0010, 0x0010)),
                 alias: "PatientName",
                 vr: VR::PN,
             })
@@ -183,7 +224,7 @@ mod tests {
         assert_eq!(
             dict.by_name("Modality"),
             Some(&DictionaryEntryRef {
-                tag: Tag(0x0008, 0x0060),
+                tag: Single(Tag(0x0008, 0x0060)),
                 alias: "Modality",
                 vr: VR::CS,
             })
@@ -191,8 +232,22 @@ mod tests {
 
         let pixel_data = dict.by_tag(Tag(0x7FE0, 0x0010))
             .expect("Pixel Data attribute should exist");
-        assert_eq!(pixel_data.tag, Tag(0x7FE0, 0x0010));
+        eprintln!("{:X?}", pixel_data.tag);
+        assert_eq!(pixel_data.tag, Single(Tag(0x7FE0, 0x0010)));
         assert_eq!(pixel_data.alias, "PixelData");
         assert!(pixel_data.vr == VR::OB || pixel_data.vr == VR::OW);
+
+        let overlay_data = dict.by_tag(Tag(0x6000, 0x3000))
+            .expect("Overlay Data attribute should exist");
+        assert_eq!(overlay_data.tag, Group100(Tag(0x6000, 0x3000)));
+        assert_eq!(overlay_data.alias, "OverlayData");
+        assert!(overlay_data.vr == VR::OB || overlay_data.vr == VR::OW);
+
+        // repeated overlay data        
+        let overlay_data = dict.by_tag(Tag(0x60EE, 0x3000))
+            .expect("Repeated Overlay Data attribute should exist");
+        assert_eq!(overlay_data.tag, Group100(Tag(0x6000, 0x3000)));
+        assert_eq!(overlay_data.alias, "OverlayData");
+        assert!(overlay_data.vr == VR::OB || overlay_data.vr == VR::OW);
     }
 }
