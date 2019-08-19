@@ -559,7 +559,7 @@ impl Tag {
 
 impl fmt::Debug for Tag {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Tag(0x{:04X}, 0x{:04X})", self.0, self.1)
+        write!(f, "Tag({:#06X?}, {:#06X?})", self.0, self.1)
     }
 }
 
