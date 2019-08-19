@@ -43,9 +43,9 @@ pub struct StandardDictionaryRegistry {
 impl StandardDictionaryRegistry {
     fn new() -> StandardDictionaryRegistry {
         StandardDictionaryRegistry {
-            by_name: HashMap::new(),
-            by_tag: HashMap::new(),
-            repeating_ggxx: HashSet::new(),
+            by_name: HashMap::with_capacity(5000),
+            by_tag: HashMap::with_capacity(5000),
+            repeating_ggxx: HashSet::with_capacity(75),
             repeating_eexx: HashSet::new(),
         }
     }
@@ -80,7 +80,6 @@ impl StandardDataDictionary {
                 let group_trimmed = Tag(tag.0 & 0xFF00, tag.1);
                 
                 if r.repeating_ggxx.contains(&group_trimmed) {
-                    eprintln!("Found ranged group {:x} for tag {:x?}", group_trimmed.0, tag);
                     r.by_tag.get(&group_trimmed)
                 } else {
                     let elem_trimmed = Tag(tag.0, tag.1 & 0xFF00);
