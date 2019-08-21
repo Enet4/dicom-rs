@@ -42,13 +42,9 @@ You can use Cargo to build all crates in the repository.
 cargo build --release
 ```
 
-## Roadmap
+## Roadmap & Contributing
 
-Although no particular timeline is expected, and the list of features to be included here is uncertain, my intent is to publish the first version of this crate when the DICOM object abstraction becomes sufficiently functional. That is, the user should be capable of:
-
- - Reading DICOM objects from files in one of these transfer syntaxes: _ExplicitVRLittleEndian_, _ImplicitVRLittleEndian_ and _ExplicitVRBigEndian_;
- - Creating and writing DICOM objects;
- - Fetching an object's pixel data as an n-dimensional array;
+Please see the [wiki](https://github.com/Enet4/dicom-rs/wiki) for additional guidelines related to the project's roadmap.
 
 ## License
 
