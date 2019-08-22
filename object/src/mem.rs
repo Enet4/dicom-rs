@@ -18,7 +18,7 @@ use dicom_parser::dataset::{DataSetReader, DataToken};
 use dicom_parser::error::{DataSetSyntaxError, Error, Result};
 use dicom_parser::parser::Parse;
 use dicom_parser::text::SpecificCharacterSet;
-use dicom_parser::transfer_syntax::codec::get_registry;
+use dicom_parser::transfer_syntax::registry::get_registry;
 
 /// A full in-memory DICOM data element.
 pub type InMemElement<D> = DataElement<InMemDicomObject<D>>;

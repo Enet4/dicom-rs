@@ -14,7 +14,7 @@ use dicom_dictionary_std::StandardDataDictionary;
 use crate::error::{Error, InvalidValueReadError, Result};
 use crate::parser::{DicomParser, DynamicDicomParser, Parse};
 use crate::text::SpecificCharacterSet;
-use crate::transfer_syntax::Codec;
+use crate::transfer_syntax::TransferSyntax;
 use crate::util::{ReadSeek, SeekInterval};
 use std::fmt;
 use std::io::{Read, Seek, SeekFrom};
@@ -49,7 +49,7 @@ where
 impl<'s, S: 's> DataSetReader<S, DynamicDicomParser, StandardDataDictionary> {
     /// Creates a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
-    pub fn new_with(source: S, ts: &dyn Codec, cs: SpecificCharacterSet) -> Result<Self> {
+    pub fn new_with(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self> {
         let parser = DynamicDicomParser::new_with(ts, cs)?;
 
         is_parse(&parser);
@@ -72,7 +72,7 @@ impl<'s, S: 's, D> DataSetReader<S, DynamicDicomParser, D> {
     pub fn new_with_dictionary(
         source: S,
         dict: D,
-        ts: &dyn Codec,
+        ts: &TransferSyntax,
         cs: SpecificCharacterSet,
     ) -> Result<Self> {
         let parser = DynamicDicomParser::new_with(ts, cs)?;
@@ -278,7 +278,7 @@ impl<'s> LazyDataSetReader<&'s mut dyn ReadSeek, &'s mut dyn Read, DynamicDicomP
     /// while considering the given transfer syntax and specific character set.
     pub fn new_with(
         source: &'s mut dyn ReadSeek,
-        ts: &dyn Codec,
+        ts: &TransferSyntax,
         cs: SpecificCharacterSet,
     ) -> Result<Self> {
         let parser = DicomParser::new_with(ts, cs)?;

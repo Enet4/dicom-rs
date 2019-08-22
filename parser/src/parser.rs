@@ -10,7 +10,7 @@ use crate::text::{
     validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, TextValidationOutcome,
     DynamicTextCodec, SpecificCharacterSet, TextCodec};
 use crate::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-use crate::transfer_syntax::Codec;
+use crate::transfer_syntax::TransferSyntax;
 use crate::util::n_times;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader, Tag, VR};
 use dicom_core::value::{C, PrimitiveValue};
@@ -123,7 +123,7 @@ macro_rules! require_known_length {
 
 impl DynamicDicomParser {
     /// Create a new DICOM parser for the given transfer syntax and character set.
-    pub fn new_with(ts: &dyn Codec, cs: SpecificCharacterSet) -> Result<Self> {
+    pub fn new_with(ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self> {
         let basic = ts.get_basic_decoder();
         let decoder = ts
             .get_decoder()
