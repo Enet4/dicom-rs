@@ -5,12 +5,8 @@
 #![recursion_limit="72"]
 
 pub mod dataset;
-pub mod decode;
-pub mod encode;
 pub mod parser;
-pub mod text;
 pub mod error;
-pub mod transfer_syntax;
 
 mod util;
 

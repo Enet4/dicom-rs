@@ -4,10 +4,10 @@ use dicom_parser::error::{Error, Result, InvalidValueReadError};
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 use dicom_core::{Length, Tag};
 use dicom_core::header::Header;
-use dicom_parser::decode;
-use dicom_parser::decode::Decode;
-use dicom_parser::text;
-use dicom_parser::text::TextCodec;
+use dicom_encoding::decode;
+use dicom_encoding::decode::Decode;
+use dicom_encoding::text;
+use dicom_encoding::text::TextCodec;
 
 const DICM_MAGIC_CODE: [u8; 4] = [b'D', b'I', b'C', b'M'];
 
@@ -88,7 +88,7 @@ where
     let mut v = vec![0; len as usize];
     source.read_exact(&mut v)?;
     *group_length_remaining -= 8 + len;
-    text.decode(&v)
+    text.decode(&v).map_err(From::from)
 }
 
 impl DicomMetaTable {

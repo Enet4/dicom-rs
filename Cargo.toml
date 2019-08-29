@@ -2,7 +2,9 @@
 members = [
     "parent",
     "core",
+    "encoding",
     "parser",
+    "transfer-syntax-registry",
     "object",
     "dictionary-std",
     "dictionary-builder"

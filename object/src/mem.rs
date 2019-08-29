@@ -10,15 +10,15 @@ use smallvec::SmallVec;
 use crate::DicomObject;
 use crate::meta::DicomMetaTable;
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
-use dicom_dictionary_std::StandardDataDictionary;
 use dicom_core::header::Header;
 use dicom_core::value::{C, DicomValueType, Value, ValueType};
 use dicom_core::{DataElement, Length, Tag, VR};
+use dicom_dictionary_std::StandardDataDictionary;
+use dicom_encoding::text::SpecificCharacterSet;
 use dicom_parser::dataset::{DataSetReader, DataToken};
 use dicom_parser::error::{DataSetSyntaxError, Error, Result};
 use dicom_parser::parser::Parse;
-use dicom_parser::text::SpecificCharacterSet;
-use dicom_parser::transfer_syntax::registry::get_registry;
+use dicom_transfer_syntax_registry::get_registry;
 
 /// A full in-memory DICOM data element.
 pub type InMemElement<D> = DataElement<InMemDicomObject<D>>;

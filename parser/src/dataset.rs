@@ -11,10 +11,10 @@ use dicom_core::header::{
 use dicom_core::value::{DicomValueType, PrimitiveValue};
 use dicom_core::{Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
+use dicom_encoding::transfer_syntax::TransferSyntax;
+use dicom_encoding::text::SpecificCharacterSet;
 use crate::error::{Error, InvalidValueReadError, Result};
 use crate::parser::{DicomParser, DynamicDicomParser, Parse};
-use crate::text::SpecificCharacterSet;
-use crate::transfer_syntax::TransferSyntax;
 use crate::util::{ReadSeek, SeekInterval};
 use std::fmt;
 use std::io::{Read, Seek, SeekFrom};

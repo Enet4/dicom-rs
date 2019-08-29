@@ -1,8 +1,11 @@
 //! Module containing the DICOM Transfer Syntax data structure and related methods.
 //! Similar to the DcmCodec in DCMTK, the `TransferSyntax` contains all of the necessary
 //! algorithms for decoding and encoding DICOM data in a certain transfer syntax.
+//! 
+//! This crate does not host specific transfer syntaxes. Instead, they are created in
+//! other crates and registered in the global transfer syntax registry. For more
+//! information, please see the `dicom-transfer-syntax-registry` crate.
 
-pub mod registry;
 pub mod explicit_le;
 pub mod explicit_be;
 pub mod implicit_le;
@@ -19,9 +22,10 @@ pub type DynamicDecoder = Box<dyn Decode<Source = dyn Read>>;
 /// An encoder with its type erased.
 pub type DynamicEncoder = Box<dyn Encode<Writer = dyn Write>>;
 
-/// A DICOM transfer syntax specifier.
+/// A DICOM transfer syntax specifier. The data RW adapter `A` specifies
+/// custom codec capabilities when required.
 #[derive(Debug)]
-pub struct TransferSyntax<P = DynDataRWAdapter, A = DynDataRWAdapter> {
+pub struct TransferSyntax<A = DynDataRWAdapter> {
     /// The unique identifier of the transfer syntax.
     uid: &'static str,
     /// The name of the transfer syntax.
@@ -31,17 +35,35 @@ pub struct TransferSyntax<P = DynDataRWAdapter, A = DynDataRWAdapter> {
     /// Whether the transfer syntax mandates an explicit value representation,
     /// or the VR is implicit.
     explicit_vr: bool,
-    /// The codec implementation for retrieving and writing encapsulated pixel
-    /// data, if applicable.
-    pixel_codec: Option<P>,
-    /// The codec implementation for the full DICOM data set, if applicable.
-    /// This would be used by _Deflated Explicit VR Little Endian_, for example.
-    dataset_codec: Option<A>,
+    /// The transfer syntax' requirements and implemented capabilities.
+    codec: Codec<A>,
+}
+
+/// Description regarding the encoding and decoding requirements of a transfer
+/// syntax. This is also used as a means to describe whether pixel data is
+/// encapsulated and whether this implementation supports it.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Codec<A> {
+    /// No codec is given, nor is it required.
+    None,
+    /// Custom encoding and decoding of the entire data set is required, but
+    /// not supported. This could be used by a stub of
+    /// _Deflated Explicit VR Little Endian_, for example.
+    Unsupported,
+    /// Custom encoding and decoding of the pixel data set is required, but
+    /// not supported. The program should still be able to parse DICOM
+    /// data sets and fetch the pixel data in its encapsulated form.
+    EncapsulatedPixelData,
+    /// A pixel data encapsulation codec is required and provided for reading
+    /// and writing pixel data
+    PixelData(A),
+    /// A full, custom data set codec is required and provided.
+    Dataset(A),
 }
 
 /// An alias for a transfer syntax specifier with no pixel data encapsulation
 /// nor data set deflating.
-pub type AdapterFreeTransferSyntax = TransferSyntax<NeverAdapter, NeverAdapter>;
+pub type AdapterFreeTransferSyntax = TransferSyntax<NeverAdapter>;
 
 /// An adapter of byte read and write streams.
 pub trait DataRWAdapter<R, W> {
@@ -87,7 +109,7 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum NeverAdapter {}
 
 impl<R, W> DataRWAdapter<R, W> for NeverAdapter {
@@ -109,47 +131,51 @@ impl<R, W> DataRWAdapter<R, W> for NeverAdapter {
     }
 }
 
-#[derive(Debug)]
-pub struct ErasedAdapter<T>(T);
-
-impl<T: 'static, R: 'static, W: 'static> DataRWAdapter<R, W> for ErasedAdapter<T>
-where
-    T: DataRWAdapter<R, W>,
-    R: Read + Send + Sync,
-    W: Write + Send + Sync,
-{
-    type Reader = Box<dyn Read>;
-    type Writer = Box<dyn Write>;
-
-    fn adapt_reader(&self, reader: R) -> Self::Reader
-    where
-        R: Read,
-    {
-        Box::from(self.0.adapt_reader(reader)) as Box<_>
+impl<A> TransferSyntax<A> {
+    pub const fn new(uid: &'static str, name: &'static str, byte_order: Endianness, explicit_vr: bool, codec: Codec<A>) -> Self {
+        TransferSyntax {
+            uid,
+            name,
+            byte_order,
+            explicit_vr,
+            codec,
+        }
     }
 
-    fn adapt_writer(&self, writer: W) -> Self::Writer
-    where
-        W: Write,
-    {
-        Box::from(self.0.adapt_writer(writer)) as Box<_>
-    }
-}
-
-impl<P, A> TransferSyntax<P, A> {
     /// Obtain this transfer syntax' unique identifier.
-    pub fn uid(&self) -> &'static str {
+    pub const fn uid(&self) -> &'static str {
         self.uid
     }
 
     /// Obtain the name of this transfer syntax.
-    pub fn name(&self) -> &'static str {
+    pub const fn name(&self) -> &'static str {
         self.name
     }
 
     /// Obtain this transfer syntax' expected endianness.
-    pub fn endianness(&self) -> Endianness {
+    pub const fn endianness(&self) -> Endianness {
         self.byte_order
+    }
+
+    /// Obtain this transfer syntax' codec specification.
+    pub fn codec(&self) -> &Codec<A> {
+        &self.codec
+    }
+
+    /// Check whether reading and writing of data sets is unsupported.
+    pub fn unsupported(&self) -> bool {
+        match self.codec {
+            Codec::Unsupported => true,
+            _ => false,
+        }
+    }
+
+    /// Check whether reading and writing the pixel data is unsupported.
+    pub fn unsupported_pixel_encapsulation(&self) -> bool {
+        match self.codec {
+            Codec::Unsupported | Codec::EncapsulatedPixelData => true,
+            _ => false,
+        }
     }
 
     /// Retrieve the appropriate data element decoder for this transfer syntax.
@@ -201,53 +227,26 @@ impl<P, A> TransferSyntax<P, A> {
         BasicDecoder::from(self.endianness())
     }
 
-    /// Type-erase the pixel codec and data set codec.
+    /// Type-erase the pixel data or data set codec.
     pub fn erased(self) -> TransferSyntax
     where
-        P: Send + Sync + 'static,
         A: Send + Sync + 'static,
-        P: DataRWAdapter<Box<dyn Read>, Box<dyn Write>, Reader = Box<dyn Read>, Writer = Box<dyn Write>>,
         A: DataRWAdapter<Box<dyn Read>, Box<dyn Write>, Reader = Box<dyn Read>, Writer = Box<dyn Write>>,
     {
+        let codec = match self.codec {
+            Codec::Dataset(a) => Codec::Dataset(Box::new(a) as DynDataRWAdapter),
+            Codec::PixelData(a) => Codec::PixelData(Box::new(a) as DynDataRWAdapter),
+            Codec::EncapsulatedPixelData => Codec::EncapsulatedPixelData,
+            Codec::Unsupported => Codec::Unsupported,
+            Codec::None => Codec::None,
+        };
+
         TransferSyntax {
             uid: self.uid,
             name: self.name,
             byte_order: self.byte_order,
             explicit_vr: self.explicit_vr,
-            pixel_codec: self.pixel_codec.map(|c| Box::new(c) as DynDataRWAdapter),
-            dataset_codec: self.dataset_codec.map(|c| Box::new(c) as DynDataRWAdapter),
+            codec,
         }
     }
 }
-
-/// Retrieve the default transfer syntax.
-pub fn default() -> AdapterFreeTransferSyntax {
-    IMPLICIT_VR_LITTLE_ENDIAN
-}
-
-pub const IMPLICIT_VR_LITTLE_ENDIAN: AdapterFreeTransferSyntax = TransferSyntax {
-    uid: "1.2.840.10008.1.2",
-    name: "Implicit VR Little Endian",
-    byte_order: Endianness::Little,
-    explicit_vr: false,
-    pixel_codec: None,
-    dataset_codec: None,
-};
-
-pub const EXPLICIT_VR_LITTLE_ENDIAN: AdapterFreeTransferSyntax = TransferSyntax {
-    uid: "1.2.840.10008.1.2.1",
-    name: "Explicit VR Little Endian",
-    byte_order: Endianness::Little,
-    explicit_vr: true,
-    pixel_codec: None,
-    dataset_codec: None,
-};
-
-pub const EXPLICIT_VR_BIG_ENDIAN: AdapterFreeTransferSyntax = TransferSyntax {
-    uid: "1.2.840.10008.1.2.2",
-    name: "Explicit VR Big Endian",
-    byte_order: Endianness::Big,
-    explicit_vr: true,
-    pixel_codec: None,
-    dataset_codec: None,
-};

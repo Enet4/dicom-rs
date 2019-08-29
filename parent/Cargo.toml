@@ -16,5 +16,7 @@ repository = "Enet4/dicom-rs"
 [dependencies]
 dicom-core = { path = "../core" }
 dicom-dictionary-std = { path = "../dictionary-std" }
+dicom-encoding = { path = "../encoding" }
 dicom-parser = { path = "../parser" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry" }
 dicom-object = { path = "../object" }

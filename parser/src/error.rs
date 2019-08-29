@@ -1,7 +1,7 @@
 use crate::dataset::DataToken;
 use dicom_core::error::Error as CoreError;
 pub use dicom_core::error::{CastValueError, InvalidValueReadError};
-use std::borrow::Cow;
+use dicom_encoding::error::{Error as EncodingError, TextEncodingError};
 use std::error::Error as BaseError;
 use std::fmt;
 use std::io;
@@ -105,6 +105,19 @@ impl From<CoreError> for Error {
     }
 }
 
+impl From<EncodingError> for Error {
+    fn from(e: EncodingError) -> Self {
+        match e {
+            EncodingError::UnexpectedElement => Error::UnexpectedElement,
+            EncodingError::UnexpectedDataValueLength => Error::UnexpectedDataValueLength,
+            EncodingError::ReadValue(e) => Error::ReadValue(e),
+            EncodingError::TextEncoding(e) => Error::TextEncoding(e),
+            EncodingError::CastValue(e) => Error::CastValue(e),
+            EncodingError::Io(e) => Error::Io(e),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum DataSetSyntaxError {
     PrematureEnd,
@@ -128,29 +141,5 @@ impl ::std::error::Error for DataSetSyntaxError {
             DataSetSyntaxError::PrematureEnd => "data set ended prematurely",
             DataSetSyntaxError::UnexpectedToken(_) => "unexpected data set token",
         }
-    }
-}
-
-/// An error type for text encoding issues.
-#[derive(Debug, Clone, PartialEq)]
-pub struct TextEncodingError(Cow<'static, str>);
-
-impl TextEncodingError {
-    /// Build an error from a cause text, as provided by the
-    /// `encoding` crate.
-    pub fn new<E: Into<Cow<'static, str>>>(cause: E) -> Self {
-        TextEncodingError(cause.into())
-    }
-}
-
-impl fmt::Display for TextEncodingError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: {}", self.description(), self.0)
-    }
-}
-
-impl ::std::error::Error for TextEncodingError {
-    fn description(&self) -> &str {
-        "encoding/decoding process failed"
     }
 }

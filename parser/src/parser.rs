@@ -3,14 +3,15 @@
 //! an iterator of elements, with either sequential or random access.
 
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
-use crate::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
-use crate::decode::{BasicDecode, Decode};
-use crate::error::{Error, InvalidValueReadError, Result, TextEncodingError};
-use crate::text::{
+use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
+use dicom_encoding::decode::{BasicDecode, Decode};
+use dicom_encoding::error::{TextEncodingError, InvalidValueReadError, Result as EncodingResult};
+use dicom_encoding::text::{
     validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, TextValidationOutcome,
     DynamicTextCodec, SpecificCharacterSet, TextCodec};
-use crate::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-use crate::transfer_syntax::TransferSyntax;
+use crate::error::{Error, Result};
+use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
+use dicom_encoding::transfer_syntax::TransferSyntax;
 use crate::util::n_times;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader, Tag, VR};
 use dicom_core::value::{C, PrimitiveValue};
@@ -220,7 +221,7 @@ where
         self.buffer.resize_with(len, Default::default);
         from.read_exact(&mut self.buffer)?;
 
-        let parts: Result<C<_>> = match header.vr() {
+        let parts: EncodingResult<C<_>> = match header.vr() {
             VR::AE | VR::CS | VR::AS => self.buffer
                 .split(|v| *v == b'\\')
                 .map(|slice| DefaultCharacterSetCodec.decode(slice))
@@ -249,7 +250,7 @@ where
         self.buffer.resize_with(len, Default::default);
         from.read_exact(&mut self.buffer)?;
 
-        let parts: Result<C<_>> = match header.vr() {
+        let parts: EncodingResult<C<_>> = match header.vr() {
             VR::AE | VR::CS | VR::AS => self.buffer
                 .split(|v| *v == 0)
                 .map(|slice| DefaultCharacterSetCodec.decode(slice))
@@ -268,7 +269,7 @@ where
         let len = require_known_length!(header);
 
         let len = len >> 1;
-        let vec: Result<C<_>> = n_times(len)
+        let vec: EncodingResult<C<_>> = n_times(len)
             .map(|_| self.basic.decode_ss(&mut *from))
             .collect();
         Ok(PrimitiveValue::I16(vec?))
@@ -278,7 +279,7 @@ where
         let len = require_known_length!(header);
         // sequence of 32-bit floats
         let len = len >> 2;
-        let vec: Result<C<_>> = n_times(len)
+        let vec: EncodingResult<C<_>> = n_times(len)
             .map(|_| self.basic.decode_fl(&mut *from))
             .collect();
         Ok(PrimitiveValue::F32(vec?))
@@ -396,7 +397,7 @@ where
         let len = require_known_length!(header);
         // sequence of 64-bit floats
         let len = len >> 3;
-        let vec: Result<C<_>> = n_times(len)
+        let vec: EncodingResult<C<_>> = n_times(len)
             .map(|_| self.basic.decode_fd(&mut *from))
             .collect();
         Ok(PrimitiveValue::F64(vec?))
@@ -407,7 +408,7 @@ where
         // sequence of 32-bit unsigned integers
 
         let len = len >> 2;
-        let vec: Result<C<_>> = n_times(len)
+        let vec: EncodingResult<C<_>> = n_times(len)
             .map(|_| self.basic.decode_ul(&mut *from))
             .collect();
         Ok(PrimitiveValue::U32(vec?))
@@ -418,7 +419,7 @@ where
         // sequence of 16-bit unsigned integers
 
         let len = len >> 1;
-        let vec: Result<C<_>> = n_times(len)
+        let vec: EncodingResult<C<_>> = n_times(len)
             .map(|_| self.basic.decode_us(&mut *from))
             .collect();
         Ok(PrimitiveValue::U16(vec?))
@@ -429,7 +430,7 @@ where
         // sequence of 64-bit unsigned integers
 
         let len = len >> 3;
-        let vec: Result<C<_>> = n_times(len)
+        let vec: EncodingResult<C<_>> = n_times(len)
             .map(|_| self.basic.decode_uv(&mut *from))
             .collect();
         Ok(PrimitiveValue::U64(vec?))
@@ -440,7 +441,7 @@ where
         // sequence of 32-bit signed integers
 
         let len = len >> 2;
-        let vec: Result<C<_>> = n_times(len)
+        let vec: EncodingResult<C<_>> = n_times(len)
             .map(|_| self.basic.decode_sl(&mut *from))
             .collect();
         Ok(PrimitiveValue::I32(vec?))
@@ -451,7 +452,7 @@ where
         // sequence of 64-bit signed integers
 
         let len = len >> 3;
-        let vec: Result<C<_>> = n_times(len)
+        let vec: EncodingResult<C<_>> = n_times(len)
             .map(|_| self.basic.decode_sv(&mut *from))
             .collect();
         Ok(PrimitiveValue::I64(vec?))
@@ -465,11 +466,11 @@ where
     S: Read,
 {
     fn decode_header(&mut self, from: &mut S) -> Result<DataElementHeader> {
-        self.decoder.decode_header(from)
+        self.decoder.decode_header(from).map_err(From::from)
     }
 
     fn decode_item_header(&mut self, from: &mut S) -> Result<SequenceItemHeader> {
-        self.decoder.decode_item_header(from)
+        self.decoder.decode_item_header(from).map_err(From::from)
     }
 
     fn read_value(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {

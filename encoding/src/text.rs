@@ -70,7 +70,7 @@ pub enum SpecificCharacterSet {
     /// The Unicode character set defined in ISO IR 192, based on the UTF-8 encoding.
     IsoIr192,
 
-    // TODO add more
+    // TODO make this more flexible (maybe registry-based)
 }
 
 impl Default for SpecificCharacterSet {
