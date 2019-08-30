@@ -13,3 +13,4 @@ dicom-dictionary-std = { path = "../dictionary-std" }
 quick-error = "1.2.2"
 encoding = "0.2.33"
 byteordered = "0.4.0"
+inventory = "0.1.4"

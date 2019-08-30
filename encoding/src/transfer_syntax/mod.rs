@@ -39,6 +39,24 @@ pub struct TransferSyntax<A = DynDataRWAdapter> {
     codec: Codec<A>,
 }
 
+// Collect transfer syntax specifiers from other crates.
+inventory::collect!(TransferSyntax);
+
+#[macro_export]
+/// Submit a transfer syntax specifier to be supported by the
+/// program's runtime. This is to be used by crates wishing to provide
+/// additional support for a certain transfer syntax.
+/// 
+/// This macro does actually "run" anything, so place it outside of any
+/// function body.
+macro_rules! submit_transfer_syntax {
+    ($ts: expr) => {
+        inventory::submit! {
+            ($ts).erased()
+        }
+    }
+}
+
 /// Description regarding the encoding and decoding requirements of a transfer
 /// syntax. This is also used as a means to describe whether pixel data is
 /// encapsulated and whether this implementation supports it.
@@ -55,7 +73,7 @@ pub enum Codec<A> {
     /// data sets and fetch the pixel data in its encapsulated form.
     EncapsulatedPixelData,
     /// A pixel data encapsulation codec is required and provided for reading
-    /// and writing pixel data
+    /// and writing pixel data.
     PixelData(A),
     /// A full, custom data set codec is required and provided.
     Dataset(A),
@@ -162,7 +180,17 @@ impl<A> TransferSyntax<A> {
         &self.codec
     }
 
+    /// Check whether this transfer syntax specifier provides a complete
+    /// implementation.
+    pub fn fully_supported(&self) -> bool {
+        match self.codec {
+            Codec::None | Codec::Dataset(_) | Codec::PixelData(_) => true,
+            _ => false,
+        }
+    }
+
     /// Check whether reading and writing of data sets is unsupported.
+    /// If this is `true`, encoding and decoding will not be available.
     pub fn unsupported(&self) -> bool {
         match self.codec {
             Codec::Unsupported => true,
@@ -171,6 +199,9 @@ impl<A> TransferSyntax<A> {
     }
 
     /// Check whether reading and writing the pixel data is unsupported.
+    /// If this is `true`, encoding and decoding of the data set will still
+    /// be possible, but the pixel data will only be available in its
+    /// encapsulated form.
     pub fn unsupported_pixel_encapsulation(&self) -> bool {
         match self.codec {
             Codec::Unsupported | Codec::EncapsulatedPixelData => true,

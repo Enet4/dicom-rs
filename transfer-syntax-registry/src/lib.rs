@@ -13,7 +13,7 @@ use lazy_static::lazy_static;
 
 /// Data type for a registry of DICOM.
 pub struct TransferSyntaxRegistry {
-    m: HashMap<&'static str, TransferSyntax>,
+    m: HashMap<&'static str, &'static TransferSyntax>,
 }
 
 impl fmt::Debug for TransferSyntaxRegistry {
@@ -29,7 +29,7 @@ impl fmt::Debug for TransferSyntaxRegistry {
 
 impl TransferSyntaxRegistry {
     /// Obtain a DICOM codec by transfer syntax UID.
-    pub fn get<U: AsRef<str>>(&self, uid: U) -> Option<&TransferSyntax> {
+    pub fn get<U: AsRef<str>>(&self, uid: U) -> Option<&'static TransferSyntax> {
         let ts_uid = {
             let uid = uid.as_ref();
             if uid.chars().rev().next() == Some('\0') {
@@ -38,7 +38,7 @@ impl TransferSyntaxRegistry {
                 &uid
             }
         };
-        self.m.get(ts_uid)
+        self.m.get(ts_uid).map(|ts| *ts)
     }
 
     /// Register the given transfer syntax (TS) to the system. It can override
@@ -46,10 +46,10 @@ impl TransferSyntaxRegistry {
     /// certain codecs which are not supported by the previously registered
     /// TS. If no such requirements are imposed, this function returns `false`
     /// and no changes are made.
-    fn register(&mut self, ts: TransferSyntax) -> bool {
+    fn register(&mut self, ts: &'static TransferSyntax) -> bool {
         match self.m.entry(&ts.uid()) {
             Entry::Occupied(mut e) => {
-                let replace = match (&e.get().codec(), &ts.codec()) {
+                let replace = match (&e.get().codec(), ts.codec()) {
                     (Codec::Unsupported, Codec::Dataset(_)) |
                     (Codec::EncapsulatedPixelData, Codec::PixelData(_)) => {
                         true
@@ -61,6 +61,7 @@ impl TransferSyntaxRegistry {
                         eprintln!("Inconsistent requirements for transfer syntax {}: `Unsupported` cannot be replaced with `PixelData`", ts.uid());
                         false
                     },
+                    // ignoring TS with less or equal implementation 
                     _ => false,
                 };
 
@@ -81,7 +82,13 @@ impl TransferSyntaxRegistry {
 
 lazy_static! {
     static ref REGISTRY: TransferSyntaxRegistry = {
-        TransferSyntaxRegistry { m: initialize_codecs() }
+        let mut registry = TransferSyntaxRegistry { m: HashMap::with_capacity(32) };
+
+        for ts in inventory::iter::<TransferSyntax> {
+            registry.register(ts);
+        }
+
+        registry
     };
 }
 
@@ -95,73 +102,6 @@ pub fn get_registry() -> &'static TransferSyntaxRegistry {
     &REGISTRY
 }
 
-fn initialize_codecs() -> HashMap<&'static str, TransferSyntax> {
-    let mut m = HashMap::<&'static str, TransferSyntax>::new();
-
-    use crate::entries::*;
-
-    // the three base transfer syntaxes, fully supported
-    let ts = EXPLICIT_VR_LITTLE_ENDIAN;
-    m.insert(ts.uid(), ts.erased());
-    let ts = IMPLICIT_VR_LITTLE_ENDIAN;
-    m.insert(ts.uid(), ts.erased());
-    let ts = EXPLICIT_VR_BIG_ENDIAN;
-    m.insert(ts.uid(), ts.erased());
-
-    // stub transfer syntaxes, only partially supported due
-    // to pixel data encapsulation
-    let ts = JPEG_BASELINE;
-    m.insert(ts.uid(), ts.erased());
-    let ts = JPEG_EXTENDED;
-    m.insert(ts.uid(), ts.erased());
-    let ts = JPEG_LOSSLESS_NON_HIERARCHICAL;
-    m.insert(ts.uid(), ts.erased());
-    let ts = JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION;
-    m.insert(ts.uid(), ts.erased());
-    let ts = JPEG_LS_LOSSLESS_IMAGE_COMPRESSION;
-    m.insert(ts.uid(), ts.erased());
-    let ts = JPEG_LS_LOSSY_IMAGE_COMPRESSION;
-    m.insert(ts.uid(), ts.erased());
-    let ts = JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY;
-    m.insert(ts.uid(), ts.erased());
-    let ts = JPEG_2000_IMAGE_COMPRESSION;
-    m.insert(ts.uid(), ts.erased());
-    let ts = JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION_LOSSLESS_ONLY;
-    m.insert(ts.uid(), ts.erased());
-    let ts = JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION;
-    m.insert(ts.uid(), ts.erased());
-    let ts = JPIP_REFERENCED;
-    m.insert(ts.uid(), ts.erased());
-    let ts = MPEG2_MAIN_PROFILE_MAIN_LEVEL;
-    m.insert(ts.uid(), ts.erased());
-    let ts = MPEG2_MAIN_PROFILE_HIGH_LEVEL;
-    m.insert(ts.uid(), ts.erased());
-    let ts = MPEG4_AVC_H264_HIGH_PROFILE;
-    m.insert(ts.uid(), ts.erased());
-    let ts = MPEG4_AVC_H264_BD_COMPATIBLE_HIGH_PROFILE;
-    m.insert(ts.uid(), ts.erased());
-    let ts = MPEG4_AVC_H264_HIGH_PROFILE_FOR_2D_VIDEO;
-    m.insert(ts.uid(), ts.erased());
-    let ts = MPEG4_AVC_H264_HIGH_PROFILE_FOR_3D_VIDEO;
-    m.insert(ts.uid(), ts.erased());
-    let ts = MPEG4_AVC_H264_STEREO_HIGH_PROFILE;
-    m.insert(ts.uid(), ts.erased());
-    let ts = HEVC_H265_MAIN_PROFILE;
-    m.insert(ts.uid(), ts.erased());
-    let ts = HEVC_H265_MAIN_10_PROFILE;
-    m.insert(ts.uid(), ts.erased());
-    let ts = RLE_LOSSLESS;
-    m.insert(ts.uid(), ts.erased());
-
-    // stub transfer syntaxes, known but not supported
-    let ts = DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN;
-    m.insert(ts.uid(), ts.erased());
-    let ts = JPIP_DEREFERENCED_DEFLATE;
-    m.insert(ts.uid(), ts.erased());
-
-    m
-}
-
 /// create a TS with an unsupported pixel encapsulation
 pub(crate) const fn create_ts_stub(uid: &'static str, name: &'static str) -> AdapterFreeTransferSyntax {
     TransferSyntax::new(
@@ -171,4 +111,37 @@ pub(crate) const fn create_ts_stub(uid: &'static str, name: &'static str) -> Ada
         true,
         Codec::EncapsulatedPixelData,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{get_registry, TransferSyntaxRegistry};
+
+    fn assert_fully_supported(registry: &TransferSyntaxRegistry, mut uid: &'static str) {
+        let ts = registry.get(uid);
+        assert!(ts.is_some());
+        let ts = ts.unwrap();
+        if uid.ends_with("\0") {
+            uid = &uid[0..uid.len() - 1];
+        }
+        assert_eq!(ts.uid(), uid);
+        assert!(ts.fully_supported());
+    }
+
+    #[test]
+    fn contains_base_ts() {
+        let registry = get_registry();
+
+        // contains implicit VR little endian and is fully supported
+        assert_fully_supported(&registry, "1.2.840.10008.1.2");
+
+        // should work the same for trailing null characters
+        assert_fully_supported(&registry, "1.2.840.10008.1.2\0");
+
+        // contains explicit VR little endian and is fully supported
+        assert_fully_supported(&registry, "1.2.840.10008.1.2.1");
+
+        // contains explicit VR big endian and is fully supported
+        assert_fully_supported(&registry, "1.2.840.10008.1.2.2");
+    }
 }
