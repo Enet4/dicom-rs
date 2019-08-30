@@ -2,21 +2,18 @@
 //! from the latest DICOM standard found online, then creates
 //! code or data to reproduce it in the core library.
 //!
-//! This is a work in progress. It can already retrieve attributes with
-//! very specific tags, but might skip some patterns found in the standard
-//! (such as (60xx,3000), which is for overlay data). A better way to handle
-//! these cases is due.
-//!
 //! ### How to use
 //!
 //! Simply run the application. It will automatically retrieve the dictionary
 //! from the official DICOM website and store the result in "entries.rs".
 //! Future versions will enable different kinds of outputs.
+//! 
+//! Please use the `--help` flag for the full usage information.
 
 use clap::{App, Arg};
 use futures::{Future, Stream};
 use hyper::client::Client;
-use hyper::client::FutureResponse;
+use hyper::client::ResponseFuture;
 use hyper::{Chunk, Uri};
 use serde::Serialize;
 use serde_json::to_writer;
@@ -83,8 +80,8 @@ fn main() {
     if src.starts_with("http:") || src.starts_with("https:") {
         let src = Uri::from_str(src).unwrap();
         println!("Downloading DICOM dictionary ...");
-        let req = xml_from_site(&core, src).and_then(|resp| {
-            resp.body().concat2().and_then(|body: Chunk| {
+        let req = xml_from_site(src).and_then(|resp| {
+            resp.into_body().concat2().and_then(|body: Chunk| {
                 let xml_entries = XmlEntryIterator::new(&*body).map(|item| item.unwrap());
                 println!("Writing to file ...");
                 match format {
@@ -113,8 +110,8 @@ fn main() {
 type XmlResult<T> = Result<T, XmlError>;
 type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
 
-fn xml_from_site(core: &Core, url: Uri) -> FutureResponse {
-    let client = Client::new(&core.handle());
+fn xml_from_site(url: Uri) -> ResponseFuture {
+    let client = Client::new();
     client.get(url)
 }
 

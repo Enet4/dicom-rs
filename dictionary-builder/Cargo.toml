@@ -2,21 +2,21 @@
 name = "dicom-dictionary-builder"
 version = "0.1.0-pre.1"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
-description = "A generator of DICOM data dictionaries"
+description = "A generator of DICOM data dictionaries from standard documentation"
 edition = "2018"
 license = "Apache-2.0 OR MIT"
 publish = false
 repository = "https://github.com/Enet4/dicom-rs"
 
 [[bin]]
-name = "dictionary-builder"
-path = "main.rs"
+name = "dicom-dictionary-builder"
+path = "src/main.rs"
 
 [dependencies]
 clap = "2.18.0"
 futures = "~0.1.21"
-hyper = "0.11.6"
-quick-xml = "0.12.1"
+hyper = "0.12.33"
+quick-xml = "0.16.0"
 regex = "1.0.0"
 serde = { version = "1.0.55", features = ["derive"]}
 serde_json = "1.0.17"
