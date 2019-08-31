@@ -84,15 +84,18 @@ where
         let mut buf = [0u8; 4];
         source.read_exact(&mut buf)?;
         let len = LittleEndian::read_u32(&buf);
-        // !!!
+
         // VR resolution is done with the help of the data dictionary.
-        // However, the value's representation isn't always what's stated
-        // in the dictionary (e.g. PixelData can be either OB or OW).
-        // These edge cases ought to be addressed eventually.
-        let vr = self.dict
-            .by_tag(tag)
-            .map(|entry| entry.vr())
-            .unwrap_or(VR::UN);
+        // In Implicit VR Little Endian, the VR of OB may not be used for Pixel
+        // Data (7FE0,0010). This edge case is addressed manually.
+        let vr = if tag == Tag(0x7FE0, 0x0010) {
+            VR::OW
+        } else {
+            self.dict
+                .by_tag(tag)
+                .map(|entry| entry.vr())
+                .unwrap_or(VR::UN)
+        };
         Ok(DataElementHeader::new(tag, vr, Length(len)))
     }
 
