@@ -1,6 +1,6 @@
 [package]
 name = "dcmdump"
-version = "0.1.0-pre.1"
+version = "0.1.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A CLI tool for inspecting DICOM files"
 edition = "2018"
