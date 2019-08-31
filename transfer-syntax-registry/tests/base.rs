@@ -16,13 +16,6 @@ fn assert_fully_supported(registry: &TransferSyntaxRegistry, mut uid: &'static s
 
 #[test]
 fn contains_base_ts() {
-    
-    eprintln!("List of TSs in inventory:");
-    for ts in inventory::iter::<TransferSyntax> {
-        eprintln!("> {} - {}", ts.uid(), ts.name());
-    }
-    eprintln!("- end of list of TSs in inventory -");
-
     let registry = get_registry();
 
     // contains implicit VR little endian and is fully supported
