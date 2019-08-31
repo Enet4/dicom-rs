@@ -6,6 +6,7 @@ description = "Standard DICOM attribute dictionary"
 edition = "2018"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/Enet4/dicom-rs"
+keywords = ["dicom"]
 
 [dependencies]
 dicom-core = { path = "../core" }

@@ -7,6 +7,7 @@ edition = "2018"
 publish = false
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/Enet4/dicom-rs"
+keywords = ["dicom"]
 
 [badges]
 

@@ -6,6 +6,8 @@ description = "DICOM encoding and decoding primitives"
 edition = "2018"
 license = "MIT/Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
+categories = ["encoding"]
+keywords = ["dicom"]
 
 [dependencies]
 dicom-core = { path = "../core" }

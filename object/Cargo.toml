@@ -5,6 +5,8 @@ authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 edition = "2018"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/Enet4/dicom-rs"
+description = "A high-level API for reading and manipulating DICOM objects"
+keywords = ["dicom"]
 
 [dependencies]
 dicom-core = { path = "../core" }

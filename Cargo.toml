@@ -7,5 +7,6 @@ members = [
     "transfer-syntax-registry",
     "object",
     "dictionary-std",
-    "dictionary-builder"
+    "dictionary-builder",
+    "dcmdump"
 ]
