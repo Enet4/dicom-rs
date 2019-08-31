@@ -2,9 +2,9 @@
 //! Despite the name, this tool may have a different interface and output
 //! from other `dcmdump` tools, and does not aim to make a drop-in
 //! replacement.
-//! 
+//!
 //! Usage:
-//! 
+//!
 //! ```none
 //! dcmdump <file.dcm>
 //! ```
@@ -13,10 +13,10 @@ use dicom::core::header::Header;
 use dicom::core::value::{PrimitiveValue, Value as DicomValue};
 use dicom::core::VR;
 use dicom::object::mem::{InMemDicomObject, InMemElement};
-use dicom::object::{DefaultDicomObject, StandardDataDictionary, FileMetaTable, open_file};
+use dicom::object::{open_file, DefaultDicomObject, FileMetaTable, StandardDataDictionary};
 
 use std::borrow::Cow;
-use std::io::{ErrorKind, Write, Result as IoResult, stdout};
+use std::io::{stdout, ErrorKind, Result as IoResult, Write};
 
 type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -30,9 +30,9 @@ fn main() -> DynResult<()> {
     match dump_file(obj) {
         Err(ref e) if e.kind() == ErrorKind::BrokenPipe => {
             Ok(()) // handle broken pipe separately with a no-op
-        },
+        }
         Err(e) => Err(e)?, // raise other errors
-        _ => Ok(()) // all good
+        _ => Ok(()),       // all good
     }
 }
 
@@ -55,8 +55,16 @@ fn meta_dump<W>(to: &mut W, meta: &FileMetaTable, width: u32) -> IoResult<()>
 where
     W: ?Sized + Write,
 {
-    writeln!(to, "Media Storage SOP Class UID: {}", meta.media_storage_sop_class_uid)?;
-    writeln!(to, "Media Storage SOP Instance UID: {}", meta.media_storage_sop_instance_uid)?;
+    writeln!(
+        to,
+        "Media Storage SOP Class UID: {}",
+        meta.media_storage_sop_class_uid
+    )?;
+    writeln!(
+        to,
+        "Media Storage SOP Instance UID: {}",
+        meta.media_storage_sop_instance_uid
+    )?;
     writeln!(to, "Transfer Syntax: {}", meta.transfer_syntax)?;
     writeln!(to, "Implementation Class UID: {}", meta.transfer_syntax)?;
 
@@ -80,10 +88,11 @@ where
     }
 
     if let Some(v) = meta.private_information.as_ref() {
-        writeln!(to, "Private Information: {}",  format_value_list(
-            v.iter().map(|n| format!("{:#x}", n)),
-            width,
-        ))?;
+        writeln!(
+            to,
+            "Private Information: {}",
+            format_value_list(v.iter().map(|n| format!("{:#x}", n)), width,)
+        )?;
     }
 
     writeln!(to)?;

@@ -1,10 +1,10 @@
 //! This module provides implementations for primitive decoders of data, which
 //! may be in either Little Endian or Big Endian.
 
-use byteordered::{ByteOrdered, Endianness};
-use crate::error::Result;
-use std::io::Read;
 use super::BasicDecode;
+use crate::error::Result;
+use byteordered::{ByteOrdered, Endianness};
+use std::io::Read;
 
 /// A basic decoder of DICOM primitive elements in little endian.
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -94,7 +94,7 @@ impl BasicDecode for BigEndianBasicDecoder {
     {
         ByteOrdered::be(source).read_u32().map_err(Into::into)
     }
-    
+
     fn decode_uv<S>(&self, source: S) -> Result<u64>
     where
         S: Read,
@@ -170,9 +170,9 @@ macro_rules! for_both {
     ($s: expr, |$e: ident| $f: expr) => {
         match *$s {
             LE(ref $e) => $f,
-            BE(ref $e) => $f
+            BE(ref $e) => $f,
         }
-    }
+    };
 }
 
 impl BasicDecode for BasicDecoder {
@@ -247,9 +247,7 @@ mod tests {
 
     #[test]
     fn test_read_integers() {
-        let data: &[u8] = &[
-            0xC3, 0x3C, 0x33, 0xCC, 0x55, 0xAA, 0x55, 0xAA,
-        ];
+        let data: &[u8] = &[0xC3, 0x3C, 0x33, 0xCC, 0x55, 0xAA, 0x55, 0xAA];
 
         let le = LittleEndianBasicDecoder;
         let be = BigEndianBasicDecoder;

@@ -7,7 +7,7 @@
 //! Simply run the application. It will automatically retrieve the dictionary
 //! from the official DICOM website and store the result in "entries.rs".
 //! Future versions will enable different kinds of outputs.
-//! 
+//!
 //! Please use the `--help` flag for the full usage information.
 
 use clap::{App, Arg};
@@ -43,13 +43,15 @@ fn main() {
             Arg::with_name("FROM")
                 .default_value(DEFAULT_LOCATION)
                 .help("Where to fetch the dictionary from"),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("OUTPUT")
                 .short("o")
                 .help("The path to the output file")
                 .required(false)
                 .takes_value(true),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("FORMAT")
                 .short("f")
                 .help("The output format")
@@ -58,11 +60,13 @@ fn main() {
                 .takes_value(true)
                 .possible_value("rs")
                 .possible_value("json"),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("no-retired")
                 .help("Whether to ignore retired tags")
                 .takes_value(false),
-        ).get_matches();
+        )
+        .get_matches();
 
     let format = matches.value_of("FORMAT").unwrap();
     let ignore_retired = matches.is_present("no-retired");
@@ -88,7 +92,8 @@ fn main() {
                     "rs" => to_code_file(dst, xml_entries, !ignore_retired),
                     "json" => to_json_file(dst, xml_entries),
                     _ => unreachable!(),
-                }.expect("Failed to write file");
+                }
+                .expect("Failed to write file");
                 Ok(())
             })
         });
@@ -103,7 +108,8 @@ fn main() {
             "rs" => to_code_file(dst, xml_entries, true),
             "json" => to_json_file(dst, xml_entries),
             _ => unreachable!(),
-        }.expect("Failed to write file");
+        }
+        .expect("Failed to write file");
     }
 }
 
@@ -183,22 +189,26 @@ impl<R: BufRead> Iterator for XmlEntryIterator<R> {
                     self.depth += 1;
                     let local_name = e.local_name();
                     match self.state {
-                        XmlReadingState::Off => if local_name == b"table" {
-                            // check for attribute xml:id="table_6-1"
-                            match e.attributes().find(|attr| {
-                                attr.is_err() || attr.as_ref().unwrap() == &Attribute {
-                                    key: b"xml:id",
-                                    value: Cow::Borrowed(b"table_6-1"),
+                        XmlReadingState::Off => {
+                            if local_name == b"table" {
+                                // check for attribute xml:id="table_6-1"
+                                match e.attributes().find(|attr| {
+                                    attr.is_err()
+                                        || attr.as_ref().unwrap()
+                                            == &Attribute {
+                                                key: b"xml:id",
+                                                value: Cow::Borrowed(b"table_6-1"),
+                                            }
+                                }) {
+                                    Some(Ok(_)) => {
+                                        // entered the table!
+                                        self.state = XmlReadingState::InTableHead;
+                                    }
+                                    Some(Err(err)) => return Some(Err(err)),
+                                    None => {}
                                 }
-                            }) {
-                                Some(Ok(_)) => {
-                                    // entered the table!
-                                    self.state = XmlReadingState::InTableHead;
-                                }
-                                Some(Err(err)) => return Some(Err(err)),
-                                None => {}
                             }
-                        },
+                        }
                         XmlReadingState::InTableHead => {
                             if local_name == b"tbody" {
                                 self.state = XmlReadingState::InTable;
@@ -249,22 +259,24 @@ impl<R: BufRead> Iterator for XmlEntryIterator<R> {
                         XmlReadingState::Off => {
                             // do nothing
                         }
-                        _e => if local_name == b"tr" && self.tag.is_some() {
-                            let tag = self.tag.take().unwrap();
-                            let out = Entry {
-                                tag,
-                                name: self.name.take(),
-                                alias: self.keyword.take(),
-                                vr: self.vr.take(),
-                                vm: self.vm.take(),
-                                obs: self.obs.take(),
-                            };
-                            self.state = XmlReadingState::InTable;
-                            return Some(Ok(out));
-                        } else if local_name == b"tbody" {
-                            // the table ended!
-                            break;
-                        },
+                        _e => {
+                            if local_name == b"tr" && self.tag.is_some() {
+                                let tag = self.tag.take().unwrap();
+                                let out = Entry {
+                                    tag,
+                                    name: self.name.take(),
+                                    alias: self.keyword.take(),
+                                    vr: self.vr.take(),
+                                    vm: self.vm.take(),
+                                    obs: self.obs.take(),
+                                };
+                                self.state = XmlReadingState::InTable;
+                                return Some(Ok(out));
+                            } else if local_name == b"tbody" {
+                                // the table ended!
+                                break;
+                            }
+                        }
                     }
                 }
                 Ok(Event::Text(data)) => match self.state {
@@ -386,10 +398,13 @@ where
         } else if let Some(cap) = regex_tag_element100.captures(tag.as_str()) {
             // tag range over elements: (gggg, eexx)
             let group = cap.get(1).expect("capture group 1: group").as_str();
-            let elem = cap.get(2).expect("capture group 2: element portion").as_str();
+            let elem = cap
+                .get(2)
+                .expect("capture group 2: element portion")
+                .as_str();
             format!("Element100(Tag(0x{}, 0x{}00))", group, elem)
         } else {
-            continue
+            continue;
         };
 
         let mut vr = vr.unwrap_or_else(|| "".into());

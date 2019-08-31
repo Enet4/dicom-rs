@@ -15,8 +15,8 @@
 //! At the moment, this library supports only IR-6 and IR-192.
 
 use crate::error::{Result, TextEncodingError};
-use encoding::{DecoderTrap, EncoderTrap, Encoding, RawDecoder, StringWriter};
 use encoding::all::{ISO_8859_1, UTF_8};
+use encoding::{DecoderTrap, EncoderTrap, Encoding, RawDecoder, StringWriter};
 use std::fmt::Debug;
 
 /// A holder of encoding and decoding mechanisms for text in DICOM content,
@@ -69,7 +69,6 @@ pub enum SpecificCharacterSet {
     Default,
     /// The Unicode character set defined in ISO IR 192, based on the UTF-8 encoding.
     IsoIr192,
-
     // TODO make this more flexible (maybe registry-based)
 }
 
@@ -98,7 +97,11 @@ impl SpecificCharacterSet {
     }
 }
 
-fn decode_text_trap(_decoder: &mut dyn RawDecoder, input: &[u8], output: &mut dyn StringWriter) -> bool {
+fn decode_text_trap(
+    _decoder: &mut dyn RawDecoder,
+    input: &[u8],
+    output: &mut dyn StringWriter,
+) -> bool {
     let c = input[0];
     let o0 = c & 7;
     let o1 = (c & 56) >> 3;

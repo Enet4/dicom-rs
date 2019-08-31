@@ -1,8 +1,8 @@
-//! Independent test for testing that submitting a TS in a separate crate work. 
-use std::io::{Read, Write};
-use dicom_encoding::transfer_syntax::{TransferSyntax, Codec, DataRWAdapter, Endianness};
+//! Independent test for testing that submitting a TS in a separate crate work.
 use dicom_encoding::submit_transfer_syntax;
+use dicom_encoding::transfer_syntax::{Codec, DataRWAdapter, Endianness, TransferSyntax};
 use dicom_transfer_syntax_registry::get_registry;
+use std::io::{Read, Write};
 
 /// this would, in theory, provide a dataset adapter
 #[derive(Debug)]

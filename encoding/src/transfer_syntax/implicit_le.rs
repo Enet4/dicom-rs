@@ -1,16 +1,16 @@
 //! Implicit VR Big Endian syntax transfer implementation
 
-use byteordered::Endianness;
-use byteordered::byteorder::{ByteOrder, LittleEndian};
 use crate::decode::basic::LittleEndianBasicDecoder;
 use crate::decode::{BasicDecode, Decode};
 use crate::encode::basic::LittleEndianBasicEncoder;
 use crate::encode::{BasicEncode, Encode};
 use crate::error::Result;
-use dicom_core::{Tag, VR};
-use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
-use dicom_dictionary_std::StandardDataDictionary;
+use byteordered::byteorder::{ByteOrder, LittleEndian};
+use byteordered::Endianness;
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
+use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
+use dicom_core::{Tag, VR};
+use dicom_dictionary_std::StandardDataDictionary;
 use std::fmt;
 use std::io::{Read, Write};
 use std::marker::PhantomData;
@@ -247,8 +247,8 @@ mod tests {
     use super::ImplicitVRLittleEndianEncoder;
     use crate::decode::Decode;
     use crate::encode::Encode;
-    use dicom_core::header::{DataElementHeader, Header, Length, Tag, VR};
     use dicom_core::dictionary::stub::StubDataDictionary;
+    use dicom_core::header::{DataElementHeader, Header, Length, Tag, VR};
     use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements
@@ -360,7 +360,8 @@ mod tests {
 
             // encode first element
             let de = DataElementHeader::new(Tag(0x0002, 0x0002), VR::UI, Length(26));
-            let len = enc.encode_element_header(&mut writer, de)
+            let len = enc
+                .encode_element_header(&mut writer, de)
                 .expect("should write it fine");
             assert_eq!(len, 8);
             writer
@@ -374,7 +375,8 @@ mod tests {
 
             // encode second element
             let de = DataElementHeader::new(Tag(0x0002, 0x0010), VR::UI, Length(20));
-            let len = enc.encode_element_header(&mut writer, de)
+            let len = enc
+                .encode_element_header(&mut writer, de)
                 .expect("should write it fine");
             assert_eq!(len, 8);
             writer

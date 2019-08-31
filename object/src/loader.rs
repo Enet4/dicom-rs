@@ -1,6 +1,6 @@
-use std::marker::PhantomData;
-use dicom_dictionary_std::StandardDataDictionary;
 use crate::DicomObject;
+use dicom_dictionary_std::StandardDataDictionary;
+use std::marker::PhantomData;
 
 /// A data type
 #[derive(Debug)]

@@ -6,7 +6,7 @@
 //! objects.
 //!
 //! # Examples
-//! 
+//!
 //! Loading a file and reading some attributes by their standard alias:
 //!
 //! ```no_run
@@ -31,18 +31,18 @@
 //! ```
 //!
 pub mod file;
+pub mod loader;
 pub mod mem;
 pub mod meta;
 pub mod pixeldata;
-pub mod loader;
 
 mod util;
 
-pub use dicom_dictionary_std::StandardDataDictionary;
-pub use dicom_core::Tag;
 pub use crate::file::{from_reader, open_file};
 pub use crate::meta::FileMetaTable;
-pub use dicom_parser::error::{Result, Error};
+pub use dicom_core::Tag;
+pub use dicom_dictionary_std::StandardDataDictionary;
+pub use dicom_parser::error::{Error, Result};
 
 /// The default implementation of a root DICOM object.
 pub type DefaultDicomObject = RootDicomObject<mem::InMemDicomObject<StandardDataDictionary>>;
@@ -65,7 +65,7 @@ pub trait DicomObject {
     fn element_by_name(&self, name: &str) -> Result<Self::Element>;
 
     /// Retrieve the processed meta information table, if available.
-    /// 
+    ///
     /// This table will generally not be reachable from children objects
     /// in another object with a valid meta table. As such, it is recommended
     /// for this method to be called at the root of a DICOM object.
@@ -139,5 +139,4 @@ where
 }
 
 #[cfg(test)]
-mod tests {
-}
+mod tests {}

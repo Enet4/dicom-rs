@@ -1,16 +1,17 @@
 //! This module contains all DICOM data element decoding logic.
 
-use byteordered::Endianness;
+use crate::error::Result;
 use crate::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
 use crate::transfer_syntax::implicit_le::{
-    ImplicitVRLittleEndianDecoder, StandardImplicitVRLittleEndianDecoder};
-use crate::error::Result;
+    ImplicitVRLittleEndianDecoder, StandardImplicitVRLittleEndianDecoder,
+};
+use byteordered::Endianness;
 use dicom_core::header::{DataElementHeader, SequenceItemHeader};
 use dicom_core::Tag;
 use std::io::Read;
 
-pub mod erased;
 pub mod basic;
+pub mod erased;
 
 /** Obtain the default data element decoder.
  * According to the standard, data elements are encoded in Implicit
@@ -253,14 +254,14 @@ pub trait Decode {
     /** Fetch and decode the next data element header from the given source.
      * This method returns only the header of the element. At the end of this operation, the source
      * will be pointing at the element's value data, which should be read or skipped as necessary.
-     * 
+     *
      * Decoding an item or sequence delimiter is considered valid, and so should be properly handled
      * by the decoder. The value representation in this case should be `UN`.
      */
     fn decode_header(&self, source: &mut Self::Source) -> Result<DataElementHeader>;
 
     /** Fetch and decode the next sequence item head from the given source. It is a separate method
-     * because value representation is always implicit when reading item headers and delimiters. 
+     * because value representation is always implicit when reading item headers and delimiters.
      * This method returns only the header of the item. At the end of this operation, the source
      * will be pointing at the beginning of the item's data, which should be traversed if necessary.
      */

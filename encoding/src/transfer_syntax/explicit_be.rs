@@ -1,14 +1,14 @@
 //! Explicit VR Big Endian syntax transfer implementation.
 
-use byteordered::Endianness;
-use byteordered::byteorder::{BigEndian, ByteOrder};
 use crate::decode::basic::BigEndianBasicDecoder;
 use crate::decode::{BasicDecode, Decode};
 use crate::encode::basic::BigEndianBasicEncoder;
 use crate::encode::{BasicEncode, Encode};
 use crate::error::Result;
-use dicom_core::{Tag, VR};
+use byteordered::byteorder::{BigEndian, ByteOrder};
+use byteordered::Endianness;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
+use dicom_core::{Tag, VR};
 use std::fmt;
 use std::io::{Read, Write};
 use std::marker::PhantomData;
@@ -270,8 +270,8 @@ mod tests {
     use super::ExplicitVRBigEndianEncoder;
     use crate::decode::Decode;
     use crate::encode::Encode;
-    use dicom_core::{Tag, VR};
     use dicom_core::header::{DataElementHeader, Header, Length};
+    use dicom_core::{Tag, VR};
     use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements
@@ -344,7 +344,8 @@ mod tests {
 
             // encode first element
             let de = DataElementHeader::new(Tag(0x0002, 0x0002), VR::UI, Length(26));
-            let len = enc.encode_element_header(&mut writer, de)
+            let len = enc
+                .encode_element_header(&mut writer, de)
                 .expect("should write it fine");
             assert_eq!(len, 8);
             writer
@@ -358,7 +359,8 @@ mod tests {
 
             // encode second element
             let de = DataElementHeader::new(Tag(0x0002, 0x0010), VR::UI, Length(20));
-            let len = enc.encode_element_header(&mut writer, de)
+            let len = enc
+                .encode_element_header(&mut writer, de)
                 .expect("should write it fine");
             assert_eq!(len, 8);
             writer
@@ -397,7 +399,8 @@ mod tests {
         let mut cursor = Cursor::new(RAW_SEQUENCE_ITEMS);
         {
             // read first element
-            let elem = dec.decode_header(&mut cursor)
+            let elem = dec
+                .decode_header(&mut cursor)
                 .expect("should find an element header");
             assert_eq!(elem.tag(), Tag(8, 0x103F));
             assert_eq!(elem.vr(), VR::SQ);
@@ -406,7 +409,8 @@ mod tests {
         // cursor should now be @ #12
         assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 12);
         {
-            let elem = dec.decode_item_header(&mut cursor)
+            let elem = dec
+                .decode_item_header(&mut cursor)
                 .expect("should find an item header");
             assert!(elem.is_item());
             assert_eq!(elem.tag(), Tag(0xFFFE, 0xE000));
@@ -415,7 +419,8 @@ mod tests {
         // cursor should now be @ #20
         assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 20);
         {
-            let elem = dec.decode_item_header(&mut cursor)
+            let elem = dec
+                .decode_item_header(&mut cursor)
                 .expect("should find an item header");
             assert!(elem.is_item_delimiter());
             assert_eq!(elem.tag(), Tag(0xFFFE, 0xE00D));
@@ -424,7 +429,8 @@ mod tests {
         // cursor should now be @ #28
         assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 28);
         {
-            let elem = dec.decode_item_header(&mut cursor)
+            let elem = dec
+                .decode_item_header(&mut cursor)
                 .expect("should find an item header");
             assert!(elem.is_sequence_delimiter());
             assert_eq!(elem.tag(), Tag(0xFFFE, 0xE0DD));

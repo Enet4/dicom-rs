@@ -28,7 +28,7 @@ impl TagRange {
     /// Retrieve the inner tag representation of this range.
     pub fn inner(self) -> Tag {
         match self {
-            TagRange::Single(tag) => tag, 
+            TagRange::Single(tag) => tag,
             TagRange::Group100(tag) => tag,
             TagRange::Element100(tag) => tag,
         }
@@ -44,38 +44,46 @@ impl FromStr for TagRange {
 
     fn from_str(mut s: &str) -> Result<Self, Self::Err> {
         if s.starts_with('(') && s.ends_with(')') {
-            s = &s[1 .. s.len() - 1];
+            s = &s[1..s.len() - 1];
         }
         let mut parts = s.split(',');
-        let group = parts.next().ok_or(TagRangeParseError("not enough tag components, expected `group,element`"))?;
-        let elem = parts.next().ok_or(TagRangeParseError("not enough tag components, expected `element`"))?;
+        let group = parts.next().ok_or(TagRangeParseError(
+            "not enough tag components, expected `group,element`",
+        ))?;
+        let elem = parts.next().ok_or(TagRangeParseError(
+            "not enough tag components, expected `element`",
+        ))?;
         if group.len() != 4 {
-            return Err(TagRangeParseError("tag component `group` has an invalid length, must be 4"));
+            return Err(TagRangeParseError(
+                "tag component `group` has an invalid length, must be 4",
+            ));
         }
         if elem.len() != 4 {
-            return Err(TagRangeParseError("tag component `element` has an invalid length, must be 4"));
+            return Err(TagRangeParseError(
+                "tag component `element` has an invalid length, must be 4",
+            ));
         }
 
         match (&group.as_bytes()[2..], &elem.as_bytes()[2..]) {
-            (b"xx", b"xx") => {
-                Err(TagRangeParseError("unsupported tag range"))
-            },
+            (b"xx", b"xx") => Err(TagRangeParseError("unsupported tag range")),
             (b"xx", _) => {
                 // Group100
                 let group = u16::from_str_radix(&group[..2], 16)
-                    .map_err(|_e| TagRangeParseError("Invalid component `group`"))? << 8;
+                    .map_err(|_e| TagRangeParseError("Invalid component `group`"))?
+                    << 8;
                 let elem = u16::from_str_radix(elem, 16)
                     .map_err(|_e| TagRangeParseError("Invalid component `element`"))?;
                 Ok(TagRange::Group100(Tag(group, elem)))
-            },
+            }
             (_, b"xx") => {
                 // Element100
                 let group = u16::from_str_radix(group, 16)
                     .map_err(|_e| TagRangeParseError("Invalid component `group`"))?;
                 let elem = u16::from_str_radix(&elem[..2], 16)
-                    .map_err(|_e| TagRangeParseError("Invalid component `element`"))? << 8;
+                    .map_err(|_e| TagRangeParseError("Invalid component `element`"))?
+                    << 8;
                 Ok(TagRange::Element100(Tag(group, elem)))
-            },
+            }
             (_, _) => {
                 // single element
                 let group = u16::from_str_radix(group, 16)
@@ -206,8 +214,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::header::Tag;
     use super::TagRange;
+    use crate::header::Tag;
 
     #[test]
     fn test_parse_tag_range() {

@@ -1,10 +1,10 @@
 //! This module contains the type-erased version of a decoder.
 
-use byteordered::Endianness;
 use crate::error::Result;
-use std::io::Read;
+use byteordered::Endianness;
 use dicom_core::header::{DataElementHeader, Length, SequenceItemHeader};
 use dicom_core::Tag;
+use std::io::Read;
 
 /** Type trait for reading and decoding basic data values from a data source.
  *

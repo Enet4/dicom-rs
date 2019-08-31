@@ -22,11 +22,7 @@ where
 
 /// A trait that combines for `Read` and `Seek`.
 pub trait ReadSeek: Read + Seek {}
-impl<T: ?Sized> ReadSeek for T
-where
-    T: Read + Seek,
-{
-}
+impl<T: ?Sized> ReadSeek for T where T: Read + Seek {}
 
 #[derive(Debug)]
 pub struct SeekInterval<S: ?Sized, B: DerefMut<Target = S>> {
@@ -81,11 +77,13 @@ where
 {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         match pos {
-            SeekFrom::Start(o) => self.source
+            SeekFrom::Start(o) => self
+                .source
                 .seek(SeekFrom::Start(self.begin + o))
                 .map(|v| v - self.begin),
             pos @ SeekFrom::Current(_) => self.source.seek(pos).map(|v| v - self.begin),
-            SeekFrom::End(o) => self.source
+            SeekFrom::End(o) => self
+                .source
                 .seek(SeekFrom::Start((self.end as i64 + o) as u64))
                 .map(|v| v - self.begin),
         }

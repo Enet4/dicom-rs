@@ -1,12 +1,12 @@
 //! Explicit VR Little Endian syntax transfer implementation
 
-use byteordered::Endianness;
-use byteordered::byteorder::{ByteOrder, LittleEndian};
 use crate::decode::basic::LittleEndianBasicDecoder;
 use crate::decode::{BasicDecode, Decode};
 use crate::encode::basic::LittleEndianBasicEncoder;
 use crate::encode::{BasicEncode, Encode};
 use crate::error::Result;
+use byteordered::byteorder::{ByteOrder, LittleEndian};
+use byteordered::Endianness;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
 use dicom_core::{Tag, VR};
 use std::fmt;

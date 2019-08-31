@@ -2,13 +2,13 @@
 //! The transfer syntax registry maps a DICOM UID of a transfer syntax into the
 //! respective transfer syntax specifier.
 
-use std::collections::HashMap;
-use std::collections::hash_map::Entry;
-use std::fmt;
 use byteordered::Endianness;
-use dicom_encoding::transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec};
 use dicom_encoding::submit_transfer_syntax;
+use dicom_encoding::transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec};
 use lazy_static::lazy_static;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
+use std::fmt;
 
 pub use dicom_encoding::TransferSyntax;
 
@@ -19,9 +19,8 @@ pub struct TransferSyntaxRegistry {
 
 impl fmt::Debug for TransferSyntaxRegistry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let entries: HashMap<&str, &str> = self.m.iter()
-            .map(|(uid, ts)| (*uid, ts.name()))
-            .collect();
+        let entries: HashMap<&str, &str> =
+            self.m.iter().map(|(uid, ts)| (*uid, ts.name())).collect();
         f.debug_struct("TransferSyntaxRegistry")
             .field("m", &entries)
             .finish()
@@ -51,18 +50,16 @@ impl TransferSyntaxRegistry {
         match self.m.entry(&ts.uid()) {
             Entry::Occupied(mut e) => {
                 let replace = match (&e.get().codec(), ts.codec()) {
-                    (Codec::Unsupported, Codec::Dataset(_)) |
-                    (Codec::EncapsulatedPixelData, Codec::PixelData(_)) => {
-                        true
-                    },
+                    (Codec::Unsupported, Codec::Dataset(_))
+                    | (Codec::EncapsulatedPixelData, Codec::PixelData(_)) => true,
                     // weird one ahead: the two specifiers do not agree on
                     // requirements, better keep it as a separate match arm for
                     // debugging purposes
                     (Codec::Unsupported, Codec::PixelData(_)) => {
                         eprintln!("Inconsistent requirements for transfer syntax {}: `Unsupported` cannot be replaced with `PixelData`", ts.uid());
                         false
-                    },
-                    // ignoring TS with less or equal implementation 
+                    }
+                    // ignoring TS with less or equal implementation
                     _ => false,
                 };
 
@@ -72,18 +69,20 @@ impl TransferSyntaxRegistry {
                 } else {
                     false
                 }
-            },
+            }
             Entry::Vacant(e) => {
                 e.insert(ts);
                 true
-            },
+            }
         }
     }
 }
 
 lazy_static! {
     static ref REGISTRY: TransferSyntaxRegistry = {
-        let mut registry = TransferSyntaxRegistry { m: HashMap::with_capacity(32) };
+        let mut registry = TransferSyntaxRegistry {
+            m: HashMap::with_capacity(32),
+        };
 
         for ts in inventory::iter::<TransferSyntax> {
             registry.register(ts);

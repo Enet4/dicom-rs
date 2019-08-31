@@ -1,13 +1,13 @@
 //! This module includes a high level abstraction over a DICOM data element's value.
 
-use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveTime, Timelike};
 use crate::error::CastValueError;
 use crate::header::{Length, Tag};
+use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveTime, Timelike};
 use itertools::Itertools;
-use std::borrow::Cow;
 use smallvec::SmallVec;
+use std::borrow::Cow;
 
-/// An aggregation of one or more elements in a value. 
+/// An aggregation of one or more elements in a value.
 pub type C<T> = SmallVec<[T; 2]>;
 
 /// Representation of a full DICOM value, which may be either primitive or
@@ -71,15 +71,13 @@ where
     }
 
     /// Retrieves the primitive value as a single string.
-    /// 
+    ///
     /// If the value contains multiple strings, they are concatenated
     /// (separated by `'\\'`) into an owned string.
     pub fn to_str(&self) -> Result<Cow<str>, CastValueError> {
         match self {
             Value::Primitive(PrimitiveValue::Str(v)) => Ok(Cow::from(v.as_str())),
-            Value::Primitive(PrimitiveValue::Strs(v)) => {
-                Ok(Cow::from(v.into_iter().join("\\")))
-            }
+            Value::Primitive(PrimitiveValue::Strs(v)) => Ok(Cow::from(v.into_iter().join("\\"))),
             _ => Err(CastValueError {
                 requested: "string",
                 got: self.value_type(),

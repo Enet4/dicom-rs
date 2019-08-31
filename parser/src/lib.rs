@@ -4,16 +4,16 @@
 //! tokens.
 //!
 //! For the time being, all APIs are based on synchronous I/O.
-//! 
+//!
 //! For a more intuitive, object-oriented API, please see the `dicom-object`
 //! crate.
-#![recursion_limit="72"]
+#![recursion_limit = "72"]
 
 pub mod dataset;
-pub mod parser;
 pub mod error;
+pub mod parser;
 
 mod util;
 
-pub use parser::{DicomParser, Parse, DynamicDicomParser};
 pub use dataset::DataSetReader;
+pub use parser::{DicomParser, DynamicDicomParser, Parse};

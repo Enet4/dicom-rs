@@ -1,19 +1,19 @@
 //! Module containing the DICOM Transfer Syntax data structure and related methods.
 //! Similar to the DcmCodec in DCMTK, the `TransferSyntax` contains all of the necessary
 //! algorithms for decoding and encoding DICOM data in a certain transfer syntax.
-//! 
+//!
 //! This crate does not host specific transfer syntaxes. Instead, they are created in
 //! other crates and registered in the global transfer syntax registry. For more
 //! information, please see the `dicom-transfer-syntax-registry` crate.
 
-pub mod explicit_le;
 pub mod explicit_be;
+pub mod explicit_le;
 pub mod implicit_le;
 
-use std::io::{Read, Write};
 use crate::decode::basic::BasicDecoder;
 use crate::decode::Decode;
 use crate::encode::Encode;
+use std::io::{Read, Write};
 
 pub use byteordered::Endianness;
 
@@ -47,7 +47,7 @@ inventory::collect!(TransferSyntax);
 /// Submit a transfer syntax specifier to be supported by the
 /// program's runtime. This is to be used by crates wishing to provide
 /// additional support for a certain transfer syntax.
-/// 
+///
 /// This macro does actually "run" anything, so place it outside of a
 /// function body at the root of the crate.
 macro_rules! submit_transfer_syntax {
@@ -55,7 +55,7 @@ macro_rules! submit_transfer_syntax {
         inventory::submit! {
             ($ts).erased()
         }
-    }
+    };
 }
 
 /// Description regarding the encoding and decoding requirements of a transfer
@@ -100,7 +100,15 @@ pub trait DataRWAdapter<R, W> {
         W: Write;
 }
 
-pub type DynDataRWAdapter = Box<dyn DataRWAdapter<Box<dyn Read>, Box<dyn Write>, Reader = Box<dyn Read>, Writer = Box<dyn Write>> + Send + Sync>;
+pub type DynDataRWAdapter = Box<
+    dyn DataRWAdapter<
+            Box<dyn Read>,
+            Box<dyn Write>,
+            Reader = Box<dyn Read>,
+            Writer = Box<dyn Write>,
+        > + Send
+        + Sync,
+>;
 
 impl<'a, T, R, W> DataRWAdapter<R, W> for &'a T
 where
@@ -114,7 +122,7 @@ where
     /// Adapt a byte reader.
     fn adapt_reader(&self, reader: R) -> Self::Reader
     where
-        R: Read
+        R: Read,
     {
         (**self).adapt_reader(reader)
     }
@@ -122,7 +130,7 @@ where
     /// Adapt a byte writer.
     fn adapt_writer(&self, writer: W) -> Self::Writer
     where
-        W: Write
+        W: Write,
     {
         (**self).adapt_writer(writer)
     }
@@ -151,7 +159,13 @@ impl<R, W> DataRWAdapter<R, W> for NeverAdapter {
 }
 
 impl<A> TransferSyntax<A> {
-    pub const fn new(uid: &'static str, name: &'static str, byte_order: Endianness, explicit_vr: bool, codec: Codec<A>) -> Self {
+    pub const fn new(
+        uid: &'static str,
+        name: &'static str,
+        byte_order: Endianness,
+        explicit_vr: bool,
+        codec: Codec<A>,
+    ) -> Self {
         TransferSyntax {
             uid,
             name,
@@ -212,25 +226,22 @@ impl<A> TransferSyntax<A> {
 
     /// Retrieve the appropriate data element decoder for this transfer syntax.
     /// Can yield none if decoding is not supported.
-    /// 
+    ///
     /// The resulting decoder does not consider pixel data encapsulation or
     /// data set compression rules. This means that the consumer of this method
     /// needs to adapt the reader before using the decoder.
-    pub fn get_decoder(&self) -> Option<DynDecoder>
-    {
+    pub fn get_decoder(&self) -> Option<DynDecoder> {
         match (self.byte_order, self.explicit_vr) {
-            (Endianness::Little, false) => {
-                Some(Box::new(implicit_le::ImplicitVRLittleEndianDecoder::default()))
-            },
-            (Endianness::Little, true) => {
-                Some(Box::new(explicit_le::ExplicitVRLittleEndianDecoder::default()))
-            },
+            (Endianness::Little, false) => Some(Box::new(
+                implicit_le::ImplicitVRLittleEndianDecoder::default(),
+            )),
+            (Endianness::Little, true) => Some(Box::new(
+                explicit_le::ExplicitVRLittleEndianDecoder::default(),
+            )),
             (Endianness::Big, true) => {
                 Some(Box::new(explicit_be::ExplicitVRBigEndianDecoder::default()))
-            },
-            _ => {
-                None
             }
+            _ => None,
         }
     }
 
@@ -239,18 +250,16 @@ impl<A> TransferSyntax<A> {
     /// consider pixel data encapsulation or data set compression rules.
     pub fn get_encoder(&self) -> Option<DynEncoder> {
         match (self.byte_order, self.explicit_vr) {
-            (Endianness::Little, false) => {
-                Some(Box::new(implicit_le::ImplicitVRLittleEndianEncoder::default()))
-            },
-            (Endianness::Little, true) => {
-                Some(Box::new(explicit_le::ExplicitVRLittleEndianEncoder::default()))
-            },
+            (Endianness::Little, false) => Some(Box::new(
+                implicit_le::ImplicitVRLittleEndianEncoder::default(),
+            )),
+            (Endianness::Little, true) => Some(Box::new(
+                explicit_le::ExplicitVRLittleEndianEncoder::default(),
+            )),
             (Endianness::Big, true) => {
                 Some(Box::new(explicit_be::ExplicitVRBigEndianEncoder::default()))
-            },
-            _ => {
-                None
             }
+            _ => None,
         }
     }
 
@@ -263,7 +272,12 @@ impl<A> TransferSyntax<A> {
     pub fn erased(self) -> TransferSyntax
     where
         A: Send + Sync + 'static,
-        A: DataRWAdapter<Box<dyn Read>, Box<dyn Write>, Reader = Box<dyn Read>, Writer = Box<dyn Write>>,
+        A: DataRWAdapter<
+            Box<dyn Read>,
+            Box<dyn Write>,
+            Reader = Box<dyn Read>,
+            Writer = Box<dyn Write>,
+        >,
     {
         let codec = match self.codec {
             Codec::Dataset(a) => Codec::Dataset(Box::new(a) as DynDataRWAdapter),

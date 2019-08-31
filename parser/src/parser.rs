@@ -2,26 +2,27 @@
 //! The structures provided here can translate a byte data source into
 //! an iterator of elements, with either sequential or random access.
 
+use crate::error::{Error, Result};
+use crate::util::n_times;
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
+use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader, Tag, VR};
+use dicom_core::value::{PrimitiveValue, C};
 use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
 use dicom_encoding::decode::{BasicDecode, Decode};
-use dicom_encoding::error::{TextEncodingError, InvalidValueReadError, Result as EncodingResult};
+use dicom_encoding::error::{InvalidValueReadError, Result as EncodingResult, TextEncodingError};
 use dicom_encoding::text::{
-    validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, TextValidationOutcome,
-    DynamicTextCodec, SpecificCharacterSet, TextCodec};
-use crate::error::{Error, Result};
+    validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, DynamicTextCodec,
+    SpecificCharacterSet, TextCodec, TextValidationOutcome,
+};
 use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
 use dicom_encoding::transfer_syntax::TransferSyntax;
-use crate::util::n_times;
-use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader, Tag, VR};
-use dicom_core::value::{C, PrimitiveValue};
+use smallvec::{smallvec, SmallVec};
 use std::fmt;
 use std::fmt::Debug;
 use std::io::Read;
 use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::ops::{Add, Mul, Sub};
-use smallvec::{SmallVec, smallvec};
 
 const Z: i32 = b'0' as i32;
 
@@ -200,11 +201,16 @@ where
                 let g = self.basic.decode_us(&mut *from)?;
                 let e = self.basic.decode_us(&mut *from)?;
                 Ok(Tag(g, e))
-            }).collect();
+            })
+            .collect();
         Ok(PrimitiveValue::Tags(parts?))
     }
 
-    fn read_value_ob(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_ob(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         // TODO add support for OB value data length resolution
         // (might need to delegate pixel data reading to a separate trait)
         let len = require_known_length!(header);
@@ -215,18 +221,24 @@ where
         Ok(PrimitiveValue::U8(buf))
     }
 
-    fn read_value_strs(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_strs(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of strings
         self.buffer.resize_with(len, Default::default);
         from.read_exact(&mut self.buffer)?;
 
         let parts: EncodingResult<C<_>> = match header.vr() {
-            VR::AE | VR::CS | VR::AS => self.buffer
+            VR::AE | VR::CS | VR::AS => self
+                .buffer
                 .split(|v| *v == b'\\')
                 .map(|slice| DefaultCharacterSetCodec.decode(slice))
                 .collect(),
-            _ => self.buffer
+            _ => self
+                .buffer
                 .split(|v| *v == b'\\')
                 .map(|slice| self.text.decode(slice))
                 .collect(),
@@ -235,7 +247,11 @@ where
         Ok(PrimitiveValue::Strs(parts?))
     }
 
-    fn read_value_str(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_str(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
 
         // a single string
@@ -244,18 +260,24 @@ where
         Ok(PrimitiveValue::Str(self.text.decode(&buf[..])?))
     }
 
-    fn read_value_ui(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_ui(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of UID's
         self.buffer.resize_with(len, Default::default);
         from.read_exact(&mut self.buffer)?;
 
         let parts: EncodingResult<C<_>> = match header.vr() {
-            VR::AE | VR::CS | VR::AS => self.buffer
+            VR::AE | VR::CS | VR::AS => self
+                .buffer
                 .split(|v| *v == 0)
                 .map(|slice| DefaultCharacterSetCodec.decode(slice))
                 .collect(),
-            _ => self.buffer
+            _ => self
+                .buffer
                 .split(|v| *v == 0)
                 .map(|slice| self.text.decode(slice))
                 .collect(),
@@ -285,7 +307,11 @@ where
         Ok(PrimitiveValue::F32(vec?))
     }
 
-    fn read_value_da(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_da(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of dates
 
@@ -299,7 +325,8 @@ where
             return Err(TextEncodingError::new(format!(
                 "Invalid date value element \"{}\"",
                 lossy_str
-            )).into());
+            ))
+            .into());
         }
         let vec: Result<C<_>> = buf
             .split(|b| *b == b'\\')
@@ -308,7 +335,11 @@ where
         Ok(PrimitiveValue::Date(vec?))
     }
 
-    fn read_value_ds(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_ds(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of doubles in text form
 
@@ -323,11 +354,16 @@ where
                 let txt = txt.trim_end();
                 txt.parse::<f64>()
                     .map_err(|e| Error::from(InvalidValueReadError::from(e)))
-            }).collect();
+            })
+            .collect();
         Ok(PrimitiveValue::F64(parts?))
     }
 
-    fn read_value_dt(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_dt(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of datetimes
 
@@ -341,7 +377,8 @@ where
             return Err(TextEncodingError::new(format!(
                 "Invalid date-time value element \"{}\"",
                 lossy_str
-            )).into());
+            ))
+            .into());
         }
         let vec: Result<C<_>> = buf
             .split(|b| *b == b'\\')
@@ -351,7 +388,11 @@ where
         Ok(PrimitiveValue::DateTime(vec?))
     }
 
-    fn read_value_is(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_is(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of signed integers in text form
         self.buffer.resize_with(len, Default::default);
@@ -366,11 +407,16 @@ where
                 let txt = txt.trim_end();
                 txt.parse::<i32>()
                     .map_err(|e| Error::from(InvalidValueReadError::from(e)))
-            }).collect();
+            })
+            .collect();
         Ok(PrimitiveValue::I32(parts?))
     }
 
-    fn read_value_tm(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_tm(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of time instances
 
@@ -384,7 +430,8 @@ where
             return Err(TextEncodingError::new(format!(
                 "Invalid time value element \"{}\"",
                 lossy_str
-            )).into());
+            ))
+            .into());
         }
         let vec: Result<C<_>> = buf
             .split(|b| *b == b'\\')
@@ -560,7 +607,7 @@ fn parse_date(buf: &[u8]) -> Result<(NaiveDate, &[u8])> {
     // YYYY(MM(DD)?)?
     match buf.len() {
         0 | 5 | 7 => Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
-        1 ..= 4 => {
+        1..=4 => {
             let year = read_number(buf)?;
             let date: Result<_> = NaiveDate::from_ymd_opt(year, 0, 0)
                 .ok_or_else(|| InvalidValueReadError::DateTimeZone.into());
@@ -590,18 +637,35 @@ fn parse_time(buf: &[u8]) -> Result<(NaiveTime, &[u8])> {
 }
 
 /// A version of `NativeTime::from_hms` which returns a more informative error.
-fn naive_time_from_components(hour: u32, minute: u32, second: u32, micro: u32) -> std::result::Result<NaiveTime, InvalidValueReadError> {
+fn naive_time_from_components(
+    hour: u32,
+    minute: u32,
+    second: u32,
+    micro: u32,
+) -> std::result::Result<NaiveTime, InvalidValueReadError> {
     if hour >= 24 {
-        return Err(InvalidValueReadError::ParseDateTime(hour, "hour (in 0..24)"));
-    } 
+        return Err(InvalidValueReadError::ParseDateTime(
+            hour,
+            "hour (in 0..24)",
+        ));
+    }
     if minute >= 60 {
-        return Err(InvalidValueReadError::ParseDateTime(minute, "minute (in 0..60)"));
+        return Err(InvalidValueReadError::ParseDateTime(
+            minute,
+            "minute (in 0..60)",
+        ));
     }
     if second >= 60 {
-        return Err(InvalidValueReadError::ParseDateTime(second, "second (in 0..60)"));
+        return Err(InvalidValueReadError::ParseDateTime(
+            second,
+            "second (in 0..60)",
+        ));
     }
     if micro >= 2_000_000 {
-        return Err(InvalidValueReadError::ParseDateTime(second, "microsecond (in 0..2_000_000)"));
+        return Err(InvalidValueReadError::ParseDateTime(
+            second,
+            "microsecond (in 0..2_000_000)",
+        ));
     }
     Ok(NaiveTime::from_hms_micro(hour, minute, second, micro))
 }
@@ -627,7 +691,7 @@ fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, &[u8])>
             let hour = (i32::from(buf[0]) - Z) * 10 + i32::from(buf[1]) - Z;
             let minute = (i32::from(buf[2]) - Z) * 10 + i32::from(buf[3]) - Z;
             let second = (i32::from(buf[4]) - Z) * 10 + i32::from(buf[5]) - Z;
-            
+
             let time = naive_time_from_components(hour as u32, minute as u32, second as u32, 0)?;
             Ok((time, &buf[6..]))
         }
@@ -655,7 +719,8 @@ fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, &[u8])>
                 fract *= 10;
                 acc += 1;
             }
-            let time = naive_time_from_components(hour as u32, minute as u32, second as u32, fract)?;
+            let time =
+                naive_time_from_components(hour as u32, minute as u32, second as u32, fract)?;
             Ok((time, &buf[n..]))
         }
     }
@@ -783,7 +848,7 @@ fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime<Fix
 /// Remove trailing spaces and null characters.
 fn trim_trail_empty_bytes(mut x: &[u8]) -> &[u8] {
     while x.last() == Some(&b' ') || x.last() == Some(&b'\0') {
-        x = &x[.. x.len() - 1];
+        x = &x[..x.len() - 1];
     }
     x
 }
@@ -871,11 +936,17 @@ mod tests {
         );
         assert_eq!(
             parse_time(b"235959.123456max precision").unwrap(),
-            (NaiveTime::from_hms_micro(23, 59, 59, 123_456), &b"max precision"[..])
+            (
+                NaiveTime::from_hms_micro(23, 59, 59, 123_456),
+                &b"max precision"[..]
+            )
         );
         assert_eq!(
             parse_time_impl(b"235959.999999+01:00", true).unwrap(),
-            (NaiveTime::from_hms_micro(23, 59, 59, 999_999), &b"+01:00"[..])
+            (
+                NaiveTime::from_hms_micro(23, 59, 59, 999_999),
+                &b"+01:00"[..]
+            )
         );
         assert_eq!(
             parse_time(b"235959.792543").unwrap(),

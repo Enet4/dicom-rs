@@ -4,18 +4,16 @@
 //! The rest of the crate is used to obtain DICOM element headers and values.
 //! At this level, headers and values are treated as tokens which can be used
 //! to form a syntax tree of a full data set.
-use dicom_core::dictionary::DataDictionary;
-use dicom_core::header::{
-    DataElementHeader, Header, Length, SequenceItemHeader,
-};
-use dicom_core::value::{DicomValueType, PrimitiveValue};
-use dicom_core::{Tag, VR};
-use dicom_dictionary_std::StandardDataDictionary;
-use dicom_encoding::transfer_syntax::TransferSyntax;
-use dicom_encoding::text::SpecificCharacterSet;
 use crate::error::{Error, InvalidValueReadError, Result};
 use crate::parser::{DicomParser, DynamicDicomParser, Parse};
 use crate::util::{ReadSeek, SeekInterval};
+use dicom_core::dictionary::DataDictionary;
+use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
+use dicom_core::value::{DicomValueType, PrimitiveValue};
+use dicom_core::{Tag, VR};
+use dicom_dictionary_std::StandardDataDictionary;
+use dicom_encoding::text::SpecificCharacterSet;
+use dicom_encoding::transfer_syntax::TransferSyntax;
 use std::fmt;
 use std::io::{Read, Seek, SeekFrom};
 use std::iter::Iterator;
@@ -132,9 +130,7 @@ pub enum DataToken {
 impl fmt::Display for DataToken {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &DataToken::PrimitiveValue(ref v) => {
-                write!(f, "PrimitiveValue({:?})", v.value_type())
-            }
+            &DataToken::PrimitiveValue(ref v) => write!(f, "PrimitiveValue({:?})", v.value_type()),
             other => write!(f, "{:?}", other),
         }
     }

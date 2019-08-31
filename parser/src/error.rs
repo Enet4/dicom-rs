@@ -2,10 +2,10 @@ use crate::dataset::DataToken;
 use dicom_core::error::Error as CoreError;
 pub use dicom_core::error::{CastValueError, InvalidValueReadError};
 use dicom_encoding::error::{Error as EncodingError, TextEncodingError};
+use quick_error::quick_error;
 use std::error::Error as BaseError;
 use std::fmt;
 use std::io;
-use quick_error::quick_error;
 
 /// Type alias for a result from this crate.
 pub type Result<T> = ::std::result::Result<T, Error>;

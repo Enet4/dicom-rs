@@ -8,18 +8,16 @@
 
 mod entries;
 
-use std::collections::{HashMap, HashSet};
-use std::fmt;
-use std::fmt::{Display, Formatter};
+use crate::entries::ENTRIES;
 use dicom_core::dictionary::{DataDictionary, DictionaryEntryRef, TagRange::*};
 use dicom_core::header::{Tag, VR};
 use lazy_static::lazy_static;
-use crate::entries::ENTRIES;
+use std::collections::{HashMap, HashSet};
+use std::fmt;
+use std::fmt::{Display, Formatter};
 
 lazy_static! {
-    static ref DICT: StandardDictionaryRegistry = {
-        init_dictionary()
-    };
+    static ref DICT: StandardDictionaryRegistry = { init_dictionary() };
 }
 
 /// Retrieve a singleton instance of the standard dictionary registry.
@@ -57,10 +55,10 @@ impl StandardDictionaryRegistry {
         match entry.tag {
             Group100(tag) => {
                 self.repeating_ggxx.insert(tag);
-            },
+            }
             Element100(tag) => {
                 self.repeating_eexx.insert(tag);
-            },
+            }
             _ => {}
         }
         self
@@ -74,11 +72,12 @@ pub struct StandardDataDictionary;
 impl StandardDataDictionary {
     fn indexed_tag(tag: Tag) -> Option<&'static DictionaryEntryRef<'static>> {
         let r = registry();
-        
-        r.by_tag.get(&tag)
+
+        r.by_tag
+            .get(&tag)
             .or_else(|| {
                 let group_trimmed = Tag(tag.0 & 0xFF00, tag.1);
-                
+
                 if r.repeating_ggxx.contains(&group_trimmed) {
                     r.by_tag.get(&group_trimmed)
                 } else {
@@ -89,7 +88,8 @@ impl StandardDataDictionary {
                         None
                     }
                 }
-            }).cloned()
+            })
+            .cloned()
     }
 }
 
@@ -206,7 +206,7 @@ mod tests {
     use dicom_core::header::{Tag, VR};
 
     // tests for just a few attributes to make sure that the entries
-    // were well installed into the crate 
+    // were well installed into the crate
     #[test]
     fn smoke_test() {
         let dict = StandardDataDictionary::default();
@@ -229,21 +229,24 @@ mod tests {
             })
         );
 
-        let pixel_data = dict.by_tag(Tag(0x7FE0, 0x0010))
+        let pixel_data = dict
+            .by_tag(Tag(0x7FE0, 0x0010))
             .expect("Pixel Data attribute should exist");
         eprintln!("{:X?}", pixel_data.tag);
         assert_eq!(pixel_data.tag, Single(Tag(0x7FE0, 0x0010)));
         assert_eq!(pixel_data.alias, "PixelData");
         assert!(pixel_data.vr == VR::OB || pixel_data.vr == VR::OW);
 
-        let overlay_data = dict.by_tag(Tag(0x6000, 0x3000))
+        let overlay_data = dict
+            .by_tag(Tag(0x6000, 0x3000))
             .expect("Overlay Data attribute should exist");
         assert_eq!(overlay_data.tag, Group100(Tag(0x6000, 0x3000)));
         assert_eq!(overlay_data.alias, "OverlayData");
         assert!(overlay_data.vr == VR::OB || overlay_data.vr == VR::OW);
 
-        // repeated overlay data        
-        let overlay_data = dict.by_tag(Tag(0x60EE, 0x3000))
+        // repeated overlay data
+        let overlay_data = dict
+            .by_tag(Tag(0x60EE, 0x3000))
             .expect("Repeated Overlay Data attribute should exist");
         assert_eq!(overlay_data.tag, Group100(Tag(0x6000, 0x3000)));
         assert_eq!(overlay_data.alias, "OverlayData");

@@ -7,7 +7,7 @@ use crate::value::{DicomValueType, PrimitiveValue, Value};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
-use std::str::{FromStr, from_utf8};
+use std::str::{from_utf8, FromStr};
 
 /// A trait for a data type containing a DICOM header.
 #[allow(clippy::len_without_is_empty)]
@@ -56,10 +56,7 @@ pub struct PrimitiveDataElement {
 impl PrimitiveDataElement {
     /// Main constructor for a primitive data element.
     pub fn new(header: DataElementHeader, value: PrimitiveValue) -> Self {
-        PrimitiveDataElement {
-            header,
-            value,
-        }
+        PrimitiveDataElement { header, value }
     }
 }
 
@@ -91,10 +88,7 @@ pub struct PrimitiveDataElementRef<'v> {
 impl<'a> PrimitiveDataElementRef<'a> {
     /// Main constructor for a primitive data element reference.
     pub fn new(header: DataElementHeader, value: &'a PrimitiveValue) -> Self {
-        PrimitiveDataElementRef {
-            header,
-            value,
-        }
+        PrimitiveDataElementRef { header, value }
     }
 }
 impl<I> Header for DataElement<I> {
@@ -402,7 +396,9 @@ impl VR {
     /// Obtain the value representation corresponding to the given two bytes.
     /// Each byte should represent an alphabetic character in upper case.
     pub fn from_binary(chars: [u8; 2]) -> Option<Self> {
-        from_utf8(chars.as_ref()).ok().and_then(|s| VR::from_str(s).ok())
+        from_utf8(chars.as_ref())
+            .ok()
+            .and_then(|s| VR::from_str(s).ok())
     }
 
     /// Retrieve a string representation of this VR.

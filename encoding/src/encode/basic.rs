@@ -2,8 +2,8 @@
 //!
 
 use super::BasicEncode;
-use byteordered::{ByteOrdered, Endianness};
 use crate::error::Result;
+use byteordered::{ByteOrdered, Endianness};
 use std::io::Write;
 
 /// A basic encoder of primitive elements in little endian.
@@ -140,12 +140,12 @@ use self::BasicEncoder::{BE, LE};
 /// the specific basic encoder is still unknown in compile-time, this macro can be used
 /// to resolve the endianess only once.
 macro_rules! for_both {
-    ($endianness: expr, |$e: ident| $f: expr) => (
+    ($endianness: expr, |$e: ident| $f: expr) => {
         match *$endianness {
             LE(ref $e) => $f,
-            BE(ref $e) => $f
+            BE(ref $e) => $f,
         }
-    )
+    };
 }
 
 impl BasicEncode for BasicEncoder {

@@ -1,6 +1,6 @@
 //! This module contains all DICOM data element encoding logic.
-use byteordered::Endianness;
 use crate::error::Result;
+use byteordered::Endianness;
 use dicom_core::{DataElementHeader, Tag};
 use std::io::Write;
 
@@ -71,7 +71,7 @@ pub trait Encode {
 
     /// Encode and write a DICOM sequence item header to the given destination.
     /* Although item element headers are always a tag and length sequence regardless of TS,
-     the encoding of the length is unknown at this level. So no default impl. */
+    the encoding of the length is unknown at this level. So no default impl. */
     fn encode_item_header(&self, to: &mut Self::Writer, len: u32) -> Result<()>;
 
     /// Encode and write a DICOM sequence item delimiter to the given destination.

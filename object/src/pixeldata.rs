@@ -4,8 +4,8 @@
 //! provides a common interface for retrieving that content as an image
 //! or a multi-dimensional array.
 
-use std::marker::PhantomData;
 use dicom_parser::error::{Error, Result};
+use std::marker::PhantomData;
 
 /** Implemented by DICOM pixel data blocks retrieved from objects.
  *
@@ -109,7 +109,6 @@ where
             self.data[i].clone()
         })
     }
-
 }
 
 impl<C, P> PixelDataMut for InMemoryPixelData<C, P>

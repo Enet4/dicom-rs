@@ -1,17 +1,17 @@
 //! This module contains the implementation for an in-memory DICOM object.
 
 use itertools::Itertools;
+use smallvec::SmallVec;
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
-use smallvec::SmallVec;
 
-use crate::{DicomObject, RootDicomObject};
 use crate::meta::FileMetaTable;
+use crate::{DicomObject, RootDicomObject};
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::Header;
-use dicom_core::value::{C, DicomValueType, Value, ValueType};
+use dicom_core::value::{DicomValueType, Value, ValueType, C};
 use dicom_core::{DataElement, Length, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
@@ -119,12 +119,12 @@ where
                 entries: BTreeMap::new(),
                 dict,
                 len: Length::UNDEFINED,
-            }
+            },
         }
     }
 
     /// Create a DICOM object by reading from a file.
-    /// 
+    ///
     /// This function assumes the standard file encoding structure: 128-byte
     /// preamble, file meta group, and the rest of the data set.
     pub fn open_file_with_dict<P: AsRef<Path>>(path: P, dict: D) -> Result<Self> {
@@ -146,7 +146,7 @@ where
             .ok_or(Error::UnsupportedTransferSyntax)?;
         let cs = SpecificCharacterSet::Default;
         let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)?;
-        
+
         Ok(RootDicomObject {
             meta,
             obj: InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?,
@@ -154,7 +154,7 @@ where
     }
 
     /// Create a DICOM object by reading from a byte source.
-    /// 
+    ///
     /// This function assumes the standard file encoding structure without the
     /// preamble: file meta group, followed by the rest of the data set.
     pub fn from_reader_with_dict<S>(src: S, dict: D) -> Result<Self>
@@ -211,7 +211,7 @@ where
     // which is not possible without GATs.
 
     /// Retrieve the object's meta table if available.
-    /// 
+    ///
     /// At the moment, this is sure to return `None`, because the meta
     /// table is kept in a separate wrapper value.
     pub fn meta(&self) -> Option<&FileMetaTable> {
@@ -364,7 +364,7 @@ impl<D> Iterator for Iter<D> {
 mod tests {
 
     use super::*;
-    use dicom_core::value::{PrimitiveValue};
+    use dicom_core::value::PrimitiveValue;
     use dicom_core::VR;
 
     #[test]
