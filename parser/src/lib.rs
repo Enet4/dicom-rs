@@ -1,7 +1,12 @@
-//! This crate provides interfaces and data structures for reading and writing
-//! data in accordance to the DICOM standard, at different layers of
-//! abstraction.
+//! This crate works on top of DICOM encoding primitives to provide transfer
+//! syntax resolution and abstraction for parsing DICOM data sets, which
+//! ultimately enables the user to perceive the DICOM object as a sequence of
+//! tokens.
+//!
 //! For the time being, all APIs are based on synchronous I/O.
+//! 
+//! For a more intuitive, object-oriented API, please see the `dicom-object`
+//! crate.
 #![recursion_limit="72"]
 
 pub mod dataset;
@@ -11,3 +16,4 @@ pub mod error;
 mod util;
 
 pub use parser::{DicomParser, Parse, DynamicDicomParser};
+pub use dataset::DataSetReader;
