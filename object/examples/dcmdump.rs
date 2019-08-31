@@ -4,9 +4,8 @@ use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::Header;
 use dicom_core::value::{PrimitiveValue, Value as DicomValue};
 use dicom_core::VR;
-use dicom_object::file::open_file;
 use dicom_object::mem::{InMemDicomObject, InMemElement};
-use dicom_object::StandardDataDictionary;
+use dicom_object::{StandardDataDictionary, FileMetaTable, open_file};
 
 use std::borrow::Cow;
 use std::io::{stdout, Write};
@@ -21,14 +20,60 @@ fn main() -> DynResult<()> {
     let obj = open_file(filename)?;
     let mut to = stdout();
     write!(to, "# Dicom-File-Format\n\n")?;
-    dump(&mut to, &obj, 40, 0)?;
 
+    let meta = obj.meta();
+
+    let width = 40;
+
+    meta_dump(&mut to, &meta, width)?;
+
+    dump(&mut to, &obj, width, 0)?;
+
+    Ok(())
+}
+
+fn meta_dump<W>(to: &mut W, meta: &FileMetaTable, width: u32) -> DynResult<()>
+where
+    W: ?Sized + Write,
+{
+    writeln!(to, "Media Storage SOP Class UID: {}", meta.media_storage_sop_class_uid)?;
+    writeln!(to, "Media Storage SOP Instance UID: {}", meta.media_storage_sop_instance_uid)?;
+    writeln!(to, "Transfer Syntax: {}", meta.transfer_syntax)?;
+    writeln!(to, "Implementation Class UID: {}", meta.transfer_syntax)?;
+
+    if let Some(v) = meta.implementation_version_name.as_ref() {
+        writeln!(to, "Implementation version name: {}", v)?;
+    }
+    if let Some(v) = meta.source_application_entity_title.as_ref() {
+        writeln!(to, "Source Application Entity Title: {}", v)?;
+    }
+
+    if let Some(v) = meta.sending_application_entity_title.as_ref() {
+        writeln!(to, "Sending Application Entity Title: {}", v)?;
+    }
+
+    if let Some(v) = meta.receiving_application_entity_title.as_ref() {
+        writeln!(to, "Receiving Application Entity Title: {}", v)?;
+    }
+
+    if let Some(v) = meta.private_information_creator_uid.as_ref() {
+        writeln!(to, "Private Information Creator UID: {}", v)?;
+    }
+
+    if let Some(v) = meta.private_information.as_ref() {
+        writeln!(to, "Private Information: {}",  format_value_list(
+            v.into_iter().map(|n| format!("{:#x}", n)),
+            width,
+        ))?;
+    }
+
+    writeln!(to)?;
     Ok(())
 }
 
 fn dump<W, D>(to: &mut W, obj: &InMemDicomObject<D>, width: u32, depth: u32) -> DynResult<()>
 where
-    W: Write,
+    W: ?Sized + Write,
     D: DataDictionary,
 {
     for elem in obj {
@@ -40,7 +85,7 @@ where
 
 fn dump_element<W, D>(to: &mut W, elem: &InMemElement<D>, width: u32, depth: u32) -> DynResult<()>
 where
-    W: Write,
+    W: ?Sized + Write,
     D: DataDictionary,
 {
     let indent = vec![b' '; (depth * 2) as usize];
@@ -57,7 +102,7 @@ where
     if let &DicomValue::Sequence { ref items, .. } = elem.value() {
         writeln!(
             to,
-            "{} {}                        # {},    {}",
+            "{} {}                                # {},    {}",
             elem.tag(),
             elem.vr(),
             vm,
@@ -72,7 +117,7 @@ where
         let byte_len = value.calculate_byte_len();
         writeln!(
             to,
-            "{} {} {:40} # {}, {} {}",
+            "{} {} {:48} # {}, {} {}",
             elem.tag(),
             vr,
             value_summary(&value, vr, width),
@@ -87,7 +132,7 @@ where
 
 fn dump_item<W, D>(to: &mut W, item: &InMemDicomObject<D>, width: u32, depth: u32) -> DynResult<()>
 where
-    W: Write,
+    W: ?Sized + Write,
     D: DataDictionary,
 {
     let indent: String = std::iter::repeat(' ').take((depth * 2) as usize).collect();
@@ -119,7 +164,7 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> Cow<str
         )
         .into(),
         (U16(values), _) => format_value_list(values, max_characters).into(),
-        (U8(values), VR::OB) => format_value_list(
+        (U8(values), VR::OB) | (U8(values), VR::UN) => format_value_list(
             values.into_iter().map(|n| format!("{:#x}", n)),
             max_characters,
         )

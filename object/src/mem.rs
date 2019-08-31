@@ -7,8 +7,8 @@ use std::io::{BufReader, Read};
 use std::path::Path;
 use smallvec::SmallVec;
 
-use crate::DicomObject;
-use crate::meta::DicomMetaTable;
+use crate::{DicomObject, RootDicomObject};
+use crate::meta::FileMetaTable;
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::Header;
 use dicom_core::value::{C, DicomValueType, Value, ValueType};
@@ -71,16 +71,7 @@ where
     }
 }
 
-impl InMemDicomObject<StandardDataDictionary> {
-    /// Create a new empty DICOM object.
-    pub fn create_empty() -> Self {
-        InMemDicomObject {
-            entries: BTreeMap::new(),
-            dict: StandardDataDictionary,
-            len: Length::UNDEFINED,
-        }
-    }
-
+impl RootDicomObject<InMemDicomObject<StandardDataDictionary>> {
     /// Create a DICOM object by reading from a file.
     pub fn open_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         Self::open_file_with_dict(path, StandardDataDictionary)
@@ -93,6 +84,17 @@ impl InMemDicomObject<StandardDataDictionary> {
     {
         Self::from_reader_with_dict(src, StandardDataDictionary)
     }
+}
+
+impl InMemDicomObject<StandardDataDictionary> {
+    /// Create a new empty DICOM object.
+    pub fn create_empty() -> Self {
+        InMemDicomObject {
+            entries: BTreeMap::new(),
+            dict: StandardDataDictionary,
+            len: Length::UNDEFINED,
+        }
+    }
 
     /// Construct a DICOM object from an iterator of structured elements.
     pub fn from_element_iter<I>(iter: I) -> Result<Self>
@@ -100,6 +102,80 @@ impl InMemDicomObject<StandardDataDictionary> {
         I: IntoIterator<Item = Result<InMemElement<StandardDataDictionary>>>,
     {
         Self::from_iter_with_dict(iter, StandardDataDictionary)
+    }
+}
+
+impl<D> RootDicomObject<InMemDicomObject<D>>
+where
+    D: DataDictionary,
+    D: Clone,
+{
+    /// Create a new empty object, using the given dictionary and
+    /// file meta table.
+    pub fn new_empty_with_dict_and_meta(dict: D, meta: FileMetaTable) -> Self {
+        RootDicomObject {
+            meta,
+            obj: InMemDicomObject {
+                entries: BTreeMap::new(),
+                dict,
+                len: Length::UNDEFINED,
+            }
+        }
+    }
+
+    /// Create a DICOM object by reading from a file.
+    /// 
+    /// This function assumes the standard file encoding structure: 128-byte
+    /// preamble, file meta group, and the rest of the data set.
+    pub fn open_file_with_dict<P: AsRef<Path>>(path: P, dict: D) -> Result<Self> {
+        let mut file = BufReader::new(File::open(path)?);
+
+        // skip preamble
+        {
+            let mut buf = [0u8; 128];
+            // skip the preamble
+            file.read_exact(&mut buf)?;
+        }
+
+        // read metadata header
+        let meta = FileMetaTable::from_reader(&mut file)?;
+
+        // read rest of data according to metadata, feed it to object
+        let ts = get_registry()
+            .get(&meta.transfer_syntax)
+            .ok_or(Error::UnsupportedTransferSyntax)?;
+        let cs = SpecificCharacterSet::Default;
+        let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)?;
+        
+        Ok(RootDicomObject {
+            meta,
+            obj: InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?,
+        })
+    }
+
+    /// Create a DICOM object by reading from a byte source.
+    /// 
+    /// This function assumes the standard file encoding structure without the
+    /// preamble: file meta group, followed by the rest of the data set.
+    pub fn from_reader_with_dict<S>(src: S, dict: D) -> Result<Self>
+    where
+        S: Read,
+    {
+        let mut file = BufReader::new(src);
+
+        // read metadata header
+        let meta = FileMetaTable::from_reader(&mut file)?;
+
+        // read rest of data according to metadata, feed it to object
+        let ts = get_registry()
+            .get(&meta.transfer_syntax)
+            .ok_or(Error::UnsupportedTransferSyntax)?;
+        let cs = SpecificCharacterSet::Default;
+        let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)?;
+        Ok(RootDicomObject {
+            meta,
+            obj: InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?,
+        })
     }
 }
 
@@ -130,48 +206,38 @@ where
         })
     }
 
-    /// Create a DICOM object by reading from a file.
-    pub fn open_file_with_dict<P: AsRef<Path>>(path: P, dict: D) -> Result<Self> {
-        let mut file = BufReader::new(File::open(path)?);
+    // Standard methods follow. They are not placed as a trait implementation
+    // because they may require outputs to reference the lifetime of self,
+    // which is not possible without GATs.
 
-        // skip preamble
-        {
-            let mut buf = [0u8; 128];
-            // skip the preamble
-            file.read_exact(&mut buf)?;
-        }
-
-        // read metadata header
-        let meta = DicomMetaTable::from_reader(&mut file)?;
-
-        // read rest of data according to metadata, feed it to object
-        let ts = get_registry()
-            .get(&meta.transfer_syntax)
-            .ok_or(Error::UnsupportedTransferSyntax)?;
-        let cs = SpecificCharacterSet::Default;
-        let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)?;
-        Self::build_object(&mut dataset, dict, false, Length::UNDEFINED)
+    /// Retrieve the object's meta table if available.
+    /// 
+    /// At the moment, this is sure to return `None`, because the meta
+    /// table is kept in a separate wrapper value.
+    pub fn meta(&self) -> Option<&FileMetaTable> {
+        None
     }
 
-    /// Create a DICOM object by reading from a byte source.
-    pub fn from_reader_with_dict<S>(src: S, dict: D) -> Result<Self>
-    where
-        S: Read,
-    {
-        let mut file = BufReader::new(src);
-
-        // read metadata header
-        let meta = DicomMetaTable::from_reader(&mut file)?;
-
-        // read rest of data according to metadata, feed it to object
-        let ts = get_registry()
-            .get(&meta.transfer_syntax)
-            .ok_or(Error::UnsupportedTransferSyntax)?;
-        let cs = SpecificCharacterSet::Default;
-        let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)?;
-        Self::build_object(&mut dataset, dict, false, Length::UNDEFINED)
+    /// Retrieve a particular DICOM element by its tag.
+    pub fn element(&self, tag: Tag) -> Result<&InMemElement<D>> {
+        self.entries.get(&tag).ok_or(Error::NoSuchDataElement)
     }
 
+    /// Retrieve a particular DICOM element by its name.
+    pub fn element_by_name(&self, name: &str) -> Result<&InMemElement<D>> {
+        let tag = self.lookup_name(name)?;
+        self.element(tag)
+    }
+
+    /// Insert a data element to the object, replacing (and returning) any
+    /// previous element of the same attribute.
+    pub fn put(&mut self, elt: InMemElement<D>) -> Option<InMemElement<D>> {
+        self.entries.insert(elt.tag(), elt)
+    }
+
+    // private methods
+
+    /// Build an object by consuming a data set parser.
     fn build_object<'s, S: 's, P>(
         dataset: &mut DataSetReader<S, P, D>,
         dict: D,
@@ -215,6 +281,7 @@ where
         Ok(InMemDicomObject { entries, dict, len })
     }
 
+    /// Build a DICOM sequence by consuming a data set parser.
     fn build_sequence<'s, S: 's, P>(
         _tag: Tag,
         _len: Length,
@@ -249,22 +316,6 @@ where
             .by_name(name)
             .ok_or(Error::NoSuchAttributeName)
             .map(|e| e.tag())
-    }
-
-    /// Insert a data element to the object.
-    pub fn put(&mut self, elt: InMemElement<D>) {
-        self.entries.insert(elt.tag(), elt);
-    }
-
-    /// Retrieve a particular DICOM element by its tag.
-    pub fn element(&self, tag: Tag) -> Result<&InMemElement<D>> {
-        self.entries.get(&tag).ok_or(Error::NoSuchDataElement)
-    }
-
-    /// Retrieve a particular DICOM element by its name.
-    pub fn element_by_name(&self, name: &str) -> Result<&InMemElement<D>> {
-        let tag = self.lookup_name(name)?;
-        self.element(tag)
     }
 }
 

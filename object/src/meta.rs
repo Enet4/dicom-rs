@@ -11,14 +11,14 @@ use dicom_encoding::text::TextCodec;
 
 const DICM_MAGIC_CODE: [u8; 4] = [b'D', b'I', b'C', b'M'];
 
-/// DICOM Meta Information Table.
+/// DICOM File Meta Information Table.
 ///
 /// This data type contains the relevant parts of the file meta information table, as
 /// specified in [1].
 ///
 /// [1]: http://dicom.nema.org/medical/dicom/current/output/chtml/part06/chapter_7.html
 #[derive(Debug, Clone, PartialEq)]
-pub struct DicomMetaTable {
+pub struct FileMetaTable {
     /// File Meta Information Group Length
     pub information_group_length: u32,
     /// File Meta Information Version
@@ -91,9 +91,9 @@ where
     text.decode(&v).map_err(From::from)
 }
 
-impl DicomMetaTable {
-    pub fn from_reader<R: Read>(file: R) -> Result<DicomMetaTable> {
-        DicomMetaTable::read_from(file)
+impl FileMetaTable {
+    pub fn from_reader<R: Read>(file: R) -> Result<FileMetaTable> {
+        FileMetaTable::read_from(file)
     }
 
     fn read_from<S: Read>(mut file: S) -> Result<Self> {
@@ -110,7 +110,7 @@ impl DicomMetaTable {
         let decoder = decode::get_file_header_decoder();
         let text = text::DefaultCharacterSetCodec;
 
-        let builder = DicomMetaTableBuilder::new();
+        let builder = FileMetaTableBuilder::new();
 
         let group_length: u32 = {
             let elem = decoder.decode_header(&mut file)?;
@@ -240,7 +240,7 @@ impl DicomMetaTable {
 
 /// A builder for DICOM meta information tables.
 #[derive(Debug, Clone)]
-pub struct DicomMetaTableBuilder {
+pub struct FileMetaTableBuilder {
     /// File Meta Information Group Length (UL)
     information_group_length: Option<u32>,
     /// File Meta Information Version (OB)
@@ -268,9 +268,9 @@ pub struct DicomMetaTableBuilder {
     private_information: Option<Vec<u8>>,
 }
 
-impl Default for DicomMetaTableBuilder {
-    fn default() -> DicomMetaTableBuilder {
-        DicomMetaTableBuilder {
+impl Default for FileMetaTableBuilder {
+    fn default() -> FileMetaTableBuilder {
+        FileMetaTableBuilder {
             information_group_length: None,
             information_version: None,
             media_storage_sop_class_uid: None,
@@ -287,86 +287,86 @@ impl Default for DicomMetaTableBuilder {
     }
 }
 
-impl DicomMetaTableBuilder {
+impl FileMetaTableBuilder {
     /// Create a new, empty builder.
-    pub fn new() -> DicomMetaTableBuilder {
-        DicomMetaTableBuilder::default()
+    pub fn new() -> FileMetaTableBuilder {
+        FileMetaTableBuilder::default()
     }
 
     /// Define the meta information group length.
-    pub fn group_length(mut self, value: u32) -> DicomMetaTableBuilder {
+    pub fn group_length(mut self, value: u32) -> FileMetaTableBuilder {
         self.information_group_length = Some(value);
         self
     }
 
     /// Define the meta information version.
-    pub fn information_version(mut self, value: [u8; 2]) -> DicomMetaTableBuilder {
+    pub fn information_version(mut self, value: [u8; 2]) -> FileMetaTableBuilder {
         self.information_version = Some(value);
         self
     }
 
     /// Define the media storage SOP class UID.
-    pub fn media_storage_sop_class_uid(mut self, value: String) -> DicomMetaTableBuilder {
+    pub fn media_storage_sop_class_uid(mut self, value: String) -> FileMetaTableBuilder {
         self.media_storage_sop_class_uid = Some(value);
         self
     }
 
     /// Define the media storage SOP instance UID.
-    pub fn media_storage_sop_instance_uid(mut self, value: String) -> DicomMetaTableBuilder {
+    pub fn media_storage_sop_instance_uid(mut self, value: String) -> FileMetaTableBuilder {
         self.media_storage_sop_instance_uid = Some(value);
         self
     }
 
     /// Define the transfer syntax.
-    pub fn transfer_syntax(mut self, value: String) -> DicomMetaTableBuilder {
+    pub fn transfer_syntax(mut self, value: String) -> FileMetaTableBuilder {
         self.transfer_syntax = Some(value);
         self
     }
 
     /// Define the implementation class UID.
-    pub fn implementation_class_uid(mut self, value: String) -> DicomMetaTableBuilder {
+    pub fn implementation_class_uid(mut self, value: String) -> FileMetaTableBuilder {
         self.implementation_class_uid = Some(value);
         self
     }
 
     /// Define the implementation version name.
-    pub fn implementation_version_name(mut self, value: String) -> DicomMetaTableBuilder {
+    pub fn implementation_version_name(mut self, value: String) -> FileMetaTableBuilder {
         self.implementation_version_name = Some(value);
         self
     }
 
     /// Define the source application entity title.
-    pub fn source_application_entity_title(mut self, value: String) -> DicomMetaTableBuilder {
+    pub fn source_application_entity_title(mut self, value: String) -> FileMetaTableBuilder {
         self.source_application_entity_title = Some(value);
         self
     }
 
     /// Define the sending application entity title.
-    pub fn sending_application_entity_title(mut self, value: String) -> DicomMetaTableBuilder {
+    pub fn sending_application_entity_title(mut self, value: String) -> FileMetaTableBuilder {
         self.sending_application_entity_title = Some(value);
         self
     }
 
     /// Define the receiving application entity title.
-    pub fn receiving_application_entity_title(mut self, value: String) -> DicomMetaTableBuilder {
+    pub fn receiving_application_entity_title(mut self, value: String) -> FileMetaTableBuilder {
         self.receiving_application_entity_title = Some(value);
         self
     }
 
     /// Define the private information creator UID.
-    pub fn private_information_creator_uid(mut self, value: String) -> DicomMetaTableBuilder {
+    pub fn private_information_creator_uid(mut self, value: String) -> FileMetaTableBuilder {
         self.private_information_creator_uid = Some(value);
         self
     }
 
     /// Define the private information as a vector of bytes.
-    pub fn private_information(mut self, value: Vec<u8>) -> DicomMetaTableBuilder {
+    pub fn private_information(mut self, value: Vec<u8>) -> FileMetaTableBuilder {
         self.private_information = Some(value);
         self
     }
 
     /// Build the table.
-    pub fn build(self) -> Result<DicomMetaTable> {
+    pub fn build(self) -> Result<FileMetaTable> {
         let information_group_length = self.information_group_length
             .ok_or_else(|| Error::InvalidFormat)?;
         let information_version = self.information_version
@@ -378,7 +378,7 @@ impl DicomMetaTableBuilder {
         let transfer_syntax = self.transfer_syntax.ok_or_else(|| Error::InvalidFormat)?;
         let implementation_class_uid = self.implementation_class_uid
             .ok_or_else(|| Error::InvalidFormat)?;
-        Ok(DicomMetaTable {
+        Ok(FileMetaTable {
             information_group_length,
             information_version,
             media_storage_sop_class_uid,
@@ -397,7 +397,7 @@ impl DicomMetaTableBuilder {
 
 #[cfg(test)]
 mod tests {
-    use super::DicomMetaTable;
+    use super::FileMetaTable;
 
     const TEST_META_1: &'static [u8] = &[
         // magic code
@@ -435,7 +435,7 @@ mod tests {
     fn read_meta_table_from_reader() {
         let mut source = TEST_META_1;
 
-        let table = DicomMetaTable::from_reader(&mut source).unwrap();
+        let table = FileMetaTable::from_reader(&mut source).unwrap();
 
         assert_eq!(table.information_group_length, 200);
         assert_eq!(table.information_version, [0u8, 1u8]);

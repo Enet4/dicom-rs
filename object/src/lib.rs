@@ -41,10 +41,11 @@ mod util;
 pub use dicom_dictionary_std::StandardDataDictionary;
 pub use dicom_core::Tag;
 pub use crate::file::{from_reader, open_file};
-pub use crate::meta::DicomMetaTable;
+pub use crate::meta::FileMetaTable;
 pub use dicom_parser::error::{Result, Error};
 
-pub type DefaultDicomObject = mem::InMemDicomObject<StandardDataDictionary>;
+/// The default implementation of a root DICOM object.
+pub type DefaultDicomObject = RootDicomObject<mem::InMemDicomObject<StandardDataDictionary>>;
 
 use dicom_core::header::Header;
 
@@ -55,7 +56,7 @@ use dicom_core::header::Header;
 ///
 /// This trait interface is experimental and prone to sudden changes.
 pub trait DicomObject {
-    type Element: Header; // TODO change constraint
+    type Element: Header;
 
     /// Retrieve a particular DICOM element by its tag.
     fn element(&self, tag: Tag) -> Result<Self::Element>;
@@ -63,7 +64,14 @@ pub trait DicomObject {
     /// Retrieve a particular DICOM element by its name.
     fn element_by_name(&self, name: &str) -> Result<Self::Element>;
 
-    // TODO moar
+    /// Retrieve the processed meta information table, if available.
+    /// 
+    /// This table will generally not be reachable from children objects
+    /// in another object with a valid meta table. As such, it is recommended
+    /// for this method to be called at the root of a DICOM object.
+    fn meta(&self) -> Option<&FileMetaTable> {
+        None
+    }
 }
 
 /** A root DICOM object contains additional meta information about the object
@@ -71,13 +79,13 @@ pub trait DicomObject {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct RootDicomObject<T> {
-    meta: DicomMetaTable,
+    meta: FileMetaTable,
     obj: T,
 }
 
 impl<T> RootDicomObject<T> {
     /// Retrieve the processed meta header table.
-    pub fn meta(&self) -> &DicomMetaTable {
+    pub fn meta(&self) -> &FileMetaTable {
         &self.meta
     }
 }
@@ -108,6 +116,10 @@ where
 
     fn element_by_name(&self, name: &str) -> Result<Self::Element> {
         self.obj.element_by_name(name)
+    }
+
+    fn meta(&self) -> Option<&FileMetaTable> {
+        Some(&self.meta)
     }
 }
 
