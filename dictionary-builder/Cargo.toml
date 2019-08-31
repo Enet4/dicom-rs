@@ -5,7 +5,6 @@ authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A generator of DICOM data dictionaries from standard documentation"
 edition = "2018"
 license = "Apache-2.0 OR MIT"
-publish = false
 repository = "https://github.com/Enet4/dicom-rs"
 categories = ["command-line-utilities"]
 keywords = ["dicom"]
