@@ -4,7 +4,7 @@
 //! provides a common interface for retrieving that content as an image
 //! or a multi-dimensional array.
 
-use std::fmt;
+use std::marker::PhantomData;
 use dicom_parser::error::{Error, Result};
 
 /** Implemented by DICOM pixel data blocks retrieved from objects.
@@ -12,10 +12,10 @@ use dicom_parser::error::{Error, Result};
  * Pixel data elements typically represent 2D images. This trait provides
  * access to Pixel Data (7FE0,0010), Overlay Data (60xx,3000), or Waveform Data (5400,1010)
  * in a similar fashion to a two-dimensional array.
- * `PV` is a type used to represent a pixel.
  */
-pub trait PixelData<PV> {
-    // TODO this API is a work in progress.
+pub trait PixelData {
+    /// The representation of an individual pixel.
+    type Pixel;
 
     /// Get the number of rows (height) of the slice.
     fn rows(&self) -> u32;
@@ -32,35 +32,30 @@ pub trait PixelData<PV> {
     /// Obtain the pixel value in the given position.
     /// Can return PixelDataOutOfBounds error when the given coordinates
     /// are out of the slice's boundaries.
-    fn pixel_at(&self, width: u32, height: u32) -> Result<PV>;
+    fn pixel_at(&self, width: u32, height: u32) -> Result<Self::Pixel>;
+}
 
+pub trait PixelDataMut: PixelData {
     /// Obtain a mutable reference to the pixel value in the given position.
     /// Can return PixelDataOutOfBounds error when the given coordinates
     /// are out of the slice's boundaries.
-    fn pixel_at_mut(&mut self, width: u32, height: u32) -> Result<&mut PV>;
+    fn pixel_at_mut(&mut self, width: u32, height: u32) -> Result<&mut Self::Pixel>;
 }
 
-/// A DICOM slice that is completely stored in memory.
-/// Pixels are stored in row-major order with no padding.
-pub struct InMemoryPixelData<P> {
-    data: Vec<P>,
+/// A DICOM slice that is completely stored in memory, which may be
+/// owned by this  and owned by a local
+/// vector. Pixels are stored in row-major order with no padding.
+#[derive(Debug, Clone, PartialEq)]
+pub struct InMemoryPixelData<C, P> {
+    phantom: PhantomData<P>,
+    data: C,
     rows: u32,
     cols: u32,
     bpp: u32,
     samples: u16,
 }
 
-impl<P: fmt::Debug> fmt::Debug for InMemoryPixelData<P> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "InMemoryPixelData[data={:?}, rows={}, cols={}, bbp={}, samples={}]",
-            &self.data, self.rows, self.cols, self.bpp, self.samples
-        )
-    }
-}
-
-impl<P> InMemoryPixelData<P> {
+impl<C, P> InMemoryPixelData<C, P> {
     fn check_bounds(&self, w: u32, h: u32) -> Result<()> {
         if w >= self.cols || h >= self.rows {
             Err(Error::PixelDataOutOfBounds)
@@ -69,16 +64,29 @@ impl<P> InMemoryPixelData<P> {
         }
     }
 
-    /// Fetch the internal data vector, destroying the slice in the process.
-    pub fn into_vector(self) -> Vec<P> {
+    /// Fetch the internal data container, destroying the pixel data structure in the process.
+    pub fn into_raw_data(self) -> C {
         self.data
+    }
+
+    /// Obtain a reference to the internal data container.
+    pub fn raw_data(&self) -> &C {
+        &self.data
+    }
+
+    /// Obtain a reference to the internal data container.
+    pub fn raw_data_mut(&mut self) -> &mut C {
+        &mut self.data
     }
 }
 
-impl<P> PixelData<P> for InMemoryPixelData<P>
+impl<C, P> PixelData for InMemoryPixelData<C, P>
 where
     P: Clone,
+    C: std::ops::Deref<Target = [P]>,
 {
+    type Pixel = P;
+
     fn rows(&self) -> u32 {
         self.rows
     }
@@ -102,6 +110,13 @@ where
         })
     }
 
+}
+
+impl<C, P> PixelDataMut for InMemoryPixelData<C, P>
+where
+    P: Clone,
+    C: std::ops::DerefMut<Target = [P]>,
+{
     fn pixel_at_mut(&mut self, w: u32, h: u32) -> Result<&mut P> {
         self.check_bounds(w, h).map(move |_| {
             let i = (h * self.cols + w) as usize;
