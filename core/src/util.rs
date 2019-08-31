@@ -46,7 +46,7 @@ where
     pub fn new_here(mut source: B, n: u32) -> io::Result<Self> {
         let pos = source.seek(SeekFrom::Current(0))?;
         Ok(SeekInterval {
-            source: source,
+            source,
             current: pos,
             begin: pos,
             end: pos + u64::from(n),
@@ -59,7 +59,7 @@ where
     pub fn new_at(mut source: B, range: Range<u64>) -> io::Result<Self> {
         let pos = source.seek(SeekFrom::Start(range.start))?;
         Ok(SeekInterval {
-            source: source,
+            source,
             current: pos,
             begin: pos,
             end: range.end,

@@ -39,7 +39,7 @@ impl TransferSyntaxRegistry {
                 &uid
             }
         };
-        self.m.get(ts_uid).map(|ts| *ts)
+        self.m.get(ts_uid).copied()
     }
 
     /// Register the given transfer syntax (TS) to the system. It can override

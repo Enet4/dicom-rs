@@ -58,7 +58,7 @@ impl FromStr for TagRange {
 
         match (&group.as_bytes()[2..], &elem.as_bytes()[2..]) {
             (b"xx", b"xx") => {
-                return Err(TagRangeParseError("unsupported tag range"));
+                Err(TagRangeParseError("unsupported tag range"))
             },
             (b"xx", _) => {
                 // Group100
@@ -189,7 +189,7 @@ where
     pub fn new(dictionary: D, name: N) -> TagByName<N, D> {
         TagByName {
             dict: dictionary,
-            name: name,
+            name,
         }
     }
 }

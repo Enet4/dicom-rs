@@ -7,9 +7,10 @@ use crate::value::{DicomValueType, PrimitiveValue, Value};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
-use std::str::from_utf8;
+use std::str::{FromStr, from_utf8};
 
 /// A trait for a data type containing a DICOM header.
+#[allow(clippy::len_without_is_empty)]
 pub trait Header {
     /// Retrieve the element's tag as a `(group, element)` tuple.
     fn tag(&self) -> Tag;
@@ -120,30 +121,6 @@ impl<'a, I> Header for &'a DataElement<I> {
     }
 }
 
-impl<I> Header for Box<DataElement<I>> {
-    #[inline]
-    fn tag(&self) -> Tag {
-        (**self).tag()
-    }
-
-    #[inline]
-    fn len(&self) -> Length {
-        (**self).len()
-    }
-}
-
-impl<I> Header for ::std::rc::Rc<DataElement<I>> {
-    #[inline]
-    fn tag(&self) -> Tag {
-        (**self).tag()
-    }
-
-    #[inline]
-    fn len(&self) -> Length {
-        (**self).len()
-    }
-}
-
 impl<'v, I> Header for DataElementRef<'v, I> {
     #[inline]
     fn tag(&self) -> Tag {
@@ -164,8 +141,8 @@ where
     pub fn empty(tag: Tag, vr: VR) -> Self {
         DataElement {
             header: DataElementHeader {
-                tag: tag,
-                vr: vr,
+                tag,
+                vr,
                 len: Length(0),
             },
             value: PrimitiveValue::Empty.into(),
@@ -177,11 +154,11 @@ where
     pub fn new(tag: Tag, vr: VR, value: Value<I>) -> Self {
         DataElement {
             header: DataElementHeader {
-                tag: tag,
-                vr: vr,
+                tag,
+                vr,
                 len: value.size(),
             },
-            value: value,
+            value,
         }
     }
 
@@ -217,11 +194,11 @@ where
     pub fn new(tag: Tag, vr: VR, value: &'v Value<I>) -> Self {
         DataElementRef {
             header: DataElementHeader {
-                tag: tag,
-                vr: vr,
+                tag,
+                vr,
                 len: value.size(),
             },
-            value: value,
+            value,
         }
     }
 
@@ -349,7 +326,7 @@ impl Header for SequenceItemHeader {
 }
 
 /// An enum type for a DICOM value representation.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, Hash, Copy, Clone, Ord, PartialOrd)]
 pub enum VR {
     /// Application Entity
     AE,
@@ -422,62 +399,16 @@ pub enum VR {
 }
 
 impl VR {
-    
-
     /// Obtain the value representation corresponding to the given two bytes.
     /// Each byte should represent an alphabetic character in upper case.
     pub fn from_binary(chars: [u8; 2]) -> Option<Self> {
-        from_utf8(chars.as_ref()).ok().and_then(|s| VR::from_str(s))
-    }
-
-    /// Obtain the value representation corresponding to the given string.
-    /// The string should hold exactly two UTF-8 encoded alphabetic characters
-    /// in upper case, otherwise no match is made.
-    pub fn from_str(string: &str) -> Option<Self> {
-        use VR::*;
-        match string {
-            "AE" => Some(AE),
-            "AS" => Some(AS),
-            "AT" => Some(AT),
-            "CS" => Some(CS),
-            "DA" => Some(DA),
-            "DS" => Some(DS),
-            "DT" => Some(DT),
-            "FL" => Some(FL),
-            "FD" => Some(FD),
-            "IS" => Some(IS),
-            "LO" => Some(LO),
-            "LT" => Some(LT),
-            "OB" => Some(OB),
-            "OD" => Some(OD),
-            "OF" => Some(OF),
-            "OL" => Some(OL),
-            "OV" => Some(OV),
-            "OW" => Some(OW),
-            "PN" => Some(PN),
-            "SH" => Some(SH),
-            "SL" => Some(SL),
-            "SQ" => Some(SQ),
-            "SS" => Some(SS),
-            "ST" => Some(ST),
-            "SV" => Some(SV),
-            "TM" => Some(TM),
-            "UC" => Some(UC),
-            "UI" => Some(UI),
-            "UL" => Some(UL),
-            "UN" => Some(UN),
-            "UR" => Some(UR),
-            "US" => Some(US),
-            "UT" => Some(UT),
-            "UV" => Some(UV),
-            _ => None,
-        }
+        from_utf8(chars.as_ref()).ok().and_then(|s| VR::from_str(s).ok())
     }
 
     /// Retrieve a string representation of this VR.
-    pub fn to_string(&self) -> &'static str {
+    pub fn to_string(self) -> &'static str {
         use VR::*;
-        match *self {
+        match self {
             AE => "AE",
             AS => "AS",
             AT => "AT",
@@ -517,15 +448,63 @@ impl VR {
 
     /// Retrieve a copy of this VR's byte representation.
     /// The function returns two alphabetic characters in upper case.
-    pub fn to_bytes(&self) -> [u8; 2] {
+    pub fn to_bytes(self) -> [u8; 2] {
         let bytes = self.to_string().as_bytes();
         [bytes[0], bytes[1]]
     }
 }
 
+/// Obtain the value representation corresponding to the given string.
+/// The string should hold exactly two UTF-8 encoded alphabetic characters
+/// in upper case, otherwise no match is made.
+impl FromStr for VR {
+    type Err = &'static str;
+
+    fn from_str(string: &str) -> std::result::Result<Self, Self::Err> {
+        use VR::*;
+        match string {
+            "AE" => Ok(AE),
+            "AS" => Ok(AS),
+            "AT" => Ok(AT),
+            "CS" => Ok(CS),
+            "DA" => Ok(DA),
+            "DS" => Ok(DS),
+            "DT" => Ok(DT),
+            "FL" => Ok(FL),
+            "FD" => Ok(FD),
+            "IS" => Ok(IS),
+            "LO" => Ok(LO),
+            "LT" => Ok(LT),
+            "OB" => Ok(OB),
+            "OD" => Ok(OD),
+            "OF" => Ok(OF),
+            "OL" => Ok(OL),
+            "OV" => Ok(OV),
+            "OW" => Ok(OW),
+            "PN" => Ok(PN),
+            "SH" => Ok(SH),
+            "SL" => Ok(SL),
+            "SQ" => Ok(SQ),
+            "SS" => Ok(SS),
+            "ST" => Ok(ST),
+            "SV" => Ok(SV),
+            "TM" => Ok(TM),
+            "UC" => Ok(UC),
+            "UI" => Ok(UI),
+            "UL" => Ok(UL),
+            "UN" => Ok(UN),
+            "UR" => Ok(UR),
+            "US" => Ok(US),
+            "UT" => Ok(UT),
+            "UV" => Ok(UV),
+            _ => Err("no such value representation"),
+        }
+    }
+}
+
 impl fmt::Display for VR {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(self.to_string())
+        f.write_str(VR::to_string(*self))
     }
 }
 
@@ -546,13 +525,13 @@ pub struct Tag(pub GroupNumber, pub ElementNumber);
 impl Tag {
     /// Getter for the tag's group value.
     #[inline]
-    pub fn group(&self) -> GroupNumber {
+    pub fn group(self) -> GroupNumber {
         self.0
     }
 
     /// Getter for the tag's element value.
     #[inline]
-    pub fn element(&self) -> ElementNumber {
+    pub fn element(self) -> ElementNumber {
         self.1
     }
 }

@@ -136,7 +136,7 @@ fn init_dictionary() -> StandardDictionaryRegistry {
 
 // meta information entries
 type E<'a> = DictionaryEntryRef<'a>;
-const META_ENTRIES: &'static [E<'static>] = &[
+const META_ENTRIES: &[E<'static>] = &[
     E {
         tag: Single(Tag(0x0002, 0x0000)),
         alias: "FileMetaInformationGroupLength",

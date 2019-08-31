@@ -172,7 +172,7 @@ pub fn validate_iso_8859(text: &[u8]) -> TextValidationOutcome {
 /// Check whether the given byte slice contains only valid characters for a
 /// Date value representation.
 pub fn validate_da(text: &[u8]) -> TextValidationOutcome {
-    if text.into_iter().cloned().all(|c| c >= b'0' && c <= b'9') {
+    if text.iter().cloned().all(|c| c >= b'0' && c <= b'9') {
         TextValidationOutcome::Ok
     } else {
         TextValidationOutcome::NotOk
@@ -182,7 +182,7 @@ pub fn validate_da(text: &[u8]) -> TextValidationOutcome {
 /// Check whether the given byte slice contains only valid characters for a
 /// Time value representation.
 pub fn validate_tm(text: &[u8]) -> TextValidationOutcome {
-    if text.into_iter().cloned().all(|c| match c {
+    if text.iter().cloned().all(|c| match c {
         b'\\' | b'.' | b'-' | b' ' => true,
         c => c >= b'0' && c <= b'9',
     }) {
@@ -195,7 +195,7 @@ pub fn validate_tm(text: &[u8]) -> TextValidationOutcome {
 /// Check whether the given byte slice contains only valid characters for a
 /// Date Time value representation.
 pub fn validate_dt(text: &[u8]) -> TextValidationOutcome {
-    if text.into_iter().cloned().all(|c| match c {
+    if text.iter().cloned().all(|c| match c {
         b'.' | b'-' | b'+' | b' ' | b'\\' => true,
         c => c >= b'0' && c <= b'9',
     }) {
@@ -208,7 +208,7 @@ pub fn validate_dt(text: &[u8]) -> TextValidationOutcome {
 /// Check whether the given byte slice contains only valid characters for a
 /// Code String value representation.
 pub fn validate_cs(text: &[u8]) -> TextValidationOutcome {
-    if text.into_iter().cloned().all(|c| match c {
+    if text.iter().cloned().all(|c| match c {
         b' ' | b'_' => true,
         c => (c >= b'0' && c <= b'9') || (c >= b'A' && c <= b'Z'),
     }) {

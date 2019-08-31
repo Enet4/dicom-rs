@@ -76,8 +76,8 @@ where
     /// (separated by `'\\'`) into an owned string.
     pub fn to_str(&self) -> Result<Cow<str>, CastValueError> {
         match self {
-            &Value::Primitive(PrimitiveValue::Str(ref v)) => Ok(Cow::from(v.as_str())),
-            &Value::Primitive(PrimitiveValue::Strs(ref v)) => {
+            Value::Primitive(PrimitiveValue::Str(v)) => Ok(Cow::from(v.as_str())),
+            Value::Primitive(PrimitiveValue::Strs(v)) => {
                 Ok(Cow::from(v.into_iter().join("\\")))
             }
             _ => Err(CastValueError {
@@ -90,7 +90,7 @@ where
     /// Retrieves the primitive value as a sequence of unsigned bytes.
     pub fn as_u8(&self) -> Result<&[u8], CastValueError> {
         match self {
-            &Value::Primitive(PrimitiveValue::U8(ref v)) => Ok(&v),
+            Value::Primitive(PrimitiveValue::U8(v)) => Ok(&v),
             _ => Err(CastValueError {
                 requested: "u8",
                 got: self.value_type(),
@@ -101,7 +101,7 @@ where
     /// Retrieves the primitive value as a sequence of signed 32-bit integers.
     pub fn as_i32(&self) -> Result<&[i32], CastValueError> {
         match self {
-            &Value::Primitive(PrimitiveValue::I32(ref v)) => Ok(&v),
+            Value::Primitive(PrimitiveValue::I32(v)) => Ok(&v),
             _ => Err(CastValueError {
                 requested: "i32",
                 got: self.value_type(),
@@ -112,7 +112,7 @@ where
     /// Retrieves the primitive value as a DICOM tag.
     pub fn to_tag(&self) -> Result<Tag, CastValueError> {
         match self {
-            &Value::Primitive(PrimitiveValue::Tags(ref v)) => Ok(v[0]),
+            Value::Primitive(PrimitiveValue::Tags(v)) => Ok(v[0]),
             _ => Err(CastValueError {
                 requested: "tag",
                 got: self.value_type(),
@@ -123,7 +123,7 @@ where
     /// Retrieves the primitive value as a sequence of DICOM tags.
     pub fn as_tags(&self) -> Result<&[Tag], CastValueError> {
         match self {
-            &Value::Primitive(PrimitiveValue::Tags(ref v)) => Ok(&v),
+            Value::Primitive(PrimitiveValue::Tags(v)) => Ok(&v),
             _ => Err(CastValueError {
                 requested: "tag",
                 got: self.value_type(),
@@ -239,8 +239,8 @@ impl PrimitiveValue {
     pub fn string(&self) -> Option<&str> {
         use self::PrimitiveValue::*;
         match self {
-            &Strs(ref c) => c.get(0).map(String::as_str),
-            &Str(ref s) => Some(s),
+            Strs(c) => c.first().map(String::as_str),
+            Str(s) => Some(s),
             _ => None,
         }
     }
@@ -249,8 +249,8 @@ impl PrimitiveValue {
     pub fn strings(&self) -> Option<Vec<&str>> {
         use self::PrimitiveValue::*;
         match self {
-            &Strs(ref c) => Some(c.iter().map(String::as_str).collect()),
-            &Str(ref s) => Some(vec![&s]),
+            Strs(c) => Some(c.iter().map(String::as_str).collect()),
+            Str(s) => Some(vec![&s]),
             _ => None,
         }
     }
@@ -259,7 +259,7 @@ impl PrimitiveValue {
     pub fn tag(&self) -> Option<Tag> {
         use self::PrimitiveValue::*;
         match self {
-            &Tags(ref c) => c.get(0).map(Clone::clone),
+            Tags(c) => c.first().map(Clone::clone),
             _ => None,
         }
     }
@@ -268,7 +268,7 @@ impl PrimitiveValue {
     pub fn tags(&self) -> Option<&[Tag]> {
         use self::PrimitiveValue::*;
         match self {
-            &Tags(ref c) => Some(&c),
+            Tags(c) => Some(&c),
             _ => None,
         }
     }
@@ -277,7 +277,7 @@ impl PrimitiveValue {
     pub fn int64(&self) -> Option<i64> {
         use self::PrimitiveValue::*;
         match self {
-            I64(ref c) => c.get(0).cloned(),
+            I64(c) => c.first().cloned(),
             _ => None,
         }
     }
@@ -286,7 +286,7 @@ impl PrimitiveValue {
     pub fn uint64(&self) -> Option<u64> {
         use self::PrimitiveValue::*;
         match self {
-            U64(ref c) => c.get(0).cloned(),
+            U64(c) => c.first().cloned(),
             _ => None,
         }
     }
@@ -295,7 +295,7 @@ impl PrimitiveValue {
     pub fn int32(&self) -> Option<i32> {
         use self::PrimitiveValue::*;
         match self {
-            I32(ref c) => c.get(0).cloned(),
+            I32(c) => c.first().cloned(),
             _ => None,
         }
     }
@@ -304,7 +304,7 @@ impl PrimitiveValue {
     pub fn uint32(&self) -> Option<u32> {
         use self::PrimitiveValue::*;
         match self {
-            U32(ref c) => c.get(0).cloned(),
+            U32(ref c) => c.first().cloned(),
             _ => None,
         }
     }
@@ -313,7 +313,7 @@ impl PrimitiveValue {
     pub fn int16(&self) -> Option<i16> {
         use self::PrimitiveValue::*;
         match self {
-            I16(ref c) => c.get(0).cloned(),
+            I16(ref c) => c.first().cloned(),
             _ => None,
         }
     }
@@ -322,7 +322,7 @@ impl PrimitiveValue {
     pub fn uint16(&self) -> Option<u16> {
         use self::PrimitiveValue::*;
         match self {
-            U16(ref c) => c.get(0).cloned(),
+            U16(c) => c.first().cloned(),
             _ => None,
         }
     }
@@ -331,7 +331,7 @@ impl PrimitiveValue {
     pub fn uint8(&self) -> Option<u8> {
         use self::PrimitiveValue::*;
         match self {
-            U8(ref c) => c.get(0).cloned(),
+            U8(c) => c.first().cloned(),
             _ => None,
         }
     }
@@ -340,7 +340,7 @@ impl PrimitiveValue {
     pub fn float32(&self) -> Option<f32> {
         use self::PrimitiveValue::*;
         match self {
-            F32(ref c) => c.get(0).cloned(),
+            F32(c) => c.first().cloned(),
             _ => None,
         }
     }
@@ -349,7 +349,7 @@ impl PrimitiveValue {
     pub fn float64(&self) -> Option<f64> {
         use self::PrimitiveValue::*;
         match self {
-            F64(ref c) => c.get(0).cloned(),
+            F64(c) => c.first().cloned(),
             _ => None,
         }
     }
@@ -408,7 +408,7 @@ impl PrimitiveValue {
                 let mut frac = nano / 1000; // nano to microseconds
                 let mut trailing_zeros = 0;
                 while frac % 10 == 0 {
-                    frac = frac / 10;
+                    frac /= 10;
                     trailing_zeros += 1;
                 }
                 7 + 6 - trailing_zeros

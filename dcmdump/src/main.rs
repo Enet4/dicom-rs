@@ -81,7 +81,7 @@ where
 
     if let Some(v) = meta.private_information.as_ref() {
         writeln!(to, "Private Information: {}",  format_value_list(
-            v.into_iter().map(|n| format!("{:#x}", n)),
+            v.iter().map(|n| format!("{:#x}", n)),
             width,
         ))?;
     }
@@ -112,13 +112,13 @@ where
         .by_tag(elem.tag())
         .map(DictionaryEntry::alias)
         .unwrap_or("«Unknown Attribute»");
-    to.write(&indent)?;
+    to.write_all(&indent)?;
     let vm = match elem.vr() {
         VR::OB | VR::OW | VR::UN => 1,
         _ => elem.value().multiplicity(),
     };
 
-    if let &DicomValue::Sequence { ref items, .. } = elem.value() {
+    if let DicomValue::Sequence { ref items, .. } = elem.value() {
         writeln!(
             to,
             "{} {}                                # {},    {}",
@@ -210,7 +210,7 @@ where
     let max = max_characters as usize;
     let mut o = String::with_capacity(max);
     for piece in pieces {
-        o.extend(piece.to_string().chars());
+        o.push_str(&piece.to_string());
         o.push(',');
         if o.len() > max {
             break;
