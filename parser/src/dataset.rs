@@ -6,7 +6,7 @@
 //! to form a syntax tree of a full data set.
 use dicom_core::dictionary::DataDictionary;
 use dicom_core::header::{
-    DataElementHeader, Header, Length, PrimitiveDataElement, SequenceItemHeader,
+    DataElementHeader, Header, Length, SequenceItemHeader,
 };
 use dicom_core::value::{DicomValueType, PrimitiveValue};
 use dicom_core::{Tag, VR};
@@ -107,20 +107,6 @@ where
             hard_break: false,
             last_header: None,
         }
-    }
-}
-
-impl<'s, S: 's, P, D> DataSetReader<S, P, D>
-where
-    S: Read,
-    P: Parse<dyn Read + 's>,
-{
-    fn read_primitive_element<O>(
-        &mut self,
-        header: DataElementHeader,
-    ) -> Result<PrimitiveDataElement> {
-        let v = self.parser.read_value(&mut self.source, &header)?;
-        Ok(PrimitiveDataElement::new(header, v))
     }
 }
 
