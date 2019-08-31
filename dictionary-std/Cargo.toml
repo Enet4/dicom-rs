@@ -9,5 +9,5 @@ repository = "https://github.com/Enet4/dicom-rs"
 keywords = ["dicom"]
 
 [dependencies]
-dicom-core = { path = "../core" }
+dicom-core = { path = "../core", version = "0.1.0" }
 lazy_static = "1.2.0"

@@ -10,4 +10,4 @@ categories = ["command-line-utilities"]
 keywords = ["cli", "dicom", "dump"]
 
 [dependencies]
-dicom = { path = "../parent/" }
+dicom = { path = "../parent/", version = "0.1.0" }
