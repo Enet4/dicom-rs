@@ -1,14 +1,22 @@
-//! A reimplementation of dcmdump in Rust.
-//! This is a work in progress, it is not guaranteed to work yet!
-use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
-use dicom_core::header::Header;
-use dicom_core::value::{PrimitiveValue, Value as DicomValue};
-use dicom_core::VR;
-use dicom_object::mem::{InMemDicomObject, InMemElement};
-use dicom_object::{StandardDataDictionary, FileMetaTable, open_file};
+//! A CLI tool for inspecting the contents of a DICOM file.
+//! Despite the name, this tool may have a different interface and output
+//! from other `dcmdump` tools, and does not aim to make a drop-in
+//! replacement.
+//! 
+//! Usage:
+//! 
+//! ```none
+//! dcmdump <file.dcm>
+//! ```
+use dicom::core::dictionary::{DataDictionary, DictionaryEntry};
+use dicom::core::header::Header;
+use dicom::core::value::{PrimitiveValue, Value as DicomValue};
+use dicom::core::VR;
+use dicom::object::mem::{InMemDicomObject, InMemElement};
+use dicom::object::{DefaultDicomObject, StandardDataDictionary, FileMetaTable, open_file};
 
 use std::borrow::Cow;
-use std::io::{stdout, Write};
+use std::io::{ErrorKind, Write, Result as IoResult, stdout};
 
 type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -18,6 +26,17 @@ fn main() -> DynResult<()> {
         .expect("Missing path to DICOM file");
 
     let obj = open_file(filename)?;
+
+    match dump_file(obj) {
+        Err(ref e) if e.kind() == ErrorKind::BrokenPipe => {
+            Ok(()) // handle broken pipe separately with a no-op
+        },
+        Err(e) => Err(e)?, // raise other errors
+        _ => Ok(()) // all good
+    }
+}
+
+fn dump_file(obj: DefaultDicomObject) -> IoResult<()> {
     let mut to = stdout();
     write!(to, "# Dicom-File-Format\n\n")?;
 
@@ -32,7 +51,7 @@ fn main() -> DynResult<()> {
     Ok(())
 }
 
-fn meta_dump<W>(to: &mut W, meta: &FileMetaTable, width: u32) -> DynResult<()>
+fn meta_dump<W>(to: &mut W, meta: &FileMetaTable, width: u32) -> IoResult<()>
 where
     W: ?Sized + Write,
 {
@@ -71,7 +90,7 @@ where
     Ok(())
 }
 
-fn dump<W, D>(to: &mut W, obj: &InMemDicomObject<D>, width: u32, depth: u32) -> DynResult<()>
+fn dump<W, D>(to: &mut W, obj: &InMemDicomObject<D>, width: u32, depth: u32) -> IoResult<()>
 where
     W: ?Sized + Write,
     D: DataDictionary,
@@ -83,7 +102,7 @@ where
     Ok(())
 }
 
-fn dump_element<W, D>(to: &mut W, elem: &InMemElement<D>, width: u32, depth: u32) -> DynResult<()>
+fn dump_element<W, D>(to: &mut W, elem: &InMemElement<D>, width: u32, depth: u32) -> IoResult<()>
 where
     W: ?Sized + Write,
     D: DataDictionary,
@@ -130,7 +149,7 @@ where
     Ok(())
 }
 
-fn dump_item<W, D>(to: &mut W, item: &InMemDicomObject<D>, width: u32, depth: u32) -> DynResult<()>
+fn dump_item<W, D>(to: &mut W, item: &InMemDicomObject<D>, width: u32, depth: u32) -> IoResult<()>
 where
     W: ?Sized + Write,
     D: DataDictionary,
