@@ -73,11 +73,17 @@ where
 
 impl RootDicomObject<InMemDicomObject<StandardDataDictionary>> {
     /// Create a DICOM object by reading from a file.
+    ///
+    /// This function assumes the standard file encoding structure: 128-byte
+    /// preamble, file meta group, and the rest of the data set.
     pub fn open_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         Self::open_file_with_dict(path, StandardDataDictionary)
     }
 
-    /// Create a DICOM object by reading from a byte sources.
+    /// Create a DICOM object by reading from a byte source.
+    ///
+    /// This function assumes the standard file encoding structure without the
+    /// preamble: file meta group, followed by the rest of the data set.
     pub fn from_reader<S>(src: S) -> Result<Self>
     where
         S: Read,
