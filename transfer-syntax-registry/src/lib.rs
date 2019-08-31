@@ -1,6 +1,10 @@
 //! This crate contains the DICOM transfer syntax registry.
 //! The transfer syntax registry maps a DICOM UID of a transfer syntax into the
 //! respective transfer syntax specifier.
+//! 
+//! This registry should not have to be used directly, except when developing
+//! higher level APIs, which should learn to negotiate and resolve the expected
+//! transfer syntax automatically.
 
 use byteordered::Endianness;
 use dicom_encoding::submit_transfer_syntax;

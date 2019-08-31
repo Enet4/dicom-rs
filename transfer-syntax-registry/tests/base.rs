@@ -1,7 +1,7 @@
 //! Registry tests, to ensure that transfer syntaxes are properly
 //! registered when linked together in a separate program.
 
-use dicom_transfer_syntax_registry::{get_registry, TransferSyntax, TransferSyntaxRegistry};
+use dicom_transfer_syntax_registry::{get_registry, TransferSyntaxRegistry};
 
 fn assert_fully_supported(registry: &TransferSyntaxRegistry, mut uid: &'static str) {
     let ts = registry.get(uid);
