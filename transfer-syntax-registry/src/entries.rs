@@ -1,9 +1,4 @@
-//! Compiled transfer syntax specifiers.
-use byteordered::Endianness;
-
-use dicom_encoding::transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec};
-use dicom_encoding::submit_transfer_syntax;
-use super::create_ts_stub;
+// Compiled transfer syntax specifiers.
 
 // -- the three base transfer syntaxes, fully supported --
 

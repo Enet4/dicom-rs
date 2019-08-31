@@ -47,8 +47,8 @@ inventory::collect!(TransferSyntax);
 /// program's runtime. This is to be used by crates wishing to provide
 /// additional support for a certain transfer syntax.
 /// 
-/// This macro does actually "run" anything, so place it outside of any
-/// function body.
+/// This macro does actually "run" anything, so place it outside of a
+/// function body at the root of the crate.
 macro_rules! submit_transfer_syntax {
     ($ts: expr) => {
         inventory::submit! {

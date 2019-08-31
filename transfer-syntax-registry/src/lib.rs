@@ -2,14 +2,15 @@
 //! The transfer syntax registry maps a DICOM UID of a transfer syntax into the
 //! respective transfer syntax specifier.
 
-mod entries;
-
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::fmt;
 use byteordered::Endianness;
-use dicom_encoding::transfer_syntax::{Codec, TransferSyntax, AdapterFreeTransferSyntax};
+use dicom_encoding::transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec};
+use dicom_encoding::submit_transfer_syntax;
 use lazy_static::lazy_static;
+
+pub use dicom_encoding::TransferSyntax;
 
 /// Data type for a registry of DICOM.
 pub struct TransferSyntaxRegistry {
@@ -32,7 +33,7 @@ impl TransferSyntaxRegistry {
     pub fn get<U: AsRef<str>>(&self, uid: U) -> Option<&'static TransferSyntax> {
         let ts_uid = {
             let uid = uid.as_ref();
-            if uid.chars().rev().next() == Some('\0') {
+            if uid.as_bytes().last().cloned() == Some(b'\0') {
                 &uid[..uid.len() - 1]
             } else {
                 &uid
@@ -92,18 +93,13 @@ lazy_static! {
     };
 }
 
-/// Retrieve the default transfer syntax.
-pub fn default() -> AdapterFreeTransferSyntax {
-    entries::IMPLICIT_VR_LITTLE_ENDIAN
-}
-
 /// Retrieve the global codec registry.
 pub fn get_registry() -> &'static TransferSyntaxRegistry {
     &REGISTRY
 }
 
 /// create a TS with an unsupported pixel encapsulation
-pub(crate) const fn create_ts_stub(uid: &'static str, name: &'static str) -> AdapterFreeTransferSyntax {
+pub(crate) const fn create_ts_stub(uid: &'static str, name: &'static str) -> Ts {
     TransferSyntax::new(
         uid,
         name,
@@ -113,35 +109,11 @@ pub(crate) const fn create_ts_stub(uid: &'static str, name: &'static str) -> Ada
     )
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{get_registry, TransferSyntaxRegistry};
-
-    fn assert_fully_supported(registry: &TransferSyntaxRegistry, mut uid: &'static str) {
-        let ts = registry.get(uid);
-        assert!(ts.is_some());
-        let ts = ts.unwrap();
-        if uid.ends_with("\0") {
-            uid = &uid[0..uid.len() - 1];
-        }
-        assert_eq!(ts.uid(), uid);
-        assert!(ts.fully_supported());
-    }
-
-    #[test]
-    fn contains_base_ts() {
-        let registry = get_registry();
-
-        // contains implicit VR little endian and is fully supported
-        assert_fully_supported(&registry, "1.2.840.10008.1.2");
-
-        // should work the same for trailing null characters
-        assert_fully_supported(&registry, "1.2.840.10008.1.2\0");
-
-        // contains explicit VR little endian and is fully supported
-        assert_fully_supported(&registry, "1.2.840.10008.1.2.1");
-
-        // contains explicit VR big endian and is fully supported
-        assert_fully_supported(&registry, "1.2.840.10008.1.2.2");
-    }
+/// Retrieve the default transfer syntax.
+pub fn default() -> Ts {
+    IMPLICIT_VR_LITTLE_ENDIAN
 }
+
+// included verbatim instead of placed in a module because inventory
+// value submission only works at the crate's root at the moment.
+include!("entries.rs");
