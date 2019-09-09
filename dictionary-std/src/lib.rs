@@ -131,6 +131,9 @@ fn init_dictionary() -> StandardDictionaryRegistry {
     for entry in META_ENTRIES {
         d.index(&entry);
     }
+    for entry in COMMAND_ENTRIES {
+        d.index(&entry);
+    }
     d
 }
 
@@ -196,6 +199,130 @@ const META_ENTRIES: &[E<'static>] = &[
         tag: Single(Tag(0x0002, 0x0102)),
         alias: "PrivateInformation",
         vr: VR::OB,
+    },
+];
+
+// command entries
+const COMMAND_ENTRIES: &[E<'static>] = &[
+    E {
+        tag: Single(Tag(0x0000, 0x0000)),
+        alias: "CommandGroupLength",
+        vr: VR::UL,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x0002)),
+        alias: "AffectedSOPClassUID",
+        vr: VR::UI,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x0003)),
+        alias: "RequestedSOPClassUID",
+        vr: VR::UI,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x0100)),
+        alias: "CommandField",
+        vr: VR::US,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x0110)),
+        alias: "MessageID",
+        vr: VR::US,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x0120)),
+        alias: "MessageIDBeingRespondedTo",
+        vr: VR::SS,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x0600)),
+        alias: "MoveDestination",
+        vr: VR::AE,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x0700)),
+        alias: "Priority",
+        vr: VR::US,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x0800)),
+        alias: "CommandDataSetType",
+        vr: VR::US,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x0900)),
+        alias: "Status",
+        vr: VR::US,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x0901)),
+        alias: "OffendingElement",
+        vr: VR::AT,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x0902)),
+        alias: "ErrorComment",
+        vr: VR::LO,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x0903)),
+        alias: "ErrorID",
+        vr: VR::US,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x1000)),
+        alias: "AffectedSOPInstanceUID",
+        vr: VR::UI,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x1001)),
+        alias: "RequestedSOPInstanceUID",
+        vr: VR::UI,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x1002)),
+        alias: "EventTypeID",
+        vr: VR::US,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x1005)),
+        alias: "AttributeIdentifierList",
+        vr: VR::AT,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x1008)),
+        alias: "ActionTypeID",
+        vr: VR::US,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x1020)),
+        alias: "NumberOfRemainingSuboperations",
+        vr: VR::US,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x1021)),
+        alias: "NumberOfCompletedSuboperations",
+        vr: VR::US,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x1022)),
+        alias: "NumberOfFailedSuboperations",
+        vr: VR::US,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x1023)),
+        alias: "NumberOfWarningSuboperations",
+        vr: VR::US,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x1030)),
+        alias: "MoveOriginatorApplicationEntityTitle",
+        vr: VR::AE,
+    },
+    E {
+        tag: Single(Tag(0x0000, 0x1031)),
+        alias: "MoveOriginatorMessageID",
+        vr: VR::US,
     },
 ];
 
