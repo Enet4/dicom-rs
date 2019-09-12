@@ -351,7 +351,7 @@ where
             .map(|slice| {
                 let codec = SpecificCharacterSet::Default.get_codec().unwrap();
                 let txt = codec.decode(slice)?;
-                let txt = txt.trim_end();
+                let txt = txt.trim();
                 txt.parse::<f64>()
                     .map_err(|e| Error::from(InvalidValueReadError::from(e)))
             })
@@ -404,7 +404,7 @@ where
             .map(|slice| {
                 let codec = SpecificCharacterSet::Default.get_codec().unwrap();
                 let txt = codec.decode(slice)?;
-                let txt = txt.trim_end();
+                let txt = txt.trim();
                 txt.parse::<i32>()
                     .map_err(|e| Error::from(InvalidValueReadError::from(e)))
             })
