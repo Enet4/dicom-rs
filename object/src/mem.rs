@@ -151,7 +151,7 @@ where
             .get(&meta.transfer_syntax)
             .ok_or(Error::UnsupportedTransferSyntax)?;
         let cs = SpecificCharacterSet::Default;
-        let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)?;
+        let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs, false)?;
 
         Ok(RootDicomObject {
             meta,
@@ -177,7 +177,7 @@ where
             .get(&meta.transfer_syntax)
             .ok_or(Error::UnsupportedTransferSyntax)?;
         let cs = SpecificCharacterSet::Default;
-        let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)?;
+        let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs, false)?;
         Ok(RootDicomObject {
             meta,
             obj: InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?,

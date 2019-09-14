@@ -35,6 +35,8 @@ pub struct DataSetReader<S, P, D> {
     hard_break: bool,
     /// last decoded header
     last_header: Option<DataElementHeader>,
+    /// Optionally interpret string-based values (DT, IS, etc)
+    interpret_string_values: bool,
 }
 
 fn is_parse<S: ?Sized, P>(_: &P)
@@ -47,7 +49,12 @@ where
 impl<'s, S: 's> DataSetReader<S, DynamicDicomParser, StandardDataDictionary> {
     /// Creates a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
-    pub fn new_with(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self> {
+    pub fn new_with(
+        source: S,
+        ts: &TransferSyntax,
+        cs: SpecificCharacterSet,
+        interpret_string_values: bool,
+    ) -> Result<Self> {
         let parser = DynamicDicomParser::new_with(ts, cs)?;
 
         is_parse(&parser);
@@ -60,6 +67,7 @@ impl<'s, S: 's> DataSetReader<S, DynamicDicomParser, StandardDataDictionary> {
             in_sequence: false,
             hard_break: false,
             last_header: None,
+            interpret_string_values,
         })
     }
 }
@@ -72,6 +80,7 @@ impl<'s, S: 's, D> DataSetReader<S, DynamicDicomParser, D> {
         dict: D,
         ts: &TransferSyntax,
         cs: SpecificCharacterSet,
+        interpret_string_values: bool,
     ) -> Result<Self> {
         let parser = DynamicDicomParser::new_with(ts, cs)?;
 
@@ -85,6 +94,7 @@ impl<'s, S: 's, D> DataSetReader<S, DynamicDicomParser, D> {
             in_sequence: false,
             hard_break: false,
             last_header: None,
+            interpret_string_values,
         })
     }
 }
@@ -104,6 +114,7 @@ where
             in_sequence: false,
             hard_break: false,
             last_header: None,
+            interpret_string_values: true,
         }
     }
 }
@@ -176,7 +187,11 @@ where
         } else if self.last_header.is_some() {
             // a plain element header was read, so a value is expected
             let header = self.last_header.unwrap();
-            let v = match self.parser.read_value(&mut self.source, &header) {
+            let v = match if self.interpret_string_values {
+                self.parser.read_value(&mut self.source, &header)
+            } else {
+                self.parser.read_value_preserved(&mut self.source, &header)
+            } {
                 Ok(v) => v,
                 Err(e) => {
                     self.hard_break = true;
