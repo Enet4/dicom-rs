@@ -1,4 +1,4 @@
-use crate::error::Result;
+use crate::error::{Result, Error};
 use crate::pdu::*;
 use byteordered::byteorder::{BigEndian, ReadBytesExt};
 use std::io::{Cursor, ErrorKind, Read};
@@ -12,7 +12,7 @@ where
     R: Read,
 {
     if max_pdu_length < MINIMUM_PDU_SIZE || max_pdu_length > MAXIMUM_PDU_SIZE {
-        return Err(crate::error::Error::InvalidMaxPDU)?;
+        return Err(Error::InvalidMaxPdu)?;
     }
 
     // If we read can't read 2 bytes here, that means that there is no PDU
@@ -21,11 +21,11 @@ where
     // want to know if we had trouble even beginning to read a PDU. We still return
     // UnexpectedEof if we get after we have already began reading a PDU message.
     let bytes = read_n(reader, 2).map_err(|e| match e {
-        crate::error::Error::Io(io_error) => {
+        Error::Io(io_error) => {
             if io_error.kind() == ErrorKind::UnexpectedEof {
-                return crate::error::Error::NoPDUAvailable;
+                return Error::NoPduAvailable;
             }
-            return crate::error::Error::Io(io_error);
+            return Error::Io(io_error);
         }
         e => {
             return e;
@@ -36,7 +36,7 @@ where
     let pdu_length = reader.read_u32::<BigEndian>()?;
 
     if pdu_length > max_pdu_length {
-        return Err(crate::error::Error::PDUTooLarge)?;
+        return Err(Error::PduTooLarge)?;
     }
 
     let bytes = read_n(reader, pdu_length as u64)?;
@@ -89,20 +89,17 @@ where
             // Section 7.1.1.2, Section 7.1.1.13, and Section 7.1.1.6.
             while cursor.position() < cursor.get_ref().len() as u64 {
                 match read_pdu_variable(&mut cursor)? {
-                    PDUVariableItem::ApplicationContext(val) => {
+                    PduVariableItem::ApplicationContext(val) => {
                         application_context_name = Some(val);
                     }
-                    PDUVariableItem::PresentationContextProposed(val) => {
+                    PduVariableItem::PresentationContextProposed(val) => {
                         presentation_contexts.push(val);
                     }
-                    PDUVariableItem::UserVariables(val) => {
+                    PduVariableItem::UserVariables(val) => {
                         user_variables = val;
                     }
-                    PDUVariableItem::Unknown(val) => {
-                        println!("unknown item type: {}", val);
-                    }
-                    unsupported => {
-                        println!("unsupported item type: {:?}", unsupported);
+                    _ => {
+                        return Err(Error::InvalidPduVariable);
                     }
                 }
             }
@@ -155,20 +152,17 @@ where
             // 7.1.1.2, Section 7.1.1.14, and Section 7.1.1.6.
             while cursor.position() < cursor.get_ref().len() as u64 {
                 match read_pdu_variable(&mut cursor)? {
-                    PDUVariableItem::ApplicationContext(val) => {
+                    PduVariableItem::ApplicationContext(val) => {
                         application_context_name = Some(val);
                     }
-                    PDUVariableItem::PresentationContextResult(val) => {
+                    PduVariableItem::PresentationContextResult(val) => {
                         presentation_contexts.push(val);
                     }
-                    PDUVariableItem::UserVariables(val) => {
+                    PduVariableItem::UserVariables(val) => {
                         user_variables = val;
                     }
-                    PDUVariableItem::Unknown(val) => {
-                        println!("unknown item type: {}", val);
-                    }
-                    unsupported => {
-                        println!("unsupported item type: {:?}", unsupported);
+                    _ => {
+                        return Err(Error::InvalidPduVariable);
                     }
                 }
             }
@@ -199,8 +193,8 @@ where
                 1 => {
                     result = AssociationRJResult::Transient;
                 }
-                unknown => {
-                    return Err(format!("unknown source type: {}", unknown))?;
+                _ => {
+                    return Err(Error::InvalidRejectResult);
                 }
             }
 
@@ -258,8 +252,8 @@ where
                             AssociationRJServiceUserReason::Reserved(x),
                         );
                     }
-                    unknown => {
-                        return Err(format!("unknown reason type: {}", unknown))?;
+                    _ => {
+                        return Err(Error::InvalidRejectServiceUserReason);
                     }
                 },
                 2 => match cursor.read_u8()? {
@@ -273,8 +267,8 @@ where
                             AssociationRJServiceProviderASCEReason::ProtocolVersionNotSupported,
                         );
                     }
-                    unknown => {
-                        return Err(format!("unknown reason type: {}", unknown))?;
+                    _ => {
+                        return Err(Error::InvalidRejectServiceProviderASCEReason);
                     }
                 },
                 3 => match cursor.read_u8()? {
@@ -298,12 +292,12 @@ where
                             AssociationRJServiceProviderPresentationReason::Reserved(x),
                         );
                     }
-                    unknown => {
-                        return Err(format!("unknown reason type: {}", unknown))?;
+                    _ => {
+                        return Err(Error::InvalidRejectServiceProviderPresentationReason);
                     }
                 },
-                unknown => {
-                    return Err(format!("unknown source type: {}", unknown))?;
+                _ => {
+                    return Err(Error::InvalidRejectSource);
                 }
             }
 
@@ -455,12 +449,12 @@ where
                             AbortRQServiceProviderReason::InvalidPDUParameter,
                         );
                     }
-                    unknown => {
-                        return Err(format!("invalid abort diagnostic value: {}", unknown))?;
+                    _ => {
+                        return Err(Error::InvalidAbortServiceProviderReason);
                     }
                 },
-                unknown => {
-                    return Err(format!("invalid abort source value: {}", unknown))?;
+                _ => {
+                    return Err(Error::InvalidAbortSource);
                 }
             }
 
@@ -492,7 +486,7 @@ where
     Ok(buf)
 }
 
-fn read_pdu_variable<R>(reader: &mut R) -> Result<PDUVariableItem>
+fn read_pdu_variable<R>(reader: &mut R) -> Result<PduVariableItem>
 where
     R: Read,
 {
@@ -518,7 +512,7 @@ where
             // Annex A for an overview of this concept). DICOM Application-context-names are
             // registered in PS3.7.
             let val = String::from_utf8(cursor.into_inner())?;
-            Ok(PDUVariableItem::ApplicationContext(val))
+            Ok(PduVariableItem::ApplicationContext(val))
         }
         0x20 => {
             // Presentation Context Item Structure (proposed)
@@ -592,12 +586,12 @@ where
                         );
                     }
                     _ => {
-                        println!("unknown presentation context sub item: {}", item_type);
+                        return Err(Error::UnknownPresentationContextSubItem);
                     }
                 }
             }
 
-            Ok(PDUVariableItem::PresentationContextProposed(
+            Ok(PduVariableItem::PresentationContextProposed(
                 PresentationContextProposed {
                     id: presentation_context_id,
                     abstract_syntax: abstract_syntax.unwrap(),
@@ -644,8 +638,8 @@ where
                 4 => {
                     reason = PresentationContextResultReason::TransferSyntaxesNotSupported;
                 }
-                unknown => {
-                    return Err(format!("unknown reason value: {}", unknown))?;
+                _ => {
+                    return Err(Error::InvalidPresentationContextResultReason);
                 }
             }
 
@@ -682,7 +676,8 @@ where
                         // registered in PS3.5.
                         match transfer_syntax {
                             Some(_) => {
-                                return Err("multiple transfer syntaxes detected")?;
+                                // Multiple transfer syntax values cannot be proposed.
+                                return Err(Error::MultipleTransferSyntaxesProposed);
                             }
                             None => {
                                 transfer_syntax = Some(
@@ -694,14 +689,12 @@ where
                         }
                     }
                     _ => {
-                        return Err(
-                            "unknown transfer syntax sub-item in proposed presentation context",
-                        )?;
+                        return Err(Error::InvalidTransferSyntaxSubItem);
                     }
                 }
             }
 
-            Ok(PDUVariableItem::PresentationContextResult(
+            Ok(PduVariableItem::PresentationContextResult(
                 PresentationContextResult {
                     id: presentation_context_id,
                     reason: reason,
@@ -774,14 +767,13 @@ where
                         ));
                     }
                     _ => {
-                        read_n(&mut cursor, item_length as u64)?;
-                        user_variables.push(UserVariableItem::Unknown(item_type));
+                        user_variables.push(UserVariableItem::Unknown(item_type, read_n(&mut cursor, item_length as u64)?));
                     }
                 }
             }
 
-            Ok(PDUVariableItem::UserVariables(user_variables))
+            Ok(PduVariableItem::UserVariables(user_variables))
         }
-        _ => Ok(PDUVariableItem::Unknown(item_type)),
+        _ => Ok(PduVariableItem::Unknown(item_type)),
     }
 }

@@ -78,7 +78,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
                                 })?;
                             }
                             Err(e) => {
-                                if let dicom_ul::error::Error::NoPDUAvailable = e {
+                                if let dicom_ul::error::Error::NoPduAvailable = e {
                                     message_tx.send(ThreadMessage::Shutdown {
                                         initiator: ProviderType::SCU,
                                     })?;
@@ -110,7 +110,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
                                 })?;
                             }
                             Err(e) => {
-                                if let dicom_ul::error::Error::NoPDUAvailable = e {
+                                if let dicom_ul::error::Error::NoPduAvailable = e {
                                     message_tx.send(ThreadMessage::Shutdown {
                                         initiator: ProviderType::SCP,
                                     })?;

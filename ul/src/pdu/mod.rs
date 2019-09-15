@@ -88,7 +88,7 @@ pub enum AbortRQServiceProviderReason {
 }
 
 #[derive(Debug)]
-pub enum PDUVariableItem {
+pub enum PduVariableItem {
     Unknown(u8),
     ApplicationContext(String),
     PresentationContextProposed(PresentationContextProposed),
@@ -98,7 +98,7 @@ pub enum PDUVariableItem {
 
 #[derive(Debug)]
 pub enum UserVariableItem {
-    Unknown(u8),
+    Unknown(u8, Vec<u8>),
     MaxLength(u32),
     ImplementationClassUID(String),
     ImplementationVersionName(String),

@@ -732,8 +732,15 @@ fn write_pdu_variable_user_variables(
                         Ok(())
                     })?;
                 }
-                unknown => {
-                    return Err(format!("couldn't write user variable: {:?}", unknown))?;
+                UserVariableItem::Unknown(item_type, data) => {
+                    writer.write_u8(*item_type)?;
+
+                    writer.write_u8(0x00)?;
+
+                    write_chunk_u16(writer, |writer| {
+                        write_n(writer, data)?;
+                        Ok(())
+                    })?;
                 }
             }
         }

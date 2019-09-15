@@ -12,18 +12,49 @@ quick_error! {
         FromUtf8(err: std::string::FromUtf8Error) {
             from()
         }
-        Generic(err: String) {
-            from()
-            from(err: &str) -> (err.to_string())
-            display("{}", err)
-        }
-        NoPDUAvailable {
+        NoPduAvailable {
 
         }
-        InvalidMaxPDU {
+        InvalidMaxPdu {
 
         }
-        PDUTooLarge {
+        PduTooLarge {
+
+        }
+        InvalidPduVariable {
+
+        }
+        MultipleTransferSyntaxesProposed {
+
+        }
+        InvalidRejectResult {
+
+        }
+        InvalidRejectServiceUserReason {
+
+        }
+        InvalidRejectServiceProviderASCEReason {
+
+        }
+        InvalidRejectServiceProviderPresentationReason {
+
+        }
+        InvalidRejectSource {
+
+        }
+        InvalidAbortServiceProviderReason {
+
+        }
+        InvalidAbortSource {
+
+        }
+        InvalidPresentationContextResultReason {
+
+        }
+        InvalidTransferSyntaxSubItem {
+
+        }
+        UnknownPresentationContextSubItem {
 
         }
     }
