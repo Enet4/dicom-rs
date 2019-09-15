@@ -39,7 +39,7 @@ where
         return Err(Error::PduTooLarge)?;
     }
 
-    let bytes = read_n(reader, pdu_length as u64)?;
+    let bytes = read_n(reader, pdu_length as usize)?;
     let mut cursor = Cursor::new(bytes);
 
     match pdu_type {
@@ -66,7 +66,7 @@ where
             // trailing spaces (20H) being non-significant. The value made of 16 spaces (20H)
             // meaning "no Application Name specified" shall not be used. For a complete
             // description of the use of this field, see Section 7.1.1.4.
-            let called_ae_title = String::from_utf8(read_n(&mut cursor, 16 as u64)?)?
+            let called_ae_title = String::from_utf8(read_n(&mut cursor, 16 as usize)?)?
                 .trim()
                 .to_string();
 
@@ -75,7 +75,7 @@ where
             // trailing spaces (20H) being non-significant. The value made of 16 spaces (20H)
             // meaning "no Application Name specified" shall not be used. For a complete
             // description of the use of this field, see Section 7.1.1.3.
-            let calling_ae_title = String::from_utf8(read_n(&mut cursor, 16 as u64)?)?
+            let calling_ae_title = String::from_utf8(read_n(&mut cursor, 16 as usize)?)?
                 .trim()
                 .to_string();
 
@@ -354,7 +354,7 @@ where
                     is_last = false;
                 }
 
-                let data = read_n(&mut cursor, (item_length - 2) as u64)?;
+                let data = read_n(&mut cursor, (item_length - 2) as usize)?;
 
                 values.push(PDataValue {
                     presentation_context_id,
@@ -461,29 +461,19 @@ where
             Ok(PDU::AbortRQ { source })
         }
         _ => {
-            let data = read_n(&mut cursor, pdu_length as u64)?;
+            let data = read_n(&mut cursor, pdu_length as usize)?;
             Ok(PDU::Unknown { pdu_type, data })
         }
     }
 }
 
-fn read_n<R>(reader: &mut R, bytes_to_read: u64) -> Result<Vec<u8>>
+fn read_n<R>(reader: &mut R, bytes_to_read: usize) -> Result<Vec<u8>>
 where
     R: Read,
 {
-    let mut buf = vec![0; bytes_to_read as usize];
-    let mut pos = 0;
-    while pos < buf.len() {
-        let bytes_read = reader.read(&mut buf[pos..])?;
-        if bytes_read == 0 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
-                "no data read",
-            ))?;
-        }
-        pos += bytes_read;
-    }
-    Ok(buf)
+    let mut result = vec![0; bytes_to_read];
+    reader.read_exact(&mut result)?;
+    Ok(result)
 }
 
 fn read_pdu_variable<R>(reader: &mut R) -> Result<PduVariableItem>
@@ -499,7 +489,7 @@ where
     // 3-4 - Item-length
     let item_length = reader.read_u16::<BigEndian>()?;
 
-    let bytes = read_n(reader, item_length as u64)?;
+    let bytes = read_n(reader, item_length as usize)?;
     let mut cursor = Cursor::new(bytes);
 
     match item_type {
@@ -564,7 +554,7 @@ where
                         // Annex B for an overview of this concept). DICOM Abstract-syntax-names are
                         // registered in PS3.4.
                         abstract_syntax = Some(
-                            String::from_utf8(read_n(&mut cursor, item_length as u64)?)?
+                            String::from_utf8(read_n(&mut cursor, item_length as usize)?)?
                                 .trim()
                                 .to_string(),
                         );
@@ -580,7 +570,7 @@ where
                         // Annex B for an overview of this concept). DICOM Transfer-syntax-names are
                         // registered in PS3.5.
                         transfer_syntaxes.push(
-                            String::from_utf8(read_n(&mut cursor, item_length as u64)?)?
+                            String::from_utf8(read_n(&mut cursor, item_length as usize)?)?
                                 .trim()
                                 .to_string(),
                         );
@@ -681,7 +671,7 @@ where
                             }
                             None => {
                                 transfer_syntax = Some(
-                                    String::from_utf8(read_n(&mut cursor, item_length as u64)?)?
+                                    String::from_utf8(read_n(&mut cursor, item_length as usize)?)?
                                         .trim()
                                         .to_string(),
                                 );
@@ -744,7 +734,7 @@ where
                         // Section D.3.3.2. The Implementation-class-uid field is structured as a
                         // UID as defined in PS3.5.
                         let implementation_class_uid =
-                            String::from_utf8(read_n(&mut cursor, item_length as u64)?)?
+                            String::from_utf8(read_n(&mut cursor, item_length as usize)?)?
                                 .trim()
                                 .to_string();
                         user_variables.push(UserVariableItem::ImplementationClassUID(
@@ -759,7 +749,7 @@ where
                         // Section D.3.3.2. It shall be encoded as a string of 1 to 16 ISO 646:1990
                         // (basic G0 set) characters.
                         let implementation_version_name =
-                            String::from_utf8(read_n(&mut cursor, item_length as u64)?)?
+                            String::from_utf8(read_n(&mut cursor, item_length as usize)?)?
                                 .trim()
                                 .to_string();
                         user_variables.push(UserVariableItem::ImplementationVersionName(
@@ -769,7 +759,7 @@ where
                     _ => {
                         user_variables.push(UserVariableItem::Unknown(
                             item_type,
-                            read_n(&mut cursor, item_length as u64)?,
+                            read_n(&mut cursor, item_length as usize)?,
                         ));
                     }
                 }
