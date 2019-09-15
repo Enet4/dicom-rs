@@ -1,6 +1,7 @@
 use crate::error::Result;
 use crate::pdu::*;
 use byteordered::byteorder::{BigEndian, WriteBytesExt};
+use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
 use std::io::Write;
 
 fn write_n(writer: &mut dyn Write, bytes_to_write: &[u8]) -> Result<()> {
@@ -52,6 +53,7 @@ pub fn write_pdu<W>(writer: &mut W, pdu: &PDU) -> Result<()>
 where
     W: Write,
 {
+    let codec = SpecificCharacterSet::Default.get_codec().unwrap();
     match pdu {
         PDU::AssociationRQ {
             protocol_version,
@@ -87,8 +89,7 @@ where
                 // leading and trailing spaces (20H) being non-significant. The value made of 16
                 // spaces (20H) meaning "no Application Name specified" shall not be used. For a
                 // complete description of the use of this field, see Section 7.1.1.4.
-                // TODO: ensure ASCI/size
-                let mut ae_title_bytes = called_ae_title.as_bytes().to_vec();
+                let mut ae_title_bytes = codec.encode(called_ae_title)?;
                 ae_title_bytes.resize(16, 32); // 32 is asci for space
                 write_n(writer, &ae_title_bytes)?;
 
@@ -97,8 +98,7 @@ where
                 // trailing spaces (20H) being non-significant. The value made of 16 spaces
                 // (20H) meaning "no Application Name specified" shall not be used. For a
                 // complete description of the use of this field, see Section 7.1.1.3.
-                // TODO: ensure ASCI/size
-                let mut ae_title_bytes = calling_ae_title.as_bytes().to_vec();
+                let mut ae_title_bytes = codec.encode(calling_ae_title)?;
                 ae_title_bytes.resize(16, 32); // 32 is asci for space
                 write_n(writer, &ae_title_bytes)?;
 
@@ -106,10 +106,18 @@ where
                 // bytes but not tested to this value when received
                 write_n(writer, &[b'0'; 32])?;
 
-                write_pdu_variable_application_context_name(writer, application_context_name)?;
+                write_pdu_variable_application_context_name(
+                    writer,
+                    application_context_name,
+                    &codec,
+                )?;
 
                 for presentation_context in presentation_contexts {
-                    write_pdu_variable_presentation_context_proposed(writer, presentation_context)?;
+                    write_pdu_variable_presentation_context_proposed(
+                        writer,
+                        presentation_context,
+                        &codec,
+                    )?;
                 }
 
                 write_pdu_variable_user_variables(writer, user_variables)?;
@@ -165,7 +173,11 @@ where
                 // one Application Context Item, one or more Presentation Context Item(s) and one
                 // User Information Item. For a complete description of these items see Section
                 // 7.1.1.2, Section 7.1.1.14, and Section 7.1.1.6.
-                write_pdu_variable_application_context_name(writer, application_context_name)?;
+                write_pdu_variable_application_context_name(
+                    writer,
+                    application_context_name,
+                    &codec,
+                )?;
 
                 for presentation_context in presentation_contexts {
                     write_pdu_variable_presentation_context_result(writer, presentation_context)?;
@@ -456,6 +468,7 @@ where
 fn write_pdu_variable_application_context_name(
     writer: &mut dyn Write,
     application_context_name: &String,
+    codec: &dyn TextCodec,
 ) -> Result<()> {
     // Application Context Item Structure
     // 1 - Item-type - 10H
@@ -471,8 +484,7 @@ fn write_pdu_variable_application_context_name(
         // field see Section 7.1.1.2. Application-context-names are structured as
         // UIDs as defined in PS3.5 (see Annex A for an overview of this concept).
         // DICOM Application-context-names are registered in PS3.7.
-        // TODO: ensure ASCI
-        write_n(writer, application_context_name.as_bytes())?;
+        write_n(writer, &codec.encode(application_context_name)?)?;
 
         Ok(())
     })?;
@@ -483,6 +495,7 @@ fn write_pdu_variable_application_context_name(
 fn write_pdu_variable_presentation_context_proposed(
     writer: &mut dyn Write,
     presentation_context: &PresentationContextProposed,
+    codec: &dyn TextCodec,
 ) -> Result<()> {
     // Presentation Context Item Structure
     // 1 - tem-type - 20H
@@ -537,7 +550,10 @@ fn write_pdu_variable_presentation_context_proposed(
             // UIDs as defined in PS3.5
             // (see Annex B for an overview of this concept).
             // DICOM Abstract-syntax-names are registered in PS3.4.
-            write_n(writer, presentation_context.abstract_syntax.as_bytes())?;
+            write_n(
+                writer,
+                &codec.encode(&presentation_context.abstract_syntax)?,
+            )?;
 
             Ok(())
         })?;
@@ -560,7 +576,7 @@ fn write_pdu_variable_presentation_context_proposed(
                 // structured as UIDs as defined in PS3.5 (see Annex B for an
                 // overview of this concept). DICOM Transfer-syntax-names are
                 // registered in PS3.5.
-                write_n(writer, transfer_syntax.as_bytes())?;
+                write_n(writer, &codec.encode(transfer_syntax)?)?;
 
                 Ok(())
             })?;
@@ -654,7 +670,7 @@ fn write_pdu_variable_presentation_context_result(
 
 fn write_pdu_variable_user_variables(
     writer: &mut dyn Write,
-    user_variables: &Vec<UserVariableItem>,
+    user_variables: &[UserVariableItem],
 ) -> Result<()> {
     if user_variables.len() == 0 {
         return Ok(());

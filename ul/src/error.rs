@@ -57,5 +57,8 @@ quick_error! {
         UnknownPresentationContextSubItem {
 
         }
+        EncodingError(err: dicom_encoding::error::Error) {
+            from()
+        }
     }
 }

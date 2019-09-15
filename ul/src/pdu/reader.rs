@@ -1,7 +1,8 @@
 use crate::error::{Error, Result};
 use crate::pdu::*;
 use byteordered::byteorder::{BigEndian, ReadBytesExt};
-use std::io::{Cursor, ErrorKind, Read};
+use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
+use std::io::{Cursor, ErrorKind, Read, Seek, SeekFrom};
 
 pub const DEFAULT_MAX_PDU: u32 = 16384;
 pub const MINIMUM_PDU_SIZE: u32 = 4096;
@@ -41,6 +42,7 @@ where
 
     let bytes = read_n(reader, pdu_length as usize)?;
     let mut cursor = Cursor::new(bytes);
+    let codec = SpecificCharacterSet::Default.get_codec().unwrap();
 
     match pdu_type {
         0x01 => {
@@ -66,29 +68,29 @@ where
             // trailing spaces (20H) being non-significant. The value made of 16 spaces (20H)
             // meaning "no Application Name specified" shall not be used. For a complete
             // description of the use of this field, see Section 7.1.1.4.
-            let called_ae_title = String::from_utf8(read_n(&mut cursor, 16 as usize)?)?
-                .trim()
-                .to_string();
+            let mut ae_bytes = vec![0; 16];
+            cursor.read_exact(&mut ae_bytes)?;
+            let called_ae_title = codec.decode(&ae_bytes)?.trim().to_string();
 
             // 27-42 - Calling-AE-title - Source DICOM Application Name. It shall be encoded as
             // 16 characters as defined by the ISO 646:1990-Basic G0 Set with leading and
             // trailing spaces (20H) being non-significant. The value made of 16 spaces (20H)
             // meaning "no Application Name specified" shall not be used. For a complete
             // description of the use of this field, see Section 7.1.1.3.
-            let calling_ae_title = String::from_utf8(read_n(&mut cursor, 16 as usize)?)?
-                .trim()
-                .to_string();
+            let mut ae_bytes = vec![0; 16];
+            cursor.read_exact(&mut ae_bytes)?;
+            let calling_ae_title = codec.decode(&ae_bytes)?.trim().to_string();
 
             // 43-74 - Reserved - This reserved field shall be sent with a value 00H for all
             // bytes but not tested to this value when received
-            cursor.set_position(cursor.position() + 32);
+            cursor.seek(SeekFrom::Current(32))?;
 
             // 75-xxx - Variable items - This variable field shall contain the following items:
             // one Application Context Item, one or more Presentation Context Items and one User
             // Information Item. For a complete description of the use of these items see
             // Section 7.1.1.2, Section 7.1.1.13, and Section 7.1.1.6.
             while cursor.position() < cursor.get_ref().len() as u64 {
-                match read_pdu_variable(&mut cursor)? {
+                match read_pdu_variable(&mut cursor, &codec)? {
                     PduVariableItem::ApplicationContext(val) => {
                         application_context_name = Some(val);
                     }
@@ -134,24 +136,20 @@ where
             // 11-26 - Reserved - This reserved field shall be sent with a value identical to
             // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
             // shall not be tested when received.
-            cursor.set_position(cursor.position() + 16);
-
             // 27-42 - Reserved - This reserved field shall be sent with a value identical to
             // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
             // shall not be tested when received.
-            cursor.set_position(cursor.position() + 16);
-
             // 43-74 - Reserved - This reserved field shall be sent with a value identical to
             // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
             // shall not be tested when received.
-            cursor.set_position(cursor.position() + 32);
+            cursor.seek(SeekFrom::Current(16 + 16 + 32))?;
 
             // 75-xxx - Variable items - This variable field shall contain the following items:
             // one Application Context Item, one or more Presentation Context Item(s) and one
             // User Information Item. For a complete description of these items see Section
             // 7.1.1.2, Section 7.1.1.14, and Section 7.1.1.6.
             while cursor.position() < cursor.get_ref().len() as u64 {
-                match read_pdu_variable(&mut cursor)? {
+                match read_pdu_variable(&mut cursor, &codec)? {
                     PduVariableItem::ApplicationContext(val) => {
                         application_context_name = Some(val);
                     }
@@ -371,7 +369,7 @@ where
 
             // 7-10 - Reserved - This reserved field shall be sent with a value 00000000H but not
             // tested to this value when received.
-            read_n(&mut cursor, 4)?;
+            cursor.seek(SeekFrom::Current(4))?;
 
             Ok(PDU::ReleaseRQ)
         }
@@ -380,7 +378,7 @@ where
 
             // 7-10 - Reserved - This reserved field shall be sent with a value 00000000H but not
             // tested to this value when received.
-            read_n(&mut cursor, 4)?;
+            cursor.seek(SeekFrom::Current(4))?;
 
             Ok(PDU::ReleaseRP)
         }
@@ -476,7 +474,7 @@ where
     Ok(result)
 }
 
-fn read_pdu_variable<R>(reader: &mut R) -> Result<PduVariableItem>
+fn read_pdu_variable<R>(reader: &mut R, codec: &dyn TextCodec) -> Result<PduVariableItem>
 where
     R: Read,
 {
@@ -501,7 +499,7 @@ where
             // 7.1.1.2. Application-context-names are structured as UIDs as defined in PS3.5 (see
             // Annex A for an overview of this concept). DICOM Application-context-names are
             // registered in PS3.7.
-            let val = String::from_utf8(cursor.into_inner())?;
+            let val = codec.decode(&cursor.into_inner())?;
             Ok(PduVariableItem::ApplicationContext(val))
         }
         0x20 => {
@@ -554,7 +552,8 @@ where
                         // Annex B for an overview of this concept). DICOM Abstract-syntax-names are
                         // registered in PS3.4.
                         abstract_syntax = Some(
-                            String::from_utf8(read_n(&mut cursor, item_length as usize)?)?
+                            codec
+                                .decode(&read_n(&mut cursor, item_length as usize)?)?
                                 .trim()
                                 .to_string(),
                         );
@@ -570,7 +569,8 @@ where
                         // Annex B for an overview of this concept). DICOM Transfer-syntax-names are
                         // registered in PS3.5.
                         transfer_syntaxes.push(
-                            String::from_utf8(read_n(&mut cursor, item_length as usize)?)?
+                            codec
+                                .decode(&read_n(&mut cursor, item_length as usize)?)?
                                 .trim()
                                 .to_string(),
                         );
@@ -671,7 +671,8 @@ where
                             }
                             None => {
                                 transfer_syntax = Some(
-                                    String::from_utf8(read_n(&mut cursor, item_length as usize)?)?
+                                    codec
+                                        .decode(&read_n(&mut cursor, item_length as usize)?)?
                                         .trim()
                                         .to_string(),
                                 );
@@ -733,10 +734,10 @@ where
                         // the Implementation-class-uid of the Association-acceptor as defined in
                         // Section D.3.3.2. The Implementation-class-uid field is structured as a
                         // UID as defined in PS3.5.
-                        let implementation_class_uid =
-                            String::from_utf8(read_n(&mut cursor, item_length as usize)?)?
-                                .trim()
-                                .to_string();
+                        let implementation_class_uid = codec
+                            .decode(&read_n(&mut cursor, item_length as usize)?)?
+                            .trim()
+                            .to_string();
                         user_variables.push(UserVariableItem::ImplementationClassUID(
                             implementation_class_uid,
                         ));
@@ -748,10 +749,10 @@ where
                         // the Implementation-version-name of the Association-acceptor as defined in
                         // Section D.3.3.2. It shall be encoded as a string of 1 to 16 ISO 646:1990
                         // (basic G0 set) characters.
-                        let implementation_version_name =
-                            String::from_utf8(read_n(&mut cursor, item_length as usize)?)?
-                                .trim()
-                                .to_string();
+                        let implementation_version_name = codec
+                            .decode(&read_n(&mut cursor, item_length as usize)?)?
+                            .trim()
+                            .to_string();
                         user_variables.push(UserVariableItem::ImplementationVersionName(
                             implementation_version_name,
                         ));
