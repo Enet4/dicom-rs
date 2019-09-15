@@ -31,8 +31,8 @@ fn main() -> DynResult<()> {
         Err(ref e) if e.kind() == ErrorKind::BrokenPipe => {
             Ok(()) // handle broken pipe separately with a no-op
         }
-        Err(e) => Err(e)?, // raise other errors
-        _ => Ok(()),       // all good
+        Err(e) => Err(e.into()), // raise other errors
+        _ => Ok(()),             // all good
     }
 }
 

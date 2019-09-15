@@ -92,7 +92,7 @@ where
 }
 
 impl FileMetaTable {
-    pub fn from_reader<R: Read>(file: R) -> Result<FileMetaTable> {
+    pub fn from_reader<R: Read>(file: R) -> Result<Self> {
         FileMetaTable::read_from(file)
     }
 
@@ -464,5 +464,4 @@ mod tests {
         assert_eq!(table.private_information_creator_uid, None);
         assert_eq!(table.private_information, None);
     }
-
 }
