@@ -709,7 +709,7 @@ fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, &[u8])>
             let mut n = usize::min(6, buf.len());
             if for_datetime {
                 // check for time zone suffix, restrict fraction size accordingly
-                if let Some(i) = buf.into_iter().position(|v| *v == b'+' || *v == b'-') {
+                if let Some(i) = buf.iter().position(|v| *v == b'+' || *v == b'-') {
                     n = i;
                 }
             }
@@ -789,11 +789,9 @@ where
 {
     debug_assert!(!buf.is_empty());
     debug_assert!(buf.len() < 10);
-    (&buf[1..])
-        .into_iter()
-        .fold((buf[0] - b'0').into(), |acc, v| {
-            acc * T::ten() + (*v - b'0').into()
-        })
+    (&buf[1..]).iter().fold((buf[0] - b'0').into(), |acc, v| {
+        acc * T::ten() + (*v - b'0').into()
+    })
 }
 
 fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime<FixedOffset>> {
