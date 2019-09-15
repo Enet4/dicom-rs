@@ -1,3 +1,4 @@
+use crate::error::*;
 use crate::pdu::reader::*;
 use crate::pdu::writer::*;
 use crate::pdu::*;
@@ -5,11 +6,11 @@ use byteordered::byteorder::WriteBytesExt;
 use std::io::Cursor;
 
 #[test]
-fn can_write_chunks_with_preceding_u32_length() -> crate::error::Result<()> {
+fn can_write_chunks_with_preceding_u32_length() -> Result<()> {
     let mut bytes = vec![0u8; 0];
-    crate::pdu::writer::write_chunk_u32(&mut bytes, |writer| {
+    write_chunk_u32(&mut bytes, |writer| {
         writer.write_u8(0x02)?;
-        crate::pdu::writer::write_chunk_u32(writer, |writer| {
+        write_chunk_u32(writer, |writer| {
             writer.write_u8(0x03)?;
             Ok(())
         })?;
@@ -23,11 +24,11 @@ fn can_write_chunks_with_preceding_u32_length() -> crate::error::Result<()> {
 }
 
 #[test]
-fn can_write_chunks_with_preceding_u16_length() -> crate::error::Result<()> {
+fn can_write_chunks_with_preceding_u16_length() -> Result<()> {
     let mut bytes = vec![0u8; 0];
-    crate::pdu::writer::write_chunk_u16(&mut bytes, |writer| {
+    write_chunk_u16(&mut bytes, |writer| {
         writer.write_u8(0x02)?;
-        crate::pdu::writer::write_chunk_u16(writer, |writer| {
+        write_chunk_u16(writer, |writer| {
             writer.write_u8(0x03)?;
             Ok(())
         })?;
@@ -41,7 +42,7 @@ fn can_write_chunks_with_preceding_u16_length() -> crate::error::Result<()> {
 }
 
 #[test]
-fn can_read_write_associate_rq() -> crate::error::Result<()> {
+fn can_read_write_associate_rq() -> Result<()> {
     let association_rq = PDU::AssociationRQ {
         protocol_version: 2,
         calling_ae_title: "calling ae".to_string(),
@@ -114,7 +115,7 @@ fn can_read_write_associate_rq() -> crate::error::Result<()> {
 }
 
 #[test]
-fn can_read_write_pdata() -> crate::error::Result<()> {
+fn can_read_write_pdata() -> Result<()> {
     let pdata_rq = PDU::PData {
         data: vec![PDataValue {
             presentation_context_id: 3,

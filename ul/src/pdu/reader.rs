@@ -1,4 +1,4 @@
-use crate::error::{Result, Error};
+use crate::error::{Error, Result};
 use crate::pdu::*;
 use byteordered::byteorder::{BigEndian, ReadBytesExt};
 use std::io::{Cursor, ErrorKind, Read};
@@ -767,7 +767,10 @@ where
                         ));
                     }
                     _ => {
-                        user_variables.push(UserVariableItem::Unknown(item_type, read_n(&mut cursor, item_length as u64)?));
+                        user_variables.push(UserVariableItem::Unknown(
+                            item_type,
+                            read_n(&mut cursor, item_length as u64)?,
+                        ));
                     }
                 }
             }
