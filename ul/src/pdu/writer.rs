@@ -21,7 +21,7 @@ fn write_n(writer: &mut dyn Write, bytes_to_write: &[u8]) -> Result<()> {
 
 pub(crate) fn write_chunk_u32<F>(writer: &mut dyn Write, func: F) -> Result<()>
 where
-    F: FnOnce(&mut dyn Write) -> Result<()>,
+    F: FnOnce(&mut Vec<u8>) -> Result<()>,
 {
     let mut data = vec![];
     func(&mut data)?;
@@ -36,7 +36,7 @@ where
 
 pub(crate) fn write_chunk_u16<F>(writer: &mut dyn Write, func: F) -> Result<()>
 where
-    F: FnOnce(&mut dyn Write) -> Result<()>,
+    F: FnOnce(&mut Vec<u8>) -> Result<()>,
 {
     let mut data = vec![];
     func(&mut data)?;
