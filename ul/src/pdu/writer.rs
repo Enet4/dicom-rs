@@ -142,17 +142,17 @@ where
                 // 11-26 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received. TODO: write AE title
-                writer.write_all(&vec![0 as u8; 16])?;
+                writer.write_all(&[0 as u8; 16])?;
 
                 // 27-42 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received. TODO: write AE title
-                writer.write_all(&vec![0 as u8; 16])?;
+                writer.write_all(&[0 as u8; 16])?;
 
                 // 43-74 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received.
-                writer.write_all(&vec![0 as u8; 32])?;
+                writer.write_all(&[0 as u8; 32])?;
 
                 // 75-xxx - Variable items - This variable field shall contain the following items:
                 // one Application Context Item, one or more Presentation Context Item(s) and one
@@ -310,11 +310,8 @@ where
                         // - If bit 1 is set to 0, the following fragment does not contain the last
                         //   fragment of a Message Data Set or of a Message Command.
                         let mut message_header = 0x00;
-                        match presentation_data_value.value_type {
-                            PDataValueType::Command => {
-                                message_header |= 0x01;
-                            }
-                            _ => {}
+                        if let PDataValueType::Command = presentation_data_value.value_type {
+                            message_header |= 0x01;
                         }
                         if presentation_data_value.is_last {
                             message_header |= 0x02;
@@ -342,7 +339,7 @@ where
             writer.write_u8(0x00)?;
 
             write_chunk_u32(writer, |writer| {
-                writer.write_all(&vec![0u8; 4])?;
+                writer.write_all(&[0u8; 4])?;
 
                 Ok(())
             })?;
@@ -358,7 +355,7 @@ where
             writer.write_u8(0x00)?;
 
             write_chunk_u32(writer, |writer| {
-                writer.write_all(&vec![0u8; 4])?;
+                writer.write_all(&[0u8; 4])?;
 
                 Ok(())
             })?;
@@ -456,7 +453,7 @@ where
 
 fn write_pdu_variable_application_context_name(
     writer: &mut dyn Write,
-    application_context_name: &String,
+    application_context_name: &str,
     codec: &dyn TextCodec,
 ) -> Result<()> {
     // Application Context Item Structure
@@ -660,7 +657,7 @@ fn write_pdu_variable_user_variables(
     user_variables: &[UserVariableItem],
     codec: &dyn TextCodec,
 ) -> Result<()> {
-    if user_variables.len() == 0 {
+    if user_variables.is_empty() {
         return Ok(());
     }
 

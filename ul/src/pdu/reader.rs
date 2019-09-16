@@ -4,9 +4,9 @@ use byteordered::byteorder::{BigEndian, ReadBytesExt};
 use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
 use std::io::{Cursor, ErrorKind, Read, Seek, SeekFrom};
 
-pub const DEFAULT_MAX_PDU: u32 = 16384;
-pub const MINIMUM_PDU_SIZE: u32 = 4096;
-pub const MAXIMUM_PDU_SIZE: u32 = 131072;
+pub const DEFAULT_MAX_PDU: u32 = 16_384;
+pub const MINIMUM_PDU_SIZE: u32 = 4_096;
+pub const MAXIMUM_PDU_SIZE: u32 = 131_072;
 
 pub fn read_pdu<R>(reader: &mut R, max_pdu_length: u32) -> Result<PDU>
 where
@@ -26,11 +26,9 @@ where
             if io_error.kind() == ErrorKind::UnexpectedEof {
                 return Error::NoPduAvailable;
             }
-            return Error::Io(io_error);
+            Error::Io(io_error)
         }
-        e => {
-            return e;
-        }
+        e => e,
     })?;
 
     let pdu_type = bytes[0];
@@ -301,10 +299,7 @@ where
                 }
             }
 
-            Ok(PDU::AssociationRJ {
-                result: result,
-                source: source,
-            })
+            Ok(PDU::AssociationRJ { result, source })
         }
         0x04 => {
             // P-DATA-TF PDU Structure
@@ -587,7 +582,7 @@ where
                 PresentationContextProposed {
                     id: presentation_context_id,
                     abstract_syntax: abstract_syntax.ok_or(Error::MissingAbstractSyntax)?,
-                    transfer_syntaxes: transfer_syntaxes,
+                    transfer_syntaxes,
                 },
             ))
         }
@@ -690,7 +685,7 @@ where
             Ok(PduVariableItem::PresentationContextResult(
                 PresentationContextResult {
                     id: presentation_context_id,
-                    reason: reason,
+                    reason,
                     transfer_syntax: transfer_syntax.ok_or(Error::MissingTransferSyntax)?,
                 },
             ))

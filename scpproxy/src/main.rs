@@ -210,12 +210,11 @@ fn main() {
 
     for mut stream in listener.incoming() {
         match stream {
-            Ok(ref mut scu_stream) => match run(scu_stream, &destination_addr) {
-                Err(e) => {
+            Ok(ref mut scu_stream) => {
+                if let Err(e) = run(scu_stream, &destination_addr) {
                     println!("error: {}", e);
                 }
-                _ => {}
-            },
+            }
             Err(e) => {
                 println!("error: {}", e);
             }
