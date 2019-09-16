@@ -82,8 +82,8 @@ fn can_read_write_associate_rq() -> Result<()> {
     } = result
     {
         assert_eq!(protocol_version, 2);
-        assert_eq!(calling_ae_title, "calling ae".to_string());
-        assert_eq!(called_ae_title, "called ae".to_string());
+        assert_eq!(calling_ae_title, "calling ae");
+        assert_eq!(called_ae_title, "called ae");
         assert_eq!(
             application_context_name,
             "application context name".to_string()

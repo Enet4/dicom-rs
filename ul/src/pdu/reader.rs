@@ -108,7 +108,8 @@ where
 
             Ok(PDU::AssociationRQ {
                 protocol_version,
-                application_context_name: application_context_name.ok_or(Error::MissingApplicationContextName)?,
+                application_context_name: application_context_name
+                    .ok_or(Error::MissingApplicationContextName)?,
                 called_ae_title,
                 calling_ae_title,
                 presentation_contexts,
@@ -167,7 +168,8 @@ where
 
             Ok(PDU::AssociationAC {
                 protocol_version,
-                application_context_name: application_context_name.ok_or(Error::MissingApplicationContextName)?,
+                application_context_name: application_context_name
+                    .ok_or(Error::MissingApplicationContextName)?,
                 presentation_contexts,
                 user_variables,
             })
