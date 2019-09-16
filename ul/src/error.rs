@@ -60,5 +60,14 @@ quick_error! {
         EncodingError(err: dicom_encoding::error::Error) {
             from()
         }
+        MissingApplicationContextName {
+
+        }
+        MissingAbstractSyntax {
+
+        }
+        MissingTransferSyntax {
+
+        }
     }
 }

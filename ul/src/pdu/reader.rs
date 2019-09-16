@@ -108,7 +108,7 @@ where
 
             Ok(PDU::AssociationRQ {
                 protocol_version,
-                application_context_name: application_context_name.unwrap(),
+                application_context_name: application_context_name.ok_or(Error::MissingApplicationContextName)?,
                 called_ae_title,
                 calling_ae_title,
                 presentation_contexts,
@@ -167,7 +167,7 @@ where
 
             Ok(PDU::AssociationAC {
                 protocol_version,
-                application_context_name: application_context_name.unwrap(),
+                application_context_name: application_context_name.ok_or(Error::MissingApplicationContextName)?,
                 presentation_contexts,
                 user_variables,
             })
@@ -584,7 +584,7 @@ where
             Ok(PduVariableItem::PresentationContextProposed(
                 PresentationContextProposed {
                     id: presentation_context_id,
-                    abstract_syntax: abstract_syntax.unwrap(),
+                    abstract_syntax: abstract_syntax.ok_or(Error::MissingAbstractSyntax)?,
                     transfer_syntaxes: transfer_syntaxes,
                 },
             ))
@@ -689,7 +689,7 @@ where
                 PresentationContextResult {
                     id: presentation_context_id,
                     reason: reason,
-                    transfer_syntax: transfer_syntax.unwrap(),
+                    transfer_syntax: transfer_syntax.ok_or(Error::MissingTransferSyntax)?,
                 },
             ))
         }
