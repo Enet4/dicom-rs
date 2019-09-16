@@ -4,21 +4,6 @@ use byteordered::byteorder::{BigEndian, WriteBytesExt};
 use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
 use std::io::Write;
 
-fn write_n(writer: &mut dyn Write, bytes_to_write: &[u8]) -> Result<()> {
-    let mut pos = 0;
-    while pos < bytes_to_write.len() {
-        let bytes_written = writer.write(&bytes_to_write[pos..])?;
-        if bytes_written == 0 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::WriteZero,
-                "wrote zero length",
-            ))?;
-        }
-        pos += bytes_written;
-    }
-    Ok(())
-}
-
 pub(crate) fn write_chunk_u32<F>(writer: &mut dyn Write, func: F) -> Result<()>
 where
     F: FnOnce(&mut Vec<u8>) -> Result<()>,
@@ -29,7 +14,7 @@ where
     let length = data.len() as u32;
     writer.write_u32::<BigEndian>(length)?;
 
-    write_n(writer, &data)?;
+    writer.write_all(&data)?;
 
     Ok(())
 }
@@ -44,7 +29,7 @@ where
     let length = data.len() as u16;
     writer.write_u16::<BigEndian>(length)?;
 
-    write_n(writer, &data)?;
+    writer.write_all(&data)?;
 
     Ok(())
 }
@@ -91,7 +76,7 @@ where
                 // complete description of the use of this field, see Section 7.1.1.4.
                 let mut ae_title_bytes = codec.encode(called_ae_title)?;
                 ae_title_bytes.resize(16, 32); // 32 is asci for space
-                write_n(writer, &ae_title_bytes)?;
+                writer.write_all(&ae_title_bytes)?;
 
                 // 27-42 - Calling-AE-title - Source DICOM Application Name. It shall be encoded
                 // as 16 characters as defined by the ISO 646:1990-Basic G0 Set with leading and
@@ -100,11 +85,11 @@ where
                 // complete description of the use of this field, see Section 7.1.1.3.
                 let mut ae_title_bytes = codec.encode(calling_ae_title)?;
                 ae_title_bytes.resize(16, 32); // 32 is asci for space
-                write_n(writer, &ae_title_bytes)?;
+                writer.write_all(&ae_title_bytes)?;
 
                 // 43-74 - Reserved - This reserved field shall be sent with a value 00H for all
                 // bytes but not tested to this value when received
-                write_n(writer, &[b'0'; 32])?;
+                writer.write_all(&[b'0'; 32])?;
 
                 write_pdu_variable_application_context_name(
                     writer,
@@ -120,7 +105,7 @@ where
                     )?;
                 }
 
-                write_pdu_variable_user_variables(writer, user_variables)?;
+                write_pdu_variable_user_variables(writer, user_variables, &codec)?;
 
                 Ok(())
             })?;
@@ -157,17 +142,17 @@ where
                 // 11-26 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received. TODO: write AE title
-                write_n(writer, &vec![0 as u8; 16])?;
+                writer.write_all(&vec![0 as u8; 16])?;
 
                 // 27-42 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received. TODO: write AE title
-                write_n(writer, &vec![0 as u8; 16])?;
+                writer.write_all(&vec![0 as u8; 16])?;
 
                 // 43-74 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received.
-                write_n(writer, &vec![0 as u8; 32])?;
+                writer.write_all(&vec![0 as u8; 32])?;
 
                 // 75-xxx - Variable items - This variable field shall contain the following items:
                 // one Application Context Item, one or more Presentation Context Item(s) and one
@@ -180,10 +165,14 @@ where
                 )?;
 
                 for presentation_context in presentation_contexts {
-                    write_pdu_variable_presentation_context_result(writer, presentation_context)?;
+                    write_pdu_variable_presentation_context_result(
+                        writer,
+                        presentation_context,
+                        &codec,
+                    )?;
                 }
 
-                write_pdu_variable_user_variables(writer, &user_variables)?;
+                write_pdu_variable_user_variables(writer, &user_variables, &codec)?;
 
                 Ok(())
             })
@@ -333,7 +322,7 @@ where
                         writer.write_u8(message_header)?;
 
                         // Message fragment
-                        write_n(writer, &presentation_data_value.data)?;
+                        writer.write_all(&presentation_data_value.data)?;
 
                         Ok(())
                     })?;
@@ -353,7 +342,7 @@ where
             writer.write_u8(0x00)?;
 
             write_chunk_u32(writer, |writer| {
-                write_n(writer, &vec![0u8; 4])?;
+                writer.write_all(&vec![0u8; 4])?;
 
                 Ok(())
             })?;
@@ -369,7 +358,7 @@ where
             writer.write_u8(0x00)?;
 
             write_chunk_u32(writer, |writer| {
-                write_n(writer, &vec![0u8; 4])?;
+                writer.write_all(&vec![0u8; 4])?;
 
                 Ok(())
             })?;
@@ -455,7 +444,7 @@ where
             writer.write_u8(0x00)?;
 
             write_chunk_u32(writer, |writer| {
-                write_n(writer, data)?;
+                writer.write_all(data)?;
 
                 Ok(())
             })?;
@@ -484,7 +473,7 @@ fn write_pdu_variable_application_context_name(
         // field see Section 7.1.1.2. Application-context-names are structured as
         // UIDs as defined in PS3.5 (see Annex A for an overview of this concept).
         // DICOM Application-context-names are registered in PS3.7.
-        write_n(writer, &codec.encode(application_context_name)?)?;
+        writer.write_all(&codec.encode(application_context_name)?)?;
 
         Ok(())
     })?;
@@ -550,10 +539,7 @@ fn write_pdu_variable_presentation_context_proposed(
             // UIDs as defined in PS3.5
             // (see Annex B for an overview of this concept).
             // DICOM Abstract-syntax-names are registered in PS3.4.
-            write_n(
-                writer,
-                &codec.encode(&presentation_context.abstract_syntax)?,
-            )?;
+            writer.write_all(&codec.encode(&presentation_context.abstract_syntax)?)?;
 
             Ok(())
         })?;
@@ -576,7 +562,7 @@ fn write_pdu_variable_presentation_context_proposed(
                 // structured as UIDs as defined in PS3.5 (see Annex B for an
                 // overview of this concept). DICOM Transfer-syntax-names are
                 // registered in PS3.5.
-                write_n(writer, &codec.encode(transfer_syntax)?)?;
+                writer.write_all(&codec.encode(transfer_syntax)?)?;
 
                 Ok(())
             })?;
@@ -591,6 +577,7 @@ fn write_pdu_variable_presentation_context_proposed(
 fn write_pdu_variable_presentation_context_result(
     writer: &mut dyn Write,
     presentation_context: &PresentationContextResult,
+    codec: &dyn TextCodec,
 ) -> Result<()> {
     // 1 - Item-type - 21H
     writer.write_u8(0x21)?;
@@ -657,7 +644,7 @@ fn write_pdu_variable_presentation_context_result(
             // use of this field see Section 7.1.1.14. Transfer-syntax-names are structured as UIDs
             // as defined in PS3.5 (see Annex B for an overview of this concept). DICOM
             // Transfer-syntax-names are registered in PS3.5.
-            write_n(writer, presentation_context.transfer_syntax.as_bytes())?;
+            writer.write_all(&codec.encode(&presentation_context.transfer_syntax)?)?;
 
             Ok(())
         })?;
@@ -671,6 +658,7 @@ fn write_pdu_variable_presentation_context_result(
 fn write_pdu_variable_user_variables(
     writer: &mut dyn Write,
     user_variables: &[UserVariableItem],
+    codec: &dyn TextCodec,
 ) -> Result<()> {
     if user_variables.len() == 0 {
         return Ok(());
@@ -725,7 +713,7 @@ fn write_pdu_variable_user_variables(
                         // the Implementation-version-name of the Association-acceptor as defined in
                         // Section D.3.3.2. It shall be encoded as a string of 1 to 16 ISO 646:1990
                         // (basic G0 set) characters.
-                        write_n(writer, &implementation_version_name.as_bytes())?;
+                        writer.write_all(&codec.encode(implementation_version_name)?)?;
 
                         Ok(())
                     })?;
@@ -743,7 +731,7 @@ fn write_pdu_variable_user_variables(
                         // the Implementation-class-uid of the Association-acceptor as defined in
                         // Section D.3.3.2. The Implementation-class-uid field is structured as a
                         // UID as defined in PS3.5.
-                        write_n(writer, &implementation_class_uid.as_bytes())?;
+                        writer.write_all(&codec.encode(implementation_class_uid)?)?;
 
                         Ok(())
                     })?;
@@ -754,7 +742,7 @@ fn write_pdu_variable_user_variables(
                     writer.write_u8(0x00)?;
 
                     write_chunk_u16(writer, |writer| {
-                        write_n(writer, data)?;
+                        writer.write_all(data)?;
                         Ok(())
                     })?;
                 }
