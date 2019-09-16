@@ -1,18 +1,18 @@
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub struct PresentationContextProposed {
     pub id: u8,
     pub abstract_syntax: String,
     pub transfer_syntaxes: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub struct PresentationContextResult {
     pub id: u8,
     pub reason: PresentationContextResultReason,
     pub transfer_syntax: String,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum PresentationContextResultReason {
     Acceptance = 0,
     UserRejection = 1,
@@ -21,20 +21,20 @@ pub enum PresentationContextResultReason {
     TransferSyntaxesNotSupported = 4,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum AssociationRJResult {
     Permanent,
     Transient,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum AssociationRJSource {
     ServiceUser(AssociationRJServiceUserReason),
     ServiceProviderASCE(AssociationRJServiceProviderASCEReason),
     ServiceProviderPresentation(AssociationRJServiceProviderPresentationReason),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum AssociationRJServiceUserReason {
     NoReasonGiven,
     ApplicationContextNameNotSupported,
@@ -43,20 +43,20 @@ pub enum AssociationRJServiceUserReason {
     Reserved(u8),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum AssociationRJServiceProviderASCEReason {
     NoReasonGiven,
     ProtocolVersionNotSupported,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum AssociationRJServiceProviderPresentationReason {
     TemporaryCongestion,
     LocalLimitExceeded,
     Reserved(u8),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub struct PDataValue {
     pub presentation_context_id: u8,
     pub value_type: PDataValueType,
@@ -64,20 +64,20 @@ pub struct PDataValue {
     pub data: Vec<u8>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum PDataValueType {
     Command,
     Data,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum AbortRQSource {
     ServiceUser,
     ServiceProvider(AbortRQServiceProviderReason),
     Reserved,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum AbortRQServiceProviderReason {
     ReasonNotSpecifiedUnrecognizedPDU,
     UnexpectedPDU,
@@ -87,7 +87,7 @@ pub enum AbortRQServiceProviderReason {
     InvalidPDUParameter,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum PduVariableItem {
     Unknown(u8),
     ApplicationContext(String),
@@ -96,7 +96,7 @@ pub enum PduVariableItem {
     UserVariables(Vec<UserVariableItem>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum UserVariableItem {
     Unknown(u8, Vec<u8>),
     MaxLength(u32),
@@ -104,7 +104,7 @@ pub enum UserVariableItem {
     ImplementationVersionName(String),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum PDU {
     Unknown {
         pdu_type: u8,
