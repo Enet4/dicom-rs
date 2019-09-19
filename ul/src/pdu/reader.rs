@@ -183,18 +183,8 @@ where
             // binary number. One of the following values shall be used:
             //   1 - rejected-permanent
             //   2 - rejected-transient
-            let result;
-            match cursor.read_u8()? {
-                0 => {
-                    result = AssociationRJResult::Permanent;
-                }
-                1 => {
-                    result = AssociationRJResult::Transient;
-                }
-                _ => {
-                    return Err(Error::InvalidRejectResult);
-                }
-            }
+            let result = AssociationRJResult::from(cursor.read_u8()?)
+                .ok_or(Error::InvalidRejectSourceOrReason)?;
 
             // 9 - Source - This Source field shall contain an integer value encoded as an unsigned
             // binary number. One of the following values shall be used:   1 - DICOM UL
@@ -217,87 +207,8 @@ where
             //     1 - temporary-congestio
             //     2 - local-limit-exceeded
             //     3-7 - reserved
-            let source;
-            match cursor.read_u8()? {
-                1 => match cursor.read_u8()? {
-                    1 => {
-                        source = AssociationRJSource::ServiceUser(
-                            AssociationRJServiceUserReason::NoReasonGiven,
-                        );
-                    }
-                    2 => {
-                        source = AssociationRJSource::ServiceUser(
-                            AssociationRJServiceUserReason::ApplicationContextNameNotSupported,
-                        );
-                    }
-                    3 => {
-                        source = AssociationRJSource::ServiceUser(
-                            AssociationRJServiceUserReason::CallingAETitleNotRecognized,
-                        );
-                    }
-                    x if x == 4 || x == 5 || x == 6 => {
-                        source = AssociationRJSource::ServiceUser(
-                            AssociationRJServiceUserReason::Reserved(x),
-                        );
-                    }
-                    7 => {
-                        source = AssociationRJSource::ServiceUser(
-                            AssociationRJServiceUserReason::CalledAETitleNotRecognized,
-                        );
-                    }
-                    x if x == 8 || x == 9 || x == 10 => {
-                        source = AssociationRJSource::ServiceUser(
-                            AssociationRJServiceUserReason::Reserved(x),
-                        );
-                    }
-                    _ => {
-                        return Err(Error::InvalidRejectServiceUserReason);
-                    }
-                },
-                2 => match cursor.read_u8()? {
-                    1 => {
-                        source = AssociationRJSource::ServiceProviderASCE(
-                            AssociationRJServiceProviderASCEReason::NoReasonGiven,
-                        );
-                    }
-                    2 => {
-                        source = AssociationRJSource::ServiceProviderASCE(
-                            AssociationRJServiceProviderASCEReason::ProtocolVersionNotSupported,
-                        );
-                    }
-                    _ => {
-                        return Err(Error::InvalidRejectServiceProviderASCEReason);
-                    }
-                },
-                3 => match cursor.read_u8()? {
-                    0 => {
-                        source = AssociationRJSource::ServiceProviderPresentation(
-                            AssociationRJServiceProviderPresentationReason::Reserved(0),
-                        );
-                    }
-                    1 => {
-                        source = AssociationRJSource::ServiceProviderPresentation(
-                            AssociationRJServiceProviderPresentationReason::TemporaryCongestion,
-                        );
-                    }
-                    2 => {
-                        source = AssociationRJSource::ServiceProviderPresentation(
-                            AssociationRJServiceProviderPresentationReason::LocalLimitExceeded,
-                        );
-                    }
-                    x if x == 3 || x == 4 || x == 5 || x == 6 || x == 7 => {
-                        source = AssociationRJSource::ServiceProviderPresentation(
-                            AssociationRJServiceProviderPresentationReason::Reserved(x),
-                        );
-                    }
-                    _ => {
-                        return Err(Error::InvalidRejectServiceProviderPresentationReason);
-                    }
-                },
-                _ => {
-                    return Err(Error::InvalidRejectSource);
-                }
-            }
+            let source = AssociationRJSource::from(cursor.read_u8()?, cursor.read_u8()?)
+                .ok_or(Error::InvalidRejectSourceOrReason)?;
 
             Ok(PDU::AssociationRJ { result, source })
         }
@@ -404,54 +315,8 @@ where
             // - 4 - unrecognized-PDU parameter
             // - 5 - unexpected-PDU parameter
             // - 6 - invalid-PDU-parameter value
-            let source;
-            match cursor.read_u8()? {
-                0 => {
-                    source = AbortRQSource::ServiceUser;
-                    cursor.read_u8()?;
-                }
-                1 => {
-                    cursor.read_u8()?;
-                    source = AbortRQSource::Reserved;
-                }
-                2 => match cursor.read_u8()? {
-                    0 => {
-                        source = AbortRQSource::ServiceProvider(
-                            AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPDU,
-                        );
-                    }
-                    2 => {
-                        source = AbortRQSource::ServiceProvider(
-                            AbortRQServiceProviderReason::UnexpectedPDU,
-                        );
-                    }
-                    3 => {
-                        source =
-                            AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::Reserved);
-                    }
-                    4 => {
-                        source = AbortRQSource::ServiceProvider(
-                            AbortRQServiceProviderReason::UnrecognizedPDUParameter,
-                        );
-                    }
-                    5 => {
-                        source = AbortRQSource::ServiceProvider(
-                            AbortRQServiceProviderReason::UnexpectedPDUParameter,
-                        );
-                    }
-                    6 => {
-                        source = AbortRQSource::ServiceProvider(
-                            AbortRQServiceProviderReason::InvalidPDUParameter,
-                        );
-                    }
-                    _ => {
-                        return Err(Error::InvalidAbortServiceProviderReason);
-                    }
-                },
-                _ => {
-                    return Err(Error::InvalidAbortSource);
-                }
-            }
+            let source = AbortRQSource::from(cursor.read_u8()?, cursor.read_u8()?)
+                .ok_or(Error::InvalidAbortSourceOrReason)?;
 
             Ok(PDU::AbortRQ { source })
         }
@@ -607,28 +472,8 @@ where
             //   2 - no-reason (provider rejection)
             //   3 - abstract-syntax-not-supported (provider rejection)
             //   4 - transfer-syntaxes-not-supported (provider rejection)
-
-            let reason;
-            match cursor.read_u8()? {
-                0 => {
-                    reason = PresentationContextResultReason::Acceptance;
-                }
-                1 => {
-                    reason = PresentationContextResultReason::UserRejection;
-                }
-                2 => {
-                    reason = PresentationContextResultReason::NoReason;
-                }
-                3 => {
-                    reason = PresentationContextResultReason::AbstractSyntaxNotSupported;
-                }
-                4 => {
-                    reason = PresentationContextResultReason::TransferSyntaxesNotSupported;
-                }
-                _ => {
-                    return Err(Error::InvalidPresentationContextResultReason);
-                }
-            }
+            let reason = PresentationContextResultReason::from(cursor.read_u8()?)
+                .ok_or(Error::InvalidPresentationContextResultReason)?;
 
             // 8 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.

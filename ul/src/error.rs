@@ -31,32 +31,12 @@ quick_error! {
             description("multiple transfer syntaxes were accepted")
             display(self_) -> ("{}", self_.description())
         }
-        InvalidRejectResult {
-            description("the reject reason was invalid")
+        InvalidRejectSourceOrReason {
+            description("the reject source or reason was invalid")
             display(self_) -> ("{}", self_.description())
         }
-        InvalidRejectServiceUserReason {
-            description("the reject service user reason was invalid")
-            display(self_) -> ("{}", self_.description())
-        }
-        InvalidRejectServiceProviderASCEReason {
-            description("the reject asce reason was invalid")
-            display(self_) -> ("{}", self_.description())
-        }
-        InvalidRejectServiceProviderPresentationReason {
-            description("the reject presentation reason was invalid")
-            display(self_) -> ("{}", self_.description())
-        }
-        InvalidRejectSource {
-            description("the reject source was invalid")
-            display(self_) -> ("{}", self_.description())
-        }
-        InvalidAbortServiceProviderReason {
+        InvalidAbortSourceOrReason {
             description("the abort service provider reason was invalid")
-            display(self_) -> ("{}", self_.description())
-        }
-        InvalidAbortSource {
-            description("the abort source was invalid")
             display(self_) -> ("{}", self_.description())
         }
         InvalidPresentationContextResultReason {
