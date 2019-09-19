@@ -143,7 +143,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
                         }
                     },
                     ThreadMessage::Err { from, err } => {
-                        println!("error from {:?}: {}", from, err);
+                        eprintln!("error from {:?}: {}", from, err);
                         break;
                     }
                     ThreadMessage::Shutdown { initiator } => {
@@ -167,7 +167,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
         }
         Err(e) => {
             scu_stream.shutdown(Shutdown::Both)?;
-            println!("error connection to destination SCP: {}", e);
+            eprintln!("error connection to destination SCP: {}", e);
             Err(e)?
         }
     }
@@ -212,11 +212,11 @@ fn main() {
         match stream {
             Ok(ref mut scu_stream) => {
                 if let Err(e) = run(scu_stream, &destination_addr) {
-                    println!("error: {}", e);
+                    eprintln!("error: {}", e);
                 }
             }
             Err(e) => {
-                println!("error: {}", e);
+                eprintln!("error: {}", e);
             }
         }
     }
