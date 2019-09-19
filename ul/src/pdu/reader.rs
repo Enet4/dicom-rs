@@ -66,7 +66,7 @@ where
             // trailing spaces (20H) being non-significant. The value made of 16 spaces (20H)
             // meaning "no Application Name specified" shall not be used. For a complete
             // description of the use of this field, see Section 7.1.1.4.
-            let mut ae_bytes = vec![0; 16];
+            let mut ae_bytes = [0; 16];
             cursor.read_exact(&mut ae_bytes)?;
             let called_ae_title = codec.decode(&ae_bytes)?.trim().to_string();
 
@@ -75,7 +75,7 @@ where
             // trailing spaces (20H) being non-significant. The value made of 16 spaces (20H)
             // meaning "no Application Name specified" shall not be used. For a complete
             // description of the use of this field, see Section 7.1.1.3.
-            let mut ae_bytes = vec![0; 16];
+            let mut ae_bytes = [0; 16];
             cursor.read_exact(&mut ae_bytes)?;
             let calling_ae_title = codec.decode(&ae_bytes)?.trim().to_string();
 
