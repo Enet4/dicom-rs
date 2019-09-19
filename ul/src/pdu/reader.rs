@@ -587,7 +587,7 @@ where
             ))
         }
         0x21 => {
-            // Presentation Context Item Structure (proposed)
+            // Presentation Context Item Structure (result)
 
             let mut transfer_syntax: Option<String> = None;
 
@@ -664,7 +664,7 @@ where
                         match transfer_syntax {
                             Some(_) => {
                                 // Multiple transfer syntax values cannot be proposed.
-                                return Err(Error::MultipleTransferSyntaxesProposed);
+                                return Err(Error::MultipleTransferSyntaxesAccepted);
                             }
                             None => {
                                 transfer_syntax = Some(
