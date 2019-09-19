@@ -33,7 +33,7 @@ quick_error! {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum ProviderType {
     SCP,
     SCU,
