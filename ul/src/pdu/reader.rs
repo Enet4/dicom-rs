@@ -21,15 +21,13 @@ where
     // this method can block and wake up when stream is closed, so in this case, we
     // want to know if we had trouble even beginning to read a PDU. We still return
     // UnexpectedEof if we get after we have already began reading a PDU message.
-    let bytes = read_n(reader, 2).map_err(|e| match e {
-        Error::Io(io_error) => {
-            if io_error.kind() == ErrorKind::UnexpectedEof {
-                return Error::NoPduAvailable;
-            }
-            Error::Io(io_error)
+    let mut bytes = [0; 2];
+    if let Err(e) = reader.read_exact(&mut bytes) {
+        if e.kind() == ErrorKind::UnexpectedEof {
+            return Err(Error::NoPduAvailable);
         }
-        e => e,
-    })?;
+        return Err(e)?;
+    }
 
     let pdu_type = bytes[0];
     let pdu_length = reader.read_u32::<BigEndian>()?;
