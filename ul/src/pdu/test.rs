@@ -3,6 +3,7 @@ use crate::pdu::reader::*;
 use crate::pdu::writer::*;
 use crate::pdu::*;
 use byteordered::byteorder::WriteBytesExt;
+use matches::matches;
 use std::io::Cursor;
 
 #[test]
