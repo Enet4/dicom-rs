@@ -1,7 +1,7 @@
 use quick_error::quick_error;
 
 /// Type alias for a result from this crate.
-pub type Result<T> = ::std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 quick_error! {
     #[derive(Debug)]
