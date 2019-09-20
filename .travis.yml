@@ -16,7 +16,8 @@ before_script:
   fi
 
 script:
-  - cargo test --all
+  - cargo build --all
   - if [ "$CLIPPY_INSTALLED" == 1 ]; then
     cargo clippy
   fi
+  - cargo test --all
