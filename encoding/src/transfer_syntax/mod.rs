@@ -3,8 +3,11 @@
 //! algorithms for decoding and encoding DICOM data in a certain transfer syntax.
 //!
 //! This crate does not host specific transfer syntaxes. Instead, they are created in
-//! other crates and registered in the global transfer syntax registry. For more
+//! other crates and registered in the global transfer syntax registry, which implements
+//! [`TransferSyntaxIndex`]. For more
 //! information, please see the `dicom-transfer-syntax-registry` crate.
+//!
+//! [`TransferSyntaxIndex`]: ./trait.TransferSyntaxIndex.html
 
 pub mod explicit_be;
 pub mod explicit_le;
@@ -43,10 +46,34 @@ pub struct TransferSyntax<A = DynDataRWAdapter> {
 // Collect transfer syntax specifiers from other crates.
 inventory::collect!(TransferSyntax);
 
+/// Trait for containers of transfer syntax specifiers.
+///
+/// Types implementing this trait are held responsible for populating
+/// themselves with a set of transfer syntaxes, which can be fully supported,
+/// partially supported, or not supported. Usually, only one implementation
+/// of this trait is used for the entire program.
+pub trait TransferSyntaxIndex {
+    /// Obtain a DICOM transfer syntax by its respective UID.
+    ///
+    /// Implementations of this method should be robust to the possible
+    /// presence of a trailing null characters (`\0`) in `uid`.
+    fn get(&self, uid: &str) -> Option<&TransferSyntax>;
+}
+
+impl<T: ?Sized> TransferSyntaxIndex for &T
+where
+    T: TransferSyntaxIndex,
+{
+    fn get(&self, uid: &str) -> Option<&TransferSyntax> {
+        (**self).get(uid)
+    }
+}
+
 #[macro_export]
 /// Submit a transfer syntax specifier to be supported by the
 /// program's runtime. This is to be used by crates wishing to provide
-/// additional support for a certain transfer syntax.
+/// additional support for a certain transfer syntax using the
+/// main transfer syntax registry.
 ///
 /// This macro does actually "run" anything, so place it outside of a
 /// function body at the root of the crate.

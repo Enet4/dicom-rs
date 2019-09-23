@@ -15,10 +15,11 @@ use dicom_core::value::{DicomValueType, Value, ValueType, C};
 use dicom_core::{DataElement, Length, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
+use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_parser::dataset::{DataSetReader, DataToken};
 use dicom_parser::error::{DataSetSyntaxError, Error, Result};
 use dicom_parser::parser::Parse;
-use dicom_transfer_syntax_registry::get_registry;
+use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
 /// A full in-memory DICOM data element.
 pub type InMemElement<D> = DataElement<InMemDicomObject<D>>;
@@ -147,7 +148,7 @@ where
         let meta = FileMetaTable::from_reader(&mut file)?;
 
         // read rest of data according to metadata, feed it to object
-        let ts = get_registry()
+        let ts = TransferSyntaxRegistry
             .get(&meta.transfer_syntax)
             .ok_or(Error::UnsupportedTransferSyntax)?;
         let cs = SpecificCharacterSet::Default;
@@ -173,7 +174,7 @@ where
         let meta = FileMetaTable::from_reader(&mut file)?;
 
         // read rest of data according to metadata, feed it to object
-        let ts = get_registry()
+        let ts = TransferSyntaxRegistry
             .get(&meta.transfer_syntax)
             .ok_or(Error::UnsupportedTransferSyntax)?;
         let cs = SpecificCharacterSet::Default;

@@ -1,14 +1,20 @@
 //! This crate contains the DICOM transfer syntax registry.
 //! The transfer syntax registry maps a DICOM UID of a transfer syntax into the
-//! respective transfer syntax specifier.
+//! respective transfer syntax specifier. The container of transfer syntaxes is
+//! populated before-main through the [inventory] pattern, which makes it
+//! readily available through the [`TransferSyntaxRegistry`] type.
 //!
 //! This registry should not have to be used directly, except when developing
 //! higher level APIs, which should learn to negotiate and resolve the expected
 //! transfer syntax automatically.
+//!
+//! [inventory]: https://docs.rs/inventory/0.1.4/inventory
 
 use byteordered::Endianness;
 use dicom_encoding::submit_transfer_syntax;
-use dicom_encoding::transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec};
+use dicom_encoding::transfer_syntax::{
+    AdapterFreeTransferSyntax as Ts, Codec, TransferSyntaxIndex,
+};
 use lazy_static::lazy_static;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -17,23 +23,23 @@ use std::fmt;
 pub use dicom_encoding::TransferSyntax;
 
 /// Data type for a registry of DICOM.
-pub struct TransferSyntaxRegistry {
+pub struct TransferSyntaxRegistryImpl {
     m: HashMap<&'static str, &'static TransferSyntax>,
 }
 
-impl fmt::Debug for TransferSyntaxRegistry {
+impl fmt::Debug for TransferSyntaxRegistryImpl {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let entries: HashMap<&str, &str> =
             self.m.iter().map(|(uid, ts)| (*uid, ts.name())).collect();
-        f.debug_struct("TransferSyntaxRegistry")
+        f.debug_struct("TransferSyntaxRegistryImpl")
             .field("m", &entries)
             .finish()
     }
 }
 
-impl TransferSyntaxRegistry {
+impl TransferSyntaxRegistryImpl {
     /// Obtain a DICOM codec by transfer syntax UID.
-    pub fn get<U: AsRef<str>>(&self, uid: U) -> Option<&'static TransferSyntax> {
+    fn get<U: AsRef<str>>(&self, uid: U) -> Option<&'static TransferSyntax> {
         let ts_uid = {
             let uid = uid.as_ref();
             if uid.as_bytes().last().cloned() == Some(b'\0') {
@@ -82,9 +88,25 @@ impl TransferSyntaxRegistry {
     }
 }
 
+impl TransferSyntaxIndex for TransferSyntaxRegistryImpl {
+    fn get(&self, uid: &str) -> Option<&TransferSyntax> {
+        Self::get(self, uid)
+    }
+}
+
+/// Zero-sized representative of the main transfer syntax registry.
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct TransferSyntaxRegistry;
+
+impl TransferSyntaxIndex for TransferSyntaxRegistry {
+    fn get(&self, uid: &str) -> Option<&TransferSyntax> {
+        get_registry().get(uid)
+    }
+}
+
 lazy_static! {
-    static ref REGISTRY: TransferSyntaxRegistry = {
-        let mut registry = TransferSyntaxRegistry {
+    static ref REGISTRY: TransferSyntaxRegistryImpl = {
+        let mut registry = TransferSyntaxRegistryImpl {
             m: HashMap::with_capacity(32),
         };
 
@@ -96,8 +118,8 @@ lazy_static! {
     };
 }
 
-/// Retrieve the global codec registry.
-pub fn get_registry() -> &'static TransferSyntaxRegistry {
+/// Retrieve a reference to the global codec registry.
+pub(crate) fn get_registry() -> &'static TransferSyntaxRegistryImpl {
     &REGISTRY
 }
 
