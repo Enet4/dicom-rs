@@ -12,12 +12,12 @@ matrix:
 
 before_script:
   - if [ "$CLIPPY" ]; then
-    CLIPPY_INSTALLED=0 && (rustup component add clippy || rustup component add clippy-preview || cargo install --git https://github.com/rust-lang/rust-clippy clippy -f) && CLIPPY_INSTALLED=1;
-  fi
+      CLIPPY_INSTALLED=0 && (rustup component add clippy || rustup component add clippy-preview || cargo install --git https://github.com/rust-lang/rust-clippy clippy -f) && CLIPPY_INSTALLED=1;
+    fi
 
 script:
   - cargo build --all
   - if [ "$CLIPPY_INSTALLED" == 1 ]; then
-    cargo clippy
-  fi
+      cargo clippy;
+    fi
   - cargo test --all
