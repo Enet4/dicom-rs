@@ -1,9 +1,23 @@
 language: rust
-rust:
-  - stable
-  - beta
-  - nightly
-script: cargo test --all
+
 matrix:
+  include:
+   - rust: stable
+     env: CLIPPY=1
+   - rust: beta
+   - rust: nightly
+     env: CLIPPY=1
   allow_failures:
     - rust: nightly
+
+before_script:
+  - if [ "$CLIPPY" ]; then
+      CLIPPY_INSTALLED=0 && (rustup component add clippy || rustup component add clippy-preview || cargo install --git https://github.com/rust-lang/rust-clippy clippy -f) && CLIPPY_INSTALLED=1;
+    fi
+
+script:
+  - cargo build --all
+  - if [ "$CLIPPY_INSTALLED" == 1 ]; then
+      cargo clippy;
+    fi
+  - cargo test --all
