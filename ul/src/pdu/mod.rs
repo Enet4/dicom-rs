@@ -63,65 +63,56 @@ pub enum AssociationRJSource {
 
 impl AssociationRJSource {
     fn from(source: u8, reason: u8) -> Option<AssociationRJSource> {
-        let result = match source {
-            1 => match reason {
-                1 => {
-                    AssociationRJSource::ServiceUser(AssociationRJServiceUserReason::NoReasonGiven)
-                }
-                2 => AssociationRJSource::ServiceUser(
-                    AssociationRJServiceUserReason::ApplicationContextNameNotSupported,
-                ),
-                3 => AssociationRJSource::ServiceUser(
-                    AssociationRJServiceUserReason::CallingAETitleNotRecognized,
-                ),
-                x if x == 4 || x == 5 || x == 6 => {
-                    AssociationRJSource::ServiceUser(AssociationRJServiceUserReason::Reserved(x))
-                }
-                7 => AssociationRJSource::ServiceUser(
-                    AssociationRJServiceUserReason::CalledAETitleNotRecognized,
-                ),
-                x if x == 8 || x == 9 || x == 10 => {
-                    AssociationRJSource::ServiceUser(AssociationRJServiceUserReason::Reserved(x))
-                }
-                _ => {
-                    return None;
-                }
-            },
-            2 => match reason {
-                1 => AssociationRJSource::ServiceProviderASCE(
-                    AssociationRJServiceProviderASCEReason::NoReasonGiven,
-                ),
-                2 => AssociationRJSource::ServiceProviderASCE(
-                    AssociationRJServiceProviderASCEReason::ProtocolVersionNotSupported,
-                ),
-                _ => {
-                    return None;
-                }
-            },
-            3 => match reason {
-                0 => AssociationRJSource::ServiceProviderPresentation(
-                    AssociationRJServiceProviderPresentationReason::Reserved(0),
-                ),
-                1 => AssociationRJSource::ServiceProviderPresentation(
-                    AssociationRJServiceProviderPresentationReason::TemporaryCongestion,
-                ),
-                2 => AssociationRJSource::ServiceProviderPresentation(
-                    AssociationRJServiceProviderPresentationReason::LocalLimitExceeded,
-                ),
-                x if x == 3 || x == 4 || x == 5 || x == 6 || x == 7 => {
-                    AssociationRJSource::ServiceProviderPresentation(
-                        AssociationRJServiceProviderPresentationReason::Reserved(x),
-                    )
-                }
-                _ => {
-                    return None;
-                }
-            },
+        let result = match (source, reason) {
+            (1, 1) => {
+                AssociationRJSource::ServiceUser(AssociationRJServiceUserReason::NoReasonGiven)
+            }
+            (1, 2) => AssociationRJSource::ServiceUser(
+                AssociationRJServiceUserReason::ApplicationContextNameNotSupported,
+            ),
+            (1, 3) => AssociationRJSource::ServiceUser(
+                AssociationRJServiceUserReason::CallingAETitleNotRecognized,
+            ),
+            (1, x) if x == 4 || x == 5 || x == 6 => {
+                AssociationRJSource::ServiceUser(AssociationRJServiceUserReason::Reserved(x))
+            }
+            (1, 7) => AssociationRJSource::ServiceUser(
+                AssociationRJServiceUserReason::CalledAETitleNotRecognized,
+            ),
+            //(1, 8) | (1, 9) | (1, 10) => {
+            (1, x) if x == 8 || x == 9 || x == 10 => {
+                AssociationRJSource::ServiceUser(AssociationRJServiceUserReason::Reserved(x))
+            }
+            (1, _) => {
+                return None;
+            }
+            (2, 1) => AssociationRJSource::ServiceProviderASCE(
+                AssociationRJServiceProviderASCEReason::NoReasonGiven,
+            ),
+            (2, 2) => AssociationRJSource::ServiceProviderASCE(
+                AssociationRJServiceProviderASCEReason::ProtocolVersionNotSupported,
+            ),
+            (2, _) => {
+                return None;
+            }
+            (3, 0) => AssociationRJSource::ServiceProviderPresentation(
+                AssociationRJServiceProviderPresentationReason::Reserved(0),
+            ),
+            (3, 1) => AssociationRJSource::ServiceProviderPresentation(
+                AssociationRJServiceProviderPresentationReason::TemporaryCongestion,
+            ),
+            (3, 2) => AssociationRJSource::ServiceProviderPresentation(
+                AssociationRJServiceProviderPresentationReason::LocalLimitExceeded,
+            ),
+            (3, x) if x == 3 || x == 4 || x == 5 || x == 6 || x == 7 => {
+                AssociationRJSource::ServiceProviderPresentation(
+                    AssociationRJServiceProviderPresentationReason::Reserved(x),
+                )
+            }
             _ => {
                 return None;
             }
         };
-
         Some(result)
     }
 }
@@ -171,29 +162,24 @@ pub enum AbortRQSource {
 
 impl AbortRQSource {
     fn from(source: u8, reason: u8) -> Option<AbortRQSource> {
-        let result = match source {
-            0 => AbortRQSource::ServiceUser,
-            1 => AbortRQSource::Reserved,
-            2 => match reason {
-                0 => AbortRQSource::ServiceProvider(
-                    AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu,
-                ),
-                2 => AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::UnexpectedPdu),
-                3 => AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::Reserved),
-                4 => AbortRQSource::ServiceProvider(
-                    AbortRQServiceProviderReason::UnrecognizedPduParameter,
-                ),
-                5 => AbortRQSource::ServiceProvider(
-                    AbortRQServiceProviderReason::UnexpectedPduParameter,
-                ),
-                6 => AbortRQSource::ServiceProvider(
-                    AbortRQServiceProviderReason::InvalidPduParameter,
-                ),
-                _ => {
-                    return None;
-                }
-            },
-            _ => {
+        let result = match (source, reason) {
+            (0, _) => AbortRQSource::ServiceUser,
+            (1, _) => AbortRQSource::Reserved,
+            (2, 0) => AbortRQSource::ServiceProvider(
+                AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu,
+            ),
+            (2, 2) => AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::UnexpectedPdu),
+            (2, 3) => AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::Reserved),
+            (2, 4) => AbortRQSource::ServiceProvider(
+                AbortRQServiceProviderReason::UnrecognizedPduParameter,
+            ),
+            (2, 5) => {
+                AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::UnexpectedPduParameter)
+            }
+            (2, 6) => {
+                AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::InvalidPduParameter)
+            }
+            (_, _) => {
                 return None;
             }
         };
