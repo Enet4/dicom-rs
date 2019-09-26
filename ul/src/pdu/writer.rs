@@ -34,13 +34,13 @@ where
     Ok(())
 }
 
-pub fn write_pdu<W>(writer: &mut W, pdu: &PDU) -> Result<()>
+pub fn write_pdu<W>(writer: &mut W, pdu: &Pdu) -> Result<()>
 where
     W: Write,
 {
     let codec = SpecificCharacterSet::Default.get_codec().unwrap();
     match pdu {
-        PDU::AssociationRQ {
+        Pdu::AssociationRQ {
             protocol_version,
             calling_ae_title,
             called_ae_title,
@@ -112,7 +112,7 @@ where
 
             Ok(())
         }
-        PDU::AssociationAC {
+        Pdu::AssociationAC {
             protocol_version,
             application_context_name,
             presentation_contexts,
@@ -177,7 +177,7 @@ where
                 Ok(())
             })
         }
-        PDU::AssociationRJ { result, source } => {
+        Pdu::AssociationRJ { result, source } => {
             // 1 - PDU-type - 03H
             writer.write_u8(0x03)?;
 
@@ -273,7 +273,7 @@ where
 
             Ok(())
         }
-        PDU::PData { data } => {
+        Pdu::PData { data } => {
             // 1 - PDU-type - 04H
             writer.write_u8(0x04)?;
 
@@ -330,7 +330,7 @@ where
 
             Ok(())
         }
-        PDU::ReleaseRQ => {
+        Pdu::ReleaseRQ => {
             // 1 - PDU-type - 05H
             writer.write_u8(0x05)?;
 
@@ -346,7 +346,7 @@ where
 
             Ok(())
         }
-        PDU::ReleaseRP => {
+        Pdu::ReleaseRP => {
             // 1 - PDU-type - 06H
             writer.write_u8(0x06)?;
 
@@ -362,7 +362,7 @@ where
 
             Ok(())
         }
-        PDU::AbortRQ { source } => {
+        Pdu::AbortRQ { source } => {
             // 1 - PDU-type - 07H
             writer.write_u8(0x07)?;
 
@@ -406,22 +406,22 @@ where
                         writer.write_u8(0x00)?;
                     }
                     AbortRQSource::ServiceProvider(reason) => match reason {
-                        AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPDU => {
+                        AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu => {
                             writer.write_u8(0x00)?;
                         }
-                        AbortRQServiceProviderReason::UnexpectedPDU => {
+                        AbortRQServiceProviderReason::UnexpectedPdu => {
                             writer.write_u8(0x02)?;
                         }
                         AbortRQServiceProviderReason::Reserved => {
                             writer.write_u8(0x03)?;
                         }
-                        AbortRQServiceProviderReason::UnrecognizedPDUParameter => {
+                        AbortRQServiceProviderReason::UnrecognizedPduParameter => {
                             writer.write_u8(0x04)?;
                         }
-                        AbortRQServiceProviderReason::UnexpectedPDUParameter => {
+                        AbortRQServiceProviderReason::UnexpectedPduParameter => {
                             writer.write_u8(0x05)?;
                         }
-                        AbortRQServiceProviderReason::InvalidPDUParameter => {
+                        AbortRQServiceProviderReason::InvalidPduParameter => {
                             writer.write_u8(0x06)?;
                         }
                     },
@@ -432,7 +432,7 @@ where
 
             Ok(())
         }
-        PDU::Unknown { pdu_type, data } => {
+        Pdu::Unknown { pdu_type, data } => {
             // 1 - PDU-type - XXH
             writer.write_u8(*pdu_type)?;
 

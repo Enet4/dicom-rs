@@ -44,7 +44,7 @@ fn can_write_chunks_with_preceding_u16_length() -> Result<()> {
 
 #[test]
 fn can_read_write_associate_rq() -> Result<()> {
-    let association_rq = PDU::AssociationRQ {
+    let association_rq = Pdu::AssociationRQ {
         protocol_version: 2,
         calling_ae_title: "calling ae".to_string(),
         called_ae_title: "called ae".to_string(),
@@ -73,7 +73,7 @@ fn can_read_write_associate_rq() -> Result<()> {
 
     let result = read_pdu(&mut Cursor::new(&bytes), DEFAULT_MAX_PDU)?;
 
-    if let PDU::AssociationRQ {
+    if let Pdu::AssociationRQ {
         protocol_version,
         calling_ae_title,
         called_ae_title,
@@ -117,7 +117,7 @@ fn can_read_write_associate_rq() -> Result<()> {
 
 #[test]
 fn can_read_write_pdata() -> Result<()> {
-    let pdata_rq = PDU::PData {
+    let pdata_rq = Pdu::PData {
         data: vec![PDataValue {
             presentation_context_id: 3,
             value_type: PDataValueType::Command,
@@ -131,7 +131,7 @@ fn can_read_write_pdata() -> Result<()> {
 
     let result = read_pdu(&mut Cursor::new(&bytes), DEFAULT_MAX_PDU)?;
 
-    if let PDU::PData { data } = result {
+    if let Pdu::PData { data } = result {
         assert_eq!(data.len(), 1);
         assert_eq!(data[0].presentation_context_id, 3);
         matches!(data[0].value_type, PDataValueType::Command);

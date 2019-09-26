@@ -176,18 +176,18 @@ impl AbortRQSource {
             1 => AbortRQSource::Reserved,
             2 => match reason {
                 0 => AbortRQSource::ServiceProvider(
-                    AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPDU,
+                    AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu,
                 ),
-                2 => AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::UnexpectedPDU),
+                2 => AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::UnexpectedPdu),
                 3 => AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::Reserved),
                 4 => AbortRQSource::ServiceProvider(
-                    AbortRQServiceProviderReason::UnrecognizedPDUParameter,
+                    AbortRQServiceProviderReason::UnrecognizedPduParameter,
                 ),
                 5 => AbortRQSource::ServiceProvider(
-                    AbortRQServiceProviderReason::UnexpectedPDUParameter,
+                    AbortRQServiceProviderReason::UnexpectedPduParameter,
                 ),
                 6 => AbortRQSource::ServiceProvider(
-                    AbortRQServiceProviderReason::InvalidPDUParameter,
+                    AbortRQServiceProviderReason::InvalidPduParameter,
                 ),
                 _ => {
                     return None;
@@ -204,12 +204,12 @@ impl AbortRQSource {
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum AbortRQServiceProviderReason {
-    ReasonNotSpecifiedUnrecognizedPDU,
-    UnexpectedPDU,
+    ReasonNotSpecifiedUnrecognizedPdu,
+    UnexpectedPdu,
     Reserved,
-    UnrecognizedPDUParameter,
-    UnexpectedPDUParameter,
-    InvalidPDUParameter,
+    UnrecognizedPduParameter,
+    UnexpectedPduParameter,
+    InvalidPduParameter,
 }
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
@@ -230,7 +230,7 @@ pub enum UserVariableItem {
 }
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
-pub enum PDU {
+pub enum Pdu {
     Unknown {
         pdu_type: u8,
         data: Vec<u8>,

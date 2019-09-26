@@ -8,7 +8,7 @@ pub const DEFAULT_MAX_PDU: u32 = 16_384;
 pub const MINIMUM_PDU_SIZE: u32 = 4_096;
 pub const MAXIMUM_PDU_SIZE: u32 = 131_072;
 
-pub fn read_pdu<R>(reader: &mut R, max_pdu_length: u32) -> Result<PDU>
+pub fn read_pdu<R>(reader: &mut R, max_pdu_length: u32) -> Result<Pdu>
 where
     R: Read,
 {
@@ -102,7 +102,7 @@ where
                 }
             }
 
-            Ok(PDU::AssociationRQ {
+            Ok(Pdu::AssociationRQ {
                 protocol_version,
                 application_context_name: application_context_name
                     .ok_or(Error::MissingApplicationContextName)?,
@@ -162,7 +162,7 @@ where
                 }
             }
 
-            Ok(PDU::AssociationAC {
+            Ok(Pdu::AssociationAC {
                 protocol_version,
                 application_context_name: application_context_name
                     .ok_or(Error::MissingApplicationContextName)?,
@@ -208,7 +208,7 @@ where
             let source = AssociationRJSource::from(cursor.read_u8()?, cursor.read_u8()?)
                 .ok_or(Error::InvalidRejectSourceOrReason)?;
 
-            Ok(PDU::AssociationRJ { result, source })
+            Ok(Pdu::AssociationRJ { result, source })
         }
         0x04 => {
             // P-DATA-TF PDU Structure
@@ -268,7 +268,7 @@ where
                 })
             }
 
-            Ok(PDU::PData { data: values })
+            Ok(Pdu::PData { data: values })
         }
         0x05 => {
             // A-RELEASE-RQ PDU Structure
@@ -277,7 +277,7 @@ where
             // tested to this value when received.
             cursor.seek(SeekFrom::Current(4))?;
 
-            Ok(PDU::ReleaseRQ)
+            Ok(Pdu::ReleaseRQ)
         }
         0x06 => {
             // A-RELEASE-RP PDU Structure
@@ -286,7 +286,7 @@ where
             // tested to this value when received.
             cursor.seek(SeekFrom::Current(4))?;
 
-            Ok(PDU::ReleaseRP)
+            Ok(Pdu::ReleaseRP)
         }
         0x07 => {
             // A-ABORT PDU Structure
@@ -316,11 +316,11 @@ where
             let source = AbortRQSource::from(cursor.read_u8()?, cursor.read_u8()?)
                 .ok_or(Error::InvalidAbortSourceOrReason)?;
 
-            Ok(PDU::AbortRQ { source })
+            Ok(Pdu::AbortRQ { source })
         }
         _ => {
             let data = read_n(&mut cursor, pdu_length as usize)?;
-            Ok(PDU::Unknown { pdu_type, data })
+            Ok(Pdu::Unknown { pdu_type, data })
         }
     }
 }

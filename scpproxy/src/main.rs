@@ -1,7 +1,7 @@
 use clap::{App, Arg};
 use dicom_ul::pdu::reader::{read_pdu, DEFAULT_MAX_PDU};
 use dicom_ul::pdu::writer::write_pdu;
-use dicom_ul::pdu::PDU;
+use dicom_ul::pdu::Pdu;
 use quick_error::quick_error;
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::mpsc;
@@ -40,9 +40,9 @@ pub enum ProviderType {
 
 #[derive(Debug)]
 pub enum ThreadMessage {
-    SendPDU {
+    SendPdu {
         to: ProviderType,
-        pdu: PDU,
+        pdu: Pdu,
     },
     Err {
         from: ProviderType,
@@ -71,7 +71,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
                     loop {
                         match read_pdu(&mut reader, DEFAULT_MAX_PDU) {
                             Ok(pdu) => {
-                                message_tx.send(ThreadMessage::SendPDU {
+                                message_tx.send(ThreadMessage::SendPdu {
                                     to: ProviderType::SCP,
                                     pdu,
                                 })?;
@@ -103,7 +103,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
                     loop {
                         match read_pdu(&mut reader, DEFAULT_MAX_PDU) {
                             Ok(pdu) => {
-                                message_tx.send(ThreadMessage::SendPDU {
+                                message_tx.send(ThreadMessage::SendPdu {
                                     to: ProviderType::SCU,
                                     pdu,
                                 })?;
@@ -131,7 +131,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
             loop {
                 let message = message_rx.recv()?;
                 match message {
-                    ThreadMessage::SendPDU { to, pdu } => match to {
+                    ThreadMessage::SendPdu { to, pdu } => match to {
                         ProviderType::SCU => {
                             println!("scu <---- scp: {:?}", &pdu);
                             write_pdu(scu_stream, &pdu).unwrap();
