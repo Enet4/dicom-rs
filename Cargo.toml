@@ -8,5 +8,7 @@ members = [
     "object",
     "dictionary-std",
     "dictionary-builder",
-    "dcmdump"
+    "dcmdump",
+    "ul",
+    "scpproxy"
 ]
