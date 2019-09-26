@@ -1,4 +1,3 @@
-extern crate clap;
 use clap::{App, Arg};
 use dicom_ul::pdu::reader::{read_pdu, DEFAULT_MAX_PDU};
 use dicom_ul::pdu::writer::write_pdu;
