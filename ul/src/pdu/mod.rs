@@ -1,3 +1,10 @@
+pub mod reader;
+pub mod writer;
+
+#[cfg(test)]
+mod test;
+
+
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub struct PresentationContextProposed {
     pub id: u8,
@@ -248,9 +255,3 @@ pub enum Pdu {
         source: AbortRQSource,
     },
 }
-
-pub mod reader;
-pub mod writer;
-
-#[cfg(test)]
-mod test;
