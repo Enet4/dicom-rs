@@ -109,7 +109,7 @@ fn can_read_write_associate_rq() -> Result<()> {
         );
         matches!(user_variables[2], UserVariableItem::MaxLength(_));
     } else {
-        assert!(false, "sd");
+        assert!(false, "invalid pdu type");
     }
 
     Ok(())
@@ -138,7 +138,7 @@ fn can_read_write_pdata() -> Result<()> {
         matches!(data[0].is_last, true);
         assert_eq!(data[0].data, vec![0, 0, 0, 0])
     } else {
-        assert!(false, "sd");
+        assert!(false, "invalid pdu type");
     }
 
     Ok(())
