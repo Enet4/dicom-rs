@@ -126,7 +126,7 @@ fn can_read_write_pdata() -> Result<()> {
         }],
     };
 
-    let mut bytes = vec![0u8; 0];
+    let mut bytes = Vec::new();
     write_pdu(&mut bytes, &pdata_rq)?;
 
     let result = read_pdu(&mut Cursor::new(&bytes), DEFAULT_MAX_PDU)?;
