@@ -6,11 +6,11 @@
 //!
 //! When not using private tags, this dictionary should suffice.
 
-mod entries;
+pub mod tags;
 
-use crate::entries::ENTRIES;
+use crate::tags::ENTRIES;
 use dicom_core::dictionary::{DataDictionary, DictionaryEntryRef, TagRange::*};
-use dicom_core::header::{Tag, VR};
+use dicom_core::header::Tag;
 use lazy_static::lazy_static;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -128,76 +128,8 @@ fn init_dictionary() -> StandardDictionaryRegistry {
     for entry in ENTRIES {
         d.index(&entry);
     }
-    for entry in META_ENTRIES {
-        d.index(&entry);
-    }
     d
 }
-
-// meta information entries
-type E<'a> = DictionaryEntryRef<'a>;
-const META_ENTRIES: &[E<'static>] = &[
-    E {
-        tag: Single(Tag(0x0002, 0x0000)),
-        alias: "FileMetaInformationGroupLength",
-        vr: VR::UL,
-    },
-    E {
-        tag: Single(Tag(0x0002, 0x0001)),
-        alias: "FileMetaInformationVersion",
-        vr: VR::OB,
-    },
-    E {
-        tag: Single(Tag(0x0002, 0x0002)),
-        alias: "MediaStorageSOPClassUID",
-        vr: VR::UI,
-    },
-    E {
-        tag: Single(Tag(0x0002, 0x0003)),
-        alias: "MediaStorageSOPInstanceUID",
-        vr: VR::UI,
-    },
-    E {
-        tag: Single(Tag(0x0002, 0x0010)),
-        alias: "TransferSyntaxUID",
-        vr: VR::UI,
-    },
-    E {
-        tag: Single(Tag(0x0002, 0x0012)),
-        alias: "ImplementationClassUID",
-        vr: VR::UI,
-    },
-    E {
-        tag: Single(Tag(0x0002, 0x0013)),
-        alias: "ImplentationVersionName",
-        vr: VR::SH,
-    },
-    E {
-        tag: Single(Tag(0x0002, 0x0016)),
-        alias: "SourceApplicationEntityTitle",
-        vr: VR::AE,
-    },
-    E {
-        tag: Single(Tag(0x0002, 0x0017)),
-        alias: "SendingApplicationEntityTitle",
-        vr: VR::AE,
-    },
-    E {
-        tag: Single(Tag(0x0002, 0x0018)),
-        alias: "ReceivingApplicationEntityTitle",
-        vr: VR::AE,
-    },
-    E {
-        tag: Single(Tag(0x0002, 0x0100)),
-        alias: "PrivateInformationCreatorUID",
-        vr: VR::UI,
-    },
-    E {
-        tag: Single(Tag(0x0002, 0x0102)),
-        alias: "PrivateInformation",
-        vr: VR::OB,
-    },
-];
 
 #[cfg(test)]
 mod tests {
