@@ -43,6 +43,7 @@ pub struct TransferSyntax<A = DynDataRWAdapter> {
     codec: Codec<A>,
 }
 
+#[cfg(feature = "inventory-registry")]
 // Collect transfer syntax specifiers from other crates.
 inventory::collect!(TransferSyntax);
 
@@ -69,6 +70,7 @@ where
     }
 }
 
+#[cfg(feature = "inventory-registry")]
 #[macro_export]
 /// Submit a transfer syntax specifier to be supported by the
 /// program's runtime. This is to be used by crates wishing to provide
@@ -82,6 +84,23 @@ macro_rules! submit_transfer_syntax {
         inventory::submit! {
             ($ts).erased()
         }
+    };
+}
+
+#[cfg(not(feature = "inventory-registry"))]
+#[macro_export]
+/// Submit a transfer syntax specifier to be supported by the
+/// program's runtime. This is to be used by crates wishing to provide
+/// additional support for a certain transfer syntax using the
+/// main transfer syntax registry.
+///
+/// This macro does actually "run" anything, so place it outside of a
+/// function body at the root of the crate.
+/// 
+/// Without the `inventory-registry` feature, this request is ignored.
+macro_rules! submit_transfer_syntax {
+    ($ts: expr) => {
+        // ignore request
     };
 }
 

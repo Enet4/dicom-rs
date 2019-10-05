@@ -1,4 +1,8 @@
 //! Independent test for testing that submitting a TS in a separate crate work.
+//! 
+//! Only applicable to the inventory-based registry.
+#![cfg(feature = "inventory-registry")]
+
 use dicom_encoding::submit_transfer_syntax;
 use dicom_encoding::transfer_syntax::{Codec, DataRWAdapter, Endianness, TransferSyntax, TransferSyntaxIndex};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
