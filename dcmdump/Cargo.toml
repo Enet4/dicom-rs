@@ -9,5 +9,8 @@ repository = "https://github.com/Enet4/dicom-rs"
 categories = ["command-line-utilities"]
 keywords = ["cli", "dicom", "dump"]
 
+[features]
+default = ['dicom/inventory-registry']
+
 [dependencies]
-dicom = { path = "../parent/", version = "0.1.0" }
+dicom = { path = "../parent/", version = "0.1.0", default-features = false }

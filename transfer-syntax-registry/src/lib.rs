@@ -1,8 +1,13 @@
 //! This crate contains the DICOM transfer syntax registry.
 //! The transfer syntax registry maps a DICOM UID of a transfer syntax into the
-//! respective transfer syntax specifier. The container of transfer syntaxes is
-//! populated before-main through the [inventory] pattern, which makes it
-//! readily available through the [`TransferSyntaxRegistry`] type.
+//! respective transfer syntax specifier. In the default implementation, the
+//! container of transfer syntaxes is populated before-main through the
+//! [inventory] pattern, then making all registerd TSes readily available
+//! through the [`TransferSyntaxRegistry`] type.
+//! 
+//! The default Cargo feature `inventory-registry` can be deactivated for
+//! environments which do not support `inventory`, with the downside of only
+//! providing the built-in transfer syntaxes.
 //!
 //! This registry should not have to be used directly, except when developing
 //! higher level APIs, which should learn to negotiate and resolve the expected
@@ -11,7 +16,6 @@
 //! [inventory]: https://docs.rs/inventory/0.1.4/inventory
 
 use byteordered::Endianness;
-use dicom_encoding::submit_transfer_syntax;
 use dicom_encoding::transfer_syntax::{
     AdapterFreeTransferSyntax as Ts, Codec, TransferSyntaxIndex,
 };
@@ -21,6 +25,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 pub use dicom_encoding::TransferSyntax;
+pub mod entries;
 
 /// Data type for a registry of DICOM.
 pub struct TransferSyntaxRegistryImpl {
@@ -105,17 +110,67 @@ impl TransferSyntaxIndex for TransferSyntaxRegistry {
 }
 
 lazy_static! {
+    static ref BUILT_IN_TS: [TransferSyntax; 26] = {
+        use self::entries::*;
+        [
+            IMPLICIT_VR_LITTLE_ENDIAN.erased(),
+            EXPLICIT_VR_LITTLE_ENDIAN.erased(),
+            EXPLICIT_VR_BIG_ENDIAN.erased(),
+
+            DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN.erased(),
+            JPIP_DEREFERENCED_DEFLATE.erased(),
+            JPEG_BASELINE.erased(),
+            JPEG_EXTENDED.erased(),
+            JPEG_LOSSLESS_NON_HIERARCHICAL.erased(),
+            JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION.erased(),
+            JPEG_LS_LOSSLESS_IMAGE_COMPRESSION.erased(),
+            JPEG_LS_LOSSY_IMAGE_COMPRESSION.erased(),
+            JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY.erased(),
+            JPEG_2000_IMAGE_COMPRESSION.erased(),
+            JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION_LOSSLESS_ONLY.erased(),
+            JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION.erased(),
+            JPIP_REFERENCED.erased(),
+            MPEG2_MAIN_PROFILE_MAIN_LEVEL.erased(),
+            MPEG2_MAIN_PROFILE_HIGH_LEVEL.erased(),
+            MPEG4_AVC_H264_HIGH_PROFILE.erased(),
+            MPEG4_AVC_H264_BD_COMPATIBLE_HIGH_PROFILE.erased(),
+            MPEG4_AVC_H264_HIGH_PROFILE_FOR_2D_VIDEO.erased(),
+            MPEG4_AVC_H264_HIGH_PROFILE_FOR_3D_VIDEO.erased(),
+            MPEG4_AVC_H264_STEREO_HIGH_PROFILE.erased(),
+            HEVC_H265_MAIN_PROFILE.erased(),
+            HEVC_H265_MAIN_10_PROFILE.erased(),
+            RLE_LOSSLESS.erased(),
+        ]
+    };
+
     static ref REGISTRY: TransferSyntaxRegistryImpl = {
         let mut registry = TransferSyntaxRegistryImpl {
             m: HashMap::with_capacity(32),
         };
 
-        for ts in inventory::iter::<TransferSyntax> {
+        // add built-in TSes manually
+        for ts in BUILT_IN_TS.iter() {
             registry.register(ts);
         }
+        // add TSes from inventory, if available
+        inventory_populate(&mut registry);
 
         registry
     };
+}
+
+#[cfg(feature = "inventory-registry")]
+#[inline]
+fn inventory_populate(registry: &mut TransferSyntaxRegistryImpl) {
+    for ts in inventory::iter::<TransferSyntax> {
+        registry.register(ts);
+    }
+}
+
+#[cfg(not(feature = "inventory-registry"))]
+#[inline]
+fn inventory_populate(_: &mut TransferSyntaxRegistryImpl) {
+    // do nothing
 }
 
 /// Retrieve a reference to the global codec registry.
@@ -136,9 +191,5 @@ pub(crate) const fn create_ts_stub(uid: &'static str, name: &'static str) -> Ts 
 
 /// Retrieve the default transfer syntax.
 pub fn default() -> Ts {
-    IMPLICIT_VR_LITTLE_ENDIAN
+    entries::IMPLICIT_VR_LITTLE_ENDIAN
 }
-
-// included verbatim instead of placed in a module because inventory
-// value submission only works at the crate's root at the moment.
-include!("entries.rs");
