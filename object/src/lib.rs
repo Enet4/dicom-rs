@@ -138,5 +138,17 @@ where
     }
 }
 
+impl<T> IntoIterator for RootDicomObject<T>
+where
+    T: IntoIterator
+{
+    type Item = <T as IntoIterator>::Item;
+    type IntoIter = <T as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.obj.into_iter()
+    }
+}
+
 #[cfg(test)]
 mod tests {}
