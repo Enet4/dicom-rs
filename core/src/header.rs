@@ -166,6 +166,13 @@ where
         &self.value
     }
 
+    /// Move the data value out of the element, discarding the rest. If the
+    /// value is a sequence, its lifetime may still be bound to its original
+    /// source.
+    pub fn into_value(self) -> Value<I> {
+        self.value
+    }
+
     /// Retrieve the value representation, which may be unknown or not
     /// applicable.
     pub fn vr(&self) -> VR {
