@@ -88,6 +88,11 @@ impl<T> RootDicomObject<T> {
     pub fn meta(&self) -> &FileMetaTable {
         &self.meta
     }
+
+    /// Retrieve the inner DICOM object structure, discarding the meta table.
+    pub fn into_inner(self) -> T {
+        self.obj
+    }
 }
 
 impl<T> ::std::ops::Deref for RootDicomObject<T> {
