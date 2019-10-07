@@ -88,6 +88,11 @@ impl<T> RootDicomObject<T> {
     pub fn meta(&self) -> &FileMetaTable {
         &self.meta
     }
+
+    /// Retrieve the inner DICOM object structure, discarding the meta table.
+    pub fn into_inner(self) -> T {
+        self.obj
+    }
 }
 
 impl<T> ::std::ops::Deref for RootDicomObject<T> {
@@ -135,6 +140,18 @@ where
 
     fn element_by_name(&self, name: &str) -> Result<Self::Element> {
         self.obj.element_by_name(name)
+    }
+}
+
+impl<T> IntoIterator for RootDicomObject<T>
+where
+    T: IntoIterator
+{
+    type Item = <T as IntoIterator>::Item;
+    type IntoIter = <T as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.obj.into_iter()
     }
 }
 
