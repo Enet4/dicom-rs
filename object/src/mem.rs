@@ -135,6 +135,24 @@ where
     /// This function assumes the standard file encoding structure: 128-byte
     /// preamble, file meta group, and the rest of the data set.
     pub fn open_file_with_dict<P: AsRef<Path>>(path: P, dict: D) -> Result<Self> {
+        Self::open_file_with(path, dict, TransferSyntaxRegistry)
+    }
+
+    /// Create a DICOM object by reading from a file.
+    ///
+    /// This function assumes the standard file encoding structure: 128-byte
+    /// preamble, file meta group, and the rest of the data set.
+    /// 
+    /// This function allows you to choose a different transfer syntax index,
+    /// but its use is only advised when the built-in transfer syntax registry
+    /// is insufficient. Otherwise, please use [`open_file_with_dict`] instead.
+    /// 
+    /// [`open_file_with_dict`]: #method.open_file_with_dict
+    pub fn open_file_with<P: AsRef<Path>, R>(path: P, dict: D, ts_index: R) -> Result<Self>
+    where
+        P: AsRef<Path>,
+        R: TransferSyntaxIndex,
+    {
         let mut file = BufReader::new(File::open(path)?);
 
         // skip preamble
@@ -148,7 +166,7 @@ where
         let meta = FileMetaTable::from_reader(&mut file)?;
 
         // read rest of data according to metadata, feed it to object
-        let ts = TransferSyntaxRegistry
+        let ts = ts_index
             .get(&meta.transfer_syntax)
             .ok_or(Error::UnsupportedTransferSyntax)?;
         let cs = SpecificCharacterSet::Default;
@@ -168,13 +186,31 @@ where
     where
         S: Read,
     {
+        Self::from_reader_with(src, dict, TransferSyntaxRegistry)
+    }
+
+    /// Create a DICOM object by reading from a byte source.
+    ///
+    /// This function assumes the standard file encoding structure without the
+    /// preamble: file meta group, followed by the rest of the data set.
+    /// 
+    /// This function allows you to choose a different transfer syntax index,
+    /// but its use is only advised when the built-in transfer syntax registry
+    /// is insufficient. Otherwise, please use [`from_reader_with_dict`] instead.
+    /// 
+    /// [`from_reader_with_dict`]: #method.from_reader_with_dict
+    pub fn from_reader_with<S, R>(src: S, dict: D, ts_index: R) -> Result<Self>
+    where
+        S: Read,
+        R: TransferSyntaxIndex,
+    {
         let mut file = BufReader::new(src);
 
         // read metadata header
         let meta = FileMetaTable::from_reader(&mut file)?;
 
         // read rest of data according to metadata, feed it to object
-        let ts = TransferSyntaxRegistry
+        let ts = ts_index
             .get(&meta.transfer_syntax)
             .ok_or(Error::UnsupportedTransferSyntax)?;
         let cs = SpecificCharacterSet::Default;
@@ -346,6 +382,7 @@ impl<D> IntoIterator for InMemDicomObject<D> {
     }
 }
 
+/// Base iterator type for an in-memory DICOM object.
 #[derive(Debug)]
 pub struct Iter<D> {
     inner: ::std::collections::btree_map::IntoIter<Tag, InMemElement<D>>,
