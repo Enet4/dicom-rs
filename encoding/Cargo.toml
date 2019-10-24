@@ -9,10 +9,14 @@ repository = "https://github.com/Enet4/dicom-rs"
 categories = ["encoding"]
 keywords = ["dicom"]
 
+[features]
+default = []
+inventory-registry = ['inventory']
+
 [dependencies]
 dicom-core = { path = "../core", version = "0.1.0" }
 dicom-dictionary-std = { path = "../dictionary-std", version = "0.1.0" }
 quick-error = "1.2.2"
 encoding = "0.2.33"
 byteordered = "0.4.0"
-inventory = "0.1.4"
+inventory = { version = "0.1.4", optional = true }
