@@ -77,7 +77,7 @@ where
 {
     type Source = S;
 
-    fn decode_header(&self, mut source: &mut S) -> Result<DataElementHeader> {
+    fn decode_header(&self, mut source: &mut S) -> Result<(DataElementHeader, usize)> {
         // retrieve tag
         let tag = self.basic.decode_tag(&mut source)?;
 
@@ -96,7 +96,7 @@ where
                 .map(|entry| entry.vr())
                 .unwrap_or(VR::UN)
         };
-        Ok(DataElementHeader::new(tag, vr, Length(len)))
+        Ok((DataElementHeader::new(tag, vr, Length(len)), 8))
     }
 
     fn decode_item_header(&self, mut source: &mut S) -> Result<SequenceItemHeader> {
@@ -276,12 +276,13 @@ mod tests {
         let mut cursor = Cursor::new(RAW.as_ref());
         {
             // read first element
-            let elem = reader
+            let (elem, bytes_read) = reader
                 .decode_header(&mut cursor)
                 .expect("should find an element");
             assert_eq!(elem.tag(), (0x0002, 0x0002));
             assert_eq!(elem.vr(), VR::UN);
             assert_eq!(elem.len(), Length(26));
+            assert_eq!(bytes_read, 8);
             // read only half of the data
             let mut buffer: Vec<u8> = Vec::with_capacity(13);
             buffer.resize(13, 0);
@@ -296,7 +297,7 @@ mod tests {
         assert_eq!(cursor.seek(SeekFrom::Current(13)).unwrap(), 34);
         {
             // read second element
-            let elem = reader
+            let (elem, _bytes_read) = reader
                 .decode_header(&mut cursor)
                 .expect("should find an element");
             assert_eq!(elem.tag(), (0x0002, 0x0010));
@@ -318,7 +319,7 @@ mod tests {
         let mut cursor = Cursor::new(RAW.as_ref());
         {
             // read first element
-            let elem = reader
+            let (elem, _bytes_read) = reader
                 .decode_header(&mut cursor)
                 .expect("should find an element");
             assert_eq!(elem.tag(), (2, 2));
@@ -335,7 +336,7 @@ mod tests {
         }
         {
             // read second element
-            let elem = reader
+            let (elem, _bytes_read) = reader
                 .decode_header(&mut cursor)
                 .expect("should find an element");
             assert_eq!(elem.tag(), (2, 16));

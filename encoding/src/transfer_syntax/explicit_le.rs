@@ -43,7 +43,7 @@ where
 {
     type Source = S;
 
-    fn decode_header(&self, mut source: &mut S) -> Result<DataElementHeader> {
+    fn decode_header(&self, mut source: &mut S) -> Result<(DataElementHeader, usize)> {
         // retrieve tag
         let Tag(group, element) = self.basic.decode_tag(&mut source)?;
 
@@ -52,16 +52,17 @@ where
             // item delimiters do not have VR or reserved field
             source.read_exact(&mut buf)?;
             let len = LittleEndian::read_u32(&buf);
-            return Ok(DataElementHeader::new(
+            return Ok((DataElementHeader::new(
                 (group, element),
                 VR::UN,
                 Length(len),
-            ));
+            ), 4));
         }
 
         // retrieve explicit VR
         source.read_exact(&mut buf[0..2])?;
         let vr = VR::from_binary([buf[0], buf[1]]).unwrap_or(VR::UN);
+        let bytes_read;
 
         // retrieve data length
         let len = match vr {
@@ -78,16 +79,18 @@ where
                 // read 2 reserved bytes, then 4 bytes for data length
                 source.read_exact(&mut buf[0..2])?;
                 source.read_exact(&mut buf)?;
+                bytes_read = 12;
                 LittleEndian::read_u32(&buf)
             }
             _ => {
                 // read 2 bytes for the data length
                 source.read_exact(&mut buf[0..2])?;
+                bytes_read = 8;
                 u32::from(LittleEndian::read_u16(&buf[0..2]))
             }
         };
 
-        Ok(DataElementHeader::new((group, element), vr, Length(len)))
+        Ok((DataElementHeader::new((group, element), vr, Length(len)), bytes_read))
     }
 
     fn decode_item_header(&self, source: &mut S) -> Result<SequenceItemHeader> {
@@ -296,12 +299,13 @@ mod tests {
         let mut cursor = Cursor::new(RAW.as_ref());
         {
             // read first element
-            let elem = dec
+            let (elem, bytes_read) = dec
                 .decode_header(&mut cursor)
                 .expect("should find an element");
             assert_eq!(elem.tag(), Tag(2, 2));
             assert_eq!(elem.vr(), VR::UI);
             assert_eq!(elem.len(), Length(26));
+            assert_eq!(bytes_read, 8);
             // read only half of the value data
             let mut buffer: Vec<u8> = Vec::with_capacity(13);
             buffer.resize(13, 0);
@@ -316,7 +320,7 @@ mod tests {
         assert_eq!(cursor.seek(SeekFrom::Current(13)).unwrap(), 34);
         {
             // read second element
-            let elem = dec
+            let (elem, _bytes_read) = dec
                 .decode_header(&mut cursor)
                 .expect("should find an element");
             assert_eq!(elem.tag(), Tag(2, 16));
@@ -396,12 +400,13 @@ mod tests {
         let mut cursor = Cursor::new(RAW_SEQUENCE_ITEMS);
         {
             // read first element
-            let elem = dec
+            let (elem, bytes_read) = dec
                 .decode_header(&mut cursor)
                 .expect("should find an element header");
             assert_eq!(elem.tag(), Tag(8, 0x103F));
             assert_eq!(elem.vr(), VR::SQ);
             assert!(elem.len().is_undefined());
+            assert_eq!(bytes_read, 12);
         }
         // cursor should now be @ #12
         assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 12);
