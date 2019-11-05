@@ -176,7 +176,7 @@ where
         } else if self.last_header.is_some() {
             // a plain element header was read, so a value is expected
             let header = self.last_header.unwrap();
-            let v = match self.parser.read_value(&mut self.source, &header) {
+            let value = match self.parser.read_value(&mut self.source, &header) {
                 Ok(v) => v,
                 Err(e) => {
                     self.hard_break = true;
@@ -185,24 +185,9 @@ where
                 }
             };
 
-            // if it's a Specific Character Set, update the parser immediately.
-            if let Some(DataElementHeader {
-                tag: Tag(0x0008, 0x0005),
-                ..
-            }) = self.last_header
-            {
-                // TODO trigger an error or warning on unsupported specific character sets.
-                // Edge case handling strategies should be considered in the future.
-                if let Some(charset) = v.string().and_then(SpecificCharacterSet::from_code) {
-                    if let Err(e) = self.parser.set_character_set(charset) {
-                        self.hard_break = true;
-                        self.last_header = None;
-                        return Some(Err(e));
-                    }
-                }
-            }
             self.last_header = None;
-            Some(Ok(DataToken::PrimitiveValue(v)))
+
+            Some(Ok(DataToken::PrimitiveValue(value)))
         } else {
             // a data element header or item delimiter is expected
             match self.parser.decode_header(&mut self.source) {
