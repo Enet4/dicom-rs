@@ -1,3 +1,4 @@
+use dicom_core::Tag;
 use dicom_core::error::Error as CoreError;
 pub use dicom_core::error::{CastValueError, InvalidValueReadError};
 use quick_error::quick_error;
@@ -13,9 +14,10 @@ quick_error! {
     /// The main data type for errors in the library.
     #[derive(Debug)]
     pub enum Error {
-        /// Raised when the obtained data element was not the one expected.
-        UnexpectedElement {
-            description("Unexpected DICOM element in current reading position")
+        /// Raised when the obtained data element tag was not the one expected.
+        UnexpectedTag(tag: Tag) {
+            description("Unexpected DICOM element tag in current reading position")
+            display("Unexpected DICOM tag {}", tag)
         }
         /// Raised when the obtained length is inconsistent.
         UnexpectedDataValueLength {
@@ -56,7 +58,7 @@ impl From<CoreError> for Error {
     fn from(e: CoreError) -> Self {
         match e {
             CoreError::UnexpectedDataValueLength => Error::UnexpectedDataValueLength,
-            CoreError::UnexpectedElement => Error::UnexpectedElement,
+            CoreError::UnexpectedTag(tag) => Error::UnexpectedTag(tag),
             CoreError::ReadValue(e) => Error::ReadValue(e),
             CoreError::CastValue(e) => Error::CastValue(e),
         }

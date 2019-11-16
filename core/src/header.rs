@@ -304,7 +304,7 @@ impl SequenceItemHeader {
                 // sequence delimiter
                 Ok(SequenceItemHeader::SequenceDelimiter)
             }
-            _ => Err(Error::UnexpectedElement),
+            tag => Err(Error::UnexpectedTag(tag)),
         }
     }
 }

@@ -62,7 +62,7 @@ where
     let elem_len = {
         let (elem, _bytes_read) = decoder.decode_header(source)?;
         if elem.tag() != tag {
-            return Err(Error::UnexpectedElement);
+            return Err(Error::UnexpectedTag(elem.tag()));
         }
         match elem.len().get() {
             None => {
@@ -115,7 +115,7 @@ impl FileMetaTable {
         let group_length: u32 = {
             let (elem, _bytes_read) = decoder.decode_header(&mut file)?;
             if elem.tag() != (0x0002, 0x0000) {
-                return Err(Error::UnexpectedElement);
+                return Err(Error::UnexpectedTag(elem.tag()));
             }
             if elem.len() != Length(4) {
                 return Err(Error::UnexpectedDataValueLength);
@@ -132,7 +132,7 @@ impl FileMetaTable {
             .information_version({
                 let (elem, _bytes_read) = decoder.decode_header(&mut file)?;
                 if elem.tag() != (0x0002, 0x0001) {
-                    return Err(Error::UnexpectedElement);
+                    return Err(Error::UnexpectedTag(elem.tag()));
                 }
                 if elem.len() != Length(2) {
                     return Err(Error::UnexpectedDataValueLength);
