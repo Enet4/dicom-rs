@@ -272,8 +272,8 @@ where
         // sequence of 16-bit signed integers
         let len = require_known_length!(header);
 
-        let len = len >> 1;
-        let vec: EncodingResult<C<_>> = n_times(len)
+        let n = len >> 1;
+        let vec: EncodingResult<C<_>> = n_times(n)
             .map(|_| self.basic.decode_ss(&mut *from))
             .collect();
         self.bytes_read += len as u64;
@@ -283,8 +283,8 @@ where
     fn read_value_fl(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 32-bit floats
-        let len = len >> 2;
-        let vec: EncodingResult<C<_>> = n_times(len)
+        let n = len >> 2;
+        let vec: EncodingResult<C<_>> = n_times(n)
             .map(|_| self.basic.decode_fl(&mut *from))
             .collect();
         self.bytes_read += len as u64;
@@ -432,8 +432,8 @@ where
     fn read_value_od(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 64-bit floats
-        let len = len >> 3;
-        let vec: EncodingResult<C<_>> = n_times(len)
+        let n = len >> 3;
+        let vec: EncodingResult<C<_>> = n_times(n)
             .map(|_| self.basic.decode_fd(&mut *from))
             .collect();
         self.bytes_read += len as u64;
@@ -444,8 +444,8 @@ where
         let len = require_known_length!(header);
         // sequence of 32-bit unsigned integers
 
-        let len = len >> 2;
-        let vec: EncodingResult<C<_>> = n_times(len)
+        let n = len >> 2;
+        let vec: EncodingResult<C<_>> = n_times(n)
             .map(|_| self.basic.decode_ul(&mut *from))
             .collect();
         self.bytes_read += len as u64;
@@ -456,8 +456,8 @@ where
         let len = require_known_length!(header);
         // sequence of 16-bit unsigned integers
 
-        let len = len >> 1;
-        let vec: EncodingResult<C<_>> = n_times(len)
+        let n = len >> 1;
+        let vec: EncodingResult<C<_>> = n_times(n)
             .map(|_| self.basic.decode_us(&mut *from))
             .collect();
         self.bytes_read += len as u64;
@@ -468,8 +468,8 @@ where
         let len = require_known_length!(header);
         // sequence of 64-bit unsigned integers
 
-        let len = len >> 3;
-        let vec: EncodingResult<C<_>> = n_times(len)
+        let n = len >> 3;
+        let vec: EncodingResult<C<_>> = n_times(n)
             .map(|_| self.basic.decode_uv(&mut *from))
             .collect();
         self.bytes_read += len as u64;
@@ -480,8 +480,8 @@ where
         let len = require_known_length!(header);
         // sequence of 32-bit signed integers
 
-        let len = len >> 2;
-        let vec: EncodingResult<C<_>> = n_times(len)
+        let n = len >> 2;
+        let vec: EncodingResult<C<_>> = n_times(n)
             .map(|_| self.basic.decode_sl(&mut *from))
             .collect();
         self.bytes_read += len as u64;
@@ -492,8 +492,8 @@ where
         let len = require_known_length!(header);
         // sequence of 64-bit signed integers
 
-        let len = len >> 3;
-        let vec: EncodingResult<C<_>> = n_times(len)
+        let n = len >> 3;
+        let vec: EncodingResult<C<_>> = n_times(n)
             .map(|_| self.basic.decode_sv(&mut *from))
             .collect();
         self.bytes_read += len as u64;
