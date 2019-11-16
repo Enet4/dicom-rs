@@ -27,14 +27,36 @@ pub struct DataSetReader<S, P, D> {
     source: S,
     parser: P,
     dict: D,
-    /// the current depth in the sequence tree
-    depth: u32,
     /// whether the reader is expecting an item next (or a sequence delimiter)
     in_sequence: bool,
+    /// whether a check for a sequence or item delimitation is pending
+    delimiter_check_pending: bool,
+    /// a stack of delimiters
+    seq_delimiters: Vec<SeqToken>,
     /// fuse the iteration process if true
     hard_break: bool,
     /// last decoded header
     last_header: Option<DataElementHeader>,
+}
+
+/// A token representing a sequence start.
+#[derive(Debug)]
+struct SeqToken {
+    /// Whether it is the start of a sequence or the start of an item.
+    typ: SeqTokenType,
+    /// The length of the value, as indicated by the starting element,
+    /// can be unknown.
+    len: Length,
+    /// The number of bytes the parser has read until it reached the
+    /// beginning of the sequence or item value data.
+    base_offset: u64,
+}
+
+/// The type of delimiter: sequence or item.
+#[derive(Debug)]
+enum SeqTokenType {
+    Sequence,
+    Item,
 }
 
 fn is_parse<S: ?Sized, P>(_: &P)
@@ -56,7 +78,8 @@ impl<'s, S: 's> DataSetReader<S, DynamicDicomParser, StandardDataDictionary> {
             source,
             parser,
             dict: StandardDataDictionary,
-            depth: 0,
+            seq_delimiters: Vec::new(),
+            delimiter_check_pending: false,
             in_sequence: false,
             hard_break: false,
             last_header: None,
@@ -81,7 +104,8 @@ impl<'s, S: 's, D> DataSetReader<S, DynamicDicomParser, D> {
             source,
             parser,
             dict,
-            depth: 0,
+            seq_delimiters: Vec::new(),
+            delimiter_check_pending: false,
             in_sequence: false,
             hard_break: false,
             last_header: None,
@@ -100,7 +124,8 @@ where
             source,
             parser,
             dict: StandardDataDictionary,
-            depth: 0,
+            seq_delimiters: Vec::new(),
+            delimiter_check_pending: false,
             in_sequence: false,
             hard_break: false,
             last_header: None,
@@ -148,22 +173,36 @@ where
         if self.hard_break {
             return None;
         }
+
+        // item or sequence delimitation logic for explicit lengths
+        if self.delimiter_check_pending {
+            if let Some(token) = self.update_seq_delimiters() {
+                return Some(Ok(token));
+            }
+        }
+
         if self.in_sequence {
             match self.parser.decode_item_header(&mut self.source) {
                 Ok(header) => match header {
                     SequenceItemHeader::Item { len } => {
                         // entered a new item
                         self.in_sequence = false;
+                        self.seq_delimiters.push(SeqToken {
+                            typ: SeqTokenType::Item,
+                            len,
+                            base_offset: self.parser.bytes_read(),
+                        });
                         Some(Ok(DataToken::ItemStart { len }))
                     }
                     SequenceItemHeader::ItemDelimiter => {
                         // closed an item
+                        self.seq_delimiters.pop();
                         self.in_sequence = true;
                         Some(Ok(DataToken::ItemEnd))
                     }
                     SequenceItemHeader::SequenceDelimiter => {
                         // closed a sequence
-                        self.depth -= 1;
+                        self.seq_delimiters.pop();
                         self.in_sequence = false;
                         Some(Ok(DataToken::SequenceEnd))
                     }
@@ -187,6 +226,9 @@ where
 
             self.last_header = None;
 
+            // sequences can end after this token
+            self.delimiter_check_pending = true;
+
             Some(Ok(DataToken::PrimitiveValue(value)))
         } else {
             // a data element header or item delimiter is expected
@@ -197,7 +239,11 @@ where
                     len,
                 }) => {
                     self.in_sequence = true;
-                    self.depth += 1;
+                    self.seq_delimiters.push(SeqToken {
+                        typ: SeqTokenType::Sequence,
+                        len,
+                        base_offset: self.parser.bytes_read(),
+                    });
                     Some(Ok(DataToken::SequenceStart { tag, len }))
                 }
                 Ok(DataElementHeader {
@@ -216,6 +262,8 @@ where
                     // TODO there might be a better way to check for the end of
                     // a DICOM object. This approach might ignore trailing
                     // garbage.
+                    // TODO x2: I no longer remember why I wrote this.
+                    // What trailing garbage?
                     self.hard_break = true;
                     None
                 }
@@ -225,6 +273,43 @@ where
                 }
             }
         }
+    }
+}
+
+
+impl<'s, S: 's, P, D> DataSetReader<S, P, D>
+where
+    P: Parse<dyn Read + 's>,
+    S: Read,
+{
+    fn update_seq_delimiters(&mut self) -> Option<DataToken> {
+        if let Some(sd) = self.seq_delimiters.last() {
+            if let Some(len) = sd.len.get() {
+                let eos = sd.base_offset + len as u64;
+                let bytes_read = self.parser.bytes_read();
+                if eos == bytes_read {
+                    // end of delimiter, as indicated by the element's length
+                    let token;
+                    match sd.typ {
+                        SeqTokenType::Sequence => {
+                            self.in_sequence = false;
+                            token = DataToken::SequenceEnd;
+                        },
+                        SeqTokenType::Item =>  {
+                            self.in_sequence = true;
+                            token = DataToken::ItemEnd;
+                        },
+                    }
+
+                    self.seq_delimiters.pop();
+                    return Some(token);
+                } else if eos < bytes_read {
+                    panic!("already read {} bytes, but end of sequence is @ {} bytes", bytes_read, eos);
+                }
+            }
+        }
+        self.delimiter_check_pending = false;
+        None
     }
 }
 
@@ -427,5 +512,113 @@ impl Header for DicomElementMarker {
 
     fn len(&self) -> Length {
         self.header.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Parse;
+    use super::{DataSetReader, DataToken, DicomParser};
+    use dicom_core::header::{DataElementHeader, Length};
+    use dicom_core::value::PrimitiveValue;
+    use dicom_core::{Tag, VR};
+    use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
+    use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
+    use dicom_encoding::text::DefaultCharacterSetCodec;
+    
+    #[test]
+    fn sequence_reading_explicit() {
+        #[rustfmt::skip]
+        static DATA: &[u8] = &[
+            0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
+            b'S', b'Q', // VR 
+            0x00, 0x00, // reserved
+            0x2e, 0x00, 0x00, 0x00, // length: 28 + 18 = 46 (#= 2)
+            // -- 12 --
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0x14, 0x00, 0x00, 0x00, // item length: 20 (#= 2)
+            // -- 20 --
+            0x18, 0x00, 0x12, 0x60, b'U', b'S', 0x02, 0x00, 0x01, 0x00, // (0018, 6012) RegionSpatialformat, len = 2, value = 1
+            // -- 30 --
+            0x18, 0x00, 0x14, 0x60, b'U', b'S', 0x02, 0x00, 0x02, 0x00, // (0018, 6012) RegionDataType, len = 2, value = 2
+            // -- 40 --
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0x0a, 0x00, 0x00, 0x00, // item length: 10 (#= 1)
+            // -- 48 --
+            0x18, 0x00, 0x12, 0x60, b'U', b'S', 0x02, 0x00, 0x04, 0x00, // (0018, 6012) RegionSpatialformat, len = 2, value = 4
+            // -- 58 --
+            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4  
+            b'T', b'E', b'S', b'T', // value = "TEST"
+        ];
+
+        let ground_truth = vec![
+            DataToken::SequenceStart {
+                tag: Tag(0x0018, 0x6011),
+                len: Length(46)
+            },
+            DataToken::ItemStart {
+                len: Length(20)
+            },
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6012),
+                vr: VR::US,
+                len: Length(2)
+            }),
+            DataToken::PrimitiveValue(
+                PrimitiveValue::U16([1].as_ref().into())
+            ),
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6014),
+                vr: VR::US,
+                len: Length(2)
+            }),
+            DataToken::PrimitiveValue(
+                PrimitiveValue::U16([2].as_ref().into())
+            ),
+            DataToken::ItemEnd,
+            DataToken::ItemStart {
+                len: Length(10)
+            },
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6012),
+                vr: VR::US,
+                len: Length(2)
+            }),
+            DataToken::PrimitiveValue(
+                PrimitiveValue::U16([4].as_ref().into())
+            ),
+            DataToken::ItemEnd,
+            DataToken::SequenceEnd,
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0020, 0x4000),
+                vr: VR::LT,
+                len: Length(4)
+            }),
+            DataToken::PrimitiveValue(
+                PrimitiveValue::Str("TEST".into())
+            ),
+        ];
+        
+        let parser = DicomParser::new(
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder::default(),
+            Box::new(DefaultCharacterSetCodec::default()) as Box<_>, // trait object
+        );
+
+        let mut dset_reader = DataSetReader::new(DATA, parser);
+
+        let mut iter = Iterator::zip(dset_reader.by_ref(), ground_truth);
+
+        while let Some((res, gt_token)) = iter.next() {
+            let token = res.expect("should parse without an error");
+            assert_eq!(token, gt_token);
+        }
+
+        assert_eq!(
+            iter.count(), // consume til the end
+            0, // we have already read all of them
+            "unexpected number of tokens remaining"
+        );
+        assert_eq!(dset_reader.parser.bytes_read(), 70);
     }
 }
