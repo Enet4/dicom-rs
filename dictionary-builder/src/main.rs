@@ -27,7 +27,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 /// url to DCMTK dic file
-const DEFAULT_LOCATION: &str = "/home/pknopf/Desktop/dicom.dic";
+const DEFAULT_LOCATION: &str = "https://raw.githubusercontent.com/DCMTK/dcmtk/master/dcmdata/data/dicom.dic";
 
 fn main() {
     let matches = App::new("DICOM Dictionary Builder")
@@ -245,11 +245,10 @@ fn to_code_file<P: AsRef<Path>>(
 
         writeln!(
             f,
-            "#[rustfmt::skip]\npub const {}: {} = {}; // {}",
+            "#[rustfmt::skip]\npub const {}: {} = {};",
             e.alias.to_shouty_snake_case(),
             tag_type,
             tag_set,
-            e.tag
         )?;
     }
 
