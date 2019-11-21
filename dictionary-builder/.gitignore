@@ -1,4 +1,4 @@
 target/
 .vscode/
 Cargo.lock
-/entries.rs
+/tags.rs
