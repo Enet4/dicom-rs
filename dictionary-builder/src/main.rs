@@ -1,30 +1,22 @@
-//! A simple application that downloads the data dictionary
-//! from the latest DICOM standard found online, then creates
-//! code or data to reproduce it in the core library.
+//! A simple application that downloads the data dictionary and creates code or
+//! data to reproduce it in the core library.
 //!
 //! ### How to use
 //!
 //! Simply run the application. It will automatically retrieve the dictionary
-//! from the official DICOM website and store the result in "entries.rs".
+//! from the DCMTK data dictionary and store the result in "entries.rs".
 //! Future versions will enable different kinds of outputs.
 //!
 //! Please use the `--help` flag for the full usage information.
 
 use clap::{App, Arg};
-use futures::{Future, Stream};
-use hyper::client::Client;
-use hyper::client::ResponseFuture;
-use hyper::{Chunk, Uri};
 use serde::Serialize;
-use tokio_core::reactor::Core;
-
 use regex::Regex;
 
 use heck::ShoutySnakeCase;
 use std::fs::{create_dir_all, File};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
-use std::str::FromStr;
 
 /// url to DCMTK dic file
 const DEFAULT_LOCATION: &str = "https://raw.githubusercontent.com/DCMTK/dcmtk/master/dcmdata/data/dicom.dic";
@@ -57,21 +49,16 @@ fn main() {
 
     let dst = Path::new(matches.value_of("OUTPUT").unwrap());
 
-    let mut core = Core::new().unwrap();
-
     if src.starts_with("http:") || src.starts_with("https:") {
         // read from URL
-        let src = Uri::from_str(src).unwrap();
+        //let src = Uri::from_str(src).unwrap();
         println!("Downloading DICOM dictionary ...");
-        let req = dic_from_site(src).and_then(|resp| {
-            resp.into_body().concat2().and_then(|body: Chunk| {
-                let entries = parse_entries(&*body).unwrap();
-                println!("Writing to file ...");
-                to_code_file(dst, entries, !ignore_retired).expect("Failed to write file");
-                Ok(())
-            })
-        });
-        core.run(req).unwrap();
+        let mut resp = reqwest::get(src).unwrap();
+        let mut data = vec![];
+        resp.copy_to(&mut data).unwrap();
+        let entries = parse_entries(&*data).unwrap();
+        println!("Writing to file ...");
+        to_code_file(dst, entries, !ignore_retired).expect("Failed to write file");
     } else {
         // read from File
         let file = File::open(src).unwrap();
@@ -82,11 +69,6 @@ fn main() {
 }
 
 type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
-
-fn dic_from_site(url: Uri) -> ResponseFuture {
-    let client = Client::new();
-    client.get(url)
-}
 
 fn parse_entries<R: BufRead>(source: R) -> DynResult<Vec<Entry>> {
     let mut result = vec![];
