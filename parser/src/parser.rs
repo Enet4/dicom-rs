@@ -318,6 +318,10 @@ where
         self.buffer.resize_with(len, Default::default);
         from.read_exact(&mut self.buffer)?;
         let buf = trim_trail_empty_bytes(&self.buffer);
+        if buf.is_empty() {
+            return Ok(PrimitiveValue::Empty);
+        }
+        
         if validate_da(buf) != TextValidationOutcome::Ok {
             let lossy_str = DefaultCharacterSetCodec
                 .decode(buf)
@@ -346,6 +350,10 @@ where
         self.buffer.resize_with(len, Default::default);
         from.read_exact(&mut self.buffer)?;
         let buf = trim_trail_empty_bytes(&self.buffer);
+        if buf.is_empty() {
+            return Ok(PrimitiveValue::Empty);
+        }
+
         let parts: Result<C<f64>> = buf
             .split(|b| *b == b'\\')
             .map(|slice| {
@@ -370,6 +378,10 @@ where
         self.buffer.resize_with(len, Default::default);
         from.read_exact(&mut self.buffer)?;
         let buf = trim_trail_empty_bytes(&self.buffer);
+        if buf.is_empty() {
+            return Ok(PrimitiveValue::Empty);
+        }
+
         if validate_dt(buf) != TextValidationOutcome::Ok {
             let lossy_str = DefaultCharacterSetCodec
                 .decode(buf)
@@ -398,6 +410,9 @@ where
         self.buffer.resize_with(len, Default::default);
         from.read_exact(&mut self.buffer)?;
         let buf = trim_trail_empty_bytes(&self.buffer);
+        if buf.is_empty() {
+            return Ok(PrimitiveValue::Empty);
+        }
 
         let parts: Result<C<_>> = buf
             .split(|v| *v == b'\\')
@@ -423,6 +438,10 @@ where
         self.buffer.resize_with(len, Default::default);
         from.read_exact(&mut self.buffer)?;
         let buf = trim_trail_empty_bytes(&self.buffer);
+        if buf.is_empty() {
+            return Ok(PrimitiveValue::Empty);
+        }
+
         if validate_tm(buf) != TextValidationOutcome::Ok {
             let lossy_str = DefaultCharacterSetCodec
                 .decode(buf)
