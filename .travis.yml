@@ -12,7 +12,7 @@ matrix:
 
 before_script:
   - if [ "$CLIPPY" ]; then
-      CLIPPY_INSTALLED=0 && (rustup component add clippy || rustup component add clippy-preview || cargo install --git https://github.com/rust-lang/rust-clippy clippy -f) && CLIPPY_INSTALLED=1;
+      (rustup component add clippy || rustup component add clippy-preview) && CLIPPY_INSTALLED=1 || CLIPPY_INSTALLED=0;
     fi
 
 script:
