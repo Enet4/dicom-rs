@@ -24,6 +24,10 @@ quick_error! {
             description("Unexpected DICOM element tag in current reading position")
             display("Unexpected DICOM tag {}", tag)
         }
+        InconsistentSequenceEnd(eos: u64, bytes_read: u64) {
+            description("inconsistence sequence end position")
+            display("already read {} bytes, but end of sequence is @ {} bytes", bytes_read, eos)
+        }
         /// Raised when the obtained length is inconsistent.
         UnexpectedDataValueLength {
             description("Inconsistent data value length in data element")

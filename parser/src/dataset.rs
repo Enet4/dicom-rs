@@ -176,8 +176,13 @@ where
 
         // item or sequence delimitation logic for explicit lengths
         if self.delimiter_check_pending {
-            if let Some(token) = self.update_seq_delimiters() {
-                return Some(Ok(token));
+            match self.update_seq_delimiters() {
+                Err(e) => {
+                    self.hard_break = true;
+                    return Some(Err(e));
+                }
+                Ok(Some(token)) => return Some(Ok(token)),
+                Ok(None) => { /* no-op */ }
             }
         }
 
@@ -292,7 +297,7 @@ where
     P: Parse<dyn Read + 's>,
     S: Read,
 {
-    fn update_seq_delimiters(&mut self) -> Option<DataToken> {
+    fn update_seq_delimiters(&mut self) -> Result<Option<DataToken>> {
         if let Some(sd) = self.seq_delimiters.last() {
             if let Some(len) = sd.len.get() {
                 let eos = sd.base_offset + len as u64;
@@ -312,14 +317,14 @@ where
                     }
 
                     self.seq_delimiters.pop();
-                    return Some(token);
+                    return Ok(Some(token));
                 } else if eos < bytes_read {
-                    panic!("already read {} bytes, but end of sequence is @ {} bytes", bytes_read, eos);
+                    return Err(Error::InconsistentSequenceEnd(eos, bytes_read));
                 }
             }
         }
         self.delimiter_check_pending = false;
-        None
+        Ok(None)
     }
 }
 
