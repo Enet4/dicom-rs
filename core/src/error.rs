@@ -1,4 +1,5 @@
 //! This module aggregates errors that may emerge from the library.
+use crate::Tag;
 use crate::value::ValueType;
 use quick_error::quick_error;
 use std::error::Error as BaseError;
@@ -11,8 +12,9 @@ quick_error! {
     #[derive(Debug)]
     pub enum Error {
         /// Raised when the obtained data element was not the one expected.
-        UnexpectedElement {
-            description("Unexpected DICOM element in current reading position")
+        UnexpectedTag(tag: Tag) {
+            description("Unexpected DICOM element tag in current reading position")
+            display("Unexpected DICOM tag {}", tag)
         }
         /// Raised when the obtained length is inconsistent.
         UnexpectedDataValueLength {

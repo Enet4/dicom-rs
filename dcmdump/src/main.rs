@@ -171,7 +171,8 @@ where
     dump(to, item, width, depth + 1)?;
     writeln!(
         to,
-        "(FFFE,E00D) na (ItemDelimitationItem)  # 0, 0 ItemDelimitationItem"
+        "{}(FFFE,E00D) na (ItemDelimitationItem)  # 0, 0 ItemDelimitationItem",
+        indent,
     )?;
     Ok(())
 }

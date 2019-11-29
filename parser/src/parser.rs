@@ -67,8 +67,8 @@ where
         header: &DataElementHeader,
     ) -> Result<PrimitiveValue>;
 
-    /// Define the specific character set of subsequent text elements.
-    fn set_character_set(&mut self, charset: SpecificCharacterSet) -> Result<()>;
+    /// Retrieve the exact number of bytes read by the parser.
+    fn bytes_read(&self) -> u64;
 }
 
 /// Alias for a dynamically resolved DICOM parser. Although the data source may be known
@@ -94,6 +94,7 @@ pub struct DicomParser<D, BD, S: ?Sized, TC> {
     text: TC,
     dt_utc_offset: FixedOffset,
     buffer: Vec<u8>,
+    bytes_read: u64,
 }
 
 impl<S: ?Sized, D, BD, TC> Debug for DicomParser<D, BD, S, TC>
@@ -141,6 +142,7 @@ impl DynamicDicomParser {
             text,
             dt_utc_offset: FixedOffset::east(0),
             buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
+            bytes_read: 0,
         })
     }
 }
@@ -166,6 +168,7 @@ where
             text: DefaultCharacterSetCodec,
             dt_utc_offset: FixedOffset::east(0),
             buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
+            bytes_read: 0,
         }
     }
 }
@@ -186,12 +189,13 @@ where
             text,
             dt_utc_offset: FixedOffset::east(0),
             buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
+            bytes_read: 0,
         }
     }
 
     // ---------------- private methods ---------------------
 
-    fn read_value_tag(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_tag(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
 
         // tags
@@ -203,6 +207,7 @@ where
                 Ok(Tag(g, e))
             })
             .collect();
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::Tags(parts?))
     }
 
@@ -218,6 +223,7 @@ where
         // sequence of 8-bit integers (or arbitrary byte data)
         let mut buf = smallvec![0u8; len];
         from.read_exact(&mut buf)?;
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::U8(buf))
     }
 
@@ -244,6 +250,7 @@ where
                 .collect(),
         };
 
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::Strs(parts?))
     }
 
@@ -257,53 +264,30 @@ where
         // a single string
         let mut buf: SmallVec<[u8; 16]> = smallvec![0u8; len];
         from.read_exact(&mut buf)?;
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::Str(self.text.decode(&buf[..])?))
     }
 
-    fn read_value_ui(
-        &mut self,
-        from: &mut S,
-        header: &DataElementHeader,
-    ) -> Result<PrimitiveValue> {
-        let len = require_known_length!(header);
-        // sequence of UID's
-        self.buffer.resize_with(len, Default::default);
-        from.read_exact(&mut self.buffer)?;
-
-        let parts: EncodingResult<C<_>> = match header.vr() {
-            VR::AE | VR::CS | VR::AS => self
-                .buffer
-                .split(|v| *v == 0)
-                .map(|slice| DefaultCharacterSetCodec.decode(slice))
-                .collect(),
-            _ => self
-                .buffer
-                .split(|v| *v == 0)
-                .map(|slice| self.text.decode(slice))
-                .collect(),
-        };
-
-        Ok(PrimitiveValue::Strs(parts?))
-    }
-
-    fn read_value_ss(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_ss(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         // sequence of 16-bit signed integers
         let len = require_known_length!(header);
 
-        let len = len >> 1;
-        let vec: EncodingResult<C<_>> = n_times(len)
+        let n = len >> 1;
+        let vec: EncodingResult<C<_>> = n_times(n)
             .map(|_| self.basic.decode_ss(&mut *from))
             .collect();
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::I16(vec?))
     }
 
-    fn read_value_fl(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_fl(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 32-bit floats
-        let len = len >> 2;
-        let vec: EncodingResult<C<_>> = n_times(len)
+        let n = len >> 2;
+        let vec: EncodingResult<C<_>> = n_times(n)
             .map(|_| self.basic.decode_fl(&mut *from))
             .collect();
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::F32(vec?))
     }
 
@@ -336,6 +320,7 @@ where
             .split(|b| *b == b'\\')
             .map(|part| Ok(parse_date(part)?.0))
             .collect();
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::Date(vec?))
     }
 
@@ -364,6 +349,7 @@ where
                     .map_err(|e| Error::from(InvalidValueReadError::from(e)))
             })
             .collect();
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::F64(parts?))
     }
 
@@ -397,6 +383,7 @@ where
             .map(|part| Ok(parse_datetime(part, self.dt_utc_offset)?))
             .collect();
 
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::DateTime(vec?))
     }
 
@@ -424,6 +411,7 @@ where
                     .map_err(|e| Error::from(InvalidValueReadError::from(e)))
             })
             .collect();
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::I32(parts?))
     }
 
@@ -456,72 +444,132 @@ where
             .split(|b| *b == b'\\')
             .map(|part| parse_time(part).map(|t| t.0))
             .collect();
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::Time(vec?))
     }
 
-    fn read_value_od(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_od(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 64-bit floats
-        let len = len >> 3;
-        let vec: EncodingResult<C<_>> = n_times(len)
+        let n = len >> 3;
+        let vec: EncodingResult<C<_>> = n_times(n)
             .map(|_| self.basic.decode_fd(&mut *from))
             .collect();
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::F64(vec?))
     }
 
-    fn read_value_ul(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_ul(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 32-bit unsigned integers
 
-        let len = len >> 2;
-        let vec: EncodingResult<C<_>> = n_times(len)
+        let n = len >> 2;
+        let vec: EncodingResult<C<_>> = n_times(n)
             .map(|_| self.basic.decode_ul(&mut *from))
             .collect();
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::U32(vec?))
     }
 
-    fn read_value_us(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_us(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 16-bit unsigned integers
 
-        let len = len >> 1;
-        let vec: EncodingResult<C<_>> = n_times(len)
+        let n = len >> 1;
+        let vec: EncodingResult<C<_>> = n_times(n)
             .map(|_| self.basic.decode_us(&mut *from))
             .collect();
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::U16(vec?))
     }
 
-    fn read_value_uv(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_uv(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 64-bit unsigned integers
 
-        let len = len >> 3;
-        let vec: EncodingResult<C<_>> = n_times(len)
+        let n = len >> 3;
+        let vec: EncodingResult<C<_>> = n_times(n)
             .map(|_| self.basic.decode_uv(&mut *from))
             .collect();
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::U64(vec?))
     }
 
-    fn read_value_sl(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_sl(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 32-bit signed integers
 
-        let len = len >> 2;
-        let vec: EncodingResult<C<_>> = n_times(len)
+        let n = len >> 2;
+        let vec: EncodingResult<C<_>> = n_times(n)
             .map(|_| self.basic.decode_sl(&mut *from))
             .collect();
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::I32(vec?))
     }
 
-    fn read_value_sv(&self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_sv(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 64-bit signed integers
 
-        let len = len >> 3;
-        let vec: EncodingResult<C<_>> = n_times(len)
+        let n = len >> 3;
+        let vec: EncodingResult<C<_>> = n_times(n)
             .map(|_| self.basic.decode_sv(&mut *from))
             .collect();
+        self.bytes_read += len as u64;
         Ok(PrimitiveValue::I64(vec?))
+    }
+
+}
+
+impl<S: ?Sized, D, BD> DicomParser<D, BD, S, Box<dyn TextCodec>>
+where
+    D: Decode<Source = S>,
+    BD: BasicDecode,
+    S: Read,
+{
+    fn set_character_set(&mut self, charset: SpecificCharacterSet) -> Result<()> {
+        self.text = charset
+            .get_codec()
+            .ok_or_else(|| Error::UnsupportedCharacterSet)?;
+        Ok(())
+    }
+
+    fn read_value_ui(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
+        let len = require_known_length!(header);
+        // sequence of UID's
+        self.buffer.resize_with(len, Default::default);
+        from.read_exact(&mut self.buffer)?;
+
+        let parts: EncodingResult<C<_>> = match header.vr() {
+            VR::AE | VR::CS | VR::AS => self
+                .buffer
+                .split(|v| *v == 0)
+                .map(|slice| DefaultCharacterSetCodec.decode(slice))
+                .collect(),
+            _ => self
+                .buffer
+                .split(|v| *v == 0)
+                .map(|slice| self.text.decode(slice))
+                .collect(),
+        };
+
+        let parts = parts?;
+        self.bytes_read += len as u64;
+
+        // if it's a Specific Character Set, update the parser immediately.
+        if header.tag == Tag(0x0008, 0x0005) {
+            // TODO trigger an error or warning on unsupported specific character sets.
+            // Edge case handling strategies should be considered in the future.
+            if let Some(charset) = parts.first().map(|x| x.as_ref()).and_then(SpecificCharacterSet::from_code) {
+                self.set_character_set(charset)?;
+            }
+        }
+
+        Ok(PrimitiveValue::Strs(parts))
     }
 }
 
@@ -532,11 +580,17 @@ where
     S: Read,
 {
     fn decode_header(&mut self, from: &mut S) -> Result<DataElementHeader> {
-        self.decoder.decode_header(from).map_err(From::from)
+        self.decoder.decode_header(from).map(|(header, bytes_read)| {
+            self.bytes_read += bytes_read as u64;
+            header
+        }).map_err(From::from)
     }
 
     fn decode_item_header(&mut self, from: &mut S) -> Result<SequenceItemHeader> {
-        self.decoder.decode_item_header(from).map_err(From::from)
+        self.decoder.decode_item_header(from).map(|header| {
+            self.bytes_read += 8;
+            header
+        }).map_err(From::from)
     }
 
     fn read_value(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
@@ -614,11 +668,8 @@ where
         }
     }
 
-    fn set_character_set(&mut self, charset: SpecificCharacterSet) -> Result<()> {
-        self.text = charset
-            .get_codec()
-            .ok_or_else(|| Error::UnsupportedCharacterSet)?;
-        Ok(())
+    fn bytes_read(&self) -> u64 {
+        self.bytes_read
     }
 }
 

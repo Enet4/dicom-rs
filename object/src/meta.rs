@@ -60,9 +60,9 @@ where
     T: TextCodec,
 {
     let elem_len = {
-        let elem = decoder.decode_header(source)?;
+        let (elem, _bytes_read) = decoder.decode_header(source)?;
         if elem.tag() != tag {
-            return Err(Error::UnexpectedElement);
+            return Err(Error::UnexpectedTag(elem.tag()));
         }
         match elem.len().get() {
             None => {
@@ -113,9 +113,9 @@ impl FileMetaTable {
         let builder = FileMetaTableBuilder::new();
 
         let group_length: u32 = {
-            let elem = decoder.decode_header(&mut file)?;
+            let (elem, _bytes_read) = decoder.decode_header(&mut file)?;
             if elem.tag() != (0x0002, 0x0000) {
-                return Err(Error::UnexpectedElement);
+                return Err(Error::UnexpectedTag(elem.tag()));
             }
             if elem.len() != Length(4) {
                 return Err(Error::UnexpectedDataValueLength);
@@ -130,9 +130,9 @@ impl FileMetaTable {
         let mut builder = builder
             .group_length(group_length)
             .information_version({
-                let elem = decoder.decode_header(&mut file)?;
+                let (elem, _bytes_read) = decoder.decode_header(&mut file)?;
                 if elem.tag() != (0x0002, 0x0001) {
-                    return Err(Error::UnexpectedElement);
+                    return Err(Error::UnexpectedTag(elem.tag()));
                 }
                 if elem.len() != Length(2) {
                     return Err(Error::UnexpectedDataValueLength);
@@ -173,7 +173,7 @@ impl FileMetaTable {
 
         // Fetch optional data elements
         while group_length_remaining > 0 {
-            let elem = decoder.decode_header(&mut file)?;
+            let (elem, _bytes_read) = decoder.decode_header(&mut file)?;
             let elem_len = match elem.len().get() {
                 None => {
                     return Err(Error::from(InvalidValueReadError::UnresolvedValueLength));

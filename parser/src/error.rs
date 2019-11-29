@@ -1,4 +1,5 @@
 use crate::dataset::DataToken;
+use dicom_core::Tag;
 use dicom_core::error::Error as CoreError;
 pub use dicom_core::error::{CastValueError, InvalidValueReadError};
 use dicom_encoding::error::{Error as EncodingError, TextEncodingError};
@@ -19,8 +20,13 @@ quick_error! {
             description("Content is not DICOM or is corrupted")
         }
         /// Raised when the obtained data element was not the one expected.
-        UnexpectedElement {
-            description("Unexpected DICOM element in current reading position")
+        UnexpectedTag(tag: Tag) {
+            description("Unexpected DICOM element tag in current reading position")
+            display("Unexpected DICOM tag {}", tag)
+        }
+        InconsistentSequenceEnd(eos: u64, bytes_read: u64) {
+            description("inconsistence sequence end position")
+            display("already read {} bytes, but end of sequence is @ {} bytes", bytes_read, eos)
         }
         /// Raised when the obtained length is inconsistent.
         UnexpectedDataValueLength {
@@ -98,7 +104,7 @@ impl From<CoreError> for Error {
     fn from(e: CoreError) -> Self {
         match e {
             CoreError::UnexpectedDataValueLength => Error::UnexpectedDataValueLength,
-            CoreError::UnexpectedElement => Error::UnexpectedElement,
+            CoreError::UnexpectedTag(tag) => Error::UnexpectedTag(tag),
             CoreError::ReadValue(e) => Error::ReadValue(e),
             CoreError::CastValue(e) => Error::CastValue(e),
         }
@@ -108,7 +114,7 @@ impl From<CoreError> for Error {
 impl From<EncodingError> for Error {
     fn from(e: EncodingError) -> Self {
         match e {
-            EncodingError::UnexpectedElement => Error::UnexpectedElement,
+            EncodingError::UnexpectedTag(tag) => Error::UnexpectedTag(tag),
             EncodingError::UnexpectedDataValueLength => Error::UnexpectedDataValueLength,
             EncodingError::ReadValue(e) => Error::ReadValue(e),
             EncodingError::TextEncoding(e) => Error::TextEncoding(e),

@@ -257,8 +257,10 @@ pub trait Decode {
      *
      * Decoding an item or sequence delimiter is considered valid, and so should be properly handled
      * by the decoder. The value representation in this case should be `UN`.
+     * 
+     * Returns the expected header and the exact number of bytes read from the source.
      */
-    fn decode_header(&self, source: &mut Self::Source) -> Result<DataElementHeader>;
+    fn decode_header(&self, source: &mut Self::Source) -> Result<(DataElementHeader, usize)>;
 
     /** Fetch and decode the next sequence item head from the given source. It is a separate method
      * because value representation is always implicit when reading item headers and delimiters.
@@ -277,7 +279,7 @@ where
 {
     type Source = <T as Decode>::Source;
 
-    fn decode_header(&self, source: &mut Self::Source) -> Result<DataElementHeader> {
+    fn decode_header(&self, source: &mut Self::Source) -> Result<(DataElementHeader, usize)> {
         (**self).decode_header(source)
     }
 
@@ -296,7 +298,7 @@ where
 {
     type Source = <T as Decode>::Source;
 
-    fn decode_header(&self, source: &mut Self::Source) -> Result<DataElementHeader> {
+    fn decode_header(&self, source: &mut Self::Source) -> Result<(DataElementHeader, usize)> {
         (**self).decode_header(source)
     }
 

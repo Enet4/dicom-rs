@@ -304,7 +304,7 @@ impl SequenceItemHeader {
                 // sequence delimiter
                 Ok(SequenceItemHeader::SequenceDelimiter)
             }
-            _ => Err(Error::UnexpectedElement),
+            tag => Err(Error::UnexpectedTag(tag)),
         }
     }
 }
@@ -702,39 +702,51 @@ impl ::std::ops::Add<i32> for Length {
     }
 }
 
-impl ::std::ops::Sub<Length> for Length {
+impl std::ops::Sub<Length> for Length {
     type Output = Self;
 
     fn sub(self, rhs: Length) -> Self::Output {
+        let mut o = self;
+        o -= rhs;
+        o
+    }
+}
+
+impl std::ops::SubAssign<Length> for Length {
+    fn sub_assign(&mut self, rhs: Length) {
         match (self.0, rhs.0) {
-            (UNDEFINED_LEN, _) | (_, UNDEFINED_LEN) => Length::UNDEFINED,
-            (l1, l2) => {
-                let o = l1 - l2;
+            (UNDEFINED_LEN, _) | (_, UNDEFINED_LEN) => (), // no-op
+            (_, l2) => {
+                self.0 -= l2;
                 debug_assert!(
-                    o != UNDEFINED_LEN,
+                    self.0 != UNDEFINED_LEN,
                     "integer overflow (0xFFFF_FFFF reserved for undefined length)"
                 );
-
-                Length(o)
             }
         }
     }
 }
 
-impl ::std::ops::Sub<i32> for Length {
+impl std::ops::Sub<i32> for Length {
     type Output = Self;
 
     fn sub(self, rhs: i32) -> Self::Output {
+        let mut o = self;
+        o -= rhs;
+        o
+    }
+}
+
+impl std::ops::SubAssign<i32> for Length {
+    fn sub_assign(&mut self, rhs: i32) {
         match self.0 {
-            UNDEFINED_LEN => Length::UNDEFINED,
+            UNDEFINED_LEN => (), // no-op
             len => {
-                let o = (len as i32 - rhs) as u32;
+                self.0 = (len as i32 - rhs) as u32;
                 debug_assert!(
-                    o != UNDEFINED_LEN,
+                    self.0 != UNDEFINED_LEN,
                     "integer overflow (0xFFFF_FFFF reserved for undefined length)"
                 );
-
-                Length(o)
             }
         }
     }
