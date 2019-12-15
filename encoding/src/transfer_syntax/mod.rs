@@ -15,7 +15,7 @@ pub mod implicit_le;
 
 use crate::decode::basic::BasicDecoder;
 use crate::decode::Decode;
-use crate::encode::Encode;
+use crate::encode::EncodeTo;
 use std::io::{Read, Write};
 
 pub use byteordered::Endianness;
@@ -24,7 +24,7 @@ pub use byteordered::Endianness;
 pub type DynDecoder = Box<dyn Decode<Source = dyn Read>>;
 
 /// An encoder with its type erased.
-pub type DynEncoder = Box<dyn Encode<Writer = dyn Write>>;
+pub type DynEncoder = Box<dyn EncodeTo<dyn Write>>;
 
 /// A DICOM transfer syntax specifier. The data RW adapter `A` specifies
 /// custom codec capabilities when required.

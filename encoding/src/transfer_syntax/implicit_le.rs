@@ -3,7 +3,7 @@
 use crate::decode::basic::LittleEndianBasicDecoder;
 use crate::decode::{BasicDecode, Decode};
 use crate::encode::basic::LittleEndianBasicEncoder;
-use crate::encode::{BasicEncode, Encode};
+use crate::encode::{BasicEncode, Encode, EncoderFor};
 use crate::error::Result;
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 use byteordered::Endianness;
@@ -118,33 +118,14 @@ where
 }
 
 /// A concrete encoder for the transfer syntax ImplicitVRLittleEndian
-pub struct ImplicitVRLittleEndianEncoder<W: ?Sized> {
+#[derive(Debug, Default, Clone)]
+pub struct ImplicitVRLittleEndianEncoder {
     basic: LittleEndianBasicEncoder,
-    phantom: PhantomData<W>,
 }
 
-impl<W: ?Sized> fmt::Debug for ImplicitVRLittleEndianEncoder<W> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("ImplicitVRLittleEndianEncoder")
-            .field("basic", &self.basic)
-            .field("phantom", &self.phantom)
-            .finish()
-    }
-}
+pub type ImplicitVRLittleEndianEncoderTo<W> = EncoderFor<ImplicitVRLittleEndianEncoder, W>;
 
-impl<W: ?Sized> Default for ImplicitVRLittleEndianEncoder<W> {
-    fn default() -> ImplicitVRLittleEndianEncoder<W> {
-        ImplicitVRLittleEndianEncoder {
-            basic: LittleEndianBasicEncoder,
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<W: ?Sized> BasicEncode for ImplicitVRLittleEndianEncoder<W>
-where
-    W: Write,
-{
+impl BasicEncode for ImplicitVRLittleEndianEncoder {
     fn endianness(&self) -> Endianness {
         Endianness::Little
     }
@@ -192,13 +173,11 @@ where
     }
 }
 
-impl<W: ?Sized> Encode for ImplicitVRLittleEndianEncoder<W>
-where
-    W: Write,
-{
-    type Writer = W;
-
-    fn encode_tag(&self, to: &mut W, tag: Tag) -> Result<()> {
+impl Encode for ImplicitVRLittleEndianEncoder {
+    fn encode_tag<W>(&self, to: &mut W, tag: Tag) -> Result<()>
+    where
+        W: ?Sized + Write,
+    {
         let mut buf = [0u8, 4];
         LittleEndian::write_u16(&mut buf[..], tag.group());
         LittleEndian::write_u16(&mut buf[2..], tag.element());
@@ -206,7 +185,10 @@ where
         Ok(())
     }
 
-    fn encode_element_header(&self, to: &mut W, de: DataElementHeader) -> Result<usize> {
+    fn encode_element_header<W>(&self, to: &mut W, de: DataElementHeader) -> Result<usize>
+    where
+        W: ?Sized + Write,
+    {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf[0..], de.tag().group());
         LittleEndian::write_u16(&mut buf[2..], de.tag().element());
@@ -215,7 +197,10 @@ where
         Ok(8)
     }
 
-    fn encode_item_header(&self, to: &mut W, len: u32) -> Result<()> {
+    fn encode_item_header<W>(&self, to: &mut W, len: u32) -> Result<()>
+    where
+        W: ?Sized + Write,
+    {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf, 0xFFFE);
         LittleEndian::write_u16(&mut buf, 0xE000);
@@ -224,7 +209,10 @@ where
         Ok(())
     }
 
-    fn encode_item_delimiter(&self, to: &mut W) -> Result<()> {
+    fn encode_item_delimiter<W>(&self, to: &mut W) -> Result<()>
+    where
+        W: ?Sized + Write,
+    {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf, 0xFFFE);
         LittleEndian::write_u16(&mut buf, 0xE00D);
@@ -232,7 +220,10 @@ where
         Ok(())
     }
 
-    fn encode_sequence_delimiter(&self, to: &mut W) -> Result<()> {
+    fn encode_sequence_delimiter<W>(&self, to: &mut W) -> Result<()>
+    where
+        W: ?Sized + Write,
+    {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf, 0xFFFE);
         LittleEndian::write_u16(&mut buf, 0xE0DD);
