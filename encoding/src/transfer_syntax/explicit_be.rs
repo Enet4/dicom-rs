@@ -51,11 +51,10 @@ where
             // item delimiters do not have VR or reserved field
             source.read_exact(&mut buf)?;
             let len = BigEndian::read_u32(&buf);
-            return Ok((DataElementHeader::new(
-                (group, element),
-                VR::UN,
-                Length(len),
-            ), 4));
+            return Ok((
+                DataElementHeader::new((group, element), VR::UN, Length(len)),
+                4,
+            ));
         }
 
         // retrieve explicit VR
@@ -90,7 +89,10 @@ where
             }
         };
 
-        Ok((DataElementHeader::new((group, element), vr, Length(len)), bytes_read))
+        Ok((
+            DataElementHeader::new((group, element), vr, Length(len)),
+            bytes_read,
+        ))
     }
 
     fn decode_item_header(&self, source: &mut Self::Source) -> Result<SequenceItemHeader> {

@@ -4,7 +4,7 @@
 //! container of transfer syntaxes is populated before-main through the
 //! [inventory] pattern, then making all registerd TSes readily available
 //! through the [`TransferSyntaxRegistry`] type.
-//! 
+//!
 //! The default Cargo feature `inventory-registry` can be deactivated for
 //! environments which do not support `inventory`, with the downside of only
 //! providing the built-in transfer syntaxes.

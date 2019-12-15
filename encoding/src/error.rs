@@ -1,6 +1,6 @@
-use dicom_core::Tag;
 use dicom_core::error::Error as CoreError;
 pub use dicom_core::error::{CastValueError, InvalidValueReadError};
+use dicom_core::Tag;
 use quick_error::quick_error;
 use std::borrow::Cow;
 use std::error::Error as BaseError;

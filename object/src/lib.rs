@@ -145,7 +145,7 @@ where
 
 impl<T> IntoIterator for RootDicomObject<T>
 where
-    T: IntoIterator
+    T: IntoIterator,
 {
     type Item = <T as IntoIterator>::Item;
     type IntoIter = <T as IntoIterator>::IntoIter;

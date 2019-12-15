@@ -1,6 +1,6 @@
 //! This module aggregates errors that may emerge from the library.
-use crate::Tag;
 use crate::value::ValueType;
+use crate::Tag;
 use quick_error::quick_error;
 use std::error::Error as BaseError;
 use std::fmt;

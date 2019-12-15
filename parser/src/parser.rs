@@ -195,7 +195,11 @@ where
 
     // ---------------- private methods ---------------------
 
-    fn read_value_tag(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_tag(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
 
         // tags
@@ -268,7 +272,11 @@ where
         Ok(PrimitiveValue::Str(self.text.decode(&buf[..])?))
     }
 
-    fn read_value_ss(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_ss(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         // sequence of 16-bit signed integers
         let len = require_known_length!(header);
 
@@ -280,7 +288,11 @@ where
         Ok(PrimitiveValue::I16(vec?))
     }
 
-    fn read_value_fl(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_fl(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 32-bit floats
         let n = len >> 2;
@@ -305,7 +317,7 @@ where
         if buf.is_empty() {
             return Ok(PrimitiveValue::Empty);
         }
-        
+
         if validate_da(buf) != TextValidationOutcome::Ok {
             let lossy_str = DefaultCharacterSetCodec
                 .decode(buf)
@@ -448,7 +460,11 @@ where
         Ok(PrimitiveValue::Time(vec?))
     }
 
-    fn read_value_od(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_od(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 64-bit floats
         let n = len >> 3;
@@ -459,7 +475,11 @@ where
         Ok(PrimitiveValue::F64(vec?))
     }
 
-    fn read_value_ul(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_ul(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 32-bit unsigned integers
 
@@ -471,7 +491,11 @@ where
         Ok(PrimitiveValue::U32(vec?))
     }
 
-    fn read_value_us(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_us(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 16-bit unsigned integers
 
@@ -483,7 +507,11 @@ where
         Ok(PrimitiveValue::U16(vec?))
     }
 
-    fn read_value_uv(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_uv(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 64-bit unsigned integers
 
@@ -495,7 +523,11 @@ where
         Ok(PrimitiveValue::U64(vec?))
     }
 
-    fn read_value_sl(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_sl(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 32-bit signed integers
 
@@ -507,7 +539,11 @@ where
         Ok(PrimitiveValue::I32(vec?))
     }
 
-    fn read_value_sv(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_sv(
+        &mut self,
+        from: &mut S,
+        header: &DataElementHeader,
+    ) -> Result<PrimitiveValue> {
         let len = require_known_length!(header);
         // sequence of 64-bit signed integers
 
@@ -518,7 +554,6 @@ where
         self.bytes_read += len as u64;
         Ok(PrimitiveValue::I64(vec?))
     }
-
 }
 
 impl<S: ?Sized, D, BD> DicomParser<D, BD, S, Box<dyn TextCodec>>
@@ -564,7 +599,11 @@ where
         if header.tag == Tag(0x0008, 0x0005) {
             // TODO trigger an error or warning on unsupported specific character sets.
             // Edge case handling strategies should be considered in the future.
-            if let Some(charset) = parts.first().map(|x| x.as_ref()).and_then(SpecificCharacterSet::from_code) {
+            if let Some(charset) = parts
+                .first()
+                .map(|x| x.as_ref())
+                .and_then(SpecificCharacterSet::from_code)
+            {
                 self.set_character_set(charset)?;
             }
         }
@@ -580,17 +619,23 @@ where
     S: Read,
 {
     fn decode_header(&mut self, from: &mut S) -> Result<DataElementHeader> {
-        self.decoder.decode_header(from).map(|(header, bytes_read)| {
-            self.bytes_read += bytes_read as u64;
-            header
-        }).map_err(From::from)
+        self.decoder
+            .decode_header(from)
+            .map(|(header, bytes_read)| {
+                self.bytes_read += bytes_read as u64;
+                header
+            })
+            .map_err(From::from)
     }
 
     fn decode_item_header(&mut self, from: &mut S) -> Result<SequenceItemHeader> {
-        self.decoder.decode_item_header(from).map(|header| {
-            self.bytes_read += 8;
-            header
-        }).map_err(From::from)
+        self.decoder
+            .decode_item_header(from)
+            .map(|header| {
+                self.bytes_read += 8;
+                header
+            })
+            .map_err(From::from)
     }
 
     fn read_value(&mut self, from: &mut S, header: &DataElementHeader) -> Result<PrimitiveValue> {

@@ -257,7 +257,7 @@ pub trait Decode {
      *
      * Decoding an item or sequence delimiter is considered valid, and so should be properly handled
      * by the decoder. The value representation in this case should be `UN`.
-     * 
+     *
      * Returns the expected header and the exact number of bytes read from the source.
      */
     fn decode_header(&self, source: &mut Self::Source) -> Result<(DataElementHeader, usize)>;

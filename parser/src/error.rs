@@ -1,7 +1,7 @@
 use crate::dataset::DataToken;
-use dicom_core::Tag;
 use dicom_core::error::Error as CoreError;
 pub use dicom_core::error::{CastValueError, InvalidValueReadError};
+use dicom_core::Tag;
 use dicom_encoding::error::{Error as EncodingError, TextEncodingError};
 use quick_error::quick_error;
 use std::error::Error as BaseError;

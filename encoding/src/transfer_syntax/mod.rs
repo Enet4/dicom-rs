@@ -96,7 +96,7 @@ macro_rules! submit_transfer_syntax {
 ///
 /// This macro does actually "run" anything, so place it outside of a
 /// function body at the root of the crate.
-/// 
+///
 /// Without the `inventory-registry` feature, this request is ignored.
 macro_rules! submit_transfer_syntax {
     ($ts: expr) => {
