@@ -90,13 +90,14 @@ pub trait BasicEncode {
                     primitive_value::encode_datetime(to, *datetime)
                 })
             }
-            Str(s) => { write!(to, "{}", s)?; Ok(()) },
-            Strs(s) => {
-                encode_collection_delimited(&mut to, &*s, |to, s| {
-                    write!(to, "{}", s)?;
-                    Ok(())
-                })
+            Str(s) => {
+                write!(to, "{}", s)?;
+                Ok(())
             }
+            Strs(s) => encode_collection_delimited(&mut to, &*s, |to, s| {
+                write!(to, "{}", s)?;
+                Ok(())
+            }),
             F32(values) => {
                 for v in values {
                     self.encode_fl(&mut to, *v)?;
@@ -156,7 +157,6 @@ pub trait BasicEncode {
                 }
                 Ok(())
             }
-//            _ => unimplemented!(), // TODO
         }
     }
 }
@@ -458,14 +458,5 @@ where
 
     fn encode_primitive(&self, to: &mut W, value: &PrimitiveValue) -> Result<()> {
         self.inner.encode_primitive(to, value)
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    fn test_basic_encode() {
-        unimplemented!("add tests plz");
     }
 }
