@@ -12,6 +12,7 @@
 pub mod dataset;
 pub mod error;
 pub mod parser;
+mod primitive_value;
 
 mod util;
 
