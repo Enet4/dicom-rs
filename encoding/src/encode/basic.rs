@@ -31,6 +31,14 @@ impl BasicEncode for LittleEndianBasicEncoder {
         Ok(())
     }
 
+    fn encode_uv<S>(&self, to: S, value: u64) -> Result<()>
+    where
+        S: Write,
+    {
+        ByteOrdered::le(to).write_u64(value)?;
+        Ok(())
+    }
+
     fn encode_ss<S>(&self, to: S, value: i16) -> Result<()>
     where
         S: Write,
@@ -44,6 +52,14 @@ impl BasicEncode for LittleEndianBasicEncoder {
         S: Write,
     {
         ByteOrdered::le(to).write_i32(value)?;
+        Ok(())
+    }
+
+    fn encode_sv<S>(&self, to: S, value: i64) -> Result<()>
+    where
+        S: Write,
+    {
+        ByteOrdered::le(to).write_i64(value)?;
         Ok(())
     }
 
@@ -89,6 +105,14 @@ impl BasicEncode for BigEndianBasicEncoder {
         Ok(())
     }
 
+    fn encode_uv<S>(&self, to: S, value: u64) -> Result<()>
+    where
+        S: Write,
+    {
+        ByteOrdered::be(to).write_u64(value)?;
+        Ok(())
+    }
+
     fn encode_ss<S>(&self, to: S, value: i16) -> Result<()>
     where
         S: Write,
@@ -102,6 +126,14 @@ impl BasicEncode for BigEndianBasicEncoder {
         S: Write,
     {
         ByteOrdered::be(to).write_i32(value)?;
+        Ok(())
+    }
+
+    fn encode_sv<S>(&self, to: S, value: i64) -> Result<()>
+    where
+        S: Write,
+    {
+        ByteOrdered::be(to).write_i64(value)?;
         Ok(())
     }
 
@@ -170,6 +202,13 @@ impl BasicEncode for BasicEncoder {
         for_both!(self, |e| e.encode_ul(to, value))
     }
 
+    fn encode_uv<S>(&self, to: S, value: u64) -> Result<()>
+    where
+        S: Write,
+    {
+        for_both!(self, |e| e.encode_uv(to, value))
+    }
+
     fn encode_ss<S>(&self, to: S, value: i16) -> Result<()>
     where
         S: Write,
@@ -182,6 +221,13 @@ impl BasicEncode for BasicEncoder {
         S: Write,
     {
         for_both!(self, |e| e.encode_sl(to, value))
+    }
+
+    fn encode_sv<S>(&self, to: S, value: i64) -> Result<()>
+    where
+        S: Write,
+    {
+        for_both!(self, |e| e.encode_sv(to, value))
     }
 
     fn encode_fl<S>(&self, to: S, value: f32) -> Result<()>

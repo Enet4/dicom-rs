@@ -8,7 +8,7 @@ use crate::error::Result;
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 use byteordered::Endianness;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
-use dicom_core::{Tag, VR};
+use dicom_core::{PrimitiveValue, Tag, VR};
 use std::fmt;
 use std::io::{Read, Write};
 use std::marker::PhantomData;
@@ -144,6 +144,13 @@ impl BasicEncode for ExplicitVRLittleEndianEncoder {
         self.basic.encode_ul(to, value)
     }
 
+    fn encode_uv<S>(&self, to: S, value: u64) -> Result<()>
+    where
+        S: Write,
+    {
+        self.basic.encode_uv(to, value)
+    }
+
     fn encode_ss<S>(&self, to: S, value: i16) -> Result<()>
     where
         S: Write,
@@ -156,6 +163,13 @@ impl BasicEncode for ExplicitVRLittleEndianEncoder {
         S: Write,
     {
         self.basic.encode_sl(to, value)
+    }
+
+    fn encode_sv<S>(&self, to: S, value: i64) -> Result<()>
+    where
+        S: Write,
+    {
+        self.basic.encode_sv(to, value)
     }
 
     fn encode_fl<S>(&self, to: S, value: f32) -> Result<()>
@@ -174,7 +188,7 @@ impl BasicEncode for ExplicitVRLittleEndianEncoder {
 }
 
 impl Encode for ExplicitVRLittleEndianEncoder {
-    fn encode_tag<W: ?Sized>(&self, to: &mut W, tag: Tag) -> Result<()>
+    fn encode_tag<W>(&self, mut to: W, tag: Tag) -> Result<()>
     where
         W: Write,
     {
@@ -185,7 +199,7 @@ impl Encode for ExplicitVRLittleEndianEncoder {
         Ok(())
     }
 
-    fn encode_element_header<W: ?Sized>(&self, to: &mut W, de: DataElementHeader) -> Result<usize>
+    fn encode_element_header<W>(&self, mut to: W, de: DataElementHeader) -> Result<usize>
     where
         W: Write,
     {
@@ -225,7 +239,7 @@ impl Encode for ExplicitVRLittleEndianEncoder {
         }
     }
 
-    fn encode_item_header<W: ?Sized>(&self, to: &mut W, len: u32) -> Result<()>
+    fn encode_item_header<W>(&self, mut to: W, len: u32) -> Result<()>
     where
         W: Write,
     {
@@ -237,7 +251,7 @@ impl Encode for ExplicitVRLittleEndianEncoder {
         Ok(())
     }
 
-    fn encode_item_delimiter<W: ?Sized>(&self, to: &mut W) -> Result<()>
+    fn encode_item_delimiter<W>(&self, mut to: W) -> Result<()>
     where
         W: Write,
     {
@@ -248,7 +262,7 @@ impl Encode for ExplicitVRLittleEndianEncoder {
         Ok(())
     }
 
-    fn encode_sequence_delimiter<W: ?Sized>(&self, to: &mut W) -> Result<()>
+    fn encode_sequence_delimiter<W>(&self, mut to: W) -> Result<()>
     where
         W: Write,
     {
@@ -257,6 +271,13 @@ impl Encode for ExplicitVRLittleEndianEncoder {
         LittleEndian::write_u16(&mut buf, 0xE0DD);
         to.write_all(&buf)?;
         Ok(())
+    }
+
+    fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<()>
+    where
+        W: Write,
+    {
+        self.basic.encode_primitive(to, value)
     }
 }
 
