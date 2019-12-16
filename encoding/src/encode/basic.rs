@@ -244,3 +244,100 @@ impl BasicEncode for BasicEncoder {
         for_both!(self, |e| e.encode_fd(to, value))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use dicom_core::chrono::NaiveDate;
+    use dicom_core::{PrimitiveValue, Tag};
+
+    fn test_one_primitive_be(value: PrimitiveValue, raw: &[u8]) {
+        let mut out = vec![];
+        BigEndianBasicEncoder
+            .encode_primitive(&mut out, &value)
+            .unwrap();
+        assert_eq!(&*out, raw);
+    }
+
+    fn test_one_primitive_le(value: PrimitiveValue, raw: &[u8]) {
+        let mut out = vec![];
+        LittleEndianBasicEncoder
+            .encode_primitive(&mut out, &value)
+            .unwrap();
+        assert_eq!(&*out, raw);
+    }
+
+    #[test]
+    fn test_basic_encode_le() {
+        test_one_primitive_le(PrimitiveValue::Empty, &[]);
+        test_one_primitive_le(
+            PrimitiveValue::I32(vec![0x01, 0x0200, 0x0300_FFCC].into()),
+            &[
+                0x01, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0xCC, 0xFF, 0x00, 0x03,
+            ],
+        );
+
+        test_one_primitive_le(
+            PrimitiveValue::Strs(
+                ["one", "more", "time"]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
+            ),
+            &*b"one\\more\\time",
+        );
+
+        test_one_primitive_le(
+            PrimitiveValue::Date(
+                vec![
+                    NaiveDate::from_ymd(2016, 12, 01),
+                    NaiveDate::from_ymd(2123, 9, 13),
+                ]
+                .into(),
+            ),
+            &*b"20161201\\21230913",
+        );
+
+        test_one_primitive_le(
+            PrimitiveValue::Tags(vec![Tag(0x0002, 0x0001), Tag(0xFA80, 0xBC12)].into()),
+            &[0x02, 0x00, 0x01, 0x00, 0x80, 0xFA, 0x12, 0xBC],
+        );
+    }
+
+    #[test]
+    fn test_basic_encode_be() {
+        test_one_primitive_be(PrimitiveValue::Empty, &[]);
+        test_one_primitive_be(
+            PrimitiveValue::I32(vec![0x01, 0x0200, 0x0300_FFCC].into()),
+            &[
+                0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x02, 0x00, 0x03, 0x00, 0xFF, 0xCC,
+            ],
+        );
+
+        test_one_primitive_be(
+            PrimitiveValue::Strs(
+                ["one", "more", "time"]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
+            ),
+            &*b"one\\more\\time",
+        );
+
+        test_one_primitive_be(
+            PrimitiveValue::Date(
+                vec![
+                    NaiveDate::from_ymd(2016, 12, 01),
+                    NaiveDate::from_ymd(2123, 9, 13),
+                ]
+                .into(),
+            ),
+            &*b"20161201\\21230913",
+        );
+
+        test_one_primitive_be(
+            PrimitiveValue::Tags(vec![Tag(0x0002, 0x0001), Tag(0xFA80, 0xBC12)].into()),
+            &[0x00, 0x02, 0x00, 0x01, 0xFA, 0x80, 0xBC, 0x12],
+        );
+    }
+}
