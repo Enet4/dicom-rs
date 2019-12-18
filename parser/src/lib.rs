@@ -13,6 +13,7 @@ pub mod dataset;
 pub mod error;
 pub mod parser;
 mod primitive_value;
+pub mod printer;
 
 mod util;
 

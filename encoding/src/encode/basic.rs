@@ -246,7 +246,7 @@ impl BasicEncode for BasicEncoder {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use dicom_core::chrono::NaiveDate;
     use dicom_core::{PrimitiveValue, Tag};

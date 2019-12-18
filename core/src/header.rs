@@ -753,7 +753,7 @@ impl std::ops::SubAssign<i32> for Length {
 }
 
 impl Length {
-    /// Check whether this length is undefined.
+    /// Check whether this length is undefined (unknown).
     #[inline]
     pub fn is_undefined(self) -> bool {
         self.0 == UNDEFINED_LEN

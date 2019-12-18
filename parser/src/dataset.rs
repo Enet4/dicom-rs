@@ -40,7 +40,7 @@ pub struct DataSetReader<S, P, D> {
 }
 
 /// A token representing a sequence start.
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 struct SeqToken {
     /// Whether it is the start of a sequence or the start of an item.
     typ: SeqTokenType,
@@ -53,8 +53,8 @@ struct SeqToken {
 }
 
 /// The type of delimiter: sequence or item.
-#[derive(Debug)]
-enum SeqTokenType {
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum SeqTokenType {
     Sequence,
     Item,
 }
