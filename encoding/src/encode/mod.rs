@@ -173,7 +173,7 @@ where
     for (i, v) in col.iter().enumerate() {
         encode_element_fn(to, v)?;
         if i < col.len() - 1 {
-            to.write(b"\\")?;
+            to.write_all(b"\\")?;
         }
     }
     Ok(())
