@@ -198,6 +198,69 @@ where
     fn read_value_ob(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
         // TODO add support for OB value data length resolution
         // (might need to delegate pixel data reading to a separate trait)
+
+        // if there is PixelData of undefined length
+        if header.tag == Tag(0x7FE0, 0x0010) && header.len.is_undefined() {
+            let mut buf = [0; 8];
+            self.from.read_exact(&mut buf)?;
+            self.bytes_read += 8;
+
+            println!("PixelData of undefined length");
+            println!("Tag({:#06X}, {:#06X})", u16::from_le_bytes([buf[0], buf[1]]), u16::from_le_bytes([buf[2], buf[3]]));
+            let len = u32::from_le_bytes([buf[4], buf[5], buf[6], buf[7]]) as usize;
+            println!("Offset table len {}", len);
+
+            let mut offset_table = vec![0; len];
+            self.from.read_exact(&mut offset_table)?;
+            self.bytes_read += len as u64;
+
+            let mut offsets = vec![];
+            for i in 0..len / 4 {
+                let offset = u32::from_le_bytes([
+                    offset_table[i],
+                    offset_table[i + 1],
+                    offset_table[i + 2],
+                    offset_table[i + 3],
+                ]);
+                offsets.push(offset);
+            }
+            println!("Offsets {:?}", offsets);
+
+            let mut result = smallvec![];
+
+            // There should be a way to check that offsets are correct
+            for _offset in offsets {
+                let mut buf = [0; 8];
+                self.from.read_exact(&mut buf)?;
+                self.bytes_read += 8;
+
+                println!("Tag({:#06X}, {:#06X})", u16::from_le_bytes([buf[0], buf[1]]), u16::from_le_bytes([buf[2], buf[3]]));
+
+                let len = u32::from_le_bytes([buf[4], buf[5], buf[6], buf[7]]) as usize;
+                println!("Item len {}", len);
+
+                let mut buf = vec![0; len];
+                self.from.read_exact(&mut buf)?;
+                self.bytes_read += len as u64;
+
+                result.extend_from_slice(&buf);
+            }
+
+            let mut buf = [0; 8];
+            self.from.read_exact(&mut buf)?;
+            self.bytes_read += 8;
+
+            println!("Tag({:#06X}, {:#06X})", u16::from_le_bytes([buf[0], buf[1]]), u16::from_le_bytes([buf[2], buf[3]]));
+
+            let len = u32::from_le_bytes([buf[4], buf[5], buf[6], buf[7]]) as usize;
+            println!("Item len {}", len);
+
+            // sequence should start with Item tag: Tag(0xFFFE, 0xE000)
+            // and end with Sequence delimiter tag: Tag(0xFFFE, 0xE0DD) of length 0
+
+            return Ok(PrimitiveValue::U8(result))
+        }
+
         let len = require_known_length(header)?;
 
         // sequence of 8-bit integers (or arbitrary byte data)
