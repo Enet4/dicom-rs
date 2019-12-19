@@ -343,12 +343,10 @@ impl FileMetaTableBuilder {
         let information_group_length = self
             .information_group_length
             .ok_or_else(|| Error::InvalidFormat)?;
-        let information_version = self
-            .information_version
-            .or_else(|| {
-                // Missing information version, will assume (00H, 01H). See #28
-                Some([0, 1])
-            }).unwrap();
+        let information_version = self.information_version.unwrap_or_else(|| {
+            // Missing information version, will assume (00H, 01H). See #28
+            [0, 1]
+        });
         let media_storage_sop_class_uid = self
             .media_storage_sop_class_uid
             .ok_or_else(|| Error::InvalidFormat)?;
