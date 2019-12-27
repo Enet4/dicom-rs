@@ -46,34 +46,6 @@ pub struct FileMetaTable {
     pub private_information: Option<Vec<u8>>,
 }
 
-/// Utility function for reading the whole DICOM element as a string, with the given tag.
-fn read_str_as_tag<'s, S: 's, D, T>(
-    source: &'s mut S,
-    decoder: &D,
-    text: &T,
-    group_length_remaining: &mut u32,
-    tag: Tag,
-) -> Result<String>
-where
-    S: Read,
-    D: Decode<Source = S>,
-    T: TextCodec,
-{
-    let elem_len = {
-        let (elem, _bytes_read) = decoder.decode_header(source)?;
-        if elem.tag() != tag {
-            return Err(Error::UnexpectedTag(elem.tag()));
-        }
-        match elem.len().get() {
-            None => {
-                return Err(Error::from(InvalidValueReadError::UnresolvedValueLength));
-            }
-            Some(len) => len,
-        }
-    };
-    read_str_body(source, text, group_length_remaining, elem_len)
-}
-
 /// Utility function for reading the body of the DICOM element as a UID.
 fn read_str_body<'s, S: 's, T>(
     source: &'s mut S,
@@ -85,6 +57,7 @@ where
     S: Read,
     T: TextCodec,
 {
+    eprintln!("> read string of {} bytes", len);
     let mut v = vec![0; len as usize];
     source.read_exact(&mut v)?;
     *group_length_remaining -= 8 + len;
@@ -127,49 +100,7 @@ impl FileMetaTable {
 
         let mut group_length_remaining = group_length;
 
-        let mut builder = builder
-            .group_length(group_length)
-            .information_version({
-                let (elem, _bytes_read) = decoder.decode_header(&mut file)?;
-                if elem.tag() != (0x0002, 0x0001) {
-                    return Err(Error::UnexpectedTag(elem.tag()));
-                }
-                if elem.len() != Length(2) {
-                    return Err(Error::UnexpectedDataValueLength);
-                }
-                let mut hbuf = [0u8; 2];
-                file.read_exact(&mut hbuf[..])?;
-                group_length_remaining -= 14;
-                hbuf
-            })
-            .media_storage_sop_class_uid(read_str_as_tag(
-                &mut file,
-                &decoder,
-                &text,
-                &mut group_length_remaining,
-                Tag(0x0002, 0x0002),
-            )?)
-            .media_storage_sop_instance_uid(read_str_as_tag(
-                &mut file,
-                &decoder,
-                &text,
-                &mut group_length_remaining,
-                Tag(0x0002, 0x0003),
-            )?)
-            .transfer_syntax(read_str_as_tag(
-                &mut file,
-                &decoder,
-                &text,
-                &mut group_length_remaining,
-                Tag(0x0002, 0x0010),
-            )?)
-            .implementation_class_uid(read_str_as_tag(
-                &mut file,
-                &decoder,
-                &text,
-                &mut group_length_remaining,
-                Tag(0x0002, 0x0012),
-            )?);
+        let mut builder = builder.group_length(group_length);
 
         // Fetch optional data elements
         while group_length_remaining > 0 {
@@ -178,57 +109,99 @@ impl FileMetaTable {
                 None => {
                     return Err(Error::from(InvalidValueReadError::UnresolvedValueLength));
                 }
-                Some(len) => len as usize,
+                Some(len) => len,
             };
+            dbg!((&elem, group_length_remaining));
+            eprintln!("element length: {}", elem_len);
             builder = match elem.tag() {
+                Tag(0x0002, 0x0001) => {
+                    // Implementation Version
+                    if elem.len() != Length(2) {
+                        return Err(Error::UnexpectedDataValueLength);
+                    }
+                    let mut hbuf = [0u8; 2];
+                    file.read_exact(&mut hbuf[..])?;
+                    group_length_remaining -= 14;
+
+                    builder.information_version(hbuf)
+                }
+                // Media Storage SOP Class UID
+                Tag(0x0002, 0x0002) => builder.media_storage_sop_class_uid(read_str_body(
+                    &mut file,
+                    &text,
+                    &mut group_length_remaining,
+                    elem_len,
+                )?),
+                // Media Storage SOP Instance UID
+                Tag(0x0002, 0x0003) => builder.media_storage_sop_instance_uid(read_str_body(
+                    &mut file,
+                    &text,
+                    &mut group_length_remaining,
+                    elem_len,
+                )?),
+                // Transfer Syntax
+                Tag(0x0002, 0x0010) => builder.transfer_syntax(read_str_body(
+                    &mut file,
+                    &text,
+                    &mut group_length_remaining,
+                    elem_len,
+                )?),
+                // Implementation Class UID
+                Tag(0x0002, 0x0012) => builder.implementation_class_uid(read_str_body(
+                    &mut file,
+                    &text,
+                    &mut group_length_remaining,
+                    elem_len,
+                )?),
                 Tag(0x0002, 0x0013) => {
                     // Implementation Version Name
-                    let mut v = vec![0; elem_len];
+                    let mut v = vec![0; elem_len as usize];
                     file.read_exact(&mut v)?;
-                    group_length_remaining -= 8 + elem_len as u32;
+                    group_length_remaining -= 8 + elem_len;
                     builder.implementation_version_name(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0016) => {
                     // Source Application Entity Title
-                    let mut v = vec![0; elem_len];
+                    let mut v = vec![0; elem_len as usize];
                     file.read_exact(&mut v)?;
-                    group_length_remaining -= 8 + elem_len as u32;
+                    group_length_remaining -= 8 + elem_len;
                     builder.source_application_entity_title(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0017) => {
                     // Sending Application Entity Title
-                    let mut v = vec![0; elem_len];
+                    let mut v = vec![0; elem_len as usize];
                     file.read_exact(&mut v)?;
-                    group_length_remaining -= 8 + elem_len as u32;
+                    group_length_remaining -= 8 + elem_len;
                     builder.sending_application_entity_title(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0018) => {
                     // Receiving Application Entity Title
-                    let mut v = vec![0; elem_len];
+                    let mut v = vec![0; elem_len as usize];
                     file.read_exact(&mut v)?;
-                    group_length_remaining -= 8 + elem_len as u32;
+                    group_length_remaining -= 8 + elem_len;
                     builder.receiving_application_entity_title(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0100) => {
                     // Private Information Creator UID
-                    let mut v = vec![0; elem_len];
+                    let mut v = vec![0; elem_len as usize];
                     file.read_exact(&mut v)?;
-                    group_length_remaining -= 8 + elem_len as u32;
+                    group_length_remaining -= 8 + elem_len;
                     builder.private_information_creator_uid(text.decode(&v)?)
                 }
                 Tag(0x0002, 0x0102) => {
                     // Private Information
-                    let mut v = vec![0; elem_len];
+                    let mut v = vec![0; elem_len as usize];
                     file.read_exact(&mut v)?;
-                    group_length_remaining -= 12 + elem_len as u32;
+                    group_length_remaining -= 12 + elem_len;
                     builder.private_information(v)
                 }
                 Tag(0x0002, _) => {
                     // unknown tag, do nothing
+                    // could be an unsupported or non-standard attribute
                     builder
                 }
                 _ => {
-                    // unexpected tag! do nothing for now, although this could represent invalid content
+                    // unexpected tag from another group! do nothing for now
                     builder
                 }
             }
@@ -370,9 +343,10 @@ impl FileMetaTableBuilder {
         let information_group_length = self
             .information_group_length
             .ok_or_else(|| Error::InvalidFormat)?;
-        let information_version = self
-            .information_version
-            .ok_or_else(|| Error::InvalidFormat)?;
+        let information_version = self.information_version.unwrap_or_else(|| {
+            // Missing information version, will assume (00H, 01H). See #28
+            [0, 1]
+        });
         let media_storage_sop_class_uid = self
             .media_storage_sop_class_uid
             .ok_or_else(|| Error::InvalidFormat)?;
