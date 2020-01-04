@@ -72,7 +72,7 @@ where
     /// Feed the given data set token for writing the data set.
     #[inline]
     pub fn write(&mut self, token: DataToken) -> Result<()> {
-        // TODO adjust the logic of sequence printing:
+        // adjust the logic of sequence printing:
         // explicit length sequences or items should not print
         // the respective delimiter
 
@@ -149,9 +149,7 @@ where
 mod tests {
     use super::super::DataToken;
     use super::DataSetWriter;
-    use crate::printer::Printer;
-    use dicom_core::header::{DataElementHeader, Length};
-    use dicom_core::value::PrimitiveValue;
+    use dicom_core::{Tag, VR, header::{DataElementHeader, Length}, value::PrimitiveValue};
     use dicom_encoding::text::DefaultCharacterSetCodec;
     use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder;
 
@@ -164,6 +162,142 @@ mod tests {
         let text = DefaultCharacterSetCodec::default();
         let mut dset_writer = DataSetWriter::new(&mut raw_out, encoder, text);
 
-        //let mut iter = Iterator::zip(dset_writer.by_ref(), ground_truth);
+        dset_writer.write_sequence(tokens).unwrap();
+
+        assert_eq!(raw_out, ground_truth);
+    }
+
+    #[test]
+    fn write_sequence_explicit() {
+        let tokens = vec![
+            DataToken::SequenceStart {
+                tag: Tag(0x0018, 0x6011),
+                len: Length(46),
+            },
+            DataToken::ItemStart { len: Length(20) },
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6012),
+                vr: VR::US,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::U16([1].as_ref().into())),
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6014),
+                vr: VR::US,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::U16([2].as_ref().into())),
+            DataToken::ItemEnd,
+            DataToken::ItemStart { len: Length(10) },
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6012),
+                vr: VR::US,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::U16([4].as_ref().into())),
+            DataToken::ItemEnd,
+            DataToken::SequenceEnd,
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0020, 0x4000),
+                vr: VR::LT,
+                len: Length(4),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
+        ];
+
+        #[rustfmt::skip]
+        static GROUND_TRUTH: &[u8] = &[
+            0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
+            b'S', b'Q', // VR 
+            0x00, 0x00, // reserved
+            0x2e, 0x00, 0x00, 0x00, // length: 28 + 18 = 46 (#= 2)
+            // -- 12 --
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0x14, 0x00, 0x00, 0x00, // item length: 20 (#= 2)
+            // -- 20 --
+            0x18, 0x00, 0x12, 0x60, b'U', b'S', 0x02, 0x00, 0x01, 0x00, // (0018, 6012) RegionSpatialformat, len = 2, value = 1
+            // -- 30 --
+            0x18, 0x00, 0x14, 0x60, b'U', b'S', 0x02, 0x00, 0x02, 0x00, // (0018, 6012) RegionDataType, len = 2, value = 2
+            // -- 40 --
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0x0a, 0x00, 0x00, 0x00, // item length: 10 (#= 1)
+            // -- 48 --
+            0x18, 0x00, 0x12, 0x60, b'U', b'S', 0x02, 0x00, 0x04, 0x00, // (0018, 6012) RegionSpatialformat, len = 2, value = 4
+            // -- 58 --
+            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4  
+            b'T', b'E', b'S', b'T', // value = "TEST"
+        ];
+
+        validate_dataset_writer(tokens, GROUND_TRUTH);
+    }
+
+    #[test]
+    fn write_sequence_implicit() {
+        let tokens = vec![
+            DataToken::SequenceStart {
+                tag: Tag(0x0018, 0x6011),
+                len: Length::UNDEFINED,
+            },
+            DataToken::ItemStart { len: Length::UNDEFINED },
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6012),
+                vr: VR::US,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::U16([1].as_ref().into())),
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6014),
+                vr: VR::US,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::U16([2].as_ref().into())),
+            DataToken::ItemEnd,
+            DataToken::ItemStart { len: Length::UNDEFINED },
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6012),
+                vr: VR::US,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::U16([4].as_ref().into())),
+            DataToken::ItemEnd,
+            DataToken::SequenceEnd,
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0020, 0x4000),
+                vr: VR::LT,
+                len: Length(4),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
+        ];
+
+        #[rustfmt::skip]
+        static GROUND_TRUTH: &[u8] = &[
+            0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
+            b'S', b'Q', // VR 
+            0x00, 0x00, // reserved
+            0xff, 0xff, 0xff, 0xff, // length: undefined
+            // -- 12 --
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0xff, 0xff, 0xff, 0xff, // item length: undefined
+            // -- 20 --
+            0x18, 0x00, 0x12, 0x60, b'U', b'S', 0x02, 0x00, 0x01, 0x00, // (0018, 6012) RegionSpatialformat, len = 2, value = 1
+            // -- 30 --
+            0x18, 0x00, 0x14, 0x60, b'U', b'S', 0x02, 0x00, 0x02, 0x00, // (0018, 6012) RegionDataType, len = 2, value = 2
+            // -- 40 --
+            0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
+            // -- 48 --
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0xff, 0xff, 0xff, 0xff, // item length: undefined
+            // -- 56 --
+            0x18, 0x00, 0x12, 0x60, b'U', b'S', 0x02, 0x00, 0x04, 0x00, // (0018, 6012) RegionSpatialformat, len = 2, value = 4
+            // -- 66 --
+            0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
+            // -- 74 --
+            0xfe, 0xff, 0xdd, 0xe0, 0x00, 0x00, 0x00, 0x00, // sequence end
+            // -- 82 --
+            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4  
+            b'T', b'E', b'S', b'T', // value = "TEST"
+        ];
+
+        validate_dataset_writer(tokens, GROUND_TRUTH);
     }
 }
