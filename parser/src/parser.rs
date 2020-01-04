@@ -2,7 +2,6 @@
 //! The structures provided here can translate a byte data source into
 //! an iterator of elements, with either sequential or random access.
 
-use super::primitive_value::*;
 use crate::error::{Error, Result};
 use crate::util::n_times;
 use chrono::FixedOffset;
@@ -15,6 +14,7 @@ use dicom_encoding::text::{
     validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, DynamicTextCodec,
     SpecificCharacterSet, TextCodec, TextValidationOutcome,
 };
+use dicom_encoding::decode::primitive_value::*;
 use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
 use dicom_encoding::transfer_syntax::{DynDecoder, TransferSyntax};
 use smallvec::{smallvec, SmallVec};
@@ -440,7 +440,7 @@ where
             ))
             .into());
         }
-        let vec: Result<C<_>> = buf
+        let vec: std::result::Result<C<_>, _> = buf
             .split(|b| *b == b'\\')
             .map(|part| parse_time(part).map(|t| t.0))
             .collect();

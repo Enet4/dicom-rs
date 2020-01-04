@@ -1,7 +1,6 @@
 //! Parsing of primitive values
-use crate::error::Result;
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
-use dicom_encoding::error::InvalidValueReadError;
+use crate::error::{Result, InvalidValueReadError};
+use dicom_core::chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
 use std::ops::{Add, Mul, Sub};
 
 const Z: i32 = b'0' as i32;
@@ -249,7 +248,7 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
 #[cfg(test)]
 mod tests {
     use super::{parse_date, parse_datetime, parse_time, parse_time_impl};
-    use chrono::{FixedOffset, NaiveDate, NaiveTime, TimeZone};
+    use dicom_core::chrono::{FixedOffset, NaiveDate, NaiveTime, TimeZone};
 
     #[test]
     fn test_parse_date() {

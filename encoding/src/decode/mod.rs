@@ -11,6 +11,7 @@ use dicom_core::Tag;
 use std::io::Read;
 
 pub mod basic;
+pub mod primitive_value;
 
 /** Obtain the default data element decoder.
  * According to the standard, data elements are encoded in Implicit
