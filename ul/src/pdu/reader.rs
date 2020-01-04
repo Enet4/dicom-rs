@@ -13,7 +13,7 @@ where
     R: Read,
 {
     if max_pdu_length < MINIMUM_PDU_SIZE || max_pdu_length > MAXIMUM_PDU_SIZE {
-        return Err(Error::InvalidMaxPdu)?;
+        return Err(Error::InvalidMaxPdu);
     }
 
     // If we read can't read 2 bytes here, that means that there is no PDU
@@ -26,14 +26,14 @@ where
         if e.kind() == ErrorKind::UnexpectedEof {
             return Err(Error::NoPduAvailable);
         }
-        return Err(e)?;
+        return Err(e.into());
     }
 
     let pdu_type = bytes[0];
     let pdu_length = reader.read_u32::<BigEndian>()?;
 
     if pdu_length > max_pdu_length {
-        return Err(Error::PduTooLarge)?;
+        return Err(Error::PduTooLarge);
     }
 
     let bytes = read_n(reader, pdu_length as usize)?;

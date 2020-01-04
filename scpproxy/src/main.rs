@@ -98,7 +98,6 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
 
             {
                 let mut reader = scp_stream.try_clone()?;
-                let message_tx = message_tx.clone();
                 scp_reader_thread = thread::spawn(move || {
                     loop {
                         match read_pdu(&mut reader, DEFAULT_MAX_PDU) {
@@ -167,7 +166,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
         Err(e) => {
             scu_stream.shutdown(Shutdown::Both)?;
             eprintln!("error connection to destination SCP: {}", e);
-            Err(e)?
+            Err(e.into())
         }
     }
 }
