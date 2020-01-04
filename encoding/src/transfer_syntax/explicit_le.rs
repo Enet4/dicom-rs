@@ -244,7 +244,7 @@ impl Encode for ExplicitVRLittleEndianEncoder {
     {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf, 0xFFFE);
-        LittleEndian::write_u16(&mut buf, 0xE000);
+        LittleEndian::write_u16(&mut buf[2..], 0xE000);
         LittleEndian::write_u32(&mut buf[4..], len);
         to.write_all(&buf)?;
         Ok(())
@@ -256,7 +256,7 @@ impl Encode for ExplicitVRLittleEndianEncoder {
     {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf, 0xFFFE);
-        LittleEndian::write_u16(&mut buf, 0xE00D);
+        LittleEndian::write_u16(&mut buf[2..], 0xE00D);
         to.write_all(&buf)?;
         Ok(())
     }
@@ -267,7 +267,7 @@ impl Encode for ExplicitVRLittleEndianEncoder {
     {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf, 0xFFFE);
-        LittleEndian::write_u16(&mut buf, 0xE0DD);
+        LittleEndian::write_u16(&mut buf[2..], 0xE0DD);
         to.write_all(&buf)?;
         Ok(())
     }

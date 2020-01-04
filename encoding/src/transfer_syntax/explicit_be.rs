@@ -247,7 +247,7 @@ impl Encode for ExplicitVRBigEndianEncoder {
     {
         let mut buf = [0u8; 8];
         BigEndian::write_u16(&mut buf, 0xFFFE);
-        BigEndian::write_u16(&mut buf, 0xE000);
+        BigEndian::write_u16(&mut buf[2..], 0xE000);
         BigEndian::write_u32(&mut buf[4..], len);
         to.write_all(&buf)?;
         Ok(())
@@ -259,7 +259,7 @@ impl Encode for ExplicitVRBigEndianEncoder {
     {
         let mut buf = [0u8; 8];
         BigEndian::write_u16(&mut buf, 0xFFFE);
-        BigEndian::write_u16(&mut buf, 0xE00D);
+        BigEndian::write_u16(&mut buf[2..], 0xE00D);
         // remaining bytes are already zero, so it's ready to write
         to.write_all(&buf)?;
         Ok(())
@@ -271,7 +271,7 @@ impl Encode for ExplicitVRBigEndianEncoder {
     {
         let mut buf = [0u8; 8];
         BigEndian::write_u16(&mut buf, 0xFFFE);
-        BigEndian::write_u16(&mut buf, 0xE0DD);
+        BigEndian::write_u16(&mut buf[2..], 0xE0DD);
         // remaining bytes are already zero, so it's ready to write
         to.write_all(&buf)?;
         Ok(())
