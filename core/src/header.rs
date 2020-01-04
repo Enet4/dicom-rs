@@ -774,6 +774,13 @@ impl Length {
             v => Some(v),
         }
     }
+
+    /// Check whether the length is equally specified as another length.
+    /// Unlike the implemented `PartialEq`, two undefined lengths are
+    /// considered equivalent by this method.
+    pub fn inner_eq(self, other: Length) -> bool {
+        self.0 == other.0
+    }
 }
 
 impl fmt::Debug for Length {

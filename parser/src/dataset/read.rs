@@ -18,13 +18,26 @@ use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::ops::DerefMut;
 
-use super::{DataToken, SeqToken, SeqTokenType};
+use super::{DataToken, SeqTokenType};
 
 fn is_parse<S: ?Sized, P>(_: &P)
 where
     S: Read,
     P: Parse<S>,
 {
+}
+
+/// A reader-specific token representing a sequence or item start.
+#[derive(Debug, Copy, Clone, PartialEq)]
+struct SeqToken {
+    /// Whether it is the start of a sequence or the start of an item.
+    typ: SeqTokenType,
+    /// The length of the value, as indicated by the starting element,
+    /// can be unknown.
+    len: Length,
+    /// The number of bytes the parser has read until it reached the
+    /// beginning of the sequence or item value data.
+    base_offset: u64,
 }
 
 /// A higher-level reader for retrieving structure in a DICOM data set from an
@@ -659,4 +672,75 @@ mod tests {
 
         validate_dataset_reader(DATA, ground_truth);
     }
+
+    #[test]
+    fn read_sequence_implicit() {
+        #[rustfmt::skip]
+        static DATA: &[u8] = &[
+            0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
+            b'S', b'Q', // VR 
+            0x00, 0x00, // reserved
+            0xff, 0xff, 0xff, 0xff, // length: undefined
+            // -- 12 --
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0xff, 0xff, 0xff, 0xff, // item length: undefined
+            // -- 20 --
+            0x18, 0x00, 0x12, 0x60, b'U', b'S', 0x02, 0x00, 0x01, 0x00, // (0018, 6012) RegionSpatialformat, len = 2, value = 1
+            // -- 30 --
+            0x18, 0x00, 0x14, 0x60, b'U', b'S', 0x02, 0x00, 0x02, 0x00, // (0018, 6012) RegionDataType, len = 2, value = 2
+            // -- 40 --
+            0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
+            // -- 48 --
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0xff, 0xff, 0xff, 0xff, // item length: undefined
+            // -- 56 --
+            0x18, 0x00, 0x12, 0x60, b'U', b'S', 0x02, 0x00, 0x04, 0x00, // (0018, 6012) RegionSpatialformat, len = 2, value = 4
+            // -- 66 --
+            0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
+            // -- 74 --
+            0xfe, 0xff, 0xdd, 0xe0, 0x00, 0x00, 0x00, 0x00, // sequence end
+            // -- 82 --
+            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4  
+            b'T', b'E', b'S', b'T', // value = "TEST"
+        ];
+
+        let ground_truth = vec![
+            DataToken::SequenceStart {
+                tag: Tag(0x0018, 0x6011),
+                len: Length::UNDEFINED,
+            },
+            DataToken::ItemStart { len: Length::UNDEFINED },
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6012),
+                vr: VR::US,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::U16([1].as_ref().into())),
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6014),
+                vr: VR::US,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::U16([2].as_ref().into())),
+            DataToken::ItemEnd,
+            DataToken::ItemStart { len: Length::UNDEFINED },
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6012),
+                vr: VR::US,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::U16([4].as_ref().into())),
+            DataToken::ItemEnd,
+            DataToken::SequenceEnd,
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0020, 0x4000),
+                vr: VR::LT,
+                len: Length(4),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
+        ];
+
+        validate_dataset_reader(DATA, ground_truth);
+    }
+
 }

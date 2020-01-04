@@ -1,3 +1,4 @@
+//! Interpretation of DICOM data sets as streams of tokens.
 use dicom_core::header::{DataElementHeader, Length};
 use dicom_core::value::{DicomValueType, PrimitiveValue};
 use dicom_core::Tag;
@@ -12,7 +13,7 @@ pub use self::write::DataSetWriter;
 /// A token of a DICOM data set stream. This is part of the interpretation of a
 /// data set as a stream of symbols, which may either represent data headers or
 /// actual value data.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum DataToken {
     /// A data header of a primitive value.
     ElementHeader(DataElementHeader),
@@ -37,17 +38,25 @@ impl fmt::Display for DataToken {
     }
 }
 
-/// A token representing a sequence start.
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct SeqToken {
-    /// Whether it is the start of a sequence or the start of an item.
-    typ: SeqTokenType,
-    /// The length of the value, as indicated by the starting element,
-    /// can be unknown.
-    len: Length,
-    /// The number of bytes the parser has read until it reached the
-    /// beginning of the sequence or item value data.
-    base_offset: u64,
+/// This implementation treats undefined lengths as equal.
+impl PartialEq<Self> for DataToken {
+    fn eq(&self, other: &Self) -> bool {
+        use DataToken::*;
+        match (self, other) {
+            (ElementHeader(DataElementHeader { tag: tag1, vr: vr1, len: len1 }), ElementHeader(DataElementHeader { tag: tag2, vr: vr2, len: len2 })) => {
+                tag1 == tag2 && vr1 == vr2 && len1.inner_eq(*len2)
+            }
+            (SequenceStart { tag: tag1, len: len1 }, SequenceStart { tag: tag2, len: len2 }) => {
+                tag1 == tag2 && len1.inner_eq(*len2)
+            },
+            (ItemStart {len: len1}, ItemStart {len: len2}) => {
+                len1.inner_eq(*len2)
+            },
+            (PrimitiveValue(v1), PrimitiveValue(v2)) => { v1 == v2 }
+            (ItemEnd, ItemEnd) | (SequenceEnd, SequenceEnd) => true,
+            _ => false,
+        }
+    }
 }
 
 /// The type of delimiter: sequence or item.

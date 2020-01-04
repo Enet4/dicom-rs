@@ -1,3 +1,4 @@
+//! Module for the data set reader
 use crate::dataset::*;
 use crate::error::{Error, Result};
 use dicom_core::{DataElementHeader, Length, VR};
@@ -6,7 +7,7 @@ use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
 use dicom_encoding::TransferSyntax;
 use std::io::Write;
 
-/// A token representing a sequence or item start.
+/// A writer-specific token representing a sequence or item start.
 #[derive(Debug)]
 struct SeqToken {
     /// Whether it is the start of a sequence or the start of an item.
