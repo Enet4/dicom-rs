@@ -32,7 +32,7 @@ impl Decode for ExplicitVRBigEndianDecoder {
             let len = BigEndian::read_u32(&buf);
             return Ok((
                 DataElementHeader::new((group, element), VR::UN, Length(len)),
-                4,
+                8, // tag + len
             ));
         }
 
