@@ -9,16 +9,23 @@ use crate::parser::{DicomParser, DynamicDicomParser, Parse};
 use crate::util::{ReadSeek, SeekInterval};
 use dicom_core::dictionary::DataDictionary;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
-use dicom_core::value::{DicomValueType, PrimitiveValue};
 use dicom_core::{Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntax;
-use std::fmt;
 use std::io::{Read, Seek, SeekFrom};
 use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::ops::DerefMut;
+
+use super::{DataToken, SeqToken, SeqTokenType};
+
+fn is_parse<S: ?Sized, P>(_: &P)
+where
+    S: Read,
+    P: Parse<S>,
+{
+}
 
 /// A higher-level reader for retrieving structure in a DICOM data set from an
 /// arbitrary data source.
@@ -39,34 +46,7 @@ pub struct DataSetReader<S, P, D> {
     last_header: Option<DataElementHeader>,
 }
 
-/// A token representing a sequence start.
-#[derive(Debug, Copy, Clone, PartialEq)]
-struct SeqToken {
-    /// Whether it is the start of a sequence or the start of an item.
-    typ: SeqTokenType,
-    /// The length of the value, as indicated by the starting element,
-    /// can be unknown.
-    len: Length,
-    /// The number of bytes the parser has read until it reached the
-    /// beginning of the sequence or item value data.
-    base_offset: u64,
-}
-
-/// The type of delimiter: sequence or item.
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum SeqTokenType {
-    Sequence,
-    Item,
-}
-
-fn is_parse<S: ?Sized, P>(_: &P)
-where
-    S: Read,
-    P: Parse<S>,
-{
-}
-
-impl<'s, S: 's> DataSetReader<S, DynamicDicomParser, StandardDataDictionary> {
+impl<'s, S: 's> DataSetReader<S, DynamicDicomParser<'s>, StandardDataDictionary> {
     /// Creates a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
     pub fn new_with(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self> {
@@ -87,7 +67,7 @@ impl<'s, S: 's> DataSetReader<S, DynamicDicomParser, StandardDataDictionary> {
     }
 }
 
-impl<'s, S: 's, D> DataSetReader<S, DynamicDicomParser, D> {
+impl<'s, S: 's, D> DataSetReader<S, DynamicDicomParser<'s>, D> {
     /// Creates a new iterator with the given random access source and data dictionary,
     /// while considering the given transfer syntax and specific character set.
     pub fn new_with_dictionary(
@@ -129,34 +109,6 @@ where
             in_sequence: false,
             hard_break: false,
             last_header: None,
-        }
-    }
-}
-
-/// A token of a DICOM data set stream. This is part of the interpretation of a
-/// data set as a stream of symbols, which may either represent data headers or
-/// actual value data.
-#[derive(Debug, Clone, PartialEq)]
-pub enum DataToken {
-    /// A data header of a primitive value.
-    ElementHeader(DataElementHeader),
-    /// The beginning of a sequence element.
-    SequenceStart { tag: Tag, len: Length },
-    /// The ending delimiter of a sequence.
-    SequenceEnd,
-    /// The beginning of a new item in the sequence.
-    ItemStart { len: Length },
-    /// The ending delimiter of an item.
-    ItemEnd,
-    /// A primitive data element value.
-    PrimitiveValue(PrimitiveValue),
-}
-
-impl fmt::Display for DataToken {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &DataToken::PrimitiveValue(ref v) => write!(f, "PrimitiveValue({:?})", v.value_type()),
-            other => write!(f, "{:?}", other),
         }
     }
 }
@@ -339,7 +291,7 @@ pub struct LazyDataSetReader<S, DS, P> {
     phantom: PhantomData<DS>,
 }
 
-impl<'s> LazyDataSetReader<&'s mut dyn ReadSeek, &'s mut dyn Read, DynamicDicomParser> {
+impl<'s> LazyDataSetReader<&'s mut dyn ReadSeek, &'s mut dyn Read, DynamicDicomParser<'s>> {
     /// Create a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
     pub fn new_with(
@@ -377,7 +329,7 @@ where
     }
 
     /// Get the inner source's position in the stream using `seek()`.
-    fn get_position(&mut self) -> Result<u64>
+    fn position(&mut self) -> Result<u64>
     where
         S: Seek,
     {
@@ -385,7 +337,7 @@ where
     }
 
     fn create_element_marker(&mut self, header: DataElementHeader) -> Result<DicomElementMarker> {
-        match self.get_position() {
+        match self.position() {
             Ok(pos) => Ok(DicomElementMarker { header, pos }),
             Err(e) => {
                 self.hard_break = true;
@@ -395,7 +347,7 @@ where
     }
 
     fn create_item_marker(&mut self, header: SequenceItemHeader) -> Result<DicomElementMarker> {
-        match self.get_position() {
+        match self.position() {
             Ok(pos) => Ok(DicomElementMarker {
                 header: From::from(header),
                 pos,

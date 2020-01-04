@@ -38,7 +38,7 @@ where
 
     let bytes = read_n(reader, pdu_length as usize)?;
     let mut cursor = Cursor::new(bytes);
-    let codec = SpecificCharacterSet::Default.get_codec().unwrap();
+    let codec = SpecificCharacterSet::Default.codec().unwrap();
 
     match pdu_type {
         0x01 => {

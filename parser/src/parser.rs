@@ -9,14 +9,14 @@ use chrono::FixedOffset;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader, Tag, VR};
 use dicom_core::value::{PrimitiveValue, C};
 use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
-use dicom_encoding::decode::{BasicDecode, Decode};
+use dicom_encoding::decode::{BasicDecode, DecodeFrom};
 use dicom_encoding::error::{InvalidValueReadError, Result as EncodingResult, TextEncodingError};
 use dicom_encoding::text::{
     validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, DynamicTextCodec,
     SpecificCharacterSet, TextCodec, TextValidationOutcome,
 };
 use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-use dicom_encoding::transfer_syntax::TransferSyntax;
+use dicom_encoding::transfer_syntax::{DynDecoder, TransferSyntax};
 use smallvec::{smallvec, SmallVec};
 use std::fmt;
 use std::fmt::Debug;
@@ -24,7 +24,7 @@ use std::io::Read;
 use std::iter::Iterator;
 use std::marker::PhantomData;
 
-/// A trait for DICOM data parsers, which abstracts the necessary parts
+/// A trait for abstracting the necessary parts
 /// of a full DICOM content reading process.
 pub trait Parse<S: ?Sized>
 where
@@ -71,8 +71,8 @@ where
 
 /// Alias for a dynamically resolved DICOM parser. Although the data source may be known
 /// in compile time, the required decoder may vary according to an object's transfer syntax.
-pub type DynamicDicomParser =
-    DicomParser<Box<dyn Decode<Source = dyn Read>>, BasicDecoder, dyn Read, DynamicTextCodec>;
+pub type DynamicDicomParser<'s> =
+    DicomParser<DynDecoder<dyn Read + 's>, BasicDecoder, dyn Read + 's, DynamicTextCodec>;
 
 /// The initial capacity of the `DicomParser` buffer.
 const PARSER_BUFFER_CAPACITY: usize = 2048;
@@ -122,32 +122,22 @@ macro_rules! require_known_length {
     };
 }
 
-impl DynamicDicomParser {
+impl<'s> DynamicDicomParser<'s> {
     /// Create a new DICOM parser for the given transfer syntax and character set.
     pub fn new_with(ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self> {
-        let basic = ts.get_basic_decoder();
+        let basic = ts.basic_decoder();
         let decoder = ts
-            .get_decoder()
+            .decoder()
             .ok_or_else(|| Error::UnsupportedTransferSyntax)?;
-        let text = cs
-            .get_codec()
-            .ok_or_else(|| Error::UnsupportedCharacterSet)?;
+        let text = cs.codec().ok_or_else(|| Error::UnsupportedCharacterSet)?;
 
-        Ok(DicomParser {
-            phantom: PhantomData,
-            basic,
-            decoder,
-            text,
-            dt_utc_offset: FixedOffset::east(0),
-            buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
-            bytes_read: 0,
-        })
+        Ok(DynamicDicomParser::new(decoder, basic, text))
     }
 }
 
 /// Type alias for the DICOM parser of a file's Meta group.
 pub type FileHeaderParser<S> = DicomParser<
-    ExplicitVRLittleEndianDecoder<S>,
+    ExplicitVRLittleEndianDecoder,
     LittleEndianBasicDecoder,
     S,
     DefaultCharacterSetCodec,
@@ -173,7 +163,7 @@ where
 
 impl<D, BD, S: ?Sized, TC> DicomParser<D, BD, S, TC>
 where
-    D: Decode<Source = S>,
+    D: DecodeFrom<S>,
     BD: BasicDecode,
     S: Read,
     TC: TextCodec,
@@ -352,7 +342,7 @@ where
         let parts: Result<C<f64>> = buf
             .split(|b| *b == b'\\')
             .map(|slice| {
-                let codec = SpecificCharacterSet::Default.get_codec().unwrap();
+                let codec = SpecificCharacterSet::Default.codec().unwrap();
                 let txt = codec.decode(slice)?;
                 let txt = txt.trim();
                 txt.parse::<f64>()
@@ -414,7 +404,7 @@ where
         let parts: Result<C<_>> = buf
             .split(|v| *v == b'\\')
             .map(|slice| {
-                let codec = SpecificCharacterSet::Default.get_codec().unwrap();
+                let codec = SpecificCharacterSet::Default.codec().unwrap();
                 let txt = codec.decode(slice)?;
                 let txt = txt.trim();
                 txt.parse::<i32>()
@@ -556,13 +546,13 @@ where
 
 impl<S: ?Sized, D, BD> DicomParser<D, BD, S, Box<dyn TextCodec>>
 where
-    D: Decode<Source = S>,
+    D: DecodeFrom<S>,
     BD: BasicDecode,
     S: Read,
 {
     fn set_character_set(&mut self, charset: SpecificCharacterSet) -> Result<()> {
         self.text = charset
-            .get_codec()
+            .codec()
             .ok_or_else(|| Error::UnsupportedCharacterSet)?;
         Ok(())
     }
@@ -612,7 +602,7 @@ where
 
 impl<S: ?Sized, D, BD> Parse<S> for DicomParser<D, BD, S, Box<dyn TextCodec>>
 where
-    D: Decode<Source = S>,
+    D: DecodeFrom<S>,
     BD: BasicDecode,
     S: Read,
 {

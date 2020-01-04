@@ -199,7 +199,7 @@ where
     /// is insufficient. Otherwise, please use [`from_reader_with_dict`] instead.
     ///
     /// [`from_reader_with_dict`]: #method.from_reader_with_dict
-    pub fn from_reader_with<S, R>(src: S, dict: D, ts_index: R) -> Result<Self>
+    pub fn from_reader_with<'s, S: 's, R>(src: S, dict: D, ts_index: R) -> Result<Self>
     where
         S: Read,
         R: TransferSyntaxIndex,
@@ -215,9 +215,10 @@ where
             .ok_or(Error::UnsupportedTransferSyntax)?;
         let cs = SpecificCharacterSet::Default;
         let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)?;
+        let obj = InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?;
         Ok(RootDicomObject {
             meta,
-            obj: InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?,
+            obj,
         })
     }
 }

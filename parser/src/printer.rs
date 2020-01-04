@@ -1,125 +1,59 @@
-use crate::dataset::*;
-use dicom_core::{DataElementHeader, Length, VR};
-use dicom_encoding::encode::Encode;
-use dicom_encoding::error::Result;
+//! For the lack of a better name, this module is to hold the analogous to
+//! the "parser" module, but for encoding in a way which supports text
+//! encoding.
+//!
+
+use crate::error::{Error, Result};
+use dicom_encoding::encode::EncodeTo;
+use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
+use dicom_encoding::TransferSyntax;
 use std::io::Write;
 
-/// A token representing a sequence or item start.
+/// A mid-level abstraction for writing DICOM content. Unlike `Encode`,
+/// the printer also knows how to write text values.
+/// `W` is the write target, `E` is the encoder, and `T` is the text formatter.
 #[derive(Debug)]
-struct SeqToken {
-    /// Whether it is the start of a sequence or the start of an item.
-    typ: SeqTokenType,
-    /// The length of the value, as indicated by the starting element,
-    /// can be unknown.
-    len: Length,
-}
-
-/// A stateful device for printing a DICOM data set in sequential order.
-/// This is analogous to the `DatasetReader` type for converting data
-/// set tokens to bytes.
-#[derive(Debug)]
-pub struct DatasetWriter<E> {
+pub struct Printer<W, E, T> {
+    to: W,
     encoder: E,
-    seq_tokens: Vec<SeqToken>,
+    text: T,
+    bytes_written: u64,
 }
 
-impl<E> DatasetWriter<E>
-where
-    E: Encode,
-{
-    /// Feed the given sequence of tokens which are part of the same data set.
-    pub fn write_sequence<W, I>(&mut self, mut to: W, tokens: I) -> Result<()>
-    where
-        I: IntoIterator<Item = DataToken>,
-        W: Write,
-    {
-        for token in tokens {
-            self.write(&mut to, token)?;
-        }
+pub type DynamicDicomPrinter =
+    Printer<Box<dyn Write>, Box<dyn EncodeTo<dyn Write>>, Box<dyn TextCodec>>;
 
-        Ok(())
-    }
-
-    /// Feed the given data set token for writing the data set.
-    #[inline]
-    pub fn write<W>(&mut self, to: W, token: DataToken) -> Result<()>
-    where
-        W: Write,
-    {
-        // TODO adjust the logic of sequence printing:
-        // explicit length sequences or items should not print
-        // the respective delimiter
-
-        match token {
-            DataToken::SequenceStart { tag: _, len } => {
-                self.seq_tokens.push(SeqToken {
-                    typ: SeqTokenType::Sequence,
-                    len,
-                });
-                self.write_stateless(to, token)?;
-                Ok(())
-            }
-            DataToken::ItemStart { len } => {
-                self.seq_tokens.push(SeqToken {
-                    typ: SeqTokenType::Item,
-                    len,
-                });
-                self.write_stateless(to, token)?;
-                Ok(())
-            }
-            DataToken::ItemEnd => {
-                // only write if it's an unknown length item
-                if let Some(seq_start) = self.seq_tokens.pop() {
-                    if seq_start.typ == SeqTokenType::Item && seq_start.len.is_undefined() {
-                        self.write_stateless(to, token)?;
-                    }
-                }
-                Ok(())
-            }
-            DataToken::SequenceEnd => {
-                // only write if it's an unknown length sequence
-                if let Some(seq_start) = self.seq_tokens.pop() {
-                    if seq_start.typ == SeqTokenType::Sequence && seq_start.len.is_undefined() {
-                        self.write_stateless(to, token)?;
-                    }
-                }
-                Ok(())
-            }
-            _ => self.write_stateless(to, token),
+impl<W, E, T> Printer<W, E, T> {
+    pub fn new(to: W, encoder: E, text: T) -> Self {
+        Printer {
+            to,
+            encoder,
+            text,
+            bytes_written: 0,
         }
     }
 
-    fn write_stateless<W>(&self, mut to: W, token: DataToken) -> Result<()>
-    where
-        W: Write,
-    {
-        use DataToken::*;
-        match token {
-            ElementHeader(header) => {
-                self.encoder.encode_element_header(&mut to, header)?;
-            }
-            SequenceStart { tag, len } => {
-                self.encoder
-                    .encode_element_header(&mut to, DataElementHeader::new(tag, VR::SQ, len))?;
-            }
-            SequenceEnd => {
-                self.encoder.encode_sequence_delimiter(&mut to)?;
-            }
-            ItemStart { len } => {
-                self.encoder.encode_item_header(&mut to, len.0)?;
-            }
-            ItemEnd => {
-                self.encoder.encode_item_delimiter(&mut to)?;
-            }
-            PrimitiveValue(value) => {
-                self.encoder.encode_primitive(&mut to, &value)?;
-            }
+    pub fn with_text<U>(self, text: U) -> Printer<W, E, U> {
+        Printer {
+            to: self.to,
+            encoder: self.encoder,
+            text,
+            bytes_written: 0,
         }
-        Ok(())
     }
 }
 
-#[cfg(test)]
-mod tests {
-    
+impl DynamicDicomPrinter {
+    pub fn from_transfer_syntax(
+        to: Box<dyn Write>,
+        ts: TransferSyntax,
+        cs: SpecificCharacterSet,
+    ) -> Result<Self> {
+        let encoder = ts
+            .encoder()
+            .ok_or_else(|| Error::UnsupportedTransferSyntax)?;
+        let text = cs.codec().ok_or_else(|| Error::UnsupportedCharacterSet)?;
+
+        Ok(Printer::new(to, encoder, text))
+    }
 }

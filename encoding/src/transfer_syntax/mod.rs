@@ -14,17 +14,17 @@ pub mod explicit_le;
 pub mod implicit_le;
 
 use crate::decode::basic::BasicDecoder;
-use crate::decode::Decode;
+use crate::decode::DecodeFrom;
 use crate::encode::EncodeTo;
 use std::io::{Read, Write};
 
 pub use byteordered::Endianness;
 
 /// A decoder with its type erased.
-pub type DynDecoder = Box<dyn Decode<Source = dyn Read>>;
+pub type DynDecoder<S> = Box<dyn DecodeFrom<S>>;
 
 /// An encoder with its type erased.
-pub type DynEncoder = Box<dyn EncodeTo<dyn Write>>;
+pub type DynEncoder<W> = Box<dyn EncodeTo<W>>;
 
 /// A DICOM transfer syntax specifier. The data RW adapter `A` specifies
 /// custom codec capabilities when required.
@@ -276,7 +276,22 @@ impl<A> TransferSyntax<A> {
     /// The resulting decoder does not consider pixel data encapsulation or
     /// data set compression rules. This means that the consumer of this method
     /// needs to adapt the reader before using the decoder.
-    pub fn get_decoder(&self) -> Option<DynDecoder> {
+    pub fn decoder<'s>(&self) -> Option<DynDecoder<dyn Read + 's>> {
+        self.decoder_for()
+    }
+
+    /// Retrieve the appropriate data element decoder for this transfer syntax
+    /// and given reader type (this method is not object safe).
+    /// Can yield none if decoding is not supported.
+    ///
+    /// The resulting decoder does not consider pixel data encapsulation or
+    /// data set compression rules. This means that the consumer of this method
+    /// needs to adapt the reader before using the decoder.
+    pub fn decoder_for<S>(&self) -> Option<DynDecoder<S>>
+    where
+        Self: Sized,
+        S: ?Sized + Read,
+    {
         match (self.byte_order, self.explicit_vr) {
             (Endianness::Little, false) => Some(Box::new(
                 implicit_le::ImplicitVRLittleEndianDecoder::default(),
@@ -294,7 +309,19 @@ impl<A> TransferSyntax<A> {
     /// Retrieve the appropriate data element encoder for this transfer syntax.
     /// Can yield none if encoding is not supported. The resulting encoder does not
     /// consider pixel data encapsulation or data set compression rules.
-    pub fn get_encoder(&self) -> Option<DynEncoder> {
+    pub fn encoder(&self) -> Option<DynEncoder<dyn Write>> {
+        self.encoder_for()
+    }
+
+    /// Retrieve the appropriate data element encoder for this transfer syntax
+    /// and the given writer type (this method is not object safe).
+    /// Can yield none if encoding is not supported. The resulting encoder does not
+    /// consider pixel data encapsulation or data set compression rules.
+    pub fn encoder_for<W>(&self) -> Option<DynEncoder<W>>
+    where
+        Self: Sized,
+        W: ?Sized + Write,
+    {
         match (self.byte_order, self.explicit_vr) {
             (Endianness::Little, false) => Some(Box::new(
                 implicit_le::ImplicitVRLittleEndianEncoder::default(),
@@ -310,7 +337,7 @@ impl<A> TransferSyntax<A> {
     }
 
     /// Obtain a dynamic basic decoder, based on this transfer syntax' expected endianness.
-    pub fn get_basic_decoder(&self) -> BasicDecoder {
+    pub fn basic_decoder(&self) -> BasicDecoder {
         BasicDecoder::from(self.endianness())
     }
 

@@ -1,9 +1,9 @@
 //! Implicit VR Big Endian syntax transfer implementation
 
 use crate::decode::basic::LittleEndianBasicDecoder;
-use crate::decode::{BasicDecode, Decode};
+use crate::decode::{BasicDecode, Decode, DecodeFrom};
 use crate::encode::basic::LittleEndianBasicEncoder;
-use crate::encode::{BasicEncode, Encode, EncoderFor};
+use crate::encode::{BasicEncode, Encode};
 use crate::error::Result;
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 use byteordered::Endianness;
@@ -13,51 +13,51 @@ use dicom_core::{PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use std::fmt;
 use std::io::{Read, Write};
-use std::marker::PhantomData;
 
 /// An ImplicitVRLittleEndianDecoder which uses the standard data dictionary.
-pub type StandardImplicitVRLittleEndianDecoder<S> =
-    ImplicitVRLittleEndianDecoder<S, StandardDataDictionary>;
+pub type StandardImplicitVRLittleEndianDecoder =
+    ImplicitVRLittleEndianDecoder<StandardDataDictionary>;
 
 /// A data element decoder for the Explicit VR Little Endian transfer syntax.
 /// This type contains a reference to an attribute dictionary for resolving
 /// value representations.
-pub struct ImplicitVRLittleEndianDecoder<S: ?Sized, D> {
+pub struct ImplicitVRLittleEndianDecoder<D> {
     dict: D,
     basic: LittleEndianBasicDecoder,
-    phantom: PhantomData<S>,
 }
 
-impl<S: ?Sized, D> fmt::Debug for ImplicitVRLittleEndianDecoder<S, D> {
+impl<D> fmt::Debug for ImplicitVRLittleEndianDecoder<D> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ImplicitVRLittleEndianDecoder")
             .field("dict", &"«omitted»")
             .field("basic", &self.basic)
-            .field("phantom", &self.phantom)
             .finish()
     }
 }
 
-impl<S: ?Sized> ImplicitVRLittleEndianDecoder<S, StandardDataDictionary> {
+impl ImplicitVRLittleEndianDecoder<StandardDataDictionary> {
     /// Retrieve this decoder using the standard data dictionary.
     pub fn with_std_dict() -> Self {
         ImplicitVRLittleEndianDecoder {
             dict: StandardDataDictionary,
             basic: LittleEndianBasicDecoder,
-            phantom: PhantomData,
         }
+    }
+
+    /// Retrieve this decoder using the standard data dictionary.
+    pub fn new() -> Self {
+        Self::with_std_dict()
     }
 }
 
-impl<S: ?Sized> Default for ImplicitVRLittleEndianDecoder<S, StandardDataDictionary> {
+impl Default for ImplicitVRLittleEndianDecoder<StandardDataDictionary> {
     fn default() -> Self {
         ImplicitVRLittleEndianDecoder::with_std_dict()
     }
 }
 
-impl<S: ?Sized, D> ImplicitVRLittleEndianDecoder<S, D>
+impl<D> ImplicitVRLittleEndianDecoder<D>
 where
-    S: Read,
     D: DataDictionary,
 {
     /// Retrieve this decoder using a custom data dictionary.
@@ -65,19 +65,18 @@ where
         ImplicitVRLittleEndianDecoder {
             dict: dictionary,
             basic: LittleEndianBasicDecoder,
-            phantom: PhantomData,
         }
     }
 }
 
-impl<'d, S: ?Sized, D> Decode for ImplicitVRLittleEndianDecoder<S, D>
+impl<D> Decode for ImplicitVRLittleEndianDecoder<D>
 where
-    S: Read,
     D: DataDictionary,
 {
-    type Source = S;
-
-    fn decode_header(&self, mut source: &mut S) -> Result<(DataElementHeader, usize)> {
+    fn decode_header<S>(&self, mut source: &mut S) -> Result<(DataElementHeader, usize)>
+    where
+        S: ?Sized + Read,
+    {
         // retrieve tag
         let tag = self.basic.decode_tag(&mut source)?;
 
@@ -99,7 +98,10 @@ where
         Ok((DataElementHeader::new(tag, vr, Length(len)), 8))
     }
 
-    fn decode_item_header(&self, mut source: &mut S) -> Result<SequenceItemHeader> {
+    fn decode_item_header<S>(&self, mut source: &mut S) -> Result<SequenceItemHeader>
+    where
+        S: ?Sized + Read,
+    {
         let mut buf = [0u8; 4];
 
         // retrieve tag
@@ -112,8 +114,29 @@ where
     }
 
     #[inline]
-    fn decode_tag(&self, source: &mut S) -> Result<Tag> {
+    fn decode_tag<S>(&self, source: &mut S) -> Result<Tag>
+    where
+        S: ?Sized + Read,
+    {
         self.basic.decode_tag(source)
+    }
+}
+
+impl<S: ?Sized, D> DecodeFrom<S> for ImplicitVRLittleEndianDecoder<D>
+where
+    S: Read,
+    D: DataDictionary,
+{
+    fn decode_header(&self, source: &mut S) -> Result<(DataElementHeader, usize)> {
+        Decode::decode_header(self, source)
+    }
+
+    fn decode_item_header(&self, source: &mut S) -> Result<SequenceItemHeader> {
+        Decode::decode_item_header(self, source)
+    }
+
+    fn decode_tag(&self, source: &mut S) -> Result<Tag> {
+        Decode::decode_tag(self, source)
     }
 }
 
@@ -122,8 +145,6 @@ where
 pub struct ImplicitVRLittleEndianEncoder {
     basic: LittleEndianBasicEncoder,
 }
-
-pub type ImplicitVRLittleEndianEncoderTo<W> = EncoderFor<ImplicitVRLittleEndianEncoder, W>;
 
 impl BasicEncode for ImplicitVRLittleEndianEncoder {
     fn endianness(&self) -> Endianness {

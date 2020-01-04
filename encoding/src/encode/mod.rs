@@ -91,10 +91,12 @@ pub trait BasicEncode {
                 })
             }
             Str(s) => {
+                // TODO this will always print in UTF-8 !!!
                 write!(to, "{}", s)?;
                 Ok(())
             }
             Strs(s) => encode_collection_delimited(&mut to, &*s, |to, s| {
+                // TODO this will always print in UTF-8 !!!
                 write!(to, "{}", s)?;
                 Ok(())
             }),
@@ -272,6 +274,53 @@ where
     }
 }
 
+impl<T: ?Sized> Encode for Box<T>
+where
+    T: Encode,
+{
+    fn encode_tag<W>(&self, to: W, tag: Tag) -> Result<()>
+    where
+        W: Write,
+    {
+        (**self).encode_tag(to, tag)
+    }
+
+    fn encode_element_header<W>(&self, to: W, de: DataElementHeader) -> Result<usize>
+    where
+        W: Write,
+    {
+        (**self).encode_element_header(to, de)
+    }
+
+    fn encode_item_header<W>(&self, to: W, len: u32) -> Result<()>
+    where
+        W: Write,
+    {
+        (**self).encode_item_header(to, len)
+    }
+
+    fn encode_item_delimiter<W>(&self, to: W) -> Result<()>
+    where
+        W: Write,
+    {
+        (**self).encode_item_delimiter(to)
+    }
+
+    fn encode_sequence_delimiter<W>(&self, to: W) -> Result<()>
+    where
+        W: Write,
+    {
+        (**self).encode_sequence_delimiter(to)
+    }
+
+    fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<()>
+    where
+        W: Write,
+    {
+        (**self).encode_primitive(to, value)
+    }
+}
+
 /// Type trait for a data element encoder to a single known writer type `W`.
 pub trait EncodeTo<W: ?Sized> {
     /// Encode and write an element tag.
@@ -308,6 +357,7 @@ pub trait EncodeTo<W: ?Sized> {
         W: Write;
 }
 
+
 impl<T, W: ?Sized> EncodeTo<W> for T
 where
     T: Encode,
@@ -342,6 +392,15 @@ where
 pub struct EncoderFor<T, W: ?Sized> {
     inner: T,
     phantom: PhantomData<W>,
+}
+
+impl<T, W: ?Sized> EncoderFor<T, W> {
+    pub fn new(encoder: T) -> Self {
+        EncoderFor {
+            inner: encoder,
+            phantom: PhantomData,
+        }
+    }
 }
 
 impl<T: fmt::Debug, W: ?Sized> fmt::Debug for EncoderFor<T, W> {
@@ -458,5 +517,35 @@ where
 
     fn encode_primitive(&self, to: &mut W, value: &PrimitiveValue) -> Result<()> {
         self.inner.encode_primitive(to, value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn is_encode<T: Encode>(encoder: &T) {}
+    fn is_encode_to<W: ?Sized, T: EncodeTo<W>>(encoder: &T) {}
+
+    fn boxed_encode_is_encode<T>(encoder: T)
+    where
+        T: Encode,
+    {
+        is_encode(&encoder);
+        is_encode_to::<dyn Write, _>(&encoder);
+        let boxed = Box::new(encoder);
+        is_encode(&boxed);
+        is_encode_to::<dyn Write, _>(&boxed);
+    }
+
+    fn boxed_encode_to_is_encode_to<T>(encoder: T)
+    where
+        T: EncodeTo<dyn Write>,
+    {
+        is_encode_to::<dyn Write, _>(&encoder);
+        let boxed = Box::new(encoder);
+        //is_encode_to::<dyn Write, _>(&boxed);
+        //let erased = boxed as Box<dyn EncodeTo<dyn Write>>;
+        //is_encode_to::<dyn Write, _>(&erased);
     }
 }
