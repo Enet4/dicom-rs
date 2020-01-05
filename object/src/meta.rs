@@ -57,7 +57,6 @@ where
     S: Read,
     T: TextCodec,
 {
-    eprintln!("> read string of {} bytes", len);
     let mut v = vec![0; len as usize];
     source.read_exact(&mut v)?;
     *group_length_remaining -= 8 + len;
@@ -111,8 +110,6 @@ impl FileMetaTable {
                 }
                 Some(len) => len,
             };
-            dbg!((&elem, group_length_remaining));
-            eprintln!("element length: {}", elem_len);
             builder = match elem.tag() {
                 Tag(0x0002, 0x0001) => {
                     // Implementation Version
