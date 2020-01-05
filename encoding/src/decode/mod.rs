@@ -391,9 +391,9 @@ where
 mod tests {
     use super::*;
 
-    fn is_decode<T: Decode>(decoder: &T) {}
-    fn is_decode_from<T: DecodeFrom<dyn Read>>(decoder: &T) {}
+    fn is_decode_from<T: DecodeFrom<dyn Read>>(_decoder: &T) {}
 
+    #[allow(unused)]
     fn boxed_decoder_from_is_decoder_from<T>(decoder: T)
     where
         T: DecodeFrom<dyn Read>,

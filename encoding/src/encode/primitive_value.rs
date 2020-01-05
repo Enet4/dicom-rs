@@ -4,16 +4,16 @@ use dicom_core::chrono::{Datelike, FixedOffset, Timelike};
 use dicom_core::value::{DateTime, NaiveDate, NaiveTime};
 use std::io::Write;
 
-pub fn encode_date<W>(mut to: W, date: NaiveDate) -> Result<()>
+pub fn encode_date<W>(mut to: W, date: NaiveDate) -> Result<usize>
 where
     W: Write,
 {
     // YYYY(MM(DD)?)?
     write!(to, "{:04}{:02}{:02}", date.year(), date.month(), date.day())?;
-    Ok(())
+    Ok(8)
 }
 
-pub fn encode_time<W>(mut to: W, time: NaiveTime) -> Result<()>
+pub fn encode_time<W>(mut to: W, time: NaiveTime) -> Result<usize>
 where
     W: Write,
 {
@@ -25,36 +25,56 @@ where
     let f = time.nanosecond();
 
     match (h, m, s, f) {
-        (h, 0, 0, 0) => write!(to, "{:02}", h,)?,
-        (h, m, 0, 0) => write!(to, "{:02}{:02}", h, m)?,
-        (h, m, s, 0) => write!(to, "{:02}{:02}{:02}", h, m, s)?,
-        // 10ths of milliseconds
-        (h, m, s, f) if f % 10_000_000 == 0 => {
-            write!(to, "{:02}{:02}{:02}.{:02}", h, m, s, f / 10_000_000)?
+        (h, 0, 0, 0) => {
+            write!(to, "{:02}", h,)?;
+            Ok(2)
         }
-        // 100ths of microseconds
-        (h, m, s, f) if f % 100_000 == 0 => {
-            write!(to, "{:02}{:02}{:02}.{:04}", h, m, s, f / 100_000)?
+        (h, m, 0, 0) => {
+            write!(to, "{:02}{:02}", h, m)?;
+            Ok(4)
         }
-        _ => write!(to, "{:02}{:02}{:02}.{:06}", h, m, s, f / 1000)?,
+        (h, m, s, 0) => {
+            write!(to, "{:02}{:02}{:02}", h, m, s)?;
+            Ok(6)
+        }
+        // 10ths of seconds
+        (h, m, s, f) if f % 100_000_000 == 0 => {
+            write!(to, "{:02}{:02}{:02}.{:01}", h, m, s, f / 100_000_000)?;
+            Ok(8)
+        }
+        // milliseconds
+        (h, m, s, f) if f % 1_000_000 == 0 => {
+            write!(to, "{:02}{:02}{:02}.{:03}", h, m, s, f / 1_000_000)?;
+            Ok(10)
+        }
+        // 10ths of microseconds
+        (h, m, s, f) if f % 10_000 == 0 => {
+            write!(to, "{:02}{:02}{:02}.{:05}", h, m, s, f / 10_000)?;
+            Ok(12)
+        }
+        // maximum precision
+        _ => {
+            write!(to, "{:02}{:02}{:02}.{:06}", h, m, s, f / 1_000)?;
+            Ok(13)
+        }
     }
-    Ok(())
 }
 
-pub fn encode_datetime<W>(mut to: W, dt: DateTime<FixedOffset>) -> Result<()>
+pub fn encode_datetime<W>(mut to: W, dt: DateTime<FixedOffset>) -> Result<usize>
 where
     W: Write,
 {
-    encode_date(&mut to, dt.date().naive_utc())?;
-    encode_time(&mut to, dt.time())?;
+    let mut bytes = encode_date(&mut to, dt.date().naive_utc())?;
+    bytes += encode_time(&mut to, dt.time())?;
     let offset = *dt.offset();
     if offset != FixedOffset::east(0) {
         let offset_hm = offset.local_minus_utc() / 60;
         let offset_h = offset_hm / 60;
         let offset_m = offset_hm % 60;
         write!(to, "{:+03}{:02}", offset_h, offset_m)?;
+        bytes += 5;
     }
-    Ok(())
+    Ok(bytes)
 }
 
 #[cfg(test)]

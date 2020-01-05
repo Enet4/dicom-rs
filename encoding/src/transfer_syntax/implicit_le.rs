@@ -266,7 +266,7 @@ impl Encode for ImplicitVRLittleEndianEncoder {
         Ok(())
     }
 
-    fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<()>
+    fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<usize>
     where
         W: Write,
     {

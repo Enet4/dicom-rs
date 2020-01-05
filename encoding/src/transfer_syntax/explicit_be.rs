@@ -277,7 +277,7 @@ impl Encode for ExplicitVRBigEndianEncoder {
         Ok(())
     }
 
-    fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<()>
+    fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<usize>
     where
         W: Write,
     {

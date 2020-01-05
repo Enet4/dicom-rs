@@ -70,15 +70,15 @@ pub trait BasicEncode {
         }
     }
 
-    /// Encode a primitive  float value to the given writer. The default
+    /// Encode a primitive value to the given writer. The default
     /// implementation delegates to the other value encoding methods.
-    fn encode_primitive<W>(&self, mut to: W, value: &PrimitiveValue) -> Result<()>
+    fn encode_primitive<W>(&self, mut to: W, value: &PrimitiveValue) -> Result<usize>
     where
         W: Write,
     {
         use PrimitiveValue::*;
         match value {
-            Empty => Ok(()), // no-op
+            Empty => Ok(0), // no-op
             Date(date) => encode_collection_delimited(&mut to, &*date, |to, date| {
                 primitive_value::encode_date(to, *date)
             }),
@@ -91,73 +91,77 @@ pub trait BasicEncode {
                 })
             }
             Str(s) => {
-                // TODO this will always print in UTF-8 !!!
+                // Note: this will always print in UTF-8. Consumers should
+                // intercept string primitive values and encode them according
+                // to the expected character set.
                 write!(to, "{}", s)?;
-                Ok(())
+                Ok(s.len())
             }
             Strs(s) => encode_collection_delimited(&mut to, &*s, |to, s| {
-                // TODO this will always print in UTF-8 !!!
+                // Note: this will always print in UTF-8. Consumers should
+                // intercept string primitive values and encode them according
+                // to the expected character set.
                 write!(to, "{}", s)?;
-                Ok(())
+                Ok(s.len())
             }),
             F32(values) => {
                 for v in values {
                     self.encode_fl(&mut to, *v)?;
                 }
-                Ok(())
+                Ok(values.len() * 4)
             }
             F64(values) => {
                 for v in values {
                     self.encode_fd(&mut to, *v)?;
                 }
-                Ok(())
+                Ok(values.len() * 8)
             }
             U64(values) => {
                 for v in values {
                     self.encode_uv(&mut to, *v)?;
                 }
-                Ok(())
+                Ok(values.len() * 8)
             }
             I64(values) => {
                 for v in values {
                     self.encode_sv(&mut to, *v)?;
                 }
-                Ok(())
+                Ok(values.len() * 8)
             }
             U32(values) => {
                 for v in values {
                     self.encode_ul(&mut to, *v)?;
                 }
-                Ok(())
+                Ok(values.len() * 4)
             }
             I32(values) => {
                 for v in values {
                     self.encode_sl(&mut to, *v)?;
                 }
-                Ok(())
+                Ok(values.len() * 4)
             }
             U16(values) => {
                 for v in values {
                     self.encode_us(&mut to, *v)?;
                 }
-                Ok(())
+                Ok(values.len() * 2)
             }
             I16(values) => {
                 for v in values {
                     self.encode_ss(&mut to, *v)?;
                 }
-                Ok(())
+                Ok(values.len() * 2)
             }
             U8(values) => {
                 to.write_all(values)?;
-                Ok(())
+                Ok(values.len())
             }
             Tags(tags) => {
                 for tag in tags {
                     self.encode_us(&mut to, tag.0)?;
                     self.encode_us(&mut to, tag.1)?;
                 }
-                Ok(())
+                Ok(tags.len() * 4)
             }
         }
     }
@@ -167,18 +171,20 @@ fn encode_collection_delimited<W, T, F>(
     to: &mut W,
     col: &[T],
     mut encode_element_fn: F,
-) -> Result<()>
+) -> Result<usize>
 where
     W: ?Sized + Write,
-    F: FnMut(&mut W, &T) -> Result<()>,
+    F: FnMut(&mut W, &T) -> Result<usize>,
 {
+    let mut acc = 0;
     for (i, v) in col.iter().enumerate() {
-        encode_element_fn(to, v)?;
+        acc += encode_element_fn(to, v)?;
         if i < col.len() - 1 {
             to.write_all(b"\\")?;
+            acc += 1;
         }
     }
-    Ok(())
+    Ok(acc)
 }
 
 /// Type trait for a data element encoder.
@@ -222,7 +228,7 @@ pub trait Encode {
     }
 
     /// Encode and write a primitive DICOM value to the given destination.
-    fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<()>
+    fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<usize>
     where
         W: Write;
 }
@@ -266,7 +272,7 @@ where
         (**self).encode_sequence_delimiter(to)
     }
 
-    fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<()>
+    fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<usize>
     where
         W: Write,
     {
@@ -313,7 +319,7 @@ where
         (**self).encode_sequence_delimiter(to)
     }
 
-    fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<()>
+    fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<usize>
     where
         W: Write,
     {
@@ -352,11 +358,10 @@ pub trait EncodeTo<W: ?Sized> {
         W: Write;
 
     /// Encode and write a primitive DICOM value to the given destination.
-    fn encode_primitive(&self, to: &mut W, value: &PrimitiveValue) -> Result<()>
+    fn encode_primitive(&self, to: &mut W, value: &PrimitiveValue) -> Result<usize>
     where
         W: Write;
 }
-
 
 impl<T, W: ?Sized> EncodeTo<W> for T
 where
@@ -383,7 +388,7 @@ where
         Encode::encode_sequence_delimiter(self, to)
     }
 
-    fn encode_primitive(&self, to: &mut W, value: &PrimitiveValue) -> Result<()> {
+    fn encode_primitive(&self, to: &mut W, value: &PrimitiveValue) -> Result<usize> {
         Encode::encode_primitive(self, to, value)
     }
 }
@@ -515,7 +520,7 @@ where
         self.inner.encode_sequence_delimiter(to)
     }
 
-    fn encode_primitive(&self, to: &mut W, value: &PrimitiveValue) -> Result<()> {
+    fn encode_primitive(&self, to: &mut W, value: &PrimitiveValue) -> Result<usize> {
         self.inner.encode_primitive(to, value)
     }
 }
@@ -524,9 +529,10 @@ where
 mod tests {
     use super::*;
 
-    fn is_encode<T: Encode>(encoder: &T) {}
-    fn is_encode_to<W: ?Sized, T: EncodeTo<W>>(encoder: &T) {}
+    fn is_encode<T: Encode>(_encoder: &T) {}
+    fn is_encode_to<W: ?Sized, T: EncodeTo<W>>(_encoder: &T) {}
 
+    #[allow(unused)]
     fn boxed_encode_is_encode<T>(encoder: T)
     where
         T: Encode,
@@ -536,16 +542,5 @@ mod tests {
         let boxed = Box::new(encoder);
         is_encode(&boxed);
         is_encode_to::<dyn Write, _>(&boxed);
-    }
-
-    fn boxed_encode_to_is_encode_to<T>(encoder: T)
-    where
-        T: EncodeTo<dyn Write>,
-    {
-        is_encode_to::<dyn Write, _>(&encoder);
-        let boxed = Box::new(encoder);
-        //is_encode_to::<dyn Write, _>(&boxed);
-        //let erased = boxed as Box<dyn EncodeTo<dyn Write>>;
-        //is_encode_to::<dyn Write, _>(&erased);
     }
 }
