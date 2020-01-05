@@ -1,6 +1,7 @@
 //! Module for the data set reader
 use crate::dataset::*;
-use crate::error::{Error, Result};
+use crate::error::{DataSetSyntaxError, Error, Result};
+use crate::printer::Printer;
 use dicom_core::{DataElementHeader, Length, VR};
 use dicom_encoding::encode::{Encode, EncodeTo};
 use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
@@ -22,10 +23,9 @@ struct SeqToken {
 /// set tokens to bytes.
 #[derive(Debug)]
 pub struct DataSetWriter<W, E, T> {
-    to: W,
-    encoder: E,
-    text: T,
+    printer: Printer<W, E, T>,
     seq_tokens: Vec<SeqToken>,
+    last_de: Option<DataElementHeader>,
 }
 
 impl<W> DataSetWriter<W, Box<dyn EncodeTo<W>>, Box<dyn TextCodec>>
@@ -44,10 +44,9 @@ where
 impl<W, E, T> DataSetWriter<W, E, T> {
     pub fn new(to: W, encoder: E, text: T) -> Self {
         DataSetWriter {
-            to,
-            encoder,
-            text,
+            printer: Printer::new(to, encoder, text),
             seq_tokens: Vec::new(),
+            last_de: None,
         }
     }
 }
@@ -83,7 +82,7 @@ where
                     typ: SeqTokenType::Sequence,
                     len,
                 });
-                self.write_stateless(token)?;
+                self.write_impl(token)?;
                 Ok(())
             }
             DataToken::ItemStart { len } => {
@@ -91,14 +90,14 @@ where
                     typ: SeqTokenType::Item,
                     len,
                 });
-                self.write_stateless(token)?;
+                self.write_impl(token)?;
                 Ok(())
             }
             DataToken::ItemEnd => {
                 // only write if it's an unknown length item
                 if let Some(seq_start) = self.seq_tokens.pop() {
                     if seq_start.typ == SeqTokenType::Item && seq_start.len.is_undefined() {
-                        self.write_stateless(token)?;
+                        self.write_impl(token)?;
                     }
                 }
                 Ok(())
@@ -107,39 +106,46 @@ where
                 // only write if it's an unknown length sequence
                 if let Some(seq_start) = self.seq_tokens.pop() {
                     if seq_start.typ == SeqTokenType::Sequence && seq_start.len.is_undefined() {
-                        self.write_stateless(token)?;
+                        self.write_impl(token)?;
                     }
                 }
                 Ok(())
             }
-            _ => self.write_stateless(token),
+            DataToken::ElementHeader(de) => {
+                self.last_de = Some(de.clone());
+                self.write_impl(token)
+            }
+            _ => {
+                self.write_impl(token)
+            }
         }
     }
 
-    fn write_stateless(&mut self, token: DataToken) -> Result<()> {
+    fn write_impl(&mut self, token: DataToken) -> Result<()> {
         use DataToken::*;
         match token {
             ElementHeader(header) => {
-                self.encoder.encode_element_header(&mut self.to, header)?;
+                self.printer.encode_element_header(header)?;
             }
             SequenceStart { tag, len } => {
-                self.encoder.encode_element_header(
-                    &mut self.to,
+                self.printer.encode_element_header(
                     DataElementHeader::new(tag, VR::SQ, len),
                 )?;
             }
             SequenceEnd => {
-                self.encoder.encode_sequence_delimiter(&mut self.to)?;
+                self.printer.encode_sequence_delimiter()?;
             }
             ItemStart { len } => {
-                self.encoder.encode_item_header(&mut self.to, len.0)?;
+                self.printer.encode_item_header(len.0)?;
             }
             ItemEnd => {
-                self.encoder.encode_item_delimiter(&mut self.to)?;
+                self.printer.encode_item_delimiter()?;
             }
-            PrimitiveValue(value) => {
-                // TODO handle strings properly
-                self.encoder.encode_primitive(&mut self.to, &value)?;
+            PrimitiveValue(ref value) => {
+                let last_de = self.last_de.as_ref()
+                    .ok_or_else(|| DataSetSyntaxError::UnexpectedToken(token.clone()))?;
+                self.printer.encode_primitive(last_de, value)?;
+                self.last_de = None;
             }
         }
         Ok(())
