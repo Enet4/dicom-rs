@@ -2,10 +2,13 @@
 
 use crate::error::CastValueError;
 use crate::header::{Length, Tag};
-use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveTime, Timelike};
+use chrono::{Datelike, FixedOffset, Timelike};
 use itertools::Itertools;
 use smallvec::SmallVec;
 use std::borrow::Cow;
+
+/// re-exported from chrono
+pub use chrono::{DateTime, NaiveDate, NaiveTime};
 
 /// An aggregation of one or more elements in a value.
 pub type C<T> = SmallVec<[T; 2]>;

@@ -89,7 +89,7 @@ impl SpecificCharacterSet {
     }
 
     /// Retrieve the respective text codec.
-    pub fn get_codec(self) -> Option<Box<dyn TextCodec>> {
+    pub fn codec(self) -> Option<Box<dyn TextCodec>> {
         match self {
             SpecificCharacterSet::Default => Some(Box::new(DefaultCharacterSetCodec)),
             SpecificCharacterSet::IsoIr192 => Some(Box::new(Utf8CharacterSetCodec)),

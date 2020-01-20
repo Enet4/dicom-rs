@@ -753,7 +753,7 @@ impl std::ops::SubAssign<i32> for Length {
 }
 
 impl Length {
-    /// Check whether this length is undefined.
+    /// Check whether this length is undefined (unknown).
     #[inline]
     pub fn is_undefined(self) -> bool {
         self.0 == UNDEFINED_LEN
@@ -773,6 +773,13 @@ impl Length {
             UNDEFINED_LEN => None,
             v => Some(v),
         }
+    }
+
+    /// Check whether the length is equally specified as another length.
+    /// Unlike the implemented `PartialEq`, two undefined lengths are
+    /// considered equivalent by this method.
+    pub fn inner_eq(self, other: Length) -> bool {
+        self.0 == other.0
     }
 }
 

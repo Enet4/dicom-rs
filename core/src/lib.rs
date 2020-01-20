@@ -22,4 +22,7 @@ pub use error::{Error, Result};
 pub use header::{DataElement, DataElementHeader, Length, Tag, VR};
 pub use value::{PrimitiveValue, Value as DicomValue};
 
+// re-export the chrono crate, as used in the public API
+pub use chrono;
+
 mod util;

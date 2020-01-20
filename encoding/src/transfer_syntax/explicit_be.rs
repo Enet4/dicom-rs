@@ -1,48 +1,27 @@
 //! Explicit VR Big Endian syntax transfer implementation.
 
 use crate::decode::basic::BigEndianBasicDecoder;
-use crate::decode::{BasicDecode, Decode};
+use crate::decode::{BasicDecode, Decode, DecodeFrom};
 use crate::encode::basic::BigEndianBasicEncoder;
 use crate::encode::{BasicEncode, Encode};
 use crate::error::Result;
 use byteordered::byteorder::{BigEndian, ByteOrder};
 use byteordered::Endianness;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
-use dicom_core::{Tag, VR};
-use std::fmt;
+use dicom_core::{PrimitiveValue, Tag, VR};
 use std::io::{Read, Write};
-use std::marker::PhantomData;
 
 /// A data element decoder for the Explicit VR Big Endian transfer syntax.
-pub struct ExplicitVRBigEndianDecoder<S: ?Sized> {
+#[derive(Debug, Default, Clone)]
+pub struct ExplicitVRBigEndianDecoder {
     basic: BigEndianBasicDecoder,
-    phantom: PhantomData<S>,
 }
 
-impl<S: ?Sized> Default for ExplicitVRBigEndianDecoder<S> {
-    fn default() -> ExplicitVRBigEndianDecoder<S> {
-        ExplicitVRBigEndianDecoder {
-            basic: BigEndianBasicDecoder,
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<S: ?Sized> fmt::Debug for ExplicitVRBigEndianDecoder<S> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("ExplicitVRLittleEndianDecoder")
-            .field("basic", &self.basic)
-            .finish()
-    }
-}
-
-impl<S: ?Sized> Decode for ExplicitVRBigEndianDecoder<S>
-where
-    S: Read,
-{
-    type Source = S;
-
-    fn decode_header(&self, mut source: &mut Self::Source) -> Result<(DataElementHeader, usize)> {
+impl Decode for ExplicitVRBigEndianDecoder {
+    fn decode_header<S>(&self, mut source: &mut S) -> Result<(DataElementHeader, usize)>
+    where
+        S: ?Sized + Read,
+    {
         // retrieve tag
         let Tag(group, element) = self.basic.decode_tag(&mut source)?;
 
@@ -53,7 +32,7 @@ where
             let len = BigEndian::read_u32(&buf);
             return Ok((
                 DataElementHeader::new((group, element), VR::UN, Length(len)),
-                4,
+                8, // tag + len
             ));
         }
 
@@ -95,7 +74,10 @@ where
         ))
     }
 
-    fn decode_item_header(&self, source: &mut Self::Source) -> Result<SequenceItemHeader> {
+    fn decode_item_header<S>(&self, source: &mut S) -> Result<SequenceItemHeader>
+    where
+        S: ?Sized + Read,
+    {
         let mut buf = [0u8; 8];
         source.read_exact(&mut buf)?;
         // retrieve tag
@@ -107,7 +89,10 @@ where
         Ok(header)
     }
 
-    fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag> {
+    fn decode_tag<S>(&self, source: &mut S) -> Result<Tag>
+    where
+        S: ?Sized + Read,
+    {
         let mut buf = [0u8; 4];
         source.read_exact(&mut buf)?;
         Ok(Tag(
@@ -117,31 +102,30 @@ where
     }
 }
 
+impl<S: ?Sized> DecodeFrom<S> for ExplicitVRBigEndianDecoder
+where
+    S: Read,
+{
+    fn decode_header(&self, source: &mut S) -> Result<(DataElementHeader, usize)> {
+        Decode::decode_header(self, source)
+    }
+
+    fn decode_item_header(&self, source: &mut S) -> Result<SequenceItemHeader> {
+        Decode::decode_item_header(self, source)
+    }
+
+    fn decode_tag(&self, source: &mut S) -> Result<Tag> {
+        Decode::decode_tag(self, source)
+    }
+}
+
 /// A concrete encoder for the transfer syntax ExplicitVRBigEndian
-pub struct ExplicitVRBigEndianEncoder<W: ?Sized> {
+#[derive(Debug, Default, Clone)]
+pub struct ExplicitVRBigEndianEncoder {
     basic: BigEndianBasicEncoder,
-    phantom: PhantomData<W>,
 }
 
-impl<W: ?Sized> Default for ExplicitVRBigEndianEncoder<W> {
-    fn default() -> ExplicitVRBigEndianEncoder<W> {
-        ExplicitVRBigEndianEncoder {
-            basic: BigEndianBasicEncoder,
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<W: ?Sized + fmt::Debug> fmt::Debug for ExplicitVRBigEndianEncoder<W> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("ExplicitVRLittleEndianDecoder")
-            .field("basic", &self.basic)
-            .field("phantom", &self.phantom)
-            .finish()
-    }
-}
-
-impl<W: ?Sized> BasicEncode for ExplicitVRBigEndianEncoder<W> {
+impl BasicEncode for ExplicitVRBigEndianEncoder {
     fn endianness(&self) -> Endianness {
         Endianness::Big
     }
@@ -160,6 +144,13 @@ impl<W: ?Sized> BasicEncode for ExplicitVRBigEndianEncoder<W> {
         self.basic.encode_ul(to, value)
     }
 
+    fn encode_uv<S>(&self, to: S, value: u64) -> Result<()>
+    where
+        S: Write,
+    {
+        self.basic.encode_uv(to, value)
+    }
+
     fn encode_ss<S>(&self, to: S, value: i16) -> Result<()>
     where
         S: Write,
@@ -172,6 +163,13 @@ impl<W: ?Sized> BasicEncode for ExplicitVRBigEndianEncoder<W> {
         S: Write,
     {
         self.basic.encode_sl(to, value)
+    }
+
+    fn encode_sv<S>(&self, to: S, value: i64) -> Result<()>
+    where
+        S: Write,
+    {
+        self.basic.encode_sv(to, value)
     }
 
     fn encode_fl<S>(&self, to: S, value: f32) -> Result<()>
@@ -189,13 +187,11 @@ impl<W: ?Sized> BasicEncode for ExplicitVRBigEndianEncoder<W> {
     }
 }
 
-impl<W: ?Sized> Encode for ExplicitVRBigEndianEncoder<W>
-where
-    W: Write,
-{
-    type Writer = W;
-
-    fn encode_tag(&self, to: &mut W, tag: Tag) -> Result<()> {
+impl Encode for ExplicitVRBigEndianEncoder {
+    fn encode_tag<W>(&self, mut to: W, tag: Tag) -> Result<()>
+    where
+        W: Write,
+    {
         let mut buf = [0u8, 4];
         BigEndian::write_u16(&mut buf[..], tag.group());
         BigEndian::write_u16(&mut buf[2..], tag.element());
@@ -203,7 +199,10 @@ where
         Ok(())
     }
 
-    fn encode_element_header(&self, to: &mut W, de: DataElementHeader) -> Result<usize> {
+    fn encode_element_header<W>(&self, mut to: W, de: DataElementHeader) -> Result<usize>
+    where
+        W: Write,
+    {
         match de.vr() {
             VR::OB
             | VR::OD
@@ -242,31 +241,47 @@ where
         }
     }
 
-    fn encode_item_header(&self, to: &mut W, len: u32) -> Result<()> {
+    fn encode_item_header<W>(&self, mut to: W, len: u32) -> Result<()>
+    where
+        W: Write,
+    {
         let mut buf = [0u8; 8];
         BigEndian::write_u16(&mut buf, 0xFFFE);
-        BigEndian::write_u16(&mut buf, 0xE000);
+        BigEndian::write_u16(&mut buf[2..], 0xE000);
         BigEndian::write_u32(&mut buf[4..], len);
         to.write_all(&buf)?;
         Ok(())
     }
 
-    fn encode_item_delimiter(&self, to: &mut W) -> Result<()> {
+    fn encode_item_delimiter<W>(&self, mut to: W) -> Result<()>
+    where
+        W: Write,
+    {
         let mut buf = [0u8; 8];
         BigEndian::write_u16(&mut buf, 0xFFFE);
-        BigEndian::write_u16(&mut buf, 0xE00D);
+        BigEndian::write_u16(&mut buf[2..], 0xE00D);
         // remaining bytes are already zero, so it's ready to write
         to.write_all(&buf)?;
         Ok(())
     }
 
-    fn encode_sequence_delimiter(&self, to: &mut W) -> Result<()> {
+    fn encode_sequence_delimiter<W>(&self, mut to: W) -> Result<()>
+    where
+        W: Write,
+    {
         let mut buf = [0u8; 8];
         BigEndian::write_u16(&mut buf, 0xFFFE);
-        BigEndian::write_u16(&mut buf, 0xE0DD);
+        BigEndian::write_u16(&mut buf[2..], 0xE0DD);
         // remaining bytes are already zero, so it's ready to write
         to.write_all(&buf)?;
         Ok(())
+    }
+
+    fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<usize>
+    where
+        W: Write,
+    {
+        self.basic.encode_primitive(to, value)
     }
 }
 

@@ -38,7 +38,7 @@ pub fn write_pdu<W>(writer: &mut W, pdu: &Pdu) -> Result<()>
 where
     W: Write,
 {
-    let codec = SpecificCharacterSet::Default.get_codec().unwrap();
+    let codec = SpecificCharacterSet::Default.codec().unwrap();
     match pdu {
         Pdu::AssociationRQ {
             protocol_version,

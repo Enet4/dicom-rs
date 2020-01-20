@@ -2,10 +2,8 @@
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 use dicom_core::header::Header;
 use dicom_core::{Length, Tag};
-use dicom_encoding::decode;
-use dicom_encoding::decode::Decode;
-use dicom_encoding::text;
-use dicom_encoding::text::TextCodec;
+use dicom_encoding::decode::{self, DecodeFrom};
+use dicom_encoding::text::{self, TextCodec};
 use dicom_parser::error::{Error, InvalidValueReadError, Result};
 use std::io::Read;
 
@@ -79,7 +77,7 @@ impl FileMetaTable {
             }
         }
 
-        let decoder = decode::get_file_header_decoder();
+        let decoder = decode::file_header_decoder();
         let text = text::DefaultCharacterSetCodec;
 
         let builder = FileMetaTableBuilder::new();

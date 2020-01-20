@@ -11,16 +11,13 @@ use dicom_core::Tag;
 use std::io::Read;
 
 pub mod basic;
-pub mod erased;
+pub mod primitive_value;
 
 /** Obtain the default data element decoder.
  * According to the standard, data elements are encoded in Implicit
  * VR Little Endian by default.
  */
-pub fn get_default_reader<S>() -> StandardImplicitVRLittleEndianDecoder<S>
-where
-    S: Read,
-{
+pub fn default_reader() -> StandardImplicitVRLittleEndianDecoder {
     ImplicitVRLittleEndianDecoder::default()
 }
 
@@ -28,10 +25,7 @@ where
  * file's Meta information. According to the standard, these are always
  * encoded in Explicit VR Little Endian.
  */
-pub fn get_file_header_decoder<S>() -> ExplicitVRLittleEndianDecoder<S>
-where
-    S: Read,
-{
+pub fn file_header_decoder() -> ExplicitVRLittleEndianDecoder {
     ExplicitVRLittleEndianDecoder::default()
 }
 
@@ -248,9 +242,6 @@ where
  * may depend on the transfer syntax.
  */
 pub trait Decode {
-    /// The data source's type.
-    type Source: ?Sized + Read;
-
     /** Fetch and decode the next data element header from the given source.
      * This method returns only the header of the element. At the end of this operation, the source
      * will be pointing at the element's value data, which should be read or skipped as necessary.
@@ -260,34 +251,47 @@ pub trait Decode {
      *
      * Returns the expected header and the exact number of bytes read from the source.
      */
-    fn decode_header(&self, source: &mut Self::Source) -> Result<(DataElementHeader, usize)>;
+    fn decode_header<S>(&self, source: &mut S) -> Result<(DataElementHeader, usize)>
+    where
+        S: ?Sized + Read;
 
     /** Fetch and decode the next sequence item head from the given source. It is a separate method
      * because value representation is always implicit when reading item headers and delimiters.
      * This method returns only the header of the item. At the end of this operation, the source
      * will be pointing at the beginning of the item's data, which should be traversed if necessary.
      */
-    fn decode_item_header(&self, source: &mut Self::Source) -> Result<SequenceItemHeader>;
+    fn decode_item_header<S>(&self, source: &mut S) -> Result<SequenceItemHeader>
+    where
+        S: ?Sized + Read;
 
     /// Decode a DICOM attribute tag from the given source.
-    fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag>;
+    fn decode_tag<S>(&self, source: &mut S) -> Result<Tag>
+    where
+        S: ?Sized + Read;
 }
 
 impl<T: ?Sized> Decode for Box<T>
 where
     T: Decode,
 {
-    type Source = <T as Decode>::Source;
-
-    fn decode_header(&self, source: &mut Self::Source) -> Result<(DataElementHeader, usize)> {
+    fn decode_header<S>(&self, source: &mut S) -> Result<(DataElementHeader, usize)>
+    where
+        S: ?Sized + Read,
+    {
         (**self).decode_header(source)
     }
 
-    fn decode_item_header(&self, source: &mut Self::Source) -> Result<SequenceItemHeader> {
+    fn decode_item_header<S>(&self, source: &mut S) -> Result<SequenceItemHeader>
+    where
+        S: ?Sized + Read,
+    {
         (**self).decode_item_header(source)
     }
 
-    fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag> {
+    fn decode_tag<S>(&self, source: &mut S) -> Result<Tag>
+    where
+        S: ?Sized + Read,
+    {
         (**self).decode_tag(source)
     }
 }
@@ -296,17 +300,108 @@ impl<'a, T: ?Sized> Decode for &'a T
 where
     T: Decode,
 {
-    type Source = <T as Decode>::Source;
-
-    fn decode_header(&self, source: &mut Self::Source) -> Result<(DataElementHeader, usize)> {
+    fn decode_header<S>(&self, source: &mut S) -> Result<(DataElementHeader, usize)>
+    where
+        S: ?Sized + Read,
+    {
         (**self).decode_header(source)
     }
 
-    fn decode_item_header(&self, source: &mut Self::Source) -> Result<SequenceItemHeader> {
+    fn decode_item_header<S>(&self, source: &mut S) -> Result<SequenceItemHeader>
+    where
+        S: ?Sized + Read,
+    {
         (**self).decode_item_header(source)
     }
 
-    fn decode_tag(&self, source: &mut Self::Source) -> Result<Tag> {
+    fn decode_tag<S>(&self, source: &mut S) -> Result<Tag>
+    where
+        S: ?Sized + Read,
+    {
         (**self).decode_tag(source)
+    }
+}
+
+/** Type trait for reading and decoding DICOM data elements from a specific source
+ * reader type.
+ *
+ * The specific behaviour of decoding, even when abstracted from the original source,
+ * may depend on the transfer syntax.
+ */
+pub trait DecodeFrom<S: ?Sized + Read> {
+    /** Fetch and decode the next data element header from the given source.
+     * This method returns only the header of the element. At the end of this operation, the source
+     * will be pointing at the element's value data, which should be read or skipped as necessary.
+     *
+     * Decoding an item or sequence delimiter is considered valid, and so should be properly handled
+     * by the decoder. The value representation in this case should be `UN`.
+     *
+     * Returns the expected header and the exact number of bytes read from the source.
+     */
+    fn decode_header(&self, source: &mut S) -> Result<(DataElementHeader, usize)>;
+
+    /** Fetch and decode the next sequence item head from the given source. It is a separate method
+     * because value representation is always implicit when reading item headers and delimiters.
+     * This method returns only the header of the item. At the end of this operation, the source
+     * will be pointing at the beginning of the item's data, which should be traversed if necessary.
+     */
+    fn decode_item_header(&self, source: &mut S) -> Result<SequenceItemHeader>;
+
+    /// Decode a DICOM attribute tag from the given source.
+    fn decode_tag(&self, source: &mut S) -> Result<Tag>;
+}
+
+impl<S: ?Sized, T: ?Sized> DecodeFrom<S> for &T
+where
+    S: Read,
+    T: DecodeFrom<S>,
+{
+    fn decode_header(&self, source: &mut S) -> Result<(DataElementHeader, usize)> {
+        (**self).decode_header(source)
+    }
+
+    fn decode_item_header(&self, source: &mut S) -> Result<SequenceItemHeader> {
+        (**self).decode_item_header(source)
+    }
+
+    fn decode_tag(&self, source: &mut S) -> Result<Tag> {
+        (**self).decode_tag(source)
+    }
+}
+
+impl<S: ?Sized, T: ?Sized> DecodeFrom<S> for Box<T>
+where
+    S: Read,
+    T: DecodeFrom<S>,
+{
+    fn decode_header(&self, source: &mut S) -> Result<(DataElementHeader, usize)> {
+        (**self).decode_header(source)
+    }
+
+    fn decode_item_header(&self, source: &mut S) -> Result<SequenceItemHeader> {
+        (**self).decode_item_header(source)
+    }
+
+    fn decode_tag(&self, source: &mut S) -> Result<Tag> {
+        (**self).decode_tag(source)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn is_decode_from<T: DecodeFrom<dyn Read>>(_decoder: &T) {}
+
+    #[allow(unused)]
+    fn boxed_decoder_from_is_decoder_from<T>(decoder: T)
+    where
+        T: DecodeFrom<dyn Read>,
+    {
+        is_decode_from(&decoder);
+        let boxed = Box::new(decoder);
+        is_decode_from(&boxed);
+        let erased = boxed as Box<dyn DecodeFrom<dyn Read>>;
+        is_decode_from(&erased);
     }
 }
