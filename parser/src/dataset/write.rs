@@ -1,7 +1,7 @@
 //! Module for the data set reader
 use crate::dataset::*;
 use crate::error::{DataSetSyntaxError, Error, Result};
-use crate::printer::Printer;
+use crate::stateful::encode::StatefulEncoder;
 use dicom_core::{DataElementHeader, Length, VR};
 use dicom_encoding::encode::{Encode, EncodeTo};
 use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
@@ -23,7 +23,7 @@ struct SeqToken {
 /// set tokens to bytes.
 #[derive(Debug)]
 pub struct DataSetWriter<W, E, T> {
-    printer: Printer<W, E, T>,
+    printer: StatefulEncoder<W, E, T>,
     seq_tokens: Vec<SeqToken>,
     last_de: Option<DataElementHeader>,
 }
@@ -44,7 +44,7 @@ where
 impl<W, E, T> DataSetWriter<W, E, T> {
     pub fn new(to: W, encoder: E, text: T) -> Self {
         DataSetWriter {
-            printer: Printer::new(to, encoder, text),
+            printer: StatefulEncoder::new(to, encoder, text),
             seq_tokens: Vec::new(),
             last_de: None,
         }
@@ -77,7 +77,7 @@ where
         // the respective delimiter
 
         match token {
-            DataToken::SequenceStart { tag: _, len } => {
+            DataToken::SequenceStart { len, .. } => {
                 self.seq_tokens.push(SeqToken {
                     typ: SeqTokenType::Sequence,
                     len,

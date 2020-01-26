@@ -1,6 +1,5 @@
-//! For the lack of a better name, this module is to hold the analogous to
-//! the "parser" module, but for encoding in a way which supports text
-//! encoding.
+//! Module holding a stateful DICOM data encoding abstraction,
+//! in a way which supports text encoding.
 //!
 
 use crate::error::{Error, Result};
@@ -12,23 +11,24 @@ use dicom_encoding::{
 };
 use std::io::Write;
 
-/// A mid-level abstraction for writing DICOM content. Unlike `Encode`,
-/// the printer also knows how to write text values.
-/// `W` is the write target, `E` is the encoder, and `T` is the text formatter.
+/// Also called a printer, this encoder type provides a stateful mid-level
+/// abstraction for writing DICOM content. Unlike `Encode`,
+/// the stateful encoder knows how to write text values.
+/// `W` is the write target, `E` is the encoder, and `T` is the text codec.
 #[derive(Debug)]
-pub struct Printer<W, E, T> {
+pub struct StatefulEncoder<W, E, T> {
     to: W,
     encoder: E,
     text: T,
     bytes_written: u64,
 }
 
-pub type DynamicDicomPrinter =
-    Printer<Box<dyn Write>, Box<dyn EncodeTo<dyn Write>>, Box<dyn TextCodec>>;
+pub type DynStatefulEncoder<'s> =
+    StatefulEncoder<Box<dyn Write + 's>, Box<dyn EncodeTo<dyn Write + 's>>, Box<dyn TextCodec>>;
 
-impl<W, E, T> Printer<W, E, T> {
+impl<W, E, T> StatefulEncoder<W, E, T> {
     pub fn new(to: W, encoder: E, text: T) -> Self {
-        Printer {
+        StatefulEncoder {
             to,
             encoder,
             text,
@@ -36,8 +36,8 @@ impl<W, E, T> Printer<W, E, T> {
         }
     }
 
-    pub fn with_text<U>(self, text: U) -> Printer<W, E, U> {
-        Printer {
+    pub fn with_text<U>(self, text: U) -> StatefulEncoder<W, E, U> {
+        StatefulEncoder {
             to: self.to,
             encoder: self.encoder,
             text,
@@ -46,9 +46,9 @@ impl<W, E, T> Printer<W, E, T> {
     }
 }
 
-impl DynamicDicomPrinter {
+impl<'s> DynStatefulEncoder<'s> {
     pub fn from_transfer_syntax(
-        to: Box<dyn Write>,
+        to: Box<dyn Write + 's>,
         ts: TransferSyntax,
         cs: SpecificCharacterSet,
     ) -> Result<Self> {
@@ -57,11 +57,11 @@ impl DynamicDicomPrinter {
             .ok_or_else(|| Error::UnsupportedTransferSyntax)?;
         let text = cs.codec().ok_or_else(|| Error::UnsupportedCharacterSet)?;
 
-        Ok(Printer::new(to, encoder, text))
+        Ok(StatefulEncoder::new(to, encoder, text))
     }
 }
 
-impl<W, E, T> Printer<W, E, T>
+impl<W, E, T> StatefulEncoder<W, E, T>
 where
     W: Write,
     E: EncodeTo<W>,
@@ -95,12 +95,12 @@ where
         Ok(())
     }
 
-    /// Retrieve the number of bytes written by this printer.
+    /// Retrieve the number of bytes written so far by this printer.
     pub fn bytes_written(&self) -> u64 {
         self.bytes_written
     }
 
-    /// Encode and write a primitive value. Where applicable, this printer
+    /// Encode and write a primitive value. Where applicable, this
     /// will use the inner text codec for textual values.
     pub fn encode_primitive(
         &mut self,

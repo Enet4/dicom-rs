@@ -309,7 +309,7 @@ impl<A> TransferSyntax<A> {
     /// Retrieve the appropriate data element encoder for this transfer syntax.
     /// Can yield none if encoding is not supported. The resulting encoder does not
     /// consider pixel data encapsulation or data set compression rules.
-    pub fn encoder(&self) -> Option<DynEncoder<dyn Write>> {
+    pub fn encoder<'w>(&self) -> Option<DynEncoder<dyn Write + 'w>> {
         self.encoder_for()
     }
 

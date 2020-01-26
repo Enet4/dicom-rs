@@ -18,7 +18,7 @@ use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_parser::dataset::{DataSetReader, DataToken};
 use dicom_parser::error::{DataSetSyntaxError, Error, Result};
-use dicom_parser::parser::Parse;
+use dicom_parser::StatefulDecode;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
 /// A full in-memory DICOM data element.
@@ -279,15 +279,14 @@ where
     // private methods
 
     /// Build an object by consuming a data set parser.
-    fn build_object<'s, S: 's, P>(
-        dataset: &mut DataSetReader<S, P, D>,
+    fn build_object<P>(
+        dataset: &mut DataSetReader<P, D>,
         dict: D,
         in_item: bool,
         len: Length,
     ) -> Result<Self>
     where
-        S: Read,
-        P: Parse<dyn Read + 's>,
+        P: StatefulDecode,
     {
         let mut entries: BTreeMap<Tag, InMemElement<D>> = BTreeMap::new();
         // perform a structured parsing of incoming tokens
@@ -323,15 +322,14 @@ where
     }
 
     /// Build a DICOM sequence by consuming a data set parser.
-    fn build_sequence<'s, S: 's, P>(
+    fn build_sequence<P>(
         _tag: Tag,
         _len: Length,
-        dataset: &mut DataSetReader<S, P, D>,
+        dataset: &mut DataSetReader<P, D>,
         dict: &D,
     ) -> Result<C<InMemDicomObject<D>>>
     where
-        S: Read,
-        P: Parse<dyn Read + 's>,
+        P: StatefulDecode,
     {
         let mut items: C<_> = SmallVec::new();
         while let Some(token) = dataset.next() {

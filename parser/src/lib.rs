@@ -11,10 +11,10 @@
 
 pub mod dataset;
 pub mod error;
-pub mod parser;
-pub mod printer;
+pub mod stateful;
 
 mod util;
 
 pub use dataset::DataSetReader;
-pub use parser::{DicomParser, DynamicDicomParser, Parse};
+pub use stateful::decode::{DynStatefulDecoder, StatefulDecode, StatefulDecoder};
+pub use stateful::encode::StatefulEncoder;

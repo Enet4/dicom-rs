@@ -5,7 +5,7 @@
 //! At this level, headers and values are treated as tokens which can be used
 //! to form a syntax tree of a full data set.
 use crate::error::{Error, InvalidValueReadError, Result};
-use crate::parser::{DicomParser, DynamicDicomParser, Parse};
+use crate::stateful::decode::{DynStatefulDecoder, StatefulDecode, StatefulDecoder};
 use crate::util::{ReadSeek, SeekInterval};
 use dicom_core::dictionary::DataDictionary;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
@@ -20,10 +20,9 @@ use std::ops::DerefMut;
 
 use super::{DataToken, SeqTokenType};
 
-fn is_parse<S: ?Sized, P>(_: &P)
+fn is_stateful_decode<T>(_: &T)
 where
-    S: Read,
-    P: Parse<S>,
+    T: StatefulDecode,
 {
 }
 
@@ -43,9 +42,8 @@ struct SeqToken {
 /// A higher-level reader for retrieving structure in a DICOM data set from an
 /// arbitrary data source.
 #[derive(Debug)]
-pub struct DataSetReader<S, P, D> {
-    source: S,
-    parser: P,
+pub struct DataSetReader<S, D> {
+    parser: S,
     dict: D,
     /// whether the reader is expecting an item next (or a sequence delimiter)
     in_sequence: bool,
@@ -59,16 +57,18 @@ pub struct DataSetReader<S, P, D> {
     last_header: Option<DataElementHeader>,
 }
 
-impl<'s, S: 's> DataSetReader<S, DynamicDicomParser<'s>, StandardDataDictionary> {
+impl<'s> DataSetReader<DynStatefulDecoder<'s>, StandardDataDictionary> {
     /// Creates a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
-    pub fn new_with(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self> {
-        let parser = DynamicDicomParser::new_with(ts, cs)?;
+    pub fn new_with<S: 's>(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
+    where
+        S: Read,
+    {
+        let parser = DynStatefulDecoder::new_with(source, ts, cs)?;
 
-        is_parse(&parser);
+        is_stateful_decode(&parser);
 
         Ok(DataSetReader {
-            source,
             parser,
             dict: StandardDataDictionary,
             seq_delimiters: Vec::new(),
@@ -80,21 +80,23 @@ impl<'s, S: 's> DataSetReader<S, DynamicDicomParser<'s>, StandardDataDictionary>
     }
 }
 
-impl<'s, S: 's, D> DataSetReader<S, DynamicDicomParser<'s>, D> {
+impl<'s, D> DataSetReader<DynStatefulDecoder<'s>, D> {
     /// Creates a new iterator with the given random access source and data dictionary,
     /// while considering the given transfer syntax and specific character set.
-    pub fn new_with_dictionary(
+    pub fn new_with_dictionary<S: 's>(
         source: S,
         dict: D,
         ts: &TransferSyntax,
         cs: SpecificCharacterSet,
-    ) -> Result<Self> {
-        let parser = DynamicDicomParser::new_with(ts, cs)?;
+    ) -> Result<Self>
+    where
+        S: Read,
+    {
+        let parser = DynStatefulDecoder::new_with(source, ts, cs)?;
 
-        is_parse(&parser);
+        is_stateful_decode(&parser);
 
         Ok(DataSetReader {
-            source,
             parser,
             dict,
             seq_delimiters: Vec::new(),
@@ -106,16 +108,11 @@ impl<'s, S: 's, D> DataSetReader<S, DynamicDicomParser<'s>, D> {
     }
 }
 
-impl<S, P> DataSetReader<S, P, StandardDataDictionary>
-where
-    S: Read,
-    P: Parse<dyn Read>,
-{
+impl<S> DataSetReader<S, StandardDataDictionary> {
     /// Create a new iterator with the given parser.
-    pub fn new(source: S, parser: P) -> Self {
+    pub fn new(decoder: S) -> Self {
         DataSetReader {
-            source,
-            parser,
+            parser: decoder,
             dict: StandardDataDictionary,
             seq_delimiters: Vec::new(),
             delimiter_check_pending: false,
@@ -126,10 +123,9 @@ where
     }
 }
 
-impl<'s, S: 's, P, D> Iterator for DataSetReader<S, P, D>
+impl<S, D> Iterator for DataSetReader<S, D>
 where
-    S: Read,
-    P: Parse<dyn Read + 's>,
+    S: StatefulDecode,
     D: DataDictionary,
 {
     type Item = Result<DataToken>;
@@ -152,7 +148,7 @@ where
         }
 
         if self.in_sequence {
-            match self.parser.decode_item_header(&mut self.source) {
+            match self.parser.decode_item_header() {
                 Ok(header) => match header {
                     SequenceItemHeader::Item { len } => {
                         // entered a new item
@@ -189,7 +185,7 @@ where
         } else if self.last_header.is_some() {
             // a plain element header was read, so a value is expected
             let header = self.last_header.unwrap();
-            let value = match self.parser.read_value(&mut self.source, &header) {
+            let value = match self.parser.read_value(&header) {
                 Ok(v) => v,
                 Err(e) => {
                     self.hard_break = true;
@@ -206,7 +202,7 @@ where
             Some(Ok(DataToken::PrimitiveValue(value)))
         } else {
             // a data element header or item delimiter is expected
-            match self.parser.decode_header(&mut self.source) {
+            match self.parser.decode_header() {
                 Ok(DataElementHeader {
                     tag,
                     vr: VR::SQ,
@@ -256,10 +252,9 @@ where
     }
 }
 
-impl<'s, S: 's, P, D> DataSetReader<S, P, D>
+impl<S, D> DataSetReader<S, D>
 where
-    P: Parse<dyn Read + 's>,
-    S: Read,
+    S: StatefulDecode,
 {
     fn update_seq_delimiters(&mut self) -> Result<Option<DataToken>> {
         if let Some(sd) = self.seq_delimiters.last() {
@@ -295,8 +290,7 @@ where
 /// An iterator for retrieving DICOM object element markers from a random
 /// access data source.
 #[derive(Debug)]
-pub struct LazyDataSetReader<S, DS, P> {
-    source: S,
+pub struct LazyDataSetReader<DS, P> {
     parser: P,
     depth: u32,
     in_sequence: bool,
@@ -304,7 +298,7 @@ pub struct LazyDataSetReader<S, DS, P> {
     phantom: PhantomData<DS>,
 }
 
-impl<'s> LazyDataSetReader<&'s mut dyn ReadSeek, &'s mut dyn Read, DynamicDicomParser<'s>> {
+impl<'s> LazyDataSetReader<&'s mut dyn Read, DynStatefulDecoder<'s>> {
     /// Create a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
     pub fn new_with(
@@ -312,10 +306,9 @@ impl<'s> LazyDataSetReader<&'s mut dyn ReadSeek, &'s mut dyn Read, DynamicDicomP
         ts: &TransferSyntax,
         cs: SpecificCharacterSet,
     ) -> Result<Self> {
-        let parser = DicomParser::new_with(ts, cs)?;
+        let parser = StatefulDecoder::new_with(source, ts, cs)?;
 
         Ok(LazyDataSetReader {
-            source,
             parser,
             depth: 0,
             in_sequence: false,
@@ -325,14 +318,13 @@ impl<'s> LazyDataSetReader<&'s mut dyn ReadSeek, &'s mut dyn Read, DynamicDicomP
     }
 }
 
-impl<S, DS, P> LazyDataSetReader<S, DS, P>
+impl<DS, P> LazyDataSetReader<DS, P>
 where
-    S: ReadSeek,
+    P: StatefulDecode,
 {
     /// Create a new iterator with the given parser.
-    pub fn new(source: S, parser: P) -> LazyDataSetReader<S, DS, P> {
+    pub fn new(parser: P) -> LazyDataSetReader<DS, P> {
         LazyDataSetReader {
-            source,
             parser,
             depth: 0,
             in_sequence: false,
@@ -341,42 +333,24 @@ where
         }
     }
 
-    /// Get the inner source's position in the stream using `seek()`.
-    fn position(&mut self) -> Result<u64>
-    where
-        S: Seek,
-    {
-        self.source.seek(SeekFrom::Current(0)).map_err(Error::from)
-    }
-
     fn create_element_marker(&mut self, header: DataElementHeader) -> Result<DicomElementMarker> {
-        match self.position() {
-            Ok(pos) => Ok(DicomElementMarker { header, pos }),
-            Err(e) => {
-                self.hard_break = true;
-                Err(e)
-            }
-        }
+        Ok(DicomElementMarker {
+            header,
+            pos: self.parser.bytes_read(),
+        })
     }
 
     fn create_item_marker(&mut self, header: SequenceItemHeader) -> Result<DicomElementMarker> {
-        match self.position() {
-            Ok(pos) => Ok(DicomElementMarker {
-                header: From::from(header),
-                pos,
-            }),
-            Err(e) => {
-                self.hard_break = true;
-                Err(e)
-            }
-        }
+        Ok(DicomElementMarker {
+            header: From::from(header),
+            pos: self.parser.bytes_read(),
+        })
     }
 }
 
-impl<S, P> Iterator for LazyDataSetReader<S, (), P>
+impl<P> Iterator for LazyDataSetReader<(), P>
 where
-    S: ReadSeek,
-    P: Parse<S>,
+    P: StatefulDecode,
 {
     type Item = Result<DicomElementMarker>;
 
@@ -385,7 +359,7 @@ where
             return None;
         }
         if self.in_sequence {
-            match self.parser.decode_item_header(&mut self.source) {
+            match self.parser.decode_item_header() {
                 Ok(header) => match header {
                     header @ SequenceItemHeader::Item { .. } => {
                         self.in_sequence = false;
@@ -407,7 +381,7 @@ where
                 }
             }
         } else {
-            match self.parser.decode_header(&mut self.source) {
+            match self.parser.decode_header() {
                 Ok(
                     header @ DataElementHeader {
                         tag: Tag(0x0008, 0x0005),
@@ -496,28 +470,30 @@ impl Header for DicomElementMarker {
 
 #[cfg(test)]
 mod tests {
-    use super::{DataSetReader, DataToken, DicomParser};
-    use crate::Parse;
+    use super::{DataSetReader, DataToken, StatefulDecode, StatefulDecoder};
     use dicom_core::header::{DataElementHeader, Length};
     use dicom_core::value::PrimitiveValue;
     use dicom_core::{Tag, VR};
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
     use dicom_encoding::text::DefaultCharacterSetCodec;
     use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
+    use std::io::Read;
 
     fn validate_dataset_reader<I>(data: &[u8], ground_truth: I)
     where
         I: IntoIterator<Item = DataToken>,
     {
-        let parser = DicomParser::new(
+        let mut cursor = data;
+        let parser = StatefulDecoder::new(
+            cursor.by_ref(),
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder::default(),
             Box::new(DefaultCharacterSetCodec::default()) as Box<_>, // trait object
         );
 
-        let mut dset_reader = DataSetReader::new(data, parser);
+        let mut dset_reader = DataSetReader::new(parser);
 
-        let mut iter = Iterator::zip(dset_reader.by_ref(), ground_truth);
+        let mut iter = Iterator::zip(&mut dset_reader, ground_truth);
 
         while let Some((res, gt_token)) = iter.next() {
             let token = res.expect("should parse without an error");
