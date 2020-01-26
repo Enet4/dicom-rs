@@ -268,6 +268,14 @@ mod tests {
             parse_date(b"20180101xxxx").unwrap(),
             (NaiveDate::from_ymd(2018, 1, 1), &b"xxxx"[..])
         );
+        assert_eq!(
+            parse_date(b"19000101").unwrap(),
+            (NaiveDate::from_ymd(1900, 1, 1), &[][..])
+        );
+        assert_eq!(
+            parse_date(b"19620728").unwrap(),
+            (NaiveDate::from_ymd(1962, 7, 28), &[][..])
+        );
         assert!(parse_date(b"").is_err());
         assert!(parse_date(b"        ").is_err());
         assert!(parse_date(b"--------").is_err());
@@ -347,6 +355,10 @@ mod tests {
         assert_eq!(
             parse_time(b"100003.123456...").unwrap(),
             (NaiveTime::from_hms_micro(10, 0, 3, 123_456), &b"..."[..])
+        );
+        assert_eq!(
+            parse_time(b"000000.000000").unwrap(),
+            (NaiveTime::from_hms(0, 0, 0), &[][..])
         );
         assert!(parse_time(b"075501.123......").is_err());
         assert!(parse_date(b"").is_err());
