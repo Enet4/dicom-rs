@@ -216,10 +216,7 @@ where
         let cs = SpecificCharacterSet::Default;
         let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)?;
         let obj = InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?;
-        Ok(RootDicomObject {
-            meta,
-            obj,
-        })
+        Ok(RootDicomObject { meta, obj })
     }
 }
 

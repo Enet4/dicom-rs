@@ -1,5 +1,5 @@
 //! Parsing of primitive values
-use crate::error::{Result, InvalidValueReadError};
+use crate::error::{InvalidValueReadError, Result};
 use dicom_core::chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
 use std::ops::{Add, Mul, Sub};
 

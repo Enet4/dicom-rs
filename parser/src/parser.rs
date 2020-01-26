@@ -8,13 +8,13 @@ use chrono::FixedOffset;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader, Tag, VR};
 use dicom_core::value::{PrimitiveValue, C};
 use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
+use dicom_encoding::decode::primitive_value::*;
 use dicom_encoding::decode::{BasicDecode, DecodeFrom};
 use dicom_encoding::error::{InvalidValueReadError, Result as EncodingResult, TextEncodingError};
 use dicom_encoding::text::{
     validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, DynamicTextCodec,
     SpecificCharacterSet, TextCodec, TextValidationOutcome,
 };
-use dicom_encoding::decode::primitive_value::*;
 use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
 use dicom_encoding::transfer_syntax::{DynDecoder, TransferSyntax};
 use smallvec::{smallvec, SmallVec};

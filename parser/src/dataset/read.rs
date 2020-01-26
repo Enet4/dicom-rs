@@ -709,7 +709,9 @@ mod tests {
                 tag: Tag(0x0018, 0x6011),
                 len: Length::UNDEFINED,
             },
-            DataToken::ItemStart { len: Length::UNDEFINED },
+            DataToken::ItemStart {
+                len: Length::UNDEFINED,
+            },
             DataToken::ElementHeader(DataElementHeader {
                 tag: Tag(0x0018, 0x6012),
                 vr: VR::US,
@@ -723,7 +725,9 @@ mod tests {
             }),
             DataToken::PrimitiveValue(PrimitiveValue::U16([2].as_ref().into())),
             DataToken::ItemEnd,
-            DataToken::ItemStart { len: Length::UNDEFINED },
+            DataToken::ItemStart {
+                len: Length::UNDEFINED,
+            },
             DataToken::ElementHeader(DataElementHeader {
                 tag: Tag(0x0018, 0x6012),
                 vr: VR::US,
@@ -742,5 +746,4 @@ mod tests {
 
         validate_dataset_reader(DATA, ground_truth);
     }
-
 }

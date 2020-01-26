@@ -43,16 +43,30 @@ impl PartialEq<Self> for DataToken {
     fn eq(&self, other: &Self) -> bool {
         use DataToken::*;
         match (self, other) {
-            (ElementHeader(DataElementHeader { tag: tag1, vr: vr1, len: len1 }), ElementHeader(DataElementHeader { tag: tag2, vr: vr2, len: len2 })) => {
-                tag1 == tag2 && vr1 == vr2 && len1.inner_eq(*len2)
-            }
-            (SequenceStart { tag: tag1, len: len1 }, SequenceStart { tag: tag2, len: len2 }) => {
-                tag1 == tag2 && len1.inner_eq(*len2)
-            },
-            (ItemStart {len: len1}, ItemStart {len: len2}) => {
-                len1.inner_eq(*len2)
-            },
-            (PrimitiveValue(v1), PrimitiveValue(v2)) => { v1 == v2 }
+            (
+                ElementHeader(DataElementHeader {
+                    tag: tag1,
+                    vr: vr1,
+                    len: len1,
+                }),
+                ElementHeader(DataElementHeader {
+                    tag: tag2,
+                    vr: vr2,
+                    len: len2,
+                }),
+            ) => tag1 == tag2 && vr1 == vr2 && len1.inner_eq(*len2),
+            (
+                SequenceStart {
+                    tag: tag1,
+                    len: len1,
+                },
+                SequenceStart {
+                    tag: tag2,
+                    len: len2,
+                },
+            ) => tag1 == tag2 && len1.inner_eq(*len2),
+            (ItemStart { len: len1 }, ItemStart { len: len2 }) => len1.inner_eq(*len2),
+            (PrimitiveValue(v1), PrimitiveValue(v2)) => v1 == v2,
             (ItemEnd, ItemEnd) | (SequenceEnd, SequenceEnd) => true,
             _ => false,
         }

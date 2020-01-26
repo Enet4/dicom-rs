@@ -115,9 +115,7 @@ where
                 self.last_de = Some(de.clone());
                 self.write_impl(token)
             }
-            _ => {
-                self.write_impl(token)
-            }
+            _ => self.write_impl(token),
         }
     }
 
@@ -128,9 +126,8 @@ where
                 self.printer.encode_element_header(header)?;
             }
             SequenceStart { tag, len } => {
-                self.printer.encode_element_header(
-                    DataElementHeader::new(tag, VR::SQ, len),
-                )?;
+                self.printer
+                    .encode_element_header(DataElementHeader::new(tag, VR::SQ, len))?;
             }
             SequenceEnd => {
                 self.printer.encode_sequence_delimiter()?;
@@ -142,7 +139,9 @@ where
                 self.printer.encode_item_delimiter()?;
             }
             PrimitiveValue(ref value) => {
-                let last_de = self.last_de.as_ref()
+                let last_de = self
+                    .last_de
+                    .as_ref()
                     .ok_or_else(|| DataSetSyntaxError::UnexpectedToken(token.clone()))?;
                 self.printer.encode_primitive(last_de, value)?;
                 self.last_de = None;
@@ -156,7 +155,11 @@ where
 mod tests {
     use super::super::DataToken;
     use super::DataSetWriter;
-    use dicom_core::{Tag, VR, header::{DataElementHeader, Length}, value::PrimitiveValue};
+    use dicom_core::{
+        header::{DataElementHeader, Length},
+        value::PrimitiveValue,
+        Tag, VR,
+    };
     use dicom_encoding::text::DefaultCharacterSetCodec;
     use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder;
 
@@ -245,7 +248,9 @@ mod tests {
                 tag: Tag(0x0018, 0x6011),
                 len: Length::UNDEFINED,
             },
-            DataToken::ItemStart { len: Length::UNDEFINED },
+            DataToken::ItemStart {
+                len: Length::UNDEFINED,
+            },
             DataToken::ElementHeader(DataElementHeader {
                 tag: Tag(0x0018, 0x6012),
                 vr: VR::US,
@@ -259,7 +264,9 @@ mod tests {
             }),
             DataToken::PrimitiveValue(PrimitiveValue::U16([2].as_ref().into())),
             DataToken::ItemEnd,
-            DataToken::ItemStart { len: Length::UNDEFINED },
+            DataToken::ItemStart {
+                len: Length::UNDEFINED,
+            },
             DataToken::ElementHeader(DataElementHeader {
                 tag: Tag(0x0018, 0x6012),
                 vr: VR::US,
