@@ -276,6 +276,10 @@ mod tests {
             parse_date(b"19620728").unwrap(),
             (NaiveDate::from_ymd(1962, 7, 28), &[][..])
         );
+        assert_eq!(
+            parse_date(b"1902").unwrap(),
+            (NaiveDate::from_ymd(1902, 1, 1), &[][..])
+        );
         assert!(parse_date(b"").is_err());
         assert!(parse_date(b"        ").is_err());
         assert!(parse_date(b"--------").is_err());
