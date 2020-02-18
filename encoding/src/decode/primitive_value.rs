@@ -11,7 +11,7 @@ pub fn parse_date(buf: &[u8]) -> Result<(NaiveDate, &[u8])> {
         0 | 5 | 7 => Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
         1..=4 => {
             let year = read_number(buf)?;
-            let date: Result<_> = NaiveDate::from_ymd_opt(year, 0, 0)
+            let date: Result<_> = NaiveDate::from_ymd_opt(year, 1, 1)
                 .ok_or_else(|| InvalidValueReadError::DateTimeZone.into());
             Ok((date?, &[]))
         }
@@ -275,6 +275,10 @@ mod tests {
         assert_eq!(
             parse_date(b"19620728").unwrap(),
             (NaiveDate::from_ymd(1962, 7, 28), &[][..])
+        );
+        assert_eq!(
+            parse_date(b"1902").unwrap(),
+            (NaiveDate::from_ymd(1902, 1, 1), &[][..])
         );
         assert!(parse_date(b"").is_err());
         assert!(parse_date(b"        ").is_err());
