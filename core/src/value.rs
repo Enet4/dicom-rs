@@ -50,7 +50,7 @@ where
     }
 
     /// Gets a reference to the items.
-    pub fn item(&self) -> Option<&[I]> {
+    pub fn items(&self) -> Option<&[I]> {
         match *self {
             Value::Sequence { ref items, .. } => Some(items),
             _ => None,
@@ -66,7 +66,7 @@ where
     }
 
     /// Retrieves the items.
-    pub fn into_item(self) -> Option<C<I>> {
+    pub fn into_items(self) -> Option<C<I>> {
         match self {
             Value::Sequence { items, .. } => Some(items),
             _ => None,
