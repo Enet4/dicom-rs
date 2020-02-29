@@ -335,8 +335,6 @@ where
         while let Some(token) = dataset.next() {
             match token? {
                 DataToken::ItemStart { len } => {
-                    // TODO if length is well defined, then it should be
-                    // considered instead of finding the item delimiter.
                     items.push(Self::build_object(&mut *dataset, dict.clone(), true, len)?);
                 }
                 DataToken::SequenceEnd => {
@@ -375,6 +373,88 @@ impl<D> IntoIterator for InMemDicomObject<D> {
         Iter {
             inner: self.entries.into_iter(),
         }
+    }
+}
+
+
+#[derive(Debug)]
+pub struct InMemTokens<M, I, D> {
+    main_iters: Vec<M>,
+    item_iters: Vec<I>,
+    pending_elem: Option<DataElement<D>>,
+    
+}
+
+impl<A, I, D> InMemTokens<A, I, D>
+where
+    A: Iterator,
+    I: Iterator,
+{
+    pub fn new<T>(obj: T) -> Self
+    where
+        T: IntoIterator<Item = A::Item, IntoIter = A>,
+    {
+        InMemTokens {
+            main_iters: vec![obj.into_iter()],
+            item_iters: vec![],
+            pending_elem: None,
+        }
+    }
+}
+
+impl<P, A, D> Iterator for InMemTokens<P, A, D>
+where
+    P: Iterator<Item = InMemElement<D>>,
+    A: Iterator<Item = InMemDicomObject<D>>,
+    D: DataDictionary,
+{
+    type Item = dicom_parser::dataset::DataToken;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // if no more iterators, return None
+        let iter = match self.main_iters.last_mut() {
+            None => return None,
+            Some(iter) => iter,
+        };
+
+        // if no more tokens on the last iterator,
+        // return sequence/item end
+        let elem = match iter.next() {
+            None => {
+                self.main_iters.pop();
+                match self.main_iters.len() {
+                    // object end
+                    0 => return None,
+                    // item end
+                    n if n % 2 == 0 => {
+                        return Some(DataToken::ItemEnd);
+                    },
+                    // sequence end
+                    _ => {
+                        return Some(DataToken::SequenceEnd);
+                    },
+                }
+            }
+            Some(elem) => elem,
+        };
+
+        match elem.vr() {
+            VR::SQ => {
+            }
+            _ => {
+                
+            }
+        }
+
+        todo!()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        // make a slightly better estimation for the minimum
+        // number of tokens that follow
+        let min_tokens: usize = self.main_iters.iter().map(|iter| iter.size_hint().0).sum::<usize>()
+            + self.item_iters.iter().map(|iter| iter.size_hint().0).sum::<usize>();
+        (min_tokens, None)
     }
 }
 
