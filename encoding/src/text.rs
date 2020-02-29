@@ -60,6 +60,9 @@ where
 }
 
 /// Type alias for a type erased text codec.
+/// 
+/// It is important because stateful decoders may need to change the expected
+/// text encoding format at run-time.
 pub type DynamicTextCodec = Box<dyn TextCodec>;
 
 /// An enum type for the the supported character sets.
@@ -89,7 +92,7 @@ impl SpecificCharacterSet {
     }
 
     /// Retrieve the respective text codec.
-    pub fn codec(self) -> Option<Box<dyn TextCodec>> {
+    pub fn codec(self) -> Option<DynamicTextCodec> {
         match self {
             SpecificCharacterSet::Default => Some(Box::new(DefaultCharacterSetCodec)),
             SpecificCharacterSet::IsoIr192 => Some(Box::new(Utf8CharacterSetCodec)),

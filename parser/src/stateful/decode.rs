@@ -472,7 +472,7 @@ where
     }
 }
 
-impl<S, T, D, BD> StatefulDecoder<D, BD, S, Box<dyn TextCodec>>
+impl<S, T, D, BD> StatefulDecoder<D, BD, S, DynamicTextCodec>
 where
     D: DecodeFrom<T>,
     BD: BasicDecode,
@@ -486,27 +486,16 @@ where
         Ok(())
     }
 
+    /// Read a sequence of UID values. Similar to `read_value_strs`, but also
+    /// triggers a character set change when it finds the _SpecificCharacterSet_
+    /// attribute.
     fn read_value_ui(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        let len = require_known_length(header)?;
-        // sequence of UID's
-        self.buffer.resize_with(len, Default::default);
-        self.from.read_exact(&mut self.buffer)?;
+        let out = self.read_value_strs(header)?;
 
-        let parts: EncodingResult<C<_>> = match header.vr() {
-            VR::AE | VR::CS | VR::AS => self
-                .buffer
-                .split(|v| *v == 0)
-                .map(|slice| DefaultCharacterSetCodec.decode(slice))
-                .collect(),
-            _ => self
-                .buffer
-                .split(|v| *v == 0)
-                .map(|slice| self.text.decode(slice))
-                .collect(),
+        let parts = match &out {
+            PrimitiveValue::Strs(parts) => parts,
+            _ => unreachable!(),
         };
-
-        let parts = parts?;
-        self.bytes_read += len as u64;
 
         // if it's a Specific Character Set, update the decoder immediately.
         if header.tag == Tag(0x0008, 0x0005) {
@@ -521,11 +510,11 @@ where
             }
         }
 
-        Ok(PrimitiveValue::Strs(parts))
+        Ok(out)
     }
 }
 
-impl<S, T, D, BD> StatefulDecode for StatefulDecoder<D, BD, S, Box<dyn TextCodec>>
+impl<S, T, D, BD> StatefulDecode for StatefulDecoder<D, BD, S, DynamicTextCodec>
 where
     D: DecodeFrom<T>,
     BD: BasicDecode,
@@ -604,7 +593,6 @@ where
             | VR::PN
             | VR::SH
             | VR::LO
-            | VR::UI
             | VR::UC
             | VR::CS
             | VR::IS
@@ -612,6 +600,7 @@ where
             | VR::DA
             | VR::TM
             | VR::DT => self.read_value_strs(header),
+            VR::UI => self.read_value_ui(header),
             VR::UT | VR::ST | VR::UR | VR::LT => self.read_value_str(header),
             VR::UN | VR::OB => self.read_value_ob(header),
             VR::US | VR::OW => self.read_value_us(header),
@@ -653,7 +642,7 @@ where
             _ => Ok(self
                 .from
                 .by_ref()
-                .take(u64::from(header.len().get().unwrap_or(100_000)))),
+                .take(header.len().get().map(u64::from).unwrap_or(std::u64::MAX))),
         }
     }
 
@@ -678,4 +667,89 @@ fn require_known_length(
         .get()
         .map(|len| len as usize)
         .ok_or_else(|| InvalidValueReadError::UnresolvedValueLength)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{StatefulDecode, StatefulDecoder};
+    use dicom_core::header::{Header, Length};
+    use dicom_core::{Tag, VR};
+    use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
+    use dicom_encoding::text::{DefaultCharacterSetCodec, DynamicTextCodec};
+    use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
+
+    // manually crafting some DICOM data elements
+    //  Tag: (0002,0002) Media Storage SOP Class UID
+    //  VR: UI
+    //  Length: 26
+    //  Value: "1.2.840.10008.5.1.4.1.1.1\0"
+    // --
+    //  Tag: (0002,0010) Transfer Syntax UID
+    //  VR: UI
+    //  Length: 20
+    //  Value: "1.2.840.10008.1.2.1\0" == ExplicitVRLittleEndian
+    // --
+    const RAW: &'static [u8; 62] = &[
+        0x02, 0x00, 0x02, 0x00, 0x55, 0x49, 0x1a, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34, 0x30,
+        0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x35, 0x2e, 0x31, 0x2e, 0x34, 0x2e, 0x31, 0x2e,
+        0x31, 0x2e, 0x31, 0x00, 0x02, 0x00, 0x10, 0x00, 0x55, 0x49, 0x14, 0x00, 0x31, 0x2e, 0x32,
+        0x2e, 0x38, 0x34, 0x30, 0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x31, 0x2e, 0x32, 0x2e,
+        0x31, 0x00,
+    ];
+
+    fn is_stateful_decoder<T>(_: &T)
+    where
+        T: StatefulDecode,
+    {
+    }
+
+    #[test]
+    fn decode_data_elements() {
+        let mut cursor = &RAW[..];
+        let mut decoder = StatefulDecoder::new(
+            &mut cursor,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            Box::new(DefaultCharacterSetCodec) as DynamicTextCodec,
+        );
+
+        is_stateful_decoder(&decoder);
+
+        {
+            // read first element
+            let elem = decoder.decode_header().expect("should find an element");
+            assert_eq!(elem.tag(), Tag(2, 2));
+            assert_eq!(elem.vr(), VR::UI);
+            assert_eq!(elem.len(), Length(26));
+
+            assert_eq!(decoder.bytes_read(), 8);
+
+            // read value
+            let value = dbg!(decoder
+                .read_value(&elem)
+                .expect("value after element header"));
+            assert_eq!(value.multiplicity(), 1);
+            assert_eq!(value.string(), Some("1.2.840.10008.5.1.4.1.1.1\0"));
+
+            assert_eq!(decoder.bytes_read(), 8 + 26);
+        }
+        {
+            // read second element
+            let elem = decoder.decode_header().expect("should find an element");
+            assert_eq!(elem.tag(), Tag(2, 16));
+            assert_eq!(elem.vr(), VR::UI);
+            assert_eq!(elem.len(), Length(20));
+
+            assert_eq!(decoder.bytes_read(), 8 + 26 + 8);
+
+            // read value
+            let value = decoder
+                .read_value(&elem)
+                .expect("value after element header");
+            assert_eq!(value.multiplicity(), 1);
+            assert_eq!(value.string(), Some("1.2.840.10008.1.2.1\0"));
+
+            assert_eq!(decoder.bytes_read(), 8 + 26 + 8 + 20);
+        }
+    }
 }
