@@ -5,7 +5,7 @@
 use crate::error::{Error, Result};
 use crate::util::n_times;
 use chrono::FixedOffset;
-use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader, Tag, VR};
+use dicom_core::header::{DataElementHeader, HasLength, Length, SequenceItemHeader, Tag, VR};
 use dicom_core::value::{PrimitiveValue, C};
 use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
 use dicom_encoding::decode::primitive_value::*;
@@ -544,7 +544,7 @@ where
     }
 
     fn read_value(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        if header.len() == Length(0) {
+        if header.length() == Length(0) {
             return Ok(PrimitiveValue::Empty);
         }
 
@@ -578,7 +578,7 @@ where
     }
 
     fn read_value_preserved(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        if header.len() == Length(0) {
+        if header.length() == Length(0) {
             return Ok(PrimitiveValue::Empty);
         }
 
@@ -615,7 +615,7 @@ where
     }
 
     fn read_value_bytes(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        if header.len() == Length(0) {
+        if header.length() == Length(0) {
             return Ok(PrimitiveValue::Empty);
         }
 
@@ -642,7 +642,7 @@ where
             _ => Ok(self
                 .from
                 .by_ref()
-                .take(header.len().get().map(u64::from).unwrap_or(std::u64::MAX))),
+                .take(header.length().get().map(u64::from).unwrap_or(std::u64::MAX))),
         }
     }
 
@@ -663,7 +663,7 @@ fn require_known_length(
     header: &DataElementHeader,
 ) -> std::result::Result<usize, InvalidValueReadError> {
     header
-        .len()
+        .length()
         .get()
         .map(|len| len as usize)
         .ok_or_else(|| InvalidValueReadError::UnresolvedValueLength)
@@ -672,7 +672,7 @@ fn require_known_length(
 #[cfg(test)]
 mod tests {
     use super::{StatefulDecode, StatefulDecoder};
-    use dicom_core::header::{Header, Length};
+    use dicom_core::header::{HasLength, Header, Length};
     use dicom_core::{Tag, VR};
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
     use dicom_encoding::text::{DefaultCharacterSetCodec, DynamicTextCodec};
@@ -720,7 +720,7 @@ mod tests {
             let elem = decoder.decode_header().expect("should find an element");
             assert_eq!(elem.tag(), Tag(2, 2));
             assert_eq!(elem.vr(), VR::UI);
-            assert_eq!(elem.len(), Length(26));
+            assert_eq!(elem.length(), Length(26));
 
             assert_eq!(decoder.bytes_read(), 8);
 
@@ -738,7 +738,7 @@ mod tests {
             let elem = decoder.decode_header().expect("should find an element");
             assert_eq!(elem.tag(), Tag(2, 16));
             assert_eq!(elem.vr(), VR::UI);
-            assert_eq!(elem.len(), Length(20));
+            assert_eq!(elem.length(), Length(20));
 
             assert_eq!(decoder.bytes_read(), 8 + 26 + 8);
 

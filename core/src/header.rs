@@ -9,16 +9,26 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::str::{from_utf8, FromStr};
 
+/// Trait for any DICOM entity (element or item) which may have a length.
+pub trait HasLength {
+    /// Retrieve the value data's length as specified by the data element or
+    /// item, in bytes.
+    /// 
+    /// It is named `length` to make it distinct from the conventional method
+    /// signature `len(&self) -> usize` for the number of elements of a
+    /// collection.
+    /// 
+    /// According to the standard, the concrete value size may be undefined,
+    /// which can be the case for sequence elements or specific primitive
+    /// values.
+    fn length(&self) -> Length;
+}
+
 /// A trait for a data type containing a DICOM header.
 #[allow(clippy::len_without_is_empty)]
-pub trait Header {
+pub trait Header: HasLength {
     /// Retrieve the element's tag as a `(group, element)` tuple.
     fn tag(&self) -> Tag;
-
-    /// Retrieve the value data's length as specified by the data element, in bytes.
-    /// According to the standard, the concrete value size may be undefined,
-    /// which can be the case for sequence elements or specific primitive values.
-    fn len(&self) -> Length;
 
     /// Check whether this is the header of an item.
     fn is_item(&self) -> bool {
@@ -91,15 +101,24 @@ impl<'a> PrimitiveDataElementRef<'a> {
         PrimitiveDataElementRef { header, value }
     }
 }
+impl<I> HasLength for DataElement<I> {
+    #[inline]
+    fn length(&self) -> Length {
+        self.header.length()
+    }
+}
+
 impl<I> Header for DataElement<I> {
     #[inline]
     fn tag(&self) -> Tag {
         self.header.tag()
     }
+}
 
+impl<I> HasLength for &DataElement<I> {
     #[inline]
-    fn len(&self) -> Length {
-        self.header.len()
+    fn length(&self) -> Length {
+        (**self).length()
     }
 }
 
@@ -109,9 +128,12 @@ impl<'a, I> Header for &'a DataElement<I> {
         (**self).tag()
     }
 
+}
+
+impl<'v, I> HasLength for DataElementRef<'v, I> {
     #[inline]
-    fn len(&self) -> Length {
-        (**self).len()
+    fn length(&self) -> Length {
+        self.header.length()
     }
 }
 
@@ -120,17 +142,9 @@ impl<'v, I> Header for DataElementRef<'v, I> {
     fn tag(&self) -> Tag {
         self.header.tag()
     }
-
-    #[inline]
-    fn len(&self) -> Length {
-        self.header.len()
-    }
 }
 
-impl<I> DataElement<I>
-where
-    I: DicomValueType,
-{
+impl<I> DataElement<I> {
     /// Create an empty data element.
     pub fn empty(tag: Tag, vr: VR) -> Self {
         DataElement {
@@ -143,22 +157,15 @@ where
         }
     }
 
-    /// Create a primitive data element from the given parts. This method will not check
-    /// whether the value representation is compatible with the given value.
-    pub fn new(tag: Tag, vr: VR, value: Value<I>) -> Self {
-        DataElement {
-            header: DataElementHeader {
-                tag,
-                vr,
-                len: value.size(),
-            },
-            value,
-        }
-    }
-
     /// Retrieve the element header.
     pub fn header(&self) -> &DataElementHeader {
         &self.header
+    }
+
+    /// Retrieve the value representation, which may be unknown or not
+    /// applicable.
+    pub fn vr(&self) -> VR {
+        self.header.vr()
     }
 
     /// Retrieve the data value.
@@ -172,11 +179,25 @@ where
     pub fn into_value(self) -> Value<I> {
         self.value
     }
+}
 
-    /// Retrieve the value representation, which may be unknown or not
-    /// applicable.
-    pub fn vr(&self) -> VR {
-        self.header.vr()
+impl<I> DataElement<I>
+where
+    I: HasLength,
+{
+    /// Create a primitive data element from the given parts.
+    /// 
+    /// This method will not check whether the value representation is
+    /// compatible with the given value.
+    pub fn new(tag: Tag, vr: VR, value: Value<I>) -> Self {
+        DataElement {
+            header: DataElementHeader {
+                tag,
+                vr,
+                len: value.length(),
+            },
+            value,
+        }
     }
 
     /// Retrieve the element's value as a single string.
@@ -187,7 +208,7 @@ where
 
 impl<'v, I> DataElementRef<'v, I>
 where
-    I: DicomValueType,
+    I: HasLength,
 {
     /// Create a data element from the given parts. This method will not check
     /// whether the value representation is compatible with the value. Caution
@@ -197,7 +218,7 @@ where
             header: DataElementHeader {
                 tag,
                 vr,
-                len: value.size(),
+                len: value.length(),
             },
             value,
         }
@@ -226,19 +247,24 @@ pub struct DataElementHeader {
     pub len: Length,
 }
 
+impl HasLength for DataElementHeader {
+    #[inline]
+    fn length(&self) -> Length {
+        self.len
+    }
+}
+
 impl Header for DataElementHeader {
+    #[inline]
     fn tag(&self) -> Tag {
         self.tag
-    }
-
-    fn len(&self) -> Length {
-        self.len
     }
 }
 
 impl DataElementHeader {
     /// Create a new data element header with the given properties.
     /// This is just a trivial constructor.
+    #[inline]
     pub fn new<T: Into<Tag>>(tag: T, vr: VR, len: Length) -> DataElementHeader {
         DataElementHeader {
             tag: tag.into(),
@@ -248,6 +274,7 @@ impl DataElementHeader {
     }
 
     /// Retrieve the element's value representation, which can be unknown.
+    #[inline]
     pub fn vr(&self) -> VR {
         self.vr
     }
@@ -258,7 +285,7 @@ impl From<SequenceItemHeader> for DataElementHeader {
         DataElementHeader {
             tag: value.tag(),
             vr: VR::UN,
-            len: value.len(),
+            len: value.length(),
         }
     }
 }
@@ -309,19 +336,22 @@ impl SequenceItemHeader {
     }
 }
 
+impl HasLength for SequenceItemHeader {
+    #[inline]
+    fn length(&self) -> Length {
+        match *self {
+            SequenceItemHeader::Item { len } => len,
+            SequenceItemHeader::ItemDelimiter | SequenceItemHeader::SequenceDelimiter => Length(0),
+        }
+    }
+}
 impl Header for SequenceItemHeader {
+    #[inline]
     fn tag(&self) -> Tag {
         match *self {
             SequenceItemHeader::Item { .. } => Tag(0xFFFE, 0xE000),
             SequenceItemHeader::ItemDelimiter => Tag(0xFFFE, 0xE00D),
             SequenceItemHeader::SequenceDelimiter => Tag(0xFFFE, 0xE0DD),
-        }
-    }
-
-    fn len(&self) -> Length {
-        match *self {
-            SequenceItemHeader::Item { len } => len,
-            SequenceItemHeader::ItemDelimiter | SequenceItemHeader::SequenceDelimiter => Length(0),
         }
     }
 }

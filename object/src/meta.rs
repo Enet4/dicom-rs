@@ -1,11 +1,11 @@
 //! Module containing data structures and readers of DICOM file meta information tables.
 use byteordered::byteorder::{ByteOrder, LittleEndian};
-use dicom_core::header::Header;
+use dicom_core::header::{HasLength, Header};
 use dicom_core::{Length, Tag};
 use dicom_encoding::decode::{self, DecodeFrom};
 use dicom_encoding::text::{self, TextCodec};
 use dicom_parser::error::{Error, InvalidValueReadError, Result};
-use std::io::Read;
+use std::io::{Read, Write};
 
 const DICM_MAGIC_CODE: [u8; 4] = [b'D', b'I', b'C', b'M'];
 
@@ -87,7 +87,7 @@ impl FileMetaTable {
             if elem.tag() != (0x0002, 0x0000) {
                 return Err(Error::UnexpectedTag(elem.tag()));
             }
-            if elem.len() != Length(4) {
+            if elem.length() != Length(4) {
                 return Err(Error::UnexpectedDataValueLength);
             }
             let mut buff: [u8; 4] = [0; 4];
@@ -102,7 +102,7 @@ impl FileMetaTable {
         // Fetch optional data elements
         while group_length_remaining > 0 {
             let (elem, _bytes_read) = decoder.decode_header(&mut file)?;
-            let elem_len = match elem.len().get() {
+            let elem_len = match elem.length().get() {
                 None => {
                     return Err(Error::from(InvalidValueReadError::UnresolvedValueLength));
                 }
@@ -111,7 +111,7 @@ impl FileMetaTable {
             builder = match elem.tag() {
                 Tag(0x0002, 0x0001) => {
                     // Implementation Version
-                    if elem.len() != Length(2) {
+                    if elem.length() != Length(2) {
                         return Err(Error::UnexpectedDataValueLength);
                     }
                     let mut hbuf = [0u8; 2];

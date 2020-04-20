@@ -8,7 +8,7 @@ use crate::error::{Error, InvalidValueReadError, Result};
 use crate::stateful::decode::{DynStatefulDecoder, StatefulDecode, StatefulDecoder};
 use crate::util::{ReadSeek, SeekInterval};
 use dicom_core::dictionary::DataDictionary;
-use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
+use dicom_core::header::{DataElementHeader, HasLength, Header, Length, SequenceItemHeader};
 use dicom_core::{Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
@@ -434,7 +434,7 @@ impl DicomElementMarker {
     {
         let len = u64::from(
             self.header
-                .len()
+                .length()
                 .get()
                 .ok_or(InvalidValueReadError::UnresolvedValueLength)?,
         );
@@ -458,13 +458,14 @@ impl DicomElementMarker {
     }
 }
 
+impl HasLength for DicomElementMarker {
+    fn length(&self) -> Length {
+        self.header.length()
+    }
+}
 impl Header for DicomElementMarker {
     fn tag(&self) -> Tag {
         self.header.tag()
-    }
-
-    fn len(&self) -> Length {
-        self.header.len()
     }
 }
 

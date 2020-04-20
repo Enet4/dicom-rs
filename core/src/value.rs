@@ -1,7 +1,7 @@
 //! This module includes a high level abstraction over a DICOM data element's value.
 
 use crate::error::CastValueError;
-use crate::header::{Length, Tag};
+use crate::header::{HasLength, Length, Tag};
 use chrono::{Datelike, FixedOffset, Timelike};
 use itertools::Itertools;
 use smallvec::SmallVec;
@@ -28,10 +28,7 @@ pub enum Value<I> {
     },
 }
 
-impl<I> Value<I>
-where
-    I: DicomValueType,
-{
+impl<I> Value<I> {
     /// Obtain the number of individual values.
     /// In a sequence item, this is the number of items.
     pub fn multiplicity(&self) -> u32 {
@@ -72,7 +69,12 @@ where
             _ => None,
         }
     }
+}
 
+impl<I> Value<I>
+where
+    I: HasLength,
+{
     /// Retrieves the primitive value as a single string.
     ///
     /// If the value contains multiple strings, they are concatenated
@@ -436,6 +438,12 @@ impl PrimitiveValue {
     }
 }
 
+impl HasLength for PrimitiveValue {
+    fn length(&self) -> Length {
+        Length::defined(self.calculate_byte_len() as u32)
+    }
+}
+
 /// An enum representing an abstraction of a DICOM element's data value type.
 /// This should be the equivalent of `PrimitiveValue` without the content,
 /// plus the `Item` entry.
@@ -511,16 +519,16 @@ pub enum ValueType {
 }
 
 /// A trait for a value that maps to a DICOM element data value.
-pub trait DicomValueType {
+pub trait DicomValueType: HasLength {
     /// Retrieve the specific type of this value.
     fn value_type(&self) -> ValueType;
 
     /// Retrieve the number of values contained.
-    fn size(&self) -> Length;
+    fn cardinality(&self) -> usize;
 
     /// Check whether the value is empty (0 length).
     fn is_empty(&self) -> bool {
-        self.size() == Length(0)
+        self.length() == Length(0)
     }
 }
 
@@ -547,44 +555,50 @@ impl DicomValueType for PrimitiveValue {
         }
     }
 
-    fn size(&self) -> Length {
+    fn cardinality(&self) -> usize {
         use self::PrimitiveValue::*;
-        Length::defined(match self {
+        match self {
             Empty => 0,
             Str(_) => 1,
-            Date(b) => b.len() as u32,
-            DateTime(b) => b.len() as u32,
-            F32(b) => b.len() as u32,
-            F64(b) => b.len() as u32,
-            I16(b) => b.len() as u32,
-            I32(b) => b.len() as u32,
-            I64(b) => b.len() as u32,
-            Strs(b) => b.len() as u32,
-            Tags(b) => b.len() as u32,
-            Time(b) => b.len() as u32,
-            U16(b) => b.len() as u32,
-            U32(b) => b.len() as u32,
-            U64(b) => b.len() as u32,
-            U8(b) => b.len() as u32,
-        })
+            Date(b) => b.len(),
+            DateTime(b) => b.len(),
+            F32(b) => b.len(),
+            F64(b) => b.len(),
+            I16(b) => b.len(),
+            I32(b) => b.len(),
+            I64(b) => b.len(),
+            Strs(b) => b.len(),
+            Tags(b) => b.len(),
+            Time(b) => b.len(),
+            U16(b) => b.len(),
+            U32(b) => b.len(),
+            U64(b) => b.len(),
+            U8(b) => b.len(),
+        }
     }
 }
 
-impl<I> DicomValueType for Value<I>
-where
-    I: DicomValueType,
-{
+impl<I> HasLength for Value<I> {
+    fn length(&self) -> Length {
+        match self {
+            Value::Primitive(v) => v.length(),
+            Value::Sequence { size, .. } => *size,
+        }
+    }
+}
+
+impl<I> DicomValueType for Value<I> {
     fn value_type(&self) -> ValueType {
-        match *self {
-            Value::Primitive(ref v) => v.value_type(),
+        match self {
+            Value::Primitive(v) => v.value_type(),
             Value::Sequence { .. } => ValueType::Item,
         }
     }
 
-    fn size(&self) -> Length {
-        match *self {
-            Value::Primitive(ref v) => v.size(),
-            Value::Sequence { size, .. } => size,
+    fn cardinality(&self) -> usize {
+        match self {
+            Value::Primitive(v) => v.cardinality(),
+            Value::Sequence { items, .. } => items.len(),
         }
     }
 }

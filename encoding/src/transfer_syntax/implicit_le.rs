@@ -8,7 +8,7 @@ use crate::error::Result;
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 use byteordered::Endianness;
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
-use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
+use dicom_core::header::{DataElementHeader, HasLength, Header, Length, SequenceItemHeader};
 use dicom_core::{PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use std::fmt;
@@ -227,7 +227,7 @@ impl Encode for ImplicitVRLittleEndianEncoder {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf[0..], de.tag().group());
         LittleEndian::write_u16(&mut buf[2..], de.tag().element());
-        LittleEndian::write_u32(&mut buf[4..], de.len().0);
+        LittleEndian::write_u32(&mut buf[4..], de.length().0);
         to.write_all(&buf)?;
         Ok(8)
     }
@@ -281,7 +281,7 @@ mod tests {
     use crate::decode::Decode;
     use crate::encode::Encode;
     use dicom_core::dictionary::stub::StubDataDictionary;
-    use dicom_core::header::{DataElementHeader, Header, Length, Tag, VR};
+    use dicom_core::header::{DataElementHeader, HasLength, Header, Length, Tag, VR};
     use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
     // manually crafting some DICOM data elements
@@ -314,7 +314,7 @@ mod tests {
                 .expect("should find an element");
             assert_eq!(elem.tag(), (0x0002, 0x0002));
             assert_eq!(elem.vr(), VR::UN);
-            assert_eq!(elem.len(), Length(26));
+            assert_eq!(elem.length(), Length(26));
             assert_eq!(bytes_read, 8);
             // read only half of the data
             let mut buffer: Vec<u8> = Vec::with_capacity(13);
@@ -335,7 +335,7 @@ mod tests {
                 .expect("should find an element");
             assert_eq!(elem.tag(), (0x0002, 0x0010));
             assert_eq!(elem.vr(), VR::UN);
-            assert_eq!(elem.len(), Length(20));
+            assert_eq!(elem.length(), Length(20));
             // read all data
             let mut buffer: Vec<u8> = Vec::with_capacity(20);
             buffer.resize(20, 0);
@@ -357,13 +357,13 @@ mod tests {
                 .expect("should find an element");
             assert_eq!(elem.tag(), (2, 2));
             assert_eq!(elem.vr(), VR::UI);
-            assert_eq!(elem.len(), Length(26));
+            assert_eq!(elem.length(), Length(26));
             // cursor should be @ #8
             assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 8);
             // don't read any data, just skip
             // cursor should be @ #34 after skipping
             assert_eq!(
-                cursor.seek(SeekFrom::Current(elem.len().0 as i64)).unwrap(),
+                cursor.seek(SeekFrom::Current(elem.length().0 as i64)).unwrap(),
                 34
             );
         }
@@ -374,7 +374,7 @@ mod tests {
                 .expect("should find an element");
             assert_eq!(elem.tag(), (2, 16));
             assert_eq!(elem.vr(), VR::UI);
-            assert_eq!(elem.len(), Length(20));
+            assert_eq!(elem.length(), Length(20));
             // read all data
             let mut buffer: Vec<u8> = Vec::with_capacity(20);
             buffer.resize(20, 0);

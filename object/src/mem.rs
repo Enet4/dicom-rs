@@ -10,8 +10,8 @@ use std::path::Path;
 use crate::meta::FileMetaTable;
 use crate::{DicomObject, RootDicomObject};
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
-use dicom_core::header::Header;
-use dicom_core::value::{DicomValueType, Value, ValueType, C};
+use dicom_core::header::{HasLength, Header};
+use dicom_core::value::{Value, C};
 use dicom_core::{DataElement, Length, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
@@ -45,12 +45,8 @@ impl<'s, D> PartialEq for InMemDicomObject<D> {
     }
 }
 
-impl<D> DicomValueType for InMemDicomObject<D> {
-    fn value_type(&self) -> ValueType {
-        ValueType::Item
-    }
-
-    fn size(&self) -> Length {
+impl<D> HasLength for InMemDicomObject<D> {
+    fn length(&self) -> Length {
         self.len
     }
 }
