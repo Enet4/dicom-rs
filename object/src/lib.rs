@@ -35,6 +35,7 @@ pub mod loader;
 pub mod mem;
 pub mod meta;
 pub mod pixeldata;
+pub mod tokens;
 
 mod util;
 
