@@ -7,7 +7,7 @@
 //!
 //! For a more intuitive, object-oriented API, please see the `dicom-object`
 //! crate.
-#![recursion_limit = "80"]
+#![recursion_limit = "90"]
 
 pub mod dataset;
 pub mod error;
