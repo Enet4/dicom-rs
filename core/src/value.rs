@@ -216,9 +216,9 @@ pub enum PrimitiveValue {
 /// DICOM primitive value with a single element.
 macro_rules! impl_from_for_primitive {
     ($typ: ty, $variant: ident) => {
-        impl From< $typ > for PrimitiveValue {
+        impl From<$typ> for PrimitiveValue {
             fn from(value: $typ) -> Self {
-                PrimitiveValue:: $variant (C::from_elem(value, 1))
+                PrimitiveValue::$variant(C::from_elem(value, 1))
             }
         }
     };
@@ -239,20 +239,33 @@ impl_from_for_primitive!(NaiveDate, Date);
 impl_from_for_primitive!(NaiveTime, Time);
 impl_from_for_primitive!(DateTime<FixedOffset>, DateTime);
 
+/// Construct a DICOM value.
+#[macro_export]
+macro_rules! dicom_value {
+    ($typ: ident, [ $($elem: expr),* ]) => {
+        {
+            use smallvec::smallvec; // import smallvec macro
+            dicom_core::value::PrimitiveValue :: $typ (smallvec![$($elem,)*])
+        }
+    };
+    ($typ: ident, $elem: expr) => {
+        dicom_core::value::PrimitiveValue :: $typ (dicom_core::value::C::from_elem($elem, 1))
+    };
+}
+
 impl From<String> for PrimitiveValue {
     fn from(value: String) -> Self {
         PrimitiveValue::Str(value)
     }
-} 
+}
 
 impl From<&str> for PrimitiveValue {
     fn from(value: &str) -> Self {
         PrimitiveValue::Str(value.to_owned())
     }
-} 
+}
 
 impl PrimitiveValue {
-
     /// Create a single unsigned 16-bit value.
     pub fn new_u16(value: u16) -> Self {
         PrimitiveValue::U16(C::from_elem(value, 1))
