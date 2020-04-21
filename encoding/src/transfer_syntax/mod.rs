@@ -15,7 +15,7 @@ pub mod implicit_le;
 
 use crate::decode::basic::BasicDecoder;
 use crate::decode::DecodeFrom;
-use crate::encode::EncodeTo;
+use crate::encode::{EncodeTo, EncoderFor};
 use std::io::{Read, Write};
 
 pub use byteordered::Endianness;
@@ -24,7 +24,7 @@ pub use byteordered::Endianness;
 pub type DynDecoder<S> = Box<dyn DecodeFrom<S>>;
 
 /// An encoder with its type erased.
-pub type DynEncoder<W> = Box<dyn EncodeTo<W>>;
+pub type DynEncoder<'w, W> = Box<dyn EncodeTo<W> + 'w>;
 
 /// A DICOM transfer syntax specifier. The data RW adapter `A` specifies
 /// custom codec capabilities when required.
@@ -309,7 +309,7 @@ impl<A> TransferSyntax<A> {
     /// Retrieve the appropriate data element encoder for this transfer syntax.
     /// Can yield none if encoding is not supported. The resulting encoder does not
     /// consider pixel data encapsulation or data set compression rules.
-    pub fn encoder<'w>(&self) -> Option<DynEncoder<dyn Write + 'w>> {
+    pub fn encoder<'w>(&self) -> Option<DynEncoder<'w, dyn Write + 'w>> {
         self.encoder_for()
     }
 
@@ -317,21 +317,24 @@ impl<A> TransferSyntax<A> {
     /// and the given writer type (this method is not object safe).
     /// Can yield none if encoding is not supported. The resulting encoder does not
     /// consider pixel data encapsulation or data set compression rules.
-    pub fn encoder_for<W>(&self) -> Option<DynEncoder<W>>
+    pub fn encoder_for<'w, W: 'w>(&self) -> Option<DynEncoder<'w, W>>
     where
         Self: Sized,
         W: ?Sized + Write,
     {
         match (self.byte_order, self.explicit_vr) {
             (Endianness::Little, false) => Some(Box::new(
-                implicit_le::ImplicitVRLittleEndianEncoder::default(),
-            )),
+                EncoderFor::new(
+                implicit_le::ImplicitVRLittleEndianEncoder::default())),
+            ),
             (Endianness::Little, true) => Some(Box::new(
-                explicit_le::ExplicitVRLittleEndianEncoder::default(),
-            )),
-            (Endianness::Big, true) => {
-                Some(Box::new(explicit_be::ExplicitVRBigEndianEncoder::default()))
-            }
+                EncoderFor::new(
+                explicit_le::ExplicitVRLittleEndianEncoder::default())),
+            ),
+            (Endianness::Big, true) => Some(Box::new(
+                EncoderFor::new(
+                    explicit_be::ExplicitVRBigEndianEncoder::default())),
+            ),
             _ => None,
         }
     }

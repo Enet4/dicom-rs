@@ -9,6 +9,7 @@ use dicom_encoding::{
     text::{DefaultCharacterSetCodec, SpecificCharacterSet, TextCodec},
     TransferSyntax,
 };
+use dicom_encoding::transfer_syntax::DynEncoder;
 use std::io::Write;
 
 /// Also called a printer, this encoder type provides a stateful mid-level
@@ -23,9 +24,9 @@ pub struct StatefulEncoder<W, E, T> {
     bytes_written: u64,
 }
 
-pub type DynStatefulEncoder<'s> =
-    StatefulEncoder<Box<dyn Write + 's>, Box<dyn EncodeTo<dyn Write + 's>>, Box<dyn TextCodec>>;
-
+pub type DynStatefulEncoder<'w> =
+    StatefulEncoder< Box<dyn Write + 'w>, DynEncoder<'w, dyn Write>, Box<dyn TextCodec>>;
+    
 impl<W, E, T> StatefulEncoder<W, E, T> {
     pub fn new(to: W, encoder: E, text: T) -> Self {
         StatefulEncoder {
