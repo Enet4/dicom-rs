@@ -3,7 +3,7 @@
 //! element header, and element composite types.
 
 use crate::error::{Error, Result};
-use crate::value::{DicomValueType, PrimitiveValue, Value};
+use crate::value::{PrimitiveValue, Value};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
@@ -46,9 +46,23 @@ pub trait Header: HasLength {
     }
 }
 
+/// Stub type representing a non-existing DICOM object.
+/// 
+/// This type implements `HasLength`, but cannot be instantiated.
+/// This makes it so that `Value<EmptyObject>` is sure to be either a primitive
+/// value or a sequence with no items.
+#[derive(Debug, PartialEq)]
+pub enum EmptyObject {}
+
+impl HasLength for EmptyObject {
+    fn length(&self) -> Length {
+        unreachable!()
+    }
+}
+
 /// A data type that represents and owns a DICOM data element. Unlike
 /// [`PrimitiveDataElement`], this type may contain multiple data elements
-/// through the item sequence VR (of type `I`).
+/// through the item sequence VR (where each item contains an object of type `I`).
 #[derive(Debug, PartialEq, Clone)]
 pub struct DataElement<I> {
     header: DataElementHeader,

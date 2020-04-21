@@ -110,6 +110,14 @@ pub trait IntoTokens {
     fn into_tokens(self) -> Self::Iter;
 }
 
+impl IntoTokens for dicom_core::header::EmptyObject {
+    type Iter = std::iter::Empty<DataToken>;
+
+    fn into_tokens(self) -> Self::Iter {
+        unreachable!()
+    }
+}
+
 /// Token generator from a DICOM data element.
 pub enum DataElementTokens<I>
 where
