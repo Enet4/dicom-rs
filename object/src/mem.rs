@@ -224,6 +224,20 @@ where
     }
 }
 
+impl RootDicomObject<InMemDicomObject<StandardDataDictionary>> {
+    /// Create a new empty object, using the given file meta table.
+    pub fn new_empty_with_meta(meta: FileMetaTable) -> Self {
+        RootDicomObject {
+            meta,
+            obj: InMemDicomObject {
+                entries: BTreeMap::new(),
+                dict: StandardDataDictionary,
+                len: Length::UNDEFINED,
+            },
+        }
+    }
+}
+
 impl<D> InMemDicomObject<D>
 where
     D: DataDictionary,

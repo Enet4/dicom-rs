@@ -48,7 +48,13 @@ pub use dicom_parser::error::{Error, Result};
 /// The default implementation of a root DICOM object.
 pub type DefaultDicomObject = RootDicomObject<mem::InMemDicomObject<StandardDataDictionary>>;
 
+use std::fs::File;
+use std::io::{BufWriter, Write};
+use std::path::Path;
 use dicom_core::header::Header;
+use dicom_encoding::{transfer_syntax::TransferSyntaxIndex, text::SpecificCharacterSet};
+use dicom_parser::dataset::{DataSetWriter, IntoTokens};
+use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
 /// Trait type for a DICOM object.
 /// This is a high-level abstraction where an object is accessed and
@@ -93,6 +99,39 @@ impl<T> RootDicomObject<T> {
     /// Retrieve the inner DICOM object structure, discarding the meta table.
     pub fn into_inner(self) -> T {
         self.obj
+    }
+}
+
+impl<T> RootDicomObject<T>
+where
+    for<'a> &'a T: IntoTokens,
+{
+    pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        let file = File::create(path)?;
+        let mut to = BufWriter::new(file);
+
+        // write preamble
+        to.write(&[0_u8; 128][..])?;
+
+        // write magic sequence
+        to.write(b"DICM")?;
+
+        // write meta group
+        self.meta.write(&mut to)?;
+        
+        // prepare encoder
+        let registry = TransferSyntaxRegistry::default();
+        let ts = registry
+            .get(&self.meta.transfer_syntax)
+            .ok_or_else(|| Error::UnsupportedTransferSyntax)?;
+        let cs = SpecificCharacterSet::Default;
+        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs)?;
+
+        // write object
+
+        dset_writer.write_sequence((&self.obj).into_tokens())?;
+
+        Ok(())
     }
 }
 
@@ -157,4 +196,23 @@ where
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use crate::RootDicomObject;
+    use crate::meta::FileMetaTableBuilder;
+
+    #[test]
+    fn smoke_test() {
+        let meta = FileMetaTableBuilder::new()
+            .transfer_syntax(dicom_transfer_syntax_registry::entries::EXPLICIT_VR_LITTLE_ENDIAN.uid().to_owned() + "\0")
+            .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1\0".to_owned())
+            .media_storage_sop_instance_uid("1.2.3.456\0".to_owned())
+            .implementation_class_uid("1.2.345.6.7890.1.234".to_owned())
+            .build()
+            .unwrap();
+        let obj = RootDicomObject::new_empty_with_meta(
+            meta);
+        
+        obj.write_to_file(".smoke-test.dcm").unwrap();
+        let _ = std::fs::remove_file(".smoke-test.dcm");
+    }
+}

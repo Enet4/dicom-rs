@@ -1,9 +1,14 @@
 //! Module containing data structures and readers of DICOM file meta information tables.
 use byteordered::byteorder::{ByteOrder, LittleEndian};
-use dicom_core::header::{HasLength, Header};
-use dicom_core::{Length, Tag};
+use dicom_core::dicom_value;
+use dicom_core::header::{DataElement, EmptyObject, HasLength, Header};
+use dicom_core::value::{PrimitiveValue, Value};
+use dicom_core::{Length, Tag, VR};
+use dicom_parser::dataset::{DataSetWriter, IntoTokens};
+use dicom_encoding::text::{self, DefaultCharacterSetCodec, TextCodec};
 use dicom_encoding::decode::{self, DecodeFrom};
-use dicom_encoding::text::{self, TextCodec};
+use dicom_encoding::encode::EncoderFor;
+use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder;
 use dicom_parser::error::{Error, InvalidValueReadError, Result};
 use std::io::{Read, Write};
 
@@ -42,6 +47,21 @@ pub struct FileMetaTable {
     pub private_information_creator_uid: Option<String>,
     /// Private Information
     pub private_information: Option<Vec<u8>>,
+
+    /*
+    Missing attributes:
+
+    (0002,0026) Source Presentation Address Source​Presentation​Address UR 1
+    (0002,0027) Sending Presentation Address Sending​Presentation​Address UR 1
+    (0002,0028) Receiving Presentation Address Receiving​Presentation​Address UR 1
+    (0002,0031) RTV Meta Information Version RTV​Meta​Information​Version OB 1
+    (0002,0032) RTV Communication SOP Class UID RTV​Communication​SOP​Class​UID UI 1
+    (0002,0033) RTV Communication SOP Instance UID RTV​Communication​SOP​Instance​UID UI 1
+    (0002,0035) RTV Source Identifier RTV​Source​Identifier OB 1
+    (0002,0036) RTV Flow Identifier RTV​Flow​Identifier OB 1
+    (0002,0037) RTV Flow RTP Sampling Rate RTV​Flow​RTP​Sampling​Rate UL 1
+    (0002,0038) RTV Flow Actual Frame Duration RTV​Flow​Actual​Frame​Duration FD 1
+    */
 }
 
 /// Utility function for reading the body of the DICOM element as a UID.
@@ -204,6 +224,91 @@ impl FileMetaTable {
 
         builder.build()
     }
+
+    pub fn into_element_iter(self) -> impl Iterator<Item = DataElement<EmptyObject>> {
+        let mut elems = vec![
+            // file information group length
+            DataElement::new(
+                Tag(0x0002, 0x0000),
+                VR::UL,
+                Value::Primitive(self.information_group_length.into()),
+            ),
+            DataElement::new(
+                Tag(0x0002, 0x0001),
+                VR::OB,
+                Value::Primitive(dicom_value!(U8, [self.information_version[0], self.information_version[1]])),
+            ),
+            DataElement::new(
+                Tag(0x0002, 0x0002),
+                VR::UI,
+                Value::Primitive(self.media_storage_sop_class_uid.into()),
+            ),
+            DataElement::new(
+                Tag(0x0002, 0x0003),
+                VR::UI,
+                Value::Primitive(self.media_storage_sop_instance_uid.into()),
+            ),
+            DataElement::new(
+                Tag(0x0002, 0x0010),
+                VR::UI,
+                Value::Primitive(self.transfer_syntax.into()),
+            ),
+            DataElement::new(
+                Tag(0x0002, 0x0012),
+                VR::UI,
+                Value::Primitive(self.implementation_class_uid.into()),
+            )
+        ];
+        if let Some(v) = self.implementation_version_name {
+            elems.push(DataElement::new(
+                Tag(0x0002, 0x0013),
+                VR::SH,
+                Value::Primitive(v.into()),
+            ));
+        }
+        if let Some(v) = self.source_application_entity_title {
+            elems.push(DataElement::new(
+                Tag(0x0002, 0x0016),
+                VR::AE,
+                Value::Primitive(v.into()),
+            ));
+        }
+        if let Some(v) = self.sending_application_entity_title {
+            elems.push(DataElement::new(
+                Tag(0x0002, 0x0017),
+                VR::AE,
+                Value::Primitive(v.into()),
+            ));
+        }
+        if let Some(v) = self.receiving_application_entity_title {
+            elems.push(DataElement::new(
+                Tag(0x0002, 0x0018),
+                VR::AE,
+                Value::Primitive(v.into()),
+            ));
+        }
+        if let Some(v) = self.private_information_creator_uid {
+            elems.push(DataElement::new(
+                Tag(0x0002, 0x0100),
+                VR::UI,
+                Value::Primitive(v.into()),
+            ));
+        }
+        if let Some(v) = self.private_information {
+            elems.push(DataElement::new(
+                Tag(0x0002, 0x0102),
+                VR::OB,
+                Value::Primitive(PrimitiveValue::U8(v.into())),
+            ));
+        }
+        
+        elems.into_iter()
+    }
+
+    pub fn write<W: Write>(&self, writer: W) -> Result<()> {
+        let mut dset = DataSetWriter::new(writer, EncoderFor::new(ExplicitVRLittleEndianEncoder::default()), DefaultCharacterSetCodec);
+        dset.write_sequence(self.clone().into_element_iter().flat_map(IntoTokens::into_tokens))
+    }
 }
 
 /// A builder for DICOM meta information tables.
@@ -335,23 +440,50 @@ impl FileMetaTableBuilder {
 
     /// Build the table.
     pub fn build(self) -> Result<FileMetaTable> {
-        let information_group_length = self
-            .information_group_length
-            .ok_or_else(|| Error::InvalidFormat)?;
         let information_version = self.information_version.unwrap_or_else(|| {
             // Missing information version, will assume (00H, 01H). See #28
             [0, 1]
         });
         let media_storage_sop_class_uid = self
             .media_storage_sop_class_uid
-            .ok_or_else(|| Error::InvalidFormat)?;
+            .ok_or_else(|| Error::MissingMetaElement("MediaStorageSOPClassUID"))?;
         let media_storage_sop_instance_uid = self
             .media_storage_sop_instance_uid
-            .ok_or_else(|| Error::InvalidFormat)?;
-        let transfer_syntax = self.transfer_syntax.ok_or_else(|| Error::InvalidFormat)?;
+            .ok_or_else(|| Error::MissingMetaElement("MediaStorageSOPInstanceUID"))?;
+        let transfer_syntax = self.transfer_syntax
+            .ok_or_else(|| Error::MissingMetaElement("TransferSyntax"))?;
         let implementation_class_uid = self
             .implementation_class_uid
-            .ok_or_else(|| Error::InvalidFormat)?;
+            .ok_or_else(|| Error::MissingMetaElement("ImplementationClassUID"))?;
+
+        fn dicom_len<T: AsRef<str>>(x: T) -> u32 {
+            let o = x.as_ref().len() as u32;
+            if o % 2 == 1 {
+                o + 1
+            } else {
+                o
+            }
+        }
+
+        let information_group_length = match self.information_group_length {
+            Some(e) => e,
+            None => {
+                // determine the expected meta group size based on the given fields
+                12 + 14 +
+                    8 + dicom_len(&media_storage_sop_class_uid) +
+                    8 + dicom_len(&media_storage_sop_instance_uid) +
+                    8 + dicom_len(&transfer_syntax) +
+                    8 + dicom_len(&implementation_class_uid) +
+                    self.implementation_version_name.as_ref().map(|s| 8 + s.len() as u32).unwrap_or(0) +
+                    self.source_application_entity_title.as_ref().map(|s| 8 + s.len() as u32).unwrap_or(0) +
+                    self.sending_application_entity_title.as_ref().map(|s| 8 + s.len() as u32).unwrap_or(0) +
+                    self.receiving_application_entity_title.as_ref().map(|s| 8 + s.len() as u32).unwrap_or(0) +
+                    self.private_information_creator_uid.as_ref().map(|s| 8 + s.len() as u32).unwrap_or(0) +
+                    self.private_information.as_ref().map(|x| 12 + x.len() as u32).unwrap_or(0)
+
+            }
+        };
+
         Ok(FileMetaTable {
             information_group_length,
             information_version,
@@ -372,6 +504,8 @@ impl FileMetaTableBuilder {
 #[cfg(test)]
 mod tests {
     use super::FileMetaTable;
+    use dicom_core::value::Value;
+    use dicom_core::{dicom_value, DataElement, Tag, VR};
 
     const TEST_META_1: &'static [u8] = &[
         // magic code
@@ -411,6 +545,22 @@ mod tests {
 
         let table = FileMetaTable::from_reader(&mut source).unwrap();
 
+        let gt = FileMetaTable {
+            information_group_length: 200,
+            information_version: [0u8, 1u8],
+            media_storage_sop_class_uid: "1.2.840.10008.5.1.4.1.1.1\0".to_owned(),
+            media_storage_sop_instance_uid:
+                "1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567\0".to_owned(),
+            transfer_syntax: "1.2.840.10008.1.2.1\0".to_owned(),
+            implementation_class_uid: "1.2.345.6.7890.1.234".to_owned(),
+            implementation_version_name: Some("RUSTY_DICOM_269 ".to_owned()),
+            source_application_entity_title: Some("".to_owned()),
+            sending_application_entity_title: None,
+            receiving_application_entity_title: None,
+            private_information_creator_uid: None,
+            private_information: None,
+        };
+
         assert_eq!(table.information_group_length, 200);
         assert_eq!(table.information_version, [0u8, 1u8]);
         assert_eq!(
@@ -425,12 +575,83 @@ mod tests {
         assert_eq!(table.implementation_class_uid, "1.2.345.6.7890.1.234");
         assert_eq!(
             table.implementation_version_name,
-            Some(String::from("RUSTY_DICOM_269 "))
+            Some("RUSTY_DICOM_269 ".to_owned())
         );
         assert_eq!(table.source_application_entity_title, Some("".into()));
         assert_eq!(table.sending_application_entity_title, None);
         assert_eq!(table.receiving_application_entity_title, None);
         assert_eq!(table.private_information_creator_uid, None);
         assert_eq!(table.private_information, None);
+
+        assert_eq!(table, gt);
+    }
+
+    #[test]
+    fn read_meta_table_into_iter() {
+        let table = FileMetaTable {
+            information_group_length: 200,
+            information_version: [0u8, 1u8],
+            media_storage_sop_class_uid: "1.2.840.10008.5.1.4.1.1.1\0".to_owned(),
+            media_storage_sop_instance_uid:
+                "1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567\0".to_owned(),
+            transfer_syntax: "1.2.840.10008.1.2.1\0".to_owned(),
+            implementation_class_uid: "1.2.345.6.7890.1.234".to_owned(),
+            implementation_version_name: Some("RUSTY_DICOM_269 ".to_owned()),
+            source_application_entity_title: Some("".to_owned()),
+            sending_application_entity_title: None,
+            receiving_application_entity_title: None,
+            private_information_creator_uid: None,
+            private_information: None,
+        };
+
+        let gt = vec![
+            // Information Group Length
+            DataElement::new(Tag(0x0002, 0x0000), VR::UL, dicom_value!(U32, 200).into()),
+            // Information Version
+            DataElement::new(
+                Tag(0x0002, 0x0001),
+                VR::OB,
+                dicom_value!(U8, [0, 1]).into(),
+            ),
+            // Media Storage SOP Class UID
+            DataElement::new(
+                Tag(0x0002, 0x0002),
+                VR::UI,
+                Value::Primitive("1.2.840.10008.5.1.4.1.1.1\0".into())
+            ),
+            // Media Storage SOP Instance UID
+            DataElement::new(
+                Tag(0x0002, 0x0003),
+                VR::UI,
+                Value::Primitive("1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567\0".into())
+            ),
+            // Transfer Syntax
+            DataElement::new(
+                Tag(0x0002, 0x0010),
+                VR::UI,
+                Value::Primitive("1.2.840.10008.1.2.1\0".into())
+            ),
+            // Implementation Class UID
+            DataElement::new(
+                Tag(0x0002, 0x0012),
+                VR::UI,
+                Value::Primitive("1.2.345.6.7890.1.234".into())
+            ),
+            // Implementation Version Name
+            DataElement::new(
+                Tag(0x0002, 0x0013),
+                VR::SH,
+                Value::Primitive("RUSTY_DICOM_269 ".into())
+            ),
+            // Source Application Entity Title
+            DataElement::new(
+                Tag(0x0002, 0x0016),
+                VR::AE,
+                Value::Primitive("".into())
+            ),
+        ];
+
+        let elems: Vec<_> = table.into_element_iter().collect();
+        assert_eq!(elems, gt);
     }
 }
