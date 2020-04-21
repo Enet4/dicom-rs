@@ -1,7 +1,6 @@
 //! Convertion of DICOM objects into tokens.
 use crate::mem::{InMemDicomObject};
-use dicom_core::value::{PrimitiveValue};
-use dicom_core::{DataElement, Length};
+use dicom_core::{DataElement};
 use dicom_parser::dataset::{DataToken, IntoTokens};
 use std::collections::VecDeque;
 
@@ -11,8 +10,6 @@ pub struct InMemObjectTokens<E> {
     tokens_pending: VecDeque<DataToken>,
     /// the iterator of data elements in order.
     elem_iter: E,
-    /// whenever a primitive data element is yet to be processed
-    elem_pending: Option<PrimitiveValue>,
     /// whether the tokens are done
     fused: bool,
 }
@@ -28,31 +25,7 @@ where
         InMemObjectTokens {
             tokens_pending: Default::default(),
             elem_iter: obj.into_iter(),
-            elem_pending: None,
             fused: false,
-        }
-    }
-}
-
-impl<E> InMemObjectTokens<E>
-where
-    E: Iterator,
-    E::Item: IntoTokens,
-{
-    fn next_token(&mut self) -> Option<DataToken> {
-        if let Some(token) = self.tokens_pending.pop_front() {
-            return Some(token);
-        }
-
-        // otherwise, expand next element, recurse
-        if let Some(elem) = self.elem_iter.next() {
-            // TODO eventually optimize this to be less eager
-            self.tokens_pending = elem.into_tokens().collect();
-            
-            self.next_token()
-        } else {
-            // no more elements
-            None
         }
     }
 }
@@ -68,17 +41,22 @@ where
         if self.fused {
             return None;
         }        
-        // if a data element is pending, return a value token
-        if let Some(val) = self.elem_pending.take() {
-            return Some(DataToken::PrimitiveValue(val));
-        }
 
         // otherwise, consume pending tokens
-        if let Some(token) = self.next_token() {
+        if let Some(token) = self.tokens_pending.pop_front() {
             return Some(token);
-        };
+        }
 
-        None
+        // otherwise, expand next element, recurse
+        if let Some(elem) = self.elem_iter.next() {
+            // TODO eventually optimize this to be less eager
+            self.tokens_pending = elem.into_tokens().collect();
+            
+            self.next()
+        } else {
+            // no more elements
+            None
+        }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -97,3 +75,15 @@ impl<D> IntoTokens for InMemDicomObject<D> {
     }
 }
 
+
+impl<'a, D> IntoTokens for &'a InMemDicomObject<D>
+where
+    D: Clone,
+{
+    type Iter =
+        InMemObjectTokens<std::iter::Cloned<<&'a InMemDicomObject<D> as IntoIterator>::IntoIter>>;
+
+    fn into_tokens(self) -> Self::Iter {
+        InMemObjectTokens::new(self.into_iter().cloned())
+    }
+}
