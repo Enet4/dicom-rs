@@ -111,10 +111,10 @@ where
         let mut to = BufWriter::new(file);
 
         // write preamble
-        to.write(&[0_u8; 128][..])?;
+        to.write_all(&[0_u8; 128][..])?;
 
         // write magic sequence
-        to.write(b"DICM")?;
+        to.write_all(b"DICM")?;
 
         // write meta group
         self.meta.write(&mut to)?;
