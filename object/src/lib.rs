@@ -203,10 +203,10 @@ mod tests {
     #[test]
     fn smoke_test() {
         let meta = FileMetaTableBuilder::new()
-            .transfer_syntax(dicom_transfer_syntax_registry::entries::EXPLICIT_VR_LITTLE_ENDIAN.uid().to_owned() + "\0")
-            .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1\0".to_owned())
-            .media_storage_sop_instance_uid("1.2.3.456\0".to_owned())
-            .implementation_class_uid("1.2.345.6.7890.1.234".to_owned())
+            .transfer_syntax(dicom_transfer_syntax_registry::entries::EXPLICIT_VR_LITTLE_ENDIAN.uid())
+            .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1")
+            .media_storage_sop_instance_uid("1.2.3.456")
+            .implementation_class_uid("1.2.345.6.7890.1.234")
             .build()
             .unwrap();
         let obj = RootDicomObject::new_empty_with_meta(

@@ -360,6 +360,36 @@ impl Default for FileMetaTableBuilder {
     }
 }
 
+/// Ensure that the string is even lengthed, by adding a trailing character
+/// if not.
+#[inline]
+fn padded<T>(s: T, pad: char) -> String
+where
+    T: Into<String>,
+{
+    let mut s = s.into();
+    if s.len() % 2 == 1 {
+        s.push(pad);
+    }
+    s
+}
+
+/// Ensure that the string is even lengthed with trailing '\0's.
+fn ui_padded<T>(s: T) -> String
+where
+    T: Into<String>,
+{
+    padded(s, '\0')
+}
+
+/// Ensure that the string is even lengthed with trailing spaces.
+fn txt_padded<T>(s: T) -> String
+where
+    T: Into<String>,
+{
+    padded(s, ' ')
+}
+
 impl FileMetaTableBuilder {
     /// Create a new, empty builder.
     pub fn new() -> FileMetaTableBuilder {
@@ -379,62 +409,92 @@ impl FileMetaTableBuilder {
     }
 
     /// Define the media storage SOP class UID.
-    pub fn media_storage_sop_class_uid(mut self, value: String) -> FileMetaTableBuilder {
-        self.media_storage_sop_class_uid = Some(value);
+    pub fn media_storage_sop_class_uid<T>(mut self, value: T) -> FileMetaTableBuilder
+    where
+        T: Into<String>,
+    {
+        self.media_storage_sop_class_uid = Some(ui_padded(value));
         self
     }
 
     /// Define the media storage SOP instance UID.
-    pub fn media_storage_sop_instance_uid(mut self, value: String) -> FileMetaTableBuilder {
-        self.media_storage_sop_instance_uid = Some(value);
+    pub fn media_storage_sop_instance_uid<T>(mut self, value: T) -> FileMetaTableBuilder
+    where
+        T: Into<String>,
+    {
+        self.media_storage_sop_instance_uid = Some(ui_padded(value));
         self
     }
 
-    /// Define the transfer syntax.
-    pub fn transfer_syntax(mut self, value: String) -> FileMetaTableBuilder {
-        self.transfer_syntax = Some(value);
+    /// Define the transfer syntax UID.
+    pub fn transfer_syntax<T>(mut self, value: T) -> FileMetaTableBuilder
+    where
+        T: Into<String>,
+    {
+        self.transfer_syntax = Some(ui_padded(value));
         self
     }
 
     /// Define the implementation class UID.
-    pub fn implementation_class_uid(mut self, value: String) -> FileMetaTableBuilder {
-        self.implementation_class_uid = Some(value);
+    pub fn implementation_class_uid<T>(mut self, value: T) -> FileMetaTableBuilder
+    where
+        T: Into<String>,
+    {
+        self.implementation_class_uid = Some(ui_padded(value));
         self
     }
 
     /// Define the implementation version name.
-    pub fn implementation_version_name(mut self, value: String) -> FileMetaTableBuilder {
-        self.implementation_version_name = Some(value);
+    pub fn implementation_version_name<T>(mut self, value: T) -> FileMetaTableBuilder
+    where
+        T: Into<String>,
+    {
+        self.implementation_version_name = Some(txt_padded(value));
         self
     }
 
     /// Define the source application entity title.
-    pub fn source_application_entity_title(mut self, value: String) -> FileMetaTableBuilder {
-        self.source_application_entity_title = Some(value);
+    pub fn source_application_entity_title<T>(mut self, value: T) -> FileMetaTableBuilder
+    where
+        T: Into<String>,
+    {
+        self.source_application_entity_title = Some(txt_padded(value));
         self
     }
 
     /// Define the sending application entity title.
-    pub fn sending_application_entity_title(mut self, value: String) -> FileMetaTableBuilder {
-        self.sending_application_entity_title = Some(value);
+    pub fn sending_application_entity_title<T>(mut self, value: T) -> FileMetaTableBuilder
+    where
+        T: Into<String>,
+    {
+        self.sending_application_entity_title = Some(txt_padded(value));
         self
     }
 
     /// Define the receiving application entity title.
-    pub fn receiving_application_entity_title(mut self, value: String) -> FileMetaTableBuilder {
-        self.receiving_application_entity_title = Some(value);
+    pub fn receiving_application_entity_title<T>(mut self, value: T) -> FileMetaTableBuilder
+    where
+        T: Into<String>,
+    {
+        self.receiving_application_entity_title = Some(txt_padded(value));
         self
     }
 
     /// Define the private information creator UID.
-    pub fn private_information_creator_uid(mut self, value: String) -> FileMetaTableBuilder {
-        self.private_information_creator_uid = Some(value);
+    pub fn private_information_creator_uid<T>(mut self, value: T) -> FileMetaTableBuilder
+    where
+        T: Into<String>,
+    {
+        self.private_information_creator_uid = Some(ui_padded(value));
         self
     }
 
     /// Define the private information as a vector of bytes.
-    pub fn private_information(mut self, value: Vec<u8>) -> FileMetaTableBuilder {
-        self.private_information = Some(value);
+    pub fn private_information<T>(mut self, value: T) -> FileMetaTableBuilder
+    where
+        T: Into<Vec<u8>>,
+    {
+        self.private_information = Some(value.into());
         self
     }
 
