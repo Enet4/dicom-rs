@@ -202,6 +202,8 @@ mod tests {
 
     #[test]
     fn smoke_test() {
+        const FILE_NAME: &str = ".smoke-test.dcm";
+
         let meta = FileMetaTableBuilder::new()
             .transfer_syntax(dicom_transfer_syntax_registry::entries::EXPLICIT_VR_LITTLE_ENDIAN.uid())
             .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1")
@@ -212,7 +214,12 @@ mod tests {
         let obj = RootDicomObject::new_empty_with_meta(
             meta);
         
-        obj.write_to_file(".smoke-test.dcm").unwrap();
-        let _ = std::fs::remove_file(".smoke-test.dcm");
+        obj.write_to_file(FILE_NAME).unwrap();
+
+        let obj2 = RootDicomObject::open_file(FILE_NAME).unwrap();
+
+        assert_eq!(obj, obj2);
+
+        let _ = std::fs::remove_file(FILE_NAME);
     }
 }

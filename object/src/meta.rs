@@ -528,8 +528,10 @@ impl FileMetaTableBuilder {
         let information_group_length = match self.information_group_length {
             Some(e) => e,
             None => {
-                // determine the expected meta group size based on the given fields
-                12 + 14 +
+                    // determine the expected meta group size based on the given fields.
+                    // FileMetaInformationGroupLength is not included here
+
+                    14 +
                     8 + dicom_len(&media_storage_sop_class_uid) +
                     8 + dicom_len(&media_storage_sop_instance_uid) +
                     8 + dicom_len(&transfer_syntax) +
@@ -563,7 +565,7 @@ impl FileMetaTableBuilder {
 
 #[cfg(test)]
 mod tests {
-    use super::FileMetaTable;
+    use super::{FileMetaTableBuilder, FileMetaTable};
     use dicom_core::value::Value;
     use dicom_core::{dicom_value, DataElement, Tag, VR};
 
@@ -643,6 +645,39 @@ mod tests {
         assert_eq!(table.private_information_creator_uid, None);
         assert_eq!(table.private_information, None);
 
+        assert_eq!(table, gt);
+    }
+
+    #[test]
+    fn create_meta_table_with_builder() {
+        let table = FileMetaTableBuilder::new()
+            .information_version([0, 1])
+            .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1")
+            .media_storage_sop_instance_uid("1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567")
+            .transfer_syntax("1.2.840.10008.1.2.1")
+            .implementation_class_uid("1.2.345.6.7890.1.234")
+            .implementation_version_name("RUSTY_DICOM_269")
+            .source_application_entity_title("")
+            .build()
+            .unwrap();
+
+        let gt = FileMetaTable {
+            information_group_length: 200,
+            information_version: [0u8, 1u8],
+            media_storage_sop_class_uid: "1.2.840.10008.5.1.4.1.1.1\0".to_owned(),
+            media_storage_sop_instance_uid:
+                "1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567\0".to_owned(),
+            transfer_syntax: "1.2.840.10008.1.2.1\0".to_owned(),
+            implementation_class_uid: "1.2.345.6.7890.1.234".to_owned(),
+            implementation_version_name: Some("RUSTY_DICOM_269 ".to_owned()),
+            source_application_entity_title: Some("".to_owned()),
+            sending_application_entity_title: None,
+            receiving_application_entity_title: None,
+            private_information_creator_uid: None,
+            private_information: None,
+        };
+
+        assert_eq!(table.information_group_length, gt.information_group_length);
         assert_eq!(table, gt);
     }
 
