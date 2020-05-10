@@ -271,7 +271,7 @@ impl PrimitiveValue {
         PrimitiveValue::U16(C::from_elem(value, 1))
     }
 
-    /// Create a single unsinged 32 value.
+    /// Create a single unsigned 32-bit value.
     pub fn new_u32(value: u32) -> Self {
         PrimitiveValue::U32(C::from_elem(value, 1))
     }
