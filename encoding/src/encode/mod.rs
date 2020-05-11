@@ -363,33 +363,99 @@ pub trait EncodeTo<W: ?Sized> {
         W: Write;
 }
 
-impl<T, W: ?Sized> EncodeTo<W> for T
+impl<T, W: ?Sized> EncodeTo<W> for &T
 where
-    T: Encode,
-    W: Write,
+    T: EncodeTo<W>,
 {
-    fn encode_tag(&self, to: &mut W, tag: Tag) -> Result<()> {
-        Encode::encode_tag(self, to, tag)
+    fn encode_tag(&self, to: &mut W, tag: Tag) -> Result<()>
+    where
+        W: Write
+    {
+        (**self).encode_tag(to, tag)
     }
 
-    fn encode_element_header(&self, to: &mut W, de: DataElementHeader) -> Result<usize> {
-        Encode::encode_element_header(self, to, de)
+    fn encode_element_header(&self, to: &mut W, de: DataElementHeader) -> Result<usize>
+    where
+        W: Write
+    {
+        (**self).encode_element_header(to, de)
     }
 
-    fn encode_item_header(&self, to: &mut W, len: u32) -> Result<()> {
-        Encode::encode_item_header(self, to, len)
+    fn encode_item_header(&self, to: &mut W, len: u32) -> Result<()>
+    where
+        W: Write
+    {
+        (**self).encode_item_header(to, len)
     }
 
-    fn encode_item_delimiter(&self, to: &mut W) -> Result<()> {
-        Encode::encode_item_delimiter(self, to)
+    fn encode_item_delimiter(&self, to: &mut W) -> Result<()>
+    where
+        W: Write
+    {
+        (**self).encode_item_delimiter(to)
     }
 
-    fn encode_sequence_delimiter(&self, to: &mut W) -> Result<()> {
-        Encode::encode_sequence_delimiter(self, to)
+    fn encode_sequence_delimiter(&self, to: &mut W) -> Result<()>
+    where
+        W: Write
+    {
+        (**self).encode_sequence_delimiter(to)
     }
 
-    fn encode_primitive(&self, to: &mut W, value: &PrimitiveValue) -> Result<usize> {
-        Encode::encode_primitive(self, to, value)
+    /// Encode and write a primitive DICOM value to the given destination.
+    fn encode_primitive(&self, to: &mut W, value: &PrimitiveValue) -> Result<usize>
+    where
+        W: Write
+    {
+        (**self).encode_primitive(to, value)
+    }
+}
+
+impl<T: ?Sized, W: ?Sized> EncodeTo<W> for Box<T>
+where
+    T: EncodeTo<W>,
+{
+    fn encode_tag(&self, to: &mut W, tag: Tag) -> Result<()>
+    where
+        W: Write
+    {
+        (**self).encode_tag(to, tag)
+    }
+
+    fn encode_element_header(&self, to: &mut W, de: DataElementHeader) -> Result<usize>
+    where
+        W: Write
+    {
+        (**self).encode_element_header(to, de)
+    }
+
+    fn encode_item_header(&self, to: &mut W, len: u32) -> Result<()>
+    where
+        W: Write
+    {
+        (**self).encode_item_header(to, len)
+    }
+
+    fn encode_item_delimiter(&self, to: &mut W) -> Result<()>
+    where
+        W: Write
+    {
+        (**self).encode_item_delimiter(to)
+    }
+
+    fn encode_sequence_delimiter(&self, to: &mut W) -> Result<()>
+    where
+        W: Write
+    {
+        (**self).encode_sequence_delimiter(to)
+    }
+
+    /// Encode and write a primitive DICOM value to the given destination.
+    fn encode_primitive(&self, to: &mut W, value: &PrimitiveValue) -> Result<usize>
+    where
+        W: Write
+    {
+        (**self).encode_primitive(to, value)
     }
 }
 
@@ -536,11 +602,12 @@ mod tests {
     fn boxed_encode_is_encode<T>(encoder: T)
     where
         T: Encode,
+        T: Copy,
     {
         is_encode(&encoder);
-        is_encode_to::<dyn Write, _>(&encoder);
+        is_encode_to::<dyn Write, _>(&EncoderFor::new(encoder));
         let boxed = Box::new(encoder);
         is_encode(&boxed);
-        is_encode_to::<dyn Write, _>(&boxed);
+        is_encode_to::<dyn Write, _>(&EncoderFor::new(boxed));
     }
 }

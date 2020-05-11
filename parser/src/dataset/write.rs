@@ -1,11 +1,12 @@
 //! Module for the data set reader
 use crate::dataset::*;
 use crate::error::{DataSetSyntaxError, Error, Result};
-use crate::printer::Printer;
+use crate::stateful::encode::StatefulEncoder;
 use dicom_core::{DataElementHeader, Length, VR};
-use dicom_encoding::encode::{Encode, EncodeTo};
+use dicom_encoding::encode::EncodeTo;
 use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
 use dicom_encoding::TransferSyntax;
+use dicom_encoding::transfer_syntax::DynEncoder;
 use std::io::Write;
 
 /// A writer-specific token representing a sequence or item start.
@@ -23,16 +24,16 @@ struct SeqToken {
 /// set tokens to bytes.
 #[derive(Debug)]
 pub struct DataSetWriter<W, E, T> {
-    printer: Printer<W, E, T>,
+    printer: StatefulEncoder<W, E, T>,
     seq_tokens: Vec<SeqToken>,
     last_de: Option<DataElementHeader>,
 }
 
-impl<W> DataSetWriter<W, Box<dyn EncodeTo<W>>, Box<dyn TextCodec>>
+impl<'w, W: 'w> DataSetWriter<W, DynEncoder<'w, W>, Box<dyn TextCodec>>
 where
     W: Write,
 {
-    pub fn with_ts_cs(to: W, ts: TransferSyntax, cs: SpecificCharacterSet) -> Result<Self> {
+    pub fn with_ts_cs(to: W, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self> {
         let encoder = ts
             .encoder_for()
             .ok_or_else(|| Error::UnsupportedTransferSyntax)?;
@@ -44,7 +45,7 @@ where
 impl<W, E, T> DataSetWriter<W, E, T> {
     pub fn new(to: W, encoder: E, text: T) -> Self {
         DataSetWriter {
-            printer: Printer::new(to, encoder, text),
+            printer: StatefulEncoder::new(to, encoder, text),
             seq_tokens: Vec::new(),
             last_de: None,
         }
@@ -54,10 +55,11 @@ impl<W, E, T> DataSetWriter<W, E, T> {
 impl<W, E, T> DataSetWriter<W, E, T>
 where
     W: Write,
-    E: Encode,
+    E: EncodeTo<W>,
     T: TextCodec,
 {
     /// Feed the given sequence of tokens which are part of the same data set.
+    #[inline]
     pub fn write_sequence<I>(&mut self, tokens: I) -> Result<()>
     where
         I: IntoIterator<Item = DataToken>,
@@ -70,14 +72,13 @@ where
     }
 
     /// Feed the given data set token for writing the data set.
-    #[inline]
     pub fn write(&mut self, token: DataToken) -> Result<()> {
         // adjust the logic of sequence printing:
         // explicit length sequences or items should not print
         // the respective delimiter
 
         match token {
-            DataToken::SequenceStart { tag: _, len } => {
+            DataToken::SequenceStart { len, .. } => {
                 self.seq_tokens.push(SeqToken {
                     typ: SeqTokenType::Sequence,
                     len,
@@ -161,6 +162,7 @@ mod tests {
         Tag, VR,
     };
     use dicom_encoding::text::DefaultCharacterSetCodec;
+    use dicom_encoding::encode::EncoderFor;
     use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder;
 
     fn validate_dataset_writer<I>(tokens: I, ground_truth: &[u8])
@@ -168,7 +170,7 @@ mod tests {
         I: IntoIterator<Item = DataToken>,
     {
         let mut raw_out: Vec<u8> = vec![];
-        let encoder = ExplicitVRLittleEndianEncoder::default();
+        let encoder = EncoderFor::new(ExplicitVRLittleEndianEncoder::default());
         let text = DefaultCharacterSetCodec::default();
         let mut dset_writer = DataSetWriter::new(&mut raw_out, encoder, text);
 

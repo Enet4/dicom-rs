@@ -7,14 +7,14 @@
 //!
 //! For a more intuitive, object-oriented API, please see the `dicom-object`
 //! crate.
-#![recursion_limit = "80"]
+#![recursion_limit = "90"]
 
 pub mod dataset;
 pub mod error;
-pub mod parser;
-pub mod printer;
+pub mod stateful;
 
 mod util;
 
 pub use dataset::DataSetReader;
-pub use parser::{DicomParser, DynamicDicomParser, Parse};
+pub use stateful::decode::{DynStatefulDecoder, StatefulDecode, StatefulDecoder};
+pub use stateful::encode::StatefulEncoder;

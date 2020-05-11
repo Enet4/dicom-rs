@@ -19,6 +19,10 @@ quick_error! {
         InvalidFormat {
             description("Content is not DICOM or is corrupted")
         }
+        /// A required element in the meta group is missing
+        MissingMetaElement(name: &'static str) {
+            display("Missing required meta element `{}`", name)
+        }
         /// Raised when the obtained data element was not the one expected.
         UnexpectedTag(tag: Tag) {
             description("Unexpected DICOM element tag in current reading position")

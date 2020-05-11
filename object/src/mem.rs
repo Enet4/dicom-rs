@@ -10,15 +10,15 @@ use std::path::Path;
 use crate::meta::FileMetaTable;
 use crate::{DicomObject, RootDicomObject};
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
-use dicom_core::header::Header;
-use dicom_core::value::{DicomValueType, Value, ValueType, C};
+use dicom_core::header::{HasLength, Header};
+use dicom_core::value::{Value, C};
 use dicom_core::{DataElement, Length, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_parser::dataset::{DataSetReader, DataToken};
 use dicom_parser::error::{DataSetSyntaxError, Error, Result};
-use dicom_parser::parser::Parse;
+use dicom_parser::StatefulDecode;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
 /// A full in-memory DICOM data element.
@@ -45,12 +45,8 @@ impl<'s, D> PartialEq for InMemDicomObject<D> {
     }
 }
 
-impl<D> DicomValueType for InMemDicomObject<D> {
-    fn value_type(&self) -> ValueType {
-        ValueType::Item
-    }
-
-    fn size(&self) -> Length {
+impl<D> HasLength for InMemDicomObject<D> {
+    fn length(&self) -> Length {
         self.len
     }
 }
@@ -103,10 +99,18 @@ impl InMemDicomObject<StandardDataDictionary> {
         }
     }
 
-    /// Construct a DICOM object from an iterator of structured elements.
-    pub fn from_element_iter<I>(iter: I) -> Result<Self>
+    /// Construct a DICOM object from a fallible source of structured elements.
+    pub fn from_element_source<I>(iter: I) -> Result<Self>
     where
         I: IntoIterator<Item = Result<InMemElement<StandardDataDictionary>>>,
+    {
+        Self::from_element_source_with_dict(iter, StandardDataDictionary)
+    }
+
+    /// Construct a DICOM object from a non-fallible source of structured elements.
+    pub fn from_element_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = InMemElement<StandardDataDictionary>>,
     {
         Self::from_iter_with_dict(iter, StandardDataDictionary)
     }
@@ -220,6 +224,20 @@ where
     }
 }
 
+impl RootDicomObject<InMemDicomObject<StandardDataDictionary>> {
+    /// Create a new empty object, using the given file meta table.
+    pub fn new_empty_with_meta(meta: FileMetaTable) -> Self {
+        RootDicomObject {
+            meta,
+            obj: InMemDicomObject {
+                entries: BTreeMap::new(),
+                dict: StandardDataDictionary,
+                len: Length::UNDEFINED,
+            },
+        }
+    }
+}
+
 impl<D> InMemDicomObject<D>
 where
     D: DataDictionary,
@@ -235,7 +253,7 @@ where
     }
 
     /// Construct a DICOM object from an iterator of structured elements.
-    pub fn from_iter_with_dict<I>(iter: I, dict: D) -> Result<Self>
+    pub fn from_element_source_with_dict<I>(iter: I, dict: D) -> Result<Self>
     where
         I: IntoIterator<Item = Result<InMemElement<D>>>,
     {
@@ -245,6 +263,19 @@ where
             dict,
             len: Length::UNDEFINED,
         })
+    }
+
+    /// Construct a DICOM object from a non-fallible iterator of structured elements.
+    pub fn from_iter_with_dict<I>(iter: I, dict: D) -> Self
+    where
+        I: IntoIterator<Item = InMemElement<D>>,
+    {
+        let entries = iter.into_iter().map(|e| (e.tag(), e)).collect();
+        InMemDicomObject {
+            entries,
+            dict,
+            len: Length::UNDEFINED,
+        }
     }
 
     // Standard methods follow. They are not placed as a trait implementation
@@ -279,15 +310,14 @@ where
     // private methods
 
     /// Build an object by consuming a data set parser.
-    fn build_object<'s, S: 's, P>(
-        dataset: &mut DataSetReader<S, P, D>,
+    fn build_object<P>(
+        dataset: &mut DataSetReader<P, D>,
         dict: D,
         in_item: bool,
         len: Length,
     ) -> Result<Self>
     where
-        S: Read,
-        P: Parse<dyn Read + 's>,
+        P: StatefulDecode,
     {
         let mut entries: BTreeMap<Tag, InMemElement<D>> = BTreeMap::new();
         // perform a structured parsing of incoming tokens
@@ -323,22 +353,19 @@ where
     }
 
     /// Build a DICOM sequence by consuming a data set parser.
-    fn build_sequence<'s, S: 's, P>(
+    fn build_sequence<P>(
         _tag: Tag,
         _len: Length,
-        dataset: &mut DataSetReader<S, P, D>,
+        dataset: &mut DataSetReader<P, D>,
         dict: &D,
     ) -> Result<C<InMemDicomObject<D>>>
     where
-        S: Read,
-        P: Parse<dyn Read + 's>,
+        P: StatefulDecode,
     {
         let mut items: C<_> = SmallVec::new();
         while let Some(token) = dataset.next() {
             match token? {
                 DataToken::ItemStart { len } => {
-                    // TODO if length is well defined, then it should be
-                    // considered instead of finding the item delimiter.
                     items.push(Self::build_object(&mut *dataset, dict.clone(), true, len)?);
                 }
                 DataToken::SequenceEnd => {
@@ -406,8 +433,9 @@ impl<D> Iterator for Iter<D> {
 mod tests {
 
     use super::*;
+    use dicom_core::header::{DataElementHeader, Length, VR};
     use dicom_core::value::PrimitiveValue;
-    use dicom_core::VR;
+    use dicom_parser::dataset::IntoTokens;
 
     #[test]
     fn inmem_object_write() {
@@ -445,5 +473,122 @@ mod tests {
         obj.put(another_patient_name.clone());
         let elem1 = (&obj).element_by_name("PatientName").unwrap();
         assert_eq!(elem1, &another_patient_name);
+    }
+
+    #[test]
+    fn inmem_empty_object_into_tokens() {
+        let obj = InMemDicomObject::create_empty();
+        let tokens = obj.into_tokens();
+        assert_eq!(tokens.count(), 0);
+    }
+
+    #[test]
+    fn inmem_shallow_object_into_tokens() {
+        let patient_name = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            PrimitiveValue::Str("Doe^John".to_string()).into(),
+        );
+        let modality = DataElement::new(
+            Tag(0x0008, 0x0060),
+            VR::CS,
+            PrimitiveValue::Str("MG".to_string()).into(),
+        );
+        let mut obj = InMemDicomObject::create_empty();
+        obj.put(patient_name);
+        obj.put(modality);
+
+        let tokens: Vec<_> = obj.into_tokens().collect();
+
+        assert_eq!(
+            tokens,
+            vec![
+                DataToken::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0008, 0x0060),
+                    vr: VR::CS,
+                    len: Length(2),
+                }),
+                DataToken::PrimitiveValue(PrimitiveValue::Str("MG".to_owned())),
+                DataToken::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0010, 0x0010),
+                    vr: VR::PN,
+                    len: Length(8),
+                }),
+                DataToken::PrimitiveValue(PrimitiveValue::Str("Doe^John".to_owned())),
+            ]
+        );
+    }
+
+    #[test]
+    fn inmem_deep_object_into_tokens() {
+        use smallvec::smallvec;
+
+        let obj_1 = InMemDicomObject::from_element_iter(vec![
+            DataElement::new(Tag(0x0018, 0x6012), VR::US, Value::Primitive(1_u16.into())),
+            DataElement::new(Tag(0x0018, 0x6014), VR::US, Value::Primitive(2_u16.into())),
+        ]);
+
+        let obj_2 = InMemDicomObject::from_element_iter(vec![DataElement::new(
+            Tag(0x0018, 0x6012),
+            VR::US,
+            Value::Primitive(4_u16.into()),
+        )]);
+
+        let main_obj = InMemDicomObject::from_element_iter(vec![
+            DataElement::new(
+                Tag(0x0018, 0x6011),
+                VR::SQ,
+                Value::Sequence {
+                    items: smallvec![obj_1, obj_2],
+                    size: Length::UNDEFINED,
+                },
+            ),
+            DataElement::new(Tag(0x0020, 0x4000), VR::LT, Value::Primitive("TEST".into())),
+        ]);
+
+        let tokens: Vec<_> = main_obj.into_tokens().collect();
+
+        assert_eq!(
+            tokens,
+            vec![
+                DataToken::SequenceStart {
+                    tag: Tag(0x0018, 0x6011),
+                    len: Length::UNDEFINED,
+                },
+                DataToken::ItemStart {
+                    len: Length::UNDEFINED,
+                },
+                DataToken::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0018, 0x6012),
+                    vr: VR::US,
+                    len: Length(2),
+                }),
+                DataToken::PrimitiveValue(PrimitiveValue::U16([1].as_ref().into())),
+                DataToken::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0018, 0x6014),
+                    vr: VR::US,
+                    len: Length(2),
+                }),
+                DataToken::PrimitiveValue(PrimitiveValue::U16([2].as_ref().into())),
+                DataToken::ItemEnd,
+                DataToken::ItemStart {
+                    len: Length::UNDEFINED,
+                },
+                DataToken::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0018, 0x6012),
+                    vr: VR::US,
+                    len: Length(2),
+                }),
+                DataToken::PrimitiveValue(PrimitiveValue::U16([4].as_ref().into())),
+                DataToken::ItemEnd,
+                DataToken::SequenceEnd,
+                DataToken::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0020, 0x4000),
+                    vr: VR::LT,
+                    len: Length(4),
+                }),
+                DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
+            ]
+        );
     }
 }

@@ -1,7 +1,7 @@
 //! This module includes a high level abstraction over a DICOM data element's value.
 
 use crate::error::CastValueError;
-use crate::header::{Length, Tag};
+use crate::header::{HasLength, Length, Tag};
 use chrono::{Datelike, FixedOffset, Timelike};
 use itertools::Itertools;
 use smallvec::SmallVec;
@@ -28,10 +28,7 @@ pub enum Value<I> {
     },
 }
 
-impl<I> Value<I>
-where
-    I: DicomValueType,
-{
+impl<I> Value<I> {
     /// Obtain the number of individual values.
     /// In a sequence item, this is the number of items.
     pub fn multiplicity(&self) -> u32 {
@@ -50,7 +47,7 @@ where
     }
 
     /// Gets a reference to the items.
-    pub fn item(&self) -> Option<&[I]> {
+    pub fn items(&self) -> Option<&[I]> {
         match *self {
             Value::Sequence { ref items, .. } => Some(items),
             _ => None,
@@ -66,13 +63,18 @@ where
     }
 
     /// Retrieves the items.
-    pub fn into_item(self) -> Option<C<I>> {
+    pub fn into_items(self) -> Option<C<I>> {
         match self {
             Value::Sequence { items, .. } => Some(items),
             _ => None,
         }
     }
+}
 
+impl<I> Value<I>
+where
+    I: HasLength,
+{
     /// Retrieves the primitive value as a single string.
     ///
     /// If the value contains multiple strings, they are concatenated
@@ -210,7 +212,75 @@ pub enum PrimitiveValue {
     Time(C<NaiveTime>),
 }
 
+/// A utility macro for implementing the conversion from a core type into a
+/// DICOM primitive value with a single element.
+macro_rules! impl_from_for_primitive {
+    ($typ: ty, $variant: ident) => {
+        impl From<$typ> for PrimitiveValue {
+            fn from(value: $typ) -> Self {
+                PrimitiveValue::$variant(C::from_elem(value, 1))
+            }
+        }
+    };
+}
+
+impl_from_for_primitive!(u8, U8);
+impl_from_for_primitive!(u16, U16);
+impl_from_for_primitive!(i16, I16);
+impl_from_for_primitive!(u32, U32);
+impl_from_for_primitive!(i32, I32);
+impl_from_for_primitive!(u64, U64);
+impl_from_for_primitive!(i64, I64);
+impl_from_for_primitive!(f32, F32);
+impl_from_for_primitive!(f64, F64);
+
+impl_from_for_primitive!(Tag, Tags);
+impl_from_for_primitive!(NaiveDate, Date);
+impl_from_for_primitive!(NaiveTime, Time);
+impl_from_for_primitive!(DateTime<FixedOffset>, DateTime);
+
+/// Construct a DICOM value.
+#[macro_export]
+macro_rules! dicom_value {
+    ($typ: ident, [ $($elem: expr),* ]) => {
+        {
+            use smallvec::smallvec; // import smallvec macro
+            dicom_core::value::PrimitiveValue :: $typ (smallvec![$($elem,)*])
+        }
+    };
+    ($typ: ident, $elem: expr) => {
+        dicom_core::value::PrimitiveValue :: $typ (dicom_core::value::C::from_elem($elem, 1))
+    };
+}
+
+impl From<String> for PrimitiveValue {
+    fn from(value: String) -> Self {
+        PrimitiveValue::Str(value)
+    }
+}
+
+impl From<&str> for PrimitiveValue {
+    fn from(value: &str) -> Self {
+        PrimitiveValue::Str(value.to_owned())
+    }
+}
+
 impl PrimitiveValue {
+    /// Create a single unsigned 16-bit value.
+    pub fn new_u16(value: u16) -> Self {
+        PrimitiveValue::U16(C::from_elem(value, 1))
+    }
+
+    /// Create a single unsigned 32-bit value.
+    pub fn new_u32(value: u32) -> Self {
+        PrimitiveValue::U32(C::from_elem(value, 1))
+    }
+
+    /// Create a single I32 value.
+    pub fn new_i32(value: u32) -> Self {
+        PrimitiveValue::U32(C::from_elem(value, 1))
+    }
+
     /// Obtain the number of individual elements. This number may not
     /// match the DICOM value multiplicity in some value representations.
     pub fn multiplicity(&self) -> u32 {
@@ -436,6 +506,12 @@ impl PrimitiveValue {
     }
 }
 
+impl HasLength for PrimitiveValue {
+    fn length(&self) -> Length {
+        Length::defined(self.calculate_byte_len() as u32)
+    }
+}
+
 /// An enum representing an abstraction of a DICOM element's data value type.
 /// This should be the equivalent of `PrimitiveValue` without the content,
 /// plus the `Item` entry.
@@ -511,16 +587,16 @@ pub enum ValueType {
 }
 
 /// A trait for a value that maps to a DICOM element data value.
-pub trait DicomValueType {
+pub trait DicomValueType: HasLength {
     /// Retrieve the specific type of this value.
     fn value_type(&self) -> ValueType;
 
     /// Retrieve the number of values contained.
-    fn size(&self) -> Length;
+    fn cardinality(&self) -> usize;
 
     /// Check whether the value is empty (0 length).
     fn is_empty(&self) -> bool {
-        self.size() == Length(0)
+        self.length() == Length(0)
     }
 }
 
@@ -547,44 +623,50 @@ impl DicomValueType for PrimitiveValue {
         }
     }
 
-    fn size(&self) -> Length {
+    fn cardinality(&self) -> usize {
         use self::PrimitiveValue::*;
-        Length::defined(match self {
+        match self {
             Empty => 0,
             Str(_) => 1,
-            Date(b) => b.len() as u32,
-            DateTime(b) => b.len() as u32,
-            F32(b) => b.len() as u32,
-            F64(b) => b.len() as u32,
-            I16(b) => b.len() as u32,
-            I32(b) => b.len() as u32,
-            I64(b) => b.len() as u32,
-            Strs(b) => b.len() as u32,
-            Tags(b) => b.len() as u32,
-            Time(b) => b.len() as u32,
-            U16(b) => b.len() as u32,
-            U32(b) => b.len() as u32,
-            U64(b) => b.len() as u32,
-            U8(b) => b.len() as u32,
-        })
+            Date(b) => b.len(),
+            DateTime(b) => b.len(),
+            F32(b) => b.len(),
+            F64(b) => b.len(),
+            I16(b) => b.len(),
+            I32(b) => b.len(),
+            I64(b) => b.len(),
+            Strs(b) => b.len(),
+            Tags(b) => b.len(),
+            Time(b) => b.len(),
+            U16(b) => b.len(),
+            U32(b) => b.len(),
+            U64(b) => b.len(),
+            U8(b) => b.len(),
+        }
     }
 }
 
-impl<I> DicomValueType for Value<I>
-where
-    I: DicomValueType,
-{
+impl<I> HasLength for Value<I> {
+    fn length(&self) -> Length {
+        match self {
+            Value::Primitive(v) => v.length(),
+            Value::Sequence { size, .. } => *size,
+        }
+    }
+}
+
+impl<I> DicomValueType for Value<I> {
     fn value_type(&self) -> ValueType {
-        match *self {
-            Value::Primitive(ref v) => v.value_type(),
+        match self {
+            Value::Primitive(v) => v.value_type(),
             Value::Sequence { .. } => ValueType::Item,
         }
     }
 
-    fn size(&self) -> Length {
-        match *self {
-            Value::Primitive(ref v) => v.size(),
-            Value::Sequence { size, .. } => size,
+    fn cardinality(&self) -> usize {
+        match self {
+            Value::Primitive(v) => v.cardinality(),
+            Value::Sequence { items, .. } => items.len(),
         }
     }
 }
