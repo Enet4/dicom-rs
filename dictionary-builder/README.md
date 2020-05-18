@@ -1,5 +1,8 @@
 # DICOM Dictionary Builder
 
+[![CratesIO](https://img.shields.io/crates/v/dicom-dictionary-builder.svg)](https://crates.io/crates/dicom-dictionary-builder)
+[![Documentation](https://docs.rs/dicom-dictionary-builder/badge.svg)](https://docs.rs/dicom-dictionary-builder)
+
 This sub-project is a tool for generating machine readable attribute dictionaries from the DICOM standard.
 
 ## Building
