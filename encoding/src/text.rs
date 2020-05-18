@@ -60,7 +60,7 @@ where
 }
 
 /// Type alias for a type erased text codec.
-/// 
+///
 /// It is important because stateful decoders may need to change the expected
 /// text encoding format at run-time.
 pub type DynamicTextCodec = Box<dyn TextCodec>;

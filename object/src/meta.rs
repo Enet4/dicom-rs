@@ -4,11 +4,11 @@ use dicom_core::dicom_value;
 use dicom_core::header::{DataElement, EmptyObject, HasLength, Header};
 use dicom_core::value::{PrimitiveValue, Value};
 use dicom_core::{Length, Tag, VR};
-use dicom_parser::dataset::{DataSetWriter, IntoTokens};
-use dicom_encoding::text::{self, DefaultCharacterSetCodec, TextCodec};
 use dicom_encoding::decode::{self, DecodeFrom};
 use dicom_encoding::encode::EncoderFor;
+use dicom_encoding::text::{self, DefaultCharacterSetCodec, TextCodec};
 use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder;
+use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use dicom_parser::error::{Error, InvalidValueReadError, Result};
 use std::io::{Read, Write};
 
@@ -47,7 +47,6 @@ pub struct FileMetaTable {
     pub private_information_creator_uid: Option<String>,
     /// Private Information
     pub private_information: Option<Vec<u8>>,
-
     /*
     Missing attributes:
 
@@ -236,7 +235,10 @@ impl FileMetaTable {
             DataElement::new(
                 Tag(0x0002, 0x0001),
                 VR::OB,
-                Value::Primitive(dicom_value!(U8, [self.information_version[0], self.information_version[1]])),
+                Value::Primitive(dicom_value!(
+                    U8,
+                    [self.information_version[0], self.information_version[1]]
+                )),
             ),
             DataElement::new(
                 Tag(0x0002, 0x0002),
@@ -257,7 +259,7 @@ impl FileMetaTable {
                 Tag(0x0002, 0x0012),
                 VR::UI,
                 Value::Primitive(self.implementation_class_uid.into()),
-            )
+            ),
         ];
         if let Some(v) = self.implementation_version_name {
             elems.push(DataElement::new(
@@ -301,13 +303,21 @@ impl FileMetaTable {
                 Value::Primitive(PrimitiveValue::U8(v.into())),
             ));
         }
-        
+
         elems.into_iter()
     }
 
     pub fn write<W: Write>(&self, writer: W) -> Result<()> {
-        let mut dset = DataSetWriter::new(writer, EncoderFor::new(ExplicitVRLittleEndianEncoder::default()), DefaultCharacterSetCodec);
-        dset.write_sequence(self.clone().into_element_iter().flat_map(IntoTokens::into_tokens))
+        let mut dset = DataSetWriter::new(
+            writer,
+            EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
+            DefaultCharacterSetCodec,
+        );
+        dset.write_sequence(
+            self.clone()
+                .into_element_iter()
+                .flat_map(IntoTokens::into_tokens),
+        )
     }
 }
 
@@ -510,7 +520,8 @@ impl FileMetaTableBuilder {
         let media_storage_sop_instance_uid = self
             .media_storage_sop_instance_uid
             .ok_or_else(|| Error::MissingMetaElement("MediaStorageSOPInstanceUID"))?;
-        let transfer_syntax = self.transfer_syntax
+        let transfer_syntax = self
+            .transfer_syntax
             .ok_or_else(|| Error::MissingMetaElement("TransferSyntax"))?;
         let implementation_class_uid = self
             .implementation_class_uid
@@ -528,21 +539,47 @@ impl FileMetaTableBuilder {
         let information_group_length = match self.information_group_length {
             Some(e) => e,
             None => {
-                    // determine the expected meta group size based on the given fields.
-                    // FileMetaInformationGroupLength is not included here
+                // determine the expected meta group size based on the given fields.
+                // FileMetaInformationGroupLength is not included here
 
-                    14 +
-                    8 + dicom_len(&media_storage_sop_class_uid) +
-                    8 + dicom_len(&media_storage_sop_instance_uid) +
-                    8 + dicom_len(&transfer_syntax) +
-                    8 + dicom_len(&implementation_class_uid) +
-                    self.implementation_version_name.as_ref().map(|s| 8 + s.len() as u32).unwrap_or(0) +
-                    self.source_application_entity_title.as_ref().map(|s| 8 + s.len() as u32).unwrap_or(0) +
-                    self.sending_application_entity_title.as_ref().map(|s| 8 + s.len() as u32).unwrap_or(0) +
-                    self.receiving_application_entity_title.as_ref().map(|s| 8 + s.len() as u32).unwrap_or(0) +
-                    self.private_information_creator_uid.as_ref().map(|s| 8 + s.len() as u32).unwrap_or(0) +
-                    self.private_information.as_ref().map(|x| 12 + x.len() as u32).unwrap_or(0)
-
+                14 + 8
+                    + dicom_len(&media_storage_sop_class_uid)
+                    + 8
+                    + dicom_len(&media_storage_sop_instance_uid)
+                    + 8
+                    + dicom_len(&transfer_syntax)
+                    + 8
+                    + dicom_len(&implementation_class_uid)
+                    + self
+                        .implementation_version_name
+                        .as_ref()
+                        .map(|s| 8 + s.len() as u32)
+                        .unwrap_or(0)
+                    + self
+                        .source_application_entity_title
+                        .as_ref()
+                        .map(|s| 8 + s.len() as u32)
+                        .unwrap_or(0)
+                    + self
+                        .sending_application_entity_title
+                        .as_ref()
+                        .map(|s| 8 + s.len() as u32)
+                        .unwrap_or(0)
+                    + self
+                        .receiving_application_entity_title
+                        .as_ref()
+                        .map(|s| 8 + s.len() as u32)
+                        .unwrap_or(0)
+                    + self
+                        .private_information_creator_uid
+                        .as_ref()
+                        .map(|s| 8 + s.len() as u32)
+                        .unwrap_or(0)
+                    + self
+                        .private_information
+                        .as_ref()
+                        .map(|x| 12 + x.len() as u32)
+                        .unwrap_or(0)
             }
         };
 
@@ -565,7 +602,7 @@ impl FileMetaTableBuilder {
 
 #[cfg(test)]
 mod tests {
-    use super::{FileMetaTableBuilder, FileMetaTable};
+    use super::{FileMetaTable, FileMetaTableBuilder};
     use dicom_core::value::Value;
     use dicom_core::{dicom_value, DataElement, Tag, VR};
 
@@ -653,7 +690,9 @@ mod tests {
         let table = FileMetaTableBuilder::new()
             .information_version([0, 1])
             .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1")
-            .media_storage_sop_instance_uid("1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567")
+            .media_storage_sop_instance_uid(
+                "1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567",
+            )
             .transfer_syntax("1.2.840.10008.1.2.1")
             .implementation_class_uid("1.2.345.6.7890.1.234")
             .implementation_version_name("RUSTY_DICOM_269")
@@ -703,47 +742,41 @@ mod tests {
             // Information Group Length
             DataElement::new(Tag(0x0002, 0x0000), VR::UL, dicom_value!(U32, 200).into()),
             // Information Version
-            DataElement::new(
-                Tag(0x0002, 0x0001),
-                VR::OB,
-                dicom_value!(U8, [0, 1]).into(),
-            ),
+            DataElement::new(Tag(0x0002, 0x0001), VR::OB, dicom_value!(U8, [0, 1]).into()),
             // Media Storage SOP Class UID
             DataElement::new(
                 Tag(0x0002, 0x0002),
                 VR::UI,
-                Value::Primitive("1.2.840.10008.5.1.4.1.1.1\0".into())
+                Value::Primitive("1.2.840.10008.5.1.4.1.1.1\0".into()),
             ),
             // Media Storage SOP Instance UID
             DataElement::new(
                 Tag(0x0002, 0x0003),
                 VR::UI,
-                Value::Primitive("1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567\0".into())
+                Value::Primitive(
+                    "1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567\0".into(),
+                ),
             ),
             // Transfer Syntax
             DataElement::new(
                 Tag(0x0002, 0x0010),
                 VR::UI,
-                Value::Primitive("1.2.840.10008.1.2.1\0".into())
+                Value::Primitive("1.2.840.10008.1.2.1\0".into()),
             ),
             // Implementation Class UID
             DataElement::new(
                 Tag(0x0002, 0x0012),
                 VR::UI,
-                Value::Primitive("1.2.345.6.7890.1.234".into())
+                Value::Primitive("1.2.345.6.7890.1.234".into()),
             ),
             // Implementation Version Name
             DataElement::new(
                 Tag(0x0002, 0x0013),
                 VR::SH,
-                Value::Primitive("RUSTY_DICOM_269 ".into())
+                Value::Primitive("RUSTY_DICOM_269 ".into()),
             ),
             // Source Application Entity Title
-            DataElement::new(
-                Tag(0x0002, 0x0016),
-                VR::AE,
-                Value::Primitive("".into())
-            ),
+            DataElement::new(Tag(0x0002, 0x0016), VR::AE, Value::Primitive("".into())),
         ];
 
         let elems: Vec<_> = table.into_element_iter().collect();

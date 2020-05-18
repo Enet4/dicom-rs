@@ -13,11 +13,11 @@ use std::str::{from_utf8, FromStr};
 pub trait HasLength {
     /// Retrieve the value data's length as specified by the data element or
     /// item, in bytes.
-    /// 
+    ///
     /// It is named `length` to make it distinct from the conventional method
     /// signature `len(&self) -> usize` for the number of elements of a
     /// collection.
-    /// 
+    ///
     /// According to the standard, the concrete value size may be undefined,
     /// which can be the case for sequence elements or specific primitive
     /// values.
@@ -47,7 +47,7 @@ pub trait Header: HasLength {
 }
 
 /// Stub type representing a non-existing DICOM object.
-/// 
+///
 /// This type implements `HasLength`, but cannot be instantiated.
 /// This makes it so that `Value<EmptyObject>` is sure to be either a primitive
 /// value or a sequence with no items.
@@ -141,7 +141,6 @@ impl<'a, I> Header for &'a DataElement<I> {
     fn tag(&self) -> Tag {
         (**self).tag()
     }
-
 }
 
 impl<'v, I> HasLength for DataElementRef<'v, I> {
@@ -200,7 +199,7 @@ where
     I: HasLength,
 {
     /// Create a primitive data element from the given parts.
-    /// 
+    ///
     /// This method will not check whether the value representation is
     /// compatible with the given value.
     pub fn new(tag: Tag, vr: VR, value: Value<I>) -> Self {

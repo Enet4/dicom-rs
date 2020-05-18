@@ -1,6 +1,6 @@
 //! Convertion of DICOM objects into tokens.
-use crate::mem::{InMemDicomObject};
-use dicom_core::{DataElement};
+use crate::mem::InMemDicomObject;
+use dicom_core::DataElement;
 use dicom_parser::dataset::{DataToken, IntoTokens};
 use std::collections::VecDeque;
 
@@ -40,7 +40,7 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         if self.fused {
             return None;
-        }        
+        }
 
         // otherwise, consume pending tokens
         if let Some(token) = self.tokens_pending.pop_front() {
@@ -51,7 +51,7 @@ where
         if let Some(elem) = self.elem_iter.next() {
             // TODO eventually optimize this to be less eager
             self.tokens_pending = elem.into_tokens().collect();
-            
+
             self.next()
         } else {
             // no more elements
@@ -67,14 +67,12 @@ where
 }
 
 impl<D> IntoTokens for InMemDicomObject<D> {
-    type Iter =
-        InMemObjectTokens<<InMemDicomObject<D> as IntoIterator>::IntoIter>;
+    type Iter = InMemObjectTokens<<InMemDicomObject<D> as IntoIterator>::IntoIter>;
 
     fn into_tokens(self) -> Self::Iter {
         InMemObjectTokens::new(self)
     }
 }
-
 
 impl<'a, D> IntoTokens for &'a InMemDicomObject<D>
 where

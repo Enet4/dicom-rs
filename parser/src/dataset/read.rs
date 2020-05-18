@@ -383,7 +383,9 @@ where
         } else {
             match self.parser.decode_header() {
                 Ok(
-                    header @ DataElementHeader {
+                    header
+                    @
+                    DataElementHeader {
                         tag: Tag(0x0008, 0x0005),
                         ..
                     },

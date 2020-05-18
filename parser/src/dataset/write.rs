@@ -5,8 +5,8 @@ use crate::stateful::encode::StatefulEncoder;
 use dicom_core::{DataElementHeader, Length, VR};
 use dicom_encoding::encode::EncodeTo;
 use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
-use dicom_encoding::TransferSyntax;
 use dicom_encoding::transfer_syntax::DynEncoder;
+use dicom_encoding::TransferSyntax;
 use std::io::Write;
 
 /// A writer-specific token representing a sequence or item start.
@@ -161,8 +161,8 @@ mod tests {
         value::PrimitiveValue,
         Tag, VR,
     };
-    use dicom_encoding::text::DefaultCharacterSetCodec;
     use dicom_encoding::encode::EncoderFor;
+    use dicom_encoding::text::DefaultCharacterSetCodec;
     use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder;
 
     fn validate_dataset_writer<I>(tokens: I, ground_truth: &[u8])

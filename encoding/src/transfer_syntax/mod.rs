@@ -323,18 +323,15 @@ impl<A> TransferSyntax<A> {
         W: ?Sized + Write,
     {
         match (self.byte_order, self.explicit_vr) {
-            (Endianness::Little, false) => Some(Box::new(
-                EncoderFor::new(
-                implicit_le::ImplicitVRLittleEndianEncoder::default())),
-            ),
-            (Endianness::Little, true) => Some(Box::new(
-                EncoderFor::new(
-                explicit_le::ExplicitVRLittleEndianEncoder::default())),
-            ),
-            (Endianness::Big, true) => Some(Box::new(
-                EncoderFor::new(
-                    explicit_be::ExplicitVRBigEndianEncoder::default())),
-            ),
+            (Endianness::Little, false) => Some(Box::new(EncoderFor::new(
+                implicit_le::ImplicitVRLittleEndianEncoder::default(),
+            ))),
+            (Endianness::Little, true) => Some(Box::new(EncoderFor::new(
+                explicit_le::ExplicitVRLittleEndianEncoder::default(),
+            ))),
+            (Endianness::Big, true) => Some(Box::new(EncoderFor::new(
+                explicit_be::ExplicitVRBigEndianEncoder::default(),
+            ))),
             _ => None,
         }
     }

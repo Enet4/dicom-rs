@@ -48,13 +48,13 @@ pub use dicom_parser::error::{Error, Result};
 /// The default implementation of a root DICOM object.
 pub type DefaultDicomObject = RootDicomObject<mem::InMemDicomObject<StandardDataDictionary>>;
 
+use dicom_core::header::Header;
+use dicom_encoding::{text::SpecificCharacterSet, transfer_syntax::TransferSyntaxIndex};
+use dicom_parser::dataset::{DataSetWriter, IntoTokens};
+use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
-use dicom_core::header::Header;
-use dicom_encoding::{transfer_syntax::TransferSyntaxIndex, text::SpecificCharacterSet};
-use dicom_parser::dataset::{DataSetWriter, IntoTokens};
-use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
 /// Trait type for a DICOM object.
 /// This is a high-level abstraction where an object is accessed and
@@ -118,7 +118,7 @@ where
 
         // write meta group
         self.meta.write(&mut to)?;
-        
+
         // prepare encoder
         let registry = TransferSyntaxRegistry::default();
         let ts = registry
@@ -197,23 +197,24 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::RootDicomObject;
     use crate::meta::FileMetaTableBuilder;
+    use crate::RootDicomObject;
 
     #[test]
     fn smoke_test() {
         const FILE_NAME: &str = ".smoke-test.dcm";
 
         let meta = FileMetaTableBuilder::new()
-            .transfer_syntax(dicom_transfer_syntax_registry::entries::EXPLICIT_VR_LITTLE_ENDIAN.uid())
+            .transfer_syntax(
+                dicom_transfer_syntax_registry::entries::EXPLICIT_VR_LITTLE_ENDIAN.uid(),
+            )
             .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1")
             .media_storage_sop_instance_uid("1.2.3.456")
             .implementation_class_uid("1.2.345.6.7890.1.234")
             .build()
             .unwrap();
-        let obj = RootDicomObject::new_empty_with_meta(
-            meta);
-        
+        let obj = RootDicomObject::new_empty_with_meta(meta);
+
         obj.write_to_file(FILE_NAME).unwrap();
 
         let obj2 = RootDicomObject::open_file(FILE_NAME).unwrap();

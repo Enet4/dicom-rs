@@ -363,7 +363,9 @@ mod tests {
             // don't read any data, just skip
             // cursor should be @ #34 after skipping
             assert_eq!(
-                cursor.seek(SeekFrom::Current(elem.length().0 as i64)).unwrap(),
+                cursor
+                    .seek(SeekFrom::Current(elem.length().0 as i64))
+                    .unwrap(),
                 34
             );
         }

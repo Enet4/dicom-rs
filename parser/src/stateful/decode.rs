@@ -639,10 +639,13 @@ where
                 // sequence objects... should not work
                 Err(Error::from(InvalidValueReadError::NonPrimitiveType))
             }
-            _ => Ok(self
-                .from
-                .by_ref()
-                .take(header.length().get().map(u64::from).unwrap_or(std::u64::MAX))),
+            _ => Ok(self.from.by_ref().take(
+                header
+                    .length()
+                    .get()
+                    .map(u64::from)
+                    .unwrap_or(std::u64::MAX),
+            )),
         }
     }
 

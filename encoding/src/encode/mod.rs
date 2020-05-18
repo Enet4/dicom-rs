@@ -369,35 +369,35 @@ where
 {
     fn encode_tag(&self, to: &mut W, tag: Tag) -> Result<()>
     where
-        W: Write
+        W: Write,
     {
         (**self).encode_tag(to, tag)
     }
 
     fn encode_element_header(&self, to: &mut W, de: DataElementHeader) -> Result<usize>
     where
-        W: Write
+        W: Write,
     {
         (**self).encode_element_header(to, de)
     }
 
     fn encode_item_header(&self, to: &mut W, len: u32) -> Result<()>
     where
-        W: Write
+        W: Write,
     {
         (**self).encode_item_header(to, len)
     }
 
     fn encode_item_delimiter(&self, to: &mut W) -> Result<()>
     where
-        W: Write
+        W: Write,
     {
         (**self).encode_item_delimiter(to)
     }
 
     fn encode_sequence_delimiter(&self, to: &mut W) -> Result<()>
     where
-        W: Write
+        W: Write,
     {
         (**self).encode_sequence_delimiter(to)
     }
@@ -405,7 +405,7 @@ where
     /// Encode and write a primitive DICOM value to the given destination.
     fn encode_primitive(&self, to: &mut W, value: &PrimitiveValue) -> Result<usize>
     where
-        W: Write
+        W: Write,
     {
         (**self).encode_primitive(to, value)
     }
@@ -417,35 +417,35 @@ where
 {
     fn encode_tag(&self, to: &mut W, tag: Tag) -> Result<()>
     where
-        W: Write
+        W: Write,
     {
         (**self).encode_tag(to, tag)
     }
 
     fn encode_element_header(&self, to: &mut W, de: DataElementHeader) -> Result<usize>
     where
-        W: Write
+        W: Write,
     {
         (**self).encode_element_header(to, de)
     }
 
     fn encode_item_header(&self, to: &mut W, len: u32) -> Result<()>
     where
-        W: Write
+        W: Write,
     {
         (**self).encode_item_header(to, len)
     }
 
     fn encode_item_delimiter(&self, to: &mut W) -> Result<()>
     where
-        W: Write
+        W: Write,
     {
         (**self).encode_item_delimiter(to)
     }
 
     fn encode_sequence_delimiter(&self, to: &mut W) -> Result<()>
     where
-        W: Write
+        W: Write,
     {
         (**self).encode_sequence_delimiter(to)
     }
@@ -453,7 +453,7 @@ where
     /// Encode and write a primitive DICOM value to the given destination.
     fn encode_primitive(&self, to: &mut W, value: &PrimitiveValue) -> Result<usize>
     where
-        W: Write
+        W: Write,
     {
         (**self).encode_primitive(to, value)
     }
