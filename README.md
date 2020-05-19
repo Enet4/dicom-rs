@@ -8,7 +8,7 @@
 [![Documentation](https://docs.rs/dicom/badge.svg)](https://docs.rs/dicom)
 
 
-An efficient and practical library for [DICOM](https://en.wikipedia.org/wiki/DICOM) compliant systems.
+An efficient and practical library for [DICOM](https://dicomstandard.org) compliant systems.
 
 This collection provides a pure Rust implementation of the DICOM standard,
 allowing users to read and write DICOM objects over files and other sources, while
