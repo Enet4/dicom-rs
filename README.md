@@ -1,9 +1,14 @@
 # DICOM-rs
 
-[![Build Status](https://travis-ci.org/Enet4/dicom-rs.svg?branch=master)](https://travis-ci.org/Enet4/dicom-rs) ![Minimum Rust Version Stable](https://img.shields.io/badge/Minimum%20Rust%20Version-stable-green.svg) [![dependency status](https://deps.rs/repo/github/Enet4/dicom-rs/status.svg)](https://deps.rs/repo/github/Enet4/dicom-rs) [![Gitter](https://badges.gitter.im/dicom-rs/community.svg)](https://gitter.im/dicom-rs/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+[![Build Status](https://travis-ci.org/Enet4/dicom-rs.svg?branch=master)](https://travis-ci.org/Enet4/dicom-rs)
+![Minimum Rust Version Stable](https://img.shields.io/badge/Minimum%20Rust%20Version-stable-green.svg)
+[![dependency status](https://deps.rs/repo/github/Enet4/dicom-rs/status.svg)](https://deps.rs/repo/github/Enet4/dicom-rs)
+[![Gitter](https://badges.gitter.im/dicom-rs/community.svg)](https://gitter.im/dicom-rs/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+[![CratesIO](https://img.shields.io/crates/v/dicom.svg)](https://crates.io/crates/dicom)
+[![Documentation](https://docs.rs/dicom/badge.svg)](https://docs.rs/dicom)
 
 
-An efficient and practical library for DICOM compliant systems.
+An efficient and practical library for [DICOM](https://dicomstandard.org) compliant systems.
 
 This collection provides a pure Rust implementation of the DICOM standard,
 allowing users to read and write DICOM objects over files and other sources, while
@@ -22,9 +27,11 @@ remaining intrinsically fast and safe to use.
 
 ## Using as a library
 
-[`dicom-object`](object) is currently the most usable crate for reading DICOM objects from a file or a similar source. As an alternative, the parent crate [`dicom`](parent) can be added instead, which aggregates the key components of the full library, including `dicom-object`.
+[`dicom-object`](object) is currently the most usable crate for reading DICOM objects from a file or a similar source.
+As an alternative, the parent crate [`dicom`](parent) can be added instead, which aggregates the key components of the
+full library, including `dicom-object`.
 
-An example of use follows. For more, please visit the respective [documentation](https://docs.rs/dicom-object).
+An example of use follows. For more details, please visit the [`dicom-object` documentation](https://docs.rs/dicom-object).
 
 ```rust
 use dicom_object::open_file;
@@ -47,7 +54,8 @@ cargo build --release
 
 This project is a work in progress, but actively developed.
 
-Your feedback during the development of these solutions is welcome. Please see the [wiki](https://github.com/Enet4/dicom-rs/wiki) for additional guidelines related to the project's roadmap.
+Your feedback during the development of these solutions is welcome. Please see the [wiki](https://github.com/Enet4/dicom-rs/wiki)
+for additional guidelines related to the project's roadmap.
 
 ## License
 
