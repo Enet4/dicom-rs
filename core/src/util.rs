@@ -1,7 +1,9 @@
 use std::io;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::marker::PhantomData;
-use std::ops::{DerefMut, Range};
+use std::ops::DerefMut;
+#[cfg(test)]
+use std::ops::Range;
 
 /** A private type trait for the ability to efficiently implement stream skipping.
  */
@@ -37,6 +39,7 @@ where
     S: Seek,
     B: DerefMut<Target = S>,
 {
+    #[cfg(test)]
     /// Create an interval from the current position and ending
     /// after `n` bytes.
     pub fn new_here(mut source: B, n: u32) -> io::Result<Self> {
@@ -50,6 +53,7 @@ where
         })
     }
 
+    #[cfg(test)]
     /// Create an interval that starts and ends according to the given
     /// range of bytes.
     pub fn new_at(mut source: B, range: Range<u64>) -> io::Result<Self> {

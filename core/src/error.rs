@@ -2,7 +2,6 @@
 use crate::value::ValueType;
 use crate::Tag;
 use quick_error::quick_error;
-use std::error::Error as BaseError;
 use std::fmt;
 use std::num::{ParseFloatError, ParseIntError};
 use std::result;
@@ -13,26 +12,21 @@ quick_error! {
     pub enum Error {
         /// Raised when the obtained data element was not the one expected.
         UnexpectedTag(tag: Tag) {
-            description("Unexpected DICOM element tag in current reading position")
             display("Unexpected DICOM tag {}", tag)
         }
         /// Raised when the obtained length is inconsistent.
         UnexpectedDataValueLength {
-            description("Inconsistent data value length in data element")
+            display("Inconsistent data value length in data element")
         }
         /// Error related to an invalid value read.
         ReadValue(err: InvalidValueReadError) {
-            description("Invalid value read")
+            display("Invalid value read: {}", err)
             from()
-            cause(err)
-            display(self_) -> ("{}: {}", self_.description(), err.description())
         }
         /// A failed attempt to cast a value to an inappropriate format.
         CastValue(err: CastValueError) {
-            description("Failed value cast")
+            display("Failed value cast: {}", err)
             from()
-            cause(err)
-            display(self_) -> ("{}: {}", self_.description(), err.description())
         }
     }
 }
@@ -47,59 +41,46 @@ quick_error! {
     pub enum InvalidValueReadError {
         /// The value cannot be read as a primitive value.
         NonPrimitiveType {
-            description("attempted to retrieve complex value as primitive")
-            display(self_) -> ("{}", self_.description())
+            display("attempted to retrieve complex value as primitive")
         }
         /// The value's effective length cannot be resolved.
         UnresolvedValueLength {
-            description("value length could not be resolved")
-            display(self_) -> ("{}", self_.description())
+            display("value length could not be resolved")
         }
         /// The value does not have the expected format.
         InvalidToken(got: u8, expected: &'static str) {
-            description("Invalid token received for the expected value representation")
-            display(self_) -> ("invalid token: expected {} but got {:?}", expected, got)
+            display("invalid token: expected {} but got {:?}", expected, got)
         }
         /// The value does not have the expected length.
         InvalidLength(got: usize, expected: &'static str) {
-            description("Invalid slice length for the expected value representation")
-            display(self_) -> ("invalid length: expected {} but got {}", expected, got)
+            display("invalid length: expected {} but got {}", expected, got)
         }
         /// Invalid date or time component.
         ParseDateTime(got: u32, expected: &'static str) {
-            description("Invalid date/time component")
-            display(self_) -> ("invalid date/time component: expected {} but got {}", expected, got)
+            display("invalid date/time component: expected {} but got {}", expected, got)
         }
         /// Invalid or ambiguous combination of date with time.
         DateTimeZone {
-            description("Invalid or ambiguous combination of date with time")
-            display(self_) -> ("{}", self_.description())
+            display("Invalid or ambiguous combination of date with time")
         }
         /// chrono error when parsing a date or time.
         Chrono(err: chrono::ParseError) {
-            description("failed to parse date/time")
+            display("failed to parse date/time: {}", err)
             from()
-            cause(err)
-            display(self_) -> ("{}", self_.source().unwrap())
         }
         /// The value cannot be parsed to a floating point number.
         ParseFloat(err: ParseFloatError) {
-            description("Failed to parse text value as a floating point number")
+            display("Failed to parse text value as a floating point number")
             from()
-            cause(err)
-            display(self_) -> ("{}", self_.description())
         }
         /// The value cannot be parsed to an integer.
         ParseInteger(err: ParseIntError) {
-            description("Failed to parse text value as an integer")
+            display("Failed to parse text value as an integer")
             from()
-            cause(err)
-            display(self_) -> ("{}", err.description())
         }
         /// An attempt of reading more than the number of bytes in the length attribute was made.
         UnexpectedEndOfElement {
-            description("Unexpected end of element")
-            display(self_) -> ("{}", self_.description())
+            display("Unexpected end of element")
         }
     }
 }
@@ -118,16 +99,10 @@ impl fmt::Display for CastValueError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{}: requested {} but value is {:?}",
-            self.description(),
-            self.requested,
-            self.got
+            "bad value cast: requested {} but value is {:?}",
+            self.requested, self.got
         )
     }
 }
 
-impl ::std::error::Error for CastValueError {
-    fn description(&self) -> &str {
-        "bad value cast"
-    }
-}
+impl ::std::error::Error for CastValueError {}
