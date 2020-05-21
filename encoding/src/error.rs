@@ -3,7 +3,6 @@ pub use dicom_core::error::{CastValueError, InvalidValueReadError};
 use dicom_core::Tag;
 use quick_error::quick_error;
 use std::borrow::Cow;
-use std::error::Error as BaseError;
 use std::fmt;
 use std::io;
 
@@ -16,40 +15,31 @@ quick_error! {
     pub enum Error {
         /// Raised when the obtained data element tag was not the one expected.
         UnexpectedTag(tag: Tag) {
-            description("Unexpected DICOM element tag in current reading position")
             display("Unexpected DICOM tag {}", tag)
         }
         /// Raised when the obtained length is inconsistent.
         UnexpectedDataValueLength {
-            description("Inconsistent data value length in data element")
+            display("Inconsistent data value length in data element")
         }
         /// Error related to an invalid value read.
         ReadValue(err: InvalidValueReadError) {
-            description("Invalid value read")
             from()
-            cause(err)
-            display(self_) -> ("{}: {}", self_.description(), err.description())
+            display("Invalid value read: {}", err)
         }
         /// Error related to a failed text encoding / decoding procedure.
         TextEncoding(err: TextEncodingError) {
-            description("Failed text encoding/decoding")
+            display("Failed text encoding/decoding: {}", err)
             from()
-            cause(err)
-            display(self_) -> ("{}: {}", self_.description(), err.description())
         }
         /// A failed attempt to cast a value to an inappropriate format.
         CastValue(err: CastValueError) {
-            description("Failed value cast")
+            display("Failed value cast: {}", err)
             from()
-            cause(err)
-            display(self_) -> ("{}: {}", self_.description(), err.description())
         }
         /// Other I/O errors.
         Io(err: io::Error) {
-            description("I/O error")
+            display("I/O error: {}", err)
             from()
-            cause(err)
-            display(self_) -> ("{}: {}", self_.description(), err.description())
         }
     }
 }
@@ -79,12 +69,8 @@ impl TextEncodingError {
 
 impl fmt::Display for TextEncodingError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: {}", self.description(), self.0)
+        write!(f, "encoding/decoding process failed: {}", self.0)
     }
 }
 
-impl ::std::error::Error for TextEncodingError {
-    fn description(&self) -> &str {
-        "encoding/decoding process failed"
-    }
-}
+impl ::std::error::Error for TextEncodingError {}

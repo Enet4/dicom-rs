@@ -1,5 +1,4 @@
 use quick_error::quick_error;
-use std::error::Error as BaseError;
 
 /// Type alias for a result from this crate.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -9,64 +8,50 @@ quick_error! {
     pub enum Error {
         Io(err: std::io::Error) {
             from()
-            display(self_) -> ("io error: {}", err)
+            display("io error: {}", err)
         }
         NoPduAvailable {
-            description("no pdu was available")
-            display(self_) -> ("{}", self_.description())
+            display("no pdu was available")
         }
         InvalidMaxPdu {
-            description("invalid max pdu")
-            display(self_) -> ("{}", self_.description())
+            display("invalid max pdu")
         }
         PduTooLarge {
-            description("the incoming pdu was too large")
-            display(self_) -> ("{}", self_.description())
+            display("the incoming pdu was too large")
         }
         InvalidPduVariable {
-            description("the pdu contained an invalid value")
-            display(self_) -> ("{}", self_.description())
+            display("the pdu contained an invalid value")
         }
         MultipleTransferSyntaxesAccepted {
-            description("multiple transfer syntaxes were accepted")
-            display(self_) -> ("{}", self_.description())
+            display("multiple transfer syntaxes were accepted")
         }
         InvalidRejectSourceOrReason {
-            description("the reject source or reason was invalid")
-            display(self_) -> ("{}", self_.description())
+            display("the reject source or reason was invalid")
         }
         InvalidAbortSourceOrReason {
-            description("the abort service provider reason was invalid")
-            display(self_) -> ("{}", self_.description())
+            display("the abort service provider reason was invalid")
         }
         InvalidPresentationContextResultReason {
-            description("the presentation context result reason was invalid")
-            display(self_) -> ("{}", self_.description())
+            display("the presentation context result reason was invalid")
         }
         InvalidTransferSyntaxSubItem {
-            description("invalid transfer syntax sub-item")
-            display(self_) -> ("{}", self_.description())
+            display("invalid transfer syntax sub-item")
         }
         UnknownPresentationContextSubItem {
-            description("unknown presentation context sub-item")
-            display(self_) -> ("{}", self_.description())
+            display("unknown presentation context sub-item")
         }
         EncodingError(err: dicom_encoding::error::Error) {
             from()
-            description("encoding error")
-            display(self_) -> ("{} {}", err, self_.description())
+            display("{} encoding error", err)
         }
         MissingApplicationContextName {
-            description("missing application context name")
-            display(self_) -> ("{}", self_.description())
+            display("missing application context name")
         }
         MissingAbstractSyntax {
-            description("missing abstract syntax")
-            display(self_) -> ("{}", self_.description())
+            display("missing abstract syntax")
         }
         MissingTransferSyntax {
-            description("missing transfer syntax")
-            display(self_) -> ("{}", self_.description())
+            display("missing transfer syntax")
         }
     }
 }
