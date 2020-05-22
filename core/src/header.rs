@@ -44,6 +44,11 @@ pub trait Header: HasLength {
     fn is_sequence_delimiter(&self) -> bool {
         self.tag() == Tag(0xFFFE, 0xE0DD)
     }
+
+    /// Check whether this is the header of an encapsulated pixel data.
+    fn is_encapsulated_pixeldata(&self) -> bool {
+        self.tag() == Tag(0x7FE0, 0x0010) && self.length().is_undefined()
+    }
 }
 
 /// Stub type representing a non-existing DICOM object.

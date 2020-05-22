@@ -121,31 +121,33 @@ where
     }
 
     fn write_impl(&mut self, token: DataToken) -> Result<()> {
-        use DataToken::*;
         match token {
-            ElementHeader(header) => {
+            DataToken::ElementHeader(header) => {
                 self.printer.encode_element_header(header)?;
             }
-            SequenceStart { tag, len } => {
+            DataToken::SequenceStart { tag, len } => {
                 self.printer
                     .encode_element_header(DataElementHeader::new(tag, VR::SQ, len))?;
             }
-            SequenceEnd => {
+            DataToken::SequenceEnd => {
                 self.printer.encode_sequence_delimiter()?;
             }
-            ItemStart { len } => {
+            DataToken::ItemStart { len } => {
                 self.printer.encode_item_header(len.0)?;
             }
-            ItemEnd => {
+            DataToken::ItemEnd => {
                 self.printer.encode_item_delimiter()?;
             }
-            PrimitiveValue(ref value) => {
+            DataToken::PrimitiveValue(ref value) => {
                 let last_de = self
                     .last_de
                     .as_ref()
                     .ok_or_else(|| DataSetSyntaxError::UnexpectedToken(token.clone()))?;
                 self.printer.encode_primitive(last_de, value)?;
                 self.last_de = None;
+            }
+            DataToken::ItemValue(data) => {
+                self.printer.write_bytes(&data)?;
             }
         }
         Ok(())

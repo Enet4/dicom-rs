@@ -19,7 +19,7 @@ pub enum DataToken {
     ElementHeader(DataElementHeader),
     /// The beginning of a sequence element.
     SequenceStart { tag: Tag, len: Length },
-    /// The ending delimiter of a sequence.
+    /// The ending delimiter of a sequence or encapsulated pixel data.
     SequenceEnd,
     /// The beginning of a new item in the sequence.
     ItemStart { len: Length },
@@ -27,6 +27,12 @@ pub enum DataToken {
     ItemEnd,
     /// A primitive data element value.
     PrimitiveValue(PrimitiveValue),
+    /// An owned piece of raw data representing an item's value.
+    ///
+    /// This variant is used to represent the value of an offset table or a
+    /// compressed fragment. It should not be used to represent nested data
+    /// sets.
+    ItemValue(Vec<u8>),
 }
 
 impl fmt::Display for DataToken {
@@ -67,6 +73,7 @@ impl PartialEq<Self> for DataToken {
             ) => tag1 == tag2 && len1.inner_eq(*len2),
             (ItemStart { len: len1 }, ItemStart { len: len2 }) => len1.inner_eq(*len2),
             (PrimitiveValue(v1), PrimitiveValue(v2)) => v1 == v2,
+            (ItemValue(v1), ItemValue(v2)) => v1 == v2,
             (ItemEnd, ItemEnd) | (SequenceEnd, SequenceEnd) => true,
             _ => false,
         }

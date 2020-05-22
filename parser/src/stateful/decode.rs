@@ -72,6 +72,9 @@ pub trait StatefulDecode {
         header: &DataElementHeader,
     ) -> Result<std::io::Take<&mut Self::Reader>>;
 
+    /// Read the exact amount of bytes to fill the buffer.
+    fn read_bytes(&mut self, buf: &mut [u8]) -> Result<()>;
+
     /// Retrieve the exact number of bytes read so far by the stateful decoder.
     fn bytes_read(&self) -> u64;
 }
@@ -647,6 +650,12 @@ where
                     .unwrap_or(std::u64::MAX),
             )),
         }
+    }
+
+    fn read_bytes(&mut self, buf: &mut [u8]) -> Result<()> {
+        self.from.read_exact(buf)?;
+        self.bytes_read += buf.len() as u64;
+        Ok(())
     }
 
     fn bytes_read(&self) -> u64 {
