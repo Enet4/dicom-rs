@@ -116,7 +116,9 @@ where
                 self.last_de = Some(de.clone());
                 self.write_impl(token)
             }
-            _ => self.write_impl(token),
+            token @ DataToken::EncapsulatedElementStart
+            | token @ DataToken::ItemValue(_)
+            | token @ DataToken::PrimitiveValue(_) => self.write_impl(token),
         }
     }
 
@@ -128,6 +130,13 @@ where
             DataToken::SequenceStart { tag, len } => {
                 self.printer
                     .encode_element_header(DataElementHeader::new(tag, VR::SQ, len))?;
+            }
+            DataToken::EncapsulatedElementStart => {
+                self.printer.encode_element_header(DataElementHeader::new(
+                    Tag(0x7fe0, 0x0010),
+                    VR::OB,
+                    Length::UNDEFINED,
+                ))?;
             }
             DataToken::SequenceEnd => {
                 self.printer.encode_sequence_delimiter()?;

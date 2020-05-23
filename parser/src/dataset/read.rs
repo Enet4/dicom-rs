@@ -205,7 +205,7 @@ where
 
             let len = len.get().expect("length should be explicit, error missing") as usize;
             let mut value = vec![0; len];
-            
+
             // need to pop item delimiter on the next iteration
             self.delimiter_check_pending = true;
             Some(
@@ -292,7 +292,12 @@ where
                 Ok(header) => {
                     // save it for the next step
                     self.last_header = Some(header);
-                    Some(Ok(DataToken::ElementHeader(header)))
+                    // token variant depends on whether it's encapsulated pixel data
+                    if header.is_encapsulated_pixeldata() {
+                        Some(Ok(DataToken::EncapsulatedElementStart))
+                    } else {
+                        Some(Ok(DataToken::ElementHeader(header)))
+                    }
                 }
                 Err(Error::Io(ref e)) if e.kind() == ::std::io::ErrorKind::UnexpectedEof => {
                     // TODO there might be a more informative way to check
@@ -796,8 +801,6 @@ mod tests {
 
     #[test]
     fn read_encapsulated_pixeldata() {
-        const PIXEL_DATA: Tag = Tag(0x7fe0, 0x0010);
-
         #[rustfmt::skip]
         static DATA: &[u8] = &[
             0xe0, 0x7f, 0x10, 0x00, // (7FE0, 0010) PixelData
@@ -821,11 +824,7 @@ mod tests {
         ];
 
         let ground_truth = vec![
-            DataToken::ElementHeader(DataElementHeader::new(
-                PIXEL_DATA,
-                VR::OB,
-                Length::UNDEFINED,
-            )),
+            DataToken::EncapsulatedElementStart,
             DataToken::ItemStart { len: Length(0) },
             DataToken::ItemEnd,
             DataToken::ItemStart { len: Length(32) },
