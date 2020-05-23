@@ -67,11 +67,12 @@ impl HasLength for EmptyObject {
 
 /// A data type that represents and owns a DICOM data element. Unlike
 /// [`PrimitiveDataElement`], this type may contain multiple data elements
-/// through the item sequence VR (where each item contains an object of type `I`).
+/// through the item sequence VR (where each item contains an object of type `I`),
+/// or an encapsulated pixel data sequence (each item of type `P`).
 #[derive(Debug, PartialEq, Clone)]
-pub struct DataElement<I> {
+pub struct DataElement<I, P> {
     header: DataElementHeader,
-    value: Value<I>,
+    value: Value<I, P>,
 }
 
 /// A data type that represents and owns a DICOM data element
@@ -89,7 +90,7 @@ impl PrimitiveDataElement {
     }
 }
 
-impl<I> From<PrimitiveDataElement> for DataElement<I> {
+impl<I, P> From<PrimitiveDataElement> for DataElement<I, P> {
     fn from(o: PrimitiveDataElement) -> Self {
         DataElement {
             header: o.header,
@@ -101,9 +102,9 @@ impl<I> From<PrimitiveDataElement> for DataElement<I> {
 /// A data type that represents a DICOM data element with
 /// a borrowed value.
 #[derive(Debug, PartialEq, Clone)]
-pub struct DataElementRef<'v, I: 'v> {
+pub struct DataElementRef<'v, I: 'v, P: 'v> {
     header: DataElementHeader,
-    value: &'v Value<I>,
+    value: &'v Value<I, P>,
 }
 
 /// A data type that represents a DICOM data element with
@@ -120,49 +121,49 @@ impl<'a> PrimitiveDataElementRef<'a> {
         PrimitiveDataElementRef { header, value }
     }
 }
-impl<I> HasLength for DataElement<I> {
+impl<I, P> HasLength for DataElement<I, P> {
     #[inline]
     fn length(&self) -> Length {
         self.header.length()
     }
 }
 
-impl<I> Header for DataElement<I> {
+impl<I, P> Header for DataElement<I, P> {
     #[inline]
     fn tag(&self) -> Tag {
         self.header.tag()
     }
 }
 
-impl<I> HasLength for &DataElement<I> {
+impl<I, P> HasLength for &DataElement<I, P> {
     #[inline]
     fn length(&self) -> Length {
         (**self).length()
     }
 }
 
-impl<'a, I> Header for &'a DataElement<I> {
+impl<'a, I, P> Header for &'a DataElement<I, P> {
     #[inline]
     fn tag(&self) -> Tag {
         (**self).tag()
     }
 }
 
-impl<'v, I> HasLength for DataElementRef<'v, I> {
+impl<'v, I, P> HasLength for DataElementRef<'v, I, P> {
     #[inline]
     fn length(&self) -> Length {
         self.header.length()
     }
 }
 
-impl<'v, I> Header for DataElementRef<'v, I> {
+impl<'v, I, P> Header for DataElementRef<'v, I, P> {
     #[inline]
     fn tag(&self) -> Tag {
         self.header.tag()
     }
 }
 
-impl<I> DataElement<I> {
+impl<I, P> DataElement<I, P> {
     /// Create an empty data element.
     pub fn empty(tag: Tag, vr: VR) -> Self {
         DataElement {
@@ -187,19 +188,19 @@ impl<I> DataElement<I> {
     }
 
     /// Retrieve the data value.
-    pub fn value(&self) -> &Value<I> {
+    pub fn value(&self) -> &Value<I, P> {
         &self.value
     }
 
     /// Move the data value out of the element, discarding the rest. If the
     /// value is a sequence, its lifetime may still be bound to its original
     /// source.
-    pub fn into_value(self) -> Value<I> {
+    pub fn into_value(self) -> Value<I, P> {
         self.value
     }
 }
 
-impl<I> DataElement<I>
+impl<I, P> DataElement<I, P>
 where
     I: HasLength,
 {
@@ -207,7 +208,7 @@ where
     ///
     /// This method will not check whether the value representation is
     /// compatible with the given value.
-    pub fn new(tag: Tag, vr: VR, value: Value<I>) -> Self {
+    pub fn new(tag: Tag, vr: VR, value: Value<I, P>) -> Self {
         DataElement {
             header: DataElementHeader {
                 tag,
@@ -224,14 +225,14 @@ where
     }
 }
 
-impl<'v, I> DataElementRef<'v, I>
+impl<'v, I, P> DataElementRef<'v, I, P>
 where
     I: HasLength,
 {
     /// Create a data element from the given parts. This method will not check
     /// whether the value representation is compatible with the value. Caution
     /// is advised.
-    pub fn new(tag: Tag, vr: VR, value: &'v Value<I>) -> Self {
+    pub fn new(tag: Tag, vr: VR, value: &'v Value<I, P>) -> Self {
         DataElementRef {
             header: DataElementHeader {
                 tag,
@@ -248,7 +249,7 @@ where
     }
 
     /// Retrieves the DICOM value.
-    pub fn value(&self) -> &Value<I> {
+    pub fn value(&self) -> &Value<I, P> {
         &self.value
     }
 }

@@ -86,8 +86,11 @@ impl PartialEq<Self> for DataToken {
 
 impl From<DataElementHeader> for DataToken {
     fn from(header: DataElementHeader) -> Self {
-        match header.vr() {
-            VR::SQ => DataToken::SequenceStart {
+        match (header.vr(), header.tag) {
+            (VR::OB, Tag(0x7fe0, 0x0010)) if header.len.is_undefined() => {
+                DataToken::PixelSequenceStart
+            }
+            (VR::SQ, _) => DataToken::SequenceStart {
                 tag: header.tag,
                 len: header.len,
             },
@@ -141,7 +144,7 @@ impl IntoTokens for dicom_core::header::EmptyObject {
 }
 
 /// Token generator from a DICOM data element.
-pub enum DataElementTokens<I>
+pub enum DataElementTokens<I, P>
 where
     I: IntoTokens,
 {
@@ -149,13 +152,13 @@ where
     Start(
         // Option is used for easy taking from a &mut,
         // should always be Some in practice
-        Option<DataElement<I>>,
+        Option<DataElement<I, P>>,
     ),
-    /// header was read
+    /// the header of a plain primitive element was read
     Header(
         // Option is used for easy taking from a &mut,
         // should always be Some in practice
-        Option<DataElement<I>>,
+        Option<DataElement<I, P>>,
     ),
     /// reading tokens from items
     Items(
@@ -164,64 +167,122 @@ where
             ItemTokens<I::Iter>,
         >,
     ),
+    /// the header of encapsulated pixel data was read, will read
+    /// the offset table next
+    PixelData(
+        // Pixel fragments; Option is used for easy taking from a &mut,
+        // should always be Some in practice
+        Option<dicom_core::value::C<P>>,
+        ItemValueTokens<dicom_core::value::C<u8>>,
+    ),
+    /// the header and offset of encapsulated pixel data was read,
+    /// fragments come next
+    PixelDataFragments(
+        FlattenTokens<
+            <dicom_core::value::C<ItemValue<P>> as IntoIterator>::IntoIter,
+            ItemValueTokens<P>,
+        >,
+    ),
     /// no more elements
     End,
 }
 
-impl<I> Iterator for DataElementTokens<I>
+impl<I, P> Iterator for DataElementTokens<I, P>
 where
     I: IntoTokens,
+    P: AsRef<[u8]>,
 {
     type Item = DataToken;
 
     fn next(&mut self) -> Option<Self::Item> {
-        use DataElementTokens::*;
         let (out, next_state) = match self {
-            Start(elem) => {
+            DataElementTokens::Start(elem) => {
                 let elem = elem.take().unwrap();
                 // data element header token
+                let header = *elem.header();
 
-                let token = DataToken::from(*elem.header());
-                if token.is_sequence_start() {
-                    // retrieve sequence value, begin item sequence
-                    match elem.into_value() {
-                        Value::Primitive(_) => unreachable!(),
-                        Value::Sequence { items, size: _ } => {
-                            let items: dicom_core::value::C<_> = items
-                                .into_iter()
-                                .map(|o| AsItem(Length::UNDEFINED, o))
-                                .collect();
-                            (Some(token), DataElementTokens::Items(items.into_tokens()))
+                let token = dbg!(DataToken::from(header));
+                match token {
+                    DataToken::SequenceStart { .. } => {
+                        // retrieve sequence value, begin item sequence
+                        match elem.into_value() {
+                            Value::Primitive(_) | Value::PixelSequence { .. } => unreachable!(),
+                            Value::Sequence { items, size: _ } => {
+                                let items: dicom_core::value::C<_> = items
+                                    .into_iter()
+                                    .map(|o| AsItem(Length::UNDEFINED, o))
+                                    .collect();
+                                (Some(token), DataElementTokens::Items(items.into_tokens()))
+                            }
                         }
                     }
-                } else {
-                    (
+                    DataToken::PixelSequenceStart => {
+                        match elem.into_value() {
+                            Value::PixelSequence {
+                                fragments,
+                                offset_table,
+                            } => {
+                                (
+                                    // begin pixel sequence
+                                    Some(DataToken::PixelSequenceStart),
+                                    DataElementTokens::PixelData(
+                                        Some(fragments),
+                                        ItemValue(offset_table).into_tokens(),
+                                    ),
+                                )
+                            }
+                            Value::Primitive(_) | Value::Sequence { .. } => unreachable!(),
+                        }
+                    }
+                    _ => (
                         Some(DataToken::ElementHeader(*elem.header())),
-                        Header(Some(elem)),
-                    )
+                        DataElementTokens::Header(Some(elem)),
+                    ),
                 }
             }
-            Header(elem) => {
+            DataElementTokens::Header(elem) => {
                 let elem = elem.take().unwrap();
                 match elem.into_value() {
-                    Value::Sequence { .. } => unreachable!(),
+                    Value::Sequence { .. } | Value::PixelSequence { .. } => unreachable!(),
                     Value::Primitive(value) => {
                         // return primitive value, done
                         let token = DataToken::PrimitiveValue(value);
-                        (Some(token), End)
+                        (Some(token), DataElementTokens::End)
                     }
                 }
             }
-            Items(tokens) => {
+            DataElementTokens::Items(tokens) => {
                 if let Some(token) = tokens.next() {
                     // bypass manual state transition
                     return Some(token);
                 } else {
                     // sequence end token, end
-                    (Some(DataToken::SequenceEnd), End)
+                    (Some(DataToken::SequenceEnd), DataElementTokens::End)
                 }
             }
-            End => (None, End),
+            DataElementTokens::PixelData(fragments, tokens) => {
+                if let Some(token) = tokens.next() {
+                    // bypass manual state transition
+                    return Some(token);
+                }
+                // pixel data fragments next
+                let fragments = fragments.take().unwrap();
+                let tokens: dicom_core::value::C<_> =
+                    fragments.into_iter().map(|o| ItemValue(o)).collect();
+                *self = DataElementTokens::PixelDataFragments(tokens.into_tokens());
+                // recursive call to ensure the retrieval of a data token
+                return self.next();
+            }
+            DataElementTokens::PixelDataFragments(tokens) => {
+                if let Some(token) = tokens.next() {
+                    // bypass manual state transition
+                    return Some(token);
+                } else {
+                    // sequence end token, end
+                    (Some(DataToken::SequenceEnd), DataElementTokens::End)
+                }
+            }
+            DataElementTokens::End => return None,
         };
         *self = next_state;
 
@@ -229,11 +290,12 @@ where
     }
 }
 
-impl<I> IntoTokens for DataElement<I>
+impl<I, P> IntoTokens for DataElement<I, P>
 where
     I: IntoTokens,
+    P: AsRef<[u8]>,
 {
-    type Iter = DataElementTokens<I>;
+    type Iter = DataElementTokens<I, P>;
 
     fn into_tokens(self) -> Self::Iter {
         DataElementTokens::Start(Some(self))
@@ -383,5 +445,75 @@ where
 
     fn into_tokens(self) -> Self::Iter {
         ItemTokens::new(self.0, self.1)
+    }
+}
+
+/// A newtype for wrapping a piece of raw data into an item.
+/// When converting a value of this type into tokens, the algorithm
+/// will create an item start with an explicit length, followed by
+/// an item value token, then an item delimiter.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ItemValue<P>(P);
+
+impl<P> IntoTokens for ItemValue<P>
+where
+    P: AsRef<[u8]>,
+{
+    type Iter = ItemValueTokens<P>;
+
+    fn into_tokens(self) -> Self::Iter {
+        ItemValueTokens::new(self.0)
+    }
+}
+
+#[derive(Debug)]
+pub enum ItemValueTokens<P> {
+    /// Just started, an item header token will come next
+    Start(Option<P>),
+    /// Will return a token of the value
+    Value(P),
+    /// Will return an end of item token
+    Done,
+    /// Just ended, no more tokens
+    End,
+}
+
+impl<P> ItemValueTokens<P> {
+    pub fn new(value: P) -> Self {
+        ItemValueTokens::Start(Some(value))
+    }
+}
+
+impl<P> Iterator for ItemValueTokens<P>
+where
+    P: AsRef<[u8]>,
+{
+    type Item = DataToken;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (out, next_state) = match self {
+            ItemValueTokens::Start(value) => {
+                let value = value.take().unwrap();
+                let len = Length(value.as_ref().len() as u32);
+
+                (
+                    Some(DataToken::ItemStart { len }),
+                    if len == Length(0) {
+                        ItemValueTokens::Done
+                    } else {
+                        ItemValueTokens::Value(value)
+                    },
+                )
+            }
+            ItemValueTokens::Value(value) => (
+                Some(DataToken::ItemValue(value.as_ref().to_owned())),
+                ItemValueTokens::Done,
+            ),
+            ItemValueTokens::Done => (Some(DataToken::ItemEnd), ItemValueTokens::End),
+            ItemValueTokens::End => return None,
+        };
+
+        *self = next_state;
+        out
     }
 }

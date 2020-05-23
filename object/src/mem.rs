@@ -11,7 +11,7 @@ use crate::meta::FileMetaTable;
 use crate::{DicomObject, RootDicomObject};
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::{HasLength, Header};
-use dicom_core::value::{PrimitiveValue, Value, C};
+use dicom_core::value::{Value, C};
 use dicom_core::{DataElement, Length, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
@@ -22,7 +22,10 @@ use dicom_parser::StatefulDecode;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
 /// A full in-memory DICOM data element.
-pub type InMemElement<D> = DataElement<InMemDicomObject<D>>;
+pub type InMemElement<D> = DataElement<InMemDicomObject<D>, InMemFragment>;
+
+/// The type of a pixel data fragment.
+pub type InMemFragment = Vec<u8>;
 
 /** A DICOM object that is fully contained in memory.
  */
@@ -325,7 +328,7 @@ where
             let elem = match token? {
                 DataToken::PixelSequenceStart => {
                     let value = InMemDicomObject::build_encapsulated_data(dataset)?;
-                    DataElement::new(Tag(0x7fe0, 0x0010), VR::OB, Value::Primitive(value))
+                    DataElement::new(Tag(0x7fe0, 0x0010), VR::OB, value)
                 }
                 DataToken::ElementHeader(header) => {
                     // fetch respective value, place it in the entries
@@ -358,7 +361,7 @@ where
 
     /// Build an encapsulated pixel data by collecting all fragments into an
     /// in-memory DICOM value.
-    fn build_encapsulated_data<P>(dataset: &mut DataSetReader<P, D>) -> Result<PrimitiveValue>
+    fn build_encapsulated_data<P>(dataset: &mut DataSetReader<P, D>) -> Result<Value<InMemDicomObject<D>, InMemFragment>>
     where
         P: StatefulDecode,
     {
@@ -370,17 +373,17 @@ where
         // this code will currently flatten all compressed fragments into a
         // single vector.
 
-        let mut out = C::new();
-
         let mut offset_table = None;
+
+        let mut fragments = C::new();
 
         while let Some(token) = dataset.next() {
             match token? {
                 DataToken::ItemValue(data) => {
                     if offset_table.is_none() {
-                        offset_table = Some(data);
+                        offset_table = Some(data.into());
                     } else {
-                        out.extend(data);
+                        fragments.push(data);
                     }
                 }
                 DataToken::ItemStart { len: _ } | DataToken::ItemEnd => { /* no-op */ }
@@ -400,7 +403,7 @@ where
             }
         }
 
-        Ok(PrimitiveValue::U8(out))
+        Ok(Value::PixelSequence { fragments, offset_table: offset_table.unwrap_or_default() })
     }
 
     /// Build a DICOM sequence by consuming a data set parser.
@@ -642,4 +645,42 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn inmem_encapsulated_pixel_data_into_tokens() {
+        use smallvec::smallvec;
+
+        let main_obj = InMemDicomObject::from_element_iter(vec![
+            DataElement::new(
+                Tag(0x7fe0, 0x0010),
+                VR::OB,
+                Value::PixelSequence {
+                    fragments: smallvec![
+                        vec![0x33; 32]
+                    ],
+                    offset_table: Default::default(),
+                },
+            ),
+        ]);
+
+        let tokens: Vec<_> = main_obj.into_tokens().collect();
+
+        assert_eq!(
+            tokens,
+            vec![
+                DataToken::PixelSequenceStart,
+                DataToken::ItemStart {
+                    len: Length(0),
+                },
+                DataToken::ItemEnd,
+                DataToken::ItemStart {
+                    len: Length(32),
+                },
+                DataToken::ItemValue(vec![0x33; 32]),
+                DataToken::ItemEnd,
+                DataToken::SequenceEnd,
+            ]
+        );
+    }
+
 }

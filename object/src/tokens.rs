@@ -30,9 +30,9 @@ where
     }
 }
 
-impl<E, I> Iterator for InMemObjectTokens<E>
+impl<P, I, E> Iterator for InMemObjectTokens<E>
 where
-    E: Iterator<Item = DataElement<I>>,
+    E: Iterator<Item = DataElement<I, P>>,
     E::Item: IntoTokens,
 {
     type Item = DataToken;
