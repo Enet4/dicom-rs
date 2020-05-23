@@ -19,8 +19,8 @@ pub enum DataToken {
     ElementHeader(DataElementHeader),
     /// The beginning of a sequence element.
     SequenceStart { tag: Tag, len: Length },
-    /// The beginning of an encapsulated data element (Pixel Data).
-    EncapsulatedElementStart,
+    /// The beginning of an encapsulated pixel data element.
+    PixelSequenceStart,
     /// The ending delimiter of a sequence or encapsulated pixel data.
     SequenceEnd,
     /// The beginning of a new item in the sequence.
@@ -78,7 +78,7 @@ impl PartialEq<Self> for DataToken {
             (ItemValue(v1), ItemValue(v2)) => v1 == v2,
             (ItemEnd, ItemEnd)
             | (SequenceEnd, SequenceEnd)
-            | (EncapsulatedElementStart, EncapsulatedElementStart) => true,
+            | (PixelSequenceStart, PixelSequenceStart) => true,
             _ => false,
         }
     }

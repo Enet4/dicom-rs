@@ -116,7 +116,7 @@ where
                 self.last_de = Some(de.clone());
                 self.write_impl(token)
             }
-            token @ DataToken::EncapsulatedElementStart => {
+            token @ DataToken::PixelSequenceStart => {
                 self.seq_tokens.push(SeqToken {
                     typ: SeqTokenType::Sequence,
                     len: Length::UNDEFINED,
@@ -137,7 +137,7 @@ where
                 self.printer
                     .encode_element_header(DataElementHeader::new(tag, VR::SQ, len))?;
             }
-            DataToken::EncapsulatedElementStart => {
+            DataToken::PixelSequenceStart => {
                 self.printer.encode_element_header(DataElementHeader::new(
                     Tag(0x7fe0, 0x0010),
                     VR::OB,
@@ -337,7 +337,7 @@ mod tests {
     #[test]
     fn write_encapsulated_pixeldata() {
         let tokens = vec![
-            DataToken::EncapsulatedElementStart,
+            DataToken::PixelSequenceStart,
             DataToken::ItemStart { len: Length(0) },
             DataToken::ItemEnd,
             DataToken::ItemStart { len: Length(32) },

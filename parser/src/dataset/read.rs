@@ -296,7 +296,7 @@ where
                     self.last_header = Some(header);
                     // token variant depends on whether it's encapsulated pixel data
                     if header.is_encapsulated_pixeldata() {
-                        Some(Ok(DataToken::EncapsulatedElementStart))
+                        Some(Ok(DataToken::PixelSequenceStart))
                     } else {
                         Some(Ok(DataToken::ElementHeader(header)))
                     }
@@ -833,7 +833,7 @@ mod tests {
         ];
 
         let ground_truth = vec![
-            DataToken::EncapsulatedElementStart,
+            DataToken::PixelSequenceStart,
             DataToken::ItemStart { len: Length(0) },
             DataToken::ItemEnd,
             DataToken::ItemStart { len: Length(32) },
