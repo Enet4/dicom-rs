@@ -11,7 +11,7 @@ use crate::meta::FileMetaTable;
 use crate::{DicomObject, RootDicomObject};
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::{HasLength, Header};
-use dicom_core::value::{Value, C};
+use dicom_core::value::{PrimitiveValue, Value, C};
 use dicom_core::{DataElement, Length, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
@@ -323,7 +323,10 @@ where
         // perform a structured parsing of incoming tokens
         while let Some(token) = dataset.next() {
             let elem = match token? {
-                DataToken::EncapsulatedElementStart => todo!("encapsulated element"),
+                DataToken::PixelSequenceStart => {
+                    let value = InMemDicomObject::build_encapsulated_data(dataset)?;
+                    DataElement::new(Tag(0x7fe0, 0x0010), VR::OB, Value::Primitive(value))
+                }
                 DataToken::ElementHeader(header) => {
                     // fetch respective value, place it in the entries
                     let next_token = dataset.next().ok_or_else(|| Error::MissingElementValue)?;
@@ -351,6 +354,53 @@ where
         }
 
         Ok(InMemDicomObject { entries, dict, len })
+    }
+
+    /// Build an encapsulated pixel data by collecting all fragments into an
+    /// in-memory DICOM value.
+    fn build_encapsulated_data<P>(dataset: &mut DataSetReader<P, D>) -> Result<PrimitiveValue>
+    where
+        P: StatefulDecode,
+    {
+        // continue fetching tokens to retrieve:
+        // - the offset table
+        // - the various compressed fragments
+        //
+        // Note: as there is still no standard way to represent this in memory,
+        // this code will currently flatten all compressed fragments into a
+        // single vector.
+
+        let mut out = C::new();
+
+        let mut offset_table = None;
+
+        while let Some(token) = dataset.next() {
+            match token? {
+                DataToken::ItemValue(data) => {
+                    if offset_table.is_none() {
+                        offset_table = Some(data);
+                    } else {
+                        out.extend(data);
+                    }
+                }
+                DataToken::ItemStart { len: _ } | DataToken::ItemEnd => { /* no-op */ }
+                DataToken::SequenceEnd => {
+                    // end of pixel data
+                    break;
+                }
+                // the following variants are unexpected
+                token @ DataToken::ElementHeader(_)
+                | token @ DataToken::PixelSequenceStart
+                | token @ DataToken::SequenceStart { .. }
+                | token @ DataToken::PrimitiveValue(_) => {
+                    return Err(Error::DataSetSyntax(DataSetSyntaxError::UnexpectedToken(
+                        token,
+                    )));
+                }
+            }
+        }
+
+        Ok(PrimitiveValue::U8(out))
     }
 
     /// Build a DICOM sequence by consuming a data set parser.
