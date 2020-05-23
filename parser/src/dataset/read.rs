@@ -217,6 +217,8 @@ where
         } else if let Some(header) = self.last_header {
             if header.is_encapsulated_pixeldata() {
                 self.push_sequence_token(SeqTokenType::Sequence, Length::UNDEFINED, true);
+                self.last_header = None;
+
                 // encapsulated pixel data, expecting offset table
                 match self.parser.decode_item_header() {
                     Ok(header) => match header {
@@ -350,6 +352,7 @@ where
         Ok(None)
     }
 
+    #[inline]
     fn push_sequence_token(&mut self, typ: SeqTokenType, len: Length, pixel_data: bool) {
         self.seq_delimiters.push(SeqToken {
             typ,
@@ -821,6 +824,12 @@ mod tests {
             // -- 60 -- End of pixel data
             0xfe, 0xff, 0xdd, 0xe0, // sequence end tag
             0x00, 0x00, 0x00, 0x00,
+            // -- 68 -- padding
+            0xfc, 0xff, 0xfc, 0xff, // (fffc,fffc) DataSetTrailingPadding
+            b'O', b'B', // VR
+            0x00, 0x00, // reserved
+            0x08, 0x00, 0x00, 0x00, // length: 8
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
 
         let ground_truth = vec![
@@ -831,6 +840,8 @@ mod tests {
             DataToken::ItemValue(vec![0x99; 32]),
             DataToken::ItemEnd,
             DataToken::SequenceEnd,
+            DataToken::ElementHeader(DataElementHeader::new(Tag(0xfffc, 0xfffc), VR::OB, Length(8))),
+            DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into()))
         ];
 
         validate_dataset_reader(DATA, ground_truth);

@@ -335,7 +335,7 @@ mod tests {
     }
 
     #[test]
-    fn read_encapsulated_pixeldata() {
+    fn write_encapsulated_pixeldata() {
         let tokens = vec![
             DataToken::EncapsulatedElementStart,
             DataToken::ItemStart { len: Length(0) },
@@ -344,6 +344,8 @@ mod tests {
             DataToken::ItemValue(vec![0x99; 32]),
             DataToken::ItemEnd,
             DataToken::SequenceEnd,
+            DataToken::ElementHeader(DataElementHeader::new(Tag(0xfffc, 0xfffc), VR::OB, Length(8))),
+            DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into())),
         ];
 
         #[rustfmt::skip]
@@ -366,6 +368,12 @@ mod tests {
             // -- 60 -- End of pixel data
             0xfe, 0xff, 0xdd, 0xe0, // sequence end tag
             0x00, 0x00, 0x00, 0x00,
+            // -- 68 -- padding
+            0xfc, 0xff, 0xfc, 0xff, // (fffc,fffc) DataSetTrailingPadding
+            b'O', b'B', // VR
+            0x00, 0x00, // reserved
+            0x08, 0x00, 0x00, 0x00, // length: 8
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
 
         validate_dataset_writer(tokens, GROUND_TRUTH);

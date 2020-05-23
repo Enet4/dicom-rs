@@ -97,9 +97,20 @@ impl From<DataElementHeader> for DataToken {
 }
 
 impl DataToken {
+    /// Check whether this token represents the start of a sequence
+    /// of nested data sets.
     pub fn is_sequence_start(&self) -> bool {
         match self {
             DataToken::SequenceStart { .. } => true,
+            _ => false,
+        }
+    }
+
+    /// Check whether this token represents the end of a sequence
+    /// or the end of an encapsulated element.
+    pub fn is_sequence_end(&self) -> bool {
+        match self {
+            DataToken::SequenceEnd => true,
             _ => false,
         }
     }
