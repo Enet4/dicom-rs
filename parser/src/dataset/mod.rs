@@ -201,7 +201,7 @@ where
                 // data element header token
                 let header = *elem.header();
 
-                let token = dbg!(DataToken::from(header));
+                let token = DataToken::from(header);
                 match token {
                     DataToken::SequenceStart { .. } => {
                         // retrieve sequence value, begin item sequence
