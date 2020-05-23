@@ -116,8 +116,14 @@ where
                 self.last_de = Some(de.clone());
                 self.write_impl(token)
             }
-            token @ DataToken::EncapsulatedElementStart
-            | token @ DataToken::ItemValue(_)
+            token @ DataToken::EncapsulatedElementStart => {
+                self.seq_tokens.push(SeqToken {
+                    typ: SeqTokenType::Sequence,
+                    len: Length::UNDEFINED,
+                });
+                self.write_impl(token)
+            }
+            token @ DataToken::ItemValue(_)
             | token @ DataToken::PrimitiveValue(_) => self.write_impl(token),
         }
     }
@@ -327,4 +333,42 @@ mod tests {
 
         validate_dataset_writer(tokens, GROUND_TRUTH);
     }
+
+    #[test]
+    fn read_encapsulated_pixeldata() {
+        let tokens = vec![
+            DataToken::EncapsulatedElementStart,
+            DataToken::ItemStart { len: Length(0) },
+            DataToken::ItemEnd,
+            DataToken::ItemStart { len: Length(32) },
+            DataToken::ItemValue(vec![0x99; 32]),
+            DataToken::ItemEnd,
+            DataToken::SequenceEnd,
+        ];
+
+        #[rustfmt::skip]
+        static GROUND_TRUTH: &[u8] = &[
+            0xe0, 0x7f, 0x10, 0x00, // (7FE0, 0010) PixelData
+            b'O', b'B', // VR 
+            0x00, 0x00, // reserved
+            0xff, 0xff, 0xff, 0xff, // length: undefined
+            // -- 12 -- Basic offset table
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0x00, 0x00, 0x00, 0x00, // item length: 0
+            // -- 20 -- First fragment of pixel data
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0x20, 0x00, 0x00, 0x00, // item length: 32
+            // -- 28 -- Compressed Fragment
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            // -- 60 -- End of pixel data
+            0xfe, 0xff, 0xdd, 0xe0, // sequence end tag
+            0x00, 0x00, 0x00, 0x00,
+        ];
+
+        validate_dataset_writer(tokens, GROUND_TRUTH);
+    }
+
 }
