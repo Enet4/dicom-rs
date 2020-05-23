@@ -323,6 +323,7 @@ where
         // perform a structured parsing of incoming tokens
         while let Some(token) = dataset.next() {
             let elem = match token? {
+                DataToken::EncapsulatedElementStart => todo!("encapsulated element"),
                 DataToken::ElementHeader(header) => {
                     // fetch respective value, place it in the entries
                     let next_token = dataset.next().ok_or_else(|| Error::MissingElementValue)?;

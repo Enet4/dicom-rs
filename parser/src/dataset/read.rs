@@ -339,7 +339,7 @@ where
                             token = DataToken::ItemEnd;
                         }
                     }
-                    dbg!(self.seq_delimiters.pop());
+                    self.seq_delimiters.pop();
                     return Ok(Some(token));
                 } else if eos < bytes_read {
                     return Err(Error::InconsistentSequenceEnd(eos, bytes_read));
@@ -351,12 +351,12 @@ where
     }
 
     fn push_sequence_token(&mut self, typ: SeqTokenType, len: Length, pixel_data: bool) {
-        self.seq_delimiters.push(dbg!(SeqToken {
+        self.seq_delimiters.push(SeqToken {
             typ,
             pixel_data,
             len,
             base_offset: self.parser.bytes_read(),
-        }))
+        })
     }
 }
 

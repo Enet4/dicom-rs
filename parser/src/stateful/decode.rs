@@ -737,9 +737,9 @@ mod tests {
             assert_eq!(decoder.bytes_read(), 8);
 
             // read value
-            let value = dbg!(decoder
+            let value = decoder
                 .read_value(&elem)
-                .expect("value after element header"));
+                .expect("value after element header");
             assert_eq!(value.multiplicity(), 1);
             assert_eq!(value.string(), Some("1.2.840.10008.5.1.4.1.1.1\0"));
 
