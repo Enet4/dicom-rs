@@ -123,8 +123,9 @@ where
                 });
                 self.write_impl(token)
             }
-            token @ DataToken::ItemValue(_)
-            | token @ DataToken::PrimitiveValue(_) => self.write_impl(token),
+            token @ DataToken::ItemValue(_) | token @ DataToken::PrimitiveValue(_) => {
+                self.write_impl(token)
+            }
         }
     }
 
@@ -344,7 +345,11 @@ mod tests {
             DataToken::ItemValue(vec![0x99; 32]),
             DataToken::ItemEnd,
             DataToken::SequenceEnd,
-            DataToken::ElementHeader(DataElementHeader::new(Tag(0xfffc, 0xfffc), VR::OB, Length(8))),
+            DataToken::ElementHeader(DataElementHeader::new(
+                Tag(0xfffc, 0xfffc),
+                VR::OB,
+                Length(8),
+            )),
             DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into())),
         ];
 
@@ -378,5 +383,4 @@ mod tests {
 
         validate_dataset_writer(tokens, GROUND_TRUTH);
     }
-
 }

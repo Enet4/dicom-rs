@@ -840,8 +840,12 @@ mod tests {
             DataToken::ItemValue(vec![0x99; 32]),
             DataToken::ItemEnd,
             DataToken::SequenceEnd,
-            DataToken::ElementHeader(DataElementHeader::new(Tag(0xfffc, 0xfffc), VR::OB, Length(8))),
-            DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into()))
+            DataToken::ElementHeader(DataElementHeader::new(
+                Tag(0xfffc, 0xfffc),
+                VR::OB,
+                Length(8),
+            )),
+            DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into())),
         ];
 
         validate_dataset_reader(DATA, ground_truth);
@@ -888,11 +892,14 @@ mod tests {
             DataToken::ItemValue(vec![0x99; 32]),
             DataToken::ItemEnd,
             DataToken::SequenceEnd,
-            DataToken::ElementHeader(DataElementHeader::new(Tag(0xfffc, 0xfffc), VR::OB, Length(8))),
-            DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into()))
+            DataToken::ElementHeader(DataElementHeader::new(
+                Tag(0xfffc, 0xfffc),
+                VR::OB,
+                Length(8),
+            )),
+            DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into())),
         ];
 
         validate_dataset_reader(DATA, ground_truth);
     }
-
 }

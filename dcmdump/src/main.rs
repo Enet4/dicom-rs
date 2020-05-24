@@ -216,8 +216,7 @@ where
     writeln!(
         to,
         "{}(FFFE,E00D) na (ItemDelimitationItem) {:23} # 0, 0 ItemDelimitationItem",
-        indent,
-        ""
+        indent, ""
     )?;
     Ok(())
 }
