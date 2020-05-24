@@ -14,7 +14,8 @@ use std::io::Write;
 
 /// Also called a printer, this encoder type provides a stateful mid-level
 /// abstraction for writing DICOM content. Unlike `Encode`,
-/// the stateful encoder knows how to write text values.
+/// the stateful encoder knows how to write text values and keeps track
+/// of how many bytes were written.
 /// `W` is the write target, `E` is the encoder, and `T` is the text codec.
 #[derive(Debug)]
 pub struct StatefulEncoder<W, E, T> {
@@ -93,6 +94,13 @@ where
     pub fn encode_sequence_delimiter(&mut self) -> Result<()> {
         self.encoder.encode_sequence_delimiter(&mut self.to)?;
         self.bytes_written += 8;
+        Ok(())
+    }
+
+    /// Write all bytes directly to the inner writer.
+    pub fn write_bytes(&mut self, bytes: &[u8]) -> Result<()> {
+        self.to.write_all(bytes)?;
+        self.bytes_written += bytes.len() as u64;
         Ok(())
     }
 

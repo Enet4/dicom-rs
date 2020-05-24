@@ -34,6 +34,8 @@ struct SeqToken {
     /// The length of the value, as indicated by the starting element,
     /// can be unknown.
     len: Length,
+    /// Whether this sequence token is part of an encapsulated pixel data.
+    pixel_data: bool,
     /// The number of bytes the parser has read until it reached the
     /// beginning of the sequence or item value data.
     base_offset: u64,
@@ -55,6 +57,8 @@ pub struct DataSetReader<S, D> {
     hard_break: bool,
     /// last decoded header
     last_header: Option<DataElementHeader>,
+    /// Whether to expect a raw value next, and how many bytes long
+    raw_value_length: Option<u32>,
 }
 
 impl<'s> DataSetReader<DynStatefulDecoder<'s>, StandardDataDictionary> {
@@ -76,6 +80,7 @@ impl<'s> DataSetReader<DynStatefulDecoder<'s>, StandardDataDictionary> {
             in_sequence: false,
             hard_break: false,
             last_header: None,
+            raw_value_length: None,
         })
     }
 }
@@ -104,6 +109,7 @@ impl<'s, D> DataSetReader<DynStatefulDecoder<'s>, D> {
             in_sequence: false,
             hard_break: false,
             last_header: None,
+            raw_value_length: None,
         })
     }
 }
@@ -119,6 +125,7 @@ impl<S> DataSetReader<S, StandardDataDictionary> {
             in_sequence: false,
             hard_break: false,
             last_header: None,
+            raw_value_length: None,
         }
     }
 }
@@ -148,58 +155,117 @@ where
         }
 
         if self.in_sequence {
+            // at sequence level, expecting item header
+
             match self.parser.decode_item_header() {
-                Ok(header) => match header {
-                    SequenceItemHeader::Item { len } => {
-                        // entered a new item
-                        self.in_sequence = false;
-                        self.seq_delimiters.push(SeqToken {
-                            typ: SeqTokenType::Item,
-                            len,
-                            base_offset: self.parser.bytes_read(),
-                        });
-                        // items can be empty
-                        if len == Length(0) {
-                            self.delimiter_check_pending = true;
+                Ok(header) => {
+                    match header {
+                        SequenceItemHeader::Item { len } => {
+                            // entered a new item
+                            self.in_sequence = false;
+                            self.push_sequence_token(
+                                SeqTokenType::Item,
+                                len,
+                                self.seq_delimiters.last()
+                                    .expect("item header should be read only inside an existing sequence")
+                                    .pixel_data);
+                            // items can be empty
+                            if len == Length(0) {
+                                self.delimiter_check_pending = true;
+                            }
+                            Some(Ok(DataToken::ItemStart { len }))
                         }
-                        Some(Ok(DataToken::ItemStart { len }))
+                        SequenceItemHeader::ItemDelimiter => {
+                            // closed an item
+                            self.seq_delimiters.pop();
+                            self.in_sequence = true;
+                            Some(Ok(DataToken::ItemEnd))
+                        }
+                        SequenceItemHeader::SequenceDelimiter => {
+                            // closed a sequence
+                            self.seq_delimiters.pop();
+                            self.in_sequence = false;
+                            Some(Ok(DataToken::SequenceEnd))
+                        }
                     }
-                    SequenceItemHeader::ItemDelimiter => {
-                        // closed an item
-                        self.seq_delimiters.pop();
-                        self.in_sequence = true;
-                        Some(Ok(DataToken::ItemEnd))
-                    }
-                    SequenceItemHeader::SequenceDelimiter => {
-                        // closed a sequence
-                        self.seq_delimiters.pop();
-                        self.in_sequence = false;
-                        Some(Ok(DataToken::SequenceEnd))
-                    }
-                },
+                }
                 Err(e) => {
                     self.hard_break = true;
                     Some(Err(e))
                 }
             }
-        } else if self.last_header.is_some() {
-            // a plain element header was read, so a value is expected
-            let header = self.last_header.unwrap();
-            let value = match self.parser.read_value(&header) {
-                Ok(v) => v,
-                Err(e) => {
-                    self.hard_break = true;
-                    self.last_header = None;
-                    return Some(Err(e));
-                }
-            };
+        } else if let Some(SeqToken {
+            typ: SeqTokenType::Item,
+            pixel_data: true,
+            len,
+            ..
+        }) = self.seq_delimiters.last()
+        {
+            // item value
 
-            self.last_header = None;
+            let len = len.get().expect("length should be explicit, error missing") as usize;
+            let mut value = vec![0; len];
 
-            // sequences can end after this token
+            // need to pop item delimiter on the next iteration
             self.delimiter_check_pending = true;
+            Some(
+                self.parser
+                    .read_bytes(&mut value[..])
+                    .map(|_| Ok(DataToken::ItemValue(value)))
+                    .unwrap_or_else(|e| Err(e)),
+            )
+        } else if let Some(header) = self.last_header {
+            if header.is_encapsulated_pixeldata() {
+                self.push_sequence_token(SeqTokenType::Sequence, Length::UNDEFINED, true);
+                self.last_header = None;
 
-            Some(Ok(DataToken::PrimitiveValue(value)))
+                // encapsulated pixel data, expecting offset table
+                match self.parser.decode_item_header() {
+                    Ok(header) => match header {
+                        SequenceItemHeader::Item { len } => {
+                            // entered a new item
+                            self.in_sequence = false;
+                            self.push_sequence_token(SeqTokenType::Item, len, true);
+                            // items can be empty
+                            if len == Length(0) {
+                                self.delimiter_check_pending = true;
+                            }
+                            Some(Ok(DataToken::ItemStart { len }))
+                        }
+                        SequenceItemHeader::SequenceDelimiter => {
+                            // empty pixel data
+                            self.seq_delimiters.pop();
+                            self.in_sequence = false;
+                            Some(Ok(DataToken::SequenceEnd))
+                        }
+                        item => {
+                            self.hard_break = true;
+                            Some(Err(Error::UnexpectedTag(item.tag())))
+                        }
+                    },
+                    Err(e) => {
+                        self.hard_break = true;
+                        Some(Err(e))
+                    }
+                }
+            } else {
+                // a plain element header was read, so a value is expected
+                let value = match self.parser.read_value(&header) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        self.hard_break = true;
+                        self.last_header = None;
+                        return Some(Err(e));
+                    }
+                };
+
+                self.last_header = None;
+
+                // sequences can end after this token
+                self.delimiter_check_pending = true;
+
+                Some(Ok(DataToken::PrimitiveValue(value)))
+            }
         } else {
             // a data element header or item delimiter is expected
             match self.parser.decode_header() {
@@ -209,11 +275,7 @@ where
                     len,
                 }) => {
                     self.in_sequence = true;
-                    self.seq_delimiters.push(SeqToken {
-                        typ: SeqTokenType::Sequence,
-                        len,
-                        base_offset: self.parser.bytes_read(),
-                    });
+                    self.push_sequence_token(SeqTokenType::Sequence, len, false);
 
                     // sequences can end right after they start
                     if len == Length(0) {
@@ -232,7 +294,12 @@ where
                 Ok(header) => {
                     // save it for the next step
                     self.last_header = Some(header);
-                    Some(Ok(DataToken::ElementHeader(header)))
+                    // token variant depends on whether it's encapsulated pixel data
+                    if header.is_encapsulated_pixeldata() {
+                        Some(Ok(DataToken::PixelSequenceStart))
+                    } else {
+                        Some(Ok(DataToken::ElementHeader(header)))
+                    }
                 }
                 Err(Error::Io(ref e)) if e.kind() == ::std::io::ErrorKind::UnexpectedEof => {
                     // TODO there might be a more informative way to check
@@ -274,7 +341,6 @@ where
                             token = DataToken::ItemEnd;
                         }
                     }
-
                     self.seq_delimiters.pop();
                     return Ok(Some(token));
                 } else if eos < bytes_read {
@@ -284,6 +350,16 @@ where
         }
         self.delimiter_check_pending = false;
         Ok(None)
+    }
+
+    #[inline]
+    fn push_sequence_token(&mut self, typ: SeqTokenType, len: Length, pixel_data: bool) {
+        self.seq_delimiters.push(SeqToken {
+            typ,
+            pixel_data,
+            len,
+            base_offset: self.parser.bytes_read(),
+        })
     }
 }
 
@@ -500,7 +576,7 @@ mod tests {
 
         while let Some((res, gt_token)) = iter.next() {
             let token = res.expect("should parse without an error");
-            eprintln!("Next token: {:?}", token);
+            eprintln!("Next token: {:2?} ; Expected: {:2?}", token, gt_token);
             assert_eq!(token, gt_token);
         }
 
@@ -513,7 +589,7 @@ mod tests {
     }
 
     #[test]
-    fn sequence_reading_explicit() {
+    fn read_sequence_explicit() {
         #[rustfmt::skip]
         static DATA: &[u8] = &[
             0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
@@ -577,7 +653,7 @@ mod tests {
     }
 
     #[test]
-    fn sequence_reading_explicit_2() {
+    fn read_sequence_explicit_2() {
         static DATA: &[u8] = &[
             // SequenceStart: (0008,2218) ; len = 54 (#=3)
             0x08, 0x00, 0x18, 0x22, b'S', b'Q', 0x00, 0x00, 0x36, 0x00, 0x00, 0x00,
@@ -721,6 +797,107 @@ mod tests {
                 len: Length(4),
             }),
             DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
+        ];
+
+        validate_dataset_reader(DATA, ground_truth);
+    }
+
+    #[test]
+    fn read_encapsulated_pixeldata() {
+        #[rustfmt::skip]
+        static DATA: &[u8] = &[
+            0xe0, 0x7f, 0x10, 0x00, // (7FE0, 0010) PixelData
+            b'O', b'B', // VR 
+            0x00, 0x00, // reserved
+            0xff, 0xff, 0xff, 0xff, // length: undefined
+            // -- 12 -- Basic offset table
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0x00, 0x00, 0x00, 0x00, // item length: 0
+            // -- 20 -- First fragment of pixel data
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0x20, 0x00, 0x00, 0x00, // item length: 32
+            // -- 28 -- Compressed Fragment
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            // -- 60 -- End of pixel data
+            0xfe, 0xff, 0xdd, 0xe0, // sequence end tag
+            0x00, 0x00, 0x00, 0x00,
+            // -- 68 -- padding
+            0xfc, 0xff, 0xfc, 0xff, // (fffc,fffc) DataSetTrailingPadding
+            b'O', b'B', // VR
+            0x00, 0x00, // reserved
+            0x08, 0x00, 0x00, 0x00, // length: 8
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
+
+        let ground_truth = vec![
+            DataToken::PixelSequenceStart,
+            DataToken::ItemStart { len: Length(0) },
+            DataToken::ItemEnd,
+            DataToken::ItemStart { len: Length(32) },
+            DataToken::ItemValue(vec![0x99; 32]),
+            DataToken::ItemEnd,
+            DataToken::SequenceEnd,
+            DataToken::ElementHeader(DataElementHeader::new(
+                Tag(0xfffc, 0xfffc),
+                VR::OB,
+                Length(8),
+            )),
+            DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into())),
+        ];
+
+        validate_dataset_reader(DATA, ground_truth);
+    }
+
+    #[test]
+    fn read_encapsulated_pixeldata_with_offset_table() {
+        #[rustfmt::skip]
+        static DATA: &[u8] = &[
+            0xe0, 0x7f, 0x10, 0x00, // (7FE0, 0010) PixelData
+            b'O', b'B', // VR 
+            0x00, 0x00, // reserved
+            0xff, 0xff, 0xff, 0xff, // length: undefined
+            // -- 12 -- Basic offset table
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0x04, 0x00, 0x00, 0x00, // item length: 4
+            // -- 20 -- item value
+            0x10, 0x00, 0x00, 0x00, // 16
+            // -- 24 -- First fragment of pixel data
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0x20, 0x00, 0x00, 0x00, // item length: 32
+            // -- 32 -- Compressed Fragment
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            // -- 60 -- End of pixel data
+            0xfe, 0xff, 0xdd, 0xe0, // sequence end tag
+            0x00, 0x00, 0x00, 0x00,
+            // -- 68 -- padding
+            0xfc, 0xff, 0xfc, 0xff, // (fffc,fffc) DataSetTrailingPadding
+            b'O', b'B', // VR
+            0x00, 0x00, // reserved
+            0x08, 0x00, 0x00, 0x00, // length: 8
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
+
+        let ground_truth = vec![
+            DataToken::PixelSequenceStart,
+            DataToken::ItemStart { len: Length(4) },
+            DataToken::ItemValue(vec![0x10, 0x00, 0x00, 0x00]),
+            DataToken::ItemEnd,
+            DataToken::ItemStart { len: Length(32) },
+            DataToken::ItemValue(vec![0x99; 32]),
+            DataToken::ItemEnd,
+            DataToken::SequenceEnd,
+            DataToken::ElementHeader(DataElementHeader::new(
+                Tag(0xfffc, 0xfffc),
+                VR::OB,
+                Length(8),
+            )),
+            DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into())),
         ];
 
         validate_dataset_reader(DATA, ground_truth);

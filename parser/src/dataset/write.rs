@@ -116,36 +116,54 @@ where
                 self.last_de = Some(de.clone());
                 self.write_impl(token)
             }
-            _ => self.write_impl(token),
+            token @ DataToken::PixelSequenceStart => {
+                self.seq_tokens.push(SeqToken {
+                    typ: SeqTokenType::Sequence,
+                    len: Length::UNDEFINED,
+                });
+                self.write_impl(token)
+            }
+            token @ DataToken::ItemValue(_) | token @ DataToken::PrimitiveValue(_) => {
+                self.write_impl(token)
+            }
         }
     }
 
     fn write_impl(&mut self, token: DataToken) -> Result<()> {
-        use DataToken::*;
         match token {
-            ElementHeader(header) => {
+            DataToken::ElementHeader(header) => {
                 self.printer.encode_element_header(header)?;
             }
-            SequenceStart { tag, len } => {
+            DataToken::SequenceStart { tag, len } => {
                 self.printer
                     .encode_element_header(DataElementHeader::new(tag, VR::SQ, len))?;
             }
-            SequenceEnd => {
+            DataToken::PixelSequenceStart => {
+                self.printer.encode_element_header(DataElementHeader::new(
+                    Tag(0x7fe0, 0x0010),
+                    VR::OB,
+                    Length::UNDEFINED,
+                ))?;
+            }
+            DataToken::SequenceEnd => {
                 self.printer.encode_sequence_delimiter()?;
             }
-            ItemStart { len } => {
+            DataToken::ItemStart { len } => {
                 self.printer.encode_item_header(len.0)?;
             }
-            ItemEnd => {
+            DataToken::ItemEnd => {
                 self.printer.encode_item_delimiter()?;
             }
-            PrimitiveValue(ref value) => {
+            DataToken::PrimitiveValue(ref value) => {
                 let last_de = self
                     .last_de
                     .as_ref()
                     .ok_or_else(|| DataSetSyntaxError::UnexpectedToken(token.clone()))?;
                 self.printer.encode_primitive(last_de, value)?;
                 self.last_de = None;
+            }
+            DataToken::ItemValue(data) => {
+                self.printer.write_bytes(&data)?;
             }
         }
         Ok(())
@@ -312,6 +330,55 @@ mod tests {
             // -- 82 --
             0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4  
             b'T', b'E', b'S', b'T', // value = "TEST"
+        ];
+
+        validate_dataset_writer(tokens, GROUND_TRUTH);
+    }
+
+    #[test]
+    fn write_encapsulated_pixeldata() {
+        let tokens = vec![
+            DataToken::PixelSequenceStart,
+            DataToken::ItemStart { len: Length(0) },
+            DataToken::ItemEnd,
+            DataToken::ItemStart { len: Length(32) },
+            DataToken::ItemValue(vec![0x99; 32]),
+            DataToken::ItemEnd,
+            DataToken::SequenceEnd,
+            DataToken::ElementHeader(DataElementHeader::new(
+                Tag(0xfffc, 0xfffc),
+                VR::OB,
+                Length(8),
+            )),
+            DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into())),
+        ];
+
+        #[rustfmt::skip]
+        static GROUND_TRUTH: &[u8] = &[
+            0xe0, 0x7f, 0x10, 0x00, // (7FE0, 0010) PixelData
+            b'O', b'B', // VR 
+            0x00, 0x00, // reserved
+            0xff, 0xff, 0xff, 0xff, // length: undefined
+            // -- 12 -- Basic offset table
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0x00, 0x00, 0x00, 0x00, // item length: 0
+            // -- 20 -- First fragment of pixel data
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0x20, 0x00, 0x00, 0x00, // item length: 32
+            // -- 28 -- Compressed Fragment
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            // -- 60 -- End of pixel data
+            0xfe, 0xff, 0xdd, 0xe0, // sequence end tag
+            0x00, 0x00, 0x00, 0x00,
+            // -- 68 -- padding
+            0xfc, 0xff, 0xfc, 0xff, // (fffc,fffc) DataSetTrailingPadding
+            b'O', b'B', // VR
+            0x00, 0x00, // reserved
+            0x08, 0x00, 0x00, 0x00, // length: 8
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
 
         validate_dataset_writer(tokens, GROUND_TRUTH);

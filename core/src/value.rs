@@ -15,26 +15,43 @@ pub type C<T> = SmallVec<[T; 2]>;
 
 /// Representation of a full DICOM value, which may be either primitive or
 /// another DICOM object.
+///
+/// `I` is the complex type for nest data set items, which should usually
+/// implement [`HasLength`].
+/// `P` is the encapsulated pixel data provider, which should usually
+/// implement `AsRef<[u8]>`.
+///
+/// [`HasLength`]: ../header/trait.HasLength.html
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value<I> {
-    /// Primitive value
+pub enum Value<I, P> {
+    /// Primitive value.
     Primitive(PrimitiveValue),
-    /// A complex sequence of items
+    /// A complex sequence of items.
     Sequence {
         /// Item collection.
         items: C<I>,
         /// The size in bytes.
         size: Length,
     },
+    /// An encapsulated pixel data sequence.
+    PixelSequence {
+        /// The value contents of the offset table.
+        offset_table: C<u8>,
+        /// The sequence of compressed fragments.
+        fragments: C<P>,
+    },
 }
 
-impl<I> Value<I> {
+impl<I, P> Value<I, P> {
     /// Obtain the number of individual values.
-    /// In a sequence item, this is the number of items.
+    /// In a sequence item, this is the number of items. In a pixel sequence,
+    /// this is currently set to 1 regardless of the number of compressed
+    /// fragments or frames.
     pub fn multiplicity(&self) -> u32 {
         match *self {
             Value::Primitive(ref v) => v.multiplicity(),
             Value::Sequence { ref items, .. } => items.len() as u32,
+            Value::PixelSequence { .. } => 1,
         }
     }
 
@@ -69,9 +86,17 @@ impl<I> Value<I> {
             _ => None,
         }
     }
+
+    /// Gets a reference to the encapsulated pixel data's offset table.
+    pub fn offset_table(&self) -> Option<&[u8]> {
+        match self {
+            Value::PixelSequence { offset_table, .. } => Some(&offset_table),
+            _ => None,
+        }
+    }
 }
 
-impl<I> Value<I>
+impl<I, P> Value<I, P>
 where
     I: HasLength,
 {
@@ -135,7 +160,7 @@ where
     }
 }
 
-impl<I> From<PrimitiveValue> for Value<I> {
+impl<I, P> From<PrimitiveValue> for Value<I, P> {
     fn from(v: PrimitiveValue) -> Self {
         Value::Primitive(v)
     }
@@ -514,7 +539,7 @@ impl HasLength for PrimitiveValue {
 
 /// An enum representing an abstraction of a DICOM element's data value type.
 /// This should be the equivalent of `PrimitiveValue` without the content,
-/// plus the `Item` entry.
+/// plus the `Item` and `PixelSequence` entries.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ValueType {
     /// No data. Used for any value of length 0.
@@ -522,6 +547,9 @@ pub enum ValueType {
 
     /// An item. Used for elements in a SQ, regardless of content.
     Item,
+
+    /// An item. Used for the values of encapsulated pixel data.
+    PixelSequence,
 
     /// A sequence of strings.
     /// Used for AE, AS, PN, SH, CS, LO, UI and UC.
@@ -602,64 +630,64 @@ pub trait DicomValueType: HasLength {
 
 impl DicomValueType for PrimitiveValue {
     fn value_type(&self) -> ValueType {
-        use self::PrimitiveValue::*;
         match *self {
-            Empty => ValueType::Empty,
-            Date(_) => ValueType::Date,
-            DateTime(_) => ValueType::DateTime,
-            F32(_) => ValueType::F32,
-            F64(_) => ValueType::F64,
-            I16(_) => ValueType::I16,
-            I32(_) => ValueType::I32,
-            I64(_) => ValueType::I64,
-            Str(_) => ValueType::Str,
-            Strs(_) => ValueType::Strs,
-            Tags(_) => ValueType::Tags,
-            Time(_) => ValueType::Time,
-            U16(_) => ValueType::U16,
-            U32(_) => ValueType::U32,
-            U64(_) => ValueType::U64,
-            U8(_) => ValueType::U8,
+            PrimitiveValue::Empty => ValueType::Empty,
+            PrimitiveValue::Date(_) => ValueType::Date,
+            PrimitiveValue::DateTime(_) => ValueType::DateTime,
+            PrimitiveValue::F32(_) => ValueType::F32,
+            PrimitiveValue::F64(_) => ValueType::F64,
+            PrimitiveValue::I16(_) => ValueType::I16,
+            PrimitiveValue::I32(_) => ValueType::I32,
+            PrimitiveValue::I64(_) => ValueType::I64,
+            PrimitiveValue::Str(_) => ValueType::Str,
+            PrimitiveValue::Strs(_) => ValueType::Strs,
+            PrimitiveValue::Tags(_) => ValueType::Tags,
+            PrimitiveValue::Time(_) => ValueType::Time,
+            PrimitiveValue::U16(_) => ValueType::U16,
+            PrimitiveValue::U32(_) => ValueType::U32,
+            PrimitiveValue::U64(_) => ValueType::U64,
+            PrimitiveValue::U8(_) => ValueType::U8,
         }
     }
 
     fn cardinality(&self) -> usize {
-        use self::PrimitiveValue::*;
         match self {
-            Empty => 0,
-            Str(_) => 1,
-            Date(b) => b.len(),
-            DateTime(b) => b.len(),
-            F32(b) => b.len(),
-            F64(b) => b.len(),
-            I16(b) => b.len(),
-            I32(b) => b.len(),
-            I64(b) => b.len(),
-            Strs(b) => b.len(),
-            Tags(b) => b.len(),
-            Time(b) => b.len(),
-            U16(b) => b.len(),
-            U32(b) => b.len(),
-            U64(b) => b.len(),
-            U8(b) => b.len(),
+            PrimitiveValue::Empty => 0,
+            PrimitiveValue::Str(_) => 1,
+            PrimitiveValue::Date(b) => b.len(),
+            PrimitiveValue::DateTime(b) => b.len(),
+            PrimitiveValue::F32(b) => b.len(),
+            PrimitiveValue::F64(b) => b.len(),
+            PrimitiveValue::I16(b) => b.len(),
+            PrimitiveValue::I32(b) => b.len(),
+            PrimitiveValue::I64(b) => b.len(),
+            PrimitiveValue::Strs(b) => b.len(),
+            PrimitiveValue::Tags(b) => b.len(),
+            PrimitiveValue::Time(b) => b.len(),
+            PrimitiveValue::U16(b) => b.len(),
+            PrimitiveValue::U32(b) => b.len(),
+            PrimitiveValue::U64(b) => b.len(),
+            PrimitiveValue::U8(b) => b.len(),
         }
     }
 }
 
-impl<I> HasLength for Value<I> {
+impl<I, P> HasLength for Value<I, P> {
     fn length(&self) -> Length {
         match self {
             Value::Primitive(v) => v.length(),
             Value::Sequence { size, .. } => *size,
+            Value::PixelSequence { .. } => Length::UNDEFINED,
         }
     }
 }
 
-impl<I> DicomValueType for Value<I> {
+impl<I, P> DicomValueType for Value<I, P> {
     fn value_type(&self) -> ValueType {
         match self {
             Value::Primitive(v) => v.value_type(),
             Value::Sequence { .. } => ValueType::Item,
+            Value::PixelSequence { .. } => ValueType::PixelSequence,
         }
     }
 
@@ -667,6 +695,7 @@ impl<I> DicomValueType for Value<I> {
         match self {
             Value::Primitive(v) => v.cardinality(),
             Value::Sequence { items, .. } => items.len(),
+            Value::PixelSequence { .. } => 1,
         }
     }
 }

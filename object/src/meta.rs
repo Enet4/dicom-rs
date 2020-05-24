@@ -224,7 +224,7 @@ impl FileMetaTable {
         builder.build()
     }
 
-    pub fn into_element_iter(self) -> impl Iterator<Item = DataElement<EmptyObject>> {
+    pub fn into_element_iter(self) -> impl Iterator<Item = DataElement<EmptyObject, [u8; 0]>> {
         let mut elems = vec![
             // file information group length
             DataElement::new(

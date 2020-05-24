@@ -42,7 +42,7 @@ fn dump_file(obj: DefaultDicomObject) -> IoResult<()> {
 
     let meta = obj.meta();
 
-    let width = 40;
+    let width = 48;
 
     meta_dump(&mut to, &meta, width)?;
 
@@ -127,32 +127,76 @@ where
         _ => elem.value().multiplicity(),
     };
 
-    if let DicomValue::Sequence { ref items, .. } = elem.value() {
-        writeln!(
-            to,
-            "{} {}                                # {},    {}",
-            elem.tag(),
-            elem.vr(),
-            vm,
-            tag_alias
-        )?;
-        for item in items {
-            dump_item(&mut *to, item, width, depth + 1)?;
+    match elem.value() {
+        DicomValue::Sequence { items, .. } => {
+            writeln!(
+                to,
+                "{} {} {:48} # {},    {}",
+                elem.tag(),
+                elem.vr(),
+                "",
+                vm,
+                tag_alias
+            )?;
+            for item in items {
+                dump_item(&mut *to, item, width, depth + 2)?;
+            }
+            writeln!(
+                to,
+                "(FFFE, E0DD) na (SequenceDelimitationItem) {:20} # 0, SequenceDelimitationItem",
+                "",
+            )?;
         }
-    } else {
-        let vr = elem.vr();
-        let value = elem.value().primitive().unwrap();
-        let byte_len = value.calculate_byte_len();
-        writeln!(
-            to,
-            "{} {} {:48} # {}, {} {}",
-            elem.tag(),
-            vr,
-            value_summary(&value, vr, width),
-            byte_len,
-            vm,
-            tag_alias
-        )?;
+        DicomValue::PixelSequence {
+            fragments,
+            offset_table,
+        } => {
+            // write pixel sequence start line
+            let vr = elem.vr();
+            let num_items = 1 + fragments.len();
+            writeln!(
+                to,
+                "{} {} (PixelSequence=#{}) {:29} # u/l, 1 PixelData",
+                elem.tag(),
+                vr,
+                num_items,
+                ""
+            )?;
+
+            // write offset table
+            let byte_len = offset_table.len();
+            writeln!(
+                to,
+                "  (FFFE,E000) pi {:48} # {}, 1 Item",
+                item_value_summary(&offset_table, width),
+                byte_len,
+            )?;
+
+            // write compressed fragments
+            for fragment in fragments {
+                let byte_len = fragment.len();
+                writeln!(
+                    to,
+                    "  (FFFE,E000) pi {:48} # {}, 1 Item",
+                    item_value_summary(&fragment, width),
+                    byte_len,
+                )?;
+            }
+        }
+        DicomValue::Primitive(value) => {
+            let vr = elem.vr();
+            let byte_len = value.calculate_byte_len();
+            writeln!(
+                to,
+                "{} {} {:48} # {}, {} {}",
+                elem.tag(),
+                vr,
+                value_summary(&value, vr, width),
+                byte_len,
+                vm,
+                tag_alias
+            )?;
+        }
     }
 
     Ok(())
@@ -165,14 +209,14 @@ where
 {
     let indent: String = std::iter::repeat(' ').take((depth * 2) as usize).collect();
     let trail: String = std::iter::repeat(' ')
-        .take(usize::max(21, width as usize - 21 - indent.len()))
+        .take(usize::max(21, width as usize - 4 - indent.len()))
         .collect();
     writeln!(to, "{}(FFFE,E000) na Item {} # 0, 0 Item", indent, trail)?;
     dump(to, item, width, depth + 1)?;
     writeln!(
         to,
-        "{}(FFFE,E00D) na (ItemDelimitationItem)  # 0, 0 ItemDelimitationItem",
-        indent,
+        "{}(FFFE,E00D) na (ItemDelimitationItem) {:23} # 0, 0 ItemDelimitationItem",
+        indent, ""
     )?;
     Ok(())
 }
@@ -188,13 +232,13 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> Cow<str
         (U64(values), _) => format_value_list(values, max_characters).into(),
         (I16(values), _) => format_value_list(values, max_characters).into(),
         (U16(values), VR::OW) => format_value_list(
-            values.into_iter().map(|n| format!("{:#x}", n)),
+            values.into_iter().map(|n| format!("{:02X}", n)),
             max_characters,
         )
         .into(),
         (U16(values), _) => format_value_list(values, max_characters).into(),
         (U8(values), VR::OB) | (U8(values), VR::UN) => format_value_list(
-            values.into_iter().map(|n| format!("{:#x}", n)),
+            values.into_iter().map(|n| format!("{:02X}", n)),
             max_characters,
         )
         .into(),
@@ -211,6 +255,13 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> Cow<str
     }
 }
 
+fn item_value_summary(data: &[u8], max_characters: u32) -> String {
+    format_value_list(
+        data.iter().map(|n| format!("{:02X}", n)),
+        max_characters,
+    )
+}
+
 fn format_value_list<I>(values: I, max_characters: u32) -> String
 where
     I: IntoIterator,
@@ -221,7 +272,7 @@ where
     let mut o = String::with_capacity(max);
     for piece in pieces {
         o.push_str(&piece.to_string());
-        o.push(',');
+        o.push('\\');
         if o.len() > max {
             break;
         }
