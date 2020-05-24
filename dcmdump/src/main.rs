@@ -257,7 +257,7 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> Cow<str
 
 fn item_value_summary(data: &[u8], max_characters: u32) -> String {
     format_value_list(
-        data.into_iter().map(|n| format!("{:02X}", n)),
+        data.iter().map(|n| format!("{:02X}", n)),
         max_characters,
     )
 }
