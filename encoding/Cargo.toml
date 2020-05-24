@@ -1,6 +1,6 @@
 [package]
 name = "dicom-encoding"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "DICOM encoding and decoding primitives"
 edition = "2018"
@@ -14,8 +14,8 @@ default = []
 inventory-registry = ['inventory']
 
 [dependencies]
-dicom-core = { path = "../core", version = "0.1.0" }
-dicom-dictionary-std = { path = "../dictionary-std", version = "0.1.0" }
+dicom-core = { path = "../core", version = "0.2.0" }
+dicom-dictionary-std = { path = "../dictionary-std", version = "0.2.0" }
 quick-error = "1.2.3"
 encoding = "0.2.33"
 byteordered = "0.5.0"

@@ -11,4 +11,4 @@ repository = "https://github.com/Enet4/dicom-rs"
 clap = "2.33.0"
 quick-error = "1.2.3"
 dicom-ul = { path = "../ul/", version = "0.1.0" }
-dicom-dictionary-std = { path = "../dictionary-std/", version = "0.1.0" }
+dicom-dictionary-std = { path = "../dictionary-std/", version = "0.2.0" }
