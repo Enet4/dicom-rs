@@ -18,7 +18,6 @@ use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_parser::dataset::{DataSetReader, DataToken};
 use dicom_parser::error::{DataSetSyntaxError, Error, Result};
-use dicom_parser::StatefulDecode;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
 /// A full in-memory DICOM data element.
@@ -313,21 +312,16 @@ where
     // private methods
 
     /// Build an object by consuming a data set parser.
-    fn build_object<P>(
-        dataset: &mut DataSetReader<P, D>,
-        dict: D,
-        in_item: bool,
-        len: Length,
-    ) -> Result<Self>
+    fn build_object<I: ?Sized>(dataset: &mut I, dict: D, in_item: bool, len: Length) -> Result<Self>
     where
-        P: StatefulDecode,
+        I: Iterator<Item = Result<DataToken>>,
     {
         let mut entries: BTreeMap<Tag, InMemElement<D>> = BTreeMap::new();
         // perform a structured parsing of incoming tokens
         while let Some(token) = dataset.next() {
             let elem = match token? {
                 DataToken::PixelSequenceStart => {
-                    let value = InMemDicomObject::build_encapsulated_data(dataset)?;
+                    let value = InMemDicomObject::build_encapsulated_data(&mut *dataset)?;
                     DataElement::new(Tag(0x7fe0, 0x0010), VR::OB, value)
                 }
                 DataToken::ElementHeader(header) => {
@@ -361,9 +355,11 @@ where
 
     /// Build an encapsulated pixel data by collecting all fragments into an
     /// in-memory DICOM value.
-    fn build_encapsulated_data<P>(dataset: &mut DataSetReader<P, D>) -> Result<Value<InMemDicomObject<D>, InMemFragment>>
+    fn build_encapsulated_data<I>(
+        mut dataset: I,
+    ) -> Result<Value<InMemDicomObject<D>, InMemFragment>>
     where
-        P: StatefulDecode,
+        I: Iterator<Item = Result<DataToken>>,
     {
         // continue fetching tokens to retrieve:
         // - the offset table
@@ -411,18 +407,21 @@ where
             }
         }
 
-        Ok(Value::PixelSequence { fragments, offset_table: offset_table.unwrap_or_default() })
+        Ok(Value::PixelSequence {
+            fragments,
+            offset_table: offset_table.unwrap_or_default(),
+        })
     }
 
     /// Build a DICOM sequence by consuming a data set parser.
-    fn build_sequence<P>(
+    fn build_sequence<I: ?Sized>(
         _tag: Tag,
         _len: Length,
-        dataset: &mut DataSetReader<P, D>,
+        dataset: &mut I,
         dict: &D,
     ) -> Result<C<InMemDicomObject<D>>>
     where
-        P: StatefulDecode,
+        I: Iterator<Item = Result<DataToken>>,
     {
         let mut items: C<_> = SmallVec::new();
         while let Some(token) = dataset.next() {
@@ -499,6 +498,15 @@ mod tests {
     use dicom_core::value::PrimitiveValue;
     use dicom_parser::dataset::IntoTokens;
 
+    fn assert_obj_eq<D>(obj1: &InMemDicomObject<D>, obj2: &InMemDicomObject<D>)
+    where
+        D: std::fmt::Debug,
+    {
+        // debug representation because it makes a stricter comparison and
+        // assumes that Undefined lengths are equal.
+        assert_eq!(format!("{:?}", obj1), format!("{:?}", obj2))
+    }
+
     #[test]
     fn inmem_object_write() {
         let mut obj1 = InMemDicomObject::create_empty();
@@ -508,7 +516,7 @@ mod tests {
         obj1.put(empty_patient_name.clone());
         assert_ne!(obj1, obj2);
         obj2.put(empty_patient_name.clone());
-        assert_eq!(obj1, obj2);
+        assert_obj_eq(&obj1, &obj2);
     }
 
     #[test]
@@ -542,6 +550,47 @@ mod tests {
         let obj = InMemDicomObject::create_empty();
         let tokens = obj.into_tokens();
         assert_eq!(tokens.count(), 0);
+    }
+
+    #[test]
+    fn inmem_shallow_object_from_tokens() {
+        let tokens = vec![
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0008, 0x0060),
+                vr: VR::CS,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::Str("MG".to_owned())),
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0010, 0x0010),
+                vr: VR::PN,
+                len: Length(8),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::Str("Doe^John".to_owned())),
+        ];
+
+        let gt_obj = InMemDicomObject::from_element_iter(vec![
+            DataElement::new(
+                Tag(0x0010, 0x0010),
+                VR::PN,
+                PrimitiveValue::Str("Doe^John".to_string()).into(),
+            ),
+            DataElement::new(
+                Tag(0x0008, 0x0060),
+                VR::CS,
+                PrimitiveValue::Str("MG".to_string()).into(),
+            ),
+        ]);
+
+        let obj = InMemDicomObject::build_object(
+            &mut tokens.into_iter().map(Result::Ok),
+            StandardDataDictionary,
+            false,
+            Length::UNDEFINED,
+        )
+        .unwrap();
+
+        assert_obj_eq(&obj, &gt_obj);
     }
 
     #[test]
@@ -579,6 +628,84 @@ mod tests {
                 DataToken::PrimitiveValue(PrimitiveValue::Str("Doe^John".to_owned())),
             ]
         );
+    }
+
+    #[test]
+    fn inmem_deep_object_from_tokens() {
+        use smallvec::smallvec;
+
+        let obj_1 = InMemDicomObject::from_element_iter(vec![
+            DataElement::new(Tag(0x0018, 0x6012), VR::US, Value::Primitive(1_u16.into())),
+            DataElement::new(Tag(0x0018, 0x6014), VR::US, Value::Primitive(2_u16.into())),
+        ]);
+
+        let obj_2 = InMemDicomObject::from_element_iter(vec![DataElement::new(
+            Tag(0x0018, 0x6012),
+            VR::US,
+            Value::Primitive(4_u16.into()),
+        )]);
+
+        let gt_obj = InMemDicomObject::from_element_iter(vec![
+            DataElement::new(
+                Tag(0x0018, 0x6011),
+                VR::SQ,
+                Value::Sequence {
+                    items: smallvec![obj_1, obj_2],
+                    size: Length::UNDEFINED,
+                },
+            ),
+            DataElement::new(Tag(0x0020, 0x4000), VR::LT, Value::Primitive("TEST".into())),
+        ]);
+
+        let tokens: Vec<_> = vec![
+            DataToken::SequenceStart {
+                tag: Tag(0x0018, 0x6011),
+                len: Length::UNDEFINED,
+            },
+            DataToken::ItemStart {
+                len: Length::UNDEFINED,
+            },
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6012),
+                vr: VR::US,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::U16([1].as_ref().into())),
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6014),
+                vr: VR::US,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::U16([2].as_ref().into())),
+            DataToken::ItemEnd,
+            DataToken::ItemStart {
+                len: Length::UNDEFINED,
+            },
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6012),
+                vr: VR::US,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::U16([4].as_ref().into())),
+            DataToken::ItemEnd,
+            DataToken::SequenceEnd,
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0020, 0x4000),
+                vr: VR::LT,
+                len: Length(4),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
+        ];
+
+        let obj = InMemDicomObject::build_object(
+            &mut tokens.into_iter().map(Result::Ok),
+            StandardDataDictionary,
+            false,
+            Length::UNDEFINED,
+        )
+        .unwrap();
+
+        assert_obj_eq(&obj, &gt_obj);
     }
 
     #[test]
@@ -655,21 +782,51 @@ mod tests {
     }
 
     #[test]
+    fn inmem_encapsulated_pixel_data_from_tokens() {
+        use smallvec::smallvec;
+
+        let gt_obj = InMemDicomObject::from_element_iter(vec![DataElement::new(
+            Tag(0x7fe0, 0x0010),
+            VR::OB,
+            Value::PixelSequence {
+                fragments: smallvec![vec![0x33; 32]],
+                offset_table: Default::default(),
+            },
+        )]);
+
+        let tokens: Vec<_> = vec![
+            DataToken::PixelSequenceStart,
+            DataToken::ItemStart { len: Length(0) },
+            DataToken::ItemEnd,
+            DataToken::ItemStart { len: Length(32) },
+            DataToken::ItemValue(vec![0x33; 32]),
+            DataToken::ItemEnd,
+            DataToken::SequenceEnd,
+        ];
+
+        let obj = InMemDicomObject::build_object(
+            &mut tokens.into_iter().map(Result::Ok),
+            StandardDataDictionary,
+            false,
+            Length::UNDEFINED,
+        )
+        .unwrap();
+
+        assert_obj_eq(&obj, &gt_obj);
+    }
+
+    #[test]
     fn inmem_encapsulated_pixel_data_into_tokens() {
         use smallvec::smallvec;
 
-        let main_obj = InMemDicomObject::from_element_iter(vec![
-            DataElement::new(
-                Tag(0x7fe0, 0x0010),
-                VR::OB,
-                Value::PixelSequence {
-                    fragments: smallvec![
-                        vec![0x33; 32]
-                    ],
-                    offset_table: Default::default(),
-                },
-            ),
-        ]);
+        let main_obj = InMemDicomObject::from_element_iter(vec![DataElement::new(
+            Tag(0x7fe0, 0x0010),
+            VR::OB,
+            Value::PixelSequence {
+                fragments: smallvec![vec![0x33; 32]],
+                offset_table: Default::default(),
+            },
+        )]);
 
         let tokens: Vec<_> = main_obj.into_tokens().collect();
 
@@ -677,18 +834,13 @@ mod tests {
             tokens,
             vec![
                 DataToken::PixelSequenceStart,
-                DataToken::ItemStart {
-                    len: Length(0),
-                },
+                DataToken::ItemStart { len: Length(0) },
                 DataToken::ItemEnd,
-                DataToken::ItemStart {
-                    len: Length(32),
-                },
+                DataToken::ItemStart { len: Length(32) },
                 DataToken::ItemValue(vec![0x33; 32]),
                 DataToken::ItemEnd,
                 DataToken::SequenceEnd,
             ]
         );
     }
-
 }
