@@ -386,7 +386,15 @@ where
                         fragments.push(data);
                     }
                 }
-                DataToken::ItemStart { len: _ } | DataToken::ItemEnd => { /* no-op */ }
+                DataToken::ItemEnd => {
+                    // at the end of the first item ensure the presence of
+                    // an empty offset_table here, so that the next items
+                    // are seen as compressed fragments
+                    if offset_table.is_none() {
+                        offset_table = Some(C::new())
+                    }
+                }
+                DataToken::ItemStart { len: _ } => { /* no-op */ }
                 DataToken::SequenceEnd => {
                     // end of pixel data
                     break;
