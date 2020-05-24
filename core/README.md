@@ -1,4 +1,4 @@
-# DICOM-rs core library
+# DICOM-rs `core`
 
 [![CratesIO](https://img.shields.io/crates/v/dicom-core.svg)](https://crates.io/crates/dicom-core)
 [![Documentation](https://docs.rs/dicom-core/badge.svg)](https://docs.rs/dicom-core)

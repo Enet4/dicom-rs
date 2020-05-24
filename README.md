@@ -7,8 +7,7 @@
 [![CratesIO](https://img.shields.io/crates/v/dicom.svg)](https://crates.io/crates/dicom)
 [![Documentation](https://docs.rs/dicom/badge.svg)](https://docs.rs/dicom)
 
-
-An efficient and practical library for [DICOM](https://dicomstandard.org) compliant systems.
+An ecosystem of library and tools for [DICOM](https://dicomstandard.org) compliant systems.
 
 This collection provides a pure Rust implementation of the DICOM standard,
 allowing users to read and write DICOM objects over files and other sources, while
@@ -16,14 +15,22 @@ remaining intrinsically fast and safe to use.
 
 ## Components
 
+### Library:
+
 - [`core`](core) represents all of the base traits, data structures and functions related to DICOM content.
 - [`encoding`](encoding) contains DICOM data encoding and decoding primitives.
-- [`parser`](parser) provides a middle-level abstraction with a parser of DICOM data sets.
+- [`parser`](parser) provides a middle-level abstraction for the parsing and printing of DICOM data sets.
 - [`object`](object) provides a high-level abstraction of DICOM objects and functions for reading and writing DICOM files.
 - [`dictionary-std`](dictionary-std) contains a Rust definition of the standard data dictionary.
+- [`transfer-syntax-registry`](transfer-syntax-registry) contains a registry of transfer syntax specifications.
+- [`ul`](ul) implements the DICOM upper layer protocol.
+
+### Tools:
+
+- [`dcmdump`](dcmdump) is a command-line application for inspecting DICOM files.
 - [`dictionary-builder`](dictionary-builder) is a Rust application that generates code and
   other data structures for a DICOM standard dictionary using entries from the official website.
-- [`dcmdump`](dcmdump) is a command-line application for inspecting DICOM files.
+- [`scpproxy`](scpproxy) implements the Proxy service class provider.
 
 ## Using as a library
 

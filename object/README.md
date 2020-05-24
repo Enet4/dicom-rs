@@ -1,4 +1,4 @@
-# DICOM-rs object library
+# DICOM-rs `object`
 
 [![CratesIO](https://img.shields.io/crates/v/dicom-object.svg)](https://crates.io/crates/dicom-object)
 [![Documentation](https://docs.rs/dicom-object/badge.svg)](https://docs.rs/dicom-object)

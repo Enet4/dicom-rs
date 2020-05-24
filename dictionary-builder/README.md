@@ -1,4 +1,4 @@
-# DICOM Dictionary Builder
+# DICOM-rs `dictionary-builder`
 
 [![CratesIO](https://img.shields.io/crates/v/dicom-dictionary-builder.svg)](https://crates.io/crates/dicom-dictionary-builder)
 [![Documentation](https://docs.rs/dicom-dictionary-builder/badge.svg)](https://docs.rs/dicom-dictionary-builder)
