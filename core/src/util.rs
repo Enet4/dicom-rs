@@ -22,6 +22,7 @@ where
     }
 }
 
+/// A trait that combines io::Read and io::Seek
 pub trait ReadSeek: Read + Seek {}
 impl<T: ?Sized> ReadSeek for T where T: Read + Seek {}
 

@@ -16,6 +16,7 @@ pub mod implicit_le;
 use crate::decode::basic::BasicDecoder;
 use crate::decode::DecodeFrom;
 use crate::encode::{EncodeTo, EncoderFor};
+use dicom_core::ReadSeek;
 use std::io::{Read, Write};
 
 pub use byteordered::Endianness;
@@ -276,7 +277,7 @@ impl<A> TransferSyntax<A> {
     /// The resulting decoder does not consider pixel data encapsulation or
     /// data set compression rules. This means that the consumer of this method
     /// needs to adapt the reader before using the decoder.
-    pub fn decoder<'s>(&self) -> Option<DynDecoder<dyn Read + 's>> {
+    pub fn decoder<'s>(&self) -> Option<DynDecoder<dyn ReadSeek + 's>> {
         self.decoder_for()
     }
 

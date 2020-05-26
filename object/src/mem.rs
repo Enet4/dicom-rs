@@ -4,7 +4,7 @@ use itertools::Itertools;
 use smallvec::SmallVec;
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::{BufReader, Read, Seek};
 use std::path::Path;
 
 use crate::meta::FileMetaTable;
@@ -85,7 +85,7 @@ impl RootDicomObject<InMemDicomObject<StandardDataDictionary>> {
     /// preamble: file meta group, followed by the rest of the data set.
     pub fn from_reader<S>(src: S) -> Result<Self>
     where
-        S: Read,
+        S: Read + Seek,
     {
         Self::from_reader_with_dict(src, StandardDataDictionary)
     }
@@ -190,7 +190,7 @@ where
     /// preamble: file meta group, followed by the rest of the data set.
     pub fn from_reader_with_dict<S>(src: S, dict: D) -> Result<Self>
     where
-        S: Read,
+        S: Read + Seek,
     {
         Self::from_reader_with(src, dict, TransferSyntaxRegistry)
     }
@@ -207,7 +207,7 @@ where
     /// [`from_reader_with_dict`]: #method.from_reader_with_dict
     pub fn from_reader_with<'s, S: 's, R>(src: S, dict: D, ts_index: R) -> Result<Self>
     where
-        S: Read,
+        S: Read + Seek,
         R: TransferSyntaxIndex,
     {
         let mut file = BufReader::new(src);

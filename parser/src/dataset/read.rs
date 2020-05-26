@@ -66,7 +66,7 @@ impl<'s> DataSetReader<DynStatefulDecoder<'s>, StandardDataDictionary> {
     /// while considering the given transfer syntax and specific character set.
     pub fn new_with<S: 's>(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
     where
-        S: Read,
+        S: Read + Seek,
     {
         let parser = DynStatefulDecoder::new_with(source, ts, cs)?;
 
@@ -95,7 +95,7 @@ impl<'s, D> DataSetReader<DynStatefulDecoder<'s>, D> {
         cs: SpecificCharacterSet,
     ) -> Result<Self>
     where
-        S: Read,
+        S: Read + Seek,
     {
         let parser = DynStatefulDecoder::new_with(source, ts, cs)?;
 
@@ -556,15 +556,15 @@ mod tests {
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
     use dicom_encoding::text::DefaultCharacterSetCodec;
     use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-    use std::io::Read;
+    use std::io::Cursor;
 
-    fn validate_dataset_reader<I>(data: &[u8], ground_truth: I)
+    fn validate_dataset_reader<I>(data: &mut Cursor<&[u8]>, ground_truth: I)
     where
         I: IntoIterator<Item = DataToken>,
     {
-        let mut cursor = data;
+        let data_len = data.get_ref().len();
         let parser = StatefulDecoder::new(
-            cursor.by_ref(),
+            data,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder::default(),
             Box::new(DefaultCharacterSetCodec::default()) as Box<_>, // trait object
@@ -585,7 +585,7 @@ mod tests {
             0,            // we have already read all of them
             "unexpected number of tokens remaining"
         );
-        assert_eq!(dset_reader.parser.bytes_read(), data.len() as u64);
+        assert_eq!(dset_reader.parser.bytes_read(), data_len as u64);
     }
 
     #[test]
@@ -649,7 +649,7 @@ mod tests {
             DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
         ];
 
-        validate_dataset_reader(DATA, ground_truth);
+        validate_dataset_reader(&mut Cursor::new(DATA), ground_truth);
     }
 
     #[test]
@@ -725,7 +725,7 @@ mod tests {
             )),
         ];
 
-        validate_dataset_reader(DATA, ground_truth);
+        validate_dataset_reader(&mut Cursor::new(DATA), ground_truth);
     }
 
     #[test]
@@ -799,7 +799,7 @@ mod tests {
             DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
         ];
 
-        validate_dataset_reader(DATA, ground_truth);
+        validate_dataset_reader(&mut Cursor::new(DATA), ground_truth);
     }
 
     #[test]

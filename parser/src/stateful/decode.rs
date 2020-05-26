@@ -4,9 +4,13 @@
 
 use crate::error::{Error, Result};
 use crate::util::n_times;
+use byteordered::{ByteOrdered, Endianness};
 use chrono::FixedOffset;
-use dicom_core::header::{DataElementHeader, HasLength, Length, SequenceItemHeader, Tag, VR};
+use dicom_core::header::{
+    DataElementHeader, HasLength, Header, Length, SequenceItemHeader, Tag, VR,
+};
 use dicom_core::value::{PrimitiveValue, C};
+use dicom_core::ReadSeek;
 use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
 use dicom_encoding::decode::primitive_value::*;
 use dicom_encoding::decode::{BasicDecode, DecodeFrom};
@@ -17,9 +21,9 @@ use dicom_encoding::text::{
 };
 use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
 use dicom_encoding::transfer_syntax::{DynDecoder, TransferSyntax};
-use smallvec::smallvec;
+use smallvec::{smallvec, SmallVec};
 use std::fmt::Debug;
-use std::io::Read;
+use std::io::{self, Read, Seek, SeekFrom};
 use std::iter::Iterator;
 
 pub trait StatefulDecode {
@@ -82,8 +86,12 @@ pub trait StatefulDecode {
 /// Alias for a dynamically resolved DICOM stateful decoder. Although the data
 /// source may be known at compile time, the required decoder may vary
 /// according to an object's transfer syntax.
-pub type DynStatefulDecoder<'s> =
-    StatefulDecoder<DynDecoder<dyn Read + 's>, BasicDecoder, Box<dyn Read + 's>, DynamicTextCodec>;
+pub type DynStatefulDecoder<'s> = StatefulDecoder<
+    DynDecoder<dyn ReadSeek + 's>,
+    BasicDecoder,
+    Box<dyn ReadSeek + 's>,
+    DynamicTextCodec,
+>;
 
 /// The initial capacity of the `DicomParser` buffer.
 const PARSER_BUFFER_CAPACITY: usize = 2048;
@@ -113,7 +121,7 @@ impl<'s> DynStatefulDecoder<'s> {
     /// Create a new DICOM parser for the given transfer syntax and character set.
     pub fn new_with<S: 's>(from: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
     where
-        S: Read,
+        S: Read + Seek,
     {
         let basic = ts.basic_decoder();
         let decoder = ts
@@ -176,8 +184,8 @@ impl<D, T, BD, S, TC> StatefulDecoder<D, BD, S, TC>
 where
     D: DecodeFrom<T>,
     BD: BasicDecode,
-    S: std::ops::DerefMut<Target = T> + Read,
-    T: ?Sized + Read,
+    S: std::ops::DerefMut<Target = T> + Read + Seek,
+    T: ?Sized + Read + Seek,
     TC: TextCodec,
 {
     // ---------------- private methods ---------------------
@@ -199,15 +207,22 @@ where
     }
 
     fn read_value_ob(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        // TODO add support for OB value data length resolution
         // (might need to delegate pixel data reading to a separate trait)
-        let len = require_known_length(header)?;
+        if let Some(len) = header.length().get() {
+            // sequence of 8-bit integers (or arbitrary byte data)
+            let mut buf = smallvec![0u8; len as usize];
+            self.from.read_exact(&mut buf)?;
+            self.bytes_read += len as u64;
+            Ok(PrimitiveValue::U8(buf))
+        } else {
+            let bytes_to_find = tag_as_bytes(
+                SequenceItemHeader::SequenceDelimiter.tag(),
+                self.basic.endianness(),
+            );
+            let out = read_until_marker(&mut self.from, &bytes_to_find)?;
 
-        // sequence of 8-bit integers (or arbitrary byte data)
-        let mut buf = smallvec![0u8; len];
-        self.from.read_exact(&mut buf)?;
-        self.bytes_read += len as u64;
-        Ok(PrimitiveValue::U8(buf))
+            Ok(PrimitiveValue::U8(SmallVec::from_vec(out)))
+        }
     }
 
     fn read_value_strs(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
@@ -479,8 +494,8 @@ impl<S, T, D, BD> StatefulDecoder<D, BD, S, DynamicTextCodec>
 where
     D: DecodeFrom<T>,
     BD: BasicDecode,
-    S: std::ops::DerefMut<Target = T> + Read,
-    T: ?Sized + Read,
+    S: std::ops::DerefMut<Target = T> + Read + Seek,
+    T: ?Sized + Read + Seek,
 {
     fn set_character_set(&mut self, charset: SpecificCharacterSet) -> Result<()> {
         self.text = charset
@@ -521,8 +536,8 @@ impl<S, T, D, BD> StatefulDecode for StatefulDecoder<D, BD, S, DynamicTextCodec>
 where
     D: DecodeFrom<T>,
     BD: BasicDecode,
-    S: std::ops::DerefMut<Target = T> + Read,
-    T: ?Sized + Read,
+    S: std::ops::DerefMut<Target = T> + Read + Seek,
+    T: ?Sized + Read + Seek,
 {
     type Reader = S;
 
@@ -681,6 +696,103 @@ fn require_known_length(
         .ok_or_else(|| InvalidValueReadError::UnresolvedValueLength)
 }
 
+fn read_until_marker<S, T>(from: &mut S, bytes_to_find: &[u8; 4]) -> Result<Vec<u8>>
+where
+    S: std::ops::DerefMut<Target = T> + Read + Seek,
+    T: ?Sized + Read + Seek,
+{
+    const READ_SIZE: usize = 1024 * 8;
+    let mut buf = [0u8; READ_SIZE];
+    let mut out = Vec::new();
+    let mut found = false;
+    let mut eof = false;
+
+    while !found {
+        let mut bytes_read = from.read(&mut buf)?;
+
+        // try to fill the buffer
+        while bytes_read < READ_SIZE {
+            let bytes_read_here = from.read(&mut buf[bytes_read..])?;
+            if bytes_read_here == 0 {
+                eof = true;
+                break;
+            }
+            bytes_read += bytes_read_here;
+        }
+
+        match find_in_buffer(&buf, &bytes_to_find) {
+            Some(i) => {
+                found = true;
+                // extend up to before delimiter
+                out.extend_from_slice(&buf[0..i]);
+                // seek reader back to after delimiter
+                from.seek(SeekFrom::Current(0 - (bytes_read as i64 - i as i64 - 4)))
+                    .unwrap();
+                // must have zero bytes after
+                check_zero_bytes(from)?;
+            }
+            None => {
+                // check if delimiter crossed READ_SIZE boundary
+                // TODO: add a test file that fails without this
+                if out.len() > 3 {
+                    let mut overlap = out[out.len() - 3..].iter().cloned().collect::<Vec<u8>>();
+                    overlap.extend_from_slice(&buf[0..3]);
+
+                    match find_in_buffer(&overlap, &bytes_to_find) {
+                        Some(i) => {
+                            found = true;
+                            // extend up to before delimiter
+                            out.extend_from_slice(&buf[0..(3 - i)]);
+                            // seek reader back to after delimiter
+                            from.seek(SeekFrom::Current(0 - (bytes_read as i64 - (3 - i as i64))))
+                                .unwrap();
+                            // must have zero bytes after
+                            check_zero_bytes(from)?;
+                        }
+                        None => {}
+                    }
+                }
+                if !found {
+                    if eof {
+                        return Err(Error::Io(io::Error::from(io::ErrorKind::UnexpectedEof)));
+                    }
+
+                    out.extend_from_slice(&buf[0..bytes_read]);
+                }
+            }
+        }
+    }
+
+    Ok(out)
+}
+
+fn find_in_buffer(buf: &[u8], bytes_to_find: &[u8; 4]) -> Option<usize> {
+    buf.windows(4)
+        .enumerate()
+        .find(|(_, window)| **window == *bytes_to_find)
+        .map(|(i, _)| i as usize)
+}
+
+fn check_zero_bytes<S, T>(from: &mut S) -> Result<()>
+where
+    S: std::ops::DerefMut<Target = T> + Read + Seek,
+    T: ?Sized + Read + Seek,
+{
+    let mut len_buf: [u8; 4] = [0; 4];
+    from.read_exact(&mut len_buf)?;
+    assert_eq!(len_buf, [0, 0, 0, 0]);
+    Ok(())
+}
+
+fn tag_as_bytes(tag: Tag, endianness: Endianness) -> [u8; 4] {
+    let mut writer = ByteOrdered::new(vec![], endianness);
+    writer.write_u16(tag.group()).unwrap();
+    writer.write_u16(tag.element()).unwrap();
+    let mut bytes: [u8; 4] = [0; 4];
+    bytes.copy_from_slice(&writer.into_inner()[0..4]);
+    bytes
+}
+
 #[cfg(test)]
 mod tests {
     use super::{StatefulDecode, StatefulDecoder};
@@ -689,6 +801,7 @@ mod tests {
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
     use dicom_encoding::text::{DefaultCharacterSetCodec, DynamicTextCodec};
     use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
+    use std::io::Cursor;
 
     // manually crafting some DICOM data elements
     //  Tag: (0002,0002) Media Storage SOP Class UID
@@ -717,7 +830,7 @@ mod tests {
 
     #[test]
     fn decode_data_elements() {
-        let mut cursor = &RAW[..];
+        let mut cursor = Cursor::new(&RAW[..]);
         let mut decoder = StatefulDecoder::new(
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),

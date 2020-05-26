@@ -1,6 +1,6 @@
 use crate::DefaultDicomObject;
 use dicom_parser::error::Result;
-use std::io::Read;
+use std::io::{Read, Seek};
 use std::path::Path;
 
 /// Create a DICOM object by reading from a byte source.
@@ -9,7 +9,7 @@ use std::path::Path;
 /// preamble: file meta group, followed by the rest of the data set.
 pub fn from_reader<F>(file: F) -> Result<DefaultDicomObject>
 where
-    F: Read,
+    F: Read + Seek,
 {
     DefaultDicomObject::from_reader(file)
 }
