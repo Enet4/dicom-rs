@@ -15,6 +15,8 @@ use dicom::core::VR;
 use dicom::object::mem::{InMemDicomObject, InMemElement};
 use dicom::object::{open_file, DefaultDicomObject, FileMetaTable, StandardDataDictionary};
 
+use term_size;
+
 use std::borrow::Cow;
 use std::io::{stdout, ErrorKind, Result as IoResult, Write};
 
@@ -42,9 +44,15 @@ fn dump_file(obj: DefaultDicomObject) -> IoResult<()> {
 
     let meta = obj.meta();
 
-    let width = 48;
+    let width = if let Some((width, _)) = term_size::dimensions() {
+        width as u32
+    } else {
+        48
+    };
 
     meta_dump(&mut to, &meta, width)?;
+
+    println!("{:-<40}", "");
 
     dump(&mut to, &obj, width, 0)?;
 
@@ -188,13 +196,13 @@ where
             let byte_len = value.calculate_byte_len();
             writeln!(
                 to,
-                "{} {} {:48} # {}, {} {}",
+                "{} {:35} {} ({},{:>3} bytes): {}",
                 elem.tag(),
+                tag_alias,
                 vr,
-                value_summary(&value, vr, width),
-                byte_len,
                 vm,
-                tag_alias
+                byte_len,
+                value_summary(&value, vr, width),
             )?;
         }
     }
@@ -267,18 +275,17 @@ where
     I: IntoIterator,
     I::Item: std::fmt::Display,
 {
-    let pieces = values.into_iter().take(64);
-    let max = max_characters as usize;
-    let mut o = String::with_capacity(max);
-    for piece in pieces {
-        o.push_str(&piece.to_string());
-        o.push('\\');
-        if o.len() > max {
-            break;
-        }
-    }
-    o.pop();
-    cut_str(&o, max_characters).into_owned()
+    let pieces = values
+        .into_iter()
+        .take(64)
+        .map(|piece| format!("\"{}\"", piece))
+        .collect::<Vec<String>>();
+    let pieces = if pieces.len() > 1 {
+        format!("[{}]", pieces.join(", "))
+    } else {
+        pieces.join(", ")
+    };
+    cut_str(&pieces, max_characters).into_owned()
 }
 
 fn cut_str(s: &str, max_characters: u32) -> Cow<str> {
