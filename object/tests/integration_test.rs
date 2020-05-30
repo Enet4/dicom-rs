@@ -9,11 +9,15 @@ fn test_ob_value_with_unknown_length() {
     let object = open_file(&path).unwrap();
     let element = object.element_by_name("PixelData").unwrap();
 
-    if let Value::Primitive(PrimitiveValue::U8(bytes)) = element.value() {
-        // check the start and end of the bytes the check it looks right
-        assert_eq!(bytes[0..2], [0xfe, 0xff]);
-        assert_eq!(bytes[bytes.len() - 2..bytes.len()], [0xff, 0xd9]);
-    } else {
-        panic!("expected a byte value");
+    println!("{:?}", element.value());
+    match element.value() {
+        Value::PixelSequence { fragments, .. } => {
+            // check the start and end of the bytes the check it looks right
+            assert_eq!(fragments[0][0..2], [0xfe, 0xff]);
+            assert_eq!(fragments[0][fragments.len() - 2..fragments.len()], [0xff, 0xd9]);
+        },
+        _ => {
+            panic!("expected a byte value");
+        }
     }
 }

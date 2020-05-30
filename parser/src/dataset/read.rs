@@ -848,7 +848,7 @@ mod tests {
             DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into())),
         ];
 
-        validate_dataset_reader(DATA, ground_truth);
+        validate_dataset_reader(&mut Cursor::new(DATA), ground_truth);
     }
 
     #[test]
@@ -900,6 +900,6 @@ mod tests {
             DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into())),
         ];
 
-        validate_dataset_reader(DATA, ground_truth);
+        validate_dataset_reader(&mut Cursor::new(DATA), ground_truth);
     }
 }
