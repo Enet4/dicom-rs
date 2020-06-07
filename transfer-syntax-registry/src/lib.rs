@@ -1,3 +1,10 @@
+#![deny(trivial_numeric_casts, unsafe_code, unstable_features)]
+#![warn(
+    missing_debug_implementations,
+    missing_docs,
+    unused_qualifications,
+    unused_import_braces
+)]
 //! This crate contains the DICOM transfer syntax registry.
 //! The transfer syntax registry maps a DICOM UID of a transfer syntax into the
 //! respective transfer syntax specifier. In the default implementation, the
@@ -94,6 +101,7 @@ impl TransferSyntaxRegistryImpl {
 }
 
 impl TransferSyntaxIndex for TransferSyntaxRegistryImpl {
+    #[inline]
     fn get(&self, uid: &str) -> Option<&TransferSyntax> {
         Self::get(self, uid)
     }
@@ -104,13 +112,14 @@ impl TransferSyntaxIndex for TransferSyntaxRegistryImpl {
 pub struct TransferSyntaxRegistry;
 
 impl TransferSyntaxIndex for TransferSyntaxRegistry {
+    #[inline]
     fn get(&self, uid: &str) -> Option<&TransferSyntax> {
         get_registry().get(uid)
     }
 }
 
 lazy_static! {
-    static ref BUILT_IN_TS: [TransferSyntax; 26] = {
+    static ref BUILT_IN_TS: [TransferSyntax; 29] = {
         use self::entries::*;
         [
             IMPLICIT_VR_LITTLE_ENDIAN.erased(),
@@ -118,7 +127,7 @@ lazy_static! {
             EXPLICIT_VR_BIG_ENDIAN.erased(),
 
             DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN.erased(),
-            JPIP_DEREFERENCED_DEFLATE.erased(),
+            JPIP_REFERENCED_DEFLATE.erased(),
             JPEG_BASELINE.erased(),
             JPEG_EXTENDED.erased(),
             JPEG_LOSSLESS_NON_HIERARCHICAL.erased(),
@@ -140,6 +149,9 @@ lazy_static! {
             HEVC_H265_MAIN_PROFILE.erased(),
             HEVC_H265_MAIN_10_PROFILE.erased(),
             RLE_LOSSLESS.erased(),
+            SMPTE_ST_2110_20_UNCOMPRESSED_PROGRESSIVE.erased(),
+            SMPTE_ST_2110_20_UNCOMPRESSED_INTERLACED.erased(),
+            SMPTE_ST_2110_30_PCM.erased(),
         ]
     };
 
@@ -174,6 +186,7 @@ fn inventory_populate(_: &mut TransferSyntaxRegistryImpl) {
 }
 
 /// Retrieve a reference to the global codec registry.
+#[inline]
 pub(crate) fn get_registry() -> &'static TransferSyntaxRegistryImpl {
     &REGISTRY
 }
