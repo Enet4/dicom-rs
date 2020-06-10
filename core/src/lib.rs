@@ -38,7 +38,8 @@ pub use error::{Error, Result};
 pub use header::{DataElement, DataElementHeader, Length, Tag, VR};
 pub use value::{PrimitiveValue, Value as DicomValue};
 
-// re-export the chrono crate, as used in the public API
+// re-export crates that are part of the public API
 pub use chrono;
+pub use smallvec;
 
 mod util;
