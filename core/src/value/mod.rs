@@ -103,14 +103,16 @@ impl<I, P> Value<I, P>
 where
     I: HasLength,
 {
-    /// Retrieves the primitive value as a single string.
+    /// Convert the full primitive value into a single string.
     ///
     /// If the value contains multiple strings, they are concatenated
-    /// (separated by `'\\'`) into an owned string.
+    /// (separated by the standard DICOM value delimiter `'\\'`)
+    /// into an owned string.
+    ///
+    /// Returns an error if the value is not primitive.
     pub fn to_str(&self) -> Result<Cow<str>, CastValueError> {
         match self {
-            Value::Primitive(PrimitiveValue::Str(v)) => Ok(Cow::from(v.as_str())),
-            Value::Primitive(PrimitiveValue::Strs(v)) => Ok(Cow::from(v.into_iter().join("\\"))),
+            Value::Primitive(prim) => Ok(prim.to_str()),
             _ => Err(CastValueError {
                 requested: "string",
                 got: self.value_type(),
@@ -172,9 +174,15 @@ impl<I, P> From<PrimitiveValue> for Value<I, P> {
 /// An enum representing a primitive value from a DICOM element. The result of decoding
 /// an element's data value may be one of the enumerated types depending on its content
 /// and value representation.
+///
+/// Multiple elements are contained in a [`smallvec`] vector,
+/// conveniently aliased to the type [`C`].
+///
+/// [`smallvec`]: ../../smallvec/index.html
+/// [`C`]: ./type.C.html
 #[derive(Debug, PartialEq, Clone)]
 pub enum PrimitiveValue {
-    /// No data. Used for SQ (regardless of content) and any value of length 0.
+    /// No data. Usually employed for zero-lengthed values.
     Empty,
 
     /// A sequence of strings.
@@ -370,6 +378,52 @@ impl PrimitiveValue {
             Date(c) => c.len() as u32,
             DateTime(c) => c.len() as u32,
             Time(c) => c.len() as u32,
+        }
+    }
+
+    /// Convert the primitive value into a string representation.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    /// # use chrono::NaiveDate;
+    /// assert_eq!(
+    ///     PrimitiveValue::Str("Smith^John".to_string()).to_str(),
+    ///     "Smith^John",
+    /// );
+    /// assert_eq!(
+    ///     PrimitiveValue::Date(smallvec![
+    ///         NaiveDate::from_ymd(2014, 10, 12),
+    ///     ])
+    ///     .to_str(),
+    ///     "20141012",
+    /// );
+    /// assert_eq!(
+    ///     PrimitiveValue::Strs(smallvec![
+    ///         "DERIVED".to_string(),
+    ///         "PRIMARY".to_string(),
+    ///         "WHOLE BODY".to_string(),
+    ///         "EMISSION".to_string(),
+    ///     ])
+    ///     .to_str(),
+    ///     "DERIVED\\PRIMARY\\WHOLE BODY\\EMISSION",
+    /// );
+    /// assert_eq!(PrimitiveValue::Empty.to_str(), "");
+    /// ```
+    pub fn to_str(&self) -> Cow<str> {
+        match self {
+            PrimitiveValue::Empty => Cow::from(""),
+            PrimitiveValue::Str(values) => Cow::from(values.as_str()),
+            PrimitiveValue::Strs(values) => {
+                if values.len() == 1 {
+                    Cow::from(&values[0])
+                } else {
+                    Cow::from(values.iter().join("\\"))
+                }
+            }
+            prim => Cow::from(prim.to_string()),
         }
     }
 
@@ -574,6 +628,67 @@ impl PrimitiveValue {
     }
 }
 
+/// The output of this method is equivalent to calling the method `to_str`
+impl std::fmt::Display for PrimitiveValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        /// Auxilliary function for turning a sequence of values
+        /// into a backslash-delimited string.
+        fn seq_to_str<I>(iter: I) -> String
+        where
+            I: IntoIterator,
+            I::Item: std::fmt::Display,
+        {
+            iter.into_iter().map(|x| x.to_string()).join("\\")
+        }
+
+        match self {
+            PrimitiveValue::Empty => Ok(()),
+            PrimitiveValue::Str(value) => f.write_str(value),
+            PrimitiveValue::Strs(values) => {
+                if values.len() == 1 {
+                    f.write_str(&values[0])
+                } else {
+                    f.write_str(&seq_to_str(values))
+                }
+            }
+            PrimitiveValue::Date(values) => {
+                f.write_str(
+                    &values
+                        .into_iter()
+                        .map(|date| date.format("%Y%m%d").to_string())
+                        .join("\\"),
+                )
+            }
+            PrimitiveValue::Time(values) => {
+                f.write_str(
+                    &values
+                        .into_iter()
+                        .map(|date| date.format("%H%M%S%.6f").to_string())
+                        .join("\\"),
+                )
+            }
+            PrimitiveValue::DateTime(values) => {
+                f.write_str(
+                    &values
+                        .into_iter()
+                        .map(|date| date.format("%Y%m%d%H%M%S%.6f%z").to_string())
+                        .join("\\"),
+                )
+            }
+            PrimitiveValue::U8(values) => f.write_str(&seq_to_str(values)),
+            PrimitiveValue::U16(values) => f.write_str(&seq_to_str(values)),
+            PrimitiveValue::U32(values) => f.write_str(&seq_to_str(values)),
+            PrimitiveValue::I16(values) => f.write_str(&seq_to_str(values)),
+            PrimitiveValue::I32(values) => f.write_str(&seq_to_str(values)),
+            PrimitiveValue::U64(values) => f.write_str(&seq_to_str(values)),
+            PrimitiveValue::I64(values) => f.write_str(&seq_to_str(values)),
+            PrimitiveValue::F32(values) => f.write_str(&seq_to_str(values)),
+            PrimitiveValue::F64(values) => f.write_str(&seq_to_str(values)),
+            PrimitiveValue::Tags(values) => f.write_str(&seq_to_str(values)),
+        }
+    }
+}
+
 impl HasLength for PrimitiveValue {
     fn length(&self) -> Length {
         Length::defined(self.calculate_byte_len() as u32)
@@ -740,5 +855,36 @@ impl<I, P> DicomValueType for Value<I, P> {
             Value::Sequence { items, .. } => items.len(),
             Value::PixelSequence { .. } => 1,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::value::PrimitiveValue;
+    use chrono::NaiveDate;
+    use smallvec::smallvec;
+
+    #[test]
+    fn primitive_value_to_str() {
+        assert_eq!(PrimitiveValue::Empty.to_str(), "");
+
+        assert_eq!(
+            PrimitiveValue::Str("Smith^John".to_string()).to_str(),
+            "Smith^John",
+        );
+        assert_eq!(
+            PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)]).to_str(),
+            "20141012",
+        );
+        assert_eq!(
+            PrimitiveValue::Strs(smallvec![
+                "DERIVED".to_string(),
+                "PRIMARY".to_string(),
+                "WHOLE BODY".to_string(),
+                "EMISSION".to_string(),
+            ])
+            .to_str(),
+            "DERIVED\\PRIMARY\\WHOLE BODY\\EMISSION",
+        );
     }
 }
