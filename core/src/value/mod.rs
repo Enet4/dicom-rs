@@ -7,6 +7,9 @@ use itertools::Itertools;
 use smallvec::SmallVec;
 use std::borrow::Cow;
 
+pub mod deserialize;
+pub mod serialize;
+
 /// re-exported from chrono
 pub use chrono::{DateTime, NaiveDate, NaiveTime};
 
@@ -264,7 +267,44 @@ impl_from_for_primitive!(NaiveDate, Date);
 impl_from_for_primitive!(NaiveTime, Time);
 impl_from_for_primitive!(DateTime<FixedOffset>, DateTime);
 
-/// Construct a DICOM value.
+/// Helper macro for constructing a DICOM primitive value.
+///
+/// # Example:
+///
+/// The base syntax is a value type identifier followed by
+/// one or more standard Rust values:
+///
+/// ```
+/// use dicom_core::value::PrimitiveValue;
+/// use dicom_core::{DicomValue, dicom_value};
+///
+/// let value = dicom_value!(Str, "Smith^John");
+/// assert_eq!(
+///     value,
+///     PrimitiveValue::Str("Smith^John".to_owned()),
+/// );
+/// ```
+///
+/// A DICOM value may also have multiple elements:
+///
+/// ```
+/// # use dicom_core::value::PrimitiveValue;
+/// # use dicom_core::{DicomValue, dicom_value};
+/// # use dicom_core::header::EmptyObject;
+/// let value = dicom_value!(U16, [5, 6, 7]);
+/// assert_eq!(
+///     value,
+///     PrimitiveValue::U16([5, 6, 7][..].into()),
+/// );
+///
+/// // conversion to a DicomValue only requires its type parameters
+/// // to be specified or inferable.
+/// assert_eq!(
+///     DicomValue::from(value),
+///     DicomValue::<EmptyObject, ()>::Primitive(
+///         PrimitiveValue::U16([5, 6, 7][..].into())),
+/// );
+/// ```
 #[macro_export]
 macro_rules! dicom_value {
     ($typ: ident, [ $($elem: expr),* ]) => {
@@ -272,6 +312,9 @@ macro_rules! dicom_value {
             use smallvec::smallvec; // import smallvec macro
             dicom_core::value::PrimitiveValue :: $typ (smallvec![$($elem,)*])
         }
+    };
+    (Str, $elem: expr) => {
+        dicom_core::value::PrimitiveValue :: Str (String::from($elem))
     };
     ($typ: ident, $elem: expr) => {
         dicom_core::value::PrimitiveValue :: $typ (dicom_core::value::C::from_elem($elem, 1))
@@ -619,13 +662,13 @@ pub trait DicomValueType: HasLength {
     /// Retrieve the specific type of this value.
     fn value_type(&self) -> ValueType;
 
-    /// Retrieve the number of values contained.
+    /// Retrieve the number of elements contained in the DICOM value.
+    ///
+    /// In a sequence value, this is the number of items in the sequence.
+    /// In an encapsulated pixel data sequence, the output is always 1.
+    /// Otherwise, the output is the number of elements effectively encoded
+    /// in the value.
     fn cardinality(&self) -> usize;
-
-    /// Check whether the value is empty (0 length).
-    fn is_empty(&self) -> bool {
-        self.length() == Length(0)
-    }
 }
 
 impl DicomValueType for PrimitiveValue {

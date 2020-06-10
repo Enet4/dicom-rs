@@ -1,3 +1,10 @@
+#![deny(trivial_numeric_casts, unsafe_code, unstable_features)]
+#![warn(
+    missing_debug_implementations,
+    missing_docs,
+    unused_qualifications,
+    unused_import_braces
+)]
 //! DICOM encoding and decoding primitives.
 //!
 //! This crate provides interfaces and data structures for reading and writing

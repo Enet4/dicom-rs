@@ -1,10 +1,12 @@
 //! Parsing of primitive values
 use crate::error::{InvalidValueReadError, Result};
-use dicom_core::chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
 use std::ops::{Add, Mul, Sub};
 
 const Z: i32 = b'0' as i32;
 
+/** Decode a single DICOM Date (DA) into a `NaiveDate` value.
+ */
 pub fn parse_date(buf: &[u8]) -> Result<(NaiveDate, &[u8])> {
     // YYYY(MM(DD)?)?
     match buf.len() {
@@ -34,6 +36,8 @@ pub fn parse_date(buf: &[u8]) -> Result<(NaiveDate, &[u8])> {
     }
 }
 
+/** Decode a single DICOM Time (TM) into a `NaiveTime` value.
+ */
 pub fn parse_time(buf: &[u8]) -> Result<(NaiveTime, &[u8])> {
     parse_time_impl(buf, false)
 }
@@ -128,7 +132,10 @@ fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, &[u8])>
     }
 }
 
+/// A simple trait for types with a decimal form.
 pub trait Ten {
+    /// Retrieve the value ten. This returns `10` for integer types and
+    /// `10.` for floating point types.
     fn ten() -> Self;
 }
 
@@ -163,6 +170,10 @@ impl_integral_ten!(usize);
 impl_floating_ten!(f32);
 impl_floating_ten!(f64);
 
+/// Retrieve an integer in text form.
+///
+/// All bytes in the text must be within the range b'0' and b'9'
+/// The text must also not be empty nor have more than 9 characters. 
 pub fn read_number<T>(text: &[u8]) -> Result<T>
 where
     T: Ten,
@@ -196,6 +207,8 @@ where
     })
 }
 
+/// Retrieve a DICOM date-time from the given text, while assuming the given
+/// UTC offset.
 pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime<FixedOffset>> {
     let (date, rest) = parse_date(buf)?;
     if buf.len() <= 8 {
@@ -248,7 +261,7 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
 #[cfg(test)]
 mod tests {
     use super::{parse_date, parse_datetime, parse_time, parse_time_impl};
-    use dicom_core::chrono::{FixedOffset, NaiveDate, NaiveTime, TimeZone};
+    use chrono::{FixedOffset, NaiveDate, NaiveTime, TimeZone};
 
     #[test]
     fn test_parse_date() {

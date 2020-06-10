@@ -104,9 +104,10 @@ macro_rules! submit_transfer_syntax {
     };
 }
 
-/// Description regarding the encoding and decoding requirements of a transfer
-/// syntax. This is also used as a means to describe whether pixel data is
-/// encapsulated and whether this implementation supports it.
+/// A description and possible implementation regarding
+/// the encoding and decoding requirements of a transfer syntax.
+/// This is also used as a means to describe whether pixel data is encapsulated
+/// and whether this implementation supports it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Codec<A> {
     /// No codec is given, nor is it required.
@@ -132,7 +133,9 @@ pub type AdapterFreeTransferSyntax = TransferSyntax<NeverAdapter>;
 
 /// An adapter of byte read and write streams.
 pub trait DataRWAdapter<R, W> {
+    /// The type of the adapted reader.
     type Reader: Read;
+    /// The type of the adapted writer.
     type Writer: Write;
 
     /// Adapt a byte reader.
@@ -146,6 +149,7 @@ pub trait DataRWAdapter<R, W> {
         W: Write;
 }
 
+/// Alias type for a dynamically dispatched data adapter.
 pub type DynDataRWAdapter = Box<
     dyn DataRWAdapter<
             Box<dyn Read>,
@@ -182,6 +186,10 @@ where
     }
 }
 
+/** An immaterial type representing an adapted which is never required,
+ * and as such is never instantiated. Most transfer syntaxes use this,
+ * as they do not have to adapt readers and writers for encoding and decoding.
+ */
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum NeverAdapter {}
 
@@ -205,6 +213,12 @@ impl<R, W> DataRWAdapter<R, W> for NeverAdapter {
 }
 
 impl<A> TransferSyntax<A> {
+    /** Create a new transfer syntax descriptor.
+     * 
+     * Note that only transfer syntax implementors are expected to construct
+     * TS descriptors from scratch. For a practical usage of transfer syntaxes,
+     * one should look up an existing transfer syntax registry by UID.
+     */
     pub const fn new(
         uid: &'static str,
         name: &'static str,
@@ -359,7 +373,7 @@ impl<A> TransferSyntax<A> {
             Codec::Unsupported => Codec::Unsupported,
             Codec::None => Codec::None,
         };
-
+        
         TransferSyntax {
             uid: self.uid,
             name: self.name,

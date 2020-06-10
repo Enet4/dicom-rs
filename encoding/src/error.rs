@@ -1,3 +1,4 @@
+//! Crate-level error types.
 use dicom_core::error::Error as CoreError;
 pub use dicom_core::error::{CastValueError, InvalidValueReadError};
 use dicom_core::Tag;
