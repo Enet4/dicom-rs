@@ -12,7 +12,11 @@
 //! - GB 18030
 //! - GB2312
 //!
-//! At the moment, this library supports only IR-6 and IR-192.
+//! At the moment, text encoding support is limited.
+//! Please see [`SpecificCharacterSet`] for a complete enumeration
+//! of all supported character encoding in the crate.
+//!
+//! [`SpecificCharacterSet`]: ./enum.SpecificCharacterSet.html
 
 use crate::error::{Result, TextEncodingError};
 use encoding::all::{GB18030, ISO_8859_1, UTF_8};
@@ -83,16 +87,17 @@ where
 /// text encoding format at run-time.
 pub type DynamicTextCodec = Box<dyn TextCodec>;
 
-/// An enum type for the the supported character sets.
+/// An enum type for all currently supported character sets.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum SpecificCharacterSet {
-    /// The default character set.
+    /// **ISO-IR 6**: the default character set.
     Default,
-    /// The Unicode character set defined in ISO IR 192, based on the UTF-8 encoding.
+    /// **ISO-IR 192**:: The Unicode character set based on the UTF-8 encoding.
     IsoIr192,
-    /// The Simplified Chinese character set defined in GB18030.
+    /// **GB18030**: The Simplified Chinese character set.
     GB18030,
-    // TODO make this more flexible (maybe registry-based)
+    // Support for more text encodings is tracked in issue #40.
 }
 
 impl Default for SpecificCharacterSet {
