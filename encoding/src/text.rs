@@ -19,15 +19,14 @@
 //! [`SpecificCharacterSet`]: ./enum.SpecificCharacterSet.html
 
 use crate::error::{Result, TextEncodingError};
-use encoding::all::{GB18030, ISO_8859_1, UTF_8};
+use encoding::all::{GB18030, ISO_8859_1, ISO_8859_2, UTF_8};
 use encoding::{DecoderTrap, EncoderTrap, Encoding, RawDecoder, StringWriter};
 use std::fmt::Debug;
 
 /// A holder of encoding and decoding mechanisms for text in DICOM content,
 /// which according to the standard, depends on the specific character set.
 pub trait TextCodec {
-
-    /// Obtain a unique name of the text encoding,
+    /// Obtain the defined term (unique name) of the text encoding,
     /// which may be used as the value of a
     /// Specific Character Set (0008, 0005) element to refer to this codec.
     ///
@@ -93,6 +92,12 @@ pub type DynamicTextCodec = Box<dyn TextCodec>;
 pub enum SpecificCharacterSet {
     /// **ISO-IR 6**: the default character set.
     Default,
+    /// **ISO-IR 101** (ISO-8859-1): Right-hand part of the latin alphabet no. 1,
+    /// the Western Europe character set.
+    IsoIr100,
+    /// **ISO-IR 101** (ISO-8859-2): Right-hand part of the latin alphabet no. 2,
+    /// the Eastern Europe character set.
+    IsoIr101,
     /// **ISO-IR 192**:: The Unicode character set based on the UTF-8 encoding.
     IsoIr192,
     /// **GB18030**: The Simplified Chinese character set.
@@ -110,7 +115,9 @@ impl SpecificCharacterSet {
     pub fn from_code(uid: &str) -> Option<Self> {
         use self::SpecificCharacterSet::*;
         match uid.trim_end() {
-            "Default" | "ISO_IR_6" => Some(Default),
+            "Default" | "ISO_IR_6" | "ISO_IR 6" => Some(Default),
+            "ISO_IR_100" | "ISO_IR 100" => Some(IsoIr100),
+            "ISO_IR_101" | "ISO_IR 101" => Some(IsoIr101),
             "ISO_IR 192" => Some(IsoIr192),
             "GB18030" => Some(GB18030),
             _ => None,
@@ -121,6 +128,8 @@ impl SpecificCharacterSet {
     pub fn codec(self) -> Option<DynamicTextCodec> {
         match self {
             SpecificCharacterSet::Default => Some(Box::new(DefaultCharacterSetCodec)),
+            SpecificCharacterSet::IsoIr100 => Some(Box::new(IsoIr100CharacterSetCodec)),
+            SpecificCharacterSet::IsoIr101 => Some(Box::new(IsoIr101CharacterSetCodec)),
             SpecificCharacterSet::IsoIr192 => Some(Box::new(Utf8CharacterSetCodec)),
             SpecificCharacterSet::GB18030 => Some(Box::new(Gb18030CharacterSetCodec)),
         }
@@ -144,11 +153,10 @@ fn decode_text_trap(
 }
 
 /// Data type representing the default character set.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
 pub struct DefaultCharacterSetCodec;
 
 impl TextCodec for DefaultCharacterSetCodec {
-
     fn name(&self) -> &'static str {
         "ISO_IR 6"
     }
@@ -166,8 +174,52 @@ impl TextCodec for DefaultCharacterSetCodec {
     }
 }
 
+/// Data type representing the ISO-IR 100 characters set.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Copy)]
+pub struct IsoIr100CharacterSetCodec;
+
+impl TextCodec for IsoIr100CharacterSetCodec {
+    fn name(&self) -> &'static str {
+        "ISO_IR 100"
+    }
+
+    fn decode(&self, text: &[u8]) -> Result<String> {
+        ISO_8859_1
+            .decode(text, DecoderTrap::Call(decode_text_trap))
+            .map_err(|e| TextEncodingError::new(e).into())
+    }
+
+    fn encode(&self, text: &str) -> Result<Vec<u8>> {
+        ISO_8859_1
+            .encode(text, EncoderTrap::Strict)
+            .map_err(|e| TextEncodingError::new(e).into())
+    }
+}
+
+/// Data type representing the ISO-IR 101 characters set.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Copy)]
+pub struct IsoIr101CharacterSetCodec;
+
+impl TextCodec for IsoIr101CharacterSetCodec {
+    fn name(&self) -> &'static str {
+        "ISO_IR 101"
+    }
+
+    fn decode(&self, text: &[u8]) -> Result<String> {
+        ISO_8859_2
+            .decode(text, DecoderTrap::Call(decode_text_trap))
+            .map_err(|e| TextEncodingError::new(e).into())
+    }
+
+    fn encode(&self, text: &str) -> Result<Vec<u8>> {
+        ISO_8859_2
+            .encode(text, EncoderTrap::Strict)
+            .map_err(|e| TextEncodingError::new(e).into())
+    }
+}
+
 /// Data type representing the UTF-8 character set.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Copy)]
 pub struct Utf8CharacterSetCodec;
 
 impl TextCodec for Utf8CharacterSetCodec {
@@ -279,5 +331,50 @@ pub fn validate_cs(text: &[u8]) -> TextValidationOutcome {
         TextValidationOutcome::Ok
     } else {
         TextValidationOutcome::NotOk
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn iso_ir_6_baseline() {
+        let codec = SpecificCharacterSet::Default
+            .codec()
+            .expect("Must be fully supported");
+        assert_eq!(codec.decode(b"Smith^John").unwrap(), "Smith^John");
+    }
+
+    #[test]
+    fn iso_ir_192_baseline() {
+        let codec = SpecificCharacterSet::IsoIr192
+            .codec()
+            .expect("Should be fully supported");
+        assert_eq!(
+            codec.decode("Simões^John".as_bytes()).unwrap(),
+            "Simões^John",
+        );
+        assert_eq!(
+            codec.decode("Иванков^Андрей".as_bytes()).unwrap(),
+            "Иванков^Андрей",
+        );
+    }
+
+    #[test]
+    fn iso_ir_100_baseline() {
+        let codec = SpecificCharacterSet::IsoIr100
+            .codec()
+            .expect("Should be fully supported");
+        assert_eq!(codec.decode(b"Sim\xF5es^Jo\xE3o").unwrap(), "Simões^João");
+        assert_eq!(codec.decode(b"G\xfcnther^Hans").unwrap(), "Günther^Hans");
+    }
+
+    #[test]
+    fn iso_ir_101_baseline() {
+        let codec = SpecificCharacterSet::IsoIr101
+            .codec()
+            .expect("Should be fully supported");
+        assert_eq!(codec.decode(b"G\xfcnther^Hans").unwrap(), "Günther^Hans");
     }
 }
