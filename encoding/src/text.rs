@@ -21,7 +21,17 @@ use std::fmt::Debug;
 
 /// A holder of encoding and decoding mechanisms for text in DICOM content,
 /// which according to the standard, depends on the specific character set.
-pub trait TextCodec: Debug {
+pub trait TextCodec {
+
+    /// Obtain a unique name of the text encoding,
+    /// which may be used as the value of a
+    /// Specific Character Set (0008, 0005) element to refer to this codec.
+    ///
+    /// Should contain no leading or trailing spaces.
+    /// This method may be useful for testing purposes, considering that
+    /// `TextCodec` is often used as a trait object.
+    fn name(&self) -> &'static str;
+
     /// Decode the given byte buffer as a single string. The resulting string
     /// _may_ contain backslash characters ('\') to delimit individual values,
     /// and should be split later on if required.
@@ -37,6 +47,10 @@ impl<T: ?Sized> TextCodec for Box<T>
 where
     T: TextCodec,
 {
+    fn name(&self) -> &'static str {
+        self.as_ref().name()
+    }
+
     fn decode(&self, text: &[u8]) -> Result<String> {
         self.as_ref().decode(text)
     }
@@ -50,12 +64,16 @@ impl<'a, T: ?Sized> TextCodec for &'a T
 where
     T: TextCodec,
 {
+    fn name(&self) -> &'static str {
+        (**self).name()
+    }
+
     fn decode(&self, text: &[u8]) -> Result<String> {
-        (*self).decode(text)
+        (**self).decode(text)
     }
 
     fn encode(&self, text: &str) -> Result<Vec<u8>> {
-        (*self).encode(text)
+        (**self).encode(text)
     }
 }
 
@@ -125,6 +143,11 @@ fn decode_text_trap(
 pub struct DefaultCharacterSetCodec;
 
 impl TextCodec for DefaultCharacterSetCodec {
+
+    fn name(&self) -> &'static str {
+        "ISO_IR 6"
+    }
+
     fn decode(&self, text: &[u8]) -> Result<String> {
         ISO_8859_1
             .decode(text, DecoderTrap::Call(decode_text_trap))
@@ -143,6 +166,10 @@ impl TextCodec for DefaultCharacterSetCodec {
 pub struct Utf8CharacterSetCodec;
 
 impl TextCodec for Utf8CharacterSetCodec {
+    fn name(&self) -> &'static str {
+        "ISO_IR 192"
+    }
+
     fn decode(&self, text: &[u8]) -> Result<String> {
         UTF_8
             .decode(text, DecoderTrap::Call(decode_text_trap))
@@ -161,6 +188,10 @@ impl TextCodec for Utf8CharacterSetCodec {
 pub struct Gb18030CharacterSetCodec;
 
 impl TextCodec for Gb18030CharacterSetCodec {
+    fn name(&self) -> &'static str {
+        "GB18030"
+    }
+
     fn decode(&self, text: &[u8]) -> Result<String> {
         GB18030
             .decode(text, DecoderTrap::Call(decode_text_trap))
