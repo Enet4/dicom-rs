@@ -15,7 +15,7 @@
 //! At the moment, this library supports only IR-6 and IR-192.
 
 use crate::error::{Result, TextEncodingError};
-use encoding::all::{ISO_8859_1, UTF_8};
+use encoding::all::{GB18030, ISO_8859_1, UTF_8};
 use encoding::{DecoderTrap, EncoderTrap, Encoding, RawDecoder, StringWriter};
 use std::fmt::Debug;
 
@@ -72,6 +72,8 @@ pub enum SpecificCharacterSet {
     Default,
     /// The Unicode character set defined in ISO IR 192, based on the UTF-8 encoding.
     IsoIr192,
+    /// The Simplified Chinese character set defined in GB18030.
+    GB18030,
     // TODO make this more flexible (maybe registry-based)
 }
 
@@ -84,9 +86,10 @@ impl Default for SpecificCharacterSet {
 impl SpecificCharacterSet {
     pub fn from_code(uid: &str) -> Option<Self> {
         use self::SpecificCharacterSet::*;
-        match uid {
+        match uid.trim_end() {
             "Default" | "ISO_IR_6" => Some(Default),
-            "ISO_IR_192" => Some(IsoIr192),
+            "ISO_IR 192" => Some(IsoIr192),
+            "GB18030" => Some(GB18030),
             _ => None,
         }
     }
@@ -96,6 +99,7 @@ impl SpecificCharacterSet {
         match self {
             SpecificCharacterSet::Default => Some(Box::new(DefaultCharacterSetCodec)),
             SpecificCharacterSet::IsoIr192 => Some(Box::new(Utf8CharacterSetCodec)),
+            SpecificCharacterSet::GB18030 => Some(Box::new(Gb18030CharacterSetCodec)),
         }
     }
 }
@@ -147,6 +151,24 @@ impl TextCodec for Utf8CharacterSetCodec {
 
     fn encode(&self, text: &str) -> Result<Vec<u8>> {
         UTF_8
+            .encode(text, EncoderTrap::Strict)
+            .map_err(|e| TextEncodingError::new(e).into())
+    }
+}
+
+/// Data type representing the GB18030 character set.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Copy)]
+pub struct Gb18030CharacterSetCodec;
+
+impl TextCodec for Gb18030CharacterSetCodec {
+    fn decode(&self, text: &[u8]) -> Result<String> {
+        GB18030
+            .decode(text, DecoderTrap::Call(decode_text_trap))
+            .map_err(|e| TextEncodingError::new(e).into())
+    }
+
+    fn encode(&self, text: &str) -> Result<Vec<u8>> {
+        GB18030
             .encode(text, EncoderTrap::Strict)
             .map_err(|e| TextEncodingError::new(e).into())
     }

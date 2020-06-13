@@ -489,10 +489,10 @@ where
         Ok(())
     }
 
-    /// Read a sequence of UID values. Similar to `read_value_strs`, but also
+    /// Read a sequence of Code String values. Similar to `read_value_strs`, but also
     /// triggers a character set change when it finds the _SpecificCharacterSet_
     /// attribute.
-    fn read_value_ui(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
+    fn read_value_cs(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let out = self.read_value_strs(header)?;
 
         let parts = match &out {
@@ -558,10 +558,10 @@ where
                 Err(Error::from(InvalidValueReadError::NonPrimitiveType))
             }
             VR::AT => self.read_value_tag(header),
-            VR::AE | VR::AS | VR::PN | VR::SH | VR::LO | VR::UC | VR::CS => {
+            VR::AE | VR::AS | VR::PN | VR::SH | VR::LO | VR::UC | VR::UI => {
                 self.read_value_strs(header)
             }
-            VR::UI => self.read_value_ui(header),
+            VR::CS => self.read_value_cs(header),
             VR::UT | VR::ST | VR::UR | VR::LT => self.read_value_str(header),
             VR::UN | VR::OB => self.read_value_ob(header),
             VR::US | VR::OW => self.read_value_us(header),
@@ -597,13 +597,13 @@ where
             | VR::SH
             | VR::LO
             | VR::UC
-            | VR::CS
+            | VR::UI
             | VR::IS
             | VR::DS
             | VR::DA
             | VR::TM
             | VR::DT => self.read_value_strs(header),
-            VR::UI => self.read_value_ui(header),
+            VR::CS => self.read_value_cs(header),
             VR::UT | VR::ST | VR::UR | VR::LT => self.read_value_str(header),
             VR::UN | VR::OB => self.read_value_ob(header),
             VR::US | VR::OW => self.read_value_us(header),
