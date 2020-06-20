@@ -303,12 +303,20 @@ pub fn validate_cs(text: &[u8]) -> TextValidationOutcome {
 mod tests {
     use super::*;
 
+    fn test_codec<T>(codec: T, string: &str, bytes: &[u8])
+    where
+        T: TextCodec,
+    {
+        assert_eq!(codec.encode(string).expect("encoding"), bytes);
+        assert_eq!(codec.decode(bytes).expect("decoding"), string);
+    }
+
     #[test]
     fn iso_ir_6_baseline() {
         let codec = SpecificCharacterSet::Default
             .codec()
             .expect("Must be fully supported");
-        assert_eq!(codec.decode(b"Smith^John").unwrap(), "Smith^John");
+        test_codec(codec, "Smith^John", b"Smith^John");
     }
 
     #[test]
@@ -316,14 +324,8 @@ mod tests {
         let codec = SpecificCharacterSet::IsoIr192
             .codec()
             .expect("Should be fully supported");
-        assert_eq!(
-            codec.decode("Simões^John".as_bytes()).unwrap(),
-            "Simões^John",
-        );
-        assert_eq!(
-            codec.decode("Иванков^Андрей".as_bytes()).unwrap(),
-            "Иванков^Андрей",
-        );
+        test_codec(&codec, "Simões^John", "Simões^John".as_bytes());
+        test_codec(codec, "Иванков^Андрей", "Иванков^Андрей".as_bytes());
     }
 
     #[test]
@@ -331,8 +333,8 @@ mod tests {
         let codec = SpecificCharacterSet::IsoIr100
             .codec()
             .expect("Should be fully supported");
-        assert_eq!(codec.decode(b"Sim\xF5es^Jo\xE3o").unwrap(), "Simões^João");
-        assert_eq!(codec.decode(b"G\xfcnther^Hans").unwrap(), "Günther^Hans");
+        test_codec(&codec, "Simões^João", b"Sim\xF5es^Jo\xE3o");
+        test_codec(codec, "Günther^Hans", b"G\xfcnther^Hans");
     }
 
     #[test]
@@ -340,7 +342,7 @@ mod tests {
         let codec = SpecificCharacterSet::IsoIr101
             .codec()
             .expect("Should be fully supported");
-        assert_eq!(codec.decode(b"G\xfcnther^Hans").unwrap(), "Günther^Hans");
+        test_codec(codec, "Günther^Hans", b"G\xfcnther^Hans");
     }
 
     #[test]
@@ -348,11 +350,10 @@ mod tests {
         let codec = SpecificCharacterSet::IsoIr144
             .codec()
             .expect("Should be fully supported");
-        assert_eq!(
-            codec
-                .decode(b"\xb8\xd2\xd0\xdd\xda\xde\xd2^\xb0\xdd\xd4\xe0\xd5\xd9")
-                .unwrap(),
+        test_codec(
+            codec,
             "Иванков^Андрей",
+            b"\xb8\xd2\xd0\xdd\xda\xde\xd2^\xb0\xdd\xd4\xe0\xd5\xd9",
         );
     }
 }
