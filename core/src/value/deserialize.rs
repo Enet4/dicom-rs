@@ -1,27 +1,29 @@
 //! Parsing of primitive values
-use crate::error::{InvalidValueReadError, Result};
+use crate::error::InvalidValueReadError;
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
 use std::ops::{Add, Mul, Sub};
 
 const Z: i32 = b'0' as i32;
+
+type Result<T> = std::result::Result<T, InvalidValueReadError>;
 
 /** Decode a single DICOM Date (DA) into a `NaiveDate` value.
  */
 pub fn parse_date(buf: &[u8]) -> Result<(NaiveDate, &[u8])> {
     // YYYY(MM(DD)?)?
     match buf.len() {
-        0 | 5 | 7 => Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
+        0 | 5 | 7 => Err(InvalidValueReadError::UnexpectedEndOfElement),
         1..=4 => {
             let year = read_number(buf)?;
             let date: Result<_> = NaiveDate::from_ymd_opt(year, 1, 1)
-                .ok_or_else(|| InvalidValueReadError::DateTimeZone.into());
+                .ok_or_else(|| InvalidValueReadError::DateTimeZone);
             Ok((date?, &[]))
         }
         6 => {
             let year = read_number(&buf[0..4])?;
             let month = (i32::from(buf[4]) - Z) * 10 + i32::from(buf[5]) - Z;
             let date: Result<_> = NaiveDate::from_ymd_opt(year, month as u32, 0)
-                .ok_or_else(|| InvalidValueReadError::DateTimeZone.into());
+                .ok_or_else(|| InvalidValueReadError::DateTimeZone);
             Ok((date?, &buf[6..]))
         }
         len => {
@@ -30,7 +32,7 @@ pub fn parse_date(buf: &[u8]) -> Result<(NaiveDate, &[u8])> {
             let month = (i32::from(buf[4]) - Z) * 10 + i32::from(buf[5]) - Z;
             let day = (i32::from(buf[6]) - Z) * 10 + i32::from(buf[7]) - Z;
             let date: Result<_> = NaiveDate::from_ymd_opt(year, month as u32, day as u32)
-                .ok_or_else(|| InvalidValueReadError::DateTimeZone.into());
+                .ok_or_else(|| InvalidValueReadError::DateTimeZone);
             Ok((date?, &buf[8..]))
         }
     }
@@ -81,7 +83,7 @@ fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, &[u8])>
     // HH(MM(SS(.F{1,6})?)?)?
 
     match buf.len() {
-        0 | 1 | 3 | 5 | 7 => Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
+        0 | 1 | 3 | 5 | 7 => Err(InvalidValueReadError::UnexpectedEndOfElement),
         2 => {
             let hour = (i32::from(buf[0]) - Z) * 10 + i32::from(buf[1]) - Z;
             let time = naive_time_from_components(hour as u32, 0, 0, 0)?;
@@ -108,7 +110,7 @@ fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, &[u8])>
             match buf[6] {
                 b'.' => { /* do nothing */ }
                 b'+' | b'-' if for_datetime => { /* do nothing */ }
-                c => return Err(InvalidValueReadError::InvalidToken(c, "'.', '+', or '-'").into()),
+                c => return Err(InvalidValueReadError::InvalidToken(c, "'.', '+', or '-'")),
             }
             let buf = &buf[7..];
             // read at most 6 bytes
@@ -183,10 +185,10 @@ where
     T: Sub<T, Output = T>,
 {
     if text.is_empty() || text.len() > 9 {
-        return Err(InvalidValueReadError::InvalidLength(text.len(), "between 1 and 9").into());
+        return Err(InvalidValueReadError::InvalidLength(text.len(), "between 1 and 9"));
     }
     if let Some(c) = text.iter().cloned().find(|&b| b < b'0' || b > b'9') {
-        return Err(InvalidValueReadError::InvalidToken(c, "digit in 0..9").into());
+        return Err(InvalidValueReadError::InvalidToken(c, "digit in 0..9"));
     }
 
     Ok(read_number_unchecked(text))
@@ -226,16 +228,16 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
                 .from_local_date(&date)
                 .and_time(time)
                 .single()
-                .ok_or_else(|| InvalidValueReadError::DateTimeZone.into());
+                .ok_or_else(|| InvalidValueReadError::DateTimeZone);
             return Ok(dt?);
         }
-        1 | 2 => return Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
+        1 | 2 => return Err(InvalidValueReadError::UnexpectedEndOfElement),
         _ => {
             let tz_sign = buf[0];
             let buf = &buf[1..];
             let (tz_h, tz_m) = match buf.len() {
                 1 => (i32::from(buf[0]) - Z, 0),
-                2 => return Err(InvalidValueReadError::UnexpectedEndOfElement.into()),
+                2 => return Err(InvalidValueReadError::UnexpectedEndOfElement),
                 _ => {
                     let (h_buf, m_buf) = buf.split_at(2);
                     let tz_h = read_number(h_buf)?;
@@ -247,7 +249,7 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
             match tz_sign {
                 b'+' => FixedOffset::east(s),
                 b'-' => FixedOffset::west(s),
-                c => return Err(InvalidValueReadError::InvalidToken(c, "'+' or '-'").into()),
+                c => return Err(InvalidValueReadError::InvalidToken(c, "'+' or '-'")),
             }
         }
     };
@@ -255,7 +257,7 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
     offset
         .from_utc_date(&date)
         .and_time(time)
-        .ok_or_else(|| InvalidValueReadError::DateTimeZone.into())
+        .ok_or_else(|| InvalidValueReadError::DateTimeZone)
 }
 
 #[cfg(test)]

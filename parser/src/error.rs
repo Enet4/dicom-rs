@@ -1,6 +1,7 @@
+//! Crate-leve error types.
 use crate::dataset::DataToken;
 use dicom_core::error::Error as CoreError;
-pub use dicom_core::error::{CastValueError, InvalidValueReadError};
+pub use dicom_core::error::{CastValueError, ConvertValueError, InvalidValueReadError};
 use dicom_core::Tag;
 use dicom_encoding::error::{Error as EncodingError, TextEncodingError};
 use quick_error::quick_error;
@@ -83,6 +84,11 @@ quick_error! {
             from()
             display("Failed value cast: {}", err)
         }
+        /// A failed attempt to convert a value to an inappropriate format.
+        ConvertValue(err: ConvertValueError) {
+            display("Failed value conversion: {}", err)
+            from()
+        }
         /// Other I/O errors.
         Io(err: io::Error) {
             from()
@@ -98,6 +104,7 @@ impl From<CoreError> for Error {
             CoreError::UnexpectedTag(tag) => Error::UnexpectedTag(tag),
             CoreError::ReadValue(e) => Error::ReadValue(e),
             CoreError::CastValue(e) => Error::CastValue(e),
+            CoreError::ConvertValue(e) => Error::ConvertValue(e),
         }
     }
 }
@@ -110,6 +117,7 @@ impl From<EncodingError> for Error {
             EncodingError::ReadValue(e) => Error::ReadValue(e),
             EncodingError::TextEncoding(e) => Error::TextEncoding(e),
             EncodingError::CastValue(e) => Error::CastValue(e),
+            EncodingError::ConvertValue(e) => Error::ConvertValue(e),
             EncodingError::Io(e) => Error::Io(e),
         }
     }

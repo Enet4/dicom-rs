@@ -1,6 +1,6 @@
 //! Crate-level error types.
 use dicom_core::error::Error as CoreError;
-pub use dicom_core::error::{CastValueError, InvalidValueReadError};
+pub use dicom_core::error::{CastValueError, ConvertValueError, InvalidValueReadError};
 use dicom_core::Tag;
 use quick_error::quick_error;
 use std::borrow::Cow;
@@ -37,6 +37,11 @@ quick_error! {
             display("Failed value cast: {}", err)
             from()
         }
+        /// A failed attempt to cast a value to an inappropriate format.
+        ConvertValue(err: ConvertValueError) {
+            display("Failed value conversion: {}", err)
+            from()
+        }
         /// Other I/O errors.
         Io(err: io::Error) {
             display("I/O error: {}", err)
@@ -52,6 +57,7 @@ impl From<CoreError> for Error {
             CoreError::UnexpectedTag(tag) => Error::UnexpectedTag(tag),
             CoreError::ReadValue(e) => Error::ReadValue(e),
             CoreError::CastValue(e) => Error::CastValue(e),
+            CoreError::ConvertValue(e) => Error::ConvertValue(e),
         }
     }
 }
