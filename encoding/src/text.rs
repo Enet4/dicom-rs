@@ -14,7 +14,7 @@
 //!
 //! At the moment, text encoding support is limited.
 //! Please see [`SpecificCharacterSet`] for a complete enumeration
-//! of all supported character encoding in the crate.
+//! of all supported text encodings.
 //!
 //! [`SpecificCharacterSet`]: ./enum.SpecificCharacterSet.html
 
@@ -92,7 +92,7 @@ pub type DynamicTextCodec = Box<dyn TextCodec>;
 pub enum SpecificCharacterSet {
     /// **ISO-IR 6**: the default character set.
     Default,
-    /// **ISO-IR 101** (ISO-8859-1): Right-hand part of the Latin alphabet no. 1,
+    /// **ISO-IR 100** (ISO-8859-1): Right-hand part of the Latin alphabet no. 1,
     /// the Western Europe character set.
     IsoIr100,
     /// **ISO-IR 101** (ISO-8859-2): Right-hand part of the Latin alphabet no. 2,
