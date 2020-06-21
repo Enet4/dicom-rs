@@ -52,13 +52,15 @@ mod util;
 /// followed by either an expression resolving to one standard Rust value,
 /// or an explicitly laid out array of Rust values.
 /// The type variant may be omitted in some cases.
-/// To convert, `Bytes`
+///
+/// Passing a single expression for multiple values is not supported.
+/// Please use standard `From` conversions instead.
 ///
 /// ```none
 /// dicom_value!() // empty value
 /// dicom_value!(«Type», «expression») // one value
 /// dicom_value!(«Type», [«expression1», «expression2», ...]) // multiple values
-/// dicom_value!(«value») // a single value, inferred variant
+/// dicom_value!(«expression») // a single value, inferred variant
 /// ```
 ///
 /// # Examples:
@@ -98,7 +100,6 @@ mod util;
 ///     PrimitiveValue::U16([5, 6, 7][..].into()),
 /// );
 /// ```
-///
 ///
 /// The output is a [`PrimitiveValue`],
 /// which can be converted to a `DicomValue` as long as its type parameters
@@ -147,9 +148,6 @@ macro_rules! dicom_value {
             use smallvec::smallvec; // import smallvec macro
             $crate::value::PrimitiveValue :: $typ (smallvec![$($elem,)*])
         }
-    };
-    (Bytes, $elem: expr) => {
-        $crate::value::PrimitiveValue :: U8 ($crate::value::C::from_slice(&$elem[..]))
     };
     (Str, $elem: expr) => {
         $crate::value::PrimitiveValue :: Str (String::from($elem))
@@ -240,12 +238,6 @@ mod tests {
         assert_eq!(
             dicom_value!(I32, [11, 22, 33]),
             PrimitiveValue::I32(smallvec![11, 22, 33]),
-        );
-
-        // build value from a byte vector
-        assert_eq!(
-            dicom_value!(Bytes, vec![0x77_u8; 12]),
-            PrimitiveValue::U8(smallvec![0x77_u8; 12]),
         );
 
         // empty value

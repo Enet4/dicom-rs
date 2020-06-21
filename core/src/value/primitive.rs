@@ -912,9 +912,9 @@ mod tests {
             dicom_value!(Strs, ["20141012"]).to_date().unwrap(),
             NaiveDate::from_ymd(2014, 10, 12),
         );
-        // from bytes (Bytes fake variant)
+        // from bytes
         assert_eq!(
-            dicom_value!(Bytes, b"20141012").to_date().unwrap(),
+            PrimitiveValue::from(b"20141012").to_date().unwrap(),
             NaiveDate::from_ymd(2014, 10, 12),
         );
         // not a date
