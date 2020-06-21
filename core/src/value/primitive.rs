@@ -166,6 +166,50 @@ impl From<&[u8]> for PrimitiveValue {
     }
 }
 
+macro_rules! impl_from_array_for_primitive {
+    ($typ: ty, $variant: ident) => {
+        impl From<$typ> for PrimitiveValue {
+            fn from(value: $typ) -> Self {
+                PrimitiveValue::$variant(C::from_slice(&value[..]))
+            }
+        }
+    };
+}
+
+macro_rules! impl_from_array_for_primitive_1_to_8 {
+    ($typ: ty, $variant: ident) => {
+        impl_from_array_for_primitive!([$typ; 1], $variant);
+        impl_from_array_for_primitive!([$typ; 2], $variant);
+        impl_from_array_for_primitive!([$typ; 3], $variant);
+        impl_from_array_for_primitive!([$typ; 4], $variant);
+        impl_from_array_for_primitive!([$typ; 5], $variant);
+        impl_from_array_for_primitive!([$typ; 6], $variant);
+        impl_from_array_for_primitive!([$typ; 7], $variant);
+        impl_from_array_for_primitive!([$typ; 8], $variant);
+        impl_from_array_for_primitive!(&[$typ; 1], $variant);
+        impl_from_array_for_primitive!(&[$typ; 2], $variant);
+        impl_from_array_for_primitive!(&[$typ; 3], $variant);
+        impl_from_array_for_primitive!(&[$typ; 4], $variant);
+        impl_from_array_for_primitive!(&[$typ; 5], $variant);
+        impl_from_array_for_primitive!(&[$typ; 6], $variant);
+        impl_from_array_for_primitive!(&[$typ; 7], $variant);
+        impl_from_array_for_primitive!(&[$typ; 8], $variant);
+    }
+}
+
+impl_from_array_for_primitive_1_to_8!(u8, U8);
+impl_from_array_for_primitive_1_to_8!(u16, U16);
+impl_from_array_for_primitive_1_to_8!(i16, I16);
+impl_from_array_for_primitive_1_to_8!(u32, U32);
+impl_from_array_for_primitive_1_to_8!(i32, I32);
+impl_from_array_for_primitive_1_to_8!(u64, U64);
+impl_from_array_for_primitive_1_to_8!(i64, I64);
+impl_from_array_for_primitive_1_to_8!(f32, F32);
+impl_from_array_for_primitive_1_to_8!(f64, F64);
+impl_from_array_for_primitive_1_to_8!(NaiveDate, Date);
+impl_from_array_for_primitive_1_to_8!(NaiveTime, Time);
+impl_from_array_for_primitive_1_to_8!(DateTime<FixedOffset>, DateTime);
+
 impl PrimitiveValue {
     /// Create a single unsigned 16-bit value.
     pub fn new_u16(value: u16) -> Self {
