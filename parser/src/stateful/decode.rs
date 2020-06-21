@@ -502,13 +502,16 @@ where
 
         // if it's a Specific Character Set, update the decoder immediately.
         if header.tag == Tag(0x0008, 0x0005) {
-            // TODO trigger an error or warning on unsupported specific character sets.
-            // Edge case handling strategies should be considered in the future.
-            if let Some(charset) = parts
-                .first()
-                .map(|x| x.as_ref())
-                .and_then(SpecificCharacterSet::from_code)
-            {
+            // Edge case handling strategies for
+            // unsupported specific character sets should probably be considered
+            // in the future. See #40 for discussion.
+            if let Some(charset) = parts.first().map(|x| x.as_ref()).and_then(|name| {
+                SpecificCharacterSet::from_code(name).or_else(|| {
+                    // TODO(#49) log this as a warning
+                    eprintln!("Unsupported character set `{}`, ignoring", name);
+                    None
+                })
+            }) {
                 self.set_character_set(charset)?;
             }
         }
@@ -684,7 +687,7 @@ fn require_known_length(
 #[cfg(test)]
 mod tests {
     use super::{StatefulDecode, StatefulDecoder};
-    use dicom_core::header::{HasLength, Header, Length};
+    use dicom_core::header::{DataElementHeader, HasLength, Header, Length};
     use dicom_core::{Tag, VR};
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
     use dicom_encoding::text::{DefaultCharacterSetCodec, DynamicTextCodec};
@@ -763,5 +766,48 @@ mod tests {
 
             assert_eq!(decoder.bytes_read(), 8 + 26 + 8 + 20);
         }
+    }
+
+    /// Test that the stateful decoder updates
+    /// the active character set after reaching a Specific Character Set element
+    /// with a supported text encoding.
+    #[test]
+    fn update_character_set() {
+        const RAW: &'static [u8; 18] = &[
+            // Tag: (0008,0005) Specific Character Set
+            0x08, 0x00, 0x05, 0x00, // VR: CS
+            b'C', b'S', // Length: 10
+            0x0a, 0x00, // Value: "ISO_IR 192"
+            b'I', b'S', b'O', b'_', b'I', b'R', b' ', b'1', b'9', b'2',
+        ];
+
+        let mut cursor = &RAW[..];
+        let mut decoder = StatefulDecoder::new(
+            &mut cursor,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            Box::new(DefaultCharacterSetCodec) as DynamicTextCodec,
+        );
+
+        is_stateful_decoder(&decoder);
+
+        let header = decoder
+            .decode_header()
+            .expect("should find an element header");
+        assert_eq!(
+            header,
+            DataElementHeader {
+                tag: Tag(0x0008, 0x0005),
+                vr: VR::CS,
+                len: Length(10),
+            }
+        );
+
+        let value = decoder
+            .read_value_preserved(&header)
+            .expect("should read a value");
+        
+        assert_eq!(value.string(), Some("ISO_IR 192"));
+        assert_eq!(decoder.text.name(), "ISO_IR 192",);
     }
 }
