@@ -15,3 +15,4 @@ default = ['dicom/inventory-registry']
 [dependencies]
 dicom = { path = "../parent/", version = "0.2.0", default-features = false }
 term_size = "0.3.2"
+itertools = "0.9.0"

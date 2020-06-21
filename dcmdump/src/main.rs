@@ -52,7 +52,7 @@ fn dump_file(obj: DefaultDicomObject) -> IoResult<()> {
 
     meta_dump(&mut to, &meta, width)?;
 
-    println!("{:-<40}", "");
+    println!("{:-<46}", "");
 
     dump(&mut to, &obj, width, 0)?;
 
@@ -99,7 +99,7 @@ where
         writeln!(
             to,
             "Private Information: {}",
-            format_value_list(v.iter().map(|n| format!("{:#x}", n)), width,)
+            format_value_list(v.iter().map(|n| format!("{:#x}", n)), width, false)
         )?;
     }
 
@@ -139,21 +139,18 @@ where
         DicomValue::Sequence { items, .. } => {
             writeln!(
                 to,
-                "{} {} {:48} # {},    {}",
+                "{} {:35} {} ({} Item{})",
                 elem.tag(),
+                tag_alias,
                 elem.vr(),
-                "",
                 vm,
-                tag_alias
+                if vm == 1 { "" } else { "s" },
             )?;
             for item in items {
                 dump_item(&mut *to, item, width, depth + 2)?;
             }
-            writeln!(
-                to,
-                "(FFFE, E0DD) na (SequenceDelimitationItem) {:20} # 0, SequenceDelimitationItem",
-                "",
-            )?;
+            to.write_all(&indent)?;
+            writeln!(to, "(FFFE, E0DD) SequenceDelimitationItem",)?;
         }
         DicomValue::PixelSequence {
             fragments,
@@ -164,20 +161,21 @@ where
             let num_items = 1 + fragments.len();
             writeln!(
                 to,
-                "{} {} (PixelSequence=#{}) {:29} # u/l, 1 PixelData",
+                "{} PixelData {:25} {} (PixelSequence, {} Item{})",
                 elem.tag(),
+                "",
                 vr,
                 num_items,
-                ""
+                if num_items == 1 { "" } else { "s" },
             )?;
 
             // write offset table
             let byte_len = offset_table.len();
             writeln!(
                 to,
-                "  (FFFE,E000) pi {:48} # {}, 1 Item",
-                item_value_summary(&offset_table, width),
+                "  (FFFE,E000) pi ({:>3} bytes, 1 Item): {:48}",
                 byte_len,
+                item_value_summary(&offset_table, width.saturating_sub(42 + depth * 2)),
             )?;
 
             // write compressed fragments
@@ -185,9 +183,9 @@ where
                 let byte_len = fragment.len();
                 writeln!(
                     to,
-                    "  (FFFE,E000) pi {:48} # {}, 1 Item",
-                    item_value_summary(&fragment, width),
+                    "  (FFFE,E000) pi ({:>3} bytes, 1 Item): {:48}",
                     byte_len,
+                    item_value_summary(&fragment, width.saturating_sub(42 + depth * 2)),
                 )?;
             }
         }
@@ -202,7 +200,7 @@ where
                 vr,
                 vm,
                 byte_len,
-                value_summary(&value, vr, width),
+                value_summary(&value, vr, width.saturating_sub(68 + depth * 2)),
             )?;
         }
     }
@@ -216,47 +214,42 @@ where
     D: DataDictionary,
 {
     let indent: String = std::iter::repeat(' ').take((depth * 2) as usize).collect();
-    let trail: String = std::iter::repeat(' ')
-        .take(usize::max(21, width as usize - 4 - indent.len()))
-        .collect();
-    writeln!(to, "{}(FFFE,E000) na Item {} # 0, 0 Item", indent, trail)?;
+    writeln!(to, "{}(FFFE,E000) na Item", indent)?;
     dump(to, item, width, depth + 1)?;
-    writeln!(
-        to,
-        "{}(FFFE,E00D) na (ItemDelimitationItem) {:23} # 0, 0 ItemDelimitationItem",
-        indent, ""
-    )?;
+    writeln!(to, "{}(FFFE,E00D) ItemDelimitationItem", indent,)?;
     Ok(())
 }
 
 fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> Cow<str> {
     use PrimitiveValue::*;
     match (value, vr) {
-        (F32(values), _) => format_value_list(values, max_characters).into(),
-        (F64(values), _) => format_value_list(values, max_characters).into(),
-        (I32(values), _) => format_value_list(values, max_characters).into(),
-        (I64(values), _) => format_value_list(values, max_characters).into(),
-        (U32(values), _) => format_value_list(values, max_characters).into(),
-        (U64(values), _) => format_value_list(values, max_characters).into(),
-        (I16(values), _) => format_value_list(values, max_characters).into(),
+        (F32(values), _) => format_value_list(values, max_characters, false).into(),
+        (F64(values), _) => format_value_list(values, max_characters, false).into(),
+        (I32(values), _) => format_value_list(values, max_characters, false).into(),
+        (I64(values), _) => format_value_list(values, max_characters, false).into(),
+        (U32(values), _) => format_value_list(values, max_characters, false).into(),
+        (U64(values), _) => format_value_list(values, max_characters, false).into(),
+        (I16(values), _) => format_value_list(values, max_characters, false).into(),
         (U16(values), VR::OW) => format_value_list(
             values.into_iter().map(|n| format!("{:02X}", n)),
             max_characters,
+            false,
         )
         .into(),
-        (U16(values), _) => format_value_list(values, max_characters).into(),
+        (U16(values), _) => format_value_list(values, max_characters, false).into(),
         (U8(values), VR::OB) | (U8(values), VR::UN) => format_value_list(
             values.into_iter().map(|n| format!("{:02X}", n)),
             max_characters,
+            false,
         )
         .into(),
-        (U8(values), _) => format_value_list(values, max_characters).into(),
-        (Tags(values), _) => format_value_list(values, max_characters).into(),
-        (Strs(values), _) => format_value_list(values, max_characters).into(),
-        (Date(values), _) => format_value_list(values, max_characters).into(),
-        (Time(values), _) => format_value_list(values, max_characters).into(),
-        (DateTime(values), _) => format_value_list(values, max_characters).into(),
-        (Str(value), _) => cut_str(&value.to_string(), max_characters)
+        (U8(values), _) => format_value_list(values, max_characters, false).into(),
+        (Tags(values), _) => format_value_list(values, max_characters, false).into(),
+        (Strs(values), _) => format_value_list(values, max_characters, true).into(),
+        (Date(values), _) => format_value_list(values, max_characters, true).into(),
+        (Time(values), _) => format_value_list(values, max_characters, true).into(),
+        (DateTime(values), _) => format_value_list(values, max_characters, true).into(),
+        (Str(value), _) => cut_str(&format!("\"{}\"", value), max_characters)
             .into_owned()
             .into(),
         (Empty, _) => "".into(),
@@ -267,29 +260,35 @@ fn item_value_summary(data: &[u8], max_characters: u32) -> String {
     format_value_list(
         data.iter().map(|n| format!("{:02X}", n)),
         max_characters,
+        false,
     )
 }
 
-fn format_value_list<I>(values: I, max_characters: u32) -> String
+fn format_value_list<I>(values: I, max_characters: u32, quoted: bool) -> String
 where
     I: IntoIterator,
+    I::IntoIter: ExactSizeIterator,
     I::Item: std::fmt::Display,
 {
-    let pieces = values
-        .into_iter()
-        .take(64)
-        .map(|piece| format!("\"{}\"", piece))
-        .collect::<Vec<String>>();
-    let pieces = if pieces.len() > 1 {
-        format!("[{}]", pieces.join(", "))
-    } else {
-        pieces.join(", ")
-    };
+    use itertools::Itertools;
+    let values = values.into_iter();
+    let len = values.len();
+    let mut pieces = values.take(64).map(|piece| {
+        if quoted {
+            format!("\"{}\"", piece)
+        } else {
+            piece.to_string()
+        }
+    });
+    let mut pieces = pieces.join(", ");
+    if len > 1 {
+        pieces = format!("[{}]", pieces);
+    }
     cut_str(&pieces, max_characters).into_owned()
 }
 
 fn cut_str(s: &str, max_characters: u32) -> Cow<str> {
-    let max = (max_characters - 3) as usize;
+    let max = (max_characters.saturating_sub(3)) as usize;
     if s.len() > max {
         format!("{}...", &s[..max]).into()
     } else {
