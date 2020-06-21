@@ -11,7 +11,7 @@ fn test_ob_value_with_unknown_length() {
 
     match element.value() {
         Value::PixelSequence { fragments, .. } => {
-            // check the start and end of the bytes the check it looks right
+            // check if the leading and trailing bytes look right
             assert_eq!(fragments.len(), 1);
             let fragment = &fragments[0];
             assert_eq!(fragment[0..2], [255, 79]);
