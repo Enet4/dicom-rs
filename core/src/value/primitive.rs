@@ -537,6 +537,82 @@ impl PrimitiveValue {
         }
     }
 
+    /// Retrieve a single DICOM date-time from this value.
+    ///
+    /// If the value is already represented as a date-time,
+    /// it is returned as is.
+    /// If the value is a string or sequence of strings,
+    /// the first string is decoded to obtain a date-time,
+    /// potentially failing if the string does not represent a valid time.
+    /// If the value in its textual form does not present a time zone,
+    /// `default_offset` is used.
+    /// If the value is a sequence of U8 bytes, the bytes are
+    /// first interpreted as an ASCII character string.
+    /// Otherwise, the operation fails.
+    ///
+    /// Users of this method are advised to retrieve
+    /// the default time zone offset
+    /// from the same source of the DICOM value.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    /// # use chrono::{DateTime, FixedOffset, TimeZone};
+    /// let default_offset = FixedOffset::east(0);
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::from(
+    ///         FixedOffset::east(0)
+    ///             .ymd(2012, 12, 21)
+    ///             .and_hms(9, 30, 1)
+    ///     ).to_datetime(default_offset),
+    ///     Ok(FixedOffset::east(0)
+    ///         .ymd(2012, 12, 21)
+    ///         .and_hms(9, 30, 1)
+    ///     ),
+    /// );
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::from("20121221093001").to_datetime(default_offset),
+    ///     Ok(FixedOffset::east(0)
+    ///         .ymd(2012, 12, 21)
+    ///         .and_hms(9, 30, 1)
+    ///     ),
+    /// );
+    /// ```
+    pub fn to_datetime(&self, default_offset: FixedOffset) -> Result<DateTime<FixedOffset>, ConvertValueError> {
+        match self {
+            PrimitiveValue::DateTime(v) if !v.is_empty() => Ok(v[0]),
+            PrimitiveValue::Str(s) => super::deserialize::parse_datetime(s.as_bytes(), default_offset)
+                .map_err(|err| ConvertValueError {
+                    requested: "DateTime",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
+            PrimitiveValue::Strs(s) => {
+                super::deserialize::parse_datetime(s.first().map(|s| s.as_bytes()).unwrap_or(&[]), default_offset)
+                    .map_err(|err| ConvertValueError {
+                        requested: "DateTime",
+                        original: self.value_type(),
+                        cause: Some(err),
+                    })
+            }
+            PrimitiveValue::U8(bytes) => super::deserialize::parse_datetime(bytes, default_offset)
+                .map_err(|err| ConvertValueError {
+                    requested: "DateTime",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
+            _ => Err(ConvertValueError {
+                requested: "DateTime",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
     /// Get a single string value. If it contains multiple strings,
     /// only the first one is returned.
     pub fn string(&self) -> Option<&str> {
