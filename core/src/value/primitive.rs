@@ -476,6 +476,67 @@ impl PrimitiveValue {
         }
     }
 
+    /// Retrieve a single DICOM time from this value.
+    ///
+    /// If the value is already represented as a time, it is returned as is.
+    /// If the value is a string or sequence of strings,
+    /// the first string is decoded to obtain a time, potentially failing if the
+    /// string does not represent a valid time.
+    /// If the value is a sequence of U8 bytes, the bytes are
+    /// first interpreted as an ASCII character string.
+    /// Otherwise, the operation fails.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    /// # use chrono::NaiveTime;
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::from(NaiveTime::from_hms(11, 2, 45)).to_time(),
+    ///     Ok(NaiveTime::from_hms(11, 2, 45)),
+    /// );
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::from("110245.78").to_time(),
+    ///     Ok(NaiveTime::from_hms_milli(11, 2, 45, 780)),
+    /// );
+    /// ```
+    pub fn to_time(&self) -> Result<NaiveTime, ConvertValueError> {
+        match self {
+            PrimitiveValue::Time(v) if !v.is_empty() => Ok(v[0]),
+            PrimitiveValue::Str(s) => super::deserialize::parse_time(s.as_bytes())
+                .map(|(date, _rest)| date)
+                .map_err(|err| ConvertValueError {
+                    requested: "Time",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
+            PrimitiveValue::Strs(s) => {
+                super::deserialize::parse_time(s.first().map(|s| s.as_bytes()).unwrap_or(&[]))
+                    .map(|(date, _rest)| date)
+                    .map_err(|err| ConvertValueError {
+                        requested: "Time",
+                        original: self.value_type(),
+                        cause: Some(err),
+                    })
+            }
+            PrimitiveValue::U8(bytes) => super::deserialize::parse_time(bytes)
+                .map(|(date, _rest)| date)
+                .map_err(|err| ConvertValueError {
+                    requested: "Time",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
+            _ => Err(ConvertValueError {
+                requested: "Time",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
     /// Get a single string value. If it contains multiple strings,
     /// only the first one is returned.
     pub fn string(&self) -> Option<&str> {
@@ -863,7 +924,7 @@ impl DicomValueType for PrimitiveValue {
 mod tests {
     use crate::dicom_value;
     use crate::value::PrimitiveValue;
-    use chrono::NaiveDate;
+    use chrono::{NaiveDate, NaiveTime};
     use smallvec::smallvec;
 
     #[test]
@@ -964,6 +1025,41 @@ mod tests {
         // not a date
         assert!(PrimitiveValue::Str("Smith^John".to_string())
             .to_date()
+            .is_err());
+    }
+
+    #[test]
+    fn primitive_value_to_time() {
+        // trivial conversion
+        assert_eq!(
+            PrimitiveValue::from(NaiveTime::from_hms(11, 9, 26))
+                .to_time()
+                .unwrap(),
+            NaiveTime::from_hms(11, 9, 26),
+        );
+        // from text (Str)
+        assert_eq!(
+            dicom_value!(Str, "110926").to_time().unwrap(),
+            NaiveTime::from_hms(11, 9, 26),
+        );
+        // from text (Strs)
+        assert_eq!(
+            dicom_value!(Strs, ["110926"]).to_time().unwrap(),
+            NaiveTime::from_hms(11, 9, 26),
+        );
+        // from text (Strs) with fraction of a second
+        assert_eq!(
+            dicom_value!(Strs, ["110926.123456"]).to_time().unwrap(),
+            NaiveTime::from_hms_micro(11, 9, 26, 123_456),
+        );
+        // from bytes with fraction of a second
+        assert_eq!(
+            PrimitiveValue::from(&b"110926.987"[..]).to_time().unwrap(),
+            NaiveTime::from_hms_milli(11, 9, 26, 987),
+        );
+        // not a time
+        assert!(PrimitiveValue::Str("Smith^John".to_string())
+            .to_time()
             .is_err());
     }
 }
