@@ -3,7 +3,7 @@
 //! See [`PrimitiveValue`](./enum.PrimitiveValue.html).
 
 use super::DicomValueType;
-use crate::error::ConvertValueError;
+use crate::error::{CastValueError, ConvertValueError};
 use crate::header::{HasLength, Length, Tag};
 use chrono::{Datelike, FixedOffset, Timelike};
 use itertools::Itertools;
@@ -102,15 +102,15 @@ pub enum PrimitiveValue {
     /// Used for OD and FD, DS.
     F64(C<f64>),
 
-    /// A sequence of dates.
+    /// A sequence of complete dates.
     /// Used for the DA representation.
     Date(C<NaiveDate>),
 
-    /// A sequence of date-time values.
+    /// A sequence of complete date-time values.
     /// Used for the DT representation.
     DateTime(C<DateTime<FixedOffset>>),
 
-    /// A sequence of time values.
+    /// A sequence of complete time values.
     /// Used for the TM representation.
     Time(C<NaiveTime>),
 }
@@ -248,6 +248,86 @@ impl PrimitiveValue {
             DateTime(c) => c.len() as u32,
             Time(c) => c.len() as u32,
         }
+    }
+
+    /// Determine the minimum number of bytes that this value would need to
+    /// occupy in a DICOM file, without compression and without the header.
+    /// As mandated by the standard, it is always even.
+    /// The calculated number does not need to match the size of the original
+    /// byte stream.
+    pub fn calculate_byte_len(&self) -> usize {
+        use self::PrimitiveValue::*;
+        match self {
+            Empty => 0,
+            U8(c) => c.len(),
+            I16(c) => c.len() * 2,
+            U16(c) => c.len() * 2,
+            U32(c) => c.len() * 4,
+            I32(c) => c.len() * 4,
+            U64(c) => c.len() * 8,
+            I64(c) => c.len() * 8,
+            F32(c) => c.len() * 4,
+            F64(c) => c.len() * 8,
+            Tags(c) => c.len() * 4,
+            Date(c) => c.len() * 8,
+            Str(s) => s.as_bytes().len(),
+            Strs(c) if c.is_empty() => 0,
+            Strs(c) => {
+                c.iter()
+                    .map(|s| ((s.as_bytes().len() + 1) & !1) + 1)
+                    .sum::<usize>()
+                    - 1
+            }
+            Time(c) if c.is_empty() => 0,
+            Time(c) => {
+                c.iter()
+                    .map(|t| ((PrimitiveValue::tm_byte_len(*t) + 1) & !1) + 1)
+                    .sum::<usize>()
+                    - 1
+            }
+            DateTime(c) if c.is_empty() => 0,
+            DateTime(c) => {
+                c.iter()
+                    .map(|dt| ((PrimitiveValue::dt_byte_len(*dt) + 1) & !1) + 1)
+                    .sum::<usize>()
+                    - 1
+            }
+        }
+    }
+
+    fn tm_byte_len(time: NaiveTime) -> usize {
+        match (time.hour(), time.minute(), time.second(), time.nanosecond()) {
+            (_, 0, 0, 0) => 2,
+            (_, _, 0, 0) => 4,
+            (_, _, _, 0) => 6,
+            (_, _, _, nano) => {
+                let mut frac = nano / 1000; // nano to microseconds
+                let mut trailing_zeros = 0;
+                while frac % 10 == 0 {
+                    frac /= 10;
+                    trailing_zeros += 1;
+                }
+                7 + 6 - trailing_zeros
+            }
+        }
+    }
+
+    fn dt_byte_len(datetime: DateTime<FixedOffset>) -> usize {
+        // !!! the current local definition of datetime is inaccurate, because
+        // it cannot distinguish unspecified components from their defaults
+        // (e.g. 201812 should be different from 20181201). This will have to
+        // be changed at some point.
+        (match (datetime.month(), datetime.day()) {
+            (1, 1) => 0,
+            (_, 1) => 2,
+            _ => 4,
+        }) + 8
+            + PrimitiveValue::tm_byte_len(datetime.time())
+            + if datetime.offset() == &FixedOffset::east(0) {
+                0
+            } else {
+                5
+            }
     }
 
     /// Convert the primitive value into a string representation.
@@ -612,206 +692,109 @@ impl PrimitiveValue {
             }),
         }
     }
+}
 
+
+/// Macro for implementing getters to single and multi-values of each variant.
+///
+/// Should be placed inside `PrimitiveValue`'s impl block.
+macro_rules! impl_primitive_getters {
+    ($name_single: ident, $name_multi: ident, $variant: ident, $ret: ty) => {
+    
+        /// Get a single value of the requested type.
+        /// If it contains multiple values,
+        /// only the first one is returned.
+        /// An error is returned if the variant is not compatible.
+        pub fn $name_single(&self) -> Result<$ret, CastValueError> {
+            match self {
+                PrimitiveValue::$variant(c) if c.is_empty() => Err(CastValueError {
+                    requested: stringify!($name_single),
+                    got: ValueType::Empty,
+                }),
+                PrimitiveValue::$variant(c) => Ok(c[0]),
+                value => Err(CastValueError {
+                    requested: stringify!($name_single),
+                    got: value.value_type(),
+                }),
+            }
+        }
+
+        /// Get a sequence of values of the requested type without copying.
+        /// An error is returned if the variant is not compatible.
+        pub fn $name_multi(&self) -> Result<&[$ret], CastValueError> {
+            match self {
+                PrimitiveValue::$variant(c) => Ok(&c),
+                value => Err(CastValueError {
+                    requested: stringify!($name_multi),
+                    got: value.value_type(),
+                }),
+            }
+        }
+    };
+}
+
+/// Per variant, strongly checked getters to DICOM values.
+///
+/// Conversions from one representation to another do not take place
+/// when using these methods.
+impl PrimitiveValue {
     /// Get a single string value. If it contains multiple strings,
     /// only the first one is returned.
-    pub fn string(&self) -> Option<&str> {
+    /// An error is returned if the variant is not compatible.
+    ///
+    /// To enable conversions of other variants to a textual representation,
+    /// see [`to_str()`] instead.
+    ///
+    /// [`to_str()`]: #method.to_str
+    pub fn string(&self) -> Result<&str, CastValueError> {
         use self::PrimitiveValue::*;
         match self {
-            Strs(c) => c.first().map(String::as_str),
-            Str(s) => Some(s),
-            _ => None,
+            Strs(c) if c.is_empty() => Err(CastValueError {
+                requested: "Str",
+                got: ValueType::Empty,
+            }),
+            Strs(c) if !c.is_empty() => Ok(&c[0]),
+            Str(s) => Ok(s),
+            value => Err(CastValueError {
+                requested: "Str",
+                got: value.value_type(),
+            }),
         }
     }
 
-    /// Get a sequence of string values.
-    pub fn strings(&self) -> Option<Vec<&str>> {
+    /// Get the inner sequence of string values
+    /// if the variant is either `Str` or `Strs`.
+    /// An error is returned if the variant is not compatible.
+    ///
+    /// To enable conversions of other variants to a textual representation,
+    /// see [`to_str()`] instead.
+    ///
+    /// [`to_str()`]: #method.to_str
+    pub fn strings(&self) -> Result<&[String], CastValueError> {
         use self::PrimitiveValue::*;
         match self {
-            Strs(c) => Some(c.iter().map(String::as_str).collect()),
-            Str(s) => Some(vec![&s]),
-            _ => None,
+            Strs(c) => Ok(&c),
+            Str(s) => Ok(std::slice::from_ref(s)),
+            value => Err(CastValueError {
+                requested: "strings",
+                got: value.value_type(),
+            }),
         }
     }
 
-    /// Get a single DICOM tag.
-    pub fn tag(&self) -> Option<Tag> {
-        use self::PrimitiveValue::*;
-        match self {
-            Tags(c) => c.first().map(Clone::clone),
-            _ => None,
-        }
-    }
-
-    /// Get a sequence of DICOM tags.
-    pub fn tags(&self) -> Option<&[Tag]> {
-        use self::PrimitiveValue::*;
-        match self {
-            Tags(c) => Some(&c),
-            _ => None,
-        }
-    }
-
-    /// Get a single 64-bit signed integer value.
-    pub fn int64(&self) -> Option<i64> {
-        use self::PrimitiveValue::*;
-        match self {
-            I64(c) => c.first().cloned(),
-            _ => None,
-        }
-    }
-
-    /// Get a single 64-bit unsigned integer value.
-    pub fn uint64(&self) -> Option<u64> {
-        use self::PrimitiveValue::*;
-        match self {
-            U64(c) => c.first().cloned(),
-            _ => None,
-        }
-    }
-
-    /// Get a single 32-bit signed integer value.
-    pub fn int32(&self) -> Option<i32> {
-        use self::PrimitiveValue::*;
-        match self {
-            I32(c) => c.first().cloned(),
-            _ => None,
-        }
-    }
-
-    /// Get a single 32-bit unsigned integer value.
-    pub fn uint32(&self) -> Option<u32> {
-        use self::PrimitiveValue::*;
-        match self {
-            U32(ref c) => c.first().cloned(),
-            _ => None,
-        }
-    }
-
-    /// Get a single 16-bit signed integer value.
-    pub fn int16(&self) -> Option<i16> {
-        use self::PrimitiveValue::*;
-        match self {
-            I16(ref c) => c.first().cloned(),
-            _ => None,
-        }
-    }
-
-    /// Get a single 16-bit unsigned integer value.
-    pub fn uint16(&self) -> Option<u16> {
-        use self::PrimitiveValue::*;
-        match self {
-            U16(c) => c.first().cloned(),
-            _ => None,
-        }
-    }
-
-    /// Get a single 8-bit unsigned integer value.
-    pub fn uint8(&self) -> Option<u8> {
-        use self::PrimitiveValue::*;
-        match self {
-            U8(c) => c.first().cloned(),
-            _ => None,
-        }
-    }
-
-    /// Get a single 32-bit floating point number value.
-    pub fn float32(&self) -> Option<f32> {
-        use self::PrimitiveValue::*;
-        match self {
-            F32(c) => c.first().cloned(),
-            _ => None,
-        }
-    }
-
-    /// Get a single 64-bit floating point number value.
-    pub fn float64(&self) -> Option<f64> {
-        use self::PrimitiveValue::*;
-        match self {
-            F64(c) => c.first().cloned(),
-            _ => None,
-        }
-    }
-
-    /// Determine the minimum number of bytes that this value would need to
-    /// occupy in a DICOM file, without compression and without the header.
-    /// As mandated by the standard, it is always even.
-    /// The calculated number does not need to match the size of the original
-    /// byte stream.
-    pub fn calculate_byte_len(&self) -> usize {
-        use self::PrimitiveValue::*;
-        match self {
-            Empty => 0,
-            U8(c) => c.len(),
-            I16(c) => c.len() * 2,
-            U16(c) => c.len() * 2,
-            U32(c) => c.len() * 4,
-            I32(c) => c.len() * 4,
-            U64(c) => c.len() * 8,
-            I64(c) => c.len() * 8,
-            F32(c) => c.len() * 4,
-            F64(c) => c.len() * 8,
-            Tags(c) => c.len() * 4,
-            Date(c) => c.len() * 8,
-            Str(s) => s.as_bytes().len(),
-            Strs(c) if c.is_empty() => 0,
-            Strs(c) => {
-                c.iter()
-                    .map(|s| ((s.as_bytes().len() + 1) & !1) + 1)
-                    .sum::<usize>()
-                    - 1
-            }
-            Time(c) if c.is_empty() => 0,
-            Time(c) => {
-                c.iter()
-                    .map(|t| ((PrimitiveValue::tm_byte_len(*t) + 1) & !1) + 1)
-                    .sum::<usize>()
-                    - 1
-            }
-            DateTime(c) if c.is_empty() => 0,
-            DateTime(c) => {
-                c.iter()
-                    .map(|dt| ((PrimitiveValue::dt_byte_len(*dt) + 1) & !1) + 1)
-                    .sum::<usize>()
-                    - 1
-            }
-        }
-    }
-
-    fn tm_byte_len(time: NaiveTime) -> usize {
-        match (time.hour(), time.minute(), time.second(), time.nanosecond()) {
-            (_, 0, 0, 0) => 2,
-            (_, _, 0, 0) => 4,
-            (_, _, _, 0) => 6,
-            (_, _, _, nano) => {
-                let mut frac = nano / 1000; // nano to microseconds
-                let mut trailing_zeros = 0;
-                while frac % 10 == 0 {
-                    frac /= 10;
-                    trailing_zeros += 1;
-                }
-                7 + 6 - trailing_zeros
-            }
-        }
-    }
-
-    fn dt_byte_len(datetime: DateTime<FixedOffset>) -> usize {
-        // !!! the current local definition of datetime is inaccurate, because
-        // it cannot distinguish unspecified components from their defaults
-        // (e.g. 201812 should be different from 20181201). This will have to
-        // be changed at some point.
-        (match (datetime.month(), datetime.day()) {
-            (1, 1) => 0,
-            (_, 1) => 2,
-            _ => 4,
-        }) + 8
-            + PrimitiveValue::tm_byte_len(datetime.time())
-            + if datetime.offset() == &FixedOffset::east(0) {
-                0
-            } else {
-                5
-            }
-    }
+    impl_primitive_getters!(tag, tags, Tags, Tag);
+    impl_primitive_getters!(date, dates, Date, NaiveDate);
+    impl_primitive_getters!(time, times, Time, NaiveTime);
+    impl_primitive_getters!(datetime, datetimes, DateTime, DateTime<FixedOffset>);
+    impl_primitive_getters!(uint8, uint8_slice, U8, u8);
+    impl_primitive_getters!(uint16, uint16_slice, U16, u16);
+    impl_primitive_getters!(int16, int16_slice, I16, i16);
+    impl_primitive_getters!(uint32, uint32_slice, U32, u32);
+    impl_primitive_getters!(int32, int32_slice, I32, i32);
+    impl_primitive_getters!(int64, int64_slice, I64, i64);
+    impl_primitive_getters!(uint64, uint64_slice, U64, u64);
+    impl_primitive_getters!(float32, float32_slice, F32, f32);
+    impl_primitive_getters!(float64, float64_slice, F64, f64);
 }
 
 /// The output of this method is equivalent to calling the method `to_str`

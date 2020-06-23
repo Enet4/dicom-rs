@@ -744,7 +744,7 @@ mod tests {
                 .read_value(&elem)
                 .expect("value after element header");
             assert_eq!(value.multiplicity(), 1);
-            assert_eq!(value.string(), Some("1.2.840.10008.5.1.4.1.1.1\0"));
+            assert_eq!(value.string(), Ok("1.2.840.10008.5.1.4.1.1.1\0"));
 
             assert_eq!(decoder.bytes_read(), 8 + 26);
         }
@@ -762,7 +762,7 @@ mod tests {
                 .read_value(&elem)
                 .expect("value after element header");
             assert_eq!(value.multiplicity(), 1);
-            assert_eq!(value.string(), Some("1.2.840.10008.1.2.1\0"));
+            assert_eq!(value.string(), Ok("1.2.840.10008.1.2.1\0"));
 
             assert_eq!(decoder.bytes_read(), 8 + 26 + 8 + 20);
         }
@@ -807,7 +807,7 @@ mod tests {
             .read_value_preserved(&header)
             .expect("should read a value");
         
-        assert_eq!(value.string(), Some("ISO_IR 192"));
+        assert_eq!(value.string(), Ok("ISO_IR 192"));
         assert_eq!(decoder.text.name(), "ISO_IR 192",);
     }
 }
