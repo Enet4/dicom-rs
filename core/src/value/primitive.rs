@@ -3,13 +3,15 @@
 //! See [`PrimitiveValue`](./enum.PrimitiveValue.html).
 
 use super::DicomValueType;
-use crate::error::{CastValueError, ConvertValueError};
+use crate::error::{CastValueError, ConvertValueError, InvalidValueReadError};
 use crate::header::{HasLength, Length, Tag};
 use chrono::{Datelike, FixedOffset, Timelike};
 use itertools::Itertools;
+use num_traits::NumCast;
 use safe_transmute::to_bytes::transmute_to_bytes;
 use smallvec::SmallVec;
 use std::borrow::Cow;
+use std::str::FromStr;
 
 // Re-exported from chrono
 pub use chrono::{DateTime, NaiveDate, NaiveTime};
@@ -486,6 +488,122 @@ impl PrimitiveValue {
                 Cow::Borrowed(string) => Cow::Borrowed(string.as_bytes()),
                 Cow::Owned(string) => Cow::Owned(string.into_bytes()),
             },
+        }
+    }
+
+    /// Retrieve a single integer of type `T` from this value.
+    ///
+    /// If the value is already represented as an integer,
+    /// it is returned after a conversion to the target type.
+    /// An error is returned if the integer cannot be represented
+    /// by the given integer type.
+    /// If the value is a string or sequence of strings,
+    /// the first string is parsed to obtain an integer,
+    /// potentially failing if the string does not represent a valid integer.
+    /// If the value is a sequence of U8 bytes,
+    /// the bytes are individually interpreted as independent numbers.
+    /// Otherwise, the operation fails.
+    ///
+    /// Note that this method does not enable
+    /// the conversion of floating point numbers to integers via truncation.
+    /// If this is intentional,
+    /// retrieve a float via [`to_float32`] or [`to_float64`] instead,
+    /// then cast it to an integer.
+    ///
+    /// [`to_float32`]: #method.to_float32
+    /// [`to_float64`]: #method.to_float64
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::I32(smallvec![
+    ///         1, 2, 5,
+    ///     ])
+    ///     .to_int::<u32>(),
+    ///     Ok(1_u32),
+    /// );
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::from("5050").to_int::<i32>(),
+    ///     Ok(5050),
+    /// );
+    /// ```
+    pub fn to_int<T>(&self) -> Result<T, ConvertValueError>
+    where
+        T: NumCast,
+        T: FromStr<Err = std::num::ParseIntError>,
+    {
+        match self {
+            PrimitiveValue::Str(s) => s.parse().map_err(|err| ConvertValueError {
+                requested: "integer",
+                original: self.value_type(),
+                cause: Some(InvalidValueReadError::ParseInteger(err)),
+            }),
+            PrimitiveValue::Strs(s) if !s.is_empty() => {
+                s[0].parse().map_err(|err| ConvertValueError {
+                    requested: "integer",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::ParseInteger(err)),
+                })
+            }
+            PrimitiveValue::U8(bytes) if !bytes.is_empty() => {
+                T::from(bytes[0]).ok_or_else(|| ConvertValueError {
+                    requested: "integer",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(bytes[0].to_string())),
+                })
+            }
+            PrimitiveValue::U16(s) if !s.is_empty() => {
+                T::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "integer",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::I16(s) if !s.is_empty() => {
+                T::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "integer",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::U32(s) if !s.is_empty() => {
+                T::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "integer",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::I32(s) if !s.is_empty() => {
+                T::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "integer",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::U64(s) if !s.is_empty() => {
+                T::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "integer",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::I64(s) if !s.is_empty() => {
+                T::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "integer",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            _ => Err(ConvertValueError {
+                requested: "integer",
+                original: self.value_type(),
+                cause: None,
+            }),
         }
     }
 
@@ -1055,6 +1173,54 @@ mod tests {
             std::borrow::Cow::Borrowed(_) => {} // good
             _ => panic!("expected bytes to be borrowed, but are owned"),
         }
+    }
+
+    #[test]
+    fn primitive_value_to_int() {
+        assert!(PrimitiveValue::Empty.to_int::<i32>().is_err());
+
+        // exact match
+        assert_eq!(
+            PrimitiveValue::from(0x0601_u16).to_int(),
+            Ok(0x0601_u16),
+        );
+        // conversions are automatically applied
+        assert_eq!(
+            PrimitiveValue::from(0x0601_u16).to_int(),
+            Ok(0x0601_u32),
+        );
+        assert_eq!(
+            PrimitiveValue::from(0x0601_u16).to_int(),
+            Ok(0x0601_i64),
+        );
+        assert_eq!(
+            PrimitiveValue::from(0x0601_u16).to_int(),
+            Ok(0x0601_u64),
+        );
+
+        // takes the first number
+        assert_eq!(
+            dicom_value!(I32, [1, 2, 5]).to_int(),
+            Ok(1),
+        );
+
+        // admits an integer as text
+        assert_eq!(
+            dicom_value!(Strs, ["-73", "2"]).to_int(),
+            Ok(-73),
+        );
+        
+        // does not admit destructive conversions
+        assert!(
+            PrimitiveValue::from(-1).to_int::<u32>().is_err()
+        );
+
+        // does not admit strings which are not numbers
+        assert!(
+            dicom_value!(Strs, ["Smith^John"])
+                .to_int::<u8>()
+                .is_err(),
+        );
     }
 
     #[test]

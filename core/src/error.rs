@@ -87,6 +87,10 @@ quick_error! {
         UnexpectedEndOfElement {
             display("Unexpected end of element")
         }
+        /// The value cannot be converted to the target type requested.
+        NarrowConvert(original: String) {
+            display("Cannot convert `{}` to the target type requested", original)
+        }
     }
 }
 
