@@ -607,6 +607,231 @@ impl PrimitiveValue {
         }
     }
 
+    /// Retrieve one single-precision floating point from this value.
+    ///
+    /// If the value is already represented as a number,
+    /// it is returned after a conversion to `f32`.
+    /// An error is returned if the number cannot be represented
+    /// by the given number type.
+    /// If the value is a string or sequence of strings,
+    /// the first string is parsed to obtain a number,
+    /// potentially failing if the string does not represent a valid number.
+    /// If the value is a sequence of U8 bytes,
+    /// the bytes are individually interpreted as independent numbers.
+    /// Otherwise, the operation fails.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::F32(smallvec![
+    ///         1.5, 2., 5.,
+    ///     ])
+    ///     .to_float32(),
+    ///     Ok(1.5_f32),
+    /// );
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::from("-6.75").to_float32(),
+    ///     Ok(-6.75),
+    /// );
+    /// ```
+    pub fn to_float32(&self) -> Result<f32, ConvertValueError> {
+        match self {
+            PrimitiveValue::Str(s) => s.parse().map_err(|err| ConvertValueError {
+                requested: "float32",
+                original: self.value_type(),
+                cause: Some(InvalidValueReadError::ParseFloat(err)),
+            }),
+            PrimitiveValue::Strs(s) if !s.is_empty() => {
+                s[0].parse().map_err(|err| ConvertValueError {
+                    requested: "float32",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::ParseFloat(err)),
+                })
+            }
+            PrimitiveValue::U8(bytes) if !bytes.is_empty() => {
+                NumCast::from(bytes[0]).ok_or_else(|| ConvertValueError {
+                    requested: "float32",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(bytes[0].to_string())),
+                })
+            }
+            PrimitiveValue::U16(s) if !s.is_empty() => {
+                NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "float32",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::I16(s) if !s.is_empty() => {
+                NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "float32",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::U32(s) if !s.is_empty() => {
+                NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "float32",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::I32(s) if !s.is_empty() => {
+                NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "float32",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::U64(s) if !s.is_empty() => {
+                NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "float32",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::I64(s) if !s.is_empty() => {
+                NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "float32",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::F32(s) if !s.is_empty() => {
+                Ok(s[0])
+            }
+            PrimitiveValue::F64(s) if !s.is_empty() => {
+                NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "float32",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            _ => Err(ConvertValueError {
+                requested: "float32",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+    /// Retrieve one double-precision floating point from this value.
+    ///
+    /// If the value is already represented as a number,
+    /// it is returned after a conversion to `f64`.
+    /// An error is returned if the number cannot be represented
+    /// by the given number type.
+    /// If the value is a string or sequence of strings,
+    /// the first string is parsed to obtain a number,
+    /// potentially failing if the string does not represent a valid number.
+    /// If the value is a sequence of U8 bytes,
+    /// the bytes are individually interpreted as independent numbers.
+    /// Otherwise, the operation fails.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::F64(smallvec![
+    ///         1.5, 2., 5.,
+    ///     ])
+    ///     .to_float64(),
+    ///     Ok(1.5_f64),
+    /// );
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::from("-6.75").to_float64(),
+    ///     Ok(-6.75),
+    /// );
+    /// ```
+    pub fn to_float64(&self) -> Result<f64, ConvertValueError> {
+        match self {
+            PrimitiveValue::Str(s) => s.parse().map_err(|err| ConvertValueError {
+                requested: "float64",
+                original: self.value_type(),
+                cause: Some(InvalidValueReadError::ParseFloat(err)),
+            }),
+            PrimitiveValue::Strs(s) if !s.is_empty() => {
+                s[0].parse().map_err(|err| ConvertValueError {
+                    requested: "float64",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::ParseFloat(err)),
+                })
+            }
+            PrimitiveValue::U8(bytes) if !bytes.is_empty() => {
+                NumCast::from(bytes[0]).ok_or_else(|| ConvertValueError {
+                    requested: "float64",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(bytes[0].to_string())),
+                })
+            }
+            PrimitiveValue::U16(s) if !s.is_empty() => {
+                NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "float64",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::I16(s) if !s.is_empty() => {
+                NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "float64",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::U32(s) if !s.is_empty() => {
+                NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "float64",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::I32(s) if !s.is_empty() => {
+                NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "float64",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::U64(s) if !s.is_empty() => {
+                NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "float64",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::I64(s) if !s.is_empty() => {
+                NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "float64",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::F32(s) if !s.is_empty() => {
+                NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
+                    requested: "float64",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                })
+            }
+            PrimitiveValue::F64(s) if !s.is_empty() => {
+                Ok(s[0])
+            }
+            _ => Err(ConvertValueError {
+                requested: "float64",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
     /// Retrieve a single DICOM date from this value.
     ///
     /// If the value is already represented as a date, it is returned as is.
