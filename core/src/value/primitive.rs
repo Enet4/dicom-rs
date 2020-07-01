@@ -347,8 +347,7 @@ impl PrimitiveValue {
     /// it is not guaranteed that `to_str()` returns a string with
     /// the exact same byte sequence as the one originally found
     /// at the source of the value,
-    /// even for the string variants,
-    /// As
+    /// even for the string variants.
     /// Therefore, this method is not reliable
     /// for compliant DICOM serialization.
     ///
@@ -407,7 +406,7 @@ impl PrimitiveValue {
     /// Other type variants are first converted to a string,
     /// joined together with a backslash,
     /// then turned into a byte vector.
-    /// For value which are inherently textual as per the standard,
+    /// For values which are inherently textual according the standard,
     /// this is equivalent to calling `as_bytes()` after [`to_str()`].
     ///
     /// **Note:**
