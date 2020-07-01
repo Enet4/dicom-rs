@@ -617,7 +617,8 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// each string is parsed to obtain an integer,
     /// potentially failing if the string does not represent a valid integer.
-    /// The last element is stripped of trailing whitespace before parsing.
+    /// The string is stripped of trailing whitespace before parsing,
+    /// in order to account for the possible padding to even length.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
@@ -763,6 +764,8 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the first string is parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
+    /// The string is stripped of trailing whitespace before parsing,
+    /// in order to account for the possible padding to even length.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
@@ -782,19 +785,19 @@ impl PrimitiveValue {
     /// );
     ///
     /// assert_eq!(
-    ///     PrimitiveValue::from("-6.75").to_float32(),
+    ///     PrimitiveValue::from("-6.75 ").to_float32(),
     ///     Ok(-6.75),
     /// );
     /// ```
     pub fn to_float32(&self) -> Result<f32, ConvertValueError> {
         match self {
-            PrimitiveValue::Str(s) => s.parse().map_err(|err| ConvertValueError {
+            PrimitiveValue::Str(s) => s.trim_end().parse().map_err(|err| ConvertValueError {
                 requested: "float32",
                 original: self.value_type(),
                 cause: Some(InvalidValueReadError::ParseFloat(err)),
             }),
             PrimitiveValue::Strs(s) if !s.is_empty() => {
-                s[0].parse().map_err(|err| ConvertValueError {
+                s[0].trim_end().parse().map_err(|err| ConvertValueError {
                     requested: "float32",
                     original: self.value_type(),
                     cause: Some(InvalidValueReadError::ParseFloat(err)),
@@ -894,19 +897,19 @@ impl PrimitiveValue {
     /// );
     ///
     /// assert_eq!(
-    ///     PrimitiveValue::from("-6.75").to_float64(),
+    ///     PrimitiveValue::from("-6.75 ").to_float64(),
     ///     Ok(-6.75),
     /// );
     /// ```
     pub fn to_float64(&self) -> Result<f64, ConvertValueError> {
         match self {
-            PrimitiveValue::Str(s) => s.parse().map_err(|err| ConvertValueError {
+            PrimitiveValue::Str(s) => s.trim_end().parse().map_err(|err| ConvertValueError {
                 requested: "float64",
                 original: self.value_type(),
                 cause: Some(InvalidValueReadError::ParseFloat(err)),
             }),
             PrimitiveValue::Strs(s) if !s.is_empty() => {
-                s[0].parse().map_err(|err| ConvertValueError {
+                s[0].trim_end().parse().map_err(|err| ConvertValueError {
                     requested: "float64",
                     original: self.value_type(),
                     cause: Some(InvalidValueReadError::ParseFloat(err)),
