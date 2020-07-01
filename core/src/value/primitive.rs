@@ -608,6 +608,152 @@ impl PrimitiveValue {
         }
     }
 
+    /// Retrieve a sequence of integers of type `T` from this value.
+    ///
+    /// If the values is already represented as an integer,
+    /// it is returned after a [`NumCast`] conversion to the target type.
+    /// An error is returned if any of the integers cannot be represented
+    /// by the given integer type.
+    /// If the value is a string or sequence of strings,
+    /// each string is parsed to obtain an integer,
+    /// potentially failing if the string does not represent a valid integer.
+    /// The last element is stripped of trailing whitespace before parsing.
+    /// If the value is a sequence of U8 bytes,
+    /// the bytes are individually interpreted as independent numbers.
+    /// Otherwise, the operation fails.
+    ///
+    /// Note that this method does not enable
+    /// the conversion of floating point numbers to integers via truncation.
+    /// If this is intentional,
+    /// retrieve a float via [`to_float32`] or [`to_float64`] instead,
+    /// then cast it to an integer.
+    ///
+    /// [`NumCast`]: ../../num_traits/trait.NumCast.html
+    /// [`to_float32`]: #method.to_float32
+    /// [`to_float64`]: #method.to_float64
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use dicom_core::dicom_value;
+    /// # use smallvec::smallvec;
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::I32(smallvec![
+    ///         1, 2, 5,
+    ///     ])
+    ///     .to_multi_int::<u32>(),
+    ///     Ok(vec![1_u32, 2, 5]),
+    /// );
+    ///
+    /// assert_eq!(
+    ///     dicom_value!(Strs, ["5050", "23 "]).to_multi_int::<i32>(),
+    ///     Ok(vec![5050, 23]),
+    /// );
+    /// ```
+    pub fn to_multi_int<T>(&self) -> Result<Vec<T>, ConvertValueError>
+    where
+        T: NumCast,
+        T: FromStr<Err = std::num::ParseIntError>,
+    {
+        match self {
+            PrimitiveValue::Str(s) => {
+                let out = s.trim_end().parse().map_err(|err| ConvertValueError {
+                    requested: "integer",
+                    original: self.value_type(),
+                    cause: Some(InvalidValueReadError::ParseInteger(err)),
+                })?;
+                Ok(vec![out])
+            }
+            PrimitiveValue::Strs(s) => s
+                .iter()
+                .map(|v| {
+                    v.trim_end().parse().map_err(|err| ConvertValueError {
+                        requested: "integer",
+                        original: self.value_type(),
+                        cause: Some(InvalidValueReadError::ParseInteger(err)),
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>(),
+            PrimitiveValue::U8(bytes) => bytes
+                .iter()
+                .map(|v| {
+                    T::from(*v).ok_or_else(|| ConvertValueError {
+                        requested: "integer",
+                        original: self.value_type(),
+                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>(),
+            PrimitiveValue::U16(s) => s
+                .iter()
+                .map(|v| {
+                    T::from(*v).ok_or_else(|| ConvertValueError {
+                        requested: "integer",
+                        original: self.value_type(),
+                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>(),
+            PrimitiveValue::I16(s) => s
+                .iter()
+                .map(|v| {
+                    T::from(*v).ok_or_else(|| ConvertValueError {
+                        requested: "integer",
+                        original: self.value_type(),
+                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>(),
+            PrimitiveValue::U32(s) => s
+                .iter()
+                .map(|v| {
+                    T::from(*v).ok_or_else(|| ConvertValueError {
+                        requested: "integer",
+                        original: self.value_type(),
+                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>(),
+            PrimitiveValue::I32(s) if !s.is_empty() => s
+                .iter()
+                .map(|v| {
+                    T::from(*v).ok_or_else(|| ConvertValueError {
+                        requested: "integer",
+                        original: self.value_type(),
+                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>(),
+            PrimitiveValue::U64(s) if !s.is_empty() => s
+                .iter()
+                .map(|v| {
+                    T::from(*v).ok_or_else(|| ConvertValueError {
+                        requested: "integer",
+                        original: self.value_type(),
+                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>(),
+            PrimitiveValue::I64(s) if !s.is_empty() => s
+                .iter()
+                .map(|v| {
+                    T::from(*v).ok_or_else(|| ConvertValueError {
+                        requested: "integer",
+                        original: self.value_type(),
+                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>(),
+            _ => Err(ConvertValueError {
+                requested: "integer",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
     /// Retrieve one single-precision floating point from this value.
     ///
     /// If the value is already represented as a number,
