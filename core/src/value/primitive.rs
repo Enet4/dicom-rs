@@ -499,6 +499,8 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the first string is parsed to obtain an integer,
     /// potentially failing if the string does not represent a valid integer.
+    /// The string is stripped of trailing whitespace before parsing,
+    /// in order to account for the possible padding to even length.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
@@ -527,8 +529,8 @@ impl PrimitiveValue {
     /// );
     ///
     /// assert_eq!(
-    ///     PrimitiveValue::from("5050").to_int::<i32>(),
-    ///     Ok(5050),
+    ///     PrimitiveValue::from("505 ").to_int::<i32>(),
+    ///     Ok(505),
     /// );
     /// ```
     pub fn to_int<T>(&self) -> Result<T, ConvertValueError>
@@ -537,13 +539,13 @@ impl PrimitiveValue {
         T: FromStr<Err = std::num::ParseIntError>,
     {
         match self {
-            PrimitiveValue::Str(s) => s.parse().map_err(|err| ConvertValueError {
+            PrimitiveValue::Str(s) => s.trim_end().parse().map_err(|err| ConvertValueError {
                 requested: "integer",
                 original: self.value_type(),
                 cause: Some(InvalidValueReadError::ParseInteger(err)),
             }),
             PrimitiveValue::Strs(s) if !s.is_empty() => {
-                s[0].parse().map_err(|err| ConvertValueError {
+                s[0].trim_end().parse().map_err(|err| ConvertValueError {
                     requested: "integer",
                     original: self.value_type(),
                     cause: Some(InvalidValueReadError::ParseInteger(err)),
