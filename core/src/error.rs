@@ -102,9 +102,13 @@ quick_error! {
 /// requested value type, or a conversion would be required. In other words,
 /// if a reference to the inner value cannot be obtained with
 /// the requested target type (for example, retrieving a date from a string),
+/// an error of this type is returned.
 /// 
 /// If such a conversion is acceptable, please use conversion methods instead:
-/// `to_date` instead of `date`, `to_str` instead of `string`, etc.
+/// `to_date` instead of `date`, `to_str` instead of `string`, and so on.
+/// The error type would then be [`ConvertValueError`].
+///
+/// [`ConvertValueError`]: ./struct.ConvertValueError.html
 #[derive(Debug, Clone, PartialEq)]
 pub struct CastValueError {
     /// The value format requested
@@ -125,7 +129,7 @@ impl fmt::Display for CastValueError {
 
 impl ::std::error::Error for CastValueError {}
 
-/// An error type for a failed attempt of converting a value
+/// An error type for a failed attempt at converting a value
 /// into another representation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConvertValueError {

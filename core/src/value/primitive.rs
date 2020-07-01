@@ -629,7 +629,7 @@ impl PrimitiveValue {
     /// retrieve a float via [`to_float32`] or [`to_float64`] instead,
     /// then cast it to an integer.
     ///
-    /// [`NumCast`]: ../../num_traits/trait.NumCast.html
+    /// [`NumCast`]: ../num_traits/cast/trait.NumCast.html
     /// [`to_float32`]: #method.to_float32
     /// [`to_float64`]: #method.to_float64
     ///
