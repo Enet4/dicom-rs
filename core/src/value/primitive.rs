@@ -659,6 +659,7 @@ impl PrimitiveValue {
         T: FromStr<Err = std::num::ParseIntError>,
     {
         match self {
+            PrimitiveValue::Empty => Ok(Vec::new()),
             PrimitiveValue::Str(s) => {
                 let out = s.trim_end().parse().map_err(|err| ConvertValueError {
                     requested: "integer",
@@ -907,6 +908,7 @@ impl PrimitiveValue {
     /// ```
     pub fn to_multi_float32(&self) -> Result<Vec<f32>, ConvertValueError> {
         match self {
+            PrimitiveValue::Empty => Ok(Vec::new()),
             PrimitiveValue::Str(s) => {
                 let out = s.trim_end().parse().map_err(|err| ConvertValueError {
                     requested: "float32",
@@ -1764,7 +1766,8 @@ impl DicomValueType for PrimitiveValue {
 #[cfg(test)]
 mod tests {
     use crate::dicom_value;
-    use crate::value::PrimitiveValue;
+    use crate::error::{ConvertValueError, InvalidValueReadError};
+    use crate::value::{PrimitiveValue, ValueType};
     use chrono::{NaiveDate, NaiveTime};
     use smallvec::smallvec;
 
@@ -1844,47 +1847,134 @@ mod tests {
         assert!(PrimitiveValue::Empty.to_int::<i32>().is_err());
 
         // exact match
+        assert_eq!(PrimitiveValue::from(0x0601_u16).to_int(), Ok(0x0601_u16),);
+        // conversions are automatically applied
+        assert_eq!(PrimitiveValue::from(0x0601_u16).to_int(), Ok(0x0601_u32),);
+        assert_eq!(PrimitiveValue::from(0x0601_u16).to_int(), Ok(0x0601_i64),);
+        assert_eq!(PrimitiveValue::from(0x0601_u16).to_int(), Ok(0x0601_u64),);
+
+        // takes the first number
+        assert_eq!(dicom_value!(I32, [1, 2, 5]).to_int(), Ok(1),);
+
+        // admits an integer as text
+        assert_eq!(dicom_value!(Strs, ["-73", "2"]).to_int(), Ok(-73),);
+
+        // does not admit destructive conversions
+        assert!(PrimitiveValue::from(-1).to_int::<u32>().is_err());
+
+        // does not admit strings which are not numbers
+        assert!(matches!(
+            dicom_value!(Strs, ["Smith^John"]).to_int::<u8>(),
+            Err(ConvertValueError {
+                requested: _,
+                original: ValueType::Strs,
+                // would try to parse as an integer and fail
+                cause: Some(InvalidValueReadError::ParseInteger(_)),
+            })
+        ));
+    }
+
+    #[test]
+    fn primitive_value_to_multi_int() {
+        assert_eq!(PrimitiveValue::Empty.to_multi_int::<i32>(), Ok(vec![]));
+
+        let test_value = dicom_value!(U16, [0x0601, 0x5353, 3, 4]);
+        // exact match
         assert_eq!(
-            PrimitiveValue::from(0x0601_u16).to_int(),
-            Ok(0x0601_u16),
+            test_value.to_multi_int(),
+            Ok(vec![0x0601_u16, 0x5353, 3, 4]),
         );
         // conversions are automatically applied
         assert_eq!(
-            PrimitiveValue::from(0x0601_u16).to_int(),
-            Ok(0x0601_u32),
+            test_value.to_multi_int(),
+            Ok(vec![0x0601_u32, 0x5353, 3, 4]),
         );
         assert_eq!(
-            PrimitiveValue::from(0x0601_u16).to_int(),
-            Ok(0x0601_i64),
+            test_value.to_multi_int(),
+            Ok(vec![0x0601_i64, 0x5353, 3, 4]),
         );
         assert_eq!(
-            PrimitiveValue::from(0x0601_u16).to_int(),
-            Ok(0x0601_u64),
+            test_value.to_multi_int(),
+            Ok(vec![0x0601_u64, 0x5353, 3, 4]),
         );
 
-        // takes the first number
+        // takes all numbers
         assert_eq!(
-            dicom_value!(I32, [1, 2, 5]).to_int(),
-            Ok(1),
+            dicom_value!(I32, [1, 2, 5]).to_multi_int(),
+            Ok(vec![1, 2, 5]),
         );
 
-        // admits an integer as text
+        // admits a integer as text, trailing space too
         assert_eq!(
-            dicom_value!(Strs, ["-73", "2"]).to_int(),
-            Ok(-73),
+            dicom_value!(Strs, ["-73", "2 "]).to_multi_int(),
+            Ok(vec![-73, 2]),
         );
-        
+
         // does not admit destructive conversions
-        assert!(
-            PrimitiveValue::from(-1).to_int::<u32>().is_err()
+        assert!(matches!(
+            dicom_value!(I32, [0, 1, -1]).to_multi_int::<u64>(),
+            Err(ConvertValueError {
+                original: ValueType::I32,
+                // the cast from -1_i32 to u32 would fail
+                cause: Some(InvalidValueReadError::NarrowConvert(x)),
+                ..
+            }) if &x == "-1"
+        ));
+
+        // not even from strings
+        assert!(matches!(
+            dicom_value!(Strs, ["0", "1", "-1"]).to_multi_int::<u16>(),
+            Err(ConvertValueError {
+                original: ValueType::Strs,
+                // the conversion from "-1" to u32 would fail
+                cause: Some(InvalidValueReadError::ParseInteger(_)),
+                ..
+            })
+        ));
+        
+        // does not admit strings which are not numbers
+        assert!(matches!(
+            dicom_value!(Strs, ["Smith^John"]).to_int::<u8>(),
+            Err(ConvertValueError {
+                requested: _,
+                original: ValueType::Strs,
+                // would try to parse as an integer and fail
+                cause: Some(InvalidValueReadError::ParseInteger(_)),
+            })
+        ));
+    }
+
+    #[test]
+    fn primitive_value_to_multi_floats() {
+        assert_eq!(PrimitiveValue::Empty.to_multi_float32(), Ok(vec![]));
+
+        let test_value = dicom_value!(U16, [1, 2, 3, 4]);
+
+        assert_eq!(
+            test_value.to_multi_float32(),
+            Ok(vec![1., 2., 3., 4.]),
+        );
+        assert_eq!(
+            test_value.to_multi_float64(),
+            Ok(vec![1., 2., 3., 4.]),
+        );
+
+        // admits a number as text, trailing space too
+        assert_eq!(
+            dicom_value!(Strs, ["7.25", "-12.5 "]).to_multi_float64(),
+            Ok(vec![7.25, -12.5]),
         );
 
         // does not admit strings which are not numbers
-        assert!(
-            dicom_value!(Strs, ["Smith^John"])
-                .to_int::<u8>()
-                .is_err(),
-        );
+        assert!(matches!(
+            dicom_value!(Strs, ["Smith^John"]).to_multi_float64(),
+            Err(ConvertValueError {
+                requested: _,
+                original: ValueType::Strs,
+                // would try to parse as a float and fail
+                cause: Some(InvalidValueReadError::ParseFloat(_)),
+            })
+        ));
     }
 
     #[test]
@@ -1915,6 +2005,16 @@ mod tests {
         assert!(PrimitiveValue::Str("Smith^John".to_string())
             .to_date()
             .is_err());
+        // not a date
+        assert!(matches!(
+            PrimitiveValue::Str("Smith^John".to_string()).to_date(),
+            Err(ConvertValueError {
+                requested: "Date",
+                original: ValueType::Str,
+                // would try to parse as a date and fail
+                cause: Some(_),
+            })
+        ));
     }
 
     #[test]
@@ -1947,8 +2047,13 @@ mod tests {
             NaiveTime::from_hms_milli(11, 9, 26, 987),
         );
         // not a time
-        assert!(PrimitiveValue::Str("Smith^John".to_string())
-            .to_time()
-            .is_err());
+        assert!(matches!(
+            PrimitiveValue::Str("Smith^John".to_string()).to_time(),
+            Err(ConvertValueError {
+                requested: "Time",
+                original: ValueType::Str,
+                ..
+            })
+        ));
     }
 }
