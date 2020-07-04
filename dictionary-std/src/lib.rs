@@ -17,7 +17,7 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 
 lazy_static! {
-    static ref DICT: StandardDictionaryRegistry = { init_dictionary() };
+    static ref DICT: StandardDictionaryRegistry = init_dictionary();
 }
 
 /// Retrieve a singleton instance of the standard dictionary registry.
