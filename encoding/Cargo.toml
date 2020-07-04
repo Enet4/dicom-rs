@@ -6,8 +6,8 @@ description = "DICOM encoding and decoding primitives"
 edition = "2018"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
-keywords = ["dicom"]
 categories = ["encoding"]
+keywords = ["dicom"]
 readme = "README.md"
 
 [badges.travis-ci]
