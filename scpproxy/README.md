@@ -5,6 +5,8 @@
 
 This is an implementation of the Proxy SCP, which can be used for logging and debugging purposes. 
 
+This tool is part of the [DICOM-rs](https://github.com/Enet4/dicom-rs) project.
+
 ## Usage
 
 ```

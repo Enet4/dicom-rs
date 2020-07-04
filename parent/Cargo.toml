@@ -4,17 +4,15 @@ version = "0.2.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A pure Rust implementation of the DICOM standard"
 edition = "2018"
-license = "Apache-2.0 OR MIT"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
+
+[badges.travis-ci]
+repository = "Enet4/dicom-rs"
 
 [features]
 default = ['inventory-registry']
 inventory-registry = ['dicom-encoding/inventory-registry', 'dicom-transfer-syntax-registry/inventory-registry']
-
-[badges]
-
-[badges.travis-ci]
-repository = "Enet4/dicom-rs"
 
 [dependencies]
 dicom-core = { path = "../core", version = "0.2.0" }

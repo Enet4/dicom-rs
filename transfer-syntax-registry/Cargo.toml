@@ -4,8 +4,13 @@ version = "0.2.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A registry of DICOM transfer syntaxes"
 edition = "2018"
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
+keywords = ["dicom"]
+readme = "README.md"
+
+[badges.travis-ci]
+repository = "Enet4/travis-ci"
 
 [features]
 default = []

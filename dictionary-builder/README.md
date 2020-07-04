@@ -5,6 +5,8 @@
 
 This sub-project is a tool for generating machine readable attribute dictionaries from the DICOM standard.
 
+This tool is part of the [DICOM-rs](https://github.com/Enet4/dicom-rs) project.
+
 ## Building
 
 ```bash

@@ -4,11 +4,10 @@ version = "0.2.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "Efficient and practical core library for DICOM compliant systems"
 edition = "2018"
-license = "Apache-2.0 OR MIT"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
 keywords = ["dicom"]
-
-[badges]
+readme = "README.md"
 
 [badges.travis-ci]
 repository = "Enet4/dicom-rs"
