@@ -30,7 +30,7 @@
 //! or which rely on encapsulated pixel data,
 //! are only listed as _stubs_ to be replaced by separate libraries.
 //! The full list is available in the [`entries`](entries) module.
-//! 
+//!
 //! [inventory]: https://docs.rs/inventory/0.1.4/inventory
 
 use byteordered::Endianness;

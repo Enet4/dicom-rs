@@ -16,7 +16,7 @@ fn test_ob_value_with_unknown_length() {
             let fragment = &fragments[0];
             assert_eq!(fragment[0..2], [255, 79]);
             assert_eq!(fragment[fragment.len() - 2..fragment.len()], [255, 217]);
-        },
+        }
         value => {
             panic!("expected a pixel sequence, but got {:?}", value);
         }

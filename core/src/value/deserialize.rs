@@ -175,7 +175,7 @@ impl_floating_ten!(f64);
 /// Retrieve an integer in text form.
 ///
 /// All bytes in the text must be within the range b'0' and b'9'
-/// The text must also not be empty nor have more than 9 characters. 
+/// The text must also not be empty nor have more than 9 characters.
 pub fn read_number<T>(text: &[u8]) -> Result<T>
 where
     T: Ten,
@@ -185,7 +185,10 @@ where
     T: Sub<T, Output = T>,
 {
     if text.is_empty() || text.len() > 9 {
-        return Err(InvalidValueReadError::InvalidLength(text.len(), "between 1 and 9"));
+        return Err(InvalidValueReadError::InvalidLength(
+            text.len(),
+            "between 1 and 9",
+        ));
     }
     if let Some(c) = text.iter().cloned().find(|&b| b < b'0' || b > b'9') {
         return Err(InvalidValueReadError::InvalidToken(c, "digit in 0..9"));

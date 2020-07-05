@@ -214,7 +214,7 @@ impl<R, W> DataRWAdapter<R, W> for NeverAdapter {
 
 impl<A> TransferSyntax<A> {
     /** Create a new transfer syntax descriptor.
-     * 
+     *
      * Note that only transfer syntax implementors are expected to construct
      * TS descriptors from scratch. For a practical usage of transfer syntaxes,
      * one should look up an existing transfer syntax registry by UID.
@@ -373,7 +373,7 @@ impl<A> TransferSyntax<A> {
             Codec::Unsupported => Codec::Unsupported,
             Codec::None => Codec::None,
         };
-        
+
         TransferSyntax {
             uid: self.uid,
             name: self.name,

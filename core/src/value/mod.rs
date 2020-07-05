@@ -6,8 +6,8 @@ use smallvec::SmallVec;
 use std::borrow::Cow;
 
 pub mod deserialize;
-pub mod serialize;
 mod primitive;
+pub mod serialize;
 
 pub use self::primitive::{PrimitiveValue, ValueType};
 

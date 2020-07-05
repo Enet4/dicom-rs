@@ -806,7 +806,7 @@ mod tests {
         let value = decoder
             .read_value_preserved(&header)
             .expect("should read a value");
-        
+
         assert_eq!(value.string(), Ok("ISO_IR 192"));
         assert_eq!(decoder.text.name(), "ISO_IR 192",);
     }

@@ -196,7 +196,7 @@ macro_rules! impl_from_array_for_primitive_1_to_8 {
         impl_from_array_for_primitive!(&[$typ; 6], $variant);
         impl_from_array_for_primitive!(&[$typ; 7], $variant);
         impl_from_array_for_primitive!(&[$typ; 8], $variant);
-    }
+    };
 }
 
 impl_from_array_for_primitive_1_to_8!(u8, U8);
@@ -853,9 +853,7 @@ impl PrimitiveValue {
                     cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
                 })
             }
-            PrimitiveValue::F32(s) if !s.is_empty() => {
-                Ok(s[0])
-            }
+            PrimitiveValue::F32(s) if !s.is_empty() => Ok(s[0]),
             PrimitiveValue::F64(s) if !s.is_empty() => {
                 NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "float32",
@@ -1118,9 +1116,7 @@ impl PrimitiveValue {
                     cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
                 })
             }
-            PrimitiveValue::F64(s) if !s.is_empty() => {
-                Ok(s[0])
-            }
+            PrimitiveValue::F64(s) if !s.is_empty() => Ok(s[0]),
             _ => Err(ConvertValueError {
                 requested: "float64",
                 original: self.value_type(),
@@ -1446,23 +1442,30 @@ impl PrimitiveValue {
     ///     ),
     /// );
     /// ```
-    pub fn to_datetime(&self, default_offset: FixedOffset) -> Result<DateTime<FixedOffset>, ConvertValueError> {
+    pub fn to_datetime(
+        &self,
+        default_offset: FixedOffset,
+    ) -> Result<DateTime<FixedOffset>, ConvertValueError> {
         match self {
             PrimitiveValue::DateTime(v) if !v.is_empty() => Ok(v[0]),
-            PrimitiveValue::Str(s) => super::deserialize::parse_datetime(s.as_bytes(), default_offset)
-                .map_err(|err| ConvertValueError {
-                    requested: "DateTime",
-                    original: self.value_type(),
-                    cause: Some(err),
-                }),
-            PrimitiveValue::Strs(s) => {
-                super::deserialize::parse_datetime(s.first().map(|s| s.as_bytes()).unwrap_or(&[]), default_offset)
-                    .map_err(|err| ConvertValueError {
+            PrimitiveValue::Str(s) => {
+                super::deserialize::parse_datetime(s.as_bytes(), default_offset).map_err(|err| {
+                    ConvertValueError {
                         requested: "DateTime",
                         original: self.value_type(),
                         cause: Some(err),
-                    })
+                    }
+                })
             }
+            PrimitiveValue::Strs(s) => super::deserialize::parse_datetime(
+                s.first().map(|s| s.as_bytes()).unwrap_or(&[]),
+                default_offset,
+            )
+            .map_err(|err| ConvertValueError {
+                requested: "DateTime",
+                original: self.value_type(),
+                cause: Some(err),
+            }),
             PrimitiveValue::U8(bytes) => super::deserialize::parse_datetime(bytes, default_offset)
                 .map_err(|err| ConvertValueError {
                     requested: "DateTime",
@@ -1478,13 +1481,11 @@ impl PrimitiveValue {
     }
 }
 
-
 /// Macro for implementing getters to single and multi-values of each variant.
 ///
 /// Should be placed inside `PrimitiveValue`'s impl block.
 macro_rules! impl_primitive_getters {
     ($name_single: ident, $name_multi: ident, $variant: ident, $ret: ty) => {
-    
         /// Get a single value of the requested type.
         /// If it contains multiple values,
         /// only the first one is returned.
@@ -1931,7 +1932,7 @@ mod tests {
                 ..
             })
         ));
-        
+
         // does not admit strings which are not numbers
         assert!(matches!(
             dicom_value!(Strs, ["Smith^John"]).to_int::<u8>(),
@@ -1950,14 +1951,8 @@ mod tests {
 
         let test_value = dicom_value!(U16, [1, 2, 3, 4]);
 
-        assert_eq!(
-            test_value.to_multi_float32(),
-            Ok(vec![1., 2., 3., 4.]),
-        );
-        assert_eq!(
-            test_value.to_multi_float64(),
-            Ok(vec![1., 2., 3., 4.]),
-        );
+        assert_eq!(test_value.to_multi_float32(), Ok(vec![1., 2., 3., 4.]),);
+        assert_eq!(test_value.to_multi_float64(), Ok(vec![1., 2., 3., 4.]),);
 
         // admits a number as text, trailing space too
         assert_eq!(

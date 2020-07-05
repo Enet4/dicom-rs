@@ -22,7 +22,7 @@
 //!   with the awareness of multiplicity, representation,
 //!   and the possible presence of sequences.
 //! - [`error`] contains crate-level error and result types.
-//! 
+//!
 //! [`dictionary`]: ./dictionary/index.html
 //! [`error`]: ./error/index.html
 //! [`header`]: ./header/index.html
@@ -192,12 +192,15 @@ mod tests {
 
         // multiple strings and string slices with variant, no trailing comma
         assert_eq!(
-            dicom_value!(Strs, [
-                "DERIVED",
-                "PRIMARY".to_string(), // accepts both &str and String
-                "WHOLE BODY",
-                "EMISSION"
-            ]),
+            dicom_value!(
+                Strs,
+                [
+                    "DERIVED",
+                    "PRIMARY".to_string(), // accepts both &str and String
+                    "WHOLE BODY",
+                    "EMISSION"
+                ]
+            ),
             PrimitiveValue::Strs(smallvec![
                 "DERIVED".to_string(),
                 "PRIMARY".to_string(),
@@ -208,12 +211,7 @@ mod tests {
 
         // multiple string literals with variant, with trailing comma
         assert_eq!(
-            dicom_value!(Strs, [
-                "DERIVED",
-                "PRIMARY",
-                "WHOLE BODY",
-                "EMISSION",
-            ]),
+            dicom_value!(Strs, ["DERIVED", "PRIMARY", "WHOLE BODY", "EMISSION",]),
             PrimitiveValue::Strs(smallvec![
                 "DERIVED".to_string(),
                 "PRIMARY".to_string(),
@@ -223,16 +221,10 @@ mod tests {
         );
 
         // single number with variant
-        assert_eq!(
-            dicom_value!(U16, 55),
-            PrimitiveValue::U16(smallvec![55]),
-        );
+        assert_eq!(dicom_value!(U16, 55), PrimitiveValue::U16(smallvec![55]),);
 
         // single number without variant
-        assert_eq!(
-            dicom_value!(55_u32),
-            PrimitiveValue::U32(smallvec![55]),
-        );
+        assert_eq!(dicom_value!(55_u32), PrimitiveValue::U32(smallvec![55]),);
 
         // multiple numbers without variant, no trailing comma
         assert_eq!(
@@ -241,10 +233,6 @@ mod tests {
         );
 
         // empty value
-        assert_eq!(
-            dicom_value!(),
-            PrimitiveValue::Empty,
-        );
-        
+        assert_eq!(dicom_value!(), PrimitiveValue::Empty,);
     }
 }

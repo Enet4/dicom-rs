@@ -1,12 +1,12 @@
 //! Encoding of primitive values.
-use chrono::{Datelike, FixedOffset, Timelike};
 use crate::value::{DateTime, NaiveDate, NaiveTime};
-use std::io::{Write, Result as IoResult};
+use chrono::{Datelike, FixedOffset, Timelike};
+use std::io::{Result as IoResult, Write};
 
 /** Encode a single date in accordance to the DICOM Date (DA)
  * value representation.
  */
- pub fn encode_date<W>(mut to: W, date: NaiveDate) -> IoResult<usize>
+pub fn encode_date<W>(mut to: W, date: NaiveDate) -> IoResult<usize>
 where
     W: Write,
 {
@@ -88,7 +88,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use chrono::{TimeZone, NaiveDate};
+    use chrono::{NaiveDate, TimeZone};
     use std::str::from_utf8;
 
     #[test]

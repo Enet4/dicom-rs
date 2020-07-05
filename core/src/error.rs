@@ -103,7 +103,7 @@ quick_error! {
 /// if a reference to the inner value cannot be obtained with
 /// the requested target type (for example, retrieving a date from a string),
 /// an error of this type is returned.
-/// 
+///
 /// If such a conversion is acceptable, please use conversion methods instead:
 /// `to_date` instead of `date`, `to_str` instead of `string`, and so on.
 /// The error type would then be [`ConvertValueError`].
