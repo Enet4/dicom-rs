@@ -7,7 +7,9 @@ use std::io::Write;
 use std::marker::PhantomData;
 
 pub mod basic;
-mod primitive_value;
+
+#[deprecated]
+pub use dicom_core::value::serialize as primitive_value;
 
 /// Type trait for an encoder of basic data properties.
 /// Unlike `Encode` (and similar to `BasicDecode`), this trait is not object
@@ -70,8 +72,8 @@ pub trait BasicEncode {
         }
     }
 
-    /// Encode a primitive value to the given writer. The default
-    /// implementation delegates to the other value encoding methods.
+    /// Encode a primitive value to the given writer. The default implementation
+    /// delegates to the other value encoding methods.
     fn encode_primitive<W>(&self, mut to: W, value: &PrimitiveValue) -> Result<usize>
     where
         W: Write,
@@ -80,14 +82,14 @@ pub trait BasicEncode {
         match value {
             Empty => Ok(0), // no-op
             Date(date) => encode_collection_delimited(&mut to, &*date, |to, date| {
-                primitive_value::encode_date(to, *date)
+                primitive_value::encode_date(to, *date).map_err(From::from)
             }),
             Time(time) => encode_collection_delimited(&mut to, &*time, |to, time| {
-                primitive_value::encode_time(to, *time)
+                primitive_value::encode_time(to, *time).map_err(From::from)
             }),
             DateTime(datetime) => {
                 encode_collection_delimited(&mut to, &*datetime, |to, datetime| {
-                    primitive_value::encode_datetime(to, *datetime)
+                    primitive_value::encode_datetime(to, *datetime).map_err(From::from)
                 })
             }
             Str(s) => {
@@ -466,6 +468,9 @@ pub struct EncoderFor<T, W: ?Sized> {
 }
 
 impl<T, W: ?Sized> EncoderFor<T, W> {
+    /** Using a generic encoder, create a new encoder specifically for the given
+     * writer of type `W`.
+     */
     pub fn new(encoder: T) -> Self {
         EncoderFor {
             inner: encoder,

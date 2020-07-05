@@ -22,6 +22,11 @@ pub trait HasLength {
     /// which can be the case for sequence elements or specific primitive
     /// values.
     fn length(&self) -> Length;
+
+    /// Check whether the value is empty (0 length).
+    fn is_empty(&self) -> bool {
+        self.length() == Length(0)
+    }
 }
 
 /// A trait for a data type containing a DICOM header.

@@ -28,6 +28,11 @@ quick_error! {
             display("Failed value cast: {}", err)
             from()
         }
+        /// A failed attempt to convert a value to an inappropriate format.
+        ConvertValue(err: ConvertValueError) {
+            display("Failed value conversion: {}", err)
+            from()
+        }
     }
 }
 
@@ -82,11 +87,28 @@ quick_error! {
         UnexpectedEndOfElement {
             display("Unexpected end of element")
         }
+        /// The value cannot be converted to the target type requested.
+        NarrowConvert(original: String) {
+            display("Cannot convert `{}` to the target type requested", original)
+        }
     }
 }
 
 /// An error type for an attempt of accessing a value
-/// in an inappropriate format.
+/// in one internal representation as another.
+///
+/// This error is raised whenever it is not possible to retrieve the requested
+/// value, either because the inner representation is not compatible with the
+/// requested value type, or a conversion would be required. In other words,
+/// if a reference to the inner value cannot be obtained with
+/// the requested target type (for example, retrieving a date from a string),
+/// an error of this type is returned.
+/// 
+/// If such a conversion is acceptable, please use conversion methods instead:
+/// `to_date` instead of `date`, `to_str` instead of `string`, and so on.
+/// The error type would then be [`ConvertValueError`].
+///
+/// [`ConvertValueError`]: ./struct.ConvertValueError.html
 #[derive(Debug, Clone, PartialEq)]
 pub struct CastValueError {
     /// The value format requested
@@ -106,3 +128,35 @@ impl fmt::Display for CastValueError {
 }
 
 impl ::std::error::Error for CastValueError {}
+
+/// An error type for a failed attempt at converting a value
+/// into another representation.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConvertValueError {
+    /// The value format requested
+    pub requested: &'static str,
+    /// The value's original representation
+    pub original: ValueType,
+    /// The reason why the conversion was unsuccessful,
+    /// or none if a conversion from the given original representation
+    /// is not possible
+    pub cause: Option<InvalidValueReadError>,
+}
+
+impl fmt::Display for ConvertValueError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "could not convert {:?} to a {}: ",
+            self.original, self.requested
+        )?;
+        if let Some(cause) = &self.cause {
+            write!(f, "{}", cause)?;
+        } else {
+            write!(f, "conversion not possible")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for ConvertValueError {}

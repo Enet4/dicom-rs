@@ -150,6 +150,7 @@ pub enum BasicDecoder {
 }
 
 impl BasicDecoder {
+    /// Create a basic decoder for the given byte order.
     pub fn new(endianness: Endianness) -> Self {
         match endianness {
             Endianness::Little => LE(LittleEndianBasicDecoder::default()),

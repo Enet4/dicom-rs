@@ -1,10 +1,12 @@
 //! Encoding of primitive values.
-use crate::error::Result;
-use dicom_core::chrono::{Datelike, FixedOffset, Timelike};
-use dicom_core::value::{DateTime, NaiveDate, NaiveTime};
-use std::io::Write;
+use chrono::{Datelike, FixedOffset, Timelike};
+use crate::value::{DateTime, NaiveDate, NaiveTime};
+use std::io::{Write, Result as IoResult};
 
-pub fn encode_date<W>(mut to: W, date: NaiveDate) -> Result<usize>
+/** Encode a single date in accordance to the DICOM Date (DA)
+ * value representation.
+ */
+ pub fn encode_date<W>(mut to: W, date: NaiveDate) -> IoResult<usize>
 where
     W: Write,
 {
@@ -13,7 +15,10 @@ where
     Ok(8)
 }
 
-pub fn encode_time<W>(mut to: W, time: NaiveTime) -> Result<usize>
+/** Encode a single time value in accordance to the DICOM Time (TM)
+ * value representation.
+ */
+pub fn encode_time<W>(mut to: W, time: NaiveTime) -> IoResult<usize>
 where
     W: Write,
 {
@@ -60,7 +65,10 @@ where
     }
 }
 
-pub fn encode_datetime<W>(mut to: W, dt: DateTime<FixedOffset>) -> Result<usize>
+/** Encode a single date-time value in accordance to the DICOM DateTime (DT)
+ * value representation.
+ */
+pub fn encode_datetime<W>(mut to: W, dt: DateTime<FixedOffset>) -> IoResult<usize>
 where
     W: Write,
 {
@@ -80,8 +88,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use dicom_core::chrono::TimeZone;
-    use dicom_core::value::NaiveDate;
+    use chrono::{TimeZone, NaiveDate};
     use std::str::from_utf8;
 
     #[test]
