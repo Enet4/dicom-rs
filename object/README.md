@@ -7,3 +7,6 @@ This sub-project is directed at users of the DICOM-rs ecosystem. It provides a h
 abstraction to DICOM objects, enabling objects to be retrieved from files or
 ['readers'](https://doc.rust-lang.org/std/io/trait.Read.html), and then analysed as a tree
 of attributes.
+
+This crate is part of the [DICOM-rs](https://github.com/Enet4/dicom-rs) project
+and is contained by the parent crate [`dicom`](https://crates.io/crates/dicom).

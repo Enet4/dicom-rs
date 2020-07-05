@@ -4,10 +4,14 @@ version = "0.2.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A CLI tool for inspecting DICOM files"
 edition = "2018"
-license = "Apache-2.0 OR MIT"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
 categories = ["command-line-utilities"]
 keywords = ["cli", "dicom", "dump"]
+readme = "README.md"
+
+[badges.travis-ci]
+repository = "Enet4/dicom-rs"
 
 [features]
 default = ['dicom/inventory-registry']

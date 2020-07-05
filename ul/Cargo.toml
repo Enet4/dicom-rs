@@ -4,8 +4,14 @@ version = "0.1.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>", "Paul Knopf <pauldotknopf@gmail.com>"]
 description = "Types and methods for interacting with the DICOM Upper Layer Protocol"
 edition = "2018"
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
+categories = ["network-programming"]
+keywords = ["dicom"]
+readme = "README.md"
+
+[badges.travis-ci]
+repository = "Enet4/dicom-rs"
 
 [dependencies]
 quick-error = "1.2.3"

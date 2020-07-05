@@ -9,6 +9,8 @@ Although the tool's output may resemble that of existing `dcmdump` tools in othe
 projects, this program does not intend to be fully compatible with them in
 terms of CLI usage or output format.
 
+This tool is part of the [DICOM-rs](https://github.com/Enet4/dicom-rs) project.
+
 ## Usage
 
 ```shell

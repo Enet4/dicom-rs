@@ -4,8 +4,14 @@ version = "0.2.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A middle-level parser and printer of DICOM data sets"
 edition = "2018"
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
+categories = ["parser-implementations"]
+keywords = ["dicom", "parser"]
+readme = "README.md"
+
+[badges.travis-ci]
+repository = "Enet4/dicom-rs"
 
 [dependencies]
 dicom-core = { path = "../core", version = "0.2.0" }

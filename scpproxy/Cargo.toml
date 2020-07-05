@@ -4,8 +4,14 @@ version = "0.1.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>", "Paul Knopf <pauldotknopf@gmail.com>"]
 description = "A proxy SCP server, for logging and diagnostics"
 edition = "2018"
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
+categories = ["command-line-utilities"]
+keywords = ["dicom"]
+readme = "README.md"
+
+[badges.travis-ci]
+repository = "Enet4/dicom-rs"
 
 [dependencies]
 clap = "2.33.0"
