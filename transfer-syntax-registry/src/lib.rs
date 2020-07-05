@@ -20,6 +20,17 @@
 //! higher level APIs, which should learn to negotiate and resolve the expected
 //! transfer syntax automatically.
 //!
+//! ## Transfer Syntax descriptors
+//!
+//! This crate encompasses the basic DICOM level of conformance:
+//! _Implicit VR Little Endian_,
+//! _Explicit VR Little Endian_,
+//! and _Explicit VR Big Endian_ are built-in.
+//! Transfer syntaxes which are not supported,
+//! or which rely on encapsulated pixel data,
+//! are only listed as _stubs_ to be replaced by separate libraries.
+//! The full list is available in the [`entries`](entries) module.
+//! 
 //! [inventory]: https://docs.rs/inventory/0.1.4/inventory
 
 use byteordered::Endianness;

@@ -1,4 +1,21 @@
-//! Compiled transfer syntax specifiers.
+//! A list of compiled transfer syntax specifiers.
+//!
+//! The constants exported here refer to the library's built-in support
+//! for DICOM transfer syntaxes.
+//! 
+//! **Fully implemented** means that the default transfer syntax registry
+//! provides built-in support for reading and writing data sets,
+//! as well as for encoding and decoding encapsulated pixel data,
+//! if applicable.
+//! **Stub descriptors** serve to provide information about
+//! the transfer syntax,
+//! and may provide partial support.
+//! In most cases it will be possible to read and write data sets,
+//! but not encode or decode encapsulated pixel data.
+//! 
+//! Other crates may be developed to replace stubs,
+//! hence expanding support for those transfer syntaxes
+//! to the registry.
 
 use crate::create_ts_stub;
 use byteordered::Endianness;
