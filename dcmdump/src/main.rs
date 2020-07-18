@@ -14,6 +14,8 @@ use dicom::core::value::{PrimitiveValue, Value as DicomValue};
 use dicom::core::VR;
 use dicom::object::mem::{InMemDicomObject, InMemElement};
 use dicom::object::{open_file, DefaultDicomObject, FileMetaTable, StandardDataDictionary};
+use dicom::encoding::transfer_syntax::TransferSyntaxIndex;
+use dicom::transfer_syntax::TransferSyntaxRegistry;
 
 use term_size;
 
@@ -22,7 +24,13 @@ use std::io::{stdout, ErrorKind, Result as IoResult, Write};
 
 type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
 
-fn main() -> DynResult<()> {
+fn main() {
+    run().unwrap_or_else(|e| {
+        eprintln!("{:#}", e);
+    });
+}
+
+fn run() -> DynResult<()> {
     let filename = ::std::env::args()
         .nth(1)
         .expect("Missing path to DICOM file");
@@ -73,8 +81,12 @@ where
         "Media Storage SOP Instance UID: {}",
         meta.media_storage_sop_instance_uid
     )?;
-    writeln!(to, "Transfer Syntax: {}", meta.transfer_syntax)?;
-    writeln!(to, "Implementation Class UID: {}", meta.transfer_syntax)?;
+    if let Some(ts) = TransferSyntaxRegistry.get(&meta.transfer_syntax) {
+        writeln!(to, "Transfer Syntax: {} ({})", ts.uid(), ts.name())?;
+    } else {
+        writeln!(to, "Transfer Syntax: {} («UNKNOWN»)", meta.transfer_syntax)?;
+    }
+    writeln!(to, "Implementation Class UID: {}", meta.implementation_class_uid)?;
 
     if let Some(v) = meta.implementation_version_name.as_ref() {
         writeln!(to, "Implementation version name: {}", v)?;
