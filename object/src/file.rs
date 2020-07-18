@@ -1,5 +1,4 @@
-use crate::DefaultDicomObject;
-use dicom_parser::error::Result;
+use crate::{DefaultDicomObject, Result};
 use std::io::Read;
 use std::path::Path;
 

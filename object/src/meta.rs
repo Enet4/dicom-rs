@@ -9,10 +9,75 @@ use dicom_encoding::encode::EncoderFor;
 use dicom_encoding::text::{self, DefaultCharacterSetCodec, TextCodec};
 use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
-use dicom_parser::error::{Error, InvalidValueReadError, Result};
+use snafu::{Backtrace, GenerateBacktrace, ResultExt, Snafu};
 use std::io::{Read, Write};
 
 const DICM_MAGIC_CODE: [u8; 4] = [b'D', b'I', b'C', b'M'];
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    /// The file meta group parser could not read
+    /// the magic code `DICM` from its source.
+    #[snafu(display("Could not start reading DICOM data: {}", source))]
+    ReadMagicCode { source: std::io::Error },
+
+    /// The file meta group parser could not fetch
+    /// the value of a data element from its source.
+    #[snafu(display("Could not read data value: {}", source))]
+    ReadValueData { source: std::io::Error },
+
+    /// The file meta group parser could not decode
+    /// the text in one of its data elements.
+    #[snafu(display("Could not decode text in {}: {}", name, source))]
+    DecodeText {
+        name: &'static str,
+        source: dicom_encoding::error::Error,
+    },
+
+    /// Invalid DICOM data, detected from checking the `DICM` code.
+    #[snafu(display("Invalid DICOM data"))]
+    NotDicom { backtrace: Backtrace },
+
+    /// An issue occurred while decoding the next data element
+    /// in the file meta data set.
+    #[snafu(display("Could not decode data element: {}", source))]
+    DecodeElement {
+        source: dicom_encoding::error::Error,
+    },
+
+    /// A data element with an unexpected tag was retrieved:
+    /// the parser was expecting another tag first,
+    /// or at least one that is part of the the file meta group.
+    #[snafu(display("Unexpected data element tagged {}", tag))]
+    UnexpectedTag { tag: Tag, backtrace: Backtrace },
+
+    /// A required file meta data element is missing.
+    #[snafu(display("Missing data element `{}`", alias))]
+    MissingElement {
+        alias: &'static str,
+        backtrace: Backtrace,
+    },
+
+    /// The value length of a data elements in the file meta group
+    /// was unexpected.
+    #[snafu(display("Unexpected length {} for data element tagged {}", length, tag))]
+    UnexpectedDataValueLength {
+        tag: Tag,
+        length: Length,
+        backtrace: Backtrace,
+    },
+
+    /// The value length of a data element is undefined,
+    /// but knowing the length is required in its context.
+    #[snafu(display("Undefined value length for data element tagged {}", tag))]
+    UndefinedValueLength { tag: Tag, backtrace: Backtrace },
+
+    /// The file meta group data set could not be written.
+    #[snafu(display("Could not write file meta group data set: {}", source))]
+    WriteSet { source: dicom_parser::error::Error },
+}
+
+type Result<T> = std::result::Result<T, Error>;
 
 /// DICOM File Meta Information Table.
 ///
@@ -75,9 +140,9 @@ where
     T: TextCodec,
 {
     let mut v = vec![0; len as usize];
-    source.read_exact(&mut v)?;
+    source.read_exact(&mut v).context(ReadValueData)?;
     *group_length_remaining -= 8 + len;
-    text.decode(&v).map_err(From::from)
+    text.decode(&v).context(DecodeText { name: text.name() })
 }
 
 impl FileMetaTable {
@@ -89,10 +154,12 @@ impl FileMetaTable {
         let mut buff: [u8; 4] = [0; 4];
         {
             // check magic code
-            file.read_exact(&mut buff)?;
+            file.read_exact(&mut buff).context(ReadMagicCode)?;
 
             if buff != DICM_MAGIC_CODE {
-                return Err(Error::InvalidFormat);
+                return Err(Error::NotDicom {
+                    backtrace: Backtrace::generate(),
+                });
             }
         }
 
@@ -102,15 +169,22 @@ impl FileMetaTable {
         let builder = FileMetaTableBuilder::new();
 
         let group_length: u32 = {
-            let (elem, _bytes_read) = decoder.decode_header(&mut file)?;
+            let (elem, _bytes_read) = decoder.decode_header(&mut file).context(DecodeElement)?;
             if elem.tag() != (0x0002, 0x0000) {
-                return Err(Error::UnexpectedTag(elem.tag()));
+                return Err(Error::UnexpectedTag {
+                    tag: elem.tag(),
+                    backtrace: Backtrace::generate(),
+                });
             }
             if elem.length() != Length(4) {
-                return Err(Error::UnexpectedDataValueLength);
+                return Err(Error::UnexpectedDataValueLength {
+                    tag: elem.tag(),
+                    length: elem.length(),
+                    backtrace: Backtrace::generate(),
+                });
             }
             let mut buff: [u8; 4] = [0; 4];
-            file.read_exact(&mut buff)?;
+            file.read_exact(&mut buff).context(ReadValueData)?;
             LittleEndian::read_u32(&buff)
         };
 
@@ -120,10 +194,13 @@ impl FileMetaTable {
 
         // Fetch optional data elements
         while group_length_remaining > 0 {
-            let (elem, _bytes_read) = decoder.decode_header(&mut file)?;
+            let (elem, _bytes_read) = decoder.decode_header(&mut file).context(DecodeElement)?;
             let elem_len = match elem.length().get() {
                 None => {
-                    return Err(Error::from(InvalidValueReadError::UnresolvedValueLength));
+                    return Err(Error::UndefinedValueLength {
+                        tag: elem.tag(),
+                        backtrace: Backtrace::generate(),
+                    });
                 }
                 Some(len) => len,
             };
@@ -131,10 +208,14 @@ impl FileMetaTable {
                 Tag(0x0002, 0x0001) => {
                     // Implementation Version
                     if elem.length() != Length(2) {
-                        return Err(Error::UnexpectedDataValueLength);
+                        return Err(Error::UnexpectedDataValueLength {
+                            tag: elem.tag(),
+                            length: elem.length(),
+                            backtrace: Backtrace::generate(),
+                        });
                     }
                     let mut hbuf = [0u8; 2];
-                    file.read_exact(&mut hbuf[..])?;
+                    file.read_exact(&mut hbuf[..]).context(ReadValueData)?;
                     group_length_remaining -= 14;
 
                     builder.information_version(hbuf)
@@ -170,52 +251,65 @@ impl FileMetaTable {
                 Tag(0x0002, 0x0013) => {
                     // Implementation Version Name
                     let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v)?;
+                    file.read_exact(&mut v).context(ReadValueData)?;
                     group_length_remaining -= 8 + elem_len;
-                    builder.implementation_version_name(text.decode(&v)?)
+                    builder.implementation_version_name(
+                        text.decode(&v).context(DecodeText { name: text.name() })?,
+                    )
                 }
                 Tag(0x0002, 0x0016) => {
                     // Source Application Entity Title
                     let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v)?;
+                    file.read_exact(&mut v).context(ReadValueData)?;
                     group_length_remaining -= 8 + elem_len;
-                    builder.source_application_entity_title(text.decode(&v)?)
+                    builder.source_application_entity_title(
+                        text.decode(&v).context(DecodeText { name: text.name() })?,
+                    )
                 }
                 Tag(0x0002, 0x0017) => {
                     // Sending Application Entity Title
                     let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v)?;
+                    file.read_exact(&mut v).context(ReadValueData)?;
                     group_length_remaining -= 8 + elem_len;
-                    builder.sending_application_entity_title(text.decode(&v)?)
+                    builder.sending_application_entity_title(
+                        text.decode(&v).context(DecodeText { name: text.name() })?,
+                    )
                 }
                 Tag(0x0002, 0x0018) => {
                     // Receiving Application Entity Title
                     let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v)?;
+                    file.read_exact(&mut v).context(ReadValueData)?;
                     group_length_remaining -= 8 + elem_len;
-                    builder.receiving_application_entity_title(text.decode(&v)?)
+                    builder.receiving_application_entity_title(
+                        text.decode(&v).context(DecodeText { name: text.name() })?,
+                    )
                 }
                 Tag(0x0002, 0x0100) => {
                     // Private Information Creator UID
                     let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v)?;
+                    file.read_exact(&mut v).context(ReadValueData)?;
                     group_length_remaining -= 8 + elem_len;
-                    builder.private_information_creator_uid(text.decode(&v)?)
+                    builder.private_information_creator_uid(
+                        text.decode(&v).context(DecodeText { name: text.name() })?,
+                    )
                 }
                 Tag(0x0002, 0x0102) => {
                     // Private Information
                     let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v)?;
+                    file.read_exact(&mut v).context(ReadValueData)?;
                     group_length_remaining -= 12 + elem_len;
                     builder.private_information(v)
                 }
                 Tag(0x0002, _) => {
                     // unknown tag, do nothing
-                    // could be an unsupported or non-standard attribute
+                    // could be an unsupported or non-standard attribute,
+                    // consider logging (#49)
                     builder
                 }
                 _ => {
-                    // unexpected tag from another group! do nothing for now
+                    // unexpected tag from another group! do nothing for now,
+                    // but this could pose an issue up ahead (see #50)
+                    // and should be logged (#49)
                     builder
                 }
             }
@@ -318,6 +412,7 @@ impl FileMetaTable {
                 .into_element_iter()
                 .flat_map(IntoTokens::into_tokens),
         )
+        .context(WriteSet)
     }
 }
 
@@ -514,18 +609,28 @@ impl FileMetaTableBuilder {
             // Missing information version, will assume (00H, 01H). See #28
             [0, 1]
         });
-        let media_storage_sop_class_uid = self
-            .media_storage_sop_class_uid
-            .ok_or_else(|| Error::MissingMetaElement("MediaStorageSOPClassUID"))?;
-        let media_storage_sop_instance_uid = self
-            .media_storage_sop_instance_uid
-            .ok_or_else(|| Error::MissingMetaElement("MediaStorageSOPInstanceUID"))?;
-        let transfer_syntax = self
-            .transfer_syntax
-            .ok_or_else(|| Error::MissingMetaElement("TransferSyntax"))?;
-        let implementation_class_uid = self
-            .implementation_class_uid
-            .ok_or_else(|| Error::MissingMetaElement("ImplementationClassUID"))?;
+        let media_storage_sop_class_uid =
+            self.media_storage_sop_class_uid
+                .ok_or_else(|| Error::MissingElement {
+                    alias: "MediaStorageSOPClassUID",
+                    backtrace: Backtrace::generate(),
+                })?;
+        let media_storage_sop_instance_uid =
+            self.media_storage_sop_instance_uid
+                .ok_or_else(|| Error::MissingElement {
+                    alias: "MediaStorageSOPInstanceUID",
+                    backtrace: Backtrace::generate(),
+                })?;
+        let transfer_syntax = self.transfer_syntax.ok_or_else(|| Error::MissingElement {
+            alias: "TransferSyntax",
+            backtrace: Backtrace::generate(),
+        })?;
+        let implementation_class_uid =
+            self.implementation_class_uid
+                .ok_or_else(|| Error::MissingElement {
+                    alias: "ImplementationClassUID",
+                    backtrace: Backtrace::generate(),
+                })?;
 
         fn dicom_len<T: AsRef<str>>(x: T) -> u32 {
             let o = x.as_ref().len() as u32;

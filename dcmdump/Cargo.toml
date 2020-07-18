@@ -14,7 +14,7 @@ readme = "README.md"
 repository = "Enet4/dicom-rs"
 
 [features]
-default = ['dicom/inventory-registry']
+default = ['dicom/inventory-registry', 'dicom/backtraces']
 
 [dependencies]
 dicom = { path = "../parent/", version = "0.2.0", default-features = false }

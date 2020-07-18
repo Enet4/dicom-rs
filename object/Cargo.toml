@@ -15,6 +15,7 @@ repository = "Enet4/dicom-rs"
 [features]
 default = []
 inventory-registry = ['dicom-encoding/inventory-registry', 'dicom-transfer-syntax-registry/inventory-registry']
+backtraces = ['snafu/backtraces']
 
 [dependencies]
 dicom-core = { path = "../core", version = "0.2.0" }
@@ -25,6 +26,7 @@ dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version
 itertools = "0.9.0"
 byteordered = "0.5.0"
 smallvec = "1.0.0"
+snafu = "0.6.8"
 
 [dev-dependencies]
 dicom-test-files = "0.2.0"
