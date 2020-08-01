@@ -2,7 +2,6 @@
 //! in a way which supports text encoding.
 //!
 
-use crate::error::{Error, Result};
 use dicom_core::{value::PrimitiveValue, DataElementHeader, VR};
 use dicom_encoding::transfer_syntax::DynEncoder;
 use dicom_encoding::{
@@ -11,6 +10,40 @@ use dicom_encoding::{
     TransferSyntax,
 };
 use std::io::Write;
+use snafu::{Backtrace, GenerateBacktrace, ResultExt, Snafu};
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("Encoding in transfer syntax {} is unsupported", ts))]
+    UnsupportedTransferSyntax {
+        ts: &'static str,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Unsupported character set {:?}", charset))]
+    UnsupportedCharacterSet {
+        charset: SpecificCharacterSet,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Failed to encode a data piece"))]
+    EncodeData {
+        source: dicom_encoding::error::Error,
+    },
+
+    #[snafu(display("Could not encode text"))]
+    EncodeText {
+        source: dicom_encoding::error::TextEncodingError,
+    },
+
+    #[snafu(display("Could not write value data to writer"))]
+    WriteValueData {
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// Also called a printer, this encoder type provides a stateful mid-level
 /// abstraction for writing DICOM content. Unlike `Encode`,
@@ -56,8 +89,14 @@ impl<'s> DynStatefulEncoder<'s> {
     ) -> Result<Self> {
         let encoder = ts
             .encoder()
-            .ok_or_else(|| Error::UnsupportedTransferSyntax)?;
-        let text = cs.codec().ok_or_else(|| Error::UnsupportedCharacterSet)?;
+            .ok_or_else(|| Error::UnsupportedTransferSyntax {
+                ts: ts.uid(),
+                backtrace: Backtrace::generate(),
+            })?;
+        let text = cs.codec().ok_or_else(|| Error::UnsupportedCharacterSet {
+            charset: cs,
+            backtrace: Backtrace::generate(),
+        })?;
 
         Ok(StatefulEncoder::new(to, encoder, text))
     }
@@ -71,35 +110,35 @@ where
 {
     /// Encode and write a data element header.
     pub fn encode_element_header(&mut self, de: DataElementHeader) -> Result<()> {
-        let bytes = self.encoder.encode_element_header(&mut self.to, de)?;
+        let bytes = self.encoder.encode_element_header(&mut self.to, de).context(EncodeData)?;
         self.bytes_written += bytes as u64;
         Ok(())
     }
 
     /// Encode and write an item header.
     pub fn encode_item_header(&mut self, len: u32) -> Result<()> {
-        self.encoder.encode_item_header(&mut self.to, len)?;
+        self.encoder.encode_item_header(&mut self.to, len).context(EncodeData)?;
         self.bytes_written += 8;
         Ok(())
     }
 
     /// Encode and write an item delimiter.
     pub fn encode_item_delimiter(&mut self) -> Result<()> {
-        self.encoder.encode_item_delimiter(&mut self.to)?;
+        self.encoder.encode_item_delimiter(&mut self.to).context(EncodeData)?;
         self.bytes_written += 8;
         Ok(())
     }
 
     /// Encode and write a sequence delimiter.
     pub fn encode_sequence_delimiter(&mut self) -> Result<()> {
-        self.encoder.encode_sequence_delimiter(&mut self.to)?;
+        self.encoder.encode_sequence_delimiter(&mut self.to).context(EncodeData)?;
         self.bytes_written += 8;
         Ok(())
     }
 
     /// Write all bytes directly to the inner writer.
     pub fn write_bytes(&mut self, bytes: &[u8]) -> Result<()> {
-        self.to.write_all(bytes)?;
+        self.to.write_all(bytes).context(WriteValueData)?;
         self.bytes_written += bytes.len() as u64;
         Ok(())
     }
@@ -127,7 +166,7 @@ where
                 Ok(())
             }
             _ => {
-                let bytes = self.encoder.encode_primitive(&mut self.to, value)?;
+                let bytes = self.encoder.encode_primitive(&mut self.to, value).context(EncodeData)?;
                 self.bytes_written += bytes as u64;
                 Ok(())
             }
@@ -137,7 +176,7 @@ where
     fn encode_text(&mut self, text: &str, vr: VR) -> Result<()> {
         let bytes = self.encode_text_untrailed(text, vr)?;
         if bytes % 2 == 1 {
-            self.to.write_all(b" ")?;
+            self.to.write_all(b" ").context(WriteValueData)?;
             self.bytes_written += 1;
         }
         Ok(())
@@ -151,13 +190,13 @@ where
         for (i, text) in texts.iter().enumerate() {
             acc += self.encode_text_untrailed(text.as_ref(), vr)?;
             if i < texts.len() - 1 {
-                self.to.write_all(b"\\")?;
+                self.to.write_all(b"\\").context(WriteValueData)?;
                 acc += 1;
                 self.bytes_written += 1;
             }
         }
         if acc % 2 == 1 {
-            self.to.write_all(b" ")?;
+            self.to.write_all(b" ").context(WriteValueData)?;
             self.bytes_written += 1;
         }
         Ok(())
@@ -167,11 +206,11 @@ where
         let data = match vr {
             VR::AE | VR::AS | VR::CS | VR::DA | VR::DS | VR::DT | VR::IS | VR::TM | VR::UI => {
                 // these VRs always use the default character repertoire
-                DefaultCharacterSetCodec.encode(text)?
+                DefaultCharacterSetCodec.encode(text).context(EncodeText)?
             }
-            _ => self.text.encode(text)?,
+            _ => self.text.encode(text).context(EncodeText)?,
         };
-        self.to.write_all(&data)?;
+        self.to.write_all(&data).context(WriteValueData)?;
         self.bytes_written += data.len() as u64;
         Ok(data.len())
     }

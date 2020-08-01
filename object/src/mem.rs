@@ -10,7 +10,7 @@ use std::path::Path;
 
 use crate::meta::FileMetaTable;
 use crate::{
-    CreateParser, DicomObject, Error, OpenFile, ParseDataSet, ParseMetaDataSet, ReadFile, Result,
+    CreateParser, DicomObject, Error, OpenFile, ParseMetaDataSet, ReadFile, ReadToken, Result,
     RootDicomObject,
 };
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
@@ -21,7 +21,8 @@ use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_parser::dataset::{DataSetReader, DataToken};
-use dicom_parser::error::{DataSetSyntaxError, Error as ParserError};
+use dicom_parser::dataset::read::Error as ParserError;
+//use dicom_parser::dataset::write::Error as WriteDataSetError;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
 /// A full in-memory DICOM data element.
@@ -192,8 +193,7 @@ where
 
             Ok(RootDicomObject {
                 meta,
-                obj: InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)
-                    .context(ParseDataSet)?,
+                obj: InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?,
             })
         } else {
             Err(Error::UnsupportedTransferSyntax {
@@ -238,8 +238,7 @@ where
             let cs = SpecificCharacterSet::Default;
             let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)
                 .context(CreateParser)?;
-            let obj = InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)
-                .context(ParseDataSet)?;
+            let obj = InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?;
             Ok(RootDicomObject { meta, obj })
         } else {
             Err(Error::UnsupportedTransferSyntax {
@@ -352,14 +351,14 @@ where
         dict: D,
         in_item: bool,
         len: Length,
-    ) -> ParserResult<Self>
+    ) -> Result<Self>
     where
         I: Iterator<Item = ParserResult<DataToken>>,
     {
         let mut entries: BTreeMap<Tag, InMemElement<D>> = BTreeMap::new();
         // perform a structured parsing of incoming tokens
         while let Some(token) = dataset.next() {
-            let elem = match token? {
+            let elem = match token.context(ReadToken)? {
                 DataToken::PixelSequenceStart => {
                     let value = InMemDicomObject::build_encapsulated_data(&mut *dataset)?;
                     DataElement::new(Tag(0x7fe0, 0x0010), VR::OB, value)
@@ -368,13 +367,18 @@ where
                     // fetch respective value, place it in the entries
                     let next_token = dataset
                         .next()
-                        .ok_or_else(|| ParserError::MissingElementValue)?;
-                    match next_token? {
+                        .ok_or_else(|| Error::MissingElementValue {
+                            backtrace: Backtrace::generate()
+                        })?;
+                    match next_token.context(ReadToken)? {
                         DataToken::PrimitiveValue(v) => {
                             InMemElement::new(header.tag, header.vr, Value::Primitive(v))
                         }
                         token => {
-                            return Err(DataSetSyntaxError::UnexpectedToken(token).into());
+                            return Err(Error::UnexpectedToken {
+                                token,
+                                backtrace: Backtrace::generate(),
+                            });
                         }
                     }
                 }
@@ -387,7 +391,10 @@ where
                     // end of item, leave now
                     return Ok(InMemDicomObject { entries, dict, len });
                 }
-                token => return Err(DataSetSyntaxError::UnexpectedToken(token).into()),
+                token => return Err(Error::UnexpectedToken {
+                    token,
+                    backtrace: Backtrace::generate(),
+                }),
             };
             entries.insert(elem.tag(), elem);
         }
@@ -399,7 +406,7 @@ where
     /// in-memory DICOM value.
     fn build_encapsulated_data<I>(
         mut dataset: I,
-    ) -> ParserResult<Value<InMemDicomObject<D>, InMemFragment>>
+    ) -> Result<Value<InMemDicomObject<D>, InMemFragment>>
     where
         I: Iterator<Item = ParserResult<DataToken>>,
     {
@@ -416,7 +423,7 @@ where
         let mut fragments = C::new();
 
         while let Some(token) = dataset.next() {
-            match token? {
+            match token.context(ReadToken)? {
                 DataToken::ItemValue(data) => {
                     if offset_table.is_none() {
                         offset_table = Some(data.into());
@@ -442,9 +449,10 @@ where
                 | token @ DataToken::PixelSequenceStart
                 | token @ DataToken::SequenceStart { .. }
                 | token @ DataToken::PrimitiveValue(_) => {
-                    return Err(ParserError::DataSetSyntax(
-                        DataSetSyntaxError::UnexpectedToken(token),
-                    ));
+                    return Err(Error::UnexpectedToken {
+                        token,
+                        backtrace: Backtrace::generate(),
+                    });
                 }
             }
         }
@@ -461,25 +469,30 @@ where
         _len: Length,
         dataset: &mut I,
         dict: &D,
-    ) -> ParserResult<C<InMemDicomObject<D>>>
+    ) -> Result<C<InMemDicomObject<D>>>
     where
         I: Iterator<Item = ParserResult<DataToken>>,
     {
         let mut items: C<_> = SmallVec::new();
         while let Some(token) = dataset.next() {
-            match token? {
+            match token.context(ReadToken)? {
                 DataToken::ItemStart { len } => {
                     items.push(Self::build_object(&mut *dataset, dict.clone(), true, len)?);
                 }
                 DataToken::SequenceEnd => {
                     return Ok(items);
                 }
-                token => return Err(DataSetSyntaxError::UnexpectedToken(token).into()),
+                token => return Err(Error::UnexpectedToken{
+                    token,
+                    backtrace: Backtrace::generate(),
+                }),
             };
         }
 
         // iterator fully consumed without a sequence delimiter
-        Err(DataSetSyntaxError::PrematureEnd.into())
+        Err(Error::PrematureEnd {
+            backtrace: Backtrace::generate(),
+        })
     }
 
     fn lookup_name(&self, name: &str) -> Result<Tag> {

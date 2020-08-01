@@ -18,10 +18,12 @@
 //!
 //! [`SpecificCharacterSet`]: ./enum.SpecificCharacterSet.html
 
-use crate::error::{Result, TextEncodingError};
+use crate::error::TextEncodingError;
 use encoding::all::{GB18030, ISO_8859_1, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5, UTF_8};
 use encoding::{DecoderTrap, EncoderTrap, Encoding, RawDecoder, StringWriter};
 use std::fmt::Debug;
+
+type Result<T> = std::result::Result<T, TextEncodingError>;
 
 /// A holder of encoding and decoding mechanisms for text in DICOM content,
 /// which according to the standard, depends on the specific character set.

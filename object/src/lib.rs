@@ -95,9 +95,9 @@ pub enum Error {
     #[snafu(display("Could not parse meta group data set: {}", source))]
     ParseMetaDataSet { source: crate::meta::Error },
     #[snafu(display("Could not create data set parser: {}", source))]
-    CreateParser { source: dicom_parser::error::Error },
-    #[snafu(display("Could not parse data set: {}", source))]
-    ParseDataSet { source: dicom_parser::error::Error },
+    CreateParser { source: dicom_parser::dataset::read::Error },
+    #[snafu(display("Could not read data set token: {}", source))]
+    ReadToken { source: dicom_parser::dataset::read::Error },
     #[snafu(display("Could not write to file '{}': {}", filename.display(), source))]
     WriteFile {
         filename: std::path::PathBuf,
@@ -119,6 +119,17 @@ pub enum Error {
     NoSuchDataElement { tag: Tag, alias: Option<String>, backtrace: Backtrace },
     #[snafu(display("Unknown data attribute named `{}`", name))]
     NoSuchAttributeName { name: String, backtrace: Backtrace },
+    #[snafu(display("Missing element value"))]
+    MissingElementValue { backtrace: Backtrace },
+    #[snafu(display("Unexpected token {:?}", token))]
+    UnexpectedToken {
+        token: dicom_parser::dataset::DataToken,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("Premature data set end"))]
+    PrematureEnd {
+        backtrace: Backtrace,
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

@@ -1,13 +1,61 @@
 //! Module for the data set reader
 use crate::dataset::*;
-use crate::error::{DataSetSyntaxError, Error, Result};
 use crate::stateful::encode::StatefulEncoder;
 use dicom_core::{DataElementHeader, Length, VR};
 use dicom_encoding::encode::EncodeTo;
 use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
 use dicom_encoding::transfer_syntax::DynEncoder;
 use dicom_encoding::TransferSyntax;
+use snafu::{Backtrace, GenerateBacktrace, ResultExt, Snafu};
 use std::io::Write;
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    /// Unsupported transfer syntax for encoding
+    #[snafu(display("Unsupported transfer syntax {} ({})", ts_uid, ts_alias))]
+    UnsupportedTransferSyntax {
+        ts_uid: &'static str,
+        ts_alias: &'static str,
+        backtrace: Backtrace,
+    },
+    /// Character set known, but not supported
+    #[snafu(display("Unsupported character set {:?}", charset))]
+    UnsupportedCharacterSet {
+        charset: SpecificCharacterSet,
+        backtrace: Backtrace,
+    },
+    /// An element value token appeared without an introducing element header
+    #[snafu(display("Unexpected token {:?} without element header", token))]
+    UnexpectedToken {
+        token: DataToken,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("Could not write element header: {}", source))]
+    WriteHeader {
+        source: crate::stateful::encode::Error,
+    },
+    #[snafu(display("Could not write item header: {}", source))]
+    WriteItemHeader {
+        source: crate::stateful::encode::Error,
+    },
+
+    #[snafu(display("Could not write sequence delimiter: {}", source))]
+    WriteSequenceDelimiter {
+        source: crate::stateful::encode::Error,
+    },
+
+    #[snafu(display("Could not write item delimiter: {}", source))]
+    WriteItemDelimiter {
+        source: crate::stateful::encode::Error,
+    },
+
+    #[snafu(display("Could not write element value: {}", source))]
+    WriteValue {
+        source: crate::stateful::encode::Error,
+    }
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// A writer-specific token representing a sequence or item start.
 #[derive(Debug)]
@@ -36,8 +84,15 @@ where
     pub fn with_ts_cs(to: W, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self> {
         let encoder = ts
             .encoder_for()
-            .ok_or_else(|| Error::UnsupportedTransferSyntax)?;
-        let text = cs.codec().ok_or_else(|| Error::UnsupportedCharacterSet)?;
+            .ok_or_else(|| Error::UnsupportedTransferSyntax {
+                ts_uid: ts.uid(),
+                ts_alias: ts.name(),
+                backtrace: Backtrace::generate(),
+            })?;
+        let text = cs.codec().ok_or_else(|| Error::UnsupportedCharacterSet {
+            charset: cs,
+            backtrace: Backtrace::generate(),
+        })?;
         Ok(DataSetWriter::new(to, encoder, text))
     }
 }
@@ -132,38 +187,41 @@ where
     fn write_impl(&mut self, token: DataToken) -> Result<()> {
         match token {
             DataToken::ElementHeader(header) => {
-                self.printer.encode_element_header(header)?;
+                self.printer.encode_element_header(header).context(WriteHeader)?;
             }
             DataToken::SequenceStart { tag, len } => {
                 self.printer
-                    .encode_element_header(DataElementHeader::new(tag, VR::SQ, len))?;
+                    .encode_element_header(DataElementHeader::new(tag, VR::SQ, len)).context(WriteHeader)?;
             }
             DataToken::PixelSequenceStart => {
                 self.printer.encode_element_header(DataElementHeader::new(
                     Tag(0x7fe0, 0x0010),
                     VR::OB,
                     Length::UNDEFINED,
-                ))?;
+                )).context(WriteHeader)?;
             }
             DataToken::SequenceEnd => {
-                self.printer.encode_sequence_delimiter()?;
+                self.printer.encode_sequence_delimiter().context(WriteSequenceDelimiter)?;
             }
             DataToken::ItemStart { len } => {
-                self.printer.encode_item_header(len.0)?;
+                self.printer.encode_item_header(len.0).context(WriteItemHeader)?;
             }
             DataToken::ItemEnd => {
-                self.printer.encode_item_delimiter()?;
+                self.printer.encode_item_delimiter().context(WriteItemDelimiter)?;
             }
             DataToken::PrimitiveValue(ref value) => {
                 let last_de = self
                     .last_de
                     .as_ref()
-                    .ok_or_else(|| DataSetSyntaxError::UnexpectedToken(token.clone()))?;
-                self.printer.encode_primitive(last_de, value)?;
+                    .ok_or_else(|| Error::UnexpectedToken {
+                        token: token.clone(),
+                        backtrace: Backtrace::generate(),
+                    })?;
+                self.printer.encode_primitive(last_de, value).context(WriteValue)?;
                 self.last_de = None;
             }
             DataToken::ItemValue(data) => {
-                self.printer.write_bytes(&data)?;
+                self.printer.write_bytes(&data).context(WriteValue)?;
             }
         }
         Ok(())

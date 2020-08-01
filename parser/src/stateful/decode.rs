@@ -2,7 +2,6 @@
 //! The structures provided here can translate a byte data source into
 //! an iterator of elements, with either sequential or random access.
 
-use crate::error::{Error, Result};
 use crate::util::n_times;
 use chrono::FixedOffset;
 use dicom_core::header::{DataElementHeader, HasLength, Length, SequenceItemHeader, Tag, VR};
@@ -10,7 +9,7 @@ use dicom_core::value::{PrimitiveValue, C};
 use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
 use dicom_encoding::decode::primitive_value::*;
 use dicom_encoding::decode::{BasicDecode, DecodeFrom};
-use dicom_encoding::error::{InvalidValueReadError, Result as EncodingResult, TextEncodingError};
+use dicom_encoding::error::{InvalidValueReadError, TextEncodingError};
 use dicom_encoding::text::{
     validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, DynamicTextCodec,
     SpecificCharacterSet, TextCodec, TextValidationOutcome,
@@ -18,9 +17,64 @@ use dicom_encoding::text::{
 use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
 use dicom_encoding::transfer_syntax::{DynDecoder, TransferSyntax};
 use smallvec::smallvec;
+use snafu::{Backtrace, GenerateBacktrace, ResultExt, Snafu};
 use std::fmt::Debug;
 use std::io::Read;
 use std::iter::Iterator;
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("Decoding in transfer syntax {} is unsupported", ts))]
+    UnsupportedTransferSyntax {
+        ts: &'static str,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Unsupported character set {:?}", charset))]
+    UnsupportedCharacterSet {
+        charset: SpecificCharacterSet,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Undefined value length of element tagged {}", tag))]
+    UndefinedValueLength {
+        tag: Tag,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Could not decode element header"))]
+    DecodeElementHeader {
+        source: dicom_encoding::error::Error,
+    },
+
+    #[snafu(display("Could not decode element header"))]
+    DecodeItemHeader {
+        source: dicom_encoding::error::Error,
+    },
+
+    #[snafu(display("Could not decode value"))]
+    DecodeValue {
+        source: dicom_encoding::error::Error,
+    },
+
+    #[snafu(display("Could not decode text"))]
+    DecodeText {
+        source: dicom_encoding::error::TextEncodingError,
+    },
+
+    #[snafu(display("Could not read value from source"))]
+    ReadValueData {
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Invalid value read"))]
+    InvalidValue {
+        source: dicom_encoding::error::InvalidValueReadError,
+    }
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 pub trait StatefulDecode {
     type Reader: Read;
@@ -118,8 +172,14 @@ impl<'s> DynStatefulDecoder<'s> {
         let basic = ts.basic_decoder();
         let decoder = ts
             .decoder()
-            .ok_or_else(|| Error::UnsupportedTransferSyntax)?;
-        let text = cs.codec().ok_or_else(|| Error::UnsupportedCharacterSet)?;
+            .ok_or_else(|| Error::UnsupportedTransferSyntax {
+                ts: ts.name(),
+                backtrace: Backtrace::generate(),
+            })?;
+        let text = cs.codec().ok_or_else(|| Error::UnsupportedCharacterSet {
+            charset: cs,
+            backtrace: Backtrace::generate(),
+        })?;
 
         Ok(DynStatefulDecoder::new(
             Box::from(from),
@@ -189,9 +249,7 @@ where
         let ntags = len >> 2;
         let parts: Result<C<Tag>> = n_times(ntags)
             .map(|_| {
-                let g = self.basic.decode_us(&mut self.from)?;
-                let e = self.basic.decode_us(&mut self.from)?;
-                Ok(Tag(g, e))
+                self.basic.decode_tag(&mut self.from).context(DecodeValue)
             })
             .collect();
         self.bytes_read += len as u64;
@@ -205,7 +263,7 @@ where
 
         // sequence of 8-bit integers (or arbitrary byte data)
         let mut buf = smallvec![0u8; len];
-        self.from.read_exact(&mut buf)?;
+        self.from.read_exact(&mut buf).context(ReadValueData)?;
         self.bytes_read += len as u64;
         Ok(PrimitiveValue::U8(buf))
     }
@@ -214,18 +272,18 @@ where
         let len = require_known_length(header)?;
         // sequence of strings
         self.buffer.resize_with(len, Default::default);
-        self.from.read_exact(&mut self.buffer)?;
+        self.from.read_exact(&mut self.buffer).context(ReadValueData)?;
 
-        let parts: EncodingResult<C<_>> = match header.vr() {
+        let parts: Result<C<_>> = match header.vr() {
             VR::AE | VR::CS | VR::AS => self
                 .buffer
                 .split(|v| *v == b'\\')
-                .map(|slice| DefaultCharacterSetCodec.decode(slice))
+                .map(|slice| DefaultCharacterSetCodec.decode(slice).context(DecodeText))
                 .collect(),
             _ => self
                 .buffer
                 .split(|v| *v == b'\\')
-                .map(|slice| self.text.decode(slice))
+                .map(|slice| self.text.decode(slice).context(DecodeText))
                 .collect(),
         };
 
@@ -238,9 +296,9 @@ where
 
         // a single string
         self.buffer.resize_with(len, Default::default);
-        self.from.read_exact(&mut self.buffer)?;
+        self.from.read_exact(&mut self.buffer).context(ReadValueData)?;
         self.bytes_read += len as u64;
-        Ok(PrimitiveValue::Str(self.text.decode(&self.buffer[..])?))
+        Ok(PrimitiveValue::Str(self.text.decode(&self.buffer[..]).context(DecodeText)?))
     }
 
     fn read_value_ss(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
@@ -248,8 +306,8 @@ where
         let len = require_known_length(header)?;
 
         let n = len >> 1;
-        let vec: EncodingResult<C<_>> = n_times(n)
-            .map(|_| self.basic.decode_ss(&mut self.from))
+        let vec: Result<C<_>> = n_times(n)
+            .map(|_| self.basic.decode_ss(&mut self.from).context(DecodeValue))
             .collect();
         self.bytes_read += len as u64;
         Ok(PrimitiveValue::I16(vec?))
@@ -259,8 +317,8 @@ where
         let len = require_known_length(header)?;
         // sequence of 32-bit floats
         let n = len >> 2;
-        let vec: EncodingResult<C<_>> = n_times(n)
-            .map(|_| self.basic.decode_fl(&mut self.from))
+        let vec: Result<C<_>> = n_times(n)
+            .map(|_| self.basic.decode_fl(&mut self.from).context(DecodeValue))
             .collect();
         self.bytes_read += len as u64;
         Ok(PrimitiveValue::F32(vec?))
@@ -271,7 +329,7 @@ where
         // sequence of dates
 
         self.buffer.resize_with(len, Default::default);
-        self.from.read_exact(&mut self.buffer)?;
+        self.from.read_exact(&mut self.buffer).context(ReadValueData)?;
         let buf = trim_trail_empty_bytes(&self.buffer);
         if buf.is_empty() {
             return Ok(PrimitiveValue::Empty);
@@ -284,12 +342,11 @@ where
             return Err(TextEncodingError::new(format!(
                 "Invalid date value element \"{}\"",
                 lossy_str
-            ))
-            .into());
+            ))).context(DecodeText);
         }
         let vec: Result<C<_>> = buf
             .split(|b| *b == b'\\')
-            .map(|part| Ok(parse_date(part)?.0))
+            .map(|part| Ok(parse_date(part).context(InvalidValue)?.0))
             .collect();
         self.bytes_read += len as u64;
         Ok(PrimitiveValue::Date(vec?))
@@ -300,7 +357,7 @@ where
         // sequence of doubles in text form
 
         self.buffer.resize_with(len, Default::default);
-        self.from.read_exact(&mut self.buffer)?;
+        self.from.read_exact(&mut self.buffer).context(ReadValueData)?;
         let buf = trim_trail_empty_bytes(&self.buffer);
         if buf.is_empty() {
             return Ok(PrimitiveValue::Empty);
@@ -310,10 +367,11 @@ where
             .split(|b| *b == b'\\')
             .map(|slice| {
                 let codec = SpecificCharacterSet::Default.codec().unwrap();
-                let txt = codec.decode(slice)?;
+                let txt = codec.decode(slice).context(DecodeText)?;
                 let txt = txt.trim();
                 txt.parse::<f64>()
-                    .map_err(|e| Error::from(InvalidValueReadError::from(e)))
+                    .map_err(InvalidValueReadError::from)
+                    .context(InvalidValue)
             })
             .collect();
         self.bytes_read += len as u64;
@@ -325,7 +383,7 @@ where
         // sequence of datetimes
 
         self.buffer.resize_with(len, Default::default);
-        self.from.read_exact(&mut self.buffer)?;
+        self.from.read_exact(&mut self.buffer).context(ReadValueData)?;
         let buf = trim_trail_empty_bytes(&self.buffer);
         if buf.is_empty() {
             return Ok(PrimitiveValue::Empty);
@@ -338,12 +396,11 @@ where
             return Err(TextEncodingError::new(format!(
                 "Invalid date-time value element \"{}\"",
                 lossy_str
-            ))
-            .into());
+            ))).context(DecodeText);
         }
         let vec: Result<C<_>> = buf
             .split(|b| *b == b'\\')
-            .map(|part| Ok(parse_datetime(part, self.dt_utc_offset)?))
+            .map(|part| Ok(parse_datetime(part, self.dt_utc_offset).context(InvalidValue)?))
             .collect();
 
         self.bytes_read += len as u64;
@@ -354,7 +411,7 @@ where
         let len = require_known_length(header)?;
         // sequence of signed integers in text form
         self.buffer.resize_with(len, Default::default);
-        self.from.read_exact(&mut self.buffer)?;
+        self.from.read_exact(&mut self.buffer).context(ReadValueData)?;
         let buf = trim_trail_empty_bytes(&self.buffer);
         if buf.is_empty() {
             return Ok(PrimitiveValue::Empty);
@@ -364,10 +421,11 @@ where
             .split(|v| *v == b'\\')
             .map(|slice| {
                 let codec = SpecificCharacterSet::Default.codec().unwrap();
-                let txt = codec.decode(slice)?;
+                let txt = codec.decode(slice).context(DecodeText)?;
                 let txt = txt.trim();
                 txt.parse::<i32>()
-                    .map_err(|e| Error::from(InvalidValueReadError::from(e)))
+                    .map_err(InvalidValueReadError::from)
+                    .context(InvalidValue)
             })
             .collect();
         self.bytes_read += len as u64;
@@ -379,7 +437,7 @@ where
         // sequence of time instances
 
         self.buffer.resize_with(len, Default::default);
-        self.from.read_exact(&mut self.buffer)?;
+        self.from.read_exact(&mut self.buffer).context(ReadValueData)?;
         let buf = trim_trail_empty_bytes(&self.buffer);
         if buf.is_empty() {
             return Ok(PrimitiveValue::Empty);
@@ -392,12 +450,13 @@ where
             return Err(TextEncodingError::new(format!(
                 "Invalid time value element \"{}\"",
                 lossy_str
-            ))
-            .into());
+            ))).context(DecodeText);
         }
         let vec: std::result::Result<C<_>, _> = buf
             .split(|b| *b == b'\\')
-            .map(|part| parse_time(part).map(|t| t.0))
+            .map(|part| parse_time(part)
+                .map(|t| t.0)
+                .context(InvalidValue))
             .collect();
         self.bytes_read += len as u64;
         Ok(PrimitiveValue::Time(vec?))
@@ -407,8 +466,8 @@ where
         let len = require_known_length(header)?;
         // sequence of 64-bit floats
         let n = len >> 3;
-        let vec: EncodingResult<C<_>> = n_times(n)
-            .map(|_| self.basic.decode_fd(&mut self.from))
+        let vec: Result<C<_>> = n_times(n)
+            .map(|_| self.basic.decode_fd(&mut self.from).context(DecodeValue))
             .collect();
         self.bytes_read += len as u64;
         Ok(PrimitiveValue::F64(vec?))
@@ -419,8 +478,8 @@ where
         // sequence of 32-bit unsigned integers
 
         let n = len >> 2;
-        let vec: EncodingResult<C<_>> = n_times(n)
-            .map(|_| self.basic.decode_ul(&mut self.from))
+        let vec: Result<C<_>> = n_times(n)
+            .map(|_| self.basic.decode_ul(&mut self.from).context(DecodeValue))
             .collect();
         self.bytes_read += len as u64;
         Ok(PrimitiveValue::U32(vec?))
@@ -431,8 +490,8 @@ where
         // sequence of 16-bit unsigned integers
 
         let n = len >> 1;
-        let vec: EncodingResult<C<_>> = n_times(n)
-            .map(|_| self.basic.decode_us(&mut self.from))
+        let vec: Result<C<_>> = n_times(n)
+            .map(|_| self.basic.decode_us(&mut self.from).context(DecodeValue))
             .collect();
         self.bytes_read += len as u64;
         Ok(PrimitiveValue::U16(vec?))
@@ -443,8 +502,8 @@ where
         // sequence of 64-bit unsigned integers
 
         let n = len >> 3;
-        let vec: EncodingResult<C<_>> = n_times(n)
-            .map(|_| self.basic.decode_uv(&mut self.from))
+        let vec: Result<C<_>> = n_times(n)
+            .map(|_| self.basic.decode_uv(&mut self.from).context(DecodeValue))
             .collect();
         self.bytes_read += len as u64;
         Ok(PrimitiveValue::U64(vec?))
@@ -455,8 +514,8 @@ where
         // sequence of 32-bit signed integers
 
         let n = len >> 2;
-        let vec: EncodingResult<C<_>> = n_times(n)
-            .map(|_| self.basic.decode_sl(&mut self.from))
+        let vec: Result<C<_>> = n_times(n)
+            .map(|_| self.basic.decode_sl(&mut self.from).context(DecodeValue))
             .collect();
         self.bytes_read += len as u64;
         Ok(PrimitiveValue::I32(vec?))
@@ -467,8 +526,8 @@ where
         // sequence of 64-bit signed integers
 
         let n = len >> 3;
-        let vec: EncodingResult<C<_>> = n_times(n)
-            .map(|_| self.basic.decode_sv(&mut self.from))
+        let vec: Result<C<_>> = n_times(n)
+            .map(|_| self.basic.decode_sv(&mut self.from).context(DecodeValue))
             .collect();
         self.bytes_read += len as u64;
         Ok(PrimitiveValue::I64(vec?))
@@ -485,7 +544,10 @@ where
     fn set_character_set(&mut self, charset: SpecificCharacterSet) -> Result<()> {
         self.text = charset
             .codec()
-            .ok_or_else(|| Error::UnsupportedCharacterSet)?;
+            .ok_or_else(|| Error::UnsupportedCharacterSet {
+                charset,
+                backtrace: Backtrace::generate(),
+            })?;
         Ok(())
     }
 
@@ -531,7 +593,7 @@ where
 
     fn decode_header(&mut self) -> Result<DataElementHeader> {
         self.decoder
-            .decode_header(&mut self.from)
+            .decode_header(&mut self.from).context(DecodeElementHeader)
             .map(|(header, bytes_read)| {
                 self.bytes_read += bytes_read as u64;
                 header
@@ -541,7 +603,7 @@ where
 
     fn decode_item_header(&mut self) -> Result<SequenceItemHeader> {
         self.decoder
-            .decode_item_header(&mut self.from)
+            .decode_item_header(&mut self.from).context(DecodeItemHeader)
             .map(|header| {
                 self.bytes_read += 8;
                 header
@@ -558,7 +620,7 @@ where
             VR::SQ => {
                 // sequence objects should not head over here, they are
                 // handled at a higher level
-                Err(Error::from(InvalidValueReadError::NonPrimitiveType))
+                Err(InvalidValueReadError::NonPrimitiveType).context(InvalidValue)
             }
             VR::AT => self.read_value_tag(header),
             VR::AE | VR::AS | VR::PN | VR::SH | VR::LO | VR::UC | VR::UI => {
@@ -591,7 +653,7 @@ where
         match header.vr() {
             VR::SQ => {
                 // sequence objects... should not work
-                Err(Error::from(InvalidValueReadError::NonPrimitiveType))
+                Err(InvalidValueReadError::NonPrimitiveType).context(InvalidValue)
             }
             VR::AT => self.read_value_tag(header),
             VR::AE
@@ -628,7 +690,7 @@ where
         match header.vr() {
             VR::SQ => {
                 // sequence objects... should not work
-                Err(Error::from(InvalidValueReadError::NonPrimitiveType))
+                Err(InvalidValueReadError::NonPrimitiveType).context(InvalidValue)
             }
             _ => self.read_value_ob(header),
         }
@@ -643,7 +705,7 @@ where
         match header.vr() {
             VR::SQ => {
                 // sequence objects... should not work
-                Err(Error::from(InvalidValueReadError::NonPrimitiveType))
+                Err(InvalidValueReadError::NonPrimitiveType).context(InvalidValue)
             }
             _ => Ok(self.from.by_ref().take(
                 header
@@ -656,7 +718,7 @@ where
     }
 
     fn read_bytes(&mut self, buf: &mut [u8]) -> Result<()> {
-        self.from.read_exact(buf)?;
+        self.from.read_exact(buf).context(ReadValueData)?;
         self.bytes_read += buf.len() as u64;
         Ok(())
     }
@@ -676,12 +738,15 @@ fn trim_trail_empty_bytes(mut x: &[u8]) -> &[u8] {
 
 fn require_known_length(
     header: &DataElementHeader,
-) -> std::result::Result<usize, InvalidValueReadError> {
+) -> Result<usize> {
     header
         .length()
         .get()
         .map(|len| len as usize)
-        .ok_or_else(|| InvalidValueReadError::UnresolvedValueLength)
+        .ok_or_else(|| Error::UndefinedValueLength {
+            tag: header.tag,
+            backtrace: Backtrace::generate(),
+        })
 }
 
 #[cfg(test)]
