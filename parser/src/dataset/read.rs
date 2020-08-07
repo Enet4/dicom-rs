@@ -269,10 +269,9 @@ where
                         }
                         item => {
                             self.hard_break = true;
-                            Some(Err(Error::UnexpectedTag {
+                            Some(UnexpectedTag {
                                 tag: item.tag(),
-                                backtrace: Backtrace::generate(),
-                            }))
+                            }.fail())
                         }
                     },
                     Err(e) => {
@@ -360,9 +359,9 @@ where
     fn update_seq_delimiters(&mut self) -> Result<Option<DataToken>> {
         if let Some(sd) = self.seq_delimiters.last() {
             if let Some(len) = sd.len.get() {
-                let eos = sd.base_offset + len as u64;
+                let end_of_sequence = sd.base_offset + len as u64;
                 let bytes_read = self.parser.bytes_read();
-                if eos == bytes_read {
+                if end_of_sequence == bytes_read {
                     // end of delimiter, as indicated by the element's length
                     let token;
                     match sd.typ {
@@ -377,12 +376,11 @@ where
                     }
                     self.seq_delimiters.pop();
                     return Ok(Some(token));
-                } else if eos < bytes_read {
-                    return Err(Error::InconsistentSequenceEnd {
-                        end_of_sequence: eos,
+                } else if end_of_sequence < bytes_read {
+                    return InconsistentSequenceEnd {
+                        end_of_sequence,
                         bytes_read,
-                        backtrace: Backtrace::generate(),
-                    });
+                    }.fail();
                 }
             }
         }

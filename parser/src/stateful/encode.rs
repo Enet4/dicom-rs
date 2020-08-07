@@ -10,7 +10,7 @@ use dicom_encoding::{
     TransferSyntax,
 };
 use std::io::Write;
-use snafu::{Backtrace, GenerateBacktrace, ResultExt, Snafu};
+use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -85,17 +85,15 @@ impl<'s> DynStatefulEncoder<'s> {
     pub fn from_transfer_syntax(
         to: Box<dyn Write + 's>,
         ts: TransferSyntax,
-        cs: SpecificCharacterSet,
+        charset: SpecificCharacterSet,
     ) -> Result<Self> {
         let encoder = ts
             .encoder()
-            .ok_or_else(|| Error::UnsupportedTransferSyntax {
+            .context(UnsupportedTransferSyntax {
                 ts: ts.uid(),
-                backtrace: Backtrace::generate(),
             })?;
-        let text = cs.codec().ok_or_else(|| Error::UnsupportedCharacterSet {
-            charset: cs,
-            backtrace: Backtrace::generate(),
+        let text = charset.codec().context(UnsupportedCharacterSet {
+            charset,
         })?;
 
         Ok(StatefulEncoder::new(to, encoder, text))

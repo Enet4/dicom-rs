@@ -17,7 +17,7 @@ use dicom_encoding::text::{
 use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
 use dicom_encoding::transfer_syntax::{DynDecoder, TransferSyntax};
 use smallvec::smallvec;
-use snafu::{Backtrace, GenerateBacktrace, ResultExt, Snafu};
+use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use std::fmt::Debug;
 use std::io::Read;
 use std::iter::Iterator;
@@ -37,10 +37,7 @@ pub enum Error {
     },
 
     #[snafu(display("Undefined value length of element tagged {}", tag))]
-    UndefinedValueLength {
-        tag: Tag,
-        backtrace: Backtrace,
-    },
+    UndefinedValueLength { tag: Tag, backtrace: Backtrace },
 
     #[snafu(display("Could not decode element header"))]
     DecodeElementHeader {
@@ -71,7 +68,7 @@ pub enum Error {
     #[snafu(display("Invalid value read"))]
     InvalidValue {
         source: dicom_encoding::error::InvalidValueReadError,
-    }
+    },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -165,21 +162,21 @@ pub type DicomParser<D, BD, S, TC> = StatefulDecoder<D, BD, S, TC>;
 
 impl<'s> DynStatefulDecoder<'s> {
     /// Create a new DICOM parser for the given transfer syntax and character set.
-    pub fn new_with<S: 's>(from: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
+    pub fn new_with<S: 's>(
+        from: S,
+        ts: &TransferSyntax,
+        charset: SpecificCharacterSet,
+    ) -> Result<Self>
     where
         S: Read,
     {
         let basic = ts.basic_decoder();
         let decoder = ts
             .decoder()
-            .ok_or_else(|| Error::UnsupportedTransferSyntax {
-                ts: ts.name(),
-                backtrace: Backtrace::generate(),
-            })?;
-        let text = cs.codec().ok_or_else(|| Error::UnsupportedCharacterSet {
-            charset: cs,
-            backtrace: Backtrace::generate(),
-        })?;
+            .context(UnsupportedTransferSyntax { ts: ts.name() })?;
+        let text = charset
+            .codec()
+            .context(UnsupportedCharacterSet { charset })?;
 
         Ok(DynStatefulDecoder::new(
             Box::from(from),
@@ -248,9 +245,7 @@ where
         // tags
         let ntags = len >> 2;
         let parts: Result<C<Tag>> = n_times(ntags)
-            .map(|_| {
-                self.basic.decode_tag(&mut self.from).context(DecodeValue)
-            })
+            .map(|_| self.basic.decode_tag(&mut self.from).context(DecodeValue))
             .collect();
         self.bytes_read += len as u64;
         Ok(PrimitiveValue::Tags(parts?))
@@ -272,7 +267,9 @@ where
         let len = require_known_length(header)?;
         // sequence of strings
         self.buffer.resize_with(len, Default::default);
-        self.from.read_exact(&mut self.buffer).context(ReadValueData)?;
+        self.from
+            .read_exact(&mut self.buffer)
+            .context(ReadValueData)?;
 
         let parts: Result<C<_>> = match header.vr() {
             VR::AE | VR::CS | VR::AS => self
@@ -296,9 +293,13 @@ where
 
         // a single string
         self.buffer.resize_with(len, Default::default);
-        self.from.read_exact(&mut self.buffer).context(ReadValueData)?;
+        self.from
+            .read_exact(&mut self.buffer)
+            .context(ReadValueData)?;
         self.bytes_read += len as u64;
-        Ok(PrimitiveValue::Str(self.text.decode(&self.buffer[..]).context(DecodeText)?))
+        Ok(PrimitiveValue::Str(
+            self.text.decode(&self.buffer[..]).context(DecodeText)?,
+        ))
     }
 
     fn read_value_ss(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
@@ -329,7 +330,9 @@ where
         // sequence of dates
 
         self.buffer.resize_with(len, Default::default);
-        self.from.read_exact(&mut self.buffer).context(ReadValueData)?;
+        self.from
+            .read_exact(&mut self.buffer)
+            .context(ReadValueData)?;
         let buf = trim_trail_empty_bytes(&self.buffer);
         if buf.is_empty() {
             return Ok(PrimitiveValue::Empty);
@@ -342,7 +345,8 @@ where
             return Err(TextEncodingError::new(format!(
                 "Invalid date value element \"{}\"",
                 lossy_str
-            ))).context(DecodeText);
+            )))
+            .context(DecodeText);
         }
         let vec: Result<C<_>> = buf
             .split(|b| *b == b'\\')
@@ -357,7 +361,9 @@ where
         // sequence of doubles in text form
 
         self.buffer.resize_with(len, Default::default);
-        self.from.read_exact(&mut self.buffer).context(ReadValueData)?;
+        self.from
+            .read_exact(&mut self.buffer)
+            .context(ReadValueData)?;
         let buf = trim_trail_empty_bytes(&self.buffer);
         if buf.is_empty() {
             return Ok(PrimitiveValue::Empty);
@@ -383,7 +389,9 @@ where
         // sequence of datetimes
 
         self.buffer.resize_with(len, Default::default);
-        self.from.read_exact(&mut self.buffer).context(ReadValueData)?;
+        self.from
+            .read_exact(&mut self.buffer)
+            .context(ReadValueData)?;
         let buf = trim_trail_empty_bytes(&self.buffer);
         if buf.is_empty() {
             return Ok(PrimitiveValue::Empty);
@@ -396,7 +404,8 @@ where
             return Err(TextEncodingError::new(format!(
                 "Invalid date-time value element \"{}\"",
                 lossy_str
-            ))).context(DecodeText);
+            )))
+            .context(DecodeText);
         }
         let vec: Result<C<_>> = buf
             .split(|b| *b == b'\\')
@@ -411,7 +420,9 @@ where
         let len = require_known_length(header)?;
         // sequence of signed integers in text form
         self.buffer.resize_with(len, Default::default);
-        self.from.read_exact(&mut self.buffer).context(ReadValueData)?;
+        self.from
+            .read_exact(&mut self.buffer)
+            .context(ReadValueData)?;
         let buf = trim_trail_empty_bytes(&self.buffer);
         if buf.is_empty() {
             return Ok(PrimitiveValue::Empty);
@@ -437,7 +448,9 @@ where
         // sequence of time instances
 
         self.buffer.resize_with(len, Default::default);
-        self.from.read_exact(&mut self.buffer).context(ReadValueData)?;
+        self.from
+            .read_exact(&mut self.buffer)
+            .context(ReadValueData)?;
         let buf = trim_trail_empty_bytes(&self.buffer);
         if buf.is_empty() {
             return Ok(PrimitiveValue::Empty);
@@ -450,13 +463,12 @@ where
             return Err(TextEncodingError::new(format!(
                 "Invalid time value element \"{}\"",
                 lossy_str
-            ))).context(DecodeText);
+            )))
+            .context(DecodeText);
         }
         let vec: std::result::Result<C<_>, _> = buf
             .split(|b| *b == b'\\')
-            .map(|part| parse_time(part)
-                .map(|t| t.0)
-                .context(InvalidValue))
+            .map(|part| parse_time(part).map(|t| t.0).context(InvalidValue))
             .collect();
         self.bytes_read += len as u64;
         Ok(PrimitiveValue::Time(vec?))
@@ -544,10 +556,7 @@ where
     fn set_character_set(&mut self, charset: SpecificCharacterSet) -> Result<()> {
         self.text = charset
             .codec()
-            .ok_or_else(|| Error::UnsupportedCharacterSet {
-                charset,
-                backtrace: Backtrace::generate(),
-            })?;
+            .context(UnsupportedCharacterSet { charset })?;
         Ok(())
     }
 
@@ -593,7 +602,8 @@ where
 
     fn decode_header(&mut self) -> Result<DataElementHeader> {
         self.decoder
-            .decode_header(&mut self.from).context(DecodeElementHeader)
+            .decode_header(&mut self.from)
+            .context(DecodeElementHeader)
             .map(|(header, bytes_read)| {
                 self.bytes_read += bytes_read as u64;
                 header
@@ -603,7 +613,8 @@ where
 
     fn decode_item_header(&mut self) -> Result<SequenceItemHeader> {
         self.decoder
-            .decode_item_header(&mut self.from).context(DecodeItemHeader)
+            .decode_item_header(&mut self.from)
+            .context(DecodeItemHeader)
             .map(|header| {
                 self.bytes_read += 8;
                 header
@@ -736,17 +747,12 @@ fn trim_trail_empty_bytes(mut x: &[u8]) -> &[u8] {
     x
 }
 
-fn require_known_length(
-    header: &DataElementHeader,
-) -> Result<usize> {
+fn require_known_length(header: &DataElementHeader) -> Result<usize> {
     header
         .length()
         .get()
         .map(|len| len as usize)
-        .ok_or_else(|| Error::UndefinedValueLength {
-            tag: header.tag,
-            backtrace: Backtrace::generate(),
-        })
+        .context(UndefinedValueLength { tag: header.tag })
 }
 
 #[cfg(test)]

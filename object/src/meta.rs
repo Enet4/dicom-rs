@@ -9,7 +9,7 @@ use dicom_encoding::encode::EncoderFor;
 use dicom_encoding::text::{self, DefaultCharacterSetCodec, TextCodec};
 use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
-use snafu::{Backtrace, GenerateBacktrace, ResultExt, Snafu};
+use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::io::{Read, Write};
 
 const DICM_MAGIC_CODE: [u8; 4] = [b'D', b'I', b'C', b'M'];
@@ -74,7 +74,9 @@ pub enum Error {
 
     /// The file meta group data set could not be written.
     #[snafu(display("Could not write file meta group data set: {}", source))]
-    WriteSet { source: dicom_parser::dataset::write::Error },
+    WriteSet {
+        source: dicom_parser::dataset::write::Error,
+    },
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -156,11 +158,7 @@ impl FileMetaTable {
             // check magic code
             file.read_exact(&mut buff).context(ReadMagicCode)?;
 
-            if buff != DICM_MAGIC_CODE {
-                return Err(Error::NotDicom {
-                    backtrace: Backtrace::generate(),
-                });
-            }
+            ensure!(buff == DICM_MAGIC_CODE, NotDicom);
         }
 
         let decoder = decode::file_header_decoder();
@@ -171,17 +169,14 @@ impl FileMetaTable {
         let group_length: u32 = {
             let (elem, _bytes_read) = decoder.decode_header(&mut file).context(DecodeElement)?;
             if elem.tag() != (0x0002, 0x0000) {
-                return Err(Error::UnexpectedTag {
-                    tag: elem.tag(),
-                    backtrace: Backtrace::generate(),
-                });
+                return UnexpectedTag { tag: elem.tag() }.fail();
             }
             if elem.length() != Length(4) {
-                return Err(Error::UnexpectedDataValueLength {
+                return UnexpectedDataValueLength {
                     tag: elem.tag(),
                     length: elem.length(),
-                    backtrace: Backtrace::generate(),
-                });
+                }
+                .fail();
             }
             let mut buff: [u8; 4] = [0; 4];
             file.read_exact(&mut buff).context(ReadValueData)?;
@@ -197,10 +192,7 @@ impl FileMetaTable {
             let (elem, _bytes_read) = decoder.decode_header(&mut file).context(DecodeElement)?;
             let elem_len = match elem.length().get() {
                 None => {
-                    return Err(Error::UndefinedValueLength {
-                        tag: elem.tag(),
-                        backtrace: Backtrace::generate(),
-                    });
+                    return UndefinedValueLength { tag: elem.tag() }.fail();
                 }
                 Some(len) => len,
             };
@@ -208,11 +200,11 @@ impl FileMetaTable {
                 Tag(0x0002, 0x0001) => {
                     // Implementation Version
                     if elem.length() != Length(2) {
-                        return Err(Error::UnexpectedDataValueLength {
+                        return UnexpectedDataValueLength {
                             tag: elem.tag(),
                             length: elem.length(),
-                            backtrace: Backtrace::generate(),
-                        });
+                        }
+                        .fail();
                     }
                     let mut hbuf = [0u8; 2];
                     file.read_exact(&mut hbuf[..]).context(ReadValueData)?;
@@ -610,27 +602,20 @@ impl FileMetaTableBuilder {
             [0, 1]
         });
         let media_storage_sop_class_uid =
-            self.media_storage_sop_class_uid
-                .ok_or_else(|| Error::MissingElement {
-                    alias: "MediaStorageSOPClassUID",
-                    backtrace: Backtrace::generate(),
-                })?;
+            self.media_storage_sop_class_uid.context(MissingElement {
+                alias: "MediaStorageSOPClassUID",
+            })?;
         let media_storage_sop_instance_uid =
             self.media_storage_sop_instance_uid
-                .ok_or_else(|| Error::MissingElement {
+                .context(MissingElement {
                     alias: "MediaStorageSOPInstanceUID",
-                    backtrace: Backtrace::generate(),
                 })?;
-        let transfer_syntax = self.transfer_syntax.ok_or_else(|| Error::MissingElement {
+        let transfer_syntax = self.transfer_syntax.context(MissingElement {
             alias: "TransferSyntax",
-            backtrace: Backtrace::generate(),
         })?;
-        let implementation_class_uid =
-            self.implementation_class_uid
-                .ok_or_else(|| Error::MissingElement {
-                    alias: "ImplementationClassUID",
-                    backtrace: Backtrace::generate(),
-                })?;
+        let implementation_class_uid = self.implementation_class_uid.context(MissingElement {
+            alias: "ImplementationClassUID",
+        })?;
 
         fn dicom_len<T: AsRef<str>>(x: T) -> u32 {
             let o = x.as_ref().len() as u32;

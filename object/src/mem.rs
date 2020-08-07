@@ -2,7 +2,7 @@
 
 use itertools::Itertools;
 use smallvec::SmallVec;
-use snafu::{Backtrace, GenerateBacktrace, ResultExt};
+use snafu::{OptionExt, ResultExt};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -10,8 +10,8 @@ use std::path::Path;
 
 use crate::meta::FileMetaTable;
 use crate::{
-    CreateParser, DicomObject, Error, OpenFile, ParseMetaDataSet, ReadFile, ReadToken, Result,
-    RootDicomObject,
+    CreateParser, DicomObject, Error, MissingElementValue, NoSuchDataElement, OpenFile, NoSuchAttributeName,
+    ParseMetaDataSet, PrematureEnd, ReadFile, ReadToken, Result, RootDicomObject, UnexpectedToken,
 };
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::{HasLength, Header};
@@ -20,8 +20,8 @@ use dicom_core::{DataElement, Length, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
-use dicom_parser::dataset::{DataSetReader, DataToken};
 use dicom_parser::dataset::read::Error as ParserError;
+use dicom_parser::dataset::{DataSetReader, DataToken};
 //use dicom_parser::dataset::write::Error as WriteDataSetError;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
@@ -68,11 +68,9 @@ where
     type Element = &'s InMemElement<D>;
 
     fn element(&self, tag: Tag) -> Result<Self::Element> {
-        self.entries.get(&tag).ok_or(Error::NoSuchDataElement {
-            tag,
-            alias: None,
-            backtrace: Backtrace::generate(),
-        })
+        self.entries
+            .get(&tag)
+            .context(NoSuchDataElement { tag, alias: None })
     }
 
     fn element_by_name(&self, name: &str) -> Result<Self::Element> {
@@ -316,25 +314,19 @@ where
 
     /// Retrieve a particular DICOM element by its tag.
     pub fn element(&self, tag: Tag) -> Result<&InMemElement<D>> {
-        self.entries
-            .get(&tag)
-            .ok_or_else(|| Error::NoSuchDataElement {
-                tag: tag,
-                alias: None,
-                backtrace: Backtrace::generate(),
-            })
+        self.entries.get(&tag).with_context(|| NoSuchDataElement {
+            tag: tag,
+            alias: None,
+        })
     }
 
     /// Retrieve a particular DICOM element by its name.
     pub fn element_by_name(&self, name: &str) -> Result<&InMemElement<D>> {
         let tag = self.lookup_name(name)?;
-        self.entries
-            .get(&tag)
-            .ok_or_else(|| Error::NoSuchDataElement {
-                tag: tag,
-                alias: Some(name.to_string()),
-                backtrace: Backtrace::generate(),
-            })
+        self.entries.get(&tag).with_context(|| NoSuchDataElement {
+            tag: tag,
+            alias: Some(name.to_string()),
+        })
     }
 
     /// Insert a data element to the object, replacing (and returning) any
@@ -346,12 +338,7 @@ where
     // private methods
 
     /// Build an object by consuming a data set parser.
-    fn build_object<I: ?Sized>(
-        dataset: &mut I,
-        dict: D,
-        in_item: bool,
-        len: Length,
-    ) -> Result<Self>
+    fn build_object<I: ?Sized>(dataset: &mut I, dict: D, in_item: bool, len: Length) -> Result<Self>
     where
         I: Iterator<Item = ParserResult<DataToken>>,
     {
@@ -365,20 +352,13 @@ where
                 }
                 DataToken::ElementHeader(header) => {
                     // fetch respective value, place it in the entries
-                    let next_token = dataset
-                        .next()
-                        .ok_or_else(|| Error::MissingElementValue {
-                            backtrace: Backtrace::generate()
-                        })?;
+                    let next_token = dataset.next().context(MissingElementValue)?;
                     match next_token.context(ReadToken)? {
                         DataToken::PrimitiveValue(v) => {
                             InMemElement::new(header.tag, header.vr, Value::Primitive(v))
                         }
                         token => {
-                            return Err(Error::UnexpectedToken {
-                                token,
-                                backtrace: Backtrace::generate(),
-                            });
+                            return UnexpectedToken { token }.fail();
                         }
                     }
                 }
@@ -391,10 +371,7 @@ where
                     // end of item, leave now
                     return Ok(InMemDicomObject { entries, dict, len });
                 }
-                token => return Err(Error::UnexpectedToken {
-                    token,
-                    backtrace: Backtrace::generate(),
-                }),
+                token => return UnexpectedToken { token }.fail(),
             };
             entries.insert(elem.tag(), elem);
         }
@@ -449,10 +426,7 @@ where
                 | token @ DataToken::PixelSequenceStart
                 | token @ DataToken::SequenceStart { .. }
                 | token @ DataToken::PrimitiveValue(_) => {
-                    return Err(Error::UnexpectedToken {
-                        token,
-                        backtrace: Backtrace::generate(),
-                    });
+                    return UnexpectedToken { token }.fail();
                 }
             }
         }
@@ -482,25 +456,19 @@ where
                 DataToken::SequenceEnd => {
                     return Ok(items);
                 }
-                token => return Err(Error::UnexpectedToken{
-                    token,
-                    backtrace: Backtrace::generate(),
-                }),
+                token => return UnexpectedToken { token }.fail(),
             };
         }
 
         // iterator fully consumed without a sequence delimiter
-        Err(Error::PrematureEnd {
-            backtrace: Backtrace::generate(),
-        })
+        PrematureEnd.fail()
     }
 
     fn lookup_name(&self, name: &str) -> Result<Tag> {
         self.dict
             .by_name(name)
-            .ok_or_else(|| Error::NoSuchAttributeName {
+            .with_context(|| NoSuchAttributeName {
                 name: name.to_owned(),
-                backtrace: Backtrace::generate(),
             })
             .map(|e| e.tag())
     }
