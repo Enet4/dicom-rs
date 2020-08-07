@@ -104,11 +104,11 @@ pub enum Error {
         source: std::io::Error,
     },
     #[snafu(display("Could not create data set printer: {}", source))]
-    CreatePrinter { source: dicom_parser::error::Error },
+    CreatePrinter { source: dicom_parser::dataset::write::Error },
     #[snafu(display("Could not print meta group data set: {}", source))]
     PrintMetaDataSet { source: crate::meta::Error },
     #[snafu(display("Could not print data set: {}", source))]
-    PrintDataSet { source: dicom_parser::error::Error },
+    PrintDataSet { source: dicom_parser::dataset::write::Error },
     #[snafu(display("Unsupported transfer syntax `{}`", uid))]
     UnsupportedTransferSyntax { uid: String },
     #[snafu(display("No such data element {}{}", tag, if let Some(a) = alias {

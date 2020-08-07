@@ -31,7 +31,7 @@ pub enum Error {
     #[snafu(display("Could not decode text in {}: {}", name, source))]
     DecodeText {
         name: &'static str,
-        source: dicom_encoding::error::Error,
+        source: dicom_encoding::error::TextEncodingError,
     },
 
     /// Invalid DICOM data, detected from checking the `DICM` code.
@@ -74,7 +74,7 @@ pub enum Error {
 
     /// The file meta group data set could not be written.
     #[snafu(display("Could not write file meta group data set: {}", source))]
-    WriteSet { source: dicom_parser::error::Error },
+    WriteSet { source: dicom_parser::dataset::write::Error },
 }
 
 type Result<T> = std::result::Result<T, Error>;
