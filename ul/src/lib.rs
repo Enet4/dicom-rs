@@ -5,5 +5,4 @@
 //! Eventually, a finite-state-machine and higher-level SCU/SCP helpers will be added that will make
 //! interacting with these types more idiomatic and friendly.
 
-pub mod error;
 pub mod pdu;

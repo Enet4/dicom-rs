@@ -1,49 +1,11 @@
-use crate::error::*;
-use crate::pdu::reader::*;
-use crate::pdu::writer::*;
-use crate::pdu::*;
-use byteordered::byteorder::WriteBytesExt;
+use dicom_ul::pdu::reader::{read_pdu, DEFAULT_MAX_PDU};
+use dicom_ul::pdu::writer::write_pdu;
+use dicom_ul::pdu::{PDataValue, PDataValueType, Pdu, PresentationContextProposed, UserVariableItem};
 use matches::matches;
 use std::io::Cursor;
 
 #[test]
-fn can_write_chunks_with_preceding_u32_length() -> Result<()> {
-    let mut bytes = vec![0u8; 0];
-    write_chunk_u32(&mut bytes, |writer| {
-        writer.write_u8(0x02)?;
-        write_chunk_u32(writer, |writer| {
-            writer.write_u8(0x03)?;
-            Ok(())
-        })?;
-        Ok(())
-    })?;
-
-    assert_eq!(bytes.len(), 10);
-    assert_eq!(bytes, &[0, 0, 0, 6, 2, 0, 0, 0, 1, 3]);
-
-    Ok(())
-}
-
-#[test]
-fn can_write_chunks_with_preceding_u16_length() -> Result<()> {
-    let mut bytes = vec![0u8; 0];
-    write_chunk_u16(&mut bytes, |writer| {
-        writer.write_u8(0x02)?;
-        write_chunk_u16(writer, |writer| {
-            writer.write_u8(0x03)?;
-            Ok(())
-        })?;
-        Ok(())
-    })?;
-
-    assert_eq!(bytes.len(), 6);
-    assert_eq!(bytes, &[0, 4, 2, 0, 1, 3]);
-
-    Ok(())
-}
-
-#[test]
-fn can_read_write_associate_rq() -> Result<()> {
+fn can_read_write_associate_rq() -> Result<(), Box<dyn std::error::Error>> {
     let association_rq = Pdu::AssociationRQ {
         protocol_version: 2,
         calling_ae_title: "calling ae".to_string(),
@@ -116,7 +78,7 @@ fn can_read_write_associate_rq() -> Result<()> {
 }
 
 #[test]
-fn can_read_write_pdata() -> Result<()> {
+fn can_read_write_pdata() -> Result<(), Box<dyn std::error::Error>> {
     let pdata_rq = Pdu::PData {
         data: vec![PDataValue {
             presentation_context_id: 3,

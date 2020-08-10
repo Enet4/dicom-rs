@@ -14,9 +14,9 @@ readme = "README.md"
 repository = "Enet4/dicom-rs"
 
 [dependencies]
-quick-error = "1.2.3"
 byteordered = "0.5.0"
 dicom-encoding = { path = "../encoding/", version = "0.2.0" }
+snafu = "0.6.8"
 
 [dev-dependencies]
 matches = "0.1.8"
