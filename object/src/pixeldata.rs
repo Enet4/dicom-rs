@@ -3,9 +3,17 @@
 //! In order to facilitate typical pixel data manipulation, this crate
 //! provides a common interface for retrieving that content as an image
 //! or a multi-dimensional array.
-
-use dicom_parser::error::{Error, Result};
 use std::marker::PhantomData;
+use snafu::{Backtrace, Snafu};
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    PixelIndexOutOfBounds {
+        backtrace: Backtrace,
+    }
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 /** Implemented by DICOM pixel data blocks retrieved from objects.
  *
@@ -58,7 +66,7 @@ pub struct InMemoryPixelData<C, P> {
 impl<C, P> InMemoryPixelData<C, P> {
     fn check_bounds(&self, w: u32, h: u32) -> Result<()> {
         if w >= self.cols || h >= self.rows {
-            Err(Error::PixelDataOutOfBounds)
+            PixelIndexOutOfBounds.fail()
         } else {
             Ok(())
         }

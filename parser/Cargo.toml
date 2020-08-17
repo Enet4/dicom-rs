@@ -16,7 +16,6 @@ repository = "Enet4/dicom-rs"
 [dependencies]
 dicom-core = { path = "../core", version = "0.2.0" }
 dicom-encoding = { path = "../encoding", version = "0.2.0" }
-quick-error = "1.2.3"
 chrono = "0.4.6"
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.2.0" }
 smallvec = "1.0.0"

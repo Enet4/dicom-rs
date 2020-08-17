@@ -10,7 +10,6 @@
 #![recursion_limit = "90"]
 
 pub mod dataset;
-pub mod error;
 pub mod stateful;
 
 mod util;
