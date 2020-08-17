@@ -4,7 +4,7 @@
 //! The rest of the crate is used to obtain DICOM element headers and values.
 //! At this level, headers and values are treated as tokens which can be used
 //! to form a syntax tree of a full data set.
-use crate::error::InvalidValueReadError;
+use dicom_encoding::error::InvalidValueReadError;
 use crate::stateful::decode::{
     DynStatefulDecoder, Error as DecoderError, StatefulDecode, StatefulDecoder,
 };
@@ -15,7 +15,7 @@ use dicom_core::{Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntax;
-use snafu::{Backtrace, GenerateBacktrace, ResultExt, Snafu};
+use snafu::{Backtrace, ResultExt, Snafu};
 use std::io::{Read, Seek, SeekFrom};
 use std::iter::Iterator;
 use std::marker::PhantomData;
@@ -332,7 +332,7 @@ where
                         Some(Ok(DataToken::ElementHeader(header)))
                     }
                 }
-                Err(DecoderError::DecodeValue {
+                Err(DecoderError::DecodeElementHeader {
                     source: dicom_encoding::error::Error::Io(ref e),
                 }) if e.kind() == ::std::io::ErrorKind::UnexpectedEof => {
                     // TODO there might be a more informative way to check
