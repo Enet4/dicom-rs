@@ -2,40 +2,58 @@ use clap::{App, Arg};
 use dicom_ul::pdu::reader::{read_pdu, DEFAULT_MAX_PDU};
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::Pdu;
-use quick_error::quick_error;
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::thread::JoinHandle;
+use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 
 type Result<T> = std::result::Result<T, Error>;
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum Error {
-        Io(err: std::io::Error) {
-            from()
-        }
-        DUL(err: dicom_ul::error::Error) {
-            from()
-        }
-        ThreadPanicked {
-            from()
-        }
-        RecvError(err: std::sync::mpsc::RecvError) {
-            from()
-        }
-        SendError(err: std::sync::mpsc::SendError<ThreadMessage>) {
-            from()
-        }
+#[derive(Debug, Snafu)]
+enum Error {
+    #[snafu(display("Could not clone socket: {}", source))]
+    CloneSocket {
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+    #[snafu(display("Could not send message: {}", source))]
+    SendMessage {
+        backtrace: Backtrace,
+        source: std::sync::mpsc::SendError<ThreadMessage>,
+    },
+    #[snafu(display("Could not receive message: {}", source))]
+    ReceiveMessage {
+        backtrace: Backtrace,
+        source: std::sync::mpsc::RecvError,
+    },
+    #[snafu(display("Could not close socket: {}", source))]
+    CloseSocket {
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+    #[snafu(display("Could not connect to destination SCP: {}", source))]
+    Connect {
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+    #[snafu(display("SCP reader thread panicked"))]
+    ScpReaderPanic {
+        backtrace: Backtrace,
+    },
+    #[snafu(display("SCU reader thread panicked"))]
+    ScuReaderPanic {
+        backtrace: Backtrace,
     }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum ProviderType {
-    SCP,
-    SCU,
+    /// Service class provider
+    Scp,
+    /// Service class user
+    Scu,
 }
 
 #[derive(Debug)]
@@ -44,9 +62,13 @@ pub enum ThreadMessage {
         to: ProviderType,
         pdu: Pdu,
     },
-    Err {
+    ReadErr {
         from: ProviderType,
-        err: dicom_ul::error::Error,
+        err: dicom_ul::pdu::reader::Error,
+    },
+    WriteErr {
+        from: ProviderType,
+        err: dicom_ul::pdu::writer::Error,
     },
     Shutdown {
         initiator: ProviderType,
@@ -65,28 +87,28 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
             let scp_reader_thread: JoinHandle<Result<()>>;
 
             {
-                let mut reader = scu_stream.try_clone()?;
+                let mut reader = scu_stream.try_clone().context(CloneSocket)?;
                 let message_tx = message_tx.clone();
                 scu_reader_thread = thread::spawn(move || {
                     loop {
                         match read_pdu(&mut reader, DEFAULT_MAX_PDU) {
                             Ok(pdu) => {
                                 message_tx.send(ThreadMessage::SendPdu {
-                                    to: ProviderType::SCP,
+                                    to: ProviderType::Scp,
                                     pdu,
-                                })?;
+                                }).context(SendMessage)?;
                             }
-                            Err(e) => {
-                                if let dicom_ul::error::Error::NoPduAvailable = e {
-                                    message_tx.send(ThreadMessage::Shutdown {
-                                        initiator: ProviderType::SCU,
-                                    })?;
-                                } else {
-                                    message_tx.send(ThreadMessage::Err {
-                                        from: ProviderType::SCU,
-                                        err: e,
-                                    })?;
-                                }
+                            Err(dicom_ul::pdu::reader::Error::NoPduAvailable {..}) => {
+                                message_tx.send(ThreadMessage::Shutdown {
+                                    initiator: ProviderType::Scu,
+                                }).context(SendMessage)?;
+                                break;
+                            }
+                            Err(err) => {
+                                message_tx.send(ThreadMessage::ReadErr {
+                                    from: ProviderType::Scu,
+                                    err,
+                                }).context(SendMessage)?;
                                 break;
                             }
                         }
@@ -97,27 +119,27 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
             }
 
             {
-                let mut reader = scp_stream.try_clone()?;
+                let mut reader = scp_stream.try_clone().context(CloneSocket)?;
                 scp_reader_thread = thread::spawn(move || {
                     loop {
                         match read_pdu(&mut reader, DEFAULT_MAX_PDU) {
                             Ok(pdu) => {
                                 message_tx.send(ThreadMessage::SendPdu {
-                                    to: ProviderType::SCU,
+                                    to: ProviderType::Scu,
                                     pdu,
-                                })?;
+                                }).context(SendMessage)?;
                             }
-                            Err(e) => {
-                                if let dicom_ul::error::Error::NoPduAvailable = e {
+                            Err(dicom_ul::pdu::reader::Error::NoPduAvailable { .. }) => {
                                     message_tx.send(ThreadMessage::Shutdown {
-                                        initiator: ProviderType::SCP,
-                                    })?;
-                                } else {
-                                    message_tx.send(ThreadMessage::Err {
-                                        from: ProviderType::SCP,
-                                        err: e,
-                                    })?;
-                                }
+                                        initiator: ProviderType::Scp,
+                                    }).context(SendMessage)?;
+                                break;
+                            }
+                            Err(err) => {
+                                message_tx.send(ThreadMessage::ReadErr {
+                                    from: ProviderType::Scp,
+                                    err,
+                                }).context(SendMessage)?;
                                 break;
                             }
                         }
@@ -128,20 +150,24 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
             }
 
             loop {
-                let message = message_rx.recv()?;
+                let message = message_rx.recv().context(ReceiveMessage)?;
                 match message {
                     ThreadMessage::SendPdu { to, pdu } => match to {
-                        ProviderType::SCU => {
+                        ProviderType::Scu => {
                             println!("scu <---- scp: {:?}", &pdu);
                             write_pdu(scu_stream, &pdu).unwrap();
                         }
-                        ProviderType::SCP => {
+                        ProviderType::Scp => {
                             println!("scu ----> scp: {:?}", &pdu);
                             write_pdu(scp_stream, &pdu).unwrap();
                         }
                     },
-                    ThreadMessage::Err { from, err } => {
-                        eprintln!("error from {:?}: {}", from, err);
+                    ThreadMessage::ReadErr { from, err } => {
+                        eprintln!("error reading from {:?}: {}", from, err);
+                        break;
+                    }
+                    ThreadMessage::WriteErr { from, err } => {
+                        eprintln!("error writing to {:?}: {}", from, err);
                         break;
                     }
                     ThreadMessage::Shutdown { initiator } => {
@@ -151,22 +177,23 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
                 }
             }
 
-            scu_stream.shutdown(Shutdown::Read)?;
+            scu_stream.shutdown(Shutdown::Read).context(CloseSocket)?;
             scu_reader_thread
                 .join()
-                .map_err(|_| Error::ThreadPanicked)??;
+                .ok()
+                .context(ScuReaderPanic)??;
 
-            scp_stream.shutdown(Shutdown::Read)?;
+            scp_stream.shutdown(Shutdown::Read).context(CloseSocket)?;
             scp_reader_thread
                 .join()
-                .map_err(|_| Error::ThreadPanicked)??;
+                .ok()
+                .context(ScpReaderPanic)??;
 
             Ok(())
         }
         Err(e) => {
-            scu_stream.shutdown(Shutdown::Both)?;
-            eprintln!("error connection to destination SCP: {}", e);
-            Err(e.into())
+            scu_stream.shutdown(Shutdown::Both).context(CloseSocket)?;
+            Err(e).context(Connect)
         }
     }
 }
