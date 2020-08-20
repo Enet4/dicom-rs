@@ -4,7 +4,6 @@
 //! The rest of the crate is used to obtain DICOM element headers and values.
 //! At this level, headers and values are treated as tokens which can be used
 //! to form a syntax tree of a full data set.
-use dicom_encoding::error::InvalidValueReadError;
 use crate::stateful::decode::{
     DynStatefulDecoder, Error as DecoderError, StatefulDecode, StatefulDecoder,
 };
@@ -13,6 +12,7 @@ use dicom_core::dictionary::DataDictionary;
 use dicom_core::header::{DataElementHeader, HasLength, Header, Length, SequenceItemHeader};
 use dicom_core::{Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
+use dicom_encoding::error::InvalidValueReadError;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntax;
 use snafu::{Backtrace, ResultExt, Snafu};
@@ -269,9 +269,7 @@ where
                         }
                         item => {
                             self.hard_break = true;
-                            Some(UnexpectedTag {
-                                tag: item.tag(),
-                            }.fail())
+                            Some(UnexpectedTag { tag: item.tag() }.fail())
                         }
                     },
                     Err(e) => {
@@ -334,6 +332,7 @@ where
                 }
                 Err(DecoderError::DecodeElementHeader {
                     source: dicom_encoding::error::Error::Io(ref e),
+                    ..
                 }) if e.kind() == ::std::io::ErrorKind::UnexpectedEof => {
                     // TODO there might be a more informative way to check
                     // whether the end of a DICOM object was reached gracefully
@@ -380,7 +379,8 @@ where
                     return InconsistentSequenceEnd {
                         end_of_sequence,
                         bytes_read,
-                    }.fail();
+                    }
+                    .fail();
                 }
             }
         }
@@ -557,7 +557,10 @@ impl DicomElementMarker {
     }
 
     /// Move the source to the position indicated by the marker
-    pub fn move_to_start<S: ?Sized, B: DerefMut<Target = S>>(&self, mut source: B) -> std::io::Result<()>
+    pub fn move_to_start<S: ?Sized, B: DerefMut<Target = S>>(
+        &self,
+        mut source: B,
+    ) -> std::io::Result<()>
     where
         S: Seek,
     {
