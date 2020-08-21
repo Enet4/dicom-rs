@@ -83,9 +83,7 @@ impl Decode for ExplicitVRBigEndianDecoder {
         let element = BigEndian::read_u16(&buf[2..4]);
         let len = BigEndian::read_u32(&buf[4..8]);
 
-        let header =
-            SequenceItemHeader::new((group, element), Length(len)).context(BadSequenceHeader)?;
-        Ok(header)
+        SequenceItemHeader::new((group, element), Length(len)).context(BadSequenceHeader)
     }
 
     fn decode_tag<S>(&self, source: &mut S) -> Result<Tag>
@@ -162,12 +160,11 @@ mod tests {
             assert_eq!(elem.length(), Length(26));
             assert_eq!(bytes_read, 8);
             // read only half of the data
-            let mut buffer: Vec<u8> = Vec::with_capacity(13);
-            buffer.resize(13, 0);
+            let mut buffer = [0; 13];
             cursor
-                .read_exact(buffer.as_mut_slice())
+                .read_exact(&mut buffer)
                 .expect("should read it fine");
-            assert_eq!(buffer.as_slice(), b"1.2.840.10008".as_ref());
+            assert_eq!(&buffer, b"1.2.840.10008".as_ref());
         }
         // cursor should now be @ #21 (there is no automatic skipping)
         assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 21);
@@ -182,12 +179,11 @@ mod tests {
             assert_eq!(elem.vr(), VR::UI);
             assert_eq!(elem.length(), Length(20));
             // read all data
-            let mut buffer: Vec<u8> = Vec::with_capacity(20);
-            buffer.resize(20, 0);
+            let mut buffer = [0; 20];
             cursor
-                .read_exact(buffer.as_mut_slice())
+                .read_exact(&mut buffer)
                 .expect("should read it fine");
-            assert_eq!(buffer.as_slice(), b"1.2.840.10008.1.2.1\0".as_ref());
+            assert_eq!(&buffer, b"1.2.840.10008.1.2.1\0".as_ref());
         }
     }
 

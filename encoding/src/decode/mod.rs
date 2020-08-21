@@ -6,7 +6,7 @@ use byteordered::Endianness;
 use dicom_core::header::{DataElementHeader, SequenceItemHeader};
 use dicom_core::Tag;
 use snafu::{Backtrace, Snafu};
-use std::io::Read;
+use std::io::{self, Read};
 
 pub mod basic;
 pub mod explicit_be;
@@ -23,37 +23,37 @@ pub enum Error {
     #[snafu(display("Failed to read the beginning (tag) of the header: {}", source))]
     ReadHeaderTag {
         backtrace: Option<Backtrace>,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to read the item header: {}", source))]
     ReadItemHeader {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to read the header's item length field: {}", source))]
     ReadItemLength {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to read the header's tag field: {}", source))]
     ReadTag {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to read the header's reserved bytes: {}", source))]
     ReadReserved {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to read the header's element length field: {}", source))]
     ReadLength {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to read the header's value representation: {}", source))]
     ReadVr {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Bad sequence item header: {}", source))]
     BadSequenceHeader { source: dicom_core::Error },

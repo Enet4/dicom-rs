@@ -6,7 +6,7 @@ use byteordered::byteorder::{BigEndian, ByteOrder};
 use byteordered::Endianness;
 use dicom_core::header::{DataElementHeader, HasLength, Header};
 use dicom_core::{PrimitiveValue, Tag, VR};
-use std::io::Write;
+use std::io::{self, Write};
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -21,56 +21,56 @@ impl BasicEncode for ExplicitVRBigEndianEncoder {
         Endianness::Big
     }
 
-    fn encode_us<S>(&self, to: S, value: u16) -> std::io::Result<()>
+    fn encode_us<S>(&self, to: S, value: u16) -> io::Result<()>
     where
         S: Write,
     {
         self.basic.encode_us(to, value)
     }
 
-    fn encode_ul<S>(&self, to: S, value: u32) -> std::io::Result<()>
+    fn encode_ul<S>(&self, to: S, value: u32) -> io::Result<()>
     where
         S: Write,
     {
         self.basic.encode_ul(to, value)
     }
 
-    fn encode_uv<S>(&self, to: S, value: u64) -> std::io::Result<()>
+    fn encode_uv<S>(&self, to: S, value: u64) -> io::Result<()>
     where
         S: Write,
     {
         self.basic.encode_uv(to, value)
     }
 
-    fn encode_ss<S>(&self, to: S, value: i16) -> std::io::Result<()>
+    fn encode_ss<S>(&self, to: S, value: i16) -> io::Result<()>
     where
         S: Write,
     {
         self.basic.encode_ss(to, value)
     }
 
-    fn encode_sl<S>(&self, to: S, value: i32) -> std::io::Result<()>
+    fn encode_sl<S>(&self, to: S, value: i32) -> io::Result<()>
     where
         S: Write,
     {
         self.basic.encode_sl(to, value)
     }
 
-    fn encode_sv<S>(&self, to: S, value: i64) -> std::io::Result<()>
+    fn encode_sv<S>(&self, to: S, value: i64) -> io::Result<()>
     where
         S: Write,
     {
         self.basic.encode_sv(to, value)
     }
 
-    fn encode_fl<S>(&self, to: S, value: f32) -> std::io::Result<()>
+    fn encode_fl<S>(&self, to: S, value: f32) -> io::Result<()>
     where
         S: Write,
     {
         self.basic.encode_fl(to, value)
     }
 
-    fn encode_fd<S>(&self, to: S, value: f64) -> std::io::Result<()>
+    fn encode_fd<S>(&self, to: S, value: f64) -> io::Result<()>
     where
         S: Write,
     {
@@ -86,8 +86,7 @@ impl Encode for ExplicitVRBigEndianEncoder {
         let mut buf = [0u8, 4];
         BigEndian::write_u16(&mut buf[..], tag.group());
         BigEndian::write_u16(&mut buf[2..], tag.element());
-        to.write_all(&buf).context(WriteTag)?;
-        Ok(())
+        to.write_all(&buf).context(WriteTag)
     }
 
     fn encode_element_header<W>(&self, mut to: W, de: DataElementHeader) -> Result<usize>
@@ -140,8 +139,7 @@ impl Encode for ExplicitVRBigEndianEncoder {
         BigEndian::write_u16(&mut buf, 0xFFFE);
         BigEndian::write_u16(&mut buf[2..], 0xE000);
         BigEndian::write_u32(&mut buf[4..], len);
-        to.write_all(&buf).context(WriteItemHeader)?;
-        Ok(())
+        to.write_all(&buf).context(WriteItemHeader)
     }
 
     fn encode_item_delimiter<W>(&self, mut to: W) -> Result<()>
@@ -152,8 +150,7 @@ impl Encode for ExplicitVRBigEndianEncoder {
         BigEndian::write_u16(&mut buf, 0xFFFE);
         BigEndian::write_u16(&mut buf[2..], 0xE00D);
         // remaining bytes are already zero, so it's ready to write
-        to.write_all(&buf).context(WriteItemDelimiter)?;
-        Ok(())
+        to.write_all(&buf).context(WriteItemDelimiter)
     }
 
     fn encode_sequence_delimiter<W>(&self, mut to: W) -> Result<()>
@@ -164,8 +161,7 @@ impl Encode for ExplicitVRBigEndianEncoder {
         BigEndian::write_u16(&mut buf, 0xFFFE);
         BigEndian::write_u16(&mut buf[2..], 0xE0DD);
         // remaining bytes are already zero, so it's ready to write
-        to.write_all(&buf).context(WriteSequenceDelimiter)?;
-        Ok(())
+        to.write_all(&buf).context(WriteSequenceDelimiter)
     }
 
     fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<usize>

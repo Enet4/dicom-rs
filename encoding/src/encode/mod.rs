@@ -3,7 +3,7 @@ use byteordered::Endianness;
 use dicom_core::{DataElementHeader, PrimitiveValue, Tag};
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::fmt;
-use std::io::Write;
+use std::io::{self, Write};
 use std::marker::PhantomData;
 
 pub mod basic;
@@ -21,68 +21,68 @@ pub enum Error {
     #[snafu(display("Failed to write Date value: {}", source))]
     WriteDate {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to write Time value: {}", source))]
     WriteTime {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to write DateTime value: {}", source))]
     WriteDateTime {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to write tag: {}", source))]
     WriteTag {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to write tag group: {}", source))]
     WriteTagGroup {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to write tag element: {}", source))]
     WriteTagElement {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to write item header: {}", source))]
     WriteItemHeader {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to write element header: {}", source))]
     WriteHeader {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to write item delimiter: {}", source))]
     WriteItemDelimiter {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to write sequence delimiter: {}", source))]
     WriteSequenceDelimiter {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to write {} value: {}", typ, source))]
     WriteBinary {
         typ: &'static str,
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to write string value: {}", source))]
     WriteString {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
     #[snafu(display("Failed to write bytes: {}", source))]
     WriteBytes {
         backtrace: Backtrace,
-        source: std::io::Error,
+        source: io::Error,
     },
 }
 
@@ -96,42 +96,42 @@ pub trait BasicEncode {
     fn endianness(&self) -> Endianness;
 
     /// Encode an unsigned short value to the given writer.
-    fn encode_us<W>(&self, to: W, value: u16) -> std::io::Result<()>
+    fn encode_us<W>(&self, to: W, value: u16) -> io::Result<()>
     where
         W: Write;
 
     /// Encode an unsigned long value to the given writer.
-    fn encode_ul<W>(&self, to: W, value: u32) -> std::io::Result<()>
+    fn encode_ul<W>(&self, to: W, value: u32) -> io::Result<()>
     where
         W: Write;
 
     /// Encode an unsigned very long value to the given writer.
-    fn encode_uv<W>(&self, to: W, value: u64) -> std::io::Result<()>
+    fn encode_uv<W>(&self, to: W, value: u64) -> io::Result<()>
     where
         W: Write;
 
     /// Encode a signed short value to the given writer.
-    fn encode_ss<W>(&self, to: W, value: i16) -> std::io::Result<()>
+    fn encode_ss<W>(&self, to: W, value: i16) -> io::Result<()>
     where
         W: Write;
 
     /// Encode a signed long value to the given writer.
-    fn encode_sl<W>(&self, to: W, value: i32) -> std::io::Result<()>
+    fn encode_sl<W>(&self, to: W, value: i32) -> io::Result<()>
     where
         W: Write;
 
     /// Encode a signed very long value to the given writer.
-    fn encode_sv<W>(&self, to: W, value: i64) -> std::io::Result<()>
+    fn encode_sv<W>(&self, to: W, value: i64) -> io::Result<()>
     where
         W: Write;
 
     /// Encode a single precision float value to the given writer.
-    fn encode_fl<W>(&self, to: W, value: f32) -> std::io::Result<()>
+    fn encode_fl<W>(&self, to: W, value: f32) -> io::Result<()>
     where
         W: Write;
 
     /// Encode a double precision float value to the given writer.
-    fn encode_fd<W>(&self, to: W, value: f64) -> std::io::Result<()>
+    fn encode_fd<W>(&self, to: W, value: f64) -> io::Result<()>
     where
         W: Write;
 
@@ -262,10 +262,10 @@ fn encode_collection_delimited<W, T, F>(
     to: &mut W,
     col: &[T],
     mut encode_element_fn: F,
-) -> std::io::Result<usize>
+) -> io::Result<usize>
 where
     W: ?Sized + Write,
-    F: FnMut(&mut W, &T) -> std::io::Result<usize>,
+    F: FnMut(&mut W, &T) -> io::Result<usize>,
 {
     let mut acc = 0;
     for (i, v) in col.iter().enumerate() {
@@ -598,56 +598,56 @@ where
         self.inner.endianness()
     }
 
-    fn encode_us<S>(&self, to: S, value: u16) -> std::io::Result<()>
+    fn encode_us<S>(&self, to: S, value: u16) -> io::Result<()>
     where
         S: Write,
     {
         self.inner.encode_us(to, value)
     }
 
-    fn encode_ul<S>(&self, to: S, value: u32) -> std::io::Result<()>
+    fn encode_ul<S>(&self, to: S, value: u32) -> io::Result<()>
     where
         S: Write,
     {
         self.inner.encode_ul(to, value)
     }
 
-    fn encode_uv<S>(&self, to: S, value: u64) -> std::io::Result<()>
+    fn encode_uv<S>(&self, to: S, value: u64) -> io::Result<()>
     where
         S: Write,
     {
         self.inner.encode_uv(to, value)
     }
 
-    fn encode_ss<S>(&self, to: S, value: i16) -> std::io::Result<()>
+    fn encode_ss<S>(&self, to: S, value: i16) -> io::Result<()>
     where
         S: Write,
     {
         self.inner.encode_ss(to, value)
     }
 
-    fn encode_sl<S>(&self, to: S, value: i32) -> std::io::Result<()>
+    fn encode_sl<S>(&self, to: S, value: i32) -> io::Result<()>
     where
         S: Write,
     {
         self.inner.encode_sl(to, value)
     }
 
-    fn encode_sv<S>(&self, to: S, value: i64) -> std::io::Result<()>
+    fn encode_sv<S>(&self, to: S, value: i64) -> io::Result<()>
     where
         S: Write,
     {
         self.inner.encode_sv(to, value)
     }
 
-    fn encode_fl<S>(&self, to: S, value: f32) -> std::io::Result<()>
+    fn encode_fl<S>(&self, to: S, value: f32) -> io::Result<()>
     where
         S: Write,
     {
         self.inner.encode_fl(to, value)
     }
 
-    fn encode_fd<S>(&self, to: S, value: f64) -> std::io::Result<()>
+    fn encode_fd<S>(&self, to: S, value: f64) -> io::Result<()>
     where
         S: Write,
     {

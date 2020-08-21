@@ -106,8 +106,7 @@ where
 
         source.read_exact(&mut buf).context(ReadLength)?;
         let len = LittleEndian::read_u32(&buf);
-        let header = SequenceItemHeader::new(tag, Length(len)).context(BadSequenceHeader)?;
-        Ok(header)
+        SequenceItemHeader::new(tag, Length(len)).context(BadSequenceHeader)
     }
 
     #[inline]

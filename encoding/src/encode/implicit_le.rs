@@ -6,7 +6,7 @@ use byteordered::byteorder::{ByteOrder, LittleEndian};
 use byteordered::Endianness;
 use dicom_core::header::{DataElementHeader, HasLength, Header};
 use dicom_core::{PrimitiveValue, Tag};
-use std::io::Write;
+use std::io::{self, Write};
 
 /// A concrete encoder for the transfer syntax ImplicitVRLittleEndian
 #[derive(Debug, Default, Clone)]
@@ -19,56 +19,56 @@ impl BasicEncode for ImplicitVRLittleEndianEncoder {
         Endianness::Little
     }
 
-    fn encode_us<S>(&self, to: S, value: u16) -> std::io::Result<()>
+    fn encode_us<S>(&self, to: S, value: u16) -> io::Result<()>
     where
         S: Write,
     {
         self.basic.encode_us(to, value)
     }
 
-    fn encode_ul<S>(&self, to: S, value: u32) -> std::io::Result<()>
+    fn encode_ul<S>(&self, to: S, value: u32) -> io::Result<()>
     where
         S: Write,
     {
         self.basic.encode_ul(to, value)
     }
 
-    fn encode_uv<S>(&self, to: S, value: u64) -> std::io::Result<()>
+    fn encode_uv<S>(&self, to: S, value: u64) -> io::Result<()>
     where
         S: Write,
     {
         self.basic.encode_uv(to, value)
     }
 
-    fn encode_ss<S>(&self, to: S, value: i16) -> std::io::Result<()>
+    fn encode_ss<S>(&self, to: S, value: i16) -> io::Result<()>
     where
         S: Write,
     {
         self.basic.encode_ss(to, value)
     }
 
-    fn encode_sl<S>(&self, to: S, value: i32) -> std::io::Result<()>
+    fn encode_sl<S>(&self, to: S, value: i32) -> io::Result<()>
     where
         S: Write,
     {
         self.basic.encode_sl(to, value)
     }
 
-    fn encode_sv<S>(&self, to: S, value: i64) -> std::io::Result<()>
+    fn encode_sv<S>(&self, to: S, value: i64) -> io::Result<()>
     where
         S: Write,
     {
         self.basic.encode_sv(to, value)
     }
 
-    fn encode_fl<S>(&self, to: S, value: f32) -> std::io::Result<()>
+    fn encode_fl<S>(&self, to: S, value: f32) -> io::Result<()>
     where
         S: Write,
     {
         self.basic.encode_fl(to, value)
     }
 
-    fn encode_fd<S>(&self, to: S, value: f64) -> std::io::Result<()>
+    fn encode_fd<S>(&self, to: S, value: f64) -> io::Result<()>
     where
         S: Write,
     {
@@ -84,8 +84,7 @@ impl Encode for ImplicitVRLittleEndianEncoder {
         let mut buf = [0u8, 4];
         LittleEndian::write_u16(&mut buf[..], tag.group());
         LittleEndian::write_u16(&mut buf[2..], tag.element());
-        to.write_all(&buf).context(WriteTag)?;
-        Ok(())
+        to.write_all(&buf).context(WriteTag)
     }
 
     fn encode_element_header<W>(&self, mut to: W, de: DataElementHeader) -> Result<usize>
@@ -108,8 +107,7 @@ impl Encode for ImplicitVRLittleEndianEncoder {
         LittleEndian::write_u16(&mut buf, 0xFFFE);
         LittleEndian::write_u16(&mut buf[2..], 0xE000);
         LittleEndian::write_u32(&mut buf[4..], len);
-        to.write_all(&buf).context(WriteItemHeader)?;
-        Ok(())
+        to.write_all(&buf).context(WriteItemHeader)
     }
 
     fn encode_item_delimiter<W>(&self, mut to: W) -> Result<()>
@@ -119,8 +117,7 @@ impl Encode for ImplicitVRLittleEndianEncoder {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf, 0xFFFE);
         LittleEndian::write_u16(&mut buf[2..], 0xE00D);
-        to.write_all(&buf).context(WriteItemDelimiter)?;
-        Ok(())
+        to.write_all(&buf).context(WriteItemDelimiter)
     }
 
     fn encode_sequence_delimiter<W>(&self, mut to: W) -> Result<()>
@@ -130,8 +127,7 @@ impl Encode for ImplicitVRLittleEndianEncoder {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf, 0xFFFE);
         LittleEndian::write_u16(&mut buf[2..], 0xE0DD);
-        to.write_all(&buf).context(WriteSequenceDelimiter)?;
-        Ok(())
+        to.write_all(&buf).context(WriteSequenceDelimiter)
     }
 
     fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<usize>
