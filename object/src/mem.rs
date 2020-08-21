@@ -23,7 +23,6 @@ use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_parser::dataset::read::Error as ParserError;
 use dicom_parser::dataset::{DataSetReader, DataToken};
-//use dicom_parser::dataset::write::Error as WriteDataSetError;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
 /// A full in-memory DICOM data element.
