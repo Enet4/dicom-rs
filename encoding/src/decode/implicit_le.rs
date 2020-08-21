@@ -75,7 +75,7 @@ where
         S: ?Sized + Read,
     {
         // retrieve tag
-        let tag = self.basic.decode_tag(&mut source).context(ReadTag)?;
+        let tag = self.basic.decode_tag(&mut source).context(ReadHeaderTag)?;
 
         let mut buf = [0u8; 4];
         source.read_exact(&mut buf).context(ReadLength)?;
@@ -102,7 +102,7 @@ where
         let mut buf = [0u8; 4];
 
         // retrieve tag
-        let tag = self.basic.decode_tag(&mut source).context(ReadTag)?;
+        let tag = self.basic.decode_tag(&mut source).context(ReadHeaderTag)?;
 
         source.read_exact(&mut buf).context(ReadLength)?;
         let len = LittleEndian::read_u32(&buf);
