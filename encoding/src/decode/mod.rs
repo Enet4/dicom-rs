@@ -1,18 +1,65 @@
 //! This module contains all DICOM data element decoding logic.
 
-use crate::error::Result;
-use crate::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-use crate::transfer_syntax::implicit_le::{
-    ImplicitVRLittleEndianDecoder, StandardImplicitVRLittleEndianDecoder,
-};
+use self::explicit_le::ExplicitVRLittleEndianDecoder;
+use self::implicit_le::{ImplicitVRLittleEndianDecoder, StandardImplicitVRLittleEndianDecoder};
 use byteordered::Endianness;
 use dicom_core::header::{DataElementHeader, SequenceItemHeader};
 use dicom_core::Tag;
+use snafu::{Backtrace, Snafu};
 use std::io::Read;
 
 pub mod basic;
-#[deprecated]
+pub mod explicit_be;
+pub mod explicit_le;
+pub mod implicit_le;
+
+#[deprecated(since = "0.3.0")]
 pub use dicom_core::value::deserialize as primitive_value;
+
+/// Module-level error type:
+/// for errors which may occur while decoding DICOM data.
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("Failed to read the beginning (tag) of the header: {}", source))]
+    ReadHeaderTag {
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+    #[snafu(display("Failed to read the item header: {}", source))]
+    ReadItemHeader {
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+    #[snafu(display("Failed to read the header's item length field: {}", source))]
+    ReadItemLength {
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+    #[snafu(display("Failed to read the header's tag field: {}", source))]
+    ReadTag {
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+    #[snafu(display("Failed to read the header's reserved bytes: {}", source))]
+    ReadReserved {
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+    #[snafu(display("Failed to read the header's element length field: {}", source))]
+    ReadLength {
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+    #[snafu(display("Failed to read the header's value representation: {}", source))]
+    ReadVr {
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+    #[snafu(display("Bad sequence item header: {}", source))]
+    BadSequenceHeader { source: dicom_core::Error },
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 /** Obtain the default data element decoder.
  * According to the standard, data elements are encoded in Implicit
@@ -43,47 +90,47 @@ pub trait BasicDecode {
     fn endianness(&self) -> Endianness;
 
     /// Decode an unsigned short value from the given source.
-    fn decode_us<S>(&self, source: S) -> Result<u16>
+    fn decode_us<S>(&self, source: S) -> std::io::Result<u16>
     where
         S: Read;
 
     /// Decode an unsigned long value from the given source.
-    fn decode_ul<S>(&self, source: S) -> Result<u32>
+    fn decode_ul<S>(&self, source: S) -> std::io::Result<u32>
     where
         S: Read;
 
     /// Decode an unsigned very long value from the given source.
-    fn decode_uv<S>(&self, source: S) -> Result<u64>
+    fn decode_uv<S>(&self, source: S) -> std::io::Result<u64>
     where
         S: Read;
 
     /// Decode a signed short value from the given source.
-    fn decode_ss<S>(&self, source: S) -> Result<i16>
+    fn decode_ss<S>(&self, source: S) -> std::io::Result<i16>
     where
         S: Read;
 
     /// Decode a signed long value from the given source.
-    fn decode_sl<S>(&self, source: S) -> Result<i32>
+    fn decode_sl<S>(&self, source: S) -> std::io::Result<i32>
     where
         S: Read;
 
     /// Decode a signed very long value from the given source.
-    fn decode_sv<S>(&self, source: S) -> Result<i64>
+    fn decode_sv<S>(&self, source: S) -> std::io::Result<i64>
     where
         S: Read;
 
     /// Decode a single precision float value from the given source.
-    fn decode_fl<S>(&self, source: S) -> Result<f32>
+    fn decode_fl<S>(&self, source: S) -> std::io::Result<f32>
     where
         S: Read;
 
     /// Decode a double precision float value from the given source.
-    fn decode_fd<S>(&self, source: S) -> Result<f64>
+    fn decode_fd<S>(&self, source: S) -> std::io::Result<f64>
     where
         S: Read;
 
     /// Decode a DICOM attribute tag from the given source.
-    fn decode_tag<S>(&self, mut source: S) -> Result<Tag>
+    fn decode_tag<S>(&self, mut source: S) -> std::io::Result<Tag>
     where
         S: Read,
     {
@@ -101,63 +148,63 @@ where
         self.as_ref().endianness()
     }
 
-    fn decode_us<S>(&self, source: S) -> Result<u16>
+    fn decode_us<S>(&self, source: S) -> std::io::Result<u16>
     where
         S: Read,
     {
         (**self).decode_us(source)
     }
 
-    fn decode_ul<S>(&self, source: S) -> Result<u32>
+    fn decode_ul<S>(&self, source: S) -> std::io::Result<u32>
     where
         S: Read,
     {
         (**self).decode_ul(source)
     }
 
-    fn decode_uv<S>(&self, source: S) -> Result<u64>
+    fn decode_uv<S>(&self, source: S) -> std::io::Result<u64>
     where
         S: Read,
     {
         (**self).decode_uv(source)
     }
 
-    fn decode_ss<S>(&self, source: S) -> Result<i16>
+    fn decode_ss<S>(&self, source: S) -> std::io::Result<i16>
     where
         S: Read,
     {
         (**self).decode_ss(source)
     }
 
-    fn decode_sl<S>(&self, source: S) -> Result<i32>
+    fn decode_sl<S>(&self, source: S) -> std::io::Result<i32>
     where
         S: Read,
     {
         (**self).decode_sl(source)
     }
 
-    fn decode_sv<S>(&self, source: S) -> Result<i64>
+    fn decode_sv<S>(&self, source: S) -> std::io::Result<i64>
     where
         S: Read,
     {
         (**self).decode_sv(source)
     }
 
-    fn decode_fl<S>(&self, source: S) -> Result<f32>
+    fn decode_fl<S>(&self, source: S) -> std::io::Result<f32>
     where
         S: Read,
     {
         (**self).decode_fl(source)
     }
 
-    fn decode_fd<S>(&self, source: S) -> Result<f64>
+    fn decode_fd<S>(&self, source: S) -> std::io::Result<f64>
     where
         S: Read,
     {
         (**self).decode_fd(source)
     }
 
-    fn decode_tag<S>(&self, source: S) -> Result<Tag>
+    fn decode_tag<S>(&self, source: S) -> std::io::Result<Tag>
     where
         S: Read,
     {
@@ -173,63 +220,63 @@ where
         (*self).endianness()
     }
 
-    fn decode_us<S>(&self, source: S) -> Result<u16>
+    fn decode_us<S>(&self, source: S) -> std::io::Result<u16>
     where
         S: Read,
     {
         (**self).decode_us(source)
     }
 
-    fn decode_ul<S>(&self, source: S) -> Result<u32>
+    fn decode_ul<S>(&self, source: S) -> std::io::Result<u32>
     where
         S: Read,
     {
         (**self).decode_ul(source)
     }
 
-    fn decode_uv<S>(&self, source: S) -> Result<u64>
+    fn decode_uv<S>(&self, source: S) -> std::io::Result<u64>
     where
         S: Read,
     {
         (**self).decode_uv(source)
     }
 
-    fn decode_ss<S>(&self, source: S) -> Result<i16>
+    fn decode_ss<S>(&self, source: S) -> std::io::Result<i16>
     where
         S: Read,
     {
         (**self).decode_ss(source)
     }
 
-    fn decode_sl<S>(&self, source: S) -> Result<i32>
+    fn decode_sl<S>(&self, source: S) -> std::io::Result<i32>
     where
         S: Read,
     {
         (**self).decode_sl(source)
     }
 
-    fn decode_sv<S>(&self, source: S) -> Result<i64>
+    fn decode_sv<S>(&self, source: S) -> std::io::Result<i64>
     where
         S: Read,
     {
         (**self).decode_sv(source)
     }
 
-    fn decode_fl<S>(&self, source: S) -> Result<f32>
+    fn decode_fl<S>(&self, source: S) -> std::io::Result<f32>
     where
         S: Read,
     {
         (**self).decode_fl(source)
     }
 
-    fn decode_fd<S>(&self, source: S) -> Result<f64>
+    fn decode_fd<S>(&self, source: S) -> std::io::Result<f64>
     where
         S: Read,
     {
         (**self).decode_fd(source)
     }
 
-    fn decode_tag<S>(&self, source: S) -> Result<Tag>
+    fn decode_tag<S>(&self, source: S) -> std::io::Result<Tag>
     where
         S: Read,
     {

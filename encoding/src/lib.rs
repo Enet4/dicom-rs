@@ -1,7 +1,6 @@
 #![deny(trivial_numeric_casts, unsafe_code, unstable_features)]
 #![warn(
     missing_debug_implementations,
-    missing_docs,
     unused_qualifications,
     unused_import_braces
 )]
@@ -15,11 +14,9 @@
 //! For the time being, all APIs are based on synchronous I/O.
 //!
 //! [transfer syntax specifier]: ./transfer_syntax/index.html
-#![recursion_limit = "72"]
 
 pub mod decode;
 pub mod encode;
-pub mod error;
 pub mod text;
 pub mod transfer_syntax;
 

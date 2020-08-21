@@ -31,7 +31,7 @@ pub enum Error {
     #[snafu(display("Could not decode text in {}: {}", name, source))]
     DecodeText {
         name: &'static str,
-        source: dicom_encoding::error::TextEncodingError,
+        source: dicom_encoding::text::DecodeTextError,
     },
 
     /// Invalid DICOM data, detected from checking the `DICM` code.
@@ -42,7 +42,7 @@ pub enum Error {
     /// in the file meta data set.
     #[snafu(display("Could not decode data element: {}", source))]
     DecodeElement {
-        source: dicom_encoding::error::Error,
+        source: dicom_encoding::decode::Error,
     },
 
     /// A data element with an unexpected tag was retrieved:

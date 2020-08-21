@@ -1,6 +1,5 @@
 //! Module holding a stateful DICOM data encoding abstraction,
 //! in a way which supports text encoding.
-//!
 
 use dicom_core::{value::PrimitiveValue, DataElementHeader, VR};
 use dicom_encoding::transfer_syntax::DynEncoder;
@@ -29,13 +28,13 @@ pub enum Error {
     #[snafu(display("Failed to encode a data piece at position {}: {}", position, source))]
     EncodeData {
         position: u64,
-        source: dicom_encoding::error::Error,
+        source: dicom_encoding::encode::Error,
     },
 
     #[snafu(display("Could not encode text at position {}: {}", position, source))]
     EncodeText {
         position: u64,
-        source: dicom_encoding::error::TextEncodingError,
+        source: dicom_encoding::text::EncodeTextError,
     },
 
     #[snafu(display("Could not write value data to writer"))]

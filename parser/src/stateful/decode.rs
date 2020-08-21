@@ -1,15 +1,14 @@
-//! This module provides a higher level abstraction for reading DICOM data.
-//! The structures provided here can translate a byte data source into
-//! an iterator of elements, with either sequential or random access.
+//! Module holding a stateful DICOM data decoding abstraction,
+//! which also supports text decoding.
 
 use crate::util::n_times;
 use chrono::FixedOffset;
+use dicom_core::error::InvalidValueReadError;
 use dicom_core::header::{DataElementHeader, HasLength, Length, SequenceItemHeader, Tag, VR};
 use dicom_core::value::{PrimitiveValue, C};
 use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
 use dicom_encoding::decode::primitive_value::*;
 use dicom_encoding::decode::{BasicDecode, DecodeFrom};
-use dicom_encoding::error::InvalidValueReadError;
 use dicom_encoding::text::{
     validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, DynamicTextCodec,
     SpecificCharacterSet, TextCodec, TextValidationOutcome,
@@ -50,19 +49,13 @@ pub enum Error {
     #[snafu(display("Could not decode element header at position {}: {}", position, source))]
     DecodeElementHeader {
         position: u64,
-        source: dicom_encoding::error::Error,
+        source: dicom_encoding::decode::Error,
     },
 
     #[snafu(display("Could not decode element header at position {}: {}", position, source))]
     DecodeItemHeader {
         position: u64,
-        source: dicom_encoding::error::Error,
-    },
-
-    #[snafu(display("Could not decode value at position {}: {}", position, source))]
-    DecodeValue {
-        position: u64,
-        source: dicom_encoding::error::Error,
+        source: dicom_encoding::decode::Error,
     },
 
     #[snafu(display("Could not decode text at position {}: {}", position, source))]
@@ -85,7 +78,7 @@ pub enum Error {
     #[snafu(display("Invalid value read at position {}: {}", position, source))]
     InvalidValueRead {
         position: u64,
-        source: dicom_encoding::error::InvalidValueReadError,
+        source: InvalidValueReadError,
     },
 
     #[snafu(display("Invalid value element at position {}: {}", position, message))]
@@ -278,9 +271,11 @@ where
         let ntags = len >> 2;
         let parts: Result<C<Tag>> = n_times(ntags)
             .map(|_| {
-                self.basic.decode_tag(&mut self.from).context(DecodeValue {
-                    position: self.bytes_read,
-                })
+                self.basic
+                    .decode_tag(&mut self.from)
+                    .context(ReadValueData {
+                        position: self.bytes_read,
+                    })
             })
             .collect();
         self.bytes_read += len as u64;
@@ -361,7 +356,7 @@ where
         let n = len >> 1;
         let vec: Result<C<_>> = n_times(n)
             .map(|_| {
-                self.basic.decode_ss(&mut self.from).context(DecodeValue {
+                self.basic.decode_ss(&mut self.from).context(ReadValueData {
                     position: self.bytes_read,
                 })
             })
@@ -376,7 +371,7 @@ where
         let n = len >> 2;
         let vec: Result<C<_>> = n_times(n)
             .map(|_| {
-                self.basic.decode_fl(&mut self.from).context(DecodeValue {
+                self.basic.decode_fl(&mut self.from).context(ReadValueData {
                     position: self.bytes_read,
                 })
             })
@@ -574,7 +569,7 @@ where
         let n = len >> 3;
         let vec: Result<C<_>> = n_times(n)
             .map(|_| {
-                self.basic.decode_fd(&mut self.from).context(DecodeValue {
+                self.basic.decode_fd(&mut self.from).context(ReadValueData {
                     position: self.bytes_read,
                 })
             })
@@ -590,7 +585,7 @@ where
         let n = len >> 2;
         let vec: Result<C<_>> = n_times(n)
             .map(|_| {
-                self.basic.decode_ul(&mut self.from).context(DecodeValue {
+                self.basic.decode_ul(&mut self.from).context(ReadValueData {
                     position: self.bytes_read,
                 })
             })
@@ -606,7 +601,7 @@ where
         let n = len >> 1;
         let vec: Result<C<_>> = n_times(n)
             .map(|_| {
-                self.basic.decode_us(&mut self.from).context(DecodeValue {
+                self.basic.decode_us(&mut self.from).context(ReadValueData {
                     position: self.bytes_read,
                 })
             })
@@ -622,7 +617,7 @@ where
         let n = len >> 3;
         let vec: Result<C<_>> = n_times(n)
             .map(|_| {
-                self.basic.decode_uv(&mut self.from).context(DecodeValue {
+                self.basic.decode_uv(&mut self.from).context(ReadValueData {
                     position: self.bytes_read,
                 })
             })
@@ -638,7 +633,7 @@ where
         let n = len >> 2;
         let vec: Result<C<_>> = n_times(n)
             .map(|_| {
-                self.basic.decode_sl(&mut self.from).context(DecodeValue {
+                self.basic.decode_sl(&mut self.from).context(ReadValueData {
                     position: self.bytes_read,
                 })
             })
@@ -654,7 +649,7 @@ where
         let n = len >> 3;
         let vec: Result<C<_>> = n_times(n)
             .map(|_| {
-                self.basic.decode_sv(&mut self.from).context(DecodeValue {
+                self.basic.decode_sv(&mut self.from).context(ReadValueData {
                     position: self.bytes_read,
                 })
             })

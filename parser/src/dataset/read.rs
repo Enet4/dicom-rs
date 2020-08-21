@@ -4,22 +4,21 @@
 //! The rest of the crate is used to obtain DICOM element headers and values.
 //! At this level, headers and values are treated as tokens which can be used
 //! to form a syntax tree of a full data set.
+use crate::marker::DicomElementMarker;
 use crate::stateful::decode::{
     DynStatefulDecoder, Error as DecoderError, StatefulDecode, StatefulDecoder,
 };
-use crate::util::{ReadSeek, SeekInterval};
+use crate::util::ReadSeek;
 use dicom_core::dictionary::DataDictionary;
-use dicom_core::header::{DataElementHeader, HasLength, Header, Length, SequenceItemHeader};
+use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
 use dicom_core::{Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
-use dicom_encoding::error::InvalidValueReadError;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntax;
 use snafu::{Backtrace, ResultExt, Snafu};
-use std::io::{Read, Seek, SeekFrom};
+use std::io::Read;
 use std::iter::Iterator;
 use std::marker::PhantomData;
-use std::ops::DerefMut;
 
 use super::{DataToken, SeqTokenType};
 
@@ -331,14 +330,14 @@ where
                     }
                 }
                 Err(DecoderError::DecodeElementHeader {
-                    source: dicom_encoding::error::Error::Io(ref e),
+                    source: dicom_encoding::decode::Error::ReadHeaderTag { source, .. },
                     ..
-                }) if e.kind() == ::std::io::ErrorKind::UnexpectedEof => {
-                    // TODO there might be a more informative way to check
-                    // whether the end of a DICOM object was reached gracefully
-                    // or with problems. This approach may consume trailing
-                    // bytes, and will ignore the possibility of trailing bytes
-                    // having already been interpreted as an element header.
+                }) if source.kind() == std::io::ErrorKind::UnexpectedEof => {
+                    // Note: if `UnexpectedEof` was reached while trying to read
+                    // an element tag, then we assume that
+                    // the end of a DICOM object was reached gracefully.
+                    // This approach is unlikely to consume trailing bytes,
+                    // but may ignore the current depth of the data set tree.
                     self.hard_break = true;
                     None
                 }
@@ -520,69 +519,6 @@ where
                 }
             }
         }
-    }
-}
-
-/// A data type for a DICOM element residing in a file, or any other source
-/// with random access. A position in the file is kept for future access.
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub struct DicomElementMarker {
-    /// The header, kept in memory. At this level, the value representation
-    /// "UN" may also refer to a non-applicable vr (i.e. for items and
-    /// delimiters).
-    pub header: DataElementHeader,
-    /// The ending position of the element's header (or the starting position
-    /// of the element's value if it exists), relative to the beginning of the
-    /// file.
-    pub pos: u64,
-}
-
-impl DicomElementMarker {
-    /// Obtain an interval of the raw data associated to this element's data value.
-    pub fn get_data_stream<S: ?Sized, B: DerefMut<Target = S>>(
-        &self,
-        source: B,
-    ) -> dicom_encoding::error::Result<SeekInterval<S, B>>
-    where
-        S: ReadSeek,
-    {
-        let len = u64::from(
-            self.header
-                .length()
-                .get()
-                .ok_or(InvalidValueReadError::UnresolvedValueLength)?,
-        );
-        let interval = SeekInterval::new_at(source, self.pos..len)?;
-        Ok(interval)
-    }
-
-    /// Move the source to the position indicated by the marker
-    pub fn move_to_start<S: ?Sized, B: DerefMut<Target = S>>(
-        &self,
-        mut source: B,
-    ) -> std::io::Result<()>
-    where
-        S: Seek,
-    {
-        source.seek(SeekFrom::Start(self.pos))?;
-        Ok(())
-    }
-
-    /// Getter for this element's value representation. May be `UN`
-    /// when this is not applicable.
-    pub fn vr(&self) -> VR {
-        self.header.vr()
-    }
-}
-
-impl HasLength for DicomElementMarker {
-    fn length(&self) -> Length {
-        self.header.length()
-    }
-}
-impl Header for DicomElementMarker {
-    fn tag(&self) -> Tag {
-        self.header.tag()
     }
 }
 

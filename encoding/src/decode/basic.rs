@@ -2,9 +2,10 @@
 //! may be in either Little Endian or Big Endian.
 
 use super::BasicDecode;
-use crate::error::Result;
 use byteordered::{ByteOrdered, Endianness};
 use std::io::Read;
+
+type Result<T> = std::io::Result<T>;
 
 /// A basic decoder of DICOM primitive elements in little endian.
 #[derive(Debug, Default, Clone, PartialEq)]

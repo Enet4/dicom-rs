@@ -7,9 +7,8 @@
 //!
 //! For a more intuitive, object-oriented API, please see the `dicom-object`
 //! crate.
-#![recursion_limit = "90"]
-
 pub mod dataset;
+pub mod marker;
 pub mod stateful;
 
 mod util;

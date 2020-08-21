@@ -30,7 +30,7 @@ pub enum Error {
     #[snafu(display("Could not write field `{}`: {}", field, source))]
     EncodeField {
         field: &'static str,
-        source: dicom_encoding::error::TextEncodingError,
+        source: dicom_encoding::text::EncodeTextError,
     },
 }
 
