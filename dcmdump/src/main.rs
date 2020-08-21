@@ -23,6 +23,11 @@ use term_size;
 use std::borrow::Cow;
 use std::io::{stdout, ErrorKind, Result as IoResult, Write};
 
+/// Exit code for when an error emerged while reading the DICOM file.
+const ERROR_READ: i32 = -2;
+/// Exit code for when an error emerged while dumping the file.
+const ERROR_PRINT: i32 = -3;
+
 fn main() {
     let filename = ::std::env::args()
         .nth(1)
@@ -32,11 +37,10 @@ fn main() {
         .unwrap_or_else(|e| {
             if let Some(backtrace) = e.backtrace() {
                 eprintln!("[ERROR] {}\n{}", e, backtrace);
-                std::process::exit(-2);
             } else {
                 eprintln!("[ERROR] {}", e);
-                std::process::exit(-2);
             }
+            std::process::exit(ERROR_READ);
         });
 
     match dump_file(obj) {
@@ -45,7 +49,7 @@ fn main() {
         }
         Err(e) => {
             eprintln!("[ERROR] {}", e);
-            std::process::exit(-3);
+            std::process::exit(ERROR_PRINT);
         },
         _ => {},             // all good
     }
