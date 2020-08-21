@@ -16,33 +16,38 @@ use dicom::object::mem::{InMemDicomObject, InMemElement};
 use dicom::object::{open_file, DefaultDicomObject, FileMetaTable, StandardDataDictionary};
 use dicom::encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom::transfer_syntax::TransferSyntaxRegistry;
+use snafu::ErrorCompat;
 
 use term_size;
 
 use std::borrow::Cow;
 use std::io::{stdout, ErrorKind, Result as IoResult, Write};
 
-type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
-
 fn main() {
-    run().unwrap_or_else(|e| {
-        eprintln!("{:#}", e);
-    });
-}
-
-fn run() -> DynResult<()> {
     let filename = ::std::env::args()
         .nth(1)
         .expect("Missing path to DICOM file");
 
-    let obj = open_file(filename)?;
+    let obj = open_file(filename)
+        .unwrap_or_else(|e| {
+            if let Some(backtrace) = e.backtrace() {
+                eprintln!("[ERROR] {}\n{}", e, backtrace);
+                std::process::exit(-2);
+            } else {
+                eprintln!("[ERROR] {}", e);
+                std::process::exit(-2);
+            }
+        });
 
     match dump_file(obj) {
         Err(ref e) if e.kind() == ErrorKind::BrokenPipe => {
-            Ok(()) // handle broken pipe separately with a no-op
+            // handle broken pipe separately with a no-op
         }
-        Err(e) => Err(e.into()), // raise other errors
-        _ => Ok(()),             // all good
+        Err(e) => {
+            eprintln!("[ERROR] {}", e);
+            std::process::exit(-3);
+        },
+        _ => {},             // all good
     }
 }
 

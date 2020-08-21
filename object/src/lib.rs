@@ -50,7 +50,7 @@ use dicom_core::header::Header;
 use dicom_encoding::{text::SpecificCharacterSet, transfer_syntax::TransferSyntaxIndex};
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use snafu::{Backtrace, ResultExt, Snafu};
+use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -85,38 +85,63 @@ pub enum Error {
     #[snafu(display("Could not open file '{}': {}", filename.display(), source))]
     OpenFile {
         filename: std::path::PathBuf,
+        backtrace: Backtrace,
         source: std::io::Error,
     },
     #[snafu(display("Could not read from file '{}': {}", filename.display(), source))]
     ReadFile {
         filename: std::path::PathBuf,
+        backtrace: Backtrace,
         source: std::io::Error,
     },
     #[snafu(display("Could not parse meta group data set: {}", source))]
-    ParseMetaDataSet { source: crate::meta::Error },
+    ParseMetaDataSet {
+        #[snafu(backtrace)]
+        source: crate::meta::Error,
+    },
     #[snafu(display("Could not create data set parser: {}", source))]
-    CreateParser { source: dicom_parser::dataset::read::Error },
+    CreateParser {
+        #[snafu(backtrace)]
+        source: dicom_parser::dataset::read::Error,
+    },
     #[snafu(display("Could not read data set token: {}", source))]
-    ReadToken { source: dicom_parser::dataset::read::Error },
+    ReadToken {
+        #[snafu(backtrace)]
+        source: dicom_parser::dataset::read::Error,
+    },
     #[snafu(display("Could not write to file '{}': {}", filename.display(), source))]
     WriteFile {
         filename: std::path::PathBuf,
+        backtrace: Backtrace,
         source: std::io::Error,
     },
     #[snafu(display("Could not create data set printer: {}", source))]
-    CreatePrinter { source: dicom_parser::dataset::write::Error },
+    CreatePrinter {
+        #[snafu(backtrace)]
+        source: dicom_parser::dataset::write::Error,
+    },
     #[snafu(display("Could not print meta group data set: {}", source))]
-    PrintMetaDataSet { source: crate::meta::Error },
+    PrintMetaDataSet {
+        #[snafu(backtrace)]
+        source: crate::meta::Error,
+    },
     #[snafu(display("Could not print data set: {}", source))]
-    PrintDataSet { source: dicom_parser::dataset::write::Error },
+    PrintDataSet {
+        #[snafu(backtrace)]
+        source: dicom_parser::dataset::write::Error,
+    },
     #[snafu(display("Unsupported transfer syntax `{}`", uid))]
-    UnsupportedTransferSyntax { uid: String },
+    UnsupportedTransferSyntax { uid: String, backtrace: Backtrace },
     #[snafu(display("No such data element {}{}", tag, if let Some(a) = alias {
         format!(" ({})", a)
     } else {
         "".to_string()
     }))]
-    NoSuchDataElement { tag: Tag, alias: Option<String>, backtrace: Backtrace },
+    NoSuchDataElement {
+        tag: Tag,
+        alias: Option<String>,
+        backtrace: Backtrace,
+    },
     #[snafu(display("Unknown data attribute named `{}`", name))]
     NoSuchAttributeName { name: String, backtrace: Backtrace },
     #[snafu(display("Missing element value"))]
@@ -127,9 +152,7 @@ pub enum Error {
         backtrace: Backtrace,
     },
     #[snafu(display("Premature data set end"))]
-    PrematureEnd {
-        backtrace: Backtrace,
-    }
+    PrematureEnd { backtrace: Backtrace },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -161,28 +184,24 @@ where
 {
     pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let path = path.as_ref();
-        let file = File::create(path).context(WriteFile {
-            filename: path,
-        })?;
+        let file = File::create(path).context(WriteFile { filename: path })?;
         let mut to = BufWriter::new(file);
 
         // write preamble
-        to.write_all(&[0_u8; 128][..]).context(WriteFile {
-            filename: path,
-        })?;
+        to.write_all(&[0_u8; 128][..])
+            .context(WriteFile { filename: path })?;
 
         // write magic sequence
-        to.write_all(b"DICM").context(WriteFile {
-            filename: path,
-        })?;
+        to.write_all(b"DICM")
+            .context(WriteFile { filename: path })?;
 
         // write meta group
         self.meta.write(&mut to).context(PrintMetaDataSet)?;
 
         // prepare encoder
         let registry = TransferSyntaxRegistry::default();
-        let ts = registry.get(&self.meta.transfer_syntax).ok_or_else(|| {
-            Error::UnsupportedTransferSyntax {
+        let ts = registry.get(&self.meta.transfer_syntax).with_context(|| {
+            UnsupportedTransferSyntax {
                 uid: self.meta.transfer_syntax.clone(),
             }
         })?;

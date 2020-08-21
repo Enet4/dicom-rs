@@ -75,6 +75,7 @@ pub enum Error {
     #[snafu(display("Could not decode text field `{}`: {}", field, source))]
     DecodeText {
         field: &'static str,
+        #[snafu(backtrace)]
         source: dicom_encoding::text::DecodeTextError,
     },
     #[snafu(display("Missing application context name"))]

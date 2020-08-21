@@ -22,7 +22,7 @@ pub use dicom_core::value::deserialize as primitive_value;
 pub enum Error {
     #[snafu(display("Failed to read the beginning (tag) of the header: {}", source))]
     ReadHeaderTag {
-        backtrace: Backtrace,
+        backtrace: Option<Backtrace>,
         source: std::io::Error,
     },
     #[snafu(display("Failed to read the item header: {}", source))]

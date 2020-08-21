@@ -49,18 +49,21 @@ pub enum Error {
     #[snafu(display("Could not decode element header at position {}: {}", position, source))]
     DecodeElementHeader {
         position: u64,
+        #[snafu(backtrace)]
         source: dicom_encoding::decode::Error,
     },
 
     #[snafu(display("Could not decode element header at position {}: {}", position, source))]
     DecodeItemHeader {
         position: u64,
+        #[snafu(backtrace)]
         source: dicom_encoding::decode::Error,
     },
 
     #[snafu(display("Could not decode text at position {}: {}", position, source))]
     DecodeText {
         position: u64,
+        #[snafu(backtrace)]
         source: dicom_encoding::text::DecodeTextError,
     },
 
@@ -82,7 +85,11 @@ pub enum Error {
     },
 
     #[snafu(display("Invalid value element at position {}: {}", position, message))]
-    InvalidValueCustom { position: u64, message: String },
+    InvalidValueCustom {
+        position: u64,
+        message: String,
+        backtrace: Backtrace,
+    },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

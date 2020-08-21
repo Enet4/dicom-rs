@@ -32,25 +32,30 @@ pub enum Error {
     },
     #[snafu(display("Could not write element header: {}", source))]
     WriteHeader {
+        #[snafu(backtrace)]
         source: crate::stateful::encode::Error,
     },
     #[snafu(display("Could not write item header: {}", source))]
     WriteItemHeader {
+        #[snafu(backtrace)]
         source: crate::stateful::encode::Error,
     },
 
     #[snafu(display("Could not write sequence delimiter: {}", source))]
     WriteSequenceDelimiter {
+        #[snafu(backtrace)]
         source: crate::stateful::encode::Error,
     },
 
     #[snafu(display("Could not write item delimiter: {}", source))]
     WriteItemDelimiter {
+        #[snafu(backtrace)]
         source: crate::stateful::encode::Error,
     },
 
     #[snafu(display("Could not write element value: {}", source))]
     WriteValue {
+        #[snafu(backtrace)]
         source: crate::stateful::encode::Error,
     },
 }

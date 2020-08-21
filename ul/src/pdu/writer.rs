@@ -30,6 +30,7 @@ pub enum Error {
     #[snafu(display("Could not write field `{}`: {}", field, source))]
     EncodeField {
         field: &'static str,
+        #[snafu(backtrace)]
         source: dicom_encoding::text::EncodeTextError,
     },
 }
@@ -40,7 +41,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum WriteChunkError {
     #[snafu(display("Failed to build chunk: {}", source))]
     BuildChunk {
-        backtrace: Backtrace,
+        #[snafu(backtrace)]
         source: Box<Error>,
     },
     #[snafu(display("Failed to write chunk length: {}", source))]

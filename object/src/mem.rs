@@ -10,8 +10,8 @@ use std::path::Path;
 
 use crate::meta::FileMetaTable;
 use crate::{
-    CreateParser, DicomObject, Error, MissingElementValue, NoSuchDataElement, OpenFile, NoSuchAttributeName,
-    ParseMetaDataSet, PrematureEnd, ReadFile, ReadToken, Result, RootDicomObject, UnexpectedToken,
+    CreateParser, DicomObject, MissingElementValue, NoSuchDataElement, OpenFile, NoSuchAttributeName,
+    ParseMetaDataSet, PrematureEnd, ReadFile, ReadToken, Result, RootDicomObject, UnexpectedToken, UnsupportedTransferSyntax
 };
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::{HasLength, Header};
@@ -194,9 +194,9 @@ where
                 obj: InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?,
             })
         } else {
-            Err(Error::UnsupportedTransferSyntax {
+            UnsupportedTransferSyntax {
                 uid: meta.transfer_syntax,
-            })
+            }.fail()
         }
     }
 
@@ -239,9 +239,9 @@ where
             let obj = InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?;
             Ok(RootDicomObject { meta, obj })
         } else {
-            Err(Error::UnsupportedTransferSyntax {
+            UnsupportedTransferSyntax {
                 uid: meta.transfer_syntax,
-            })
+            }.fail()
         }
     }
 }

@@ -30,14 +30,26 @@ where
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Could not create decoder"))]
-    CreateDecoder { source: DecoderError },
-    #[snafu(display("Could not read item header"))]
-    ReadItemHeader { source: DecoderError },
-    #[snafu(display("Could not read element header"))]
-    ReadHeader { source: DecoderError },
-    #[snafu(display("Could not read item value"))]
-    ReadValue { source: DecoderError },
+    #[snafu(display("Could not create decoder: {}", source))]
+    CreateDecoder {
+        #[snafu(backtrace)]
+        source: DecoderError,
+    },
+    #[snafu(display("Could not read item header: {}", source))]
+    ReadItemHeader {
+        #[snafu(backtrace)]
+        source: DecoderError,
+    },
+    #[snafu(display("Could not read element header: {}", source))]
+    ReadHeader {
+        #[snafu(backtrace)]
+        source: DecoderError,
+    },
+    #[snafu(display("Could not read item value: {}", source))]
+    ReadValue {
+        #[snafu(backtrace)]
+        source: DecoderError,
+    },
     #[snafu(display(
         "Inconsistent sequence end: expected end at {} bytes but read {}",
         end_of_sequence,

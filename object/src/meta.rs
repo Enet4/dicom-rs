@@ -19,18 +19,25 @@ pub enum Error {
     /// The file meta group parser could not read
     /// the magic code `DICM` from its source.
     #[snafu(display("Could not start reading DICOM data: {}", source))]
-    ReadMagicCode { source: std::io::Error },
+    ReadMagicCode {
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
 
     /// The file meta group parser could not fetch
     /// the value of a data element from its source.
     #[snafu(display("Could not read data value: {}", source))]
-    ReadValueData { source: std::io::Error },
+    ReadValueData {
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
 
     /// The file meta group parser could not decode
     /// the text in one of its data elements.
     #[snafu(display("Could not decode text in {}: {}", name, source))]
     DecodeText {
         name: &'static str,
+        #[snafu(backtrace)]
         source: dicom_encoding::text::DecodeTextError,
     },
 
@@ -42,6 +49,7 @@ pub enum Error {
     /// in the file meta data set.
     #[snafu(display("Could not decode data element: {}", source))]
     DecodeElement {
+        #[snafu(backtrace)]
         source: dicom_encoding::decode::Error,
     },
 
@@ -75,6 +83,7 @@ pub enum Error {
     /// The file meta group data set could not be written.
     #[snafu(display("Could not write file meta group data set: {}", source))]
     WriteSet {
+        #[snafu(backtrace)]
         source: dicom_parser::dataset::write::Error,
     },
 }
