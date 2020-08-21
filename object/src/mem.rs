@@ -10,8 +10,9 @@ use std::path::Path;
 
 use crate::meta::FileMetaTable;
 use crate::{
-    CreateParser, DicomObject, MissingElementValue, NoSuchDataElement, OpenFile, NoSuchAttributeName,
-    ParseMetaDataSet, PrematureEnd, ReadFile, ReadToken, Result, RootDicomObject, UnexpectedToken, UnsupportedTransferSyntax
+    CreateParser, DicomObject, MissingElementValue, NoSuchAttributeName, NoSuchDataElementAlias,
+    NoSuchDataElementTag, OpenFile, ParseMetaDataSet, PrematureEnd, ReadFile, ReadToken, Result,
+    RootDicomObject, UnexpectedToken, UnsupportedTransferSyntax,
 };
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::{HasLength, Header};
@@ -68,9 +69,7 @@ where
     type Element = &'s InMemElement<D>;
 
     fn element(&self, tag: Tag) -> Result<Self::Element> {
-        self.entries
-            .get(&tag)
-            .context(NoSuchDataElement { tag, alias: None })
+        self.entries.get(&tag).context(NoSuchDataElementTag { tag })
     }
 
     fn element_by_name(&self, name: &str) -> Result<Self::Element> {
@@ -196,7 +195,8 @@ where
         } else {
             UnsupportedTransferSyntax {
                 uid: meta.transfer_syntax,
-            }.fail()
+            }
+            .fail()
         }
     }
 
@@ -241,7 +241,8 @@ where
         } else {
             UnsupportedTransferSyntax {
                 uid: meta.transfer_syntax,
-            }.fail()
+            }
+            .fail()
         }
     }
 }
@@ -314,19 +315,18 @@ where
 
     /// Retrieve a particular DICOM element by its tag.
     pub fn element(&self, tag: Tag) -> Result<&InMemElement<D>> {
-        self.entries.get(&tag).with_context(|| NoSuchDataElement {
-            tag: tag,
-            alias: None,
-        })
+        self.entries.get(&tag).context(NoSuchDataElementTag { tag })
     }
 
     /// Retrieve a particular DICOM element by its name.
     pub fn element_by_name(&self, name: &str) -> Result<&InMemElement<D>> {
         let tag = self.lookup_name(name)?;
-        self.entries.get(&tag).with_context(|| NoSuchDataElement {
-            tag: tag,
-            alias: Some(name.to_string()),
-        })
+        self.entries
+            .get(&tag)
+            .with_context(|| NoSuchDataElementAlias {
+                tag: tag,
+                alias: name.to_string(),
+            })
     }
 
     /// Insert a data element to the object, replacing (and returning) any
@@ -467,9 +467,7 @@ where
     fn lookup_name(&self, name: &str) -> Result<Tag> {
         self.dict
             .by_name(name)
-            .with_context(|| NoSuchAttributeName {
-                name: name.to_owned(),
-            })
+            .context(NoSuchAttributeName { name })
             .map(|e| e.tag())
     }
 }

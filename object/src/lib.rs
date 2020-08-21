@@ -132,14 +132,15 @@ pub enum Error {
     },
     #[snafu(display("Unsupported transfer syntax `{}`", uid))]
     UnsupportedTransferSyntax { uid: String, backtrace: Backtrace },
-    #[snafu(display("No such data element {}{}", tag, if let Some(a) = alias {
-        format!(" ({})", a)
-    } else {
-        "".to_string()
-    }))]
-    NoSuchDataElement {
+    #[snafu(display("No such data element with tag {}", tag))]
+    NoSuchDataElementTag {
         tag: Tag,
-        alias: Option<String>,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("No such data element {} (with tag {})", alias, tag))]
+    NoSuchDataElementAlias {
+        tag: Tag,
+        alias: String,
         backtrace: Backtrace,
     },
     #[snafu(display("Unknown data attribute named `{}`", name))]
@@ -155,7 +156,7 @@ pub enum Error {
     PrematureEnd { backtrace: Backtrace },
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /** A root DICOM object contains additional meta information about the object
  * (such as the DICOM file's meta header).
