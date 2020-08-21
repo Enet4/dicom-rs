@@ -84,10 +84,24 @@ pub enum Error {
         source: InvalidValueReadError,
     },
 
-    #[snafu(display("Invalid value element at position {}: {}", position, message))]
-    InvalidValueCustom {
+    #[snafu(display("Invalid Date value element `{}` at position {}", string, position))]
+    InvalidDateValue {
         position: u64,
-        message: String,
+        string: String,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Invalid Time value element `{}` at position {}", string, position))]
+    InvalidTimeValue {
+        position: u64,
+        string: String,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Invalid DateTime value element `{}` at position {}", string, position))]
+    InvalidDateTimeValue {
+        position: u64,
+        string: String,
         backtrace: Backtrace,
     },
 }
@@ -290,8 +304,8 @@ where
     }
 
     fn read_value_ob(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        // TODO add support for OB value data length resolution
-        // (might need to delegate pixel data reading to a separate trait)
+        // Note: this function always expects a defined length OB value
+        // (pixel sequence detection needs to be done by the caller)
         let len = self.require_known_length(header)?;
 
         // sequence of 8-bit integers (or arbitrary byte data)
@@ -406,9 +420,9 @@ where
             let lossy_str = DefaultCharacterSetCodec
                 .decode(buf)
                 .unwrap_or_else(|_| "[byte stream]".to_string());
-            return InvalidValueCustom {
+            return InvalidDateValue {
                 position: self.bytes_read,
-                message: format!("Invalid date value element \"{}\"", lossy_str),
+                string: lossy_str,
             }
             .fail();
         }
@@ -479,9 +493,9 @@ where
             let lossy_str = DefaultCharacterSetCodec
                 .decode(buf)
                 .unwrap_or_else(|_| "[byte stream]".to_string());
-            return InvalidValueCustom {
+            return InvalidDateTimeValue {
                 position: self.bytes_read,
-                message: format!("Invalid date-time value element \"{}\"", lossy_str),
+                string: lossy_str,
             }
             .fail();
         }
@@ -552,9 +566,9 @@ where
             let lossy_str = DefaultCharacterSetCodec
                 .decode(buf)
                 .unwrap_or_else(|_| "[byte stream]".to_string());
-            return InvalidValueCustom {
+            return InvalidTimeValue {
                 position: self.bytes_read,
-                message: format!("Invalid time value element \"{}\"", lossy_str),
+                string: lossy_str,
             }
             .fail();
         }
