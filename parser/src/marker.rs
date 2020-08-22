@@ -5,6 +5,7 @@ use std::io::{Seek, SeekFrom};
 use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
+#[non_exhaustive]
 pub enum Error {
     #[snafu(display("Unknown value length"))]
     UnknownValueLength,

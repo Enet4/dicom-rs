@@ -81,6 +81,7 @@ pub trait DicomObject {
 }
 
 #[derive(Debug, Snafu)]
+#[non_exhaustive]
 pub enum Error {
     #[snafu(display("Could not open file '{}': {}", filename.display(), source))]
     OpenFile {

@@ -9,6 +9,7 @@ pub const MINIMUM_PDU_SIZE: u32 = 4_096;
 pub const MAXIMUM_PDU_SIZE: u32 = 131_072;
 
 #[derive(Debug, Snafu)]
+#[non_exhaustive]
 pub enum Error {
     #[snafu(display("Invalid max PDU length {}", max_pdu_length))]
     InvalidMaxPdu {

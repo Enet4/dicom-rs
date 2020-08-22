@@ -12,6 +12,7 @@ use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use std::io::Write;
 
 #[derive(Debug, Snafu)]
+#[non_exhaustive]
 pub enum Error {
     #[snafu(display("Encoding in transfer syntax {} is unsupported", ts))]
     UnsupportedTransferSyntax {

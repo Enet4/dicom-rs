@@ -12,6 +12,7 @@ use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Snafu)]
+#[non_exhaustive]
 enum Error {
     #[snafu(display("Could not clone socket: {}", source))]
     CloneSocket {

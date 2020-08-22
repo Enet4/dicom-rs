@@ -29,6 +29,7 @@ where
 }
 
 #[derive(Debug, Snafu)]
+#[non_exhaustive]
 pub enum Error {
     #[snafu(display("Could not create decoder: {}", source))]
     CreateDecoder {
@@ -314,6 +315,23 @@ where
                     vr: VR::SQ,
                     len,
                 }) => {
+                    self.in_sequence = true;
+                    self.push_sequence_token(SeqTokenType::Sequence, len, false);
+
+                    // sequences can end right after they start
+                    if len == Length(0) {
+                        self.delimiter_check_pending = true;
+                    }
+
+                    Some(Ok(DataToken::SequenceStart { tag, len }))
+                }
+                Ok(DataElementHeader {
+                    tag,
+                    vr: VR::UN,
+                    len,
+                }) if len.is_undefined() => {
+                    // Note: unknown VR elements with an unspecified length
+                    // are treated as sequences.
                     self.in_sequence = true;
                     self.push_sequence_token(SeqTokenType::Sequence, len, false);
 

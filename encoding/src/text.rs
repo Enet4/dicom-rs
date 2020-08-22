@@ -26,6 +26,7 @@ use snafu::{Backtrace, Snafu};
 
 /// An error type for text encoding issues.
 #[derive(Debug, Snafu)]
+#[non_exhaustive]
 pub enum EncodeTextError {
     /// A custom error message,
     /// for when the underlying error type does not encode error semantics
@@ -41,6 +42,7 @@ pub enum EncodeTextError {
 
 /// An error type for text decoding issues.
 #[derive(Debug, Snafu)]
+#[non_exhaustive]
 pub enum DecodeTextError {
     /// A custom error message,
     /// for when the underlying error type does not encode error semantics

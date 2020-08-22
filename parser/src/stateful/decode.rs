@@ -22,6 +22,7 @@ use std::io::Read;
 use std::iter::Iterator;
 
 #[derive(Debug, Snafu)]
+#[non_exhaustive]
 pub enum Error {
     #[snafu(display("Decoding in transfer syntax {} is unsupported", ts))]
     UnsupportedTransferSyntax {

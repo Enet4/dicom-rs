@@ -15,6 +15,7 @@ use std::io::{Read, Write};
 const DICM_MAGIC_CODE: [u8; 4] = [b'D', b'I', b'C', b'M'];
 
 #[derive(Debug, Snafu)]
+#[non_exhaustive]
 pub enum Error {
     /// The file meta group parser could not read
     /// the magic code `DICM` from its source.

@@ -19,6 +19,7 @@ pub use dicom_core::value::deserialize as primitive_value;
 /// Module-level error type:
 /// for errors which may occur while decoding DICOM data.
 #[derive(Debug, Snafu)]
+#[non_exhaustive]
 pub enum Error {
     #[snafu(display("Failed to read the beginning (tag) of the header: {}", source))]
     ReadHeaderTag {

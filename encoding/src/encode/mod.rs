@@ -17,6 +17,7 @@ pub use dicom_core::value::serialize as primitive_value;
 /// Module-level error type:
 /// for errors which may occur while encoding DICOM data.
 #[derive(Debug, Snafu)]
+#[non_exhaustive]
 pub enum Error {
     #[snafu(display("Failed to write Date value: {}", source))]
     WriteDate {

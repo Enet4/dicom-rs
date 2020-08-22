@@ -5,6 +5,7 @@ use snafu::{Backtrace, ResultExt, Snafu};
 use std::io::Write;
 
 #[derive(Debug, Snafu)]
+#[non_exhaustive]
 pub enum Error {
     #[snafu(display("Could not write chunk of {} PDU structure: {}", name, source))]
     WriteChunk {
