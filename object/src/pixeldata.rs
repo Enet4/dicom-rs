@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 use snafu::{Backtrace, Snafu};
 
 #[derive(Debug, Snafu)]
+#[non_exhaustive]
 pub enum Error {
     PixelIndexOutOfBounds {
         backtrace: Backtrace,

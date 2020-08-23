@@ -3,7 +3,6 @@
 
 use crate::util::n_times;
 use chrono::FixedOffset;
-use dicom_core::error::InvalidValueReadError;
 use dicom_core::header::{DataElementHeader, HasLength, Length, SequenceItemHeader, Tag, VR};
 use dicom_core::value::{PrimitiveValue, C};
 use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
@@ -33,6 +32,12 @@ pub enum Error {
     #[snafu(display("Unsupported character set {:?}", charset))]
     UnsupportedCharacterSet {
         charset: SpecificCharacterSet,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Attempted to read non-primitive value at position {}", position))]
+    NonPrimitiveType {
+        position: u64,
         backtrace: Backtrace,
     },
 
@@ -79,10 +84,22 @@ pub enum Error {
         backtrace: Backtrace,
     },
 
-    #[snafu(display("Invalid value read at position {}: {}", position, source))]
-    InvalidValueRead {
+    #[snafu(display("Failed value deserialization at position {}: {}", position, source))]
+    DeserializeValue {
         position: u64,
-        source: InvalidValueReadError,
+        source: dicom_core::value::deserialize::Error,
+    },
+
+    #[snafu(display("Invalid integer value at position {}: {}", position, source))]
+    ReadInt {
+        position: u64,
+        source: std::num::ParseIntError,
+    },
+
+    #[snafu(display("Invalid float value at position {}: {}", position, source))]
+    ReadFloat {
+        position: u64,
+        source: std::num::ParseFloatError,
     },
 
     #[snafu(display("Invalid Date value element `{}` at position {}", string, position))]
@@ -431,7 +448,7 @@ where
             .split(|b| *b == b'\\')
             .map(|part| {
                 Ok(parse_date(part)
-                    .context(InvalidValueRead {
+                    .context(DeserializeValue {
                         position: self.bytes_read,
                     })?
                     .0)
@@ -464,11 +481,9 @@ where
                     position: self.bytes_read,
                 })?;
                 let txt = txt.trim();
-                txt.parse::<f64>()
-                    .map_err(InvalidValueReadError::from)
-                    .context(InvalidValueRead {
-                        position: self.bytes_read,
-                    })
+                txt.parse::<f64>().context(ReadFloat {
+                    position: self.bytes_read,
+                })
             })
             .collect();
         self.bytes_read += len as u64;
@@ -504,7 +519,7 @@ where
             .split(|b| *b == b'\\')
             .map(|part| {
                 Ok(
-                    parse_datetime(part, self.dt_utc_offset).context(InvalidValueRead {
+                    parse_datetime(part, self.dt_utc_offset).context(DeserializeValue {
                         position: self.bytes_read,
                     })?,
                 )
@@ -537,11 +552,9 @@ where
                     position: self.bytes_read,
                 })?;
                 let txt = txt.trim();
-                txt.parse::<i32>()
-                    .map_err(InvalidValueReadError::from)
-                    .context(InvalidValueRead {
-                        position: self.bytes_read,
-                    })
+                txt.parse::<i32>().context(ReadInt {
+                    position: self.bytes_read,
+                })
             })
             .collect();
         self.bytes_read += len as u64;
@@ -576,7 +589,7 @@ where
         let vec: std::result::Result<C<_>, _> = buf
             .split(|b| *b == b'\\')
             .map(|part| {
-                parse_time(part).map(|t| t.0).context(InvalidValueRead {
+                parse_time(part).map(|t| t.0).context(DeserializeValue {
                     position: self.bytes_read,
                 })
             })
@@ -770,9 +783,9 @@ where
             VR::SQ => {
                 // sequence objects should not head over here, they are
                 // handled at a higher level
-                Err(InvalidValueReadError::NonPrimitiveType).context(InvalidValueRead {
+                NonPrimitiveType {
                     position: self.bytes_read,
-                })
+                }.fail()
             }
             VR::AT => self.read_value_tag(header),
             VR::AE | VR::AS | VR::PN | VR::SH | VR::LO | VR::UC | VR::UI => {
@@ -805,9 +818,9 @@ where
         match header.vr() {
             VR::SQ => {
                 // sequence objects... should not work
-                Err(InvalidValueReadError::NonPrimitiveType).context(InvalidValueRead {
+                NonPrimitiveType {
                     position: self.bytes_read,
-                })
+                }.fail()
             }
             VR::AT => self.read_value_tag(header),
             VR::AE
@@ -844,9 +857,9 @@ where
         match header.vr() {
             VR::SQ => {
                 // sequence objects... should not work
-                Err(InvalidValueReadError::NonPrimitiveType).context(InvalidValueRead {
+                NonPrimitiveType {
                     position: self.bytes_read,
-                })
+                }.fail()
             }
             _ => self.read_value_ob(header),
         }
@@ -861,9 +874,9 @@ where
         match header.vr() {
             VR::SQ => {
                 // sequence objects... should not work
-                Err(InvalidValueReadError::NonPrimitiveType).context(InvalidValueRead {
+                NonPrimitiveType {
                     position: self.bytes_read,
-                })
+                }.fail()
             }
             _ => Ok(self.from.by_ref().take(
                 header

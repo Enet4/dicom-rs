@@ -57,7 +57,9 @@ pub enum Error {
         source: io::Error,
     },
     #[snafu(display("Bad sequence item header: {}", source))]
-    BadSequenceHeader { source: dicom_core::Error },
+    BadSequenceHeader {
+        source: dicom_core::header::SequenceItemHeaderError,
+    },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

@@ -2,12 +2,37 @@
 //! It comprises a variety of basic data types, such as the DICOM attribute tag, the
 //! element header, and element composite types.
 
-use crate::error::{Error, Result};
 use crate::value::{PrimitiveValue, Value};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
 use std::str::{from_utf8, FromStr};
+use snafu::{Backtrace, Snafu};
+
+/// Error type for issues constructing a sequence item header.
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum SequenceItemHeaderError {
+    /// Unexpected header tag.
+    /// Only Item (0xFFFE, 0xE000),
+    /// Item Delimiter (0xFFFE, 0xE00D),
+    /// or Sequence Delimiter (0xFFFE, 0xE0DD)
+    /// are admitted.
+    #[snafu(display("Unexpected tag {}", tag))]
+    UnexpectedTag {
+        tag: Tag,
+        backtrace: Backtrace,
+    },
+    /// Unexpected delimiter value length.
+    /// Must be zero for item delimiters.
+    #[snafu(display("Unexpected delimiter length {}", len))]
+    UnexpectedDelimiterLength {
+        len: Length,
+        backtrace: Backtrace,
+    }
+}
+
+type Result<T, E = SequenceItemHeaderError> = std::result::Result<T, E>;
 
 /// Trait for any DICOM entity (element or item) which may have a length.
 pub trait HasLength {
@@ -225,8 +250,8 @@ where
     }
 
     /// Retrieve the element's value as a single string.
-    pub fn to_str(&self) -> Result<Cow<str>> {
-        self.value.to_str().map_err(From::from)
+    pub fn to_str(&self) -> Result<Cow<str>, crate::value::CastValueError> {
+        self.value.to_str()
     }
 }
 
@@ -346,7 +371,7 @@ impl SequenceItemHeader {
                 // item delimiter
                 // delimiters should not have a positive length
                 if len != Length(0) {
-                    Err(Error::UnexpectedDataValueLength)
+                    UnexpectedDelimiterLength { len }.fail()
                 } else {
                     Ok(SequenceItemHeader::ItemDelimiter)
                 }
@@ -355,7 +380,7 @@ impl SequenceItemHeader {
                 // sequence delimiter
                 Ok(SequenceItemHeader::SequenceDelimiter)
             }
-            tag => Err(Error::UnexpectedTag(tag)),
+            tag => UnexpectedTag { tag }.fail()
         }
     }
 }
@@ -680,6 +705,7 @@ impl Length {
 
     /// Create a new length value from its internal representation.
     /// This is equivalent to `Length(len)`.
+    #[inline]
     pub fn new(len: u32) -> Self {
         Length(len)
     }
@@ -689,6 +715,7 @@ impl Length {
     /// # Panic
     ///
     /// This function will panic if `len` represents an undefined length.
+    #[inline]
     pub fn defined(len: u32) -> Self {
         assert_ne!(len, UNDEFINED_LEN);
         Length(len)
@@ -696,6 +723,7 @@ impl Length {
 }
 
 impl From<u32> for Length {
+    #[inline]
     fn from(o: u32) -> Self {
         Length(o)
     }
@@ -832,6 +860,7 @@ impl Length {
     /// Check whether the length is equally specified as another length.
     /// Unlike the implemented `PartialEq`, two undefined lengths are
     /// considered equivalent by this method.
+    #[inline]
     pub fn inner_eq(self, other: Length) -> bool {
         self.0 == other.0
     }
