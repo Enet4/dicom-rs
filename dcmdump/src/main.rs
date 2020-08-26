@@ -12,36 +12,61 @@ use dicom::core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom::core::header::Header;
 use dicom::core::value::{PrimitiveValue, Value as DicomValue};
 use dicom::core::VR;
+use dicom::encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom::object::mem::{InMemDicomObject, InMemElement};
 use dicom::object::{open_file, DefaultDicomObject, FileMetaTable, StandardDataDictionary};
-use dicom::encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom::transfer_syntax::TransferSyntaxRegistry;
 use snafu::ErrorCompat;
-
-use term_size;
-
 use std::borrow::Cow;
 use std::io::{stdout, ErrorKind, Result as IoResult, Write};
+use term_size;
 
+/// Exit code for missing CLI arguments or --help
+const ERROR_NO: i32 = -1;
 /// Exit code for when an error emerged while reading the DICOM file.
 const ERROR_READ: i32 = -2;
 /// Exit code for when an error emerged while dumping the file.
 const ERROR_PRINT: i32 = -3;
 
+fn report<E: 'static>(err: E)
+where
+    E: std::error::Error,
+    E: ErrorCompat,
+{
+    eprintln!("[ERROR] {}", err);
+    if let Some(source) = err.source() {
+        eprintln!();
+        eprintln!("Caused by:");
+        for (i, e) in std::iter::successors(Some(source), |e| e.source()).enumerate() {
+            eprintln!("   {}: {}", i, e);
+        }
+    }
+
+    let env_backtrace = std::env::var("RUST_BACKTRACE").unwrap_or_default();
+    let env_lib_backtrace = std::env::var("RUST_LIB_BACKTRACE").unwrap_or_default();
+    if env_lib_backtrace == "1" || (env_backtrace == "1" && env_lib_backtrace != "0") {
+        if let Some(backtrace) = ErrorCompat::backtrace(&err) {
+            eprintln!();
+            eprintln!("Backtrace:");
+            eprintln!("{}", backtrace);
+        }
+    }
+}
+
 fn main() {
     let filename = ::std::env::args()
         .nth(1)
-        .expect("Missing path to DICOM file");
+        .unwrap_or_else(|| "--help".to_string());
 
-    let obj = open_file(filename)
-        .unwrap_or_else(|e| {
-            if let Some(backtrace) = e.backtrace() {
-                eprintln!("[ERROR] {}\n{}", e, backtrace);
-            } else {
-                eprintln!("[ERROR] {}", e);
-            }
-            std::process::exit(ERROR_READ);
-        });
+    if filename == "--help" || filename == "-h" {
+        println!("Usage: dcmdump <FILE>");
+        std::process::exit(ERROR_NO);
+    }
+
+    let obj = open_file(filename).unwrap_or_else(|e| {
+        report(e);
+        std::process::exit(ERROR_READ);
+    });
 
     match dump_file(obj) {
         Err(ref e) if e.kind() == ErrorKind::BrokenPipe => {
@@ -50,8 +75,8 @@ fn main() {
         Err(e) => {
             eprintln!("[ERROR] {}", e);
             std::process::exit(ERROR_PRINT);
-        },
-        _ => {},             // all good
+        }
+        _ => {} // all good
     }
 }
 
@@ -95,7 +120,11 @@ where
     } else {
         writeln!(to, "Transfer Syntax: {} («UNKNOWN»)", meta.transfer_syntax)?;
     }
-    writeln!(to, "Implementation Class UID: {}", meta.implementation_class_uid)?;
+    writeln!(
+        to,
+        "Implementation Class UID: {}",
+        meta.implementation_class_uid
+    )?;
 
     if let Some(v) = meta.implementation_version_name.as_ref() {
         writeln!(to, "Implementation version name: {}", v)?;

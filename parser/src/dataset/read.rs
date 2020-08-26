@@ -31,22 +31,22 @@ where
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum Error {
-    #[snafu(display("Could not create decoder: {}", source))]
+    #[snafu(display("Could not create decoder"))]
     CreateDecoder {
         #[snafu(backtrace)]
         source: DecoderError,
     },
-    #[snafu(display("Could not read item header: {}", source))]
+    #[snafu(display("Could not read item header"))]
     ReadItemHeader {
         #[snafu(backtrace)]
         source: DecoderError,
     },
-    #[snafu(display("Could not read element header: {}", source))]
+    #[snafu(display("Could not read element header"))]
     ReadHeader {
         #[snafu(backtrace)]
         source: DecoderError,
     },
-    #[snafu(display("Could not read item value: {}", source))]
+    #[snafu(display("Could not read item value"))]
     ReadValue {
         #[snafu(backtrace)]
         source: DecoderError,

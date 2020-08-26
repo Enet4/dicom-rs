@@ -19,68 +19,68 @@ pub use dicom_core::value::serialize as primitive_value;
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum Error {
-    #[snafu(display("Failed to write Date value: {}", source))]
+    #[snafu(display("Failed to write Date value"))]
     WriteDate {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to write Time value: {}", source))]
+    #[snafu(display("Failed to write Time value"))]
     WriteTime {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to write DateTime value: {}", source))]
+    #[snafu(display("Failed to write DateTime value"))]
     WriteDateTime {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to write tag: {}", source))]
+    #[snafu(display("Failed to write tag"))]
     WriteTag {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to write tag group: {}", source))]
+    #[snafu(display("Failed to write tag group"))]
     WriteTagGroup {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to write tag element: {}", source))]
+    #[snafu(display("Failed to write tag element"))]
     WriteTagElement {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to write item header: {}", source))]
+    #[snafu(display("Failed to write item header"))]
     WriteItemHeader {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to write element header: {}", source))]
+    #[snafu(display("Failed to write element header"))]
     WriteHeader {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to write item delimiter: {}", source))]
+    #[snafu(display("Failed to write item delimiter"))]
     WriteItemDelimiter {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to write sequence delimiter: {}", source))]
+    #[snafu(display("Failed to write sequence delimiter"))]
     WriteSequenceDelimiter {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to write {} value: {}", typ, source))]
+    #[snafu(display("Failed to write {} value", typ))]
     WriteBinary {
         typ: &'static str,
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to write string value: {}", source))]
+    #[snafu(display("Failed to write string value"))]
     WriteString {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to write bytes: {}", source))]
+    #[snafu(display("Failed to write bytes"))]
     WriteBytes {
         backtrace: Backtrace,
         source: io::Error,

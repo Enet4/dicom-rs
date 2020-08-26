@@ -26,13 +26,13 @@ pub enum InvalidValueReadError {
     #[snafu(display("Invalid or ambiguous combination of date with time"))]
     DateTimeZone { backtrace: Backtrace },
     /// The value cannot be parsed to a floating point number.
-    #[snafu(display("Failed to read text as a floating point number: {}", source))]
+    #[snafu(display("Failed to read text as a floating point number"))]
     ParseFloat {
         backtrace: Backtrace,
         source: std::num::ParseFloatError,
     },
     /// The value cannot be parsed to an integer.
-    #[snafu(display("Failed to read text as an integer: {}", source))]
+    #[snafu(display("Failed to read text as an integer"))]
     ParseInteger {
         backtrace: Backtrace,
         source: std::num::ParseIntError,
@@ -43,17 +43,17 @@ pub enum InvalidValueReadError {
     /// The value cannot be converted to the target type requested.
     #[snafu(display("Cannot convert `{}` to the target type requested", value))]
     NarrowConvert { value: String, backtrace: Backtrace },
-    #[snafu(display("Failed to read text as a date: {}", source))]
+    #[snafu(display("Failed to read text as a date"))]
     ParseDate {
         #[snafu(backtrace)]
         source: crate::value::deserialize::Error,
     },
-    #[snafu(display("Failed to read text as a time: {}", source))]
+    #[snafu(display("Failed to read text as a time"))]
     ParseTime {
         #[snafu(backtrace)]
         source: crate::value::deserialize::Error,
     },
-    #[snafu(display("Failed to read text as a date-time: {}", source))]
+    #[snafu(display("Failed to read text as a date-time"))]
     ParseDateTime {
         #[snafu(backtrace)]
         source: crate::value::deserialize::Error,

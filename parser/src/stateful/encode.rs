@@ -26,13 +26,13 @@ pub enum Error {
         backtrace: Backtrace,
     },
 
-    #[snafu(display("Failed to encode a data piece at position {}: {}", position, source))]
+    #[snafu(display("Failed to encode a data piece at position {}", position))]
     EncodeData {
         position: u64,
         source: dicom_encoding::encode::Error,
     },
 
-    #[snafu(display("Could not encode text at position {}: {}", position, source))]
+    #[snafu(display("Could not encode text at position {}", position))]
     EncodeText {
         position: u64,
         source: dicom_encoding::text::EncodeTextError,

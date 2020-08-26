@@ -52,21 +52,21 @@ pub enum Error {
         backtrace: Backtrace,
     },
 
-    #[snafu(display("Could not decode element header at position {}: {}", position, source))]
+    #[snafu(display("Could not decode element header at position {}", position))]
     DecodeElementHeader {
         position: u64,
         #[snafu(backtrace)]
         source: dicom_encoding::decode::Error,
     },
 
-    #[snafu(display("Could not decode element header at position {}: {}", position, source))]
+    #[snafu(display("Could not decode element header at position {}", position))]
     DecodeItemHeader {
         position: u64,
         #[snafu(backtrace)]
         source: dicom_encoding::decode::Error,
     },
 
-    #[snafu(display("Could not decode text at position {}: {}", position, source))]
+    #[snafu(display("Could not decode text at position {}", position))]
     DecodeText {
         position: u64,
         #[snafu(backtrace)]
@@ -84,19 +84,19 @@ pub enum Error {
         backtrace: Backtrace,
     },
 
-    #[snafu(display("Failed value deserialization at position {}: {}", position, source))]
+    #[snafu(display("Failed value deserialization at position {}", position))]
     DeserializeValue {
         position: u64,
         source: dicom_core::value::deserialize::Error,
     },
 
-    #[snafu(display("Invalid integer value at position {}: {}", position, source))]
+    #[snafu(display("Invalid integer value at position {}", position))]
     ReadInt {
         position: u64,
         source: std::num::ParseIntError,
     },
 
-    #[snafu(display("Invalid float value at position {}: {}", position, source))]
+    #[snafu(display("Invalid float value at position {}", position))]
     ReadFloat {
         position: u64,
         source: std::num::ParseFloatError,

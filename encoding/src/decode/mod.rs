@@ -21,42 +21,42 @@ pub use dicom_core::value::deserialize as primitive_value;
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum Error {
-    #[snafu(display("Failed to read the beginning (tag) of the header: {}", source))]
+    #[snafu(display("Failed to read the beginning (tag) of the header"))]
     ReadHeaderTag {
         backtrace: Option<Backtrace>,
         source: io::Error,
     },
-    #[snafu(display("Failed to read the item header: {}", source))]
+    #[snafu(display("Failed to read the item header"))]
     ReadItemHeader {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to read the header's item length field: {}", source))]
+    #[snafu(display("Failed to read the header's item length field"))]
     ReadItemLength {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to read the header's tag field: {}", source))]
+    #[snafu(display("Failed to read the header's tag field"))]
     ReadTag {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to read the header's reserved bytes: {}", source))]
+    #[snafu(display("Failed to read the header's reserved bytes"))]
     ReadReserved {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to read the header's element length field: {}", source))]
+    #[snafu(display("Failed to read the header's element length field"))]
     ReadLength {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Failed to read the header's value representation: {}", source))]
+    #[snafu(display("Failed to read the header's value representation"))]
     ReadVr {
         backtrace: Backtrace,
         source: io::Error,
     },
-    #[snafu(display("Bad sequence item header: {}", source))]
+    #[snafu(display("Bad sequence item header"))]
     BadSequenceHeader {
         source: dicom_core::header::SequenceItemHeaderError,
     },

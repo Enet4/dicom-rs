@@ -20,26 +20,26 @@ pub enum Error {
     #[snafu(display("No PDU available"))]
     NoPduAvailable { backtrace: Backtrace },
 
-    #[snafu(display("Could not read PDU: {}", source))]
+    #[snafu(display("Could not read PDU"))]
     ReadPdu {
         source: std::io::Error,
         backtrace: Backtrace,
     },
 
-    #[snafu(display("Could not read PDU item: {}", source))]
+    #[snafu(display("Could not read PDU item"))]
     ReadPduItem {
         source: std::io::Error,
         backtrace: Backtrace,
     },
 
-    #[snafu(display("Could not read PDU field `{}`: {}", field, source))]
+    #[snafu(display("Could not read PDU field `{}`", field))]
     ReadPduField {
         field: &'static str,
         source: std::io::Error,
         backtrace: Backtrace,
     },
 
-    #[snafu(display("Could not read {} reserved bytes: {}", bytes, source))]
+    #[snafu(display("Could not read {} reserved bytes", bytes))]
     ReadReserved {
         bytes: u32,
         source: std::io::Error,
@@ -73,7 +73,7 @@ pub enum Error {
     InvalidTransferSyntaxSubItem { backtrace: Backtrace },
     #[snafu(display("unknown presentation context sub-item"))]
     UnknownPresentationContextSubItem { backtrace: Backtrace },
-    #[snafu(display("Could not decode text field `{}`: {}", field, source))]
+    #[snafu(display("Could not decode text field `{}`", field))]
     DecodeText {
         field: &'static str,
         #[snafu(backtrace)]

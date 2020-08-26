@@ -7,34 +7,34 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::thread::JoinHandle;
-use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
+use snafu::{Backtrace, ErrorCompat, OptionExt, ResultExt, Snafu};
 
 type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 enum Error {
-    #[snafu(display("Could not clone socket: {}", source))]
+    #[snafu(display("Could not clone socket"))]
     CloneSocket {
         backtrace: Backtrace,
         source: std::io::Error,
     },
-    #[snafu(display("Could not send message: {}", source))]
+    #[snafu(display("Could not send message"))]
     SendMessage {
         backtrace: Backtrace,
         source: std::sync::mpsc::SendError<ThreadMessage>,
     },
-    #[snafu(display("Could not receive message: {}", source))]
+    #[snafu(display("Could not receive message"))]
     ReceiveMessage {
         backtrace: Backtrace,
         source: std::sync::mpsc::RecvError,
     },
-    #[snafu(display("Could not close socket: {}", source))]
+    #[snafu(display("Could not close socket"))]
     CloseSocket {
         backtrace: Backtrace,
         source: std::io::Error,
     },
-    #[snafu(display("Could not connect to destination SCP: {}", source))]
+    #[snafu(display("Could not connect to destination SCP"))]
     Connect {
         backtrace: Backtrace,
         source: std::io::Error,
@@ -46,6 +46,31 @@ enum Error {
     #[snafu(display("SCU reader thread panicked"))]
     ScuReaderPanic {
         backtrace: Backtrace,
+    }
+}
+
+fn report<E: 'static>(err: E)
+where
+    E: std::error::Error,
+    E: ErrorCompat,
+{
+    eprintln!("[ERROR] {}", err);
+    if let Some(source) = err.source() {
+        eprintln!();
+        eprintln!("Caused by:");
+        for (i, e) in std::iter::successors(Some(source), |e| e.source()).enumerate() {
+            eprintln!("   {}: {}", i, e);
+        }
+    }
+
+    let env_backtrace = std::env::var("RUST_BACKTRACE").unwrap_or_default();
+    let env_lib_backtrace = std::env::var("RUST_LIB_BACKTRACE").unwrap_or_default();
+    if env_lib_backtrace == "1" || (env_backtrace == "1" && env_lib_backtrace != "0") {
+        if let Some(backtrace) = ErrorCompat::backtrace(&err) {
+            eprintln!();
+            eprintln!("Backtrace:");
+            eprintln!("{}", backtrace);
+        }
     }
 }
 
@@ -164,11 +189,13 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
                         }
                     },
                     ThreadMessage::ReadErr { from, err } => {
-                        eprintln!("error reading from {:?}: {}", from, err);
+                        eprintln!("error reading from {:?}:", from);
+                        report(err);
                         break;
                     }
                     ThreadMessage::WriteErr { from, err } => {
-                        eprintln!("error writing to {:?}: {}", from, err);
+                        eprintln!("error writing to {:?}", from);
+                        report(err);
                         break;
                     }
                     ThreadMessage::Shutdown { initiator } => {
@@ -238,11 +265,11 @@ fn main() {
         match stream {
             Ok(ref mut scu_stream) => {
                 if let Err(e) = run(scu_stream, &destination_addr) {
-                    eprintln!("error: {}", e);
+                    report(e);
                 }
             }
             Err(e) => {
-                eprintln!("error: {}", e);
+                eprintln!("[ERROR] {}", e);
             }
         }
     }

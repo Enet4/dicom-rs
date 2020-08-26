@@ -31,30 +31,30 @@ pub enum Error {
         token: DataToken,
         backtrace: Backtrace,
     },
-    #[snafu(display("Could not write element header: {}", source))]
+    #[snafu(display("Could not write element header"))]
     WriteHeader {
         #[snafu(backtrace)]
         source: crate::stateful::encode::Error,
     },
-    #[snafu(display("Could not write item header: {}", source))]
+    #[snafu(display("Could not write item header"))]
     WriteItemHeader {
         #[snafu(backtrace)]
         source: crate::stateful::encode::Error,
     },
 
-    #[snafu(display("Could not write sequence delimiter: {}", source))]
+    #[snafu(display("Could not write sequence delimiter"))]
     WriteSequenceDelimiter {
         #[snafu(backtrace)]
         source: crate::stateful::encode::Error,
     },
 
-    #[snafu(display("Could not write item delimiter: {}", source))]
+    #[snafu(display("Could not write item delimiter"))]
     WriteItemDelimiter {
         #[snafu(backtrace)]
         source: crate::stateful::encode::Error,
     },
 
-    #[snafu(display("Could not write element value: {}", source))]
+    #[snafu(display("Could not write element value"))]
     WriteValue {
         #[snafu(backtrace)]
         source: crate::stateful::encode::Error,

@@ -63,12 +63,12 @@ pub enum TagRangeParseError {
     UnsupportedTagRange {
         backtrace: Backtrace,
     },
-    #[snafu(display("invalid tag component `group`: {}", source))]
+    #[snafu(display("invalid tag component `group`"))]
     InvalidTagGroup {
         backtrace: Backtrace,
         source: std::num::ParseIntError,
     },
-    #[snafu(display("invalid tag component `element`: {}", source))]
+    #[snafu(display("invalid tag component `element`"))]
     InvalidTagElement {
         backtrace: Backtrace,
         source: std::num::ParseIntError,

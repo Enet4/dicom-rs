@@ -19,7 +19,7 @@ const DICM_MAGIC_CODE: [u8; 4] = [b'D', b'I', b'C', b'M'];
 pub enum Error {
     /// The file meta group parser could not read
     /// the magic code `DICM` from its source.
-    #[snafu(display("Could not start reading DICOM data: {}", source))]
+    #[snafu(display("Could not start reading DICOM data"))]
     ReadMagicCode {
         backtrace: Backtrace,
         source: std::io::Error,
@@ -27,7 +27,7 @@ pub enum Error {
 
     /// The file meta group parser could not fetch
     /// the value of a data element from its source.
-    #[snafu(display("Could not read data value: {}", source))]
+    #[snafu(display("Could not read data value"))]
     ReadValueData {
         backtrace: Backtrace,
         source: std::io::Error,
@@ -35,7 +35,7 @@ pub enum Error {
 
     /// The file meta group parser could not decode
     /// the text in one of its data elements.
-    #[snafu(display("Could not decode text in {}: {}", name, source))]
+    #[snafu(display("Could not decode text in {}", name))]
     DecodeText {
         name: &'static str,
         #[snafu(backtrace)]
@@ -48,7 +48,7 @@ pub enum Error {
 
     /// An issue occurred while decoding the next data element
     /// in the file meta data set.
-    #[snafu(display("Could not decode data element: {}", source))]
+    #[snafu(display("Could not decode data element"))]
     DecodeElement {
         #[snafu(backtrace)]
         source: dicom_encoding::decode::Error,
@@ -82,7 +82,7 @@ pub enum Error {
     UndefinedValueLength { tag: Tag, backtrace: Backtrace },
 
     /// The file meta group data set could not be written.
-    #[snafu(display("Could not write file meta group data set: {}", source))]
+    #[snafu(display("Could not write file meta group data set"))]
     WriteSet {
         #[snafu(backtrace)]
         source: dicom_parser::dataset::write::Error,

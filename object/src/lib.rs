@@ -95,17 +95,17 @@ pub enum Error {
         backtrace: Backtrace,
         source: std::io::Error,
     },
-    #[snafu(display("Could not parse meta group data set: {}", source))]
+    #[snafu(display("Could not parse meta group data set"))]
     ParseMetaDataSet {
         #[snafu(backtrace)]
         source: crate::meta::Error,
     },
-    #[snafu(display("Could not create data set parser: {}", source))]
+    #[snafu(display("Could not create data set parser"))]
     CreateParser {
         #[snafu(backtrace)]
         source: dicom_parser::dataset::read::Error,
     },
-    #[snafu(display("Could not read data set token: {}", source))]
+    #[snafu(display("Could not read data set token"))]
     ReadToken {
         #[snafu(backtrace)]
         source: dicom_parser::dataset::read::Error,
@@ -116,17 +116,17 @@ pub enum Error {
         backtrace: Backtrace,
         source: std::io::Error,
     },
-    #[snafu(display("Could not create data set printer: {}", source))]
+    #[snafu(display("Could not create data set printer"))]
     CreatePrinter {
         #[snafu(backtrace)]
         source: dicom_parser::dataset::write::Error,
     },
-    #[snafu(display("Could not print meta group data set: {}", source))]
+    #[snafu(display("Could not print meta group data set"))]
     PrintMetaDataSet {
         #[snafu(backtrace)]
         source: crate::meta::Error,
     },
-    #[snafu(display("Could not print data set: {}", source))]
+    #[snafu(display("Could not print data set"))]
     PrintDataSet {
         #[snafu(backtrace)]
         source: dicom_parser::dataset::write::Error,
