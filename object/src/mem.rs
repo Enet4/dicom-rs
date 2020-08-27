@@ -606,7 +606,7 @@ mod tests {
         ]);
 
         let obj = InMemDicomObject::build_object(
-            &mut tokens.into_iter().map(std::result::Result::Ok),
+            &mut tokens.into_iter().map(Result::Ok),
             StandardDataDictionary,
             false,
             Length::UNDEFINED,
@@ -721,7 +721,7 @@ mod tests {
         ];
 
         let obj = InMemDicomObject::build_object(
-            &mut tokens.into_iter().map(std::result::Result::Ok),
+            &mut tokens.into_iter().map(Result::Ok),
             StandardDataDictionary,
             false,
             Length::UNDEFINED,
@@ -828,7 +828,7 @@ mod tests {
         ];
 
         let obj = InMemDicomObject::build_object(
-            &mut tokens.into_iter().map(std::result::Result::Ok),
+            &mut tokens.into_iter().map(Result::Ok),
             StandardDataDictionary,
             false,
             Length::UNDEFINED,
