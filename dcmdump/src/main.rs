@@ -19,7 +19,6 @@ use dicom::transfer_syntax::TransferSyntaxRegistry;
 use snafu::ErrorCompat;
 use std::borrow::Cow;
 use std::io::{stdout, ErrorKind, Result as IoResult, Write};
-use term_size;
 
 /// Exit code for missing CLI arguments or --help
 const ERROR_NO: i32 = -1;

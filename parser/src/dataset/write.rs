@@ -170,7 +170,7 @@ where
                 Ok(())
             }
             DataToken::ElementHeader(de) => {
-                self.last_de = Some(de.clone());
+                self.last_de = Some(de);
                 self.write_impl(token)
             }
             token @ DataToken::PixelSequenceStart => {

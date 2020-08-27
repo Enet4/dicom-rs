@@ -16,6 +16,7 @@ use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntax;
 use snafu::{Backtrace, ResultExt, Snafu};
+use std::cmp::Ordering;
 use std::io::Read;
 use std::iter::Iterator;
 use std::marker::PhantomData;
@@ -372,27 +373,31 @@ where
             if let Some(len) = sd.len.get() {
                 let end_of_sequence = sd.base_offset + len as u64;
                 let bytes_read = self.parser.bytes_read();
-                if end_of_sequence == bytes_read {
-                    // end of delimiter, as indicated by the element's length
-                    let token;
-                    match sd.typ {
-                        SeqTokenType::Sequence => {
-                            self.in_sequence = false;
-                            token = DataToken::SequenceEnd;
+                match end_of_sequence.cmp(&bytes_read) {
+                    Ordering::Equal => {
+                        // end of delimiter, as indicated by the element's length
+                        let token;
+                        match sd.typ {
+                            SeqTokenType::Sequence => {
+                                self.in_sequence = false;
+                                token = DataToken::SequenceEnd;
+                            }
+                            SeqTokenType::Item => {
+                                self.in_sequence = true;
+                                token = DataToken::ItemEnd;
+                            }
                         }
-                        SeqTokenType::Item => {
-                            self.in_sequence = true;
-                            token = DataToken::ItemEnd;
+                        self.seq_delimiters.pop();
+                        return Ok(Some(token));
+                    }
+                    Ordering::Less => {
+                        return InconsistentSequenceEnd {
+                            end_of_sequence,
+                            bytes_read,
                         }
+                        .fail();
                     }
-                    self.seq_delimiters.pop();
-                    return Ok(Some(token));
-                } else if end_of_sequence < bytes_read {
-                    return InconsistentSequenceEnd {
-                        end_of_sequence,
-                        bytes_read,
-                    }
-                    .fail();
+                    Ordering::Greater => {} // continue normally
                 }
             }
         }

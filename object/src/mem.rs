@@ -323,7 +323,7 @@ where
         self.entries
             .get(&tag)
             .with_context(|| NoSuchDataElementAlias {
-                tag: tag,
+                tag,
                 alias: name.to_string(),
             })
     }
