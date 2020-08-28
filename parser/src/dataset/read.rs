@@ -11,7 +11,7 @@ use crate::stateful::decode::{
 use crate::util::ReadSeek;
 use dicom_core::dictionary::DataDictionary;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
-use dicom_core::{Tag, VR};
+use dicom_core::{PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntax;
@@ -83,12 +83,65 @@ struct SeqToken {
     base_offset: u64,
 }
 
+/// The value reading strategy for the data set reader.
+///
+/// It defines how the `PrimitiveValue`s in value tokens are constructed.
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+pub enum ValueReadStrategy {
+    /// Textual values will be decoded according to their value representation.
+    ///
+    /// Word-sized binary values are read according to
+    /// the expected byte order.
+    /// Dates, times, and date-times (DA, DT, TM) are parsed
+    /// into their more specific variants,
+    /// leading to parser failure if they are not valid DICOM.
+    /// String numbers (IS, FD) are also converted into binary representations.
+    /// For the case of floats, this may introduce precision errors.
+    Interpreted,
+    /// Values will be stored without decoding dates or textual numbers.
+    ///
+    /// Word-sized binary values are read according to
+    /// the expected byte order.
+    /// Date-time values and numbers are kept in their original string
+    /// representation as string objects.
+    /// All text is still decoded into Rust string values,
+    /// in accordance to the standard,
+    /// unless its value representation is unknown to the decoder.
+    Preserved,
+    /// All primitive values are fetched as raw byte buffers,
+    /// without any form of decoding or interpretation.
+    /// Not even byte order conversions are made.
+    ///
+    /// This strategy is not recommended,
+    /// as it makes the retrieval of important textual data more difficult.
+    Raw,
+}
+
+/// The set of options for the data set reader.
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub struct DataSetReaderOptions {
+    pub value_read: ValueReadStrategy,
+}
+
+impl Default for DataSetReaderOptions {
+    fn default() -> Self {
+        DataSetReaderOptions {
+            value_read: ValueReadStrategy::Preserved,
+        }
+    }
+}
+
 /// A higher-level reader for retrieving structure in a DICOM data set from an
 /// arbitrary data source.
 #[derive(Debug)]
 pub struct DataSetReader<S, D> {
+    /// the stateful decoder
     parser: S,
+    /// the data attribute dictionary
     dict: D,
+    /// the options of this reader
+    options: DataSetReaderOptions,
     /// whether the reader is expecting an item next (or a sequence delimiter)
     in_sequence: bool,
     /// whether a check for a sequence or item delimitation is pending
@@ -106,6 +159,7 @@ pub struct DataSetReader<S, D> {
 impl<'s> DataSetReader<DynStatefulDecoder<'s>, StandardDataDictionary> {
     /// Creates a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
+    #[deprecated]
     pub fn new_with<S: 's>(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
     where
         S: Read,
@@ -117,6 +171,7 @@ impl<'s> DataSetReader<DynStatefulDecoder<'s>, StandardDataDictionary> {
         Ok(DataSetReader {
             parser,
             dict: StandardDataDictionary,
+            options: Default::default(),
             seq_delimiters: Vec::new(),
             delimiter_check_pending: false,
             in_sequence: false,
@@ -135,6 +190,7 @@ impl<'s, D> DataSetReader<DynStatefulDecoder<'s>, D> {
         dict: D,
         ts: &TransferSyntax,
         cs: SpecificCharacterSet,
+        options: DataSetReaderOptions,
     ) -> Result<Self>
     where
         S: Read,
@@ -146,6 +202,7 @@ impl<'s, D> DataSetReader<DynStatefulDecoder<'s>, D> {
         Ok(DataSetReader {
             parser,
             dict,
+            options,
             seq_delimiters: Vec::new(),
             delimiter_check_pending: false,
             in_sequence: false,
@@ -157,11 +214,12 @@ impl<'s, D> DataSetReader<DynStatefulDecoder<'s>, D> {
 }
 
 impl<S> DataSetReader<S, StandardDataDictionary> {
-    /// Create a new iterator with the given parser.
-    pub fn new(decoder: S) -> Self {
+    /// Create a new iterator with the given parser and options.
+    pub fn new(decoder: S, options: DataSetReaderOptions) -> Self {
         DataSetReader {
             parser: decoder,
             dict: StandardDataDictionary,
+            options,
             seq_delimiters: Vec::new(),
             delimiter_check_pending: false,
             in_sequence: false,
@@ -292,12 +350,12 @@ where
                 }
             } else {
                 // a plain element header was read, so a value is expected
-                let value = match self.parser.read_value(&header) {
+                let value = match self.read_value(&header) {
                     Ok(v) => v,
                     Err(e) => {
                         self.hard_break = true;
                         self.last_header = None;
-                        return Some(Err(e).context(ReadValue));
+                        return Some(Err(e));
                     }
                 };
 
@@ -428,6 +486,14 @@ where
             len,
             base_offset: self.parser.bytes_read(),
         })
+    }
+
+    fn read_value(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
+        match self.options.value_read {
+            ValueReadStrategy::Interpreted => self.parser.read_value(header),
+            ValueReadStrategy::Preserved => self.parser.read_value_preserved(header),
+            ValueReadStrategy::Raw => self.parser.read_value_bytes(header),
+        }.context(ReadValue)
     }
 }
 
@@ -601,7 +667,7 @@ mod tests {
         I: IntoIterator<Item = DataToken>,
         D: StatefulDecode,
     {
-        let mut dset_reader = DataSetReader::new(parser);
+        let mut dset_reader = DataSetReader::new(parser, Default::default());
 
         let mut iter = Iterator::zip(&mut dset_reader, ground_truth);
 
