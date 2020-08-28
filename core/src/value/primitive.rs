@@ -3,15 +3,135 @@
 //! See [`PrimitiveValue`](./enum.PrimitiveValue.html).
 
 use super::DicomValueType;
-use crate::error::{CastValueError, ConvertValueError, InvalidValueReadError};
 use crate::header::{HasLength, Length, Tag};
 use chrono::{Datelike, FixedOffset, Timelike};
 use itertools::Itertools;
 use num_traits::NumCast;
 use safe_transmute::to_bytes::transmute_to_bytes;
 use smallvec::SmallVec;
+use snafu::{Backtrace, ResultExt, Snafu};
 use std::borrow::Cow;
+use std::fmt;
 use std::str::FromStr;
+
+/** Triggered when a value reading attempt fails.
+ */
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum InvalidValueReadError {
+    /// Attempted to retrieve a complex value as primitive.
+    #[snafu(display("Sequence cannot be read as a primitive value"))]
+    NonPrimitiveType { backtrace: Backtrace },
+    /// Invalid or ambiguous combination of date with time.
+    #[snafu(display("Invalid or ambiguous combination of date with time"))]
+    DateTimeZone { backtrace: Backtrace },
+    /// The value cannot be parsed to a floating point number.
+    #[snafu(display("Failed to read text as a floating point number"))]
+    ParseFloat {
+        backtrace: Backtrace,
+        source: std::num::ParseFloatError,
+    },
+    /// The value cannot be parsed to an integer.
+    #[snafu(display("Failed to read text as an integer"))]
+    ParseInteger {
+        backtrace: Backtrace,
+        source: std::num::ParseIntError,
+    },
+    /// An attempt of reading more than the number of bytes in the length attribute was made.
+    #[snafu(display("Unexpected end of element"))]
+    UnexpectedEndOfElement {},
+    /// The value cannot be converted to the target type requested.
+    #[snafu(display("Cannot convert `{}` to the target type requested", value))]
+    NarrowConvert { value: String, backtrace: Backtrace },
+    #[snafu(display("Failed to read text as a date"))]
+    ParseDate {
+        #[snafu(backtrace)]
+        source: crate::value::deserialize::Error,
+    },
+    #[snafu(display("Failed to read text as a time"))]
+    ParseTime {
+        #[snafu(backtrace)]
+        source: crate::value::deserialize::Error,
+    },
+    #[snafu(display("Failed to read text as a date-time"))]
+    ParseDateTime {
+        #[snafu(backtrace)]
+        source: crate::value::deserialize::Error,
+    },
+}
+
+/// An error type for an attempt of accessing a value
+/// in one internal representation as another.
+///
+/// This error is raised whenever it is not possible to retrieve the requested
+/// value, either because the inner representation is not compatible with the
+/// requested value type, or a conversion would be required. In other words,
+/// if a reference to the inner value cannot be obtained with
+/// the requested target type (for example, retrieving a date from a string),
+/// an error of this type is returned.
+///
+/// If such a conversion is acceptable, please use conversion methods instead:
+/// `to_date` instead of `date`, `to_str` instead of `string`, and so on.
+/// The error type would then be [`ConvertValueError`].
+///
+/// [`ConvertValueError`]: ./struct.ConvertValueError.html
+#[derive(Debug, Clone, PartialEq)]
+pub struct CastValueError {
+    /// The value format requested
+    pub requested: &'static str,
+    /// The value's actual representation
+    pub got: ValueType,
+}
+
+impl fmt::Display for CastValueError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "bad value cast: requested {} but value is {:?}",
+            self.requested, self.got
+        )
+    }
+}
+
+impl std::error::Error for CastValueError {}
+
+/// An error type for a failed attempt at converting a value
+/// into another representation.
+#[derive(Debug)]
+pub struct ConvertValueError {
+    /// The value format requested
+    pub requested: &'static str,
+    /// The value's original representation
+    pub original: ValueType,
+    /// The reason why the conversion was unsuccessful,
+    /// or none if a conversion from the given original representation
+    /// is not possible
+    pub cause: Option<InvalidValueReadError>,
+}
+
+impl fmt::Display for ConvertValueError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "could not convert {:?} to a {}: ",
+            self.original, self.requested
+        )?;
+        if let Some(cause) = &self.cause {
+            write!(f, "{}", cause)?;
+        } else {
+            write!(f, "conversion not possible")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for ConvertValueError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.cause.as_ref().map(|x| x as _)
+    }
+}
+
+pub type Result<T, E = InvalidValueReadError> = std::result::Result<T, E>;
 
 // Re-exported from chrono
 pub use chrono::{DateTime, NaiveDate, NaiveTime};
@@ -524,13 +644,13 @@ impl PrimitiveValue {
     ///     PrimitiveValue::I32(smallvec![
     ///         1, 2, 5,
     ///     ])
-    ///     .to_int::<u32>(),
-    ///     Ok(1_u32),
+    ///     .to_int::<u32>().ok(),
+    ///     Some(1_u32),
     /// );
     ///
     /// assert_eq!(
-    ///     PrimitiveValue::from("505 ").to_int::<i32>(),
-    ///     Ok(505),
+    ///     PrimitiveValue::from("505 ").to_int::<i32>().ok(),
+    ///     Some(505),
     /// );
     /// ```
     pub fn to_int<T>(&self) -> Result<T, ConvertValueError>
@@ -539,65 +659,107 @@ impl PrimitiveValue {
         T: FromStr<Err = std::num::ParseIntError>,
     {
         match self {
-            PrimitiveValue::Str(s) => s.trim_end().parse().map_err(|err| ConvertValueError {
-                requested: "integer",
-                original: self.value_type(),
-                cause: Some(InvalidValueReadError::ParseInteger(err)),
-            }),
-            PrimitiveValue::Strs(s) if !s.is_empty() => {
-                s[0].trim_end().parse().map_err(|err| ConvertValueError {
+            PrimitiveValue::Str(s) => {
+                s.trim_end()
+                    .parse()
+                    .context(ParseInteger)
+                    .map_err(|err| ConvertValueError {
+                        requested: "integer",
+                        original: self.value_type(),
+                        cause: Some(err),
+                    })
+            }
+            PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
+                .trim_end()
+                .parse()
+                .context(ParseInteger)
+                .map_err(|err| ConvertValueError {
                     requested: "integer",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::ParseInteger(err)),
-                })
-            }
+                    cause: Some(err),
+                }),
             PrimitiveValue::U8(bytes) if !bytes.is_empty() => {
                 T::from(bytes[0]).ok_or_else(|| ConvertValueError {
                     requested: "integer",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(bytes[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: bytes[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::U16(s) if !s.is_empty() => {
                 T::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "integer",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::I16(s) if !s.is_empty() => {
                 T::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "integer",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::U32(s) if !s.is_empty() => {
                 T::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "integer",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::I32(s) if !s.is_empty() => {
                 T::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "integer",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::U64(s) if !s.is_empty() => {
                 T::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "integer",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::I64(s) if !s.is_empty() => {
                 T::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "integer",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             _ => Err(ConvertValueError {
@@ -644,13 +806,13 @@ impl PrimitiveValue {
     ///     PrimitiveValue::I32(smallvec![
     ///         1, 2, 5,
     ///     ])
-    ///     .to_multi_int::<u32>(),
-    ///     Ok(vec![1_u32, 2, 5]),
+    ///     .to_multi_int::<u32>().ok(),
+    ///     Some(vec![1_u32, 2, 5]),
     /// );
     ///
     /// assert_eq!(
-    ///     dicom_value!(Strs, ["5050", "23 "]).to_multi_int::<i32>(),
-    ///     Ok(vec![5050, 23]),
+    ///     dicom_value!(Strs, ["5050", "23 "]).to_multi_int::<i32>().ok(),
+    ///     Some(vec![5050, 23]),
     /// );
     /// ```
     pub fn to_multi_int<T>(&self) -> Result<Vec<T>, ConvertValueError>
@@ -661,30 +823,40 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Empty => Ok(Vec::new()),
             PrimitiveValue::Str(s) => {
-                let out = s.trim_end().parse().map_err(|err| ConvertValueError {
-                    requested: "integer",
-                    original: self.value_type(),
-                    cause: Some(InvalidValueReadError::ParseInteger(err)),
+                let out = s.trim_end().parse().context(ParseInteger).map_err(|err| {
+                    ConvertValueError {
+                        requested: "integer",
+                        original: self.value_type(),
+                        cause: Some(err),
+                    }
                 })?;
                 Ok(vec![out])
             }
-            PrimitiveValue::Strs(s) => s
-                .iter()
-                .map(|v| {
-                    v.trim_end().parse().map_err(|err| ConvertValueError {
-                        requested: "integer",
-                        original: self.value_type(),
-                        cause: Some(InvalidValueReadError::ParseInteger(err)),
+            PrimitiveValue::Strs(s) => {
+                s.iter()
+                    .map(|v| {
+                        v.trim_end().parse().context(ParseInteger).map_err(|err| {
+                            ConvertValueError {
+                                requested: "integer",
+                                original: self.value_type(),
+                                cause: Some(err),
+                            }
+                        })
                     })
-                })
-                .collect::<Result<Vec<_>, _>>(),
+                    .collect::<Result<Vec<_>, _>>()
+            }
             PrimitiveValue::U8(bytes) => bytes
                 .iter()
                 .map(|v| {
                     T::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "integer",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -694,7 +866,12 @@ impl PrimitiveValue {
                     T::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "integer",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -704,7 +881,12 @@ impl PrimitiveValue {
                     T::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "integer",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -714,7 +896,12 @@ impl PrimitiveValue {
                     T::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "integer",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -724,7 +911,12 @@ impl PrimitiveValue {
                     T::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "integer",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -734,7 +926,12 @@ impl PrimitiveValue {
                     T::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "integer",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -744,7 +941,12 @@ impl PrimitiveValue {
                     T::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "integer",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -781,76 +983,118 @@ impl PrimitiveValue {
     ///     PrimitiveValue::F32(smallvec![
     ///         1.5, 2., 5.,
     ///     ])
-    ///     .to_float32(),
-    ///     Ok(1.5_f32),
+    ///     .to_float32().ok(),
+    ///     Some(1.5_f32),
     /// );
     ///
     /// assert_eq!(
-    ///     PrimitiveValue::from("-6.75 ").to_float32(),
-    ///     Ok(-6.75),
+    ///     PrimitiveValue::from("-6.75 ").to_float32().ok(),
+    ///     Some(-6.75),
     /// );
     /// ```
     pub fn to_float32(&self) -> Result<f32, ConvertValueError> {
         match self {
-            PrimitiveValue::Str(s) => s.trim_end().parse().map_err(|err| ConvertValueError {
-                requested: "float32",
-                original: self.value_type(),
-                cause: Some(InvalidValueReadError::ParseFloat(err)),
-            }),
-            PrimitiveValue::Strs(s) if !s.is_empty() => {
-                s[0].trim_end().parse().map_err(|err| ConvertValueError {
+            PrimitiveValue::Str(s) => {
+                s.trim_end()
+                    .parse()
+                    .context(ParseFloat)
+                    .map_err(|err| ConvertValueError {
+                        requested: "float32",
+                        original: self.value_type(),
+                        cause: Some(err),
+                    })
+            }
+            PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
+                .trim_end()
+                .parse()
+                .context(ParseFloat)
+                .map_err(|err| ConvertValueError {
                     requested: "float32",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::ParseFloat(err)),
-                })
-            }
+                    cause: Some(err),
+                }),
             PrimitiveValue::U8(bytes) if !bytes.is_empty() => {
                 NumCast::from(bytes[0]).ok_or_else(|| ConvertValueError {
                     requested: "float32",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(bytes[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: bytes[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::U16(s) if !s.is_empty() => {
                 NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "float32",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::I16(s) if !s.is_empty() => {
                 NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "float32",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::U32(s) if !s.is_empty() => {
                 NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "float32",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::I32(s) if !s.is_empty() => {
                 NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "float32",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::U64(s) if !s.is_empty() => {
                 NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "float32",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::I64(s) if !s.is_empty() => {
                 NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "float32",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::F32(s) if !s.is_empty() => Ok(s[0]),
@@ -858,7 +1102,12 @@ impl PrimitiveValue {
                 NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "float32",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             _ => Err(ConvertValueError {
@@ -895,34 +1144,41 @@ impl PrimitiveValue {
     ///     PrimitiveValue::F32(smallvec![
     ///         1.5, 2., 5.,
     ///     ])
-    ///     .to_multi_float32(),
-    ///     Ok(vec![1.5_f32, 2., 5.]),
+    ///     .to_multi_float32().ok(),
+    ///     Some(vec![1.5_f32, 2., 5.]),
     /// );
     ///
     /// assert_eq!(
-    ///     PrimitiveValue::from("-6.75 ").to_multi_float32(),
-    ///     Ok(vec![-6.75]),
+    ///     PrimitiveValue::from("-6.75 ").to_multi_float32().ok(),
+    ///     Some(vec![-6.75]),
     /// );
     /// ```
     pub fn to_multi_float32(&self) -> Result<Vec<f32>, ConvertValueError> {
         match self {
             PrimitiveValue::Empty => Ok(Vec::new()),
             PrimitiveValue::Str(s) => {
-                let out = s.trim_end().parse().map_err(|err| ConvertValueError {
-                    requested: "float32",
-                    original: self.value_type(),
-                    cause: Some(InvalidValueReadError::ParseFloat(err)),
-                })?;
+                let out =
+                    s.trim_end()
+                        .parse()
+                        .context(ParseFloat)
+                        .map_err(|err| ConvertValueError {
+                            requested: "float32",
+                            original: self.value_type(),
+                            cause: Some(err),
+                        })?;
                 Ok(vec![out])
             }
             PrimitiveValue::Strs(s) => s
                 .iter()
                 .map(|v| {
-                    v.trim_end().parse().map_err(|err| ConvertValueError {
-                        requested: "float32",
-                        original: self.value_type(),
-                        cause: Some(InvalidValueReadError::ParseFloat(err)),
-                    })
+                    v.trim_end()
+                        .parse()
+                        .context(ParseFloat)
+                        .map_err(|err| ConvertValueError {
+                            requested: "float32",
+                            original: self.value_type(),
+                            cause: Some(err),
+                        })
                 })
                 .collect::<Result<Vec<_>, _>>(),
             PrimitiveValue::U8(bytes) => bytes
@@ -931,7 +1187,12 @@ impl PrimitiveValue {
                     NumCast::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "float32",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -941,7 +1202,12 @@ impl PrimitiveValue {
                     NumCast::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "float32",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -951,7 +1217,12 @@ impl PrimitiveValue {
                     NumCast::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "float32",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -961,7 +1232,12 @@ impl PrimitiveValue {
                     NumCast::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "float32",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -971,7 +1247,12 @@ impl PrimitiveValue {
                     NumCast::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "float32",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -981,7 +1262,12 @@ impl PrimitiveValue {
                     NumCast::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "float32",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -991,7 +1277,12 @@ impl PrimitiveValue {
                     NumCast::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "float32",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -1002,7 +1293,12 @@ impl PrimitiveValue {
                     NumCast::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "float32",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -1037,83 +1333,130 @@ impl PrimitiveValue {
     ///     PrimitiveValue::F64(smallvec![
     ///         1.5, 2., 5.,
     ///     ])
-    ///     .to_float64(),
-    ///     Ok(1.5_f64),
+    ///     .to_float64().ok(),
+    ///     Some(1.5_f64),
     /// );
     ///
     /// assert_eq!(
-    ///     PrimitiveValue::from("-6.75 ").to_float64(),
-    ///     Ok(-6.75),
+    ///     PrimitiveValue::from("-6.75 ").to_float64().ok(),
+    ///     Some(-6.75),
     /// );
     /// ```
     pub fn to_float64(&self) -> Result<f64, ConvertValueError> {
         match self {
-            PrimitiveValue::Str(s) => s.trim_end().parse().map_err(|err| ConvertValueError {
-                requested: "float64",
-                original: self.value_type(),
-                cause: Some(InvalidValueReadError::ParseFloat(err)),
-            }),
-            PrimitiveValue::Strs(s) if !s.is_empty() => {
-                s[0].trim_end().parse().map_err(|err| ConvertValueError {
+            PrimitiveValue::Str(s) => {
+                s.trim_end()
+                    .parse()
+                    .context(ParseFloat)
+                    .map_err(|err| ConvertValueError {
+                        requested: "float64",
+                        original: self.value_type(),
+                        cause: Some(err),
+                    })
+            }
+            PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
+                .trim_end()
+                .parse()
+                .context(ParseFloat)
+                .map_err(|err| ConvertValueError {
                     requested: "float64",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::ParseFloat(err)),
-                })
-            }
+                    cause: Some(err),
+                }),
             PrimitiveValue::U8(bytes) if !bytes.is_empty() => {
                 NumCast::from(bytes[0]).ok_or_else(|| ConvertValueError {
                     requested: "float64",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(bytes[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: bytes[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::U16(s) if !s.is_empty() => {
                 NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "float64",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::I16(s) if !s.is_empty() => {
                 NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "float64",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::U32(s) if !s.is_empty() => {
                 NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "float64",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::I32(s) if !s.is_empty() => {
                 NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "float64",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::U64(s) if !s.is_empty() => {
                 NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "float64",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::I64(s) if !s.is_empty() => {
                 NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "float64",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::F32(s) if !s.is_empty() => {
                 NumCast::from(s[0]).ok_or_else(|| ConvertValueError {
                     requested: "float64",
                     original: self.value_type(),
-                    cause: Some(InvalidValueReadError::NarrowConvert(s[0].to_string())),
+                    cause: Some(
+                        NarrowConvert {
+                            value: s[0].to_string(),
+                        }
+                        .build(),
+                    ),
                 })
             }
             PrimitiveValue::F64(s) if !s.is_empty() => Ok(s[0]),
@@ -1151,33 +1494,40 @@ impl PrimitiveValue {
     ///     PrimitiveValue::F64(smallvec![
     ///         1.5, 2., 5.,
     ///     ])
-    ///     .to_multi_float64(),
-    ///     Ok(vec![1.5_f64, 2., 5.]),
+    ///     .to_multi_float64().ok(),
+    ///     Some(vec![1.5_f64, 2., 5.]),
     /// );
     ///
     /// assert_eq!(
-    ///     PrimitiveValue::from("-6.75 ").to_multi_float64(),
-    ///     Ok(vec![-6.75]),
+    ///     PrimitiveValue::from("-6.75 ").to_multi_float64().ok(),
+    ///     Some(vec![-6.75]),
     /// );
     /// ```
     pub fn to_multi_float64(&self) -> Result<Vec<f64>, ConvertValueError> {
         match self {
             PrimitiveValue::Str(s) => {
-                let out = s.trim_end().parse().map_err(|err| ConvertValueError {
-                    requested: "float64",
-                    original: self.value_type(),
-                    cause: Some(InvalidValueReadError::ParseFloat(err)),
-                })?;
+                let out =
+                    s.trim_end()
+                        .parse()
+                        .context(ParseFloat)
+                        .map_err(|err| ConvertValueError {
+                            requested: "float64",
+                            original: self.value_type(),
+                            cause: Some(err),
+                        })?;
                 Ok(vec![out])
             }
             PrimitiveValue::Strs(s) => s
                 .iter()
                 .map(|v| {
-                    v.trim_end().parse().map_err(|err| ConvertValueError {
-                        requested: "float64",
-                        original: self.value_type(),
-                        cause: Some(InvalidValueReadError::ParseFloat(err)),
-                    })
+                    v.trim_end()
+                        .parse()
+                        .context(ParseFloat)
+                        .map_err(|err| ConvertValueError {
+                            requested: "float64",
+                            original: self.value_type(),
+                            cause: Some(err),
+                        })
                 })
                 .collect::<Result<Vec<_>, _>>(),
             PrimitiveValue::U8(bytes) => bytes
@@ -1186,7 +1536,12 @@ impl PrimitiveValue {
                     NumCast::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "float64",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -1196,7 +1551,12 @@ impl PrimitiveValue {
                     NumCast::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "float64",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -1206,7 +1566,12 @@ impl PrimitiveValue {
                     NumCast::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "float64",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -1216,7 +1581,12 @@ impl PrimitiveValue {
                     NumCast::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "float64",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -1226,7 +1596,12 @@ impl PrimitiveValue {
                     NumCast::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "float64",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -1236,7 +1611,12 @@ impl PrimitiveValue {
                     NumCast::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "float64",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -1246,7 +1626,12 @@ impl PrimitiveValue {
                     NumCast::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "float64",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -1256,7 +1641,12 @@ impl PrimitiveValue {
                     NumCast::from(*v).ok_or_else(|| ConvertValueError {
                         requested: "float64",
                         original: self.value_type(),
-                        cause: Some(InvalidValueReadError::NarrowConvert(v.to_string())),
+                        cause: Some(
+                            NarrowConvert {
+                                value: v.to_string(),
+                            }
+                            .build(),
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -1290,16 +1680,16 @@ impl PrimitiveValue {
     ///     PrimitiveValue::Date(smallvec![
     ///         NaiveDate::from_ymd(2014, 10, 12),
     ///     ])
-    ///     .to_date(),
-    ///     Ok(NaiveDate::from_ymd(2014, 10, 12)),
+    ///     .to_date().ok(),
+    ///     Some(NaiveDate::from_ymd(2014, 10, 12)),
     /// );
     ///
     /// assert_eq!(
     ///     PrimitiveValue::Strs(smallvec![
     ///         "20141012".to_string(),
     ///     ])
-    ///     .to_date(),
-    ///     Ok(NaiveDate::from_ymd(2014, 10, 12)),
+    ///     .to_date().ok(),
+    ///     Some(NaiveDate::from_ymd(2014, 10, 12)),
     /// );
     /// ```
     pub fn to_date(&self) -> Result<NaiveDate, ConvertValueError> {
@@ -1307,6 +1697,7 @@ impl PrimitiveValue {
             PrimitiveValue::Date(v) if !v.is_empty() => Ok(v[0]),
             PrimitiveValue::Str(s) => super::deserialize::parse_date(s.as_bytes())
                 .map(|(date, _rest)| date)
+                .context(ParseDate)
                 .map_err(|err| ConvertValueError {
                     requested: "Date",
                     original: self.value_type(),
@@ -1315,6 +1706,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => {
                 super::deserialize::parse_date(s.first().map(|s| s.as_bytes()).unwrap_or(&[]))
                     .map(|(date, _rest)| date)
+                    .context(ParseDate)
                     .map_err(|err| ConvertValueError {
                         requested: "Date",
                         original: self.value_type(),
@@ -1323,6 +1715,7 @@ impl PrimitiveValue {
             }
             PrimitiveValue::U8(bytes) => super::deserialize::parse_date(bytes)
                 .map(|(date, _rest)| date)
+                .context(ParseDate)
                 .map_err(|err| ConvertValueError {
                     requested: "Date",
                     original: self.value_type(),
@@ -1354,13 +1747,13 @@ impl PrimitiveValue {
     /// # use chrono::NaiveTime;
     ///
     /// assert_eq!(
-    ///     PrimitiveValue::from(NaiveTime::from_hms(11, 2, 45)).to_time(),
-    ///     Ok(NaiveTime::from_hms(11, 2, 45)),
+    ///     PrimitiveValue::from(NaiveTime::from_hms(11, 2, 45)).to_time().ok(),
+    ///     Some(NaiveTime::from_hms(11, 2, 45)),
     /// );
     ///
     /// assert_eq!(
-    ///     PrimitiveValue::from("110245.78").to_time(),
-    ///     Ok(NaiveTime::from_hms_milli(11, 2, 45, 780)),
+    ///     PrimitiveValue::from("110245.78").to_time().ok(),
+    ///     Some(NaiveTime::from_hms_milli(11, 2, 45, 780)),
     /// );
     /// ```
     pub fn to_time(&self) -> Result<NaiveTime, ConvertValueError> {
@@ -1368,6 +1761,7 @@ impl PrimitiveValue {
             PrimitiveValue::Time(v) if !v.is_empty() => Ok(v[0]),
             PrimitiveValue::Str(s) => super::deserialize::parse_time(s.as_bytes())
                 .map(|(date, _rest)| date)
+                .context(ParseTime)
                 .map_err(|err| ConvertValueError {
                     requested: "Time",
                     original: self.value_type(),
@@ -1376,6 +1770,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => {
                 super::deserialize::parse_time(s.first().map(|s| s.as_bytes()).unwrap_or(&[]))
                     .map(|(date, _rest)| date)
+                    .context(ParseTime)
                     .map_err(|err| ConvertValueError {
                         requested: "Time",
                         original: self.value_type(),
@@ -1384,6 +1779,7 @@ impl PrimitiveValue {
             }
             PrimitiveValue::U8(bytes) => super::deserialize::parse_time(bytes)
                 .map(|(date, _rest)| date)
+                .context(ParseTime)
                 .map_err(|err| ConvertValueError {
                     requested: "Time",
                     original: self.value_type(),
@@ -1427,16 +1823,17 @@ impl PrimitiveValue {
     ///         FixedOffset::east(0)
     ///             .ymd(2012, 12, 21)
     ///             .and_hms(9, 30, 1)
-    ///     ).to_datetime(default_offset),
-    ///     Ok(FixedOffset::east(0)
+    ///     ).to_datetime(default_offset).ok(),
+    ///     Some(FixedOffset::east(0)
     ///         .ymd(2012, 12, 21)
     ///         .and_hms(9, 30, 1)
     ///     ),
     /// );
     ///
     /// assert_eq!(
-    ///     PrimitiveValue::from("20121221093001").to_datetime(default_offset),
-    ///     Ok(FixedOffset::east(0)
+    ///     PrimitiveValue::from("20121221093001")
+    ///         .to_datetime(default_offset).ok(),
+    ///     Some(FixedOffset::east(0)
     ///         .ymd(2012, 12, 21)
     ///         .and_hms(9, 30, 1)
     ///     ),
@@ -1449,24 +1846,26 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::DateTime(v) if !v.is_empty() => Ok(v[0]),
             PrimitiveValue::Str(s) => {
-                super::deserialize::parse_datetime(s.as_bytes(), default_offset).map_err(|err| {
-                    ConvertValueError {
+                super::deserialize::parse_datetime(s.as_bytes(), default_offset)
+                    .context(ParseDateTime)
+                    .map_err(|err| ConvertValueError {
                         requested: "DateTime",
                         original: self.value_type(),
                         cause: Some(err),
-                    }
-                })
+                    })
             }
             PrimitiveValue::Strs(s) => super::deserialize::parse_datetime(
                 s.first().map(|s| s.as_bytes()).unwrap_or(&[]),
                 default_offset,
             )
+            .context(ParseDateTime)
             .map_err(|err| ConvertValueError {
                 requested: "DateTime",
                 original: self.value_type(),
                 cause: Some(err),
             }),
             PrimitiveValue::U8(bytes) => super::deserialize::parse_datetime(bytes, default_offset)
+                .context(ParseDateTime)
                 .map_err(|err| ConvertValueError {
                     requested: "DateTime",
                     original: self.value_type(),
@@ -1766,8 +2165,8 @@ impl DicomValueType for PrimitiveValue {
 
 #[cfg(test)]
 mod tests {
+    use super::{ConvertValueError, InvalidValueReadError};
     use crate::dicom_value;
-    use crate::error::{ConvertValueError, InvalidValueReadError};
     use crate::value::{PrimitiveValue, ValueType};
     use chrono::{NaiveDate, NaiveTime};
     use smallvec::smallvec;
@@ -1848,17 +2247,29 @@ mod tests {
         assert!(PrimitiveValue::Empty.to_int::<i32>().is_err());
 
         // exact match
-        assert_eq!(PrimitiveValue::from(0x0601_u16).to_int(), Ok(0x0601_u16),);
+        assert_eq!(
+            PrimitiveValue::from(0x0601_u16).to_int().ok(),
+            Some(0x0601_u16),
+        );
         // conversions are automatically applied
-        assert_eq!(PrimitiveValue::from(0x0601_u16).to_int(), Ok(0x0601_u32),);
-        assert_eq!(PrimitiveValue::from(0x0601_u16).to_int(), Ok(0x0601_i64),);
-        assert_eq!(PrimitiveValue::from(0x0601_u16).to_int(), Ok(0x0601_u64),);
+        assert_eq!(
+            PrimitiveValue::from(0x0601_u16).to_int().ok(),
+            Some(0x0601_u32),
+        );
+        assert_eq!(
+            PrimitiveValue::from(0x0601_u16).to_int().ok(),
+            Some(0x0601_i64),
+        );
+        assert_eq!(
+            PrimitiveValue::from(0x0601_u16).to_int().ok(),
+            Some(0x0601_u64),
+        );
 
         // takes the first number
-        assert_eq!(dicom_value!(I32, [1, 2, 5]).to_int(), Ok(1),);
+        assert_eq!(dicom_value!(I32, [1, 2, 5]).to_int().ok(), Some(1),);
 
         // admits an integer as text
-        assert_eq!(dicom_value!(Strs, ["-73", "2"]).to_int(), Ok(-73),);
+        assert_eq!(dicom_value!(Strs, ["-73", "2"]).to_int().ok(), Some(-73),);
 
         // does not admit destructive conversions
         assert!(PrimitiveValue::from(-1).to_int::<u32>().is_err());
@@ -1870,45 +2281,39 @@ mod tests {
                 requested: _,
                 original: ValueType::Strs,
                 // would try to parse as an integer and fail
-                cause: Some(InvalidValueReadError::ParseInteger(_)),
+                cause: Some(InvalidValueReadError::ParseInteger { .. }),
             })
         ));
     }
 
     #[test]
     fn primitive_value_to_multi_int() {
-        assert_eq!(PrimitiveValue::Empty.to_multi_int::<i32>(), Ok(vec![]));
+        assert_eq!(PrimitiveValue::Empty.to_multi_int::<i32>().unwrap(), vec![]);
 
         let test_value = dicom_value!(U16, [0x0601, 0x5353, 3, 4]);
         // exact match
+        let numbers = test_value.to_multi_int::<u16>().unwrap();
+        assert_eq!(numbers, vec![0x0601, 0x5353, 3, 4],);
+        // type is inferred on context
+        let numbers: Vec<u32> = test_value.to_multi_int().unwrap();
+        assert_eq!(numbers, vec![0x0601_u32, 0x5353, 3, 4],);
+        let numbers: Vec<i64> = test_value.to_multi_int().unwrap();
+        assert_eq!(numbers, vec![0x0601_i64, 0x5353, 3, 4],);
         assert_eq!(
-            test_value.to_multi_int(),
-            Ok(vec![0x0601_u16, 0x5353, 3, 4]),
-        );
-        // conversions are automatically applied
-        assert_eq!(
-            test_value.to_multi_int(),
-            Ok(vec![0x0601_u32, 0x5353, 3, 4]),
-        );
-        assert_eq!(
-            test_value.to_multi_int(),
-            Ok(vec![0x0601_i64, 0x5353, 3, 4]),
-        );
-        assert_eq!(
-            test_value.to_multi_int(),
-            Ok(vec![0x0601_u64, 0x5353, 3, 4]),
+            test_value.to_multi_int::<u64>().unwrap(),
+            vec![0x0601_u64, 0x5353, 3, 4],
         );
 
         // takes all numbers
         assert_eq!(
-            dicom_value!(I32, [1, 2, 5]).to_multi_int(),
-            Ok(vec![1, 2, 5]),
+            dicom_value!(I32, [1, 2, 5]).to_multi_int().ok(),
+            Some(vec![1, 2, 5]),
         );
 
         // admits a integer as text, trailing space too
         assert_eq!(
-            dicom_value!(Strs, ["-73", "2 "]).to_multi_int(),
-            Ok(vec![-73, 2]),
+            dicom_value!(Strs, ["-73", "2 "]).to_multi_int().ok(),
+            Some(vec![-73, 2]),
         );
 
         // does not admit destructive conversions
@@ -1917,7 +2322,10 @@ mod tests {
             Err(ConvertValueError {
                 original: ValueType::I32,
                 // the cast from -1_i32 to u32 would fail
-                cause: Some(InvalidValueReadError::NarrowConvert(x)),
+                cause: Some(InvalidValueReadError::NarrowConvert {
+                    value: x,
+                   ..
+                }),
                 ..
             }) if &x == "-1"
         ));
@@ -1928,7 +2336,7 @@ mod tests {
             Err(ConvertValueError {
                 original: ValueType::Strs,
                 // the conversion from "-1" to u32 would fail
-                cause: Some(InvalidValueReadError::ParseInteger(_)),
+                cause: Some(InvalidValueReadError::ParseInteger { .. }),
                 ..
             })
         ));
@@ -1940,24 +2348,32 @@ mod tests {
                 requested: _,
                 original: ValueType::Strs,
                 // would try to parse as an integer and fail
-                cause: Some(InvalidValueReadError::ParseInteger(_)),
+                cause: Some(InvalidValueReadError::ParseInteger { .. }),
             })
         ));
     }
 
     #[test]
     fn primitive_value_to_multi_floats() {
-        assert_eq!(PrimitiveValue::Empty.to_multi_float32(), Ok(vec![]));
+        assert_eq!(PrimitiveValue::Empty.to_multi_float32().ok(), Some(vec![]));
 
         let test_value = dicom_value!(U16, [1, 2, 3, 4]);
 
-        assert_eq!(test_value.to_multi_float32(), Ok(vec![1., 2., 3., 4.]),);
-        assert_eq!(test_value.to_multi_float64(), Ok(vec![1., 2., 3., 4.]),);
+        assert_eq!(
+            test_value.to_multi_float32().ok(),
+            Some(vec![1., 2., 3., 4.]),
+        );
+        assert_eq!(
+            test_value.to_multi_float64().ok(),
+            Some(vec![1., 2., 3., 4.]),
+        );
 
         // admits a number as text, trailing space too
         assert_eq!(
-            dicom_value!(Strs, ["7.25", "-12.5 "]).to_multi_float64(),
-            Ok(vec![7.25, -12.5]),
+            dicom_value!(Strs, ["7.25", "-12.5 "])
+                .to_multi_float64()
+                .ok(),
+            Some(vec![7.25, -12.5]),
         );
 
         // does not admit strings which are not numbers
@@ -1967,7 +2383,7 @@ mod tests {
                 requested: _,
                 original: ValueType::Strs,
                 // would try to parse as a float and fail
-                cause: Some(InvalidValueReadError::ParseFloat(_)),
+                cause: Some(InvalidValueReadError::ParseFloat { .. }),
             })
         ));
     }

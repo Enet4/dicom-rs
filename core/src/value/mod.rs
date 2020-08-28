@@ -1,6 +1,5 @@
 //! This module includes a high level abstraction over a DICOM data element's value.
 
-use crate::error::CastValueError;
 use crate::header::{HasLength, Length, Tag};
 use smallvec::SmallVec;
 use std::borrow::Cow;
@@ -9,7 +8,8 @@ pub mod deserialize;
 mod primitive;
 pub mod serialize;
 
-pub use self::primitive::{PrimitiveValue, ValueType};
+pub use self::primitive::{InvalidValueReadError, CastValueError, PrimitiveValue, ValueType};
+pub use self::deserialize::Error as DeserializeError;
 
 /// re-exported from chrono
 use chrono::{DateTime, NaiveDate, NaiveTime};

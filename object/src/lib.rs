@@ -11,8 +11,7 @@
 //!
 //! ```no_run
 //! use dicom_object::open_file;
-//! # use dicom_object::Result;
-//! # fn foo() -> Result<()> {
+//! # fn foo() -> Result<(), Box<dyn std::error::Error>> {
 //! let obj = open_file("0001.dcm")?;
 //! let patient_name = obj.element_by_name("PatientName")?.to_str()?;
 //! let modality = obj.element_by_name("Modality")?.to_str()?;
@@ -23,8 +22,8 @@
 //! Elements can also be fetched by tag:
 //!
 //! ```
-//! # use dicom_object::{DicomObject, Result, Tag};
-//! # fn something<T: DicomObject>(obj: T) -> Result<()> {
+//! # use dicom_object::{DicomObject, Tag};
+//! # fn something<T: DicomObject>(obj: T) -> Result<(), Box<dyn std::error::Error>> {
 //! let e = obj.element(Tag(0x0002, 0x0002))?;
 //! # Ok(())
 //! # }
@@ -43,7 +42,6 @@ pub use crate::file::{from_reader, open_file};
 pub use crate::meta::FileMetaTable;
 pub use dicom_core::Tag;
 pub use dicom_dictionary_std::StandardDataDictionary;
-pub use dicom_parser::error::{Error, Result};
 
 /// The default implementation of a root DICOM object.
 pub type DefaultDicomObject = RootDicomObject<mem::InMemDicomObject<StandardDataDictionary>>;
@@ -52,6 +50,7 @@ use dicom_core::header::Header;
 use dicom_encoding::{text::SpecificCharacterSet, transfer_syntax::TransferSyntaxIndex};
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
+use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -81,6 +80,85 @@ pub trait DicomObject {
     }
 }
 
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum Error {
+    #[snafu(display("Could not open file '{}': {}", filename.display(), source))]
+    OpenFile {
+        filename: std::path::PathBuf,
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+    #[snafu(display("Could not read from file '{}': {}", filename.display(), source))]
+    ReadFile {
+        filename: std::path::PathBuf,
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+    #[snafu(display("Could not parse meta group data set"))]
+    ParseMetaDataSet {
+        #[snafu(backtrace)]
+        source: crate::meta::Error,
+    },
+    #[snafu(display("Could not create data set parser"))]
+    CreateParser {
+        #[snafu(backtrace)]
+        source: dicom_parser::dataset::read::Error,
+    },
+    #[snafu(display("Could not read data set token"))]
+    ReadToken {
+        #[snafu(backtrace)]
+        source: dicom_parser::dataset::read::Error,
+    },
+    #[snafu(display("Could not write to file '{}': {}", filename.display(), source))]
+    WriteFile {
+        filename: std::path::PathBuf,
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+    #[snafu(display("Could not create data set printer"))]
+    CreatePrinter {
+        #[snafu(backtrace)]
+        source: dicom_parser::dataset::write::Error,
+    },
+    #[snafu(display("Could not print meta group data set"))]
+    PrintMetaDataSet {
+        #[snafu(backtrace)]
+        source: crate::meta::Error,
+    },
+    #[snafu(display("Could not print data set"))]
+    PrintDataSet {
+        #[snafu(backtrace)]
+        source: dicom_parser::dataset::write::Error,
+    },
+    #[snafu(display("Unsupported transfer syntax `{}`", uid))]
+    UnsupportedTransferSyntax { uid: String, backtrace: Backtrace },
+    #[snafu(display("No such data element with tag {}", tag))]
+    NoSuchDataElementTag {
+        tag: Tag,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("No such data element {} (with tag {})", alias, tag))]
+    NoSuchDataElementAlias {
+        tag: Tag,
+        alias: String,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("Unknown data attribute named `{}`", name))]
+    NoSuchAttributeName { name: String, backtrace: Backtrace },
+    #[snafu(display("Missing element value"))]
+    MissingElementValue { backtrace: Backtrace },
+    #[snafu(display("Unexpected token {:?}", token))]
+    UnexpectedToken {
+        token: dicom_parser::dataset::DataToken,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("Premature data set end"))]
+    PrematureEnd { backtrace: Backtrace },
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
 /** A root DICOM object contains additional meta information about the object
  * (such as the DICOM file's meta header).
  */
@@ -107,29 +185,35 @@ where
     for<'a> &'a T: IntoTokens,
 {
     pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let file = File::create(path)?;
+        let path = path.as_ref();
+        let file = File::create(path).context(WriteFile { filename: path })?;
         let mut to = BufWriter::new(file);
 
         // write preamble
-        to.write_all(&[0_u8; 128][..])?;
+        to.write_all(&[0_u8; 128][..])
+            .context(WriteFile { filename: path })?;
 
         // write magic sequence
-        to.write_all(b"DICM")?;
+        to.write_all(b"DICM")
+            .context(WriteFile { filename: path })?;
 
         // write meta group
-        self.meta.write(&mut to)?;
+        self.meta.write(&mut to).context(PrintMetaDataSet)?;
 
         // prepare encoder
         let registry = TransferSyntaxRegistry::default();
-        let ts = registry
-            .get(&self.meta.transfer_syntax)
-            .ok_or_else(|| Error::UnsupportedTransferSyntax)?;
+        let ts = registry.get(&self.meta.transfer_syntax).with_context(|| {
+            UnsupportedTransferSyntax {
+                uid: self.meta.transfer_syntax.clone(),
+            }
+        })?;
         let cs = SpecificCharacterSet::Default;
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs)?;
+        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinter)?;
 
         // write object
-
-        dset_writer.write_sequence((&self.obj).into_tokens())?;
+        dset_writer
+            .write_sequence((&self.obj).into_tokens())
+            .context(PrintDataSet)?;
 
         Ok(())
     }

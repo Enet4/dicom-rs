@@ -18,10 +18,46 @@
 //!
 //! [`SpecificCharacterSet`]: ./enum.SpecificCharacterSet.html
 
-use crate::error::{Result, TextEncodingError};
 use encoding::all::{GB18030, ISO_8859_1, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5, UTF_8};
 use encoding::{DecoderTrap, EncoderTrap, Encoding, RawDecoder, StringWriter};
+use std::borrow::Cow;
 use std::fmt::Debug;
+use snafu::{Backtrace, Snafu};
+
+/// An error type for text encoding issues.
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum EncodeTextError {
+    /// A custom error message,
+    /// for when the underlying error type does not encode error semantics
+    /// into type variants.
+    #[snafu(display("{}", message))]
+    EncodeCustom {
+        /// The error message in plain text.
+        message: Cow<'static, str>,
+        /// The generated backtrace, if available.
+        backtrace: Backtrace,
+    }
+}
+
+/// An error type for text decoding issues.
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum DecodeTextError {
+    /// A custom error message,
+    /// for when the underlying error type does not encode error semantics
+    /// into type variants.
+    #[snafu(display("{}", message))]
+    DecodeCustom {
+        /// The error message in plain text.
+        message: Cow<'static, str>,
+        /// The generated backtrace, if available.
+        backtrace: Backtrace,
+    }
+}
+
+type EncodeResult<T> = Result<T, EncodeTextError>;
+type DecodeResult<T> = Result<T, DecodeTextError>;
 
 /// A holder of encoding and decoding mechanisms for text in DICOM content,
 /// which according to the standard, depends on the specific character set.
@@ -38,12 +74,12 @@ pub trait TextCodec {
     /// Decode the given byte buffer as a single string. The resulting string
     /// _may_ contain backslash characters ('\') to delimit individual values,
     /// and should be split later on if required.
-    fn decode(&self, text: &[u8]) -> Result<String>;
+    fn decode(&self, text: &[u8]) -> DecodeResult<String>;
 
     /// Encode a text value into a byte vector. The input string can
     /// feature multiple text values by using the backslash character ('\')
     /// as the value delimiter.
-    fn encode(&self, text: &str) -> Result<Vec<u8>>;
+    fn encode(&self, text: &str) -> EncodeResult<Vec<u8>>;
 }
 
 impl<T: ?Sized> TextCodec for Box<T>
@@ -54,11 +90,11 @@ where
         self.as_ref().name()
     }
 
-    fn decode(&self, text: &[u8]) -> Result<String> {
+    fn decode(&self, text: &[u8]) -> DecodeResult<String> {
         self.as_ref().decode(text)
     }
 
-    fn encode(&self, text: &str) -> Result<Vec<u8>> {
+    fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
         self.as_ref().encode(text)
     }
 }
@@ -71,11 +107,11 @@ where
         (**self).name()
     }
 
-    fn decode(&self, text: &[u8]) -> Result<String> {
+    fn decode(&self, text: &[u8]) -> DecodeResult<String> {
         (**self).decode(text)
     }
 
-    fn encode(&self, text: &str) -> Result<Vec<u8>> {
+    fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
         (**self).encode(text)
     }
 }
@@ -120,6 +156,18 @@ impl Default for SpecificCharacterSet {
 }
 
 impl SpecificCharacterSet {
+    /** Obtain the specific character set identified by the given code string.
+     *
+     * Supported code strings include the possible values
+     * in the respective DICOM element (0008, 0005).
+     *
+     * # Example
+     * 
+     * ```
+     * let character_set = SpecificCharacterSet::from_code("ISO_IR 100");
+     * assert_eq!(character_set, Some(SpecificCharacterSet::IsoIr100));
+     * ```
+     */
     pub fn from_code(uid: &str) -> Option<Self> {
         use self::SpecificCharacterSet::*;
         match uid.trim_end() {
@@ -180,16 +228,16 @@ macro_rules! decl_character_set {
                 $term
             }
 
-            fn decode(&self, text: &[u8]) -> Result<String> {
+            fn decode(&self, text: &[u8]) -> DecodeResult<String> {
                 $val
                     .decode(text, DecoderTrap::Call(decode_text_trap))
-                    .map_err(|e| TextEncodingError::new(e).into())
+                    .map_err(|message| DecodeCustom { message }.build())
             }
 
-            fn encode(&self, text: &str) -> Result<Vec<u8>> {
+            fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
                 $val
                     .encode(text, EncoderTrap::Strict)
-                    .map_err(|e| TextEncodingError::new(e).into())
+                    .map_err(|message| EncodeCustom { message }.build())
             }
         }
     };
@@ -204,18 +252,18 @@ impl TextCodec for DefaultCharacterSetCodec {
         "ISO_IR 6"
     }
 
-    fn decode(&self, text: &[u8]) -> Result<String> {
+    fn decode(&self, text: &[u8]) -> DecodeResult<String> {
         // Using 8859-1 because it is a superset. Reiterations of this impl
         // should check for invalid character codes (#40).
         ISO_8859_1
             .decode(text, DecoderTrap::Call(decode_text_trap))
-            .map_err(|e| TextEncodingError::new(e).into())
+            .map_err(|message| DecodeCustom { message }.build())
     }
 
-    fn encode(&self, text: &str) -> Result<Vec<u8>> {
+    fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
         ISO_8859_1
             .encode(text, EncoderTrap::Strict)
-            .map_err(|e| TextEncodingError::new(e).into())
+            .map_err(|message| EncodeCustom { message }.build())
     }
 }
 

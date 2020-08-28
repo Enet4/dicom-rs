@@ -4,19 +4,22 @@
 //! The rest of the crate is used to obtain DICOM element headers and values.
 //! At this level, headers and values are treated as tokens which can be used
 //! to form a syntax tree of a full data set.
-use crate::error::{Error, InvalidValueReadError, Result};
-use crate::stateful::decode::{DynStatefulDecoder, StatefulDecode, StatefulDecoder};
-use crate::util::{ReadSeek, SeekInterval};
+use crate::marker::DicomElementMarker;
+use crate::stateful::decode::{
+    DynStatefulDecoder, Error as DecoderError, StatefulDecode, StatefulDecoder,
+};
+use crate::util::ReadSeek;
 use dicom_core::dictionary::DataDictionary;
-use dicom_core::header::{DataElementHeader, HasLength, Header, Length, SequenceItemHeader};
+use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
 use dicom_core::{Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntax;
-use std::io::{Read, Seek, SeekFrom};
+use snafu::{Backtrace, ResultExt, Snafu};
+use std::cmp::Ordering;
+use std::io::Read;
 use std::iter::Iterator;
 use std::marker::PhantomData;
-use std::ops::DerefMut;
 
 use super::{DataToken, SeqTokenType};
 
@@ -25,6 +28,45 @@ where
     T: StatefulDecode,
 {
 }
+
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum Error {
+    #[snafu(display("Could not create decoder"))]
+    CreateDecoder {
+        #[snafu(backtrace)]
+        source: DecoderError,
+    },
+    #[snafu(display("Could not read item header"))]
+    ReadItemHeader {
+        #[snafu(backtrace)]
+        source: DecoderError,
+    },
+    #[snafu(display("Could not read element header"))]
+    ReadHeader {
+        #[snafu(backtrace)]
+        source: DecoderError,
+    },
+    #[snafu(display("Could not read item value"))]
+    ReadValue {
+        #[snafu(backtrace)]
+        source: DecoderError,
+    },
+    #[snafu(display(
+        "Inconsistent sequence end: expected end at {} bytes but read {}",
+        end_of_sequence,
+        bytes_read
+    ))]
+    InconsistentSequenceEnd {
+        end_of_sequence: u64,
+        bytes_read: u64,
+        backtrace: Backtrace,
+    },
+    #[snafu()]
+    UnexpectedTag { tag: Tag, backtrace: Backtrace },
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// A reader-specific token representing a sequence or item start.
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -68,7 +110,7 @@ impl<'s> DataSetReader<DynStatefulDecoder<'s>, StandardDataDictionary> {
     where
         S: Read,
     {
-        let parser = DynStatefulDecoder::new_with(source, ts, cs)?;
+        let parser = DynStatefulDecoder::new_with(source, ts, cs).context(CreateDecoder)?;
 
         is_stateful_decode(&parser);
 
@@ -97,7 +139,7 @@ impl<'s, D> DataSetReader<DynStatefulDecoder<'s>, D> {
     where
         S: Read,
     {
-        let parser = DynStatefulDecoder::new_with(source, ts, cs)?;
+        let parser = DynStatefulDecoder::new_with(source, ts, cs).context(CreateDecoder)?;
 
         is_stateful_decode(&parser);
 
@@ -191,7 +233,7 @@ where
                 }
                 Err(e) => {
                     self.hard_break = true;
-                    Some(Err(e))
+                    Some(Err(e).context(ReadItemHeader))
                 }
             }
         } else if let Some(SeqToken {
@@ -212,7 +254,7 @@ where
                 self.parser
                     .read_bytes(&mut value[..])
                     .map(|_| Ok(DataToken::ItemValue(value)))
-                    .unwrap_or_else(|e| Err(e)),
+                    .unwrap_or_else(|e| Err(e).context(ReadValue)),
             )
         } else if let Some(header) = self.last_header {
             if header.is_encapsulated_pixeldata() {
@@ -240,12 +282,12 @@ where
                         }
                         item => {
                             self.hard_break = true;
-                            Some(Err(Error::UnexpectedTag(item.tag())))
+                            Some(UnexpectedTag { tag: item.tag() }.fail())
                         }
                     },
                     Err(e) => {
                         self.hard_break = true;
-                        Some(Err(e))
+                        Some(Err(e).context(ReadItemHeader))
                     }
                 }
             } else {
@@ -255,7 +297,7 @@ where
                     Err(e) => {
                         self.hard_break = true;
                         self.last_header = None;
-                        return Some(Err(e));
+                        return Some(Err(e).context(ReadValue));
                     }
                 };
 
@@ -301,18 +343,21 @@ where
                         Some(Ok(DataToken::ElementHeader(header)))
                     }
                 }
-                Err(Error::Io(ref e)) if e.kind() == ::std::io::ErrorKind::UnexpectedEof => {
-                    // TODO there might be a more informative way to check
-                    // whether the end of a DICOM object was reached gracefully
-                    // or with problems. This approach may consume trailing
-                    // bytes, and will ignore the possibility of trailing bytes
-                    // having already been interpreted as an element header.
+                Err(DecoderError::DecodeElementHeader {
+                    source: dicom_encoding::decode::Error::ReadHeaderTag { source, .. },
+                    ..
+                }) if source.kind() == std::io::ErrorKind::UnexpectedEof => {
+                    // Note: if `UnexpectedEof` was reached while trying to read
+                    // an element tag, then we assume that
+                    // the end of a DICOM object was reached gracefully.
+                    // This approach is unlikely to consume trailing bytes,
+                    // but may ignore the current depth of the data set tree.
                     self.hard_break = true;
                     None
                 }
                 Err(e) => {
                     self.hard_break = true;
-                    Some(Err(e))
+                    Some(Err(e).context(ReadHeader))
                 }
             }
         }
@@ -326,25 +371,33 @@ where
     fn update_seq_delimiters(&mut self) -> Result<Option<DataToken>> {
         if let Some(sd) = self.seq_delimiters.last() {
             if let Some(len) = sd.len.get() {
-                let eos = sd.base_offset + len as u64;
+                let end_of_sequence = sd.base_offset + len as u64;
                 let bytes_read = self.parser.bytes_read();
-                if eos == bytes_read {
-                    // end of delimiter, as indicated by the element's length
-                    let token;
-                    match sd.typ {
-                        SeqTokenType::Sequence => {
-                            self.in_sequence = false;
-                            token = DataToken::SequenceEnd;
+                match end_of_sequence.cmp(&bytes_read) {
+                    Ordering::Equal => {
+                        // end of delimiter, as indicated by the element's length
+                        let token;
+                        match sd.typ {
+                            SeqTokenType::Sequence => {
+                                self.in_sequence = false;
+                                token = DataToken::SequenceEnd;
+                            }
+                            SeqTokenType::Item => {
+                                self.in_sequence = true;
+                                token = DataToken::ItemEnd;
+                            }
                         }
-                        SeqTokenType::Item => {
-                            self.in_sequence = true;
-                            token = DataToken::ItemEnd;
-                        }
+                        self.seq_delimiters.pop();
+                        return Ok(Some(token));
                     }
-                    self.seq_delimiters.pop();
-                    return Ok(Some(token));
-                } else if eos < bytes_read {
-                    return Err(Error::InconsistentSequenceEnd(eos, bytes_read));
+                    Ordering::Less => {
+                        return InconsistentSequenceEnd {
+                            end_of_sequence,
+                            bytes_read,
+                        }
+                        .fail();
+                    }
+                    Ordering::Greater => {} // continue normally
                 }
             }
         }
@@ -382,7 +435,7 @@ impl<'s> LazyDataSetReader<&'s mut dyn Read, DynStatefulDecoder<'s>> {
         ts: &TransferSyntax,
         cs: SpecificCharacterSet,
     ) -> Result<Self> {
-        let parser = StatefulDecoder::new_with(source, ts, cs)?;
+        let parser = StatefulDecoder::new_with(source, ts, cs).context(CreateDecoder)?;
 
         Ok(LazyDataSetReader {
             parser,
@@ -453,7 +506,7 @@ where
                 },
                 Err(e) => {
                     self.hard_break = true;
-                    Some(Err(e))
+                    Some(Err(e).context(ReadItemHeader))
                 }
             }
         } else {
@@ -480,70 +533,10 @@ where
                 }
                 Err(e) => {
                     self.hard_break = true;
-                    Some(Err(e))
+                    Some(Err(e).context(ReadHeader))
                 }
             }
         }
-    }
-}
-
-/// A data type for a DICOM element residing in a file, or any other source
-/// with random access. A position in the file is kept for future access.
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub struct DicomElementMarker {
-    /// The header, kept in memory. At this level, the value representation
-    /// "UN" may also refer to a non-applicable vr (i.e. for items and
-    /// delimiters).
-    pub header: DataElementHeader,
-    /// The ending position of the element's header (or the starting position
-    /// of the element's value if it exists), relative to the beginning of the
-    /// file.
-    pub pos: u64,
-}
-
-impl DicomElementMarker {
-    /// Obtain an interval of the raw data associated to this element's data value.
-    pub fn get_data_stream<S: ?Sized, B: DerefMut<Target = S>>(
-        &self,
-        source: B,
-    ) -> Result<SeekInterval<S, B>>
-    where
-        S: ReadSeek,
-    {
-        let len = u64::from(
-            self.header
-                .length()
-                .get()
-                .ok_or(InvalidValueReadError::UnresolvedValueLength)?,
-        );
-        let interval = SeekInterval::new_at(source, self.pos..len)?;
-        Ok(interval)
-    }
-
-    /// Move the source to the position indicated by the marker
-    pub fn move_to_start<S: ?Sized, B: DerefMut<Target = S>>(&self, mut source: B) -> Result<()>
-    where
-        S: Seek,
-    {
-        source.seek(SeekFrom::Start(self.pos))?;
-        Ok(())
-    }
-
-    /// Getter for this element's value representation. May be `UN`
-    /// when this is not applicable.
-    pub fn vr(&self) -> VR {
-        self.header.vr()
-    }
-}
-
-impl HasLength for DicomElementMarker {
-    fn length(&self) -> Length {
-        self.header.length()
-    }
-}
-impl Header for DicomElementMarker {
-    fn tag(&self) -> Tag {
-        self.header.tag()
     }
 }
 

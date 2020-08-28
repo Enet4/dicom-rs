@@ -13,6 +13,7 @@ repository = "Enet4/dicom-rs"
 [features]
 default = ['inventory-registry']
 inventory-registry = ['dicom-encoding/inventory-registry', 'dicom-transfer-syntax-registry/inventory-registry']
+backtraces = ['dicom-object/backtraces']
 
 [dependencies]
 dicom-core = { path = "../core", version = "0.2.0" }

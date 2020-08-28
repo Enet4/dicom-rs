@@ -14,9 +14,11 @@ readme = "README.md"
 repository = "Enet4/dicom-rs"
 
 [features]
-default = ['dicom/inventory-registry']
+default = ['dicom/inventory-registry', 'dicom/backtraces']
 
 [dependencies]
 dicom = { path = "../parent/", version = "0.2.0", default-features = false }
 term_size = "0.3.2"
 itertools = "0.9.0"
+snafu = "0.6.8"
+

@@ -1,15 +1,93 @@
 //! This module contains all DICOM data element encoding logic.
-use crate::error::Result;
 use byteordered::Endianness;
 use dicom_core::{DataElementHeader, PrimitiveValue, Tag};
+use snafu::{Backtrace, ResultExt, Snafu};
 use std::fmt;
-use std::io::Write;
+use std::io::{self, Write};
 use std::marker::PhantomData;
 
 pub mod basic;
+pub mod explicit_be;
+pub mod explicit_le;
+pub mod implicit_le;
 
 #[deprecated]
 pub use dicom_core::value::serialize as primitive_value;
+
+/// Module-level error type:
+/// for errors which may occur while encoding DICOM data.
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum Error {
+    #[snafu(display("Failed to write Date value"))]
+    WriteDate {
+        backtrace: Backtrace,
+        source: io::Error,
+    },
+    #[snafu(display("Failed to write Time value"))]
+    WriteTime {
+        backtrace: Backtrace,
+        source: io::Error,
+    },
+    #[snafu(display("Failed to write DateTime value"))]
+    WriteDateTime {
+        backtrace: Backtrace,
+        source: io::Error,
+    },
+    #[snafu(display("Failed to write tag"))]
+    WriteTag {
+        backtrace: Backtrace,
+        source: io::Error,
+    },
+    #[snafu(display("Failed to write tag group"))]
+    WriteTagGroup {
+        backtrace: Backtrace,
+        source: io::Error,
+    },
+    #[snafu(display("Failed to write tag element"))]
+    WriteTagElement {
+        backtrace: Backtrace,
+        source: io::Error,
+    },
+    #[snafu(display("Failed to write item header"))]
+    WriteItemHeader {
+        backtrace: Backtrace,
+        source: io::Error,
+    },
+    #[snafu(display("Failed to write element header"))]
+    WriteHeader {
+        backtrace: Backtrace,
+        source: io::Error,
+    },
+    #[snafu(display("Failed to write item delimiter"))]
+    WriteItemDelimiter {
+        backtrace: Backtrace,
+        source: io::Error,
+    },
+    #[snafu(display("Failed to write sequence delimiter"))]
+    WriteSequenceDelimiter {
+        backtrace: Backtrace,
+        source: io::Error,
+    },
+    #[snafu(display("Failed to write {} value", typ))]
+    WriteBinary {
+        typ: &'static str,
+        backtrace: Backtrace,
+        source: io::Error,
+    },
+    #[snafu(display("Failed to write string value"))]
+    WriteString {
+        backtrace: Backtrace,
+        source: io::Error,
+    },
+    #[snafu(display("Failed to write bytes"))]
+    WriteBytes {
+        backtrace: Backtrace,
+        source: io::Error,
+    },
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// Type trait for an encoder of basic data properties.
 /// Unlike `Encode` (and similar to `BasicDecode`), this trait is not object
@@ -19,42 +97,42 @@ pub trait BasicEncode {
     fn endianness(&self) -> Endianness;
 
     /// Encode an unsigned short value to the given writer.
-    fn encode_us<W>(&self, to: W, value: u16) -> Result<()>
+    fn encode_us<W>(&self, to: W, value: u16) -> io::Result<()>
     where
         W: Write;
 
     /// Encode an unsigned long value to the given writer.
-    fn encode_ul<W>(&self, to: W, value: u32) -> Result<()>
+    fn encode_ul<W>(&self, to: W, value: u32) -> io::Result<()>
     where
         W: Write;
 
     /// Encode an unsigned very long value to the given writer.
-    fn encode_uv<W>(&self, to: W, value: u64) -> Result<()>
+    fn encode_uv<W>(&self, to: W, value: u64) -> io::Result<()>
     where
         W: Write;
 
     /// Encode a signed short value to the given writer.
-    fn encode_ss<W>(&self, to: W, value: i16) -> Result<()>
+    fn encode_ss<W>(&self, to: W, value: i16) -> io::Result<()>
     where
         W: Write;
 
     /// Encode a signed long value to the given writer.
-    fn encode_sl<W>(&self, to: W, value: i32) -> Result<()>
+    fn encode_sl<W>(&self, to: W, value: i32) -> io::Result<()>
     where
         W: Write;
 
     /// Encode a signed very long value to the given writer.
-    fn encode_sv<W>(&self, to: W, value: i64) -> Result<()>
+    fn encode_sv<W>(&self, to: W, value: i64) -> io::Result<()>
     where
         W: Write;
 
     /// Encode a single precision float value to the given writer.
-    fn encode_fl<W>(&self, to: W, value: f32) -> Result<()>
+    fn encode_fl<W>(&self, to: W, value: f32) -> io::Result<()>
     where
         W: Write;
 
     /// Encode a double precision float value to the given writer.
-    fn encode_fd<W>(&self, to: W, value: f64) -> Result<()>
+    fn encode_fd<W>(&self, to: W, value: f64) -> io::Result<()>
     where
         W: Write;
 
@@ -82,21 +160,24 @@ pub trait BasicEncode {
         match value {
             Empty => Ok(0), // no-op
             Date(date) => encode_collection_delimited(&mut to, &*date, |to, date| {
-                primitive_value::encode_date(to, *date).map_err(From::from)
-            }),
+                primitive_value::encode_date(to, *date)
+            })
+            .context(WriteDate),
             Time(time) => encode_collection_delimited(&mut to, &*time, |to, time| {
-                primitive_value::encode_time(to, *time).map_err(From::from)
-            }),
+                primitive_value::encode_time(to, *time)
+            })
+            .context(WriteTime),
             DateTime(datetime) => {
                 encode_collection_delimited(&mut to, &*datetime, |to, datetime| {
-                    primitive_value::encode_datetime(to, *datetime).map_err(From::from)
+                    primitive_value::encode_datetime(to, *datetime)
                 })
+                .context(WriteDateTime)
             }
             Str(s) => {
                 // Note: this will always print in UTF-8. Consumers should
                 // intercept string primitive values and encode them according
                 // to the expected character set.
-                write!(to, "{}", s)?;
+                write!(to, "{}", s).context(WriteString)?;
                 Ok(s.len())
             }
             Strs(s) => encode_collection_delimited(&mut to, &*s, |to, s| {
@@ -105,63 +186,72 @@ pub trait BasicEncode {
                 // to the expected character set.
                 write!(to, "{}", s)?;
                 Ok(s.len())
-            }),
+            })
+            .context(WriteString),
             F32(values) => {
                 for v in values {
-                    self.encode_fl(&mut to, *v)?;
+                    self.encode_fl(&mut to, *v)
+                        .context(WriteBinary { typ: "F32" })?;
                 }
                 Ok(values.len() * 4)
             }
             F64(values) => {
                 for v in values {
-                    self.encode_fd(&mut to, *v)?;
+                    self.encode_fd(&mut to, *v)
+                        .context(WriteBinary { typ: "F64" })?;
                 }
                 Ok(values.len() * 8)
             }
             U64(values) => {
                 for v in values {
-                    self.encode_uv(&mut to, *v)?;
+                    self.encode_uv(&mut to, *v)
+                        .context(WriteBinary { typ: "U64" })?;
                 }
                 Ok(values.len() * 8)
             }
             I64(values) => {
                 for v in values {
-                    self.encode_sv(&mut to, *v)?;
+                    self.encode_sv(&mut to, *v)
+                        .context(WriteBinary { typ: "I64" })?;
                 }
                 Ok(values.len() * 8)
             }
             U32(values) => {
                 for v in values {
-                    self.encode_ul(&mut to, *v)?;
+                    self.encode_ul(&mut to, *v)
+                        .context(WriteBinary { typ: "U32" })?;
                 }
                 Ok(values.len() * 4)
             }
             I32(values) => {
                 for v in values {
-                    self.encode_sl(&mut to, *v)?;
+                    self.encode_sl(&mut to, *v)
+                        .context(WriteBinary { typ: "I32" })?;
                 }
                 Ok(values.len() * 4)
             }
             U16(values) => {
                 for v in values {
-                    self.encode_us(&mut to, *v)?;
+                    self.encode_us(&mut to, *v)
+                        .context(WriteBinary { typ: "U16" })?;
                 }
                 Ok(values.len() * 2)
             }
             I16(values) => {
                 for v in values {
-                    self.encode_ss(&mut to, *v)?;
+                    self.encode_ss(&mut to, *v)
+                        .context(WriteBinary { typ: "I16" })?;
                 }
                 Ok(values.len() * 2)
             }
             U8(values) => {
-                to.write_all(values)?;
+                to.write_all(values).context(WriteBytes)?;
                 Ok(values.len())
             }
             Tags(tags) => {
                 for tag in tags {
-                    self.encode_us(&mut to, tag.0)?;
-                    self.encode_us(&mut to, tag.1)?;
+                    self.encode_us(&mut to, tag.0).context(WriteTagGroup)?;
+                    self.encode_us(&mut to, tag.1).context(WriteTagElement)?;
                 }
                 Ok(tags.len() * 4)
             }
@@ -173,10 +263,10 @@ fn encode_collection_delimited<W, T, F>(
     to: &mut W,
     col: &[T],
     mut encode_element_fn: F,
-) -> Result<usize>
+) -> io::Result<usize>
 where
     W: ?Sized + Write,
-    F: FnMut(&mut W, &T) -> Result<usize>,
+    F: FnMut(&mut W, &T) -> io::Result<usize>,
 {
     let mut acc = 0;
     for (i, v) in col.iter().enumerate() {
@@ -215,7 +305,7 @@ pub trait Encode {
         W: Write,
     {
         self.encode_tag(&mut to, Tag(0xFFFE, 0xE00D))?;
-        to.write_all(&[0u8; 4])?;
+        to.write_all(&[0u8; 4]).context(WriteItemDelimiter)?;
         Ok(())
     }
 
@@ -225,7 +315,7 @@ pub trait Encode {
         W: Write,
     {
         self.encode_tag(&mut to, Tag(0xFFFE, 0xE0DD))?;
-        to.write_all(&[0u8; 4])?;
+        to.write_all(&[0u8; 4]).context(WriteSequenceDelimiter)?;
         Ok(())
     }
 
@@ -509,56 +599,56 @@ where
         self.inner.endianness()
     }
 
-    fn encode_us<S>(&self, to: S, value: u16) -> Result<()>
+    fn encode_us<S>(&self, to: S, value: u16) -> io::Result<()>
     where
         S: Write,
     {
         self.inner.encode_us(to, value)
     }
 
-    fn encode_ul<S>(&self, to: S, value: u32) -> Result<()>
+    fn encode_ul<S>(&self, to: S, value: u32) -> io::Result<()>
     where
         S: Write,
     {
         self.inner.encode_ul(to, value)
     }
 
-    fn encode_uv<S>(&self, to: S, value: u64) -> Result<()>
+    fn encode_uv<S>(&self, to: S, value: u64) -> io::Result<()>
     where
         S: Write,
     {
         self.inner.encode_uv(to, value)
     }
 
-    fn encode_ss<S>(&self, to: S, value: i16) -> Result<()>
+    fn encode_ss<S>(&self, to: S, value: i16) -> io::Result<()>
     where
         S: Write,
     {
         self.inner.encode_ss(to, value)
     }
 
-    fn encode_sl<S>(&self, to: S, value: i32) -> Result<()>
+    fn encode_sl<S>(&self, to: S, value: i32) -> io::Result<()>
     where
         S: Write,
     {
         self.inner.encode_sl(to, value)
     }
 
-    fn encode_sv<S>(&self, to: S, value: i64) -> Result<()>
+    fn encode_sv<S>(&self, to: S, value: i64) -> io::Result<()>
     where
         S: Write,
     {
         self.inner.encode_sv(to, value)
     }
 
-    fn encode_fl<S>(&self, to: S, value: f32) -> Result<()>
+    fn encode_fl<S>(&self, to: S, value: f32) -> io::Result<()>
     where
         S: Write,
     {
         self.inner.encode_fl(to, value)
     }
 
-    fn encode_fd<S>(&self, to: S, value: f64) -> Result<()>
+    fn encode_fd<S>(&self, to: S, value: f64) -> io::Result<()>
     where
         S: Write,
     {

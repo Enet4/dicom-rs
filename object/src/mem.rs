@@ -2,13 +2,18 @@
 
 use itertools::Itertools;
 use smallvec::SmallVec;
+use snafu::{OptionExt, ResultExt};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
 
 use crate::meta::FileMetaTable;
-use crate::{DicomObject, RootDicomObject};
+use crate::{
+    CreateParser, DicomObject, MissingElementValue, NoSuchAttributeName, NoSuchDataElementAlias,
+    NoSuchDataElementTag, OpenFile, ParseMetaDataSet, PrematureEnd, ReadFile, ReadToken, Result,
+    RootDicomObject, UnexpectedToken, UnsupportedTransferSyntax,
+};
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::{HasLength, Header};
 use dicom_core::value::{Value, C};
@@ -16,8 +21,8 @@ use dicom_core::{DataElement, Length, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
+use dicom_parser::dataset::read::Error as ParserError;
 use dicom_parser::dataset::{DataSetReader, DataToken};
-use dicom_parser::error::{DataSetSyntaxError, Error, Result};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
 /// A full in-memory DICOM data element.
@@ -25,6 +30,8 @@ pub type InMemElement<D> = DataElement<InMemDicomObject<D>, InMemFragment>;
 
 /// The type of a pixel data fragment.
 pub type InMemFragment = Vec<u8>;
+
+type ParserResult<T> = std::result::Result<T, ParserError>;
 
 /** A DICOM object that is fully contained in memory.
  */
@@ -61,7 +68,7 @@ where
     type Element = &'s InMemElement<D>;
 
     fn element(&self, tag: Tag) -> Result<Self::Element> {
-        self.entries.get(&tag).ok_or(Error::NoSuchDataElement)
+        self.entries.get(&tag).context(NoSuchDataElementTag { tag })
     }
 
     fn element_by_name(&self, name: &str) -> Result<Self::Element> {
@@ -159,29 +166,37 @@ where
         P: AsRef<Path>,
         R: TransferSyntaxIndex,
     {
-        let mut file = BufReader::new(File::open(path)?);
+        let path = path.as_ref();
+        let mut file =
+            BufReader::new(File::open(path).with_context(|| OpenFile { filename: path })?);
 
         // skip preamble
         {
             let mut buf = [0u8; 128];
             // skip the preamble
-            file.read_exact(&mut buf)?;
+            file.read_exact(&mut buf)
+                .with_context(|| ReadFile { filename: path })?;
         }
 
         // read metadata header
-        let meta = FileMetaTable::from_reader(&mut file)?;
+        let meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSet)?;
 
         // read rest of data according to metadata, feed it to object
-        let ts = ts_index
-            .get(&meta.transfer_syntax)
-            .ok_or(Error::UnsupportedTransferSyntax)?;
-        let cs = SpecificCharacterSet::Default;
-        let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)?;
+        if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
+            let cs = SpecificCharacterSet::Default;
+            let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)
+                .context(CreateParser)?;
 
-        Ok(RootDicomObject {
-            meta,
-            obj: InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?,
-        })
+            Ok(RootDicomObject {
+                meta,
+                obj: InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?,
+            })
+        } else {
+            UnsupportedTransferSyntax {
+                uid: meta.transfer_syntax,
+            }
+            .fail()
+        }
     }
 
     /// Create a DICOM object by reading from a byte source.
@@ -213,16 +228,21 @@ where
         let mut file = BufReader::new(src);
 
         // read metadata header
-        let meta = FileMetaTable::from_reader(&mut file)?;
+        let meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSet)?;
 
         // read rest of data according to metadata, feed it to object
-        let ts = ts_index
-            .get(&meta.transfer_syntax)
-            .ok_or(Error::UnsupportedTransferSyntax)?;
-        let cs = SpecificCharacterSet::Default;
-        let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)?;
-        let obj = InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?;
-        Ok(RootDicomObject { meta, obj })
+        if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
+            let cs = SpecificCharacterSet::Default;
+            let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)
+                .context(CreateParser)?;
+            let obj = InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?;
+            Ok(RootDicomObject { meta, obj })
+        } else {
+            UnsupportedTransferSyntax {
+                uid: meta.transfer_syntax,
+            }
+            .fail()
+        }
     }
 }
 
@@ -294,13 +314,18 @@ where
 
     /// Retrieve a particular DICOM element by its tag.
     pub fn element(&self, tag: Tag) -> Result<&InMemElement<D>> {
-        self.entries.get(&tag).ok_or(Error::NoSuchDataElement)
+        self.entries.get(&tag).context(NoSuchDataElementTag { tag })
     }
 
     /// Retrieve a particular DICOM element by its name.
     pub fn element_by_name(&self, name: &str) -> Result<&InMemElement<D>> {
         let tag = self.lookup_name(name)?;
-        self.element(tag)
+        self.entries
+            .get(&tag)
+            .with_context(|| NoSuchDataElementAlias {
+                tag,
+                alias: name.to_string(),
+            })
     }
 
     /// Insert a data element to the object, replacing (and returning) any
@@ -314,25 +339,25 @@ where
     /// Build an object by consuming a data set parser.
     fn build_object<I: ?Sized>(dataset: &mut I, dict: D, in_item: bool, len: Length) -> Result<Self>
     where
-        I: Iterator<Item = Result<DataToken>>,
+        I: Iterator<Item = ParserResult<DataToken>>,
     {
         let mut entries: BTreeMap<Tag, InMemElement<D>> = BTreeMap::new();
         // perform a structured parsing of incoming tokens
         while let Some(token) = dataset.next() {
-            let elem = match token? {
+            let elem = match token.context(ReadToken)? {
                 DataToken::PixelSequenceStart => {
                     let value = InMemDicomObject::build_encapsulated_data(&mut *dataset)?;
                     DataElement::new(Tag(0x7fe0, 0x0010), VR::OB, value)
                 }
                 DataToken::ElementHeader(header) => {
                     // fetch respective value, place it in the entries
-                    let next_token = dataset.next().ok_or_else(|| Error::MissingElementValue)?;
-                    match next_token? {
+                    let next_token = dataset.next().context(MissingElementValue)?;
+                    match next_token.context(ReadToken)? {
                         DataToken::PrimitiveValue(v) => {
                             InMemElement::new(header.tag, header.vr, Value::Primitive(v))
                         }
                         token => {
-                            return Err(DataSetSyntaxError::UnexpectedToken(token).into());
+                            return UnexpectedToken { token }.fail();
                         }
                     }
                 }
@@ -345,7 +370,7 @@ where
                     // end of item, leave now
                     return Ok(InMemDicomObject { entries, dict, len });
                 }
-                token => return Err(DataSetSyntaxError::UnexpectedToken(token).into()),
+                token => return UnexpectedToken { token }.fail(),
             };
             entries.insert(elem.tag(), elem);
         }
@@ -359,7 +384,7 @@ where
         mut dataset: I,
     ) -> Result<Value<InMemDicomObject<D>, InMemFragment>>
     where
-        I: Iterator<Item = Result<DataToken>>,
+        I: Iterator<Item = ParserResult<DataToken>>,
     {
         // continue fetching tokens to retrieve:
         // - the offset table
@@ -374,7 +399,7 @@ where
         let mut fragments = C::new();
 
         while let Some(token) = dataset.next() {
-            match token? {
+            match token.context(ReadToken)? {
                 DataToken::ItemValue(data) => {
                     if offset_table.is_none() {
                         offset_table = Some(data.into());
@@ -400,9 +425,7 @@ where
                 | token @ DataToken::PixelSequenceStart
                 | token @ DataToken::SequenceStart { .. }
                 | token @ DataToken::PrimitiveValue(_) => {
-                    return Err(Error::DataSetSyntax(DataSetSyntaxError::UnexpectedToken(
-                        token,
-                    )));
+                    return UnexpectedToken { token }.fail();
                 }
             }
         }
@@ -421,29 +444,29 @@ where
         dict: &D,
     ) -> Result<C<InMemDicomObject<D>>>
     where
-        I: Iterator<Item = Result<DataToken>>,
+        I: Iterator<Item = ParserResult<DataToken>>,
     {
         let mut items: C<_> = SmallVec::new();
         while let Some(token) = dataset.next() {
-            match token? {
+            match token.context(ReadToken)? {
                 DataToken::ItemStart { len } => {
                     items.push(Self::build_object(&mut *dataset, dict.clone(), true, len)?);
                 }
                 DataToken::SequenceEnd => {
                     return Ok(items);
                 }
-                token => return Err(DataSetSyntaxError::UnexpectedToken(token).into()),
+                token => return UnexpectedToken { token }.fail(),
             };
         }
 
         // iterator fully consumed without a sequence delimiter
-        Err(DataSetSyntaxError::PrematureEnd.into())
+        PrematureEnd.fail()
     }
 
     fn lookup_name(&self, name: &str) -> Result<Tag> {
         self.dict
             .by_name(name)
-            .ok_or(Error::NoSuchAttributeName)
+            .context(NoSuchAttributeName { name })
             .map(|e| e.tag())
     }
 }

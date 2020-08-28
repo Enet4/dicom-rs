@@ -2,9 +2,10 @@
 //!
 
 use super::BasicEncode;
-use crate::error::Result;
 use byteordered::{ByteOrdered, Endianness};
 use std::io::Write;
+
+type Result<T> = std::io::Result<T>;
 
 /// A basic encoder of primitive elements in little endian.
 #[derive(Debug, Default, Clone, PartialEq)]
