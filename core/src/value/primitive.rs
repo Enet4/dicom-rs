@@ -1729,6 +1729,83 @@ impl PrimitiveValue {
         }
     }
 
+    /// Retrieve the full sequence of DICOM dates from this value.
+    ///
+    /// If the value is already represented as a sequence of dates,
+    /// it is returned as is.
+    /// If the value is a string or sequence of strings,
+    /// the strings are decoded to obtain a date, potentially failing if
+    /// any of the strings does not represent a valid date.
+    /// If the value is a sequence of U8 bytes, the bytes are
+    /// first interpreted as an ASCII character string,
+    /// then as a backslash-separated list of dates.
+    /// Otherwise, the operation fails.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    /// # use chrono::NaiveDate;
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::Date(smallvec![
+    ///         NaiveDate::from_ymd(2014, 10, 12),
+    ///     ]).to_multi_date().ok(),
+    ///     Some(vec![NaiveDate::from_ymd(2014, 10, 12)]),
+    /// );
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::Strs(smallvec![
+    ///         "20141012".to_string(),
+    ///         "20200828".to_string(),
+    ///     ]).to_multi_date().ok(),
+    ///     Some(vec![
+    ///         NaiveDate::from_ymd(2014, 10, 12),
+    ///         NaiveDate::from_ymd(2020, 8, 28),
+    ///     ]),
+    /// );
+    /// ```
+    pub fn to_multi_date(&self) -> Result<Vec<NaiveDate>, ConvertValueError> {
+        match self {
+            PrimitiveValue::Date(v) if !v.is_empty() => Ok(v.to_vec()),
+            PrimitiveValue::Str(s) => super::deserialize::parse_date(s.as_bytes())
+                .map(|(date, _rest)| vec![date])
+                .context(ParseDate)
+                .map_err(|err| ConvertValueError {
+                    requested: "Date",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
+            PrimitiveValue::Strs(s) => s
+                .into_iter()
+                .map(|s| super::deserialize::parse_date(s.as_bytes()).map(|(date, _rest)| date))
+                .collect::<Result<Vec<_>, _>>()
+                .context(ParseDate)
+                .map_err(|err| ConvertValueError {
+                    requested: "Date",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
+            PrimitiveValue::U8(bytes) => bytes
+                .split(|c| *c == b'\\')
+                .into_iter()
+                .map(|s| super::deserialize::parse_date(s).map(|(date, _rest)| date))
+                .collect::<Result<Vec<_>, _>>()
+                .context(ParseDate)
+                .map_err(|err| ConvertValueError {
+                    requested: "Date",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
+            _ => Err(ConvertValueError {
+                requested: "Date",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
     /// Retrieve a single DICOM time from this value.
     ///
     /// If the value is already represented as a time, it is returned as is.
@@ -1780,6 +1857,81 @@ impl PrimitiveValue {
             PrimitiveValue::U8(bytes) => super::deserialize::parse_time(bytes)
                 .map(|(date, _rest)| date)
                 .context(ParseTime)
+                .map_err(|err| ConvertValueError {
+                    requested: "Time",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
+            _ => Err(ConvertValueError {
+                requested: "Time",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve the full sequence of DICOM times from this value.
+    ///
+    /// If the value is already represented as a sequence of times,
+    /// it is returned as is.
+    /// If the value is a string or sequence of strings,
+    /// the strings are decoded to obtain a date, potentially failing if
+    /// any of the strings does not represent a valid date.
+    /// If the value is a sequence of U8 bytes, the bytes are
+    /// first interpreted as an ASCII character string,
+    /// then as a backslash-separated list of times.
+    /// Otherwise, the operation fails.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    /// # use chrono::NaiveTime;
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::from(NaiveTime::from_hms(22, 58, 2)).to_multi_time().ok(),
+    ///     Some(vec![NaiveTime::from_hms(22, 58, 2)]),
+    /// );
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::Strs(smallvec![
+    ///         "225802".to_string(),
+    ///         "225916.742388".to_string(),
+    ///     ]).to_multi_time().ok(),
+    ///     Some(vec![
+    ///         NaiveTime::from_hms(22, 58, 2),
+    ///         NaiveTime::from_hms_micro(22, 59, 16, 742388),
+    ///     ]),
+    /// );
+    /// ```
+    pub fn to_multi_time(&self) -> Result<Vec<NaiveTime>, ConvertValueError> {
+        match self {
+            PrimitiveValue::Time(v) if !v.is_empty() => Ok(v.to_vec()),
+            PrimitiveValue::Str(s) => super::deserialize::parse_time(s.as_bytes())
+                .map(|(date, _rest)| vec![date])
+                .context(ParseDate)
+                .map_err(|err| ConvertValueError {
+                    requested: "Time",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
+            PrimitiveValue::Strs(s) => s
+                .into_iter()
+                .map(|s| super::deserialize::parse_time(s.as_bytes()).map(|(date, _rest)| date))
+                .collect::<Result<Vec<_>, _>>()
+                .context(ParseDate)
+                .map_err(|err| ConvertValueError {
+                    requested: "Time",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
+            PrimitiveValue::U8(bytes) => bytes
+                .split(|c| *c == b'\\')
+                .into_iter()
+                .map(|s| super::deserialize::parse_time(s).map(|(date, _rest)| date))
+                .collect::<Result<Vec<_>, _>>()
+                .context(ParseDate)
                 .map_err(|err| ConvertValueError {
                     requested: "Time",
                     original: self.value_type(),
@@ -1846,7 +1998,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::DateTime(v) if !v.is_empty() => Ok(v[0]),
             PrimitiveValue::Str(s) => {
-                super::deserialize::parse_datetime(s.as_bytes(), default_offset)
+                super::deserialize::parse_datetime(s.trim_end().as_bytes(), default_offset)
                     .context(ParseDateTime)
                     .map_err(|err| ConvertValueError {
                         requested: "DateTime",
@@ -1855,7 +2007,7 @@ impl PrimitiveValue {
                     })
             }
             PrimitiveValue::Strs(s) => super::deserialize::parse_datetime(
-                s.first().map(|s| s.as_bytes()).unwrap_or(&[]),
+                s.first().map(|s| s.trim_end().as_bytes()).unwrap_or(&[]),
                 default_offset,
             )
             .context(ParseDateTime)
@@ -1873,6 +2025,100 @@ impl PrimitiveValue {
                 }),
             _ => Err(ConvertValueError {
                 requested: "DateTime",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve the full sequence of DICOM date-times from this value.
+    ///
+    /// If the value is already represented as a sequence of date-times,
+    /// it is returned as is.
+    /// If the value is a string or sequence of strings,
+    /// the strings are decoded to obtain a date, potentially failing if
+    /// any of the strings does not represent a valid date.
+    /// If the value is a sequence of U8 bytes, the bytes are
+    /// first interpreted as an ASCII character string,
+    /// then as a backslash-separated list of date-times.
+    /// Otherwise, the operation fails.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    /// # use chrono::{DateTime, FixedOffset, TimeZone};
+    /// let default_offset = FixedOffset::east(0);
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::from(
+    ///         FixedOffset::east(0)
+    ///             .ymd(2012, 12, 21)
+    ///             .and_hms(9, 30, 1)
+    ///     ).to_multi_datetime(default_offset).ok(),
+    ///     Some(vec![FixedOffset::east(0)
+    ///         .ymd(2012, 12, 21)
+    ///         .and_hms(9, 30, 1)
+    ///     ]),
+    /// );
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::Strs(smallvec![
+    ///         "20121221093001".to_string(),
+    ///         "20180102100123".to_string(),
+    ///     ]).to_multi_datetime(default_offset).ok(),
+    ///     Some(vec![
+    ///         FixedOffset::east(0)
+    ///             .ymd(2012, 12, 21)
+    ///             .and_hms(9, 30, 1),
+    ///         FixedOffset::east(0)
+    ///             .ymd(2018, 1, 2)
+    ///             .and_hms(10, 1, 23)
+    ///     ]),
+    /// );
+    /// ```
+    pub fn to_multi_datetime(
+        &self,
+        default_offset: FixedOffset,
+    ) -> Result<Vec<DateTime<FixedOffset>>, ConvertValueError> {
+        match self {
+            PrimitiveValue::DateTime(v) if !v.is_empty() => Ok(v.to_vec()),
+            PrimitiveValue::Str(s) => {
+                super::deserialize::parse_datetime(s.trim_end().as_bytes(), default_offset)
+                    .map(|date| vec![date])
+                    .context(ParseDate)
+                    .map_err(|err| ConvertValueError {
+                        requested: "DateTime",
+                        original: self.value_type(),
+                        cause: Some(err),
+                    })
+            }
+            PrimitiveValue::Strs(s) => s
+                .into_iter()
+                .map(|s| {
+                    super::deserialize::parse_datetime(s.trim_end().as_bytes(), default_offset)
+                })
+                .collect::<Result<Vec<_>, _>>()
+                .context(ParseDate)
+                .map_err(|err| ConvertValueError {
+                    requested: "DateTime",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
+            PrimitiveValue::U8(bytes) => bytes
+                .split(|c| *c == b'\\')
+                .into_iter()
+                .map(|s| super::deserialize::parse_datetime(s, default_offset))
+                .collect::<Result<Vec<_>, _>>()
+                .context(ParseDate)
+                .map_err(|err| ConvertValueError {
+                    requested: "DateTime",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
+            _ => Err(ConvertValueError {
+                requested: "Date",
                 original: self.value_type(),
                 cause: None,
             }),
