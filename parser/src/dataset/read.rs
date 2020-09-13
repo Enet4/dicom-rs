@@ -333,15 +333,30 @@ where
                     self.in_sequence = true;
                     Some(Ok(DataToken::ItemEnd))
                 }
+                Ok(header) if header.is_encapsulated_pixeldata() => {
+                    // encapsulated pixel data conditions:
+                    // expect a sequence of pixel data fragments
+
+                    // save it for the next step
+                    self.last_header = Some(header);
+                    Some(Ok(DataToken::PixelSequenceStart))
+                }
+                Ok(header) if header.len.is_undefined() => {
+                    // treat other undefined length elements 
+                    // as data set sequences,
+                    // discarding the VR in the process
+                    self.last_header = Some(header);
+                    self.in_sequence = true;
+
+                    let DataElementHeader { tag, len, ..} = header;
+                    self.push_sequence_token(SeqTokenType::Sequence, len, false);
+
+                    Some(Ok(DataToken::SequenceStart { tag, len }))
+                }
                 Ok(header) => {
                     // save it for the next step
                     self.last_header = Some(header);
-                    // token variant depends on whether it's encapsulated pixel data
-                    if header.is_encapsulated_pixeldata() {
-                        Some(Ok(DataToken::PixelSequenceStart))
-                    } else {
-                        Some(Ok(DataToken::ElementHeader(header)))
-                    }
+                    Some(Ok(DataToken::ElementHeader(header)))
                 }
                 Err(DecoderError::DecodeElementHeader {
                     source: dicom_encoding::decode::Error::ReadHeaderTag { source, .. },
@@ -549,20 +564,43 @@ mod tests {
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
     use dicom_encoding::text::DefaultCharacterSetCodec;
     use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-    use std::io::Read;
+    use dicom_encoding::transfer_syntax::implicit_le::ImplicitVRLittleEndianDecoder;
 
-    fn validate_dataset_reader<I>(data: &[u8], ground_truth: I)
+    fn validate_dataset_reader_implicit_vr<I>(data: &[u8], ground_truth: I)
     where
         I: IntoIterator<Item = DataToken>,
     {
         let mut cursor = data;
         let parser = StatefulDecoder::new(
-            cursor.by_ref(),
+            &mut cursor,
+            ImplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder::default(),
+            Box::new(DefaultCharacterSetCodec::default()) as Box<_>, // trait object
+        );
+
+        validate_dataset_reader(data, parser, ground_truth)
+    }
+
+    fn validate_dataset_reader_explicit_vr<I>(data: &[u8], ground_truth: I)
+    where
+        I: IntoIterator<Item = DataToken>,
+    {
+        let mut cursor = data;
+        let parser = StatefulDecoder::new(
+            &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder::default(),
             Box::new(DefaultCharacterSetCodec::default()) as Box<_>, // trait object
         );
 
+        validate_dataset_reader(&data, parser, ground_truth)
+    }
+
+    fn validate_dataset_reader<I, D>(data: &[u8], parser: D, ground_truth: I)
+    where
+        I: IntoIterator<Item = DataToken>,
+        D: StatefulDecode,
+    {
         let mut dset_reader = DataSetReader::new(parser);
 
         let mut iter = Iterator::zip(&mut dset_reader, ground_truth);
@@ -642,7 +680,7 @@ mod tests {
             DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
         ];
 
-        validate_dataset_reader(DATA, ground_truth);
+        validate_dataset_reader_explicit_vr(DATA, ground_truth);
     }
 
     #[test]
@@ -718,7 +756,7 @@ mod tests {
             )),
         ];
 
-        validate_dataset_reader(DATA, ground_truth);
+        validate_dataset_reader_explicit_vr(DATA, ground_truth);
     }
 
     #[test]
@@ -792,7 +830,30 @@ mod tests {
             DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
         ];
 
-        validate_dataset_reader(DATA, ground_truth);
+        validate_dataset_reader_explicit_vr(DATA, ground_truth);
+    }
+
+    #[test]
+    fn read_implicit_len_sequence_implicit_vr_unknown() {
+        #[rustfmt::skip]
+        static DATA: &[u8] = &[
+            0x33, 0x55, 0x33, 0x55, // sequence tag: (5533,5533) «private, unknown attribute»
+            0xff, 0xff, 0xff, 0xff, // length: undefined
+            // -- 8 --
+            0xfe, 0xff, 0xdd, 0xe0,
+            0x00, 0x00, 0x00, 0x00, // sequence end
+            // -- 16 --
+        ];
+
+        let ground_truth = vec![
+            DataToken::SequenceStart {
+                tag: Tag(0x5533, 0x5533),
+                len: Length::UNDEFINED,
+            },
+            DataToken::SequenceEnd,
+        ];
+
+        validate_dataset_reader_implicit_vr(DATA, ground_truth);
     }
 
     #[test]
@@ -841,7 +902,7 @@ mod tests {
             DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into())),
         ];
 
-        validate_dataset_reader(DATA, ground_truth);
+        validate_dataset_reader_explicit_vr(DATA, ground_truth);
     }
 
     #[test]
@@ -893,6 +954,6 @@ mod tests {
             DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into())),
         ];
 
-        validate_dataset_reader(DATA, ground_truth);
+        validate_dataset_reader_explicit_vr(DATA, ground_truth);
     }
 }
