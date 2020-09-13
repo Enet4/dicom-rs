@@ -327,33 +327,36 @@ where
                     Some(Ok(DataToken::SequenceStart { tag, len }))
                 }
                 Ok(DataElementHeader {
-                    tag,
-                    vr: VR::UN,
-                    len,
-                }) if len.is_undefined() => {
-                    // treat undefined length UN elements
-                    // as sequences
-                    self.in_sequence = true;
-                    self.push_sequence_token(SeqTokenType::Sequence, len, false);
-
-                    Some(Ok(DataToken::SequenceStart { tag, len }))
-                }
-                Ok(DataElementHeader {
                     tag: Tag(0xFFFE, 0xE00D),
                     ..
                 }) => {
                     self.in_sequence = true;
                     Some(Ok(DataToken::ItemEnd))
                 }
+                Ok(header) if header.is_encapsulated_pixeldata() => {
+                    // encapsulated pixel data conditions:
+                    // expect a sequence of pixel data fragments
+
+                    // save it for the next step
+                    self.last_header = Some(header);
+                    Some(Ok(DataToken::PixelSequenceStart))
+                }
+                Ok(header) if header.len.is_undefined() => {
+                    // treat other undefined length elements 
+                    // as data set sequences,
+                    // discarding the VR in the process
+                    self.last_header = Some(header);
+                    self.in_sequence = true;
+
+                    let DataElementHeader { tag, len, ..} = header;
+                    self.push_sequence_token(SeqTokenType::Sequence, len, false);
+
+                    Some(Ok(DataToken::SequenceStart { tag, len }))
+                }
                 Ok(header) => {
                     // save it for the next step
                     self.last_header = Some(header);
-                    // token variant depends on whether it's encapsulated pixel data
-                    if header.is_encapsulated_pixeldata() {
-                        Some(Ok(DataToken::PixelSequenceStart))
-                    } else {
-                        Some(Ok(DataToken::ElementHeader(header)))
-                    }
+                    Some(Ok(DataToken::ElementHeader(header)))
                 }
                 Err(DecoderError::DecodeElementHeader {
                     source: dicom_encoding::decode::Error::ReadHeaderTag { source, .. },
