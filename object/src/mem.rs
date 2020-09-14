@@ -184,7 +184,7 @@ where
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let cs = SpecificCharacterSet::Default;
-            let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)
+            let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs, Default::default())
                 .context(CreateParser)?;
 
             Ok(RootDicomObject {
@@ -233,7 +233,7 @@ where
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let cs = SpecificCharacterSet::Default;
-            let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs)
+            let mut dataset = DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs, Default::default())
                 .context(CreateParser)?;
             let obj = InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?;
             Ok(RootDicomObject { meta, obj })
