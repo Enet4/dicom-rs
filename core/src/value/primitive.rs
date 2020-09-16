@@ -372,11 +372,22 @@ impl PrimitiveValue {
         }
     }
 
-    /// Determine the minimum number of bytes that this value would need to
-    /// occupy in a DICOM file, without compression and without the header.
-    /// As mandated by the standard, it is always even.
-    /// The calculated number does not need to match the size of the original
-    /// byte stream.
+    /// Determine the length of the DICOM value in its encoded form.
+    /// 
+    /// In other words,
+    /// this is the number of bytes that the value
+    /// would need to occupy in a DICOM file,
+    /// without compression and without the element header.
+    /// The output is always an even number,
+    /// so as to consider the mandatory trailing padding.
+    ///
+    /// This method is particularly useful for presenting an estimated
+    /// space occupation to the end user.
+    /// However, consumers should not depend on this number for
+    /// decoding or encoding values.
+    /// The calculated number does not need to match
+    /// the length of the original byte stream
+    /// from where the value was originally decoded.
     pub fn calculate_byte_len(&self) -> usize {
         use self::PrimitiveValue::*;
         match self {
@@ -391,28 +402,25 @@ impl PrimitiveValue {
             F32(c) => c.len() * 4,
             F64(c) => c.len() * 8,
             Tags(c) => c.len() * 4,
-            Date(c) => c.len() * 8,
+            Date(c) => (c.len() * 9) & !1,
             Str(s) => s.as_bytes().len(),
-            Strs(c) if c.is_empty() => 0,
             Strs(c) => {
                 c.iter()
-                    .map(|s| ((s.as_bytes().len() + 1) & !1) + 1)
+                    .map(|s| s.as_bytes().len() + 1)
                     .sum::<usize>()
-                    - 1
+                    & !1
             }
-            Time(c) if c.is_empty() => 0,
             Time(c) => {
                 c.iter()
-                    .map(|t| ((PrimitiveValue::tm_byte_len(*t) + 1) & !1) + 1)
+                    .map(|t| PrimitiveValue::tm_byte_len(*t) + 1)
                     .sum::<usize>()
-                    - 1
+                    & !1
             }
-            DateTime(c) if c.is_empty() => 0,
             DateTime(c) => {
                 c.iter()
-                    .map(|dt| ((PrimitiveValue::dt_byte_len(*dt) + 1) & !1) + 1)
+                    .map(|dt| PrimitiveValue::dt_byte_len(*dt) + 1)
                     .sum::<usize>()
-                    - 1
+                    & !1
             }
         }
     }
@@ -435,16 +443,12 @@ impl PrimitiveValue {
     }
 
     fn dt_byte_len(datetime: DateTime<FixedOffset>) -> usize {
-        // !!! the current local definition of datetime is inaccurate, because
-        // it cannot distinguish unspecified components from their defaults
-        // (e.g. 201812 should be different from 20181201). This will have to
-        // be changed at some point.
-        (match (datetime.month(), datetime.day()) {
-            (1, 1) => 0,
-            (_, 1) => 2,
-            _ => 4,
-        }) + 8
-            + PrimitiveValue::tm_byte_len(datetime.time())
+        // Note: this implementation assumes that the date is always
+        // written fully.
+        // It currently cannot distinguish unspecified components from their defaults
+        // (e.g. "201812" should be different from "20181201").
+        // This will have to be changed at some point (issue #55)
+        8 + PrimitiveValue::tm_byte_len(datetime.time())
             + if datetime.offset() == &FixedOffset::east(0) {
                 0
             } else {
@@ -2414,7 +2418,7 @@ mod tests {
     use super::{ConvertValueError, InvalidValueReadError};
     use crate::dicom_value;
     use crate::value::{PrimitiveValue, ValueType};
-    use chrono::{NaiveDate, NaiveTime};
+    use chrono::{NaiveDate, NaiveTime, FixedOffset, TimeZone};
     use smallvec::smallvec;
 
     #[test]
@@ -2712,5 +2716,65 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn calculate_byte_len() {
+        // single even string
+        // b"ABCD"
+        let val = dicom_value!("ABCD");
+        assert_eq!(val.calculate_byte_len(), 4);
+
+        // multi string, no padding
+        // b"ABCD\\EFG"
+        let val = dicom_value!(Strs, ["ABCD", "EFG"]);
+        assert_eq!(val.calculate_byte_len(), 8);
+
+        // multi string with padding
+        // b"ABCD\\EFGH "
+        let val = dicom_value!(Strs, ["ABCD", "EFGH"]);
+        assert_eq!(val.calculate_byte_len(), 10);
+
+        // multi date, no padding
+        // b"20141012\\20200915\\20180101"
+        let val = dicom_value!(Date, [
+            NaiveDate::from_ymd(2014, 10, 12),
+            NaiveDate::from_ymd(2020, 9, 15),
+            NaiveDate::from_ymd(2018, 1, 1)
+        ]);
+        assert_eq!(val.calculate_byte_len(), 26);
+
+        // multi date with padding
+        // b"20141012\\20200915 "
+        let val = dicom_value!(Date, [
+            NaiveDate::from_ymd(2014, 10, 12),
+            NaiveDate::from_ymd(2020, 9, 15)
+        ]);
+        assert_eq!(val.calculate_byte_len(), 18);
+
+        // single time with second fragment
+        // b"185530.4756"
+        let val = dicom_value!(
+            NaiveTime::from_hms_micro(18, 55, 30, 475600)
+        );
+        assert_eq!(val.calculate_byte_len(), 12);
+
+        // multi time with padding
+        // b"185530\\185530 "
+        let val = dicom_value!(Time, [
+            NaiveTime::from_hms(18, 55, 30),
+            NaiveTime::from_hms(18, 55, 30)
+        ]);
+        assert_eq!(val.calculate_byte_len(), 14);
+
+        // single date-time with time zone, no second fragment
+        // b"20121221093001+0100"
+        let val = PrimitiveValue::from(
+            FixedOffset::east(1)
+                     .ymd(2012, 12, 21)
+                     .and_hms(9, 30, 1)
+        );
+        assert_eq!(val.calculate_byte_len(), 20);
+        
     }
 }
