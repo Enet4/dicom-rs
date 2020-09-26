@@ -1,15 +1,18 @@
 //! This module includes a high level abstraction over a DICOM data element's value.
 
-use crate::header::{HasLength, Length, Tag};
+use crate::header::{EmptyObject, HasLength, Length, Tag};
+use num_traits::NumCast;
 use smallvec::SmallVec;
-use std::borrow::Cow;
+use std::{borrow::Cow, str::FromStr};
 
 pub mod deserialize;
 mod primitive;
 pub mod serialize;
 
-pub use self::primitive::{InvalidValueReadError, CastValueError, PrimitiveValue, ValueType};
 pub use self::deserialize::Error as DeserializeError;
+pub use self::primitive::{
+    CastValueError, ConvertValueError, InvalidValueReadError, PrimitiveValue, ValueType,
+};
 
 /// re-exported from chrono
 use chrono::{DateTime, NaiveDate, NaiveTime};
@@ -48,7 +51,7 @@ pub enum Value<I, P> {
     Sequence {
         /// Item collection.
         items: C<I>,
-        /// The size in bytes.
+        /// The size in bytes (length).
         size: Length,
     },
     /// An encapsulated pixel data sequence.
@@ -60,11 +63,55 @@ pub enum Value<I, P> {
     },
 }
 
+impl<P> Value<EmptyObject, P> {
+    /// Construct a DICOM pixel sequence sequence value
+    /// from an offset rable and a list of fragments.
+    ///
+    /// Note: This function does not validate the offset table
+    /// against the fragments.
+    pub fn new_pixel_sequence<T>(offset_table: C<u8>, fragments: T) -> Self
+    where
+        T: Into<C<P>>,
+    {
+        Value::PixelSequence {
+            offset_table,
+            fragments: fragments.into(),
+        }
+    }
+}
+impl<I> Value<I, [u8; 0]> {
+    /// Construct a full DICOM data set sequence value
+    /// from a list of items and length.
+    #[inline]
+    pub fn new_sequence<T>(items: T, length: Length) -> Self
+    where
+        T: Into<C<I>>,
+    {
+        Value::Sequence {
+            items: items.into(),
+            size: length,
+        }
+    }
+}
+
+impl Value<EmptyObject, [u8; 0]> {
+    /// Construct a DICOM value from a primitive value.
+    ///
+    /// This is equivalent to `Value::from` in behavior,
+    /// except that suitable type parameters are specified
+    /// instead of inferred.
+    #[inline]
+    pub fn new(value: PrimitiveValue) -> Self {
+        Self::from(value)
+    }
+}
+
 impl<I, P> Value<I, P> {
     /// Obtain the number of individual values.
-    /// In a sequence item, this is the number of items. In a pixel sequence,
-    /// this is currently set to 1 regardless of the number of compressed
-    /// fragments or frames.
+    /// In a primitive, this is the number of individual elements in the value.
+    /// In a sequence item, this is the number of items.
+    /// In a pixel sequence, this is currently set to 1
+    /// regardless of the number of compressed fragments or frames.
     pub fn multiplicity(&self) -> u32 {
         match *self {
             Value::Primitive(ref v) => v.multiplicity(),
@@ -163,6 +210,24 @@ where
         }
     }
 
+    /// Convert the full primitive value into a sequence of strings.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of strings as described in [`PrimitiveValue::to_multi_str`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_multi_str`]: ../enum.PrimitiveValue#to_multi_str
+    pub fn to_multi_str(&self) -> Result<Cow<[String]>, CastValueError> {
+        match self {
+            Value::Primitive(prim) => Ok(prim.to_multi_str()),
+            _ => Err(CastValueError {
+                requested: "string",
+                got: self.value_type(),
+            }),
+        }
+    }
+
     /// Convert the full primitive value into raw bytes.
     ///
     /// String values already encoded with the `Str` and `Strs` variants
@@ -191,6 +256,30 @@ where
         }
     }
 
+    /// Retrieves the primitive value as a sequence of signed 16-bit integers
+    /// without conversions.
+    pub fn as_i16(&self) -> Result<&[i16], CastValueError> {
+        match self {
+            Value::Primitive(PrimitiveValue::I16(v)) => Ok(&v),
+            _ => Err(CastValueError {
+                requested: "i16",
+                got: self.value_type(),
+            }),
+        }
+    }
+
+    /// Retrieves the primitive value as a sequence of unsigned 16-bit integers
+    /// without conversions.
+    pub fn as_u16(&self) -> Result<&[u16], CastValueError> {
+        match self {
+            Value::Primitive(PrimitiveValue::U16(v)) => Ok(&v),
+            _ => Err(CastValueError {
+                requested: "u16",
+                got: self.value_type(),
+            }),
+        }
+    }
+
     /// Retrieves the primitive value as a sequence of signed 32-bit integers
     /// without conversions.
     pub fn as_i32(&self) -> Result<&[i32], CastValueError> {
@@ -199,6 +288,184 @@ where
             _ => Err(CastValueError {
                 requested: "i32",
                 got: self.value_type(),
+            }),
+        }
+    }
+
+    /// Retrieves the primitive value as a sequence of unsigned 32-bit integers
+    /// without conversions.
+    pub fn as_u32(&self) -> Result<&[u32], CastValueError> {
+        match self {
+            Value::Primitive(PrimitiveValue::U32(v)) => Ok(&v),
+            _ => Err(CastValueError {
+                requested: "u32",
+                got: self.value_type(),
+            }),
+        }
+    }
+
+    /// Retrieves the primitive value as a sequence of signed 64-bit integers
+    /// without conversions.
+    pub fn as_i64(&self) -> Result<&[i64], CastValueError> {
+        match self {
+            Value::Primitive(PrimitiveValue::I64(v)) => Ok(&v),
+            _ => Err(CastValueError {
+                requested: "i64",
+                got: self.value_type(),
+            }),
+        }
+    }
+
+    /// Retrieves the primitive value as a sequence of unsigned 64-bit integers
+    /// without conversions.
+    pub fn as_u64(&self) -> Result<&[u64], CastValueError> {
+        match self {
+            Value::Primitive(PrimitiveValue::U64(v)) => Ok(&v),
+            _ => Err(CastValueError {
+                requested: "u64",
+                got: self.value_type(),
+            }),
+        }
+    }
+
+    /// Retrieves the primitive value as a sequence of
+    /// double-precision floating point numbers,
+    /// without conversions.
+    pub fn as_f64(&self) -> Result<&[f64], CastValueError> {
+        match self {
+            Value::Primitive(PrimitiveValue::F64(v)) => Ok(&v),
+            _ => Err(CastValueError {
+                requested: "f64",
+                got: self.value_type(),
+            }),
+        }
+    }
+
+    /// Retrieves the primitive value as a sequence of
+    /// single-precision floating point numbers,
+    /// without conversions.
+    pub fn as_f32(&self) -> Result<&[f32], CastValueError> {
+        match self {
+            Value::Primitive(PrimitiveValue::F32(v)) => Ok(&v),
+            _ => Err(CastValueError {
+                requested: "f32",
+                got: self.value_type(),
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value into an integer.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// an integer as described in [`PrimitiveValue::to_int`].
+    ///
+    /// [`PrimitiveValue::to_int`]: ../enum.PrimitiveValue#to_int
+    pub fn to_int<T>(&self) -> Result<T, ConvertValueError>
+    where
+        T: Clone,
+        T: NumCast,
+        T: FromStr<Err = std::num::ParseIntError>,
+    {
+        match self {
+            Value::Primitive(v) => v.to_int::<T>(),
+            _ => Err(ConvertValueError {
+                requested: "integer",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value into a sequence of integers.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of integers as described in [PrimitiveValue::to_multi_int].
+    ///
+    /// [PrimitiveValue::to_multi_int]: ../enum.PrimitiveValue#to_multi_int
+    pub fn to_multi_int<T>(&self) -> Result<Vec<T>, ConvertValueError>
+    where
+        T: Clone,
+        T: NumCast,
+        T: FromStr<Err = std::num::ParseIntError>,
+    {
+        match self {
+            Value::Primitive(v) => v.to_multi_int::<T>(),
+            _ => Err(ConvertValueError {
+                requested: "integer",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value
+    /// into a single-precision floating point number.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a number as described in [`PrimitiveValue::to_float32`].
+    ///
+    /// [`PrimitiveValue::to_float32`]: ../enum.PrimitiveValue#to_float32
+    pub fn to_float32(&self) -> Result<f32, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_float32(),
+            _ => Err(ConvertValueError {
+                requested: "float32",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value
+    /// into a sequence of single-precision floating point numbers.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of numbers as described in [`PrimitiveValue::to_multi_float32`].
+    ///
+    /// [`PrimitiveValue::to_multi_float32`]: ../enum.PrimitiveValue#to_multi_float32
+    pub fn to_multi_float32(&self) -> Result<Vec<f32>, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_multi_float32(),
+            _ => Err(ConvertValueError {
+                requested: "float32",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value
+    /// into a double-precision floating point number.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a number as described in [`PrimitiveValue::to_float64`].
+    ///
+    /// [`PrimitiveValue::to_float64`]: ../enum.PrimitiveValue#to_float64
+    pub fn to_float64(&self) -> Result<f64, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_float64(),
+            _ => Err(ConvertValueError {
+                requested: "float64",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value
+    /// into a sequence of double-precision floating point numbers.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of numbers as described in [`PrimitiveValue::to_multi_float64`].
+    ///
+    /// [`PrimitiveValue::to_multi_float64`]: ../enum.PrimitiveValue#to_multi_float64
+    pub fn to_multi_float64(&self) -> Result<Vec<f64>, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_multi_float64(),
+            _ => Err(ConvertValueError {
+                requested: "float64",
+                original: self.value_type(),
+                cause: None,
             }),
         }
     }
@@ -229,5 +496,61 @@ where
 impl<I, P> From<PrimitiveValue> for Value<I, P> {
     fn from(v: PrimitiveValue) -> Self {
         Value::Primitive(v)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dicom_value;
+    use crate::header::EmptyObject;
+    use smallvec::smallvec;
+
+    #[test]
+    fn to_int() {
+        let value = Value::new(dicom_value!(I32, [1, 2, 5]));
+        assert_eq!(value.to_int::<u32>().unwrap(), 1);
+        assert_eq!(value.to_int::<i32>().unwrap(), 1);
+        assert_eq!(value.to_int::<u16>().unwrap(), 1);
+        assert_eq!(value.to_int::<i16>().unwrap(), 1);
+        assert_eq!(value.to_int::<u64>().unwrap(), 1);
+        assert_eq!(value.to_int::<i64>().unwrap(), 1);
+
+        assert_eq!(value.to_multi_int::<i32>().unwrap(), vec![1, 2, 5]);
+        assert_eq!(value.to_multi_int::<u32>().unwrap(), vec![1, 2, 5]);
+
+        // sequence values can't be turned to an int
+        let value = Value::<EmptyObject, _>::new_sequence(smallvec![], Length::UNDEFINED);
+
+        assert!(matches!(
+            value.to_int::<u32>(),
+            Err(ConvertValueError {
+                requested: "integer",
+                original: ValueType::Item,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn to_float() {
+        let value = Value::new(dicom_value!(F64, [1., 2., 5.]));
+        assert_eq!(value.to_float32().unwrap(), 1.);
+        assert_eq!(value.to_float64().unwrap(), 1.);
+
+        assert_eq!(value.to_multi_float32().unwrap(), vec![1., 2., 5.]);
+        assert_eq!(value.to_multi_float64().unwrap(), vec![1., 2., 5.]);
+
+        // sequence values can't be turned to a number
+        let value = Value::<EmptyObject, _>::new_sequence(smallvec![], Length::UNDEFINED);
+
+        assert!(matches!(
+            value.to_float32(),
+            Err(ConvertValueError {
+                requested: "float32",
+                original: ValueType::Item,
+                ..
+            })
+        ));
     }
 }

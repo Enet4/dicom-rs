@@ -516,6 +516,106 @@ impl PrimitiveValue {
         }
     }
 
+    /// Convert the primitive value into a multi-string representation.
+    ///
+    /// String values already encoded with the `Str` and `Strs` variants
+    /// are provided as is.
+    /// All other type variants are first converted to a string,
+    /// then collected into a vector.
+    ///
+    /// **Note:**
+    /// As the process of reading a DICOM value
+    /// may not always preserve its original nature,
+    /// it is not guaranteed that `to_multi_str()` returns strings with
+    /// the exact same byte sequence as the one originally found
+    /// at the source of the value,
+    /// even for the string variants.
+    /// Therefore, this method is not reliable
+    /// for compliant DICOM serialization.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use dicom_core::dicom_value;
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    /// # use chrono::NaiveDate;
+    /// assert_eq!(
+    ///     dicom_value!(Strs, [
+    ///         "DERIVED",
+    ///         "PRIMARY",
+    ///         "WHOLE BODY",
+    ///         "EMISSION",
+    ///     ])
+    ///     .to_multi_str(),
+    ///     &["DERIVED", "PRIMARY", "WHOLE BODY", "EMISSION"][..],
+    /// );
+    ///
+    /// assert_eq!(
+    ///     dicom_value!(Str, "Smith^John").to_multi_str(),
+    ///     &["Smith^John"][..],
+    /// );
+    ///
+    /// assert_eq!(
+    ///     dicom_value!(Date, NaiveDate::from_ymd(2014, 10, 12)).to_multi_str(),
+    ///     &["20141012"][..],
+    /// );
+    ///
+    /// assert_eq!(
+    ///     dicom_value!(I64, [128, 256, 512]).to_multi_str(),
+    ///     &["128", "256", "512"][..],
+    /// );
+    /// ```
+    pub fn to_multi_str(&self) -> Cow<[String]> {
+        /// Auxilliary function for turning a sequence of values
+        /// into a sequence of strings.
+        fn seq_to_str<I>(iter: I) -> Vec<String>
+        where
+            I: IntoIterator,
+            I::Item: std::fmt::Display,
+        {
+            iter.into_iter()
+                .map(|x| x.to_string())
+                .collect()
+        }
+
+        match self {
+            PrimitiveValue::Empty => Cow::from(&[][..]),
+            PrimitiveValue::Str(values) => Cow::from(std::slice::from_ref(values)),
+            PrimitiveValue::Strs(values) => {
+                Cow::from(&values[..])
+            }
+            PrimitiveValue::Date(values) =>
+                values
+                    .into_iter()
+                    .map(|date| date.format("%Y%m%d").to_string())
+                    .collect::<Vec<_>>()
+                    .into(),
+            PrimitiveValue::Time(values) =>
+                values
+                    .into_iter()
+                    .map(|date| date.format("%H%M%S%.6f").to_string())
+                    .collect::<Vec<_>>()
+                    .into(),
+            PrimitiveValue::DateTime(values) =>
+                values
+                    .into_iter()
+                    .map(|date| date.format("%Y%m%d%H%M%S%.6f%z").to_string())
+                    .collect::<Vec<_>>()
+                    .into(),
+            PrimitiveValue::U8(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::U16(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::U32(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::I16(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::I32(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::U64(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::I64(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::F32(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::F64(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::Tags(values) => Cow::Owned(seq_to_str(values)),
+        }
+    }
+
     /// Retrieve this DICOM value as raw bytes.
     ///
     /// Binary numeric values are returned with a reintepretation
