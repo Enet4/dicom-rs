@@ -2272,8 +2272,11 @@ macro_rules! impl_primitive_getters {
 /// Conversions from one representation to another do not take place
 /// when using these methods.
 impl PrimitiveValue {
-    /// Get a single string value. If it contains multiple strings,
+    /// Get a single string value.
+    ///
+    /// If it contains multiple strings,
     /// only the first one is returned.
+    ///
     /// An error is returned if the variant is not compatible.
     ///
     /// To enable conversions of other variants to a textual representation,
@@ -2298,6 +2301,7 @@ impl PrimitiveValue {
 
     /// Get the inner sequence of string values
     /// if the variant is either `Str` or `Strs`.
+    ///
     /// An error is returned if the variant is not compatible.
     ///
     /// To enable conversions of other variants to a textual representation,
@@ -2515,7 +2519,7 @@ impl DicomValueType for PrimitiveValue {
 
 #[cfg(test)]
 mod tests {
-    use super::{ConvertValueError, InvalidValueReadError};
+    use super::{CastValueError, ConvertValueError, InvalidValueReadError};
     use crate::dicom_value;
     use crate::value::{PrimitiveValue, ValueType};
     use chrono::{NaiveDate, NaiveTime, FixedOffset, TimeZone};
@@ -2875,6 +2879,64 @@ mod tests {
                      .and_hms(9, 30, 1)
         );
         assert_eq!(val.calculate_byte_len(), 20);
-        
+    }
+
+    #[test]
+    fn primitive_value_get() {
+
+        assert_eq!(
+            dicom_value!(Strs, ["Smith^John"]).string().unwrap(),
+            "Smith^John"
+        );
+
+        assert_eq!(
+            dicom_value!(Strs, ["Smith^John"]).strings().unwrap(),
+            &["Smith^John"]
+        );
+
+        assert_eq!(
+            dicom_value!(I32, [1, 2, 5]).int32().unwrap(),
+            1,
+        );
+
+        assert_eq!(
+            dicom_value!(I32, [1, 2, 5]).int32_slice().unwrap(),
+            &[1, 2, 5],
+        );
+
+        assert!(matches!(
+            dicom_value!(I32, [1, 2, 5]).uint32(),
+            Err(CastValueError {
+                requested: "uint32",
+                got: ValueType::I32,
+                ..
+            })
+        ));
+
+        assert!(matches!(
+            dicom_value!(I32, [1, 2, 5]).strings(),
+            Err(CastValueError {
+                requested: "strings",
+                got: ValueType::I32,
+                ..
+            })
+        ));
+
+        assert_eq!(
+            PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)])
+                .date()
+                .unwrap(),
+            NaiveDate::from_ymd(2014, 10, 12),
+        );
+
+        assert!(matches!(
+            PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)])
+                .time(),
+            Err(CastValueError {
+                requested: "time",
+                got: ValueType::Date,
+                ..
+            })
+        ));
     }
 }
