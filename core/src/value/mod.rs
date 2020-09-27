@@ -44,7 +44,7 @@ pub trait DicomValueType: HasLength {
 ///
 /// [`HasLength`]: ../header/trait.HasLength.html
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value<I, P> {
+pub enum Value<I = EmptyObject, P = [u8; 0]> {
     /// Primitive value.
     Primitive(PrimitiveValue),
     /// A complex sequence of items.
