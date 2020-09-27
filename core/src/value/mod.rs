@@ -15,7 +15,7 @@ pub use self::primitive::{
 };
 
 /// re-exported from chrono
-use chrono::{DateTime, NaiveDate, NaiveTime};
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
 
 /// An aggregation of one or more elements in a value.
 pub type C<T> = SmallVec<[T; 2]>;
@@ -244,116 +244,6 @@ where
         }
     }
 
-    /// Retrieves the primitive value as a sequence of unsigned bytes
-    /// without conversions.
-    pub fn as_u8(&self) -> Result<&[u8], CastValueError> {
-        match self {
-            Value::Primitive(PrimitiveValue::U8(v)) => Ok(&v),
-            _ => Err(CastValueError {
-                requested: "u8",
-                got: self.value_type(),
-            }),
-        }
-    }
-
-    /// Retrieves the primitive value as a sequence of signed 16-bit integers
-    /// without conversions.
-    pub fn as_i16(&self) -> Result<&[i16], CastValueError> {
-        match self {
-            Value::Primitive(PrimitiveValue::I16(v)) => Ok(&v),
-            _ => Err(CastValueError {
-                requested: "i16",
-                got: self.value_type(),
-            }),
-        }
-    }
-
-    /// Retrieves the primitive value as a sequence of unsigned 16-bit integers
-    /// without conversions.
-    pub fn as_u16(&self) -> Result<&[u16], CastValueError> {
-        match self {
-            Value::Primitive(PrimitiveValue::U16(v)) => Ok(&v),
-            _ => Err(CastValueError {
-                requested: "u16",
-                got: self.value_type(),
-            }),
-        }
-    }
-
-    /// Retrieves the primitive value as a sequence of signed 32-bit integers
-    /// without conversions.
-    pub fn as_i32(&self) -> Result<&[i32], CastValueError> {
-        match self {
-            Value::Primitive(PrimitiveValue::I32(v)) => Ok(&v),
-            _ => Err(CastValueError {
-                requested: "i32",
-                got: self.value_type(),
-            }),
-        }
-    }
-
-    /// Retrieves the primitive value as a sequence of unsigned 32-bit integers
-    /// without conversions.
-    pub fn as_u32(&self) -> Result<&[u32], CastValueError> {
-        match self {
-            Value::Primitive(PrimitiveValue::U32(v)) => Ok(&v),
-            _ => Err(CastValueError {
-                requested: "u32",
-                got: self.value_type(),
-            }),
-        }
-    }
-
-    /// Retrieves the primitive value as a sequence of signed 64-bit integers
-    /// without conversions.
-    pub fn as_i64(&self) -> Result<&[i64], CastValueError> {
-        match self {
-            Value::Primitive(PrimitiveValue::I64(v)) => Ok(&v),
-            _ => Err(CastValueError {
-                requested: "i64",
-                got: self.value_type(),
-            }),
-        }
-    }
-
-    /// Retrieves the primitive value as a sequence of unsigned 64-bit integers
-    /// without conversions.
-    pub fn as_u64(&self) -> Result<&[u64], CastValueError> {
-        match self {
-            Value::Primitive(PrimitiveValue::U64(v)) => Ok(&v),
-            _ => Err(CastValueError {
-                requested: "u64",
-                got: self.value_type(),
-            }),
-        }
-    }
-
-    /// Retrieves the primitive value as a sequence of
-    /// double-precision floating point numbers,
-    /// without conversions.
-    pub fn as_f64(&self) -> Result<&[f64], CastValueError> {
-        match self {
-            Value::Primitive(PrimitiveValue::F64(v)) => Ok(&v),
-            _ => Err(CastValueError {
-                requested: "f64",
-                got: self.value_type(),
-            }),
-        }
-    }
-
-    /// Retrieves the primitive value as a sequence of
-    /// single-precision floating point numbers,
-    /// without conversions.
-    pub fn as_f32(&self) -> Result<&[f32], CastValueError> {
-        match self {
-            Value::Primitive(PrimitiveValue::F32(v)) => Ok(&v),
-            _ => Err(CastValueError {
-                requested: "f32",
-                got: self.value_type(),
-            }),
-        }
-    }
-
     /// Retrieve and convert the primitive value into an integer.
     ///
     /// If the value is a primitive, it will be converted into
@@ -482,15 +372,102 @@ where
     }
 
     /// Retrieves the primitive value as a sequence of DICOM tags.
+    #[deprecated(note = "use `tags` instead")]
     pub fn as_tags(&self) -> Result<&[Tag], CastValueError> {
+        self.tags()
+    }
+}
+
+/// Macro for implementing getters to single and multi-values,
+/// by delegating to `PrimitiveValue`.
+///
+/// Should be placed inside `Value`'s impl block.
+macro_rules! impl_primitive_getters {
+    ($name_single: ident, $name_multi: ident, $variant: ident, $ret: ty) => {        
+        /// Get a single value of the requested type.
+        ///
+        /// If it contains multiple values,
+        /// only the first one is returned.
+        /// An error is returned if the variant is not compatible.
+        pub fn $name_single(&self) -> Result<$ret, CastValueError> {
+            match self {
+                Value::Primitive(v) => v.$name_single(),
+                value => Err(CastValueError {
+                    requested: stringify!($name_single),
+                    got: value.value_type(),
+                }),
+            }
+        }
+
+        /// Get a sequence of values of the requested type without copying.
+        ///
+        /// An error is returned if the variant is not compatible.
+        pub fn $name_multi(&self) -> Result<&[$ret], CastValueError> {
+            match self {
+                Value::Primitive(v) => v.$name_multi(),
+                value => Err(CastValueError {
+                    requested: stringify!($name_multi),
+                    got: value.value_type(),
+                }),
+            }
+        }
+    };
+}
+
+impl<I, P> Value<I, P> {
+    /// Get a single string value.
+    ///
+    /// If it contains multiple strings,
+    /// only the first one is returned.
+    ///
+    /// An error is returned if the variant is not compatible.
+    ///
+    /// To enable conversions of other variants to a textual representation,
+    /// see [`to_str()`] instead.
+    ///
+    /// [`to_str()`]: #method.to_str
+    pub fn string(&self) -> Result<&str, CastValueError> {
         match self {
-            Value::Primitive(PrimitiveValue::Tags(v)) => Ok(&v),
+            Value::Primitive(v) => v.string(),
             _ => Err(CastValueError {
-                requested: "tag",
+                requested: "string",
                 got: self.value_type(),
             }),
         }
     }
+
+    /// Get the inner sequence of string values
+    /// if the variant is either `Str` or `Strs`.
+    ///
+    /// An error is returned if the variant is not compatible.
+    ///
+    /// To enable conversions of other variants to a textual representation,
+    /// see [`to_str()`] instead.
+    ///
+    /// [`to_str()`]: #method.to_str
+    pub fn strings(&self) -> Result<&[String], CastValueError> {
+        match self {
+            Value::Primitive(v) => v.strings(),
+            _ => Err(CastValueError {
+                requested: "strings",
+                got: self.value_type(),
+            }),
+        }
+    }
+
+    impl_primitive_getters!(tag, tags, Tags, Tag);
+    impl_primitive_getters!(date, dates, Date, NaiveDate);
+    impl_primitive_getters!(time, times, Time, NaiveTime);
+    impl_primitive_getters!(datetime, datetimes, DateTime, DateTime<FixedOffset>);
+    impl_primitive_getters!(uint8, uint8_slice, U8, u8);
+    impl_primitive_getters!(uint16, uint16_slice, U16, u16);
+    impl_primitive_getters!(int16, int16_slice, I16, i16);
+    impl_primitive_getters!(uint32, uint32_slice, U32, u32);
+    impl_primitive_getters!(int32, int32_slice, I32, i32);
+    impl_primitive_getters!(int64, int64_slice, I64, i64);
+    impl_primitive_getters!(uint64, uint64_slice, U64, u64);
+    impl_primitive_getters!(float32, float32_slice, F32, f32);
+    impl_primitive_getters!(float64, float64_slice, F64, f64);
 }
 
 impl<I, P> From<PrimitiveValue> for Value<I, P> {
@@ -549,6 +526,65 @@ mod tests {
             Err(ConvertValueError {
                 requested: "float32",
                 original: ValueType::Item,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn getters() {
+
+        assert_eq!(
+            Value::new(dicom_value!(Strs, ["Smith^John"])).string().unwrap(),
+            "Smith^John"
+        );
+
+        assert_eq!(
+            Value::new(dicom_value!(Strs, ["Smith^John"])).strings().unwrap(),
+            &["Smith^John"]
+        );
+
+        assert_eq!(
+            Value::new(dicom_value!(I32, [1, 2, 5])).int32().unwrap(),
+            1,
+        );
+
+        assert_eq!(
+            Value::new(dicom_value!(I32, [1, 2, 5])).int32_slice().unwrap(),
+            &[1, 2, 5],
+        );
+
+        assert!(matches!(
+            Value::new(dicom_value!(I32, [1, 2, 5])).uint32(),
+            Err(CastValueError {
+                requested: "uint32",
+                got: ValueType::I32,
+                ..
+            })
+        ));
+
+        assert!(matches!(
+            Value::new(dicom_value!(I32, [1, 2, 5])).strings(),
+            Err(CastValueError {
+                requested: "strings",
+                got: ValueType::I32,
+                ..
+            })
+        ));
+
+        assert_eq!(
+            Value::new(PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)]))
+                .date()
+                .unwrap(),
+            NaiveDate::from_ymd(2014, 10, 12),
+        );
+
+        assert!(matches!(
+            Value::new(PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)]))
+                .time(),
+            Err(CastValueError {
+                requested: "time",
+                got: ValueType::Date,
                 ..
             })
         ));
