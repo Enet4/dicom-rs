@@ -141,7 +141,7 @@ where
                     typ: SeqTokenType::Sequence,
                     len,
                 });
-                self.write_impl(token)?;
+                self.write_impl(&token)?;
                 Ok(())
             }
             DataToken::ItemStart { len } => {
@@ -149,14 +149,14 @@ where
                     typ: SeqTokenType::Item,
                     len,
                 });
-                self.write_impl(token)?;
+                self.write_impl(&token)?;
                 Ok(())
             }
             DataToken::ItemEnd => {
                 // only write if it's an unknown length item
                 if let Some(seq_start) = self.seq_tokens.pop() {
                     if seq_start.typ == SeqTokenType::Item && seq_start.len.is_undefined() {
-                        self.write_impl(token)?;
+                        self.write_impl(&token)?;
                     }
                 }
                 Ok(())
@@ -165,39 +165,39 @@ where
                 // only write if it's an unknown length sequence
                 if let Some(seq_start) = self.seq_tokens.pop() {
                     if seq_start.typ == SeqTokenType::Sequence && seq_start.len.is_undefined() {
-                        self.write_impl(token)?;
+                        self.write_impl(&token)?;
                     }
                 }
                 Ok(())
             }
             DataToken::ElementHeader(de) => {
                 self.last_de = Some(de);
-                self.write_impl(token)
+                self.write_impl(&token)
             }
             token @ DataToken::PixelSequenceStart => {
                 self.seq_tokens.push(SeqToken {
                     typ: SeqTokenType::Sequence,
                     len: Length::UNDEFINED,
                 });
-                self.write_impl(token)
+                self.write_impl(&token)
             }
             token @ DataToken::ItemValue(_) | token @ DataToken::PrimitiveValue(_) => {
-                self.write_impl(token)
+                self.write_impl(&token)
             }
         }
     }
 
-    fn write_impl(&mut self, token: DataToken) -> Result<()> {
+    fn write_impl(&mut self, token: &DataToken) -> Result<()> {
         match token {
             DataToken::ElementHeader(header) => {
                 self.printer
-                    .encode_element_header(header)
+                    .encode_element_header(*header)
                     .context(WriteHeader { tag: header.tag })?;
             }
             DataToken::SequenceStart { tag, len } => {
                 self.printer
-                    .encode_element_header(DataElementHeader::new(tag, VR::SQ, len))
-                    .context(WriteHeader { tag })?;
+                    .encode_element_header(DataElementHeader::new(*tag, VR::SQ, *len))
+                    .context(WriteHeader { tag: *tag })?;
             }
             DataToken::PixelSequenceStart => {
                 let tag = Tag(0x7fe0, 0x0010);
