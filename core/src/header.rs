@@ -295,6 +295,59 @@ where
     {
         self.value().to_int()
     }
+
+
+    /// Retrieve and convert the value of the data element
+    /// into a single-precision floating point number.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a number as described in [`PrimitiveValue::to_float32`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_float32`]: ../enum.PrimitiveValue#to_float32
+    pub fn to_float32(&self) -> Result<f32, ConvertValueError> {
+        self.value().to_float32()
+    }
+
+    /// Retrieve and convert the value of the data element
+    /// into a sequence of single-precision floating point numbers.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of numbers as described in [`PrimitiveValue::to_multi_float32`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_multi_float32`]: ../enum.PrimitiveValue#to_multi_float32
+    pub fn to_multi_float32(&self) -> Result<Vec<f32>, ConvertValueError> {
+        self.value().to_multi_float32()
+    }
+
+    /// Retrieve and convert the value of the data element
+    /// into a double-precision floating point number.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a number as described in [`PrimitiveValue::to_float64`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_float64`]: ../enum.PrimitiveValue#to_float64
+    pub fn to_float64(&self) -> Result<f64, ConvertValueError> {
+        self.value().to_float64()
+    }
+
+    /// Retrieve and convert the value of the data element
+    /// into a sequence of double-precision floating point numbers.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of numbers as described in [`PrimitiveValue::to_multi_float64`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_multi_float64`]: ../enum.PrimitiveValue#to_multi_float64
+    pub fn to_multi_float64(&self) -> Result<Vec<f64>, ConvertValueError> {
+        self.value().to_multi_float64()
+    }
 }
 
 impl<'v, I, P> DataElementRef<'v, I, P>
