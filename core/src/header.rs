@@ -97,9 +97,11 @@ impl HasLength for EmptyObject {
     }
 }
 
-/// A data type that represents and owns a DICOM data element. Unlike
-/// [`PrimitiveDataElement`], this type may contain multiple data elements
-/// through the item sequence VR (where each item contains an object of type `I`),
+/// A data type that represents and owns a DICOM data element.
+///
+/// This type is capable of representing any data element fully in memory,
+/// whether it be a primitive value,
+/// a nested data set (where each item contains an object of type `I`),
 /// or an encapsulated pixel data sequence (each item of type `P`).
 #[derive(Debug, PartialEq, Clone)]
 pub struct DataElement<I, P> {
@@ -273,7 +275,7 @@ where
     ///
     /// Returns an error if the value is not primitive.
     ///
-    /// [`PrimitiveValue::to_multi_str`]: ../enum.PrimitiveValue#to_multi_str
+    /// [`PrimitiveValue::to_multi_str`]: ../enum.PrimitiveValue.html#to_multi_str
     pub fn to_multi_str(&self) -> Result<Cow<[String]>, CastValueError> {
         self.value().to_multi_str()
     }
@@ -286,7 +288,7 @@ where
     ///
     /// Returns an error if the value is not primitive.
     ///
-    /// [`PrimitiveValue::to_int`]: ../enum.PrimitiveValue#to_int
+    /// [`PrimitiveValue::to_int`]: ../enum.PrimitiveValue.html#to_int
     pub fn to_int<T>(&self) -> Result<T, ConvertValueError>
     where
         T: Clone,
@@ -302,7 +304,7 @@ where
     /// If the value is a primitive, it will be converted into
     /// a vector of integers as described in [PrimitiveValue::to_multi_int].
     ///
-    /// [PrimitiveValue::to_multi_int]: ../enum.PrimitiveValue#to_multi_int
+    /// [PrimitiveValue::to_multi_int]: ../enum.PrimitiveValue.html#to_multi_int
     pub fn to_multi_int<T>(&self) -> Result<Vec<T>, ConvertValueError>
     where
         T: Clone,
@@ -320,7 +322,7 @@ where
     ///
     /// Returns an error if the value is not primitive.
     ///
-    /// [`PrimitiveValue::to_float32`]: ../enum.PrimitiveValue#to_float32
+    /// [`PrimitiveValue::to_float32`]: ../enum.PrimitiveValue.html#to_float32
     pub fn to_float32(&self) -> Result<f32, ConvertValueError> {
         self.value().to_float32()
     }
@@ -333,7 +335,7 @@ where
     ///
     /// Returns an error if the value is not primitive.
     ///
-    /// [`PrimitiveValue::to_multi_float32`]: ../enum.PrimitiveValue#to_multi_float32
+    /// [`PrimitiveValue::to_multi_float32`]: ../enum.PrimitiveValue.html#to_multi_float32
     pub fn to_multi_float32(&self) -> Result<Vec<f32>, ConvertValueError> {
         self.value().to_multi_float32()
     }
@@ -346,7 +348,7 @@ where
     ///
     /// Returns an error if the value is not primitive.
     ///
-    /// [`PrimitiveValue::to_float64`]: ../enum.PrimitiveValue#to_float64
+    /// [`PrimitiveValue::to_float64`]: ../enum.PrimitiveValue.html#to_float64
     pub fn to_float64(&self) -> Result<f64, ConvertValueError> {
         self.value().to_float64()
     }
@@ -359,7 +361,7 @@ where
     ///
     /// Returns an error if the value is not primitive.
     ///
-    /// [`PrimitiveValue::to_multi_float64`]: ../enum.PrimitiveValue#to_multi_float64
+    /// [`PrimitiveValue::to_multi_float64`]: ../enum.PrimitiveValue.html#to_multi_float64
     pub fn to_multi_float64(&self) -> Result<Vec<f64>, ConvertValueError> {
         self.value().to_multi_float64()
     }

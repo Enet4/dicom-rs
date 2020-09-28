@@ -217,7 +217,7 @@ where
     ///
     /// Returns an error if the value is not primitive.
     ///
-    /// [`PrimitiveValue::to_multi_str`]: ../enum.PrimitiveValue#to_multi_str
+    /// [`PrimitiveValue::to_multi_str`]: ../enum.PrimitiveValue.html#to_multi_str
     pub fn to_multi_str(&self) -> Result<Cow<[String]>, CastValueError> {
         match self {
             Value::Primitive(prim) => Ok(prim.to_multi_str()),
@@ -263,7 +263,7 @@ where
     /// If the value is a primitive, it will be converted into
     /// an integer as described in [`PrimitiveValue::to_int`].
     ///
-    /// [`PrimitiveValue::to_int`]: ../enum.PrimitiveValue#to_int
+    /// [`PrimitiveValue::to_int`]: ../enum.PrimitiveValue.html#to_int
     pub fn to_int<T>(&self) -> Result<T, ConvertValueError>
     where
         T: Clone,
@@ -285,7 +285,7 @@ where
     /// If the value is a primitive, it will be converted into
     /// a vector of integers as described in [PrimitiveValue::to_multi_int].
     ///
-    /// [PrimitiveValue::to_multi_int]: ../enum.PrimitiveValue#to_multi_int
+    /// [PrimitiveValue::to_multi_int]: ../enum.PrimitiveValue.html#to_multi_int
     pub fn to_multi_int<T>(&self) -> Result<Vec<T>, ConvertValueError>
     where
         T: Clone,
@@ -308,7 +308,7 @@ where
     /// If the value is a primitive, it will be converted into
     /// a number as described in [`PrimitiveValue::to_float32`].
     ///
-    /// [`PrimitiveValue::to_float32`]: ../enum.PrimitiveValue#to_float32
+    /// [`PrimitiveValue::to_float32`]: ../enum.PrimitiveValue.html#to_float32
     pub fn to_float32(&self) -> Result<f32, ConvertValueError> {
         match self {
             Value::Primitive(v) => v.to_float32(),
@@ -326,7 +326,7 @@ where
     /// If the value is a primitive, it will be converted into
     /// a vector of numbers as described in [`PrimitiveValue::to_multi_float32`].
     ///
-    /// [`PrimitiveValue::to_multi_float32`]: ../enum.PrimitiveValue#to_multi_float32
+    /// [`PrimitiveValue::to_multi_float32`]: ../enum.PrimitiveValue.html#to_multi_float32
     pub fn to_multi_float32(&self) -> Result<Vec<f32>, ConvertValueError> {
         match self {
             Value::Primitive(v) => v.to_multi_float32(),
@@ -344,7 +344,7 @@ where
     /// If the value is a primitive, it will be converted into
     /// a number as described in [`PrimitiveValue::to_float64`].
     ///
-    /// [`PrimitiveValue::to_float64`]: ../enum.PrimitiveValue#to_float64
+    /// [`PrimitiveValue::to_float64`]: ../enum.PrimitiveValue.html#to_float64
     pub fn to_float64(&self) -> Result<f64, ConvertValueError> {
         match self {
             Value::Primitive(v) => v.to_float64(),
@@ -362,7 +362,7 @@ where
     /// If the value is a primitive, it will be converted into
     /// a vector of numbers as described in [`PrimitiveValue::to_multi_float64`].
     ///
-    /// [`PrimitiveValue::to_multi_float64`]: ../enum.PrimitiveValue#to_multi_float64
+    /// [`PrimitiveValue::to_multi_float64`]: ../enum.PrimitiveValue.html#to_multi_float64
     pub fn to_multi_float64(&self) -> Result<Vec<f64>, ConvertValueError> {
         match self {
             Value::Primitive(v) => v.to_multi_float64(),
