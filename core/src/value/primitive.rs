@@ -4,7 +4,7 @@
 
 use super::DicomValueType;
 use crate::header::{HasLength, Length, Tag};
-use chrono::{Datelike, FixedOffset, Timelike};
+use chrono::{FixedOffset, Timelike};
 use itertools::Itertools;
 use num_traits::NumCast;
 use safe_transmute::to_bytes::transmute_to_bytes;
