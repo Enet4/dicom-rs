@@ -4,7 +4,7 @@
 use crate::util::n_times;
 use chrono::FixedOffset;
 use dicom_core::header::{DataElementHeader, HasLength, Length, SequenceItemHeader, Tag, VR};
-use dicom_core::value::{PrimitiveValue, C};
+use dicom_core::value::PrimitiveValue;
 use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
 use dicom_encoding::decode::primitive_value::*;
 use dicom_encoding::decode::{BasicDecode, DecodeFrom};
@@ -16,9 +16,9 @@ use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
 use dicom_encoding::transfer_syntax::{DynDecoder, TransferSyntax};
 use smallvec::smallvec;
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
-use std::fmt::Debug;
 use std::io::Read;
 use std::iter::Iterator;
+use std::{fmt::Debug, io::Seek, io::SeekFrom};
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -70,13 +70,21 @@ pub enum Error {
         source: dicom_encoding::text::DecodeTextError,
     },
 
-    #[snafu(display(
-        "Could not read value from source at position {}: {}",
-        position,
-        source
-    ))]
+    #[snafu(display("Could not read value from source at position {}", position))]
     ReadValueData {
         position: u64,
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display(
+        "Could not move source cursor from position {} to {}",
+        position,
+        new_position
+    ))]
+    SeekReader {
+        position: u64,
+        new_position: u64,
         source: std::io::Error,
         backtrace: Backtrace,
     },
@@ -121,7 +129,7 @@ pub enum Error {
     },
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub trait StatefulDecode {
     type Reader: Read;
@@ -166,18 +174,25 @@ pub trait StatefulDecode {
     /// sequence, which in that case this method should not be used.
     fn read_value_bytes(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue>;
 
-    /// Obtain a reader which outlines the primitive value data from the
-    /// given source.
-    fn value_reader(
-        &mut self,
-        header: &DataElementHeader,
-    ) -> Result<std::io::Take<&mut Self::Reader>>;
+    /// Read the following bytes into a vector.
+    fn read_to_vec(&mut self, length: u32, vec: &mut Vec<u8>) -> Result<()>;
 
-    /// Read the exact amount of bytes to fill the buffer.
-    fn read_bytes(&mut self, buf: &mut [u8]) -> Result<()>;
+    /// Skip the following bytes into a vector,
+    /// counting them as if they were read.
+    fn skip_bytes(&mut self, length: u32) -> Result<()>;
 
-    /// Retrieve the exact number of bytes read so far by the stateful decoder.
-    fn bytes_read(&self) -> u64;
+    /// Reposition the reader so that it starts reading
+    /// at the reader's given position.
+    ///
+    /// The number of bytes read is not expected to be modified.
+    fn seek(&mut self, position: u64) -> Result<()>
+    where
+        Self::Reader: Seek;
+
+    /// Retrieve the known position of the inner reader source.
+    /// If the stateful decoder was constructed at the beginning of the reader,
+    /// this equals to the number of bytes read so far.
+    fn position(&self) -> u64;
 }
 
 /// Alias for a dynamically resolved DICOM stateful decoder. Although the data
@@ -205,17 +220,20 @@ pub struct StatefulDecoder<D, BD, S, TC> {
     text: TC,
     dt_utc_offset: FixedOffset,
     buffer: Vec<u8>,
-    bytes_read: u64,
+    /// the assumed position of the reader source
+    position: u64,
 }
 
 pub type DicomParser<D, BD, S, TC> = StatefulDecoder<D, BD, S, TC>;
 
 impl<'s> DynStatefulDecoder<'s> {
-    /// Create a new DICOM parser for the given transfer syntax and character set.
+    /// Create a new DICOM parser for the given transfer syntax, character set,
+    /// and assumed position of the reader source.
     pub fn new_with<S: 's>(
         from: S,
         ts: &TransferSyntax,
         charset: SpecificCharacterSet,
+        position: u64,
     ) -> Result<Self>
     where
         S: Read,
@@ -228,11 +246,12 @@ impl<'s> DynStatefulDecoder<'s> {
             .codec()
             .context(UnsupportedCharacterSet { charset })?;
 
-        Ok(DynStatefulDecoder::new(
+        Ok(DynStatefulDecoder::new_with_position(
             Box::from(from),
             decoder,
             basic,
             text,
+            position,
         ))
     }
 }
@@ -259,14 +278,36 @@ where
             text: DefaultCharacterSetCodec,
             dt_utc_offset: FixedOffset::east(0),
             buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
-            bytes_read: 0,
+            position: 0,
         }
     }
 }
 
-impl<D, BD, S, TC> StatefulDecoder<D, BD, S, TC> {
+impl<D, BD, S, TC> StatefulDecoder<D, BD, S, TC>
+where
+    BD: BasicDecode,
+    TC: TextCodec,
+{
     /// Create a new DICOM stateful decoder from its parts.
+    #[inline]
     pub fn new(from: S, decoder: D, basic: BD, text: TC) -> StatefulDecoder<D, BD, S, TC> {
+        Self::new_with_position(from, decoder, basic, text, 0)
+    }
+
+    /// Create a new DICOM stateful decoder from its parts,
+    /// while assuming a base reading position.
+    ///
+    /// `position` should be calculatd with care.
+    /// Decoding or parsing errors may occur
+    /// if this position does not match the real position of the reader.
+    #[inline]
+    pub fn new_with_position(
+        from: S,
+        decoder: D,
+        basic: BD,
+        text: TC,
+        position: u64,
+    ) -> StatefulDecoder<D, BD, S, TC> {
         DicomParser {
             from,
             basic,
@@ -274,8 +315,29 @@ impl<D, BD, S, TC> StatefulDecoder<D, BD, S, TC> {
             text,
             dt_utc_offset: FixedOffset::east(0),
             buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
-            bytes_read: 0,
+            position,
         }
+    }
+}
+
+impl<D, BD, S, TC> StatefulDecoder<D, BD, S, TC>
+where
+    S: Seek,
+    BD: BasicDecode,
+    TC: TextCodec,
+{
+    /// Create a new DICOM stateful decoder from its parts,
+    /// while determining the data source's current position via `seek`.
+    pub fn new_positioned(
+        mut from: S,
+        decoder: D,
+        basic: BD,
+        text: TC,
+    ) -> Result<StatefulDecoder<D, BD, S, TC>, std::io::Error> {
+        let position = from.seek(SeekFrom::Current(0))?;
+        Ok(Self::new_with_position(
+            from, decoder, basic, text, position,
+        ))
     }
 }
 
@@ -295,7 +357,7 @@ where
             .get()
             .map(|len| len as usize)
             .context(UndefinedValueLength {
-                position: self.bytes_read,
+                position: self.position,
                 tag: header.tag,
             })
     }
@@ -305,16 +367,16 @@ where
 
         // tags
         let ntags = len >> 2;
-        let parts: Result<C<Tag>> = n_times(ntags)
+        let parts: Result<_> = n_times(ntags)
             .map(|_| {
                 self.basic
                     .decode_tag(&mut self.from)
                     .context(ReadValueData {
-                        position: self.bytes_read,
+                        position: self.position,
                     })
             })
             .collect();
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::Tags(parts?))
     }
 
@@ -326,9 +388,9 @@ where
         // sequence of 8-bit integers (or arbitrary byte data)
         let mut buf = smallvec![0u8; len];
         self.from.read_exact(&mut buf).context(ReadValueData {
-            position: self.bytes_read,
+            position: self.position,
         })?;
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::U8(buf))
     }
 
@@ -339,16 +401,16 @@ where
         self.from
             .read_exact(&mut self.buffer)
             .context(ReadValueData {
-                position: self.bytes_read,
+                position: self.position,
             })?;
 
-        let parts: Result<C<_>> = match header.vr() {
+        let parts: Result<_> = match header.vr() {
             VR::AE | VR::CS | VR::AS => self
                 .buffer
                 .split(|v| *v == b'\\')
                 .map(|slice| {
                     DefaultCharacterSetCodec.decode(slice).context(DecodeText {
-                        position: self.bytes_read,
+                        position: self.position,
                     })
                 })
                 .collect(),
@@ -357,13 +419,13 @@ where
                 .split(|v| *v == b'\\')
                 .map(|slice| {
                     self.text.decode(slice).context(DecodeText {
-                        position: self.bytes_read,
+                        position: self.position,
                     })
                 })
                 .collect(),
         };
 
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::Strs(parts?))
     }
 
@@ -375,12 +437,12 @@ where
         self.from
             .read_exact(&mut self.buffer)
             .context(ReadValueData {
-                position: self.bytes_read,
+                position: self.position,
             })?;
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::Str(
             self.text.decode(&self.buffer[..]).context(DecodeText {
-                position: self.bytes_read,
+                position: self.position,
             })?,
         ))
     }
@@ -390,14 +452,14 @@ where
         let len = self.require_known_length(header)?;
 
         let n = len >> 1;
-        let vec: Result<C<_>> = n_times(n)
+        let vec: Result<_> = n_times(n)
             .map(|_| {
                 self.basic.decode_ss(&mut self.from).context(ReadValueData {
-                    position: self.bytes_read,
+                    position: self.position,
                 })
             })
             .collect();
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::I16(vec?))
     }
 
@@ -405,14 +467,14 @@ where
         let len = self.require_known_length(header)?;
         // sequence of 32-bit floats
         let n = len >> 2;
-        let vec: Result<C<_>> = n_times(n)
+        let vec: Result<_> = n_times(n)
             .map(|_| {
                 self.basic.decode_fl(&mut self.from).context(ReadValueData {
-                    position: self.bytes_read,
+                    position: self.position,
                 })
             })
             .collect();
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::F32(vec?))
     }
 
@@ -424,7 +486,7 @@ where
         self.from
             .read_exact(&mut self.buffer)
             .context(ReadValueData {
-                position: self.bytes_read,
+                position: self.position,
             })?;
         let buf = trim_trail_empty_bytes(&self.buffer);
         if buf.is_empty() {
@@ -436,22 +498,22 @@ where
                 .decode(buf)
                 .unwrap_or_else(|_| "[byte stream]".to_string());
             return InvalidDateValue {
-                position: self.bytes_read,
+                position: self.position,
                 string: lossy_str,
             }
             .fail();
         }
-        let vec: Result<C<_>> = buf
+        let vec: Result<_> = buf
             .split(|b| *b == b'\\')
             .map(|part| {
                 Ok(parse_date(part)
                     .context(DeserializeValue {
-                        position: self.bytes_read,
+                        position: self.position,
                     })?
                     .0)
             })
             .collect();
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::Date(vec?))
     }
 
@@ -463,27 +525,27 @@ where
         self.from
             .read_exact(&mut self.buffer)
             .context(ReadValueData {
-                position: self.bytes_read,
+                position: self.position,
             })?;
         let buf = trim_trail_empty_bytes(&self.buffer);
         if buf.is_empty() {
             return Ok(PrimitiveValue::Empty);
         }
 
-        let parts: Result<C<f64>> = buf
+        let parts: Result<_> = buf
             .split(|b| *b == b'\\')
             .map(|slice| {
                 let codec = SpecificCharacterSet::Default.codec().unwrap();
                 let txt = codec.decode(slice).context(DecodeText {
-                    position: self.bytes_read,
+                    position: self.position,
                 })?;
                 let txt = txt.trim();
                 txt.parse::<f64>().context(ReadFloat {
-                    position: self.bytes_read,
+                    position: self.position,
                 })
             })
             .collect();
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::F64(parts?))
     }
 
@@ -495,7 +557,7 @@ where
         self.from
             .read_exact(&mut self.buffer)
             .context(ReadValueData {
-                position: self.bytes_read,
+                position: self.position,
             })?;
         let buf = trim_trail_empty_bytes(&self.buffer);
         if buf.is_empty() {
@@ -507,23 +569,23 @@ where
                 .decode(buf)
                 .unwrap_or_else(|_| "[byte stream]".to_string());
             return InvalidDateTimeValue {
-                position: self.bytes_read,
+                position: self.position,
                 string: lossy_str,
             }
             .fail();
         }
-        let vec: Result<C<_>> = buf
+        let vec: Result<_> = buf
             .split(|b| *b == b'\\')
             .map(|part| {
                 Ok(
                     parse_datetime(part, self.dt_utc_offset).context(DeserializeValue {
-                        position: self.bytes_read,
+                        position: self.position,
                     })?,
                 )
             })
             .collect();
 
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::DateTime(vec?))
     }
 
@@ -534,27 +596,27 @@ where
         self.from
             .read_exact(&mut self.buffer)
             .context(ReadValueData {
-                position: self.bytes_read,
+                position: self.position,
             })?;
         let buf = trim_trail_empty_bytes(&self.buffer);
         if buf.is_empty() {
             return Ok(PrimitiveValue::Empty);
         }
 
-        let parts: Result<C<_>> = buf
+        let parts: Result<_> = buf
             .split(|v| *v == b'\\')
             .map(|slice| {
                 let codec = SpecificCharacterSet::Default.codec().unwrap();
                 let txt = codec.decode(slice).context(DecodeText {
-                    position: self.bytes_read,
+                    position: self.position,
                 })?;
                 let txt = txt.trim();
                 txt.parse::<i32>().context(ReadInt {
-                    position: self.bytes_read,
+                    position: self.position,
                 })
             })
             .collect();
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::I32(parts?))
     }
 
@@ -566,7 +628,7 @@ where
         self.from
             .read_exact(&mut self.buffer)
             .context(ReadValueData {
-                position: self.bytes_read,
+                position: self.position,
             })?;
         let buf = trim_trail_empty_bytes(&self.buffer);
         if buf.is_empty() {
@@ -578,20 +640,20 @@ where
                 .decode(buf)
                 .unwrap_or_else(|_| "[byte stream]".to_string());
             return InvalidTimeValue {
-                position: self.bytes_read,
+                position: self.position,
                 string: lossy_str,
             }
             .fail();
         }
-        let vec: std::result::Result<C<_>, _> = buf
+        let vec: std::result::Result<_, _> = buf
             .split(|b| *b == b'\\')
             .map(|part| {
                 parse_time(part).map(|t| t.0).context(DeserializeValue {
-                    position: self.bytes_read,
+                    position: self.position,
                 })
             })
             .collect();
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::Time(vec?))
     }
 
@@ -599,14 +661,14 @@ where
         let len = self.require_known_length(header)?;
         // sequence of 64-bit floats
         let n = len >> 3;
-        let vec: Result<C<_>> = n_times(n)
+        let vec: Result<_> = n_times(n)
             .map(|_| {
                 self.basic.decode_fd(&mut self.from).context(ReadValueData {
-                    position: self.bytes_read,
+                    position: self.position,
                 })
             })
             .collect();
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::F64(vec?))
     }
 
@@ -615,14 +677,14 @@ where
         // sequence of 32-bit unsigned integers
 
         let n = len >> 2;
-        let vec: Result<C<_>> = n_times(n)
+        let vec: Result<_> = n_times(n)
             .map(|_| {
                 self.basic.decode_ul(&mut self.from).context(ReadValueData {
-                    position: self.bytes_read,
+                    position: self.position,
                 })
             })
             .collect();
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::U32(vec?))
     }
 
@@ -631,14 +693,14 @@ where
         // sequence of 16-bit unsigned integers
 
         let n = len >> 1;
-        let vec: Result<C<_>> = n_times(n)
+        let vec: Result<_> = n_times(n)
             .map(|_| {
                 self.basic.decode_us(&mut self.from).context(ReadValueData {
-                    position: self.bytes_read,
+                    position: self.position,
                 })
             })
             .collect();
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::U16(vec?))
     }
 
@@ -647,14 +709,14 @@ where
         // sequence of 64-bit unsigned integers
 
         let n = len >> 3;
-        let vec: Result<C<_>> = n_times(n)
+        let vec: Result<_> = n_times(n)
             .map(|_| {
                 self.basic.decode_uv(&mut self.from).context(ReadValueData {
-                    position: self.bytes_read,
+                    position: self.position,
                 })
             })
             .collect();
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::U64(vec?))
     }
 
@@ -663,14 +725,14 @@ where
         // sequence of 32-bit signed integers
 
         let n = len >> 2;
-        let vec: Result<C<_>> = n_times(n)
+        let vec: Result<_> = n_times(n)
             .map(|_| {
                 self.basic.decode_sl(&mut self.from).context(ReadValueData {
-                    position: self.bytes_read,
+                    position: self.position,
                 })
             })
             .collect();
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::I32(vec?))
     }
 
@@ -679,14 +741,14 @@ where
         // sequence of 64-bit signed integers
 
         let n = len >> 3;
-        let vec: Result<C<_>> = n_times(n)
+        let vec: Result<_> = n_times(n)
             .map(|_| {
                 self.basic.decode_sv(&mut self.from).context(ReadValueData {
-                    position: self.bytes_read,
+                    position: self.position,
                 })
             })
             .collect();
-        self.bytes_read += len as u64;
+        self.position += len as u64;
         Ok(PrimitiveValue::I64(vec?))
     }
 }
@@ -736,6 +798,52 @@ where
     }
 }
 
+impl<'a, D> StatefulDecode for &'a mut D
+where
+    D: StatefulDecode,
+{
+    type Reader = D::Reader;
+
+    fn decode_header(&mut self) -> Result<DataElementHeader> {
+        (**self).decode_header()
+    }
+
+    fn decode_item_header(&mut self) -> Result<SequenceItemHeader> {
+        (**self).decode_item_header()
+    }
+
+    fn read_value(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
+        (**self).read_value(header)
+    }
+
+    fn read_value_preserved(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
+        (**self).read_value_preserved(header)
+    }
+
+    fn read_value_bytes(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
+        (**self).read_value_bytes(header)
+    }
+
+    fn read_to_vec(&mut self, length: u32, vec: &mut Vec<u8>) -> Result<()> {
+        (**self).read_to_vec(length, vec)
+    }
+
+    fn skip_bytes(&mut self, length: u32) -> Result<()> {
+        (**self).skip_bytes(length)
+    }
+
+    fn position(&self) -> u64 {
+        (**self).position()
+    }
+
+    fn seek(&mut self, position: u64) -> Result<()>
+    where
+        Self::Reader: Seek,
+    {
+        (**self).seek(position)
+    }
+}
+
 impl<S, T, D, BD> StatefulDecode for StatefulDecoder<D, BD, S, DynamicTextCodec>
 where
     D: DecodeFrom<T>,
@@ -749,10 +857,10 @@ where
         self.decoder
             .decode_header(&mut self.from)
             .context(DecodeElementHeader {
-                position: self.bytes_read,
+                position: self.position,
             })
             .map(|(header, bytes_read)| {
-                self.bytes_read += bytes_read as u64;
+                self.position += bytes_read as u64;
                 header
             })
             .map_err(From::from)
@@ -762,10 +870,10 @@ where
         self.decoder
             .decode_item_header(&mut self.from)
             .context(DecodeItemHeader {
-                position: self.bytes_read,
+                position: self.position,
             })
             .map(|header| {
-                self.bytes_read += 8;
+                self.position += 8;
                 header
             })
             .map_err(From::from)
@@ -781,7 +889,7 @@ where
                 // sequence objects should not head over here, they are
                 // handled at a higher level
                 NonPrimitiveType {
-                    position: self.bytes_read,
+                    position: self.position,
                 }
                 .fail()
             }
@@ -817,7 +925,7 @@ where
             VR::SQ => {
                 // sequence objects... should not work
                 NonPrimitiveType {
-                    position: self.bytes_read,
+                    position: self.position,
                 }
                 .fail()
             }
@@ -857,7 +965,7 @@ where
             VR::SQ => {
                 // sequence objects... should not work
                 NonPrimitiveType {
-                    position: self.bytes_read,
+                    position: self.position,
                 }
                 .fail()
             }
@@ -865,40 +973,47 @@ where
         }
     }
 
-    /// Obtain a reader which outlines the primitive value data from the
-    /// given source.
-    fn value_reader(
-        &mut self,
-        header: &DataElementHeader,
-    ) -> Result<std::io::Take<&mut Self::Reader>> {
-        match header.vr() {
-            VR::SQ => {
-                // sequence objects... should not work
-                NonPrimitiveType {
-                    position: self.bytes_read,
-                }
-                .fail()
-            }
-            _ => Ok(self.from.by_ref().take(
-                header
-                    .length()
-                    .get()
-                    .map(u64::from)
-                    .unwrap_or(std::u64::MAX),
-            )),
-        }
+    fn position(&self) -> u64 {
+        self.position
     }
 
-    fn read_bytes(&mut self, buf: &mut [u8]) -> Result<()> {
-        self.from.read_exact(buf).context(ReadValueData {
-            position: self.bytes_read,
-        })?;
-        self.bytes_read += buf.len() as u64;
+    fn read_to_vec(&mut self, length: u32, vec: &mut Vec<u8>) -> Result<()> {
+        let length = u64::from(length);
+        self.from
+            .by_ref()
+            .take(u64::from(length))
+            .read_to_end(vec)
+            .context(ReadValueData {
+                position: self.position,
+            })?;
+        self.position += length;
         Ok(())
     }
 
-    fn bytes_read(&self) -> u64 {
-        self.bytes_read
+    fn skip_bytes(&mut self, length: u32) -> Result<()> {
+        std::io::copy(
+            &mut self.from.by_ref().take(u64::from(length)),
+            &mut std::io::sink(),
+        )
+        .context(ReadValueData {
+            position: self.position,
+        })?;
+
+        self.position += u64::from(length);
+        Ok(())
+    }
+
+    fn seek(&mut self, position: u64) -> Result<()>
+    where
+        Self::Reader: Seek,
+    {
+        self.from
+            .seek(SeekFrom::Start(position))
+            .context(SeekReader {
+                position: self.position,
+                new_position: position,
+            })
+            .map(|_| ())
     }
 }
 
@@ -918,6 +1033,7 @@ mod tests {
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
     use dicom_encoding::text::{DefaultCharacterSetCodec, DynamicTextCodec};
     use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
+    use std::io::Cursor;
 
     // manually crafting some DICOM data elements
     //  Tag: (0002,0002) Media Storage SOP Class UID
@@ -946,7 +1062,7 @@ mod tests {
 
     #[test]
     fn decode_data_elements() {
-        let mut cursor = &RAW[..];
+        let mut cursor = Cursor::new(&RAW[..]);
         let mut decoder = StatefulDecoder::new(
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
@@ -963,7 +1079,7 @@ mod tests {
             assert_eq!(elem.vr(), VR::UI);
             assert_eq!(elem.length(), Length(26));
 
-            assert_eq!(decoder.bytes_read(), 8);
+            assert_eq!(decoder.position(), 8);
 
             // read value
             let value = decoder
@@ -972,7 +1088,7 @@ mod tests {
             assert_eq!(value.multiplicity(), 1);
             assert_eq!(value.string(), Ok("1.2.840.10008.5.1.4.1.1.1\0"));
 
-            assert_eq!(decoder.bytes_read(), 8 + 26);
+            assert_eq!(decoder.position(), 8 + 26);
         }
         {
             // read second element
@@ -981,7 +1097,7 @@ mod tests {
             assert_eq!(elem.vr(), VR::UI);
             assert_eq!(elem.length(), Length(20));
 
-            assert_eq!(decoder.bytes_read(), 8 + 26 + 8);
+            assert_eq!(decoder.position(), 8 + 26 + 8);
 
             // read value
             let value = decoder
@@ -990,7 +1106,19 @@ mod tests {
             assert_eq!(value.multiplicity(), 1);
             assert_eq!(value.string(), Ok("1.2.840.10008.1.2.1\0"));
 
-            assert_eq!(decoder.bytes_read(), 8 + 26 + 8 + 20);
+            assert_eq!(decoder.position(), 8 + 26 + 8 + 20);
+
+            // rolling back to read the last value again
+            decoder.seek(8 + 26 + 8).unwrap();
+
+            // read value
+            let value = decoder
+                .read_value(&elem)
+                .expect("value after element header");
+            assert_eq!(value.multiplicity(), 1);
+            assert_eq!(value.string(), Ok("1.2.840.10008.1.2.1\0"));
+
+            assert_eq!(decoder.position(), 8 + 26 + 8 + 20 + 20);
         }
     }
 
