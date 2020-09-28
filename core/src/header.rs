@@ -296,6 +296,21 @@ where
         self.value().to_int()
     }
 
+    /// Retrieve and convert the value of the data element
+    /// into a sequence of integers.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of integers as described in [PrimitiveValue::to_multi_int].
+    ///
+    /// [PrimitiveValue::to_multi_int]: ../enum.PrimitiveValue#to_multi_int
+    pub fn to_multi_int<T>(&self) -> Result<Vec<T>, ConvertValueError>
+    where
+        T: Clone,
+        T: NumCast,
+        T: FromStr<Err = std::num::ParseIntError>,
+    {
+        self.value().to_multi_int()
+    }
 
     /// Retrieve and convert the value of the data element
     /// into a single-precision floating point number.
