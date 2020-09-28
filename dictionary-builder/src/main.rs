@@ -100,6 +100,9 @@ fn parse_entries<R: BufRead>(source: R) -> DynResult<Vec<Entry>> {
         if vr == "ox" {
             vr = "OB".to_string();
         }
+        if vr == "px" {
+            vr = "OB".to_string();
+        }
         if vr == "lt" {
             vr = "OW".to_string();
         }
