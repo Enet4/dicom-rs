@@ -593,6 +593,13 @@ mod tests {
             NaiveDate::from_ymd(2014, 10, 12),
         );
 
+        assert_eq!(
+            Value::new(PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12); 5]))
+                .dates()
+                .unwrap(),
+            &[NaiveDate::from_ymd(2014, 10, 12); 5]
+        );
+
         assert!(matches!(
             Value::new(PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)]))
                 .time(),
