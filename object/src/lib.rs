@@ -7,7 +7,7 @@
 //!
 //! # Examples
 //!
-//! Loading a file and reading some attributes by their standard alias:
+//! Loading a DICOM file and reading some attributes by their standard alias:
 //!
 //! ```no_run
 //! use dicom_object::open_file;
@@ -19,12 +19,25 @@
 //! # }
 //! ```
 //!
-//! Elements can also be fetched by tag:
+//! Elements can also be fetched by tag.
+//! Methods are available for converting the element's DICOM value
+//! into something more usable in Rust.
 //!
 //! ```
-//! # use dicom_object::{DicomObject, Tag};
-//! # fn something<T: DicomObject>(obj: T) -> Result<(), Box<dyn std::error::Error>> {
-//! let e = obj.element(Tag(0x0002, 0x0002))?;
+//! # use dicom_object::{DefaultDicomObject, Tag};
+//! # fn something(obj: DefaultDicomObject) -> Result<(), Box<dyn std::error::Error>> {
+//! let patient_date = obj.element(Tag(0x0010, 0x0030))?.to_date()?;
+//! let pixel_data_bytes = obj.element(Tag(0x7FE0, 0x0010))?.to_bytes()?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! Finally, DICOM objects can be written back into a file.
+//!
+//! ```no_run
+//! # use dicom_object::{DefaultDicomObject, Tag};
+//! # fn something(obj: DefaultDicomObject) -> Result<(), Box<dyn std::error::Error>> {
+//! obj.write_to_file("0001_new.dcm")?;
 //! # Ok(())
 //! # }
 //! ```

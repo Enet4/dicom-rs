@@ -14,8 +14,7 @@ while remaining intrinsically efficient, fast, intuitive, and safe to use.
 ## Using as a library
 
 This crate exposes the [`dicom-object`] crate directly via the `object` module,
-which has the easy, high-level API for reading DICOM objects
-from a file or a similar source.
+which has a high-level API for reading, writing, and manipulating DICOM objects.
 Other key components of the full library are available in this one as well,
 albeit representing different levels of abstraction.
 
