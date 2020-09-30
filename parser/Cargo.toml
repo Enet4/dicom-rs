@@ -1,6 +1,6 @@
 [package]
 name = "dicom-parser"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A middle-level parser and printer of DICOM data sets"
 edition = "2018"
@@ -14,9 +14,9 @@ readme = "README.md"
 repository = "Enet4/dicom-rs"
 
 [dependencies]
-dicom-core = { path = "../core", version = "0.2.0" }
-dicom-encoding = { path = "../encoding", version = "0.2.0" }
+dicom-core = { path = "../core", version = "0.3.0" }
+dicom-encoding = { path = "../encoding", version = "0.3.0" }
 chrono = "0.4.6"
-dicom-dictionary-std = { path = "../dictionary-std/", version = "0.2.0" }
+dicom-dictionary-std = { path = "../dictionary-std/", version = "0.3.0" }
 smallvec = "1.0.0"
 snafu = "0.6.8"
