@@ -2,11 +2,13 @@
 //! It comprises a variety of basic data types, such as the DICOM attribute tag, the
 //! element header, and element composite types.
 
-use crate::value::{PrimitiveValue, Value};
+use crate::value::{CastValueError, ConvertValueError, PrimitiveValue, Value};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
 use std::str::{from_utf8, FromStr};
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
+use num_traits::NumCast;
 use snafu::{Backtrace, Snafu};
 
 /// Error type for issues constructing a sequence item header.
@@ -95,9 +97,11 @@ impl HasLength for EmptyObject {
     }
 }
 
-/// A data type that represents and owns a DICOM data element. Unlike
-/// [`PrimitiveDataElement`], this type may contain multiple data elements
-/// through the item sequence VR (where each item contains an object of type `I`),
+/// A data type that represents and owns a DICOM data element.
+///
+/// This type is capable of representing any data element fully in memory,
+/// whether it be a primitive value,
+/// a nested data set (where each item contains an object of type `I`),
 /// or an encapsulated pixel data sequence (each item of type `P`).
 #[derive(Debug, PartialEq, Clone)]
 pub struct DataElement<I, P> {
@@ -250,8 +254,116 @@ where
     }
 
     /// Retrieve the element's value as a single string.
-    pub fn to_str(&self) -> Result<Cow<str>, crate::value::CastValueError> {
+    pub fn to_str(&self) -> Result<Cow<str>, CastValueError> {
         self.value.to_str()
+    }
+
+    /// Convert the full primitive value into raw bytes.
+    ///
+    /// String values already encoded with the `Str` and `Strs` variants
+    /// are provided in UTF-8.
+    ///
+    /// Returns an error if the value is not primitive.
+    pub fn to_bytes(&self) -> Result<Cow<[u8]>, CastValueError> {
+        self.value().to_bytes()
+    }
+
+    /// Convert the full value of the data element into a sequence of strings.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of strings as described in [`PrimitiveValue::to_multi_str`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_multi_str`]: ../enum.PrimitiveValue.html#to_multi_str
+    pub fn to_multi_str(&self) -> Result<Cow<[String]>, CastValueError> {
+        self.value().to_multi_str()
+    }
+
+    /// Retrieve and convert the value of the data element into an integer.
+    ///
+    /// If the value is a primitive,
+    /// it will be converted into an integer
+    /// as described in [`PrimitiveValue::to_int`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_int`]: ../enum.PrimitiveValue.html#to_int
+    pub fn to_int<T>(&self) -> Result<T, ConvertValueError>
+    where
+        T: Clone,
+        T: NumCast,
+        T: FromStr<Err = std::num::ParseIntError>,
+    {
+        self.value().to_int()
+    }
+
+    /// Retrieve and convert the value of the data element
+    /// into a sequence of integers.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of integers as described in [PrimitiveValue::to_multi_int].
+    ///
+    /// [PrimitiveValue::to_multi_int]: ../enum.PrimitiveValue.html#to_multi_int
+    pub fn to_multi_int<T>(&self) -> Result<Vec<T>, ConvertValueError>
+    where
+        T: Clone,
+        T: NumCast,
+        T: FromStr<Err = std::num::ParseIntError>,
+    {
+        self.value().to_multi_int()
+    }
+
+    /// Retrieve and convert the value of the data element
+    /// into a single-precision floating point number.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a number as described in [`PrimitiveValue::to_float32`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_float32`]: ../enum.PrimitiveValue.html#to_float32
+    pub fn to_float32(&self) -> Result<f32, ConvertValueError> {
+        self.value().to_float32()
+    }
+
+    /// Retrieve and convert the value of the data element
+    /// into a sequence of single-precision floating point numbers.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of numbers as described in [`PrimitiveValue::to_multi_float32`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_multi_float32`]: ../enum.PrimitiveValue.html#to_multi_float32
+    pub fn to_multi_float32(&self) -> Result<Vec<f32>, ConvertValueError> {
+        self.value().to_multi_float32()
+    }
+
+    /// Retrieve and convert the value of the data element
+    /// into a double-precision floating point number.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a number as described in [`PrimitiveValue::to_float64`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_float64`]: ../enum.PrimitiveValue.html#to_float64
+    pub fn to_float64(&self) -> Result<f64, ConvertValueError> {
+        self.value().to_float64()
+    }
+
+    /// Retrieve and convert the value of the data element
+    /// into a sequence of double-precision floating point numbers.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of numbers as described in [`PrimitiveValue::to_multi_float64`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_multi_float64`]: ../enum.PrimitiveValue.html#to_multi_float64
+    pub fn to_multi_float64(&self) -> Result<Vec<f64>, ConvertValueError> {
+        self.value().to_multi_float64()
     }
 }
 
@@ -282,6 +394,73 @@ where
     pub fn value(&self) -> &Value<I, P> {
         &self.value
     }
+}
+
+/// Macro for implementing getters to single and multi-values,
+/// by delegating to `Value`.
+///
+/// Should be placed inside `DataElement`'s impl block.
+macro_rules! impl_primitive_getters {
+    ($name_single: ident, $name_multi: ident, $variant: ident, $ret: ty) => {        
+        /// Get a single value of the requested type.
+        ///
+        /// If it contains multiple values,
+        /// only the first one is returned.
+        /// An error is returned if the variant is not compatible.
+        pub fn $name_single(&self) -> Result<$ret, CastValueError> {
+            self.value().$name_single()
+        }
+
+        /// Get a sequence of values of the requested type without copying.
+        ///
+        /// An error is returned if the variant is not compatible.
+        pub fn $name_multi(&self) -> Result<&[$ret], CastValueError> {
+            self.value().$name_multi()
+        }
+    };
+}
+
+impl<I, P> DataElement<I, P> {
+    /// Get a single string value.
+    ///
+    /// If it contains multiple strings,
+    /// only the first one is returned.
+    ///
+    /// An error is returned if the variant is not compatible.
+    ///
+    /// To enable conversions of other variants to a textual representation,
+    /// see [`to_str()`] instead.
+    ///
+    /// [`to_str()`]: #method.to_str
+    pub fn string(&self) -> Result<&str, CastValueError> {
+        self.value().string()
+    }
+
+    /// Get the inner sequence of string values
+    /// if the variant is either `Str` or `Strs`.
+    ///
+    /// An error is returned if the variant is not compatible.
+    ///
+    /// To enable conversions of other variants to a textual representation,
+    /// see [`to_str()`] instead.
+    ///
+    /// [`to_str()`]: #method.to_str
+    pub fn strings(&self) -> Result<&[String], CastValueError> {
+        self.value().strings()
+    }
+
+    impl_primitive_getters!(date, dates, Date, NaiveDate);
+    impl_primitive_getters!(time, times, Time, NaiveTime);
+    impl_primitive_getters!(datetime, datetimes, DateTime, DateTime<FixedOffset>);
+    impl_primitive_getters!(uint8, uint8_slice, U8, u8);
+    impl_primitive_getters!(uint16, uint16_slice, U16, u16);
+    impl_primitive_getters!(int16, int16_slice, I16, i16);
+    impl_primitive_getters!(uint32, uint32_slice, U32, u32);
+    impl_primitive_getters!(int32, int32_slice, I32, i32);
+    impl_primitive_getters!(int64, int64_slice, I64, i64);
+    impl_primitive_getters!(uint64, uint64_slice, U64, u64);
+    impl_primitive_getters!(float32, float32_slice, F32, f32);
+    impl_primitive_getters!(float64, float64_slice, F64, f64);
 }
 
 /// A data structure for a data element header, containing

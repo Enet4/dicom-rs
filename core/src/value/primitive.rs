@@ -4,7 +4,7 @@
 
 use super::DicomValueType;
 use crate::header::{HasLength, Length, Tag};
-use chrono::{Datelike, FixedOffset, Timelike};
+use chrono::{FixedOffset, Timelike};
 use itertools::Itertools;
 use num_traits::NumCast;
 use safe_transmute::to_bytes::transmute_to_bytes;
@@ -513,6 +513,106 @@ impl PrimitiveValue {
                 }
             }
             prim => Cow::from(prim.to_string()),
+        }
+    }
+
+    /// Convert the primitive value into a multi-string representation.
+    ///
+    /// String values already encoded with the `Str` and `Strs` variants
+    /// are provided as is.
+    /// All other type variants are first converted to a string,
+    /// then collected into a vector.
+    ///
+    /// **Note:**
+    /// As the process of reading a DICOM value
+    /// may not always preserve its original nature,
+    /// it is not guaranteed that `to_multi_str()` returns strings with
+    /// the exact same byte sequence as the one originally found
+    /// at the source of the value,
+    /// even for the string variants.
+    /// Therefore, this method is not reliable
+    /// for compliant DICOM serialization.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use dicom_core::dicom_value;
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    /// # use chrono::NaiveDate;
+    /// assert_eq!(
+    ///     dicom_value!(Strs, [
+    ///         "DERIVED",
+    ///         "PRIMARY",
+    ///         "WHOLE BODY",
+    ///         "EMISSION",
+    ///     ])
+    ///     .to_multi_str(),
+    ///     &["DERIVED", "PRIMARY", "WHOLE BODY", "EMISSION"][..],
+    /// );
+    ///
+    /// assert_eq!(
+    ///     dicom_value!(Str, "Smith^John").to_multi_str(),
+    ///     &["Smith^John"][..],
+    /// );
+    ///
+    /// assert_eq!(
+    ///     dicom_value!(Date, NaiveDate::from_ymd(2014, 10, 12)).to_multi_str(),
+    ///     &["20141012"][..],
+    /// );
+    ///
+    /// assert_eq!(
+    ///     dicom_value!(I64, [128, 256, 512]).to_multi_str(),
+    ///     &["128", "256", "512"][..],
+    /// );
+    /// ```
+    pub fn to_multi_str(&self) -> Cow<[String]> {
+        /// Auxilliary function for turning a sequence of values
+        /// into a sequence of strings.
+        fn seq_to_str<I>(iter: I) -> Vec<String>
+        where
+            I: IntoIterator,
+            I::Item: std::fmt::Display,
+        {
+            iter.into_iter()
+                .map(|x| x.to_string())
+                .collect()
+        }
+
+        match self {
+            PrimitiveValue::Empty => Cow::from(&[][..]),
+            PrimitiveValue::Str(values) => Cow::from(std::slice::from_ref(values)),
+            PrimitiveValue::Strs(values) => {
+                Cow::from(&values[..])
+            }
+            PrimitiveValue::Date(values) =>
+                values
+                    .into_iter()
+                    .map(|date| date.format("%Y%m%d").to_string())
+                    .collect::<Vec<_>>()
+                    .into(),
+            PrimitiveValue::Time(values) =>
+                values
+                    .into_iter()
+                    .map(|date| date.format("%H%M%S%.6f").to_string())
+                    .collect::<Vec<_>>()
+                    .into(),
+            PrimitiveValue::DateTime(values) =>
+                values
+                    .into_iter()
+                    .map(|date| date.format("%Y%m%d%H%M%S%.6f%z").to_string())
+                    .collect::<Vec<_>>()
+                    .into(),
+            PrimitiveValue::U8(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::U16(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::U32(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::I16(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::I32(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::U64(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::I64(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::F32(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::F64(values) => Cow::Owned(seq_to_str(values)),
+            PrimitiveValue::Tags(values) => Cow::Owned(seq_to_str(values)),
         }
     }
 
@@ -2172,8 +2272,11 @@ macro_rules! impl_primitive_getters {
 /// Conversions from one representation to another do not take place
 /// when using these methods.
 impl PrimitiveValue {
-    /// Get a single string value. If it contains multiple strings,
+    /// Get a single string value.
+    ///
+    /// If it contains multiple strings,
     /// only the first one is returned.
+    ///
     /// An error is returned if the variant is not compatible.
     ///
     /// To enable conversions of other variants to a textual representation,
@@ -2198,6 +2301,7 @@ impl PrimitiveValue {
 
     /// Get the inner sequence of string values
     /// if the variant is either `Str` or `Strs`.
+    ///
     /// An error is returned if the variant is not compatible.
     ///
     /// To enable conversions of other variants to a textual representation,
@@ -2415,7 +2519,7 @@ impl DicomValueType for PrimitiveValue {
 
 #[cfg(test)]
 mod tests {
-    use super::{ConvertValueError, InvalidValueReadError};
+    use super::{CastValueError, ConvertValueError, InvalidValueReadError};
     use crate::dicom_value;
     use crate::value::{PrimitiveValue, ValueType};
     use chrono::{NaiveDate, NaiveTime, FixedOffset, TimeZone};
@@ -2775,6 +2879,64 @@ mod tests {
                      .and_hms(9, 30, 1)
         );
         assert_eq!(val.calculate_byte_len(), 20);
-        
+    }
+
+    #[test]
+    fn primitive_value_get() {
+
+        assert_eq!(
+            dicom_value!(Strs, ["Smith^John"]).string().unwrap(),
+            "Smith^John"
+        );
+
+        assert_eq!(
+            dicom_value!(Strs, ["Smith^John"]).strings().unwrap(),
+            &["Smith^John"]
+        );
+
+        assert_eq!(
+            dicom_value!(I32, [1, 2, 5]).int32().unwrap(),
+            1,
+        );
+
+        assert_eq!(
+            dicom_value!(I32, [1, 2, 5]).int32_slice().unwrap(),
+            &[1, 2, 5],
+        );
+
+        assert!(matches!(
+            dicom_value!(I32, [1, 2, 5]).uint32(),
+            Err(CastValueError {
+                requested: "uint32",
+                got: ValueType::I32,
+                ..
+            })
+        ));
+
+        assert!(matches!(
+            dicom_value!(I32, [1, 2, 5]).strings(),
+            Err(CastValueError {
+                requested: "strings",
+                got: ValueType::I32,
+                ..
+            })
+        ));
+
+        assert_eq!(
+            PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)])
+                .date()
+                .unwrap(),
+            NaiveDate::from_ymd(2014, 10, 12),
+        );
+
+        assert!(matches!(
+            PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)])
+                .time(),
+            Err(CastValueError {
+                requested: "time",
+                got: ValueType::Date,
+                ..
+            })
+        ));
     }
 }
