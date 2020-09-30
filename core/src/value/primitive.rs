@@ -373,7 +373,7 @@ impl PrimitiveValue {
     }
 
     /// Determine the length of the DICOM value in its encoded form.
-    /// 
+    ///
     /// In other words,
     /// this is the number of bytes that the value
     /// would need to occupy in a DICOM file,
@@ -404,12 +404,7 @@ impl PrimitiveValue {
             Tags(c) => c.len() * 4,
             Date(c) => (c.len() * 9) & !1,
             Str(s) => s.as_bytes().len(),
-            Strs(c) => {
-                c.iter()
-                    .map(|s| s.as_bytes().len() + 1)
-                    .sum::<usize>()
-                    & !1
-            }
+            Strs(c) => c.iter().map(|s| s.as_bytes().len() + 1).sum::<usize>() & !1,
             Time(c) => {
                 c.iter()
                     .map(|t| PrimitiveValue::tm_byte_len(*t) + 1)
@@ -574,35 +569,28 @@ impl PrimitiveValue {
             I: IntoIterator,
             I::Item: std::fmt::Display,
         {
-            iter.into_iter()
-                .map(|x| x.to_string())
-                .collect()
+            iter.into_iter().map(|x| x.to_string()).collect()
         }
 
         match self {
             PrimitiveValue::Empty => Cow::from(&[][..]),
             PrimitiveValue::Str(values) => Cow::from(std::slice::from_ref(values)),
-            PrimitiveValue::Strs(values) => {
-                Cow::from(&values[..])
-            }
-            PrimitiveValue::Date(values) =>
-                values
-                    .into_iter()
-                    .map(|date| date.format("%Y%m%d").to_string())
-                    .collect::<Vec<_>>()
-                    .into(),
-            PrimitiveValue::Time(values) =>
-                values
-                    .into_iter()
-                    .map(|date| date.format("%H%M%S%.6f").to_string())
-                    .collect::<Vec<_>>()
-                    .into(),
-            PrimitiveValue::DateTime(values) =>
-                values
-                    .into_iter()
-                    .map(|date| date.format("%Y%m%d%H%M%S%.6f%z").to_string())
-                    .collect::<Vec<_>>()
-                    .into(),
+            PrimitiveValue::Strs(values) => Cow::from(&values[..]),
+            PrimitiveValue::Date(values) => values
+                .into_iter()
+                .map(|date| date.format("%Y%m%d").to_string())
+                .collect::<Vec<_>>()
+                .into(),
+            PrimitiveValue::Time(values) => values
+                .into_iter()
+                .map(|date| date.format("%H%M%S%.6f").to_string())
+                .collect::<Vec<_>>()
+                .into(),
+            PrimitiveValue::DateTime(values) => values
+                .into_iter()
+                .map(|date| date.format("%Y%m%d%H%M%S%.6f%z").to_string())
+                .collect::<Vec<_>>()
+                .into(),
             PrimitiveValue::U8(values) => Cow::Owned(seq_to_str(values)),
             PrimitiveValue::U16(values) => Cow::Owned(seq_to_str(values)),
             PrimitiveValue::U32(values) => Cow::Owned(seq_to_str(values)),
@@ -2522,7 +2510,7 @@ mod tests {
     use super::{CastValueError, ConvertValueError, InvalidValueReadError};
     use crate::dicom_value;
     use crate::value::{PrimitiveValue, ValueType};
-    use chrono::{NaiveDate, NaiveTime, FixedOffset, TimeZone};
+    use chrono::{FixedOffset, NaiveDate, NaiveTime, TimeZone};
     use smallvec::smallvec;
 
     #[test]
@@ -2841,49 +2829,51 @@ mod tests {
 
         // multi date, no padding
         // b"20141012\\20200915\\20180101"
-        let val = dicom_value!(Date, [
-            NaiveDate::from_ymd(2014, 10, 12),
-            NaiveDate::from_ymd(2020, 9, 15),
-            NaiveDate::from_ymd(2018, 1, 1)
-        ]);
+        let val = dicom_value!(
+            Date,
+            [
+                NaiveDate::from_ymd(2014, 10, 12),
+                NaiveDate::from_ymd(2020, 9, 15),
+                NaiveDate::from_ymd(2018, 1, 1)
+            ]
+        );
         assert_eq!(val.calculate_byte_len(), 26);
 
         // multi date with padding
         // b"20141012\\20200915 "
-        let val = dicom_value!(Date, [
-            NaiveDate::from_ymd(2014, 10, 12),
-            NaiveDate::from_ymd(2020, 9, 15)
-        ]);
+        let val = dicom_value!(
+            Date,
+            [
+                NaiveDate::from_ymd(2014, 10, 12),
+                NaiveDate::from_ymd(2020, 9, 15)
+            ]
+        );
         assert_eq!(val.calculate_byte_len(), 18);
 
         // single time with second fragment
         // b"185530.4756"
-        let val = dicom_value!(
-            NaiveTime::from_hms_micro(18, 55, 30, 475600)
-        );
+        let val = dicom_value!(NaiveTime::from_hms_micro(18, 55, 30, 475600));
         assert_eq!(val.calculate_byte_len(), 12);
 
         // multi time with padding
         // b"185530\\185530 "
-        let val = dicom_value!(Time, [
-            NaiveTime::from_hms(18, 55, 30),
-            NaiveTime::from_hms(18, 55, 30)
-        ]);
+        let val = dicom_value!(
+            Time,
+            [
+                NaiveTime::from_hms(18, 55, 30),
+                NaiveTime::from_hms(18, 55, 30)
+            ]
+        );
         assert_eq!(val.calculate_byte_len(), 14);
 
         // single date-time with time zone, no second fragment
         // b"20121221093001+0100"
-        let val = PrimitiveValue::from(
-            FixedOffset::east(1)
-                     .ymd(2012, 12, 21)
-                     .and_hms(9, 30, 1)
-        );
+        let val = PrimitiveValue::from(FixedOffset::east(1).ymd(2012, 12, 21).and_hms(9, 30, 1));
         assert_eq!(val.calculate_byte_len(), 20);
     }
 
     #[test]
     fn primitive_value_get() {
-
         assert_eq!(
             dicom_value!(Strs, ["Smith^John"]).string().unwrap(),
             "Smith^John"
@@ -2894,10 +2884,7 @@ mod tests {
             &["Smith^John"]
         );
 
-        assert_eq!(
-            dicom_value!(I32, [1, 2, 5]).int32().unwrap(),
-            1,
-        );
+        assert_eq!(dicom_value!(I32, [1, 2, 5]).int32().unwrap(), 1,);
 
         assert_eq!(
             dicom_value!(I32, [1, 2, 5]).int32_slice().unwrap(),
@@ -2930,8 +2917,7 @@ mod tests {
         );
 
         assert!(matches!(
-            PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)])
-                .time(),
+            PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)]).time(),
             Err(CastValueError {
                 requested: "time",
                 got: ValueType::Date,

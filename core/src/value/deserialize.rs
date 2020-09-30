@@ -1,7 +1,7 @@
 //! Parsing of primitive values
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
-use std::ops::{Add, Mul, Sub};
 use snafu::{Backtrace, OptionExt, Snafu};
+use std::ops::{Add, Mul, Sub};
 
 const Z: i32 = b'0' as i32;
 
@@ -9,53 +9,28 @@ const Z: i32 = b'0' as i32;
 #[non_exhaustive]
 pub enum Error {
     #[snafu(display("Unexpected end of element"))]
-    UnexpectedEndOfElement {
-        backtrace: Backtrace,
-    },
+    UnexpectedEndOfElement { backtrace: Backtrace },
     #[snafu(display("Invalid date-time zone component"))]
-    InvalidDateTimeZone {
-        backtrace: Backtrace,
-    },
+    InvalidDateTimeZone { backtrace: Backtrace },
     #[snafu(display("Invalid hour component: got {}, but must be in 0..24", value))]
-    InvalidDateTimeHour {
-        value: u32,
-        backtrace: Backtrace,
-    },
+    InvalidDateTimeHour { value: u32, backtrace: Backtrace },
     #[snafu(display("Invalid minute component: got {}, but must be in 0..60", value))]
-    InvalidDateTimeMinute {
-        value: u32,
-        backtrace: Backtrace,
-    },
+    InvalidDateTimeMinute { value: u32, backtrace: Backtrace },
     #[snafu(display("Invalid second component: got {}, but must be in 0..60", value))]
-    InvalidDateTimeSecond {
-        value: u32,
-        backtrace: Backtrace,
-    },
-    #[snafu(display("Invalid microsecond component: got {}, but must be in 0..2_000_000", value))]
-    InvalidDateTimeMicrosecond {
-        value: u32,
-        backtrace: Backtrace,
-    },
+    InvalidDateTimeSecond { value: u32, backtrace: Backtrace },
+    #[snafu(display(
+        "Invalid microsecond component: got {}, but must be in 0..2_000_000",
+        value
+    ))]
+    InvalidDateTimeMicrosecond { value: u32, backtrace: Backtrace },
     #[snafu(display("Unexpected token after date: got '{}', but must be '.', '+', or '-'", *value as char))]
-    UnexpectedAfterDateToken {
-        value: u8,
-        backtrace: Backtrace,
-    },
+    UnexpectedAfterDateToken { value: u8, backtrace: Backtrace },
     #[snafu(display("Invalid number length: it is {}, but must be between 1 and 9", len))]
-    InvalidNumberLength {
-        len: usize,
-        backtrace: Backtrace,
-    },
+    InvalidNumberLength { len: usize, backtrace: Backtrace },
     #[snafu(display("Invalid number token: got '{}', but must be a digit in '0'..='9'", *value as char))]
-    InvalidNumberToken {
-        value: u8,
-        backtrace: Backtrace,
-    },
+    InvalidNumberToken { value: u8, backtrace: Backtrace },
     #[snafu(display("Invalid time zone sign token: got '{}', but must be '+' or '-'", *value as char))]
-    InvalidTimeZoneSignToken {
-        value: u8,
-        backtrace: Backtrace,
-    }
+    InvalidTimeZoneSignToken { value: u8, backtrace: Backtrace },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -68,15 +43,14 @@ pub fn parse_date(buf: &[u8]) -> Result<(NaiveDate, &[u8])> {
         0 | 5 | 7 => UnexpectedEndOfElement.fail(),
         1..=4 => {
             let year = read_number(buf)?;
-            let date: Result<_> = NaiveDate::from_ymd_opt(year, 1, 1)
-                .context(InvalidDateTimeZone);
+            let date: Result<_> = NaiveDate::from_ymd_opt(year, 1, 1).context(InvalidDateTimeZone);
             Ok((date?, &[]))
         }
         6 => {
             let year = read_number(&buf[0..4])?;
             let month = (i32::from(buf[4]) - Z) * 10 + i32::from(buf[5]) - Z;
-            let date: Result<_> = NaiveDate::from_ymd_opt(year, month as u32, 0)
-                .context(InvalidDateTimeZone);
+            let date: Result<_> =
+                NaiveDate::from_ymd_opt(year, month as u32, 0).context(InvalidDateTimeZone);
             Ok((date?, &buf[6..]))
         }
         len => {
@@ -105,21 +79,13 @@ fn naive_time_from_components(
     micro: u32,
 ) -> Result<NaiveTime> {
     if hour >= 24 {
-        InvalidDateTimeHour {
-            value: hour,
-        }.fail()
+        InvalidDateTimeHour { value: hour }.fail()
     } else if minute >= 60 {
-        InvalidDateTimeMinute {
-            value: minute,
-        }.fail()
+        InvalidDateTimeMinute { value: minute }.fail()
     } else if second >= 60 {
-        InvalidDateTimeSecond {
-            value: second,
-        }.fail()
+        InvalidDateTimeSecond { value: second }.fail()
     } else if micro >= 2_000_000 {
-        InvalidDateTimeMicrosecond {
-            value: micro,
-        }.fail()
+        InvalidDateTimeMicrosecond { value: micro }.fail()
     } else {
         Ok(NaiveTime::from_hms_micro(hour, minute, second, micro))
     }
@@ -232,9 +198,7 @@ where
     T: Sub<T, Output = T>,
 {
     if text.is_empty() || text.len() > 9 {
-        return InvalidNumberLength {
-            len: text.len(),
-        }.fail();
+        return InvalidNumberLength { len: text.len() }.fail();
     }
     if let Some(c) = text.iter().cloned().find(|&b| b < b'0' || b > b'9') {
         return InvalidNumberToken { value: c }.fail();

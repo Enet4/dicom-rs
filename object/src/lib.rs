@@ -147,10 +147,7 @@ pub enum Error {
     #[snafu(display("Unsupported transfer syntax `{}`", uid))]
     UnsupportedTransferSyntax { uid: String, backtrace: Backtrace },
     #[snafu(display("No such data element with tag {}", tag))]
-    NoSuchDataElementTag {
-        tag: Tag,
-        backtrace: Backtrace,
-    },
+    NoSuchDataElementTag { tag: Tag, backtrace: Backtrace },
     #[snafu(display("No such data element {} (with tag {})", alias, tag))]
     NoSuchDataElementAlias {
         tag: Tag,

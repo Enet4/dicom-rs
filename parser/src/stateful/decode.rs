@@ -36,10 +36,7 @@ pub enum Error {
     },
 
     #[snafu(display("Attempted to read non-primitive value at position {}", position))]
-    NonPrimitiveType {
-        position: u64,
-        backtrace: Backtrace,
-    },
+    NonPrimitiveType { position: u64, backtrace: Backtrace },
 
     #[snafu(display(
         "Undefined value length of element tagged {} at position {}",
@@ -785,7 +782,8 @@ where
                 // handled at a higher level
                 NonPrimitiveType {
                     position: self.bytes_read,
-                }.fail()
+                }
+                .fail()
             }
             VR::AT => self.read_value_tag(header),
             VR::AE | VR::AS | VR::PN | VR::SH | VR::LO | VR::UC | VR::UI => {
@@ -820,7 +818,8 @@ where
                 // sequence objects... should not work
                 NonPrimitiveType {
                     position: self.bytes_read,
-                }.fail()
+                }
+                .fail()
             }
             VR::AT => self.read_value_tag(header),
             VR::AE
@@ -859,7 +858,8 @@ where
                 // sequence objects... should not work
                 NonPrimitiveType {
                     position: self.bytes_read,
-                }.fail()
+                }
+                .fail()
             }
             _ => self.read_value_ob(header),
         }
@@ -876,7 +876,8 @@ where
                 // sequence objects... should not work
                 NonPrimitiveType {
                     position: self.bytes_read,
-                }.fail()
+                }
+                .fail()
             }
             _ => Ok(self.from.by_ref().take(
                 header

@@ -505,7 +505,7 @@ where
 ///
 /// Should be placed inside `Value`'s impl block.
 macro_rules! impl_primitive_getters {
-    ($name_single: ident, $name_multi: ident, $variant: ident, $ret: ty) => {        
+    ($name_single: ident, $name_multi: ident, $variant: ident, $ret: ty) => {
         /// Get a single value of the requested type.
         ///
         /// If it contains multiple values,
@@ -655,24 +655,26 @@ mod tests {
 
     #[test]
     fn getters() {
-
         assert_eq!(
-            Value::new(dicom_value!(Strs, ["Smith^John"])).string().unwrap(),
+            Value::new(dicom_value!(Strs, ["Smith^John"]))
+                .string()
+                .unwrap(),
             "Smith^John"
         );
 
         assert_eq!(
-            Value::new(dicom_value!(Strs, ["Smith^John"])).strings().unwrap(),
+            Value::new(dicom_value!(Strs, ["Smith^John"]))
+                .strings()
+                .unwrap(),
             &["Smith^John"]
         );
 
-        assert_eq!(
-            Value::new(dicom_value!(I32, [1, 2, 5])).int32().unwrap(),
-            1,
-        );
+        assert_eq!(Value::new(dicom_value!(I32, [1, 2, 5])).int32().unwrap(), 1,);
 
         assert_eq!(
-            Value::new(dicom_value!(I32, [1, 2, 5])).int32_slice().unwrap(),
+            Value::new(dicom_value!(I32, [1, 2, 5]))
+                .int32_slice()
+                .unwrap(),
             &[1, 2, 5],
         );
 
@@ -695,22 +697,28 @@ mod tests {
         ));
 
         assert_eq!(
-            Value::new(PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)]))
-                .date()
-                .unwrap(),
+            Value::new(PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(
+                2014, 10, 12
+            )]))
+            .date()
+            .unwrap(),
             NaiveDate::from_ymd(2014, 10, 12),
         );
 
         assert_eq!(
-            Value::new(PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12); 5]))
-                .dates()
-                .unwrap(),
+            Value::new(PrimitiveValue::Date(
+                smallvec![NaiveDate::from_ymd(2014, 10, 12); 5]
+            ))
+            .dates()
+            .unwrap(),
             &[NaiveDate::from_ymd(2014, 10, 12); 5]
         );
 
         assert!(matches!(
-            Value::new(PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)]))
-                .time(),
+            Value::new(PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(
+                2014, 10, 12
+            )]))
+            .time(),
             Err(CastValueError {
                 requested: "time",
                 got: ValueType::Date,

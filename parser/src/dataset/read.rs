@@ -400,13 +400,13 @@ where
                     Some(Ok(DataToken::PixelSequenceStart))
                 }
                 Ok(header) if header.len.is_undefined() => {
-                    // treat other undefined length elements 
+                    // treat other undefined length elements
                     // as data set sequences,
                     // discarding the VR in the process
                     self.last_header = Some(header);
                     self.in_sequence = true;
 
-                    let DataElementHeader { tag, len, ..} = header;
+                    let DataElementHeader { tag, len, .. } = header;
                     self.push_sequence_token(SeqTokenType::Sequence, len, false);
 
                     Some(Ok(DataToken::SequenceStart { tag, len }))
@@ -493,7 +493,8 @@ where
             ValueReadStrategy::Interpreted => self.parser.read_value(header),
             ValueReadStrategy::Preserved => self.parser.read_value_preserved(header),
             ValueReadStrategy::Raw => self.parser.read_value_bytes(header),
-        }.context(ReadValue)
+        }
+        .context(ReadValue)
     }
 }
 

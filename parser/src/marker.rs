@@ -1,8 +1,8 @@
-use dicom_core::header::{DataElementHeader, Header, HasLength, VR, Length, Tag};
-use crate::util::{SeekInterval, ReadSeek};
-use std::ops::DerefMut;
-use std::io::{Seek, SeekFrom};
+use crate::util::{ReadSeek, SeekInterval};
+use dicom_core::header::{DataElementHeader, HasLength, Header, Length, Tag, VR};
 use snafu::{OptionExt, ResultExt, Snafu};
+use std::io::{Seek, SeekFrom};
+use std::ops::DerefMut;
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -11,7 +11,7 @@ pub enum Error {
     UnknownValueLength,
     CreateInterval {
         source: std::io::Error,
-    }
+    },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -39,14 +39,8 @@ impl DicomElementMarker {
     where
         S: ReadSeek,
     {
-        let len = u64::from(
-            self.header
-                .length()
-                .get()
-                .context(UnknownValueLength)?,
-        );
-        let interval = SeekInterval::new_at(source, self.pos..len)
-            .context(CreateInterval)?;
+        let len = u64::from(self.header.length().get().context(UnknownValueLength)?);
+        let interval = SeekInterval::new_at(source, self.pos..len).context(CreateInterval)?;
         Ok(interval)
     }
 

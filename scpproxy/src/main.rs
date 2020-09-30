@@ -2,12 +2,12 @@ use clap::{App, Arg};
 use dicom_ul::pdu::reader::{read_pdu, DEFAULT_MAX_PDU};
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::Pdu;
+use snafu::{Backtrace, ErrorCompat, OptionExt, ResultExt, Snafu};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::thread::JoinHandle;
-use snafu::{Backtrace, ErrorCompat, OptionExt, ResultExt, Snafu};
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -40,13 +40,9 @@ enum Error {
         source: std::io::Error,
     },
     #[snafu(display("SCP reader thread panicked"))]
-    ScpReaderPanic {
-        backtrace: Backtrace,
-    },
+    ScpReaderPanic { backtrace: Backtrace },
     #[snafu(display("SCU reader thread panicked"))]
-    ScuReaderPanic {
-        backtrace: Backtrace,
-    }
+    ScuReaderPanic { backtrace: Backtrace },
 }
 
 fn report<E: 'static>(err: E)
@@ -119,22 +115,28 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
                     loop {
                         match read_pdu(&mut reader, DEFAULT_MAX_PDU) {
                             Ok(pdu) => {
-                                message_tx.send(ThreadMessage::SendPdu {
-                                    to: ProviderType::Scp,
-                                    pdu,
-                                }).context(SendMessage)?;
+                                message_tx
+                                    .send(ThreadMessage::SendPdu {
+                                        to: ProviderType::Scp,
+                                        pdu,
+                                    })
+                                    .context(SendMessage)?;
                             }
-                            Err(dicom_ul::pdu::reader::Error::NoPduAvailable {..}) => {
-                                message_tx.send(ThreadMessage::Shutdown {
-                                    initiator: ProviderType::Scu,
-                                }).context(SendMessage)?;
+                            Err(dicom_ul::pdu::reader::Error::NoPduAvailable { .. }) => {
+                                message_tx
+                                    .send(ThreadMessage::Shutdown {
+                                        initiator: ProviderType::Scu,
+                                    })
+                                    .context(SendMessage)?;
                                 break;
                             }
                             Err(err) => {
-                                message_tx.send(ThreadMessage::ReadErr {
-                                    from: ProviderType::Scu,
-                                    err,
-                                }).context(SendMessage)?;
+                                message_tx
+                                    .send(ThreadMessage::ReadErr {
+                                        from: ProviderType::Scu,
+                                        err,
+                                    })
+                                    .context(SendMessage)?;
                                 break;
                             }
                         }
@@ -150,22 +152,28 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
                     loop {
                         match read_pdu(&mut reader, DEFAULT_MAX_PDU) {
                             Ok(pdu) => {
-                                message_tx.send(ThreadMessage::SendPdu {
-                                    to: ProviderType::Scu,
-                                    pdu,
-                                }).context(SendMessage)?;
+                                message_tx
+                                    .send(ThreadMessage::SendPdu {
+                                        to: ProviderType::Scu,
+                                        pdu,
+                                    })
+                                    .context(SendMessage)?;
                             }
                             Err(dicom_ul::pdu::reader::Error::NoPduAvailable { .. }) => {
-                                    message_tx.send(ThreadMessage::Shutdown {
+                                message_tx
+                                    .send(ThreadMessage::Shutdown {
                                         initiator: ProviderType::Scp,
-                                    }).context(SendMessage)?;
+                                    })
+                                    .context(SendMessage)?;
                                 break;
                             }
                             Err(err) => {
-                                message_tx.send(ThreadMessage::ReadErr {
-                                    from: ProviderType::Scp,
-                                    err,
-                                }).context(SendMessage)?;
+                                message_tx
+                                    .send(ThreadMessage::ReadErr {
+                                        from: ProviderType::Scp,
+                                        err,
+                                    })
+                                    .context(SendMessage)?;
                                 break;
                             }
                         }
@@ -206,16 +214,10 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
             }
 
             scu_stream.shutdown(Shutdown::Read).context(CloseSocket)?;
-            scu_reader_thread
-                .join()
-                .ok()
-                .context(ScuReaderPanic)??;
+            scu_reader_thread.join().ok().context(ScuReaderPanic)??;
 
             scp_stream.shutdown(Shutdown::Read).context(CloseSocket)?;
-            scp_reader_thread
-                .join()
-                .ok()
-                .context(ScpReaderPanic)??;
+            scp_reader_thread.join().ok().context(ScpReaderPanic)??;
 
             Ok(())
         }

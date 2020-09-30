@@ -299,37 +299,37 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> Cow<str
                 Ok(values) => {
                     // print as reformatted date
                     format_value_list(values, max_characters, false).into()
-                },
+                }
                 Err(_e) => {
                     // print as text
                     format_value_list(values, max_characters, true).into()
                 }
             }
-        },
+        }
         (Strs(values), VR::TM) => {
             match value.to_multi_time() {
                 Ok(values) => {
                     // print as reformatted date
                     format_value_list(values, max_characters, false).into()
-                },
+                }
                 Err(_e) => {
                     // print as text
                     format_value_list(values, max_characters, true).into()
                 }
             }
-        },
+        }
         (Strs(values), VR::DT) => {
             match value.to_multi_datetime(dicom::core::chrono::FixedOffset::east(0)) {
                 Ok(values) => {
                     // print as reformatted date
                     format_value_list(values, max_characters, false).into()
-                },
+                }
                 Err(_e) => {
                     // print as text
                     format_value_list(values, max_characters, true).into()
                 }
             }
-        },
+        }
         (Strs(values), _) => format_value_list(values, max_characters, true).into(),
         (Date(values), _) => format_value_list(values, max_characters, true).into(),
         (Time(values), _) => format_value_list(values, max_characters, true).into(),

@@ -161,9 +161,7 @@ mod tests {
             assert_eq!(bytes_read, 8);
             // read only half of the data
             let mut buffer = [0; 13];
-            cursor
-                .read_exact(&mut buffer)
-                .expect("should read it fine");
+            cursor.read_exact(&mut buffer).expect("should read it fine");
             assert_eq!(&buffer, b"1.2.840.10008".as_ref());
         }
         // cursor should now be @ #21 (there is no automatic skipping)
@@ -180,9 +178,7 @@ mod tests {
             assert_eq!(elem.length(), Length(20));
             // read all data
             let mut buffer = [0; 20];
-            cursor
-                .read_exact(&mut buffer)
-                .expect("should read it fine");
+            cursor.read_exact(&mut buffer).expect("should read it fine");
             assert_eq!(&buffer, b"1.2.840.10008.1.2.1\0".as_ref());
         }
     }

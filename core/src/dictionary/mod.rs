@@ -5,9 +5,9 @@
 pub mod stub;
 
 use crate::header::{Tag, VR};
+use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::fmt::Debug;
 use std::str::FromStr;
-use snafu::{Backtrace, OptionExt, ResultExt, Snafu, ensure};
 
 /// Specification of a range of tags pertaining to an attribute.
 /// Very often, the dictionary of attributes indicates a unique `(group,elem)`
@@ -36,33 +36,26 @@ impl TagRange {
     }
 }
 
-
 /// An error returned when parsing an invalid tag range.
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum TagRangeParseError {
     #[snafu(display("Not enough tag components, expected tag (group, element)"))]
-    MissingTag {
-        backtrace: Backtrace,
-    },
+    MissingTag { backtrace: Backtrace },
     #[snafu(display("Not enough tag components, expected tag element"))]
-    MissingTagElement {
-        backtrace: Backtrace,
-    },
-    #[snafu(display("tag component `group` has an invalid length: got {} but must be 4", got))]
-    InvalidGroupLength {
-        got: usize,
-        backtrace: Backtrace,
-    },
-    #[snafu(display("tag component `element` has an invalid length: got {} but must be 4", got))]
-    InvalidElementLength {
-        got: usize,
-        backtrace: Backtrace,
-    },
+    MissingTagElement { backtrace: Backtrace },
+    #[snafu(display(
+        "tag component `group` has an invalid length: got {} but must be 4",
+        got
+    ))]
+    InvalidGroupLength { got: usize, backtrace: Backtrace },
+    #[snafu(display(
+        "tag component `element` has an invalid length: got {} but must be 4",
+        got
+    ))]
+    InvalidElementLength { got: usize, backtrace: Backtrace },
     #[snafu(display("unsupported tag range"))]
-    UnsupportedTagRange {
-        backtrace: Backtrace,
-    },
+    UnsupportedTagRange { backtrace: Backtrace },
     #[snafu(display("invalid tag component `group`"))]
     InvalidTagGroup {
         backtrace: Backtrace,
@@ -74,7 +67,6 @@ pub enum TagRangeParseError {
         source: std::num::ParseIntError,
     },
 }
-
 
 impl FromStr for TagRange {
     type Err = TagRangeParseError;
@@ -93,28 +85,20 @@ impl FromStr for TagRange {
             (b"xx", b"xx") => UnsupportedTagRange.fail(),
             (b"xx", _) => {
                 // Group100
-                let group = u16::from_str_radix(&group[..2], 16)
-                    .context(InvalidTagGroup)?
-                    << 8;
-                let elem = u16::from_str_radix(elem, 16)
-                    .context(InvalidTagElement)?;
+                let group = u16::from_str_radix(&group[..2], 16).context(InvalidTagGroup)? << 8;
+                let elem = u16::from_str_radix(elem, 16).context(InvalidTagElement)?;
                 Ok(TagRange::Group100(Tag(group, elem)))
             }
             (_, b"xx") => {
                 // Element100
-                let group = u16::from_str_radix(group, 16)
-                    .context(InvalidTagGroup)?;
-                let elem = u16::from_str_radix(&elem[..2], 16)
-                    .context(InvalidTagElement)?
-                    << 8;
+                let group = u16::from_str_radix(group, 16).context(InvalidTagGroup)?;
+                let elem = u16::from_str_radix(&elem[..2], 16).context(InvalidTagElement)? << 8;
                 Ok(TagRange::Element100(Tag(group, elem)))
             }
             (_, _) => {
                 // single element
-                let group = u16::from_str_radix(group, 16)
-                    .context(InvalidTagGroup)?;
-                let elem = u16::from_str_radix(elem, 16)
-                    .context(InvalidTagElement)?;
+                let group = u16::from_str_radix(group, 16).context(InvalidTagGroup)?;
+                let elem = u16::from_str_radix(elem, 16).context(InvalidTagElement)?;
                 Ok(TagRange::Single(Tag(group, elem)))
             }
         }

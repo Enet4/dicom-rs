@@ -20,9 +20,9 @@
 
 use encoding::all::{GB18030, ISO_8859_1, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5, UTF_8};
 use encoding::{DecoderTrap, EncoderTrap, Encoding, RawDecoder, StringWriter};
+use snafu::{Backtrace, Snafu};
 use std::borrow::Cow;
 use std::fmt::Debug;
-use snafu::{Backtrace, Snafu};
 
 /// An error type for text encoding issues.
 #[derive(Debug, Snafu)]
@@ -37,7 +37,7 @@ pub enum EncodeTextError {
         message: Cow<'static, str>,
         /// The generated backtrace, if available.
         backtrace: Backtrace,
-    }
+    },
 }
 
 /// An error type for text decoding issues.
@@ -53,7 +53,7 @@ pub enum DecodeTextError {
         message: Cow<'static, str>,
         /// The generated backtrace, if available.
         backtrace: Backtrace,
-    }
+    },
 }
 
 type EncodeResult<T> = Result<T, EncodeTextError>;
@@ -162,7 +162,7 @@ impl SpecificCharacterSet {
      * in the respective DICOM element (0008, 0005).
      *
      * # Example
-     * 
+     *
      * ```
      * let character_set = SpecificCharacterSet::from_code("ISO_IR 100");
      * assert_eq!(character_set, Some(SpecificCharacterSet::IsoIr100));

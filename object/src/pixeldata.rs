@@ -3,15 +3,13 @@
 //! In order to facilitate typical pixel data manipulation, this crate
 //! provides a common interface for retrieving that content as an image
 //! or a multi-dimensional array.
-use std::marker::PhantomData;
 use snafu::{Backtrace, Snafu};
+use std::marker::PhantomData;
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum Error {
-    PixelIndexOutOfBounds {
-        backtrace: Backtrace,
-    }
+    PixelIndexOutOfBounds { backtrace: Backtrace },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

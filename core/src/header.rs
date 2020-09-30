@@ -473,7 +473,7 @@ where
 ///
 /// Should be placed inside `DataElement`'s impl block.
 macro_rules! impl_primitive_getters {
-    ($name_single: ident, $name_multi: ident, $variant: ident, $ret: ty) => {        
+    ($name_single: ident, $name_multi: ident, $variant: ident, $ret: ty) => {
         /// Get a single value of the requested type.
         ///
         /// If it contains multiple values,
@@ -631,7 +631,7 @@ impl SequenceItemHeader {
                 // sequence delimiter
                 Ok(SequenceItemHeader::SequenceDelimiter)
             }
-            tag => UnexpectedTag { tag }.fail()
+            tag => UnexpectedTag { tag }.fail(),
         }
     }
 }
@@ -1160,7 +1160,7 @@ mod tests {
             VR::DA,
             Value::new(PrimitiveValue::from("19941012")),
         );
-        
+
         assert_eq!(
             data_element.to_date().unwrap(),
             NaiveDate::from_ymd(1994, 10, 12),
