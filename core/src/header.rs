@@ -3,13 +3,13 @@
 //! element header, and element composite types.
 
 use crate::value::{CastValueError, ConvertValueError, PrimitiveValue, Value};
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
+use num_traits::NumCast;
+use snafu::{Backtrace, Snafu};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
 use std::str::{from_utf8, FromStr};
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
-use num_traits::NumCast;
-use snafu::{Backtrace, Snafu};
 
 /// Error type for issues constructing a sequence item header.
 #[derive(Debug, Snafu)]
@@ -21,17 +21,11 @@ pub enum SequenceItemHeaderError {
     /// or Sequence Delimiter (0xFFFE, 0xE0DD)
     /// are admitted.
     #[snafu(display("Unexpected tag {}", tag))]
-    UnexpectedTag {
-        tag: Tag,
-        backtrace: Backtrace,
-    },
+    UnexpectedTag { tag: Tag, backtrace: Backtrace },
     /// Unexpected delimiter value length.
     /// Must be zero for item delimiters.
     #[snafu(display("Unexpected delimiter length {}", len))]
-    UnexpectedDelimiterLength {
-        len: Length,
-        backtrace: Backtrace,
-    }
+    UnexpectedDelimiterLength { len: Length, backtrace: Backtrace },
 }
 
 type Result<T, E = SequenceItemHeaderError> = std::result::Result<T, E>;
@@ -364,6 +358,84 @@ where
     /// [`PrimitiveValue::to_multi_float64`]: ../enum.PrimitiveValue.html#to_multi_float64
     pub fn to_multi_float64(&self) -> Result<Vec<f64>, ConvertValueError> {
         self.value().to_multi_float64()
+    }
+
+    /// Retrieve and convert the primitive value into a date.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a `NaiveDate` as described in [`PrimitiveValue::to_date`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_date`]: ../enum.PrimitiveValue.html#to_date
+    pub fn to_date(&self) -> Result<NaiveDate, ConvertValueError> {
+        self.value().to_date()
+    }
+
+    /// Retrieve and convert the primitive value into a sequence of dates.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of `NaiveDate` as described in [`PrimitiveValue::to_multi_date`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_multi_date`]: ../enum.PrimitiveValue.html#to_multi_date
+    pub fn to_multi_date(&self) -> Result<Vec<NaiveDate>, ConvertValueError> {
+        self.value().to_multi_date()
+    }
+
+    /// Retrieve and convert the primitive value into a time.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a `NaiveTime` as described in [`PrimitiveValue::to_time`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_time`]: ../enum.PrimitiveValue.html#to_time
+    pub fn to_time(&self) -> Result<NaiveTime, ConvertValueError> {
+        self.value().to_time()
+    }
+
+    /// Retrieve and convert the primitive value into a sequence of times.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of `NaiveTime` as described in [`PrimitiveValue::to_multi_time`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_multi_time`]: ../enum.PrimitiveValue.html#to_multi_time
+    pub fn to_multi_time(&self) -> Result<Vec<NaiveTime>, ConvertValueError> {
+        self.value().to_multi_time()
+    }
+
+    /// Retrieve and convert the primitive value into a date-time.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a `DateTime` as described in [`PrimitiveValue::to_datetime`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_datetime`]: ../enum.PrimitiveValue.html#to_datetime
+    pub fn to_datetime(
+        &self,
+        default_offset: FixedOffset,
+    ) -> Result<DateTime<FixedOffset>, ConvertValueError> {
+        self.value().to_datetime(default_offset)
+    }
+
+    /// Retrieve and convert the primitive value into a sequence of date-times.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of `DateTime` as described in [`PrimitiveValue::to_multi_datetime`].
+    ///
+    /// Returns an error if the value is not primitive.
+    ///
+    /// [`PrimitiveValue::to_multi_datetime`]: ../enum.PrimitiveValue.html#to_multi_datetime
+    pub fn to_multi_datetime(
+        &self,
+        default_offset: FixedOffset,
+    ) -> Result<Vec<DateTime<FixedOffset>>, ConvertValueError> {
+        self.value().to_multi_datetime(default_offset)
     }
 }
 
@@ -1065,7 +1137,7 @@ impl fmt::Display for Length {
 
 #[cfg(test)]
 mod tests {
-    use super::Tag;
+    use super::*;
 
     #[test]
     fn tag_from_u16_pair() {
@@ -1079,5 +1151,19 @@ mod tests {
         let t = Tag::from([0x0010u16, 0x0020u16]);
         assert_eq!(0x0010u16, t.group());
         assert_eq!(0x0020u16, t.element());
+    }
+
+    #[test]
+    fn get_date_value() {
+        let data_element: DataElement<_, _> = DataElement::new(
+            Tag(0x0010, 0x0030),
+            VR::DA,
+            Value::new(PrimitiveValue::from("19941012")),
+        );
+        
+        assert_eq!(
+            data_element.to_date().unwrap(),
+            NaiveDate::from_ymd(1994, 10, 12),
+        );
     }
 }
