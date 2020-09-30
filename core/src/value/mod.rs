@@ -374,6 +374,114 @@ where
         }
     }
 
+    /// Retrieve and convert the primitive value into a date.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a `NaiveDate` as described in [`PrimitiveValue::to_date`].
+    ///
+    /// [`PrimitiveValue::to_date`]: ../enum.PrimitiveValue.html#to_date
+    pub fn to_date(&self) -> Result<NaiveDate, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_date(),
+            _ => Err(ConvertValueError {
+                requested: "Date",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value into a sequence of dates.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of `NaiveDate` as described in [`PrimitiveValue::to_multi_date`].
+    ///
+    /// [`PrimitiveValue::to_multi_date`]: ../enum.PrimitiveValue.html#to_multi_date
+    pub fn to_multi_date(&self) -> Result<Vec<NaiveDate>, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_multi_date(),
+            _ => Err(ConvertValueError {
+                requested: "Date",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value into a time.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a `NaiveTime` as described in [`PrimitiveValue::to_time`].
+    ///
+    /// [`PrimitiveValue::to_time`]: ../enum.PrimitiveValue.html#to_time
+    pub fn to_time(&self) -> Result<NaiveTime, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_time(),
+            _ => Err(ConvertValueError {
+                requested: "Time",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value into a sequence of times.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of `NaiveTime` as described in [`PrimitiveValue::to_multi_time`].
+    ///
+    /// [`PrimitiveValue::to_multi_time`]: ../enum.PrimitiveValue.html#to_multi_time
+    pub fn to_multi_time(&self) -> Result<Vec<NaiveTime>, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_multi_time(),
+            _ => Err(ConvertValueError {
+                requested: "Time",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value into a date-time.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a `DateTime` as described in [`PrimitiveValue::to_datetime`].
+    ///
+    /// [`PrimitiveValue::to_datetime`]: ../enum.PrimitiveValue.html#to_datetime
+    pub fn to_datetime(
+        &self,
+        default_offset: FixedOffset,
+    ) -> Result<DateTime<FixedOffset>, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_datetime(default_offset),
+            _ => Err(ConvertValueError {
+                requested: "DateTime",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value into a sequence of date-times.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of `DateTime` as described in [`PrimitiveValue::to_multi_datetime`].
+    ///
+    /// [`PrimitiveValue::to_multi_datetime`]: ../enum.PrimitiveValue.html#to_multi_datetime
+    pub fn to_multi_datetime(
+        &self,
+        default_offset: FixedOffset,
+    ) -> Result<Vec<DateTime<FixedOffset>>, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_multi_datetime(default_offset),
+            _ => Err(ConvertValueError {
+                requested: "DateTime",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
     /// Retrieves the primitive value as a DICOM tag.
     pub fn to_tag(&self) -> Result<Tag, CastValueError> {
         match self {
