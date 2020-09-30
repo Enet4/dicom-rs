@@ -88,7 +88,7 @@ fn dump_file(obj: DefaultDicomObject) -> IoResult<()> {
     let width = if let Some((width, _)) = term_size::dimensions() {
         width as u32
     } else {
-        48
+        120
     };
 
     meta_dump(&mut to, &meta, width)?;
