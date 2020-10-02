@@ -47,7 +47,7 @@ pub enum Error {
         #[snafu(backtrace)]
         source: DecoderError,
     },
-    #[snafu(display("Could not read item value"))]
+    #[snafu(display("Could not read value"))]
     ReadValue {
         #[snafu(backtrace)]
         source: DecoderError,
@@ -403,7 +403,6 @@ where
                     // treat other undefined length elements
                     // as data set sequences,
                     // discarding the VR in the process
-                    self.last_header = Some(header);
                     self.in_sequence = true;
 
                     let DataElementHeader { tag, len, .. } = header;
@@ -907,9 +906,15 @@ mod tests {
             0x33, 0x55, 0x33, 0x55, // sequence tag: (5533,5533) «private, unknown attribute»
             0xff, 0xff, 0xff, 0xff, // length: undefined
             // -- 8 --
+            0xfe, 0xff, 0x00, 0xe0, // item begin
+            0xff, 0xff, 0xff, 0xff, // length: undefined
+            // -- 16 --
+            0xfe, 0xff, 0x0d, 0xe0, // item end
+            0xff, 0xff, 0xff, 0xff, // length: undefined
+            // -- 24 --
             0xfe, 0xff, 0xdd, 0xe0,
             0x00, 0x00, 0x00, 0x00, // sequence end
-            // -- 16 --
+            // -- 32 --
         ];
 
         let ground_truth = vec![
@@ -917,6 +922,10 @@ mod tests {
                 tag: Tag(0x5533, 0x5533),
                 len: Length::UNDEFINED,
             },
+            DataToken::ItemStart {
+                len: Length::UNDEFINED,
+            },
+            DataToken::ItemEnd,
             DataToken::SequenceEnd,
         ];
 
