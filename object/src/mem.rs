@@ -336,6 +336,19 @@ where
         self.entries.insert(elt.tag(), elt)
     }
 
+    /// Removes and returns a particular DICOM element by its tag.
+    pub fn take_element(&mut self, tag: Tag) -> Result<InMemElement<D>> {
+        self.entries
+            .remove(&tag)
+            .context(NoSuchDataElementTag { tag })
+    }
+
+    /// Removes and returns a particular DICOM element by its name.
+    pub fn take_element_by_name(&mut self, name: &str) -> Result<InMemElement<D>> {
+        let tag = self.lookup_name(name)?;
+        self.take_element(tag)
+    }
+
     // private methods
 
     /// Build an object by consuming a data set parser.
@@ -568,6 +581,34 @@ mod tests {
         obj.put(another_patient_name.clone());
         let elem1 = (&obj).element_by_name("PatientName").unwrap();
         assert_eq!(elem1, &another_patient_name);
+    }
+
+    #[test]
+    fn inmem_object_take_element() {
+        let another_patient_name = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            PrimitiveValue::Str("Doe^John".to_string()).into(),
+        );
+        let mut obj = InMemDicomObject::create_empty();
+        obj.put(another_patient_name.clone());
+        let elem1 = obj.take_element(Tag(0x0010, 0x0010)).unwrap();
+        assert_eq!(elem1, another_patient_name);
+        assert!(obj.take_element(Tag(0x0010, 0x0010)).is_err());
+    }
+
+    #[test]
+    fn inmem_object_take_element_by_name() {
+        let another_patient_name = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            PrimitiveValue::Str("Doe^John".to_string()).into(),
+        );
+        let mut obj = InMemDicomObject::create_empty();
+        obj.put(another_patient_name.clone());
+        let elem1 = obj.take_element_by_name("PatientName").unwrap();
+        assert_eq!(elem1, another_patient_name);
+        assert!(obj.take_element_by_name("PatientName").is_err());
     }
 
     #[test]
