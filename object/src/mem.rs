@@ -594,7 +594,13 @@ mod tests {
         obj.put(another_patient_name.clone());
         let elem1 = obj.take_element(Tag(0x0010, 0x0010)).unwrap();
         assert_eq!(elem1, another_patient_name);
-        assert!(obj.take_element(Tag(0x0010, 0x0010)).is_err());
+        assert!(matches!(
+            obj.take_element(Tag(0x0010, 0x0010)),
+            Err(Error::NoSuchDataElementTag {
+                tag: Tag(0x0010, 0x0010),
+                ..
+            })
+        ));
     }
 
     #[test]
@@ -608,7 +614,14 @@ mod tests {
         obj.put(another_patient_name.clone());
         let elem1 = obj.take_element_by_name("PatientName").unwrap();
         assert_eq!(elem1, another_patient_name);
-        assert!(obj.take_element_by_name("PatientName").is_err());
+        assert!(matches!(
+            obj.take_element_by_name("PatientName"),
+            Err(Error::NoSuchDataElementAlias {
+                tag: Tag(0x0010, 0x0010),
+                alias,
+                ..
+            }) if alias == "PatientName")
+        );
     }
 
     #[test]
