@@ -346,7 +346,12 @@ where
     /// Removes and returns a particular DICOM element by its name.
     pub fn take_element_by_name(&mut self, name: &str) -> Result<InMemElement<D>> {
         let tag = self.lookup_name(name)?;
-        self.take_element(tag)
+        self.entries
+            .remove(&tag)
+            .with_context(|| NoSuchDataElementAlias {
+                tag,
+                alias: name.to_string(),
+            })
     }
 
     // private methods
@@ -532,6 +537,7 @@ impl<D> Iterator for Iter<D> {
 mod tests {
 
     use super::*;
+    use crate::Error;
     use dicom_core::header::{DataElementHeader, Length, VR};
     use dicom_core::value::PrimitiveValue;
     use dicom_parser::dataset::IntoTokens;
@@ -620,8 +626,7 @@ mod tests {
                 tag: Tag(0x0010, 0x0010),
                 alias,
                 ..
-            }) if alias == "PatientName")
-        );
+            }) if alias == "PatientName"));
     }
 
     #[test]
