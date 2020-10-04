@@ -336,6 +336,24 @@ where
         self.entries.insert(elt.tag(), elt)
     }
 
+    /// Removes and returns a particular DICOM element by its tag.
+    pub fn take_element(&mut self, tag: Tag) -> Result<InMemElement<D>> {
+        self.entries
+            .remove(&tag)
+            .context(NoSuchDataElementTag { tag })
+    }
+
+    /// Removes and returns a particular DICOM element by its name.
+    pub fn take_element_by_name(&mut self, name: &str) -> Result<InMemElement<D>> {
+        let tag = self.lookup_name(name)?;
+        self.entries
+            .remove(&tag)
+            .with_context(|| NoSuchDataElementAlias {
+                tag,
+                alias: name.to_string(),
+            })
+    }
+
     // private methods
 
     /// Build an object by consuming a data set parser.
@@ -519,6 +537,7 @@ impl<D> Iterator for Iter<D> {
 mod tests {
 
     use super::*;
+    use crate::Error;
     use dicom_core::header::{DataElementHeader, Length, VR};
     use dicom_core::value::PrimitiveValue;
     use dicom_parser::dataset::IntoTokens;
@@ -568,6 +587,46 @@ mod tests {
         obj.put(another_patient_name.clone());
         let elem1 = (&obj).element_by_name("PatientName").unwrap();
         assert_eq!(elem1, &another_patient_name);
+    }
+
+    #[test]
+    fn inmem_object_take_element() {
+        let another_patient_name = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            PrimitiveValue::Str("Doe^John".to_string()).into(),
+        );
+        let mut obj = InMemDicomObject::create_empty();
+        obj.put(another_patient_name.clone());
+        let elem1 = obj.take_element(Tag(0x0010, 0x0010)).unwrap();
+        assert_eq!(elem1, another_patient_name);
+        assert!(matches!(
+            obj.take_element(Tag(0x0010, 0x0010)),
+            Err(Error::NoSuchDataElementTag {
+                tag: Tag(0x0010, 0x0010),
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn inmem_object_take_element_by_name() {
+        let another_patient_name = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            PrimitiveValue::Str("Doe^John".to_string()).into(),
+        );
+        let mut obj = InMemDicomObject::create_empty();
+        obj.put(another_patient_name.clone());
+        let elem1 = obj.take_element_by_name("PatientName").unwrap();
+        assert_eq!(elem1, another_patient_name);
+        assert!(matches!(
+            obj.take_element_by_name("PatientName"),
+            Err(Error::NoSuchDataElementAlias {
+                tag: Tag(0x0010, 0x0010),
+                alias,
+                ..
+            }) if alias == "PatientName"));
     }
 
     #[test]
