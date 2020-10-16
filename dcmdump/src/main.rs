@@ -40,6 +40,7 @@ where
     Str(T),
     DateTime(T),
     Invalid(T),
+    Nothing(T),
 }
 
 impl<T> fmt::Display for DumpValue<T>
@@ -54,6 +55,7 @@ where
             DumpValue::Str(v) => v.to_string().yellow(),
             DumpValue::DateTime(v) => v.to_string().green(),
             DumpValue::Invalid(v) => v.to_string().red(),
+            DumpValue::Nothing(v) => v.to_string().dimmed(),
         };
         write!(f, "{}", value)
     }
@@ -398,7 +400,7 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> DumpVal
         (Str(value), _) => {
             DumpValue::Str(cut_str(&format!("\"{}\"", value), max_characters).to_string())
         }
-        (Empty, _) => DumpValue::Num("".to_string()),
+        (Empty, _) => DumpValue::Nothing("".to_string()),
     }
 }
 
