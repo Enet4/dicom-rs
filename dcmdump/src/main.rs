@@ -28,8 +28,6 @@ const ERROR_NO: i32 = -1;
 const ERROR_READ: i32 = -2;
 /// Exit code for when an error emerged while dumping the file.
 const ERROR_PRINT: i32 = -3;
-/// Exit code for failure to set OS compatibility
-const ERROR_COMPAT: i32 = -4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum DumpValue<T>
@@ -42,7 +40,7 @@ where
     Str(T),
     DateTime(T),
     Invalid(T),
-    Nothing(T),
+    Nothing,
 }
 
 impl<T> fmt::Display for DumpValue<T>
@@ -57,7 +55,7 @@ where
             DumpValue::Str(v) => v.to_string().yellow(),
             DumpValue::DateTime(v) => v.to_string().green(),
             DumpValue::Invalid(v) => v.to_string().red(),
-            DumpValue::Nothing(v) => v.to_string().dimmed(),
+            DumpValue::Nothing => "(no value)".dimmed(),
         };
         write!(f, "{}", value)
     }
@@ -100,8 +98,7 @@ fn os_compatibility() -> Result<(), ()> {
 
 fn main() {
     os_compatibility().unwrap_or_else(|_| {
-        println!("Error setting OS compatibility");
-        std::process::exit(ERROR_COMPAT);
+        eprintln!("Error setting OS compatibility for colored output");
     });
 
     let filename = ::std::env::args()
@@ -407,7 +404,7 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> DumpVal
         (Str(value), _) => {
             DumpValue::Str(cut_str(&format!("\"{}\"", value), max_characters).to_string())
         }
-        (Empty, _) => DumpValue::Nothing("".to_string()),
+        (Empty, _) => DumpValue::Nothing,
     }
 }
 
