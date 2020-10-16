@@ -53,7 +53,7 @@ where
         let value = match self {
             DumpValue::TagNum(v) => v.to_string().dimmed(),
             DumpValue::Alias(v) => v.to_string().bold(),
-            DumpValue::Num(v) => v.to_string().blue(),
+            DumpValue::Num(v) => v.to_string().cyan(),
             DumpValue::Str(v) => v.to_string().yellow(),
             DumpValue::DateTime(v) => v.to_string().green(),
             DumpValue::Invalid(v) => v.to_string().red(),
