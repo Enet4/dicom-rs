@@ -28,6 +28,8 @@ const ERROR_NO: i32 = -1;
 const ERROR_READ: i32 = -2;
 /// Exit code for when an error emerged while dumping the file.
 const ERROR_PRINT: i32 = -3;
+/// Exit code for failure to set OS compatibility
+const ERROR_COMPAT: i32 = -4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum DumpValue<T>
@@ -87,15 +89,20 @@ where
 }
 
 #[cfg(windows)]
-fn os_compatibility() {
-    control::set_virtual_terminal(true);
+fn os_compatibility() -> Result<(), ()> {
+    control::set_virtual_terminal(true)
 }
 
 #[cfg(not(windows))]
-fn os_compatibility() {}
+fn os_compatibility() -> Result<(), ()> {
+    Ok(())
+}
 
 fn main() {
-    os_compatibility();
+    os_compatibility().unwrap_or_else(|_| {
+        println!("Error setting OS compatibility");
+        std::process::exit(ERROR_COMPAT);
+    });
 
     let filename = ::std::env::args()
         .nth(1)
