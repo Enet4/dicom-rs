@@ -57,7 +57,11 @@ where
             DumpValue::Invalid(v) => v.to_string().red(),
             DumpValue::Nothing => "(no value)".dimmed(),
         };
-        write!(f, "{}", value)
+        if let Some(width) = f.width() {
+            write!(f, "{:width$}", value, width = width)
+        } else {
+            write!(f, "{}", value)
+        }
     }
 }
 
