@@ -55,7 +55,7 @@ where
             DumpValue::Str(v) => v.to_string().yellow(),
             DumpValue::DateTime(v) => v.to_string().green(),
             DumpValue::Invalid(v) => v.to_string().red(),
-            DumpValue::Nothing => "(no value)".dimmed(),
+            DumpValue::Nothing => "(no value)".italic(),
         };
         if let Some(width) = f.width() {
             write!(f, "{:width$}", value, width = width)
@@ -254,8 +254,8 @@ where
             writeln!(
                 to,
                 "{} {}",
-                DumpValue::TagNum("(FFFE, E0DD)"),
-                DumpValue::Alias("ItemDelimitationItem"),
+                DumpValue::TagNum("(FFFE,E0DD)"),
+                DumpValue::Alias("SequenceDelimitationItem"),
             )?;
         }
         DicomValue::PixelSequence {
@@ -325,16 +325,16 @@ where
     writeln!(
         to,
         "{}{} na {}",
-        DumpValue::TagNum("(FFFE,E000)"),
         indent,
+        DumpValue::TagNum("(FFFE,E000)"),
         DumpValue::Alias("Item"),
     )?;
     dump(to, item, width, depth + 1)?;
     writeln!(
         to,
         "{}{} {}",
-        DumpValue::TagNum("(FFFE,E00D)"),
         indent,
+        DumpValue::TagNum("(FFFE,E00D)"),
         DumpValue::Alias("ItemDelimitationItem"),
     )?;
     Ok(())
