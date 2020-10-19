@@ -8,6 +8,7 @@
 //! ```none
 //! dcmdump <file.dcm>
 //! ```
+use colored::*;
 use dicom::core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom::core::header::Header;
 use dicom::core::value::{PrimitiveValue, Value as DicomValue};
@@ -18,6 +19,7 @@ use dicom::object::{open_file, DefaultDicomObject, FileMetaTable, StandardDataDi
 use dicom::transfer_syntax::TransferSyntaxRegistry;
 use snafu::ErrorCompat;
 use std::borrow::Cow;
+use std::fmt;
 use std::io::{stdout, ErrorKind, Result as IoResult, Write};
 
 /// Exit code for missing CLI arguments or --help
@@ -26,6 +28,42 @@ const ERROR_NO: i32 = -1;
 const ERROR_READ: i32 = -2;
 /// Exit code for when an error emerged while dumping the file.
 const ERROR_PRINT: i32 = -3;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DumpValue<T>
+where
+    T: ToString,
+{
+    TagNum(T),
+    Alias(T),
+    Num(T),
+    Str(T),
+    DateTime(T),
+    Invalid(T),
+    Nothing,
+}
+
+impl<T> fmt::Display for DumpValue<T>
+where
+    T: ToString,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let value = match self {
+            DumpValue::TagNum(v) => v.to_string().dimmed(),
+            DumpValue::Alias(v) => v.to_string().bold(),
+            DumpValue::Num(v) => v.to_string().cyan(),
+            DumpValue::Str(v) => v.to_string().yellow(),
+            DumpValue::DateTime(v) => v.to_string().green(),
+            DumpValue::Invalid(v) => v.to_string().red(),
+            DumpValue::Nothing => "(no value)".italic(),
+        };
+        if let Some(width) = f.width() {
+            write!(f, "{:width$}", value, width = width)
+        } else {
+            write!(f, "{}", value)
+        }
+    }
+}
 
 fn report<E: 'static>(err: E)
 where
@@ -52,7 +90,21 @@ where
     }
 }
 
+#[cfg(windows)]
+fn os_compatibility() -> Result<(), ()> {
+    control::set_virtual_terminal(true)
+}
+
+#[cfg(not(windows))]
+fn os_compatibility() -> Result<(), ()> {
+    Ok(())
+}
+
 fn main() {
+    os_compatibility().unwrap_or_else(|_| {
+        eprintln!("Error setting OS compatibility for colored output");
+    });
+
     let filename = ::std::env::args()
         .nth(1)
         .unwrap_or_else(|| "--help".to_string());
@@ -189,8 +241,8 @@ where
             writeln!(
                 to,
                 "{} {:35} {} ({} Item{})",
-                elem.tag(),
-                tag_alias,
+                DumpValue::TagNum(elem.tag()),
+                DumpValue::Alias(tag_alias),
                 elem.vr(),
                 vm,
                 if vm == 1 { "" } else { "s" },
@@ -199,7 +251,12 @@ where
                 dump_item(&mut *to, item, width, depth + 2)?;
             }
             to.write_all(&indent)?;
-            writeln!(to, "(FFFE, E0DD) SequenceDelimitationItem",)?;
+            writeln!(
+                to,
+                "{} {}",
+                DumpValue::TagNum("(FFFE,E0DD)"),
+                DumpValue::Alias("SequenceDelimitationItem"),
+            )?;
         }
         DicomValue::PixelSequence {
             fragments,
@@ -211,7 +268,7 @@ where
             writeln!(
                 to,
                 "{} PixelData {:25} {} (PixelSequence, {} Item{})",
-                elem.tag(),
+                DumpValue::TagNum(elem.tag()),
                 "",
                 vr,
                 num_items,
@@ -222,7 +279,8 @@ where
             let byte_len = offset_table.len();
             writeln!(
                 to,
-                "  (FFFE,E000) pi ({:>3} bytes, 1 Item): {:48}",
+                "  {} pi ({:>3} bytes, 1 Item): {:48}",
+                DumpValue::TagNum("(FFFE,E000)"),
                 byte_len,
                 item_value_summary(&offset_table, width.saturating_sub(42 + depth * 2)),
             )?;
@@ -232,7 +290,8 @@ where
                 let byte_len = fragment.len();
                 writeln!(
                     to,
-                    "  (FFFE,E000) pi ({:>3} bytes, 1 Item): {:48}",
+                    "  {} pi ({:>3} bytes, 1 Item): {:48}",
+                    DumpValue::TagNum("(FFFE,E000)"),
                     byte_len,
                     item_value_summary(&fragment, width.saturating_sub(42 + depth * 2)),
                 )?;
@@ -244,8 +303,8 @@ where
             writeln!(
                 to,
                 "{} {:35} {} ({},{:>3} bytes): {}",
-                elem.tag(),
-                tag_alias,
+                DumpValue::TagNum(elem.tag()),
+                DumpValue::Alias(tag_alias),
                 vr,
                 vm,
                 byte_len,
@@ -263,46 +322,56 @@ where
     D: DataDictionary,
 {
     let indent: String = std::iter::repeat(' ').take((depth * 2) as usize).collect();
-    writeln!(to, "{}(FFFE,E000) na Item", indent)?;
+    writeln!(
+        to,
+        "{}{} na {}",
+        indent,
+        DumpValue::TagNum("(FFFE,E000)"),
+        DumpValue::Alias("Item"),
+    )?;
     dump(to, item, width, depth + 1)?;
-    writeln!(to, "{}(FFFE,E00D) ItemDelimitationItem", indent,)?;
+    writeln!(
+        to,
+        "{}{} {}",
+        indent,
+        DumpValue::TagNum("(FFFE,E00D)"),
+        DumpValue::Alias("ItemDelimitationItem"),
+    )?;
     Ok(())
 }
 
-fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> Cow<str> {
+fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> DumpValue<String> {
     use PrimitiveValue::*;
     match (value, vr) {
-        (F32(values), _) => format_value_list(values, max_characters, false).into(),
-        (F64(values), _) => format_value_list(values, max_characters, false).into(),
-        (I32(values), _) => format_value_list(values, max_characters, false).into(),
-        (I64(values), _) => format_value_list(values, max_characters, false).into(),
-        (U32(values), _) => format_value_list(values, max_characters, false).into(),
-        (U64(values), _) => format_value_list(values, max_characters, false).into(),
-        (I16(values), _) => format_value_list(values, max_characters, false).into(),
-        (U16(values), VR::OW) => format_value_list(
+        (F32(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
+        (F64(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
+        (I32(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
+        (I64(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
+        (U32(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
+        (U64(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
+        (I16(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
+        (U16(values), VR::OW) => DumpValue::Num(format_value_list(
             values.into_iter().map(|n| format!("{:02X}", n)),
             max_characters,
             false,
-        )
-        .into(),
-        (U16(values), _) => format_value_list(values, max_characters, false).into(),
-        (U8(values), VR::OB) | (U8(values), VR::UN) => format_value_list(
+        )),
+        (U16(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
+        (U8(values), VR::OB) | (U8(values), VR::UN) => DumpValue::Num(format_value_list(
             values.into_iter().map(|n| format!("{:02X}", n)),
             max_characters,
             false,
-        )
-        .into(),
-        (U8(values), _) => format_value_list(values, max_characters, false).into(),
-        (Tags(values), _) => format_value_list(values, max_characters, false).into(),
+        )),
+        (U8(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
+        (Tags(values), _) => DumpValue::Str(format_value_list(values, max_characters, false)),
         (Strs(values), VR::DA) => {
             match value.to_multi_date() {
                 Ok(values) => {
                     // print as reformatted date
-                    format_value_list(values, max_characters, false).into()
+                    DumpValue::DateTime(format_value_list(values, max_characters, false))
                 }
                 Err(_e) => {
                     // print as text
-                    format_value_list(values, max_characters, true).into()
+                    DumpValue::Invalid(format_value_list(values, max_characters, true))
                 }
             }
         }
@@ -310,11 +379,11 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> Cow<str
             match value.to_multi_time() {
                 Ok(values) => {
                     // print as reformatted date
-                    format_value_list(values, max_characters, false).into()
+                    DumpValue::DateTime(format_value_list(values, max_characters, false))
                 }
                 Err(_e) => {
                     // print as text
-                    format_value_list(values, max_characters, true).into()
+                    DumpValue::Invalid(format_value_list(values, max_characters, true))
                 }
             }
         }
@@ -322,22 +391,24 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> Cow<str
             match value.to_multi_datetime(dicom::core::chrono::FixedOffset::east(0)) {
                 Ok(values) => {
                     // print as reformatted date
-                    format_value_list(values, max_characters, false).into()
+                    DumpValue::DateTime(format_value_list(values, max_characters, false))
                 }
                 Err(_e) => {
                     // print as text
-                    format_value_list(values, max_characters, true).into()
+                    DumpValue::Invalid(format_value_list(values, max_characters, true))
                 }
             }
         }
-        (Strs(values), _) => format_value_list(values, max_characters, true).into(),
-        (Date(values), _) => format_value_list(values, max_characters, true).into(),
-        (Time(values), _) => format_value_list(values, max_characters, true).into(),
-        (DateTime(values), _) => format_value_list(values, max_characters, true).into(),
-        (Str(value), _) => cut_str(&format!("\"{}\"", value), max_characters)
-            .into_owned()
-            .into(),
-        (Empty, _) => "".into(),
+        (Strs(values), _) => DumpValue::Str(format_value_list(values, max_characters, true)),
+        (Date(values), _) => DumpValue::DateTime(format_value_list(values, max_characters, true)),
+        (Time(values), _) => DumpValue::DateTime(format_value_list(values, max_characters, true)),
+        (DateTime(values), _) => {
+            DumpValue::DateTime(format_value_list(values, max_characters, true))
+        }
+        (Str(value), _) => {
+            DumpValue::Str(cut_str(&format!("\"{}\"", value), max_characters).to_string())
+        }
+        (Empty, _) => DumpValue::Nothing,
     }
 }
 
