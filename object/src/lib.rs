@@ -123,9 +123,19 @@ pub enum Error {
         #[snafu(backtrace)]
         source: dicom_parser::dataset::read::Error,
     },
-    #[snafu(display("Could not write to file '{}': {}", filename.display(), source))]
+    #[snafu(display("Could not write to file '{}'", filename.display()))]
     WriteFile {
         filename: std::path::PathBuf,
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+    #[snafu(display("Could not write object preamble"))]
+    WritePreamble {
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+    #[snafu(display("Could not write magic code"))]
+    WriteMagicCode {
         backtrace: Backtrace,
         source: std::io::Error,
     },
@@ -209,6 +219,63 @@ where
 
         // write meta group
         self.meta.write(&mut to).context(PrintMetaDataSet)?;
+
+        // prepare encoder
+        let registry = TransferSyntaxRegistry::default();
+        let ts = registry.get(&self.meta.transfer_syntax).with_context(|| {
+            UnsupportedTransferSyntax {
+                uid: self.meta.transfer_syntax.clone(),
+            }
+        })?;
+        let cs = SpecificCharacterSet::Default;
+        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinter)?;
+
+        // write object
+        dset_writer
+            .write_sequence((&self.obj).into_tokens())
+            .context(PrintDataSet)?;
+
+        Ok(())
+    }
+
+    /// Write the entire object as a DICOM file
+    /// into the given writer.
+    pub fn write_all<W: Write>(&self, to: W) -> Result<()> {
+        let mut to = BufWriter::new(to);
+
+        // write preamble
+        to.write_all(&[0_u8; 128][..]).context(WritePreamble)?;
+
+        // write magic sequence
+        to.write_all(b"DICM").context(WriteMagicCode)?;
+
+        // write meta group
+        self.meta.write(&mut to).context(PrintMetaDataSet)?;
+
+        // prepare encoder
+        let registry = TransferSyntaxRegistry::default();
+        let ts = registry.get(&self.meta.transfer_syntax).with_context(|| {
+            UnsupportedTransferSyntax {
+                uid: self.meta.transfer_syntax.clone(),
+            }
+        })?;
+        let cs = SpecificCharacterSet::Default;
+        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinter)?;
+
+        // write object
+        dset_writer
+            .write_sequence((&self.obj).into_tokens())
+            .context(PrintDataSet)?;
+
+        Ok(())
+    }
+
+    /// Write the inner data set into the given writer,
+    /// without preamble, magic code, nor file meta group.
+    ///
+    /// The transfer syntax is selected from the file meta table.
+    pub fn write_dataset<W: Write>(&self, to: W) -> Result<()> {
+        let to = BufWriter::new(to);
 
         // prepare encoder
         let registry = TransferSyntaxRegistry::default();

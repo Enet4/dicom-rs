@@ -3,25 +3,30 @@
 use itertools::Itertools;
 use smallvec::SmallVec;
 use snafu::{OptionExt, ResultExt};
-use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
+use std::{collections::BTreeMap, io::Write};
 
 use crate::meta::FileMetaTable;
 use crate::{
-    CreateParser, DicomObject, MissingElementValue, NoSuchAttributeName, NoSuchDataElementAlias,
-    NoSuchDataElementTag, OpenFile, ParseMetaDataSet, PrematureEnd, ReadFile, ReadToken, Result,
-    RootDicomObject, UnexpectedToken, UnsupportedTransferSyntax,
+    CreateParser, CreatePrinter, DicomObject, MissingElementValue, NoSuchAttributeName,
+    NoSuchDataElementAlias, NoSuchDataElementTag, OpenFile, ParseMetaDataSet, PrematureEnd,
+    PrintDataSet, ReadFile, ReadToken, Result, RootDicomObject, UnexpectedToken,
+    UnsupportedTransferSyntax,
 };
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::{HasLength, Header};
 use dicom_core::value::{Value, C};
 use dicom_core::{DataElement, Length, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
-use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
-use dicom_parser::dataset::read::Error as ParserError;
+use dicom_encoding::{
+    encode::EncodeTo,
+    text::{SpecificCharacterSet, TextCodec},
+    TransferSyntax,
+};
+use dicom_parser::{StatefulDecode, dataset::{read::Error as ParserError, DataSetWriter, IntoTokens}};
 use dicom_parser::dataset::{DataSetReader, DataToken};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
@@ -122,6 +127,30 @@ impl InMemDicomObject<StandardDataDictionary> {
         I: IntoIterator<Item = InMemElement<StandardDataDictionary>>,
     {
         Self::from_iter_with_dict(iter, StandardDataDictionary)
+    }
+
+    /// Read an object from a source using the given decoder.
+    ///
+    /// Note: [`read_dataset_with_ts_cs`] may be easier to use.
+    ///
+    /// [`read_dataset_with_ts_cs`]: #method.read_dataset_with_ts_cs
+    pub fn read_dataset<S>(decoder: S) -> Result<Self>
+    where
+        S: StatefulDecode,
+    {
+        Self::read_dataset_with_dict(decoder, StandardDataDictionary)
+    }
+
+    /// Read an object from a source,
+    /// using the given transfer syntax and default character set.
+    ///
+    /// If the attribute _Specific Character Set_ is found in the encoded data,
+    /// this will override the given character set.
+    pub fn read_dataset_with_ts_cs<S>(from: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
+    where
+        S: Read,
+    {
+        Self::read_dataset_with_dict_ts_cs(from, StandardDataDictionary, ts, cs)
     }
 }
 
@@ -302,6 +331,38 @@ where
         }
     }
 
+    /// Read an object from a source,
+    /// using the given decoder
+    /// and the given dictionary for name lookup.
+    pub fn read_dataset_with_dict<S>(decoder: S, dict: D) -> Result<Self>
+    where
+        S: StatefulDecode,
+        D: DataDictionary,
+    {
+        let mut dataset =
+        DataSetReader::new(decoder, Default::default());
+        InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)
+    }
+    
+    /// Read an object from a source,
+    /// using the given data dictionary,
+    /// transfer syntax,
+    /// and default character set.
+    ///
+    /// If the attribute _Specific Character Set_ is found in the encoded data,
+    /// this will override the given character set.
+    pub fn read_dataset_with_dict_ts_cs<S>(from: S, dict: D, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
+    where
+        S: Read,
+        D: DataDictionary,
+    {
+        let from = BufReader::new(from);
+        let mut dataset =
+            DataSetReader::new_with_dictionary(from, dict.clone(), ts, cs, Default::default())
+                .context(CreateParser)?;
+        InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)
+    }
+
     // Standard methods follow. They are not placed as a trait implementation
     // because they may require outputs to reference the lifetime of self,
     // which is not possible without GATs.
@@ -352,6 +413,56 @@ where
                 tag,
                 alias: name.to_string(),
             })
+    }
+
+    /// Write this object's data set into the given writer,
+    /// with the specified encoder specifications,
+    /// without preamble, magic code, nor file meta group.
+    ///
+    /// Note: [`write_dataset_with_ts_cs`] may be easier to use.
+    ///
+    /// [`write_dataset_with_ts_cs`]: #method.write_dataset_with_ts_cs
+    pub fn write_dataset<W, E, T>(&self, to: W, encoder: E, text_encoder: T) -> Result<()>
+    where
+        W: Write,
+        E: EncodeTo<W>,
+        T: TextCodec,
+    {
+        // prepare data set writer
+        let mut dset_writer = DataSetWriter::new(to, encoder, text_encoder);
+
+        // write object
+        dset_writer
+            .write_sequence(self.into_tokens())
+            .context(PrintDataSet)?;
+
+        Ok(())
+    }
+
+    /// Write this object's data set into the given printer,
+    /// with the specified transfer syntax and character set,
+    /// without preamble, magic code, nor file meta group.
+    ///
+    /// If the attribute _Specific Character Set_ is found in the data set,
+    /// the last parameter is overridden accordingly.
+    pub fn write_dataset_with_ts_cs<W>(
+        &self,
+        to: W,
+        ts: &TransferSyntax,
+        cs: SpecificCharacterSet,
+    ) -> Result<()>
+    where
+        W: Write,
+    {
+        // prepare data set writer
+        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinter)?;
+
+        // write object
+        dset_writer
+            .write_sequence(self.into_tokens())
+            .context(PrintDataSet)?;
+
+        Ok(())
     }
 
     // private methods
@@ -538,9 +649,14 @@ mod tests {
 
     use super::*;
     use crate::Error;
-    use dicom_core::header::{DataElementHeader, Length, VR};
+    use byteordered::Endianness;
     use dicom_core::value::PrimitiveValue;
-    use dicom_parser::dataset::IntoTokens;
+    use dicom_core::{
+        dicom_value,
+        header::{DataElementHeader, Length, VR},
+    };
+    use dicom_encoding::{decode::{basic::BasicDecoder, implicit_le::ImplicitVRLittleEndianDecoder}, encode::EncoderFor, text::DefaultCharacterSetCodec, transfer_syntax::implicit_le::ImplicitVRLittleEndianEncoder};
+    use dicom_parser::{dataset::IntoTokens, StatefulDecoder};
 
     fn assert_obj_eq<D>(obj1: &InMemDicomObject<D>, obj2: &InMemDicomObject<D>)
     where
@@ -552,7 +668,7 @@ mod tests {
     }
 
     #[test]
-    fn inmem_object_write() {
+    fn inmem_object_compare() {
         let mut obj1 = InMemDicomObject::create_empty();
         let mut obj2 = InMemDicomObject::create_empty();
         assert_eq!(obj1, obj2);
@@ -561,6 +677,115 @@ mod tests {
         assert_ne!(obj1, obj2);
         obj2.put(empty_patient_name.clone());
         assert_obj_eq(&obj1, &obj2);
+    }
+
+    #[test]
+    fn inmem_object_read_dataset() {
+        let data_in = [
+            0x10, 0x00, 0x10, 0x00, // Tag(0x0010, 0x0010)
+            0x08, 0x00, 0x00, 0x00, // Length: 8
+            b'D', b'o', b'e', b'^', b'J', b'o', b'h', b'n',
+        ];
+
+        let decoder = ImplicitVRLittleEndianDecoder::default();
+        let text = Box::new(DefaultCharacterSetCodec) as Box<_>;
+        let mut cursor = &data_in[..];
+        let parser = StatefulDecoder::new(&mut cursor, decoder, BasicDecoder::new(Endianness::Little), text);
+        
+        let obj = InMemDicomObject::read_dataset(parser).unwrap();
+
+        let mut gt = InMemDicomObject::create_empty();
+
+        let patient_name = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            dicom_value!(Strs, ["Doe^John"]).into(),
+        );
+        gt.put(patient_name);
+
+        assert_eq!(obj, gt);
+    }
+
+    #[test]
+    fn inmem_object_read_dataset_with_ts_cs() {
+        let data_in = [
+            0x10, 0x00, 0x10, 0x00, // Tag(0x0010, 0x0010)
+            0x08, 0x00, 0x00, 0x00, // Length: 8
+            b'D', b'o', b'e', b'^', b'J', b'o', b'h', b'n',
+        ];
+
+        let ts = TransferSyntaxRegistry.get("1.2.840.10008.1.2").unwrap();
+        let cs = SpecificCharacterSet::Default;
+        let mut cursor = &data_in[..];
+        
+        let obj = InMemDicomObject::read_dataset_with_dict_ts_cs(&mut cursor, StandardDataDictionary, &ts, cs).unwrap();
+
+        let mut gt = InMemDicomObject::create_empty();
+
+        let patient_name = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            dicom_value!(Strs, ["Doe^John"]).into(),
+        );
+        gt.put(patient_name);
+
+        assert_eq!(obj, gt);
+    }
+
+    #[test]
+    fn inmem_object_write_dataset() {
+        let mut obj = InMemDicomObject::create_empty();
+
+        let patient_name = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            dicom_value!(Str, "Doe^John").into(),
+        );
+        obj.put(patient_name);
+
+        let mut out = Vec::new();
+
+        let printer = EncoderFor::new(ImplicitVRLittleEndianEncoder::default());
+        let text = DefaultCharacterSetCodec;
+
+        obj.write_dataset(&mut out, printer, text).unwrap();
+
+        assert_eq!(
+            out,
+            &[
+                0x10, 0x00, 0x10, 0x00, // Tag(0x0010, 0x0010)
+                0x08, 0x00, 0x00, 0x00, // Length: 8
+                b'D', b'o', b'e', b'^', b'J', b'o', b'h', b'n',
+            ][..],
+        );
+    }
+
+    #[test]
+    fn inmem_object_write_dataset_with_ts_cs() {
+        let mut obj = InMemDicomObject::create_empty();
+
+        let patient_name = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            dicom_value!(Str, "Doe^John").into(),
+        );
+        obj.put(patient_name);
+
+        let mut out = Vec::new();
+
+        let ts = TransferSyntaxRegistry.get("1.2.840.10008.1.2").unwrap();
+        let cs = SpecificCharacterSet::Default;
+
+        obj.write_dataset_with_ts_cs(&mut out, &ts, cs).unwrap();
+
+        assert_eq!(
+            out,
+            &[
+                0x10, 0x00, 0x10, 0x00, // Tag(0x0010, 0x0010)
+                0x08, 0x00, 0x00, 0x00, // Length: 8
+                b'D', b'o', b'e', b'^', b'J', b'o', b'h', b'n',
+            ][..],
+        );
     }
 
     #[test]
