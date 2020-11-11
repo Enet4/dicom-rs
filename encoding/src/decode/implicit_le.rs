@@ -82,9 +82,11 @@ where
         let len = LittleEndian::read_u32(&buf);
 
         // VR resolution is done with the help of the data dictionary.
-        // In Implicit VR Little Endian, the VR of OB may not be used for Pixel
-        // Data (7FE0,0010). This edge case is addressed manually.
-        let vr = if tag == Tag(0x7FE0, 0x0010) {
+        // In Implicit VR Little Endian,
+        // the VR of OW must be used for Pixel Data (7FE0,0010)
+        // and Overlay Data (60xx, 3000).
+        // This edge case is addressed manually here.
+        let vr = if tag == Tag(0x7FE0, 0x0010) || (tag.0 >> 8 == 0x60 && tag.1 == 0x3000) {
             VR::OW
         } else {
             self.dict
