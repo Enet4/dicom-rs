@@ -1,5 +1,5 @@
 //! Interpretation of DICOM data sets as streams of tokens.
-use dicom_core::header::{DataElementHeader, Length, VR};
+use dicom_core::header::{DataElementHeader, HasLength, Length, VR};
 use dicom_core::value::{DicomValueType, PrimitiveValue};
 use dicom_core::{value::Value, DataElement, Tag};
 use std::fmt;
@@ -190,6 +190,7 @@ where
 impl<I, P> Iterator for DataElementTokens<I, P>
 where
     I: IntoTokens,
+    I: HasLength,
     P: AsRef<[u8]>,
 {
     type Item = DataToken;
@@ -210,7 +211,7 @@ where
                             Value::Sequence { items, size: _ } => {
                                 let items: dicom_core::value::C<_> = items
                                     .into_iter()
-                                    .map(|o| AsItem(Length::UNDEFINED, o))
+                                    .map(|o| AsItem(o.length(), o))
                                     .collect();
                                 (Some(token), DataElementTokens::Items(items.into_tokens()))
                             }
@@ -293,6 +294,7 @@ where
 impl<I, P> IntoTokens for DataElement<I, P>
 where
     I: IntoTokens,
+    I: HasLength,
     P: AsRef<[u8]>,
 {
     type Iter = DataElementTokens<I, P>;
@@ -448,6 +450,12 @@ where
     }
 }
 
+impl<I> HasLength for AsItem<I> {
+    fn length(&self) -> Length {
+        self.0
+    }
+}
+
 /// A newtype for wrapping a piece of raw data into an item.
 /// When converting a value of this type into tokens, the algorithm
 /// will create an item start with an explicit length, followed by
@@ -515,5 +523,187 @@ where
 
         *self = next_state;
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use dicom_core::{DataElement, DataElementHeader, DicomValue, header::HasLength, Length, PrimitiveValue, Tag, VR, dicom_value};
+
+    use super::{DataToken, IntoTokens};
+    use smallvec::smallvec;
+
+    /// A simple object representing a DICOM data set,
+    /// used merely for testing purposes.
+    #[derive(Debug, Clone)]
+    struct SimpleObject<T>(Length, dicom_core::value::C<T>);
+
+    impl<T> HasLength for SimpleObject<T> {
+        fn length(&self) -> Length {
+            self.0
+        }
+    }
+
+    impl<T> IntoTokens for SimpleObject<T>
+    where
+        T: IntoTokens,
+        T: HasLength,
+    {
+        type Iter =
+            super::FlattenTokens<<dicom_core::value::C<T> as IntoIterator>::IntoIter, <T as IntoTokens>::Iter>;
+
+        fn into_tokens(self) -> Self::Iter {
+            super::FlattenTokens {
+                seq: self.1.into_iter(),
+                tokens: None,
+            }
+        }
+    }
+
+    #[test]
+    fn basic_element_into_tokens() {
+        let element = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            DicomValue::new("Doe^John".into()),
+        );
+
+        let tokens: Vec<_> = element.clone().into_tokens().collect();
+
+        assert_eq!(
+            &tokens,
+            &[
+                DataToken::ElementHeader(*element.header()),
+                DataToken::PrimitiveValue("Doe^John".into()),
+            ],
+        )
+    }
+
+    #[test]
+    fn sequence_implicit_len_into_tokens() {
+        let element = DataElement::new(
+            Tag(0x0008, 0x2218),
+            VR::SQ,
+            DicomValue::new_sequence(vec![
+                SimpleObject(Length::UNDEFINED, smallvec![
+                    DataElement::new(
+                        Tag(0x0008, 0x0100),
+                        VR::SH,
+                        DicomValue::new(dicom_value!(Strs, ["T-D1213 "])),
+                    ),
+                    DataElement::new(
+                        Tag(0x0008, 0x0102),
+                        VR::SH,
+                        DicomValue::new(dicom_value!(Strs, ["SRT "])),
+                    ),
+                    DataElement::new(
+                        Tag(0x0008, 0x0104),
+                        VR::LO,
+                        DicomValue::new(dicom_value!(Strs, ["Jaw region"])),
+                    ),
+                ]),
+            ], Length::UNDEFINED),
+        );
+
+        let tokens: Vec<_> = element.clone().into_tokens().collect();
+
+        assert_eq!(
+            &tokens,
+            &[
+                DataToken::SequenceStart {
+                    tag: Tag(0x0008, 0x2218),
+                    len: Length::UNDEFINED,
+                },
+                DataToken::ItemStart { len: Length::UNDEFINED },
+                DataToken::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0008, 0x0100),
+                    vr: VR::SH,
+                    len: Length(8),
+                }),
+                DataToken::PrimitiveValue(PrimitiveValue::Strs(
+                    ["T-D1213 ".to_owned()].as_ref().into(),
+                )),
+                DataToken::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0008, 0x0102),
+                    vr: VR::SH,
+                    len: Length(4),
+                }),
+                DataToken::PrimitiveValue(PrimitiveValue::Strs(["SRT ".to_owned()].as_ref().into())),
+                DataToken::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0008, 0x0104),
+                    vr: VR::LO,
+                    len: Length(10),
+                }),
+                DataToken::PrimitiveValue(PrimitiveValue::Strs(
+                    ["Jaw region".to_owned()].as_ref().into(),
+                )),
+                DataToken::ItemEnd,
+                DataToken::SequenceEnd,
+            ],
+        )
+    }
+
+    #[test]
+    fn sequence_explicit_len_into_tokens() {
+        let element = DataElement::new(
+            Tag(0x0008, 0x2218),
+            VR::SQ,
+            DicomValue::new_sequence(vec![
+                SimpleObject(Length(46), smallvec![
+                    DataElement::new(
+                        Tag(0x0008, 0x0100),
+                        VR::SH,
+                        DicomValue::new(dicom_value!(Strs, ["T-D1213 "])),
+                    ),
+                    DataElement::new(
+                        Tag(0x0008, 0x0102),
+                        VR::SH,
+                        DicomValue::new(dicom_value!(Strs, ["SRT "])),
+                    ),
+                    DataElement::new(
+                        Tag(0x0008, 0x0104),
+                        VR::LO,
+                        DicomValue::new(dicom_value!(Strs, ["Jaw region"])),
+                    ),
+                ]),
+            ], Length(54)),
+        );
+
+        let tokens: Vec<_> = element.clone().into_tokens().collect();
+
+        assert_eq!(
+            &tokens,
+            &[
+                DataToken::SequenceStart {
+                    tag: Tag(0x0008, 0x2218),
+                    len: Length(54),
+                },
+                DataToken::ItemStart { len: Length(46) },
+                DataToken::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0008, 0x0100),
+                    vr: VR::SH,
+                    len: Length(8),
+                }),
+                DataToken::PrimitiveValue(PrimitiveValue::Strs(
+                    ["T-D1213 ".to_owned()].as_ref().into(),
+                )),
+                DataToken::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0008, 0x0102),
+                    vr: VR::SH,
+                    len: Length(4),
+                }),
+                DataToken::PrimitiveValue(PrimitiveValue::Strs(["SRT ".to_owned()].as_ref().into())),
+                DataToken::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0008, 0x0104),
+                    vr: VR::LO,
+                    len: Length(10),
+                }),
+                DataToken::PrimitiveValue(PrimitiveValue::Strs(
+                    ["Jaw region".to_owned()].as_ref().into(),
+                )),
+                DataToken::ItemEnd,
+                DataToken::SequenceEnd,
+            ],
+        )
     }
 }

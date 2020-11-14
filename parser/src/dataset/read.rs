@@ -47,8 +47,16 @@ pub enum Error {
         #[snafu(backtrace)]
         source: DecoderError,
     },
-    #[snafu(display("Could not read value"))]
+    #[snafu(display("Could not read {} value bytes for element tagged {}", len, tag))]
     ReadValue {
+        len: u32,
+        tag: Tag,
+        #[snafu(backtrace)]
+        source: DecoderError,
+    },
+    #[snafu(display("Could not read {} bytes for item value", len))]
+    ReadItemValue {
+        len: u32,
         #[snafu(backtrace)]
         source: DecoderError,
     },
@@ -62,8 +70,10 @@ pub enum Error {
         bytes_read: u64,
         backtrace: Backtrace,
     },
-    #[snafu()]
-    UnexpectedTag { tag: Tag, backtrace: Backtrace },
+    #[snafu(display(
+        "Unexpected item tag {} while reading element header", tag
+    ))]
+    UnexpectedItemTag { tag: Tag, backtrace: Backtrace },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -312,7 +322,9 @@ where
                 self.parser
                     .read_bytes(&mut value[..])
                     .map(|_| Ok(DataToken::ItemValue(value)))
-                    .unwrap_or_else(|e| Err(e).context(ReadValue)),
+                    .unwrap_or_else(|e| Err(e).context(ReadItemValue {
+                        len: len as u32,
+                    })),
             )
         } else if let Some(header) = self.last_header {
             if header.is_encapsulated_pixeldata() {
@@ -340,7 +352,7 @@ where
                         }
                         item => {
                             self.hard_break = true;
-                            Some(UnexpectedTag { tag: item.tag() }.fail())
+                            Some(UnexpectedItemTag { tag: item.tag() }.fail())
                         }
                     },
                     Err(e) => {
@@ -493,7 +505,10 @@ where
             ValueReadStrategy::Preserved => self.parser.read_value_preserved(header),
             ValueReadStrategy::Raw => self.parser.read_value_bytes(header),
         }
-        .context(ReadValue)
+        .context(ReadValue {
+            len: header.len.0,
+            tag: header.tag,
+        })
     }
 }
 

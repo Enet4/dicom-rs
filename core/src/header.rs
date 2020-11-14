@@ -82,7 +82,7 @@ pub trait Header: HasLength {
 /// This type implements `HasLength`, but cannot be instantiated.
 /// This makes it so that `Value<EmptyObject>` is sure to be either a primitive
 /// value or a sequence with no items.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq, Ord, PartialOrd)]
 pub enum EmptyObject {}
 
 impl HasLength for EmptyObject {

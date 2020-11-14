@@ -1,4 +1,4 @@
-//! Module for the data set reader
+//! Module for the data set writer
 use crate::dataset::*;
 use crate::stateful::encode::StatefulEncoder;
 use dicom_core::{DataElementHeader, Length, VR};
@@ -31,8 +31,9 @@ pub enum Error {
         token: DataToken,
         backtrace: Backtrace,
     },
-    #[snafu(display("Could not write element header"))]
+    #[snafu(display("Could not write element header tagged {}", tag))]
     WriteHeader {
+        tag: Tag,
         #[snafu(backtrace)]
         source: crate::stateful::encode::Error,
     },
@@ -191,21 +192,18 @@ where
             DataToken::ElementHeader(header) => {
                 self.printer
                     .encode_element_header(header)
-                    .context(WriteHeader)?;
+                    .context(WriteHeader { tag: header.tag })?;
             }
             DataToken::SequenceStart { tag, len } => {
                 self.printer
                     .encode_element_header(DataElementHeader::new(tag, VR::SQ, len))
-                    .context(WriteHeader)?;
+                    .context(WriteHeader { tag })?;
             }
             DataToken::PixelSequenceStart => {
+                let tag = Tag(0x7fe0, 0x0010);
                 self.printer
-                    .encode_element_header(DataElementHeader::new(
-                        Tag(0x7fe0, 0x0010),
-                        VR::OB,
-                        Length::UNDEFINED,
-                    ))
-                    .context(WriteHeader)?;
+                    .encode_element_header(DataElementHeader::new(tag, VR::OB, Length::UNDEFINED))
+                    .context(WriteHeader { tag })?;
             }
             DataToken::SequenceEnd => {
                 self.printer
@@ -397,6 +395,78 @@ mod tests {
             // -- 74 --
             0xfe, 0xff, 0xdd, 0xe0, 0x00, 0x00, 0x00, 0x00, // sequence end
             // -- 82 --
+            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4  
+            b'T', b'E', b'S', b'T', // value = "TEST"
+        ];
+
+        validate_dataset_writer(tokens, GROUND_TRUTH);
+    }
+
+    #[test]
+    fn write_sequence_explicit_with_implicit_item_len() {
+        let tokens = vec![
+            DataToken::SequenceStart {
+                tag: Tag(0x0018, 0x6011),
+                len: Length(60),
+            },
+            DataToken::ItemStart {
+                len: Length::UNDEFINED,
+            },
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6012),
+                vr: VR::US,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::U16([1].as_ref().into())),
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6014),
+                vr: VR::US,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::U16([2].as_ref().into())),
+            DataToken::ItemEnd,
+            DataToken::ItemStart {
+                len: Length::UNDEFINED,
+            },
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6012),
+                vr: VR::US,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::U16([4].as_ref().into())),
+            DataToken::ItemEnd,
+            DataToken::SequenceEnd,
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0020, 0x4000),
+                vr: VR::LT,
+                len: Length(4),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
+        ];
+
+        #[rustfmt::skip]
+        static GROUND_TRUTH: &[u8] = &[
+            0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
+            b'S', b'Q', // VR 
+            0x00, 0x00, // reserved
+            0x3c, 0x00, 0x00, 0x00, // length: 60
+            // -- 12 --
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0xff, 0xff, 0xff, 0xff, // item length: undefined
+            // -- 20 --
+            0x18, 0x00, 0x12, 0x60, b'U', b'S', 0x02, 0x00, 0x01, 0x00, // (0018, 6012) RegionSpatialformat, len = 2, value = 1
+            // -- 30 --
+            0x18, 0x00, 0x14, 0x60, b'U', b'S', 0x02, 0x00, 0x02, 0x00, // (0018, 6012) RegionDataType, len = 2, value = 2
+            // -- 40 --
+            0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
+            // -- 48 --
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0xff, 0xff, 0xff, 0xff, // item length: undefined
+            // -- 56 --
+            0x18, 0x00, 0x12, 0x60, b'U', b'S', 0x02, 0x00, 0x04, 0x00, // (0018, 6012) RegionSpatialformat, len = 2, value = 4
+            // -- 66 --
+            0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
+            // -- 74 --
             0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4  
             b'T', b'E', b'S', b'T', // value = "TEST"
         ];
