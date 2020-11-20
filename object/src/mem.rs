@@ -114,6 +114,7 @@ impl InMemDicomObject<StandardDataDictionary> {
     }
 
     /// Construct a DICOM object from a fallible source of structured elements.
+    #[inline]
     pub fn from_element_source<I>(iter: I) -> Result<Self>
     where
         I: IntoIterator<Item = Result<InMemElement<StandardDataDictionary>>>,
@@ -122,6 +123,7 @@ impl InMemDicomObject<StandardDataDictionary> {
     }
 
     /// Construct a DICOM object from a non-fallible source of structured elements.
+    #[inline]
     pub fn from_element_iter<I>(iter: I) -> Self
     where
         I: IntoIterator<Item = InMemElement<StandardDataDictionary>>,
@@ -134,6 +136,7 @@ impl InMemDicomObject<StandardDataDictionary> {
     /// Note: [`read_dataset_with_ts_cs`] may be easier to use.
     ///
     /// [`read_dataset_with_ts_cs`]: #method.read_dataset_with_ts_cs
+    #[inline]
     pub fn read_dataset<S>(decoder: S) -> Result<Self>
     where
         S: StatefulDecode,
@@ -146,11 +149,22 @@ impl InMemDicomObject<StandardDataDictionary> {
     ///
     /// If the attribute _Specific Character Set_ is found in the encoded data,
     /// this will override the given character set.
+    #[inline]
     pub fn read_dataset_with_ts_cs<S>(from: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
     where
         S: Read,
     {
         Self::read_dataset_with_dict_ts_cs(from, StandardDataDictionary, ts, cs)
+    }
+
+    /// Read an object from a source,
+    /// using the given transfer syntax.
+    #[inline]
+    pub fn read_dataset_with_ts<S>(from: S, ts: &TransferSyntax) -> Result<Self>
+    where
+        S: Read,
+    {
+        Self::read_dataset_with_dict_ts_cs(from, StandardDataDictionary, ts, SpecificCharacterSet::Default)
     }
 }
 
@@ -343,11 +357,22 @@ where
         DataSetReader::new(decoder, Default::default());
         InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)
     }
+
+    /// Read an object from a source,
+    /// using the given data dictionary and transfer syntax.
+    #[inline]
+    pub fn read_dataset_with_dict_ts<S>(from: S, dict: D, ts: &TransferSyntax) -> Result<Self>
+    where
+        S: Read,
+        D: DataDictionary,
+    {
+        Self::read_dataset_with_dict_ts_cs(from, dict, ts, SpecificCharacterSet::Default)
+    }
     
     /// Read an object from a source,
     /// using the given data dictionary,
     /// transfer syntax,
-    /// and default character set.
+    /// and the given character set to assume by default.
     ///
     /// If the attribute _Specific Character Set_ is found in the encoded data,
     /// this will override the given character set.
