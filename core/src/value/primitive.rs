@@ -604,6 +604,31 @@ impl PrimitiveValue {
         }
     }
 
+    /// Getter method to provide a clean version of a string or multiple strings,
+    /// removing unwanted whitespaces
+    pub fn to_clean_str(&self) -> Cow<str> {
+        match self {
+            PrimitiveValue::Str(values) => {
+                let new_value = values.trim_matches(|c| c == ' ' || c == '\u{0}');
+                Cow::from(new_value)
+            },
+            PrimitiveValue::Strs(values) => {
+                if values.len() == 1 {
+                    let new_value = values[0].trim_matches(|c| c == ' ' || c == '\u{0}');
+                    Cow::from(new_value)
+                } else {
+                    let mut new_vec = Vec::new();
+                    for i in values{
+                        new_vec.push(i.trim_matches(|c| c == ' ' || c == '\u{0}'));
+                    }
+                    let new_value = new_vec.iter().join("\\").to_owned();
+                    Cow::from(new_value)
+                }
+            }
+            prim => Cow::from(prim.to_string()),
+        }
+    }
+
     /// Retrieve this DICOM value as raw bytes.
     ///
     /// Binary numeric values are returned with a reintepretation
@@ -2538,6 +2563,15 @@ mod tests {
         // sequence of numbers
         let value = PrimitiveValue::from(vec![10, 11, 12]);
         assert_eq!(value.to_str(), "10\\11\\12",);
+    }
+
+    #[test]
+    fn primitive_value_to_clean_str(){
+        let value = PrimitiveValue::from("1.2.345\0".to_string());
+        assert_eq!(&value.to_clean_str(), "1.2.345");
+
+        let value = dicom_value!(Strs, ["ONE", "TWO", "THREE", "SIX "]);
+        assert_eq!(&value.to_clean_str(), "ONE\\TWO\\THREE\\SIX");
     }
 
     #[test]
