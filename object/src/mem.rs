@@ -724,7 +724,7 @@ mod tests {
         let patient_name = DataElement::new(
             Tag(0x0010, 0x0010),
             VR::PN,
-            dicom_value!(Strs, ["Doe^John"]).into(),
+            dicom_value!(Strs, ["Doe^John"]),
         );
         gt.put(patient_name);
 
@@ -750,7 +750,7 @@ mod tests {
         let patient_name = DataElement::new(
             Tag(0x0010, 0x0010),
             VR::PN,
-            dicom_value!(Strs, ["Doe^John"]).into(),
+            dicom_value!(Strs, ["Doe^John"]),
         );
         gt.put(patient_name);
 
@@ -764,7 +764,7 @@ mod tests {
         let patient_name = DataElement::new(
             Tag(0x0010, 0x0010),
             VR::PN,
-            dicom_value!(Str, "Doe^John").into(),
+            dicom_value!(Str, "Doe^John"),
         );
         obj.put(patient_name);
 
@@ -792,7 +792,7 @@ mod tests {
         let patient_name = DataElement::new(
             Tag(0x0010, 0x0010),
             VR::PN,
-            dicom_value!(Str, "Doe^John").into(),
+            dicom_value!(Str, "Doe^John"),
         );
         obj.put(patient_name);
 
@@ -818,7 +818,7 @@ mod tests {
         let another_patient_name = DataElement::new(
             Tag(0x0010, 0x0010),
             VR::PN,
-            PrimitiveValue::Str("Doe^John".to_string()).into(),
+            PrimitiveValue::Str("Doe^John".to_string()),
         );
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
@@ -831,7 +831,7 @@ mod tests {
         let another_patient_name = DataElement::new(
             Tag(0x0010, 0x0010),
             VR::PN,
-            PrimitiveValue::Str("Doe^John".to_string()).into(),
+            PrimitiveValue::Str("Doe^John".to_string()),
         );
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
@@ -844,7 +844,7 @@ mod tests {
         let another_patient_name = DataElement::new(
             Tag(0x0010, 0x0010),
             VR::PN,
-            PrimitiveValue::Str("Doe^John".to_string()).into(),
+            PrimitiveValue::Str("Doe^John".to_string()),
         );
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
@@ -864,7 +864,7 @@ mod tests {
         let another_patient_name = DataElement::new(
             Tag(0x0010, 0x0010),
             VR::PN,
-            PrimitiveValue::Str("Doe^John".to_string()).into(),
+            PrimitiveValue::Str("Doe^John".to_string()),
         );
         let mut obj = InMemDicomObject::create_empty();
         obj.put(another_patient_name.clone());
@@ -907,12 +907,12 @@ mod tests {
             DataElement::new(
                 Tag(0x0010, 0x0010),
                 VR::PN,
-                PrimitiveValue::Str("Doe^John".to_string()).into(),
+                PrimitiveValue::Str("Doe^John".to_string()),
             ),
             DataElement::new(
                 Tag(0x0008, 0x0060),
                 VR::CS,
-                PrimitiveValue::Str("MG".to_string()).into(),
+                PrimitiveValue::Str("MG".to_string()),
             ),
         ]);
 
@@ -932,12 +932,12 @@ mod tests {
         let patient_name = DataElement::new(
             Tag(0x0010, 0x0010),
             VR::PN,
-            PrimitiveValue::Str("Doe^John".to_string()).into(),
+            PrimitiveValue::Str("Doe^John".to_string()),
         );
         let modality = DataElement::new(
             Tag(0x0008, 0x0060),
             VR::CS,
-            PrimitiveValue::Str("MG".to_string()).into(),
+            PrimitiveValue::Str("MG".to_string()),
         );
         let mut obj = InMemDicomObject::create_empty();
         obj.put(patient_name);
