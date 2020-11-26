@@ -604,25 +604,19 @@ impl PrimitiveValue {
         }
     }
 
-    /// Getter method to provide a clean version of a string or multiple strings,
-    /// removing unwanted whitespaces
+    /// Removes unwanted whitespaces from a string or multiple strings
+    ///
+    /// String values that have unwanted whitespaces
     pub fn to_clean_str(&self) -> Cow<str> {
         match self {
             PrimitiveValue::Str(values) => {
-                let new_value = values.trim_matches(|c| c == ' ' || c == '\u{0}');
-                Cow::from(new_value)
+                Cow::from(values.trim_end_matches(|c| c == ' ' || c == '\u{0}'))
             },
             PrimitiveValue::Strs(values) => {
                 if values.len() == 1 {
-                    let new_value = values[0].trim_matches(|c| c == ' ' || c == '\u{0}');
-                    Cow::from(new_value)
+                    Cow::from(values[0].trim_end_matches(|c| c == ' ' || c == '\u{0}'))
                 } else {
-                    let mut new_vec = Vec::new();
-                    for i in values{
-                        new_vec.push(i.trim_matches(|c| c == ' ' || c == '\u{0}'));
-                    }
-                    let new_value = new_vec.iter().join("\\").to_owned();
-                    Cow::from(new_value)
+                    Cow::Owned(values.iter().map(|s| s.trim_end_matches(|c| c == ' ' || c == '\u{0}')).join("\\"))
                 }
             }
             prim => Cow::from(prim.to_string()),
@@ -2567,11 +2561,21 @@ mod tests {
 
     #[test]
     fn primitive_value_to_clean_str(){
+        //Removes whitespace at the end of a string
         let value = PrimitiveValue::from("1.2.345\0".to_string());
         assert_eq!(&value.to_clean_str(), "1.2.345");
 
+        //Removes whitespace at the end on multiple strings
         let value = dicom_value!(Strs, ["ONE", "TWO", "THREE", "SIX "]);
         assert_eq!(&value.to_clean_str(), "ONE\\TWO\\THREE\\SIX");
+
+        //Maintains the leading whitespace on a string and removes at the end
+        let value = PrimitiveValue::from("\01.2.345\0".to_string());
+        assert_eq!(&value.to_clean_str(), "\01.2.345");
+
+        //Maintains the leading whitespace on multiple strings and removes at the end
+        let value = dicom_value!(Strs, [" ONE", "TWO", "THREE", " SIX "]);
+        assert_eq!(&value.to_clean_str(), " ONE\\TWO\\THREE\\ SIX");
     }
 
     #[test]
