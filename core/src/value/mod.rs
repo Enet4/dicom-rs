@@ -214,7 +214,7 @@ where
     ///
     /// Returns an error if the value is not primitive.
     pub fn to_clean_str(&self) -> Result<Cow<str>, CastValueError> {
-        match self{
+        match self {
             Value::Primitive(prim) => Ok(prim.to_clean_str()),
             _ => Err(CastValueError {
                 requested: "string",

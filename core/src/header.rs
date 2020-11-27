@@ -1146,11 +1146,11 @@ mod tests {
     use crate::{dicom_value, DicomValue};
 
     #[test]
-    fn to_clean_string(){
+    fn to_clean_string() {
         let p = dicom_value!(U16, [256, 0, 16]);
         let val = DicomValue::new(p);
         let element = DataElement::new(Tag(0x0028, 0x3002), VR::US, val);
-        match element.to_clean_str(){
+        match element.to_clean_str() {
             Ok(value) => assert_eq!(value, "256\\0\\16"),
             Err(_) => {}
         }
