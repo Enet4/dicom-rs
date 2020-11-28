@@ -252,6 +252,11 @@ where
         self.value.to_str()
     }
 
+    /// Retrieves the element's value as a clean string
+    pub fn to_clean_str(&self) -> Result<Cow<str>, CastValueError> {
+        self.value.to_clean_str()
+    }
+
     /// Convert the full primitive value into raw bytes.
     ///
     /// String values already encoded with the `Str` and `Strs` variants
@@ -1138,6 +1143,18 @@ impl fmt::Display for Length {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{dicom_value, DicomValue};
+
+    #[test]
+    fn to_clean_string() {
+        let p = dicom_value!(U16, [256, 0, 16]);
+        let val = DicomValue::new(p);
+        let element = DataElement::new(Tag(0x0028, 0x3002), VR::US, val);
+        assert_eq!(
+            element.to_clean_str().unwrap(),
+            "256\\0\\16",
+        );
+    }
 
     #[test]
     fn tag_from_u16_pair() {

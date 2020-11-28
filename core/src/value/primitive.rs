@@ -604,6 +604,79 @@ impl PrimitiveValue {
         }
     }
 
+    /// Convert the primitive value into a clean string representation,
+    /// removing unwanted whitespaces.
+    ///
+    /// Leading whitespaces are preserved and are only removed at the end of a string
+    ///
+    /// String values already encoded with the `Str` and `Strs` variants
+    /// are provided as is without the unwanted whitespaces.
+    /// In the case of `Strs`, the strings are first cleaned from whitespaces
+    /// and then joined together with a backslash (`'\\'`).
+    /// All other type variants are first converted to a clean string,
+    /// then joined together with a backslash.
+    ///
+    /// **Note:**
+    /// As the process of reading a DICOM value
+    /// may not always preserve its original nature,
+    /// it is not guaranteed that `to_clean_str()` returns a string with
+    /// the exact same byte sequence as the one originally found
+    /// at the source of the value,
+    /// even for the string variants.
+    /// Therefore, this method is not reliable
+    /// for compliant DICOM serialization.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use dicom_core::dicom_value;
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    /// # use chrono::NaiveDate;
+    /// assert_eq!(
+    ///     dicom_value!(Str, "Smith^John ").to_clean_str(),
+    ///     "Smith^John",
+    /// );
+    /// assert_eq!(
+    ///     dicom_value!(Str, " Smith^John").to_clean_str(),
+    ///     " Smith^John",
+    /// );
+    /// assert_eq!(
+    ///     dicom_value!(Date, NaiveDate::from_ymd(2014, 10, 12)).to_clean_str(),
+    ///     "20141012",
+    /// );
+    /// assert_eq!(
+    ///     dicom_value!(Strs, [
+    ///         "DERIVED\0",
+    ///         "PRIMARY",
+    ///         " WHOLE BODY",
+    ///         "EMISSION",
+    ///     ])
+    ///     .to_clean_str(),
+    ///     "DERIVED\\PRIMARY\\ WHOLE BODY\\EMISSION",
+    /// );
+    /// ```
+    pub fn to_clean_str(&self) -> Cow<str> {
+        match self {
+            PrimitiveValue::Str(values) => {
+                Cow::from(values.trim_end_matches(|c| c == ' ' || c == '\u{0}'))
+            }
+            PrimitiveValue::Strs(values) => {
+                if values.len() == 1 {
+                    Cow::from(values[0].trim_end_matches(|c| c == ' ' || c == '\u{0}'))
+                } else {
+                    Cow::Owned(
+                        values
+                            .iter()
+                            .map(|s| s.trim_end_matches(|c| c == ' ' || c == '\u{0}'))
+                            .join("\\"),
+                    )
+                }
+            }
+            prim => Cow::from(prim.to_string()),
+        }
+    }
+
     /// Retrieve this DICOM value as raw bytes.
     ///
     /// Binary numeric values are returned with a reintepretation
@@ -2538,6 +2611,25 @@ mod tests {
         // sequence of numbers
         let value = PrimitiveValue::from(vec![10, 11, 12]);
         assert_eq!(value.to_str(), "10\\11\\12",);
+    }
+
+    #[test]
+    fn primitive_value_to_clean_str() {
+        //Removes whitespace at the end of a string
+        let value = PrimitiveValue::from("1.2.345\0".to_string());
+        assert_eq!(&value.to_clean_str(), "1.2.345");
+
+        //Removes whitespace at the end on multiple strings
+        let value = dicom_value!(Strs, ["ONE", "TWO", "THREE", "SIX "]);
+        assert_eq!(&value.to_clean_str(), "ONE\\TWO\\THREE\\SIX");
+
+        //Maintains the leading whitespace on a string and removes at the end
+        let value = PrimitiveValue::from("\01.2.345\0".to_string());
+        assert_eq!(&value.to_clean_str(), "\01.2.345");
+
+        //Maintains the leading whitespace on multiple strings and removes at the end
+        let value = dicom_value!(Strs, [" ONE", "TWO", "THREE", " SIX "]);
+        assert_eq!(&value.to_clean_str(), " ONE\\TWO\\THREE\\ SIX");
     }
 
     #[test]
