@@ -98,7 +98,7 @@ impl HasLength for EmptyObject {
 /// a nested data set (where each item contains an object of type `I`),
 /// or an encapsulated pixel data sequence (each item of type `P`).
 #[derive(Debug, PartialEq, Clone)]
-pub struct DataElement<I, P> {
+pub struct DataElement<I = EmptyObject, P = [u8; 0]> {
     header: DataElementHeader,
     value: Value<I, P>,
 }
@@ -236,7 +236,11 @@ where
     ///
     /// This method will not check whether the value representation is
     /// compatible with the given value.
-    pub fn new(tag: Tag, vr: VR, value: Value<I, P>) -> Self {
+    pub fn new<T>(tag: Tag, vr: VR, value: T) -> Self
+    where
+        T: Into<Value<I, P>>,
+    {
+        let value = value.into();
         DataElement {
             header: DataElementHeader {
                 tag,
@@ -1182,5 +1186,16 @@ mod tests {
             data_element.to_date().unwrap(),
             NaiveDate::from_ymd(1994, 10, 12),
         );
+    }
+
+    #[test]
+    fn create_data_element_from_primitive() {
+        let data_element: DataElement<EmptyObject, [u8; 0]> = DataElement::new(
+            Tag(0x0028, 0x3002),
+            VR::US,
+            crate::dicom_value!(U16, [256, 0, 16]),
+        );
+
+        assert_eq!(data_element.uint16_slice().unwrap(), &[256, 0, 16]);
     }
 }

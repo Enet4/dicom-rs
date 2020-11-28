@@ -840,9 +840,9 @@ mod tests {
 
         let gt = vec![
             // Information Group Length
-            DataElement::new(Tag(0x0002, 0x0000), VR::UL, dicom_value!(U32, 200).into()),
+            DataElement::new(Tag(0x0002, 0x0000), VR::UL, dicom_value!(U32, 200)),
             // Information Version
-            DataElement::new(Tag(0x0002, 0x0001), VR::OB, dicom_value!(U8, [0, 1]).into()),
+            DataElement::new(Tag(0x0002, 0x0001), VR::OB, dicom_value!(U8, [0, 1])),
             // Media Storage SOP Class UID
             DataElement::new(
                 Tag(0x0002, 0x0002),
