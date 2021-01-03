@@ -43,15 +43,15 @@ impl PresentationContextResultReason {
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum AssociationRJResult {
-    Permanent,
-    Transient,
+    Permanent = 1,
+    Transient = 2,
 }
 
 impl AssociationRJResult {
     fn from(value: u8) -> Option<AssociationRJResult> {
         match value {
-            0 => Some(AssociationRJResult::Permanent),
-            1 => Some(AssociationRJResult::Transient),
+            1 => Some(AssociationRJResult::Permanent),
+            2 => Some(AssociationRJResult::Transient),
             _ => None,
         }
     }
