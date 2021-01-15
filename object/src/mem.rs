@@ -450,7 +450,7 @@ where
     /// with the specified encoder specifications,
     /// without preamble, magic code, nor file meta group.
     ///
-    /// Note: [`write_dataset_with_ts_cs`] and [`write_dataset_with_ts_cs`]
+    /// Note: [`write_dataset_with_ts`] and [`write_dataset_with_ts_cs`]
     /// may be easier to use.
     ///
     /// [`write_dataset_with_ts`]: #method.write_dataset_with_ts
