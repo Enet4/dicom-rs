@@ -133,8 +133,10 @@ impl InMemDicomObject<StandardDataDictionary> {
 
     /// Read an object from a source using the given decoder.
     ///
-    /// Note: [`read_dataset_with_ts_cs`] may be easier to use.
+    /// Note: [`read_dataset_with_ts`] and [`read_dataset_with_ts_cs`]
+    /// may be easier to use.
     ///
+    /// [`read_dataset_with_ts`]: #method.read_dataset_with_ts
     /// [`read_dataset_with_ts_cs`]: #method.read_dataset_with_ts_cs
     #[inline]
     pub fn read_dataset<S>(decoder: S) -> Result<Self>
@@ -159,6 +161,10 @@ impl InMemDicomObject<StandardDataDictionary> {
 
     /// Read an object from a source,
     /// using the given transfer syntax.
+    ///
+    /// The default character set is assumed
+    /// until _Specific Character Set_ is found in the encoded data,
+    /// after which the text decoder will be overriden accordingly.
     #[inline]
     pub fn read_dataset_with_ts<S>(from: S, ts: &TransferSyntax) -> Result<Self>
     where
@@ -444,8 +450,10 @@ where
     /// with the specified encoder specifications,
     /// without preamble, magic code, nor file meta group.
     ///
-    /// Note: [`write_dataset_with_ts_cs`] may be easier to use.
+    /// Note: [`write_dataset_with_ts`] and [`write_dataset_with_ts_cs`]
+    /// may be easier to use.
     ///
+    /// [`write_dataset_with_ts`]: #method.write_dataset_with_ts
     /// [`write_dataset_with_ts_cs`]: #method.write_dataset_with_ts_cs
     pub fn write_dataset<W, E, T>(&self, to: W, encoder: E, text_encoder: T) -> Result<()>
     where
@@ -488,6 +496,24 @@ where
             .context(PrintDataSet)?;
 
         Ok(())
+    }
+
+    /// Write this object's data set into the given printer,
+    /// with the specified transfer syntax,
+    /// without preamble, magic code, nor file meta group.
+    ///
+    /// The default character set is assumed
+    /// until the _Specific Character Set_ is found in the data set,
+    /// after which the text encoder is overridden accordingly.
+    pub fn write_dataset_with_ts<W>(
+        &self,
+        to: W,
+        ts: &TransferSyntax,
+    ) -> Result<()>
+    where
+        W: Write,
+    {
+        self.write_dataset_with_ts_cs(to, ts, SpecificCharacterSet::Default)
     }
 
     // private methods
@@ -780,6 +806,34 @@ mod tests {
             &[
                 0x10, 0x00, 0x10, 0x00, // Tag(0x0010, 0x0010)
                 0x08, 0x00, 0x00, 0x00, // Length: 8
+                b'D', b'o', b'e', b'^', b'J', b'o', b'h', b'n',
+            ][..],
+        );
+    }
+
+    #[test]
+    fn inmem_object_write_dataset_with_ts() {
+        let mut obj = InMemDicomObject::create_empty();
+
+        let patient_name = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            dicom_value!(Str, "Doe^John"),
+        );
+        obj.put(patient_name);
+
+        let mut out = Vec::new();
+
+        let ts = TransferSyntaxRegistry.get("1.2.840.10008.1.2.1").unwrap();
+
+        obj.write_dataset_with_ts(&mut out, &ts).unwrap();
+
+        assert_eq!(
+            out,
+            &[
+                0x10, 0x00, 0x10, 0x00, // Tag(0x0010, 0x0010)
+                b'P', b'N', // VR: PN
+                0x08, 0x00, // Length: 8
                 b'D', b'o', b'e', b'^', b'J', b'o', b'h', b'n',
             ][..],
         );
