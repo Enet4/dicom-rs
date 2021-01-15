@@ -32,7 +32,9 @@
 //! # }
 //! ```
 //!
-//! Finally, DICOM objects can be written back into a file.
+//! Finally, DICOM objects can be serialized back into DICOM encoded bytes.
+//! A method is provided for writing into a new DICOM file
+//! (ensure that it has a [file meta table] first).
 //!
 //! ```no_run
 //! # use dicom_object::{DefaultDicomObject, Tag};
@@ -42,6 +44,36 @@
 //! # }
 //! ```
 //!
+//! [file meta table]: crate::meta::FileMetaTable
+//!
+//! In order to write a plain DICOM data set,
+//! use one of the various `write_dataset` methods.
+//!
+//! ```
+//! # use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
+//! # use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
+//! # use dicom_object::{StandardDataDictionary};
+//! # use dicom_object::mem::InMemDicomObject;
+//! # use dicom_core::{DataElement, Tag, VR, dicom_value};
+//! # fn run() -> Result<(), Box<dyn std::error::Error>> {
+//! // build your object
+//! let mut obj = InMemDicomObject::create_empty();
+//! let patient_name = DataElement::new(
+//!     Tag(0x0010, 0x0010),
+//!     VR::PN,
+//!     dicom_value!(Str, "Doe^John"),
+//! );
+//! obj.put(patient_name);
+//!
+//! // write the object's data set
+//! let mut serialized = Vec::new();
+//! let ts = TransferSyntaxRegistry.get("1.2.840.10008.1.2.1").unwrap();
+//! obj.write_dataset_with_ts(&mut serialized, &ts)?;
+//! assert!(!serialized.is_empty());
+//! # Ok(())
+//! # }
+//! # run().unwrap();
+//! ```
 pub mod file;
 pub mod loader;
 pub mod mem;
