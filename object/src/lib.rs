@@ -52,10 +52,8 @@
 //! [`FileMetaTableBuilder`]: crate::meta::FileMetaTableBuilder
 //!
 //! ```no_run
-//! # use dicom_object::mem::InMemDicomObject;
-//! # use dicom_object::meta::FileMetaTableBuilder;
-//! # use dicom_object::StandardDataDictionary;
-//! # fn something(obj: InMemDicomObject<StandardDataDictionary>) -> Result<(), Box<dyn std::error::Error>> {
+//! # use dicom_object::{InMemDicomObject, FileMetaTableBuilder};
+//! # fn something(obj: InMemDicomObject) -> Result<(), Box<dyn std::error::Error>> {
 //! let file_obj = obj.with_exact_meta(
 //!     FileMetaTableBuilder::new()
 //!         // Implicit VR Little Endian
@@ -75,10 +73,7 @@
 //! use one of the various `write_dataset` methods.
 //!
 //! ```
-//! # use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
-//! # use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-//! # use dicom_object::StandardDataDictionary;
-//! # use dicom_object::mem::InMemDicomObject;
+//! # use dicom_object::InMemDicomObject;
 //! # use dicom_core::{DataElement, Tag, VR, dicom_value};
 //! # fn run() -> Result<(), Box<dyn std::error::Error>> {
 //! // build your object
@@ -92,7 +87,7 @@
 //!
 //! // write the object's data set
 //! let mut serialized = Vec::new();
-//! let ts = TransferSyntaxRegistry.get("1.2.840.10008.1.2.1").unwrap();
+//! let ts = dicom_transfer_syntax_registry::entries::EXPLICIT_VR_LITTLE_ENDIAN.erased();
 //! obj.write_dataset_with_ts(&mut serialized, &ts)?;
 //! assert!(!serialized.is_empty());
 //! # Ok(())
@@ -109,7 +104,8 @@ pub mod tokens;
 mod util;
 
 pub use crate::file::{from_reader, open_file};
-pub use crate::meta::FileMetaTable;
+pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
+pub use crate::mem::InMemDicomObject;
 pub use dicom_core::Tag;
 pub use dicom_dictionary_std::StandardDataDictionary;
 
