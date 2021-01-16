@@ -34,7 +34,7 @@ use dicom_parser::{
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
 /// A full in-memory DICOM data element.
-pub type InMemElement<D> = DataElement<InMemDicomObject<D>, InMemFragment>;
+pub type InMemElement<D = StandardDataDictionary> = DataElement<InMemDicomObject<D>, InMemFragment>;
 
 /// The type of a pixel data fragment.
 pub type InMemFragment = Vec<u8>;
@@ -44,7 +44,7 @@ type ParserResult<T> = std::result::Result<T, ParserError>;
 /** A DICOM object that is fully contained in memory.
  */
 #[derive(Debug, Clone)]
-pub struct InMemDicomObject<D> {
+pub struct InMemDicomObject<D = StandardDataDictionary> {
     /// the element map
     entries: BTreeMap<Tag, InMemElement<D>>,
     /// the data dictionary
