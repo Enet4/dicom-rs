@@ -10,9 +10,9 @@ use std::{collections::BTreeMap, io::Write};
 
 use crate::meta::FileMetaTable;
 use crate::{
-    CreateParser, CreatePrinter, DicomObject, MissingElementValue, NoSuchAttributeName,
-    NoSuchDataElementAlias, NoSuchDataElementTag, OpenFile, ParseMetaDataSet, PrematureEnd,
-    PrintDataSet, ReadFile, ReadToken, Result, RootDicomObject, UnexpectedToken,
+    CreateParser, CreatePrinter, DicomObject, FileDicomObject, MissingElementValue,
+    NoSuchAttributeName, NoSuchDataElementAlias, NoSuchDataElementTag, OpenFile, ParseMetaDataSet,
+    PrematureEnd, PrintDataSet, ReadFile, ReadToken, Result, UnexpectedToken,
     UnsupportedTransferSyntax,
 };
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
@@ -26,8 +26,11 @@ use dicom_encoding::{
     text::{SpecificCharacterSet, TextCodec},
     TransferSyntax,
 };
-use dicom_parser::{StatefulDecode, dataset::{read::Error as ParserError, DataSetWriter, IntoTokens}};
 use dicom_parser::dataset::{DataSetReader, DataToken};
+use dicom_parser::{
+    dataset::{read::Error as ParserError, DataSetWriter, IntoTokens},
+    StatefulDecode,
+};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
 /// A full in-memory DICOM data element.
@@ -82,7 +85,7 @@ where
     }
 }
 
-impl RootDicomObject<InMemDicomObject<StandardDataDictionary>> {
+impl FileDicomObject<InMemDicomObject<StandardDataDictionary>> {
     /// Create a DICOM object by reading from a file.
     ///
     /// This function assumes the standard file encoding structure: 128-byte
@@ -152,7 +155,11 @@ impl InMemDicomObject<StandardDataDictionary> {
     /// If the attribute _Specific Character Set_ is found in the encoded data,
     /// this will override the given character set.
     #[inline]
-    pub fn read_dataset_with_ts_cs<S>(from: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
+    pub fn read_dataset_with_ts_cs<S>(
+        from: S,
+        ts: &TransferSyntax,
+        cs: SpecificCharacterSet,
+    ) -> Result<Self>
     where
         S: Read,
     {
@@ -170,11 +177,16 @@ impl InMemDicomObject<StandardDataDictionary> {
     where
         S: Read,
     {
-        Self::read_dataset_with_dict_ts_cs(from, StandardDataDictionary, ts, SpecificCharacterSet::Default)
+        Self::read_dataset_with_dict_ts_cs(
+            from,
+            StandardDataDictionary,
+            ts,
+            SpecificCharacterSet::Default,
+        )
     }
 }
 
-impl<D> RootDicomObject<InMemDicomObject<D>>
+impl<D> FileDicomObject<InMemDicomObject<D>>
 where
     D: DataDictionary,
     D: Clone,
@@ -182,7 +194,7 @@ where
     /// Create a new empty object, using the given dictionary and
     /// file meta table.
     pub fn new_empty_with_dict_and_meta(dict: D, meta: FileMetaTable) -> Self {
-        RootDicomObject {
+        FileDicomObject {
             meta,
             obj: InMemDicomObject {
                 entries: BTreeMap::new(),
@@ -237,7 +249,7 @@ where
                 DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs, Default::default())
                     .context(CreateParser)?;
 
-            Ok(RootDicomObject {
+            Ok(FileDicomObject {
                 meta,
                 obj: InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?,
             })
@@ -287,7 +299,7 @@ where
                 DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs, Default::default())
                     .context(CreateParser)?;
             let obj = InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?;
-            Ok(RootDicomObject { meta, obj })
+            Ok(FileDicomObject { meta, obj })
         } else {
             UnsupportedTransferSyntax {
                 uid: meta.transfer_syntax,
@@ -297,10 +309,10 @@ where
     }
 }
 
-impl RootDicomObject<InMemDicomObject<StandardDataDictionary>> {
+impl FileDicomObject<InMemDicomObject<StandardDataDictionary>> {
     /// Create a new empty object, using the given file meta table.
     pub fn new_empty_with_meta(meta: FileMetaTable) -> Self {
-        RootDicomObject {
+        FileDicomObject {
             meta,
             obj: InMemDicomObject {
                 entries: BTreeMap::new(),
@@ -359,8 +371,7 @@ where
         S: StatefulDecode,
         D: DataDictionary,
     {
-        let mut dataset =
-        DataSetReader::new(decoder, Default::default());
+        let mut dataset = DataSetReader::new(decoder, Default::default());
         InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)
     }
 
@@ -374,7 +385,7 @@ where
     {
         Self::read_dataset_with_dict_ts_cs(from, dict, ts, SpecificCharacterSet::Default)
     }
-    
+
     /// Read an object from a source,
     /// using the given data dictionary,
     /// transfer syntax,
@@ -382,7 +393,12 @@ where
     ///
     /// If the attribute _Specific Character Set_ is found in the encoded data,
     /// this will override the given character set.
-    pub fn read_dataset_with_dict_ts_cs<S>(from: S, dict: D, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
+    pub fn read_dataset_with_dict_ts_cs<S>(
+        from: S,
+        dict: D,
+        ts: &TransferSyntax,
+        cs: SpecificCharacterSet,
+    ) -> Result<Self>
     where
         S: Read,
         D: DataDictionary,
@@ -505,15 +521,20 @@ where
     /// The default character set is assumed
     /// until the _Specific Character Set_ is found in the data set,
     /// after which the text encoder is overridden accordingly.
-    pub fn write_dataset_with_ts<W>(
-        &self,
-        to: W,
-        ts: &TransferSyntax,
-    ) -> Result<()>
+    pub fn write_dataset_with_ts<W>(&self, to: W, ts: &TransferSyntax) -> Result<()>
     where
         W: Write,
     {
         self.write_dataset_with_ts_cs(to, ts, SpecificCharacterSet::Default)
+    }
+
+    /// Encapsulate this object to contain a file meta group
+    /// as described exactly by the given table.
+    ///
+    /// **Note:** this method will not adjust the file meta group
+    /// to be semantically valid for the object.
+    pub fn with_exact_meta(self, meta: FileMetaTable) -> FileDicomObject<Self> {
+        FileDicomObject { meta, obj: self }
     }
 
     // private methods
@@ -699,15 +720,21 @@ impl<D> Iterator for Iter<D> {
 mod tests {
 
     use super::*;
-    use crate::Error;
+    use crate::{meta::FileMetaTableBuilder, open_file, Error};
     use byteordered::Endianness;
     use dicom_core::value::PrimitiveValue;
     use dicom_core::{
         dicom_value,
         header::{DataElementHeader, Length, VR},
     };
-    use dicom_encoding::{decode::{basic::BasicDecoder, implicit_le::ImplicitVRLittleEndianDecoder}, encode::EncoderFor, text::DefaultCharacterSetCodec, transfer_syntax::implicit_le::ImplicitVRLittleEndianEncoder};
+    use dicom_encoding::{
+        decode::{basic::BasicDecoder, implicit_le::ImplicitVRLittleEndianDecoder},
+        encode::EncoderFor,
+        text::DefaultCharacterSetCodec,
+        transfer_syntax::implicit_le::ImplicitVRLittleEndianEncoder,
+    };
     use dicom_parser::{dataset::IntoTokens, StatefulDecoder};
+    use tempfile;
 
     fn assert_obj_eq<D>(obj1: &InMemDicomObject<D>, obj2: &InMemDicomObject<D>)
     where
@@ -741,8 +768,13 @@ mod tests {
         let decoder = ImplicitVRLittleEndianDecoder::default();
         let text = Box::new(DefaultCharacterSetCodec) as Box<_>;
         let mut cursor = &data_in[..];
-        let parser = StatefulDecoder::new(&mut cursor, decoder, BasicDecoder::new(Endianness::Little), text);
-        
+        let parser = StatefulDecoder::new(
+            &mut cursor,
+            decoder,
+            BasicDecoder::new(Endianness::Little),
+            text,
+        );
+
         let obj = InMemDicomObject::read_dataset(parser).unwrap();
 
         let mut gt = InMemDicomObject::create_empty();
@@ -768,8 +800,14 @@ mod tests {
         let ts = TransferSyntaxRegistry.get("1.2.840.10008.1.2").unwrap();
         let cs = SpecificCharacterSet::Default;
         let mut cursor = &data_in[..];
-        
-        let obj = InMemDicomObject::read_dataset_with_dict_ts_cs(&mut cursor, StandardDataDictionary, &ts, cs).unwrap();
+
+        let obj = InMemDicomObject::read_dataset_with_dict_ts_cs(
+            &mut cursor,
+            StandardDataDictionary,
+            &ts,
+            cs,
+        )
+        .unwrap();
 
         let mut gt = InMemDicomObject::create_empty();
 
@@ -787,11 +825,8 @@ mod tests {
     fn inmem_object_write_dataset() {
         let mut obj = InMemDicomObject::create_empty();
 
-        let patient_name = DataElement::new(
-            Tag(0x0010, 0x0010),
-            VR::PN,
-            dicom_value!(Str, "Doe^John"),
-        );
+        let patient_name =
+            DataElement::new(Tag(0x0010, 0x0010), VR::PN, dicom_value!(Str, "Doe^John"));
         obj.put(patient_name);
 
         let mut out = Vec::new();
@@ -815,11 +850,8 @@ mod tests {
     fn inmem_object_write_dataset_with_ts() {
         let mut obj = InMemDicomObject::create_empty();
 
-        let patient_name = DataElement::new(
-            Tag(0x0010, 0x0010),
-            VR::PN,
-            dicom_value!(Str, "Doe^John"),
-        );
+        let patient_name =
+            DataElement::new(Tag(0x0010, 0x0010), VR::PN, dicom_value!(Str, "Doe^John"));
         obj.put(patient_name);
 
         let mut out = Vec::new();
@@ -843,11 +875,8 @@ mod tests {
     fn inmem_object_write_dataset_with_ts_cs() {
         let mut obj = InMemDicomObject::create_empty();
 
-        let patient_name = DataElement::new(
-            Tag(0x0010, 0x0010),
-            VR::PN,
-            dicom_value!(Str, "Doe^John"),
-        );
+        let patient_name =
+            DataElement::new(Tag(0x0010, 0x0010), VR::PN, dicom_value!(Str, "Doe^John"));
         obj.put(patient_name);
 
         let mut out = Vec::new();
@@ -865,6 +894,51 @@ mod tests {
                 b'D', b'o', b'e', b'^', b'J', b'o', b'h', b'n',
             ][..],
         );
+    }
+
+    /// Write a file from scratch.
+    #[test]
+    fn inmem_write_to_file() {
+        let sop_uid = "1.4.645.212121";
+        let mut obj = InMemDicomObject::create_empty();
+
+        obj.put(DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            dicom_value!(Strs, ["Doe^John"]),
+        ));
+        obj.put(DataElement::new(
+            Tag(0x0008, 0x0060),
+            VR::CS,
+            dicom_value!(Strs, ["CR"]),
+        ));
+        obj.put(DataElement::new(
+            Tag(0x0008, 0x0018),
+            VR::UI,
+            dicom_value!(Strs, [sop_uid]),
+        ));
+
+        let file_object = obj.with_exact_meta(
+            FileMetaTableBuilder::default()
+                // Explicit VR Little Endian
+                .transfer_syntax("1.2.840.10008.1.2.1")
+                // Computed Radiography image storage
+                .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1")
+                .media_storage_sop_instance_uid(sop_uid)
+                .build()
+                .unwrap(),
+        );
+
+        // create temporary file path and write object to that file
+        let dir = tempfile::tempdir().unwrap();
+        let mut file_path = dir.into_path();
+        file_path.push(format!("{}.dcm", sop_uid));
+
+        file_object.write_to_file(&file_path).unwrap();
+
+        // read the file back to validate the outcome
+        let saved_object = open_file(file_path).unwrap();
+        assert_eq!(file_object, saved_object);
     }
 
     #[test]
