@@ -716,6 +716,16 @@ impl<D> Iterator for Iter<D> {
     }
 }
 
+impl<D> Extend<InMemElement<D>> for InMemDicomObject<D> {
+    fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = InMemElement<D>>,
+    {
+        self.entries.extend(iter.into_iter()
+            .map(|e| (e.tag(), e)))
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
