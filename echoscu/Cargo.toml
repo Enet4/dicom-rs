@@ -1,0 +1,20 @@
+[package]
+name = "dicom-echoscu"
+version = "0.1.0"
+authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Enet4/dicom-rs"
+description = "A DICOM C-ECHO command line interface"
+categories = ["command-line-utilities"]
+keywords = ["dicom"]
+readme = "README.md"
+
+[badges.travis-ci]
+repository = "Enet4/dicom-rs"
+
+[dependencies]
+structopt = "0.3.21"
+dicom-ul = { path = "../ul" }
+dicom = { path = "../parent" }
+smallvec = "1.6.1"
