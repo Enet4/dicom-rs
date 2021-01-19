@@ -6,7 +6,7 @@ use crate::pdu::{
 };
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
-use super::Association;
+use super::{Association, ServiceClassRole};
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -84,7 +84,7 @@ impl Default for ScuAssociationOptions {
         ScuAssociationOptions {
             calling_aet: "CALLING-SCU".into(),
             called_aet: "ANY-SCP".into(),
-            application_context_name: "DICOM-rs SCU".into(),
+            application_context_name: "1.2.840.10008.3.1.1.1".into(),
             abstract_syntax_uids: Vec::new(),
             transfer_syntax_uids: Vec::new(),
             protocol_version: 1,
@@ -203,6 +203,8 @@ impl ScuAssociationOptions {
                     .context(NoAcceptedPresentationContexts)?;
 
                 Ok(Association {
+                    service_class_type: ServiceClassRole::Scu,
+                    presentation_context_id: selected_context.id,
                     abstract_syntax_uid: presentation_context.abstract_syntax,
                     transfer_syntax_uid: selected_context.transfer_syntax,
                     max_pdu_length,
