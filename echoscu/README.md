@@ -3,7 +3,8 @@
 [![CratesIO](https://img.shields.io/crates/v/dicom-echoscu.svg)](https://crates.io/crates/dicom-echoscu)
 [![Documentation](https://docs.rs/dicom-echoscu/badge.svg)](https://docs.rs/dicom-echoscu)
 
-This is an implementation of the C-ECHO SCU, which can be used for verifying DICOM nodes.
+This is an implementation of the DICOM Verification C-ECHO SCU,
+which can be used for verifying DICOM nodes.
 
 This tool is part of the [DICOM-rs](https://github.com/Enet4/dicom-rs) project.
 
