@@ -9,7 +9,7 @@ use dicom_ul::{
 use pdu::PDataValue;
 use structopt::StructOpt;
 
-/// C-ECHO SCU
+/// DICOM C-ECHO SCU
 #[derive(Debug, StructOpt)]
 struct App {
     /// socket address to SCP (example: "127.0.0.1:104")
@@ -18,7 +18,7 @@ struct App {
     #[structopt(short = "v")]
     verbose: bool,
     /// the C-ECHO message ID
-    #[structopt(default_value = "1")]
+    #[structopt(short = "m", long = "message-id", default_value = "1")]
     message_id: u16,
 }
 

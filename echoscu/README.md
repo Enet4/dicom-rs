@@ -14,14 +14,19 @@ Note that this tool is not necessarily a drop-in replacement
 for `echoscu` tools in other DICOM software projects.
 
 ```none
-    echoscu [FLAGS] <addr> [message-id]
+DICOM C-ECHO SCU
+
+USAGE:
+    dicom-echoscu [FLAGS] [OPTIONS] <addr>
 
 FLAGS:
     -h, --help       Prints help information
     -V, --version    Prints version information
     -v               verbose mode
 
+OPTIONS:
+    -m, --message-id <message-id>    the C-ECHO message ID [default: 1]
+
 ARGS:
-    <addr>          socket address to SCP (example: "127.0.0.1:104")
-    <message-id>    the C-ECHO message ID [default: 1]
+    <addr>    socket address to SCP (example: "127.0.0.1:104")
 ```
