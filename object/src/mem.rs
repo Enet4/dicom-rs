@@ -8,11 +8,11 @@ use std::io::{BufReader, Read};
 use std::path::Path;
 use std::{collections::BTreeMap, io::Write};
 
-use crate::meta::FileMetaTable;
+use crate::{meta::FileMetaTable, FileMetaTableBuilder};
 use crate::{
-    CreateParser, CreatePrinter, DicomObject, FileDicomObject, MissingElementValue,
+    BuildMetaTable, CreateParser, CreatePrinter, DicomObject, FileDicomObject, MissingElementValue,
     NoSuchAttributeName, NoSuchDataElementAlias, NoSuchDataElementTag, OpenFile, ParseMetaDataSet,
-    PrematureEnd, PrintDataSet, ReadFile, ReadToken, Result, UnexpectedToken,
+    PrematureEnd, PrepareMetaTable, PrintDataSet, ReadFile, ReadToken, Result, UnexpectedToken,
     UnsupportedTransferSyntax,
 };
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
@@ -537,6 +537,30 @@ where
         FileDicomObject { meta, obj: self }
     }
 
+    /// Encapsulate this object to contain a file meta group,
+    /// created through the given file meta table builder.
+    ///
+    /// The attribute _Media Storage SOP Instance UID_
+    /// will be filled in with the contents of the object,
+    /// if the attribute _SOP Instance UID_  is present.
+    /// A complete file meta group should still provide
+    /// the media storage SOP class UID and transfer syntax.
+    pub fn with_meta(self, mut meta: FileMetaTableBuilder) -> Result<FileDicomObject<Self>> {
+        match self.element(Tag(0x0008, 0x0008)) {
+            Ok(elem) => {
+                meta = meta.media_storage_sop_instance_uid(
+                    elem.value().to_str().context(PrepareMetaTable)?,
+                );
+            }
+            Err(crate::Error::NoSuchDataElementTag { .. }) => {}
+            Err(err) => return Err(err),
+        }
+        Ok(FileDicomObject {
+            meta: meta.build().context(BuildMetaTable)?,
+            obj: self,
+        })
+    }
+
     // private methods
 
     /// Build an object by consuming a data set parser.
@@ -908,7 +932,52 @@ mod tests {
 
     /// Write a file from scratch.
     #[test]
-    fn inmem_write_to_file() {
+    fn inmem_write_to_file_with_meta() {
+        let sop_uid = "1.4.645.212121";
+        let mut obj = InMemDicomObject::create_empty();
+
+        obj.put(DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            dicom_value!(Strs, ["Doe^John"]),
+        ));
+        obj.put(DataElement::new(
+            Tag(0x0008, 0x0060),
+            VR::CS,
+            dicom_value!(Strs, ["CR"]),
+        ));
+        obj.put(DataElement::new(
+            Tag(0x0008, 0x0018),
+            VR::UI,
+            dicom_value!(Strs, [sop_uid]),
+        ));
+
+        let file_object = obj
+            .with_meta(
+                FileMetaTableBuilder::default()
+                    // Explicit VR Little Endian
+                    .transfer_syntax("1.2.840.10008.1.2.1")
+                    // Computed Radiography image storage
+                    .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1")
+                    .media_storage_sop_instance_uid(sop_uid),
+            )
+            .unwrap();
+
+        // create temporary file path and write object to that file
+        let dir = tempfile::tempdir().unwrap();
+        let mut file_path = dir.into_path();
+        file_path.push(format!("{}.dcm", sop_uid));
+
+        file_object.write_to_file(&file_path).unwrap();
+
+        // read the file back to validate the outcome
+        let saved_object = open_file(file_path).unwrap();
+        assert_eq!(file_object, saved_object);
+    }
+
+    /// Write a file from scratch, with exact file meta table.
+    #[test]
+    fn inmem_write_to_file_with_exact_meta() {
         let sop_uid = "1.4.645.212121";
         let mut obj = InMemDicomObject::create_empty();
 

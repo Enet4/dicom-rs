@@ -46,7 +46,7 @@
 //! This method requires you to write a [file meta table] first.
 //! When creating a new DICOM object from scratch,
 //! use a [`FileMetaTableBuilder`] to construct the file meta group,
-//! then use `with_exact_meta`:
+//! then use `with_meta` or `with_exact_meta`:
 //!
 //! [file meta table]: crate::meta::FileMetaTable
 //! [`FileMetaTableBuilder`]: crate::meta::FileMetaTableBuilder
@@ -54,16 +54,13 @@
 //! ```no_run
 //! # use dicom_object::{InMemDicomObject, FileMetaTableBuilder};
 //! # fn something(obj: InMemDicomObject) -> Result<(), Box<dyn std::error::Error>> {
-//! let file_obj = obj.with_exact_meta(
+//! let file_obj = obj.with_meta(
 //!     FileMetaTableBuilder::new()
 //!         // Implicit VR Little Endian
 //!         .transfer_syntax("1.2.840.10008.1.2")
 //!         // Computed Radiography image storage
 //!         .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1")
-//!         // Check your object for the SOP instance UID
-//!         .media_storage_sop_instance_uid("1.2.345.6789")
-//!         .build()?
-//! );
+//! )?;
 //! file_obj.write_to_file("0001_new.dcm")?;
 //! # Ok(())
 //! # }
@@ -161,13 +158,13 @@ pub trait DicomObject {
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum Error {
-    #[snafu(display("Could not open file '{}': {}", filename.display(), source))]
+    #[snafu(display("Could not open file '{}'", filename.display()))]
     OpenFile {
         filename: std::path::PathBuf,
         backtrace: Backtrace,
         source: std::io::Error,
     },
-    #[snafu(display("Could not read from file '{}': {}", filename.display(), source))]
+    #[snafu(display("Could not read from file '{}'", filename.display()))]
     ReadFile {
         filename: std::path::PathBuf,
         backtrace: Backtrace,
@@ -240,6 +237,16 @@ pub enum Error {
     },
     #[snafu(display("Premature data set end"))]
     PrematureEnd { backtrace: Backtrace },
+    /// Could not build file meta table
+    BuildMetaTable {
+        #[snafu(backtrace)]
+        source: crate::meta::Error,
+    },
+    /// Could not prepare file meta table
+    PrepareMetaTable {
+        source: dicom_core::value::CastValueError,
+        backtrace: Backtrace,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
