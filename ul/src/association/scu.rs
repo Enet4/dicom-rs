@@ -20,7 +20,7 @@ pub enum Error {
     /// failed to send association request
     SendRequest { source: crate::pdu::writer::Error },
 
-    /// failed to receive association request
+    /// failed to receive association response
     ReceiveResponse { source: crate::pdu::reader::Error },
 
     #[snafu(display("unexpected response from SCP `{:?}`", pdu))]
@@ -54,6 +54,11 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// A DICOM association builder for a service class user (SCU).
 ///
+/// This is the standard way of establishing an [`Association`]
+/// with a service class provider (SCP).
+///
+/// [`Association`]: crate::association::Association
+///
 /// # Example
 ///
 /// ```no_run
@@ -68,24 +73,42 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// # }
 /// ```
 ///
+/// The SCU will admit by default the transfer syntaxes
+/// _Implicit VR Little Endian_
+/// and _Explicit VR Little Endian_.
+/// Other transfer syntaxes can be requested in the association
+/// via the method `with_transfer_syntax`.
+///
 #[derive(Debug, Clone)]
 pub struct ScuAssociationOptions {
-    calling_aet: Cow<'static, str>,
-    called_aet: Cow<'static, str>,
+    /// the calling AE title
+    calling_ae_title: Cow<'static, str>,
+    /// the called AE title
+    called_ae_title: Cow<'static, str>,
+    /// the requested application context name
     application_context_name: Cow<'static, str>,
+    /// the list of requested abstract syntaxes
     abstract_syntax_uids: Vec<Cow<'static, str>>,
+    /// the list of requested transfer syntaxes
     transfer_syntax_uids: Vec<Cow<'static, str>>,
+    /// the expected protocol version
     protocol_version: u16,
+    /// the maximum PDU length
     max_pdu_length: u32,
 }
 
 impl Default for ScuAssociationOptions {
     fn default() -> Self {
         ScuAssociationOptions {
-            calling_aet: "CALLING-SCU".into(),
-            called_aet: "ANY-SCP".into(),
+            /// the calling AE title
+            calling_ae_title: "THIS-SCU".into(),
+            /// the called AE title
+            called_ae_title: "ANY-SCP".into(),
+            /// the requested application context name
             application_context_name: "1.2.840.10008.3.1.1.1".into(),
+            /// the list of requested abstract syntaxes
             abstract_syntax_uids: Vec::new(),
+            /// the application context name
             transfer_syntax_uids: Vec::new(),
             protocol_version: 1,
             max_pdu_length: crate::pdu::reader::DEFAULT_MAX_PDU,
@@ -97,6 +120,30 @@ impl ScuAssociationOptions {
     /// Create a new set of options for establishing an association.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Define the calling application entity title for the association,
+    /// which refers to this DICOM node.
+    ///
+    /// The default is `THIS-SCU`.
+    pub fn calling_ae_title<T>(mut self, calling_ae_title: T) -> Self
+    where
+        T: Into<Cow<'static, str>>,
+    {
+        self.calling_ae_title = calling_ae_title.into();
+        self
+    }
+
+    /// Define the called application entity title for the association,
+    /// which refers to the target DICOM node.
+    ///
+    /// The default is `ANY-SCP`.
+    pub fn called_ae_title<T>(mut self, called_ae_title: T) -> Self
+    where
+        T: Into<Cow<'static, str>>,
+    {
+        self.called_ae_title = called_ae_title.into();
+        self
     }
 
     /// Include this abstract syntax
@@ -127,8 +174,8 @@ impl ScuAssociationOptions {
     /// Initiate the TCP connection and negotiate the
     pub fn establish<A: ToSocketAddrs>(self, address: A) -> Result<Association> {
         let ScuAssociationOptions {
-            calling_aet,
-            called_aet,
+            calling_ae_title,
+            called_ae_title,
             application_context_name,
             abstract_syntax_uids,
             mut transfer_syntax_uids,
@@ -162,8 +209,8 @@ impl ScuAssociationOptions {
             .collect();
         let msg = Pdu::AssociationRQ {
             protocol_version,
-            calling_ae_title: calling_aet.to_string(),
-            called_ae_title: called_aet.to_string(),
+            calling_ae_title: calling_ae_title.to_string(),
+            called_ae_title: called_ae_title.to_string(),
             application_context_name: application_context_name.to_string(),
             presentation_contexts: presentation_contexts.clone(),
             user_variables: vec![],
@@ -203,7 +250,7 @@ impl ScuAssociationOptions {
                     .context(NoAcceptedPresentationContexts)?;
 
                 Ok(Association {
-                    service_class_type: ServiceClassRole::Scu,
+                    service_class_role: ServiceClassRole::Scu,
                     presentation_context_id: selected_context.id,
                     abstract_syntax_uid: presentation_context.abstract_syntax,
                     transfer_syntax_uid: selected_context.transfer_syntax,

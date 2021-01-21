@@ -3,8 +3,6 @@
 //! This module contains utilities for establishing associations
 //! between DICOM nodes via TCP/IP.
 //!
-//! # Examples
-//!
 //! As a service class user (SCU) initiating communication,
 //! a new association can be started via the [`ScuAssociationOptions`] type.
 //! The minimum required properties are the accepted abstract syntaxes
