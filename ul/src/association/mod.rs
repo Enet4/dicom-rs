@@ -2,6 +2,16 @@
 //!
 //! This module contains utilities for establishing associations
 //! between DICOM nodes via TCP/IP.
+//!
+//! # Examples
+//!
+//! As a service class user (SCU) initiating communication,
+//! a new association can be started via the [`ScuAssociationOptions`] type.
+//! The minimum required properties are the accepted abstract syntaxes
+//! and the TCP socket address to the target service class provider (SCP).
+//! 
+//! [`ScuAssociationOptions`]: crate::association::scu::ScuAssociationOptions
+//!
 
 use std::net::TcpStream;
 
@@ -49,7 +59,7 @@ pub enum ServiceClassRole {
 
 #[derive(Debug)]
 pub struct Association {
-    service_class_type: ServiceClassRole,
+    service_class_role: ServiceClassRole,
     /// The accorded abstract syntax UID
     abstract_syntax_uid: String,
     /// The accorded transfer syntax UID
@@ -112,7 +122,7 @@ impl Association {
 
 impl Drop for Association {
     fn drop(&mut self) {
-        if self.service_class_type == ServiceClassRole::Scu {
+        if self.service_class_role == ServiceClassRole::Scu {
             let _ = self.release();
         }
     }
