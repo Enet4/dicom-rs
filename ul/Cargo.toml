@@ -7,7 +7,7 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
 categories = ["network-programming"]
-keywords = ["dicom"]
+keywords = ["dicom", "network"]
 readme = "README.md"
 
 [badges.travis-ci]

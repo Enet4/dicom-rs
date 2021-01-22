@@ -1,5 +1,14 @@
+//! Protocol Data Unit module
+//!
+//! This module comprises multiple data structures representing possible
+//! protocol data units (PDUs) according to
+//! the standard message exchange mechanisms,
+//! as well as readers and writers of PDUs from arbitrary data sources.
 pub mod reader;
 pub mod writer;
+
+pub use reader::read_pdu;
+pub use writer::write_pdu;
 
 /// Message component for a proposed presentation context.
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]

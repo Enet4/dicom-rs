@@ -1,3 +1,4 @@
+/// PDU writer module
 use crate::pdu::*;
 use byteordered::byteorder::{BigEndian, WriteBytesExt};
 use dicom_encoding::text::TextCodec;
