@@ -6,7 +6,7 @@
 //! interacting with these types more idiomatic and friendly.
 //!
 //! The [`pdu`](crate::pdu) module
-//! provides data structures representing protocol data units,
+//! provides data structures representing _protocol data units_,
 //! which are passed around as part of the DICOM network communication support.
 
 pub mod pdu;

@@ -1,4 +1,8 @@
-use std::{borrow::Cow, net::ToSocketAddrs};
+//! Association acceptor module
+use std::{
+    borrow::Cow,
+    net::{TcpStream, ToSocketAddrs},
+};
 
 use crate::pdu::{
     reader::read_pdu, writer::write_pdu, AssociationRJResult, AssociationRJSource, Pdu,
@@ -6,15 +10,13 @@ use crate::pdu::{
 };
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
-use super::{Association, ServiceClassRole};
-
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum Error {
     /// missing abstract syntax to begin negotiation
     MissingAbstractSyntax,
 
-    /// could not connect to service class provider
+    /// could not connect to server
     Connect { source: std::io::Error },
 
     /// failed to send association request
@@ -23,14 +25,14 @@ pub enum Error {
     /// failed to receive association response
     ReceiveResponse { source: crate::pdu::reader::Error },
 
-    #[snafu(display("unexpected response from SCP `{:?}`", pdu))]
+    #[snafu(display("unexpected response from server `{:?}`", pdu))]
     #[non_exhaustive]
     UnexpectedResponse {
         /// the PDU obtained from the server
         pdu: Pdu,
     },
 
-    #[snafu(display("unknown response from SCP `{:?}`", pdu))]
+    #[snafu(display("unknown response from server `{:?}`", pdu))]
     #[non_exhaustive]
     UnknownResponse {
         /// the PDU obtained from the server, of variant Unknown
@@ -40,32 +42,40 @@ pub enum Error {
     #[snafu(display("protocol version mismatch: expected {}, got {}", expected, got))]
     ProtocolVersionMismatch { expected: u16, got: u16 },
 
-    /// the association was rejected by the service class provider
+    /// the association was rejected by the server
     Rejected {
         association_result: AssociationRJResult,
         association_source: AssociationRJSource,
     },
 
-    /// no presentation contexts accepted by the service class provider
+    /// no presentation contexts accepted by the server
     NoAcceptedPresentationContexts,
+
+    /// failed to send PDU message
+    #[non_exhaustive]
+    Send { source: crate::pdu::writer::Error },
+
+    /// failed to receive PDU message
+    #[non_exhaustive]
+    Receive { source: crate::pdu::reader::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// A DICOM association builder for a service class user (SCU).
+/// A DICOM association builder for client node.
+/// The final outcome is a [`ClientAssociation`].
 ///
-/// This is the standard way of establishing an [`Association`]
-/// with a service class provider (SCP).
-///
-/// [`Association`]: crate::association::Association
+/// This is the standard way of requesting and establishing
+/// an association with another DICOM node,
+/// that one usually taking the role of a service class provider (SCP).
 ///
 /// # Example
 ///
 /// ```no_run
-/// # use dicom_ul::association::scu::ScuAssociationOptions;
+/// # use dicom_ul::association::client::ClientAssociationOptions;
 ///
 /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
-/// let association = ScuAssociationOptions::new()
+/// let association = ClientAssociationOptions::new()
 ///    .with_abstract_syntax("1.2.840.10008.1.1")
 ///    .with_transfer_syntax("1.2.840.10008.1.2.1")
 ///    .establish("129.168.0.5:104")?;
@@ -80,7 +90,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// via the method `with_transfer_syntax`.
 ///
 #[derive(Debug, Clone)]
-pub struct ScuAssociationOptions {
+pub struct ClientAssociationOptions {
     /// the calling AE title
     calling_ae_title: Cow<'static, str>,
     /// the called AE title
@@ -97,9 +107,9 @@ pub struct ScuAssociationOptions {
     max_pdu_length: u32,
 }
 
-impl Default for ScuAssociationOptions {
+impl Default for ClientAssociationOptions {
     fn default() -> Self {
-        ScuAssociationOptions {
+        ClientAssociationOptions {
             /// the calling AE title
             calling_ae_title: "THIS-SCU".into(),
             /// the called AE title
@@ -116,7 +126,7 @@ impl Default for ScuAssociationOptions {
     }
 }
 
-impl ScuAssociationOptions {
+impl ClientAssociationOptions {
     /// Create a new set of options for establishing an association.
     pub fn new() -> Self {
         Self::default()
@@ -172,8 +182,8 @@ impl ScuAssociationOptions {
     }
 
     /// Initiate the TCP connection and negotiate the
-    pub fn establish<A: ToSocketAddrs>(self, address: A) -> Result<Association> {
-        let ScuAssociationOptions {
+    pub fn establish<A: ToSocketAddrs>(self, address: A) -> Result<ClientAssociation> {
+        let ClientAssociationOptions {
             calling_ae_title,
             called_ae_title,
             application_context_name,
@@ -249,8 +259,7 @@ impl ScuAssociationOptions {
                     .find(|c| c.id == selected_context.id)
                     .context(NoAcceptedPresentationContexts)?;
 
-                Ok(Association {
-                    service_class_role: ServiceClassRole::Scu,
+                Ok(ClientAssociation {
                     presentation_context_id: selected_context.id,
                     abstract_syntax_uid: presentation_context.abstract_syntax,
                     transfer_syntax_uid: selected_context.transfer_syntax,
@@ -270,5 +279,75 @@ impl ScuAssociationOptions {
             | pdu @ Pdu::ReleaseRP { .. } => UnexpectedResponse { pdu }.fail(),
             pdu @ Pdu::Unknown { .. } => UnknownResponse { pdu }.fail(),
         }
+    }
+}
+
+/// A DICOM upper level association from the perspective
+/// of an association requester.
+#[derive(Debug)]
+pub struct ClientAssociation {
+    /// The accorded abstract syntax UID
+    abstract_syntax_uid: String,
+    /// The accorded transfer syntax UID
+    transfer_syntax_uid: String,
+    /// The identifier of the accorded presentation context
+    presentation_context_id: u8,
+    /// The maximum PDU length
+    max_pdu_length: u32,
+    /// The TCP stream to the other DICOM node
+    socket: TcpStream,
+}
+
+impl ClientAssociation {
+    /// Retrieve the identifier of the negotiated presentation context.
+    pub fn presentation_context_id(&self) -> u8 {
+        self.presentation_context_id
+    }
+
+    /// Retrieve the negotiated abstract syntax UID.
+    pub fn abstract_syntax_uid(&self) -> &str {
+        &self.abstract_syntax_uid
+    }
+
+    /// Retrieve the negotiated transfer syntax UID.
+    pub fn transfer_syntax_uid(&self) -> &str {
+        &self.transfer_syntax_uid
+    }
+
+    /// Send a PDU message to the other intervenient.
+    pub fn send(&mut self, msg: &Pdu) -> Result<()> {
+        write_pdu(&mut self.socket, &msg).context(Send)
+    }
+
+    /// Read a PDU message from the other intervenient.
+    pub fn receive(&mut self) -> Result<Pdu> {
+        read_pdu(&mut self.socket, self.max_pdu_length).context(Receive)
+    }
+
+    /// Gracefully release the association.
+    pub fn release(&mut self) -> Result<()> {
+        write_pdu(&mut self.socket, &Pdu::ReleaseRQ).context(Send)?;
+
+        let pdu = read_pdu(&mut self.socket, self.max_pdu_length).context(Receive)?;
+
+        match pdu {
+            Pdu::ReleaseRP => {}
+            pdu @ Pdu::AbortRQ { .. }
+            | pdu @ Pdu::AssociationAC { .. }
+            | pdu @ Pdu::AssociationRJ { .. }
+            | pdu @ Pdu::AssociationRQ { .. }
+            | pdu @ Pdu::PData { .. }
+            | pdu @ Pdu::ReleaseRQ { .. } => return UnexpectedResponse { pdu }.fail(),
+            pdu @ Pdu::Unknown { .. } => return UnknownResponse { pdu }.fail(),
+        }
+
+        let _ = self.socket.shutdown(std::net::Shutdown::Both);
+        Ok(())
+    }
+}
+
+impl Drop for ClientAssociation {
+    fn drop(&mut self) {
+        let _ = self.release();
     }
 }

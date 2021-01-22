@@ -1,3 +1,4 @@
+//! Association acceptor module
 use std::{borrow::Cow, net::TcpStream};
 
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
@@ -51,11 +52,14 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Common interface for application entity access control policies.
+///
+/// Existing implementations include [`AcceptAny`] and [`AcceptCalledAeTitle`],
+/// but users are free to implement their own.
 pub trait AccessControl {
     /// Obtain the decision of whether to accept an incoming association request
     /// based on the recorded application entity titles.
     ///
-    /// Returns Ok(()) if the SCU should be given clearance.
+    /// Returns Ok(()) if the requester node should be given clearance.
     /// Otherwise, a concrete association RJ service user reason is given.
     fn check_access(
         &self,
@@ -100,23 +104,25 @@ impl AccessControl for AcceptCalledAeTitle {
     }
 }
 
-/// A DICOM association builder for a service class provider (SCP).
+/// A DICOM association builder for an acceptor DICOM node,
+/// often taking the role of a service class provider (SCP).
 ///
-/// This is the standard way of establishing an [`Association`]
-/// with a requesting service class user (SCU).
-/// Unlike the [`ScpAssociationOptions`],
+/// This is the standard way of negotiating and establishing
+/// an association with a requesting node.
+/// The outcome is a [`ServerAssociation`].
+/// Unlike the [`ClientAssociationOptions`],
 /// a value of this type can be reused for multiple connections.
 ///
-/// [`Association`]: crate::association::Association
+/// [`ClientAssociationOptions`]: crate::association::ClientAssociationOptions
 ///
 /// # Example
 ///
 /// ```no_run
 /// # use std::net::TcpListener;
-/// # use dicom_ul::association::scp::ScpAssociationOptions;
+/// # use dicom_ul::association::server::ServerAssociationOptions;
 /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// # let tcp_listener: TcpListener = unimplemented!();
-/// let scp_options = ScpAssociationOptions::new()
+/// let scp_options = ServerAssociationOptions::new()
 ///    .with_abstract_syntax("1.2.840.10008.1.1")
 ///    .with_transfer_syntax("1.2.840.10008.1.2.1");
 ///
@@ -133,10 +139,10 @@ impl AccessControl for AcceptCalledAeTitle {
 ///
 /// [1]: dicom_transfer_syntax_registry
 #[derive(Debug, Clone)]
-pub struct ScpAssociationOptions<A> {
+pub struct ServerAssociationOptions<A> {
     /// the application entity access control policy
     ae_access_control: A,
-    /// the AE title of this
+    /// the AE title of this DICOM node
     ae_title: Cow<'static, str>,
     /// the requested application context name
     application_context_name: Cow<'static, str>,
@@ -150,9 +156,9 @@ pub struct ScpAssociationOptions<A> {
     max_pdu_length: u32,
 }
 
-impl Default for ScpAssociationOptions<AcceptAny> {
+impl Default for ServerAssociationOptions<AcceptAny> {
     fn default() -> Self {
-        ScpAssociationOptions {
+        ServerAssociationOptions {
             ae_access_control: AcceptAny,
             ae_title: "THIS-SCP".into(),
             application_context_name: "1.2.840.10008.3.1.1.1".into(),
@@ -164,14 +170,14 @@ impl Default for ScpAssociationOptions<AcceptAny> {
     }
 }
 
-impl ScpAssociationOptions<AcceptAny> {
+impl ServerAssociationOptions<AcceptAny> {
     /// Create a new set of options for establishing an association.
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<A> ScpAssociationOptions<A>
+impl<A> ServerAssociationOptions<A>
 where
     A: AccessControl,
 {
@@ -179,25 +185,25 @@ where
     /// regardless of the specified AE titles.
     ///
     /// This is the default behavior when the options are first created.
-    pub fn accept_any(self) -> ScpAssociationOptions<AcceptAny> {
+    pub fn accept_any(self) -> ServerAssociationOptions<AcceptAny> {
         self.ae_access_control(AcceptAny)
     }
 
     /// Change the access control policy to accept an association
     /// if the called AE title matches this node's AE title.
     ///
-    /// The default is to accept any SCU
+    /// The default is to accept any requesting node
     /// regardless of the specified AE titles.
-    pub fn accept_called_ae_title(self) -> ScpAssociationOptions<AcceptCalledAeTitle> {
+    pub fn accept_called_ae_title(self) -> ServerAssociationOptions<AcceptCalledAeTitle> {
         self.ae_access_control(AcceptCalledAeTitle)
     }
 
     /// Change the access control policy.
     ///
-    /// The default is to accept any SCU
+    /// The default is to accept any requesting node
     /// regardless of the specified AE titles.
-    pub fn ae_access_control<P>(self, access_control: P) -> ScpAssociationOptions<P> {
-        let ScpAssociationOptions {
+    pub fn ae_access_control<P>(self, access_control: P) -> ServerAssociationOptions<P> {
+        let ServerAssociationOptions {
             ae_title,
             application_context_name,
             abstract_syntax_uids,
@@ -207,7 +213,7 @@ where
             ..
         } = self;
 
-        ScpAssociationOptions {
+        ServerAssociationOptions {
             ae_access_control: access_control,
             ae_title,
             application_context_name,
@@ -255,7 +261,7 @@ where
     }
 
     /// Negotiate an association with the given TCP stream.
-    pub fn establish(&self, mut socket: TcpStream) -> Result<ScpAssociation> {
+    pub fn establish(&self, mut socket: TcpStream) -> Result<ServerAssociation> {
         ensure!(!self.abstract_syntax_uids.is_empty(), MissingAbstractSyntax);
 
         let max_pdu_length = self.max_pdu_length;
@@ -355,7 +361,7 @@ where
                 )
                 .context(SendResponse)?;
 
-                Ok(ScpAssociation {
+                Ok(ServerAssociation {
                     presentation_contexts,
                     max_pdu_length,
                     socket,
@@ -378,7 +384,7 @@ where
 /// A DICOM upper level association from the perspective
 /// of a service class provider (SCP).
 #[derive(Debug)]
-pub struct ScpAssociation {
+pub struct ServerAssociation {
     /// The accorded presentation contexts
     presentation_contexts: Vec<PresentationContextResult>,
     /// The maximum PDU length
@@ -387,7 +393,13 @@ pub struct ScpAssociation {
     socket: TcpStream,
 }
 
-impl ScpAssociation {
+impl ServerAssociation {
+
+    /// Obtain a view of the negotiated presentation contexts.
+    pub fn presentation_contexts(&self) -> &[PresentationContextResult] {
+        &self.presentation_contexts
+    }
+
     /// Send a PDU message to the other intervenient.
     pub fn send(&mut self, msg: &Pdu) -> Result<()> {
         write_pdu(&mut self.socket, &msg).context(Send)
@@ -405,7 +417,7 @@ impl ScpAssociation {
 ///
 /// ```
 /// # use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-/// # use dicom_ul::association::scp::is_supported_with_repo;
+/// # use dicom_ul::association::server::is_supported_with_repo;
 /// // Implicit VR Little Endian is guaranteed to be supported
 /// assert!(is_supported_with_repo(TransferSyntaxRegistry, "1.2.840.10008.1.2"));
 /// ```
@@ -421,7 +433,7 @@ where
 /// meaning that it can parse and decode DICOM data sets.
 ///
 /// ```
-/// # use dicom_ul::association::scp::is_supported;
+/// # use dicom_ul::association::server::is_supported;
 /// // Implicit VR Little Endian is guaranteed to be supported
 /// assert!(is_supported("1.2.840.10008.1.2"));
 /// ```
