@@ -3,7 +3,7 @@ use dicom::core::dicom_value;
 use dicom::object::{StandardDataDictionary, Tag, mem::InMemDicomObject};
 use dicom_ul::pdu;
 use dicom_ul::{
-    association::scu::ScuAssociationOptions,
+    association::client::ClientAssociationOptions,
     pdu::{PDataValueType, Pdu},
 };
 use pdu::PDataValue;
@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         calling_ae_title,
     } = App::from_args();
 
-    let mut association = ScuAssociationOptions::new()
+    let mut association = ClientAssociationOptions::new()
         .with_abstract_syntax("1.2.840.10008.1.1")
         .calling_ae_title(calling_ae_title)
         .called_ae_title(called_ae_title)
