@@ -33,8 +33,7 @@
 //! ```
 //!
 //! Finally, DICOM objects can be serialized back into DICOM encoded bytes.
-//! A method is provided for writing into a new DICOM file
-//! (ensure that it has a [file meta table] first).
+//! A method is provided for writing a file DICOM object into a new DICOM file.
 //!
 //! ```no_run
 //! # use dicom_object::{DefaultDicomObject, Tag};
@@ -44,16 +43,34 @@
 //! # }
 //! ```
 //!
+//! This method requires you to write a [file meta table] first.
+//! When creating a new DICOM object from scratch,
+//! use a [`FileMetaTableBuilder`] to construct the file meta group,
+//! then use `with_meta` or `with_exact_meta`:
+//!
 //! [file meta table]: crate::meta::FileMetaTable
+//! [`FileMetaTableBuilder`]: crate::meta::FileMetaTableBuilder
+//!
+//! ```no_run
+//! # use dicom_object::{InMemDicomObject, FileMetaTableBuilder};
+//! # fn something(obj: InMemDicomObject) -> Result<(), Box<dyn std::error::Error>> {
+//! let file_obj = obj.with_meta(
+//!     FileMetaTableBuilder::new()
+//!         // Implicit VR Little Endian
+//!         .transfer_syntax("1.2.840.10008.1.2")
+//!         // Computed Radiography image storage
+//!         .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1")
+//! )?;
+//! file_obj.write_to_file("0001_new.dcm")?;
+//! # Ok(())
+//! # }
+//! ```
 //!
 //! In order to write a plain DICOM data set,
 //! use one of the various `write_dataset` methods.
 //!
 //! ```
-//! # use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
-//! # use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-//! # use dicom_object::{StandardDataDictionary};
-//! # use dicom_object::mem::InMemDicomObject;
+//! # use dicom_object::InMemDicomObject;
 //! # use dicom_core::{DataElement, Tag, VR, dicom_value};
 //! # fn run() -> Result<(), Box<dyn std::error::Error>> {
 //! // build your object
@@ -67,7 +84,7 @@
 //!
 //! // write the object's data set
 //! let mut serialized = Vec::new();
-//! let ts = TransferSyntaxRegistry.get("1.2.840.10008.1.2.1").unwrap();
+//! let ts = dicom_transfer_syntax_registry::entries::EXPLICIT_VR_LITTLE_ENDIAN.erased();
 //! obj.write_dataset_with_ts(&mut serialized, &ts)?;
 //! assert!(!serialized.is_empty());
 //! # Ok(())
@@ -84,12 +101,13 @@ pub mod tokens;
 mod util;
 
 pub use crate::file::{from_reader, open_file};
-pub use crate::meta::FileMetaTable;
+pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
+pub use crate::mem::InMemDicomObject;
 pub use dicom_core::Tag;
 pub use dicom_dictionary_std::StandardDataDictionary;
 
 /// The default implementation of a root DICOM object.
-pub type DefaultDicomObject = RootDicomObject<mem::InMemDicomObject<StandardDataDictionary>>;
+pub type DefaultDicomObject = FileDicomObject<mem::InMemDicomObject<StandardDataDictionary>>;
 
 use dicom_core::header::Header;
 use dicom_encoding::{text::SpecificCharacterSet, transfer_syntax::TransferSyntaxIndex};
@@ -99,6 +117,18 @@ use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
+
+/// The current implementation class UID generically referring to DICOM-rs.
+///
+/// Automatically generated as per the standard, part 5, section B.2.
+///
+/// This UID is subject to changes in future versions.
+pub const IMPLEMENTATION_CLASS_UID: &str = "2.25.137038125948464847900039011591283709926";
+
+/// The current implementation version name generically referring to DICOM-rs.
+///
+/// This names is subject to changes in future versions.
+pub const IMPLEMENTATION_VERSION_NAME: &str = "DICOM-rs 0.3";
 
 /// Trait type for a DICOM object.
 /// This is a high-level abstraction where an object is accessed and
@@ -128,13 +158,13 @@ pub trait DicomObject {
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum Error {
-    #[snafu(display("Could not open file '{}': {}", filename.display(), source))]
+    #[snafu(display("Could not open file '{}'", filename.display()))]
     OpenFile {
         filename: std::path::PathBuf,
         backtrace: Backtrace,
         source: std::io::Error,
     },
-    #[snafu(display("Could not read from file '{}': {}", filename.display(), source))]
+    #[snafu(display("Could not read from file '{}'", filename.display()))]
     ReadFile {
         filename: std::path::PathBuf,
         backtrace: Backtrace,
@@ -207,35 +237,54 @@ pub enum Error {
     },
     #[snafu(display("Premature data set end"))]
     PrematureEnd { backtrace: Backtrace },
+    /// Could not build file meta table
+    BuildMetaTable {
+        #[snafu(backtrace)]
+        source: crate::meta::Error,
+    },
+    /// Could not prepare file meta table
+    PrepareMetaTable {
+        source: dicom_core::value::CastValueError,
+        backtrace: Backtrace,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/** A root DICOM object contains additional meta information about the object
- * (such as the DICOM file's meta header).
- */
+/// A root DICOM object contains additional meta information about the object
+/// in a separate table.
+#[deprecated(since = "0.4.0", note = "use `FileDicomObject` instead")]
+pub type RootDicomObject<O> = FileDicomObject<O>;
+
+/// A root DICOM object retrieved from a standard DICOM file,
+/// containing additional information from the file meta group
+/// in a separate table value.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RootDicomObject<T> {
+pub struct FileDicomObject<O> {
     meta: FileMetaTable,
-    obj: T,
+    obj: O,
 }
 
-impl<T> RootDicomObject<T> {
+impl<O> FileDicomObject<O> {
     /// Retrieve the processed meta header table.
     pub fn meta(&self) -> &FileMetaTable {
         &self.meta
     }
 
     /// Retrieve the inner DICOM object structure, discarding the meta table.
-    pub fn into_inner(self) -> T {
+    pub fn into_inner(self) -> O {
         self.obj
     }
 }
 
-impl<T> RootDicomObject<T>
+impl<O> FileDicomObject<O>
 where
-    for<'a> &'a T: IntoTokens,
+    for<'a> &'a O: IntoTokens,
 {
+    /// Write the entire object as a DICOM file
+    /// into the given file path.
+    /// Preamble, magic code, and file meta group will be included
+    /// before the inner object.
     pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let path = path.as_ref();
         let file = File::create(path).context(WriteFile { filename: path })?;
@@ -272,6 +321,8 @@ where
 
     /// Write the entire object as a DICOM file
     /// into the given writer.
+    /// Preamble, magic code, and file meta group will be included
+    /// before the inner object.
     pub fn write_all<W: Write>(&self, to: W) -> Result<()> {
         let mut to = BufWriter::new(to);
 
@@ -302,6 +353,13 @@ where
         Ok(())
     }
 
+    /// Write the file meta group set into the given writer.
+    ///
+    /// This is equivalent to `self.meta().write(to)`.
+    pub fn write_meta<W: Write>(&self, to: W) -> Result<()> {
+        self.meta.write(to).context(PrintMetaDataSet)
+    }
+
     /// Write the inner data set into the given writer,
     /// without preamble, magic code, nor file meta group.
     ///
@@ -328,25 +386,25 @@ where
     }
 }
 
-impl<T> ::std::ops::Deref for RootDicomObject<T> {
-    type Target = T;
+impl<O> ::std::ops::Deref for FileDicomObject<O> {
+    type Target = O;
 
     fn deref(&self) -> &Self::Target {
         &self.obj
     }
 }
 
-impl<T> ::std::ops::DerefMut for RootDicomObject<T> {
+impl<O> ::std::ops::DerefMut for FileDicomObject<O> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.obj
     }
 }
 
-impl<T> DicomObject for RootDicomObject<T>
+impl<O> DicomObject for FileDicomObject<O>
 where
-    T: DicomObject,
+    O: DicomObject,
 {
-    type Element = <T as DicomObject>::Element;
+    type Element = <O as DicomObject>::Element;
 
     fn element(&self, tag: Tag) -> Result<Self::Element> {
         self.obj.element(tag)
@@ -361,11 +419,11 @@ where
     }
 }
 
-impl<'a, T: 'a> DicomObject for &'a RootDicomObject<T>
+impl<'a, O: 'a> DicomObject for &'a FileDicomObject<O>
 where
-    T: DicomObject,
+    O: DicomObject,
 {
-    type Element = <T as DicomObject>::Element;
+    type Element = <O as DicomObject>::Element;
 
     fn element(&self, tag: Tag) -> Result<Self::Element> {
         self.obj.element(tag)
@@ -376,12 +434,12 @@ where
     }
 }
 
-impl<T> IntoIterator for RootDicomObject<T>
+impl<O> IntoIterator for FileDicomObject<O>
 where
-    T: IntoIterator,
+    O: IntoIterator,
 {
-    type Item = <T as IntoIterator>::Item;
-    type IntoIter = <T as IntoIterator>::IntoIter;
+    type Item = <O as IntoIterator>::Item;
+    type IntoIter = <O as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
         self.obj.into_iter()
@@ -391,7 +449,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::meta::FileMetaTableBuilder;
-    use crate::RootDicomObject;
+    use crate::FileDicomObject;
 
     #[test]
     fn smoke_test() {
@@ -406,11 +464,11 @@ mod tests {
             .implementation_class_uid("1.2.345.6.7890.1.234")
             .build()
             .unwrap();
-        let obj = RootDicomObject::new_empty_with_meta(meta);
+        let obj = FileDicomObject::new_empty_with_meta(meta);
 
         obj.write_to_file(FILE_NAME).unwrap();
 
-        let obj2 = RootDicomObject::open_file(FILE_NAME).unwrap();
+        let obj2 = FileDicomObject::open_file(FILE_NAME).unwrap();
 
         assert_eq!(obj, obj2);
 

@@ -12,6 +12,8 @@ use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::io::{Read, Write};
 
+use crate::{IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME};
+
 const DICM_MAGIC_CODE: [u8; 4] = [b'D', b'I', b'C', b'M'];
 
 #[derive(Debug, Snafu)]
@@ -94,9 +96,13 @@ type Result<T> = std::result::Result<T, Error>;
 /// DICOM File Meta Information Table.
 ///
 /// This data type contains the relevant parts of the file meta information table, as
-/// specified in [1].
+/// specified in [part 6, chapter 7][1] of the standard.
+///
+/// Creating a new file meta table from scratch
+/// is more easily done using a [`FileMetaTableBuilder`].
 ///
 /// [1]: http://dicom.nema.org/medical/dicom/current/output/chtml/part06/chapter_7.html
+/// [`FileMetaTableBuilder`]: crate::meta::FileMetaTableBuilder
 #[derive(Debug, Clone, PartialEq)]
 pub struct FileMetaTable {
     /// File Meta Information Group Length
@@ -623,9 +629,13 @@ impl FileMetaTableBuilder {
         let transfer_syntax = self.transfer_syntax.context(MissingElement {
             alias: "TransferSyntax",
         })?;
-        let implementation_class_uid = self.implementation_class_uid.context(MissingElement {
-            alias: "ImplementationClassUID",
-        })?;
+        let mut implementation_version_name = self.implementation_version_name;
+        let implementation_class_uid = self.implementation_class_uid.unwrap_or_else(|| {
+            // override implementation version name
+            implementation_version_name = Some(IMPLEMENTATION_VERSION_NAME.to_string());
+
+            IMPLEMENTATION_CLASS_UID.to_string()
+        });
 
         fn dicom_len<T: AsRef<str>>(x: T) -> u32 {
             let o = x.as_ref().len() as u32;
@@ -650,8 +660,7 @@ impl FileMetaTableBuilder {
                     + dicom_len(&transfer_syntax)
                     + 8
                     + dicom_len(&implementation_class_uid)
-                    + self
-                        .implementation_version_name
+                    + implementation_version_name
                         .as_ref()
                         .map(|s| 8 + s.len() as u32)
                         .unwrap_or(0)
@@ -690,7 +699,7 @@ impl FileMetaTableBuilder {
             media_storage_sop_instance_uid,
             transfer_syntax,
             implementation_class_uid,
-            implementation_version_name: self.implementation_version_name,
+            implementation_version_name,
             source_application_entity_title: self.source_application_entity_title,
             sending_application_entity_title: self.sending_application_entity_title,
             receiving_application_entity_title: self.receiving_application_entity_title,
@@ -702,6 +711,8 @@ impl FileMetaTableBuilder {
 
 #[cfg(test)]
 mod tests {
+    use crate::{IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME};
+
     use super::{FileMetaTable, FileMetaTableBuilder};
     use dicom_core::value::Value;
     use dicom_core::{dicom_value, DataElement, Tag, VR};
@@ -810,6 +821,40 @@ mod tests {
             implementation_class_uid: "1.2.345.6.7890.1.234".to_owned(),
             implementation_version_name: Some("RUSTY_DICOM_269 ".to_owned()),
             source_application_entity_title: Some("".to_owned()),
+            sending_application_entity_title: None,
+            receiving_application_entity_title: None,
+            private_information_creator_uid: None,
+            private_information: None,
+        };
+
+        assert_eq!(table.information_group_length, gt.information_group_length);
+        assert_eq!(table, gt);
+    }
+
+    /// Build a file meta table with the minimum set of parameters.
+    #[test]
+    fn create_meta_table_with_builder_minimal() {
+        let table = FileMetaTableBuilder::new()
+            .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1")
+            .media_storage_sop_instance_uid(
+                "1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567",
+            )
+            .transfer_syntax("1.2.840.10008.1.2")
+            .build()
+            .unwrap();
+
+        let gt = FileMetaTable {
+            information_group_length: 154
+                + IMPLEMENTATION_CLASS_UID.len() as u32
+                + IMPLEMENTATION_VERSION_NAME.len() as u32,
+            information_version: [0u8, 1u8],
+            media_storage_sop_class_uid: "1.2.840.10008.5.1.4.1.1.1\0".to_owned(),
+            media_storage_sop_instance_uid:
+                "1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567\0".to_owned(),
+            transfer_syntax: "1.2.840.10008.1.2\0".to_owned(),
+            implementation_class_uid: IMPLEMENTATION_CLASS_UID.to_owned(),
+            implementation_version_name: Some(IMPLEMENTATION_VERSION_NAME.to_owned()),
+            source_application_entity_title: None,
             sending_application_entity_title: None,
             receiving_application_entity_title: None,
             private_information_creator_uid: None,

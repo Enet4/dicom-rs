@@ -30,3 +30,4 @@ snafu = "0.6.8"
 
 [dev-dependencies]
 dicom-test-files = "0.2.0"
+tempfile = "3.2.0"
