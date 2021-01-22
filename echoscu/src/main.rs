@@ -20,6 +20,12 @@ struct App {
     /// the C-ECHO message ID
     #[structopt(short = "m", long = "message-id", default_value = "1")]
     message_id: u16,
+    /// the calling AE title
+    #[structopt(long = "calling-ae-title", default_value = "ECHOSCU")]
+    calling_ae_title: String,
+    /// the called AE title
+    #[structopt(long = "called-ae-title", default_value = "ANY-SCP")]
+    called_ae_title: String,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -27,10 +33,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         addr,
         verbose,
         message_id,
+        called_ae_title,
+        calling_ae_title,
     } = App::from_args();
 
     let mut association = ScuAssociationOptions::new()
         .with_abstract_syntax("1.2.840.10008.1.1")
+        .calling_ae_title(calling_ae_title)
+        .called_ae_title(called_ae_title)
         .establish(&addr)?;
 
     if verbose {
@@ -63,7 +73,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let pdu = association.receive()?;
-
 
     match pdu {
         Pdu::PData { data } => {
