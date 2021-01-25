@@ -55,9 +55,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let meta = dicom_file.meta();
 
-    let storage_sop_class_uid = meta.media_storage_sop_class_uid.clone();
-    let storage_sop_instance_uid = meta.media_storage_sop_instance_uid.clone();
-    let transfer_syntax = meta.transfer_syntax.clone();
+    let storage_sop_class_uid = &meta.media_storage_sop_class_uid;
+    let storage_sop_instance_uid = &meta.media_storage_sop_instance_uid;
+    let transfer_syntax = &meta.transfer_syntax;
 
     if verbose {
         println!("Establishing association with '{}'...", &addr);

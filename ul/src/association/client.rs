@@ -90,24 +90,24 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// via the method `with_transfer_syntax`.
 ///
 #[derive(Debug, Clone)]
-pub struct ClientAssociationOptions {
+pub struct ClientAssociationOptions<'a> {
     /// the calling AE title
-    calling_ae_title: Cow<'static, str>,
+    calling_ae_title: Cow<'a, str>,
     /// the called AE title
-    called_ae_title: Cow<'static, str>,
+    called_ae_title: Cow<'a, str>,
     /// the requested application context name
-    application_context_name: Cow<'static, str>,
+    application_context_name: Cow<'a, str>,
     /// the list of requested abstract syntaxes
-    abstract_syntax_uids: Vec<Cow<'static, str>>,
+    abstract_syntax_uids: Vec<Cow<'a, str>>,
     /// the list of requested transfer syntaxes
-    transfer_syntax_uids: Vec<Cow<'static, str>>,
+    transfer_syntax_uids: Vec<Cow<'a, str>>,
     /// the expected protocol version
     protocol_version: u16,
     /// the maximum PDU length
     max_pdu_length: u32,
 }
 
-impl Default for ClientAssociationOptions {
+impl<'a> Default for ClientAssociationOptions<'a> {
     fn default() -> Self {
         ClientAssociationOptions {
             /// the calling AE title
@@ -126,7 +126,7 @@ impl Default for ClientAssociationOptions {
     }
 }
 
-impl ClientAssociationOptions {
+impl<'a> ClientAssociationOptions<'a> {
     /// Create a new set of options for establishing an association.
     pub fn new() -> Self {
         Self::default()
@@ -138,7 +138,7 @@ impl ClientAssociationOptions {
     /// The default is `THIS-SCU`.
     pub fn calling_ae_title<T>(mut self, calling_ae_title: T) -> Self
     where
-        T: Into<Cow<'static, str>>,
+        T: Into<Cow<'a, str>>,
     {
         self.calling_ae_title = calling_ae_title.into();
         self
@@ -150,7 +150,7 @@ impl ClientAssociationOptions {
     /// The default is `ANY-SCP`.
     pub fn called_ae_title<T>(mut self, called_ae_title: T) -> Self
     where
-        T: Into<Cow<'static, str>>,
+        T: Into<Cow<'a, str>>,
     {
         self.called_ae_title = called_ae_title.into();
         self
@@ -160,7 +160,7 @@ impl ClientAssociationOptions {
     /// in the list of proposed presentation contexts.
     pub fn with_abstract_syntax<T>(mut self, abstract_syntax_uid: T) -> Self
     where
-        T: Into<Cow<'static, str>>,
+        T: Into<Cow<'a, str>>,
     {
         self.abstract_syntax_uids.push(abstract_syntax_uid.into());
         self
@@ -169,7 +169,7 @@ impl ClientAssociationOptions {
     /// Include this transfer syntax in each proposed presentation context.
     pub fn with_transfer_syntax<T>(mut self, transfer_syntax_uid: T) -> Self
     where
-        T: Into<Cow<'static, str>>,
+        T: Into<Cow<'a, str>>,
     {
         self.transfer_syntax_uids.push(transfer_syntax_uid.into());
         self

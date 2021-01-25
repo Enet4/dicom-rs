@@ -139,24 +139,24 @@ impl AccessControl for AcceptCalledAeTitle {
 ///
 /// [1]: dicom_transfer_syntax_registry
 #[derive(Debug, Clone)]
-pub struct ServerAssociationOptions<A> {
+pub struct ServerAssociationOptions<'a, A> {
     /// the application entity access control policy
     ae_access_control: A,
     /// the AE title of this DICOM node
-    ae_title: Cow<'static, str>,
+    ae_title: Cow<'a, str>,
     /// the requested application context name
-    application_context_name: Cow<'static, str>,
+    application_context_name: Cow<'a, str>,
     /// the list of requested abstract syntaxes
-    abstract_syntax_uids: Vec<Cow<'static, str>>,
+    abstract_syntax_uids: Vec<Cow<'a, str>>,
     /// the list of requested transfer syntaxes
-    transfer_syntax_uids: Vec<Cow<'static, str>>,
+    transfer_syntax_uids: Vec<Cow<'a, str>>,
     /// the expected protocol version
     protocol_version: u16,
     /// the maximum PDU length
     max_pdu_length: u32,
 }
 
-impl Default for ServerAssociationOptions<AcceptAny> {
+impl<'a> Default for ServerAssociationOptions<'a, AcceptAny> {
     fn default() -> Self {
         ServerAssociationOptions {
             ae_access_control: AcceptAny,
@@ -170,14 +170,14 @@ impl Default for ServerAssociationOptions<AcceptAny> {
     }
 }
 
-impl ServerAssociationOptions<AcceptAny> {
+impl<'a> ServerAssociationOptions<'a, AcceptAny> {
     /// Create a new set of options for establishing an association.
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<A> ServerAssociationOptions<A>
+impl<'a, A> ServerAssociationOptions<'a, A>
 where
     A: AccessControl,
 {
@@ -185,7 +185,7 @@ where
     /// regardless of the specified AE titles.
     ///
     /// This is the default behavior when the options are first created.
-    pub fn accept_any(self) -> ServerAssociationOptions<AcceptAny> {
+    pub fn accept_any(self) -> ServerAssociationOptions<'a, AcceptAny> {
         self.ae_access_control(AcceptAny)
     }
 
@@ -194,7 +194,7 @@ where
     ///
     /// The default is to accept any requesting node
     /// regardless of the specified AE titles.
-    pub fn accept_called_ae_title(self) -> ServerAssociationOptions<AcceptCalledAeTitle> {
+    pub fn accept_called_ae_title(self) -> ServerAssociationOptions<'a, AcceptCalledAeTitle> {
         self.ae_access_control(AcceptCalledAeTitle)
     }
 
@@ -202,7 +202,7 @@ where
     ///
     /// The default is to accept any requesting node
     /// regardless of the specified AE titles.
-    pub fn ae_access_control<P>(self, access_control: P) -> ServerAssociationOptions<P> {
+    pub fn ae_access_control<P>(self, access_control: P) -> ServerAssociationOptions<'a, P> {
         let ServerAssociationOptions {
             ae_title,
             application_context_name,
@@ -229,7 +229,7 @@ where
     /// The default is `THIS-SCP`.
     pub fn ae_title<T>(mut self, ae_title: T) -> Self
     where
-        T: Into<Cow<'static, str>>,
+        T: Into<Cow<'a, str>>,
     {
         self.ae_title = ae_title.into();
         self
@@ -239,7 +239,7 @@ where
     /// in the list of proposed presentation contexts.
     pub fn with_abstract_syntax<T>(mut self, abstract_syntax_uid: T) -> Self
     where
-        T: Into<Cow<'static, str>>,
+        T: Into<Cow<'a, str>>,
     {
         self.abstract_syntax_uids.push(abstract_syntax_uid.into());
         self
@@ -248,7 +248,7 @@ where
     /// Include this transfer syntax in each proposed presentation context.
     pub fn with_transfer_syntax<T>(mut self, transfer_syntax_uid: T) -> Self
     where
-        T: Into<Cow<'static, str>>,
+        T: Into<Cow<'a, str>>,
     {
         self.transfer_syntax_uids.push(transfer_syntax_uid.into());
         self
