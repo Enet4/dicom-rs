@@ -427,6 +427,19 @@ impl ServerAssociation {
         let _ = self.socket.shutdown(std::net::Shutdown::Both);
         out
     }
+
+    /// Obtain access to the inner TCP stream
+    /// connected to the association acceptor.
+    ///
+    /// This can be used to send the PDU in semantic fragments of the message,
+    /// thus using less memory.
+    ///
+    /// **Note:** reading and writing should be done with care
+    /// to avoid inconsistencies in the association state.
+    /// Do not call `send` and `receive` while not in a PDU boundary.
+    pub fn inner_stream(&mut self) -> &mut TcpStream {
+        &mut self.socket
+    }
 }
 
 /// Check that a transfer syntax repository
