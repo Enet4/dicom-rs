@@ -6,8 +6,9 @@ use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use snafu::{ensure, ResultExt, Snafu};
 
 use crate::pdu::{
-    reader::read_pdu, writer::write_pdu, AssociationRJResult, AssociationRJServiceUserReason,
-    AssociationRJSource, Pdu, PresentationContextResult, PresentationContextResultReason,
+    reader::read_pdu, writer::write_pdu, AbortRQServiceProviderReason, AbortRQSource,
+    AssociationRJResult, AssociationRJServiceUserReason, AssociationRJSource, Pdu,
+    PresentationContextResult, PresentationContextResultReason,
 };
 
 #[derive(Debug, Snafu)]
@@ -394,7 +395,6 @@ pub struct ServerAssociation {
 }
 
 impl ServerAssociation {
-
     /// Obtain a view of the negotiated presentation contexts.
     pub fn presentation_contexts(&self) -> &[PresentationContextResult] {
         &self.presentation_contexts
@@ -408,6 +408,24 @@ impl ServerAssociation {
     /// Read a PDU message from the other intervenient.
     pub fn receive(&mut self) -> Result<Pdu> {
         read_pdu(&mut self.socket, self.max_pdu_length).context(Receive)
+    }
+
+    /// Send a provider initiated abort message
+    /// and shut down the TCP connection,
+    /// terminating the association.
+    pub fn abort(mut self) -> Result<()> {
+        let out = write_pdu(
+            &mut self.socket,
+            &Pdu::AbortRQ {
+                source: AbortRQSource::ServiceProvider(
+                    AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu,
+                ),
+            },
+        )
+        .context(Send);
+
+        let _ = self.socket.shutdown(std::net::Shutdown::Both);
+        out
     }
 }
 

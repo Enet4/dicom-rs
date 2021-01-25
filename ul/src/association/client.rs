@@ -5,8 +5,8 @@ use std::{
 };
 
 use crate::pdu::{
-    reader::read_pdu, writer::write_pdu, AssociationRJResult, AssociationRJSource, Pdu,
-    PresentationContextProposed, PresentationContextResultReason,
+    reader::read_pdu, writer::write_pdu, AbortRQSource, AssociationRJResult, AssociationRJSource,
+    Pdu, PresentationContextProposed, PresentationContextResultReason,
 };
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
@@ -324,8 +324,20 @@ impl ClientAssociation {
         read_pdu(&mut self.socket, self.max_pdu_length).context(Receive)
     }
 
-    /// Gracefully release the association.
-    pub fn release(&mut self) -> Result<()> {
+    /// Gracefully terminate the association by exchanging release messages
+    /// and then shutting down the TCP connection.
+    pub fn release(mut self) -> Result<()> {
+        let out = self.release_impl();
+        let _ = self.socket.shutdown(std::net::Shutdown::Both);
+        out
+    }
+
+    /// Release implementation function,
+    /// which tries to send a release request and receive a release response.
+    /// This is in a separate private function because
+    /// terminating a connection should still close the connection
+    /// if the exchange fails.
+    fn release_impl(&mut self) -> Result<()> {
         write_pdu(&mut self.socket, &Pdu::ReleaseRQ).context(Send)?;
 
         let pdu = read_pdu(&mut self.socket, self.max_pdu_length).context(Receive)?;
@@ -340,14 +352,28 @@ impl ClientAssociation {
             | pdu @ Pdu::ReleaseRQ { .. } => return UnexpectedResponse { pdu }.fail(),
             pdu @ Pdu::Unknown { .. } => return UnknownResponse { pdu }.fail(),
         }
+        Ok(())
+    }
+
+    /// Send an abort message and shut down the TCP connection,
+    /// terminating the association.
+    pub fn abort(mut self) -> Result<()> {
+        let out = write_pdu(
+            &mut self.socket,
+            &Pdu::AbortRQ {
+                source: AbortRQSource::ServiceUser,
+            },
+        )
+        .context(Send);
 
         let _ = self.socket.shutdown(std::net::Shutdown::Both);
-        Ok(())
+        out
     }
 }
 
 impl Drop for ClientAssociation {
     fn drop(&mut self) {
-        let _ = self.release();
+        let _ = self.release_impl();
+        let _ = self.socket.shutdown(std::net::Shutdown::Both);
     }
 }
