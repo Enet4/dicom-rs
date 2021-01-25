@@ -11,5 +11,6 @@ members = [
     "dcmdump",
     "ul",
     "scpproxy",
-    "echoscu"
+    "echoscu",
+    "storescu"
 ]
