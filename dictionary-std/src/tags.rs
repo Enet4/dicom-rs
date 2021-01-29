@@ -1,6 +1,7 @@
 //! Automatically generated. Edit at your own risk.
 //! Adapted from the DCMTK project.
 //! URL: https://raw.githubusercontent.com/DCMTK/dcmtk/master/dcmdata/data/dicom.dic
+//! License: https://github.com/DCMTK/dcmtk/blob/master/COPYRIGHT
 //! #  Copyright (C) 1994-2020, OFFIS e.V.
 
 use dicom_core::dictionary::{DictionaryEntryRef, TagRange, TagRange::*};
