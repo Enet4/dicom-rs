@@ -5,11 +5,9 @@ use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use snafu::{ensure, ResultExt, Snafu};
 
-use crate::pdu::{
-    reader::read_pdu, writer::write_pdu, AbortRQServiceProviderReason, AbortRQSource,
-    AssociationRJResult, AssociationRJServiceUserReason, AssociationRJSource, Pdu,
-    PresentationContextResult, PresentationContextResultReason,
-};
+use crate::pdu::{AbortRQServiceProviderReason, AbortRQSource, AssociationRJResult, AssociationRJServiceUserReason, AssociationRJSource, PDataValueType, Pdu, PresentationContextResult, PresentationContextResultReason, reader::read_pdu, writer::write_pdu};
+
+use super::pdata::PDataWriter;
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -426,6 +424,15 @@ impl ServerAssociation {
 
         let _ = self.socket.shutdown(std::net::Shutdown::Both);
         out
+    }
+
+    /// Prepare a P-Data writer for sending
+    /// one or more data item PDUs.
+    ///
+    /// Returns a writer which automatically
+    /// splits the inner data into separate PDUs if necessary.
+    pub fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut TcpStream> {
+        PDataWriter::new(&mut self.socket, presentation_context_id, self.max_pdu_length)
     }
 
     /// Obtain access to the inner TCP stream

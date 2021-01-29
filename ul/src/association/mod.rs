@@ -20,8 +20,11 @@
 pub mod server;
 pub mod client;
 
+pub(crate) mod pdata;
+
 pub use server::{ServerAssociation, ServerAssociationOptions};
 pub use client::{ClientAssociation, ClientAssociationOptions};
+pub use pdata::PDataWriter;
 
 /// A service class user or a provider.
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]

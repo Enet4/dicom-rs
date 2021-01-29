@@ -1,14 +1,10 @@
 //! Association acceptor module
-use std::{
-    borrow::Cow,
-    net::{TcpStream, ToSocketAddrs},
-};
+use std::{borrow::Cow, net::{TcpStream, ToSocketAddrs}};
 
-use crate::pdu::{
-    reader::read_pdu, writer::write_pdu, AbortRQSource, AssociationRJResult, AssociationRJSource,
-    Pdu, PresentationContextProposed, PresentationContextResultReason,
-};
+use crate::pdu::{AbortRQSource, AssociationRJResult, AssociationRJSource, PDataValueType, Pdu, PresentationContextProposed, PresentationContextResultReason, reader::read_pdu, writer::write_pdu};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
+
+use super::pdata::PDataWriter;
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -73,7 +69,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// ```no_run
 /// # use dicom_ul::association::client::ClientAssociationOptions;
-///
 /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// let association = ClientAssociationOptions::new()
 ///    .with_abstract_syntax("1.2.840.10008.1.1")
@@ -381,6 +376,15 @@ impl ClientAssociation {
     /// Do not call `send` and `receive` while not in a PDU boundary.
     pub fn inner_stream(&mut self) -> &mut TcpStream {
         &mut self.socket
+    }
+
+    /// Prepare a P-Data writer for sending
+    /// one or more data items.
+    ///
+    /// Returns a writer which automatically
+    /// splits the inner data into separate PDUs if necessary.
+    pub fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut TcpStream> {
+        PDataWriter::new(&mut self.socket, presentation_context_id, self.max_pdu_length)
     }
 }
 
