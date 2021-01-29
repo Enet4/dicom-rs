@@ -1,4 +1,7 @@
 //! Automatically generated. Edit at your own risk.
+//! Adapted from the DCMTK project.
+//! URL: https://raw.githubusercontent.com/DCMTK/dcmtk/master/dcmdata/data/dicom.dic
+//! #  Copyright (C) 1994-2020, OFFIS e.V.
 
 use dicom_core::dictionary::{DictionaryEntryRef, TagRange, TagRange::*};
 use dicom_core::Tag;
@@ -1921,6 +1924,21 @@ pub const GPS_DATE_STAMP: Tag = Tag(0x0016, 0x008D);
 /// GPSDifferential (0016,008E) IS 1 DICOM
 #[rustfmt::skip]
 pub const GPS_DIFFERENTIAL: Tag = Tag(0x0016, 0x008E);
+/// LightSourcePolarization (0016,1001) CS 1 DICOM
+#[rustfmt::skip]
+pub const LIGHT_SOURCE_POLARIZATION: Tag = Tag(0x0016, 0x1001);
+/// EmitterColorTemperature (0016,1002) DS 1 DICOM
+#[rustfmt::skip]
+pub const EMITTER_COLOR_TEMPERATURE: Tag = Tag(0x0016, 0x1002);
+/// ContactMethod (0016,1003) CS 1 DICOM
+#[rustfmt::skip]
+pub const CONTACT_METHOD: Tag = Tag(0x0016, 0x1003);
+/// ImmersionMedia (0016,1004) CS 1-n DICOM
+#[rustfmt::skip]
+pub const IMMERSION_MEDIA: Tag = Tag(0x0016, 0x1004);
+/// OpticalMagnificationFactor (0016,1005) DS 1 DICOM
+#[rustfmt::skip]
+pub const OPTICAL_MAGNIFICATION_FACTOR: Tag = Tag(0x0016, 0x1005);
 /// ContrastBolusAgent (0018,0010) LO 1 DICOM
 #[rustfmt::skip]
 pub const CONTRAST_BOLUS_AGENT: Tag = Tag(0x0018, 0x0010);
@@ -2707,6 +2725,9 @@ pub const OUTPUT_POWER: Tag = Tag(0x0018, 0x5000);
 /// TransducerData (0018,5010) LO 1-n DICOM
 #[rustfmt::skip]
 pub const TRANSDUCER_DATA: Tag = Tag(0x0018, 0x5010);
+/// TransducerIdentificationSequence (0018,5011) SQ 1 DICOM
+#[rustfmt::skip]
+pub const TRANSDUCER_IDENTIFICATION_SEQUENCE: Tag = Tag(0x0018, 0x5011);
 /// FocusDepth (0018,5012) DS 1 DICOM
 #[rustfmt::skip]
 pub const FOCUS_DEPTH: Tag = Tag(0x0018, 0x5012);
@@ -6256,6 +6277,27 @@ pub const CHANNEL_IDENTIFICATION_CODE: Tag = Tag(0x003A, 0x0301);
 /// ChannelMode (003A,0302) CS 1 DICOM
 #[rustfmt::skip]
 pub const CHANNEL_MODE: Tag = Tag(0x003A, 0x0302);
+/// MultiplexGroupUID (003A,0310) UI 1 DICOM
+#[rustfmt::skip]
+pub const MULTIPLEX_GROUP_UID: Tag = Tag(0x003A, 0x0310);
+/// PowerlineFrequency (003A,0311) DS 1 DICOM
+#[rustfmt::skip]
+pub const POWERLINE_FREQUENCY: Tag = Tag(0x003A, 0x0311);
+/// ChannelImpedanceSequence (003A,0312) SQ 1 DICOM
+#[rustfmt::skip]
+pub const CHANNEL_IMPEDANCE_SEQUENCE: Tag = Tag(0x003A, 0x0312);
+/// ImpedanceValue (003A,0313) DS 1 DICOM
+#[rustfmt::skip]
+pub const IMPEDANCE_VALUE: Tag = Tag(0x003A, 0x0313);
+/// ImpedanceMeasurementDateTime (003A,0314) DT 1 DICOM
+#[rustfmt::skip]
+pub const IMPEDANCE_MEASUREMENT_DATE_TIME: Tag = Tag(0x003A, 0x0314);
+/// ImpedanceMeasurementFrequency (003A,0315) DS 1 DICOM
+#[rustfmt::skip]
+pub const IMPEDANCE_MEASUREMENT_FREQUENCY: Tag = Tag(0x003A, 0x0315);
+/// ImpedanceMeasurementCurrentType (003A,0316) CS 1 DICOM
+#[rustfmt::skip]
+pub const IMPEDANCE_MEASUREMENT_CURRENT_TYPE: Tag = Tag(0x003A, 0x0316);
 /// ScheduledStationAETitle (0040,0001) AE 1-n DICOM
 #[rustfmt::skip]
 pub const SCHEDULED_STATION_AE_TITLE: Tag = Tag(0x0040, 0x0001);
@@ -6883,6 +6925,30 @@ pub const IDENTICAL_DOCUMENTS_SEQUENCE: Tag = Tag(0x0040, 0xA525);
 /// ContentSequence (0040,A730) SQ 1 DICOM
 #[rustfmt::skip]
 pub const CONTENT_SEQUENCE: Tag = Tag(0x0040, 0xA730);
+/// TabulatedValuesSequence (0040,A801) SQ 1 DICOM
+#[rustfmt::skip]
+pub const TABULATED_VALUES_SEQUENCE: Tag = Tag(0x0040, 0xA801);
+/// NumberOfTableRows (0040,A802) UL 1 DICOM
+#[rustfmt::skip]
+pub const NUMBER_OF_TABLE_ROWS: Tag = Tag(0x0040, 0xA802);
+/// NumbeOfTableColumns (0040,A803) UL 1 DICOM
+#[rustfmt::skip]
+pub const NUMBE_OF_TABLE_COLUMNS: Tag = Tag(0x0040, 0xA803);
+/// TableRowNumber (0040,A804) UL 1 DICOM
+#[rustfmt::skip]
+pub const TABLE_ROW_NUMBER: Tag = Tag(0x0040, 0xA804);
+/// TableColumnNumber (0040,A805) UL 1 DICOM
+#[rustfmt::skip]
+pub const TABLE_COLUMN_NUMBER: Tag = Tag(0x0040, 0xA805);
+/// TableRowDefinitionSequence (0040,A806) SQ 1 DICOM
+#[rustfmt::skip]
+pub const TABLE_ROW_DEFINITION_SEQUENCE: Tag = Tag(0x0040, 0xA806);
+/// TableColumnDefinitionSequence (0040,A807) SQ 1 DICOM
+#[rustfmt::skip]
+pub const TABLE_COLUMN_DEFINITION_SEQUENCE: Tag = Tag(0x0040, 0xA807);
+/// CellValuesSequence (0040,A808) SQ 1 DICOM
+#[rustfmt::skip]
+pub const CELL_VALUES_SEQUENCE: Tag = Tag(0x0040, 0xA808);
 /// WaveformAnnotationSequence (0040,B020) SQ 1 DICOM
 #[rustfmt::skip]
 pub const WAVEFORM_ANNOTATION_SEQUENCE: Tag = Tag(0x0040, 0xB020);
@@ -8275,6 +8341,12 @@ pub const MODEL_MIRRORING: Tag = Tag(0x0068, 0x7002);
 /// ModelUsageCodeSequence (0068,7003) SQ 1 DICOM
 #[rustfmt::skip]
 pub const MODEL_USAGE_CODE_SEQUENCE: Tag = Tag(0x0068, 0x7003);
+/// ModelGroupUID (0068,7004) UI 1 DICOM
+#[rustfmt::skip]
+pub const MODEL_GROUP_UID: Tag = Tag(0x0068, 0x7004);
+/// RelativeURIReferenceWithinEncapsulatedDocument (0068,7005) UR 1 DICOM
+#[rustfmt::skip]
+pub const RELATIVE_URI_REFERENCE_WITHIN_ENCAPSULATED_DOCUMENT: Tag = Tag(0x0068, 0x7005);
 /// GraphicAnnotationSequence (0070,0001) SQ 1 DICOM
 #[rustfmt::skip]
 pub const GRAPHIC_ANNOTATION_SEQUENCE: Tag = Tag(0x0070, 0x0001);
@@ -8995,6 +9067,15 @@ pub const SELECTOR_UI_VALUE: Tag = Tag(0x0072, 0x007F);
 /// SelectorCodeSequenceValue (0072,0080) SQ 1 DICOM
 #[rustfmt::skip]
 pub const SELECTOR_CODE_SEQUENCE_VALUE: Tag = Tag(0x0072, 0x0080);
+/// SelectorOVValue (0072,0081) OV 1 DICOM
+#[rustfmt::skip]
+pub const SELECTOR_OV_VALUE: Tag = Tag(0x0072, 0x0081);
+/// SelectorSVValue (0072,0082) SV 1-n DICOM
+#[rustfmt::skip]
+pub const SELECTOR_SV_VALUE: Tag = Tag(0x0072, 0x0082);
+/// SelectorUVValue (0072,0083) UV 1-n DICOM
+#[rustfmt::skip]
+pub const SELECTOR_UV_VALUE: Tag = Tag(0x0072, 0x0083);
 /// NumberOfScreens (0072,0100) US 1 DICOM
 #[rustfmt::skip]
 pub const NUMBER_OF_SCREENS: Tag = Tag(0x0072, 0x0100);
@@ -11611,6 +11692,9 @@ pub const SCAN_SPOT_METERSET_WEIGHTS: Tag = Tag(0x300A, 0x0396);
 /// ScanningSpotSize (300A,0398) FL 2 DICOM
 #[rustfmt::skip]
 pub const SCANNING_SPOT_SIZE: Tag = Tag(0x300A, 0x0398);
+/// ScanSpotSizesDelivered (300A,0399) FL 2-2n DICOM
+#[rustfmt::skip]
+pub const SCAN_SPOT_SIZES_DELIVERED: Tag = Tag(0x300A, 0x0399);
 /// NumberOfPaintings (300A,039A) IS 1 DICOM
 #[rustfmt::skip]
 pub const NUMBER_OF_PAINTINGS: Tag = Tag(0x300A, 0x039A);
@@ -12160,6 +12244,129 @@ pub const BEAM_AREA_LIMIT_SEQUENCE: Tag = Tag(0x300A, 0x0689);
 /// ReferencedRTPrescriptionSequence (300A,068A) SQ 1 DICOM
 #[rustfmt::skip]
 pub const REFERENCED_RT_PRESCRIPTION_SEQUENCE: Tag = Tag(0x300A, 0x068A);
+/// TreatmentSessionUID (300A,0700) UI 1 DICOM
+#[rustfmt::skip]
+pub const TREATMENT_SESSION_UID: Tag = Tag(0x300A, 0x0700);
+/// RTRadiationUsage (300A,0701) CS 1 DICOM
+#[rustfmt::skip]
+pub const RT_RADIATION_USAGE: Tag = Tag(0x300A, 0x0701);
+/// ReferencedRTRadiationSetSequence (300A,0702) SQ 1 DICOM
+#[rustfmt::skip]
+pub const REFERENCED_RT_RADIATION_SET_SEQUENCE: Tag = Tag(0x300A, 0x0702);
+/// ReferencedRTRadiationRecordSequence (300A,0703) SQ 1 DICOM
+#[rustfmt::skip]
+pub const REFERENCED_RT_RADIATION_RECORD_SEQUENCE: Tag = Tag(0x300A, 0x0703);
+/// RTRadiationSetDeliveryNumber (300A,0704) US 1 DICOM
+#[rustfmt::skip]
+pub const RT_RADIATION_SET_DELIVERY_NUMBER: Tag = Tag(0x300A, 0x0704);
+/// ClinicalFractionNumber (300A,0705) US 1 DICOM
+#[rustfmt::skip]
+pub const CLINICAL_FRACTION_NUMBER: Tag = Tag(0x300A, 0x0705);
+/// RTTreatmentFractionCompletionStatus (300A,0706) CS 1 DICOM
+#[rustfmt::skip]
+pub const RT_TREATMENT_FRACTION_COMPLETION_STATUS: Tag = Tag(0x300A, 0x0706);
+/// RTRadiationSetUsage (300A,0707) CS 1 DICOM
+#[rustfmt::skip]
+pub const RT_RADIATION_SET_USAGE: Tag = Tag(0x300A, 0x0707);
+/// TreatmentDeliveryContinuationFlag (300A,0708) CS 1 DICOM
+#[rustfmt::skip]
+pub const TREATMENT_DELIVERY_CONTINUATION_FLAG: Tag = Tag(0x300A, 0x0708);
+/// TreatmentRecordContentOrigin (300A,0709) CS 1 DICOM
+#[rustfmt::skip]
+pub const TREATMENT_RECORD_CONTENT_ORIGIN: Tag = Tag(0x300A, 0x0709);
+/// RTTreatmentTerminationStatus (300A,0714) CS 1 DICOM
+#[rustfmt::skip]
+pub const RT_TREATMENT_TERMINATION_STATUS: Tag = Tag(0x300A, 0x0714);
+/// RTTreatmentTerminationReasonCodeSequence (300A,0715) SQ 1 DICOM
+#[rustfmt::skip]
+pub const RT_TREATMENT_TERMINATION_REASON_CODE_SEQUENCE: Tag = Tag(0x300A, 0x0715);
+/// MachineSpecificTreatmentTerminationCodeSequence (300A,0716) SQ 1 DICOM
+#[rustfmt::skip]
+pub const MACHINE_SPECIFIC_TREATMENT_TERMINATION_CODE_SEQUENCE: Tag = Tag(0x300A, 0x0716);
+/// RTRadiationSalvageRecordControlPointSequence (300A,0722) SQ 1 DICOM
+#[rustfmt::skip]
+pub const RT_RADIATION_SALVAGE_RECORD_CONTROL_POINT_SEQUENCE: Tag = Tag(0x300A, 0x0722);
+/// StartingMetersetValueKnownFlag (300A,0723) CS 1 DICOM
+#[rustfmt::skip]
+pub const STARTING_METERSET_VALUE_KNOWN_FLAG: Tag = Tag(0x300A, 0x0723);
+/// TreatmentTerminationDescription (300A,0730) ST 1 DICOM
+#[rustfmt::skip]
+pub const TREATMENT_TERMINATION_DESCRIPTION: Tag = Tag(0x300A, 0x0730);
+/// TreatmentToleranceViolationSequence (300A,0731) SQ 1 DICOM
+#[rustfmt::skip]
+pub const TREATMENT_TOLERANCE_VIOLATION_SEQUENCE: Tag = Tag(0x300A, 0x0731);
+/// TreatmentToleranceViolationCategory (300A,0732) CS 1 DICOM
+#[rustfmt::skip]
+pub const TREATMENT_TOLERANCE_VIOLATION_CATEGORY: Tag = Tag(0x300A, 0x0732);
+/// TreatmentToleranceViolationAttributeSequence (300A,0733) SQ 1 DICOM
+#[rustfmt::skip]
+pub const TREATMENT_TOLERANCE_VIOLATION_ATTRIBUTE_SEQUENCE: Tag = Tag(0x300A, 0x0733);
+/// TreatmentToleranceViolationDescription (300A,0734) ST 1 DICOM
+#[rustfmt::skip]
+pub const TREATMENT_TOLERANCE_VIOLATION_DESCRIPTION: Tag = Tag(0x300A, 0x0734);
+/// TreatmentToleranceViolationIdentification (300A,0735) ST 1 DICOM
+#[rustfmt::skip]
+pub const TREATMENT_TOLERANCE_VIOLATION_IDENTIFICATION: Tag = Tag(0x300A, 0x0735);
+/// TreatmentToleranceViolationDateTime (300A,0736) DT 1 DICOM
+#[rustfmt::skip]
+pub const TREATMENT_TOLERANCE_VIOLATION_DATE_TIME: Tag = Tag(0x300A, 0x0736);
+/// RecordedRTControlPointDateTime (300A,073A) DT 1 DICOM
+#[rustfmt::skip]
+pub const RECORDED_RT_CONTROL_POINT_DATE_TIME: Tag = Tag(0x300A, 0x073A);
+/// ReferencedRadiationRTControlPointIndex (300A,073B) US 1 DICOM
+#[rustfmt::skip]
+pub const REFERENCED_RADIATION_RT_CONTROL_POINT_INDEX: Tag = Tag(0x300A, 0x073B);
+/// AlternateValueSequence (300A,073E) SQ 1 DICOM
+#[rustfmt::skip]
+pub const ALTERNATE_VALUE_SEQUENCE: Tag = Tag(0x300A, 0x073E);
+/// ConfirmationSequence (300A,073F) SQ 1 DICOM
+#[rustfmt::skip]
+pub const CONFIRMATION_SEQUENCE: Tag = Tag(0x300A, 0x073F);
+/// InterlockSequence (300A,0740) SQ 1 DICOM
+#[rustfmt::skip]
+pub const INTERLOCK_SEQUENCE: Tag = Tag(0x300A, 0x0740);
+/// InterlockDateTime (300A,0741) DT 1 DICOM
+#[rustfmt::skip]
+pub const INTERLOCK_DATE_TIME: Tag = Tag(0x300A, 0x0741);
+/// InterlockDescription (300A,0742) ST 1 DICOM
+#[rustfmt::skip]
+pub const INTERLOCK_DESCRIPTION: Tag = Tag(0x300A, 0x0742);
+/// InterlockOriginatingDeviceSequence (300A,0743) SQ 1 DICOM
+#[rustfmt::skip]
+pub const INTERLOCK_ORIGINATING_DEVICE_SEQUENCE: Tag = Tag(0x300A, 0x0743);
+/// InterlockCodeSequence (300A,0744) SQ 1 DICOM
+#[rustfmt::skip]
+pub const INTERLOCK_CODE_SEQUENCE: Tag = Tag(0x300A, 0x0744);
+/// InterlockResolutionCodeSequence (300A,0745) SQ 1 DICOM
+#[rustfmt::skip]
+pub const INTERLOCK_RESOLUTION_CODE_SEQUENCE: Tag = Tag(0x300A, 0x0745);
+/// InterlockResolutionUserSequence (300A,0746) SQ 1 DICOM
+#[rustfmt::skip]
+pub const INTERLOCK_RESOLUTION_USER_SEQUENCE: Tag = Tag(0x300A, 0x0746);
+/// OverrideDateTime (300A,0760) DT 1 DICOM
+#[rustfmt::skip]
+pub const OVERRIDE_DATE_TIME: Tag = Tag(0x300A, 0x0760);
+/// TreatmentToleranceViolationTypeCodeSequence (300A,0761) SQ 1 DICOM
+#[rustfmt::skip]
+pub const TREATMENT_TOLERANCE_VIOLATION_TYPE_CODE_SEQUENCE: Tag = Tag(0x300A, 0x0761);
+/// TreatmentToleranceViolationCauseCodeSequence (300A,0762) SQ 1 DICOM
+#[rustfmt::skip]
+pub const TREATMENT_TOLERANCE_VIOLATION_CAUSE_CODE_SEQUENCE: Tag = Tag(0x300A, 0x0762);
+/// MeasuredMetersetToDoseMappingSequence (300A,0772) SQ 1 DICOM
+#[rustfmt::skip]
+pub const MEASURED_METERSET_TO_DOSE_MAPPING_SEQUENCE: Tag = Tag(0x300A, 0x0772);
+/// ReferencedExpectedInVivoMeasurementValueIndex (300A,0773) US 1 DICOM
+#[rustfmt::skip]
+pub const REFERENCED_EXPECTED_IN_VIVO_MEASUREMENT_VALUE_INDEX: Tag = Tag(0x300A, 0x0773);
+/// DoseMeasurementDeviceCodeSequence (300A,0774) SQ 1 DICOM
+#[rustfmt::skip]
+pub const DOSE_MEASUREMENT_DEVICE_CODE_SEQUENCE: Tag = Tag(0x300A, 0x0774);
+/// AdditionalParameterRecordingInstanceSequence (300A,0780) SQ 1 DICOM
+#[rustfmt::skip]
+pub const ADDITIONAL_PARAMETER_RECORDING_INSTANCE_SEQUENCE: Tag = Tag(0x300A, 0x0780);
+/// InterlockOriginDescription (300A,0783) ST 1 DICOM
+#[rustfmt::skip]
+pub const INTERLOCK_ORIGIN_DESCRIPTION: Tag = Tag(0x300A, 0x0783);
 /// ReferencedRTPlanSequence (300C,0002) SQ 1 DICOM
 #[rustfmt::skip]
 pub const REFERENCED_RT_PLAN_SEQUENCE: Tag = Tag(0x300C, 0x0002);
@@ -12682,6 +12889,39 @@ pub const DELIVERY_TIME_STRUCTURE_CODE_SEQUENCE: Tag = Tag(0x3010, 0x0088);
 /// TreatmentSiteModifierCodeSequence (3010,0089) SQ 1 DICOM
 #[rustfmt::skip]
 pub const TREATMENT_SITE_MODIFIER_CODE_SEQUENCE: Tag = Tag(0x3010, 0x0089);
+/// RoboticBaseLocationIndicator (3010,0090) CS 1 DICOM
+#[rustfmt::skip]
+pub const ROBOTIC_BASE_LOCATION_INDICATOR: Tag = Tag(0x3010, 0x0090);
+/// RoboticPathNodeSetCodeSequence (3010,0091) SQ 1 DICOM
+#[rustfmt::skip]
+pub const ROBOTIC_PATH_NODE_SET_CODE_SEQUENCE: Tag = Tag(0x3010, 0x0091);
+/// RoboticNodeIdentifier (3010,0092) UL 1 DICOM
+#[rustfmt::skip]
+pub const ROBOTIC_NODE_IDENTIFIER: Tag = Tag(0x3010, 0x0092);
+/// RTTreatmentSourceCoordinates (3010,0093) FD 3 DICOM
+#[rustfmt::skip]
+pub const RT_TREATMENT_SOURCE_COORDINATES: Tag = Tag(0x3010, 0x0093);
+/// RadiationSourceCoordinateSystemYawAngle (3010,0094) FD 1 DICOM
+#[rustfmt::skip]
+pub const RADIATION_SOURCE_COORDINATE_SYSTEM_YAW_ANGLE: Tag = Tag(0x3010, 0x0094);
+/// RadiationSourceCoordinateSystemRollAngle (3010,0095) FD 1 DICOM
+#[rustfmt::skip]
+pub const RADIATION_SOURCE_COORDINATE_SYSTEM_ROLL_ANGLE: Tag = Tag(0x3010, 0x0095);
+/// RadiationSourceCoordinateSystemPitchAngle (3010,0096) FD 1 DICOM
+#[rustfmt::skip]
+pub const RADIATION_SOURCE_COORDINATE_SYSTEM_PITCH_ANGLE: Tag = Tag(0x3010, 0x0096);
+/// RoboticPathControlPointSequence (3010,0097) SQ 1 DICOM
+#[rustfmt::skip]
+pub const ROBOTIC_PATH_CONTROL_POINT_SEQUENCE: Tag = Tag(0x3010, 0x0097);
+/// TomotherapeuticControlPointSequence (3010,0098) SQ 1 DICOM
+#[rustfmt::skip]
+pub const TOMOTHERAPEUTIC_CONTROL_POINT_SEQUENCE: Tag = Tag(0x3010, 0x0098);
+/// TomotherapeuticLeafOpenDurations (3010,0099) FD 1-n DICOM
+#[rustfmt::skip]
+pub const TOMOTHERAPEUTIC_LEAF_OPEN_DURATIONS: Tag = Tag(0x3010, 0x0099);
+/// TomotherapeuticLeafInitialClosedDurations (3010,009A) FD 1-n DICOM
+#[rustfmt::skip]
+pub const TOMOTHERAPEUTIC_LEAF_INITIAL_CLOSED_DURATIONS: Tag = Tag(0x3010, 0x009A);
 /// LowEnergyDetectors (4010,0001) CS 1 DICOM/DICOS
 #[rustfmt::skip]
 pub const LOW_ENERGY_DETECTORS: Tag = Tag(0x4010, 0x0001);
@@ -12787,9 +13027,9 @@ pub const TDR_TYPE: Tag = Tag(0x4010, 0x1027);
 /// InternationalRouteSegment (4010,1028) CS 1 DICOM/DICOS
 #[rustfmt::skip]
 pub const INTERNATIONAL_ROUTE_SEGMENT: Tag = Tag(0x4010, 0x1028);
-/// ThreatDetectionAlgorithmandVersion (4010,1029) LO 1-n DICOM/DICOS
+/// ThreatDetectionAlgorithmAndVersion (4010,1029) LO 1-n DICOM/DICOS
 #[rustfmt::skip]
-pub const THREAT_DETECTION_ALGORITHMAND_VERSION: Tag = Tag(0x4010, 0x1029);
+pub const THREAT_DETECTION_ALGORITHM_AND_VERSION: Tag = Tag(0x4010, 0x1029);
 /// AssignedLocation (4010,102A) SH 1 DICOM/DICOS
 #[rustfmt::skip]
 pub const ASSIGNED_LOCATION: Tag = Tag(0x4010, 0x102A);
@@ -15106,6 +15346,11 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(GPS_AREA_INFORMATION), alias: "GPSAreaInformation", vr: OB }, // DICOM
     E { tag: Single(GPS_DATE_STAMP), alias: "GPSDateStamp", vr: DT }, // DICOM
     E { tag: Single(GPS_DIFFERENTIAL), alias: "GPSDifferential", vr: IS }, // DICOM
+    E { tag: Single(LIGHT_SOURCE_POLARIZATION), alias: "LightSourcePolarization", vr: CS }, // DICOM
+    E { tag: Single(EMITTER_COLOR_TEMPERATURE), alias: "EmitterColorTemperature", vr: DS }, // DICOM
+    E { tag: Single(CONTACT_METHOD), alias: "ContactMethod", vr: CS }, // DICOM
+    E { tag: Single(IMMERSION_MEDIA), alias: "ImmersionMedia", vr: CS }, // DICOM
+    E { tag: Single(OPTICAL_MAGNIFICATION_FACTOR), alias: "OpticalMagnificationFactor", vr: DS }, // DICOM
     E { tag: Single(CONTRAST_BOLUS_AGENT), alias: "ContrastBolusAgent", vr: LO }, // DICOM
     E { tag: Single(CONTRAST_BOLUS_AGENT_SEQUENCE), alias: "ContrastBolusAgentSequence", vr: SQ }, // DICOM
     E { tag: Single(CONTRAST_BOLUS_T1_RELAXIVITY), alias: "ContrastBolusT1Relaxivity", vr: FL }, // DICOM
@@ -15368,6 +15613,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(LESION_NUMBER), alias: "LesionNumber", vr: IS }, // DICOM
     E { tag: Single(OUTPUT_POWER), alias: "OutputPower", vr: SH }, // DICOM
     E { tag: Single(TRANSDUCER_DATA), alias: "TransducerData", vr: LO }, // DICOM
+    E { tag: Single(TRANSDUCER_IDENTIFICATION_SEQUENCE), alias: "TransducerIdentificationSequence", vr: SQ }, // DICOM
     E { tag: Single(FOCUS_DEPTH), alias: "FocusDepth", vr: DS }, // DICOM
     E { tag: Single(PROCESSING_FUNCTION), alias: "ProcessingFunction", vr: LO }, // DICOM
     E { tag: Single(MECHANICAL_INDEX), alias: "MechanicalIndex", vr: DS }, // DICOM
@@ -16551,6 +16797,13 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(MULTIPLEXED_AUDIO_CHANNELS_DESCRIPTION_CODE_SEQUENCE), alias: "MultiplexedAudioChannelsDescriptionCodeSequence", vr: SQ }, // DICOM
     E { tag: Single(CHANNEL_IDENTIFICATION_CODE), alias: "ChannelIdentificationCode", vr: IS }, // DICOM
     E { tag: Single(CHANNEL_MODE), alias: "ChannelMode", vr: CS }, // DICOM
+    E { tag: Single(MULTIPLEX_GROUP_UID), alias: "MultiplexGroupUID", vr: UI }, // DICOM
+    E { tag: Single(POWERLINE_FREQUENCY), alias: "PowerlineFrequency", vr: DS }, // DICOM
+    E { tag: Single(CHANNEL_IMPEDANCE_SEQUENCE), alias: "ChannelImpedanceSequence", vr: SQ }, // DICOM
+    E { tag: Single(IMPEDANCE_VALUE), alias: "ImpedanceValue", vr: DS }, // DICOM
+    E { tag: Single(IMPEDANCE_MEASUREMENT_DATE_TIME), alias: "ImpedanceMeasurementDateTime", vr: DT }, // DICOM
+    E { tag: Single(IMPEDANCE_MEASUREMENT_FREQUENCY), alias: "ImpedanceMeasurementFrequency", vr: DS }, // DICOM
+    E { tag: Single(IMPEDANCE_MEASUREMENT_CURRENT_TYPE), alias: "ImpedanceMeasurementCurrentType", vr: CS }, // DICOM
     E { tag: Single(SCHEDULED_STATION_AE_TITLE), alias: "ScheduledStationAETitle", vr: AE }, // DICOM
     E { tag: Single(SCHEDULED_PROCEDURE_STEP_START_DATE), alias: "ScheduledProcedureStepStartDate", vr: DA }, // DICOM
     E { tag: Single(SCHEDULED_PROCEDURE_STEP_START_TIME), alias: "ScheduledProcedureStepStartTime", vr: TM }, // DICOM
@@ -16760,6 +17013,14 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(CONTENT_TEMPLATE_SEQUENCE), alias: "ContentTemplateSequence", vr: SQ }, // DICOM
     E { tag: Single(IDENTICAL_DOCUMENTS_SEQUENCE), alias: "IdenticalDocumentsSequence", vr: SQ }, // DICOM
     E { tag: Single(CONTENT_SEQUENCE), alias: "ContentSequence", vr: SQ }, // DICOM
+    E { tag: Single(TABULATED_VALUES_SEQUENCE), alias: "TabulatedValuesSequence", vr: SQ }, // DICOM
+    E { tag: Single(NUMBER_OF_TABLE_ROWS), alias: "NumberOfTableRows", vr: UL }, // DICOM
+    E { tag: Single(NUMBE_OF_TABLE_COLUMNS), alias: "NumbeOfTableColumns", vr: UL }, // DICOM
+    E { tag: Single(TABLE_ROW_NUMBER), alias: "TableRowNumber", vr: UL }, // DICOM
+    E { tag: Single(TABLE_COLUMN_NUMBER), alias: "TableColumnNumber", vr: UL }, // DICOM
+    E { tag: Single(TABLE_ROW_DEFINITION_SEQUENCE), alias: "TableRowDefinitionSequence", vr: SQ }, // DICOM
+    E { tag: Single(TABLE_COLUMN_DEFINITION_SEQUENCE), alias: "TableColumnDefinitionSequence", vr: SQ }, // DICOM
+    E { tag: Single(CELL_VALUES_SEQUENCE), alias: "CellValuesSequence", vr: SQ }, // DICOM
     E { tag: Single(WAVEFORM_ANNOTATION_SEQUENCE), alias: "WaveformAnnotationSequence", vr: SQ }, // DICOM
     E { tag: Single(TEMPLATE_IDENTIFIER), alias: "TemplateIdentifier", vr: CS }, // DICOM
     E { tag: Single(REFERENCED_CONTENT_ITEM_IDENTIFIER), alias: "ReferencedContentItemIdentifier", vr: UL }, // DICOM
@@ -17224,6 +17485,8 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(MODEL_MODIFICATION), alias: "ModelModification", vr: CS }, // DICOM
     E { tag: Single(MODEL_MIRRORING), alias: "ModelMirroring", vr: CS }, // DICOM
     E { tag: Single(MODEL_USAGE_CODE_SEQUENCE), alias: "ModelUsageCodeSequence", vr: SQ }, // DICOM
+    E { tag: Single(MODEL_GROUP_UID), alias: "ModelGroupUID", vr: UI }, // DICOM
+    E { tag: Single(RELATIVE_URI_REFERENCE_WITHIN_ENCAPSULATED_DOCUMENT), alias: "RelativeURIReferenceWithinEncapsulatedDocument", vr: UR }, // DICOM
     E { tag: Single(GRAPHIC_ANNOTATION_SEQUENCE), alias: "GraphicAnnotationSequence", vr: SQ }, // DICOM
     E { tag: Single(GRAPHIC_LAYER), alias: "GraphicLayer", vr: CS }, // DICOM
     E { tag: Single(BOUNDING_BOX_ANNOTATION_UNITS), alias: "BoundingBoxAnnotationUnits", vr: CS }, // DICOM
@@ -17464,6 +17727,9 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(SELECTOR_SS_VALUE), alias: "SelectorSSValue", vr: SS }, // DICOM
     E { tag: Single(SELECTOR_UI_VALUE), alias: "SelectorUIValue", vr: UI }, // DICOM
     E { tag: Single(SELECTOR_CODE_SEQUENCE_VALUE), alias: "SelectorCodeSequenceValue", vr: SQ }, // DICOM
+    E { tag: Single(SELECTOR_OV_VALUE), alias: "SelectorOVValue", vr: OV }, // DICOM
+    E { tag: Single(SELECTOR_SV_VALUE), alias: "SelectorSVValue", vr: SV }, // DICOM
+    E { tag: Single(SELECTOR_UV_VALUE), alias: "SelectorUVValue", vr: UV }, // DICOM
     E { tag: Single(NUMBER_OF_SCREENS), alias: "NumberOfScreens", vr: US }, // DICOM
     E { tag: Single(NOMINAL_SCREEN_DEFINITION_SEQUENCE), alias: "NominalScreenDefinitionSequence", vr: SQ }, // DICOM
     E { tag: Single(NUMBER_OF_VERTICAL_PIXELS), alias: "NumberOfVerticalPixels", vr: US }, // DICOM
@@ -18336,6 +18602,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(SCAN_SPOT_REORDERING_ALLOWED), alias: "ScanSpotReorderingAllowed", vr: CS }, // DICOM
     E { tag: Single(SCAN_SPOT_METERSET_WEIGHTS), alias: "ScanSpotMetersetWeights", vr: FL }, // DICOM
     E { tag: Single(SCANNING_SPOT_SIZE), alias: "ScanningSpotSize", vr: FL }, // DICOM
+    E { tag: Single(SCAN_SPOT_SIZES_DELIVERED), alias: "ScanSpotSizesDelivered", vr: FL }, // DICOM
     E { tag: Single(NUMBER_OF_PAINTINGS), alias: "NumberOfPaintings", vr: IS }, // DICOM
     E { tag: Single(ION_TOLERANCE_TABLE_SEQUENCE), alias: "IonToleranceTableSequence", vr: SQ }, // DICOM
     E { tag: Single(ION_BEAM_SEQUENCE), alias: "IonBeamSequence", vr: SQ }, // DICOM
@@ -18519,6 +18786,47 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(RT_BEAM_MODIFIER_DEFINITION_DISTANCE), alias: "RTBeamModifierDefinitionDistance", vr: FD }, // DICOM
     E { tag: Single(BEAM_AREA_LIMIT_SEQUENCE), alias: "BeamAreaLimitSequence", vr: SQ }, // DICOM
     E { tag: Single(REFERENCED_RT_PRESCRIPTION_SEQUENCE), alias: "ReferencedRTPrescriptionSequence", vr: SQ }, // DICOM
+    E { tag: Single(TREATMENT_SESSION_UID), alias: "TreatmentSessionUID", vr: UI }, // DICOM
+    E { tag: Single(RT_RADIATION_USAGE), alias: "RTRadiationUsage", vr: CS }, // DICOM
+    E { tag: Single(REFERENCED_RT_RADIATION_SET_SEQUENCE), alias: "ReferencedRTRadiationSetSequence", vr: SQ }, // DICOM
+    E { tag: Single(REFERENCED_RT_RADIATION_RECORD_SEQUENCE), alias: "ReferencedRTRadiationRecordSequence", vr: SQ }, // DICOM
+    E { tag: Single(RT_RADIATION_SET_DELIVERY_NUMBER), alias: "RTRadiationSetDeliveryNumber", vr: US }, // DICOM
+    E { tag: Single(CLINICAL_FRACTION_NUMBER), alias: "ClinicalFractionNumber", vr: US }, // DICOM
+    E { tag: Single(RT_TREATMENT_FRACTION_COMPLETION_STATUS), alias: "RTTreatmentFractionCompletionStatus", vr: CS }, // DICOM
+    E { tag: Single(RT_RADIATION_SET_USAGE), alias: "RTRadiationSetUsage", vr: CS }, // DICOM
+    E { tag: Single(TREATMENT_DELIVERY_CONTINUATION_FLAG), alias: "TreatmentDeliveryContinuationFlag", vr: CS }, // DICOM
+    E { tag: Single(TREATMENT_RECORD_CONTENT_ORIGIN), alias: "TreatmentRecordContentOrigin", vr: CS }, // DICOM
+    E { tag: Single(RT_TREATMENT_TERMINATION_STATUS), alias: "RTTreatmentTerminationStatus", vr: CS }, // DICOM
+    E { tag: Single(RT_TREATMENT_TERMINATION_REASON_CODE_SEQUENCE), alias: "RTTreatmentTerminationReasonCodeSequence", vr: SQ }, // DICOM
+    E { tag: Single(MACHINE_SPECIFIC_TREATMENT_TERMINATION_CODE_SEQUENCE), alias: "MachineSpecificTreatmentTerminationCodeSequence", vr: SQ }, // DICOM
+    E { tag: Single(RT_RADIATION_SALVAGE_RECORD_CONTROL_POINT_SEQUENCE), alias: "RTRadiationSalvageRecordControlPointSequence", vr: SQ }, // DICOM
+    E { tag: Single(STARTING_METERSET_VALUE_KNOWN_FLAG), alias: "StartingMetersetValueKnownFlag", vr: CS }, // DICOM
+    E { tag: Single(TREATMENT_TERMINATION_DESCRIPTION), alias: "TreatmentTerminationDescription", vr: ST }, // DICOM
+    E { tag: Single(TREATMENT_TOLERANCE_VIOLATION_SEQUENCE), alias: "TreatmentToleranceViolationSequence", vr: SQ }, // DICOM
+    E { tag: Single(TREATMENT_TOLERANCE_VIOLATION_CATEGORY), alias: "TreatmentToleranceViolationCategory", vr: CS }, // DICOM
+    E { tag: Single(TREATMENT_TOLERANCE_VIOLATION_ATTRIBUTE_SEQUENCE), alias: "TreatmentToleranceViolationAttributeSequence", vr: SQ }, // DICOM
+    E { tag: Single(TREATMENT_TOLERANCE_VIOLATION_DESCRIPTION), alias: "TreatmentToleranceViolationDescription", vr: ST }, // DICOM
+    E { tag: Single(TREATMENT_TOLERANCE_VIOLATION_IDENTIFICATION), alias: "TreatmentToleranceViolationIdentification", vr: ST }, // DICOM
+    E { tag: Single(TREATMENT_TOLERANCE_VIOLATION_DATE_TIME), alias: "TreatmentToleranceViolationDateTime", vr: DT }, // DICOM
+    E { tag: Single(RECORDED_RT_CONTROL_POINT_DATE_TIME), alias: "RecordedRTControlPointDateTime", vr: DT }, // DICOM
+    E { tag: Single(REFERENCED_RADIATION_RT_CONTROL_POINT_INDEX), alias: "ReferencedRadiationRTControlPointIndex", vr: US }, // DICOM
+    E { tag: Single(ALTERNATE_VALUE_SEQUENCE), alias: "AlternateValueSequence", vr: SQ }, // DICOM
+    E { tag: Single(CONFIRMATION_SEQUENCE), alias: "ConfirmationSequence", vr: SQ }, // DICOM
+    E { tag: Single(INTERLOCK_SEQUENCE), alias: "InterlockSequence", vr: SQ }, // DICOM
+    E { tag: Single(INTERLOCK_DATE_TIME), alias: "InterlockDateTime", vr: DT }, // DICOM
+    E { tag: Single(INTERLOCK_DESCRIPTION), alias: "InterlockDescription", vr: ST }, // DICOM
+    E { tag: Single(INTERLOCK_ORIGINATING_DEVICE_SEQUENCE), alias: "InterlockOriginatingDeviceSequence", vr: SQ }, // DICOM
+    E { tag: Single(INTERLOCK_CODE_SEQUENCE), alias: "InterlockCodeSequence", vr: SQ }, // DICOM
+    E { tag: Single(INTERLOCK_RESOLUTION_CODE_SEQUENCE), alias: "InterlockResolutionCodeSequence", vr: SQ }, // DICOM
+    E { tag: Single(INTERLOCK_RESOLUTION_USER_SEQUENCE), alias: "InterlockResolutionUserSequence", vr: SQ }, // DICOM
+    E { tag: Single(OVERRIDE_DATE_TIME), alias: "OverrideDateTime", vr: DT }, // DICOM
+    E { tag: Single(TREATMENT_TOLERANCE_VIOLATION_TYPE_CODE_SEQUENCE), alias: "TreatmentToleranceViolationTypeCodeSequence", vr: SQ }, // DICOM
+    E { tag: Single(TREATMENT_TOLERANCE_VIOLATION_CAUSE_CODE_SEQUENCE), alias: "TreatmentToleranceViolationCauseCodeSequence", vr: SQ }, // DICOM
+    E { tag: Single(MEASURED_METERSET_TO_DOSE_MAPPING_SEQUENCE), alias: "MeasuredMetersetToDoseMappingSequence", vr: SQ }, // DICOM
+    E { tag: Single(REFERENCED_EXPECTED_IN_VIVO_MEASUREMENT_VALUE_INDEX), alias: "ReferencedExpectedInVivoMeasurementValueIndex", vr: US }, // DICOM
+    E { tag: Single(DOSE_MEASUREMENT_DEVICE_CODE_SEQUENCE), alias: "DoseMeasurementDeviceCodeSequence", vr: SQ }, // DICOM
+    E { tag: Single(ADDITIONAL_PARAMETER_RECORDING_INSTANCE_SEQUENCE), alias: "AdditionalParameterRecordingInstanceSequence", vr: SQ }, // DICOM
+    E { tag: Single(INTERLOCK_ORIGIN_DESCRIPTION), alias: "InterlockOriginDescription", vr: ST }, // DICOM
     E { tag: Single(REFERENCED_RT_PLAN_SEQUENCE), alias: "ReferencedRTPlanSequence", vr: SQ }, // DICOM
     E { tag: Single(REFERENCED_BEAM_SEQUENCE), alias: "ReferencedBeamSequence", vr: SQ }, // DICOM
     E { tag: Single(REFERENCED_BEAM_NUMBER), alias: "ReferencedBeamNumber", vr: IS }, // DICOM
@@ -18693,6 +19001,17 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(WEEKDAY_FRACTION_PATTERN_SEQUENCE), alias: "WeekdayFractionPatternSequence", vr: SQ }, // DICOM
     E { tag: Single(DELIVERY_TIME_STRUCTURE_CODE_SEQUENCE), alias: "DeliveryTimeStructureCodeSequence", vr: SQ }, // DICOM
     E { tag: Single(TREATMENT_SITE_MODIFIER_CODE_SEQUENCE), alias: "TreatmentSiteModifierCodeSequence", vr: SQ }, // DICOM
+    E { tag: Single(ROBOTIC_BASE_LOCATION_INDICATOR), alias: "RoboticBaseLocationIndicator", vr: CS }, // DICOM
+    E { tag: Single(ROBOTIC_PATH_NODE_SET_CODE_SEQUENCE), alias: "RoboticPathNodeSetCodeSequence", vr: SQ }, // DICOM
+    E { tag: Single(ROBOTIC_NODE_IDENTIFIER), alias: "RoboticNodeIdentifier", vr: UL }, // DICOM
+    E { tag: Single(RT_TREATMENT_SOURCE_COORDINATES), alias: "RTTreatmentSourceCoordinates", vr: FD }, // DICOM
+    E { tag: Single(RADIATION_SOURCE_COORDINATE_SYSTEM_YAW_ANGLE), alias: "RadiationSourceCoordinateSystemYawAngle", vr: FD }, // DICOM
+    E { tag: Single(RADIATION_SOURCE_COORDINATE_SYSTEM_ROLL_ANGLE), alias: "RadiationSourceCoordinateSystemRollAngle", vr: FD }, // DICOM
+    E { tag: Single(RADIATION_SOURCE_COORDINATE_SYSTEM_PITCH_ANGLE), alias: "RadiationSourceCoordinateSystemPitchAngle", vr: FD }, // DICOM
+    E { tag: Single(ROBOTIC_PATH_CONTROL_POINT_SEQUENCE), alias: "RoboticPathControlPointSequence", vr: SQ }, // DICOM
+    E { tag: Single(TOMOTHERAPEUTIC_CONTROL_POINT_SEQUENCE), alias: "TomotherapeuticControlPointSequence", vr: SQ }, // DICOM
+    E { tag: Single(TOMOTHERAPEUTIC_LEAF_OPEN_DURATIONS), alias: "TomotherapeuticLeafOpenDurations", vr: FD }, // DICOM
+    E { tag: Single(TOMOTHERAPEUTIC_LEAF_INITIAL_CLOSED_DURATIONS), alias: "TomotherapeuticLeafInitialClosedDurations", vr: FD }, // DICOM
     E { tag: Single(LOW_ENERGY_DETECTORS), alias: "LowEnergyDetectors", vr: CS }, // DICOM/DICOS
     E { tag: Single(HIGH_ENERGY_DETECTORS), alias: "HighEnergyDetectors", vr: CS }, // DICOM/DICOS
     E { tag: Single(DETECTOR_GEOMETRY_SEQUENCE), alias: "DetectorGeometrySequence", vr: SQ }, // DICOM/DICOS
@@ -18728,7 +19047,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(ROUTE_SEGMENT_END_TIME), alias: "RouteSegmentEndTime", vr: DT }, // DICOM/DICOS
     E { tag: Single(TDR_TYPE), alias: "TDRType", vr: CS }, // DICOM/DICOS
     E { tag: Single(INTERNATIONAL_ROUTE_SEGMENT), alias: "InternationalRouteSegment", vr: CS }, // DICOM/DICOS
-    E { tag: Single(THREAT_DETECTION_ALGORITHMAND_VERSION), alias: "ThreatDetectionAlgorithmandVersion", vr: LO }, // DICOM/DICOS
+    E { tag: Single(THREAT_DETECTION_ALGORITHM_AND_VERSION), alias: "ThreatDetectionAlgorithmAndVersion", vr: LO }, // DICOM/DICOS
     E { tag: Single(ASSIGNED_LOCATION), alias: "AssignedLocation", vr: SH }, // DICOM/DICOS
     E { tag: Single(ALARM_DECISION_TIME), alias: "AlarmDecisionTime", vr: DT }, // DICOM/DICOS
     E { tag: Single(ALARM_DECISION), alias: "AlarmDecision", vr: CS }, // DICOM/DICOS
