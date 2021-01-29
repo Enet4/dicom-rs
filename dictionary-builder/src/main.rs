@@ -14,7 +14,7 @@ use serde::Serialize;
 use regex::Regex;
 
 use heck::ShoutySnakeCase;
-use std::fs::{create_dir_all, File};
+use std::{fs::{create_dir_all, File}, io::BufWriter};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 
@@ -31,6 +31,7 @@ fn main() {
         )
         .arg(
             Arg::with_name("no-retired")
+                .long("no-retired")
                 .help("Whether to ignore retired tags")
                 .takes_value(false),
         )
@@ -51,20 +52,30 @@ fn main() {
 
     if src.starts_with("http:") || src.starts_with("https:") {
         // read from URL
-        //let src = Uri::from_str(src).unwrap();
         println!("Downloading DICOM dictionary ...");
         let mut resp = reqwest::get(src).unwrap();
         let mut data = vec![];
         resp.copy_to(&mut data).unwrap();
+
+        let preamble = data.split(|&b| b == b'\n')
+            .filter_map(|l| std::str::from_utf8(l).ok())
+            .find(|l| l.contains("Copyright"))
+            .unwrap_or("");
+        let preamble = format!(
+            "Adapted from the DCMTK project.\nURL: {}\n{}",
+            src,
+            preamble,
+        );
+
         let entries = parse_entries(&*data).unwrap();
         println!("Writing to file ...");
-        to_code_file(dst, entries, !ignore_retired).expect("Failed to write file");
+        to_code_file(dst, entries, !ignore_retired, &preamble).expect("Failed to write file");
     } else {
         // read from File
         let file = File::open(src).unwrap();
         let entries = parse_entries(BufReader::new(file)).unwrap();
         println!("Writing to file ...");
-        to_code_file(dst, entries, !ignore_retired).expect("Failed to write file");
+        to_code_file(dst, entries, !ignore_retired, "").expect("Failed to write file");
     }
 }
 
@@ -193,18 +204,30 @@ struct Entry {
     tag_type: TagType,
 }
 
-fn to_code_file<P: AsRef<Path>>(
+/// Write the tag dictionary as Rust code.
+fn to_code_file<P>(
     dest_path: P,
     entries: Vec<Entry>,
     include_retired: bool,
-) -> DynResult<()> {
+    preamble: &str,
+) -> DynResult<()>
+where
+    P: AsRef<Path>,
+{
     if let Some(p_dir) = dest_path.as_ref().parent() {
         create_dir_all(&p_dir)?;
     }
-    let mut f = File::create(&dest_path)?;
+    let mut f = BufWriter::new(File::create(&dest_path)?);
 
     f.write_all(
-        b"//! Automatically generated. Edit at your own risk.\n\n\
+        b"//! Automatically generated. Edit at your own risk.\n"
+    )?;
+
+    for line in preamble.split('\n') {
+        write!(f, "//! {}\n", line)?;
+    }
+
+    f.write_all(b"\n\
     use dicom_core::dictionary::{DictionaryEntryRef, TagRange, TagRange::*};\n\
     use dicom_core::Tag;\n\
     use dicom_core::VR::*;\n\n",
