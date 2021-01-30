@@ -8,7 +8,7 @@
 //! via the [`ClientAssociationOptions`][1] type.
 //! The minimum required properties are the accepted abstract syntaxes
 //! and the TCP socket address to the target node.
-//! 
+//!
 //! As an association acceptor,
 //! usually taking the role of a service class provider (SCP),
 //! a newly created [TCP stream][2] can be passed to
@@ -17,14 +17,14 @@
 //! [1]: crate::association::client::ClientAssociationOptions
 //! [2]: std::net::TcpStream
 //! [3]: crate::association::server::ServerAssociationOptions
-pub mod server;
 pub mod client;
+pub mod server;
 
 pub(crate) mod pdata;
 
-pub use server::{ServerAssociation, ServerAssociationOptions};
 pub use client::{ClientAssociation, ClientAssociationOptions};
 pub use pdata::PDataWriter;
+pub use server::{ServerAssociation, ServerAssociationOptions};
 
 /// A service class user or a provider.
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]

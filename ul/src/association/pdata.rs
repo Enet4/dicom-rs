@@ -1,4 +1,3 @@
-
 use std::io::Write;
 
 /// A P-Data value writer.
@@ -23,11 +22,7 @@ where
     W: Write,
 {
     /// Construct a new P-Data value writer.
-    pub(crate) fn new(
-        stream: W,
-        presentation_context_id: u8,
-        max_pdu_length: u32,
-    ) -> Self {
+    pub(crate) fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32) -> Self {
         let max_data_length = calculate_max_data_len_single(max_pdu_length);
         PDataWriter {
             stream,
@@ -93,7 +88,8 @@ where
             for (e1, e2) in std::iter::Iterator::zip(p1.iter_mut(), p2.iter()) {
                 *e1 = *e2;
             }
-            self.buffer.truncate(self.buffer.len() - self.max_data_length as usize);
+            self.buffer
+                .truncate(self.buffer.len() - self.max_data_length as usize);
         }
         Ok(())
     }
@@ -148,15 +144,12 @@ mod tests {
 
     #[test]
     fn test_write_pdata_and_finish() {
-
         let presentation_context_id = 12;
 
         let mut buf = Vec::new();
         {
             let mut writer = PDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE);
-            writer
-                .write_all(&(0..64).collect::<Vec<u8>>())
-                .unwrap();
+            writer.write_all(&(0..64).collect::<Vec<u8>>()).unwrap();
             writer.finish().unwrap();
         }
 
@@ -183,7 +176,6 @@ mod tests {
 
     #[test]
     fn test_write_large_pdata_and_finish() {
-
         let presentation_context_id = 32;
 
         let my_data: Vec<_> = (0..6000).map(|x| x as u8).collect();
@@ -192,9 +184,7 @@ mod tests {
         let mut buf = Vec::new();
         {
             let mut writer = PDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE);
-            writer
-                .write_all(&my_data)
-                .unwrap();
+            writer.write_all(&my_data).unwrap();
             writer.finish().unwrap();
         }
 

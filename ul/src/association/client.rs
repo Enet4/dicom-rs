@@ -1,7 +1,13 @@
 //! Association acceptor module
-use std::{borrow::Cow, net::{TcpStream, ToSocketAddrs}};
+use std::{
+    borrow::Cow,
+    net::{TcpStream, ToSocketAddrs},
+};
 
-use crate::pdu::{AbortRQSource, AssociationRJResult, AssociationRJSource, PDataValueType, Pdu, PresentationContextProposed, PresentationContextResultReason, reader::read_pdu, writer::write_pdu};
+use crate::pdu::{
+    reader::read_pdu, writer::write_pdu, AbortRQSource, AssociationRJResult, AssociationRJSource,
+    Pdu, PresentationContextProposed, PresentationContextResultReason,
+};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use super::pdata::PDataWriter;
@@ -384,7 +390,11 @@ impl ClientAssociation {
     /// Returns a writer which automatically
     /// splits the inner data into separate PDUs if necessary.
     pub fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut TcpStream> {
-        PDataWriter::new(&mut self.socket, presentation_context_id, self.max_pdu_length)
+        PDataWriter::new(
+            &mut self.socket,
+            presentation_context_id,
+            self.max_pdu_length,
+        )
     }
 }
 
