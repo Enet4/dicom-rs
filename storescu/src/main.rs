@@ -12,7 +12,7 @@ use dicom_ul::{
     pdu::{PDataValue, PDataValueType},
 };
 use smallvec::smallvec;
-use std::path::PathBuf;
+use std::{io::Write, path::PathBuf};
 use structopt::StructOpt;
 use transfer_syntax::TransferSyntaxIndex;
 
@@ -35,6 +35,9 @@ struct App {
     /// the called AE title
     #[structopt(long = "called-ae-title", default_value = "ANY-SCP")]
     called_ae_title: String,
+
+    #[structopt(long = "max-pdu-length", default_value = "16384")]
+    max_pdu_length: u32,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -45,6 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         message_id,
         calling_ae_title,
         called_ae_title,
+        max_pdu_length,
     } = App::from_args();
 
     if verbose {
@@ -68,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_transfer_syntax(transfer_syntax.to_string())
         .calling_ae_title(calling_ae_title)
         .called_ae_title(called_ae_title)
-        .max_pdu_length(60_000)
+        .max_pdu_length(max_pdu_length)
         .establish(addr)?;
 
     if verbose {
@@ -94,35 +98,51 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &dicom::transfer_syntax::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
     )?;
 
-    // !!! use negotiated transfer syntax
+    // !!! ensure that the negotiated transfer syntax is used
 
     let mut object_data = Vec::with_capacity(1024);
     dicom_file.write_dataset_with_ts(&mut object_data, &ts)?;
 
     let nbytes = cmd_data.len() + object_data.len();
 
-    let pdu = Pdu::PData {
-        data: vec![
-            PDataValue {
-                presentation_context_id: scu.presentation_context_id(),
-                value_type: PDataValueType::Command,
-                is_last: true,
-                data: cmd_data,
-            },
-            PDataValue {
-                presentation_context_id: scu.presentation_context_id(),
-                value_type: PDataValueType::Data,
-                is_last: true,
-                data: object_data,
-            },
-        ],
-    };
-
     if verbose {
         println!("Sending payload (~ {} Kb)...", nbytes / 1024);
     }
 
-    scu.send(&pdu)?;
+    if nbytes < max_pdu_length as usize - 100 {
+        let pdu = Pdu::PData {
+            data: vec![
+                PDataValue {
+                    presentation_context_id: scu.presentation_context_id(),
+                    value_type: PDataValueType::Command,
+                    is_last: true,
+                    data: cmd_data,
+                },
+                PDataValue {
+                    presentation_context_id: scu.presentation_context_id(),
+                    value_type: PDataValueType::Data,
+                    is_last: true,
+                    data: object_data,
+                },
+            ],
+        };
+
+        scu.send(&pdu)?;
+    } else {
+        let pdu = Pdu::PData {
+            data: vec![PDataValue {
+                presentation_context_id: scu.presentation_context_id(),
+                value_type: PDataValueType::Command,
+                is_last: true,
+                data: cmd_data,
+            }],
+        };
+
+        scu.send(&pdu)?;
+
+        scu.send_pdata(scu.presentation_context_id())
+            .write_all(&object_data)?;
+    }
 
     if verbose {
         println!("Awaiting response...");
@@ -134,7 +154,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Pdu::PData { data } => {
             let data_value = &data[0];
 
-            let cmd_obj = InMemDicomObject::read_dataset_with_ts(&data_value.data[..], &dicom::transfer_syntax::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased())?;
+            let cmd_obj = InMemDicomObject::read_dataset_with_ts(
+                &data_value.data[..],
+                &dicom::transfer_syntax::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
+            )?;
             if verbose {
                 println!("Response: {:?}", cmd_obj);
             }
