@@ -193,5 +193,6 @@ mod tests {
         assert_eq!(PATIENT_NAME, Tag(0x0010, 0x0010));
         assert_eq!(MODALITY, Tag(0x0008, 0x0060));
         assert_eq!(PIXEL_DATA, Tag(0x7FE0, 0x0010));
+        assert_eq!(STATUS, Tag(0x0000, 0x0900));
     }
 }
