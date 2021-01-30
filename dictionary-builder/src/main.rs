@@ -53,7 +53,7 @@ fn main() {
     if src.starts_with("http:") || src.starts_with("https:") {
         // read from URL
         println!("Downloading DICOM dictionary ...");
-        let mut resp = reqwest::get(src).unwrap();
+        let mut resp = reqwest::blocking::get(src).unwrap();
         let mut data = vec![];
         resp.copy_to(&mut data).unwrap();
 
