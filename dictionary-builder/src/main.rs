@@ -4,7 +4,7 @@
 //! ### How to use
 //!
 //! Simply run the application. It will automatically retrieve the dictionary
-//! from the DCMTK data dictionary and store the result in "entries.rs".
+//! from the DCMTK data dictionary and store the result in "tags.rs".
 //! Future versions will enable different kinds of outputs.
 //!
 //! Please use the `--help` flag for the full usage information.
