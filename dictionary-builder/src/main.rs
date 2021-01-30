@@ -21,6 +21,17 @@ use std::path::Path;
 /// url to DCMTK dic file
 const DEFAULT_LOCATION: &str = "https://raw.githubusercontent.com/DCMTK/dcmtk/master/dcmdata/data/dicom.dic";
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+enum RetiredOptions {
+    /// ignore retired data attributes
+    Ignore,
+    /// include retired data attributes
+    Include {
+        /// mark constants as deprecated
+        deprecate: bool,
+    }
+}
+
 fn main() {
     let matches = App::new("DICOM Dictionary Builder")
         .version("0.1.0")
@@ -36,6 +47,12 @@ fn main() {
                 .takes_value(false),
         )
         .arg(
+            Arg::with_name("deprecate-retired")
+                .long("deprecate-retired")
+                .help("Whether to mark tag constants as deprecated")
+                .takes_value(false),
+        )
+        .arg(
             Arg::with_name("OUTPUT")
                 .short("o")
                 .help("The path to the output file")
@@ -45,6 +62,14 @@ fn main() {
         .get_matches();
 
     let ignore_retired = matches.is_present("no-retired");
+
+    let retired =  if ignore_retired {
+        RetiredOptions::Ignore
+    } else {
+        RetiredOptions::Include {
+            deprecate: matches.is_present("deprecate-retired"),
+        }
+    };
 
     let src = matches.value_of("FROM").unwrap();
 
@@ -70,13 +95,13 @@ fn main() {
 
         let entries = parse_entries(&*data).unwrap();
         println!("Writing to file ...");
-        to_code_file(dst, entries, !ignore_retired, &preamble).expect("Failed to write file");
+        to_code_file(dst, entries, retired, &preamble).expect("Failed to write file");
     } else {
         // read from File
         let file = File::open(src).unwrap();
         let entries = parse_entries(BufReader::new(file)).unwrap();
         println!("Writing to file ...");
-        to_code_file(dst, entries, !ignore_retired, "").expect("Failed to write file");
+        to_code_file(dst, entries, retired, "").expect("Failed to write file");
     }
 }
 
@@ -124,10 +149,11 @@ fn parse_entries<R: BufRead>(source: R) -> DynResult<Vec<Entry>> {
             continue;
         }
 
-        let mut alias = parts[2].to_string();
+        let mut alias = parts[2];
         if alias.starts_with("RETIRED_") {
-            alias = alias.trim_start_matches("RETIRED_").to_string();
+            alias = alias.trim_start_matches("RETIRED_");
         }
+        let alias = alias.to_string();
 
         let tag = parts[0].to_string();
 
@@ -187,19 +213,19 @@ enum TagType {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Clone, Serialize)]
 struct Entry {
-    /// (0010,0010)
+    /// Tag. example: (0010,0010)
     tag: String,
-    /// PN
+    /// VR. example: PN
     vr: String,
-    /// PatientName
+    /// alias. example: PatientName
     alias: String,
-    /// 1
+    /// VM. example: 1
     vm: String,
-    /// DICOM
+    /// observation (usually "DICOM")
     obs: String,
     /// Retired field?
     is_retired: bool,
-    /// Tag declaration "Tag(0x6000, 0x1102)"
+    /// Tag declaration. Example: "Tag(0x6000, 0x1102)"
     tag_declaration: String,
     /// The type the tag represents
     tag_type: TagType,
@@ -209,7 +235,7 @@ struct Entry {
 fn to_code_file<P>(
     dest_path: P,
     entries: Vec<Entry>,
-    include_retired: bool,
+    retired_options: RetiredOptions,
     preamble: &str,
 ) -> DynResult<()>
 where
@@ -228,6 +254,10 @@ where
         write!(f, "//! {}\n", line)?;
     }
 
+    if matches!(retired_options, RetiredOptions::Include { deprecate: true}) {
+        f.write_all(b"#![allow(deprecated)]\n")?;
+    }
+
     f.write_all(b"\n\
     use dicom_core::dictionary::{DictionaryEntryRef, TagRange, TagRange::*};\n\
     use dicom_core::Tag;\n\
@@ -235,7 +265,7 @@ where
     )?;
 
     for e in &entries {
-        if !include_retired && e.is_retired {
+        if retired_options == RetiredOptions::Ignore && e.is_retired {
             continue;
         }
 
@@ -251,6 +281,12 @@ where
             TagType::Group100 => format!("Group100({})", e.tag_declaration),
             TagType::Element100 => format!("Element100({})", e.tag_declaration),
         };
+
+        if e.is_retired && matches!(retired_options, RetiredOptions::Include {
+            deprecate: true, ..
+        }) {
+            writeln!(f, "#[deprecated(note = \"Retired DICOM tag\")]")?;
+        }
 
         writeln!(
             f,
@@ -268,7 +304,7 @@ where
     pub(crate) const ENTRIES: &[E] = &[\n",
     )?;
     for e in &entries {
-        if !include_retired && e.is_retired {
+        if retired_options == RetiredOptions::Ignore && e.is_retired {
             continue;
         }
 
