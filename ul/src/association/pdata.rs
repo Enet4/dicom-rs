@@ -10,6 +10,7 @@ use std::io::Write;
 ///
 /// Use an association's `send_pdata` method
 /// to create a new P-Data value writer.
+#[must_use]
 pub struct PDataWriter<W: Write> {
     buffer: Vec<u8>,
     stream: W,
