@@ -399,14 +399,14 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> DumpVal
                 }
             }
         }
-        (Strs(values), _) => DumpValue::Str(format_value_list(values, max_characters, true)),
+        (Strs(values), _) => DumpValue::Str(format_value_list(values.iter().map(|s| s.trim_end()), max_characters, true)),
         (Date(values), _) => DumpValue::DateTime(format_value_list(values, max_characters, true)),
         (Time(values), _) => DumpValue::DateTime(format_value_list(values, max_characters, true)),
         (DateTime(values), _) => {
             DumpValue::DateTime(format_value_list(values, max_characters, true))
         }
         (Str(value), _) => {
-            DumpValue::Str(cut_str(&format!("\"{}\"", value), max_characters).to_string())
+            DumpValue::Str(cut_str(&format!("\"{}\"", value.to_string().trim_end()), max_characters).to_string())
         }
         (Empty, _) => DumpValue::Nothing,
     }
@@ -431,7 +431,14 @@ where
     let len = values.len();
     let mut pieces = values.take(64).map(|piece| {
         if quoted {
-            format!("\"{}\"", piece)
+            let mut piece = piece.to_string();
+            if piece.contains('\"') {
+                format!("\"{}\"", piece.replace("\"", "\\\""))
+            } else {
+                piece.insert(0, '"');
+                piece.push('"');
+                piece
+            }
         } else {
             piece.to_string()
         }
