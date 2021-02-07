@@ -3,6 +3,7 @@
 //! URL: https://raw.githubusercontent.com/DCMTK/dcmtk/master/dcmdata/data/dicom.dic
 //! License: https://github.com/DCMTK/dcmtk/blob/master/COPYRIGHT
 //! #  Copyright (C) 1994-2020, OFFIS e.V.
+#![allow(deprecated)]
 
 use dicom_core::dictionary::{DictionaryEntryRef, TagRange, TagRange::*};
 use dicom_core::Tag;
@@ -13287,1419 +13288,1891 @@ pub const DIGITAL_SIGNATURES_SEQUENCE: Tag = Tag(0xFFFA, 0xFFFA);
 #[rustfmt::skip]
 pub const DATA_SET_TRAILING_PADDING: Tag = Tag(0xFFFC, 0xFFFC);
 /// CommandLengthToEnd (0000,0001) UL 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COMMAND_LENGTH_TO_END: Tag = Tag(0x0000, 0x0001);
 /// CommandRecognitionCode (0000,0010) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COMMAND_RECOGNITION_CODE: Tag = Tag(0x0000, 0x0010);
 /// Initiator (0000,0200) AE 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INITIATOR: Tag = Tag(0x0000, 0x0200);
 /// Receiver (0000,0300) AE 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const RECEIVER: Tag = Tag(0x0000, 0x0300);
 /// FindLocation (0000,0400) AE 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const FIND_LOCATION: Tag = Tag(0x0000, 0x0400);
 /// NumberOfMatches (0000,0850) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const NUMBER_OF_MATCHES: Tag = Tag(0x0000, 0x0850);
 /// ResponseSequenceNumber (0000,0860) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const RESPONSE_SEQUENCE_NUMBER: Tag = Tag(0x0000, 0x0860);
 /// DialogReceiver (0000,4000) LT 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DIALOG_RECEIVER: Tag = Tag(0x0000, 0x4000);
 /// TerminalType (0000,4010) LT 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TERMINAL_TYPE: Tag = Tag(0x0000, 0x4010);
 /// MessageSetID (0000,5010) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MESSAGE_SET_ID: Tag = Tag(0x0000, 0x5010);
 /// EndMessageID (0000,5020) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const END_MESSAGE_ID: Tag = Tag(0x0000, 0x5020);
 /// DisplayFormat (0000,5110) LT 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DISPLAY_FORMAT: Tag = Tag(0x0000, 0x5110);
 /// PagePositionID (0000,5120) LT 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PAGE_POSITION_ID: Tag = Tag(0x0000, 0x5120);
 /// TextFormatID (0000,5130) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TEXT_FORMAT_ID: Tag = Tag(0x0000, 0x5130);
 /// NormalReverse (0000,5140) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const NORMAL_REVERSE: Tag = Tag(0x0000, 0x5140);
 /// AddGrayScale (0000,5150) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ADD_GRAY_SCALE: Tag = Tag(0x0000, 0x5150);
 /// Borders (0000,5160) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const BORDERS: Tag = Tag(0x0000, 0x5160);
 /// Copies (0000,5170) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COPIES: Tag = Tag(0x0000, 0x5170);
 /// CommandMagnificationType (0000,5180) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COMMAND_MAGNIFICATION_TYPE: Tag = Tag(0x0000, 0x5180);
 /// Erase (0000,5190) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ERASE: Tag = Tag(0x0000, 0x5190);
 /// Print (0000,51A0) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PRINT: Tag = Tag(0x0000, 0x51A0);
 /// Overlays (0000,51B0) US 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAYS: Tag = Tag(0x0000, 0x51B0);
 /// MRDRDirectoryRecordOffset (0004,1504) UL 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MRDR_DIRECTORY_RECORD_OFFSET: Tag = Tag(0x0004, 0x1504);
 /// NumberOfReferences (0004,1600) UL 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const NUMBER_OF_REFERENCES: Tag = Tag(0x0004, 0x1600);
 /// LengthToEnd (0008,0001) UL 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const LENGTH_TO_END: Tag = Tag(0x0008, 0x0001);
 /// RecognitionCode (0008,0010) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const RECOGNITION_CODE: Tag = Tag(0x0008, 0x0010);
 /// OverlayDate (0008,0024) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_DATE: Tag = Tag(0x0008, 0x0024);
 /// CurveDate (0008,0025) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CURVE_DATE: Tag = Tag(0x0008, 0x0025);
 /// OverlayTime (0008,0034) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_TIME: Tag = Tag(0x0008, 0x0034);
 /// CurveTime (0008,0035) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CURVE_TIME: Tag = Tag(0x0008, 0x0035);
 /// DataSetType (0008,0040) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DATA_SET_TYPE: Tag = Tag(0x0008, 0x0040);
 /// DataSetSubtype (0008,0041) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DATA_SET_SUBTYPE: Tag = Tag(0x0008, 0x0041);
 /// NuclearMedicineSeriesType (0008,0042) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const NUCLEAR_MEDICINE_SERIES_TYPE: Tag = Tag(0x0008, 0x0042);
 /// NetworkID (0008,1000) AE 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const NETWORK_ID: Tag = Tag(0x0008, 0x1000);
 /// ReferencedResultsSequence (0008,1100) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_RESULTS_SEQUENCE: Tag = Tag(0x0008, 0x1100);
 /// ReferencedOverlaySequence (0008,1130) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_OVERLAY_SEQUENCE: Tag = Tag(0x0008, 0x1130);
 /// ReferencedCurveSequence (0008,1145) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_CURVE_SEQUENCE: Tag = Tag(0x0008, 0x1145);
 /// LossyImageCompressionRetired (0008,2110) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const LOSSY_IMAGE_COMPRESSION_RETIRED: Tag = Tag(0x0008, 0x2110);
 /// TransducerPosition (0008,2200) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TRANSDUCER_POSITION: Tag = Tag(0x0008, 0x2200);
 /// TransducerOrientation (0008,2204) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TRANSDUCER_ORIENTATION: Tag = Tag(0x0008, 0x2204);
 /// AnatomicStructure (0008,2208) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ANATOMIC_STRUCTURE: Tag = Tag(0x0008, 0x2208);
 /// AnatomicStructureSpaceOrRegionSequence (0008,2229) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ANATOMIC_STRUCTURE_SPACE_OR_REGION_SEQUENCE: Tag = Tag(0x0008, 0x2229);
 /// TransducerPositionSequence (0008,2240) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TRANSDUCER_POSITION_SEQUENCE: Tag = Tag(0x0008, 0x2240);
 /// TransducerPositionModifierSequence (0008,2242) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TRANSDUCER_POSITION_MODIFIER_SEQUENCE: Tag = Tag(0x0008, 0x2242);
 /// TransducerOrientationSequence (0008,2244) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TRANSDUCER_ORIENTATION_SEQUENCE: Tag = Tag(0x0008, 0x2244);
 /// TransducerOrientationModifierSequence (0008,2246) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TRANSDUCER_ORIENTATION_MODIFIER_SEQUENCE: Tag = Tag(0x0008, 0x2246);
 /// AnatomicStructureSpaceOrRegionCodeSequenceTrial (0008,2251) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ANATOMIC_STRUCTURE_SPACE_OR_REGION_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0008, 0x2251);
 /// AnatomicPortalOfEntranceCodeSequenceTrial (0008,2253) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ANATOMIC_PORTAL_OF_ENTRANCE_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0008, 0x2253);
 /// AnatomicApproachDirectionCodeSequenceTrial (0008,2255) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ANATOMIC_APPROACH_DIRECTION_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0008, 0x2255);
 /// AnatomicPerspectiveDescriptionTrial (0008,2256) ST 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ANATOMIC_PERSPECTIVE_DESCRIPTION_TRIAL: Tag = Tag(0x0008, 0x2256);
 /// AnatomicPerspectiveCodeSequenceTrial (0008,2257) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ANATOMIC_PERSPECTIVE_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0008, 0x2257);
 /// AnatomicLocationOfExaminingInstrumentDescriptionTrial (0008,2258) ST 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ANATOMIC_LOCATION_OF_EXAMINING_INSTRUMENT_DESCRIPTION_TRIAL: Tag = Tag(0x0008, 0x2258);
 /// AnatomicLocationOfExaminingInstrumentCodeSequenceTrial (0008,2259) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ANATOMIC_LOCATION_OF_EXAMINING_INSTRUMENT_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0008, 0x2259);
 /// AnatomicStructureSpaceOrRegionModifierCodeSequenceTrial (0008,225A) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ANATOMIC_STRUCTURE_SPACE_OR_REGION_MODIFIER_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0008, 0x225A);
 /// OnAxisBackgroundAnatomicStructureCodeSequenceTrial (0008,225C) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ON_AXIS_BACKGROUND_ANATOMIC_STRUCTURE_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0008, 0x225C);
 /// IdentifyingComments (0008,4000) LT 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IDENTIFYING_COMMENTS: Tag = Tag(0x0008, 0x4000);
 /// OtherPatientIDs (0010,1000) LO 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OTHER_PATIENT_I_DS: Tag = Tag(0x0010, 0x1000);
 /// InsurancePlanIdentification (0010,1050) LO 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INSURANCE_PLAN_IDENTIFICATION: Tag = Tag(0x0010, 0x1050);
 /// MedicalRecordLocator (0010,1090) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MEDICAL_RECORD_LOCATOR: Tag = Tag(0x0010, 0x1090);
 /// CADFileFormat (0014,0023) ST 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CAD_FILE_FORMAT: Tag = Tag(0x0014, 0x0023);
 /// ComponentReferenceSystem (0014,0024) ST 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COMPONENT_REFERENCE_SYSTEM: Tag = Tag(0x0014, 0x0024);
 /// MaterialPropertiesFileFormatRetired (0014,0045) ST 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MATERIAL_PROPERTIES_FILE_FORMAT_RETIRED: Tag = Tag(0x0014, 0x0045);
 /// Radionuclide (0018,0030) LO 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const RADIONUCLIDE: Tag = Tag(0x0018, 0x0030);
 /// EnergyWindowCenterline (0018,0032) DS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ENERGY_WINDOW_CENTERLINE: Tag = Tag(0x0018, 0x0032);
 /// EnergyWindowTotalWidth (0018,0033) DS 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ENERGY_WINDOW_TOTAL_WIDTH: Tag = Tag(0x0018, 0x0033);
 /// TherapyType (0018,0037) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const THERAPY_TYPE: Tag = Tag(0x0018, 0x0037);
 /// TherapyDescription (0018,0039) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const THERAPY_DESCRIPTION: Tag = Tag(0x0018, 0x0039);
 /// HardcopyCreationDeviceID (0018,1011) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const HARDCOPY_CREATION_DEVICE_ID: Tag = Tag(0x0018, 0x1011);
 /// HardcopyDeviceManufacturer (0018,1017) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const HARDCOPY_DEVICE_MANUFACTURER: Tag = Tag(0x0018, 0x1017);
 /// HardcopyDeviceSoftwareVersion (0018,101A) LO 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const HARDCOPY_DEVICE_SOFTWARE_VERSION: Tag = Tag(0x0018, 0x101A);
 /// HardcopyDeviceManufacturerModelName (0018,101B) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const HARDCOPY_DEVICE_MANUFACTURER_MODEL_NAME: Tag = Tag(0x0018, 0x101B);
 /// AngularPosition (0018,1141) DS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ANGULAR_POSITION: Tag = Tag(0x0018, 0x1141);
 /// RotationOffset (0018,1146) DS 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ROTATION_OFFSET: Tag = Tag(0x0018, 0x1146);
 /// UpperLowerPixelValues (0018,1240) IS 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const UPPER_LOWER_PIXEL_VALUES: Tag = Tag(0x0018, 0x1240);
 /// AcquisitionComments (0018,4000) LT 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ACQUISITION_COMMENTS: Tag = Tag(0x0018, 0x4000);
 /// PostprocessingFunction (0018,5021) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const POSTPROCESSING_FUNCTION: Tag = Tag(0x0018, 0x5021);
 /// DynamicRange (0018,5030) DS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DYNAMIC_RANGE: Tag = Tag(0x0018, 0x5030);
 /// TotalGain (0018,5040) DS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TOTAL_GAIN: Tag = Tag(0x0018, 0x5040);
 /// ImageTransformationMatrix (0018,5210) DS 6 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGE_TRANSFORMATION_MATRIX: Tag = Tag(0x0018, 0x5210);
 /// ImageTranslationVector (0018,5212) DS 3 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGE_TRANSLATION_VECTOR: Tag = Tag(0x0018, 0x5212);
 /// DopplerSampleVolumeXPositionRetired (0018,6038) UL 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DOPPLER_SAMPLE_VOLUME_X_POSITION_RETIRED: Tag = Tag(0x0018, 0x6038);
 /// DopplerSampleVolumeYPositionRetired (0018,603A) UL 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DOPPLER_SAMPLE_VOLUME_Y_POSITION_RETIRED: Tag = Tag(0x0018, 0x603A);
 /// TMLinePositionX0Retired (0018,603C) UL 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TM_LINE_POSITION_X0_RETIRED: Tag = Tag(0x0018, 0x603C);
 /// TMLinePositionY0Retired (0018,603E) UL 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TM_LINE_POSITION_Y0_RETIRED: Tag = Tag(0x0018, 0x603E);
 /// TMLinePositionX1Retired (0018,6040) UL 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TM_LINE_POSITION_X1_RETIRED: Tag = Tag(0x0018, 0x6040);
 /// TMLinePositionY1Retired (0018,6042) UL 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TM_LINE_POSITION_Y1_RETIRED: Tag = Tag(0x0018, 0x6042);
 /// ParallelReductionFactorInPlaneRetired (0018,9096) FD 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PARALLEL_REDUCTION_FACTOR_IN_PLANE_RETIRED: Tag = Tag(0x0018, 0x9096);
 /// BulkMotionStatus (0018,9166) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const BULK_MOTION_STATUS: Tag = Tag(0x0018, 0x9166);
 /// ChemicalShiftMinimumIntegrationLimitInHz (0018,9195) FD 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CHEMICAL_SHIFT_MINIMUM_INTEGRATION_LIMIT_IN_HZ: Tag = Tag(0x0018, 0x9195);
 /// ChemicalShiftMaximumIntegrationLimitInHz (0018,9196) FD 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CHEMICAL_SHIFT_MAXIMUM_INTEGRATION_LIMIT_IN_HZ: Tag = Tag(0x0018, 0x9196);
 /// IsotopeNumber (0020,0014) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ISOTOPE_NUMBER: Tag = Tag(0x0020, 0x0014);
 /// PhaseNumber (0020,0015) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PHASE_NUMBER: Tag = Tag(0x0020, 0x0015);
 /// IntervalNumber (0020,0016) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERVAL_NUMBER: Tag = Tag(0x0020, 0x0016);
 /// TimeSlotNumber (0020,0017) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TIME_SLOT_NUMBER: Tag = Tag(0x0020, 0x0017);
 /// AngleNumber (0020,0018) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ANGLE_NUMBER: Tag = Tag(0x0020, 0x0018);
 /// OverlayNumber (0020,0022) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_NUMBER: Tag = Tag(0x0020, 0x0022);
 /// CurveNumber (0020,0024) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CURVE_NUMBER: Tag = Tag(0x0020, 0x0024);
 /// LUTNumber (0020,0026) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const LUT_NUMBER: Tag = Tag(0x0020, 0x0026);
 /// ImagePosition (0020,0030) DS 3 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGE_POSITION: Tag = Tag(0x0020, 0x0030);
 /// ImageOrientation (0020,0035) DS 6 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGE_ORIENTATION: Tag = Tag(0x0020, 0x0035);
 /// Location (0020,0050) DS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const LOCATION: Tag = Tag(0x0020, 0x0050);
 /// ImageGeometryType (0020,0070) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGE_GEOMETRY_TYPE: Tag = Tag(0x0020, 0x0070);
 /// MaskingImage (0020,0080) CS 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MASKING_IMAGE: Tag = Tag(0x0020, 0x0080);
 /// ReportNumber (0020,00AA) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REPORT_NUMBER: Tag = Tag(0x0020, 0x00AA);
 /// SeriesInStudy (0020,1000) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SERIES_IN_STUDY: Tag = Tag(0x0020, 0x1000);
 /// AcquisitionsInSeries (0020,1001) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ACQUISITIONS_IN_SERIES: Tag = Tag(0x0020, 0x1001);
 /// ImagesInSeries (0020,1003) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGES_IN_SERIES: Tag = Tag(0x0020, 0x1003);
 /// AcquisitionsInStudy (0020,1004) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ACQUISITIONS_IN_STUDY: Tag = Tag(0x0020, 0x1004);
 /// ImagesInStudy (0020,1005) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGES_IN_STUDY: Tag = Tag(0x0020, 0x1005);
 /// Reference (0020,1020) LO 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCE: Tag = Tag(0x0020, 0x1020);
 /// OtherStudyNumbers (0020,1070) IS 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OTHER_STUDY_NUMBERS: Tag = Tag(0x0020, 0x1070);
 /// SourceImageIDs (0020,3100-31FF) CS 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SOURCE_IMAGE_I_DS: TagRange = Element100(Tag(0x0020, 0x3100));
 /// ModifyingDeviceID (0020,3401) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MODIFYING_DEVICE_ID: Tag = Tag(0x0020, 0x3401);
 /// ModifiedImageID (0020,3402) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MODIFIED_IMAGE_ID: Tag = Tag(0x0020, 0x3402);
 /// ModifiedImageDate (0020,3403) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MODIFIED_IMAGE_DATE: Tag = Tag(0x0020, 0x3403);
 /// ModifyingDeviceManufacturer (0020,3404) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MODIFYING_DEVICE_MANUFACTURER: Tag = Tag(0x0020, 0x3404);
 /// ModifiedImageTime (0020,3405) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MODIFIED_IMAGE_TIME: Tag = Tag(0x0020, 0x3405);
 /// ModifiedImageDescription (0020,3406) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MODIFIED_IMAGE_DESCRIPTION: Tag = Tag(0x0020, 0x3406);
 /// OriginalImageIdentification (0020,5000) AT 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ORIGINAL_IMAGE_IDENTIFICATION: Tag = Tag(0x0020, 0x5000);
 /// OriginalImageIdentificationNomenclature (0020,5002) LO 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ORIGINAL_IMAGE_IDENTIFICATION_NOMENCLATURE: Tag = Tag(0x0020, 0x5002);
 /// LensConstantDescription (0022,1094) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const LENS_CONSTANT_DESCRIPTION: Tag = Tag(0x0022, 0x1094);
 /// OphthalmicAxialLengthAcquisitionMethodCodeSequence (0022,1153) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OPHTHALMIC_AXIAL_LENGTH_ACQUISITION_METHOD_CODE_SEQUENCE: Tag = Tag(0x0022, 0x1153);
 /// OphthalmicAxialLengthQualityMetricTypeCodeSequence (0022,1265) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OPHTHALMIC_AXIAL_LENGTH_QUALITY_METRIC_TYPE_CODE_SEQUENCE: Tag = Tag(0x0022, 0x1265);
 /// OphthalmicAxialLengthQualityMetricTypeDescription (0022,1273) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OPHTHALMIC_AXIAL_LENGTH_QUALITY_METRIC_TYPE_DESCRIPTION: Tag = Tag(0x0022, 0x1273);
 /// ImageDimensions (0028,0005) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGE_DIMENSIONS: Tag = Tag(0x0028, 0x0005);
 /// Planes (0028,0012) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PLANES: Tag = Tag(0x0028, 0x0012);
 /// ImageFormat (0028,0040) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGE_FORMAT: Tag = Tag(0x0028, 0x0040);
 /// ManipulatedImage (0028,0050) LO 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MANIPULATED_IMAGE: Tag = Tag(0x0028, 0x0050);
 /// CompressionRecognitionCode (0028,005F) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COMPRESSION_RECOGNITION_CODE: Tag = Tag(0x0028, 0x005F);
 /// CompressionCode (0028,0060) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COMPRESSION_CODE: Tag = Tag(0x0028, 0x0060);
 /// CompressionOriginator (0028,0061) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COMPRESSION_ORIGINATOR: Tag = Tag(0x0028, 0x0061);
 /// CompressionLabel (0028,0062) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COMPRESSION_LABEL: Tag = Tag(0x0028, 0x0062);
 /// CompressionDescription (0028,0063) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COMPRESSION_DESCRIPTION: Tag = Tag(0x0028, 0x0063);
 /// CompressionSequence (0028,0065) CS 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COMPRESSION_SEQUENCE: Tag = Tag(0x0028, 0x0065);
 /// CompressionStepPointers (0028,0066) AT 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COMPRESSION_STEP_POINTERS: Tag = Tag(0x0028, 0x0066);
 /// RepeatInterval (0028,0068) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REPEAT_INTERVAL: Tag = Tag(0x0028, 0x0068);
 /// BitsGrouped (0028,0069) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const BITS_GROUPED: Tag = Tag(0x0028, 0x0069);
 /// PerimeterTable (0028,0070) US 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PERIMETER_TABLE: Tag = Tag(0x0028, 0x0070);
 /// PerimeterValue (0028,0071) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PERIMETER_VALUE: Tag = Tag(0x0028, 0x0071);
 /// PredictorRows (0028,0080) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PREDICTOR_ROWS: Tag = Tag(0x0028, 0x0080);
 /// PredictorColumns (0028,0081) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PREDICTOR_COLUMNS: Tag = Tag(0x0028, 0x0081);
 /// PredictorConstants (0028,0082) US 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PREDICTOR_CONSTANTS: Tag = Tag(0x0028, 0x0082);
 /// BlockedPixels (0028,0090) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const BLOCKED_PIXELS: Tag = Tag(0x0028, 0x0090);
 /// BlockRows (0028,0091) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const BLOCK_ROWS: Tag = Tag(0x0028, 0x0091);
 /// BlockColumns (0028,0092) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const BLOCK_COLUMNS: Tag = Tag(0x0028, 0x0092);
 /// RowOverlap (0028,0093) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ROW_OVERLAP: Tag = Tag(0x0028, 0x0093);
 /// ColumnOverlap (0028,0094) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COLUMN_OVERLAP: Tag = Tag(0x0028, 0x0094);
 /// SmallestValidPixelValue (0028,0104) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SMALLEST_VALID_PIXEL_VALUE: Tag = Tag(0x0028, 0x0104);
 /// LargestValidPixelValue (0028,0105) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const LARGEST_VALID_PIXEL_VALUE: Tag = Tag(0x0028, 0x0105);
 /// SmallestImagePixelValueInPlane (0028,0110) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SMALLEST_IMAGE_PIXEL_VALUE_IN_PLANE: Tag = Tag(0x0028, 0x0110);
 /// LargestImagePixelValueInPlane (0028,0111) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const LARGEST_IMAGE_PIXEL_VALUE_IN_PLANE: Tag = Tag(0x0028, 0x0111);
 /// ImageLocation (0028,0200) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGE_LOCATION: Tag = Tag(0x0028, 0x0200);
 /// TransformLabel (0028,0400) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TRANSFORM_LABEL: Tag = Tag(0x0028, 0x0400);
 /// TransformVersionNumber (0028,0401) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TRANSFORM_VERSION_NUMBER: Tag = Tag(0x0028, 0x0401);
 /// NumberOfTransformSteps (0028,0402) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const NUMBER_OF_TRANSFORM_STEPS: Tag = Tag(0x0028, 0x0402);
 /// SequenceOfCompressedData (0028,0403) LO 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SEQUENCE_OF_COMPRESSED_DATA: Tag = Tag(0x0028, 0x0403);
 /// DetailsOfCoefficients (0028,0404) AT 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DETAILS_OF_COEFFICIENTS: Tag = Tag(0x0028, 0x0404);
 /// DCTLabel (0028,0700) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DCT_LABEL: Tag = Tag(0x0028, 0x0700);
 /// DataBlockDescription (0028,0701) CS 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DATA_BLOCK_DESCRIPTION: Tag = Tag(0x0028, 0x0701);
 /// DataBlock (0028,0702) AT 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DATA_BLOCK: Tag = Tag(0x0028, 0x0702);
 /// NormalizationFactorFormat (0028,0710) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const NORMALIZATION_FACTOR_FORMAT: Tag = Tag(0x0028, 0x0710);
 /// ZonalMapNumberFormat (0028,0720) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ZONAL_MAP_NUMBER_FORMAT: Tag = Tag(0x0028, 0x0720);
 /// ZonalMapLocation (0028,0721) AT 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ZONAL_MAP_LOCATION: Tag = Tag(0x0028, 0x0721);
 /// ZonalMapFormat (0028,0722) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ZONAL_MAP_FORMAT: Tag = Tag(0x0028, 0x0722);
 /// AdaptiveMapFormat (0028,0730) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ADAPTIVE_MAP_FORMAT: Tag = Tag(0x0028, 0x0730);
 /// CodeNumberFormat (0028,0740) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CODE_NUMBER_FORMAT: Tag = Tag(0x0028, 0x0740);
 /// GrayScale (0028,1080) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const GRAY_SCALE: Tag = Tag(0x0028, 0x1080);
 /// GrayLookupTableDescriptor (0028,1100) US 3 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const GRAY_LOOKUP_TABLE_DESCRIPTOR: Tag = Tag(0x0028, 0x1100);
 /// LargeRedPaletteColorLookupTableDescriptor (0028,1111) US 4 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const LARGE_RED_PALETTE_COLOR_LOOKUP_TABLE_DESCRIPTOR: Tag = Tag(0x0028, 0x1111);
 /// LargeGreenPaletteColorLookupTableDescriptor (0028,1112) US 4 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const LARGE_GREEN_PALETTE_COLOR_LOOKUP_TABLE_DESCRIPTOR: Tag = Tag(0x0028, 0x1112);
 /// LargeBluePaletteColorLookupTableDescriptor (0028,1113) US 4 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const LARGE_BLUE_PALETTE_COLOR_LOOKUP_TABLE_DESCRIPTOR: Tag = Tag(0x0028, 0x1113);
 /// GrayLookupTableData (0028,1200) OW 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const GRAY_LOOKUP_TABLE_DATA: Tag = Tag(0x0028, 0x1200);
 /// LargeRedPaletteColorLookupTableData (0028,1211) OW 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const LARGE_RED_PALETTE_COLOR_LOOKUP_TABLE_DATA: Tag = Tag(0x0028, 0x1211);
 /// LargeGreenPaletteColorLookupTableData (0028,1212) OW 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const LARGE_GREEN_PALETTE_COLOR_LOOKUP_TABLE_DATA: Tag = Tag(0x0028, 0x1212);
 /// LargeBluePaletteColorLookupTableData (0028,1213) OW 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const LARGE_BLUE_PALETTE_COLOR_LOOKUP_TABLE_DATA: Tag = Tag(0x0028, 0x1213);
 /// LargePaletteColorLookupTableUID (0028,1214) UI 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const LARGE_PALETTE_COLOR_LOOKUP_TABLE_UID: Tag = Tag(0x0028, 0x1214);
 /// ImagePresentationComments (0028,4000) LT 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGE_PRESENTATION_COMMENTS: Tag = Tag(0x0028, 0x4000);
 /// BiPlaneAcquisitionSequence (0028,5000) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const BI_PLANE_ACQUISITION_SEQUENCE: Tag = Tag(0x0028, 0x5000);
 /// MaskPointers (0028,6030) US 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MASK_POINTERS: Tag = Tag(0x0028, 0x6030);
 /// LargestMonochromePixelValue (0028,9099) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const LARGEST_MONOCHROME_PIXEL_VALUE: Tag = Tag(0x0028, 0x9099);
 /// StudyStatusID (0032,000A) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const STUDY_STATUS_ID: Tag = Tag(0x0032, 0x000A);
 /// StudyPriorityID (0032,000C) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const STUDY_PRIORITY_ID: Tag = Tag(0x0032, 0x000C);
 /// StudyIDIssuer (0032,0012) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const STUDY_ID_ISSUER: Tag = Tag(0x0032, 0x0012);
 /// StudyVerifiedDate (0032,0032) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const STUDY_VERIFIED_DATE: Tag = Tag(0x0032, 0x0032);
 /// StudyVerifiedTime (0032,0033) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const STUDY_VERIFIED_TIME: Tag = Tag(0x0032, 0x0033);
 /// StudyReadDate (0032,0034) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const STUDY_READ_DATE: Tag = Tag(0x0032, 0x0034);
 /// StudyReadTime (0032,0035) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const STUDY_READ_TIME: Tag = Tag(0x0032, 0x0035);
 /// ScheduledStudyStartDate (0032,1000) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SCHEDULED_STUDY_START_DATE: Tag = Tag(0x0032, 0x1000);
 /// ScheduledStudyStartTime (0032,1001) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SCHEDULED_STUDY_START_TIME: Tag = Tag(0x0032, 0x1001);
 /// ScheduledStudyStopDate (0032,1010) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SCHEDULED_STUDY_STOP_DATE: Tag = Tag(0x0032, 0x1010);
 /// ScheduledStudyStopTime (0032,1011) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SCHEDULED_STUDY_STOP_TIME: Tag = Tag(0x0032, 0x1011);
 /// ScheduledStudyLocation (0032,1020) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SCHEDULED_STUDY_LOCATION: Tag = Tag(0x0032, 0x1020);
 /// ScheduledStudyLocationAETitle (0032,1021) AE 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SCHEDULED_STUDY_LOCATION_AE_TITLE: Tag = Tag(0x0032, 0x1021);
 /// ReasonForStudy (0032,1030) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REASON_FOR_STUDY: Tag = Tag(0x0032, 0x1030);
 /// StudyArrivalDate (0032,1040) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const STUDY_ARRIVAL_DATE: Tag = Tag(0x0032, 0x1040);
 /// StudyArrivalTime (0032,1041) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const STUDY_ARRIVAL_TIME: Tag = Tag(0x0032, 0x1041);
 /// StudyCompletionDate (0032,1050) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const STUDY_COMPLETION_DATE: Tag = Tag(0x0032, 0x1050);
 /// StudyCompletionTime (0032,1051) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const STUDY_COMPLETION_TIME: Tag = Tag(0x0032, 0x1051);
 /// StudyComponentStatusID (0032,1055) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const STUDY_COMPONENT_STATUS_ID: Tag = Tag(0x0032, 0x1055);
 /// StudyComments (0032,4000) LT 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const STUDY_COMMENTS: Tag = Tag(0x0032, 0x4000);
 /// IssuerOfAdmissionID (0038,0011) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ISSUER_OF_ADMISSION_ID: Tag = Tag(0x0038, 0x0011);
 /// ScheduledAdmissionDate (0038,001A) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SCHEDULED_ADMISSION_DATE: Tag = Tag(0x0038, 0x001A);
 /// ScheduledAdmissionTime (0038,001B) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SCHEDULED_ADMISSION_TIME: Tag = Tag(0x0038, 0x001B);
 /// ScheduledDischargeDate (0038,001C) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SCHEDULED_DISCHARGE_DATE: Tag = Tag(0x0038, 0x001C);
 /// ScheduledDischargeTime (0038,001D) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SCHEDULED_DISCHARGE_TIME: Tag = Tag(0x0038, 0x001D);
 /// ScheduledPatientInstitutionResidence (0038,001E) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SCHEDULED_PATIENT_INSTITUTION_RESIDENCE: Tag = Tag(0x0038, 0x001E);
 /// DischargeDate (0038,0030) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DISCHARGE_DATE: Tag = Tag(0x0038, 0x0030);
 /// DischargeTime (0038,0032) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DISCHARGE_TIME: Tag = Tag(0x0038, 0x0032);
 /// DischargeDiagnosisDescription (0038,0040) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DISCHARGE_DIAGNOSIS_DESCRIPTION: Tag = Tag(0x0038, 0x0040);
 /// DischargeDiagnosisCodeSequence (0038,0044) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DISCHARGE_DIAGNOSIS_CODE_SEQUENCE: Tag = Tag(0x0038, 0x0044);
 /// IssuerOfServiceEpisodeID (0038,0061) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ISSUER_OF_SERVICE_EPISODE_ID: Tag = Tag(0x0038, 0x0061);
 /// TotalTimeOfFluoroscopy (0040,0300) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TOTAL_TIME_OF_FLUOROSCOPY: Tag = Tag(0x0040, 0x0300);
 /// TotalNumberOfExposures (0040,0301) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TOTAL_NUMBER_OF_EXPOSURES: Tag = Tag(0x0040, 0x0301);
 /// DistanceSourceToSupport (0040,0307) DS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DISTANCE_SOURCE_TO_SUPPORT: Tag = Tag(0x0040, 0x0307);
 /// ExposureDoseSequence (0040,030E) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const EXPOSURE_DOSE_SEQUENCE: Tag = Tag(0x0040, 0x030E);
 /// ReferencedProcedureStepSequence (0040,0330) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_PROCEDURE_STEP_SEQUENCE: Tag = Tag(0x0040, 0x0330);
 /// SpecimenAccessionNumber (0040,050A) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SPECIMEN_ACCESSION_NUMBER: Tag = Tag(0x0040, 0x050A);
 /// SpecimenSequence (0040,0550) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SPECIMEN_SEQUENCE: Tag = Tag(0x0040, 0x0550);
 /// SpecimenDescriptionSequenceTrial (0040,0552) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SPECIMEN_DESCRIPTION_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0x0552);
 /// SpecimenDescriptionTrial (0040,0553) ST 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SPECIMEN_DESCRIPTION_TRIAL: Tag = Tag(0x0040, 0x0553);
 /// SlideIdentifier (0040,06FA) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SLIDE_IDENTIFIER: Tag = Tag(0x0040, 0x06FA);
 /// PixelSpacingSequence (0040,08D8) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PIXEL_SPACING_SEQUENCE: Tag = Tag(0x0040, 0x08D8);
 /// CoordinateSystemAxisCodeSequence (0040,08DA) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COORDINATE_SYSTEM_AXIS_CODE_SEQUENCE: Tag = Tag(0x0040, 0x08DA);
 /// VitalStainCodeSequenceTrial (0040,09F8) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const VITAL_STAIN_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0x09F8);
 /// PlacerOrderNumberProcedure (0040,1006) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PLACER_ORDER_NUMBER_PROCEDURE: Tag = Tag(0x0040, 0x1006);
 /// FillerOrderNumberProcedure (0040,1007) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const FILLER_ORDER_NUMBER_PROCEDURE: Tag = Tag(0x0040, 0x1007);
 /// RequestedProcedureDescriptionTrial (0040,1060) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REQUESTED_PROCEDURE_DESCRIPTION_TRIAL: Tag = Tag(0x0040, 0x1060);
 /// ReasonForTheImagingServiceRequest (0040,2001) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REASON_FOR_THE_IMAGING_SERVICE_REQUEST: Tag = Tag(0x0040, 0x2001);
 /// PlacerOrderNumberImagingServiceRequestRetired (0040,2006) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PLACER_ORDER_NUMBER_IMAGING_SERVICE_REQUEST_RETIRED: Tag = Tag(0x0040, 0x2006);
 /// FillerOrderNumberImagingServiceRequestRetired (0040,2007) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const FILLER_ORDER_NUMBER_IMAGING_SERVICE_REQUEST_RETIRED: Tag = Tag(0x0040, 0x2007);
 /// GeneralPurposeScheduledProcedureStepStatus (0040,4001) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const GENERAL_PURPOSE_SCHEDULED_PROCEDURE_STEP_STATUS: Tag = Tag(0x0040, 0x4001);
 /// GeneralPurposePerformedProcedureStepStatus (0040,4002) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const GENERAL_PURPOSE_PERFORMED_PROCEDURE_STEP_STATUS: Tag = Tag(0x0040, 0x4002);
 /// GeneralPurposeScheduledProcedureStepPriority (0040,4003) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const GENERAL_PURPOSE_SCHEDULED_PROCEDURE_STEP_PRIORITY: Tag = Tag(0x0040, 0x4003);
 /// ScheduledProcessingApplicationsCodeSequence (0040,4004) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SCHEDULED_PROCESSING_APPLICATIONS_CODE_SEQUENCE: Tag = Tag(0x0040, 0x4004);
 /// MultipleCopiesFlag (0040,4006) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MULTIPLE_COPIES_FLAG: Tag = Tag(0x0040, 0x4006);
 /// PerformedProcessingApplicationsCodeSequence (0040,4007) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PERFORMED_PROCESSING_APPLICATIONS_CODE_SEQUENCE: Tag = Tag(0x0040, 0x4007);
 /// ResultingGeneralPurposePerformedProcedureStepsSequence (0040,4015) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const RESULTING_GENERAL_PURPOSE_PERFORMED_PROCEDURE_STEPS_SEQUENCE: Tag = Tag(0x0040, 0x4015);
 /// ReferencedGeneralPurposeScheduledProcedureStepSequence (0040,4016) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_GENERAL_PURPOSE_SCHEDULED_PROCEDURE_STEP_SEQUENCE: Tag = Tag(0x0040, 0x4016);
 /// InputAvailabilityFlag (0040,4020) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INPUT_AVAILABILITY_FLAG: Tag = Tag(0x0040, 0x4020);
 /// RelevantInformationSequence (0040,4022) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const RELEVANT_INFORMATION_SEQUENCE: Tag = Tag(0x0040, 0x4022);
 /// ReferencedGeneralPurposeScheduledProcedureStepTransactionUID (0040,4023) UI 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_GENERAL_PURPOSE_SCHEDULED_PROCEDURE_STEP_TRANSACTION_UID: Tag = Tag(0x0040, 0x4023);
 /// RequestedSubsequentWorkitemCodeSequence (0040,4031) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REQUESTED_SUBSEQUENT_WORKITEM_CODE_SEQUENCE: Tag = Tag(0x0040, 0x4031);
 /// NonDICOMOutputCodeSequence (0040,4032) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const NON_DICOM_OUTPUT_CODE_SEQUENCE: Tag = Tag(0x0040, 0x4032);
 /// FindingsFlagTrial (0040,A007) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const FINDINGS_FLAG_TRIAL: Tag = Tag(0x0040, 0xA007);
 /// FindingsSequenceTrial (0040,A020) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const FINDINGS_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA020);
 /// FindingsGroupUIDTrial (0040,A021) UI 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const FINDINGS_GROUP_UID_TRIAL: Tag = Tag(0x0040, 0xA021);
 /// ReferencedFindingsGroupUIDTrial (0040,A022) UI 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_FINDINGS_GROUP_UID_TRIAL: Tag = Tag(0x0040, 0xA022);
 /// FindingsGroupRecordingDateTrial (0040,A023) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const FINDINGS_GROUP_RECORDING_DATE_TRIAL: Tag = Tag(0x0040, 0xA023);
 /// FindingsGroupRecordingTimeTrial (0040,A024) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const FINDINGS_GROUP_RECORDING_TIME_TRIAL: Tag = Tag(0x0040, 0xA024);
 /// FindingsSourceCategoryCodeSequenceTrial (0040,A026) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const FINDINGS_SOURCE_CATEGORY_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA026);
 /// DocumentingOrganizationIdentifierCodeSequenceTrial (0040,A028) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DOCUMENTING_ORGANIZATION_IDENTIFIER_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA028);
 /// MeasurementPrecisionDescriptionTrial (0040,A047) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MEASUREMENT_PRECISION_DESCRIPTION_TRIAL: Tag = Tag(0x0040, 0xA047);
 /// UrgencyOrPriorityAlertsTrial (0040,A057) CS 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const URGENCY_OR_PRIORITY_ALERTS_TRIAL: Tag = Tag(0x0040, 0xA057);
 /// SequencingIndicatorTrial (0040,A060) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SEQUENCING_INDICATOR_TRIAL: Tag = Tag(0x0040, 0xA060);
 /// DocumentIdentifierCodeSequenceTrial (0040,A066) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DOCUMENT_IDENTIFIER_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA066);
 /// DocumentAuthorTrial (0040,A067) PN 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DOCUMENT_AUTHOR_TRIAL: Tag = Tag(0x0040, 0xA067);
 /// DocumentAuthorIdentifierCodeSequenceTrial (0040,A068) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DOCUMENT_AUTHOR_IDENTIFIER_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA068);
 /// IdentifierCodeSequenceTrial (0040,A070) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IDENTIFIER_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA070);
 /// ObjectBinaryIdentifierTrial (0040,A074) OB 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OBJECT_BINARY_IDENTIFIER_TRIAL: Tag = Tag(0x0040, 0xA074);
 /// DocumentingObserverIdentifierCodeSequenceTrial (0040,A076) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DOCUMENTING_OBSERVER_IDENTIFIER_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA076);
 /// ProcedureIdentifierCodeSequenceTrial (0040,A085) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PROCEDURE_IDENTIFIER_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA085);
 /// ObjectDirectoryBinaryIdentifierTrial (0040,A089) OB 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OBJECT_DIRECTORY_BINARY_IDENTIFIER_TRIAL: Tag = Tag(0x0040, 0xA089);
 /// EquivalentCDADocumentSequence (0040,A090) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const EQUIVALENT_CDA_DOCUMENT_SEQUENCE: Tag = Tag(0x0040, 0xA090);
 /// DateOfDocumentOrVerbalTransactionTrial (0040,A110) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DATE_OF_DOCUMENT_OR_VERBAL_TRANSACTION_TRIAL: Tag = Tag(0x0040, 0xA110);
 /// TimeOfDocumentCreationOrVerbalTransactionTrial (0040,A112) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TIME_OF_DOCUMENT_CREATION_OR_VERBAL_TRANSACTION_TRIAL: Tag = Tag(0x0040, 0xA112);
 /// ReportStatusIDTrial (0040,A125) CS 2 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REPORT_STATUS_ID_TRIAL: Tag = Tag(0x0040, 0xA125);
 /// ReferencedFrameNumbers (0040,A136) US 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_FRAME_NUMBERS: Tag = Tag(0x0040, 0xA136);
 /// ObservationCategoryCodeSequenceTrial (0040,A167) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OBSERVATION_CATEGORY_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA167);
 /// BibliographicCitationTrial (0040,A16A) ST 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const BIBLIOGRAPHIC_CITATION_TRIAL: Tag = Tag(0x0040, 0xA16A);
 /// ReferencedObservationUIDTrial (0040,A172) UI 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_OBSERVATION_UID_TRIAL: Tag = Tag(0x0040, 0xA172);
 /// ReferencedObservationClassTrial (0040,A173) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_OBSERVATION_CLASS_TRIAL: Tag = Tag(0x0040, 0xA173);
 /// ReferencedObjectObservationClassTrial (0040,A174) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_OBJECT_OBSERVATION_CLASS_TRIAL: Tag = Tag(0x0040, 0xA174);
 /// ObservationDateTrial (0040,A192) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OBSERVATION_DATE_TRIAL: Tag = Tag(0x0040, 0xA192);
 /// ObservationTimeTrial (0040,A193) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OBSERVATION_TIME_TRIAL: Tag = Tag(0x0040, 0xA193);
 /// MeasurementAutomationTrial (0040,A194) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MEASUREMENT_AUTOMATION_TRIAL: Tag = Tag(0x0040, 0xA194);
 /// IdentificationDescriptionTrial (0040,A224) ST 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IDENTIFICATION_DESCRIPTION_TRIAL: Tag = Tag(0x0040, 0xA224);
 /// CoordinatesSetGeometricTypeTrial (0040,A290) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COORDINATES_SET_GEOMETRIC_TYPE_TRIAL: Tag = Tag(0x0040, 0xA290);
 /// AlgorithmCodeSequenceTrial (0040,A296) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ALGORITHM_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA296);
 /// AlgorithmDescriptionTrial (0040,A297) ST 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ALGORITHM_DESCRIPTION_TRIAL: Tag = Tag(0x0040, 0xA297);
 /// PixelCoordinatesSetTrial (0040,A29A) SL 2-2n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PIXEL_COORDINATES_SET_TRIAL: Tag = Tag(0x0040, 0xA29A);
 /// CurrentObserverTrial (0040,A307) PN 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CURRENT_OBSERVER_TRIAL: Tag = Tag(0x0040, 0xA307);
 /// ReferencedAccessionSequenceTrial (0040,A313) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_ACCESSION_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA313);
 /// ReportStatusCommentTrial (0040,A33A) ST 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REPORT_STATUS_COMMENT_TRIAL: Tag = Tag(0x0040, 0xA33A);
 /// ProcedureContextSequenceTrial (0040,A340) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PROCEDURE_CONTEXT_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA340);
 /// VerbalSourceTrial (0040,A352) PN 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const VERBAL_SOURCE_TRIAL: Tag = Tag(0x0040, 0xA352);
 /// AddressTrial (0040,A353) ST 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ADDRESS_TRIAL: Tag = Tag(0x0040, 0xA353);
 /// TelephoneNumberTrial (0040,A354) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TELEPHONE_NUMBER_TRIAL: Tag = Tag(0x0040, 0xA354);
 /// VerbalSourceIdentifierCodeSequenceTrial (0040,A358) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const VERBAL_SOURCE_IDENTIFIER_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA358);
 /// ReportDetailSequenceTrial (0040,A380) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REPORT_DETAIL_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA380);
 /// ObservationSubjectUIDTrial (0040,A402) UI 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OBSERVATION_SUBJECT_UID_TRIAL: Tag = Tag(0x0040, 0xA402);
 /// ObservationSubjectClassTrial (0040,A403) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OBSERVATION_SUBJECT_CLASS_TRIAL: Tag = Tag(0x0040, 0xA403);
 /// ObservationSubjectTypeCodeSequenceTrial (0040,A404) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OBSERVATION_SUBJECT_TYPE_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA404);
 /// ObservationSubjectContextFlagTrial (0040,A600) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OBSERVATION_SUBJECT_CONTEXT_FLAG_TRIAL: Tag = Tag(0x0040, 0xA600);
 /// ObserverContextFlagTrial (0040,A601) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OBSERVER_CONTEXT_FLAG_TRIAL: Tag = Tag(0x0040, 0xA601);
 /// ProcedureContextFlagTrial (0040,A603) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PROCEDURE_CONTEXT_FLAG_TRIAL: Tag = Tag(0x0040, 0xA603);
 /// RelationshipSequenceTrial (0040,A731) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const RELATIONSHIP_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA731);
 /// RelationshipTypeCodeSequenceTrial (0040,A732) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const RELATIONSHIP_TYPE_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA732);
 /// LanguageCodeSequenceTrial (0040,A744) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const LANGUAGE_CODE_SEQUENCE_TRIAL: Tag = Tag(0x0040, 0xA744);
 /// UniformResourceLocatorTrial (0040,A992) ST 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const UNIFORM_RESOURCE_LOCATOR_TRIAL: Tag = Tag(0x0040, 0xA992);
 /// TemplateVersion (0040,DB06) DT 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TEMPLATE_VERSION: Tag = Tag(0x0040, 0xDB06);
 /// TemplateLocalVersion (0040,DB07) DT 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TEMPLATE_LOCAL_VERSION: Tag = Tag(0x0040, 0xDB07);
 /// TemplateExtensionFlag (0040,DB0B) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TEMPLATE_EXTENSION_FLAG: Tag = Tag(0x0040, 0xDB0B);
 /// TemplateExtensionOrganizationUID (0040,DB0C) UI 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TEMPLATE_EXTENSION_ORGANIZATION_UID: Tag = Tag(0x0040, 0xDB0C);
 /// TemplateExtensionCreatorUID (0040,DB0D) UI 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TEMPLATE_EXTENSION_CREATOR_UID: Tag = Tag(0x0040, 0xDB0D);
 /// CountsIncluded (0054,1400) CS 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COUNTS_INCLUDED: Tag = Tag(0x0054, 0x1400);
 /// DeadTimeCorrectionFlag (0054,1401) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DEAD_TIME_CORRECTION_FLAG: Tag = Tag(0x0054, 0x1401);
 /// TrianglePointIndexList (0066,0023) OW 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TRIANGLE_POINT_INDEX_LIST: Tag = Tag(0x0066, 0x0023);
 /// EdgePointIndexList (0066,0024) OW 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const EDGE_POINT_INDEX_LIST: Tag = Tag(0x0066, 0x0024);
 /// VertexPointIndexList (0066,0025) OW 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const VERTEX_POINT_INDEX_LIST: Tag = Tag(0x0066, 0x0025);
 /// PrimitivePointIndexList (0066,0029) OW 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PRIMITIVE_POINT_INDEX_LIST: Tag = Tag(0x0066, 0x0029);
 /// ImageRotationRetired (0070,0040) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGE_ROTATION_RETIRED: Tag = Tag(0x0070, 0x0040);
 /// DisplayedAreaTopLeftHandCornerTrial (0070,0050) US 2 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DISPLAYED_AREA_TOP_LEFT_HAND_CORNER_TRIAL: Tag = Tag(0x0070, 0x0050);
 /// DisplayedAreaBottomRightHandCornerTrial (0070,0051) US 2 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DISPLAYED_AREA_BOTTOM_RIGHT_HAND_CORNER_TRIAL: Tag = Tag(0x0070, 0x0051);
 /// GraphicLayerRecommendedDisplayRGBValue (0070,0067) US 3 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const GRAPHIC_LAYER_RECOMMENDED_DISPLAY_RGB_VALUE: Tag = Tag(0x0070, 0x0067);
 /// CompositingMethod (0070,1206) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COMPOSITING_METHOD: Tag = Tag(0x0070, 0x1206);
 /// BeamOrderIndexTrial (0074,1024) IS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const BEAM_ORDER_INDEX_TRIAL: Tag = Tag(0x0074, 0x1024);
 /// DoubleExposureMetersetTrial (0074,1038) DS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DOUBLE_EXPOSURE_METERSET_TRIAL: Tag = Tag(0x0074, 0x1038);
 /// DoubleExposureFieldDeltaTrial (0074,103A) DS 4 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DOUBLE_EXPOSURE_FIELD_DELTA_TRIAL: Tag = Tag(0x0074, 0x103A);
 /// RelatedProcedureStepSequence (0074,1220) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const RELATED_PROCEDURE_STEP_SEQUENCE: Tag = Tag(0x0074, 0x1220);
 /// ProcedureStepRelationshipType (0074,1222) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PROCEDURE_STEP_RELATIONSHIP_TYPE: Tag = Tag(0x0074, 0x1222);
 /// TopicTitle (0088,0904) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TOPIC_TITLE: Tag = Tag(0x0088, 0x0904);
 /// TopicSubject (0088,0906) ST 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TOPIC_SUBJECT: Tag = Tag(0x0088, 0x0906);
 /// TopicAuthor (0088,0910) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TOPIC_AUTHOR: Tag = Tag(0x0088, 0x0910);
 /// TopicKeywords (0088,0912) LO 1-32 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TOPIC_KEYWORDS: Tag = Tag(0x0088, 0x0912);
 /// ColorImagePrintingFlag (2000,0062) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COLOR_IMAGE_PRINTING_FLAG: Tag = Tag(0x2000, 0x0062);
 /// CollationFlag (2000,0063) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COLLATION_FLAG: Tag = Tag(0x2000, 0x0063);
 /// AnnotationFlag (2000,0065) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ANNOTATION_FLAG: Tag = Tag(0x2000, 0x0065);
 /// ImageOverlayFlag (2000,0067) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGE_OVERLAY_FLAG: Tag = Tag(0x2000, 0x0067);
 /// PresentationLUTFlag (2000,0069) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PRESENTATION_LUT_FLAG: Tag = Tag(0x2000, 0x0069);
 /// ImageBoxPresentationLUTFlag (2000,006A) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGE_BOX_PRESENTATION_LUT_FLAG: Tag = Tag(0x2000, 0x006A);
 /// ReferencedStoredPrintSequence (2000,0510) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_STORED_PRINT_SEQUENCE: Tag = Tag(0x2000, 0x0510);
 /// ReferencedImageOverlayBoxSequence (2020,0130) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_IMAGE_OVERLAY_BOX_SEQUENCE: Tag = Tag(0x2020, 0x0130);
 /// ReferencedVOILUTBoxSequence (2020,0140) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_VOILUT_BOX_SEQUENCE: Tag = Tag(0x2020, 0x0140);
 /// ReferencedOverlayPlaneSequence (2040,0010) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_OVERLAY_PLANE_SEQUENCE: Tag = Tag(0x2040, 0x0010);
 /// ReferencedOverlayPlaneGroups (2040,0011) US 1-99 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_OVERLAY_PLANE_GROUPS: Tag = Tag(0x2040, 0x0011);
 /// OverlayPixelDataSequence (2040,0020) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_PIXEL_DATA_SEQUENCE: Tag = Tag(0x2040, 0x0020);
 /// OverlayMagnificationType (2040,0060) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_MAGNIFICATION_TYPE: Tag = Tag(0x2040, 0x0060);
 /// OverlaySmoothingType (2040,0070) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_SMOOTHING_TYPE: Tag = Tag(0x2040, 0x0070);
 /// OverlayOrImageMagnification (2040,0072) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_OR_IMAGE_MAGNIFICATION: Tag = Tag(0x2040, 0x0072);
 /// MagnifyToNumberOfColumns (2040,0074) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MAGNIFY_TO_NUMBER_OF_COLUMNS: Tag = Tag(0x2040, 0x0074);
 /// OverlayForegroundDensity (2040,0080) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_FOREGROUND_DENSITY: Tag = Tag(0x2040, 0x0080);
 /// OverlayBackgroundDensity (2040,0082) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_BACKGROUND_DENSITY: Tag = Tag(0x2040, 0x0082);
 /// OverlayMode (2040,0090) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_MODE: Tag = Tag(0x2040, 0x0090);
 /// ThresholdDensity (2040,0100) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const THRESHOLD_DENSITY: Tag = Tag(0x2040, 0x0100);
 /// ReferencedImageBoxSequenceRetired (2040,0500) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_IMAGE_BOX_SEQUENCE_RETIRED: Tag = Tag(0x2040, 0x0500);
 /// PrintJobID (2100,0010) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PRINT_JOB_ID: Tag = Tag(0x2100, 0x0010);
 /// ReferencedPrintJobSequencePullStoredPrint (2100,0500) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_PRINT_JOB_SEQUENCE_PULL_STORED_PRINT: Tag = Tag(0x2100, 0x0500);
 /// PrintQueueID (2110,0099) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PRINT_QUEUE_ID: Tag = Tag(0x2110, 0x0099);
 /// QueueStatus (2120,0010) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const QUEUE_STATUS: Tag = Tag(0x2120, 0x0010);
 /// PrintJobDescriptionSequence (2120,0050) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PRINT_JOB_DESCRIPTION_SEQUENCE: Tag = Tag(0x2120, 0x0050);
 /// ReferencedPrintJobSequence (2120,0070) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_PRINT_JOB_SEQUENCE: Tag = Tag(0x2120, 0x0070);
 /// PrintManagementCapabilitiesSequence (2130,0010) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PRINT_MANAGEMENT_CAPABILITIES_SEQUENCE: Tag = Tag(0x2130, 0x0010);
 /// PrinterCharacteristicsSequence (2130,0015) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PRINTER_CHARACTERISTICS_SEQUENCE: Tag = Tag(0x2130, 0x0015);
 /// FilmBoxContentSequence (2130,0030) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const FILM_BOX_CONTENT_SEQUENCE: Tag = Tag(0x2130, 0x0030);
 /// ImageBoxContentSequence (2130,0040) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGE_BOX_CONTENT_SEQUENCE: Tag = Tag(0x2130, 0x0040);
 /// AnnotationContentSequence (2130,0050) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ANNOTATION_CONTENT_SEQUENCE: Tag = Tag(0x2130, 0x0050);
 /// ImageOverlayBoxContentSequence (2130,0060) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGE_OVERLAY_BOX_CONTENT_SEQUENCE: Tag = Tag(0x2130, 0x0060);
 /// PresentationLUTContentSequence (2130,0080) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PRESENTATION_LUT_CONTENT_SEQUENCE: Tag = Tag(0x2130, 0x0080);
 /// ProposedStudySequence (2130,00A0) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PROPOSED_STUDY_SEQUENCE: Tag = Tag(0x2130, 0x00A0);
 /// OriginalImageSequence (2130,00C0) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ORIGINAL_IMAGE_SEQUENCE: Tag = Tag(0x2130, 0x00C0);
 /// AdditionalRTROIIdentificationCodeSequence (3006,00B9) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ADDITIONAL_RTROI_IDENTIFICATION_CODE_SEQUENCE: Tag = Tag(0x3006, 0x00B9);
 /// FrameOfReferenceRelationshipSequence (3006,00C0) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const FRAME_OF_REFERENCE_RELATIONSHIP_SEQUENCE: Tag = Tag(0x3006, 0x00C0);
 /// RelatedFrameOfReferenceUID (3006,00C2) UI 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const RELATED_FRAME_OF_REFERENCE_UID: Tag = Tag(0x3006, 0x00C2);
 /// FrameOfReferenceTransformationType (3006,00C4) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const FRAME_OF_REFERENCE_TRANSFORMATION_TYPE: Tag = Tag(0x3006, 0x00C4);
 /// BeamDoseSpecificationPoint (300A,0082) DS 3 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const BEAM_DOSE_SPECIFICATION_POINT: Tag = Tag(0x300A, 0x0082);
 /// AverageBeamDosePointDepth (300A,008D) FL 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const AVERAGE_BEAM_DOSE_POINT_DEPTH: Tag = Tag(0x300A, 0x008D);
 /// AverageBeamDosePointEquivalentDepth (300A,008E) FL 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const AVERAGE_BEAM_DOSE_POINT_EQUIVALENT_DEPTH: Tag = Tag(0x300A, 0x008E);
 /// AverageBeamDosePointSSD (300A,008F) FL 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const AVERAGE_BEAM_DOSE_POINT_SSD: Tag = Tag(0x300A, 0x008F);
 /// Arbitrary (4000,0010) LT 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ARBITRARY: Tag = Tag(0x4000, 0x0010);
 /// TextComments (4000,4000) LT 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TEXT_COMMENTS: Tag = Tag(0x4000, 0x4000);
 /// ResultsID (4008,0040) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const RESULTS_ID: Tag = Tag(0x4008, 0x0040);
 /// ResultsIDIssuer (4008,0042) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const RESULTS_ID_ISSUER: Tag = Tag(0x4008, 0x0042);
 /// ReferencedInterpretationSequence (4008,0050) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCED_INTERPRETATION_SEQUENCE: Tag = Tag(0x4008, 0x0050);
 /// ReportProductionStatusTrial (4008,00FF) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REPORT_PRODUCTION_STATUS_TRIAL: Tag = Tag(0x4008, 0x00FF);
 /// InterpretationRecordedDate (4008,0100) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_RECORDED_DATE: Tag = Tag(0x4008, 0x0100);
 /// InterpretationRecordedTime (4008,0101) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_RECORDED_TIME: Tag = Tag(0x4008, 0x0101);
 /// InterpretationRecorder (4008,0102) PN 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_RECORDER: Tag = Tag(0x4008, 0x0102);
 /// ReferenceToRecordedSound (4008,0103) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const REFERENCE_TO_RECORDED_SOUND: Tag = Tag(0x4008, 0x0103);
 /// InterpretationTranscriptionDate (4008,0108) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_TRANSCRIPTION_DATE: Tag = Tag(0x4008, 0x0108);
 /// InterpretationTranscriptionTime (4008,0109) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_TRANSCRIPTION_TIME: Tag = Tag(0x4008, 0x0109);
 /// InterpretationTranscriber (4008,010A) PN 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_TRANSCRIBER: Tag = Tag(0x4008, 0x010A);
 /// InterpretationText (4008,010B) ST 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_TEXT: Tag = Tag(0x4008, 0x010B);
 /// InterpretationAuthor (4008,010C) PN 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_AUTHOR: Tag = Tag(0x4008, 0x010C);
 /// InterpretationApproverSequence (4008,0111) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_APPROVER_SEQUENCE: Tag = Tag(0x4008, 0x0111);
 /// InterpretationApprovalDate (4008,0112) DA 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_APPROVAL_DATE: Tag = Tag(0x4008, 0x0112);
 /// InterpretationApprovalTime (4008,0113) TM 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_APPROVAL_TIME: Tag = Tag(0x4008, 0x0113);
 /// PhysicianApprovingInterpretation (4008,0114) PN 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PHYSICIAN_APPROVING_INTERPRETATION: Tag = Tag(0x4008, 0x0114);
 /// InterpretationDiagnosisDescription (4008,0115) LT 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_DIAGNOSIS_DESCRIPTION: Tag = Tag(0x4008, 0x0115);
 /// InterpretationDiagnosisCodeSequence (4008,0117) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_DIAGNOSIS_CODE_SEQUENCE: Tag = Tag(0x4008, 0x0117);
 /// ResultsDistributionListSequence (4008,0118) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const RESULTS_DISTRIBUTION_LIST_SEQUENCE: Tag = Tag(0x4008, 0x0118);
 /// DistributionName (4008,0119) PN 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DISTRIBUTION_NAME: Tag = Tag(0x4008, 0x0119);
 /// DistributionAddress (4008,011A) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DISTRIBUTION_ADDRESS: Tag = Tag(0x4008, 0x011A);
 /// InterpretationID (4008,0200) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_ID: Tag = Tag(0x4008, 0x0200);
 /// InterpretationIDIssuer (4008,0202) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_ID_ISSUER: Tag = Tag(0x4008, 0x0202);
 /// InterpretationTypeID (4008,0210) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_TYPE_ID: Tag = Tag(0x4008, 0x0210);
 /// InterpretationStatusID (4008,0212) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const INTERPRETATION_STATUS_ID: Tag = Tag(0x4008, 0x0212);
 /// Impressions (4008,0300) ST 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMPRESSIONS: Tag = Tag(0x4008, 0x0300);
 /// ResultsComments (4008,4000) ST 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const RESULTS_COMMENTS: Tag = Tag(0x4008, 0x4000);
 /// CurveDimensions (5000-50FF,0005) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CURVE_DIMENSIONS: TagRange = Group100(Tag(0x5000, 0x0005));
 /// NumberOfPoints (5000-50FF,0010) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const NUMBER_OF_POINTS: TagRange = Group100(Tag(0x5000, 0x0010));
 /// TypeOfData (5000-50FF,0020) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TYPE_OF_DATA: TagRange = Group100(Tag(0x5000, 0x0020));
 /// CurveDescription (5000-50FF,0022) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CURVE_DESCRIPTION: TagRange = Group100(Tag(0x5000, 0x0022));
 /// AxisUnits (5000-50FF,0030) SH 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const AXIS_UNITS: TagRange = Group100(Tag(0x5000, 0x0030));
 /// AxisLabels (5000-50FF,0040) SH 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const AXIS_LABELS: TagRange = Group100(Tag(0x5000, 0x0040));
 /// DataValueRepresentation (5000-50FF,0103) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const DATA_VALUE_REPRESENTATION: TagRange = Group100(Tag(0x5000, 0x0103));
 /// MinimumCoordinateValue (5000-50FF,0104) US 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MINIMUM_COORDINATE_VALUE: TagRange = Group100(Tag(0x5000, 0x0104));
 /// MaximumCoordinateValue (5000-50FF,0105) US 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MAXIMUM_COORDINATE_VALUE: TagRange = Group100(Tag(0x5000, 0x0105));
 /// CurveRange (5000-50FF,0106) SH 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CURVE_RANGE: TagRange = Group100(Tag(0x5000, 0x0106));
 /// CurveDataDescriptor (5000-50FF,0110) US 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CURVE_DATA_DESCRIPTOR: TagRange = Group100(Tag(0x5000, 0x0110));
 /// CoordinateStartValue (5000-50FF,0112) US 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COORDINATE_START_VALUE: TagRange = Group100(Tag(0x5000, 0x0112));
 /// CoordinateStepValue (5000-50FF,0114) US 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COORDINATE_STEP_VALUE: TagRange = Group100(Tag(0x5000, 0x0114));
 /// CurveActivationLayer (5000-50FF,1001) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CURVE_ACTIVATION_LAYER: TagRange = Group100(Tag(0x5000, 0x1001));
 /// AudioType (5000-50FF,2000) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const AUDIO_TYPE: TagRange = Group100(Tag(0x5000, 0x2000));
 /// AudioSampleFormat (5000-50FF,2002) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const AUDIO_SAMPLE_FORMAT: TagRange = Group100(Tag(0x5000, 0x2002));
 /// NumberOfChannels (5000-50FF,2004) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const NUMBER_OF_CHANNELS: TagRange = Group100(Tag(0x5000, 0x2004));
 /// NumberOfSamples (5000-50FF,2006) UL 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const NUMBER_OF_SAMPLES: TagRange = Group100(Tag(0x5000, 0x2006));
 /// SampleRate (5000-50FF,2008) UL 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SAMPLE_RATE: TagRange = Group100(Tag(0x5000, 0x2008));
 /// TotalTime (5000-50FF,200A) UL 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const TOTAL_TIME: TagRange = Group100(Tag(0x5000, 0x200A));
 /// AudioSampleData (5000-50FF,200C) OB 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const AUDIO_SAMPLE_DATA: TagRange = Group100(Tag(0x5000, 0x200C));
 /// AudioComments (5000-50FF,200E) LT 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const AUDIO_COMMENTS: TagRange = Group100(Tag(0x5000, 0x200E));
 /// CurveLabel (5000-50FF,2500) LO 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CURVE_LABEL: TagRange = Group100(Tag(0x5000, 0x2500));
 /// CurveReferencedOverlaySequence (5000-50FF,2600) SQ 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CURVE_REFERENCED_OVERLAY_SEQUENCE: TagRange = Group100(Tag(0x5000, 0x2600));
 /// CurveReferencedOverlayGroup (5000-50FF,2610) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CURVE_REFERENCED_OVERLAY_GROUP: TagRange = Group100(Tag(0x5000, 0x2610));
 /// CurveData (5000-50FF,3000) OB 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CURVE_DATA: TagRange = Group100(Tag(0x5000, 0x3000));
 /// OverlayPlanes (6000-60FF,0012) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_PLANES: TagRange = Group100(Tag(0x6000, 0x0012));
 /// OverlayPlaneOrigin (6000-60FF,0052) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_PLANE_ORIGIN: TagRange = Group100(Tag(0x6000, 0x0052));
 /// OverlayCompressionCode (6000-60FF,0060) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_COMPRESSION_CODE: TagRange = Group100(Tag(0x6000, 0x0060));
 /// OverlayCompressionOriginator (6000-60FF,0061) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_COMPRESSION_ORIGINATOR: TagRange = Group100(Tag(0x6000, 0x0061));
 /// OverlayCompressionLabel (6000-60FF,0062) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_COMPRESSION_LABEL: TagRange = Group100(Tag(0x6000, 0x0062));
 /// OverlayCompressionDescription (6000-60FF,0063) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_COMPRESSION_DESCRIPTION: TagRange = Group100(Tag(0x6000, 0x0063));
 /// OverlayCompressionStepPointers (6000-60FF,0066) AT 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_COMPRESSION_STEP_POINTERS: TagRange = Group100(Tag(0x6000, 0x0066));
 /// OverlayRepeatInterval (6000-60FF,0068) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_REPEAT_INTERVAL: TagRange = Group100(Tag(0x6000, 0x0068));
 /// OverlayBitsGrouped (6000-60FF,0069) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_BITS_GROUPED: TagRange = Group100(Tag(0x6000, 0x0069));
 /// OverlayFormat (6000-60FF,0110) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_FORMAT: TagRange = Group100(Tag(0x6000, 0x0110));
 /// OverlayLocation (6000-60FF,0200) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_LOCATION: TagRange = Group100(Tag(0x6000, 0x0200));
 /// OverlayCodeLabel (6000-60FF,0800) CS 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_CODE_LABEL: TagRange = Group100(Tag(0x6000, 0x0800));
 /// OverlayNumberOfTables (6000-60FF,0802) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_NUMBER_OF_TABLES: TagRange = Group100(Tag(0x6000, 0x0802));
 /// OverlayCodeTableLocation (6000-60FF,0803) AT 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_CODE_TABLE_LOCATION: TagRange = Group100(Tag(0x6000, 0x0803));
 /// OverlayBitsForCodeWord (6000-60FF,0804) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_BITS_FOR_CODE_WORD: TagRange = Group100(Tag(0x6000, 0x0804));
 /// OverlayDescriptorGray (6000-60FF,1100) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_DESCRIPTOR_GRAY: TagRange = Group100(Tag(0x6000, 0x1100));
 /// OverlayDescriptorRed (6000-60FF,1101) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_DESCRIPTOR_RED: TagRange = Group100(Tag(0x6000, 0x1101));
 /// OverlayDescriptorGreen (6000-60FF,1102) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_DESCRIPTOR_GREEN: TagRange = Group100(Tag(0x6000, 0x1102));
 /// OverlayDescriptorBlue (6000-60FF,1103) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_DESCRIPTOR_BLUE: TagRange = Group100(Tag(0x6000, 0x1103));
 /// OverlaysGray (6000-60FF,1200) US 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAYS_GRAY: TagRange = Group100(Tag(0x6000, 0x1200));
 /// OverlaysRed (6000-60FF,1201) US 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAYS_RED: TagRange = Group100(Tag(0x6000, 0x1201));
 /// OverlaysGreen (6000-60FF,1202) US 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAYS_GREEN: TagRange = Group100(Tag(0x6000, 0x1202));
 /// OverlaysBlue (6000-60FF,1203) US 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAYS_BLUE: TagRange = Group100(Tag(0x6000, 0x1203));
 /// OverlayComments (6000-60FF,4000) LT 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const OVERLAY_COMMENTS: TagRange = Group100(Tag(0x6000, 0x4000));
 /// CoefficientsSDVN (7FE0,0020) OW 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COEFFICIENTS_SDVN: Tag = Tag(0x7FE0, 0x0020);
 /// CoefficientsSDHN (7FE0,0030) OW 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COEFFICIENTS_SDHN: Tag = Tag(0x7FE0, 0x0030);
 /// CoefficientsSDDN (7FE0,0040) OW 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COEFFICIENTS_SDDN: Tag = Tag(0x7FE0, 0x0040);
 /// VariablePixelData (7F00-7FFF,0010) OB 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const VARIABLE_PIXEL_DATA: TagRange = Group100(Tag(0x7F00, 0x0010));
 /// VariableNextDataGroup (7F00-7FFF,0011) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const VARIABLE_NEXT_DATA_GROUP: TagRange = Group100(Tag(0x7F00, 0x0011));
 /// VariableCoefficientsSDVN (7F00-7FFF,0020) OW 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const VARIABLE_COEFFICIENTS_SDVN: TagRange = Group100(Tag(0x7F00, 0x0020));
 /// VariableCoefficientsSDHN (7F00-7FFF,0030) OW 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const VARIABLE_COEFFICIENTS_SDHN: TagRange = Group100(Tag(0x7F00, 0x0030));
 /// VariableCoefficientsSDDN (7F00-7FFF,0040) OW 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const VARIABLE_COEFFICIENTS_SDDN: TagRange = Group100(Tag(0x7F00, 0x0040));
 /// RowsForNthOrderCoefficients (0028,0410) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ROWS_FOR_NTH_ORDER_COEFFICIENTS: Tag = Tag(0x0028, 0x0410);
 /// ColumnsForNthOrderCoefficients (0028,0411) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COLUMNS_FOR_NTH_ORDER_COEFFICIENTS: Tag = Tag(0x0028, 0x0411);
 /// CoefficientCoding (0028,0412) LO 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COEFFICIENT_CODING: Tag = Tag(0x0028, 0x0412);
 /// CoefficientCodingPointers (0028,0413) AT 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COEFFICIENT_CODING_POINTERS: Tag = Tag(0x0028, 0x0413);
 /// CodeLabel (0028,0800) CS 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CODE_LABEL: Tag = Tag(0x0028, 0x0800);
 /// NumberOfTables (0028,0802) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const NUMBER_OF_TABLES: Tag = Tag(0x0028, 0x0802);
 /// CodeTableLocation (0028,0803) AT 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const CODE_TABLE_LOCATION: Tag = Tag(0x0028, 0x0803);
 /// BitsForCodeWord (0028,0804) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const BITS_FOR_CODE_WORD: Tag = Tag(0x0028, 0x0804);
 /// ImageDataLocation (0028,0808) AT 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const IMAGE_DATA_LOCATION: Tag = Tag(0x0028, 0x0808);
 /// EscapeTriplet (1000,0010) US 3 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ESCAPE_TRIPLET: Tag = Tag(0x1000, 0x0010);
 /// RunLengthTriplet (1000,0011) US 3 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const RUN_LENGTH_TRIPLET: Tag = Tag(0x1000, 0x0011);
 /// HuffmanTableSize (1000,0012) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const HUFFMAN_TABLE_SIZE: Tag = Tag(0x1000, 0x0012);
 /// HuffmanTableTriplet (1000,0013) US 3 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const HUFFMAN_TABLE_TRIPLET: Tag = Tag(0x1000, 0x0013);
 /// ShiftTableSize (1000,0014) US 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SHIFT_TABLE_SIZE: Tag = Tag(0x1000, 0x0014);
 /// ShiftTableTriplet (1000,0015) US 3 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const SHIFT_TABLE_TRIPLET: Tag = Tag(0x1000, 0x0015);
 /// ZonalMap (1010,0004) US 1-n DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const ZONAL_MAP: Tag = Tag(0x1010, 0x0004);
 
