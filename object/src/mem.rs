@@ -342,7 +342,7 @@ where
     where
         I: IntoIterator<Item = Result<InMemElement<D>>>,
     {
-        let entries: Result<_> = iter.into_iter().map_results(|e| (e.tag(), e)).collect();
+        let entries: Result<_> = iter.into_iter().map_ok(|e| (e.tag(), e)).collect();
         Ok(InMemDicomObject {
             entries: entries?,
             dict,
