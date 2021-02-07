@@ -94,7 +94,7 @@ where
     R: Read,
 {
     ensure!(
-        max_pdu_length >= MINIMUM_PDU_SIZE && max_pdu_length <= MAXIMUM_PDU_SIZE,
+        (MINIMUM_PDU_SIZE..=MAXIMUM_PDU_SIZE).contains(&max_pdu_length),
         InvalidMaxPdu { max_pdu_length }
     );
 

@@ -103,19 +103,13 @@ impl DataToken {
     /// Check whether this token represents the start of a sequence
     /// of nested data sets.
     pub fn is_sequence_start(&self) -> bool {
-        match self {
-            DataToken::SequenceStart { .. } => true,
-            _ => false,
-        }
+        matches!(self, DataToken::SequenceStart { .. })
     }
 
     /// Check whether this token represents the end of a sequence
     /// or the end of an encapsulated element.
     pub fn is_sequence_end(&self) -> bool {
-        match self {
-            DataToken::SequenceEnd => true,
-            _ => false,
-        }
+        matches!(self, DataToken::SequenceEnd)
     }
 }
 
@@ -269,7 +263,7 @@ where
                 // pixel data fragments next
                 let fragments = fragments.take().unwrap();
                 let tokens: dicom_core::value::C<_> =
-                    fragments.into_iter().map(|o| ItemValue(o)).collect();
+                    fragments.into_iter().map(ItemValue).collect();
                 *self = DataElementTokens::PixelDataFragments(tokens.into_tokens());
                 // recursive call to ensure the retrieval of a data token
                 return self.next();
