@@ -200,7 +200,7 @@ where
     if text.is_empty() || text.len() > 9 {
         return InvalidNumberLength { len: text.len() }.fail();
     }
-    if let Some(c) = text.iter().cloned().find(|&b| b < b'0' || b > b'9') {
+    if let Some(c) = text.iter().cloned().find(|b| !(b'0'..=b'9').contains(b)) {
         return InvalidNumberToken { value: c }.fail();
     }
 

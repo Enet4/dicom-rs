@@ -301,7 +301,7 @@ pub fn validate_iso_8859(text: &[u8]) -> TextValidationOutcome {
 /// Check whether the given byte slice contains only valid characters for a
 /// Date value representation.
 pub fn validate_da(text: &[u8]) -> TextValidationOutcome {
-    if text.iter().cloned().all(|c| c >= b'0' && c <= b'9') {
+    if text.iter().cloned().all(|c| (b'0'..=b'9').contains(&c)) {
         TextValidationOutcome::Ok
     } else {
         TextValidationOutcome::NotOk
@@ -313,7 +313,7 @@ pub fn validate_da(text: &[u8]) -> TextValidationOutcome {
 pub fn validate_tm(text: &[u8]) -> TextValidationOutcome {
     if text.iter().cloned().all(|c| match c {
         b'\\' | b'.' | b'-' | b' ' => true,
-        c => c >= b'0' && c <= b'9',
+        c => (b'0'..=b'9').contains(&c),
     }) {
         TextValidationOutcome::Ok
     } else {
@@ -326,7 +326,7 @@ pub fn validate_tm(text: &[u8]) -> TextValidationOutcome {
 pub fn validate_dt(text: &[u8]) -> TextValidationOutcome {
     if text.iter().cloned().all(|c| match c {
         b'.' | b'-' | b'+' | b' ' | b'\\' => true,
-        c => c >= b'0' && c <= b'9',
+        c => (b'0'..=b'9').contains(&c),
     }) {
         TextValidationOutcome::Ok
     } else {
@@ -339,7 +339,7 @@ pub fn validate_dt(text: &[u8]) -> TextValidationOutcome {
 pub fn validate_cs(text: &[u8]) -> TextValidationOutcome {
     if text.iter().cloned().all(|c| match c {
         b' ' | b'_' => true,
-        c => (c >= b'0' && c <= b'9') || (c >= b'A' && c <= b'Z'),
+        c => (b'0'..=b'9').contains(&c) || (b'A'..=b'Z').contains(&c),
     }) {
         TextValidationOutcome::Ok
     } else {

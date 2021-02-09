@@ -251,7 +251,7 @@ where
     )?;
 
     for line in preamble.split('\n') {
-        write!(f, "//! {}\n", line)?;
+        writeln!(f, "//! {}", line)?;
     }
 
     if matches!(retired_options, RetiredOptions::Include { deprecate: true}) {
@@ -310,7 +310,7 @@ where
 
         let (vr1, vr2) = e.vr.split_at(2);
 
-        let second_vr = if vr2 != "" {
+        let second_vr = if vr2.is_empty() {
             format!(" /*{} */", vr2)
         } else {
             vr2.to_string()

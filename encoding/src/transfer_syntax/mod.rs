@@ -273,19 +273,16 @@ impl<A> TransferSyntax<A> {
     /// Check whether this transfer syntax specifier provides a complete
     /// implementation.
     pub fn fully_supported(&self) -> bool {
-        match self.codec {
-            Codec::None | Codec::Dataset(_) | Codec::PixelData(_) => true,
-            _ => false,
-        }
+        matches!(
+            self.codec,
+            Codec::None | Codec::Dataset(_) | Codec::PixelData(_),
+        )
     }
 
     /// Check whether reading and writing of data sets is unsupported.
     /// If this is `true`, encoding and decoding will not be available.
     pub fn unsupported(&self) -> bool {
-        match self.codec {
-            Codec::Unsupported => true,
-            _ => false,
-        }
+        matches!(self.codec, Codec::Unsupported)
     }
 
     /// Check whether reading and writing the pixel data is unsupported.
@@ -293,10 +290,7 @@ impl<A> TransferSyntax<A> {
     /// be possible, but the pixel data will only be available in its
     /// encapsulated form.
     pub fn unsupported_pixel_encapsulation(&self) -> bool {
-        match self.codec {
-            Codec::Unsupported | Codec::EncapsulatedPixelData => true,
-            _ => false,
-        }
+        matches!(self.codec, Codec::Unsupported | Codec::EncapsulatedPixelData)
     }
 
     /// Retrieve the appropriate data element decoder for this transfer syntax.

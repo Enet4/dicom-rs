@@ -229,21 +229,21 @@ where
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received. TODO: write AE title
                 writer
-                    .write_all(&[0 as u8; 16])
+                    .write_all(&[0; 16])
                     .context(WriteReserved { bytes: 16_u32 })?;
 
                 // 27-42 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received. TODO: write AE title
                 writer
-                    .write_all(&[0 as u8; 16])
+                    .write_all(&[0; 16])
                     .context(WriteReserved { bytes: 16_u32 })?;
 
                 // 43-74 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received.
                 writer
-                    .write_all(&[0 as u8; 32])
+                    .write_all(&[0; 32])
                     .context(WriteReserved { bytes: 32_u32 })?;
 
                 // 75-xxx - Variable items - This variable field shall contain the following items:
