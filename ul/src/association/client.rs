@@ -9,11 +9,8 @@ use std::{
     net::{TcpStream, ToSocketAddrs},
 };
 
-use crate::pdu::{
-    reader::read_pdu, writer::write_pdu, AbortRQSource, AssociationRJResult, AssociationRJSource,
-    Pdu, PresentationContextProposed, PresentationContextResultReason,
-};
-use snafu::{ensure, OptionExt, ResultExt, Snafu};
+use crate::pdu::{AbortRQSource, AssociationRJResult, AssociationRJSource, Pdu, PresentationContextProposed, PresentationContextResult, PresentationContextResultReason, reader::read_pdu, writer::write_pdu};
+use snafu::{ensure, ResultExt, Snafu};
 
 use super::pdata::PDataWriter;
 
@@ -258,20 +255,14 @@ impl<'a> ClientAssociationOptions<'a> {
                     }
                 );
 
-                let selected_context = presentation_contexts_scp
+                let presentation_contexts: Vec<_> = presentation_contexts_scp
                     .into_iter()
-                    .find(|c| c.reason == PresentationContextResultReason::Acceptance)
-                    .context(NoAcceptedPresentationContexts)?;
-
-                let presentation_context = presentation_contexts
-                    .into_iter()
-                    .find(|c| c.id == selected_context.id)
-                    .context(NoAcceptedPresentationContexts)?;
+                    .filter(|c| c.reason == PresentationContextResultReason::Acceptance)
+                    .collect();
+                ensure!(!presentation_contexts.is_empty(), NoAcceptedPresentationContexts);
 
                 Ok(ClientAssociation {
-                    presentation_context_id: selected_context.id,
-                    abstract_syntax_uid: presentation_context.abstract_syntax,
-                    transfer_syntax_uid: selected_context.transfer_syntax,
+                    presentation_contexts,
                     max_pdu_length,
                     socket,
                 })
@@ -306,12 +297,9 @@ impl<'a> ClientAssociationOptions<'a> {
 /// then shut down the underlying TCP connection.
 #[derive(Debug)]
 pub struct ClientAssociation {
-    /// The accorded abstract syntax UID
-    abstract_syntax_uid: String,
-    /// The accorded transfer syntax UID
-    transfer_syntax_uid: String,
-    /// The identifier of the accorded presentation context
-    presentation_context_id: u8,
+    /// The presentation contexts accorded with the acceptor application entity,
+    /// without the rejected ones.
+    presentation_contexts: Vec<PresentationContextResult>,
     /// The maximum PDU length
     max_pdu_length: u32,
     /// The TCP stream to the other DICOM node
@@ -319,19 +307,9 @@ pub struct ClientAssociation {
 }
 
 impl ClientAssociation {
-    /// Retrieve the identifier of the negotiated presentation context.
-    pub fn presentation_context_id(&self) -> u8 {
-        self.presentation_context_id
-    }
-
-    /// Retrieve the negotiated abstract syntax UID.
-    pub fn abstract_syntax_uid(&self) -> &str {
-        &self.abstract_syntax_uid
-    }
-
-    /// Retrieve the negotiated transfer syntax UID.
-    pub fn transfer_syntax_uid(&self) -> &str {
-        &self.transfer_syntax_uid
+    /// Retrieve the list of negotiated presentation contexts.
+    pub fn presentation_contexts(&self) -> &[PresentationContextResult] {
+        &self.presentation_contexts
     }
 
     /// Send a PDU message to the other intervenient.

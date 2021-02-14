@@ -109,17 +109,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Sending payload (~ {} Kb)...", nbytes / 1024);
     }
 
+    let pc_selected = scu.presentation_contexts()
+        .first()
+        .ok_or("No presentation context accepted")?
+        .clone();
+
     if nbytes < max_pdu_length as usize - 100 {
         let pdu = Pdu::PData {
             data: vec![
                 PDataValue {
-                    presentation_context_id: scu.presentation_context_id(),
+                    presentation_context_id: pc_selected.id,
                     value_type: PDataValueType::Command,
                     is_last: true,
                     data: cmd_data,
                 },
                 PDataValue {
-                    presentation_context_id: scu.presentation_context_id(),
+                    presentation_context_id: pc_selected.id,
                     value_type: PDataValueType::Data,
                     is_last: true,
                     data: object_data,
@@ -131,7 +136,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         let pdu = Pdu::PData {
             data: vec![PDataValue {
-                presentation_context_id: scu.presentation_context_id(),
+                presentation_context_id: pc_selected.id,
                 value_type: PDataValueType::Command,
                 is_last: true,
                 data: cmd_data,
@@ -140,7 +145,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         scu.send(&pdu)?;
 
-        scu.send_pdata(scu.presentation_context_id())
+        scu.send_pdata(pc_selected.id)
             .write_all(&object_data)?;
     }
 

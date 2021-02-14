@@ -43,6 +43,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .called_ae_title(called_ae_title)
         .establish(&addr)?;
 
+    let pc = association.presentation_contexts()
+        .first()
+        .ok_or("No presentation context accepted")?
+        .clone();
+
     if verbose {
         println!("Association with {} successful", addr);
     }
@@ -58,7 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     association.send(&Pdu::PData {
         data: vec![PDataValue {
-            presentation_context_id: association.presentation_context_id(),
+            presentation_context_id: pc.id,
             value_type: PDataValueType::Command,
             is_last: true,
             data,
