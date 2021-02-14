@@ -35,7 +35,7 @@ struct App {
     /// the called AE title
     #[structopt(long = "called-ae-title", default_value = "ANY-SCP")]
     called_ae_title: String,
-
+    /// the maximum PDU length
     #[structopt(long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
 }
