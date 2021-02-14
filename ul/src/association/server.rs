@@ -1,4 +1,9 @@
 //! Association acceptor module
+//!
+//! The module provides an abstraction for a DICOM association
+//! in which this application entity listens to incoming association requests.
+//! See [`ServerAssociationOptions`](self::ServerAssociationOptions)
+//! for details and examples on how to create an association.
 use std::{borrow::Cow, net::TcpStream};
 
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
@@ -138,7 +143,22 @@ impl AccessControl for AcceptCalledAeTitle {
 /// The SCP will by default accept all transfer syntaxes
 /// supported by the main [transfer syntax registry][1].
 ///
-/// Access control logic is provided through
+/// Access control logic is also available,
+/// enabling application entities to decide on
+/// whether to accept or reject the association request
+/// based on the _called_ and _calling_ AE titles.
+///
+/// - By default, the application will accept requests from anyone
+///   ([`AcceptAny`])
+/// - To only accept requests with a matching _called_ AE title,
+///   add a call to [`accept_called_ae_title`]
+///   ([`AcceptCalledAeTitle`]).
+/// - Any other policy can be implemented through the [`AccessControl`] trait.
+///
+/// [`accept_called_ae_title`]: Self::accept_called_ae_title
+/// [`AcceptAny`]: AcceptAny
+/// [`AcceptCalledAeTitle`]: AcceptCalledAeTitle
+/// [`AccessControl`]: AccessControl
 ///
 /// [1]: dicom_transfer_syntax_registry
 #[derive(Debug, Clone)]
@@ -205,7 +225,10 @@ where
     ///
     /// The default is to accept any requesting node
     /// regardless of the specified AE titles.
-    pub fn ae_access_control<P>(self, access_control: P) -> ServerAssociationOptions<'a, P> {
+    pub fn ae_access_control<P>(self, access_control: P) -> ServerAssociationOptions<'a, P>
+    where
+        P: AccessControl,
+    {
         let ServerAssociationOptions {
             ae_title,
             application_context_name,
@@ -385,7 +408,16 @@ where
 }
 
 /// A DICOM upper level association from the perspective
-/// of a service class provider (SCP).
+/// of an accepting application entity.
+///
+/// The most common operations of an established association are
+/// [`send`](Self::send)
+/// and [`receive`](Self::receive).
+/// Sending large P-Data fragments may be easier through the P-Data sender
+/// abstraction (see [`send_pdata`](Self::send_pdata)).
+///
+/// When the value falls out of scope,
+/// the program will shut down the underlying TCP connection.
 #[derive(Debug)]
 pub struct ServerAssociation {
     /// The accorded presentation contexts

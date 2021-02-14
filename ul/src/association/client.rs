@@ -1,4 +1,9 @@
-//! Association acceptor module
+//! Association requester module
+//!
+//! The module provides an abstraction for a DICOM association
+//! in which this application entity is the one requesting the association.
+//! See [`ClientAssociationOptions`](self::ClientAssociationOptions)
+//! for details and examples on how to create an association.
 use std::{
     borrow::Cow,
     net::{TcpStream, ToSocketAddrs},
@@ -64,7 +69,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// A DICOM association builder for client node.
+/// A DICOM association builder for a client node.
 /// The final outcome is a [`ClientAssociation`].
 ///
 /// This is the standard way of requesting and establishing
@@ -84,12 +89,13 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// # }
 /// ```
 ///
-/// The SCU will admit by default the transfer syntaxes
+/// At least one abstract syntax must be specified,
+/// using the method [`with_abstract_syntax`](Self::with_abstract_syntax).
+/// The requester will admit by default the transfer syntaxes
 /// _Implicit VR Little Endian_
 /// and _Explicit VR Little Endian_.
 /// Other transfer syntaxes can be requested in the association
-/// via the method `with_transfer_syntax`.
-///
+/// via the method [`with_transfer_syntax`](Self::with_transfer_syntax).
 #[derive(Debug, Clone)]
 pub struct ClientAssociationOptions<'a> {
     /// the calling AE title
@@ -182,7 +188,9 @@ impl<'a> ClientAssociationOptions<'a> {
         self
     }
 
-    /// Initiate the TCP connection and negotiate the
+    /// Initiate the TCP connection to the given address
+    /// and request a new DICOM association,
+    /// negotiating the presentation contexts in the process. 
     pub fn establish<A: ToSocketAddrs>(self, address: A) -> Result<ClientAssociation> {
         let ClientAssociationOptions {
             calling_ae_title,
@@ -284,7 +292,18 @@ impl<'a> ClientAssociationOptions<'a> {
 }
 
 /// A DICOM upper level association from the perspective
-/// of an association requester.
+/// of a requesting application entity.
+///
+/// The most common operations of an established association are
+/// [`send`](Self::send)
+/// and [`receive`](Self::receive).
+/// Sending large P-Data fragments may be easier through the P-Data sender
+/// abstraction (see [`send_pdata`](Self::send_pdata)).
+///
+/// When the value falls out of scope,
+/// the program will automatically try to gracefully release the association
+/// through a standard C-RELEASE message exchange,
+/// then shut down the underlying TCP connection.
 #[derive(Debug)]
 pub struct ClientAssociation {
     /// The accorded abstract syntax UID
@@ -338,24 +357,6 @@ impl ClientAssociation {
     /// This is in a separate private function because
     /// terminating a connection should still close the connection
     /// if the exchange fails.
-    fn release_impl(&mut self) -> Result<()> {
-        write_pdu(&mut self.socket, &Pdu::ReleaseRQ).context(Send)?;
-
-        let pdu = read_pdu(&mut self.socket, self.max_pdu_length).context(Receive)?;
-
-        match pdu {
-            Pdu::ReleaseRP => {}
-            pdu @ Pdu::AbortRQ { .. }
-            | pdu @ Pdu::AssociationAC { .. }
-            | pdu @ Pdu::AssociationRJ { .. }
-            | pdu @ Pdu::AssociationRQ { .. }
-            | pdu @ Pdu::PData { .. }
-            | pdu @ Pdu::ReleaseRQ { .. } => return UnexpectedResponse { pdu }.fail(),
-            pdu @ Pdu::Unknown { .. } => return UnknownResponse { pdu }.fail(),
-        }
-        Ok(())
-    }
-
     /// Send an abort message and shut down the TCP connection,
     /// terminating the association.
     pub fn abort(mut self) -> Result<()> {
@@ -396,8 +397,27 @@ impl ClientAssociation {
             self.max_pdu_length,
         )
     }
+
+    fn release_impl(&mut self) -> Result<()> {
+        write_pdu(&mut self.socket, &Pdu::ReleaseRQ).context(Send)?;
+
+        let pdu = read_pdu(&mut self.socket, self.max_pdu_length).context(Receive)?;
+
+        match pdu {
+            Pdu::ReleaseRP => {}
+            pdu @ Pdu::AbortRQ { .. }
+            | pdu @ Pdu::AssociationAC { .. }
+            | pdu @ Pdu::AssociationRJ { .. }
+            | pdu @ Pdu::AssociationRQ { .. }
+            | pdu @ Pdu::PData { .. }
+            | pdu @ Pdu::ReleaseRQ { .. } => return UnexpectedResponse { pdu }.fail(),
+            pdu @ Pdu::Unknown { .. } => return UnknownResponse { pdu }.fail(),
+        }
+        Ok(())
+    }
 }
 
+/// Automatically release the association and shut down the connection.
 impl Drop for ClientAssociation {
     fn drop(&mut self) {
         let _ = self.release_impl();
