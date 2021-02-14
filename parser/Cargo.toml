@@ -18,5 +18,5 @@ dicom-core = { path = "../core", version = "0.3.0" }
 dicom-encoding = { path = "../encoding", version = "0.3.0" }
 chrono = "0.4.6"
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.3.0" }
-smallvec = "1.0.0"
+smallvec = "1.6.1"
 snafu = "0.6.8"

@@ -25,7 +25,7 @@ dicom-dictionary-std = { path = "../dictionary-std", version = "0.3.0" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.3.0" }
 itertools = "0.10"
 byteordered = "0.5.0"
-smallvec = "1.0.0"
+smallvec = "1.6.1"
 snafu = "0.6.8"
 
 [dev-dependencies]
