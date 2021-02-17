@@ -1,6 +1,9 @@
-use dicom::{core::{DataElement, PrimitiveValue, VR}};
 use dicom::core::dicom_value;
-use dicom::object::{StandardDataDictionary, Tag, mem::InMemDicomObject};
+use dicom::object::{mem::InMemDicomObject, StandardDataDictionary};
+use dicom::{
+    core::{DataElement, PrimitiveValue, VR},
+    dictionary_std::tags,
+};
 use dicom_ul::pdu;
 use dicom_ul::{
     association::client::ClientAssociationOptions,
@@ -15,7 +18,7 @@ struct App {
     /// socket address to SCP (example: "127.0.0.1:104")
     addr: String,
     /// verbose mode
-    #[structopt(short = "v")]
+    #[structopt(short = "v", long = "verbose")]
     verbose: bool,
     /// the C-ECHO message ID
     #[structopt(short = "m", long = "message-id", default_value = "1")]
@@ -43,7 +46,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .called_ae_title(called_ae_title)
         .establish(&addr)?;
 
-    let pc = association.presentation_contexts()
+    let pc = association
+        .presentation_contexts()
         .first()
         .ok_or("No presentation context accepted")?
         .clone();
@@ -90,19 +94,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // check status
-            let status_elem = obj.element(Tag(0x0000, 0x0900))?;
+            let status_elem = obj.element(tags::STATUS)?;
             if verbose {
                 println!("Status: {}", status_elem.to_int::<u16>()?);
             }
 
             // msg ID response, should be equal to sent msg ID
-            let msg_id_elem = obj.element(Tag(0x0000, 0x0120))?;
+            let msg_id_elem = obj.element(tags::MESSAGE_ID_BEING_RESPONDED_TO)?;
 
             assert_eq!(message_id, msg_id_elem.to_int()?);
             if verbose {
                 println!("C-ECHO successful.");
             }
-        },
+        }
         pdu => panic!("Unexpected pdu {:?}", pdu),
     }
 
@@ -114,32 +118,32 @@ fn create_echo_command(message_id: u16) -> InMemDicomObject<StandardDataDictiona
 
     // group length
     obj.put(DataElement::new(
-        Tag(0x0000, 0x0000),
+        tags::COMMAND_GROUP_LENGTH,
         VR::UI,
         PrimitiveValue::from(8 + 18 + 8 + 2 + 8 + 2 + 8 + 2),
     ));
 
     // service
     obj.put(DataElement::new(
-        Tag(0x0000, 0x0002),
+        tags::AFFECTED_SOP_CLASS_UID,
         VR::UI,
         dicom_value!(Str, "1.2.840.10008.1.1\0"),
     ));
     // command
     obj.put(DataElement::new(
-        Tag(0x0000, 0x0100),
+        tags::COMMAND_FIELD,
         VR::US,
         dicom_value!(U16, [0x0030]),
     ));
     // message ID
     obj.put(DataElement::new(
-        Tag(0x0000, 0x0110),
+        tags::MESSAGE_ID,
         VR::US,
         dicom_value!(U16, [message_id]),
     ));
     // data set type
     obj.put(DataElement::new(
-        Tag(0x0000, 0x0800),
+        tags::COMMAND_DATA_SET_TYPE,
         VR::US,
         dicom_value!(U16, [0x0101]),
     ));

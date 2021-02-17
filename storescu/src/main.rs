@@ -1,7 +1,7 @@
-use dicom::core::dicom_value;
 use dicom::core::smallvec;
+use dicom::{core::dicom_value, dictionary_std::tags};
 use dicom::{
-    core::{DataElement, PrimitiveValue, Tag, VR},
+    core::{DataElement, PrimitiveValue, VR},
     encoding::transfer_syntax,
     object::{mem::InMemDicomObject, open_file, StandardDataDictionary},
     transfer_syntax::TransferSyntaxRegistry,
@@ -24,7 +24,7 @@ struct App {
     /// the DICOM file to store
     file: PathBuf,
     /// verbose mode
-    #[structopt(short = "v")]
+    #[structopt(short = "v", long = "verbose")]
     verbose: bool,
     /// the C-STORE message ID
     #[structopt(short = "m", long = "message-id", default_value = "1")]
@@ -109,7 +109,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Sending payload (~ {} Kb)...", nbytes / 1024);
     }
 
-    let pc_selected = scu.presentation_contexts()
+    let pc_selected = scu
+        .presentation_contexts()
         .first()
         .ok_or("No presentation context accepted")?
         .clone();
@@ -145,8 +146,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         scu.send(&pdu)?;
 
-        scu.send_pdata(pc_selected.id)
-            .write_all(&object_data)?;
+        scu.send_pdata(pc_selected.id).write_all(&object_data)?;
     }
 
     if verbose {
@@ -166,7 +166,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if verbose {
                 println!("Response: {:?}", cmd_obj);
             }
-            let status = cmd_obj.element(Tag(0x0000, 0x0900))?.to_int::<u16>()?;
+            let status = cmd_obj.element(tags::STATUS)?.to_int::<u16>()?;
             if status == 0 {
                 println!("Sucessfully stored instance `{}`", storage_sop_instance_uid);
             } else {
@@ -203,49 +203,49 @@ fn store_req_command(
 
     // group length
     obj.put(DataElement::new(
-        Tag(0x0000, 0x0000),
+        tags::COMMAND_GROUP_LENGTH,
         VR::UL,
         PrimitiveValue::from(0),
     ));
 
     // SOP Class UID
     obj.put(DataElement::new(
-        Tag(0x0000, 0x0002),
+        tags::AFFECTED_SOP_CLASS_UID,
         VR::UI,
         dicom_value!(Str, storage_sop_class_uid),
     ));
 
     // command field
     obj.put(DataElement::new(
-        Tag(0x0000, 0x0100),
+        tags::COMMAND_FIELD,
         VR::US,
         dicom_value!(U16, [0x0001]),
     ));
 
     // message ID
     obj.put(DataElement::new(
-        Tag(0x0000, 0x0110),
+        tags::MESSAGE_ID,
         VR::US,
         dicom_value!(U16, [message_id]),
     ));
 
     //priority
     obj.put(DataElement::new(
-        Tag(0x0000, 0x0700),
+        tags::PRIORITY,
         VR::US,
         dicom_value!(U16, [0x0000]),
     ));
 
     // data set type
     obj.put(DataElement::new(
-        Tag(0x0000, 0x0800),
+        tags::COMMAND_DATA_SET_TYPE,
         VR::US,
         dicom_value!(U16, [0x0000]),
     ));
 
     // affected SOP Instance UID
     obj.put(DataElement::new(
-        Tag(0x0000, 0x1000),
+        tags::AFFECTED_SOP_INSTANCE_UID,
         VR::UI,
         dicom_value!(Str, storage_sop_instance_uid),
     ));
