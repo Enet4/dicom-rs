@@ -1,10 +1,24 @@
+//! Protocol Data Unit module
+//!
+//! This module comprises multiple data structures representing possible
+//! protocol data units (PDUs) according to
+//! the standard message exchange mechanisms,
+//! as well as readers and writers of PDUs from arbitrary data sources.
 pub mod reader;
 pub mod writer;
 
+pub use reader::read_pdu;
+pub use writer::write_pdu;
+
+/// Message component for a proposed presentation context.
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub struct PresentationContextProposed {
+    /// the presentation context identifier
     pub id: u8,
+    /// the expected abstract syntax UID
+    /// (commonly referrering to the expected SOP class)
     pub abstract_syntax: String,
+    /// a list of transfer syntax UIDs to support in this interaction
     pub transfer_syntaxes: Vec<String>,
 }
 
@@ -250,4 +264,28 @@ pub enum Pdu {
     AbortRQ {
         source: AbortRQSource,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+struct AssociationRQ {
+    protocol_version: u16,
+    calling_ae_title: String,
+    called_ae_title: String,
+    application_context_name: String,
+    presentation_contexts: Vec<PresentationContextProposed>,
+    user_variables: Vec<UserVariableItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+struct AssociationAC {
+    protocol_version: u16,
+    application_context_name: String,
+    presentation_contexts: Vec<PresentationContextResult>,
+    user_variables: Vec<UserVariableItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+struct AssociationRJ {
+    result: AssociationRJResult,
+    source: AssociationRJSource,
 }

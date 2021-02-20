@@ -10,5 +10,7 @@ members = [
     "dictionary-builder",
     "dcmdump",
     "ul",
-    "scpproxy"
+    "scpproxy",
+    "echoscu",
+    "storescu"
 ]

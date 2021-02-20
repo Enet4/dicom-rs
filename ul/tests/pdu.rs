@@ -73,7 +73,7 @@ fn can_read_write_associate_rq() -> Result<(), Box<dyn std::error::Error>> {
         );
         matches!(user_variables[2], UserVariableItem::MaxLength(_));
     } else {
-        assert!(false, "invalid pdu type");
+        panic!("invalid pdu type");
     }
 
     Ok(())

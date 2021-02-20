@@ -279,6 +279,13 @@ impl<A> TransferSyntax<A> {
         )
     }
 
+    /// Check whether no codecs are required for this transfer syntax,
+    /// meaning that a complete implementation is available
+    /// and no pixel data conversion is required.
+    pub fn is_codec_free(&self) -> bool {
+        matches!(self.codec, Codec::None)
+    }
+
     /// Check whether reading and writing of data sets is unsupported.
     /// If this is `true`, encoding and decoding will not be available.
     pub fn unsupported(&self) -> bool {

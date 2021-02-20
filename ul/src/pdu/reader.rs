@@ -1,3 +1,4 @@
+/// PDU reader module
 use crate::pdu::*;
 use byteordered::byteorder::{BigEndian, ReadBytesExt};
 use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
