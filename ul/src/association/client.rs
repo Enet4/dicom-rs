@@ -259,7 +259,13 @@ impl<'a> ClientAssociationOptions<'a> {
                     .into_iter()
                     .filter(|c| c.reason == PresentationContextResultReason::Acceptance)
                     .collect();
-                ensure!(!presentation_contexts.is_empty(), NoAcceptedPresentationContexts);
+                if presentation_contexts.is_empty() {
+                    // abort connection
+                    let _ = write_pdu(&mut socket, &Pdu::AbortRQ {
+                        source: AbortRQSource::ServiceUser,
+                    });
+                    return NoAcceptedPresentationContexts.fail();
+                }
 
                 Ok(ClientAssociation {
                     presentation_contexts,
@@ -276,8 +282,20 @@ impl<'a> ClientAssociationOptions<'a> {
             | pdu @ Pdu::ReleaseRQ { .. }
             | pdu @ Pdu::AssociationRQ { .. }
             | pdu @ Pdu::PData { .. }
-            | pdu @ Pdu::ReleaseRP { .. } => UnexpectedResponse { pdu }.fail(),
-            pdu @ Pdu::Unknown { .. } => UnknownResponse { pdu }.fail(),
+            | pdu @ Pdu::ReleaseRP { .. } => {
+                // abort connection
+                let _ = write_pdu(&mut socket, &Pdu::AbortRQ {
+                    source: AbortRQSource::ServiceUser,
+                });
+                UnexpectedResponse { pdu }.fail()
+            }
+            pdu @ Pdu::Unknown { .. } => {
+                // abort connection
+                let _ = write_pdu(&mut socket, &Pdu::AbortRQ {
+                    source: AbortRQSource::ServiceUser,
+                });
+                UnknownResponse { pdu }.fail()
+            }
         }
     }
 }
