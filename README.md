@@ -31,6 +31,8 @@ remaining intrinsically fast and safe to use.
 - [`dictionary-builder`](dictionary-builder) is a Rust application that generates code and
   other data structures for a DICOM standard dictionary using entries from the official website.
 - [`scpproxy`](scpproxy) implements the Proxy service class provider.
+- [`echoscu`](echoscu) implements a Verification service class user.
+- [`storescu`](storescu) implements a Storage service class user.
 
 ## Using as a library
 
