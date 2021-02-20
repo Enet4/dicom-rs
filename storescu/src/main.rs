@@ -30,7 +30,7 @@ struct App {
     #[structopt(short = "m", long = "message-id", default_value = "1")]
     message_id: u16,
     /// the calling AE title
-    #[structopt(long = "calling-ae-title", default_value = "ECHOSCU")]
+    #[structopt(long = "calling-ae-title", default_value = "STORE-SCU")]
     calling_ae_title: String,
     /// the called AE title
     #[structopt(long = "called-ae-title", default_value = "ANY-SCP")]
