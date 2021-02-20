@@ -25,12 +25,3 @@ pub(crate) mod pdata;
 pub use client::{ClientAssociation, ClientAssociationOptions};
 pub use pdata::PDataWriter;
 pub use server::{ServerAssociation, ServerAssociationOptions};
-
-/// A service class user or a provider.
-#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
-pub enum ServiceClassRole {
-    /// Service Class User
-    Scu,
-    /// Service Class Provider
-    Scp,
-}
