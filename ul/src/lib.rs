@@ -1,13 +1,18 @@
-//! This crates contains the types and methods needed to interact with the DICOM upper-layer protocol.
+//! This crates contains the types and methods needed to interact
+//! with DICOM nodes through the upper layer protocol.
 //!
-//! It is very low level and not very usable as is.
+//! This crate can be used as a base
+//! for finite-state machines and higher-level helpers,
+//! enabling the creation of concrete service class users (SCUs)
+//! and service class providers (SCPs).
 //!
-//! Eventually, a finite-state-machine and higher-level SCU/SCP helpers will be added that will make
-//! interacting with these types more idiomatic and friendly.
-//!
-//! The [`pdu`](crate::pdu) module
+//! - The [`pdu`](crate::pdu) module
 //! provides data structures representing _protocol data units_,
 //! which are passed around as part of the DICOM network communication support.
+//! - The [`association`](crate::association) module
+//! comprises abstractions for establishing and negotiating associations
+//! between application entities,
+//! via the upper layer protocol by TCP.
 
-pub mod pdu;
 pub mod association;
+pub mod pdu;
