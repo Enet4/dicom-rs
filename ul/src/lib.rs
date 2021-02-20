@@ -16,3 +16,11 @@
 
 pub mod association;
 pub mod pdu;
+
+// re-exports
+
+pub use association::client::{ClientAssociation, ClientAssociationOptions};
+pub use association::server::{ServerAssociation, ServerAssociationOptions};
+pub use pdu::reader::read_pdu;
+pub use pdu::writer::write_pdu;
+pub use pdu::Pdu;
