@@ -61,7 +61,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let storage_sop_class_uid = &meta.media_storage_sop_class_uid;
     let storage_sop_instance_uid = &meta.media_storage_sop_instance_uid;
-    let transfer_syntax = &meta.transfer_syntax;
+    let transfer_syntax = &meta.transfer_syntax.trim_end_matches("\0");
+
+    let file_ts_desc = TransferSyntaxRegistry
+        .get(transfer_syntax)
+        .ok_or("Unsupported file transfer syntax")?;
 
     if verbose {
         println!("Establishing association with '{}'...", &addr);
@@ -78,9 +82,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if verbose {
         println!("Association established");
     }
+
+    // TODO(#106) transfer syntax conversion is currently not supported
+    let pc_selected = if let Some(pc) = scu.presentation_contexts().iter().find(|pc| {
+        // Check support for this transfer syntax.
+        // If it is the same as the file, we're good.
+        // Otherwise, uncompressed data set encoding
+        // and native pixel data is required on both ends.
+        let ts = dbg!(&pc.transfer_syntax);
+        ts == transfer_syntax
+            || TransferSyntaxRegistry
+                .get(&pc.transfer_syntax)
+                .filter(|ts| file_ts_desc.is_codec_free() && ts.is_codec_free())
+                .map(|_| true)
+                .unwrap_or(false)
+    }) {
+        pc.clone()
+    } else {
+        eprintln!("Could not choose a transfer syntax");
+        let _ = scu.abort();
+        std::process::exit(-2);
+    };
+
     let ts = TransferSyntaxRegistry
-        .get(&transfer_syntax)
-        .expect("Poorly negotiated transfer syntax");
+        .get(&pc_selected.transfer_syntax)
+        .ok_or_else(|| "Poorly negotiated transfer syntax")?;
 
     if verbose {
         println!("Transfer Syntax: {}", ts.name());
@@ -98,8 +124,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &dicom::transfer_syntax::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
     )?;
 
-    // !!! ensure that the negotiated transfer syntax is used
-
     let mut object_data = Vec::with_capacity(1024);
     dicom_file.write_dataset_with_ts(&mut object_data, &ts)?;
 
@@ -108,12 +132,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if verbose {
         println!("Sending payload (~ {} Kb)...", nbytes / 1024);
     }
-
-    let pc_selected = scu
-        .presentation_contexts()
-        .first()
-        .ok_or("No presentation context accepted")?
-        .clone();
 
     if nbytes < max_pdu_length as usize - 100 {
         let pdu = Pdu::PData {
@@ -187,6 +205,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         | pdu @ Pdu::ReleaseRP
         | pdu @ Pdu::AbortRQ { .. } => {
             eprintln!("Unexpected SCP response: {:?}", pdu);
+            let _ = scu.abort();
             std::process::exit(-2);
         }
     }
@@ -205,7 +224,16 @@ fn store_req_command(
     obj.put(DataElement::new(
         tags::COMMAND_GROUP_LENGTH,
         VR::UL,
-        PrimitiveValue::from(0),
+        PrimitiveValue::from(
+            12 + 8
+                + even_len(storage_sop_class_uid.len())
+                + 10
+                + 10
+                + 10
+                + 10
+                + 8
+                + even_len(storage_sop_instance_uid.len()),
+        ),
     ));
 
     // SOP Class UID
@@ -251,4 +279,22 @@ fn store_req_command(
     ));
 
     obj
+}
+
+fn even_len(l: usize) -> u32 {
+    ((l + 1) & !1) as u32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::even_len;
+    #[test]
+    fn test_even_len() {
+        assert_eq!(even_len(0), 0);
+        assert_eq!(even_len(1), 2);
+        assert_eq!(even_len(2), 2);
+        assert_eq!(even_len(3), 4);
+        assert_eq!(even_len(4), 4);
+        assert_eq!(even_len(5), 6);
+    }
 }
