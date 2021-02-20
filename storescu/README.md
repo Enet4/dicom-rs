@@ -17,16 +17,20 @@ for `storescu` tools in other DICOM software projects.
 DICOM C-STORE SCU
 
 USAGE:
-    dicom-storescu [FLAGS] [OPTIONS] <addr>
+    dicom-storescu [FLAGS] [OPTIONS] <addr> <file>
 
 FLAGS:
     -h, --help       Prints help information
     -V, --version    Prints version information
-    -v               verbose mode
+    -v, --verbose    verbose mode
 
 OPTIONS:
-    -m, --message-id <message-id>    the C-ECHO message ID [default: 1]
+        --called-ae-title <called-ae-title>      the called AE title [default: ANY-SCP]
+        --calling-ae-title <calling-ae-title>    the calling AE title [default: STORE-SCU]
+        --max-pdu-length <max-pdu-length>        the maximum PDU length [default: 16384]
+    -m, --message-id <message-id>                the C-STORE message ID [default: 1]
 
 ARGS:
-    <addr>    socket address to SCP (example: "127.0.0.1:104")
+    <addr>    socket address to STORE SCP (example: "127.0.0.1:104")
+    <file>    the DICOM file to store
 ```
