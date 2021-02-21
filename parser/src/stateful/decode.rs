@@ -198,8 +198,7 @@ pub trait StatefulDecode {
 /// Alias for a dynamically resolved DICOM stateful decoder. Although the data
 /// source may be known at compile time, the required decoder may vary
 /// according to an object's transfer syntax.
-pub type DynStatefulDecoder<'s> =
-    StatefulDecoder<DynDecoder<dyn Read + 's>, BasicDecoder, Box<dyn Read + 's>, DynamicTextCodec>;
+pub type DynStatefulDecoder<S> = StatefulDecoder<DynDecoder<S>, BasicDecoder, S, DynamicTextCodec>;
 
 /// The initial capacity of the `DicomParser` buffer.
 const PARSER_BUFFER_CAPACITY: usize = 2048;
@@ -224,12 +223,10 @@ pub struct StatefulDecoder<D, BD, S, TC> {
     position: u64,
 }
 
-pub type DicomParser<D, BD, S, TC> = StatefulDecoder<D, BD, S, TC>;
-
-impl<'s> DynStatefulDecoder<'s> {
+impl<S> StatefulDecoder<DynDecoder<S>, BasicDecoder, S, DynamicTextCodec> {
     /// Create a new DICOM parser for the given transfer syntax, character set,
     /// and assumed position of the reader source.
-    pub fn new_with<S: 's>(
+    pub fn new_with(
         from: S,
         ts: &TransferSyntax,
         charset: SpecificCharacterSet,
@@ -240,18 +237,14 @@ impl<'s> DynStatefulDecoder<'s> {
     {
         let basic = ts.basic_decoder();
         let decoder = ts
-            .decoder()
+            .decoder_for::<S>()
             .context(UnsupportedTransferSyntax { ts: ts.name() })?;
         let text = charset
             .codec()
             .context(UnsupportedCharacterSet { charset })?;
 
-        Ok(DynStatefulDecoder::new_with_position(
-            Box::from(from),
-            decoder,
-            basic,
-            text,
-            position,
+        Ok(StatefulDecoder::new_with_position(
+            from, decoder, basic, text, position,
         ))
     }
 }
@@ -271,7 +264,7 @@ where
     /// Create a new DICOM stateful decoder for reading the file meta header,
     /// which is always in _Explicit VR Little Endian_.
     pub fn file_header_parser(from: S) -> Self {
-        DicomParser {
+        Self {
             from,
             basic: LittleEndianBasicDecoder::default(),
             decoder: ExplicitVRLittleEndianDecoder::default(),
@@ -307,8 +300,8 @@ where
         basic: BD,
         text: TC,
         position: u64,
-    ) -> StatefulDecoder<D, BD, S, TC> {
-        DicomParser {
+    ) -> Self {
+        Self {
             from,
             basic,
             decoder,
@@ -333,7 +326,7 @@ where
         decoder: D,
         basic: BD,
         text: TC,
-    ) -> Result<StatefulDecoder<D, BD, S, TC>, std::io::Error> {
+    ) -> Result<Self, std::io::Error> {
         let position = from.seek(SeekFrom::Current(0))?;
         Ok(Self::new_with_position(
             from, decoder, basic, text, position,
@@ -341,12 +334,11 @@ where
     }
 }
 
-impl<D, T, BD, S, TC> StatefulDecoder<D, BD, S, TC>
+impl<D, BD, S, TC> StatefulDecoder<D, BD, S, TC>
 where
-    D: DecodeFrom<T>,
+    D: DecodeFrom<S>,
     BD: BasicDecode,
-    S: std::ops::DerefMut<Target = T> + Read,
-    T: ?Sized + Read,
+    S: Read,
     TC: TextCodec,
 {
     // ---------------- private methods ---------------------
@@ -753,12 +745,11 @@ where
     }
 }
 
-impl<S, T, D, BD> StatefulDecoder<D, BD, S, DynamicTextCodec>
+impl<S, D, BD> StatefulDecoder<D, BD, S, DynamicTextCodec>
 where
-    D: DecodeFrom<T>,
+    D: DecodeFrom<S>,
     BD: BasicDecode,
-    S: std::ops::DerefMut<Target = T> + Read,
-    T: ?Sized + Read,
+    S: Read,
 {
     fn set_character_set(&mut self, charset: SpecificCharacterSet) -> Result<()> {
         self.text = charset
@@ -844,12 +835,11 @@ where
     }
 }
 
-impl<S, T, D, BD> StatefulDecode for StatefulDecoder<D, BD, S, DynamicTextCodec>
+impl<S, D, BD> StatefulDecode for StatefulDecoder<D, BD, S, DynamicTextCodec>
 where
-    D: DecodeFrom<T>,
+    D: DecodeFrom<S>,
     BD: BasicDecode,
-    S: std::ops::DerefMut<Target = T> + Read,
-    T: ?Sized + Read,
+    S: Read,
 {
     type Reader = S;
 

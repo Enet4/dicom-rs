@@ -4,9 +4,7 @@
 //! The rest of the crate is used to obtain DICOM element headers and values.
 //! At this level, headers and values are treated as tokens which can be used
 //! to form a syntax tree of a full data set.
-use crate::stateful::decode::{
-    DynStatefulDecoder, Error as DecoderError, StatefulDecode, StatefulDecoder,
-};
+use crate::stateful::decode::{DynStatefulDecoder, Error as DecoderError, StatefulDecode};
 use crate::util::ReadSeek;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
 use dicom_core::{Tag, VR};
@@ -102,16 +100,16 @@ pub struct LazyDataSetReader<S, D> {
     raw_value_length: Option<u32>,
 }
 
-impl<'s> LazyDataSetReader<DynStatefulDecoder<'s>, StandardDataDictionary> {
+impl<S> LazyDataSetReader<DynStatefulDecoder<S>, StandardDataDictionary> {
     /// Create a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
-    pub fn new_with(
-        source: &'s mut dyn ReadSeek,
-        ts: &TransferSyntax,
-        cs: SpecificCharacterSet,
-    ) -> Result<Self> {
+    pub fn new_with(mut source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
+    where
+        S: ReadSeek,
+    {
         let position = source.seek(SeekFrom::Current(0)).context(GetPosition)?;
-        let parser = StatefulDecoder::new_with(source, ts, cs, position).context(CreateDecoder)?;
+        let parser =
+            DynStatefulDecoder::new_with(source, ts, cs, position).context(CreateDecoder)?;
 
         Ok(LazyDataSetReader {
             parser,
@@ -394,8 +392,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{LazyDataSetReader, StatefulDecode, StatefulDecoder};
-    use crate::dataset::{DataToken, LazyDataToken};
+    use super::{LazyDataSetReader, StatefulDecode};
+    use crate::{
+        dataset::{DataToken, LazyDataToken},
+        StatefulDecoder,
+    };
     use dicom_core::header::{DataElementHeader, Length};
     use dicom_core::value::PrimitiveValue;
     use dicom_core::{Tag, VR};

@@ -176,11 +176,11 @@ pub struct DataSetReader<S, D> {
     raw_value_length: Option<u32>,
 }
 
-impl<'s> DataSetReader<DynStatefulDecoder<'s>, StandardDataDictionary> {
+impl<S> DataSetReader<DynStatefulDecoder<S>, StandardDataDictionary> {
     /// Creates a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
     #[deprecated(note = "Instead use other `new` methods receiving reader options")]
-    pub fn new_with<S: 's>(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
+    pub fn new_with(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
     where
         S: Read,
     {
@@ -202,10 +202,10 @@ impl<'s> DataSetReader<DynStatefulDecoder<'s>, StandardDataDictionary> {
     }
 }
 
-impl<'s, D> DataSetReader<DynStatefulDecoder<'s>, D> {
+impl<S, D> DataSetReader<DynStatefulDecoder<S>, D> {
     /// Creates a new iterator with the given random access source and data dictionary,
     /// while considering the given transfer syntax and specific character set.
-    pub fn new_with_dictionary<S: 's>(
+    pub fn new_with_dictionary(
         source: S,
         dict: D,
         ts: &TransferSyntax,
