@@ -198,7 +198,7 @@ pub trait StatefulDecode {
 /// Alias for a dynamically resolved DICOM stateful decoder. Although the data
 /// source may be known at compile time, the required decoder may vary
 /// according to an object's transfer syntax.
-pub type DynStatefulDecoder<S> = StatefulDecoder<DynDecoder<S>, BasicDecoder, S, DynamicTextCodec>;
+pub type DynStatefulDecoder<S> = StatefulDecoder<DynDecoder<S>, S>;
 
 /// The initial capacity of the `DicomParser` buffer.
 const PARSER_BUFFER_CAPACITY: usize = 2048;
@@ -212,7 +212,7 @@ const PARSER_BUFFER_CAPACITY: usize = 2048;
 /// whereas `DB` is the parameter type for the basic decoder.
 /// `TC` defines the text codec used underneath.
 #[derive(Debug)]
-pub struct StatefulDecoder<D, BD, S, TC> {
+pub struct StatefulDecoder<D, S, BD = BasicDecoder, TC = DynamicTextCodec> {
     from: S,
     decoder: D,
     basic: BD,
@@ -223,7 +223,7 @@ pub struct StatefulDecoder<D, BD, S, TC> {
     position: u64,
 }
 
-impl<S> StatefulDecoder<DynDecoder<S>, BasicDecoder, S, DynamicTextCodec> {
+impl<S> StatefulDecoder<DynDecoder<S>, S> {
     /// Create a new DICOM parser for the given transfer syntax, character set,
     /// and assumed position of the reader source.
     pub fn new_with(
@@ -252,8 +252,8 @@ impl<S> StatefulDecoder<DynDecoder<S>, BasicDecoder, S, DynamicTextCodec> {
 /// Type alias for the DICOM parser of a file's Meta group.
 pub type FileHeaderParser<S> = StatefulDecoder<
     ExplicitVRLittleEndianDecoder,
-    LittleEndianBasicDecoder,
     S,
+    LittleEndianBasicDecoder,
     DefaultCharacterSetCodec,
 >;
 
@@ -276,14 +276,14 @@ where
     }
 }
 
-impl<D, BD, S, TC> StatefulDecoder<D, BD, S, TC>
+impl<D, S, BD, TC> StatefulDecoder<D, S, BD, TC>
 where
     BD: BasicDecode,
     TC: TextCodec,
 {
     /// Create a new DICOM stateful decoder from its parts.
     #[inline]
-    pub fn new(from: S, decoder: D, basic: BD, text: TC) -> StatefulDecoder<D, BD, S, TC> {
+    pub fn new(from: S, decoder: D, basic: BD, text: TC) -> StatefulDecoder<D, S, BD, TC> {
         Self::new_with_position(from, decoder, basic, text, 0)
     }
 
@@ -313,7 +313,7 @@ where
     }
 }
 
-impl<D, BD, S, TC> StatefulDecoder<D, BD, S, TC>
+impl<D, S, BD, TC> StatefulDecoder<D, S, BD, TC>
 where
     S: Seek,
     BD: BasicDecode,
@@ -334,7 +334,7 @@ where
     }
 }
 
-impl<D, BD, S, TC> StatefulDecoder<D, BD, S, TC>
+impl<D, S, BD, TC> StatefulDecoder<D, S, BD, TC>
 where
     D: DecodeFrom<S>,
     BD: BasicDecode,
@@ -745,7 +745,7 @@ where
     }
 }
 
-impl<S, D, BD> StatefulDecoder<D, BD, S, DynamicTextCodec>
+impl<S, D, BD> StatefulDecoder<D, S, BD, DynamicTextCodec>
 where
     D: DecodeFrom<S>,
     BD: BasicDecode,
@@ -835,7 +835,7 @@ where
     }
 }
 
-impl<S, D, BD> StatefulDecode for StatefulDecoder<D, BD, S, DynamicTextCodec>
+impl<D, S, BD> StatefulDecode for StatefulDecoder<D, S, BD, DynamicTextCodec>
 where
     D: DecodeFrom<S>,
     BD: BasicDecode,
