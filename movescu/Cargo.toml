@@ -1,0 +1,17 @@
+[package]
+name = "dicom-movescu"
+version = "0.1.0"
+authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>, José Moreira <joseppmoreira@ua.pt>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Enet4/dicom-rs"
+description = "A DICOM C-MOVE command line interface"
+categories = ["command-line-utilities"]
+keywords = ["dicom"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dicom-ul = { path = '../ul' }
+dicom = { path = '../parent' }
+structopt = "0.3.21"
