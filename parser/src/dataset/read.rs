@@ -120,6 +120,12 @@ pub enum ValueReadStrategy {
     Raw,
 }
 
+impl Default for ValueReadStrategy {
+    fn default() -> Self {
+        ValueReadStrategy::Preserved
+    }
+}
+
 /// The set of options for the data set reader.
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
 #[non_exhaustive]
@@ -133,7 +139,7 @@ pub struct DataSetReaderOptions {
 impl Default for DataSetReaderOptions {
     fn default() -> Self {
         DataSetReaderOptions {
-            value_read: ValueReadStrategy::Preserved,
+            value_read: ValueReadStrategy::default(),
             base_offset: 0,
         }
     }
