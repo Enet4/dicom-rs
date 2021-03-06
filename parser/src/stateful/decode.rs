@@ -1023,7 +1023,7 @@ mod tests {
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
     use dicom_encoding::text::{DefaultCharacterSetCodec, DynamicTextCodec};
     use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-    use std::io::Cursor;
+    use std::io::{Cursor, Seek, SeekFrom};
 
     // manually crafting some DICOM data elements
     //  Tag: (0002,0002) Media Storage SOP Class UID
@@ -1153,5 +1153,77 @@ mod tests {
 
         assert_eq!(value.string(), Ok("ISO_IR 192"));
         assert_eq!(decoder.text.name(), "ISO_IR 192",);
+    }
+
+    #[test]
+    fn decode_data_elements_with_position() {
+        let data = {
+            let mut x = vec![0; 128];
+            x.extend(RAW);
+            x
+        };
+
+        // have cursor start 128 bytes ahead
+        let mut cursor = Cursor::new(&data[..]);
+        cursor.seek(SeekFrom::Start(128)).unwrap();
+
+        let mut decoder = StatefulDecoder::new_with_position(
+            &mut cursor,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            Box::new(DefaultCharacterSetCodec) as DynamicTextCodec,
+            128,
+        );
+
+        is_stateful_decoder(&decoder);
+
+        {
+            // read first element
+            let elem = decoder.decode_header().expect("should find an element");
+            assert_eq!(elem.tag(), Tag(2, 2));
+            assert_eq!(elem.vr(), VR::UI);
+            assert_eq!(elem.length(), Length(26));
+
+            assert_eq!(decoder.position(), 128 + 8);
+
+            // read value
+            let value = decoder
+                .read_value(&elem)
+                .expect("value after element header");
+            assert_eq!(value.multiplicity(), 1);
+            assert_eq!(value.string(), Ok("1.2.840.10008.5.1.4.1.1.1\0"));
+
+            assert_eq!(decoder.position(), 128 + 8 + 26);
+        }
+        {
+            // read second element
+            let elem = decoder.decode_header().expect("should find an element");
+            assert_eq!(elem.tag(), Tag(2, 16));
+            assert_eq!(elem.vr(), VR::UI);
+            assert_eq!(elem.length(), Length(20));
+
+            assert_eq!(decoder.position(), 128 + 8 + 26 + 8);
+
+            // read value
+            let value = decoder
+                .read_value(&elem)
+                .expect("value after element header");
+            assert_eq!(value.multiplicity(), 1);
+            assert_eq!(value.string(), Ok("1.2.840.10008.1.2.1\0"));
+
+            assert_eq!(decoder.position(), 128 + 8 + 26 + 8 + 20);
+
+            // rolling back to read the last value again
+            decoder.seek(128 + 8 + 26 + 8).unwrap();
+
+            // read value
+            let value = decoder
+                .read_value(&elem)
+                .expect("value after element header");
+            assert_eq!(value.multiplicity(), 1);
+            assert_eq!(value.string(), Ok("1.2.840.10008.1.2.1\0"));
+
+            assert_eq!(decoder.position(), 128 + 8 + 26 + 8 + 20 + 20);
+        }
     }
 }
