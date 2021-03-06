@@ -89,7 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // If it is the same as the file, we're good.
         // Otherwise, uncompressed data set encoding
         // and native pixel data is required on both ends.
-        let ts = dbg!(&pc.transfer_syntax);
+        let ts = &pc.transfer_syntax;
         ts == transfer_syntax
             || TransferSyntaxRegistry
                 .get(&pc.transfer_syntax)
