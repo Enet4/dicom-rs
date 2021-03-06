@@ -169,7 +169,7 @@ pub type C<T> = SmallVec<[T; 2]>;
 /// [`smallvec`]: ../../smallvec/index.html
 /// [`C`]: ./type.C.html
 /// [`dicom_value!`]: ../macro.dicom_value.html
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub enum PrimitiveValue {
     /// No data. Usually employed for zero-lengthed values.
     Empty,
@@ -1944,7 +1944,10 @@ impl PrimitiveValue {
                 }),
             PrimitiveValue::Strs(s) => s
                 .into_iter()
-                .map(|s| super::deserialize::parse_date(s.trim_end().as_bytes()).map(|(date, _rest)| date))
+                .map(|s| {
+                    super::deserialize::parse_date(s.trim_end().as_bytes())
+                        .map(|(date, _rest)| date)
+                })
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
@@ -2009,8 +2012,18 @@ impl PrimitiveValue {
                     original: self.value_type(),
                     cause: Some(err),
                 }),
-            PrimitiveValue::Strs(s) => {
-                super::deserialize::parse_time(s.first().map(|s| s.trim_end().as_bytes()).unwrap_or(&[]))
+            PrimitiveValue::Strs(s) => super::deserialize::parse_time(
+                s.first().map(|s| s.trim_end().as_bytes()).unwrap_or(&[]),
+            )
+            .map(|(date, _rest)| date)
+            .context(ParseTime)
+            .map_err(|err| ConvertValueError {
+                requested: "Time",
+                original: self.value_type(),
+                cause: Some(err),
+            }),
+            PrimitiveValue::U8(bytes) => {
+                super::deserialize::parse_time(trim_last_whitespace(bytes))
                     .map(|(date, _rest)| date)
                     .context(ParseTime)
                     .map_err(|err| ConvertValueError {
@@ -2019,14 +2032,6 @@ impl PrimitiveValue {
                         cause: Some(err),
                     })
             }
-            PrimitiveValue::U8(bytes) => super::deserialize::parse_time(trim_last_whitespace(bytes))
-                .map(|(date, _rest)| date)
-                .context(ParseTime)
-                .map_err(|err| ConvertValueError {
-                    requested: "Time",
-                    original: self.value_type(),
-                    cause: Some(err),
-                }),
             _ => Err(ConvertValueError {
                 requested: "Time",
                 original: self.value_type(),
@@ -2083,7 +2088,10 @@ impl PrimitiveValue {
                 }),
             PrimitiveValue::Strs(s) => s
                 .into_iter()
-                .map(|s| super::deserialize::parse_time(s.trim_end().as_bytes()).map(|(date, _rest)| date))
+                .map(|s| {
+                    super::deserialize::parse_time(s.trim_end().as_bytes())
+                        .map(|(date, _rest)| date)
+                })
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
@@ -2181,13 +2189,15 @@ impl PrimitiveValue {
                 original: self.value_type(),
                 cause: Some(err),
             }),
-            PrimitiveValue::U8(bytes) => super::deserialize::parse_datetime(trim_last_whitespace(bytes), default_offset)
-                .context(ParseDateTime)
-                .map_err(|err| ConvertValueError {
-                    requested: "DateTime",
-                    original: self.value_type(),
-                    cause: Some(err),
-                }),
+            PrimitiveValue::U8(bytes) => {
+                super::deserialize::parse_datetime(trim_last_whitespace(bytes), default_offset)
+                    .context(ParseDateTime)
+                    .map_err(|err| ConvertValueError {
+                        requested: "DateTime",
+                        original: self.value_type(),
+                        cause: Some(err),
+                    })
+            }
             _ => Err(ConvertValueError {
                 requested: "DateTime",
                 original: self.value_type(),
@@ -2457,6 +2467,32 @@ impl HasLength for PrimitiveValue {
     }
 }
 
+impl PartialEq for PrimitiveValue {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (PrimitiveValue::Empty, PrimitiveValue::Empty) => true,
+            (PrimitiveValue::Strs(v1), PrimitiveValue::Str(v2)) => v1.len() == 1 && &v1[0] == v2,
+            (PrimitiveValue::Str(v1), PrimitiveValue::Strs(v2)) => v2.len() == 1 && v1 == &v2[0],
+            (PrimitiveValue::Strs(v1), PrimitiveValue::Strs(v2)) => v1 == v2,
+            (PrimitiveValue::Str(v1), PrimitiveValue::Str(v2)) => v1 == v2,
+            (PrimitiveValue::Tags(v1), PrimitiveValue::Tags(v2)) => v1 == v2,
+            (PrimitiveValue::U8(v1), PrimitiveValue::U8(v2)) => v1 == v2,
+            (PrimitiveValue::I16(v1), PrimitiveValue::I16(v2)) => v1 == v2,
+            (PrimitiveValue::U16(v1), PrimitiveValue::U16(v2)) => v1 == v2,
+            (PrimitiveValue::I32(v1), PrimitiveValue::I32(v2)) => v1 == v2,
+            (PrimitiveValue::U32(v1), PrimitiveValue::U32(v2)) => v1 == v2,
+            (PrimitiveValue::I64(v1), PrimitiveValue::I64(v2)) => v1 == v2,
+            (PrimitiveValue::U64(v1), PrimitiveValue::U64(v2)) => v1 == v2,
+            (PrimitiveValue::F32(v1), PrimitiveValue::F32(v2)) => v1 == v2,
+            (PrimitiveValue::F64(v1), PrimitiveValue::F64(v2)) => v1 == v2,
+            (PrimitiveValue::Date(v1), PrimitiveValue::Date(v2)) => v1 == v2,
+            (PrimitiveValue::DateTime(v1), PrimitiveValue::DateTime(v2)) => v1 == v2,
+            (PrimitiveValue::Time(v1), PrimitiveValue::Time(v2)) => v1 == v2,
+            _ => false,
+        }
+    }
+}
+
 /// An enum representing an abstraction of a DICOM element's data value type.
 /// This should be the equivalent of `PrimitiveValue` without the content,
 /// plus the `Item` and `PixelSequence` entries.
@@ -2580,7 +2616,7 @@ impl DicomValueType for PrimitiveValue {
 
 fn trim_last_whitespace(x: &[u8]) -> &[u8] {
     match x.last() {
-        Some(b' ') | Some(b'\0') => &x[.. x.len() - 1],
+        Some(b' ') | Some(b'\0') => &x[..x.len() - 1],
         _ => x,
     }
 }
@@ -2922,7 +2958,9 @@ mod tests {
     #[test]
     fn primitive_value_to_datetime() {
         let this_datetime = FixedOffset::east(1).ymd(2012, 12, 21).and_hms(11, 9, 26);
-        let this_datetime_frac = FixedOffset::east(1).ymd(2012, 12, 21).and_hms_milli(11, 9, 26, 380);
+        let this_datetime_frac = FixedOffset::east(1)
+            .ymd(2012, 12, 21)
+            .and_hms_milli(11, 9, 26, 380);
         // trivial conversion
         assert_eq!(
             PrimitiveValue::from(this_datetime)
@@ -2932,27 +2970,37 @@ mod tests {
         );
         // from text (Str)
         assert_eq!(
-            dicom_value!(Str, "20121221110926").to_datetime(FixedOffset::east(1)).unwrap(),
+            dicom_value!(Str, "20121221110926")
+                .to_datetime(FixedOffset::east(1))
+                .unwrap(),
             this_datetime,
         );
         // from text with fraction of a second + padding
         assert_eq!(
-            PrimitiveValue::from("20121221110926.38 ").to_datetime(FixedOffset::east(1)).unwrap(),
+            PrimitiveValue::from("20121221110926.38 ")
+                .to_datetime(FixedOffset::east(1))
+                .unwrap(),
             this_datetime_frac,
         );
         // from text (Strs)
         assert_eq!(
-            dicom_value!(Strs, ["20121221110926"]).to_datetime(FixedOffset::east(1)).unwrap(),
+            dicom_value!(Strs, ["20121221110926"])
+                .to_datetime(FixedOffset::east(1))
+                .unwrap(),
             this_datetime,
         );
         // from text (Strs) with fraction of a second + padding
         assert_eq!(
-            dicom_value!(Strs, ["20121221110926.38 "]).to_datetime(FixedOffset::east(1)).unwrap(),
+            dicom_value!(Strs, ["20121221110926.38 "])
+                .to_datetime(FixedOffset::east(1))
+                .unwrap(),
             this_datetime_frac,
         );
         // from bytes with fraction of a second + padding
         assert_eq!(
-            PrimitiveValue::from(&b"20121221110926.38 "[..]).to_datetime(FixedOffset::east(1)).unwrap(),
+            PrimitiveValue::from(&b"20121221110926.38 "[..])
+                .to_datetime(FixedOffset::east(1))
+                .unwrap(),
             this_datetime_frac,
         );
         // not a datetime
@@ -3080,5 +3128,15 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    /// Expect Str to be comparable to 1-element Strs.
+    #[test]
+    fn eq_ignores_multi_variants() {
+        assert_eq!(dicom_value!(Str, "abc123"), dicom_value!(Strs, ["abc123"]),);
+
+        assert_eq!(dicom_value!(Str, "ABC123"), PrimitiveValue::from("ABC123"),);
+
+        assert_eq!(dicom_value!(Str, ""), PrimitiveValue::from(""),);
     }
 }
