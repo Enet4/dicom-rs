@@ -306,6 +306,75 @@ where
         self.into_value_with_strategy(ValueReadStrategy::Preserved)
     }
 
+    /// Convert this token into a structured representation,
+    /// for diagnostics and error reporting purposes.
+    pub fn into_repr(self) -> LazyDataTokenRepr {
+        LazyDataTokenRepr::from(self)
+    }
+
+    /// Create a structured representation of this token,
+    /// for diagnostics and error reporting purposes.
+    pub fn repr(&self) -> LazyDataTokenRepr {
+        LazyDataTokenRepr::from(self)
+    }
+}
+
+impl<D> From<LazyDataToken<D>> for LazyDataTokenRepr {
+    fn from(token: LazyDataToken<D>) -> Self {
+        match token {
+            LazyDataToken::ElementHeader(h) => LazyDataTokenRepr::ElementHeader(h),
+            LazyDataToken::SequenceStart { tag, len } => LazyDataTokenRepr::SequenceStart { tag, len },
+            LazyDataToken::PixelSequenceStart => LazyDataTokenRepr::PixelSequenceStart,
+            LazyDataToken::SequenceEnd => LazyDataTokenRepr::SequenceEnd,
+            LazyDataToken::ItemStart { len } => LazyDataTokenRepr::ItemStart { len },
+            LazyDataToken::ItemEnd => LazyDataTokenRepr::ItemEnd,
+            LazyDataToken::LazyValue { header, decoder: _ } => LazyDataTokenRepr::LazyValue { header },
+            LazyDataToken::LazyItemValue { len, decoder: _ } => LazyDataTokenRepr::LazyItemValue { len },
+        }
+    }
+}
+
+impl<D> From<&LazyDataToken<D>> for LazyDataTokenRepr {
+    fn from(token: &LazyDataToken<D>) -> Self {
+        match *token {
+            LazyDataToken::ElementHeader(h) => LazyDataTokenRepr::ElementHeader(h),
+            LazyDataToken::SequenceStart { tag, len } => LazyDataTokenRepr::SequenceStart { tag, len },
+            LazyDataToken::PixelSequenceStart => LazyDataTokenRepr::PixelSequenceStart,
+            LazyDataToken::SequenceEnd => LazyDataTokenRepr::SequenceEnd,
+            LazyDataToken::ItemStart { len } => LazyDataTokenRepr::ItemStart { len },
+            LazyDataToken::ItemEnd => LazyDataTokenRepr::ItemEnd,
+            LazyDataToken::LazyValue { header, decoder: _ } => LazyDataTokenRepr::LazyValue { header },
+            LazyDataToken::LazyItemValue { len, decoder: _ } => LazyDataTokenRepr::LazyItemValue { len },
+        }
+    }
+}
+
+/// A structured description of a lazy data token,
+/// for diagnostics and error reporting purposes.
+#[derive(Debug, Clone, PartialEq)]
+pub enum LazyDataTokenRepr {
+    /// A data header of a primitive value.
+    ElementHeader(DataElementHeader),
+    /// The beginning of a sequence element.
+    SequenceStart { tag: Tag, len: Length },
+    /// The beginning of an encapsulated pixel data element.
+    PixelSequenceStart,
+    /// The ending delimiter of a sequence or encapsulated pixel data.
+    SequenceEnd,
+    /// The beginning of a new item in the sequence.
+    ItemStart { len: Length },
+    /// The ending delimiter of an item.
+    ItemEnd,
+    /// An element value yet to be fetched
+    LazyValue {
+        /// the header of the respective value
+        header: DataElementHeader,
+    },
+    /// An item value yet to be fetched
+    LazyItemValue {
+        /// the full length of the value, always well defined
+        len: u32,
+    },
 }
 
 /// The type of delimiter: sequence or item.
