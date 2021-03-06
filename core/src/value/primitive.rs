@@ -2493,6 +2493,22 @@ impl PartialEq for PrimitiveValue {
     }
 }
 
+impl PartialEq<str> for PrimitiveValue {
+    fn eq(&self, other: &str) -> bool {
+        match self {
+            PrimitiveValue::Strs(v) => v.len() == 1 && v[0] == other,
+            PrimitiveValue::Str(v) => v == other,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<&str> for PrimitiveValue {
+    fn eq(&self, other: &&str) -> bool {
+        self.eq(*other)
+    }
+}
+
 /// An enum representing an abstraction of a DICOM element's data value type.
 /// This should be the equivalent of `PrimitiveValue` without the content,
 /// plus the `Item` and `PixelSequence` entries.
@@ -3138,5 +3154,14 @@ mod tests {
         assert_eq!(dicom_value!(Str, "ABC123"), PrimitiveValue::from("ABC123"),);
 
         assert_eq!(dicom_value!(Str, ""), PrimitiveValue::from(""),);
+    }
+
+    #[test]
+    fn eq_str() {
+        assert_eq!(PrimitiveValue::from("Doe^John"), "Doe^John");
+        assert_eq!(dicom_value!(Strs, ["Doe^John"]), "Doe^John");
+        assert_eq!(PrimitiveValue::from("Doe^John"), &*"Doe^John".to_owned());
+
+        assert_ne!(dicom_value!(Strs, ["Doe^John", "Silva^João"]), "Doe^John");
     }
 }
