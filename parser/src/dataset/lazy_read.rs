@@ -397,7 +397,7 @@ mod tests {
         dataset::{DataToken, LazyDataToken},
         StatefulDecoder,
     };
-    use dicom_core::header::{DataElementHeader, Length};
+    use dicom_core::{dicom_value, header::{DataElementHeader, Length}};
     use dicom_core::value::PrimitiveValue;
     use dicom_core::{Tag, VR};
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
@@ -910,5 +910,98 @@ mod tests {
             "unexpected number of tokens remaining"
         );
         assert_eq!(dset_reader.parser.position(), DATA.len() as u64);
+    }
+
+    #[test]
+    fn lazy_read_value_via_into_value() {
+        // manually crafted DICOM data elements
+        //  Tag: (0002,0002) Media Storage SOP Class UID
+        //  VR: UI
+        //  Length: 26
+        //  Value: "1.2.840.10008.5.1.4.1.1.1\0"
+        // --
+        //  Tag: (0002,0010) Transfer Syntax UID
+        //  VR: UI
+        //  Length: 20
+        //  Value: "1.2.840.10008.1.2.1\0" == ExplicitVRLittleEndian
+        // --
+        const RAW: &'static [u8; 62] = &[
+            0x02, 0x00, 0x02, 0x00, 0x55, 0x49, 0x1a, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34, 0x30,
+            0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x35, 0x2e, 0x31, 0x2e, 0x34, 0x2e, 0x31, 0x2e,
+            0x31, 0x2e, 0x31, 0x00, 0x02, 0x00, 0x10, 0x00, 0x55, 0x49, 0x14, 0x00, 0x31, 0x2e, 0x32,
+            0x2e, 0x38, 0x34, 0x30, 0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x31, 0x2e, 0x32, 0x2e,
+            0x31, 0x00,
+        ];
+        let mut cursor = &RAW[..];
+        let parser = StatefulDecoder::new(
+            &mut cursor,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder::default(),
+            Box::new(DefaultCharacterSetCodec::default()) as Box<_>, // trait object
+        );
+
+        let mut dset_reader = LazyDataSetReader::new(parser);
+
+        let token = dset_reader.next()
+            .expect("Expected token 1")
+            .expect("Failed to read token 1");
+
+        let header_token1 = match token {
+            LazyDataToken::ElementHeader(header) => header,
+            _ => {
+                panic!("Unexpected token type (1)");
+            }
+        };
+
+        let token = dset_reader.next()
+            .expect("Expected token 2")
+            .expect("Failed to read token 2");
+
+        match token {
+            LazyDataToken::LazyValue { header, decoder: _ } => {
+                assert_eq!(header_token1, header);
+            }
+            _ => {
+                panic!("Unexpected token type (2)");
+            }
+        }
+
+        // consume via into_value
+        assert_eq!(
+            token.into_value().unwrap(),
+            dicom_value!(Strs, ["1.2.840.10008.5.1.4.1.1.1\0"]),
+        );
+
+        let token = dset_reader.next()
+            .expect("Expected token 3")
+            .expect("Failed to read token 3");
+
+        let header_token3 = match token {
+            LazyDataToken::ElementHeader(header) => header,
+            _ => {
+                panic!("Unexpected token type (3)");
+            }
+        };
+
+        let token = dset_reader.next()
+            .expect("Expected token 4")
+            .expect("Failed to read token 4");
+
+        match token {
+            LazyDataToken::LazyValue { header, decoder: _ } => {
+                assert_eq!(header_token3, header);
+            }
+            _ => {
+                panic!("Unexpected token type (4)");
+            }
+        }
+
+        // consume via into_value
+        assert_eq!(
+            token.into_value().unwrap(),
+            dicom_value!(Strs, ["1.2.840.10008.1.2.1\0"]),
+        );
+
+        assert!(dset_reader.next().is_none(), "unexpected number of tokens remaining");
     }
 }

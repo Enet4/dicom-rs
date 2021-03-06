@@ -22,6 +22,8 @@ pub enum Error {
     ReadElementValue { source: decode::Error },
     /// Could not skip the bytes of a value
     SkipValue { source: decode::Error },
+    /// Unexpected token type for operation
+    UnexpectedTokenType,
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -268,6 +270,42 @@ where
             }
         }
     }
+
+    /// Retrieve a primitive element value from the token,
+    /// consuming the reader with the given reading strategy.
+    ///
+    /// The operation fails if the token does not represent an element value.
+    pub fn into_value_with_strategy(self, strategy: ValueReadStrategy) -> Result<PrimitiveValue> {
+        match self {
+            LazyDataToken::LazyValue {
+                header,
+                mut decoder,
+            } => {
+                // use the stateful decoder to eagerly read the value
+                match strategy {
+                    ValueReadStrategy::Interpreted => {
+                        decoder.read_value(&header).context(ReadElementValue)
+                    }
+                    ValueReadStrategy::Preserved => decoder
+                        .read_value_preserved(&header)
+                        .context(ReadElementValue),
+                    ValueReadStrategy::Raw => {
+                        decoder.read_value_bytes(&header).context(ReadElementValue)
+                    }
+                }
+            }
+            _ => UnexpectedTokenType.fail(),
+        }
+    }
+
+    /// Retrieve a primitive element value from the token,
+    /// consuming the reader with the default reading strategy.
+    ///
+    /// The operation fails if the token does not represent an element value.
+    pub fn into_value(self) -> Result<PrimitiveValue> {
+        self.into_value_with_strategy(ValueReadStrategy::Preserved)
+    }
+
 }
 
 /// The type of delimiter: sequence or item.
