@@ -100,10 +100,11 @@ pub struct LazyDataSetReader<S, D> {
     raw_value_length: Option<u32>,
 }
 
-impl<S> LazyDataSetReader<DynStatefulDecoder<S>, StandardDataDictionary> {
-    /// Create a new iterator with the given random access source,
+impl<S, D> LazyDataSetReader<DynStatefulDecoder<S>, D> {
+    /// Create a new lazy data set reader
+    /// with the given random access source and element dictionary,
     /// while considering the given transfer syntax and specific character set.
-    pub fn new_with(mut source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
+    pub fn new_with_dictionary(mut source: S, dict: D, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
     where
         S: ReadSeek,
     {
@@ -113,7 +114,7 @@ impl<S> LazyDataSetReader<DynStatefulDecoder<S>, StandardDataDictionary> {
 
         Ok(LazyDataSetReader {
             parser,
-            dict: StandardDataDictionary,
+            dict,
             seq_delimiters: Vec::new(),
             delimiter_check_pending: false,
             in_sequence: false,
@@ -121,6 +122,18 @@ impl<S> LazyDataSetReader<DynStatefulDecoder<S>, StandardDataDictionary> {
             last_header: None,
             raw_value_length: None,
         })
+    }
+}
+
+
+impl<S> LazyDataSetReader<DynStatefulDecoder<S>, StandardDataDictionary> {
+    /// Create a new iterator with the given random access source,
+    /// while considering the given transfer syntax and specific character set.
+    pub fn new_with(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
+    where
+        S: ReadSeek,
+    {
+        LazyDataSetReader::new_with_dictionary(source, StandardDataDictionary, ts, cs)
     }
 }
 
