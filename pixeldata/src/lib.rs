@@ -5,6 +5,17 @@
 //! This crate is using GDCM bindings to convert
 //! different compression formats to raw pixeldata.
 //! This should become a pure Rust implementation in the future.
+//!
+//! # Examples
+//! ```no_run
+//! use dicom_object::open_file;
+//! use dicom_pixeldata::PixelDecoder;
+//! let obj = open_file("pydicom/JPEG2000.dcm").unwrap();
+//! let image = obj.decode_pixel_data().unwrap().to_dynamic_image().unwrap();
+//! image
+//!    .save("out.png")
+//!    .unwrap();
+//! ```
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use dicom_core::value::Value;
@@ -20,7 +31,6 @@ use std::str::FromStr;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    // TODO: Enhance with errors, check what/how
     #[snafu(display("Missing required element"))]
     MissingRequiredField { source: dicom_object::Error },
 

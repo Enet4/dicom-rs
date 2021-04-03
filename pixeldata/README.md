@@ -11,9 +11,7 @@ fn main() {
     let obj = open_file("dicom.dcm").unwrap();
     let image = obj.decode_pixel_data().unwrap().to_dynamic_image().unwrap();
     image
-        .save(format!(
-            "out.png",
-        ))
+        .save("out.png")
         .unwrap();
 ```
 
