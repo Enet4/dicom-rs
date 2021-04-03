@@ -3,8 +3,13 @@ name = "dicom-pixeldata"
 version = "0.3.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>", "Peter Evers <pevers90@gmail.com>"]
 edition = "2018"
+repository = "https://github.com/Enet4/dicom-rs"
+categories = ["images"]
+keywords = ["dicom"]
+readme = "README.md"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[badges.travis-ci]
+repository = "Enet4/dicom-rs"
 
 [dependencies]
 dicom-object = { path = "../object", version = "0.3.0" }

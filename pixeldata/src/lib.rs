@@ -460,7 +460,7 @@ mod tests {
         let image = obj.decode_pixel_data().unwrap().to_dynamic_image().unwrap();
         image
             .save(format!(
-                "target/{}.png",
+                "../target/dicom_test_files/pydicom/{}.png",
                 Path::new(value).file_stem().unwrap().to_str().unwrap()
             ))
             .unwrap();
