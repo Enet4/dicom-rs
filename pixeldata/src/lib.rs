@@ -8,13 +8,17 @@
 //!
 //! # Examples
 //! ```no_run
+//! # use std::error::Error;
 //! use dicom_object::open_file;
 //! use dicom_pixeldata::PixelDecoder;
-//! let obj = open_file("pydicom/JPEG2000.dcm").unwrap();
-//! let image = obj.decode_pixel_data().unwrap().to_dynamic_image().unwrap();
-//! image
-//!    .save("out.png")
-//!    .unwrap();
+//!
+//! # fn main() -> Result<(), Box<dyn Error>> {
+//!     let obj = open_file("dicom.dcm")?;
+//!     let image = obj.decode_pixel_data()?;
+//!     let dynamic_image = image.to_dynamic_image()?;
+//!     dynamic_image.save("out.png")?;
+//! #   Ok(())
+//! # }
 //! ```
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
