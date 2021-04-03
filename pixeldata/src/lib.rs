@@ -126,7 +126,7 @@ impl DecodedPixelData {
                         // Without normalization the picture becomes really dark
                         // In reality we need to apply LUT, WindowWidth/WindowCenter etc.
                         dest = normalize_u16(&dest);
-                    },
+                    }
 
                     // Signed 16 bit 2s complement representation
                     1 => {
@@ -172,7 +172,6 @@ fn normalize_u16(i: &[u16]) -> Vec<u16> {
         .map(|p| (u16::MAX as f32 * (*p as f32 - min) / (max - min)) as u16)
         .collect()
 }
-
 
 pub trait PixelDecoder {
     /// Decode compressed pixel data
