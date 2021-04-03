@@ -114,7 +114,19 @@ impl DecodedPixelData {
                 let mut dest = vec![0; self.data.len() / 2];
                 match self.pixel_representation {
                     // Unsigned 16 bit representation
-                    0 => BigEndian::read_u16_into(&self.data, &mut dest),
+                    0 => {
+                        match self.endianness {
+                            Endianness::Little => {
+                                LittleEndian::read_u16_into(&self.data, &mut dest);
+                            }
+                            Endianness::Big => {
+                                BigEndian::read_u16_into(&self.data, &mut dest);
+                            }
+                        }
+                        // Without normalization the picture becomes really dark
+                        // In reality we need to apply LUT, WindowWidth/WindowCenter etc.
+                        dest = normalize_u16(&dest);
+                    },
 
                     // Signed 16 bit 2s complement representation
                     1 => {
@@ -129,11 +141,7 @@ impl DecodedPixelData {
                         }
 
                         // Normalize values between 0 - u16::MAX
-                        // TODO: This works for the samples but in reality we want
-                        // - Apply HU
-                        // - Apply VOI, VOI LUT, LUT Modality
-                        // - WindowCenter/WindowWidth
-                        // And then normalize to u16
+                        // In reality we need to apply LUT, WindowWidth/WindowCenter etc.
                         dest = normalize_i16(&signed_buffer);
                     }
                     _ => InvalidPixelRepresentation.fail()?,
@@ -148,7 +156,6 @@ impl DecodedPixelData {
 }
 
 // Noramlize i16 vector to u16 vector using min/max normalization
-// Alternatively we can try to support Luma<i16> in Images
 fn normalize_i16(i: &[i16]) -> Vec<u16> {
     let min = *i.iter().min().unwrap() as f32;
     let max = *i.iter().max().unwrap() as f32;
@@ -156,6 +163,16 @@ fn normalize_i16(i: &[i16]) -> Vec<u16> {
         .map(|p| (u16::MAX as f32 * (*p as f32 - min) / (max - min)) as u16)
         .collect()
 }
+
+// Noramlize u16 vector using min/max normalization
+fn normalize_u16(i: &[u16]) -> Vec<u16> {
+    let min = *i.iter().min().unwrap() as f32;
+    let max = *i.iter().max().unwrap() as f32;
+    i.par_iter()
+        .map(|p| (u16::MAX as f32 * (*p as f32 - min) / (max - min)) as u16)
+        .collect()
+}
+
 
 pub trait PixelDecoder {
     /// Decode compressed pixel data
