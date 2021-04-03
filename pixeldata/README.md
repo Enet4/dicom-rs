@@ -3,16 +3,17 @@ Pixel data handler for the dicom-rs crate.
 
 ## Example
 ```rust
-use dicom::open_file;
+use std::error::Error;
+
 use dicom_object::open_file;
 use dicom_pixeldata::PixelDecoder;
 
-fn main() {
-    let obj = open_file("dicom.dcm").unwrap();
-    let image = obj.decode_pixel_data().unwrap().to_dynamic_image().unwrap();
-    image
-        .save("out.png")
-        .unwrap();
+fn main() -> Result<(), Box<dyn Error>> {
+    let obj = open_file("dicom.dcm")?;
+    let image = obj.decode_pixel_data()?;
+    let dynamic_image = image.to_dynamic_image()?;
+    Ok(dynamic_image.save("out.png")?)
+}
 ```
 
 ## Supported features
