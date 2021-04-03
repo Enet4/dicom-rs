@@ -55,9 +55,6 @@ pub enum Error {
         ts: String,
     },
 
-    #[snafu(display("Not supported: {}", message))]
-    NotSupported { message: String },
-
     #[snafu(display("Invalid PixelData"))]
     InvalidPixelData,
 
@@ -66,6 +63,18 @@ pub enum Error {
 
     #[snafu(display("Invalid BitsAllocated, must be 8 or 16"))]
     InvalidBitsAllocated,
+
+    #[snafu(display("Unsupported PhotometricInterpretation {}", pi))]
+    UnsupportedPhotometricInterpretation { pi: String },
+
+    #[snafu(display("Unsupported SamplesPerPixel {}", spp))]
+    UnsupportedSamplesPerPixel { spp: u16 },
+
+    #[snafu(display("Unsupported TransferSyntax {}", ts))]
+    UnsupportedTransferSyntax { ts: String },
+
+    #[snafu(display("Multi-frame dicoms are not supported"))]
+    UnsupportedMultiFrame,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -89,11 +98,8 @@ impl DecodedPixelData {
     /// Convert decoded pixel data into a DynamicImage
     pub fn to_dynamic_image(&self) -> Result<DynamicImage> {
         if self.photometric_interpretation != "MONOCHROME2" {
-            NotSupported {
-                message: format!(
-                    "{} is not a supported PhotometricInterpretation",
-                    self.photometric_interpretation
-                ),
+            UnsupportedPhotometricInterpretation {
+                pi: self.photometric_interpretation.clone(),
             }
             .fail()?
         }
@@ -107,9 +113,9 @@ impl DecodedPixelData {
                     return Ok(DynamicImage::from(DynamicImage::ImageLuma8(image_buffer)));
                 }
                 _ => {
-                    // RGB
-                    NotSupported {
-                        message: String::from("RGB is not yet supported"),
+                    // RGB, YBR, etc. color space
+                    UnsupportedSamplesPerPixel {
+                        spp: self.samples_per_pixel,
                     }
                     .fail()?
                 }
@@ -198,11 +204,12 @@ impl PixelDecoder for DefaultDicomObject {
             })?;
 
         let transfer_syntax = &self.meta().transfer_syntax;
-        let registry = TransferSyntaxRegistry
-            .get(&&transfer_syntax)
-            .context(NotSupported {
-                message: format!("TS {} not suppported", transfer_syntax),
-            })?;
+        let registry =
+            TransferSyntaxRegistry
+                .get(&&transfer_syntax)
+                .context(UnsupportedTransferSyntax {
+                    ts: transfer_syntax,
+                })?;
         let endianness = registry.endianness();
         let ts_type =
             GDCMTransferSyntax::from_str(&registry.uid()).context(GDCMNonSupportedTS {
@@ -222,10 +229,7 @@ impl PixelDecoder for DefaultDicomObject {
             } => {
                 if fragments.len() > 1 {
                     // Bundle fragments and decode multi-frame dicoms
-                    NotSupported {
-                        message: "Multi-frame dicoms are not yet supported",
-                    }
-                    .fail()?
+                    UnsupportedMultiFrame.fail()?
                 }
                 let decoded_frame = decode_single_frame_compressed(
                     &fragments[0],
