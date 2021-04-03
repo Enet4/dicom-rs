@@ -217,10 +217,10 @@ impl PixelDecoder for DefaultDicomObject {
             })?;
 
         let samples_per_pixel = get_samples_per_pixel(self)?;
-        let bits_allocated = get_bits_allocated(self)?;
-        let bits_stored = get_bits_stored(self)?;
-        let high_bit = get_high_bit(self)?;
-        let pixel_representation = get_pixel_representation(self)?;
+        let bits_allocated = bits_allocated(self)?;
+        let bits_stored = bits_stored(self)?;
+        let high_bit = high_bit(self)?;
+        let pixel_representation = pixel_representation(self)?;
 
         let decoded_pixel_data = match pixel_data.value() {
             Value::PixelSequence {
@@ -306,7 +306,7 @@ fn get_samples_per_pixel(obj: &DefaultDicomObject) -> Result<u16> {
 }
 
 /// Get the BitsAllocated of the Dicom
-fn get_bits_allocated(obj: &DefaultDicomObject) -> Result<u16> {
+fn bits_allocated(obj: &DefaultDicomObject) -> Result<u16> {
     Ok(obj
         .element_by_name("BitsAllocated")
         .context(MissingRequiredField)?
@@ -315,7 +315,7 @@ fn get_bits_allocated(obj: &DefaultDicomObject) -> Result<u16> {
 }
 
 /// Get the BitsStored of the Dicom
-fn get_bits_stored(obj: &DefaultDicomObject) -> Result<u16> {
+fn bits_stored(obj: &DefaultDicomObject) -> Result<u16> {
     Ok(obj
         .element_by_name("BitsStored")
         .context(MissingRequiredField)?
@@ -324,7 +324,7 @@ fn get_bits_stored(obj: &DefaultDicomObject) -> Result<u16> {
 }
 
 /// Get the HighBit of the Dicom
-fn get_high_bit(obj: &DefaultDicomObject) -> Result<u16> {
+fn high_bit(obj: &DefaultDicomObject) -> Result<u16> {
     Ok(obj
         .element_by_name("HighBit")
         .context(MissingRequiredField)?
@@ -333,7 +333,7 @@ fn get_high_bit(obj: &DefaultDicomObject) -> Result<u16> {
 }
 
 /// Get the PixelRepresentation of the Dicom
-fn get_pixel_representation(obj: &DefaultDicomObject) -> Result<u16> {
+fn pixel_representation(obj: &DefaultDicomObject) -> Result<u16> {
     Ok(obj
         .element_by_name("PixelRepresentation")
         .context(MissingRequiredField)?
