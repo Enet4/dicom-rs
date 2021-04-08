@@ -171,21 +171,6 @@ pub enum LazyDataToken<D> {
     },
 }
 
-impl<D> From<DataElementHeader> for LazyDataToken<D> {
-    fn from(header: DataElementHeader) -> Self {
-        match (header.vr(), header.tag) {
-            (VR::OB, Tag(0x7fe0, 0x0010)) if header.len.is_undefined() => {
-                LazyDataToken::PixelSequenceStart
-            }
-            (VR::SQ, _) => LazyDataToken::SequenceStart {
-                tag: header.tag,
-                len: header.len,
-            },
-            _ => LazyDataToken::ElementHeader(header),
-        }
-    }
-}
-
 impl<D> LazyDataToken<D> {
     /// Check whether this token represents the start of a sequence
     /// of nested data sets.
