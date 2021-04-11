@@ -16,7 +16,7 @@
 //! let obj = open_file("dicom.dcm")?;
 //! let image = obj.decode_pixel_data()?;
 //! let dynamic_image = image.to_dynamic_image()?;
-//!  dynamic_image.save("out.png")?;
+//! dynamic_image.save("out.png")?;
 //! #   Ok(())
 //! # }
 //! ```
