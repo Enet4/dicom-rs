@@ -75,6 +75,9 @@ pub enum Error {
 
     #[snafu(display("Multi-frame dicoms are not supported"))]
     UnsupportedMultiFrame,
+
+    #[snafu(display("Invalid buffer when constructing ImageBuffer"))]
+    InvalildImageBuffer,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -113,7 +116,7 @@ impl DecodedPixelData {
                     // Single grayscale channel
                     let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
                         ImageBuffer::from_raw(self.cols, self.rows, self.data.to_owned()).unwrap();
-                    return Ok(DynamicImage::from(DynamicImage::ImageLuma8(image_buffer)));
+                    Ok(DynamicImage::ImageLuma8(image_buffer))
                 }
                 _ => {
                     // RGB, YBR, etc. color space
@@ -160,8 +163,9 @@ impl DecodedPixelData {
                     _ => InvalidPixelRepresentation.fail()?,
                 }
                 let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
-                    ImageBuffer::from_raw(self.cols, self.rows, dest).unwrap();
-                Ok(DynamicImage::from(DynamicImage::ImageLuma16(image_buffer)))
+                    ImageBuffer::from_raw(self.cols, self.rows, dest)
+                        .context(InvalildImageBuffer)?;
+                Ok(DynamicImage::ImageLuma16(image_buffer))
             }
             _ => InvalidBitsAllocated.fail()?,
         }
