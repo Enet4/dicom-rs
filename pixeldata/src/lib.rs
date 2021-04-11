@@ -78,12 +78,14 @@ pub enum Error {
 
     #[snafu(display("Invalid buffer when constructing ImageBuffer"))]
     InvalildImageBuffer,
+
+    #[snafu(display("Unknown GDCM error while decoding image"))]
+    UnknownGdcmError { source: gdcm_rs::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Decoded pixel data
-/// NOTE: Is it possible to reuse dicom::PixelData ?
 pub struct DecodedPixelData {
     pub data: Vec<u8>,
     pub rows: u32,
@@ -99,9 +101,8 @@ pub struct DecodedPixelData {
 
 impl DecodedPixelData {
     /// Convert decoded pixel data into a DynamicImage.
-    /// Only single-frame dicoms are supported for now.
-    /// The pixel data will be decoded by GDCM, and a new
-    /// DynamicImage is created in memory.
+    /// A new <u8> or <u16> vector is created in memory
+    /// with normalized grayscale values
     pub fn to_dynamic_image(&self) -> Result<DynamicImage> {
         if self.photometric_interpretation != "MONOCHROME2" {
             UnsupportedPhotometricInterpretation {
@@ -191,7 +192,8 @@ fn normalize_u16(i: &[u16]) -> Vec<u16> {
 }
 
 pub trait PixelDecoder {
-    /// Decode compressed pixel data
+    /// Decode compressed pixel data using GDCM.
+    /// A new buffer (Vec<u8>) is created holding the decoded pixel data.
     fn decode_pixel_data(&self) -> Result<DecodedPixelData>;
 }
 
@@ -201,10 +203,10 @@ impl PixelDecoder for DefaultDicomObject {
         let pixel_data = self
             .element(dicom_dictionary_std::tags::PIXEL_DATA)
             .context(MissingRequiredField)?;
-        let cols = get_cols(self)?;
-        let rows = get_rows(self)?;
+        let cols = cols(self)?;
+        let rows = rows(self)?;
 
-        let photometric_interpretation = get_photometric_interpretation(self)?;
+        let photometric_interpretation = photometric_interpretation(self)?;
         let pi_type = GDCMPhotometricInterpretation::from_str(&photometric_interpretation)
             .context(GDCMNonSupportedPI {
                 pi: &photometric_interpretation,
@@ -223,7 +225,7 @@ impl PixelDecoder for DefaultDicomObject {
                 ts: transfer_syntax,
             })?;
 
-        let samples_per_pixel = get_samples_per_pixel(self)?;
+        let samples_per_pixel = samples_per_pixel(self)?;
         let bits_allocated = bits_allocated(self)?;
         let bits_stored = bits_stored(self)?;
         let high_bit = high_bit(self)?;
@@ -249,8 +251,9 @@ impl PixelDecoder for DefaultDicomObject {
                     bits_stored,
                     high_bit,
                     pixel_representation,
-                );
-                decoded_frame.unwrap().to_vec()
+                )
+                .context(UnknownGdcmError)?;
+                decoded_frame.to_vec()
             }
             Value::Primitive(p) => {
                 // Non-encoded, just return the pixel data
@@ -275,7 +278,7 @@ impl PixelDecoder for DefaultDicomObject {
 }
 
 /// Get the Columns of the dicom
-fn get_cols(obj: &DefaultDicomObject) -> Result<u16> {
+fn cols(obj: &DefaultDicomObject) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::COLUMNS)
         .context(MissingRequiredField)?
         .uint16()
@@ -283,7 +286,7 @@ fn get_cols(obj: &DefaultDicomObject) -> Result<u16> {
 }
 
 /// Get the Rows of the dicom
-fn get_rows(obj: &DefaultDicomObject) -> Result<u16> {
+fn rows(obj: &DefaultDicomObject) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::ROWS)
         .context(MissingRequiredField)?
         .uint16()
@@ -291,7 +294,7 @@ fn get_rows(obj: &DefaultDicomObject) -> Result<u16> {
 }
 
 /// Get the PhotoMetricInterpretation of the Dicom
-fn get_photometric_interpretation(obj: &DefaultDicomObject) -> Result<String> {
+fn photometric_interpretation(obj: &DefaultDicomObject) -> Result<String> {
     Ok(obj
         .element(dicom_dictionary_std::tags::PHOTOMETRIC_INTERPRETATION)
         .context(MissingRequiredField)?
@@ -302,7 +305,7 @@ fn get_photometric_interpretation(obj: &DefaultDicomObject) -> Result<String> {
 }
 
 /// Get the SamplesPerPixel of the Dicom
-fn get_samples_per_pixel(obj: &DefaultDicomObject) -> Result<u16> {
+fn samples_per_pixel(obj: &DefaultDicomObject) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::SAMPLES_PER_PIXEL)
         .context(MissingRequiredField)?
         .uint16()
