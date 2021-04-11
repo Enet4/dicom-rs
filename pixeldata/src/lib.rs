@@ -195,7 +195,7 @@ impl PixelDecoder for DefaultDicomObject {
     /// Decode compressed pixel data for a [`DefaultDicomObject`]
     fn decode_pixel_data(&self) -> Result<DecodedPixelData> {
         let pixel_data = self
-            .element_by_name("PixelData")
+            .element(dicom_dictionary_std::tags::PIXEL_DATA)
             .context(MissingRequiredField)?;
         let cols = get_cols(self)?;
         let rows = get_rows(self)?;
@@ -272,7 +272,7 @@ impl PixelDecoder for DefaultDicomObject {
 
 /// Get the Columns of the dicom
 fn get_cols(obj: &DefaultDicomObject) -> Result<u16> {
-    obj.element_by_name("Columns")
+    obj.element(dicom_dictionary_std::tags::COLUMNS)
         .context(MissingRequiredField)?
         .uint16()
         .context(CastValueError)
@@ -280,7 +280,7 @@ fn get_cols(obj: &DefaultDicomObject) -> Result<u16> {
 
 /// Get the Rows of the dicom
 fn get_rows(obj: &DefaultDicomObject) -> Result<u16> {
-    obj.element_by_name("Rows")
+    obj.element(dicom_dictionary_std::tags::ROWS)
         .context(MissingRequiredField)?
         .uint16()
         .context(CastValueError)
@@ -289,7 +289,7 @@ fn get_rows(obj: &DefaultDicomObject) -> Result<u16> {
 /// Get the PhotoMetricInterpretation of the Dicom
 fn get_photometric_interpretation(obj: &DefaultDicomObject) -> Result<String> {
     Ok(obj
-        .element_by_name("PhotometricInterpretation")
+        .element(dicom_dictionary_std::tags::PHOTOMETRIC_INTERPRETATION)
         .context(MissingRequiredField)?
         .string()
         .context(CastValueError)?
@@ -299,7 +299,7 @@ fn get_photometric_interpretation(obj: &DefaultDicomObject) -> Result<String> {
 
 /// Get the SamplesPerPixel of the Dicom
 fn get_samples_per_pixel(obj: &DefaultDicomObject) -> Result<u16> {
-    obj.element_by_name("SamplesPerPixel")
+    obj.element(dicom_dictionary_std::tags::SAMPLES_PER_PIXEL)
         .context(MissingRequiredField)?
         .uint16()
         .context(CastValueError)
@@ -307,7 +307,7 @@ fn get_samples_per_pixel(obj: &DefaultDicomObject) -> Result<u16> {
 
 /// Get the BitsAllocated of the Dicom
 fn bits_allocated(obj: &DefaultDicomObject) -> Result<u16> {
-    obj.element_by_name("BitsAllocated")
+    obj.element(dicom_dictionary_std::tags::BITS_ALLOCATED)
         .context(MissingRequiredField)?
         .uint16()
         .context(CastValueError)
@@ -315,7 +315,7 @@ fn bits_allocated(obj: &DefaultDicomObject) -> Result<u16> {
 
 /// Get the BitsStored of the Dicom
 fn bits_stored(obj: &DefaultDicomObject) -> Result<u16> {
-    obj.element_by_name("BitsStored")
+    obj.element(dicom_dictionary_std::tags::BITS_STORED)
         .context(MissingRequiredField)?
         .uint16()
         .context(CastValueError)
@@ -323,7 +323,7 @@ fn bits_stored(obj: &DefaultDicomObject) -> Result<u16> {
 
 /// Get the HighBit of the Dicom
 fn high_bit(obj: &DefaultDicomObject) -> Result<u16> {
-    obj.element_by_name("HighBit")
+    obj.element(dicom_dictionary_std::tags::HIGH_BIT)
         .context(MissingRequiredField)?
         .uint16()
         .context(CastValueError)
@@ -331,7 +331,7 @@ fn high_bit(obj: &DefaultDicomObject) -> Result<u16> {
 
 /// Get the PixelRepresentation of the Dicom
 fn pixel_representation(obj: &DefaultDicomObject) -> Result<u16> {
-    obj.element_by_name("PixelRepresentation")
+    obj.element(dicom_dictionary_std::tags::PIXEL_REPRESENTATION)
         .context(MissingRequiredField)?
         .uint16()
         .context(CastValueError)
