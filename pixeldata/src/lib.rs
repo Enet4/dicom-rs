@@ -23,7 +23,7 @@
 
 use byteorder::{ByteOrder, NativeEndian};
 use dicom_core::value::Value;
-use dicom_encoding::transfer_syntax::{Endianness, TransferSyntaxIndex};
+use dicom_encoding::transfer_syntax::{TransferSyntaxIndex};
 use dicom_object::DefaultDicomObject;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use gdcm_rs::{decode_single_frame_compressed, GDCMPhotometricInterpretation, GDCMTransferSyntax};
@@ -90,7 +90,6 @@ pub struct DecodedPixelData {
     pub data: Vec<u8>,
     pub rows: u32,
     pub cols: u32,
-    pub endianness: Endianness,
     pub photometric_interpretation: String,
     pub samples_per_pixel: u16,
     pub bits_allocated: u16,
@@ -207,7 +206,6 @@ impl PixelDecoder for DefaultDicomObject {
                 .context(UnsupportedTransferSyntax {
                     ts: transfer_syntax,
                 })?;
-        let endianness = registry.endianness();
         let ts_type =
             GDCMTransferSyntax::from_str(&registry.uid()).context(GDCMNonSupportedTS {
                 ts: transfer_syntax,
@@ -254,7 +252,6 @@ impl PixelDecoder for DefaultDicomObject {
             data: decoded_pixel_data,
             cols: cols.into(),
             rows: rows.into(),
-            endianness,
             photometric_interpretation,
             samples_per_pixel,
             bits_allocated,
