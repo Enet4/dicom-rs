@@ -13,10 +13,10 @@
 //! use dicom_pixeldata::PixelDecoder;
 //!
 //! # fn main() -> Result<(), Box<dyn Error>> {
-//!     let obj = open_file("dicom.dcm")?;
-//!     let image = obj.decode_pixel_data()?;
-//!     let dynamic_image = image.to_dynamic_image()?;
-//!     dynamic_image.save("out.png")?;
+//! let obj = open_file("dicom.dcm")?;
+//! let image = obj.decode_pixel_data()?;
+//! let dynamic_image = image.to_dynamic_image()?;
+//!  dynamic_image.save("out.png")?;
 //! #   Ok(())
 //! # }
 //! ```
@@ -95,7 +95,10 @@ pub struct DecodedPixelData {
 }
 
 impl DecodedPixelData {
-    /// Convert decoded pixel data into a DynamicImage
+    /// Convert decoded pixel data into a DynamicImage.
+    /// Only single-frame dicoms are supported for now.
+    /// The pixel data will be decoded by GDCM, and a new
+    /// DynamicImage is created in memory.
     pub fn to_dynamic_image(&self) -> Result<DynamicImage> {
         if self.photometric_interpretation != "MONOCHROME2" {
             UnsupportedPhotometricInterpretation {
@@ -252,7 +255,7 @@ impl PixelDecoder for DefaultDicomObject {
             Value::Sequence { items: _, size: _ } => InvalidPixelData.fail()?,
         };
 
-        return Ok(DecodedPixelData {
+        Ok(DecodedPixelData {
             data: decoded_pixel_data,
             cols: cols.into(),
             rows: rows.into(),
@@ -263,26 +266,24 @@ impl PixelDecoder for DefaultDicomObject {
             bits_stored,
             high_bit,
             pixel_representation,
-        });
+        })
     }
 }
 
 /// Get the Columns of the dicom
 fn get_cols(obj: &DefaultDicomObject) -> Result<u16> {
-    Ok(obj
-        .element_by_name("Columns")
+    obj.element_by_name("Columns")
         .context(MissingRequiredField)?
         .uint16()
-        .context(CastValueError)?)
+        .context(CastValueError)
 }
 
 /// Get the Rows of the dicom
 fn get_rows(obj: &DefaultDicomObject) -> Result<u16> {
-    Ok(obj
-        .element_by_name("Rows")
+    obj.element_by_name("Rows")
         .context(MissingRequiredField)?
         .uint16()
-        .context(CastValueError)?)
+        .context(CastValueError)
 }
 
 /// Get the PhotoMetricInterpretation of the Dicom
@@ -298,47 +299,42 @@ fn get_photometric_interpretation(obj: &DefaultDicomObject) -> Result<String> {
 
 /// Get the SamplesPerPixel of the Dicom
 fn get_samples_per_pixel(obj: &DefaultDicomObject) -> Result<u16> {
-    Ok(obj
-        .element_by_name("SamplesPerPixel")
+    obj.element_by_name("SamplesPerPixel")
         .context(MissingRequiredField)?
         .uint16()
-        .context(CastValueError)?)
+        .context(CastValueError)
 }
 
 /// Get the BitsAllocated of the Dicom
 fn bits_allocated(obj: &DefaultDicomObject) -> Result<u16> {
-    Ok(obj
-        .element_by_name("BitsAllocated")
+    obj.element_by_name("BitsAllocated")
         .context(MissingRequiredField)?
         .uint16()
-        .context(CastValueError)?)
+        .context(CastValueError)
 }
 
 /// Get the BitsStored of the Dicom
 fn bits_stored(obj: &DefaultDicomObject) -> Result<u16> {
-    Ok(obj
-        .element_by_name("BitsStored")
+    obj.element_by_name("BitsStored")
         .context(MissingRequiredField)?
         .uint16()
-        .context(CastValueError)?)
+        .context(CastValueError)
 }
 
 /// Get the HighBit of the Dicom
 fn high_bit(obj: &DefaultDicomObject) -> Result<u16> {
-    Ok(obj
-        .element_by_name("HighBit")
+    obj.element_by_name("HighBit")
         .context(MissingRequiredField)?
         .uint16()
-        .context(CastValueError)?)
+        .context(CastValueError)
 }
 
 /// Get the PixelRepresentation of the Dicom
 fn pixel_representation(obj: &DefaultDicomObject) -> Result<u16> {
-    Ok(obj
-        .element_by_name("PixelRepresentation")
+    obj.element_by_name("PixelRepresentation")
         .context(MissingRequiredField)?
         .uint16()
-        .context(CastValueError)?)
+        .context(CastValueError)
 }
 
 #[cfg(test)]
