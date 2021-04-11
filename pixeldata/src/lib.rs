@@ -116,7 +116,8 @@ impl DecodedPixelData {
                 1 => {
                     // Single grayscale channel
                     let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
-                        ImageBuffer::from_raw(self.cols, self.rows, self.data.to_owned()).unwrap();
+                        ImageBuffer::from_raw(self.cols, self.rows, self.data.to_owned())
+                            .context(InvalildImageBuffer)?;
                     Ok(DynamicImage::ImageLuma8(image_buffer))
                 }
                 _ => {
@@ -373,7 +374,7 @@ mod tests {
         // "pydicom/ExplVR_BigEndNoMeta.dcm",
         // "pydicom/ExplVR_LitEndNoMeta.dcm",
         // "pydicom/JPEG-LL.dcm",                       // More than 1 fragment
-        // "pydicom/MR-SIEMENS-DICOM-WithOverlays.dcm", // Error with Endianness?
+        // "pydicom/MR-SIEMENS-DICOM-WithOverlays.dcm", // Overlays not supported
         // "pydicom/MR2_J2KI.dcm",  // Multi-frame
         // "pydicom/MR2_J2KR.dcm",
         // "pydicom/MR2_UNCI.dcm",
