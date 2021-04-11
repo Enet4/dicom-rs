@@ -21,7 +21,7 @@
 //! # }
 //! ```
 
-use byteorder::{BigEndian, ByteOrder, LittleEndian};
+use byteorder::{ByteOrder, NativeEndian};
 use dicom_core::value::Value;
 use dicom_encoding::transfer_syntax::{Endianness, TransferSyntaxIndex};
 use dicom_object::DefaultDicomObject;
@@ -133,15 +133,9 @@ impl DecodedPixelData {
                 match self.pixel_representation {
                     // Unsigned 16 bit representation
                     0 => {
-                        match self.endianness {
-                            Endianness::Little => {
-                                LittleEndian::read_u16_into(&self.data, &mut dest);
-                            }
-                            Endianness::Big => {
-                                BigEndian::read_u16_into(&self.data, &mut dest);
-                            }
-                        }
-                        // Without normalization the picture becomes really dark
+                        NativeEndian::read_u16_into(&self.data, &mut dest);
+
+                        // Normalize values between 0 - u16::MAX
                         // In reality we need to apply LUT, WindowWidth/WindowCenter etc.
                         dest = normalize_u16(&dest);
                     }
@@ -149,14 +143,7 @@ impl DecodedPixelData {
                     // Signed 16 bit 2s complement representation
                     1 => {
                         let mut signed_buffer = vec![0; self.data.len() / 2];
-                        match self.endianness {
-                            Endianness::Little => {
-                                LittleEndian::read_i16_into(&self.data, &mut signed_buffer);
-                            }
-                            Endianness::Big => {
-                                BigEndian::read_i16_into(&self.data, &mut signed_buffer);
-                            }
-                        }
+                        NativeEndian::read_i16_into(&self.data, &mut signed_buffer);
 
                         // Normalize values between 0 - u16::MAX
                         // In reality we need to apply LUT, WindowWidth/WindowCenter etc.
@@ -195,11 +182,11 @@ fn normalize_u16(i: &[u16]) -> Vec<u16> {
 pub trait PixelDecoder {
     /// Decode compressed pixel data using GDCM.
     /// A new buffer (Vec<u8>) is created holding the decoded pixel data.
+    /// For now, only the first frame is taken for multi-frame dicoms.
     fn decode_pixel_data(&self) -> Result<DecodedPixelData>;
 }
 
 impl PixelDecoder for DefaultDicomObject {
-    /// Decode compressed pixel data for a [`DefaultDicomObject`]
     fn decode_pixel_data(&self) -> Result<DecodedPixelData> {
         let pixel_data = self
             .element(dicom_dictionary_std::tags::PIXEL_DATA)
@@ -369,6 +356,8 @@ mod tests {
          "pydicom/MR_small_jp2klossless.dcm",
          "pydicom/MR_small_jpeg_ls_lossless.dcm",
          "pydicom/explicit_VR-UN.dcm",
+         "pydicom/MR_small_bigendian.dcm",
+         "pydicom/MR_small_expb.dcm",
 
         // "pydicom/ExplVR_BigEnd.dcm",
         // "pydicom/ExplVR_BigEndNoMeta.dcm",
@@ -379,8 +368,6 @@ mod tests {
         // "pydicom/MR2_J2KR.dcm",
         // "pydicom/MR2_UNCI.dcm",
         // "pydicom/MR2_UNCR.dcm",
-        // "pydicom/MR_small_bigendian.dcm",            // Endianness error
-        // "pydicom/MR_small_expb.dcm",                 // Endianness error
         // "pydicom/MR_small_padded.dcm",
         // "pydicom/MR_truncated.dcm",
         // "pydicom/OBXXXX1A.dcm",
