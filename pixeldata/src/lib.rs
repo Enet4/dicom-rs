@@ -22,9 +22,9 @@
 //! ```
 
 use byteorder::{ByteOrder, NativeEndian};
-use dicom_core::value::Value;
-use dicom_encoding::transfer_syntax::{TransferSyntaxIndex};
-use dicom_object::DefaultDicomObject;
+use dicom_core::{value::Value, DataDictionary};
+use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
+use dicom_object::{FileDicomObject, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use gdcm_rs::{decode_single_frame_compressed, GDCMPhotometricInterpretation, GDCMTransferSyntax};
 use image::{DynamicImage, ImageBuffer, Luma};
@@ -77,7 +77,7 @@ pub enum Error {
     UnsupportedMultiFrame,
 
     #[snafu(display("Invalid buffer when constructing ImageBuffer"))]
-    InvalildImageBuffer,
+    InvalidImageBuffer,
 
     #[snafu(display("Unknown GDCM error while decoding image"))]
     UnknownGdcmError { source: gdcm_rs::Error },
@@ -116,7 +116,7 @@ impl DecodedPixelData {
                     // Single grayscale channel
                     let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
                         ImageBuffer::from_raw(self.cols, self.rows, self.data.to_owned())
-                            .context(InvalildImageBuffer)?;
+                            .context(InvalidImageBuffer)?;
                     Ok(DynamicImage::ImageLuma8(image_buffer))
                 }
                 _ => {
@@ -152,7 +152,7 @@ impl DecodedPixelData {
                 }
                 let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
                     ImageBuffer::from_raw(self.cols, self.rows, dest)
-                        .context(InvalildImageBuffer)?;
+                        .context(InvalidImageBuffer)?;
                 Ok(DynamicImage::ImageLuma16(image_buffer))
             }
             _ => InvalidBitsAllocated.fail()?,
@@ -179,13 +179,15 @@ fn normalize_u16(i: &[u16]) -> Vec<u16> {
 }
 
 pub trait PixelDecoder {
-    /// Decode compressed pixel data using GDCM.
+    /// Decode compressed pixel data.
     /// A new buffer (Vec<u8>) is created holding the decoded pixel data.
-    /// For now, only the first frame is taken for multi-frame dicoms.
     fn decode_pixel_data(&self) -> Result<DecodedPixelData>;
 }
 
-impl PixelDecoder for DefaultDicomObject {
+impl<D> PixelDecoder for FileDicomObject<InMemDicomObject<D>>
+where
+    D: DataDictionary + Clone,
+{
     fn decode_pixel_data(&self) -> Result<DecodedPixelData> {
         let pixel_data = self
             .element(dicom_dictionary_std::tags::PIXEL_DATA)
@@ -263,7 +265,7 @@ impl PixelDecoder for DefaultDicomObject {
 }
 
 /// Get the Columns of the dicom
-fn cols(obj: &DefaultDicomObject) -> Result<u16> {
+fn cols<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::COLUMNS)
         .context(MissingRequiredField)?
         .uint16()
@@ -271,7 +273,7 @@ fn cols(obj: &DefaultDicomObject) -> Result<u16> {
 }
 
 /// Get the Rows of the dicom
-fn rows(obj: &DefaultDicomObject) -> Result<u16> {
+fn rows<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::ROWS)
         .context(MissingRequiredField)?
         .uint16()
@@ -279,7 +281,9 @@ fn rows(obj: &DefaultDicomObject) -> Result<u16> {
 }
 
 /// Get the PhotoMetricInterpretation of the Dicom
-fn photometric_interpretation(obj: &DefaultDicomObject) -> Result<String> {
+fn photometric_interpretation<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+) -> Result<String> {
     Ok(obj
         .element(dicom_dictionary_std::tags::PHOTOMETRIC_INTERPRETATION)
         .context(MissingRequiredField)?
@@ -290,7 +294,9 @@ fn photometric_interpretation(obj: &DefaultDicomObject) -> Result<String> {
 }
 
 /// Get the SamplesPerPixel of the Dicom
-fn samples_per_pixel(obj: &DefaultDicomObject) -> Result<u16> {
+fn samples_per_pixel<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::SAMPLES_PER_PIXEL)
         .context(MissingRequiredField)?
         .uint16()
@@ -298,7 +304,9 @@ fn samples_per_pixel(obj: &DefaultDicomObject) -> Result<u16> {
 }
 
 /// Get the BitsAllocated of the Dicom
-fn bits_allocated(obj: &DefaultDicomObject) -> Result<u16> {
+fn bits_allocated<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::BITS_ALLOCATED)
         .context(MissingRequiredField)?
         .uint16()
@@ -306,7 +314,9 @@ fn bits_allocated(obj: &DefaultDicomObject) -> Result<u16> {
 }
 
 /// Get the BitsStored of the Dicom
-fn bits_stored(obj: &DefaultDicomObject) -> Result<u16> {
+fn bits_stored<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::BITS_STORED)
         .context(MissingRequiredField)?
         .uint16()
@@ -314,7 +324,7 @@ fn bits_stored(obj: &DefaultDicomObject) -> Result<u16> {
 }
 
 /// Get the HighBit of the Dicom
-fn high_bit(obj: &DefaultDicomObject) -> Result<u16> {
+fn high_bit<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::HIGH_BIT)
         .context(MissingRequiredField)?
         .uint16()
@@ -322,7 +332,9 @@ fn high_bit(obj: &DefaultDicomObject) -> Result<u16> {
 }
 
 /// Get the PixelRepresentation of the Dicom
-fn pixel_representation(obj: &DefaultDicomObject) -> Result<u16> {
+fn pixel_representation<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::PIXEL_REPRESENTATION)
         .context(MissingRequiredField)?
         .uint16()
