@@ -173,7 +173,9 @@ impl DecodedPixelData<'_> {
         }
     }
 
-    /// Convert decoded pixel data into a ndarray.
+    /// Convert decoded pixel data into a NumArcArrayD
+    /// A NumArcArrayD represents different byte layouts
+    /// depending on the BitsAllocated and PixelRepresentation of the dicom
     pub fn to_ndarray(&self) -> Result<NumArcArrayD> {
         // Array size is Rows x Cols x SamplesPerPixel (1 for grayscale, 3 for RGB)
         let shape = IxDyn(&[
