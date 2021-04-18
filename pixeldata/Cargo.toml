@@ -22,6 +22,7 @@ byteorder = "1.4.3"
 image = "0.23.14"
 gdcm-rs = "0.2.0"
 rayon = "1.5.0"
+ndarray = "0.15.1"
 
 [dev-dependencies]
 dicom-test-files = "0.2.0"
