@@ -28,7 +28,7 @@ use dicom_object::{FileDicomObject, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use gdcm_rs::{decode_single_frame_compressed, GDCMPhotometricInterpretation, GDCMTransferSyntax};
 use image::{DynamicImage, ImageBuffer, Luma};
-use ndarray::{ArcArray, IxDyn};
+use ndarray::{Array, IxDyn};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use snafu::OptionExt;
 use snafu::{ResultExt, Snafu};
@@ -105,11 +105,11 @@ pub struct DecodedPixelData<'a> {
 /// Different memory representations for the decoded pixel data
 /// as ndarray
 #[derive(Debug)]
-pub enum NumArcArrayD {
-    UnsignedByte(ArcArray<u8, IxDyn>),
-    UnsignedWord(ArcArray<u16, IxDyn>),
-    SignedByte(ArcArray<i8, IxDyn>),
-    SignedWord(ArcArray<i16, IxDyn>),
+#[non_exhaustive]
+pub enum NumArrayD {
+    UnsignedByte(Array<u8, IxDyn>),
+    UnsignedWord(Array<u16, IxDyn>),
+    SignedWord(Array<i16, IxDyn>),
 }
 
 impl DecodedPixelData<'_> {
@@ -135,7 +135,6 @@ impl DecodedPixelData<'_> {
         match self.bits_allocated {
             8 => {
                 // Single grayscale channel
-                // TODO: Validate if we need to handle 8-bit 2s complement dicoms
                 let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
                     ImageBuffer::from_raw(self.cols, self.rows, self.data.to_vec())
                         .context(InvalidImageBuffer)?;
@@ -173,10 +172,10 @@ impl DecodedPixelData<'_> {
         }
     }
 
-    /// Convert decoded pixel data into a NumArcArrayD
-    /// A NumArcArrayD represents different byte layouts
+    /// Convert decoded pixel data into a NumArrayD
+    /// A NumArrayD represents different byte layouts
     /// depending on the BitsAllocated and PixelRepresentation of the dicom
-    pub fn to_ndarray(&self) -> Result<NumArcArrayD> {
+    pub fn to_ndarray(&self) -> Result<NumArrayD> {
         // Array size is Rows x Cols x SamplesPerPixel (1 for grayscale, 3 for RGB)
         let shape = IxDyn(&[
             self.rows as usize,
@@ -187,10 +186,9 @@ impl DecodedPixelData<'_> {
         match self.bits_allocated {
             8 => {
                 // 1-channel Grayscale image
-                // TODO: Validate if we need to handle 8-bit 2s complement dicoms
                 let ndarray =
-                    ArcArray::from_shape_vec(shape, self.data.to_vec()).context(ShapeError)?;
-                Ok(NumArcArrayD::UnsignedByte(ndarray))
+                    Array::from_shape_vec(shape, self.data.to_vec()).context(ShapeError)?;
+                Ok(NumArrayD::UnsignedByte(ndarray))
             }
             16 => match self.pixel_representation {
                 // Unsigned 16 bit representation
@@ -198,8 +196,8 @@ impl DecodedPixelData<'_> {
                     let mut dest = vec![0; self.data.len() / 2];
                     NativeEndian::read_u16_into(&self.data, &mut dest);
 
-                    let ndarray = ArcArray::from_shape_vec(shape, dest).context(ShapeError)?;
-                    Ok(NumArcArrayD::UnsignedWord(ndarray))
+                    let ndarray = Array::from_shape_vec(shape, dest).context(ShapeError)?;
+                    Ok(NumArrayD::UnsignedWord(ndarray))
                 }
                 // Signed 16 bit 2s complement representation
                 1 => {
@@ -207,8 +205,8 @@ impl DecodedPixelData<'_> {
                     NativeEndian::read_i16_into(&self.data, &mut signed_buffer);
 
                     let ndarray =
-                        ArcArray::from_shape_vec(shape, signed_buffer).context(ShapeError)?;
-                    Ok(NumArcArrayD::SignedWord(ndarray))
+                        Array::from_shape_vec(shape, signed_buffer).context(ShapeError)?;
+                    Ok(NumArrayD::SignedWord(ndarray))
                 }
                 _ => InvalidPixelRepresentation.fail()?,
             },
@@ -553,12 +551,12 @@ mod tests {
         let obj = open_file(test_file).unwrap();
         let ndarray = obj.decode_pixel_data().unwrap().to_ndarray().unwrap();
         match ndarray {
-            NumArcArrayD::SignedWord(arr) => {
+            NumArrayD::SignedWord(arr) => {
                 assert_eq!(arr.shape(), &[1024, 256, 1]);
                 assert_eq!(arr.len(), 262144);
                 assert_eq!(arr[[260, 0, 0]], -3);
             }
-            _ => panic!("Not a valid NumArcArrayD {:?}", ndarray),
+            _ => panic!("Not a valid NumArrayD {:?}", ndarray),
         }
     }
 
@@ -568,12 +566,12 @@ mod tests {
         let obj = open_file(test_file).unwrap();
         let ndarray = obj.decode_pixel_data().unwrap().to_ndarray().unwrap();
         match ndarray {
-            NumArcArrayD::UnsignedWord(arr) => {
+            NumArrayD::UnsignedWord(arr) => {
                 assert_eq!(arr.shape(), &[100, 100, 3]);
                 assert_eq!(arr.len(), 30000);
                 assert_eq!(arr[[50, 80, 1]], 32896);
             }
-            _ => panic!("Not a valid NumArcArrayD {:?}", ndarray),
+            _ => panic!("Not a valid NumArrayD {:?}", ndarray),
         }
     }
 }
