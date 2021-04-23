@@ -9,9 +9,6 @@ repository = "https://github.com/Enet4/dicom-rs"
 keywords = ["dicom"]
 readme = "README.md"
 
-[badges.travis-ci]
-repository = "Enet4/dicom-rs"
-
 [dependencies]
 chrono = "0.4.6"
 itertools = "0.10"

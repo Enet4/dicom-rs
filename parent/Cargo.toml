@@ -8,8 +8,8 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
 readme = "README.md"
 
-[badges.travis-ci]
-repository = "Enet4/dicom-rs"
+[badges]
+maintenance = { status = "actively-developed" }
 
 [features]
 default = ['inventory-registry']

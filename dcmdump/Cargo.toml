@@ -10,9 +10,6 @@ categories = ["command-line-utilities"]
 keywords = ["cli", "dicom", "dump"]
 readme = "README.md"
 
-[badges.travis-ci]
-repository = "Enet4/dicom-rs"
-
 [features]
 default = ['dicom/inventory-registry', 'dicom/backtraces']
 

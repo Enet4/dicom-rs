@@ -9,9 +9,6 @@ description = "A high-level API for reading and manipulating DICOM objects"
 keywords = ["dicom", "object", "attributes"]
 readme = "README.md"
 
-[badges.travis-ci]
-repository = "Enet4/dicom-rs"
-
 [features]
 default = []
 inventory-registry = ['dicom-encoding/inventory-registry', 'dicom-transfer-syntax-registry/inventory-registry']

@@ -10,9 +10,6 @@ categories = ["network-programming"]
 keywords = ["dicom", "network"]
 readme = "README.md"
 
-[badges.travis-ci]
-repository = "Enet4/dicom-rs"
-
 [dependencies]
 byteordered = "0.5.0"
 dicom-encoding = { path = "../encoding/", version = "0.3.0" }

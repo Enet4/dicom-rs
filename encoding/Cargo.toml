@@ -10,9 +10,6 @@ categories = ["encoding"]
 keywords = ["dicom"]
 readme = "README.md"
 
-[badges.travis-ci]
-repository = "Enet4/dicom-rs"
-
 [features]
 default = []
 inventory-registry = ['inventory']
