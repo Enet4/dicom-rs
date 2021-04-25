@@ -10,9 +10,6 @@ categories = ["parser-implementations"]
 keywords = ["dicom", "parser"]
 readme = "README.md"
 
-[badges.travis-ci]
-repository = "Enet4/dicom-rs"
-
 [dependencies]
 dicom-core = { path = "../core", version = "0.3.0" }
 dicom-encoding = { path = "../encoding", version = "0.3.0" }

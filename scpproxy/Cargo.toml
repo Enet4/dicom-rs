@@ -10,9 +10,6 @@ categories = ["command-line-utilities"]
 keywords = ["dicom"]
 readme = "README.md"
 
-[badges.travis-ci]
-repository = "Enet4/dicom-rs"
-
 [dependencies]
 clap = "2.33.0"
 dicom-ul = { path = "../ul/", version = "0.2.0" }
