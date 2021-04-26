@@ -46,13 +46,13 @@ pub enum Error {
     },
 
     #[snafu(display("Non supported GDCM PhotometricInterpretation: {}", pi))]
-    GDCMNonSupportedPI {
+    GdcmNonSupportedPi {
         source: gdcm_rs::InvalidGDCMPI,
         pi: String,
     },
 
     #[snafu(display("Non supported GDCM TransferSyntax: {}", ts))]
-    GDCMNonSupportedTS {
+    GdcmNonSupportedTs {
         source: gdcm_rs::InvalidGDCMTS,
         ts: String,
     },
