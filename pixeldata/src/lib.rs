@@ -48,7 +48,7 @@ use gdcm_rs::{decode_single_frame_compressed, GDCMPhotometricInterpretation, GDC
 use image::{DynamicImage, ImageBuffer, Luma};
 use ndarray::{Array, IxDyn};
 use num_traits::NumCast;
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use snafu::OptionExt;
 use snafu::{ResultExt, Snafu};
 use std::{borrow::Cow, str::FromStr};
@@ -122,12 +122,14 @@ pub struct DecodedPixelData<'a> {
     pub bits_stored: u16,
     pub high_bit: u16,
     pub pixel_representation: u16,
+    pub rescale_intercept: i16,
+    pub rescale_slope: f32,
 }
 
 impl DecodedPixelData<'_> {
     /// Convert decoded pixel data into a DynamicImage.
     /// A new <u8> or <u16> vector is created in memory
-    /// with normalized grayscale values
+    /// with normalized grayscale values after applying Modality LUT.
     pub fn to_dynamic_image(&self) -> Result<DynamicImage> {
         if self.photometric_interpretation != "MONOCHROME2" {
             UnsupportedPhotometricInterpretation {
@@ -147,34 +149,38 @@ impl DecodedPixelData<'_> {
         match self.bits_allocated {
             8 => {
                 // Single grayscale channel
-                let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
-                    ImageBuffer::from_raw(self.cols, self.rows, self.data.to_vec())
+                let lut =
+                    apply_modality_lut(&self.data, self.rescale_intercept, self.rescale_slope)?;
+                let pixels = normalize_to_u16(&lut);
+                let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
+                    ImageBuffer::from_raw(self.cols, self.rows, pixels)
                         .context(InvalidImageBuffer)?;
-                Ok(DynamicImage::ImageLuma8(image_buffer))
+                Ok(DynamicImage::ImageLuma16(image_buffer))
             }
             16 => {
-                let mut dest = vec![0; self.data.len() / 2];
+                let mut pixels: Vec<u16> = vec![0; self.data.len() / 2];
                 match self.pixel_representation {
                     // Unsigned 16 bit representation
                     0 => {
-                        NativeEndian::read_u16_into(&self.data, &mut dest);
-
-                        // Normalize values between 0 - u16::MAX
-                        dest = normalize_u16(&dest);
+                        let mut dst = vec![0; self.data.len() / 2];
+                        NativeEndian::read_u16_into(&self.data, &mut dst);
+                        let lut =
+                            apply_modality_lut(&dst, self.rescale_intercept, self.rescale_slope)?;
+                        pixels = normalize_to_u16(&lut);
                     }
 
                     // Signed 16 bit 2s complement representation
                     1 => {
-                        let mut signed_buffer = vec![0; self.data.len() / 2];
-                        NativeEndian::read_i16_into(&self.data, &mut signed_buffer);
-
-                        // Normalize values between 0 - u16::MAX
-                        dest = normalize_i16(&signed_buffer);
+                        let mut dst = vec![0; self.data.len() / 2];
+                        NativeEndian::read_i16_into(&self.data, &mut dst);
+                        let lut =
+                            apply_modality_lut(&dst, self.rescale_intercept, self.rescale_slope)?;
+                        pixels = normalize_to_u16(&lut);
                     }
                     _ => InvalidPixelRepresentation.fail()?,
                 }
                 let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
-                    ImageBuffer::from_raw(self.cols, self.rows, dest)
+                    ImageBuffer::from_raw(self.cols, self.rows, pixels)
                         .context(InvalidImageBuffer)?;
                 Ok(DynamicImage::ImageLuma16(image_buffer))
             }
@@ -202,7 +208,7 @@ impl DecodedPixelData<'_> {
                 // 1-channel Grayscale image
                 let converted: Result<Vec<T>, _> = self
                     .data
-                    .into_par_iter()
+                    .par_iter()
                     .map(|v| T::from(*v).ok_or(snafu::NoneError))
                     .collect();
                 let converted = converted.context(InvalidDataType)?;
@@ -216,8 +222,8 @@ impl DecodedPixelData<'_> {
                     NativeEndian::read_u16_into(&self.data, &mut dest);
 
                     let converted: Result<Vec<T>, _> = dest
-                        .into_par_iter()
-                        .map(|v| T::from(v).ok_or(snafu::NoneError))
+                        .par_iter()
+                        .map(|v| T::from(*v).ok_or(snafu::NoneError))
                         .collect();
                     let converted = converted.context(InvalidDataType)?;
                     let ndarray = Array::from_shape_vec(shape, converted).context(ShapeError)?;
@@ -229,8 +235,8 @@ impl DecodedPixelData<'_> {
                     NativeEndian::read_i16_into(&self.data, &mut signed_buffer);
 
                     let converted: Result<Vec<T>, _> = signed_buffer
-                        .into_par_iter()
-                        .map(|v| T::from(v).ok_or(snafu::NoneError))
+                        .par_iter()
+                        .map(|v| T::from(*v).ok_or(snafu::NoneError))
                         .collect();
                     let converted = converted.context(InvalidDataType)?;
                     let ndarray = Array::from_shape_vec(shape, converted).context(ShapeError)?;
@@ -243,22 +249,30 @@ impl DecodedPixelData<'_> {
     }
 }
 
-// Normalize i16 vector to u16 vector using min/max normalization
-fn normalize_i16(i: &[i16]) -> Vec<u16> {
-    let min = *i.iter().min().unwrap() as f32;
-    let max = *i.iter().max().unwrap() as f32;
+// Normalize f64 vector to u16 vector using min/max normalization
+fn normalize_to_u16(i: &[f64]) -> Vec<u16> {
+    let min = i.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+    let max = i.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
     i.par_iter()
-        .map(|p| (u16::MAX as f32 * (*p as f32 - min) / (max - min)) as u16)
+        .map(|p| (u16::MAX as f64 * (*p as f64 - min) / (max - min)) as u16)
         .collect()
 }
 
-// Normalize u16 vector using min/max normalization
-fn normalize_u16(i: &[u16]) -> Vec<u16> {
-    let min = *i.iter().min().unwrap() as f32;
-    let max = *i.iter().max().unwrap() as f32;
-    i.par_iter()
-        .map(|p| (u16::MAX as f32 * (*p as f32 - min) / (max - min)) as u16)
-        .collect()
+// Apply the Modality rescale operation to the input array and return a Vec<f64> containing transformed pixel data.
+// An InvalidDataType error is returned when T cannot be represented as f64
+fn apply_modality_lut<T>(i: &[T], rescale_intercept: i16, rescale_slope: f32) -> Result<Vec<f64>>
+where
+    T: NumCast + Sync,
+{
+    let result: Result<Vec<f64>, _> = i
+        .par_iter()
+        .map(|e| {
+            (*e).to_f64()
+                .map(|v| v * (rescale_slope as f64) + (rescale_intercept as f64))
+                .ok_or(snafu::NoneError)
+        })
+        .collect();
+    result.context(InvalidDataType)
 }
 
 pub trait PixelDecoder {
@@ -301,6 +315,8 @@ where
         let bits_stored = bits_stored(self)?;
         let high_bit = high_bit(self)?;
         let pixel_representation = pixel_representation(self)?;
+        let rescale_intercept = rescale_intercept(self);
+        let rescale_slope = rescale_slope(self);
 
         let decoded_pixel_data = match pixel_data.value() {
             Value::PixelSequence {
@@ -343,6 +359,8 @@ where
             bits_stored,
             high_bit,
             pixel_representation,
+            rescale_intercept,
+            rescale_slope,
         })
     }
 }
@@ -422,6 +440,20 @@ fn pixel_representation<D: DataDictionary + Clone>(
         .context(MissingRequiredField)?
         .uint16()
         .context(CastValueError)
+}
+
+/// Get the RescaleIntercept of the Dicom or returns 0
+fn rescale_intercept<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> i16 {
+    obj.element(dicom_dictionary_std::tags::RESCALE_INTERCEPT)
+        .map_or(Ok(0), |e| e.to_int())
+        .unwrap_or(0)
+}
+
+/// Get the RescaleSlope of the Dicom or returns 1.0
+fn rescale_slope<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> f32 {
+    obj.element(dicom_dictionary_std::tags::RESCALE_SLOPE)
+        .map_or(Ok(1.0), |e| e.to_float32())
+        .unwrap_or(1.0)
 }
 
 #[cfg(test)]
@@ -609,5 +641,32 @@ mod tests {
             obj.decode_pixel_data().unwrap().to_ndarray::<u8>(),
             Err(Error::InvalidDataType)
         ));
+    }
+
+    #[test]
+    fn test_correct_ri_extracted() {
+        // RescaleIntercept exists for this scan
+        let test_file = dicom_test_files::path("pydicom/693_J2KR.dcm").unwrap();
+        let obj = open_file(test_file).unwrap();
+        let pixel_data = obj.decode_pixel_data().unwrap();
+        assert_eq!(pixel_data.rescale_intercept, -1024);
+    }
+
+    #[test]
+    fn test_correct_ri_extracted_without_element() {
+        // RescaleIntercept does not exists for this scan
+        let test_file = dicom_test_files::path("pydicom/MR_small_jpeg_ls_lossless.dcm").unwrap();
+        let obj = open_file(test_file).unwrap();
+        let pixel_data = obj.decode_pixel_data().unwrap();
+        assert_eq!(pixel_data.rescale_intercept, 0);
+    }
+
+    #[test]
+    fn test_correct_rs_extracted() {
+        // RescaleIntercept exists for this scan
+        let test_file = dicom_test_files::path("pydicom/MR_small_jpeg_ls_lossless.dcm").unwrap();
+        let obj = open_file(test_file).unwrap();
+        let pixel_data = obj.decode_pixel_data().unwrap();
+        assert_eq!(pixel_data.rescale_slope, 1.0);
     }
 }
