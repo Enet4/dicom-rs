@@ -7,6 +7,8 @@
 //! This should become a pure Rust implementation in the future.
 //!
 //! # Examples
+//!
+//! Example using `to_dynamic_image`
 //! ```no_run
 //! # use std::error::Error;
 //! use dicom_object::open_file;
@@ -19,6 +21,22 @@
 //! dynamic_image.save("out.png")?;
 //! #   Ok(())
 //! # }
+//! ```
+//!
+//! Example using `to_ndarray`
+//! ```no_run
+//! use std::error::Error;
+//! use dicom_object::open_file;
+//! use dicom_pixeldata::{PixelDecoder};
+//! use ndarray::s;
+
+//! fn main() -> Result<(), Box<dyn Error>> {
+//!     let obj = open_file("rgb_dicom.dcm")?;
+//!     let pixel_data = obj.decode_pixel_data()?;
+//!     let ndarray = pixel_data.to_ndarray::<u16>()?;
+//!     let red_values = ndarray.slice(s![.., .., 0]);
+//!     Ok(())
+//! }
 //! ```
 
 use byteorder::{ByteOrder, NativeEndian};
@@ -588,8 +606,8 @@ mod tests {
         let test_file = dicom_test_files::path("pydicom/JPEG2000.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
         assert!(matches!(
-          obj.decode_pixel_data().unwrap().to_ndarray::<u8>(),
-          Err(Error::InvalidDataType)
+            obj.decode_pixel_data().unwrap().to_ndarray::<u8>(),
+            Err(Error::InvalidDataType)
         ));
     }
 }
