@@ -166,8 +166,7 @@ impl DecodedPixelData<'_> {
 
     /// Convert decoded pixel data into an ndarray of a given type T.
     /// The pixel data type is extracted from the bits_allocated and
-    /// the pixel_representation, and automatically converted to
-    /// the requested type T.
+    /// pixel_representation, and automatically converted to the requested type T.
     pub fn to_ndarray<T>(&self) -> Result<Array<T, IxDyn>>
     where
         T: NumCast,
@@ -226,7 +225,7 @@ impl DecodedPixelData<'_> {
     }
 }
 
-// Noramlize i16 vector to u16 vector using min/max normalization
+// Normalize i16 vector to u16 vector using min/max normalization
 fn normalize_i16(i: &[i16]) -> Vec<u16> {
     let min = *i.iter().min().unwrap() as f32;
     let max = *i.iter().max().unwrap() as f32;
@@ -235,7 +234,7 @@ fn normalize_i16(i: &[i16]) -> Vec<u16> {
         .collect()
 }
 
-// Noramlize u16 vector using min/max normalization
+// Normalize u16 vector using min/max normalization
 fn normalize_u16(i: &[u16]) -> Vec<u16> {
     let min = *i.iter().min().unwrap() as f32;
     let max = *i.iter().max().unwrap() as f32;
