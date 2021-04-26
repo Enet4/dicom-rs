@@ -262,7 +262,7 @@ where
 
         let photometric_interpretation = photometric_interpretation(self)?;
         let pi_type = GDCMPhotometricInterpretation::from_str(&photometric_interpretation)
-            .context(GDCMNonSupportedPI {
+            .context(GdcmNonSupportedPi {
                 pi: &photometric_interpretation,
             })?;
 
@@ -274,7 +274,7 @@ where
                     ts: transfer_syntax,
                 })?;
         let ts_type =
-            GDCMTransferSyntax::from_str(&registry.uid()).context(GDCMNonSupportedTS {
+            GDCMTransferSyntax::from_str(&registry.uid()).context(GdcmNonSupportedTs {
                 ts: transfer_syntax,
             })?;
 
@@ -587,11 +587,9 @@ mod tests {
     fn test_to_ndarray_error() {
         let test_file = dicom_test_files::path("pydicom/JPEG2000.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
-        let ndarray = obj.decode_pixel_data().unwrap().to_ndarray::<u8>();
-        if let Err(_) = ndarray {
-            //
-        } else {
-            panic!("should fail");
-        }
+        assert!(matches!(
+          obj.decode_pixel_data().unwrap().to_ndarray::<u8>(),
+          Err(Error::InvalidDataType)
+        ));
     }
 }
