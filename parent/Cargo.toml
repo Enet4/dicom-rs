@@ -12,9 +12,10 @@ readme = "README.md"
 maintenance = { status = "actively-developed" }
 
 [features]
-default = ['inventory-registry']
+default = ['inventory-registry', 'ul']
 inventory-registry = ['dicom-encoding/inventory-registry', 'dicom-transfer-syntax-registry/inventory-registry']
 backtraces = ['dicom-object/backtraces']
+ul = ['dicom-ul']
 
 [dependencies]
 dicom-core = { path = "../core", version = "0.3.0" }
@@ -23,3 +24,4 @@ dicom-encoding = { path = "../encoding", version = "0.3.0" }
 dicom-parser = { path = "../parser", version = "0.3.0" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.3.0" }
 dicom-object = { path = "../object", version = "0.3.0", default-features = false }
+dicom-ul = { optional = true, path = "../ul", version = "0.2.0" }
