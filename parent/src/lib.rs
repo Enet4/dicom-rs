@@ -8,6 +8,8 @@ pub use dicom_encoding as encoding;
 pub use dicom_object as object;
 pub use dicom_parser as parser;
 pub use dicom_transfer_syntax_registry as transfer_syntax;
+#[cfg(feature = "ul")]
+pub use dicom_ul as ul;
 
 // re-export dicom_value macro
 pub use dicom_core::dicom_value;
