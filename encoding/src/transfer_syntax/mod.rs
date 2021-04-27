@@ -297,7 +297,10 @@ impl<A> TransferSyntax<A> {
     /// be possible, but the pixel data will only be available in its
     /// encapsulated form.
     pub fn unsupported_pixel_encapsulation(&self) -> bool {
-        matches!(self.codec, Codec::Unsupported | Codec::EncapsulatedPixelData)
+        matches!(
+            self.codec,
+            Codec::Unsupported | Codec::EncapsulatedPixelData
+        )
     }
 
     /// Retrieve the appropriate data element decoder for this transfer syntax.

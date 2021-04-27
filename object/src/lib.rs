@@ -101,8 +101,8 @@ pub mod tokens;
 mod util;
 
 pub use crate::file::{from_reader, open_file};
-pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
 pub use crate::mem::InMemDicomObject;
+pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
 pub use dicom_core::Tag;
 pub use dicom_dictionary_std::StandardDataDictionary;
 

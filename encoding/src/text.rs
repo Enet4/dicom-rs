@@ -229,14 +229,12 @@ macro_rules! decl_character_set {
             }
 
             fn decode(&self, text: &[u8]) -> DecodeResult<String> {
-                $val
-                    .decode(text, DecoderTrap::Call(decode_text_trap))
+                $val.decode(text, DecoderTrap::Call(decode_text_trap))
                     .map_err(|message| DecodeCustom { message }.build())
             }
 
             fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
-                $val
-                    .encode(text, EncoderTrap::Strict)
+                $val.encode(text, EncoderTrap::Strict)
                     .map_err(|message| EncodeCustom { message }.build())
             }
         }

@@ -745,8 +745,7 @@ impl<D> Extend<InMemElement<D>> for InMemDicomObject<D> {
     where
         I: IntoIterator<Item = InMemElement<D>>,
     {
-        self.entries.extend(iter.into_iter()
-            .map(|e| (e.tag(), e)))
+        self.entries.extend(iter.into_iter().map(|e| (e.tag(), e)))
     }
 }
 

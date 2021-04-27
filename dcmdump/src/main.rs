@@ -399,15 +399,23 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> DumpVal
                 }
             }
         }
-        (Strs(values), _) => DumpValue::Str(format_value_list(values.iter().map(|s| s.trim_end()), max_characters, true)),
+        (Strs(values), _) => DumpValue::Str(format_value_list(
+            values.iter().map(|s| s.trim_end()),
+            max_characters,
+            true,
+        )),
         (Date(values), _) => DumpValue::DateTime(format_value_list(values, max_characters, true)),
         (Time(values), _) => DumpValue::DateTime(format_value_list(values, max_characters, true)),
         (DateTime(values), _) => {
             DumpValue::DateTime(format_value_list(values, max_characters, true))
         }
-        (Str(value), _) => {
-            DumpValue::Str(cut_str(&format!("\"{}\"", value.to_string().trim_end()), max_characters).to_string())
-        }
+        (Str(value), _) => DumpValue::Str(
+            cut_str(
+                &format!("\"{}\"", value.to_string().trim_end()),
+                max_characters,
+            )
+            .to_string(),
+        ),
         (Empty, _) => DumpValue::Nothing,
     }
 }

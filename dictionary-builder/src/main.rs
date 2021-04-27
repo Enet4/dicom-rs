@@ -10,16 +10,20 @@
 //! Please use the `--help` flag for the full usage information.
 
 use clap::{App, Arg};
-use serde::Serialize;
 use regex::Regex;
+use serde::Serialize;
 
 use heck::ShoutySnakeCase;
-use std::{fs::{create_dir_all, File}, io::BufWriter};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
+use std::{
+    fs::{create_dir_all, File},
+    io::BufWriter,
+};
 
 /// url to DCMTK dic file
-const DEFAULT_LOCATION: &str = "https://raw.githubusercontent.com/DCMTK/dcmtk/master/dcmdata/data/dicom.dic";
+const DEFAULT_LOCATION: &str =
+    "https://raw.githubusercontent.com/DCMTK/dcmtk/master/dcmdata/data/dicom.dic";
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum RetiredOptions {
@@ -29,7 +33,7 @@ enum RetiredOptions {
     Include {
         /// mark constants as deprecated
         deprecate: bool,
-    }
+    },
 }
 
 fn main() {
@@ -63,7 +67,7 @@ fn main() {
 
     let ignore_retired = matches.is_present("no-retired");
 
-    let retired =  if ignore_retired {
+    let retired = if ignore_retired {
         RetiredOptions::Ignore
     } else {
         RetiredOptions::Include {
@@ -82,15 +86,14 @@ fn main() {
         let mut data = vec![];
         resp.copy_to(&mut data).unwrap();
 
-        let preamble = data.split(|&b| b == b'\n')
+        let preamble = data
+            .split(|&b| b == b'\n')
             .filter_map(|l| std::str::from_utf8(l).ok())
             .find(|l| l.contains("Copyright"))
             .unwrap_or("");
         let preamble = format!(
             "Adapted from the DCMTK project.\nURL: {}\nLicense: {}\n{}",
-            src,
-            "https://github.com/DCMTK/dcmtk/blob/master/COPYRIGHT",
-            preamble,
+            src, "https://github.com/DCMTK/dcmtk/blob/master/COPYRIGHT", preamble,
         );
 
         let entries = parse_entries(&*data).unwrap();
@@ -246,19 +249,18 @@ where
     }
     let mut f = BufWriter::new(File::create(&dest_path)?);
 
-    f.write_all(
-        b"//! Automatically generated. Edit at your own risk.\n"
-    )?;
+    f.write_all(b"//! Automatically generated. Edit at your own risk.\n")?;
 
     for line in preamble.split('\n') {
         writeln!(f, "//! {}", line)?;
     }
 
-    if matches!(retired_options, RetiredOptions::Include { deprecate: true}) {
+    if matches!(retired_options, RetiredOptions::Include { deprecate: true }) {
         f.write_all(b"#![allow(deprecated)]\n")?;
     }
 
-    f.write_all(b"\n\
+    f.write_all(
+        b"\n\
     use dicom_core::dictionary::{DictionaryEntryRef, TagRange, TagRange::*};\n\
     use dicom_core::Tag;\n\
     use dicom_core::VR::*;\n\n",
@@ -282,9 +284,15 @@ where
             TagType::Element100 => format!("Element100({})", e.tag_declaration),
         };
 
-        if e.is_retired && matches!(retired_options, RetiredOptions::Include {
-            deprecate: true, ..
-        }) {
+        if e.is_retired
+            && matches!(
+                retired_options,
+                RetiredOptions::Include {
+                    deprecate: true,
+                    ..
+                }
+            )
+        {
             writeln!(f, "#[deprecated(note = \"Retired DICOM tag\")]")?;
         }
 

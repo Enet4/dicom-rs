@@ -184,8 +184,8 @@ mod tests {
         assert_eq!(overlay_data.alias, "OverlayData");
         assert!(overlay_data.vr == VR::OB || overlay_data.vr == VR::OW);
     }
-    
-    // tests for just a few attributes to make sure that the tag constants        
+
+    // tests for just a few attributes to make sure that the tag constants
     // were well installed into the crate
     #[test]
     fn constants_available() {

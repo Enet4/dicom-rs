@@ -9,7 +9,10 @@ use std::{
     net::{TcpStream, ToSocketAddrs},
 };
 
-use crate::pdu::{AbortRQSource, AssociationRJResult, AssociationRJSource, Pdu, PresentationContextProposed, PresentationContextResult, PresentationContextResultReason, reader::read_pdu, writer::write_pdu};
+use crate::pdu::{
+    reader::read_pdu, writer::write_pdu, AbortRQSource, AssociationRJResult, AssociationRJSource,
+    Pdu, PresentationContextProposed, PresentationContextResult, PresentationContextResultReason,
+};
 use snafu::{ensure, ResultExt, Snafu};
 
 use super::pdata::PDataWriter;
@@ -187,7 +190,7 @@ impl<'a> ClientAssociationOptions<'a> {
 
     /// Initiate the TCP connection to the given address
     /// and request a new DICOM association,
-    /// negotiating the presentation contexts in the process. 
+    /// negotiating the presentation contexts in the process.
     pub fn establish<A: ToSocketAddrs>(self, address: A) -> Result<ClientAssociation> {
         let ClientAssociationOptions {
             calling_ae_title,
@@ -261,9 +264,12 @@ impl<'a> ClientAssociationOptions<'a> {
                     .collect();
                 if presentation_contexts.is_empty() {
                     // abort connection
-                    let _ = write_pdu(&mut socket, &Pdu::AbortRQ {
-                        source: AbortRQSource::ServiceUser,
-                    });
+                    let _ = write_pdu(
+                        &mut socket,
+                        &Pdu::AbortRQ {
+                            source: AbortRQSource::ServiceUser,
+                        },
+                    );
                     return NoAcceptedPresentationContexts.fail();
                 }
 
@@ -284,16 +290,22 @@ impl<'a> ClientAssociationOptions<'a> {
             | pdu @ Pdu::PData { .. }
             | pdu @ Pdu::ReleaseRP { .. } => {
                 // abort connection
-                let _ = write_pdu(&mut socket, &Pdu::AbortRQ {
-                    source: AbortRQSource::ServiceUser,
-                });
+                let _ = write_pdu(
+                    &mut socket,
+                    &Pdu::AbortRQ {
+                        source: AbortRQSource::ServiceUser,
+                    },
+                );
                 UnexpectedResponse { pdu }.fail()
             }
             pdu @ Pdu::Unknown { .. } => {
                 // abort connection
-                let _ = write_pdu(&mut socket, &Pdu::AbortRQ {
-                    source: AbortRQSource::ServiceUser,
-                });
+                let _ = write_pdu(
+                    &mut socket,
+                    &Pdu::AbortRQ {
+                        source: AbortRQSource::ServiceUser,
+                    },
+                );
                 UnknownResponse { pdu }.fail()
             }
         }

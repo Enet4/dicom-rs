@@ -70,9 +70,7 @@ pub enum Error {
         bytes_read: u64,
         backtrace: Backtrace,
     },
-    #[snafu(display(
-        "Unexpected item tag {} while reading element header", tag
-    ))]
+    #[snafu(display("Unexpected item tag {} while reading element header", tag))]
     UnexpectedItemTag { tag: Tag, backtrace: Backtrace },
 }
 
@@ -322,9 +320,7 @@ where
                 self.parser
                     .read_bytes(&mut value[..])
                     .map(|_| Ok(DataToken::ItemValue(value)))
-                    .unwrap_or_else(|e| Err(e).context(ReadItemValue {
-                        len: len as u32,
-                    })),
+                    .unwrap_or_else(|e| Err(e).context(ReadItemValue { len: len as u32 })),
             )
         } else if let Some(header) = self.last_header {
             if header.is_encapsulated_pixeldata() {
