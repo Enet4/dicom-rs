@@ -1,0 +1,27 @@
+[package]
+name = "dicom-pixeldata"
+version = "0.1.0"
+authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>", "Peter Evers <pevers90@gmail.com>"]
+edition = "2018"
+repository = "https://github.com/Enet4/dicom-rs"
+categories = ["images"]
+keywords = ["dicom"]
+readme = "README.md"
+
+[dependencies]
+dicom-object = { path = "../object", version = "0.4.0" }
+dicom-core = { path = "../core", version = "0.4.0" }
+dicom-encoding = { path = "../encoding", version = "0.4.0" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.4.0" }
+dicom-dictionary-std = { path = "../dictionary-std", version = "0.4.0" }
+snafu = "0.6.8"
+byteorder = "1.4.3"
+image = "0.23.14"
+gdcm-rs = "0.2.0"
+rayon = "1.5.0"
+ndarray = "0.15.1"
+num-traits = "0.2.12"
+
+[dev-dependencies]
+dicom-test-files = "0.2.0"
+rstest = "0.6.4"

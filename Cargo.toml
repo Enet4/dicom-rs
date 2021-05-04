@@ -12,5 +12,6 @@ members = [
     "ul",
     "scpproxy",
     "echoscu",
-    "storescu"
+    "storescu",
+    "pixeldata"
 ]
