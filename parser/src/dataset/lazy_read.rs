@@ -1,9 +1,17 @@
 //! This module contains a mid-level abstraction for reading DICOM content
-//! sequentially.
+//! sequentially and in a lazy fashion.
+//! That is, unlike the reader in the [`read`](super::read) module,
+//! DICOM values can be skipped and most allocations can be avoided.
 //!
-//! The rest of the crate is used to obtain DICOM element headers and values.
 //! At this level, headers and values are treated as tokens which can be used
 //! to form a syntax tree of a full data set.
+//! Whenever an element value or pixel sequence item is encountered,
+//! the given token does not consume the value from the reader,
+//! thus letting users decide whether to:
+//! - fully read the value and turn it into an in-memory representation;
+//! - skip the value altogether, by reading into a sink;
+//! - copying the bytes of the value into another writer,
+//!   such as a previously allocated buffer. 
 use crate::stateful::decode::{DynStatefulDecoder, Error as DecoderError, StatefulDecode};
 use crate::util::ReadSeek;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
@@ -11,7 +19,7 @@ use dicom_core::{Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntax;
-use snafu::{Backtrace, ResultExt, Snafu};
+use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use std::{cmp::Ordering, io::SeekFrom};
 
 use super::{LazyDataToken, SeqTokenType};
@@ -24,13 +32,15 @@ pub enum Error {
         #[snafu(backtrace)]
         source: DecoderError,
     },
-    #[snafu(display("Could not read item header"))]
+    #[snafu(display("Could not read item header at {} bytes", bytes_read))]
     ReadItemHeader {
+        bytes_read: u64,
         #[snafu(backtrace)]
         source: DecoderError,
     },
-    #[snafu(display("Could not read element header"))]
+    #[snafu(display("Could not read element header at {} bytes", bytes_read))]
     ReadHeader {
+        bytes_read: u64,
         #[snafu(backtrace)]
         source: DecoderError,
     },
@@ -54,8 +64,16 @@ pub enum Error {
         bytes_read: u64,
         backtrace: Backtrace,
     },
-    #[snafu()]
-    UnexpectedTag { tag: Tag, backtrace: Backtrace },
+    #[snafu(display("Unexpected item delimiter at {} bytes", bytes_read))]
+    UnexpectedItemDelimiter {
+        bytes_read: u64,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("Unexpected undefined value length at {} bytes", bytes_read))]
+    UndefinedLength {
+        bytes_read: u64,
+        backtrace: Backtrace,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -217,6 +235,8 @@ where
         if self.hard_break {
             return None;
         }
+        // record the reading position before any further reading
+        let bytes_read = self.parser.position();
 
         // item or sequence delimitation logic for explicit lengths
         if self.delimiter_check_pending {
@@ -267,7 +287,7 @@ where
                 }
                 Err(e) => {
                     self.hard_break = true;
-                    Some(Err(e).context(ReadItemHeader))
+                    Some(Err(e).context(ReadItemHeader { bytes_read }))
                 }
             }
         } else if let Some(SeqToken {
@@ -279,7 +299,10 @@ where
         {
             // item value
 
-            let len = len.get().expect("length should be explicit, error missing");
+            let len = match len.get().with_context(|| UndefinedLength { bytes_read }) {
+                Ok(len) => len,
+                Err(e) => return Some(Err(e)),
+            };
 
             // need to pop item delimiter on the next iteration
             self.delimiter_check_pending = true;
@@ -311,14 +334,14 @@ where
                             self.in_sequence = false;
                             Some(Ok(LazyDataToken::SequenceEnd))
                         }
-                        item => {
+                        SequenceItemHeader::ItemDelimiter => {
                             self.hard_break = true;
-                            Some(UnexpectedTag { tag: item.tag() }.fail())
+                            Some(UnexpectedItemDelimiter { bytes_read }.fail())
                         }
                     },
                     Err(e) => {
                         self.hard_break = true;
-                        Some(Err(e).context(ReadItemHeader))
+                        Some(Err(e).context(ReadItemHeader { bytes_read }))
                     }
                 }
             } else {
@@ -396,7 +419,7 @@ where
                 }
                 Err(e) => {
                     self.hard_break = true;
-                    Some(Err(e).context(ReadHeader))
+                    Some(Err(e).context(ReadHeader { bytes_read }))
                 }
             }
         }

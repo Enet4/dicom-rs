@@ -3,7 +3,7 @@ use crate::stateful::decode;
 use dicom_core::header::{DataElementHeader, HasLength, Length, VR};
 use dicom_core::value::{DicomValueType, PrimitiveValue};
 use dicom_core::{value::Value, DataElement, Tag};
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::fmt;
 
 pub mod lazy_read;
@@ -24,6 +24,8 @@ pub enum Error {
     SkipValue { source: decode::Error },
     /// Unexpected token type for operation
     UnexpectedTokenType,
+    /// Unexpected undefined value length
+    UndefinedLength,
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -289,6 +291,32 @@ where
     /// The operation fails if the token does not represent an element value.
     pub fn into_value(self) -> Result<PrimitiveValue> {
         self.into_value_with_strategy(ValueReadStrategy::Preserved)
+    }
+
+    /// Read the bytes of a value into the given writer,
+    /// consuming the reader.
+    ///
+    /// This operation will not interpret the value,
+    /// like in the `Bytes` value reading strategy.
+    /// It works for both data elements and non-dataset items.
+    ///
+    /// The operation fails if
+    /// the token does not represent an element or item value.
+    pub fn read_value_into<W>(self, out: W) -> Result<()>
+    where
+        W: std::io::Write,
+    {
+        match self {
+            LazyDataToken::LazyValue { header, mut decoder } => {
+                let len = header.len.get().context(UndefinedLength)?;
+                decoder.read_to(len, out).context(ReadElementValue)?;
+            }
+            LazyDataToken::LazyItemValue { len, mut decoder } => {
+                decoder.read_to(len, out).context(ReadItemValue)?;
+            }
+            _other => return UnexpectedTokenType.fail(),
+        };
+        Ok(())
     }
 
     /// Convert this token into a structured representation,

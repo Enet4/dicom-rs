@@ -174,8 +174,14 @@ pub trait StatefulDecode {
     /// sequence, which in that case this method should not be used.
     fn read_value_bytes(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue>;
 
-    /// Read the following bytes into a vector.
+    /// Read the following number of bytes into a vector.
     fn read_to_vec(&mut self, length: u32, vec: &mut Vec<u8>) -> Result<()>;
+
+    /// Read the following number of bytes into a generic writer.
+    fn read_to<W>(&mut self, length: u32, out: W) -> Result<()>
+    where
+        Self: Sized,
+        W: std::io::Write;
 
     /// Skip the following bytes into a vector,
     /// counting them as if they were read.
@@ -294,13 +300,7 @@ where
     /// Decoding or parsing errors may occur
     /// if this position does not match the real position of the reader.
     #[inline]
-    pub fn new_with_position(
-        from: S,
-        decoder: D,
-        basic: BD,
-        text: TC,
-        position: u64,
-    ) -> Self {
+    pub fn new_with_position(from: S, decoder: D, basic: BD, text: TC, position: u64) -> Self {
         Self {
             from,
             basic,
@@ -819,6 +819,14 @@ where
         (**self).read_to_vec(length, vec)
     }
 
+    fn read_to<W>(&mut self, length: u32, out: W) -> Result<()>
+    where
+        Self: Sized,
+        W: std::io::Write,
+    {
+        (**self).read_to(length, out)
+    }
+
     fn skip_bytes(&mut self, length: u32) -> Result<()> {
         (**self).skip_bytes(length)
     }
@@ -968,14 +976,20 @@ where
     }
 
     fn read_to_vec(&mut self, length: u32, vec: &mut Vec<u8>) -> Result<()> {
+        self.read_to(length, vec)
+    }
+
+    fn read_to<W>(&mut self, length: u32, mut out: W) -> Result<()>
+    where
+        Self: Sized,
+        W: std::io::Write,
+    {
         let length = u64::from(length);
-        self.from
-            .by_ref()
-            .take(u64::from(length))
-            .read_to_end(vec)
-            .context(ReadValueData {
+        std::io::copy(&mut self.from.by_ref().take(u64::from(length)), &mut out).context(
+            ReadValueData {
                 position: self.position,
-            })?;
+            },
+        )?;
         self.position += length;
         Ok(())
     }
