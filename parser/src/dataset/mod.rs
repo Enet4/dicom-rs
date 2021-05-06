@@ -307,7 +307,10 @@ where
         W: std::io::Write,
     {
         match self {
-            LazyDataToken::LazyValue { header, mut decoder } => {
+            LazyDataToken::LazyValue {
+                header,
+                mut decoder,
+            } => {
                 let len = header.len.get().context(UndefinedLength)?;
                 decoder.read_to(len, out).context(ReadElementValue)?;
             }
@@ -336,13 +339,19 @@ impl<D> From<LazyDataToken<D>> for LazyDataTokenRepr {
     fn from(token: LazyDataToken<D>) -> Self {
         match token {
             LazyDataToken::ElementHeader(h) => LazyDataTokenRepr::ElementHeader(h),
-            LazyDataToken::SequenceStart { tag, len } => LazyDataTokenRepr::SequenceStart { tag, len },
+            LazyDataToken::SequenceStart { tag, len } => {
+                LazyDataTokenRepr::SequenceStart { tag, len }
+            }
             LazyDataToken::PixelSequenceStart => LazyDataTokenRepr::PixelSequenceStart,
             LazyDataToken::SequenceEnd => LazyDataTokenRepr::SequenceEnd,
             LazyDataToken::ItemStart { len } => LazyDataTokenRepr::ItemStart { len },
             LazyDataToken::ItemEnd => LazyDataTokenRepr::ItemEnd,
-            LazyDataToken::LazyValue { header, decoder: _ } => LazyDataTokenRepr::LazyValue { header },
-            LazyDataToken::LazyItemValue { len, decoder: _ } => LazyDataTokenRepr::LazyItemValue { len },
+            LazyDataToken::LazyValue { header, decoder: _ } => {
+                LazyDataTokenRepr::LazyValue { header }
+            }
+            LazyDataToken::LazyItemValue { len, decoder: _ } => {
+                LazyDataTokenRepr::LazyItemValue { len }
+            }
         }
     }
 }
@@ -351,13 +360,19 @@ impl<D> From<&LazyDataToken<D>> for LazyDataTokenRepr {
     fn from(token: &LazyDataToken<D>) -> Self {
         match *token {
             LazyDataToken::ElementHeader(h) => LazyDataTokenRepr::ElementHeader(h),
-            LazyDataToken::SequenceStart { tag, len } => LazyDataTokenRepr::SequenceStart { tag, len },
+            LazyDataToken::SequenceStart { tag, len } => {
+                LazyDataTokenRepr::SequenceStart { tag, len }
+            }
             LazyDataToken::PixelSequenceStart => LazyDataTokenRepr::PixelSequenceStart,
             LazyDataToken::SequenceEnd => LazyDataTokenRepr::SequenceEnd,
             LazyDataToken::ItemStart { len } => LazyDataTokenRepr::ItemStart { len },
             LazyDataToken::ItemEnd => LazyDataTokenRepr::ItemEnd,
-            LazyDataToken::LazyValue { header, decoder: _ } => LazyDataTokenRepr::LazyValue { header },
-            LazyDataToken::LazyItemValue { len, decoder: _ } => LazyDataTokenRepr::LazyItemValue { len },
+            LazyDataToken::LazyValue { header, decoder: _ } => {
+                LazyDataTokenRepr::LazyValue { header }
+            }
+            LazyDataToken::LazyItemValue { len, decoder: _ } => {
+                LazyDataTokenRepr::LazyItemValue { len }
+            }
         }
     }
 }

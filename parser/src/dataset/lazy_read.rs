@@ -11,7 +11,7 @@
 //! - fully read the value and turn it into an in-memory representation;
 //! - skip the value altogether, by reading into a sink;
 //! - copying the bytes of the value into another writer,
-//!   such as a previously allocated buffer. 
+//!   such as a previously allocated buffer.
 use crate::stateful::decode::{DynStatefulDecoder, Error as DecoderError, StatefulDecode};
 use crate::util::ReadSeek;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
@@ -122,7 +122,12 @@ impl<S, D> LazyDataSetReader<DynStatefulDecoder<S>, D> {
     /// Create a new lazy data set reader
     /// with the given random access source and element dictionary,
     /// while considering the given transfer syntax and specific character set.
-    pub fn new_with_dictionary(mut source: S, dict: D, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
+    pub fn new_with_dictionary(
+        mut source: S,
+        dict: D,
+        ts: &TransferSyntax,
+        cs: SpecificCharacterSet,
+    ) -> Result<Self>
     where
         S: ReadSeek,
     {
@@ -142,7 +147,6 @@ impl<S, D> LazyDataSetReader<DynStatefulDecoder<S>, D> {
         })
     }
 }
-
 
 impl<S> LazyDataSetReader<DynStatefulDecoder<S>, StandardDataDictionary> {
     /// Create a new iterator with the given random access source,
@@ -433,8 +437,11 @@ mod tests {
         dataset::{DataToken, LazyDataToken},
         StatefulDecoder,
     };
-    use dicom_core::{dicom_value, header::{DataElementHeader, Length}};
     use dicom_core::value::PrimitiveValue;
+    use dicom_core::{
+        dicom_value,
+        header::{DataElementHeader, Length},
+    };
     use dicom_core::{Tag, VR};
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
     use dicom_encoding::text::DefaultCharacterSetCodec;
@@ -962,11 +969,11 @@ mod tests {
         //  Value: "1.2.840.10008.1.2.1\0" == ExplicitVRLittleEndian
         // --
         const RAW: &'static [u8; 62] = &[
-            0x02, 0x00, 0x02, 0x00, 0x55, 0x49, 0x1a, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34, 0x30,
-            0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x35, 0x2e, 0x31, 0x2e, 0x34, 0x2e, 0x31, 0x2e,
-            0x31, 0x2e, 0x31, 0x00, 0x02, 0x00, 0x10, 0x00, 0x55, 0x49, 0x14, 0x00, 0x31, 0x2e, 0x32,
-            0x2e, 0x38, 0x34, 0x30, 0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x31, 0x2e, 0x32, 0x2e,
-            0x31, 0x00,
+            0x02, 0x00, 0x02, 0x00, 0x55, 0x49, 0x1a, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34,
+            0x30, 0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x35, 0x2e, 0x31, 0x2e, 0x34, 0x2e,
+            0x31, 0x2e, 0x31, 0x2e, 0x31, 0x00, 0x02, 0x00, 0x10, 0x00, 0x55, 0x49, 0x14, 0x00,
+            0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34, 0x30, 0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e,
+            0x31, 0x2e, 0x32, 0x2e, 0x31, 0x00,
         ];
         let mut cursor = &RAW[..];
         let parser = StatefulDecoder::new(
@@ -978,7 +985,8 @@ mod tests {
 
         let mut dset_reader = LazyDataSetReader::new(parser);
 
-        let token = dset_reader.next()
+        let token = dset_reader
+            .next()
             .expect("Expected token 1")
             .expect("Failed to read token 1");
 
@@ -989,7 +997,8 @@ mod tests {
             }
         };
 
-        let token = dset_reader.next()
+        let token = dset_reader
+            .next()
             .expect("Expected token 2")
             .expect("Failed to read token 2");
 
@@ -1008,7 +1017,8 @@ mod tests {
             dicom_value!(Strs, ["1.2.840.10008.5.1.4.1.1.1\0"]),
         );
 
-        let token = dset_reader.next()
+        let token = dset_reader
+            .next()
             .expect("Expected token 3")
             .expect("Failed to read token 3");
 
@@ -1019,7 +1029,8 @@ mod tests {
             }
         };
 
-        let token = dset_reader.next()
+        let token = dset_reader
+            .next()
             .expect("Expected token 4")
             .expect("Failed to read token 4");
 
@@ -1038,6 +1049,9 @@ mod tests {
             dicom_value!(Strs, ["1.2.840.10008.1.2.1\0"]),
         );
 
-        assert!(dset_reader.next().is_none(), "unexpected number of tokens remaining");
+        assert!(
+            dset_reader.next().is_none(),
+            "unexpected number of tokens remaining"
+        );
     }
 }
