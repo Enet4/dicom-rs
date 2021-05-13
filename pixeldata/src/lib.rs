@@ -47,8 +47,11 @@ use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use gdcm_rs::{decode_single_frame_compressed, GDCMPhotometricInterpretation, GDCMTransferSyntax};
 use image::{DynamicImage, ImageBuffer, Luma, Rgb};
 use ndarray::{Array, IxDyn};
+use ndarray_stats::QuantileExt;
 use num_traits::NumCast;
-use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
+};
 use snafu::OptionExt;
 use snafu::{ResultExt, Snafu};
 use std::{borrow::Cow, str::FromStr};
@@ -134,71 +137,73 @@ impl DecodedPixelData<'_> {
     /// A new <u8> or <u16> vector is created in memory
     /// with normalized grayscale values after applying Modality LUT.
     pub fn to_dynamic_image(&self) -> Result<DynamicImage> {
-        // Apply Modality LUT and normalize to 0 - u16::MAX
-        let mut pixels: Vec<u16> = match self.bits_allocated {
-            8 => {
-                let lut =
-                    apply_modality_lut(&self.data, self.rescale_intercept, self.rescale_slope)?;
-                normalize_to_u16(&lut)
-            }
-            16 => {
-                match self.pixel_representation {
-                    // Unsigned 16 bit representation
-                    0 => {
-                        let mut dst = vec![0; self.data.len() / 2];
-                        NativeEndian::read_u16_into(&self.data, &mut dst);
-                        let lut =
-                            apply_modality_lut(&dst, self.rescale_intercept, self.rescale_slope)?;
-                        normalize_to_u16(&lut)
-                    }
-
-                    // Signed 16 bit 2s complement representation
-                    1 => {
-                        let mut dst = vec![0; self.data.len() / 2];
-                        NativeEndian::read_i16_into(&self.data, &mut dst);
-                        let lut =
-                            apply_modality_lut(&dst, self.rescale_intercept, self.rescale_slope)?;
-                        normalize_to_u16(&lut)
-                    }
-                    _ => InvalidPixelRepresentation.fail()?,
-                }
-            }
-            _ => InvalidBitsAllocated.fail()?,
-        };
-
         match self.samples_per_pixel {
             1 => {
-                // Only MONOCHROME2
-                if self.photometric_interpretation != "MONOCHROME2" {
-                    UnsupportedPhotometricInterpretation {
-                        pi: self.photometric_interpretation.clone(),
-                    }
-                    .fail()?
+                let mut pixel_array = self.to_ndarray::<f64>()?;
+                // Only Monochrome images can have a Modality LUT
+                pixel_array.mapv_inplace(|v| {
+                    (v * self.rescale_slope as f64) + self.rescale_intercept as f64
+                });
+
+                // Apply VOI LUT
+
+                // Normalize to u16
+                let min = pixel_array.min().unwrap();
+                let max = pixel_array.max().unwrap();
+                let mut pixel_array =
+                    pixel_array.map(|v| (u16::MAX as f64 * (v - *min) / (*max - *min)) as u16);
+
+                // Convert MONOCHROME1 to MONOCHROME2 if needed
+                if self.photometric_interpretation == "MONOCHROME1" {
+                    pixel_array.mapv_inplace(|v| u16::MAX - v);
                 }
+
                 let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
-                    ImageBuffer::from_raw(self.cols, self.rows, pixels)
+                    ImageBuffer::from_raw(self.cols, self.rows, pixel_array.into_raw_vec())
                         .context(InvalidImageBuffer)?;
-                Ok(DynamicImage::ImageLuma16(image_buffer))
+                return Ok(DynamicImage::ImageLuma16(image_buffer));
             }
             3 => {
-                // Convert YBR or YBR_FULL_422 to RGB
-                if self.photometric_interpretation != "RGB" {
-                    let rgb_pixels =
-                        convert_to_rgb(&self.photometric_interpretation, "RGB", &mut pixels)?;
-                    let image_buffer: ImageBuffer<Rgb<u16>, Vec<u16>> =
-                        ImageBuffer::from_raw(self.cols, self.rows, rgb_pixels)
-                            .context(InvalidImageBuffer)?;
-                    return Ok(DynamicImage::ImageRgb16(image_buffer));
+                // RGB, YBR_FULL or YBR_FULL_422 colors
+                match self.bits_allocated {
+                    8 => {
+                        // Convert YBR_FULL or YBR_FULL_422 to RGB
+                        let pixel_array = match self.photometric_interpretation.as_str() {
+                            "RGB" => self.data.to_vec(),
+                            "YBR_FULL" | "YBR_FULL_422" => {
+                                let mut pixel_array = self.data.to_vec();
+                                convert_colorspace_u8(&mut pixel_array);
+                                pixel_array
+                            }
+                            _ => UnsupportedColorSpace.fail()?,
+                        };
+                        let image_buffer: ImageBuffer<Rgb<u8>, Vec<u8>> =
+                            ImageBuffer::from_raw(self.cols, self.rows, pixel_array)
+                                .context(InvalidImageBuffer)?;
+                        return Ok(DynamicImage::ImageRgb8(image_buffer));
+                    }
+                    16 => {
+                        let mut pixel_array = vec![0; self.data.len() / 2];
+                        NativeEndian::read_u16_into(&self.data, &mut pixel_array);
+
+                        // Convert YBR_FULL or YBR_FULL_422 to RGB
+                        let pixel_array = match self.photometric_interpretation.as_str() {
+                            "RGB" => pixel_array,
+                            "YBR_FULL" | "YBR_FULL_422" => {
+                                convert_colorspace_u16(&mut pixel_array);
+                                pixel_array
+                            }
+                            _ => UnsupportedColorSpace.fail()?,
+                        };
+                        let image_buffer: ImageBuffer<Rgb<u16>, Vec<u16>> =
+                            ImageBuffer::from_raw(self.cols, self.rows, pixel_array)
+                                .context(InvalidImageBuffer)?;
+                        return Ok(DynamicImage::ImageRgb16(image_buffer));
+                    }
+                    _ => InvalidBitsAllocated.fail()?,
                 }
-                let image_buffer: ImageBuffer<Rgb<u16>, Vec<u16>> =
-                    ImageBuffer::from_raw(self.cols, self.rows, pixels)
-                        .context(InvalidImageBuffer)?;
-                Ok(DynamicImage::ImageRgb16(image_buffer))
             }
-            _ => UnsupportedSamplesPerPixel {
-                spp: self.samples_per_pixel,
-            }
-            .fail()?,
+            _ => InvalidPixelRepresentation.fail()?,
         }
     }
 
@@ -263,46 +268,56 @@ impl DecodedPixelData<'_> {
     }
 }
 
-// Normalize f64 vector to u16 vector using min/max normalization
-fn normalize_to_u16(i: &[f64]) -> Vec<u16> {
-    let min = i.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-    let max = i.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
-    i.par_iter()
-        .map(|p| (u16::MAX as f64 * (*p as f64 - min) / (max - min)) as u16)
-        .collect()
+// Convert u8 pixel array from YBR_FULL or YBR_FULL_422 to RGB
+// Every pixel is replaced with an RGB value
+fn convert_colorspace_u8(i: &mut Vec<u8>) {
+    // Matrix multiplication taken from
+    // https://github.com/pydicom/pydicom/blob/f36517e10/pydicom/pixel_data_handlers/util.py#L576
+    i.par_iter_mut().chunks(3).for_each(|mut pixel| {
+        let y = *pixel[0] as f32;
+        let b: f32 = *pixel[1] as f32;
+        let r: f32 = *pixel[2] as f32;
+        let b = b - 128.0;
+        let r = r - 128.0;
+
+        let cr = (y + 1.402 * r) + 0.5;
+        let cg = (y + (0.114 * 1.772 / 0.587) * b + (-0.299 * 1.402 / 0.587) * r) + 0.5;
+        let cb = (y + 1.772 * b) + 0.5;
+
+        let cr = cr.floor().clamp(0.0, u8::MAX as f32) as u8;
+        let cg = cg.floor().clamp(0.0, u8::MAX as f32) as u8;
+        let cb = cb.floor().clamp(0.0, u8::MAX as f32) as u8;
+
+        *pixel[0] = cr;
+        *pixel[1] = cg;
+        *pixel[2] = cb;
+    });
 }
 
-/// Convert image color space from one to another
-pub fn convert_to_rgb(color_space: &str, desired: &str, i: &mut [u16]) -> Result<Vec<u16>> {
-    match (color_space, desired) {
-        ("YBR_FULL", "RGB") => Ok(convert_ybr_full_to_rgb(i)),
-        ("YBR_FULL_422", "RGB") => Ok(convert_ybr_full_to_rgb(i)),
-        _ => UnsupportedColorSpace.fail()?,
-    }
-}
+// Convert u16 pixel array from YBR_FULL or YBR_FULL_422 to RGB
+// Every pixel is replaced with an RGB value
+fn convert_colorspace_u16(i: &mut Vec<u16>) {
+    // Matrix multiplication taken from
+    // https://github.com/pydicom/pydicom/blob/f36517e10/pydicom/pixel_data_handlers/util.py#L576
+    i.par_iter_mut().chunks(3).for_each(|mut pixel| {
+        let y = *pixel[0] as f32;
+        let b: f32 = *pixel[1] as f32;
+        let r: f32 = *pixel[2] as f32;
+        let b = b - 32768.0;
+        let r = r - 32768.0;
 
-// Convert a normalized u16 pixel array from YBR_FULL or YBR_FULL_422 to RGB
-fn convert_ybr_full_to_rgb(i: &mut [u16]) -> Vec<u16> {
-    // Matrix multiplication taken from: https://github.com/pydicom/pydicom/blob/f36517e10/pydicom/pixel_data_handlers/util.py#L576
-    i.par_iter()
-        .chunks(3)
-        .flat_map(|pixel| {
-            let y = *pixel[0] as f32;
-            let b: f32 = *pixel[1] as f32;
-            let r: f32 = *pixel[2] as f32;
-            let b = b - 32768.0;
-            let r = r - 32768.0;
+        let cr = (y + 1.402 * r) + 0.5;
+        let cg = (y + (0.114 * 1.772 / 0.587) * b + (-0.299 * 1.402 / 0.587) * r) + 0.5;
+        let cb = (y + 1.772 * b) + 0.5;
 
-            let cr = (y + 1.402 * r) + 0.5;
-            let cg = (y + (0.114 * 1.772 / 0.587) * b + (-0.299 * 1.402 / 0.587) * r) + 0.5;
-            let cb = (y + 1.772 * b) + 0.5;
+        let cr = cr.floor().clamp(0.0, u16::MAX as f32) as u16;
+        let cg = cg.floor().clamp(0.0, u16::MAX as f32) as u16;
+        let cb = cb.floor().clamp(0.0, u16::MAX as f32) as u16;
 
-            let cr: u16 = cr.floor().clamp(0.0, u16::MAX as f32) as u16;
-            let cg: u16 = cg.floor().clamp(0.0, u16::MAX as f32) as u16;
-            let cb: u16 = cb.floor().clamp(0.0, u16::MAX as f32) as u16;
-            vec![cr, cg, cb]
-        })
-        .collect()
+        *pixel[0] = cr;
+        *pixel[1] = cg;
+        *pixel[2] = cb;
+    });
 }
 
 // Apply the Modality rescale operation to the input array and return a Vec<f64> containing transformed pixel data.
