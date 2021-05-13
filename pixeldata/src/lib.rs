@@ -161,7 +161,7 @@ impl DecodedPixelData<'_> {
                 let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
                     ImageBuffer::from_raw(self.cols, self.rows, pixel_array.into_raw_vec())
                         .context(InvalidImageBuffer)?;
-                return Ok(DynamicImage::ImageLuma16(image_buffer));
+                Ok(DynamicImage::ImageLuma16(image_buffer))
             }
             3 => {
                 // RGB, YBR_FULL or YBR_FULL_422 colors
@@ -180,7 +180,7 @@ impl DecodedPixelData<'_> {
                         let image_buffer: ImageBuffer<Rgb<u8>, Vec<u8>> =
                             ImageBuffer::from_raw(self.cols, self.rows, pixel_array)
                                 .context(InvalidImageBuffer)?;
-                        return Ok(DynamicImage::ImageRgb8(image_buffer));
+                        Ok(DynamicImage::ImageRgb8(image_buffer))
                     }
                     16 => {
                         let mut pixel_array = vec![0; self.data.len() / 2];
@@ -198,7 +198,7 @@ impl DecodedPixelData<'_> {
                         let image_buffer: ImageBuffer<Rgb<u16>, Vec<u16>> =
                             ImageBuffer::from_raw(self.cols, self.rows, pixel_array)
                                 .context(InvalidImageBuffer)?;
-                        return Ok(DynamicImage::ImageRgb16(image_buffer));
+                        Ok(DynamicImage::ImageRgb16(image_buffer))
                     }
                     _ => InvalidBitsAllocated.fail()?,
                 }
