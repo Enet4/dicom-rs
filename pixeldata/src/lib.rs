@@ -145,7 +145,7 @@ impl DecodedPixelData<'_> {
                     (v * self.rescale_slope as f64) + self.rescale_intercept as f64
                 });
 
-                // Apply VOI LUT
+                // TODO: Apply VOI LUT
 
                 // Normalize to u16
                 let min = pixel_array.min().unwrap();
