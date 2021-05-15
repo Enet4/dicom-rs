@@ -15,9 +15,3 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 ```
-
-## Supported features
-- [x] JPEG2000, JPG Lossless, JPEG Lossy conversion to `DynamicImage`
-- [ ] Multi-frame dicoms
-- [ ] RGB and other color spaces
-- [ ] LUT, Modality LUT and VOI Lut transformations

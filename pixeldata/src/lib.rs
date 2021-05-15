@@ -1,6 +1,6 @@
 //! This crate contains the Dicom pixeldata handlers and is
 //! responsible for decoding pixeldata, such as JPEG-lossy and convert it
-//! into a [`DynamicImage`] or raw [`DecodedPixelData`].
+//! into a [`DynamicImage`], [`Array`] or raw [`DecodedPixelData`].
 //!
 //! This crate is using GDCM bindings to convert
 //! different compression formats to raw pixeldata.
@@ -45,10 +45,13 @@ use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileDicomObject, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use gdcm_rs::{decode_single_frame_compressed, GDCMPhotometricInterpretation, GDCMTransferSyntax};
-use image::{DynamicImage, ImageBuffer, Luma};
+use image::{DynamicImage, ImageBuffer, Luma, Rgb};
 use ndarray::{Array, IxDyn};
+use ndarray_stats::QuantileExt;
 use num_traits::NumCast;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
+};
 use snafu::OptionExt;
 use snafu::{ResultExt, Snafu};
 use std::{borrow::Cow, str::FromStr};
@@ -107,6 +110,9 @@ pub enum Error {
 
     #[snafu(display("Invalid data type for ndarray element"))]
     InvalidDataType,
+
+    #[snafu(display("Unsupported color space"))]
+    UnsupportedColorSpace,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -131,60 +137,73 @@ impl DecodedPixelData<'_> {
     /// A new <u8> or <u16> vector is created in memory
     /// with normalized grayscale values after applying Modality LUT.
     pub fn to_dynamic_image(&self) -> Result<DynamicImage> {
-        if self.photometric_interpretation != "MONOCHROME2" {
-            UnsupportedPhotometricInterpretation {
-                pi: self.photometric_interpretation.clone(),
-            }
-            .fail()?
-        }
+        match self.samples_per_pixel {
+            1 => {
+                let mut pixel_array = self.to_ndarray::<f64>()?;
+                // Only Monochrome images can have a Modality LUT
+                pixel_array.mapv_inplace(|v| {
+                    (v * self.rescale_slope as f64) + self.rescale_intercept as f64
+                });
 
-        if self.samples_per_pixel > 1 {
-            // RGB, YBR, etc. color space
-            UnsupportedSamplesPerPixel {
-                spp: self.samples_per_pixel,
-            }
-            .fail()?
-        }
+                // TODO(#122): Apply VOI LUT
 
-        match self.bits_allocated {
-            8 => {
-                // Single grayscale channel
-                let lut =
-                    apply_modality_lut(&self.data, self.rescale_intercept, self.rescale_slope)?;
-                let pixels = normalize_to_u16(&lut);
-                let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
-                    ImageBuffer::from_raw(self.cols, self.rows, pixels)
-                        .context(InvalidImageBuffer)?;
-                Ok(DynamicImage::ImageLuma16(image_buffer))
-            }
-            16 => {
-                let mut pixels: Vec<u16> = vec![0; self.data.len() / 2];
-                match self.pixel_representation {
-                    // Unsigned 16 bit representation
-                    0 => {
-                        let mut dst = vec![0; self.data.len() / 2];
-                        NativeEndian::read_u16_into(&self.data, &mut dst);
-                        let lut =
-                            apply_modality_lut(&dst, self.rescale_intercept, self.rescale_slope)?;
-                        pixels = normalize_to_u16(&lut);
-                    }
+                // Normalize to u16
+                let min = pixel_array.min().unwrap();
+                let max = pixel_array.max().unwrap();
+                let mut pixel_array =
+                    pixel_array.map(|v| (u16::MAX as f64 * (v - *min) / (*max - *min)) as u16);
 
-                    // Signed 16 bit 2s complement representation
-                    1 => {
-                        let mut dst = vec![0; self.data.len() / 2];
-                        NativeEndian::read_i16_into(&self.data, &mut dst);
-                        let lut =
-                            apply_modality_lut(&dst, self.rescale_intercept, self.rescale_slope)?;
-                        pixels = normalize_to_u16(&lut);
-                    }
-                    _ => InvalidPixelRepresentation.fail()?,
+                // Convert MONOCHROME1 to MONOCHROME2 if needed
+                if self.photometric_interpretation == "MONOCHROME1" {
+                    pixel_array.mapv_inplace(|v| u16::MAX - v);
                 }
+
                 let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
-                    ImageBuffer::from_raw(self.cols, self.rows, pixels)
+                    ImageBuffer::from_raw(self.cols, self.rows, pixel_array.into_raw_vec())
                         .context(InvalidImageBuffer)?;
                 Ok(DynamicImage::ImageLuma16(image_buffer))
             }
-            _ => InvalidBitsAllocated.fail()?,
+            3 => {
+                // RGB, YBR_FULL or YBR_FULL_422 colors
+                match self.bits_allocated {
+                    8 => {
+                        // Convert YBR_FULL or YBR_FULL_422 to RGB
+                        let pixel_array = match self.photometric_interpretation.as_str() {
+                            "RGB" => self.data.to_vec(),
+                            "YBR_FULL" | "YBR_FULL_422" => {
+                                let mut pixel_array = self.data.to_vec();
+                                convert_colorspace_u8(&mut pixel_array);
+                                pixel_array
+                            }
+                            _ => UnsupportedColorSpace.fail()?,
+                        };
+                        let image_buffer: ImageBuffer<Rgb<u8>, Vec<u8>> =
+                            ImageBuffer::from_raw(self.cols, self.rows, pixel_array)
+                                .context(InvalidImageBuffer)?;
+                        Ok(DynamicImage::ImageRgb8(image_buffer))
+                    }
+                    16 => {
+                        let mut pixel_array = vec![0; self.data.len() / 2];
+                        NativeEndian::read_u16_into(&self.data, &mut pixel_array);
+
+                        // Convert YBR_FULL or YBR_FULL_422 to RGB
+                        let pixel_array = match self.photometric_interpretation.as_str() {
+                            "RGB" => pixel_array,
+                            "YBR_FULL" | "YBR_FULL_422" => {
+                                convert_colorspace_u16(&mut pixel_array);
+                                pixel_array
+                            }
+                            _ => UnsupportedColorSpace.fail()?,
+                        };
+                        let image_buffer: ImageBuffer<Rgb<u16>, Vec<u16>> =
+                            ImageBuffer::from_raw(self.cols, self.rows, pixel_array)
+                                .context(InvalidImageBuffer)?;
+                        Ok(DynamicImage::ImageRgb16(image_buffer))
+                    }
+                    _ => InvalidBitsAllocated.fail()?,
+                }
+            }
+            _ => InvalidPixelRepresentation.fail()?,
         }
     }
 
@@ -249,18 +268,65 @@ impl DecodedPixelData<'_> {
     }
 }
 
-// Normalize f64 vector to u16 vector using min/max normalization
-fn normalize_to_u16(i: &[f64]) -> Vec<u16> {
-    let min = i.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-    let max = i.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
-    i.par_iter()
-        .map(|p| (u16::MAX as f64 * (*p as f64 - min) / (max - min)) as u16)
-        .collect()
+// Convert u8 pixel array from YBR_FULL or YBR_FULL_422 to RGB
+// Every pixel is replaced with an RGB value
+fn convert_colorspace_u8(i: &mut Vec<u8>) {
+    // Matrix multiplication taken from
+    // https://github.com/pydicom/pydicom/blob/f36517e10/pydicom/pixel_data_handlers/util.py#L576
+    i.par_iter_mut().chunks(3).for_each(|mut pixel| {
+        let y = *pixel[0] as f32;
+        let b: f32 = *pixel[1] as f32;
+        let r: f32 = *pixel[2] as f32;
+        let b = b - 128.0;
+        let r = r - 128.0;
+
+        let cr = (y + 1.402 * r) + 0.5;
+        let cg = (y + (0.114 * 1.772 / 0.587) * b + (-0.299 * 1.402 / 0.587) * r) + 0.5;
+        let cb = (y + 1.772 * b) + 0.5;
+
+        let cr = cr.floor().clamp(0.0, u8::MAX as f32) as u8;
+        let cg = cg.floor().clamp(0.0, u8::MAX as f32) as u8;
+        let cb = cb.floor().clamp(0.0, u8::MAX as f32) as u8;
+
+        *pixel[0] = cr;
+        *pixel[1] = cg;
+        *pixel[2] = cb;
+    });
+}
+
+// Convert u16 pixel array from YBR_FULL or YBR_FULL_422 to RGB
+// Every pixel is replaced with an RGB value
+fn convert_colorspace_u16(i: &mut Vec<u16>) {
+    // Matrix multiplication taken from
+    // https://github.com/pydicom/pydicom/blob/f36517e10/pydicom/pixel_data_handlers/util.py#L576
+    i.par_iter_mut().chunks(3).for_each(|mut pixel| {
+        let y = *pixel[0] as f32;
+        let b: f32 = *pixel[1] as f32;
+        let r: f32 = *pixel[2] as f32;
+        let b = b - 32768.0;
+        let r = r - 32768.0;
+
+        let cr = (y + 1.402 * r) + 0.5;
+        let cg = (y + (0.114 * 1.772 / 0.587) * b + (-0.299 * 1.402 / 0.587) * r) + 0.5;
+        let cb = (y + 1.772 * b) + 0.5;
+
+        let cr = cr.floor().clamp(0.0, u16::MAX as f32) as u16;
+        let cg = cg.floor().clamp(0.0, u16::MAX as f32) as u16;
+        let cb = cb.floor().clamp(0.0, u16::MAX as f32) as u16;
+
+        *pixel[0] = cr;
+        *pixel[1] = cg;
+        *pixel[2] = cb;
+    });
 }
 
 // Apply the Modality rescale operation to the input array and return a Vec<f64> containing transformed pixel data.
 // An InvalidDataType error is returned when T cannot be represented as f64
-fn apply_modality_lut<T>(i: &[T], rescale_intercept: i16, rescale_slope: f32) -> Result<Vec<f64>>
+pub fn apply_modality_lut<T>(
+    i: &[T],
+    rescale_intercept: i16,
+    rescale_slope: f32,
+) -> Result<Vec<f64>>
 where
     T: NumCast + Sync,
 {
@@ -482,7 +548,29 @@ mod tests {
          "pydicom/explicit_VR-UN.dcm",
          "pydicom/MR_small_bigendian.dcm",
          "pydicom/MR_small_expb.dcm",
+         "pydicom/SC_rgb.dcm",
+         "pydicom/SC_rgb_16bit.dcm",
+         "pydicom/SC_rgb_dcmtk_+eb+cr.dcm",
+         "pydicom/SC_rgb_expb.dcm", 
+         "pydicom/SC_rgb_expb_16bit.dcm",
+         "pydicom/SC_rgb_gdcm2k_uncompressed.dcm",
+         "pydicom/SC_rgb_gdcm_KY.dcm",
+         "pydicom/SC_rgb_jpeg_gdcm.dcm",
+         "pydicom/SC_rgb_jpeg_lossy_gdcm.dcm",
+         "pydicom/SC_rgb_rle.dcm",
+         "pydicom/SC_rgb_rle_16bit.dcm",
+         "pydicom/color-pl.dcm",
+         "pydicom/color-px.dcm",
+         "pydicom/SC_ybr_full_uncompressed.dcm",
 
+        // "pydicom/RG1_J2KI.dcm",
+        // "pydicom/RG1_J2KR.dcm",
+        // "pydicom/RG1_UNCI.dcm",
+        // "pydicom/RG1_UNCR.dcm",
+        // "pydicom/RG3_J2KI.dcm",
+        // "pydicom/RG3_J2KR.dcm",
+        // "pydicom/RG3_UNCI.dcm",
+        // "pydicom/RG3_UNCR.dcm",
         // "pydicom/ExplVR_BigEnd.dcm",
         // "pydicom/ExplVR_BigEndNoMeta.dcm",
         // "pydicom/ExplVR_LitEndNoMeta.dcm",
@@ -501,21 +589,10 @@ mod tests {
         // "pydicom/OBXXXX1A_rle.dcm",
         // "pydicom/OBXXXX1A_rle_2frame.dcm",
         // "pydicom/OT-PAL-8-face.dcm",
-        // "pydicom/RG1_J2KI.dcm",
-        // "pydicom/RG1_J2KR.dcm",
-        // "pydicom/RG1_UNCI.dcm",
-        // "pydicom/RG1_UNCR.dcm",
-        // "pydicom/RG3_J2KI.dcm",
-        // "pydicom/RG3_J2KR.dcm",
-        // "pydicom/RG3_UNCI.dcm",
-        // "pydicom/RG3_UNCR.dcm",
-        // "pydicom/SC_rgb.dcm",
-        // "pydicom/SC_rgb_16bit.dcm",
         // "pydicom/SC_rgb_16bit_2frame.dcm",
         // "pydicom/SC_rgb_2frame.dcm",
         // "pydicom/SC_rgb_32bit.dcm",
         // "pydicom/SC_rgb_32bit_2frame.dcm",
-        // "pydicom/SC_rgb_dcmtk_+eb+cr.dcm",
         // "pydicom/SC_rgb_dcmtk_+eb+cy+n1.dcm",
         // "pydicom/SC_rgb_dcmtk_+eb+cy+n2.dcm",
         // "pydicom/SC_rgb_dcmtk_+eb+cy+np.dcm",
@@ -527,35 +604,24 @@ mod tests {
         // "pydicom/SC_rgb_dcmtk_ebcynp_dcmd.dcm",
         // "pydicom/SC_rgb_dcmtk_ebcys2_dcmd.dcm",
         // "pydicom/SC_rgb_dcmtk_ebcys4_dcmd.dcm",
-        // "pydicom/SC_rgb_expb.dcm",
-        // "pydicom/SC_rgb_expb_16bit.dcm",
         // "pydicom/SC_rgb_expb_16bit_2frame.dcm",
         // "pydicom/SC_rgb_expb_2frame.dcm",
         // "pydicom/SC_rgb_expb_32bit.dcm",
         // "pydicom/SC_rgb_expb_32bit_2frame.dcm",
-        // "pydicom/SC_rgb_gdcm2k_uncompressed.dcm",
-        // "pydicom/SC_rgb_gdcm_KY.dcm",
-        // "pydicom/SC_rgb_jpeg_dcmtk.dcm",
-        // "pydicom/SC_rgb_jpeg_gdcm.dcm",
-        // "pydicom/SC_rgb_jpeg_lossy_gdcm.dcm",
-        // "pydicom/SC_rgb_rle.dcm",
-        // "pydicom/SC_rgb_rle_16bit.dcm",
         // "pydicom/SC_rgb_rle_16bit_2frame.dcm",
         // "pydicom/SC_rgb_rle_2frame.dcm",
         // "pydicom/SC_rgb_rle_32bit.dcm",
         // "pydicom/SC_rgb_rle_32bit_2frame.dcm",
         // "pydicom/SC_rgb_small_odd.dcm",
         // "pydicom/SC_rgb_small_odd_jpeg.dcm",
+        // "pydicom/SC_rgb_jpeg_dcmtk.dcm",
         // "pydicom/SC_ybr_full_422_uncompressed.dcm",
-        // "pydicom/SC_ybr_full_uncompressed.dcm",
         // "pydicom/US1_J2KI.dcm",
         // "pydicom/US1_J2KR.dcm",
         // "pydicom/US1_UNCI.dcm",
         // "pydicom/US1_UNCR.dcm",
         // "pydicom/badVR.dcm",
         // "pydicom/bad_sequence.dcm",
-        // "pydicom/color-pl.dcm",
-        // "pydicom/color-px.dcm",
         // "pydicom/color3d_jpeg_baseline.dcm",
         // "pydicom/eCT_Supplemental.dcm",
         // "pydicom/empty_charset_LEI.dcm",
