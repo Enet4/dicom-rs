@@ -1,8 +1,9 @@
 //! Module for the pixel data trait and implementations.
 //!
-//! In order to facilitate typical pixel data manipulation, this crate
-//! provides a common interface for retrieving that content as an image
-//! or a multi-dimensional array.
+//! **Note:** This module is deprecated and obsolete.
+//! Please check out the [`dicom-pixeldata` crate][1] instead.
+//!
+//! [1]: https://docs.rs/dicom-pixeldata
 use snafu::{Backtrace, Snafu};
 use std::marker::PhantomData;
 
