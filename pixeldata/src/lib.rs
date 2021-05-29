@@ -98,8 +98,10 @@ pub enum Error {
     #[snafu(display("Invalid buffer when constructing ImageBuffer"))]
     InvalidImageBuffer,
 
-    #[snafu(display("Unknown GDCM error while decoding image"))]
-    UnknownGdcmError,
+    #[snafu(display("Unknown error while decoding pixel data"))]
+    ImplementerError {
+        source: Box<dyn std::error::Error + Send + 'static>,
+    },
 
     #[snafu(display("Invalid shape for ndarray"))]
     ShapeError { source: ndarray::ShapeError },

@@ -65,7 +65,9 @@ where
                     high_bit,
                     pixel_representation,
                 )
-                .map_err(|_| Error::UnknownGdcmError)?;
+                .map_err(|source| Error::ImplementerError {
+                    source: Box::new(source),
+                })?;
                 decoded_frame.to_vec()
             }
             Value::Primitive(p) => {
@@ -99,7 +101,6 @@ mod tests {
     use rstest::rstest;
     use std::path::Path;
 
-    #[cfg(feature = "gdcm")]
     #[rstest(value => [
         "pydicom/693_J2KI.dcm",
         "pydicom/693_J2KR.dcm",
@@ -230,7 +231,7 @@ mod tests {
 ])]
     fn test_parse_dicom_pixel_data(value: &str) {
         let test_file = dicom_test_files::path(value).unwrap();
-        println!("Parsing pixel data for {:?}", test_file);
+        println!("Parsing pixel data for {}", test_file.display());
         let obj = open_file(test_file).unwrap();
         let image = obj.decode_pixel_data().unwrap().to_dynamic_image().unwrap();
         image

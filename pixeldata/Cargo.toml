@@ -25,7 +25,7 @@ num-traits = "0.2.12"
 
 [dev-dependencies]
 dicom-test-files = "0.2.0"
-rstest = "0.6.4"
+rstest = "0.10.0"
 
 [features]
 default = ["gdcm"]
