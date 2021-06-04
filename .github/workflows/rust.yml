@@ -26,6 +26,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
+      - run: cargo test --package dicom-pixeldata --no-default-features
 
   clippy:
     name: Clippy
