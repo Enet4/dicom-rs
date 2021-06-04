@@ -177,19 +177,13 @@ impl<D> LazyDataToken<D> {
     /// Check whether this token represents the start of a sequence
     /// of nested data sets.
     pub fn is_sequence_start(&self) -> bool {
-        match self {
-            LazyDataToken::SequenceStart { .. } => true,
-            _ => false,
-        }
+        matches!(self, LazyDataToken::SequenceStart { .. })
     }
 
     /// Check whether this token represents the end of a sequence
     /// or the end of an encapsulated element.
     pub fn is_sequence_end(&self) -> bool {
-        match self {
-            LazyDataToken::SequenceEnd => true,
-            _ => false,
-        }
+        matches!(self, LazyDataToken::SequenceEnd)
     }
 }
 

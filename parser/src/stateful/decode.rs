@@ -569,11 +569,9 @@ where
         let vec: Result<_> = buf
             .split(|b| *b == b'\\')
             .map(|part| {
-                Ok(
-                    parse_datetime(part, self.dt_utc_offset).context(DeserializeValue {
-                        position: self.position,
-                    })?,
-                )
+                parse_datetime(part, self.dt_utc_offset).context(DeserializeValue {
+                    position: self.position,
+                })
             })
             .collect();
 
@@ -985,7 +983,7 @@ where
         W: std::io::Write,
     {
         let length = u64::from(length);
-        std::io::copy(&mut self.from.by_ref().take(u64::from(length)), &mut out).context(
+        std::io::copy(&mut self.from.by_ref().take(length), &mut out).context(
             ReadValueData {
                 position: self.position,
             },
