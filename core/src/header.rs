@@ -587,6 +587,13 @@ impl DataElementHeader {
     pub fn vr(&self) -> VR {
         self.vr
     }
+
+    /// Check whether the header suggests the value to be a sequence value:
+    /// if the value representation is SQ or the length is undefined.
+    #[inline]
+    pub fn is_non_primitive(&self) -> bool {
+        self.vr == VR::SQ || self.length().is_undefined()
+    }
 }
 
 impl From<SequenceItemHeader> for DataElementHeader {

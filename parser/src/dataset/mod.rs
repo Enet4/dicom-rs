@@ -1,14 +1,33 @@
 //! Interpretation of DICOM data sets as streams of tokens.
+use crate::stateful::decode;
 use dicom_core::header::{DataElementHeader, HasLength, Length, VR};
 use dicom_core::value::{DicomValueType, PrimitiveValue};
 use dicom_core::{value::Value, DataElement, Tag};
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::fmt;
 
+pub mod lazy_read;
 pub mod read;
 pub mod write;
 
 pub use self::read::DataSetReader;
+use self::read::ValueReadStrategy;
 pub use self::write::DataSetWriter;
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    /// Could not read item value
+    ReadItemValue { source: decode::Error },
+    /// Could not read element value
+    ReadElementValue { source: decode::Error },
+    /// Could not skip the bytes of a value
+    SkipValue { source: decode::Error },
+    /// Unexpected token type for operation
+    UnexpectedTokenType,
+    /// Unexpected undefined value length
+    UndefinedLength,
+}
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// A token of a DICOM data set stream. This is part of the interpretation of a
 /// data set as a stream of symbols, which may either represent data headers or
@@ -111,6 +130,273 @@ impl DataToken {
     pub fn is_sequence_end(&self) -> bool {
         matches!(self, DataToken::SequenceEnd)
     }
+}
+
+/// A lazy data token for reading a data set
+/// without requiring values to be fully read in memory.
+/// This is part of the interpretation of a
+/// data set as a stream of symbols,
+/// which may either represent data headers
+/// or actual value data.
+///
+/// The parameter type `D` represents
+/// the original type of the stateful decoder,
+/// and through which the values can be retrieved.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum LazyDataToken<D> {
+    /// A data header of a primitive value.
+    ElementHeader(DataElementHeader),
+    /// The beginning of a sequence element.
+    SequenceStart { tag: Tag, len: Length },
+    /// The beginning of an encapsulated pixel data element.
+    PixelSequenceStart,
+    /// The ending delimiter of a sequence or encapsulated pixel data.
+    SequenceEnd,
+    /// The beginning of a new item in the sequence.
+    ItemStart { len: Length },
+    /// The ending delimiter of an item.
+    ItemEnd,
+    /// An element value yet to be fetched
+    LazyValue {
+        /// the header of the respective value
+        header: DataElementHeader,
+        /// the stateful decoder for fetching the bytes of the value
+        decoder: D,
+    },
+    /// An item value yet to be fetched
+    LazyItemValue {
+        /// the full length of the value, always well defined
+        len: u32,
+        /// the stateful decoder for fetching the bytes of the value
+        decoder: D,
+    },
+}
+
+impl<D> LazyDataToken<D> {
+    /// Check whether this token represents the start of a sequence
+    /// of nested data sets.
+    pub fn is_sequence_start(&self) -> bool {
+        matches!(self, LazyDataToken::SequenceStart { .. })
+    }
+
+    /// Check whether this token represents the end of a sequence
+    /// or the end of an encapsulated element.
+    pub fn is_sequence_end(&self) -> bool {
+        matches!(self, LazyDataToken::SequenceEnd)
+    }
+}
+
+impl<D> LazyDataToken<D>
+where
+    D: decode::StatefulDecode,
+{
+    pub fn skip(self) -> Result<()> {
+        match self {
+            LazyDataToken::LazyValue {
+                header,
+                mut decoder,
+            } => decoder.skip_bytes(header.len.0).context(SkipValue),
+            LazyDataToken::LazyItemValue { len, mut decoder } => {
+                decoder.skip_bytes(len).context(SkipValue)
+            }
+            _ => Ok(()), // do nothing
+        }
+    }
+    /// Construct the data token into memory,
+    /// consuming the reader if necessary.
+    ///
+    /// If the token represents a lazy element value,
+    /// the inner decoder is read with string preservation.
+    pub fn into_owned(self) -> Result<DataToken> {
+        self.into_owned_with_strategy(ValueReadStrategy::Preserved)
+    }
+
+    /// Construct the data token into memory,
+    /// consuming the reader if necessary.
+    ///
+    /// If the token represents a lazy element value,
+    /// the inner decoder is read
+    /// with the given value reading strategy.
+    pub fn into_owned_with_strategy(self, strategy: ValueReadStrategy) -> Result<DataToken> {
+        match self {
+            LazyDataToken::ElementHeader(header) => Ok(DataToken::ElementHeader(header)),
+            LazyDataToken::ItemEnd => Ok(DataToken::ItemEnd),
+            LazyDataToken::ItemStart { len } => Ok(DataToken::ItemStart { len }),
+            LazyDataToken::PixelSequenceStart => Ok(DataToken::PixelSequenceStart),
+            LazyDataToken::SequenceEnd => Ok(DataToken::SequenceEnd),
+            LazyDataToken::SequenceStart { tag, len } => Ok(DataToken::SequenceStart { tag, len }),
+            LazyDataToken::LazyValue {
+                header,
+                mut decoder,
+            } => {
+                // use the stateful decoder to eagerly read the value
+                let value = match strategy {
+                    ValueReadStrategy::Interpreted => {
+                        decoder.read_value(&header).context(ReadElementValue)?
+                    }
+                    ValueReadStrategy::Preserved => decoder
+                        .read_value_preserved(&header)
+                        .context(ReadElementValue)?,
+                    ValueReadStrategy::Raw => decoder
+                        .read_value_bytes(&header)
+                        .context(ReadElementValue)?,
+                };
+                Ok(DataToken::PrimitiveValue(value))
+            }
+            LazyDataToken::LazyItemValue { len, mut decoder } => {
+                let mut data = Vec::new();
+                decoder.read_to_vec(len, &mut data).context(ReadItemValue)?;
+                Ok(DataToken::ItemValue(data))
+            }
+        }
+    }
+
+    /// Retrieve a primitive element value from the token,
+    /// consuming the reader with the given reading strategy.
+    ///
+    /// The operation fails if the token does not represent an element value.
+    pub fn into_value_with_strategy(self, strategy: ValueReadStrategy) -> Result<PrimitiveValue> {
+        match self {
+            LazyDataToken::LazyValue {
+                header,
+                mut decoder,
+            } => {
+                // use the stateful decoder to eagerly read the value
+                match strategy {
+                    ValueReadStrategy::Interpreted => {
+                        decoder.read_value(&header).context(ReadElementValue)
+                    }
+                    ValueReadStrategy::Preserved => decoder
+                        .read_value_preserved(&header)
+                        .context(ReadElementValue),
+                    ValueReadStrategy::Raw => {
+                        decoder.read_value_bytes(&header).context(ReadElementValue)
+                    }
+                }
+            }
+            _ => UnexpectedTokenType.fail(),
+        }
+    }
+
+    /// Retrieve a primitive element value from the token,
+    /// consuming the reader with the default reading strategy.
+    ///
+    /// The operation fails if the token does not represent an element value.
+    pub fn into_value(self) -> Result<PrimitiveValue> {
+        self.into_value_with_strategy(ValueReadStrategy::Preserved)
+    }
+
+    /// Read the bytes of a value into the given writer,
+    /// consuming the reader.
+    ///
+    /// This operation will not interpret the value,
+    /// like in the `Bytes` value reading strategy.
+    /// It works for both data elements and non-dataset items.
+    ///
+    /// The operation fails if
+    /// the token does not represent an element or item value.
+    pub fn read_value_into<W>(self, out: W) -> Result<()>
+    where
+        W: std::io::Write,
+    {
+        match self {
+            LazyDataToken::LazyValue {
+                header,
+                mut decoder,
+            } => {
+                let len = header.len.get().context(UndefinedLength)?;
+                decoder.read_to(len, out).context(ReadElementValue)?;
+            }
+            LazyDataToken::LazyItemValue { len, mut decoder } => {
+                decoder.read_to(len, out).context(ReadItemValue)?;
+            }
+            _other => return UnexpectedTokenType.fail(),
+        };
+        Ok(())
+    }
+
+    /// Convert this token into a structured representation,
+    /// for diagnostics and error reporting purposes.
+    pub fn into_repr(self) -> LazyDataTokenRepr {
+        LazyDataTokenRepr::from(self)
+    }
+
+    /// Create a structured representation of this token,
+    /// for diagnostics and error reporting purposes.
+    pub fn repr(&self) -> LazyDataTokenRepr {
+        LazyDataTokenRepr::from(self)
+    }
+}
+
+impl<D> From<LazyDataToken<D>> for LazyDataTokenRepr {
+    fn from(token: LazyDataToken<D>) -> Self {
+        match token {
+            LazyDataToken::ElementHeader(h) => LazyDataTokenRepr::ElementHeader(h),
+            LazyDataToken::SequenceStart { tag, len } => {
+                LazyDataTokenRepr::SequenceStart { tag, len }
+            }
+            LazyDataToken::PixelSequenceStart => LazyDataTokenRepr::PixelSequenceStart,
+            LazyDataToken::SequenceEnd => LazyDataTokenRepr::SequenceEnd,
+            LazyDataToken::ItemStart { len } => LazyDataTokenRepr::ItemStart { len },
+            LazyDataToken::ItemEnd => LazyDataTokenRepr::ItemEnd,
+            LazyDataToken::LazyValue { header, decoder: _ } => {
+                LazyDataTokenRepr::LazyValue { header }
+            }
+            LazyDataToken::LazyItemValue { len, decoder: _ } => {
+                LazyDataTokenRepr::LazyItemValue { len }
+            }
+        }
+    }
+}
+
+impl<D> From<&LazyDataToken<D>> for LazyDataTokenRepr {
+    fn from(token: &LazyDataToken<D>) -> Self {
+        match *token {
+            LazyDataToken::ElementHeader(h) => LazyDataTokenRepr::ElementHeader(h),
+            LazyDataToken::SequenceStart { tag, len } => {
+                LazyDataTokenRepr::SequenceStart { tag, len }
+            }
+            LazyDataToken::PixelSequenceStart => LazyDataTokenRepr::PixelSequenceStart,
+            LazyDataToken::SequenceEnd => LazyDataTokenRepr::SequenceEnd,
+            LazyDataToken::ItemStart { len } => LazyDataTokenRepr::ItemStart { len },
+            LazyDataToken::ItemEnd => LazyDataTokenRepr::ItemEnd,
+            LazyDataToken::LazyValue { header, decoder: _ } => {
+                LazyDataTokenRepr::LazyValue { header }
+            }
+            LazyDataToken::LazyItemValue { len, decoder: _ } => {
+                LazyDataTokenRepr::LazyItemValue { len }
+            }
+        }
+    }
+}
+
+/// A structured description of a lazy data token,
+/// for diagnostics and error reporting purposes.
+#[derive(Debug, Clone, PartialEq)]
+pub enum LazyDataTokenRepr {
+    /// A data header of a primitive value.
+    ElementHeader(DataElementHeader),
+    /// The beginning of a sequence element.
+    SequenceStart { tag: Tag, len: Length },
+    /// The beginning of an encapsulated pixel data element.
+    PixelSequenceStart,
+    /// The ending delimiter of a sequence or encapsulated pixel data.
+    SequenceEnd,
+    /// The beginning of a new item in the sequence.
+    ItemStart { len: Length },
+    /// The ending delimiter of an item.
+    ItemEnd,
+    /// An element value yet to be fetched
+    LazyValue {
+        /// the header of the respective value
+        header: DataElementHeader,
+    },
+    /// An item value yet to be fetched
+    LazyItemValue {
+        /// the full length of the value, always well defined
+        len: u32,
+    },
 }
 
 /// The type of delimiter: sequence or item.
@@ -525,8 +811,19 @@ mod tests {
         PrimitiveValue, Tag, VR,
     };
 
-    use super::{DataToken, IntoTokens};
+    use super::{DataToken, IntoTokens, LazyDataToken};
     use smallvec::smallvec;
+
+    use dicom_encoding::{
+        decode::{basic::LittleEndianBasicDecoder, explicit_le::ExplicitVRLittleEndianDecoder},
+        text::DefaultCharacterSetCodec,
+        text::DynamicTextCodec,
+    };
+
+    use crate::stateful::decode::StatefulDecode;
+    use crate::stateful::decode::StatefulDecoder;
+
+    fn is_stateful_decode<D: StatefulDecode>(_: &D) {}
 
     /// A simple object representing a DICOM data set,
     /// used merely for testing purposes.
@@ -716,5 +1013,93 @@ mod tests {
                 DataToken::SequenceEnd,
             ],
         )
+    }
+
+    #[test]
+    fn lazy_dataset_token_value() {
+        let data = b"1.234\0";
+        let mut data = &data[..];
+        let decoder = StatefulDecoder::new(
+            &mut data,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            Box::new(DefaultCharacterSetCodec) as DynamicTextCodec,
+        );
+
+        is_stateful_decode(&decoder);
+
+        let token = LazyDataToken::LazyValue {
+            header: DataElementHeader {
+                tag: Tag(0x0020, 0x000D),
+                vr: VR::UI,
+                len: Length(6),
+            },
+            decoder,
+        };
+
+        match token.into_owned().unwrap() {
+            DataToken::PrimitiveValue(v) => {
+                assert_eq!(v.to_str(), "1.234\0",);
+            }
+            t => panic!("Unexpected type of token {:?}", t),
+        }
+    }
+
+    #[test]
+    fn lazy_dataset_token_value_as_mut() {
+        let data = b"1.234\0";
+        let mut data = &data[..];
+        let mut decoder = StatefulDecoder::new(
+            &mut data,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            Box::new(DefaultCharacterSetCodec) as DynamicTextCodec,
+        );
+
+        is_stateful_decode(&decoder);
+
+        let token = LazyDataToken::LazyValue {
+            header: DataElementHeader {
+                tag: Tag(0x0020, 0x000D),
+                vr: VR::UI,
+                len: Length(6),
+            },
+            decoder: &mut decoder,
+        };
+
+        match token.into_owned().unwrap() {
+            DataToken::PrimitiveValue(v) => {
+                assert_eq!(v.to_str(), "1.234\0",);
+            }
+            t => panic!("Unexpected type of token {:?}", t),
+        }
+        assert_eq!(decoder.position(), 6);
+    }
+
+    #[test]
+    fn lazy_dataset_token_value_skip() {
+        let data = b"1.234\0";
+        let mut data = &data[..];
+        let mut decoder = StatefulDecoder::new(
+            &mut data,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            Box::new(DefaultCharacterSetCodec) as DynamicTextCodec,
+        );
+
+        is_stateful_decode(&decoder);
+
+        let token = LazyDataToken::LazyValue {
+            header: DataElementHeader {
+                tag: Tag(0x0020, 0x000D),
+                vr: VR::UI,
+                len: Length(6),
+            },
+            decoder: &mut decoder,
+        };
+
+        token.skip().unwrap();
+
+        assert_eq!(decoder.position(), 6);
     }
 }
