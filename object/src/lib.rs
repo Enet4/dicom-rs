@@ -108,6 +108,7 @@
 //! # run().unwrap();
 //! ```
 pub mod file;
+pub mod lazy;
 pub mod mem;
 pub mod meta;
 #[deprecated(
