@@ -50,7 +50,7 @@ pub fn parse_date(buf: &[u8]) -> Result<(NaiveDate, &[u8])> {
             let year = read_number(&buf[0..4])?;
             let month = (i32::from(buf[4]) - Z) * 10 + i32::from(buf[5]) - Z;
             let date: Result<_> =
-                NaiveDate::from_ymd_opt(year, month as u32, 0).context(InvalidDateTimeZone);
+                NaiveDate::from_ymd_opt(year, month as u32, 1).context(InvalidDateTimeZone);
             Ok((date?, &buf[6..]))
         }
         len => {
@@ -287,6 +287,10 @@ mod tests {
         assert_eq!(
             parse_date(b"19711231").unwrap(),
             (NaiveDate::from_ymd(1971, 12, 31), &[][..])
+        );
+        assert_eq!(
+            parse_date(b"197112").unwrap(),
+            (NaiveDate::from_ymd(1971, 12, 1), &[][..])
         );
         assert_eq!(
             parse_date(b"20140426").unwrap(),
