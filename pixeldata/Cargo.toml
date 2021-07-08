@@ -28,5 +28,5 @@ dicom-test-files = "0.2.0"
 rstest = "0.10.0"
 
 [features]
-default = []
+default = ["gdcm"]
 gdcm = ["gdcm-rs"]
