@@ -249,14 +249,13 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
             let tz_sign = buf[0];
             let buf = &buf[1..];
             let (tz_h, tz_m) = match buf.len() {
-                1 => (i32::from(buf[0]) - Z, 0),
-                2 => return UnexpectedEndOfElement.fail(),
-                _ => {
+                4 => {
                     let (h_buf, m_buf) = buf.split_at(2);
-                    let tz_h = read_number(h_buf)?;
-                    let tz_m = read_number(&m_buf[0..usize::min(2, m_buf.len())])?;
+                    let tz_h : i32 = read_number(h_buf)?;
+                    let tz_m : i32 = read_number(m_buf)?;
                     (tz_h, tz_m)
-                }
+                },
+                _ => return UnexpectedEndOfElement.fail(),
             };
             let s = (tz_h * 60 + tz_m) * 60;
             match tz_sign {
