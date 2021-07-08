@@ -243,28 +243,21 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
                 .single()
                 .context(InvalidDateTimeZone);
             return Ok(dt?);
-        }
-        1 | 2 => return UnexpectedEndOfElement.fail(),
-        _ => {
+        },
+        5 => {
             let tz_sign = buf[0];
             let buf = &buf[1..];
-            let (tz_h, tz_m) = match buf.len() {
-                1 => (i32::from(buf[0]) - Z, 0),
-                2 => return UnexpectedEndOfElement.fail(),
-                _ => {
-                    let (h_buf, m_buf) = buf.split_at(2);
-                    let tz_h = read_number(h_buf)?;
-                    let tz_m = read_number(&m_buf[0..usize::min(2, m_buf.len())])?;
-                    (tz_h, tz_m)
-                }
-            };
+            let (h_buf, m_buf) = buf.split_at(2);
+            let tz_h : i32 = read_number(h_buf)?;
+            let tz_m : i32 = read_number(m_buf)?;
             let s = (tz_h * 60 + tz_m) * 60;
             match tz_sign {
                 b'+' => FixedOffset::east(s),
                 b'-' => FixedOffset::west(s),
                 c => return InvalidTimeZoneSignToken { value: c }.fail(),
             }
-        }
+        },
+        _ => return UnexpectedEndOfElement.fail()
     };
 
     offset
