@@ -474,5 +474,8 @@ mod tests {
         assert!(parse_datetime(b"20151130161445. +0000", default_offset).is_err());
         assert!(parse_datetime(b"20100423164000.001+3", default_offset).is_err());
         assert!(parse_datetime(b"200809112945*1000", default_offset).is_err());
+        assert!(parse_datetime(b"20171130101010.204+1", default_offset).is_err());
+        assert!(parse_datetime(b"20171130101010.204+01", default_offset).is_err());
+        assert!(parse_datetime(b"20171130101010.204+011", default_offset).is_err());
     }
 }
