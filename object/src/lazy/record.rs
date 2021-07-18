@@ -274,6 +274,10 @@ where
         RecordBuildingDataSetReader { builder, reader }
     }
 
+    pub fn into_inner(self) -> LazyDataSetReader<S, D> {
+        self.reader
+    }
+
     /** Advance and retrieve the next DICOM data token.
      *
      * If a token is obtained,
