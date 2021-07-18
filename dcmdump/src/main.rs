@@ -149,8 +149,6 @@ fn main() {
 
 fn dump_file(obj: DefaultDicomObject, width: u32, no_text_limit: bool) -> IoResult<()> {
     let mut to = stdout();
-    write!(to, "# Dicom-File-Format\n\n")?;
-
     let meta = obj.meta();
 
     meta_dump(&mut to, &meta, width)?;
@@ -173,59 +171,70 @@ where
 {
     writeln!(
         to,
-        "Media Storage SOP Class UID: {}",
+        "{}: {}",
+        "Media Storage SOP Class UID".bold(),
         meta.media_storage_sop_class_uid
             .trim_end_matches(whitespace_or_null),
     )?;
     writeln!(
         to,
-        "Media Storage SOP Instance UID: {}",
+        "{}: {}",
+        "Media Storage SOP Instance UID".bold(),
         meta.media_storage_sop_instance_uid
             .trim_end_matches(whitespace_or_null),
     )?;
     if let Some(ts) = TransferSyntaxRegistry.get(&meta.transfer_syntax) {
-        writeln!(to, "Transfer Syntax: {} ({})", ts.uid(), ts.name())?;
+        writeln!(
+            to,
+            "{}: {} ({})",
+            "Transfer Syntax".bold(),
+            ts.uid(),
+            ts.name()
+        )?;
     } else {
         writeln!(
             to,
-            "Transfer Syntax: {} («UNKNOWN»)",
+            "{}: {} («UNKNOWN»)",
+            "Transfer Syntax".bold(),
             meta.transfer_syntax.trim_end_matches(whitespace_or_null)
         )?;
     }
     writeln!(
         to,
-        "Implementation Class UID: {}",
+        "{}: {}",
+        "Implementation Class UID".bold(),
         meta.implementation_class_uid
             .trim_end_matches(whitespace_or_null),
     )?;
 
     if let Some(v) = meta.implementation_version_name.as_ref() {
-        writeln!(to, "Implementation version name: {}", v.trim_end())?;
+        writeln!(to, "{}: {}", "Implementation version name".bold(), v.trim_end())?;
     }
+
     if let Some(v) = meta.source_application_entity_title.as_ref() {
-        writeln!(to, "Source Application Entity Title: {}", v.trim_end())?;
+        writeln!(to, "{}: {}", "Source Application Entity Title".bold(), v.trim_end())?;
     }
 
     if let Some(v) = meta.sending_application_entity_title.as_ref() {
-        writeln!(to, "Sending Application Entity Title: {}", v.trim_end())?;
+        writeln!(to, "{}: {}", "Sending Application Entity Title".bold(), v.trim_end())?;
     }
 
     if let Some(v) = meta.receiving_application_entity_title.as_ref() {
-        writeln!(to, "Receiving Application Entity Title: {}", v.trim_end())?;
+        writeln!(to, "{}: {}", "Receiving Application Entity Title".bold(), v.trim_end())?;
     }
 
     if let Some(v) = meta.private_information_creator_uid.as_ref() {
         writeln!(
             to,
-            "Private Information Creator UID: {}",
+            "{}: {}",
+            "Private Information Creator UID".bold(),
             v.trim_end_matches(whitespace_or_null)
         )?;
     }
 
     if let Some(v) = meta.private_information.as_ref() {
-        writeln!(
-            to,
-            "Private Information: {}",
+        writeln!(to, "{}: {}",
+            "Private Information".bold(),
             format_value_list(v.iter().map(|n| format!("{:02X}", n)), width, false)
         )?;
     }
@@ -278,7 +287,7 @@ where
         DicomValue::Sequence { items, .. } => {
             writeln!(
                 to,
-                "{} {:32} {} ({} Item{})",
+                "{} {:28} {} ({} Item{})",
                 DumpValue::TagNum(elem.tag()),
                 DumpValue::Alias(tag_alias),
                 elem.vr(),
@@ -305,9 +314,9 @@ where
             let num_items = 1 + fragments.len();
             writeln!(
                 to,
-                "{} PixelData {:22} {} (PixelSequence, {} Item{})",
+                "{} {:28} {} (PixelSequence, {} Item{})",
                 DumpValue::TagNum(elem.tag()),
-                "",
+                "PixelData".bold(),
                 vr,
                 num_items,
                 if num_items == 1 { "" } else { "s" },
@@ -320,7 +329,7 @@ where
                 "  {} pi ({:>3} bytes, 1 Item): {:48}",
                 DumpValue::TagNum("(FFFE,E000)"),
                 byte_len,
-                item_value_summary(&offset_table, width.saturating_sub(42 + depth * 2)),
+                item_value_summary(&offset_table, width.saturating_sub(38 + depth * 2)),
             )?;
 
             // write compressed fragments
@@ -331,7 +340,7 @@ where
                     "  {} pi ({:>3} bytes, 1 Item): {:48}",
                     DumpValue::TagNum("(FFFE,E000)"),
                     byte_len,
-                    item_value_summary(&fragment, width.saturating_sub(42 + depth * 2)),
+                    item_value_summary(&fragment, width.saturating_sub(38 + depth * 2)),
                 )?;
             }
         }
@@ -340,7 +349,7 @@ where
             let byte_len = value.calculate_byte_len();
             writeln!(
                 to,
-                "{} {:32} {} ({},{:>3} bytes): {}",
+                "{} {:28} {} ({},{:>3} bytes): {}",
                 DumpValue::TagNum(elem.tag()),
                 DumpValue::Alias(tag_alias),
                 vr,
@@ -349,7 +358,7 @@ where
                 value_summary(
                     &value,
                     vr,
-                    width.saturating_sub(68 + depth * 2),
+                    width.saturating_sub(63 + depth * 2),
                     no_text_limit
                 ),
             )?;
@@ -498,12 +507,12 @@ fn value_summary(
     }
 }
 
-fn item_value_summary(data: &[u8], max_characters: u32) -> String {
-    format_value_list(
+fn item_value_summary(data: &[u8], max_characters: u32) -> DumpValue<String> {
+    DumpValue::Num(format_value_list(
         data.iter().map(|n| format!("{:02X}", n)),
         max_characters,
         false,
-    )
+    ))
 }
 
 fn format_value_list<I>(values: I, max_characters: u32, quoted: bool) -> String
