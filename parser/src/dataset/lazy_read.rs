@@ -210,12 +210,16 @@ where
         })
     }
 
-    /** Advance and retrieve the next DICOM data token.
-     *
-     * **Note:** For the data set to be successfully parsed,
-     * the resulting data tokens needs to be consumed
-     * if they are of a value type.
-     */
+    /// Retrieve the inner stateful decoder from this data set reader.
+    pub fn into_decoder(self) -> S {
+        self.parser
+    }
+
+    /// Advance and retrieve the next DICOM data token.
+    ///
+    /// **Note:** For the data set to be successfully parsed,
+    /// the resulting data tokens needs to be consumed
+    /// if they are of a value type.
     pub fn next(&mut self) -> Option<Result<LazyDataToken<&mut S>>> {
         if self.hard_break {
             return None;
