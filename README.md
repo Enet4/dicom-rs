@@ -78,6 +78,7 @@ The project also comprises an assortment of command line tools.
 - [`toimage`](toimage) lets you convert a DICOM file into an image file.
 - [`fromimage`](fromimage) lets you replace the imaging data of a DICOM file
   with one from an image file.
+- [`findscu`](findscu) implements a Find service class user.
 
 ### Development tools
 
