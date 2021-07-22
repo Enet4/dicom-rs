@@ -46,31 +46,31 @@ pub fn parse_date(buf: &[u8]) -> Result<(NaiveDate, &[u8])> {
         }
         6 => {
             let year = read_number(&buf[0..4])?;
-            let month : u32 = read_number(&buf[4..6])?;
+            let month: u32 = read_number(&buf[4..6])?;
             let date: Result<_> =
                 NaiveDate::from_ymd_opt(year, month, 1).context(InvalidDateTimeZone);
             Ok((date?, &buf[6..]))
-        },
+        }
         len => {
             debug_assert!(len >= 8);
             let year = read_number(&buf[0..4])?;
-            let (month, day, rest)  = match buf[4] {
-                /* MM and DD not present, UTC follows*/ 
+            let (month, day, rest) = match buf[4] {
+                /* MM and DD not present, UTC follows*/
                 b'-' | b'+' => (1, 1, &buf[4..]),
                 _ => {
                     /* Attempt to parse MM */
-                    let m : u32 = read_number(&buf[4..6])?;
-                    let (d ,r) = match buf[6] {
+                    let m: u32 = read_number(&buf[4..6])?;
+                    let (d, r) = match buf[6] {
                         /* DD not present, UTC follows */
-                        b'-' | b'+' => (1, &buf[6..]) ,
-                        _ => (read_number(&buf[6..8])?, &buf[8..] ) /* Attempt to parse DD */
+                        b'-' | b'+' => (1, &buf[6..]),
+                        _ => (read_number(&buf[6..8])?, &buf[8..]), /* Attempt to parse DD */
                     };
-                    (m,d,r)
+                    (m, d, r)
                 }
             };
 
-            let date: Result<_> = NaiveDate::from_ymd_opt(year, month, day)
-                .context(InvalidDateTimeZone);
+            let date: Result<_> =
+                NaiveDate::from_ymd_opt(year, month, day).context(InvalidDateTimeZone);
             Ok((date?, rest))
         }
     }
@@ -150,14 +150,11 @@ fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, &[u8])>
                         acc += 1;
                     }
                     (fract, &buf[n..])
-                },
+                }
                 /* no fraction, but UTC offset present, ok only for DT */
-                b'+' | b'-' if for_datetime => {
-                    (0, &buf[6..])
-                },
-                c => return UnexpectedAfterDateToken { value: c }.fail()
+                b'+' | b'-' if for_datetime => (0, &buf[6..]),
+                c => return UnexpectedAfterDateToken { value: c }.fail(),
             };
-
 
             let time =
                 naive_time_from_components(hour as u32, minute as u32, second as u32, fract)?;
@@ -252,10 +249,9 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
     let buf = rest;
     // after YYYY all DT components are optional, fail time parsing gracefully
     // with default values, assume UTC offset can still be present
-    let (time, buf) = parse_time_impl(buf, true).unwrap_or(
-        (naive_time_from_components(0,0,0,0)?,rest)
-    );
-        
+    let (time, buf) =
+        parse_time_impl(buf, true).unwrap_or((naive_time_from_components(0, 0, 0, 0)?, rest));
+
     let len = buf.len();
     let offset = match len {
         0 => {
@@ -268,21 +264,21 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
                 .single()
                 .context(InvalidDateTimeZone);
             return Ok(dt?);
-        },
+        }
         5 => {
             let tz_sign = buf[0];
             let buf = &buf[1..];
             let (h_buf, m_buf) = buf.split_at(2);
-            let tz_h : i32 = read_number(h_buf)?;
-            let tz_m : i32 = read_number(m_buf)?;
+            let tz_h: i32 = read_number(h_buf)?;
+            let tz_m: i32 = read_number(m_buf)?;
             let s = (tz_h * 60 + tz_m) * 60;
             match tz_sign {
                 b'+' => FixedOffset::east(s),
                 b'-' => FixedOffset::west(s),
                 c => return InvalidTimeZoneSignToken { value: c }.fail(),
             }
-        },
-        _ => return UnexpectedEndOfElement.fail()
+        }
+        _ => return UnexpectedEndOfElement.fail(),
     };
 
     offset
@@ -506,20 +502,20 @@ mod tests {
         assert_eq!(
             parse_datetime(b"2014+0535", default_offset).unwrap(),
             FixedOffset::east(5 * 3600 + 35 * 60)
-            .ymd(2014, 1, 1)
-            .and_hms(0, 0, 0)
+                .ymd(2014, 1, 1)
+                .and_hms(0, 0, 0)
         );
         assert_eq!(
             parse_datetime(b"20140505+0535", default_offset).unwrap(),
             FixedOffset::east(5 * 3600 + 35 * 60)
-            .ymd(2014, 5, 5)
-            .and_hms(0, 0, 0)
+                .ymd(2014, 5, 5)
+                .and_hms(0, 0, 0)
         );
         assert_eq!(
             parse_datetime(b"20140505120101.204+0535", default_offset).unwrap(),
             FixedOffset::east(5 * 3600 + 35 * 60)
-            .ymd(2014, 5, 5)
-            .and_hms_micro(12, 1, 1, 204_000)
+                .ymd(2014, 5, 5)
+                .and_hms_micro(12, 1, 1, 204_000)
         );
 
         assert!(parse_datetime(b"", default_offset).is_err());
