@@ -3,8 +3,6 @@ use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
 use snafu::{Backtrace, OptionExt, Snafu};
 use std::ops::{Add, Mul, Sub};
 
-const Z: i32 = b'0' as i32;
-
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum Error {
@@ -41,26 +39,39 @@ pub fn parse_date(buf: &[u8]) -> Result<(NaiveDate, &[u8])> {
     // YYYY(MM(DD)?)?
     match buf.len() {
         0 | 5 | 7 => UnexpectedEndOfElement.fail(),
-        1..=4 => {
+        4 => {
             let year = read_number(buf)?;
             let date: Result<_> = NaiveDate::from_ymd_opt(year, 1, 1).context(InvalidDateTimeZone);
             Ok((date?, &[]))
         }
         6 => {
             let year = read_number(&buf[0..4])?;
-            let month = (i32::from(buf[4]) - Z) * 10 + i32::from(buf[5]) - Z;
+            let month : u32 = read_number(&buf[4..6])?;
             let date: Result<_> =
-                NaiveDate::from_ymd_opt(year, month as u32, 1).context(InvalidDateTimeZone);
+                NaiveDate::from_ymd_opt(year, month, 1).context(InvalidDateTimeZone);
             Ok((date?, &buf[6..]))
-        }
+        },
         len => {
             debug_assert!(len >= 8);
             let year = read_number(&buf[0..4])?;
-            let month = (i32::from(buf[4]) - Z) * 10 + i32::from(buf[5]) - Z;
-            let day = (i32::from(buf[6]) - Z) * 10 + i32::from(buf[7]) - Z;
-            let date: Result<_> = NaiveDate::from_ymd_opt(year, month as u32, day as u32)
+            let (month, day, rest)  = match buf[4] {
+                /* MM and DD not present, UTC follows*/ 
+                b'-' | b'+' => (1, 1, &buf[4..]),
+                _ => {
+                    /* Attempt to parse MM */
+                    let m : u32 = read_number(&buf[4..6])?;
+                    let (d ,r) = match buf[6] {
+                        /* DD not present, UTC follows */
+                        b'-' | b'+' => (1, &buf[6..]) ,
+                        _ => (read_number(&buf[6..8])?, &buf[8..] ) /* Attempt to parse DD */
+                    };
+                    (m,d,r)
+                }
+            };
+
+            let date: Result<_> = NaiveDate::from_ymd_opt(year, month, day)
                 .context(InvalidDateTimeZone);
-            Ok((date?, &buf[8..]))
+            Ok((date?, rest))
         }
     }
 }
@@ -120,29 +131,37 @@ fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, &[u8])>
             let hour = (i32::from(buf[0]) - Z) * 10 + i32::from(buf[1]) - Z;
             let minute = (i32::from(buf[2]) - Z) * 10 + i32::from(buf[3]) - Z;
             let second = (i32::from(buf[4]) - Z) * 10 + i32::from(buf[5]) - Z;
-            match buf[6] {
-                b'.' => { /* do nothing */ }
-                b'+' | b'-' if for_datetime => { /* do nothing */ }
-                c => return UnexpectedAfterDateToken { value: c }.fail(),
-            }
-            let buf = &buf[7..];
-            // read at most 6 bytes
-            let mut n = usize::min(6, buf.len());
-            if for_datetime {
-                // check for time zone suffix, restrict fraction size accordingly
-                if let Some(i) = buf.iter().position(|v| *v == b'+' || *v == b'-') {
-                    n = i;
-                }
-            }
-            let mut fract: u32 = read_number(&buf[0..n])?;
-            let mut acc = n;
-            while acc < 6 {
-                fract *= 10;
-                acc += 1;
-            }
+            let (fract, rest) = match buf[6] {
+                /* fraction present */
+                b'.' => {
+                    let buf = &buf[7..];
+                    // read at most 6 bytes
+                    let mut n = usize::min(6, buf.len());
+                    if for_datetime {
+                        // check for UTC after fraction, restrict fraction size accordingly
+                        if let Some(i) = buf.iter().position(|v| *v == b'+' || *v == b'-') {
+                            n = i;
+                        }
+                    }
+                    let mut fract: u32 = read_number(&buf[0..n])?;
+                    let mut acc = n;
+                    while acc < 6 {
+                        fract *= 10;
+                        acc += 1;
+                    }
+                    (fract, &buf[n..])
+                },
+                /* no fraction, but UTC offset present, ok only for DT */
+                b'+' | b'-' if for_datetime => {
+                    (0, &buf[6..])
+                },
+                c => return UnexpectedAfterDateToken { value: c }.fail()
+            };
+
+
             let time =
                 naive_time_from_components(hour as u32, minute as u32, second as u32, fract)?;
-            Ok((time, &buf[n..]))
+            Ok((time, rest))
         }
     }
 }
@@ -226,11 +245,17 @@ where
 /// UTC offset.
 pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime<FixedOffset>> {
     let (date, rest) = parse_date(buf)?;
+    // too short for full DT(date,time) without offset, handle date without time component
     if buf.len() <= 8 {
         return Ok(FixedOffset::east(0).from_utc_date(&date).and_hms(0, 0, 0));
     }
     let buf = rest;
-    let (time, buf) = parse_time_impl(buf, true)?;
+    // after YYYY all DT components are optional, fail time parsing gracefully
+    // with default values, assume UTC offset can still be present
+    let (time, buf) = parse_time_impl(buf, true).unwrap_or(
+        (naive_time_from_components(0,0,0,0)?,rest)
+    );
+        
     let len = buf.len();
     let offset = match len {
         0 => {
@@ -305,6 +330,25 @@ mod tests {
             parse_date(b"1902").unwrap(),
             (NaiveDate::from_ymd(1902, 1, 1), &[][..])
         );
+        assert_eq!(
+            parse_date(b"1902+0101").unwrap(),
+            (NaiveDate::from_ymd(1902, 1, 1), &b"+0101"[..][..])
+        );
+        assert_eq!(
+            parse_date(b"1902-0101").unwrap(),
+            (NaiveDate::from_ymd(1902, 1, 1), &b"-0101"[..][..])
+        );
+
+        assert_eq!(
+            parse_date(b"190204-0101").unwrap(),
+            (NaiveDate::from_ymd(1902, 4, 1), &b"-0101"[..][..])
+        );
+
+        assert_eq!(
+            parse_date(b"19020404-0101").unwrap(),
+            (NaiveDate::from_ymd(1902, 4, 4), &b"-0101"[..][..])
+        );
+
         assert!(parse_date(b"").is_err());
         assert!(parse_date(b"        ").is_err());
         assert!(parse_date(b"--------").is_err());
@@ -458,6 +502,24 @@ mod tests {
         assert_eq!(
             parse_datetime(b"20140426", default_offset).unwrap(),
             FixedOffset::east(0).ymd(2014, 4, 26).and_hms(0, 0, 0)
+        );
+        assert_eq!(
+            parse_datetime(b"2014+0535", default_offset).unwrap(),
+            FixedOffset::east(5 * 3600 + 35 * 60)
+            .ymd(2014, 1, 1)
+            .and_hms(0, 0, 0)
+        );
+        assert_eq!(
+            parse_datetime(b"20140505+0535", default_offset).unwrap(),
+            FixedOffset::east(5 * 3600 + 35 * 60)
+            .ymd(2014, 5, 5)
+            .and_hms(0, 0, 0)
+        );
+        assert_eq!(
+            parse_datetime(b"20140505120101.204+0535", default_offset).unwrap(),
+            FixedOffset::east(5 * 3600 + 35 * 60)
+            .ymd(2014, 5, 5)
+            .and_hms_micro(12, 1, 1, 204_000)
         );
 
         assert!(parse_datetime(b"", default_offset).is_err());
