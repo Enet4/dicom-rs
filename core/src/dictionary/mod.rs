@@ -23,15 +23,21 @@ pub enum TagRange {
     /// The two rightmost digits of the _element_ portion are open:
     /// `(GGGG,EExx)`
     Element100(Tag),
+    /// Generic group length tag, does not refer to any specific attribute.
+    GroupLength,
 }
 
 impl TagRange {
     /// Retrieve the inner tag representation of this range.
+    ///
+    /// Open components are zeroed out.
+    /// Returns a zeroed out tag (CommandGroupLength) if it is a `GroupLength`.
     pub fn inner(self) -> Tag {
         match self {
             TagRange::Single(tag) => tag,
             TagRange::Group100(tag) => tag,
             TagRange::Element100(tag) => tag,
+            TagRange::GroupLength => Tag(0x0000, 0x0000),
         }
     }
 }
@@ -196,18 +202,20 @@ pub trait DataDictionary: Debug {
 
 /// The dictionary entry data type, representing a DICOM attribute.
 pub trait DictionaryEntry {
-    /// The full possible tag range of this attribute.
+    /// The full possible tag range of the atribute,
+    /// which this dictionary entry can represent.
     fn tag_range(&self) -> TagRange;
-    /// The attribute single tag.
+    
+    /// Fetch a single tag applicable to this attribute.
+    ///
+    /// Note that this is not necessarily
+    /// the original tag used as key for this entry.
     fn tag(&self) -> Tag {
-        match self.tag_range() {
-            TagRange::Single(tag) => tag,
-            TagRange::Group100(tag) => tag,
-            TagRange::Element100(tag) => tag,
-        }
+        self.tag_range().inner()
     }
     /// The alias of the attribute, with no spaces, usually in UpperCamelCase.
     fn alias(&self) -> &str;
+
     /// The _typical_ value representation of the attribute.
     /// In some edge cases, an element might not have this VR.
     fn vr(&self) -> VR;
