@@ -29,6 +29,26 @@ pub enum Error {
     InvalidNumberToken { value: u8, backtrace: Backtrace },
     #[snafu(display("Invalid time zone sign token: got '{}', but must be '+' or '-'", *value as char))]
     InvalidTimeZoneSignToken { value: u8, backtrace: Backtrace },
+    #[snafu(display("No Range Separator Present"))]
+    NoRangeSeparator { backtrace: Backtrace },
+    #[snafu(display("End {} before Start {}", end, start))]
+    RangeInversion {
+        start: String,
+        end: String,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("Start {} == End {}", start, end))]
+    RangeIsZero {
+        start: String,
+        end: String,
+        backtrace: Backtrace,
+    },
+    /*#[snafu(display("Could not parse DateTime range"))]
+    DTRangeParseError { backtrace: Backtrace },
+    #[snafu(display("Could not parse Time range"))]
+    TMRangeParseError { backtrace: Backtrace },
+    #[snafu(display("Could not parse Date range"))]
+    DARangeParseError { backtrace: Backtrace },*/
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -46,31 +66,31 @@ pub fn parse_date(buf: &[u8]) -> Result<(NaiveDate, &[u8])> {
         }
         6 => {
             let year = read_number(&buf[0..4])?;
-            let month : u32 = read_number(&buf[4..6])?;
+            let month: u32 = read_number(&buf[4..6])?;
             let date: Result<_> =
                 NaiveDate::from_ymd_opt(year, month, 1).context(InvalidDateTimeZone);
             Ok((date?, &buf[6..]))
-        },
+        }
         len => {
             debug_assert!(len >= 8);
             let year = read_number(&buf[0..4])?;
-            let (month, day, rest)  = match buf[4] {
-                /* MM and DD not present, UTC follows*/ 
+            let (month, day, rest) = match buf[4] {
+                /* MM and DD not present, UTC follows*/
                 b'-' | b'+' => (1, 1, &buf[4..]),
                 _ => {
                     /* Attempt to parse MM */
-                    let m : u32 = read_number(&buf[4..6])?;
-                    let (d ,r) = match buf[6] {
+                    let m: u32 = read_number(&buf[4..6])?;
+                    let (d, r) = match buf[6] {
                         /* DD not present, UTC follows */
-                        b'-' | b'+' => (1, &buf[6..]) ,
-                        _ => (read_number(&buf[6..8])?, &buf[8..] ) /* Attempt to parse DD */
+                        b'-' | b'+' => (1, &buf[6..]),
+                        _ => (read_number(&buf[6..8])?, &buf[8..]), /* Attempt to parse DD */
                     };
-                    (m,d,r)
+                    (m, d, r)
                 }
             };
 
-            let date: Result<_> = NaiveDate::from_ymd_opt(year, month, day)
-                .context(InvalidDateTimeZone);
+            let date: Result<_> =
+                NaiveDate::from_ymd_opt(year, month, day).context(InvalidDateTimeZone);
             Ok((date?, rest))
         }
     }
@@ -150,14 +170,11 @@ fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, &[u8])>
                         acc += 1;
                     }
                     (fract, &buf[n..])
-                },
+                }
                 /* no fraction, but UTC offset present, ok only for DT */
-                b'+' | b'-' if for_datetime => {
-                    (0, &buf[6..])
-                },
-                c => return UnexpectedAfterDateToken { value: c }.fail()
+                b'+' | b'-' if for_datetime => (0, &buf[6..]),
+                c => return UnexpectedAfterDateToken { value: c }.fail(),
             };
-
 
             let time =
                 naive_time_from_components(hour as u32, minute as u32, second as u32, fract)?;
@@ -252,10 +269,9 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
     let buf = rest;
     // after YYYY all DT components are optional, fail time parsing gracefully
     // with default values, assume UTC offset can still be present
-    let (time, buf) = parse_time_impl(buf, true).unwrap_or(
-        (naive_time_from_components(0,0,0,0)?,rest)
-    );
-        
+    let (time, buf) =
+        parse_time_impl(buf, true).unwrap_or((naive_time_from_components(0, 0, 0, 0)?, rest));
+
     let len = buf.len();
     let offset = match len {
         0 => {
@@ -268,21 +284,21 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
                 .single()
                 .context(InvalidDateTimeZone);
             return Ok(dt?);
-        },
+        }
         5 => {
             let tz_sign = buf[0];
             let buf = &buf[1..];
             let (h_buf, m_buf) = buf.split_at(2);
-            let tz_h : i32 = read_number(h_buf)?;
-            let tz_m : i32 = read_number(m_buf)?;
+            let tz_h: i32 = read_number(h_buf)?;
+            let tz_m: i32 = read_number(m_buf)?;
             let s = (tz_h * 60 + tz_m) * 60;
             match tz_sign {
                 b'+' => FixedOffset::east(s),
                 b'-' => FixedOffset::west(s),
                 c => return InvalidTimeZoneSignToken { value: c }.fail(),
             }
-        },
-        _ => return UnexpectedEndOfElement.fail()
+        }
+        _ => return UnexpectedEndOfElement.fail(),
     };
 
     offset
@@ -291,9 +307,146 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
         .context(InvalidDateTimeZone)
 }
 
+macro_rules! check_range {
+    ($s: expr, $e: expr) => {
+        if $s == $e {
+            RangeIsZero {
+                start: $s.to_string(),
+                end: $e.to_string(),
+            }
+            .fail()
+        } else if $s < $e {
+            Ok((Some($s), Some($e)))
+        } else {
+            RangeInversion {
+                start: $s.to_string(),
+                end: $e.to_string(),
+            }
+            .fail()
+        }
+    };
+}
+
+/**
+ *  Looks for a range separator '-'.
+ *  Returns a tuple of two Option\<NaiveDate\>
+ *  None means no upper or lower range is present
+ */
+pub fn parse_date_range(buf: &[u8]) -> Result<(Option<NaiveDate>, Option<NaiveDate>)> {
+    // minimum length of one valid Date (YYYY) and one '-' separator
+    if buf.len() < 5 {
+        return UnexpectedEndOfElement.fail();
+    }
+
+    if let Some(separator) = buf.iter().position(|e| *e == b'-') {
+        let (start, end) = buf.split_at(separator);
+        let end = &end[1..];
+        match separator {
+            0 => Ok((None, Some(parse_date(end)?.0))),
+            i if i == buf.len() - 1 => Ok((Some(parse_date(start)?.0), None)),
+            _ => {
+                let (s, e) = (parse_date(start)?.0, parse_date(end)?.0);
+                check_range!(s, e)
+            }
+        }
+    } else {
+        NoRangeSeparator.fail()
+    }
+}
+
+/**
+ *  Looks for a range separator '-'.
+ *  Returns a tuple of two Option\<NaiveTime\>
+ *  None means no upper or lower range is present
+ */
+pub fn parse_time_range(buf: &[u8]) -> Result<(Option<NaiveTime>, Option<NaiveTime>)> {
+    // minimum length of one valid Time (HH) and one '-' separator
+    if buf.len() < 3 {
+        return UnexpectedEndOfElement.fail();
+    }
+
+    if let Some(separator) = buf.iter().position(|e| *e == b'-') {
+        let (start, end) = buf.split_at(separator);
+        let end = &end[1..];
+        match separator {
+            0 => Ok((None, Some(parse_time(end)?.0))),
+            i if i == buf.len() - 1 => Ok((Some(parse_time(start)?.0), None)),
+            _ => {
+                let (s, e) = (parse_time(start)?.0, parse_time(end)?.0);
+                check_range!(s, e)
+            }
+        }
+    } else {
+        NoRangeSeparator.fail()
+    }
+}
+
+/**
+ *  Looks for a range separator '-'.
+ *  Returns a tuple of two Option\<DateTime\>
+ *  None means no upper or lower range is present
+ */
+pub fn parse_datetime_range(
+    buf: &[u8],
+    dt_utc_offset: FixedOffset,
+) -> Result<(Option<DateTime<FixedOffset>>, Option<DateTime<FixedOffset>>)> {
+    // minimum length of one valid DateTime (YYYY) and one '-' separator
+    if buf.len() < 5 {
+        return UnexpectedEndOfElement.fail();
+    }
+
+    if let Some(separator) = buf
+        .iter()
+        .enumerate()
+        .find(|(i, c)| {
+            match **c == b'-' {
+                true => {
+                    match i {
+                        /* empty separator in the beginning */
+                        0 => true,
+                        /* empty separator at the end */
+                        x if *x == buf.len() - 1 => true,
+                        x if *x < buf.len() - 6 => {
+                            match buf[x + 5] {
+                                // separator present in 5 bytes, so assume this is an offset sign
+                                b'-' => false,
+                                _ => true,
+                            }
+                        }
+                        /* for a very short YYYY-YYYY range case */
+                        4 if buf.len() == 9 => true,
+                        _ => false,
+                    }
+                }
+                false => false,
+            }
+        })
+        .map(|(i, _c)| i)
+    {
+        let (start, end) = buf.split_at(separator);
+        let end = &end[1..];
+        match separator {
+            0 => Ok((None, Some(parse_datetime(end, dt_utc_offset)?))),
+            i if i == buf.len() - 1 => Ok((Some(parse_datetime(start, dt_utc_offset)?), None)),
+            _ => {
+                let (s, e) = (
+                    parse_datetime(start, dt_utc_offset)?,
+                    parse_datetime(end, dt_utc_offset)?,
+                );
+                check_range!(s, e)
+            }
+        }
+    } else {
+        NoRangeSeparator.fail()
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{parse_date, parse_datetime, parse_time, parse_time_impl};
+    use super::{
+        parse_date, parse_date_range, parse_datetime, parse_datetime_range, parse_time,
+        parse_time_impl, parse_time_range,
+    };
     use chrono::{FixedOffset, NaiveDate, NaiveTime, TimeZone};
 
     #[test]
@@ -506,20 +659,20 @@ mod tests {
         assert_eq!(
             parse_datetime(b"2014+0535", default_offset).unwrap(),
             FixedOffset::east(5 * 3600 + 35 * 60)
-            .ymd(2014, 1, 1)
-            .and_hms(0, 0, 0)
+                .ymd(2014, 1, 1)
+                .and_hms(0, 0, 0)
         );
         assert_eq!(
             parse_datetime(b"20140505+0535", default_offset).unwrap(),
             FixedOffset::east(5 * 3600 + 35 * 60)
-            .ymd(2014, 5, 5)
-            .and_hms(0, 0, 0)
+                .ymd(2014, 5, 5)
+                .and_hms(0, 0, 0)
         );
         assert_eq!(
             parse_datetime(b"20140505120101.204+0535", default_offset).unwrap(),
             FixedOffset::east(5 * 3600 + 35 * 60)
-            .ymd(2014, 5, 5)
-            .and_hms_micro(12, 1, 1, 204_000)
+                .ymd(2014, 5, 5)
+                .and_hms_micro(12, 1, 1, 204_000)
         );
 
         assert!(parse_datetime(b"", default_offset).is_err());
@@ -539,5 +692,144 @@ mod tests {
         assert!(parse_datetime(b"20171130101010.204+1", default_offset).is_err());
         assert!(parse_datetime(b"20171130101010.204+01", default_offset).is_err());
         assert!(parse_datetime(b"20171130101010.204+011", default_offset).is_err());
+    }
+    #[test]
+    fn test_parse_date_range() {
+        assert!(parse_date_range("1914-".as_bytes()).is_ok());
+        assert!(parse_date_range("-2010".as_bytes()).is_ok());
+
+        assert_eq!(
+            parse_date_range("-201003".as_bytes()).unwrap(),
+            (None, Some(NaiveDate::from_ymd(2010, 3, 1)))
+        );
+        assert_eq!(
+            parse_date_range("20100305-".as_bytes()).unwrap(),
+            (Some(NaiveDate::from_ymd(2010, 3, 5)), None)
+        );
+
+        assert!(parse_date_range("718-".as_bytes()).is_err());
+        assert!(parse_date_range("1914-1900".as_bytes()).is_err());
+        assert!(parse_date_range("19140101-19140101".as_bytes()).is_err());
+    }
+
+    #[test]
+    fn test_parse_time_range() {
+        assert!(parse_time_range("01-".as_bytes()).is_ok());
+        assert!(parse_time_range("010505.1234-".as_bytes()).is_ok());
+
+        assert_eq!(
+            parse_time_range("010505.1234-".as_bytes()).unwrap(),
+            (Some(NaiveTime::from_hms_micro(1, 5, 5, 123400)), None)
+        );
+        assert_eq!(
+            parse_time_range("-010505.12".as_bytes()).unwrap(),
+            (None, Some(NaiveTime::from_hms_micro(1, 5, 5, 120_000)))
+        );
+
+        assert!(parse_time_range("1-".as_bytes()).is_err());
+        assert!(parse_time_range("010505.123+0101-".as_bytes()).is_err());
+        assert!(parse_time_range("1530-1100".as_bytes()).is_err());
+        assert!(parse_time_range("153001-153001".as_bytes()).is_err());
+    }
+
+    #[test]
+    fn test_parse_datetime_range() {
+        let o = FixedOffset::east(0);
+        assert!(parse_datetime_range(
+            "19700101152430.123456-0101-19800101152430.123456-0101".as_bytes(),
+            o
+        )
+        .is_ok());
+        assert!(parse_datetime_range(
+            "19700101152430.123456-19800101152430.123456-0101".as_bytes(),
+            o
+        )
+        .is_ok());
+        assert!(parse_datetime_range("-19800101152430.1234-1040".as_bytes(), o).is_ok());
+        assert!(parse_datetime_range(
+            "19700101152430.1234-1101-19800101152430.123456".as_bytes(),
+            o
+        )
+        .is_ok());
+        assert!(parse_datetime_range("19700101152430.1234-1101-".as_bytes(), o).is_ok());
+        assert!(parse_datetime_range(
+            "19700101152430.123456+0101-19800101152430.123456-0101".as_bytes(),
+            o
+        )
+        .is_ok());
+        assert!(parse_datetime_range(
+            "19700101152430.1234-19800101152430.123456-1040".as_bytes(),
+            o
+        )
+        .is_ok());
+        assert!(parse_datetime_range(
+            "19700101152430.123456+1101-19800101152430.123456".as_bytes(),
+            o
+        )
+        .is_ok());
+        assert!(parse_datetime_range("19700101152430.123456+1101-".as_bytes(), o).is_ok());
+        assert!(parse_datetime_range(
+            "19700101152430.123456-0101-19800101152430.123456+0101".as_bytes(),
+            o
+        )
+        .is_ok());
+        assert!(parse_datetime_range(
+            "19700101152430.123456-19800101152430.123456+1040".as_bytes(),
+            o
+        )
+        .is_ok());
+        assert!(parse_datetime_range("-19800101152430.123+0101".as_bytes(), o).is_ok());
+        assert!(parse_datetime_range("1980-".as_bytes(), o).is_ok());
+        assert!(parse_datetime_range("1980+0100-".as_bytes(), o).is_ok());
+
+        assert_eq!(
+            parse_datetime_range(
+                "19700101152430.123456-0100-19800101152430.123456-0101".as_bytes(),
+                o
+            )
+            .unwrap(),
+            (
+                Some(
+                    FixedOffset::west(3600)
+                        .ymd(1970, 1, 1)
+                        .and_hms_micro(15, 24, 30, 123456)
+                ),
+                Some(
+                    FixedOffset::west(3660)
+                        .ymd(1980, 1, 1)
+                        .and_hms_micro(15, 24, 30, 123456)
+                )
+            )
+        );
+
+        assert_eq!(
+            parse_datetime_range("-19800101152430.123456-0101".as_bytes(), o).unwrap(),
+            (
+                None,
+                Some(
+                    FixedOffset::west(3660)
+                        .ymd(1980, 1, 1)
+                        .and_hms_micro(15, 24, 30, 123456)
+                )
+            )
+        );
+
+        assert_eq!(
+            parse_datetime_range("19700101152430.123456-0100-".as_bytes(), o).unwrap(),
+            (
+                Some(
+                    FixedOffset::west(3600)
+                        .ymd(1970, 1, 1)
+                        .and_hms_micro(15, 24, 30, 123456)
+                ),
+                None
+            )
+        );
+
+        assert!(parse_datetime_range("1970-1970".as_bytes(), o).is_err());
+        assert!(parse_datetime_range("1980-1970".as_bytes(), o).is_err());
+        assert!(parse_datetime_range("bogus-19800101152430.123+0101".as_bytes(), o).is_err());
+        assert!(parse_datetime_range("19700101152430.1234-1101-bogus".as_bytes(), o).is_err());
+        assert!(parse_datetime_range("123-".as_bytes(), o).is_err());
     }
 }
