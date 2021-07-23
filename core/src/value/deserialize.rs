@@ -43,12 +43,6 @@ pub enum Error {
         end: String,
         backtrace: Backtrace,
     },
-    /*#[snafu(display("Could not parse DateTime range"))]
-    DTRangeParseError { backtrace: Backtrace },
-    #[snafu(display("Could not parse Time range"))]
-    TMRangeParseError { backtrace: Backtrace },
-    #[snafu(display("Could not parse Date range"))]
-    DARangeParseError { backtrace: Backtrace },*/
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
