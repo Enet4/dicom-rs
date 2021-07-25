@@ -287,10 +287,10 @@ where
      * the resulting data tokens needs to be consumed
      * if they are of a value type.
      */
-    pub fn next(
+    pub fn advance(
         &mut self,
     ) -> Option<dicom_parser::dataset::lazy_read::Result<LazyDataToken<&mut S>>> {
-        match self.reader.next() {
+        match self.reader.advance() {
             Some(Ok(token)) => {
                 self.builder.update(&token);
                 Some(Ok(token))
@@ -331,7 +331,7 @@ mod tests {
 
         let mut b = DataSetTableBuilder::new();
 
-        while let Some(token) = dataset_reader.next() {
+        while let Some(token) = dataset_reader.advance() {
             let token = token.unwrap();
             b.update(&token);
             token.skip().unwrap();
