@@ -120,11 +120,10 @@ pub struct OpenFileOptions<D, T> {
 pub struct LazyDicomObject<S, D> {
     /// the binary source to fetch DICOM data from
     source: S,
-    /// the element dictionary
+    /// the element dictionary at this level
     entries: BTreeMap<Tag, LazyElement<D>>,
-
+    /// the full record table
     records: DataSetTable,
-
     /// the data element dictionary
     dict: D,
     /// The length of the DICOM object in bytes.
@@ -133,7 +132,7 @@ pub struct LazyDicomObject<S, D> {
     len: Length,
 }
 
-type LazyFileDicomObject<S, D> = FileDicomObject<LazyDicomObject<DynStatefulDecoder<S>, D>>;
+pub type LazyFileDicomObject<S, D> = FileDicomObject<LazyDicomObject<DynStatefulDecoder<S>, D>>;
 
 /*
 impl<S, D> LazyFileDicomObject<S, D> {
@@ -220,7 +219,8 @@ impl<S, D> LazyFileDicomObject<S, D> {
 
 impl<S, D> HasLength for LazyDicomObject<S, D>
 where
-    S: StatefulDecode<Reader = FileSource>,
+    S: StatefulDecode,
+    <S as StatefulDecode>::Reader: ReadSeek,
     D: DataDictionary,
 {
     fn length(&self) -> Length {
@@ -234,18 +234,15 @@ where
 
 impl<S, D> LazyDicomObject<S, D>
 where
-    S: StatefulDecode<Reader = FileSource>,
+    S: StatefulDecode,
+    <S as StatefulDecode>::Reader: ReadSeek,
     D: DataDictionary,
 {
-
-    fn build_primitive_element() {
-
-    }
 
     /// Build an object by consuming a data set parser.
     fn build_object(
         dataset: &mut RecordBuildingDataSetReader<S, D>,
-        entries: &mut BTreeMap<Tag, LazyElement<S, D>>,
+        entries: &mut BTreeMap<Tag, LazyElement<D>>,
         dict: D,
         in_item: bool,
         len: Length,
@@ -253,7 +250,7 @@ where
         let mut pixel_sequence_record = None;
 
         // perform a structured parsing of incoming tokens
-        while let Some(token) = dataset.next() {
+        while let Some(token) = dataset.advance() {
             let token = token.context(ReadToken)?;
 
             let elem = match token {
@@ -263,13 +260,9 @@ where
                 }
                 LazyDataToken::ElementHeader(header) => {
                     // fetch respective value, place it in the entries
-                    let next_token = dataset.next().context(MissingElementValue)?;
+                    let next_token = dataset.advance().context(MissingElementValue)?;
                     match next_token.context(ReadToken)? {
-                        t @ LazyDataToken::LazyValue { header, decoder } => LazyElement {
-                            header,
-                            position: decoder.position(),
-                            value: LazyValue::Unloaded {},
-                        },
+                        t @ LazyDataToken::LazyValue { header, decoder } => LazyElement::new_unloaded(header, decoder.position()),
                         token => {
                             return UnexpectedToken { token }.fail();
                         }
@@ -278,7 +271,8 @@ where
                 LazyDataToken::SequenceStart { tag, len } => {
                     // delegate sequence building to another function
                     let items = Self::build_sequence(tag, len, &mut *dataset, &dict)?;
-                    LazyElement::new(tag, VR::SQ, Value::Sequence { items, size: len })
+                    let position = 0;
+                    LazyElement::new_loaded(DataElementHeader::new(tag, VR::SQ, len), 0, Value::Sequence { items, size: len })
                 }
                 LazyDataToken::ItemEnd if in_item => {
                     // end of item, leave now
@@ -304,7 +298,7 @@ where
 
         let mut fragment_positions = C::new();
 
-        while let Some(token) = dataset.next() {
+        while let Some(token) = dataset.advance() {
             match token.context(ReadToken)? {
                 LazyDataToken::LazyItemValue { len, decoder } => {
                     if offset_table.is_none() {
@@ -361,7 +355,7 @@ where
                 DataToken::ItemStart { len } => {
                     items.push(Self::build_nested_object(
                         &mut *dataset,
-                        dict.clone(),
+                        *dict.clone(),
                         true,
                         len,
                     )?);
@@ -383,14 +377,14 @@ where
         dict: D,
         in_item: bool,
         len: Length,
-    ) -> Result<LazyNestedObject<S, D>> {
-        let mut entries: BTreeMap<Tag, LazyElement<S, D>> = BTreeMap::new();
+    ) -> Result<LazyNestedObject> {
+        let mut entries: BTreeMap<Tag, LazyElement<D>> = BTreeMap::new();
         // perform a structured parsing of incoming tokens
-        while let Some(token) = dataset.next() {
+        while let Some(token) = dataset.advance() {
             let elem = match token.context(ReadToken)? {
                 LazyDataToken::PixelSequenceStart => {
                     let value = LazyDicomObject::build_encapsulated_data(&mut *dataset)?;
-                    LazyElement::new(
+                    LazyElement::new_loaded(
                         DataElementHeader::new(Tag(0x7fe0, 0x0010), VR::OB, todo!()),
                         todo!(),
                         value,
@@ -398,14 +392,14 @@ where
                 }
                 LazyDataToken::ElementHeader(header) => {
                     // fetch respective value, place it in the entries
-                    let next_token = dataset.next().context(MissingElementValue)?;
+                    let next_token = dataset.advance().context(MissingElementValue)?;
                     match next_token.context(ReadToken)? {
                         t @ LazyDataToken::LazyValue { header, decoder } => {
                             // TODO choose whether to eagerly fetch the elemet or keep it unloaded
                             LazyElement {
                                 header,
                                 position: decoder.position(),
-                                value: LazyValue::Unloaded,
+                                value: MaybeValue::Unloaded,
                             }
                         },
                         token => {
@@ -434,80 +428,8 @@ where
     }
 }
 
-
-impl<S, D> LazyElement<S, D>
-where
-    S: StatefulDecode,
-    <S as StatefulDecode>::Reader: Seek,
-{
-    fn new(header: DataElementHeader, position: u64, value: LazyValue<S, D>) -> Self {
-        LazyElement {
-            header,
-            position,
-            value,
-        }
-    }
-
-    /// Ensure that the value is loaded in memory.
-    pub fn load(&mut self, source: &mut S) -> Result<&mut Self> {
-        match &mut self.value {
-            LazyValue::Unloaded => {
-                let value = self.fetch(source)?;
-                self.value = LazyValue::Loaded {
-                    value: Some(value),
-                    dirty: false,
-                };
-                Ok(self)
-            }
-            LazyValue::Loaded { .. } => Ok(self),
-        }
-    }
-
-    /// Retrieve an independent copy of the value from the original source,
-    /// without saving it in the element.
-    fn fetch(&mut self, source: &mut S) -> Result<LoadedValue<S, D>> {
-        source.seek(self.position).context(PositionToValue)?;
-
-        if self.header.is_non_primitive() {
-            todo!("non primitive value retrieval not implemented yet")
-        } else {
-            let prim = source.read_value(&self.header).context(ReadValue)?;
-            Ok(prim.into())
-        }
-    }
-
-    /// Take the copy of the element in memory.
-    ///
-    ///
-    pub fn take(&mut self) -> Option<LoadedValue<S, D>> {
-        match &mut self.value {
-            LazyValue::Loaded { value, .. } => {
-                let out = value.take();
-                self.value = LazyValue::Unloaded;
-                out
-            }
-            LazyValue::Unloaded { .. } => return None,
-        }
-    }
-}
-
-impl<S, D> LazyValue<S, D> {
-    fn inner(&self) -> Option<&LoadedValue<S, D>> {
-        match self {
-            LazyValue::Loaded { value, .. } => value.as_ref(),
-            LazyValue::Unloaded => None,
-        }
-    }
-
-    fn inner_mut(&mut self) -> Option<&mut LoadedValue<S, D>> {
-        match self {
-            LazyValue::Loaded { value, .. } => value.as_mut(),
-            LazyValue::Unloaded => None,
-        }
-    }
-}
-
 */
+
 #[cfg(test)]
 mod tests {
 
