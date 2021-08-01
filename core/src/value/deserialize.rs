@@ -31,16 +31,10 @@ pub enum Error {
     InvalidNumberToken { value: u8, backtrace: Backtrace },
     #[snafu(display("Invalid time zone sign token: got '{}', but must be '+' or '-'", *value as char))]
     InvalidTimeZoneSignToken { value: u8, backtrace: Backtrace },
-    #[snafu(display("No Range Separator Present"))]
+    #[snafu(display("No Range Separator present"))]
     NoRangeSeparator { backtrace: Backtrace },
-    #[snafu(display("End {} before Start {}", end, start))]
+    #[snafu(display("End {} is before Start {}", end, start))]
     RangeInversion {
-        start: String,
-        end: String,
-        backtrace: Backtrace,
-    },
-    #[snafu(display("Start {} == End {}", start, end))]
-    RangeIsZero {
         start: String,
         end: String,
         backtrace: Backtrace,
@@ -307,20 +301,14 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
 
 macro_rules! check_range {
     ($s: expr, $e: expr) => {
-        if $s == $e {
-            RangeIsZero {
-                start: $s.to_string(),
-                end: $e.to_string(),
-            }
-            .fail()
-        } else if $s < $e {
-            Ok((Some($s), Some($e)))
-        } else {
+        if $s > $e {
             RangeInversion {
                 start: $s.to_string(),
                 end: $e.to_string(),
             }
             .fail()
+        } else {
+            Ok((Some($s), Some($e)))
         }
     };
 }
@@ -712,6 +700,14 @@ mod tests {
             (Some(NaiveDate::from_ymd(2010, 3, 5)), None)
         );
 
+        assert_eq!(
+            parse_date_range("19140101-19140101".as_bytes()).unwrap(),
+            (
+                Some(NaiveDate::from_ymd(1914, 1, 1)),
+                Some(NaiveDate::from_ymd(1914, 1, 1))
+            )
+        );
+
         assert!(matches!(
             parse_date_range("718-".as_bytes()),
             Err(Error::UnexpectedEndOfElement { backtrace: _b })
@@ -722,11 +718,6 @@ mod tests {
             Err(Error::RangeInversion { start: s, end: e, backtrace: _b }) if
              s == "1914-01-01" &&
              e == "1900-01-01" ));
-
-        assert!(matches!(
-            parse_date_range("19140101-19140101".as_bytes()),
-            Err(Error::RangeIsZero { start: s, end: _e, backtrace: _b }) if
-             s == "1914-01-01" ));
     }
 
     #[test]
@@ -759,6 +750,14 @@ mod tests {
             )
         );
 
+        assert_eq!(
+            parse_time_range("153021-153021".as_bytes()).unwrap(),
+            (
+                Some(NaiveTime::from_hms_micro(15, 30, 21, 0)),
+                Some(NaiveTime::from_hms_micro(15, 30, 21, 0))
+            )
+        );
+
         assert!(matches!(
             parse_time_range("1-".as_bytes()),
             Err(Error::UnexpectedEndOfElement { backtrace: _b })
@@ -773,11 +772,6 @@ mod tests {
             Err(Error::RangeInversion { start: s, end: e, backtrace: _b }) if
              s == "15:30:00" &&
              e == "11:00:00" ));
-
-        assert!(matches!(
-            parse_time_range("153021-153021".as_bytes()),
-            Err(Error::RangeIsZero { start: s, end: _e, backtrace: _b }) if
-             s == "15:30:21" ));
     }
 
     #[test]
@@ -944,6 +938,22 @@ mod tests {
             )
         );
 
+        assert_eq!(
+            parse_datetime_range("1970-1970".as_bytes(), o).unwrap(),
+            (
+                Some(
+                    FixedOffset::east(0)
+                        .ymd(1970, 1, 1)
+                        .and_hms_micro(0, 0, 0, 0)
+                ),
+                Some(
+                    FixedOffset::east(0)
+                        .ymd(1970, 1, 1)
+                        .and_hms_micro(0, 0, 0, 0)
+                )
+            )
+        );
+
         assert!(matches!(
             parse_datetime_range("19700101152430.123456-0101".as_bytes(), o),
             Err(Error::RangeInversion { start: s, end: e, backtrace: _b }) if
@@ -958,9 +968,6 @@ mod tests {
             parse_datetime_range("999-X".as_bytes(), o),
             Err(Error::NoRangeSeparator { backtrace: _b })
         ));
-        assert!(matches!(
-                parse_datetime_range("1970-1970".as_bytes(), o),
-            Err(Error::RangeIsZero { start: s, end: _e, backtrace: _b }) if s == "1970-01-01 00:00:00 +00:00"));
         assert!(matches!(
             parse_datetime_range("1980-1970".as_bytes(), o),
             Err(Error::RangeInversion { start: s, end: e, backtrace: _b }) if
