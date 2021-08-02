@@ -34,7 +34,7 @@
 //! # fn main() -> Result<(), Box<dyn Error>> {
 //! let obj = open_file("dicom.dcm")?;
 //! let image = obj.decode_pixel_data()?;
-//! let dynamic_image = image.to_dynamic_image()?;
+//! let dynamic_image = image.to_dynamic_image(0)?;
 //! dynamic_image.save("out.png")?;
 //! # Ok(())
 //! # }
@@ -57,10 +57,13 @@
 
 use byteorder::{ByteOrder, NativeEndian};
 use dicom_core::{value::Value, DataDictionary};
+use dicom_encoding::adapters::DecodeError;
+use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
+use dicom_encoding::Codec;
 use dicom_object::{FileDicomObject, InMemDicomObject};
+use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use image::{DynamicImage, ImageBuffer, Luma, Rgb};
 use ndarray::{Array, IxDyn};
-use ndarray_stats::QuantileExt;
 use num_traits::NumCast;
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
@@ -122,6 +125,12 @@ pub enum Error {
 
     #[snafu(display("Unsupported color space"))]
     UnsupportedColorSpace,
+
+    #[snafu(display("Pixel data decode error"))]
+    PixelDecodeError { source: DecodeError },
+
+    #[snafu(display("Frame out of range error"))]
+    FrameOutOfRangeError,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -131,69 +140,131 @@ pub struct DecodedPixelData<'a> {
     pub data: Cow<'a, [u8]>,
     pub rows: u32,
     pub cols: u32,
+    pub number_of_frames: u16,
     pub photometric_interpretation: String,
     pub samples_per_pixel: u16,
     pub bits_allocated: u16,
     pub bits_stored: u16,
     pub high_bit: u16,
     pub pixel_representation: u16,
+    // Enhanced MR Images are not yet supported having
+    // a RescaleSlope/RescaleIntercept Per-Frame Functional Group
     pub rescale_intercept: i16,
     pub rescale_slope: f32,
 }
 
 impl DecodedPixelData<'_> {
-    /// Convert decoded pixel data into a DynamicImage.
+    /// Convert decoded pixel data for a specific frame into a DynamicImage.
     /// A new <u8> or <u16> vector is created in memory
     /// with normalized grayscale values after applying Modality LUT.
-    pub fn to_dynamic_image(&self) -> Result<DynamicImage> {
+    pub fn to_dynamic_image(&self, frame: u16) -> Result<DynamicImage> {
         match self.samples_per_pixel {
             1 => {
-                let mut pixel_array = self.to_ndarray::<f64>()?;
-                // Only Monochrome images can have a Modality LUT
-                pixel_array.mapv_inplace(|v| {
-                    (v * self.rescale_slope as f64) + self.rescale_intercept as f64
-                });
-
-                // TODO(#122): Apply VOI LUT
-
-                // Normalize to u16
-                let min = pixel_array.min().unwrap();
-                let max = pixel_array.max().unwrap();
-                let mut pixel_array =
-                    pixel_array.map(|v| (u16::MAX as f64 * (v - *min) / (*max - *min)) as u16);
-
-                // Convert MONOCHROME1 to MONOCHROME2 if needed
+                let mut image = match self.bits_allocated {
+                    8 => {
+                        let frame_length = self.rows as usize
+                            * self.cols as usize
+                            * self.samples_per_pixel as usize;
+                        let frame_start = frame_length * frame as usize;
+                        let frame_end = frame_start + frame_length;
+                        if frame_end > (*self.data).len() {
+                            FrameOutOfRangeError.fail()?
+                        }
+                        let buffer: Vec<u8> =
+                            (&self.data[(frame_start as usize..frame_end as usize)]).to_vec();
+                        let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
+                            ImageBuffer::from_raw(self.cols, self.rows, buffer)
+                                .context(InvalidImageBuffer)?;
+                        DynamicImage::ImageLuma8(image_buffer)
+                    }
+                    16 => {
+                        let frame_length = self.rows as usize
+                            * self.cols as usize
+                            * 2
+                            * self.samples_per_pixel as usize;
+                        let frame_start = frame_length * frame as usize;
+                        let frame_end = frame_start + frame_length;
+                        if frame_end > (*self.data).len() {
+                            FrameOutOfRangeError.fail()?
+                        }
+                        let mut buffer = vec![0; frame_length / 2];
+                        match self.pixel_representation {
+                            // Unsigned 16-bit representation
+                            0 => {
+                                NativeEndian::read_u16_into(
+                                    &self.data[frame_start..frame_end],
+                                    &mut buffer,
+                                );
+                            }
+                            // Signed 16-bit representation
+                            1 => {
+                                let mut signed_buffer = vec![0; frame_length / 2];
+                                NativeEndian::read_i16_into(
+                                    &self.data[frame_start..frame_end],
+                                    &mut signed_buffer,
+                                );
+                                // Convert buffer to unsigned
+                                buffer = normalize_i16_to_u16(&signed_buffer);
+                            }
+                            _ => InvalidPixelRepresentation.fail()?,
+                        };
+                        let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
+                            ImageBuffer::from_raw(self.cols, self.rows, buffer)
+                                .context(InvalidImageBuffer)?;
+                        DynamicImage::ImageLuma16(image_buffer)
+                    }
+                    _ => InvalidBitsAllocated.fail()?,
+                };
+                // Convert MONOCHROME1 => MONOCHROME2
                 if self.photometric_interpretation == "MONOCHROME1" {
-                    pixel_array.mapv_inplace(|v| u16::MAX - v);
+                    image.invert();
                 }
-
-                let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
-                    ImageBuffer::from_raw(self.cols, self.rows, pixel_array.into_raw_vec())
-                        .context(InvalidImageBuffer)?;
-                Ok(DynamicImage::ImageLuma16(image_buffer))
+                Ok(image)
             }
             3 => {
                 // RGB, YBR_FULL or YBR_FULL_422 colors
                 match self.bits_allocated {
                     8 => {
+                        let frame_length = self.rows as usize
+                            * self.cols as usize
+                            * self.samples_per_pixel as usize;
+                        let frame_start = frame_length * frame as usize;
+                        let frame_end = frame_start + frame_length;
+                        if frame_end > (*self.data).len() {
+                            FrameOutOfRangeError.fail()?
+                        }
+                        let mut pixel_array: Vec<u8> =
+                            (&self.data[(frame_start as usize..frame_end as usize)]).to_vec();
+
                         // Convert YBR_FULL or YBR_FULL_422 to RGB
                         let pixel_array = match self.photometric_interpretation.as_str() {
-                            "RGB" => self.data.to_vec(),
+                            "RGB" => pixel_array,
                             "YBR_FULL" | "YBR_FULL_422" => {
-                                let mut pixel_array = self.data.to_vec();
                                 convert_colorspace_u8(&mut pixel_array);
                                 pixel_array
                             }
                             _ => UnsupportedColorSpace.fail()?,
                         };
+
                         let image_buffer: ImageBuffer<Rgb<u8>, Vec<u8>> =
                             ImageBuffer::from_raw(self.cols, self.rows, pixel_array)
                                 .context(InvalidImageBuffer)?;
                         Ok(DynamicImage::ImageRgb8(image_buffer))
                     }
                     16 => {
-                        let mut pixel_array = vec![0; self.data.len() / 2];
-                        NativeEndian::read_u16_into(&self.data, &mut pixel_array);
+                        let frame_length = self.rows as usize
+                            * self.cols as usize
+                            * 2
+                            * self.samples_per_pixel as usize;
+                        let frame_start = frame_length * frame as usize;
+                        let frame_end = frame_start + frame_length;
+                        if frame_end > (*self.data).len() {
+                            FrameOutOfRangeError.fail()?
+                        }
+                        let buffer: Vec<u8> =
+                            (&self.data[(frame_start as usize..frame_end as usize)]).to_vec();
+                        let mut pixel_array: Vec<u16> = vec![0; (frame_length / 2) as usize];
+                        NativeEndian::read_u16_into(&buffer, &mut pixel_array);
 
                         // Convert YBR_FULL or YBR_FULL_422 to RGB
                         let pixel_array = match self.photometric_interpretation.as_str() {
@@ -204,6 +275,7 @@ impl DecodedPixelData<'_> {
                             }
                             _ => UnsupportedColorSpace.fail()?,
                         };
+
                         let image_buffer: ImageBuffer<Rgb<u16>, Vec<u16>> =
                             ImageBuffer::from_raw(self.cols, self.rows, pixel_array)
                                 .context(InvalidImageBuffer)?;
@@ -224,8 +296,9 @@ impl DecodedPixelData<'_> {
         T: NumCast,
         T: Send,
     {
-        // Array size is Rows x Cols x SamplesPerPixel (1 for grayscale, 3 for RGB)
+        // Array size is NumberOfFrames x Rows x Cols x SamplesPerPixel (1 for grayscale, 3 for RGB)
         let shape = IxDyn(&[
+            self.number_of_frames as usize,
             self.rows as usize,
             self.cols as usize,
             self.samples_per_pixel as usize,
@@ -329,6 +402,15 @@ fn convert_colorspace_u16(i: &mut Vec<u16>) {
     });
 }
 
+// Noramlize i16 vector using min/max normalization
+fn normalize_i16_to_u16(i: &Vec<i16>) -> Vec<u16> {
+    let min = *i.iter().min().unwrap() as f64;
+    let max = *i.iter().max().unwrap() as f64;
+    i.par_iter()
+        .map(|p| (u16::MAX as f64 * (*p as f64 - min) / (max - min)) as u16)
+        .collect()
+}
+
 // Apply the Modality rescale operation to the input array and return a Vec<f64> containing transformed pixel data.
 // An InvalidDataType error is returned when T cannot be represented as f64
 pub fn apply_modality_lut<T>(
@@ -376,25 +458,45 @@ where
         let pixel_representation = pixel_representation(self)?;
         let rescale_intercept = rescale_intercept(self);
         let rescale_slope = rescale_slope(self);
+        let number_of_frames = number_of_frames(self);
+
+        let transfer_syntax = &self.meta().transfer_syntax;
+        let registry = TransferSyntaxRegistry.get(&&transfer_syntax).unwrap();
+
+        // Try decoding it using a native Rust decoder
+        if let Codec::PixelData(decoder) = registry.codec() {
+            let mut data: Vec<u8> = Vec::new();
+            (*decoder)
+                .decode(self, &mut data)
+                .context(PixelDecodeError)?;
+
+            return Ok(DecodedPixelData {
+                data: Cow::from(data),
+                cols: cols.into(),
+                rows: rows.into(),
+                number_of_frames,
+                photometric_interpretation,
+                samples_per_pixel,
+                bits_allocated,
+                bits_stored,
+                high_bit,
+                pixel_representation,
+                rescale_intercept,
+                rescale_slope,
+            });
+        }
 
         let decoded_pixel_data = match pixel_data.value() {
             Value::PixelSequence {
                 fragments,
                 offset_table: _,
             } => {
-                if fragments.len() > 1 {
-                    // Bundle fragments and decode multi-frame dicoms
-                    UnsupportedMultiFrame.fail()?
-                }
-                fragments[0].to_vec()
+                // Return all fragments concatenated
+                fragments.into_iter().flatten().copied().collect()
             }
             Value::Primitive(p) => {
-                // Non-encoded, just return the pixel data of the first frame
-                let total_bytes = rows as usize
-                    * cols as usize
-                    * samples_per_pixel as usize
-                    * (bits_allocated as usize / 8);
-                p.to_bytes()[0..total_bytes].to_vec()
+                // Non-encoded, just return the pixel data for all frames
+                p.to_bytes().to_vec()
             }
             Value::Sequence { items: _, size: _ } => InvalidPixelData.fail()?,
         };
@@ -403,6 +505,7 @@ where
             data: Cow::from(decoded_pixel_data),
             cols: cols.into(),
             rows: rows.into(),
+            number_of_frames,
             photometric_interpretation,
             samples_per_pixel,
             bits_allocated,
@@ -506,15 +609,22 @@ fn rescale_slope<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObje
         .unwrap_or(1.0)
 }
 
+/// Get the NumberOfFrames of the Dicom or returns 1
+fn number_of_frames<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> u16 {
+    obj.element(dicom_dictionary_std::tags::NUMBER_OF_FRAMES)
+        .map_or(Ok(1), |e| e.to_int())
+        .unwrap_or(1)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use dicom_object::open_file;
     use dicom_test_files;
 
-    #[cfg(not(feature = "gdcm"))]
+    #[cfg(feature = "gdcm")]
     use rstest::rstest;
-    #[cfg(not(feature = "gdcm"))]
+    #[cfg(feature = "gdcm")]
     #[rstest(value => [
          "pydicom/693_UNCI.dcm",
          "pydicom/693_UNCR.dcm",
@@ -536,7 +646,11 @@ mod tests {
         let test_file = dicom_test_files::path(value).unwrap();
         println!("Parsing pixel data for {:?}", test_file);
         let obj = open_file(test_file).unwrap();
-        let image = obj.decode_pixel_data().unwrap().to_dynamic_image().unwrap();
+        let image = obj
+            .decode_pixel_data()
+            .unwrap()
+            .to_dynamic_image(0)
+            .unwrap();
         image
             .save(format!(
                 "../target/dicom_test_files/pydicom/{}.png",
@@ -554,9 +668,9 @@ mod tests {
             .unwrap()
             .to_ndarray::<u16>()
             .unwrap();
-        assert_eq!(ndarray.shape(), &[100, 100, 3]);
+        assert_eq!(ndarray.shape(), &[1, 100, 100, 3]);
         assert_eq!(ndarray.len(), 30000);
-        assert_eq!(ndarray[[50, 80, 1]], 32896);
+        assert_eq!(ndarray[[0, 50, 80, 1]], 32896);
     }
 
     #[test]
@@ -594,5 +708,133 @@ mod tests {
         let obj = open_file(test_file).unwrap();
         let pixel_data = obj.decode_pixel_data().unwrap();
         assert_eq!(pixel_data.rescale_slope, 1.0);
+    }
+
+    #[cfg(not(feature = "gdcm"))]
+    #[test]
+    fn test_native_decoding_pixel_data_rle_8bit_1frame() {
+        let path =
+            dicom_test_files::path("pydicom/SC_rgb_rle.dcm").expect("test DICOM file should exist");
+        let object = open_file(&path).unwrap();
+        let ndarray = object
+            .decode_pixel_data()
+            .unwrap()
+            .to_ndarray::<u8>()
+            .unwrap();
+        // Validated using Numpy
+        // This doesn't reshape the array based on the PlanarConfiguration
+        // So for this scan the pixel layout is [Rlsb..Rmsb, Glsb..Gmsb, Blsb..msb]
+        assert_eq!(ndarray.shape(), &[1, 100, 100, 3]);
+        assert_eq!(ndarray.len(), 30000);
+        assert_eq!(ndarray[[0, 0, 0, 0]], 255);
+        assert_eq!(ndarray[[0, 0, 0, 1]], 255);
+        assert_eq!(ndarray[[0, 0, 0, 2]], 255);
+        assert_eq!(ndarray[[0, 50, 50, 0]], 128);
+        assert_eq!(ndarray[[0, 50, 50, 1]], 128);
+        assert_eq!(ndarray[[0, 50, 50, 2]], 128);
+        assert_eq!(ndarray[[0, 75, 75, 0]], 0);
+        assert_eq!(ndarray[[0, 75, 75, 1]], 0);
+        assert_eq!(ndarray[[0, 75, 75, 2]], 0);
+    }
+
+    #[cfg(not(feature = "gdcm"))]
+    #[test]
+    fn test_native_decoding_pixel_data_rle_8bit_2frame() {
+        let path = dicom_test_files::path("pydicom/SC_rgb_rle_2frame.dcm")
+            .expect("test DICOM file should exist");
+        let object = open_file(&path).unwrap();
+        let ndarray = object
+            .decode_pixel_data()
+            .unwrap()
+            .to_ndarray::<u8>()
+            .unwrap();
+        // Validated using Numpy
+        // This doesn't reshape the array based on the PlanarConfiguration
+        // So for this scan the pixel layout is [Rlsb..Rmsb, Glsb..Gmsb, Blsb..msb]
+        assert_eq!(ndarray.shape(), &[2, 100, 100, 3]);
+        assert_eq!(ndarray.len(), 60000);
+        // The second frame is the inverse of the first frame
+        assert_eq!(ndarray[[1, 0, 0, 0]], 0);
+        assert_eq!(ndarray[[1, 0, 0, 1]], 0);
+        assert_eq!(ndarray[[1, 0, 0, 2]], 0);
+        assert_eq!(ndarray[[1, 50, 50, 0]], 127);
+        assert_eq!(ndarray[[1, 50, 50, 1]], 127);
+        assert_eq!(ndarray[[1, 50, 50, 2]], 127);
+        assert_eq!(ndarray[[1, 75, 75, 0]], 255);
+        assert_eq!(ndarray[[1, 75, 75, 1]], 255);
+        assert_eq!(ndarray[[1, 75, 75, 2]], 255);
+    }
+
+    #[cfg(not(feature = "gdcm"))]
+    #[test]
+    fn test_native_decoding_pixel_data_rle_16bit_1frame() {
+        let path = dicom_test_files::path("pydicom/SC_rgb_rle_16bit.dcm")
+            .expect("test DICOM file should exist");
+        let object = open_file(&path).unwrap();
+        let ndarray = object
+            .decode_pixel_data()
+            .unwrap()
+            .to_ndarray::<u16>()
+            .unwrap();
+        // Validated using Numpy
+        // This doesn't reshape the array based on the PlanarConfiguration
+        // So for this scan the pixel layout is [Rlsb..Rmsb, Glsb..Gmsb, Blsb..msb]
+        assert_eq!(ndarray.shape(), &[1, 100, 100, 3]);
+        assert_eq!(ndarray.len(), 30000);
+        assert_eq!(ndarray[[0, 0, 0, 0]], 65535);
+        assert_eq!(ndarray[[0, 0, 0, 1]], 65535);
+        assert_eq!(ndarray[[0, 0, 0, 2]], 65535);
+        assert_eq!(ndarray[[0, 50, 50, 0]], 32896);
+        assert_eq!(ndarray[[0, 50, 50, 1]], 32896);
+        assert_eq!(ndarray[[0, 50, 50, 2]], 32896);
+        assert_eq!(ndarray[[0, 75, 75, 0]], 0);
+        assert_eq!(ndarray[[0, 75, 75, 1]], 0);
+        assert_eq!(ndarray[[0, 75, 75, 2]], 0);
+    }
+
+    #[cfg(not(feature = "gdcm"))]
+    #[test]
+    fn test_native_decoding_pixel_data_rle_16bit_2frame() {
+        let path = dicom_test_files::path("pydicom/SC_rgb_rle_16bit_2frame.dcm")
+            .expect("test DICOM file should exist");
+        let object = open_file(&path).unwrap();
+        let ndarray = object
+            .decode_pixel_data()
+            .unwrap()
+            .to_ndarray::<u16>()
+            .unwrap();
+        // Validated using Numpy
+        // This doesn't reshape the array based on the PlanarConfiguration
+        // So for this scan the pixel layout is [Rlsb..Rmsb, Glsb..Gmsb, Blsb..msb]
+        assert_eq!(ndarray.shape(), &[2, 100, 100, 3]);
+        assert_eq!(ndarray.len(), 60000);
+        // The second frame is the inverse of the first frame
+        assert_eq!(ndarray[[1, 0, 0, 0]], 0);
+        assert_eq!(ndarray[[1, 0, 0, 1]], 0);
+        assert_eq!(ndarray[[1, 0, 0, 2]], 0);
+        assert_eq!(ndarray[[1, 50, 50, 0]], 32639);
+        assert_eq!(ndarray[[1, 50, 50, 1]], 32639);
+        assert_eq!(ndarray[[1, 50, 50, 2]], 32639);
+        assert_eq!(ndarray[[1, 75, 75, 0]], 65535);
+        assert_eq!(ndarray[[1, 75, 75, 1]], 65535);
+        assert_eq!(ndarray[[1, 75, 75, 2]], 65535);
+    }
+
+    #[test]
+    fn test_frame_out_of_range() {
+        let path =
+            dicom_test_files::path("pydicom/CT_small.dcm").expect("test DICOM file should exist");
+        let image = open_file(&path).unwrap();
+        // Only one frame in this test dicom
+        image
+            .decode_pixel_data()
+            .unwrap()
+            .to_dynamic_image(0)
+            .unwrap();
+        let result = image.decode_pixel_data().unwrap().to_dynamic_image(1);
+        match result {
+            Err(Error::FrameOutOfRangeError) => {}
+            _ => panic!("Cannot index frame that is out of range"),
+        }
     }
 }

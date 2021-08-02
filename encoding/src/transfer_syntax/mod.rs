@@ -28,6 +28,7 @@ pub mod explicit_le;
 )]
 pub mod implicit_le;
 
+use crate::adapters::{DynPixelRWAdapter, NeverPixelAdapter, PixelRWAdapter};
 use crate::decode::basic::BasicDecoder;
 use crate::decode::DecodeFrom;
 use crate::encode::{EncodeTo, EncoderFor};
@@ -44,7 +45,7 @@ pub type DynEncoder<'w, W> = Box<dyn EncodeTo<W> + 'w>;
 /// A DICOM transfer syntax specifier. The data RW adapter `A` specifies
 /// custom codec capabilities when required.
 #[derive(Debug)]
-pub struct TransferSyntax<A = DynDataRWAdapter> {
+pub struct TransferSyntax<A = DynDataRWAdapter, B = DynPixelRWAdapter> {
     /// The unique identifier of the transfer syntax.
     uid: &'static str,
     /// The name of the transfer syntax.
@@ -55,7 +56,7 @@ pub struct TransferSyntax<A = DynDataRWAdapter> {
     /// or the VR is implicit.
     explicit_vr: bool,
     /// The transfer syntax' requirements and implemented capabilities.
-    codec: Codec<A>,
+    codec: Codec<A, B>,
 }
 
 #[cfg(feature = "inventory-registry")]
@@ -124,7 +125,7 @@ macro_rules! submit_transfer_syntax {
 /// This is also used as a means to describe whether pixel data is encapsulated
 /// and whether this implementation supports it.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Codec<A> {
+pub enum Codec<A, B> {
     /// No codec is given, nor is it required.
     None,
     /// Custom encoding and decoding of the entire data set is required, but
@@ -137,14 +138,14 @@ pub enum Codec<A> {
     EncapsulatedPixelData,
     /// A pixel data encapsulation codec is required and provided for reading
     /// and writing pixel data.
-    PixelData(A),
+    PixelData(B),
     /// A full, custom data set codec is required and provided.
     Dataset(A),
 }
 
 /// An alias for a transfer syntax specifier with no pixel data encapsulation
 /// nor data set deflating.
-pub type AdapterFreeTransferSyntax = TransferSyntax<NeverAdapter>;
+pub type AdapterFreeTransferSyntax = TransferSyntax<NeverAdapter, NeverPixelAdapter>;
 
 /// An adapter of byte read and write streams.
 pub trait DataRWAdapter<R, W> {
@@ -227,7 +228,7 @@ impl<R, W> DataRWAdapter<R, W> for NeverAdapter {
     }
 }
 
-impl<A> TransferSyntax<A> {
+impl<A, B> TransferSyntax<A, B> {
     /** Create a new transfer syntax descriptor.
      *
      * Note that only transfer syntax implementors are expected to construct
@@ -239,7 +240,7 @@ impl<A> TransferSyntax<A> {
         name: &'static str,
         byte_order: Endianness,
         explicit_vr: bool,
-        codec: Codec<A>,
+        codec: Codec<A, B>,
     ) -> Self {
         TransferSyntax {
             uid,
@@ -266,7 +267,7 @@ impl<A> TransferSyntax<A> {
     }
 
     /// Obtain this transfer syntax' codec specification.
-    pub fn codec(&self) -> &Codec<A> {
+    pub fn codec(&self) -> &Codec<A, B> {
         &self.codec
     }
 
@@ -384,10 +385,12 @@ impl<A> TransferSyntax<A> {
             Reader = Box<dyn Read>,
             Writer = Box<dyn Write>,
         >,
+        B: Send + Sync + 'static,
+        B: PixelRWAdapter,
     {
         let codec = match self.codec {
             Codec::Dataset(a) => Codec::Dataset(Box::new(a) as DynDataRWAdapter),
-            Codec::PixelData(a) => Codec::PixelData(Box::new(a) as DynDataRWAdapter),
+            Codec::PixelData(b) => Codec::PixelData(Box::new(b) as DynPixelRWAdapter),
             Codec::EncapsulatedPixelData => Codec::EncapsulatedPixelData,
             Codec::Unsupported => Codec::Unsupported,
             Codec::None => Codec::None,

@@ -19,7 +19,11 @@
 
 use crate::create_ts_stub;
 use byteordered::Endianness;
-use dicom_encoding::transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec};
+use dicom_encoding::{
+    adapters::rle_lossless::RLELosslessAdapter,
+    transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec, NeverAdapter},
+    TransferSyntax,
+};
 
 // -- the three base transfer syntaxes, fully supported --
 
@@ -162,7 +166,13 @@ pub const HEVC_H265_MAIN_10_PROFILE: Ts = create_ts_stub(
     "HEVC/H.265 Main 10 Profile / Level 5.1",
 );
 /// **Stub descriptor:** RLE Lossless
-pub const RLE_LOSSLESS: Ts = create_ts_stub("1.2.840.10008.1.2.5", "RLE Lossless");
+pub const RLE_LOSSLESS: TransferSyntax<NeverAdapter, RLELosslessAdapter> = TransferSyntax::new(
+    "1.2.840.10008.1.2.5",
+    "RLE Lossless",
+    Endianness::Little,
+    true,
+    Codec::PixelData(RLELosslessAdapter {}),
+);
 /// **Stub descriptor:** SMPTE ST 2110-20 Uncompressed Progressive Active Video
 pub const SMPTE_ST_2110_20_UNCOMPRESSED_PROGRESSIVE: Ts = create_ts_stub(
     "1.2.840.10008.1.2.7.1",
