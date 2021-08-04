@@ -31,9 +31,9 @@ pub enum Error {
     InvalidNumberToken { value: u8, backtrace: Backtrace },
     #[snafu(display("Invalid time zone sign token: got '{}', but must be '+' or '-'", *value as char))]
     InvalidTimeZoneSignToken { value: u8, backtrace: Backtrace },
-    #[snafu(display("No Range Separator present"))]
+    #[snafu(display("No range separator present"))]
     NoRangeSeparator { backtrace: Backtrace },
-    #[snafu(display("End {} is before Start {}", end, start))]
+    #[snafu(display("End {} is before start {}", end, start))]
     RangeInversion {
         start: String,
         end: String,
