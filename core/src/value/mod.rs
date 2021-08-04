@@ -46,8 +46,8 @@ pub trait DicomValueType: HasLength {
 ///
 /// `I` is the complex type for nest data set items, which should usually
 /// implement [`HasLength`].
-/// `P` is the encapsulated pixel data provider, which should usually
-/// implement `AsRef<[u8]>`.
+/// `P` is the encapsulated pixel data fragment type,
+/// which should usually implement `AsRef<[u8]>`.
 ///
 /// [`HasLength`]: ../header/trait.HasLength.html
 #[derive(Debug, Clone, PartialEq)]

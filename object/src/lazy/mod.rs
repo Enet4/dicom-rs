@@ -96,11 +96,18 @@ pub enum Error {
     PositionToValue { source: StatefulDecodeError },
     /// Could not read value from data source
     ReadValue { source: StatefulDecodeError },
+    /// Could not read fragment from data source
+    ReadFragment { source: StatefulDecodeError },
     /// Could not read pixel data offset table
     ReadOffsetTable { source: StatefulDecodeError },
     #[snafu(display("Unexpected token {:?}", token))]
     UnexpectedToken {
         token: dicom_parser::dataset::LazyDataTokenRepr,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("Pixel data fragment #{} was expected to be loaded, but was not", index))]
+    UnloadedFragment {
+        index: u32,
         backtrace: Backtrace,
     },
     /// Premature data set end

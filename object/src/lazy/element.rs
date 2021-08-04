@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 
-use super::{PositionToValue as PositionToValueSnafu, ReadValue as ReadValueSnafu};
+use super::{PositionToValue as PositionToValueSnafu, ReadValue as ReadValueSnafu, ReadFragment as ReadFragmentSnafu, UnloadedFragment as UnloadedFragmentSnafu};
 use dicom_core::{DataDictionary, DataElementHeader, DicomValue, Length, Tag, header::HasLength};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_parser::StatefulDecode;
-use snafu::ResultExt;
+use snafu::{OptionExt, ResultExt};
+use smallvec::SmallVec;
 
 use crate::{
     mem::{InMemElement, InMemFragment},
@@ -59,8 +60,21 @@ where
         S: StatefulDecode,
         <S as StatefulDecode>::Reader: ReadSeek,
     {
-        match self.value {
+        match &mut self.value {
             MaybeValue::Loaded { .. } => Ok(()),
+            MaybeValue::PixelSequence { fragments, .. } => {
+                // load each fragment individually
+                for fragment in fragments {
+                    if fragment.data.is_some() {
+                        continue;
+                    }
+                    source.seek(fragment.position).context(PositionToValueSnafu)?;
+                    let mut data = Vec::with_capacity(fragment.length as usize);
+                    source.read_to_vec(fragment.length, &mut data).context(ReadFragmentSnafu)?;
+                    fragment.data = Some(data);
+                }
+                Ok(())
+            },
             MaybeValue::Unloaded => {
                 source.seek(self.position).context(PositionToValueSnafu)?;
                 let value = source
@@ -96,7 +110,26 @@ where
 ///
 #[derive(Debug, Clone)]
 pub enum MaybeValue<D = StandardDataDictionary> {
-    Loaded { value: LoadedValue<D>, dirty: bool },
+    /// A DICOM value that is at least partially loaded in memory.
+    ///
+    ///
+    /// Its nested DICOM data sets or fragments might not be all loaded
+    /// in the case of sequences.
+    Loaded {
+        /// the value proper
+        value: LoadedValue<D>,
+        dirty: bool,
+    },
+    /// a DICOM value that is a pixel sequence,
+    /// where each fragment can be loaded independently
+    PixelSequence {
+        /// the offset table for each pixel data frame
+        offset_table: SmallVec<[u32; 2]>,
+        /// the sequence of fragments
+        fragments: SmallVec<[MaybeFragment; 2]>,
+    },
+    /// a DICOM value which is not loaded,
+    /// and so is unreachable from here
     Unloaded,
 }
 
@@ -110,18 +143,26 @@ where
     pub fn value(&self) -> Option<&LoadedValue<D>> {
         match self {
             MaybeValue::Loaded { value, .. } => Some(value),
+            MaybeValue::PixelSequence { fragments, .. } => todo!("retrieving pixel sequences"),
             MaybeValue::Unloaded => None,
         }
     }
 
+    /// Check whether the element is loaded at this level.
+    ///
+    /// **Note:**
+    /// this method does not check
+    /// whether nested data sets or any pixel data fragments
+    /// are fully loaded.
     pub fn is_loaded(&self) -> bool {
         match self {
             MaybeValue::Loaded { .. } => true,
+            MaybeValue::PixelSequence { .. } => true,
             MaybeValue::Unloaded => false,
         }
     }
 
-    /// **Pre-condition:** the value must be loaded.
+    /// **Pre-condition:** the value must be fully loaded.
     fn into_mem<S: ?Sized>(self, source: &mut S) -> Result<DicomValue<InMemDicomObject<D>, InMemFragment>>
     where
         S: StatefulDecode,
@@ -138,10 +179,14 @@ where
                         offset_table,
                         fragments,
                     } => {
+                        let fragments: Result<SmallVec<_>> = fragments.into_iter()
+                            .enumerate()
+                            .map(|(i, f)| f.data.context(UnloadedFragmentSnafu { index: i as u32 }))
+                            .collect();
                         // accept pixel sequence as is
                         Ok(DicomValue::PixelSequence {
                             offset_table,
-                            fragments,
+                            fragments: fragments?,
                         })
                     }
                     DicomValue::Sequence { items, size } => {
@@ -160,7 +205,30 @@ where
     }
 }
 
-pub type LoadedValue<D> = DicomValue<LazyNestedObject<D>, InMemFragment>;
+/// A fragment of a pixel sequence,
+/// which may be loaded in memory or not.
+#[derive(Debug, Clone)]
+pub struct MaybeFragment {
+    /// The offset of the fragment data relative to the original source
+    position: u64,
+    /// The number of data bytes in this fragment
+    length: u32,
+    /// The actual data proper,
+    /// which might not be loaded.
+    data: Option<Vec<u8>>,
+}
+
+/// Type definition for a value which has been loaded into memory,
+/// at least partially,
+/// at one level.
+///
+/// If it is a primitive value,
+/// then is sure to be all in memory.
+/// In the case of a sequence,
+/// the nested objects may or may not be loaded.
+/// In the case of a pixel sequence,
+/// each fragments may be loaded in memory or not.
+pub type LoadedValue<D> = DicomValue<LazyNestedObject<D>, MaybeFragment>;
 
 /// A DICOM object nested in a lazy DICOM object.
 ///
@@ -191,7 +259,7 @@ where
     D: Clone,
 {
     /// Load each element in the object.
-    pub fn load<S: ?Sized>(&mut self, source: &mut S) -> Result<()>
+    pub fn load_all<S: ?Sized>(&mut self, source: &mut S) -> Result<()>
     where
         S: StatefulDecode,
         <S as StatefulDecode>::Reader: ReadSeek,
@@ -210,7 +278,7 @@ where
         D: DataDictionary,
         D: Clone,
     {
-        self.load(&mut *source)?;
+        self.load_all(&mut *source)?;
 
         let entries: Result<_> = self.entries.into_values()
             .map(|elem| elem.into_mem(&mut *source).map(|elem| (elem.header().tag, elem)))
@@ -275,6 +343,7 @@ mod tests {
             .expect("Failed to load lazy element");
         match lazy_element.value {
             MaybeValue::Unloaded => panic!("element should be loaded"),
+            MaybeValue::PixelSequence { .. } => unreachable!("element is not a pixel sequence"),
             MaybeValue::Loaded { value, dirty } => {
                 assert_eq!(value.to_clean_str().unwrap(), "Doe^John");
                 assert_eq!(dirty, false);
@@ -324,6 +393,7 @@ mod tests {
             .expect("Failed to load lazy element");
         match lazy_element.value {
             MaybeValue::Unloaded => panic!("element should be loaded"),
+            MaybeValue::PixelSequence { .. } => unreachable!("element is not a pixel sequence"),
             MaybeValue::Loaded { value, dirty } => {
                 assert_eq!(value.to_clean_str().unwrap(), "Doe^John");
                 assert_eq!(dirty, false);
@@ -408,7 +478,7 @@ mod tests {
 
         // load nested object
         nested_object
-            .load(&mut parser)
+            .load_all(&mut parser)
             .expect("Failed to load nested object");
 
         for e in nested_object.entries.values() {
