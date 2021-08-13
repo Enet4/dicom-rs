@@ -10,6 +10,7 @@ mod primitive;
 pub mod serialize;
 
 pub use self::deserialize::Error as DeserializeError;
+pub use self::deserialize::{DateRange, DateTimeRange, TimeRange};
 pub use self::primitive::{
     CastValueError, ConvertValueError, InvalidValueReadError, PrimitiveValue, ValueType,
 };
@@ -65,7 +66,7 @@ pub enum Value<I = EmptyObject, P = [u8; 0]> {
 
 impl<P> Value<EmptyObject, P> {
     /// Construct a DICOM pixel sequence sequence value
-    /// from an offset rable and a list of fragments.
+    /// from an offset table and a list of fragments.
     ///
     /// Note: This function does not validate the offset table
     /// against the fragments.
@@ -495,6 +496,54 @@ where
         }
     }
 
+    /// Retrieve and convert the primitive value into a date range.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a `DateRange`
+    pub fn to_date_range(&self) -> Result<DateRange, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_date_range(),
+            _ => Err(ConvertValueError {
+                requested: "Date range",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value into a time range.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a `TimeRange`
+    pub fn to_time_range(&self) -> Result<TimeRange, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_time_range(),
+            _ => Err(ConvertValueError {
+                requested: "Time range",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value into a date-time range.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a `DateTimeRange`
+    pub fn to_datetime_range(
+        &self,
+        default_offset: FixedOffset,
+    ) -> Result<DateTimeRange, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_datetime_range(default_offset),
+            _ => Err(ConvertValueError {
+                requested: "Date-time range",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
     /// Retrieves the primitive value as a DICOM tag.
     pub fn to_tag(&self) -> Result<Tag, CastValueError> {
         match self {
@@ -617,6 +666,7 @@ mod tests {
     use crate::dicom_value;
     use crate::header::EmptyObject;
     use smallvec::smallvec;
+    use chrono::TimeZone;
 
     #[test]
     fn to_int() {
@@ -739,4 +789,270 @@ mod tests {
             })
         ));
     }
+
+    #[test]
+    fn to_date_range() {
+        // exactly two dates get orderer
+        assert_eq!(
+            Value::new(PrimitiveValue::Date(smallvec![
+                NaiveDate::from_ymd(2015, 10, 12),
+                NaiveDate::from_ymd(2014, 10, 12)
+            ]))
+            .to_date_range()
+            .unwrap(),
+            (
+                Some(NaiveDate::from_ymd(2014, 10, 12)),
+                Some(NaiveDate::from_ymd(2015, 10, 12))
+            )
+        );
+        // exactly two strs get orderer
+        assert_eq!(
+            Value::new(PrimitiveValue::Strs(smallvec![
+                String::from("20141012"),
+                String::from("20131012")
+            ]))
+            .to_date_range()
+            .unwrap(),
+            (
+                Some(NaiveDate::from_ymd(2013, 10, 12),),
+                Some(NaiveDate::from_ymd(2014, 10, 12),)
+            )
+        );
+        // valid range from bytes
+        assert_eq!(
+            Value::new(PrimitiveValue::from("20131012-20141012".as_bytes()))
+                .to_date_range()
+                .unwrap(),
+            (
+                Some(NaiveDate::from_ymd(2013, 10, 12),),
+                Some(NaiveDate::from_ymd(2014, 10, 12),)
+            )
+        );
+
+        // other than exactly two Dates fails
+        assert!(matches!(
+            Value::new(PrimitiveValue::Date(smallvec![
+                NaiveDate::from_ymd(2014, 10, 1),
+                NaiveDate::from_ymd(2014, 10, 2),
+                NaiveDate::from_ymd(2014, 10, 3)
+            ]))
+            .to_date_range(),
+            Err(ConvertValueError {
+                requested: "Date range",
+                original: ValueType::Date,
+                cause: Some(InvalidValueReadError::TwoValuesForRange { len: 3 }),
+            })
+        ));
+
+        // other than exactly two Str fails
+        assert!(matches!(
+            Value::new(PrimitiveValue::Strs(smallvec![String::from("20141012")])).to_date_range(),
+            Err(ConvertValueError {
+                requested: "Date range",
+                original: ValueType::Strs,
+                cause: Some(InvalidValueReadError::TwoValuesForRange { len: 1 }),
+            })
+        ));
+
+        // not a date range
+        assert!(matches!(
+            Value::new(PrimitiveValue::Str("Smith^John".to_string())).to_date_range(),
+            Err(ConvertValueError {
+                requested: "Date range",
+                original: ValueType::Str,
+                cause: Some(_),
+            })
+        ));
+    }
+
+    #[test]
+    fn to_time_range() {
+        // exactly two times get orderer
+        assert_eq!(
+            Value::new(PrimitiveValue::Time(smallvec![
+                NaiveTime::from_hms(16, 05, 05),
+                NaiveTime::from_hms(15, 05, 05)
+            ]))
+            .to_time_range()
+            .unwrap(),
+            (
+                Some(NaiveTime::from_hms(15, 05, 05)),
+                Some(NaiveTime::from_hms(16, 05, 05))
+            )
+        );
+
+        // exactly two strs get orderer
+        assert_eq!(
+            Value::new(PrimitiveValue::Strs(smallvec![String::from("160505"), String::from("150505")]))
+                .to_time_range()
+                .unwrap(),
+            (
+                Some(NaiveTime::from_hms(15, 05, 05)),
+                Some(NaiveTime::from_hms(16, 05, 05))
+            )
+        );
+
+        // valid range from bytes
+        assert_eq!(
+            Value::new(PrimitiveValue::from("150505-160505".as_bytes()))
+                .to_time_range()
+                .unwrap(),
+            (
+                Some(NaiveTime::from_hms(15, 05, 05)),
+                Some(NaiveTime::from_hms(16, 05, 05))
+            )
+        );
+
+        // other than exactly two times fails
+        assert!(matches!(
+            Value::new(PrimitiveValue::Time(smallvec![
+                NaiveTime::from_hms(15, 05, 05),
+                NaiveTime::from_hms(16, 05, 05),
+                NaiveTime::from_hms(17, 05, 05)
+            ]))
+            .to_time_range(),
+            Err(ConvertValueError {
+                requested: "Time range",
+                original: ValueType::Time,
+                cause: Some(InvalidValueReadError::TwoValuesForRange { len: 3 }),
+            })
+        ));
+
+        // other than exactly two Str fails
+        assert!(matches!(
+            Value::new(PrimitiveValue::Strs(smallvec![String::from("150505")])).to_time_range(),
+            Err(ConvertValueError {
+                requested: "Time range",
+                original: ValueType::Strs,
+                cause: Some(InvalidValueReadError::TwoValuesForRange { len: 1 }),
+            })
+        ));
+
+        // not a time range
+        assert!(matches!(
+            Value::new(PrimitiveValue::Str("Smith^John".to_string())).to_time_range(),
+            Err(ConvertValueError {
+                requested: "Time range",
+                original: ValueType::Str,
+                cause: Some(_),
+            })
+        ));
+    }
+
+    #[test]
+    fn to_datetime_range() {
+        let offset = FixedOffset::east(0);
+
+        // exactly two date-times get orderer
+        assert_eq!(
+            Value::new(PrimitiveValue::DateTime(smallvec![
+                FixedOffset::west(3660)
+                    .ymd(1980, 1, 1)
+                    .and_hms_micro(15, 24, 30, 123456),
+                FixedOffset::west(3660)
+                    .ymd(1970, 1, 1)
+                    .and_hms_micro(15, 24, 30, 123456)
+            ]))
+            .to_datetime_range(offset)
+            .unwrap(),
+            (
+                Some(
+                    FixedOffset::west(3660)
+                        .ymd(1970, 1, 1)
+                        .and_hms_micro(15, 24, 30, 123456)
+                ),
+                Some(
+                    FixedOffset::west(3660)
+                        .ymd(1980, 1, 1)
+                        .and_hms_micro(15, 24, 30, 123456)
+                )
+            )
+        );
+
+        // exactly two strs get orderer
+        assert_eq!(
+            Value::new(PrimitiveValue::Strs(smallvec![
+                String::from("19800101152430.123456-0101"),
+                String::from("19700101152430.123456-0101")
+            ]))
+            .to_datetime_range(offset)
+            .unwrap(),
+            (
+                Some(
+                    FixedOffset::west(3660)
+                        .ymd(1970, 1, 1)
+                        .and_hms_micro(15, 24, 30, 123456)
+                ),
+                Some(
+                    FixedOffset::west(3660)
+                        .ymd(1980, 1, 1)
+                        .and_hms_micro(15, 24, 30, 123456)
+                )
+            )
+        );
+
+        // valid range from bytes
+        assert_eq!(
+            Value::new(PrimitiveValue::from(
+                "19700101152430.123456-0101-19800101152430.123456-0101".as_bytes()
+            ))
+            .to_datetime_range(offset)
+            .unwrap(),
+            (
+                Some(
+                    FixedOffset::west(3660)
+                        .ymd(1970, 1, 1)
+                        .and_hms_micro(15, 24, 30, 123456)
+                ),
+                Some(
+                    FixedOffset::west(3660)
+                        .ymd(1980, 1, 1)
+                        .and_hms_micro(15, 24, 30, 123456)
+                )
+            )
+        );
+
+        // other than exactly two date-times fails
+        assert!(matches!(
+            Value::new(PrimitiveValue::DateTime(smallvec![
+                FixedOffset::west(3660)
+                    .ymd(1970, 1, 1)
+                    .and_hms_micro(15, 24, 30, 123456),
+                FixedOffset::west(3660)
+                    .ymd(1980, 1, 1)
+                    .and_hms_micro(15, 24, 30, 123456),
+                FixedOffset::west(3660)
+                    .ymd(1990, 1, 1)
+                    .and_hms_micro(15, 24, 30, 123456)
+            ]))
+            .to_datetime_range(offset),
+            Err(ConvertValueError {
+                requested: "Date-time range",
+                original: ValueType::DateTime,
+                cause: Some(InvalidValueReadError::TwoValuesForRange { len: 3 }),
+            })
+        ));
+
+        // other than exactly two Str fails
+        assert!(matches!(
+            Value::new(PrimitiveValue::Strs(smallvec![String::from("19700101152430.123456-0101")]))
+                .to_datetime_range(offset),
+            Err(ConvertValueError {
+                requested: "Date-time range",
+                original: ValueType::Strs,
+                cause: Some(InvalidValueReadError::TwoValuesForRange { len: 1 }),
+            })
+        ));
+
+        // not a date-time range
+        assert!(matches!(
+            Value::new(PrimitiveValue::Str("Smith^John".to_string())).to_datetime_range(offset),
+            Err(ConvertValueError {
+                requested: "Date-time range",
+                original: ValueType::Str,
+                cause: Some(_),
+            })
+        ));
+    }
+
 }

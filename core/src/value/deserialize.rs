@@ -43,9 +43,9 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-type DateRange = (Option<NaiveDate>, Option<NaiveDate>);
-type TimeRange = (Option<NaiveTime>, Option<NaiveTime>);
-type DateTimeRange = (Option<DateTime<FixedOffset>>, Option<DateTime<FixedOffset>>);
+pub type DateRange = (Option<NaiveDate>, Option<NaiveDate>);
+pub type TimeRange = (Option<NaiveTime>, Option<NaiveTime>);
+pub type DateTimeRange = (Option<DateTime<FixedOffset>>, Option<DateTime<FixedOffset>>);
 
 /** Decode a single DICOM Date (DA) into a `NaiveDate` value.
  */
@@ -708,6 +708,7 @@ mod tests {
             )
         );
 
+        // YYY not a valid year
         assert!(matches!(
             parse_date_range("718-".as_bytes()),
             Err(Error::UnexpectedEndOfElement { backtrace: _b })
