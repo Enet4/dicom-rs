@@ -378,10 +378,10 @@ where
             let byte_len = offset_table.len();
             writeln!(
                 to,
-                "  {} pi ({:>3} bytes, 1 Item): {:48}",
+                "  {} offset table ({:>3} bytes, 1 Item): {:48}",
                 DumpValue::TagNum("(FFFE,E000)"),
                 byte_len,
-                item_value_summary(&offset_table, width.saturating_sub(38 + depth * 2)),
+                offset_table_summary(&offset_table, width.saturating_sub(38 + depth * 2)),
             )?;
 
             // write compressed fragments
@@ -565,6 +565,18 @@ fn item_value_summary(data: &[u8], max_characters: u32) -> DumpValue<String> {
         max_characters,
         false,
     ))
+}
+
+fn offset_table_summary(data: &[u32], max_characters: u32) -> String {
+    if data.is_empty() {
+        format!("{}", "(empty)".italic())
+    } else {
+        format_value_list(
+            data.iter().map(|n| format!("{:02X}", n)),
+            max_characters,
+            false,
+        )
+    }
 }
 
 fn format_value_list<I>(values: I, max_characters: u32, quoted: bool) -> String

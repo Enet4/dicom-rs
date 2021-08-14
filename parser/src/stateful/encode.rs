@@ -38,7 +38,7 @@ pub enum Error {
         source: dicom_encoding::text::EncodeTextError,
     },
 
-    #[snafu(display("Could not write value data to writer"))]
+    #[snafu(display("Could not write value data at position {}", position))]
     WriteValueData {
         position: u64,
         source: std::io::Error,
@@ -164,6 +164,16 @@ where
     /// Retrieve the number of bytes written so far by this printer.
     pub fn bytes_written(&self) -> u64 {
         self.bytes_written
+    }
+
+    /// Encode and write the values of a pixel data offset table.
+    pub fn encode_offset_table(&mut self, table: &[u32]) -> Result<()> {
+        self.encoder.encode_offset_table(&mut self.to, table).context(EncodeData {
+            position: self.bytes_written,
+        })?;
+
+        self.bytes_written += table.len() as u64 * 4;
+        Ok(())
     }
 
     /// Encode and write a primitive value. Where applicable, this

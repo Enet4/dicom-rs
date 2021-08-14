@@ -627,19 +627,18 @@ where
 
         while let Some(token) = dataset.next() {
             match token.context(ReadToken)? {
+                DataToken::OffsetTable(table) => {
+                    offset_table = Some(table);
+                }
                 DataToken::ItemValue(data) => {
-                    if offset_table.is_none() {
-                        offset_table = Some(data.into());
-                    } else {
-                        fragments.push(data);
-                    }
+                    fragments.push(data);
                 }
                 DataToken::ItemEnd => {
                     // at the end of the first item ensure the presence of
                     // an empty offset_table here, so that the next items
                     // are seen as compressed fragments
                     if offset_table.is_none() {
-                        offset_table = Some(C::new())
+                        offset_table = Some(Vec::new())
                     }
                 }
                 DataToken::ItemStart { len: _ } => { /* no-op */ }
@@ -659,7 +658,7 @@ where
 
         Ok(Value::PixelSequence {
             fragments,
-            offset_table: offset_table.unwrap_or_default(),
+            offset_table: offset_table.unwrap_or_default().into(),
         })
     }
 

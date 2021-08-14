@@ -85,9 +85,14 @@ pub enum Error {
         backtrace: Backtrace,
         source: io::Error,
     },
+    #[snafu(display("Failed to write pixel data offset table"))]
+    WriteOffsetTable {
+        backtrace: Backtrace,
+        source: io::Error,
+    },
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Type trait for an encoder of basic data properties.
 /// Unlike `Encode` (and similar to `BasicDecode`), this trait is not object
@@ -323,6 +328,15 @@ pub trait Encode {
     fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<usize>
     where
         W: Write;
+    
+    /// Encode and write a DICOM pixel data offset table
+    /// to the given destination.
+    ///
+    // Note that offset tables might not apply to all forms of encoding,
+    // but this method needs to exist nevertheless.
+    fn encode_offset_table<W>(&self, to: W, offset_table: &[u32]) -> Result<usize>
+    where
+        W: Write;
 }
 
 impl<T: ?Sized> Encode for &T
@@ -369,6 +383,13 @@ where
         W: Write,
     {
         (**self).encode_primitive(to, value)
+    }
+
+    fn encode_offset_table<W>(&self, to: W, offset_table: &[u32]) -> Result<usize>
+    where
+        W: Write
+    {
+        (**self).encode_offset_table(to, offset_table)
     }
 }
 
@@ -417,6 +438,13 @@ where
     {
         (**self).encode_primitive(to, value)
     }
+
+    fn encode_offset_table<W>(&self, to: W, offset_table: &[u32]) -> Result<usize>
+    where
+        W: Write
+    {
+        (**self).encode_offset_table(to, offset_table)
+    }
 }
 
 /// Type trait for a data element encoder to a single known writer type `W`.
@@ -451,6 +479,15 @@ pub trait EncodeTo<W: ?Sized> {
 
     /// Encode and write a primitive DICOM value to the given destination.
     fn encode_primitive(&self, to: &mut W, value: &PrimitiveValue) -> Result<usize>
+    where
+        W: Write;
+
+    /// Encode and write a DICOM pixel data offset table
+    /// to the given destination.
+    ///
+    // Note that offset tables might not apply to all forms of encoding,
+    // but this method needs to exist nevertheless.
+    fn encode_offset_table(&self, to: &mut W, offset_table: &[u32]) -> Result<usize>
     where
         W: Write;
 }
@@ -501,6 +538,13 @@ where
     {
         (**self).encode_primitive(to, value)
     }
+
+    fn encode_offset_table(&self, to: &mut W, offset_table: &[u32]) -> Result<usize>
+    where
+        W: Write
+    {
+        (**self).encode_offset_table(to, offset_table)
+    }
 }
 
 impl<T: ?Sized, W: ?Sized> EncodeTo<W> for Box<T>
@@ -548,6 +592,13 @@ where
         W: Write,
     {
         (**self).encode_primitive(to, value)
+    }
+
+    fn encode_offset_table(&self, to: &mut W, offset_table: &[u32]) -> Result<usize>
+    where
+        W: Write
+    {
+        (**self).encode_offset_table(to, offset_table)
     }
 }
 
@@ -683,6 +734,10 @@ where
 
     fn encode_primitive(&self, to: &mut W, value: &PrimitiveValue) -> Result<usize> {
         self.inner.encode_primitive(to, value)
+    }
+
+    fn encode_offset_table(&self, to: &mut W, offset_table: &[u32]) -> Result<usize> {
+        self.inner.encode_offset_table(to, offset_table)
     }
 }
 

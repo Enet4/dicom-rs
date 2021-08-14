@@ -50,10 +50,18 @@ pub enum DataToken {
     PrimitiveValue(PrimitiveValue),
     /// An owned piece of raw data representing an item's value.
     ///
-    /// This variant is used to represent the value of an offset table or a
-    /// compressed fragment. It should not be used to represent nested data
-    /// sets.
+    /// This variant is used to represent
+    /// the value of a compressed fragment.
+    /// It should not be used to represent nested data sets.
     ItemValue(Vec<u8>),
+    /// An owned sequence of unsigned 32 bit integers
+    /// representing a pixel data offset table.
+    ///
+    /// This variant is used to represent
+    /// the byte offsets to the first byte of the Item tag of the first fragment
+    /// for each frame in the sequence of items
+    /// (as per PS 3.5, Section A.4)
+    OffsetTable(Vec<u32>),
 }
 
 impl fmt::Display for DataToken {
@@ -95,6 +103,7 @@ impl PartialEq<Self> for DataToken {
             (ItemStart { len: len1 }, ItemStart { len: len2 }) => len1.inner_eq(*len2),
             (PrimitiveValue(v1), PrimitiveValue(v2)) => v1 == v2,
             (ItemValue(v1), ItemValue(v2)) => v1 == v2,
+            (OffsetTable(v1), OffsetTable(v2)) => v1 == v2,
             (ItemEnd, ItemEnd)
             | (SequenceEnd, SequenceEnd)
             | (PixelSequenceStart, PixelSequenceStart) => true,
@@ -450,10 +459,13 @@ where
     /// the header of encapsulated pixel data was read, will read
     /// the offset table next
     PixelData(
-        // Pixel fragments; Option is used for easy taking from a &mut,
-        // should always be Some in practice
+        /// Pixel fragments
+        /// 
+        /// Option is used for easy taking from a &mut,
+        /// should always be Some in practice
         Option<dicom_core::value::C<P>>,
-        ItemValueTokens<dicom_core::value::C<u8>>,
+        /// Frame offset table
+        OffsetTableItemTokens<dicom_core::value::C<u32>>,
     ),
     /// the header and offset of encapsulated pixel data was read,
     /// fragments come next
@@ -506,7 +518,7 @@ where
                                     Some(DataToken::PixelSequenceStart),
                                     DataElementTokens::PixelData(
                                         Some(fragments),
-                                        ItemValue(offset_table).into_tokens(),
+                                        OffsetTableItem(offset_table).into_tokens(),
                                     ),
                                 )
                             }
@@ -765,6 +777,7 @@ pub enum ItemValueTokens<P> {
 }
 
 impl<P> ItemValueTokens<P> {
+    #[inline]
     pub fn new(value: P) -> Self {
         ItemValueTokens::Start(Some(value))
     }
@@ -797,6 +810,78 @@ where
             ),
             ItemValueTokens::Done => (Some(DataToken::ItemEnd), ItemValueTokens::End),
             ItemValueTokens::End => return None,
+        };
+
+        *self = next_state;
+        out
+    }
+}
+
+/// A newtype for wrapping a sequence of `u32`s into an offset table item.
+/// When converting a value of this type into tokens,
+/// the algorithm will create an item start with an explicit length,
+/// followed by an item value token,
+/// then an item delimiter.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OffsetTableItem<P>(P);
+
+impl<P> IntoTokens for OffsetTableItem<P>
+where
+    P: AsRef<[u32]>,
+{
+    type Iter = OffsetTableItemTokens<P>;
+
+    fn into_tokens(self) -> Self::Iter {
+        OffsetTableItemTokens::new(self.0)
+    }
+}
+
+#[derive(Debug)]
+pub enum OffsetTableItemTokens<P> {
+    /// Just started, an item header token will come next
+    Start(Option<P>),
+    /// Will return a token of the actual offset table
+    Value(P),
+    /// Will return an end of item token
+    Done,
+    /// Just ended, no more tokens
+    End,
+}
+
+impl<P> OffsetTableItemTokens<P> {
+    #[inline]
+    pub fn new(value: P) -> Self {
+        OffsetTableItemTokens::Start(Some(value))
+    }
+}
+
+impl<P> Iterator for OffsetTableItemTokens<P>
+where
+    P: AsRef<[u32]>,
+{
+    type Item = DataToken;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (out, next_state) = match self {
+            OffsetTableItemTokens::Start(value) => {
+                let value = value.take().unwrap();
+                let len = Length(value.as_ref().len() as u32 * 4);
+
+                (
+                    Some(DataToken::ItemStart { len }),
+                    if len == Length(0) {
+                        OffsetTableItemTokens::Done
+                    } else {
+                        OffsetTableItemTokens::Value(value)
+                    },
+                )
+            }
+            OffsetTableItemTokens::Value(value) => (
+                Some(DataToken::OffsetTable(value.as_ref().to_owned())),
+                OffsetTableItemTokens::Done,
+            ),
+            OffsetTableItemTokens::Done => (Some(DataToken::ItemEnd), OffsetTableItemTokens::End),
+            OffsetTableItemTokens::End => return None,
         };
 
         *self = next_state;

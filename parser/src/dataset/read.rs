@@ -67,6 +67,8 @@ pub enum Error {
     },
     #[snafu(display("Unexpected item tag {} while reading element header", tag))]
     UnexpectedItemTag { tag: Tag, backtrace: Backtrace },
+    /// Undefined pixel item length
+    UndefinedItemLength,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -168,8 +170,11 @@ pub struct DataSetReader<S, D> {
     dict: D,
     /// the options of this reader
     options: DataSetReaderOptions,
-    /// whether the reader is expecting an item next (or a sequence delimiter)
+    /// whether the reader is expecting an item header next (or a sequence delimiter)
     in_sequence: bool,
+    /// whether the reader is expecting the first item value of a pixel sequence next
+    /// (offset table)
+    offset_table_next: bool,
     /// whether a check for a sequence or item delimitation is pending
     delimiter_check_pending: bool,
     /// a stack of delimiters
@@ -200,6 +205,7 @@ impl<S> DataSetReader<DynStatefulDecoder<S>, StandardDataDictionary> {
             options: Default::default(),
             seq_delimiters: Vec::new(),
             delimiter_check_pending: false,
+            offset_table_next: false,
             in_sequence: false,
             hard_break: false,
             last_header: None,
@@ -232,6 +238,7 @@ impl<S, D> DataSetReader<DynStatefulDecoder<S>, D> {
             options,
             seq_delimiters: Vec::new(),
             delimiter_check_pending: false,
+            offset_table_next: false,
             in_sequence: false,
             hard_break: false,
             last_header: None,
@@ -249,6 +256,7 @@ impl<S> DataSetReader<S, StandardDataDictionary> {
             options,
             seq_delimiters: Vec::new(),
             delimiter_check_pending: false,
+            offset_table_next: false,
             in_sequence: false,
             hard_break: false,
             last_header: None,
@@ -328,19 +336,39 @@ where
             ..
         }) = self.seq_delimiters.last()
         {
-            // item value
+            let len = match len.get() {
+                Some(len) => len as usize,
+                None => return Some(UndefinedItemLength.fail()),
+            };
 
-            let len = len.get().expect("length should be explicit, error missing") as usize;
-            let mut value = Vec::with_capacity(len);
+            if self.offset_table_next {
+                // offset table
+                let mut offset_table = Vec::with_capacity(len);
 
-            // need to pop item delimiter on the next iteration
-            self.delimiter_check_pending = true;
-            Some(
-                self.parser
-                    .read_to_vec(len as u32, &mut value)
-                    .map(|_| Ok(DataToken::ItemValue(value)))
-                    .unwrap_or_else(|e| Err(e).context(ReadItemValue { len: len as u32 })),
-            )
+                self.offset_table_next = false;
+
+                // need to pop item delimiter on the next iteration
+                self.delimiter_check_pending = true;
+
+                Some(
+                    match self.parser.read_u32_to_vec(len as u32, &mut offset_table) {
+                        Ok(()) => Ok(DataToken::OffsetTable(offset_table)),
+                        Err(e) => Err(e).context(ReadItemValue { len: len as u32 }),
+                    },
+                )
+            } else {
+                // item value
+                let mut value = Vec::with_capacity(len);
+
+                // need to pop item delimiter on the next iteration
+                self.delimiter_check_pending = true;
+                Some(
+                    self.parser
+                        .read_to_vec(len as u32, &mut value)
+                        .map(|_| Ok(DataToken::ItemValue(value)))
+                        .unwrap_or_else(|e| Err(e).context(ReadItemValue { len: len as u32 })),
+                )
+            }
         } else if let Some(header) = self.last_header {
             if header.is_encapsulated_pixeldata() {
                 self.push_sequence_token(SeqTokenType::Sequence, Length::UNDEFINED, true);
@@ -356,6 +384,8 @@ where
                             // items can be empty
                             if len == Length(0) {
                                 self.delimiter_check_pending = true;
+                            } else {
+                                self.offset_table_next = true;
                             }
                             Some(Ok(DataToken::ItemStart { len }))
                         }
@@ -923,7 +953,7 @@ mod tests {
         let ground_truth = vec![
             DataToken::PixelSequenceStart,
             DataToken::ItemStart { len: Length(4) },
-            DataToken::ItemValue(vec![0x10, 0x00, 0x00, 0x00]),
+            DataToken::OffsetTable(vec![16]),
             DataToken::ItemEnd,
             DataToken::ItemStart { len: Length(32) },
             DataToken::ItemValue(vec![0x99; 32]),
