@@ -3,8 +3,7 @@
 //! The [`StatefulEncoder`] supports encoding of binary data and text
 //! while applying the necessary padding to conform to DICOM encoding rules.
 
-use dicom_core::Length;
-use dicom_core::{value::PrimitiveValue, DataElementHeader, VR};
+use dicom_core::{value::PrimitiveValue, DataElementHeader, Length, Tag, VR};
 use dicom_encoding::transfer_syntax::DynEncoder;
 use dicom_encoding::{
     encode::EncodeTo,
@@ -57,7 +56,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// of how many bytes were written.
 /// `W` is the write target, `E` is the encoder, and `T` is the text codec.
 #[derive(Debug)]
-pub struct StatefulEncoder<W, E, T> {
+pub struct StatefulEncoder<W, E, T = Box<dyn TextCodec>> {
     to: W,
     encoder: E,
     text: T,
@@ -73,16 +72,6 @@ impl<W, E, T> StatefulEncoder<W, E, T> {
         StatefulEncoder {
             to,
             encoder,
-            text,
-            bytes_written: 0,
-            buffer: Vec::with_capacity(128),
-        }
-    }
-
-    pub fn with_text<U>(self, text: U) -> StatefulEncoder<W, E, U> {
-        StatefulEncoder {
-            to: self.to,
-            encoder: self.encoder,
             text,
             bytes_written: 0,
             buffer: Vec::with_capacity(128),
@@ -107,11 +96,10 @@ impl<'s> DynStatefulEncoder<'s> {
     }
 }
 
-impl<W, E, T> StatefulEncoder<W, E, T>
+impl<W, E> StatefulEncoder<W, E, Box<dyn TextCodec>>
 where
     W: Write,
     E: EncodeTo<W>,
-    T: TextCodec,
 {
     /// Encode and write a data element header.
     pub fn encode_element_header(&mut self, mut de: DataElementHeader) -> Result<()> {
@@ -282,10 +270,25 @@ where
         match value {
             PrimitiveValue::Str(text) => {
                 self.encode_text(text, de.vr())?;
+
+                // if element is Specific Character Set,
+                // update the text codec
+                if de.tag == Tag(0x0008, 0x0005) {
+                    self.try_new_codec(text);
+                }
+
                 Ok(())
             }
             PrimitiveValue::Strs(texts) => {
                 self.encode_texts(&texts[..], de.vr())?;
+                
+                // if element is Specific Character Set,
+                // update the text codec
+                if de.tag == Tag(0x0008, 0x0005) {
+                    if let Some(charset_name) = texts.first() {
+                        self.try_new_codec(charset_name);
+                    }
+                }
                 Ok(())
             }
             _ => {
@@ -307,6 +310,15 @@ where
             }
         }
     }
+
+    fn try_new_codec(&mut self, name: &str) {
+        if let Some(codec) = SpecificCharacterSet::from_code(name).and_then(SpecificCharacterSet::codec) {
+            self.text = codec;
+        } else {
+            // TODO(#49) log this as a warning
+            eprintln!("Unsupported character set `{}`, ignoring", name);
+        }
+    } 
 
     fn encode_text(&mut self, text: &str, vr: VR) -> Result<()> {
         let bytes = self.encode_text_untrailed(text, vr)?;
@@ -431,13 +443,9 @@ fn even_len(l: u32) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use dicom_core::{DataElement, DicomValue, Tag, VR, dicom_value};
-    use dicom_encoding::{
-        encode::EncoderFor, text::SpecificCharacterSet,
-        transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder,
-    };
-
     use super::StatefulEncoder;
+    use dicom_encoding::{encode::EncoderFor, text::{DefaultCharacterSetCodec, DynamicTextCodec, SpecificCharacterSet}, transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder};
+    use dicom_core::{DataElement, DataElementHeader, DicomValue, Length, PrimitiveValue, Tag, VR, dicom_value};
 
     /// Odd lengthed values convert to tokens with even padding (PN)
     #[test]
@@ -589,5 +597,71 @@ mod tests {
         assert_eq!(even_len(5), 6);
         assert_eq!(even_len(6), 6);
         assert_eq!(even_len(0xFFFF_FFFD), 0xFFFF_FFFE);
+    }
+
+    /// Test that the stateful encoder updates
+    /// the active character set after writing a Specific Character Set element
+    /// with a supported text encoding.
+    #[test]
+    fn update_character_set() {
+        const GT: &'static [u8; 54] = &[
+            // Tag: (0008,0005) Specific Character Set
+            0x08, 0x00, 0x05, 0x00,
+            // VR: CS
+            b'C', b'S',
+            // Length: 10
+            0x0a, 0x00,
+            // Value: "ISO_IR 192"
+            b'I', b'S', b'O', b'_', b'I', b'R', b' ', b'1', b'9', b'2',
+            // Tag: (0010,0010) Patient Name
+            0x10, 0x00, 0x10, 0x00,
+            // VR: PN
+            b'P', b'N',
+            // Length: 28
+            0x1c, 0x00,
+            // Value: "Иванков^Андрей "
+            0xd0, 0x98, 0xd0, 0xb2, 0xd0, 0xb0, 0xd0, 0xbd, 0xd0, 0xba,
+            0xd0, 0xbe, 0xd0, 0xb2, 0x5e, 0xd0, 0x90, 0xd0, 0xbd, 0xd0,
+            0xb4, 0xd1, 0x80, 0xd0, 0xb5, 0xd0, 0xb9, b' ',
+        ];
+
+        let mut sink = Vec::with_capacity(GT.len());
+
+        let mut encoder = StatefulEncoder::new(
+            &mut sink,
+            EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
+            SpecificCharacterSet::Default.codec().unwrap(),
+        );
+
+        // encode specific character set
+        let scs = DataElementHeader {
+            tag: Tag(0x0008, 0x0005),
+            vr: VR::CS,
+            len: Length(10),
+        };
+        let scs_value = PrimitiveValue::from("ISO_IR 192");
+
+        encoder.encode_element_header(scs).unwrap();
+
+        encoder.encode_primitive(&scs, &scs_value).unwrap();
+
+        // check that the encoder has changed
+        assert_eq!(encoder.text.name(), "ISO_IR 192");
+
+        // now encode something non-ASCII
+        let pn = DataElementHeader {
+            tag: Tag(0x0010, 0x0010),
+            vr: VR::PN,
+            len: Length(28),
+        };
+        let pn_value = PrimitiveValue::from("Иванков^Андрей ");
+        encoder.encode_element_header(pn).unwrap();
+        encoder.encode_primitive(&pn, &pn_value).unwrap();
+
+        // test all output against ground truth
+        assert_eq!(
+            &sink,
+            GT,
+        );
     }
 }
