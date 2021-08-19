@@ -3,7 +3,7 @@ use crate::dataset::*;
 use crate::stateful::encode::StatefulEncoder;
 use dicom_core::{DataElementHeader, Length, VR};
 use dicom_encoding::encode::EncodeTo;
-use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
+use dicom_encoding::text::{DefaultCharacterSetCodec, SpecificCharacterSet, TextCodec};
 use dicom_encoding::transfer_syntax::DynEncoder;
 use dicom_encoding::TransferSyntax;
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
@@ -78,7 +78,7 @@ struct SeqToken {
 /// This is analogous to the `DatasetReader` type for converting data
 /// set tokens to bytes.
 #[derive(Debug)]
-pub struct DataSetWriter<W, E, T> {
+pub struct DataSetWriter<W, E, T = Box<dyn TextCodec>> {
     printer: StatefulEncoder<W, E, T>,
     seq_tokens: Vec<SeqToken>,
     last_de: Option<DataElementHeader>,
@@ -96,12 +96,22 @@ where
         let text = charset
             .codec()
             .context(UnsupportedCharacterSet { charset })?;
-        Ok(DataSetWriter::new(to, encoder, text))
+        Ok(DataSetWriter::new_with_codec(to, encoder, text))
+    }
+}
+
+impl<W, E> DataSetWriter<W, E> {
+    pub fn new(to: W, encoder: E) -> Self {
+        DataSetWriter {
+            printer: StatefulEncoder::new(to, encoder, Box::new(DefaultCharacterSetCodec) as Box<_>),
+            seq_tokens: Vec::new(),
+            last_de: None,
+        }
     }
 }
 
 impl<W, E, T> DataSetWriter<W, E, T> {
-    pub fn new(to: W, encoder: E, text: T) -> Self {
+    pub fn new_with_codec(to: W, encoder: E, text: T) -> Self {
         DataSetWriter {
             printer: StatefulEncoder::new(to, encoder, text),
             seq_tokens: Vec::new(),
@@ -110,11 +120,10 @@ impl<W, E, T> DataSetWriter<W, E, T> {
     }
 }
 
-impl<W, E, T> DataSetWriter<W, E, T>
+impl<W, E> DataSetWriter<W, E>
 where
     W: Write,
     E: EncodeTo<W>,
-    T: TextCodec,
 {
     /// Feed the given sequence of tokens which are part of the same data set.
     #[inline]
@@ -247,7 +256,6 @@ mod tests {
         Tag, VR,
     };
     use dicom_encoding::encode::EncoderFor;
-    use dicom_encoding::text::DefaultCharacterSetCodec;
     use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder;
 
     fn validate_dataset_writer<I>(tokens: I, ground_truth: &[u8])
@@ -256,8 +264,7 @@ mod tests {
     {
         let mut raw_out: Vec<u8> = vec![];
         let encoder = EncoderFor::new(ExplicitVRLittleEndianEncoder::default());
-        let text = DefaultCharacterSetCodec::default();
-        let mut dset_writer = DataSetWriter::new(&mut raw_out, encoder, text);
+        let mut dset_writer = DataSetWriter::new(&mut raw_out, encoder);
 
         dset_writer.write_sequence(tokens).unwrap();
 

@@ -471,14 +471,14 @@ where
     ///
     /// [`write_dataset_with_ts`]: #method.write_dataset_with_ts
     /// [`write_dataset_with_ts_cs`]: #method.write_dataset_with_ts_cs
-    pub fn write_dataset<W, E, T>(&self, to: W, encoder: E, text_encoder: T) -> Result<()>
+    pub fn write_dataset<W, E, T: 'static>(&self, to: W, encoder: E, text_encoder: T) -> Result<()>
     where
         W: Write,
         E: EncodeTo<W>,
         T: TextCodec,
     {
         // prepare data set writer
-        let mut dset_writer = DataSetWriter::new(to, encoder, text_encoder);
+        let mut dset_writer = DataSetWriter::new_with_codec(to, encoder, Box::new(text_encoder) as Box<_>);
 
         // write object
         dset_writer
