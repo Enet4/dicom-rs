@@ -61,6 +61,9 @@ use snafu::OptionExt;
 use snafu::{ResultExt, Snafu};
 use std::borrow::Cow;
 
+pub use image;
+pub use ndarray;
+
 #[cfg(feature = "gdcm")]
 mod gdcm;
 
