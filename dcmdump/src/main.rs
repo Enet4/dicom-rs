@@ -153,7 +153,7 @@ fn dump_file(obj: DefaultDicomObject, width: u32, no_text_limit: bool) -> IoResu
 
     meta_dump(&mut to, &meta, width)?;
 
-    println!("{:-<62}", "");
+    println!("{:-<58}", "");
 
     dump(&mut to, &obj, width, 0, no_text_limit)?;
 
