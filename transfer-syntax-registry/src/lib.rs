@@ -65,7 +65,7 @@ impl TransferSyntaxRegistryImpl {
     fn get<U: AsRef<str>>(&self, uid: U) -> Option<&'static TransferSyntax> {
         let ts_uid = {
             let uid = uid.as_ref();
-            if uid.as_bytes().last().cloned() == Some(b'\0') {
+            if uid.as_bytes().last().cloned() == Some(b'\0') || uid.ends_with(' ') {
                 &uid[..uid.len() - 1]
             } else {
                 &uid
