@@ -152,6 +152,11 @@ fn dump_file(obj: DefaultDicomObject) -> IoResult<()> {
     Ok(())
 }
 
+#[inline]
+fn whitespace_or_null(c: char) -> bool {
+    c.is_whitespace() || c == '\0'
+}
+
 fn meta_dump<W>(to: &mut W, meta: &FileMetaTable, width: u32) -> IoResult<()>
 where
     W: ?Sized + Write,
@@ -159,48 +164,48 @@ where
     writeln!(
         to,
         "Media Storage SOP Class UID: {}",
-        meta.media_storage_sop_class_uid
+        meta.media_storage_sop_class_uid.trim_end_matches(whitespace_or_null),
     )?;
     writeln!(
         to,
         "Media Storage SOP Instance UID: {}",
-        meta.media_storage_sop_instance_uid
+        meta.media_storage_sop_instance_uid.trim_end_matches(whitespace_or_null),
     )?;
     if let Some(ts) = TransferSyntaxRegistry.get(&meta.transfer_syntax) {
         writeln!(to, "Transfer Syntax: {} ({})", ts.uid(), ts.name())?;
     } else {
-        writeln!(to, "Transfer Syntax: {} («UNKNOWN»)", meta.transfer_syntax)?;
+        writeln!(to, "Transfer Syntax: {} («UNKNOWN»)", meta.transfer_syntax.trim_end_matches(whitespace_or_null))?;
     }
     writeln!(
         to,
         "Implementation Class UID: {}",
-        meta.implementation_class_uid
+        meta.implementation_class_uid.trim_end_matches(whitespace_or_null),
     )?;
 
     if let Some(v) = meta.implementation_version_name.as_ref() {
-        writeln!(to, "Implementation version name: {}", v)?;
+        writeln!(to, "Implementation version name: {}", v.trim_end())?;
     }
     if let Some(v) = meta.source_application_entity_title.as_ref() {
-        writeln!(to, "Source Application Entity Title: {}", v)?;
+        writeln!(to, "Source Application Entity Title: {}", v.trim_end())?;
     }
 
     if let Some(v) = meta.sending_application_entity_title.as_ref() {
-        writeln!(to, "Sending Application Entity Title: {}", v)?;
+        writeln!(to, "Sending Application Entity Title: {}", v.trim_end())?;
     }
 
     if let Some(v) = meta.receiving_application_entity_title.as_ref() {
-        writeln!(to, "Receiving Application Entity Title: {}", v)?;
+        writeln!(to, "Receiving Application Entity Title: {}", v.trim_end())?;
     }
 
     if let Some(v) = meta.private_information_creator_uid.as_ref() {
-        writeln!(to, "Private Information Creator UID: {}", v)?;
+        writeln!(to, "Private Information Creator UID: {}", v.trim_end_matches(whitespace_or_null))?;
     }
 
     if let Some(v) = meta.private_information.as_ref() {
         writeln!(
             to,
             "Private Information: {}",
-            format_value_list(v.iter().map(|n| format!("{:#x}", n)), width, false)
+            format_value_list(v.iter().map(|n| format!("{:02X}", n)), width, false)
         )?;
     }
 
@@ -400,7 +405,7 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> DumpVal
             }
         }
         (Strs(values), _) => DumpValue::Str(format_value_list(
-            values.iter().map(|s| s.trim_end()),
+            values.iter().map(|s| s.trim_end_matches(whitespace_or_null)),
             max_characters,
             true,
         )),
@@ -411,7 +416,7 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> DumpVal
         }
         (Str(value), _) => DumpValue::Str(
             cut_str(
-                &format!("\"{}\"", value.to_string().trim_end()),
+                &format!("\"{}\"", value.to_string().trim_end_matches(whitespace_or_null)),
                 max_characters,
             )
             .to_string(),
@@ -464,5 +469,19 @@ fn cut_str(s: &str, max_characters: u32) -> Cow<str> {
         format!("{}...", &s[..max]).into()
     } else {
         s.into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::whitespace_or_null;
+
+    #[test]
+    fn trims_all_whitespace() {
+        assert_eq!("   ".trim_end_matches(whitespace_or_null), "");
+        assert_eq!("\0".trim_end_matches(whitespace_or_null), "");
+        assert_eq!("1.4.5.6\0".trim_end_matches(whitespace_or_null), "1.4.5.6");
+        assert_eq!("AETITLE ".trim_end_matches(whitespace_or_null), "AETITLE");
     }
 }

@@ -71,8 +71,12 @@ where
                 decoded_frame.to_vec()
             }
             Value::Primitive(p) => {
-                // Non-encoded, just return the pixel data
-                p.to_bytes().to_vec()
+                // Non-encoded, just return the pixel data of the first frame
+                let total_bytes = rows as usize
+                    * cols as usize
+                    * samples_per_pixel as usize
+                    * (bits_allocated as usize / 8);
+                p.to_bytes()[0..total_bytes].to_vec()
             }
             Value::Sequence { items: _, size: _ } => InvalidPixelData.fail()?,
         };
