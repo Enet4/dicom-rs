@@ -9,10 +9,10 @@ use dicom::{
 use dicom_ul::pdu::Pdu;
 use dicom_ul::{
     association::ClientAssociationOptions,
-    pdu::{PDataValue, PDataValueType},
+    pdu::{PDataValue, PDataValueType, reader::PDU_HEADER_SIZE},
 };
 use smallvec::smallvec;
-use std::{io::Write, path::PathBuf};
+use std::path::PathBuf;
 use structopt::StructOpt;
 use transfer_syntax::TransferSyntaxIndex;
 
@@ -164,7 +164,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         scu.send(&pdu)?;
 
-        scu.send_pdata(pc_selected.id).write_all(&object_data)?;
+        let chunk_size = (max_pdu_length - PDU_HEADER_SIZE) as usize;
+        let last_chunk = object_data.len() / chunk_size;
+        let last_chunk = if object_data.len() % chunk_size != 0 {
+            last_chunk
+        } else {
+            last_chunk - 1
+        };
+
+        for (i, chunk) in object_data.chunks(chunk_size).enumerate() {
+            let pdu = Pdu::PData {
+                data: vec![
+                    PDataValue {
+                        presentation_context_id: pc_selected.id,
+                        value_type: PDataValueType::Data,
+                        is_last: i == last_chunk,
+                        data: chunk.to_vec(),
+                    }
+                ]
+            };
+            scu.send(&pdu)?;
+        }
     }
 
     if verbose {
