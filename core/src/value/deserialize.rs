@@ -8,6 +8,18 @@ use std::ops::{Add, Mul, Sub};
 pub enum Error {
     #[snafu(display("Unexpected end of element"))]
     UnexpectedEndOfElement { backtrace: Backtrace },
+    #[snafu(display("Invalid {:?} : but must be in {:?}", component, range))]
+    InvalidComponent {
+        component: DateComponent,
+        range: std::ops::Range<u32>,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("Invalid date"))]
+    InvalidDate { backtrace: Backtrace },
+    #[snafu(display("Invalid month component: got {}, but must be in 1..=12", value))]
+    InvalidDateMonth { value: u32, backtrace: Backtrace },
+    #[snafu(display("Invalid day component: got {}, but must be in 1..=31", value))]
+    InvalidDateDay { value: u32, backtrace: Backtrace },
     #[snafu(display("Invalid date-time zone component"))]
     InvalidDateTimeZone { backtrace: Backtrace },
     #[snafu(display("Invalid hour component: got {}, but must be in 0..24", value))]
@@ -29,12 +41,110 @@ pub enum Error {
     InvalidNumberToken { value: u8, backtrace: Backtrace },
     #[snafu(display("Invalid time zone sign token: got '{}', but must be '+' or '-'", *value as char))]
     InvalidTimeZoneSignToken { value: u8, backtrace: Backtrace },
+    #[snafu(display("Could not parse incomplete value: missing component: {}", missing))]
+    IncompleteValue {
+        missing: String,
+        backtrace: Backtrace,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+#[derive(Debug)]
+pub enum DateComponent {
+    Year(u32),
+    Month(u32),
+    Day(u32),
+    Hour(u32),
+    Minute(u32),
+    Second(u32),
+    Fraction(u32),
+}
+
+#[derive(Debug)]
+pub enum DatePrecision {
+    Y(u16),
+    YM(u16, u8),
+    YMD(u16, u8, u8),
+}
+
+#[derive(Debug)]
+pub struct PartialDate {
+    components: DatePrecision,
+}
+
+#[derive(Debug)]
+pub enum DateTimePrecision {
+    Y(u16),
+    YM(u16, u8),
+    YMD(u16, u8, u8),
+    YMDH(u16, u8, u8, u8),
+    YMDHM(u16, u8, u8, u8, u8),
+    YMDHMS(u16, u8, u8, u8, u8, u8),
+    YMDHMSF(u16, u8, u8, u8, u8, u8, u32),
+}
+
+#[derive(Debug)]
+pub struct PartialDateTime {
+    components: DateTimePrecision,
+    offset: Option<FixedOffset>,
+}
+
+#[derive(Debug)]
+pub enum TimePrecision {
+    H(u8),
+    HM(u8, u8),
+    HMS(u8, u8, u8),
+    HMSF(u8, u8, u8, u32),
+}
+
+#[derive(Debug)]
+pub struct PartialTime {
+    components: TimePrecision,
+    offset: Option<FixedOffset>,
+}
+
+fn check_component(component: DateComponent) -> Result<()> {
+    let (range, value) = match component {
+        DateComponent::Year(y) => (0..10_000, y),
+        DateComponent::Month(m) => (1..13, m),
+        DateComponent::Day(d) => (1..32, d),
+        DateComponent::Hour(h) => (1..24, h),
+        DateComponent::Minute(m) => (1..60, m),
+        DateComponent::Second(s) => (1..60, s),
+        DateComponent::Fraction(f) => (1..2_000_000, f),
+    };
+
+    if range.contains(&value) {
+        Ok(())
+    } else {
+        InvalidComponent { component, range }.fail()
+    }
+}
+
+/* Probably wont use anymore
+
+fn fail_bad_month(month: &u32) -> Result<()> {
+    if (1..=12).contains(month) {
+        Ok(())
+    } else {
+        InvalidDateMonth { value: *month }.fail()
+    }
+}
+
+fn fail_bad_day(day: &u32) -> Result<&u32> {
+    if (1..=31).contains(day) {
+        Ok(day)
+    } else {
+        InvalidDateDay { value: *day }.fail()
+    }
+}
+*/
+
 /** Decode a single DICOM Date (DA) into a `NaiveDate` value.
+ *
  */
+/*
 pub fn parse_date(buf: &[u8]) -> Result<(NaiveDate, &[u8])> {
     // YYYY(MM(DD)?)?
     match buf.len() {
@@ -73,6 +183,37 @@ pub fn parse_date(buf: &[u8]) -> Result<(NaiveDate, &[u8])> {
                 NaiveDate::from_ymd_opt(year, month, day).context(InvalidDateTimeZone);
             Ok((date?, rest))
         }
+    }
+}*/
+
+/** Decode a single DICOM Date (DA) into a `NaiveDate` value.
+ * As per standard, a full 8 byte representation (YYYYMMDD) is required,
+ * otherwise, the operation fails.
+ */
+pub fn parse_date(buf: &[u8]) -> Result<(NaiveDate, &[u8])> {
+    match buf.len() {
+        4 => {
+            let _year: i32 = read_number(&buf[0..4])?;
+            IncompleteValue { missing: "Month" }.fail()
+        }
+        6 => {
+            let _year: i32 = read_number(&buf[0..4])?;
+            let month: u32 = read_number(&buf[4..6])?;
+            check_component(DateComponent::Month(month))?;
+            IncompleteValue { missing: "Day" }.fail()
+        }
+        len if len >= 8 => {
+            let year = read_number(&buf[0..4])?;
+            let month: u32 = read_number(&buf[4..6])?;
+            check_component(DateComponent::Month(month))?;
+
+            let day: u32 = read_number(&buf[6..8])?;
+            check_component(DateComponent::Day(day))?;
+
+            let date: Result<_> = NaiveDate::from_ymd_opt(year, month, day).context(InvalidDate);
+            Ok((date?, &buf[8..]))
+        }
+        _ => UnexpectedEndOfElement.fail(),
     }
 }
 
@@ -289,7 +430,7 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_date, parse_datetime, parse_time, parse_time_impl};
+    use super::*;
     use chrono::{FixedOffset, NaiveDate, NaiveTime, TimeZone};
 
     #[test]
@@ -301,10 +442,6 @@ mod tests {
         assert_eq!(
             parse_date(b"19711231").unwrap(),
             (NaiveDate::from_ymd(1971, 12, 31), &[][..])
-        );
-        assert_eq!(
-            parse_date(b"197112").unwrap(),
-            (NaiveDate::from_ymd(1971, 12, 1), &[][..])
         );
         assert_eq!(
             parse_date(b"20140426").unwrap(),
@@ -323,27 +460,47 @@ mod tests {
             (NaiveDate::from_ymd(1962, 7, 28), &[][..])
         );
         assert_eq!(
-            parse_date(b"1902").unwrap(),
-            (NaiveDate::from_ymd(1902, 1, 1), &[][..])
-        );
-        assert_eq!(
-            parse_date(b"1902+0101").unwrap(),
-            (NaiveDate::from_ymd(1902, 1, 1), &b"+0101"[..][..])
-        );
-        assert_eq!(
-            parse_date(b"1902-0101").unwrap(),
-            (NaiveDate::from_ymd(1902, 1, 1), &b"-0101"[..][..])
-        );
-
-        assert_eq!(
-            parse_date(b"190204-0101").unwrap(),
-            (NaiveDate::from_ymd(1902, 4, 1), &b"-0101"[..][..])
-        );
-
-        assert_eq!(
             parse_date(b"19020404-0101").unwrap(),
             (NaiveDate::from_ymd(1902, 4, 4), &b"-0101"[..][..])
         );
+
+        assert!(matches!(
+            parse_date(b"1902"),
+            Err(Error::IncompleteValue { missing : m , ..})
+            if m == "Month"
+        ));
+
+        assert!(matches!(
+            parse_date(b"190208"),
+            Err(Error::IncompleteValue { missing : m , ..})
+            if m == "Day"
+        ));
+
+        //println!("{:?}",parse_date(b"19021515"));
+
+        assert!(matches!(
+            parse_date(b"19021515"),
+            Err(Error::InvalidComponent { component : DateComponent::Month(m) , range: r, ..})
+            if m == 15 && r == (1..13)
+        ));
+
+        assert!(matches!(
+            parse_date(b"19021200"),
+            Err(Error::InvalidDateDay { value : v , ..})
+            if v == 0
+        ));
+
+        assert!(matches!(
+            parse_date(b"19021232"),
+            Err(Error::InvalidDateDay { value : v , ..})
+            if v == 32
+        ));
+
+        // not a leap year
+        assert!(matches!(
+            parse_date(b"20210229"),
+            Err(Error::InvalidDate { .. })
+        ));
 
         assert!(parse_date(b"").is_err());
         assert!(parse_date(b"        ").is_err());
