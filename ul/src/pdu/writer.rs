@@ -192,6 +192,8 @@ where
         Pdu::AssociationAC {
             protocol_version,
             application_context_name,
+            called_ae_title,
+            calling_ae_title,
             presentation_contexts,
             user_variables,
         } => {
@@ -229,16 +231,23 @@ where
                 // 11-26 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received. TODO: write AE title
-                writer
-                    .write_all(&[0; 16])
-                    .context(WriteReserved { bytes: 16_u32 })?;
-
+                let mut ae_title_bytes = codec.encode(called_ae_title).context(EncodeField {
+                    field: "Called-AE-title",
+                })?;
+                ae_title_bytes.resize(16, b' ');
+                writer.write_all(&ae_title_bytes).context(WriteField {
+                    field: "Called-AE-title",
+                })?;
                 // 27-42 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received. TODO: write AE title
-                writer
-                    .write_all(&[0; 16])
-                    .context(WriteReserved { bytes: 16_u32 })?;
+                let mut ae_title_bytes = codec.encode(calling_ae_title).context(EncodeField {
+                    field: "Calling-AE-title",
+                })?;
+                ae_title_bytes.resize(16, b' ');
+                writer.write_all(&ae_title_bytes).context(WriteField {
+                    field: "Called-AE-title",
+                })?;
 
                 // 43-74 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value

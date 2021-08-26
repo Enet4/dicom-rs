@@ -115,13 +115,14 @@ where
         .read_u32::<BigEndian>()
         .context(ReadPduField { field: "length" })?;
 
-    ensure!(
-        pdu_length <= max_pdu_length,
-        PduTooLarge {
-            pdu_length,
-            max_pdu_length
-        }
-    );
+    // FIXME: check commented, but we should maybe at least emit a warning
+    // ensure!(
+    //     pdu_length <= max_pdu_length,
+    //     PduTooLarge {
+    //         pdu_length,
+    //         max_pdu_length
+    //     }
+    // );
 
     let bytes = read_n(reader, pdu_length as usize).context(ReadPdu)?;
     let mut cursor = Cursor::new(bytes);
@@ -168,6 +169,7 @@ where
                 })?
                 .trim()
                 .to_string();
+            // eprintln!("Called-AE-title: {:?} [{}]", ae_bytes, called_ae_title);
 
             // 27-42 - Calling-AE-title - Source DICOM Application Name. It shall be encoded as
             // 16 characters as defined by the ISO 646:1990-Basic G0 Set with leading and
@@ -185,6 +187,7 @@ where
                 })?
                 .trim()
                 .to_string();
+            // eprintln!("Calling-AE-title: {:?} [{}]", ae_bytes, calling_ae_title);
 
             // 43-74 - Reserved - This reserved field shall be sent with a value 00H for all
             // bytes but not tested to this value when received
@@ -248,14 +251,41 @@ where
             // 11-26 - Reserved - This reserved field shall be sent with a value identical to
             // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
             // shall not be tested when received.
+            let mut ae_bytes = [0; 16];
+            cursor.read_exact(&mut ae_bytes).context(ReadPduField {
+                field: "Called-AE-title",
+            })?;
+            let called_ae_title = codec
+                .decode(&ae_bytes)
+                .context(DecodeText {
+                    field: "Called-AE-title",
+                })?
+                .trim()
+                .to_string();
+            // eprintln!("Called-AE-title: {:?} [{}]", ae_bytes, called_ae_title);
+
+
             // 27-42 - Reserved - This reserved field shall be sent with a value identical to
             // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
             // shall not be tested when received.
+            let mut ae_bytes = [0; 16];
+            cursor.read_exact(&mut ae_bytes).context(ReadPduField {
+                field: "Calling-AE-title",
+            })?;
+            let calling_ae_title = codec
+                .decode(&ae_bytes)
+                .context(DecodeText {
+                    field: "Calling-AE-title",
+                })?
+                .trim()
+                .to_string();
+            // eprintln!("Calling-AE-title: {:?} [{}]", ae_bytes, calling_ae_title);
+
             // 43-74 - Reserved - This reserved field shall be sent with a value identical to
             // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
             // shall not be tested when received.
             cursor
-                .seek(SeekFrom::Current(16 + 16 + 32))
+                .seek(SeekFrom::Current(32))
                 .context(ReadReserved { bytes: 64_u32 })?;
 
             // 75-xxx - Variable items - This variable field shall contain the following items:
@@ -283,6 +313,8 @@ where
                 protocol_version,
                 application_context_name: application_context_name
                     .context(MissingApplicationContextName)?,
+                called_ae_title,
+                calling_ae_title,
                 presentation_contexts,
                 user_variables,
             })

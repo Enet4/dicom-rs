@@ -1,8 +1,9 @@
 use clap::{App, Arg};
-use dicom_ul::pdu::reader::{read_pdu, DEFAULT_MAX_PDU};
+use dicom_ul::pdu::reader::{DEFAULT_MAX_PDU, MINIMUM_PDU_SIZE, read_pdu};
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::Pdu;
 use snafu::{Backtrace, ErrorCompat, OptionExt, ResultExt, Snafu};
+use std::io::Write;
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
@@ -182,18 +183,25 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
                     Ok(())
                 });
             }
+            let mut buffer: Vec<u8> = Vec::with_capacity(MINIMUM_PDU_SIZE as usize);
 
             loop {
                 let message = message_rx.recv().context(ReceiveMessage)?;
                 match message {
                     ThreadMessage::SendPdu { to, pdu } => match to {
                         ProviderType::Scu => {
-                            println!("scu <---- scp: {:?}", &pdu);
-                            write_pdu(scu_stream, &pdu).unwrap();
+                            // println!("scu <---- scp: {:?}", &pdu);
+                            println!("scu <---- scp");
+                            buffer.clear();
+                            write_pdu(&mut buffer, &pdu).unwrap();
+                            scu_stream.write_all(&buffer).unwrap();
                         }
                         ProviderType::Scp => {
-                            println!("scu ----> scp: {:?}", &pdu);
-                            write_pdu(scp_stream, &pdu).unwrap();
+                            // println!("scu ----> scp: {:?}", &pdu);
+                            println!("scu ----> scp");
+                            buffer.clear();
+                            write_pdu(&mut buffer, &pdu).unwrap();
+                            scp_stream.write_all(&buffer).unwrap();
                         }
                     },
                     ThreadMessage::ReadErr { from, err } => {

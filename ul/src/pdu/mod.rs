@@ -248,6 +248,8 @@ pub enum Pdu {
     },
     AssociationAC {
         protocol_version: u16,
+        calling_ae_title: String,
+        called_ae_title: String,
         application_context_name: String,
         presentation_contexts: Vec<PresentationContextResult>,
         user_variables: Vec<UserVariableItem>,
