@@ -59,8 +59,8 @@ pub enum DataToken {
     ///
     /// This variant is used to represent
     /// the byte offsets to the first byte of the Item tag of the first fragment
-    /// for each frame in the sequence of items
-    /// (as per PS 3.5, Section A.4)
+    /// for each frame in the sequence of items,
+    /// as per PS 3.5, Section A.4.
     OffsetTable(Vec<u32>),
 }
 
