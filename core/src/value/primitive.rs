@@ -3,6 +3,7 @@
 //! See [`PrimitiveValue`](./enum.PrimitiveValue.html).
 
 use super::DicomValueType;
+use crate::value::deserialize::Imprecision;
 use crate::header::{HasLength, Length, Tag};
 use chrono::{FixedOffset, Timelike};
 use itertools::Itertools;
@@ -1860,8 +1861,8 @@ impl PrimitiveValue {
     pub fn to_date(&self) -> Result<NaiveDate, ConvertValueError> {
         match self {
             PrimitiveValue::Date(v) if !v.is_empty() => Ok(v[0]),
-            PrimitiveValue::Str(s) => super::deserialize::parse_date(s.as_bytes())
-                .map(|(date, _rest)| date)
+            PrimitiveValue::Str(s) => super::deserialize::parse_date_partial(s.as_bytes())
+                .map(|(date, _rest)| date.earliest().unwrap())
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
                     requested: "Date",
@@ -1869,8 +1870,8 @@ impl PrimitiveValue {
                     cause: Some(err),
                 }),
             PrimitiveValue::Strs(s) => {
-                super::deserialize::parse_date(s.first().map(|s| s.as_bytes()).unwrap_or(&[]))
-                    .map(|(date, _rest)| date)
+                super::deserialize::parse_date_partial(s.first().map(|s| s.as_bytes()).unwrap_or(&[]))
+                    .map(|(date, _rest)| date.earliest().unwrap())
                     .context(ParseDate)
                     .map_err(|err| ConvertValueError {
                         requested: "Date",
@@ -1878,8 +1879,8 @@ impl PrimitiveValue {
                         cause: Some(err),
                     })
             }
-            PrimitiveValue::U8(bytes) => super::deserialize::parse_date(bytes)
-                .map(|(date, _rest)| date)
+            PrimitiveValue::U8(bytes) => super::deserialize::parse_date_partial(bytes)
+                .map(|(date, _rest)| date.earliest().unwrap())
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
                     requested: "Date",
@@ -1934,8 +1935,9 @@ impl PrimitiveValue {
     pub fn to_multi_date(&self) -> Result<Vec<NaiveDate>, ConvertValueError> {
         match self {
             PrimitiveValue::Date(v) if !v.is_empty() => Ok(v.to_vec()),
-            PrimitiveValue::Str(s) => super::deserialize::parse_date(s.trim_end().as_bytes())
-                .map(|(date, _rest)| vec![date])
+            PrimitiveValue::Str(s) => super::deserialize::parse_date_partial(s.trim_end().as_bytes())
+                // TODO rewrite, no Unwraps
+                .map(|(date, _rest)| vec![date.earliest().unwrap()])
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
                     requested: "Date",
@@ -1945,8 +1947,8 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => s
                 .into_iter()
                 .map(|s| {
-                    super::deserialize::parse_date(s.trim_end().as_bytes())
-                        .map(|(date, _rest)| date)
+                    super::deserialize::parse_date_partial(s.trim_end().as_bytes())
+                        .map(|(date, _rest)| date.earliest().unwrap())
                 })
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDate)
@@ -1958,7 +1960,7 @@ impl PrimitiveValue {
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
                 .into_iter()
-                .map(|s| super::deserialize::parse_date(s).map(|(date, _rest)| date))
+                .map(|s| super::deserialize::parse_date_partial(s).map(|(date, _rest)| date.earliest().unwrap()))
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
