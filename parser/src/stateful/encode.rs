@@ -1,6 +1,9 @@
-//! Module holding a stateful DICOM data encoding abstraction,
-//! in a way which supports text encoding.
+//! Module holding a stateful DICOM data encoding abstraction.
+//!
+//! The [`StatefulEncoder`] supports encoding of binary data and text
+//! while applying the necessary padding to conform to DICOM encoding rules.
 
+use dicom_core::Length;
 use dicom_core::{value::PrimitiveValue, DataElementHeader, VR};
 use dicom_encoding::transfer_syntax::DynEncoder;
 use dicom_encoding::{
@@ -108,7 +111,10 @@ where
     T: TextCodec,
 {
     /// Encode and write a data element header.
-    pub fn encode_element_header(&mut self, de: DataElementHeader) -> Result<()> {
+    pub fn encode_element_header(&mut self, mut de: DataElementHeader) -> Result<()> {
+        if let Some(len) = de.len.get() {
+            de.len = Length(even_len(len))
+        }
         let bytes = self
             .encoder
             .encode_element_header(&mut self.to, de)
@@ -119,8 +125,15 @@ where
         Ok(())
     }
 
-    /// Encode and write an item header.
+    /// Encode and write an item header,
+    /// where `len` is the specified length of the item
+    /// (can be `0xFFFF_FFFF` for undefined length).
     pub fn encode_item_header(&mut self, len: u32) -> Result<()> {
+        let len = if len == 0xFFFF_FFFF {
+            len
+        } else {
+            even_len(len)
+        };
         self.encoder
             .encode_item_header(&mut self.to, len)
             .context(EncodeData {
@@ -152,12 +165,37 @@ where
         Ok(())
     }
 
-    /// Write all bytes directly to the inner writer.
-    pub fn write_bytes(&mut self, bytes: &[u8]) -> Result<()> {
+    /// Write the given bytes directly to the inner writer.
+    ///
+    /// Note that this method
+    /// (unlike [`write_bytes`](StatefulEncoder::write_bytes))
+    /// does not perform any additional padding.
+    pub fn write_raw_bytes(&mut self, bytes: &[u8]) -> Result<()> {
         self.to.write_all(bytes).context(WriteValueData {
             position: self.bytes_written,
         })?;
         self.bytes_written += bytes.len() as u64;
+        Ok(())
+    }
+
+    /// Write a primitive DICOM value as a bunch of bytes
+    /// directly to the inner writer.
+    ///
+    /// This method will perform the necessary padding
+    /// (always with zeros)
+    /// to ensure that the encoded value has an even number of bytes.
+    pub fn write_bytes(&mut self, bytes: &[u8]) -> Result<()> {
+        debug_assert!(bytes.len() < u32::max_value() as usize);
+        self.to.write_all(bytes).context(WriteValueData {
+            position: self.bytes_written,
+        })?;
+        self.bytes_written += bytes.len() as u64;
+        if bytes.len() % 2 != 0 {
+            self.to.write_all(&[0]).context(WriteValueData {
+                position: self.bytes_written,
+            })?;
+            self.bytes_written += 1;
+        }
         Ok(())
     }
 
@@ -176,8 +214,12 @@ where
         Ok(())
     }
 
-    /// Encode and write a primitive value. Where applicable, this
-    /// will use the inner text codec for textual values.
+    /// Encode and write a primitive value.
+    ///
+    /// This method will perform the necessary padding to ensure that the
+    /// encoded value is an even number of bytes.
+    /// Where applicable,
+    /// this will use the inner text codec for textual values.
     pub fn encode_primitive(
         &mut self,
         de: &DataElementHeader,
@@ -200,7 +242,14 @@ where
                         .context(EncodeData {
                             position: self.bytes_written,
                         })?;
+
                 self.bytes_written += bytes as u64;
+                if bytes % 2 != 0 {
+                    self.to.write_all(&[0]).context(WriteValueData {
+                        position: self.bytes_written,
+                    })?;
+                    self.bytes_written += 1;
+                }
                 Ok(())
             }
         }
@@ -208,8 +257,10 @@ where
 
     fn encode_text(&mut self, text: &str, vr: VR) -> Result<()> {
         let bytes = self.encode_text_untrailed(text, vr)?;
+        // pad to even length
         if bytes % 2 == 1 {
-            self.to.write_all(b" ").context(WriteValueData {
+            let pad = if vr == VR::UI { b"\0" } else { b" " };
+            self.to.write_all(pad).context(WriteValueData {
                 position: self.bytes_written,
             })?;
             self.bytes_written += 1;
@@ -232,8 +283,10 @@ where
                 self.bytes_written += 1;
             }
         }
+        // pad to even length
         if acc % 2 == 1 {
-            self.to.write_all(b" ").context(WriteValueData {
+            let pad = if vr == VR::UI { b"\0" } else { b" " };
+            self.to.write_all(pad).context(WriteValueData {
                 position: self.bytes_written,
             })?;
             self.bytes_written += 1;
@@ -258,5 +311,176 @@ where
         })?;
         self.bytes_written += data.len() as u64;
         Ok(data.len())
+    }
+}
+
+#[inline]
+fn even_len(l: u32) -> u32 {
+    ((l + 1) & !1) as u32
+}
+
+#[cfg(test)]
+mod tests {
+    use dicom_core::{DataElement, DicomValue, Tag, VR, dicom_value};
+    use dicom_encoding::{
+        encode::EncoderFor, text::SpecificCharacterSet,
+        transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder,
+    };
+
+    use super::StatefulEncoder;
+
+    /// Odd lengthed values convert to tokens with even padding (PN)
+    #[test]
+    fn encode_odd_length_element_pn() {
+        let element = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            DicomValue::new(dicom_value!(Strs, ["Dall^John"])),
+        );
+
+        let mut out: Vec<_> = Vec::new();
+
+        {
+            let mut encoder = StatefulEncoder::new(
+                &mut out,
+                EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
+                SpecificCharacterSet::Default.codec().unwrap(),
+            );
+
+            encoder.encode_element_header(*element.header()).unwrap();
+            encoder
+                .encode_primitive(element.header(), element.value().primitive().unwrap())
+                .unwrap();
+        }
+
+        assert_eq!(
+            &out,
+            &[
+                0x10, 0x00, 0x10, 0x00, // tag
+                b'P', b'N', // VR
+                0x0A, 0x00, // length
+                // ---------- value ----------
+                b'D', b'a', b'l', b'l', b'^', b'J', b'o', b'h', b'n', b' ',
+            ],
+        )
+    }
+
+    /// Odd lengthed values are encoded with even padding (bytes)
+    #[test]
+    fn encode_odd_length_element_bytes() {
+        let element = DataElement::new(
+            Tag(0x7FE0, 0x0010),
+            VR::OB,
+            DicomValue::new(vec![1; 9].into()),
+        );
+
+        let mut out: Vec<_> = Vec::new();
+
+        {
+            let mut encoder = StatefulEncoder::new(
+                &mut out,
+                EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
+                SpecificCharacterSet::Default.codec().unwrap(),
+            );
+
+            encoder.encode_element_header(*element.header()).unwrap();
+            encoder
+                .encode_primitive(element.header(), element.value().primitive().unwrap())
+                .unwrap();
+        }
+
+        assert_eq!(
+            &out,
+            &[
+                0xE0, 0x7F, 0x10, 0x00, // tag
+                b'O', b'B', // VR
+                0x00, 0x00, // reserved
+                0x0A, 0x00, 0x00, 0x00, // length
+                // ---------- value ----------
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
+            ],
+        )
+    }
+
+    /// Odd lengthed values are encoded with even padding (UIDs)
+    #[test]
+    fn encode_odd_length_element_uid() {
+        let element = DataElement::new(
+            Tag(0x0000, 0x0002),
+            VR::UI,
+            DicomValue::new("1.2.840.10008.1.1".into()),
+        );
+
+        let mut out: Vec<_> = Vec::new();
+
+        {
+            let mut encoder = StatefulEncoder::new(
+                &mut out,
+                EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
+                SpecificCharacterSet::Default.codec().unwrap(),
+            );
+
+            encoder.encode_element_header(*element.header()).unwrap();
+            encoder
+                .encode_primitive(element.header(), element.value().primitive().unwrap())
+                .unwrap();
+        }
+
+        assert_eq!(
+            &out,
+            &[
+                // tag
+                0x00, 0x00, 0x02, 0x00, // VR
+                b'U', b'I', // length
+                0x12, 0x00, // length
+                // ---------- value ----------
+                b'1', b'.', b'2', b'.', b'8', b'4', b'0', b'.', b'1', b'0', b'0', b'0', b'8', b'.',
+                b'1', b'.', b'1', b'\0',
+            ],
+        )
+    }
+
+
+    /// Odd lengthed item values are encoded with even padding
+    #[test]
+    fn encode_odd_length_item_bytes() {
+        let mut out: Vec<_> = Vec::new();
+
+        {
+            let mut encoder = StatefulEncoder::new(
+                &mut out,
+                EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
+                SpecificCharacterSet::Default.codec().unwrap(),
+            );
+
+            encoder.encode_item_header(9).unwrap();
+            encoder
+                .write_bytes(&[5; 9])
+                .unwrap();
+        }
+
+        assert_eq!(
+            &out,
+            &[
+                0xFE, 0xFF, 0x00, 0xE0, // tag (0xFFFE, 0xE000)
+                0x0A, 0x00, 0x00, 0x00, // length
+                // ---------- value ----------
+                5, 5, 5, 5, 5, 5, 5, 5, 5, 0,
+            ],
+        )
+    }
+
+    #[test]
+    fn test_even_len() {
+        use super::even_len;
+
+        assert_eq!(even_len(0), 0);
+        assert_eq!(even_len(1), 2);
+        assert_eq!(even_len(2), 2);
+        assert_eq!(even_len(3), 4);
+        assert_eq!(even_len(4), 4);
+        assert_eq!(even_len(5), 6);
+        assert_eq!(even_len(6), 6);
+        assert_eq!(even_len(0xFFFF_FFFD), 0xFFFF_FFFE);
     }
 }
