@@ -10,7 +10,7 @@ use crate::dataset::*;
 use crate::stateful::encode::StatefulEncoder;
 use dicom_core::{DataElementHeader, Length, VR};
 use dicom_encoding::encode::EncodeTo;
-use dicom_encoding::text::{DefaultCharacterSetCodec, SpecificCharacterSet, TextCodec};
+use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::DynEncoder;
 use dicom_encoding::TransferSyntax;
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
@@ -85,13 +85,13 @@ struct SeqToken {
 /// This is analogous to the `DatasetReader` type for converting data
 /// set tokens to bytes.
 #[derive(Debug)]
-pub struct DataSetWriter<W, E, T = Box<dyn TextCodec>> {
+pub struct DataSetWriter<W, E, T = SpecificCharacterSet> {
     printer: StatefulEncoder<W, E, T>,
     seq_tokens: Vec<SeqToken>,
     last_de: Option<DataElementHeader>,
 }
 
-impl<'w, W: 'w> DataSetWriter<W, DynEncoder<'w, W>, Box<dyn TextCodec>>
+impl<'w, W: 'w> DataSetWriter<W, DynEncoder<'w, W>>
 where
     W: Write,
 {
@@ -100,17 +100,14 @@ where
             ts_uid: ts.uid(),
             ts_alias: ts.name(),
         })?;
-        let text = charset
-            .codec()
-            .context(UnsupportedCharacterSet { charset })?;
-        Ok(DataSetWriter::new_with_codec(to, encoder, text))
+        Ok(DataSetWriter::new_with_codec(to, encoder, charset))
     }
 }
 
 impl<W, E> DataSetWriter<W, E> {
     pub fn new(to: W, encoder: E) -> Self {
         DataSetWriter {
-            printer: StatefulEncoder::new(to, encoder, Box::new(DefaultCharacterSetCodec) as Box<_>),
+            printer: StatefulEncoder::new(to, encoder, SpecificCharacterSet::Default),
             seq_tokens: Vec::new(),
             last_de: None,
         }

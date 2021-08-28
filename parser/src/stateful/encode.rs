@@ -56,7 +56,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// of how many bytes were written.
 /// `W` is the write target, `E` is the encoder, and `T` is the text codec.
 #[derive(Debug)]
-pub struct StatefulEncoder<W, E, T = Box<dyn TextCodec>> {
+pub struct StatefulEncoder<W, E, T = SpecificCharacterSet> {
     to: W,
     encoder: E,
     text: T,
@@ -64,8 +64,7 @@ pub struct StatefulEncoder<W, E, T = Box<dyn TextCodec>> {
     buffer: Vec<u8>,
 }
 
-pub type DynStatefulEncoder<'w> =
-    StatefulEncoder<Box<dyn Write + 'w>, DynEncoder<'w, dyn Write>, Box<dyn TextCodec>>;
+pub type DynStatefulEncoder<'w> = StatefulEncoder<Box<dyn Write + 'w>, DynEncoder<'w, dyn Write>>;
 
 impl<W, E, T> StatefulEncoder<W, E, T> {
     pub fn new(to: W, encoder: E, text: T) -> Self {
@@ -88,15 +87,11 @@ impl<'s> DynStatefulEncoder<'s> {
         let encoder = ts
             .encoder()
             .context(UnsupportedTransferSyntax { ts: ts.uid() })?;
-        let text = charset
-            .codec()
-            .context(UnsupportedCharacterSet { charset })?;
-
-        Ok(StatefulEncoder::new(to, encoder, text))
+        Ok(StatefulEncoder::new(to, encoder, charset))
     }
 }
 
-impl<W, E> StatefulEncoder<W, E, Box<dyn TextCodec>>
+impl<W, E> StatefulEncoder<W, E>
 where
     W: Write,
     E: EncodeTo<W>,
@@ -197,9 +192,11 @@ where
 
     /// Encode and write the values of a pixel data offset table.
     pub fn encode_offset_table(&mut self, table: &[u32]) -> Result<()> {
-        self.encoder.encode_offset_table(&mut self.to, table).context(EncodeData {
-            position: self.bytes_written,
-        })?;
+        self.encoder
+            .encode_offset_table(&mut self.to, table)
+            .context(EncodeData {
+                position: self.bytes_written,
+            })?;
 
         self.bytes_written += table.len() as u64 * 4;
         Ok(())
@@ -281,7 +278,7 @@ where
             }
             PrimitiveValue::Strs(texts) => {
                 self.encode_texts(&texts[..], de.vr())?;
-                
+
                 // if element is Specific Character Set,
                 // update the text codec
                 if de.tag == Tag(0x0008, 0x0005) {
@@ -312,13 +309,13 @@ where
     }
 
     fn try_new_codec(&mut self, name: &str) {
-        if let Some(codec) = SpecificCharacterSet::from_code(name).and_then(SpecificCharacterSet::codec) {
+        if let Some(codec) = SpecificCharacterSet::from_code(name) {
             self.text = codec;
         } else {
             // TODO(#49) log this as a warning
             eprintln!("Unsupported character set `{}`, ignoring", name);
         }
-    } 
+    }
 
     fn encode_text(&mut self, text: &str, vr: VR) -> Result<()> {
         let bytes = self.encode_text_untrailed(text, vr)?;
@@ -341,7 +338,7 @@ where
             let pad = if de.vr == VR::UI { b'\0' } else { b' ' };
             encoded_value.push(pad);
         }
-        
+
         // now we can write the header with the correct length
         self.encode_element_header(DataElementHeader {
             tag: de.tag,
@@ -361,7 +358,8 @@ where
     {
         self.buffer.clear();
         for (i, t) in texts.iter().enumerate() {
-            self.buffer.extend_from_slice(&self.convert_text_untrailed(t.as_ref(), de.vr)?);
+            self.buffer
+                .extend_from_slice(&self.convert_text_untrailed(t.as_ref(), de.vr)?);
             if i < texts.len() - 1 {
                 self.buffer.push(b'\\');
             }
@@ -420,7 +418,7 @@ where
         self.bytes_written += data.len() as u64;
         Ok(data.len())
     }
-    
+
     fn convert_text_untrailed(&self, text: &str, vr: VR) -> Result<Vec<u8>> {
         match vr {
             VR::AE | VR::AS | VR::CS | VR::DA | VR::DS | VR::DT | VR::IS | VR::TM | VR::UI => {
@@ -443,9 +441,15 @@ fn even_len(l: u32) -> u32 {
 
 #[cfg(test)]
 mod tests {
+    use dicom_core::{
+        dicom_value, DataElement, DataElementHeader, DicomValue, Length, PrimitiveValue, Tag, VR,
+    };
+    use dicom_encoding::{
+        encode::EncoderFor, text::SpecificCharacterSet, text::TextCodec,
+        transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder,
+    };
+
     use super::StatefulEncoder;
-    use dicom_encoding::{encode::EncoderFor, text::{DefaultCharacterSetCodec, DynamicTextCodec, SpecificCharacterSet}, transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder};
-    use dicom_core::{DataElement, DataElementHeader, DicomValue, Length, PrimitiveValue, Tag, VR, dicom_value};
 
     /// Odd lengthed values convert to tokens with even padding (PN)
     #[test]
@@ -462,7 +466,7 @@ mod tests {
             let mut encoder = StatefulEncoder::new(
                 &mut out,
                 EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
-                SpecificCharacterSet::Default.codec().unwrap(),
+                SpecificCharacterSet::Default,
             );
 
             encoder
@@ -497,7 +501,7 @@ mod tests {
             let mut encoder = StatefulEncoder::new(
                 &mut out,
                 EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
-                SpecificCharacterSet::Default.codec().unwrap(),
+                SpecificCharacterSet::Default,
             );
 
             encoder
@@ -533,7 +537,7 @@ mod tests {
             let mut encoder = StatefulEncoder::new(
                 &mut out,
                 EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
-                SpecificCharacterSet::Default.codec().unwrap(),
+                SpecificCharacterSet::Default,
             );
 
             encoder
@@ -555,7 +559,6 @@ mod tests {
         )
     }
 
-
     /// Odd lengthed item values are encoded with even padding
     #[test]
     fn encode_odd_length_item_bytes() {
@@ -565,13 +568,11 @@ mod tests {
             let mut encoder = StatefulEncoder::new(
                 &mut out,
                 EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
-                SpecificCharacterSet::Default.codec().unwrap(),
+                SpecificCharacterSet::Default,
             );
 
             encoder.encode_item_header(9).unwrap();
-            encoder
-                .write_bytes(&[5; 9])
-                .unwrap();
+            encoder.write_bytes(&[5; 9]).unwrap();
         }
 
         assert_eq!(
@@ -606,23 +607,16 @@ mod tests {
     fn update_character_set() {
         const GT: &'static [u8; 54] = &[
             // Tag: (0008,0005) Specific Character Set
-            0x08, 0x00, 0x05, 0x00,
-            // VR: CS
-            b'C', b'S',
-            // Length: 10
-            0x0a, 0x00,
-            // Value: "ISO_IR 192"
+            0x08, 0x00, 0x05, 0x00, // VR: CS
+            b'C', b'S', // Length: 10
+            0x0a, 0x00, // Value: "ISO_IR 192"
             b'I', b'S', b'O', b'_', b'I', b'R', b' ', b'1', b'9', b'2',
             // Tag: (0010,0010) Patient Name
-            0x10, 0x00, 0x10, 0x00,
-            // VR: PN
-            b'P', b'N',
-            // Length: 28
-            0x1c, 0x00,
-            // Value: "Иванков^Андрей "
-            0xd0, 0x98, 0xd0, 0xb2, 0xd0, 0xb0, 0xd0, 0xbd, 0xd0, 0xba,
-            0xd0, 0xbe, 0xd0, 0xb2, 0x5e, 0xd0, 0x90, 0xd0, 0xbd, 0xd0,
-            0xb4, 0xd1, 0x80, 0xd0, 0xb5, 0xd0, 0xb9, b' ',
+            0x10, 0x00, 0x10, 0x00, // VR: PN
+            b'P', b'N', // Length: 28
+            0x1c, 0x00, // Value: "Иванков^Андрей "
+            0xd0, 0x98, 0xd0, 0xb2, 0xd0, 0xb0, 0xd0, 0xbd, 0xd0, 0xba, 0xd0, 0xbe, 0xd0, 0xb2,
+            0x5e, 0xd0, 0x90, 0xd0, 0xbd, 0xd0, 0xb4, 0xd1, 0x80, 0xd0, 0xb5, 0xd0, 0xb9, b' ',
         ];
 
         let mut sink = Vec::with_capacity(GT.len());
@@ -630,7 +624,7 @@ mod tests {
         let mut encoder = StatefulEncoder::new(
             &mut sink,
             EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
-            SpecificCharacterSet::Default.codec().unwrap(),
+            SpecificCharacterSet::Default,
         );
 
         // encode specific character set
@@ -659,9 +653,6 @@ mod tests {
         encoder.encode_primitive(&pn, &pn_value).unwrap();
 
         // test all output against ground truth
-        assert_eq!(
-            &sink,
-            GT,
-        );
+        assert_eq!(&sink, GT,);
     }
 }

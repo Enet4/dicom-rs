@@ -901,8 +901,7 @@ mod tests {
 
     use dicom_encoding::{
         decode::{basic::LittleEndianBasicDecoder, explicit_le::ExplicitVRLittleEndianDecoder},
-        text::DefaultCharacterSetCodec,
-        text::DynamicTextCodec,
+        text::SpecificCharacterSet,
     };
 
     use crate::stateful::decode::StatefulDecode;
@@ -1108,7 +1107,7 @@ mod tests {
             &mut data,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder,
-            Box::new(DefaultCharacterSetCodec) as DynamicTextCodec,
+            SpecificCharacterSet::Default,
         );
 
         is_stateful_decode(&decoder);
@@ -1138,7 +1137,7 @@ mod tests {
             &mut data,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder,
-            Box::new(DefaultCharacterSetCodec) as DynamicTextCodec,
+            SpecificCharacterSet::Default,
         );
 
         is_stateful_decode(&decoder);
@@ -1169,7 +1168,7 @@ mod tests {
             &mut data,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder,
-            Box::new(DefaultCharacterSetCodec) as DynamicTextCodec,
+            SpecificCharacterSet::Default,
         );
 
         is_stateful_decode(&decoder);
