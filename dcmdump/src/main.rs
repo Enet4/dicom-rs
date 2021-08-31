@@ -20,6 +20,7 @@ use dicom::transfer_syntax::TransferSyntaxRegistry;
 use snafu::ErrorCompat;
 use std::borrow::Cow;
 use std::fmt;
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::io::{stdout, ErrorKind, Result as IoResult, Write};
 use std::path::PathBuf;
