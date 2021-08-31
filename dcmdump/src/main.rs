@@ -58,12 +58,12 @@ impl FromStr for Coloring {
     }
 }
 
-impl ToString for Coloring {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for Coloring {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Coloring::Never => "never".into(),
-            Coloring::Auto => "auto".into(),
-            Coloring::Always => "always".into(),
+            Coloring::Never => f.write_str("never"),
+            Coloring::Auto => f.write_str("auto"),
+            Coloring::Always => f.write_str("always"),
         }
     }
 }
