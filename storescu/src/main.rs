@@ -35,7 +35,7 @@ struct App {
     /// the called AE title
     #[structopt(long = "called-ae-title", default_value = "ANY-SCP")]
     called_ae_title: String,
-    /// the maximum PDU length
+    /// the maximum PDU length accepted by the SCU
     #[structopt(long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
 }
@@ -130,10 +130,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let nbytes = cmd_data.len() + object_data.len();
 
     if verbose {
-        println!("Sending payload (~ {} Kb)...", nbytes / 1024);
+        println!("Sending payload (~ {} kB)...", nbytes / 1_000);
     }
 
-    if nbytes < max_pdu_length as usize - 100 {
+    if nbytes < scu.acceptor_max_pdu_length() as usize - 100 {
         let pdu = Pdu::PData {
             data: vec![
                 PDataValue {
@@ -164,7 +164,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         scu.send(&pdu)?;
 
-        let chunk_size = (max_pdu_length - PDU_HEADER_SIZE) as usize;
+        let chunk_size = (scu.acceptor_max_pdu_length() - PDU_HEADER_SIZE) as usize;
         let last_chunk = object_data.len() / chunk_size;
         let last_chunk = if object_data.len() % chunk_size != 0 {
             last_chunk
@@ -203,11 +203,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Response: {:?}", cmd_obj);
             }
             let status = cmd_obj.element(tags::STATUS)?.to_int::<u16>()?;
+            let storage_sop_instance_uid = storage_sop_instance_uid.trim_end_matches(|c: char| c.is_whitespace() || c == '\0');
             if status == 0 {
                 println!("Sucessfully stored instance `{}`", storage_sop_instance_uid);
             } else {
                 println!(
-                    "Failed to store instance '{}' (status code {})",
+                    "Failed to store instance `{}` (status code {})",
                     storage_sop_instance_uid, status
                 );
             }

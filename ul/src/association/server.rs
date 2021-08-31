@@ -11,9 +11,11 @@ use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use snafu::{ensure, ResultExt, Snafu};
 
 use crate::pdu::{
-    reader::read_pdu, writer::write_pdu, AbortRQServiceProviderReason, AbortRQSource,
-    AssociationRJResult, AssociationRJServiceUserReason, AssociationRJSource, Pdu,
-    PresentationContextResult, PresentationContextResultReason,
+    reader::{read_pdu, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE},
+    writer::write_pdu,
+    AbortRQServiceProviderReason, AbortRQSource, AssociationRJResult,
+    AssociationRJServiceUserReason, AssociationRJSource, Pdu, PresentationContextResult,
+    PresentationContextResultReason, UserVariableItem,
 };
 
 use super::pdata::PDataWriter;
@@ -58,6 +60,13 @@ pub enum Error {
 
     /// association aborted
     Aborted,
+
+    #[snafu(display(
+        "PDU is too large ({} bytes) to be sent to the remote application entity",
+        length
+    ))]
+    #[non_exhaustive]
+    SendTooLongPdu { length: usize },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -304,7 +313,7 @@ where
                 called_ae_title,
                 application_context_name,
                 presentation_contexts,
-                user_variables: _,
+                user_variables, // TODO check maximum length sub-item
             } => {
                 if protocol_version != self.protocol_version {
                     write_pdu(
@@ -352,6 +361,22 @@ where
                         Rejected.fail()
                     })?;
 
+                // fetch requested maximum PDU length
+                let requestor_max_pdu_length = user_variables
+                    .iter()
+                    .find_map(|item| match item {
+                        UserVariableItem::MaxLength(len) => Some(*len),
+                        _ => None,
+                    })
+                    .unwrap_or(DEFAULT_MAX_PDU);
+
+                // treat 0 as the maximum size admitted by the standard
+                let requestor_max_pdu_length = if requestor_max_pdu_length == 0 {
+                    MAXIMUM_PDU_SIZE
+                } else {
+                    requestor_max_pdu_length
+                };
+
                 let presentation_contexts: Vec<_> = presentation_contexts
                     .into_iter()
                     .map(|pc| {
@@ -398,7 +423,8 @@ where
 
                 Ok(ServerAssociation {
                     presentation_contexts,
-                    max_pdu_length,
+                    requestor_max_pdu_length,
+                    acceptor_max_pdu_length: max_pdu_length,
                     socket,
                     buffer,
                 })
@@ -433,8 +459,10 @@ where
 pub struct ServerAssociation {
     /// The accorded presentation contexts
     presentation_contexts: Vec<PresentationContextResult>,
-    /// The maximum PDU length
-    max_pdu_length: u32,
+    /// The maximum PDU length that the remote application entity accepts
+    requestor_max_pdu_length: u32,
+    /// The maximum PDU length that this application entity is expecting to receive
+    acceptor_max_pdu_length: u32,
     /// The TCP stream to the other DICOM node
     socket: TcpStream,
     /// write buffer to send fully assembled PDUs on wire
@@ -451,12 +479,18 @@ impl ServerAssociation {
     pub fn send(&mut self, msg: &Pdu) -> Result<()> {
         self.buffer.clear();
         write_pdu(&mut self.buffer, &msg).context(Send)?;
+        if self.buffer.len() > self.requestor_max_pdu_length as usize {
+            return SendTooLongPdu {
+                length: self.buffer.len(),
+            }
+            .fail();
+        }
         self.socket.write_all(&self.buffer).context(WireSend)
     }
 
     /// Read a PDU message from the other intervenient.
     pub fn receive(&mut self) -> Result<Pdu> {
-        read_pdu(&mut self.socket, self.max_pdu_length, true).context(Receive)
+        read_pdu(&mut self.socket, self.acceptor_max_pdu_length, true).context(Receive)
     }
 
     /// Send a provider initiated abort message
@@ -482,7 +516,7 @@ impl ServerAssociation {
         PDataWriter::new(
             &mut self.socket,
             presentation_context_id,
-            self.max_pdu_length,
+            self.requestor_max_pdu_length,
         )
     }
 

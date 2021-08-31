@@ -10,10 +10,7 @@ use std::{
     net::{TcpStream, ToSocketAddrs},
 };
 
-use crate::pdu::{
-    reader::read_pdu, writer::write_pdu, AbortRQSource, AssociationRJResult, AssociationRJSource,
-    Pdu, PresentationContextProposed, PresentationContextResult, PresentationContextResultReason,
-};
+use crate::pdu::{AbortRQSource, AssociationRJResult, AssociationRJSource, Pdu, PresentationContextProposed, PresentationContextResult, PresentationContextResultReason, UserVariableItem, reader::{DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE, read_pdu}, writer::write_pdu};
 use snafu::{ensure, ResultExt, Snafu};
 
 use super::pdata::PDataWriter;
@@ -67,6 +64,10 @@ pub enum Error {
     #[non_exhaustive]
     WireSend { source: std::io::Error },
 
+    #[snafu(display("PDU is too large ({} bytes) to be sent to the remote application entity", length))]
+    #[non_exhaustive]
+    SendTooLongPdu { length: usize },
+
     /// failed to receive PDU message
     #[non_exhaustive]
     Receive { source: crate::pdu::reader::Error },
@@ -115,7 +116,7 @@ pub struct ClientAssociationOptions<'a> {
     transfer_syntax_uids: Vec<Cow<'a, str>>,
     /// the expected protocol version
     protocol_version: u16,
-    /// the maximum PDU length
+    /// the maximum PDU length requested for receiving PDUs
     max_pdu_length: u32,
 }
 
@@ -257,7 +258,7 @@ impl<'a> ClientAssociationOptions<'a> {
                 presentation_contexts: presentation_contexts_scp,
                 calling_ae_title: _,
                 called_ae_title: _,
-                user_variables: _,
+                user_variables,
             } => {
                 ensure!(
                     protocol_version == protocol_version_scp,
@@ -266,6 +267,21 @@ impl<'a> ClientAssociationOptions<'a> {
                         got: protocol_version_scp,
                     }
                 );
+
+                let acceptor_max_pdu_length = user_variables
+                    .iter()
+                    .find_map(|item| match item {
+                        UserVariableItem::MaxLength(len) => Some(*len),
+                        _ => None,
+                    })
+                    .unwrap_or(DEFAULT_MAX_PDU);
+
+                // treat 0 as the maximum size admitted by the standard
+                let acceptor_max_pdu_length = if acceptor_max_pdu_length == 0 {
+                    MAXIMUM_PDU_SIZE
+                } else {
+                    acceptor_max_pdu_length
+                };
 
                 let presentation_contexts: Vec<_> = presentation_contexts_scp
                     .into_iter()
@@ -285,7 +301,8 @@ impl<'a> ClientAssociationOptions<'a> {
                 }
                 Ok(ClientAssociation {
                     presentation_contexts,
-                    max_pdu_length,
+                    requestor_max_pdu_length: max_pdu_length,
+                    acceptor_max_pdu_length,
                     socket,
                     buffer,
                 })
@@ -343,8 +360,10 @@ pub struct ClientAssociation {
     /// The presentation contexts accorded with the acceptor application entity,
     /// without the rejected ones.
     presentation_contexts: Vec<PresentationContextResult>,
-    /// The maximum PDU length
-    max_pdu_length: u32,
+    /// The maximum PDU length that this application entity is expecting to receive
+    requestor_max_pdu_length: u32,
+    /// The maximum PDU length that the remote application entity accepts
+    acceptor_max_pdu_length: u32,
     /// The TCP stream to the other DICOM node
     socket: TcpStream,
     /// Buffer to assemble PDU before sending it on wire
@@ -357,16 +376,35 @@ impl ClientAssociation {
         &self.presentation_contexts
     }
 
+    /// Retrieve the maximum PDU length
+    /// admitted by the association acceptor.
+    pub fn acceptor_max_pdu_length(&self) -> u32 {
+        self.acceptor_max_pdu_length
+    }
+
+    /// Retrieve the maximum PDU length
+    /// that this application entity is expecting to receive.
+    ///
+    /// The current implementation is not required to fail
+    /// and/or abort the association
+    /// if a larger PDU is received.
+    pub fn requestor_max_pdu_length(&self) -> u32 {
+        self.requestor_max_pdu_length
+    }
+
     /// Send a PDU message to the other intervenient.
     pub fn send(&mut self, msg: &Pdu) -> Result<()> {
         self.buffer.clear();
         write_pdu(&mut self.buffer, &msg).context(Send)?;
+        if self.buffer.len() > self.acceptor_max_pdu_length as usize {
+            return SendTooLongPdu { length: self.buffer.len() }.fail();
+        }       
         self.socket.write_all(&self.buffer).context(WireSend)
     }
 
     /// Read a PDU message from the other intervenient.
     pub fn receive(&mut self) -> Result<Pdu> {
-        read_pdu(&mut self.socket, self.max_pdu_length, true).context(Receive)
+        read_pdu(&mut self.socket, self.requestor_max_pdu_length, true).context(Receive)
     }
 
     /// Gracefully terminate the association by exchanging release messages
@@ -415,14 +453,14 @@ impl ClientAssociation {
         PDataWriter::new(
             &mut self.socket,
             presentation_context_id,
-            self.max_pdu_length,
+            self.acceptor_max_pdu_length,
         )
     }
 
     fn release_impl(&mut self) -> Result<()> {
         let pdu = Pdu::ReleaseRQ;
         self.send(&pdu)?;
-        let pdu = read_pdu(&mut self.socket, self.max_pdu_length, true).context(Receive)?;
+        let pdu = read_pdu(&mut self.socket, self.requestor_max_pdu_length, true).context(Receive)?;
 
         match pdu {
             Pdu::ReleaseRP => {}
