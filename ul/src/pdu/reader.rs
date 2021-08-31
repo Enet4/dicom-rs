@@ -8,7 +8,7 @@ use std::io::{Cursor, ErrorKind, Read, Seek, SeekFrom};
 pub const DEFAULT_MAX_PDU: u32 = 16_384;
 pub const MINIMUM_PDU_SIZE: u32 = 4_096;
 pub const MAXIMUM_PDU_SIZE: u32 = 131_072;
-
+pub const PDU_HEADER_SIZE: u32 = 12;
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum Error {
