@@ -392,7 +392,7 @@ where
     pub fn to_multi_date(&self) -> Result<Vec<NaiveDate>, ConvertValueError> {
         self.value().to_multi_date()
     }
-
+/*
     /// Retrieve and convert the primitive value into a time.
     ///
     /// If the value is a primitive, it will be converted into
@@ -404,7 +404,7 @@ where
     pub fn to_time(&self) -> Result<NaiveTime, ConvertValueError> {
         self.value().to_time()
     }
-
+    
     /// Retrieve and convert the primitive value into a sequence of times.
     ///
     /// If the value is a primitive, it will be converted into
@@ -445,7 +445,7 @@ where
         default_offset: FixedOffset,
     ) -> Result<Vec<DateTime<FixedOffset>>, ConvertValueError> {
         self.value().to_multi_datetime(default_offset)
-    }
+    }*/
 }
 
 impl<'v, I, P> DataElementRef<'v, I, P>

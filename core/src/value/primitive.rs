@@ -3,7 +3,7 @@
 //! See [`PrimitiveValue`](./enum.PrimitiveValue.html).
 
 use super::DicomValueType;
-use crate::value::deserialize::Imprecision;
+use crate::value::partial::AsTemporalRange;
 use crate::header::{HasLength, Length, Tag};
 use chrono::{FixedOffset, Timelike};
 use itertools::Itertools;
@@ -1976,6 +1976,7 @@ impl PrimitiveValue {
         }
     }
 
+    /*
     /// Retrieve a single DICOM time from this value.
     ///
     /// If the value is already represented as a time, it is returned as is.
@@ -2040,8 +2041,9 @@ impl PrimitiveValue {
                 cause: None,
             }),
         }
-    }
+    }*/
 
+    /*
     /// Retrieve the full sequence of DICOM times from this value.
     ///
     /// If the value is already represented as a sequence of times,
@@ -2118,8 +2120,9 @@ impl PrimitiveValue {
                 cause: None,
             }),
         }
-    }
+    }*/
 
+    /*
     /// Retrieve a single DICOM date-time from this value.
     ///
     /// If the value is already represented as a date-time,
@@ -2206,8 +2209,9 @@ impl PrimitiveValue {
                 cause: None,
             }),
         }
-    }
+    }*/
 
+    /*
     /// Retrieve the full sequence of DICOM date-times from this value.
     ///
     /// If the value is already represented as a sequence of date-times,
@@ -2255,6 +2259,8 @@ impl PrimitiveValue {
     ///     ]),
     /// );
     /// ```
+    
+    
     pub fn to_multi_datetime(
         &self,
         default_offset: FixedOffset,
@@ -2300,7 +2306,7 @@ impl PrimitiveValue {
                 cause: None,
             }),
         }
-    }
+    }*/
 }
 
 /// Macro for implementing getters to single and multi-values of each variant.
@@ -2922,7 +2928,7 @@ mod tests {
             })
         ));
     }
-
+/*
     #[test]
     fn primitive_value_to_time() {
         // trivial conversion
@@ -2972,7 +2978,8 @@ mod tests {
             })
         ));
     }
-
+*/
+  /*
     #[test]
     fn primitive_value_to_datetime() {
         let this_datetime = FixedOffset::east(1).ymd(2012, 12, 21).and_hms(11, 9, 26);
@@ -3031,7 +3038,7 @@ mod tests {
             })
         ));
     }
-
+*/
     #[test]
     fn calculate_byte_len() {
         // single even string

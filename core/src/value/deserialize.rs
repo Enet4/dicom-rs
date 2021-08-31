@@ -1,6 +1,10 @@
 //! Parsing of primitive values
+use crate::value::partial::{
+    check_component, AsTemporalRange, DateComponent, Error as PartialValuesError, PartialDate,
+    PartialTime,
+};
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
-use snafu::{Backtrace, OptionExt, Snafu};
+use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use std::ops::{Add, Mul, Sub};
 
 #[derive(Debug, Snafu)]
@@ -8,9 +12,8 @@ use std::ops::{Add, Mul, Sub};
 pub enum Error {
     #[snafu(display("Unexpected end of element"))]
     UnexpectedEndOfElement { backtrace: Backtrace },
-    //TODO impl Display for DateComponent and Range or leave it like this ?
-    #[snafu(display(
-        "{:?} has invalid value:  {}. Must be in {:?}",
+    /*#[snafu(display(
+        "{:?} has invalid value:  {}, must be in {:?}",
         component,
         value,
         range
@@ -18,9 +21,9 @@ pub enum Error {
     InvalidComponent {
         component: DateComponent,
         value: u32,
-        range: std::ops::RangeInclusive<u32>,
+        range: RangeInclusive<u32>,
         backtrace: Backtrace,
-    },
+    },*/
     #[snafu(display("Invalid date"))]
     InvalidDate { backtrace: Backtrace },
     /// TODO DELETE THIS UP TO ...
@@ -41,9 +44,12 @@ pub enum Error {
         value
     ))]
     InvalidDateTimeMicrosecond { value: u32, backtrace: Backtrace },
-    // UP TO These ...
+
     #[snafu(display("Unexpected token after date: got '{}', but must be '.', '+', or '-'", *value as char))]
     UnexpectedAfterDateToken { value: u8, backtrace: Backtrace },
+    // UP TO These ...
+    #[snafu(display("Expected fraction delimiter '.', got '{}'", *value as char))]
+    FractionDelimiter { value: u8, backtrace: Backtrace },
     #[snafu(display("Invalid number length: it is {}, but must be between 1 and 9", len))]
     InvalidNumberLength { len: usize, backtrace: Backtrace },
     #[snafu(display("Invalid number token: got '{}', but must be a digit in '0'..='9'", *value as char))]
@@ -60,167 +66,26 @@ pub enum Error {
     },
     #[snafu(display("Range is zero"))]
     ZeroRange { backtrace: Backtrace },
+    #[snafu(display("Component is invalid."))]
+    InvalidComponent {
+        #[snafu(backtrace)]
+        source: PartialValuesError,
+    },
+    #[snafu(display("Failed to construct partial value."))]
+    PartialValue {
+        #[snafu(backtrace)]
+        source: PartialValuesError,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, PartialEq)]
-pub enum DateComponent {
-    Year,
-    Month,
-    Day,
-    Hour,
-    Minute,
-    Second,
-    Fraction,
-    UTCOffset,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum DatePrecision {
-    Year(u16),
-    Month(u16, u8),
-    Day(u16, u8, u8),
-}
-
-#[derive(Debug, PartialEq)]
-pub struct PartialDate {
-    components: DatePrecision,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum DateTimePrecision {
-    Year(u16),
-    Month(u16, u8),
-    Day(u16, u8, u8),
-    Hour(u16, u8, u8, u8),
-    Minute(u16, u8, u8, u8, u8),
-    Second(u16, u8, u8, u8, u8, u8),
-    Fraction(u16, u8, u8, u8, u8, u8, u32),
-}
-
-#[derive(Debug, PartialEq)]
-pub struct PartialDateTime {
-    components: DateTimePrecision,
-    // TODO probably not an option, will see ..
-    offset: Option<FixedOffset>,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum TimePrecision {
-    Hour(u8),
-    Minute(u8, u8),
-    Second(u8, u8, u8),
-    Fraction(u8, u8, u8, u32),
-}
-
-#[derive(Debug, PartialEq)]
-pub struct PartialTime {
-    components: TimePrecision,
-}
-
+/*
 /**
- * This trait is implemented by partial precision
- * Date, Time and DateTime structures.
- * Trait method returns the last fully precise component of the value.
+ * Throws a detailed `InvalidComponent` error if Date / Time components are out of range.
  */
-pub trait Precision {
-    fn precision(&self) -> DateComponent;
-}
-
-impl Precision for PartialDate {
-    fn precision(&self) -> DateComponent {
-        match self.components {
-            DatePrecision::Year(..) => DateComponent::Year,
-            DatePrecision::Month(..) => DateComponent::Month,
-            DatePrecision::Day(..) => DateComponent::Day,
-        }
-    }
-}
-
-/**
- * This trait is implemented by partial precision
- * Date, Time and DateTime structures.
- */
-pub trait Imprecision<U>
-where
-    Self: Precision,
-    U: PartialEq,
-{
-    /**
-     * Returns the earliest possible value from a partial precision structure.
-     * So missing components default to 1 (days, months) or 0 (hours, minutes, ...)
-     * If structures contain invalid combination of date/time components, it fails.
-     */
-    fn earliest(&self) -> Result<U>;
-
-    /**
-     * Returns the latest possible value from a partial precision structure.
-     * If structures contain invalid combination of date/time components, it fails.
-     */
-    fn latest(&self) -> Result<U>;
-
-    /**
-     * Returns a tuple of the earliest and latest possible value from a partial precision structure.
-     * 
-     */
-    fn to_range(&self) -> Result<(Option<U>, Option<U>)> {
-        if self.is_precise() {
-            ZeroRange.fail()
-        } else {
-            Ok((self.earliest().ok(), self.latest().ok()))
-        }
-    }
-
-    /**
-     * Returns true, if partial precision structure has maximum possible accuracy.
-     * For fraction of a second, ... TODO decide what to do, as RUST Chrono is more
-     * precise than 6 digits of DICOM standard ...
-     */
-    fn is_precise(&self) -> bool {
-        let e = self.earliest();
-        let l = self.latest();
-
-        e.is_ok() && l.is_ok() && e.ok() == l.ok()
-    }
-}
-
-impl Imprecision<NaiveDate> for PartialDate {
-    fn earliest(&self) -> Result<NaiveDate> {
-        let (y, m, d) = match self.components {
-            DatePrecision::Year(y) => (y, 1, 1),
-            DatePrecision::Month(y, m) => (y, m, 1),
-            DatePrecision::Day(y, m, d) => (y, m, d),
-        };
-        let date: Result<_> =
-            NaiveDate::from_ymd_opt(y as i32, m as u32, d as u32).context(InvalidDate);
-        Ok(date?)
-    }
-
-    fn latest(&self) -> Result<NaiveDate> {
-        let (y, m, d) = match self.components {
-            DatePrecision::Year(y) => (y, 12, 31),
-            DatePrecision::Month(y, m) => {
-                let d = {
-                    if m == 12 {
-                        NaiveDate::from_ymd(y as i32 + 1, 1, 1) 
-                    }
-                    else{
-                        NaiveDate::from_ymd(y as i32, m as u32 + 1, 1)
-                    }.signed_duration_since(NaiveDate::from_ymd(y as i32, m as u32, 1))
-                    .num_days()
-                };
-                (y, m, d as u8)
-            },
-            DatePrecision::Day(y, m, d) => (y, m, d),
-        };
-        let date: Result<_> =
-            NaiveDate::from_ymd_opt(y as i32, m as u32, d as u32).context(InvalidDate);
-        Ok(date?)
-    }
-}
-
-fn check_component(component: DateComponent, value: &u32) -> Result<()> {
+pub fn check_component<T>(component: DateComponent, value: T) -> Result<()>
+    where T: Into<u32>  {
     let range = match component {
         DateComponent::Year => 0..=9_999,
         DateComponent::Month => 1..=12,
@@ -229,26 +94,27 @@ fn check_component(component: DateComponent, value: &u32) -> Result<()> {
         DateComponent::Minute => 0..=59,
         DateComponent::Second => 0..=59,
         DateComponent::Fraction => 0..=1_999_999,
-        //is not i32 for simplification,  so only check UTC range, not sign
         DateComponent::UTCOffset => 0..=86_399,
     };
 
-    if range.contains(value) {
+    let value : u32 = value.into();
+    if range.contains(&value) {
         Ok(())
     } else {
         InvalidComponent {
-            component: component,
-            value: value.clone(),
-            range: range,
+            component,
+            value,
+            range,
         }
         .fail()
     }
 }
+*/
 
 /** Decode a single DICOM Date (DA) into a `NaiveDate` value.
- * As per standard, a full 8 byte representation (YYYYMMDD) is required,
- * otherwise, the operation fails.
- */
+  * As per standard, a full 8 byte representation (YYYYMMDD) is required,
+  otherwise, the operation fails.
+*/
 pub fn parse_date(buf: &[u8]) -> Result<NaiveDate> {
     match buf.len() {
         4 => {
@@ -261,7 +127,7 @@ pub fn parse_date(buf: &[u8]) -> Result<NaiveDate> {
         6 => {
             let _year: i32 = read_number(&buf[0..4])?;
             let month: u32 = read_number(&buf[4..6])?;
-            check_component(DateComponent::Month, &month)?;
+            check_component(DateComponent::Month, &month).context(InvalidComponent)?;
             IncompleteValue {
                 component: DateComponent::Day,
             }
@@ -270,71 +136,169 @@ pub fn parse_date(buf: &[u8]) -> Result<NaiveDate> {
         len if len >= 8 => {
             let year = read_number(&buf[0..4])?;
             let month: u32 = read_number(&buf[4..6])?;
-            check_component(DateComponent::Month, &month)?;
+            check_component(DateComponent::Month, month).context(InvalidComponent)?;
 
             let day: u32 = read_number(&buf[6..8])?;
-            check_component(DateComponent::Day, &day)?;
+            check_component(DateComponent::Day, day).context(InvalidComponent)?;
 
-            let date: Result<_> = NaiveDate::from_ymd_opt(year, month, day).context(InvalidDate);
-            Ok(date?)
+            NaiveDate::from_ymd_opt(year, month, day).context(InvalidDate)
         }
         _ => UnexpectedEndOfElement.fail(),
     }
 }
 
 /** Decode a single DICOM Date (DA) into a `PartialDate` value.
- * This method accepts incomplete dates such as YYYY and YYYYMM
+ * Unlike `parse_date`, this method accepts incomplete dates such as YYYY and YYYYMM
  * The precision of the value is stored.
- *
  */
 pub fn parse_date_partial(buf: &[u8]) -> Result<(PartialDate, &[u8])> {
     if buf.len() < 4 {
         UnexpectedEndOfElement.fail()
     } else {
-        let year: u32 = read_number(&buf[0..4])?;
-        check_component(DateComponent::Year, &year)?;
+        let year: u16 = read_number(&buf[0..4])?;
         let buf = &buf[4..];
         if buf.len() < 2 {
-            Ok((
-                PartialDate {
-                    components: DatePrecision::Year(year as u16),
-                },
-                &buf,
-            ))
+            Ok((PartialDate::from_y(year).context(PartialValue)?, buf))
         } else {
-            let month: u32 = read_number(&buf[0..2])?;
-            check_component(DateComponent::Month, &month)?;
+            let month: u8 = read_number(&buf[0..2])?;
             let buf = &buf[2..];
             if buf.len() < 2 {
                 Ok((
-                    PartialDate {
-                        components: DatePrecision::Month(year as u16, month as u8),
-                    },
-                    &buf,
+                    PartialDate::from_ym(year, month).context(PartialValue)?,
+                    buf,
                 ))
             } else {
-                let day: u32 = read_number(&buf[0..2])?;
-                check_component(DateComponent::Day, &day)?;
+                let day: u8 = read_number(&buf[0..2])?;
                 let buf = &buf[2..];
                 Ok((
-                    PartialDate {
-                        components: DatePrecision::Day(year as u16, month as u8, day as u8),
-                    },
-                    &buf,
+                    PartialDate::from_ymd(year, month, day).context(PartialValue)?,
+                    buf,
                 ))
             }
         }
     }
 }
 
-/** Decode a single DICOM Time (TM) into a `NaiveTime` value.
+/** Decode a single DICOM Time (TM) into a `PartialTime` value.
+ * Unlike `parse_time`, this method allows for missing Time components.
+ * The precision of the value is stored.
  */
-
-pub fn parse_time(buf: &[u8]) -> Result<(NaiveTime, &[u8])> {
-    parse_time_impl(buf, false)
+pub fn parse_time_partial(buf: &[u8]) -> Result<(PartialTime, &[u8])> {
+    if buf.len() < 2 {
+        UnexpectedEndOfElement.fail()
+    } else {
+        let hour: u8 = read_number(&buf[0..2])?;
+        let buf = &buf[2..];
+        if buf.len() < 2 {
+            Ok((PartialTime::from_h(hour).context(PartialValue)?, buf))
+        } else {
+            let minute: u8 = read_number(&buf[0..2])?;
+            let buf = &buf[2..];
+            if buf.len() < 2 {
+                Ok((
+                    PartialTime::from_hm(hour, minute).context(PartialValue)?,
+                    buf,
+                ))
+            } else {
+                let second: u8 = read_number(&buf[0..2])?;
+                let buf = &buf[2..];
+                if buf.len() < 2 {
+                    Ok((
+                        PartialTime::from_hms(hour, minute, second).context(PartialValue)?,
+                        buf,
+                    ))
+                } else if buf[0] != b'.' {
+                    FractionDelimiter { value: buf[0] }.fail()
+                } else {
+                    let buf = &buf[1..];
+                    let n = usize::min(6, buf.len());
+                    let mut fraction: u32 = read_number(&buf[0..n])?;
+                    let mut acc = n;
+                    while acc < 6 {
+                        fraction *= 10;
+                        acc += 1;
+                    }
+                    let buf = &buf[n..];
+                    Ok((
+                        PartialTime::from_hmsf(hour, minute, second, fraction)
+                            .context(PartialValue)?,
+                        buf,
+                    ))
+                }
+            }
+        }
+    }
 }
 
-/// A version of `NativeTime::from_hms` which returns a more informative error.
+/** Decode a single DICOM Time (TM) into a `NaiveTime` value.
+* If a time component is missing, the operation fails.
+* Presence of the second fraction component `.FFFFFF` is mandatory with at
+  least one digit accuracy `.F` while missing digits default to zero.
+* For Time with missing components, or if exact second fraction accuracy needs to be preserved,
+  use `parse_time_partial`.
+*/
+pub fn parse_time(buf: &[u8]) -> Result<NaiveTime> {
+    // at least HHMMSS.F required
+    match buf.len() {
+        2 => {
+            let hour: u32 = read_number(&buf[0..2])?;
+            check_component(DateComponent::Hour, hour).context(InvalidComponent)?;
+            IncompleteValue {
+                component: DateComponent::Minute,
+            }
+            .fail()
+        }
+        4 => {
+            let hour: u32 = read_number(&buf[0..2])?;
+            check_component(DateComponent::Hour, hour).context(InvalidComponent)?;
+            let minute: u32 = read_number(&buf[2..4])?;
+            check_component(DateComponent::Minute, minute).context(InvalidComponent)?;
+            IncompleteValue {
+                component: DateComponent::Second,
+            }
+            .fail()
+        }
+        6 => {
+            let hour: u32 = read_number(&buf[0..2])?;
+            check_component(DateComponent::Hour, hour).context(InvalidComponent)?;
+            let minute: u32 = read_number(&buf[2..4])?;
+            check_component(DateComponent::Minute, minute).context(InvalidComponent)?;
+            let second: u32 = read_number(&buf[4..6])?;
+            check_component(DateComponent::Second, second).context(InvalidComponent)?;
+            IncompleteValue {
+                component: DateComponent::Fraction,
+            }
+            .fail()
+        }
+        len if len >= 8 => {
+            let hour: u32 = read_number(&buf[0..2])?;
+            check_component(DateComponent::Hour, hour).context(InvalidComponent)?;
+            let minute: u32 = read_number(&buf[2..4])?;
+            check_component(DateComponent::Minute, minute).context(InvalidComponent)?;
+            let second: u32 = read_number(&buf[4..6])?;
+            check_component(DateComponent::Second, second).context(InvalidComponent)?;
+            let buf = &buf[6..];
+            if buf[0] != b'.' {
+                FractionDelimiter { value: buf[0] }.fail()
+            } else {
+                let buf = &buf[1..];
+                let n = usize::min(6, buf.len());
+                let mut fraction: u32 = read_number(&buf[0..n])?;
+                let mut acc = n;
+                while acc < 6 {
+                    fraction *= 10;
+                    acc += 1;
+                }
+                check_component(DateComponent::Fraction, fraction).context(InvalidComponent)?;
+                Ok(NaiveTime::from_hms_micro(hour, minute, second, fraction))
+            }
+        }
+        _ => UnexpectedEndOfElement.fail(),
+    }
+}
+
+/// A version of `NaiveTime::from_hms` which returns a more informative error.
+/*
 fn naive_time_from_components(
     hour: u32,
     minute: u32,
@@ -414,6 +378,7 @@ fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, &[u8])>
         }
     }
 }
+*/
 
 /// A simple trait for types with a decimal form.
 pub trait Ten {
@@ -444,6 +409,7 @@ macro_rules! impl_floating_ten {
 
 impl_integral_ten!(i16);
 impl_integral_ten!(u16);
+impl_integral_ten!(u8);
 impl_integral_ten!(i32);
 impl_integral_ten!(u32);
 impl_integral_ten!(i64);
@@ -492,9 +458,11 @@ where
 
 /// Retrieve a DICOM date-time from the given text, while assuming the given
 /// UTC offset.
+/*
 pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime<FixedOffset>> {
     let (date, rest) = parse_date_partial(buf)?;
-    let date = date.earliest()?;
+    let date = date.earliest().context(PartialValue)?;
+
     // too short for full DT(date,time) without offset, handle date without time component
     if buf.len() <= 8 {
         return Ok(FixedOffset::east(0).from_utc_date(&date).and_hms(0, 0, 0));
@@ -538,7 +506,7 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
         .from_utc_date(&date)
         .and_time(time)
         .context(InvalidDateTimeZone)
-}
+}*/
 
 #[cfg(test)]
 mod tests {
@@ -639,102 +607,43 @@ mod tests {
     fn test_parse_date_partial() {
         assert_eq!(
             parse_date_partial(b"20180101").unwrap(),
-            (
-                PartialDate {
-                    components: DatePrecision::Day(2018, 1, 1)
-                },
-                &[][..]
-            )
+            (PartialDate::Day(2018, 1, 1), &[][..])
         );
         assert_eq!(
             parse_date_partial(b"19711231").unwrap(),
-            (
-                PartialDate {
-                    components: DatePrecision::Day(1971, 12, 31)
-                },
-                &[][..]
-            )
+            (PartialDate::Day(1971, 12, 31), &[][..])
         );
         assert_eq!(
             parse_date_partial(b"20180101xxxx").unwrap(),
-            (
-                PartialDate {
-                    components: DatePrecision::Day(2018, 1, 1)
-                },
-                &b"xxxx"[..]
-            )
+            (PartialDate::Day(2018, 1, 1), &b"xxxx"[..])
         );
         assert_eq!(
             parse_date_partial(b"19020404-0101").unwrap(),
-            (
-                PartialDate {
-                    components: DatePrecision::Day(1902, 4, 4)
-                },
-                &b"-0101"[..][..]
-            )
+            (PartialDate::Day(1902, 4, 4), &b"-0101"[..][..])
         );
         assert_eq!(
             parse_date_partial(b"201811").unwrap(),
-            (
-                PartialDate {
-                    components: DatePrecision::Month(2018, 11)
-                },
-                &[][..]
-            )
+            (PartialDate::Month(2018, 11), &[][..])
         );
         assert_eq!(
             parse_date_partial(b"1914").unwrap(),
-            (
-                PartialDate {
-                    components: DatePrecision::Year(1914)
-                },
-                &[][..]
-            )
+            (PartialDate::Year(1914), &[][..])
         );
 
         assert_eq!(
             parse_date_partial(b"19140").unwrap(),
-            (
-                PartialDate {
-                    components: DatePrecision::Year(1914)
-                },
-                &b"0"[..]
-            )
+            (PartialDate::Year(1914), &b"0"[..])
         );
 
         assert_eq!(
             parse_date_partial(b"1914121").unwrap(),
-            (
-                PartialDate {
-                    components: DatePrecision::Month(1914, 12)
-                },
-                &b"1"[..]
-            )
+            (PartialDate::Month(1914, 12), &b"1"[..])
         );
 
         // does not check for leap year
-        // so helper methods have to return a Result
         assert_eq!(
             parse_date_partial(b"20210229").unwrap(),
-            (
-                PartialDate {
-                    components: DatePrecision::Day(2021, 2, 29)
-                },
-                &[][..]
-            )
-        );
-
-        assert_eq!(
-            parse_date_partial(b"1914").unwrap().0.precision(),
-            DateComponent::Year
-        );
-        assert_eq!(
-            parse_date_partial(b"191412").unwrap().0.precision(),
-            DateComponent::Month
-        );
-        assert_eq!(
-            parse_date_partial(b"19141201").unwrap().0.precision(),
-            DateComponent::Day
+            (PartialDate::Day(2021, 2, 29), &[][..])
         );
 
         assert!(matches!(
@@ -766,143 +675,147 @@ mod tests {
     }
 
     #[test]
-    fn test_date_precision() {
-        let ymd = PartialDate {
-            components: DatePrecision::Day(1944, 2, 29),
-        };
-        let ym = PartialDate {
-            components: DatePrecision::Month(1944, 2)
-        };
-        let y = PartialDate {
-            components: DatePrecision::Year(1944)
-        }; 
+    fn test_parse_time() {
         assert_eq!(
-            ymd.is_precise(),
-            true
+            parse_time(b"100000.1").unwrap(),
+            NaiveTime::from_hms_micro(10, 0, 0, 100_000)
         );
         assert_eq!(
-            ym.is_precise(),
-            false
+            parse_time(b"235959.0123").unwrap(),
+            NaiveTime::from_hms_micro(23, 59, 59, 12_300)
         );
+        // only parses 6 digit precision as in DICOM standard
         assert_eq!(
-            y.is_precise(),
-            false
-        );
-        assert_eq!(
-            ymd.earliest().unwrap(),
-            NaiveDate::from_ymd(1944, 2, 29)
-        );
-        assert_eq!(
-            ymd.latest().unwrap(),
-            NaiveDate::from_ymd(1944, 2, 29)
-        );
-        assert_eq!(
-            ym.earliest().unwrap(),
-            NaiveDate::from_ymd(1944, 2, 1)
-        );
-        // detects leap year
-        assert_eq!(
-            ym.latest().unwrap(),
-            NaiveDate::from_ymd(1944, 2, 29)
-        );
-        assert_eq!(
-            y.latest().unwrap(),
-            NaiveDate::from_ymd(1944, 12, 31)
-        );
-
-        assert_eq!(
-            PartialDate{ components: DatePrecision::Month(1945,2)}.latest().unwrap(),
-            NaiveDate::from_ymd(1945, 2, 28)
-        );
-
-    }
-
-    #[test]
-    fn test_time() {
-        assert_eq!(
-            parse_time(b"10").unwrap(),
-            (NaiveTime::from_hms(10, 0, 0), &[][..])
-        );
-        assert_eq!(
-            parse_time(b"0755").unwrap(),
-            (NaiveTime::from_hms(7, 55, 0), &[][..])
-        );
-        assert_eq!(
-            parse_time(b"075500").unwrap(),
-            (NaiveTime::from_hms(7, 55, 0), &[][..])
-        );
-        assert_eq!(
-            parse_time(b"065003").unwrap(),
-            (NaiveTime::from_hms(6, 50, 3), &[][..])
-        );
-        assert_eq!(
-            parse_time(b"075501.5").unwrap(),
-            (NaiveTime::from_hms_micro(7, 55, 1, 500_000), &[][..])
-        );
-        assert_eq!(
-            parse_time(b"075501.58").unwrap(),
-            (NaiveTime::from_hms_micro(7, 55, 1, 580_000), &[][..])
-        );
-        assert_eq!(
-            parse_time(b"075501.58").unwrap(),
-            (NaiveTime::from_hms_micro(7, 55, 1, 580_000), &[][..])
-        );
-        assert_eq!(
-            parse_time(b"101010.204").unwrap(),
-            (NaiveTime::from_hms_micro(10, 10, 10, 204_000), &[][..])
-        );
-        assert_eq!(
-            parse_time(b"075501.123456").unwrap(),
-            (NaiveTime::from_hms_micro(7, 55, 1, 123_456), &[][..])
-        );
-        assert_eq!(
-            parse_time_impl(b"075501.123456-05:00", true).unwrap(),
-            (NaiveTime::from_hms_micro(7, 55, 1, 123_456), &b"-05:00"[..])
-        );
-        assert_eq!(
-            parse_time(b"235959.99999").unwrap(),
-            (NaiveTime::from_hms_micro(23, 59, 59, 999_990), &[][..])
-        );
-        assert_eq!(
-            parse_time(b"235959.123456max precision").unwrap(),
-            (
-                NaiveTime::from_hms_micro(23, 59, 59, 123_456),
-                &b"max precision"[..]
-            )
-        );
-        assert_eq!(
-            parse_time_impl(b"235959.999999+01:00", true).unwrap(),
-            (
-                NaiveTime::from_hms_micro(23, 59, 59, 999_999),
-                &b"+01:00"[..]
-            )
-        );
-        assert_eq!(
-            parse_time(b"235959.792543").unwrap(),
-            (NaiveTime::from_hms_micro(23, 59, 59, 792_543), &[][..])
-        );
-        assert_eq!(
-            parse_time(b"100003.123456...").unwrap(),
-            (NaiveTime::from_hms_micro(10, 0, 3, 123_456), &b"..."[..])
+            parse_time(b"235959.1234567").unwrap(),
+            NaiveTime::from_hms_micro(23, 59, 59, 123_456)
         );
         assert_eq!(
             parse_time(b"000000.000000").unwrap(),
-            (NaiveTime::from_hms(0, 0, 0), &[][..])
+            NaiveTime::from_hms(0, 0, 0)
         );
-        assert!(parse_time(b"075501.123......").is_err());
-        assert!(parse_date(b"").is_err());
+        assert!(matches!(
+            parse_time(b"24"),
+            Err(Error::InvalidComponent {
+                component: DateComponent::Hour,
+                value: 24,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parse_time(b"23"),
+            Err(Error::IncompleteValue {
+                component: DateComponent::Minute,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parse_time(b"1560"),
+            Err(Error::InvalidComponent {
+                component: DateComponent::Minute,
+                value: 60,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parse_time(b"1530"),
+            Err(Error::IncompleteValue {
+                component: DateComponent::Second,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parse_time(b"153099"),
+            Err(Error::InvalidComponent {
+                component: DateComponent::Second,
+                value: 99,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parse_time(b"153011"),
+            Err(Error::IncompleteValue {
+                component: DateComponent::Fraction,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parse_time(b"153011x0110"),
+            Err(Error::FractionDelimiter { value: 0x78_u8, .. })
+        ));
         assert!(parse_date(&[0x00_u8; 6]).is_err());
         assert!(parse_date(&[0xFF_u8; 6]).is_err());
-        assert!(parse_date(b"      ").is_err());
-        assert!(parse_date(b"------").is_err());
-        assert!(parse_date(b"------.----").is_err());
-        assert!(parse_date(b"235959.9999").is_err());
-        assert!(parse_date(b"075501.").is_err());
         assert!(parse_date(b"075501.----").is_err());
         assert!(parse_date(b"nope").is_err());
         assert!(parse_date(b"235800.0a").is_err());
     }
-/*
+    #[test]
+    fn test_parse_time_partial() {
+        assert_eq!(
+            parse_time_partial(b"10").unwrap(),
+            (PartialTime::Hour(10), &[][..])
+        );
+        assert_eq!(
+            parse_time_partial(b"101").unwrap(),
+            (PartialTime::Hour(10), &b"1"[..])
+        );
+        assert_eq!(
+            parse_time_partial(b"0755").unwrap(),
+            (PartialTime::Minute(7, 55), &[][..])
+        );
+        assert_eq!(
+            parse_time_partial(b"075500").unwrap(),
+            (PartialTime::Second(7, 55, 0), &[][..])
+        );
+        assert_eq!(
+            parse_time_partial(b"065003").unwrap(),
+            (PartialTime::Second(6, 50, 3), &[][..])
+        );
+        assert_eq!(
+            parse_time_partial(b"075501.5").unwrap(),
+            (PartialTime::Fraction(7, 55, 1, 500_000), &[][..])
+        );
+        assert_eq!(
+            parse_time_partial(b"075501.123").unwrap(),
+            (PartialTime::Fraction(7, 55, 1, 123_000), &[][..])
+        );
+        assert_eq!(
+            parse_time_partial(b"075501.999999").unwrap(),
+            (PartialTime::Fraction(7, 55, 1, 999_999), &[][..])
+        );
+        assert_eq!(
+            parse_time_partial(b"075501.9999994").unwrap(),
+            (PartialTime::Fraction(7, 55, 1, 999_999), &b"4"[..])
+        );
+        assert!(matches!(
+            parse_time_partial(b"075501x123456"),
+            Err(Error::FractionDelimiter { value: 0x78_u8, .. })
+        ));
+        assert!(matches!(
+            parse_time_partial(b"24"),
+            Err(Error::InvalidComponent {
+                component: DateComponent::Hour,
+                value: 24,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parse_time_partial(b"1060"),
+            Err(Error::InvalidComponent {
+                component: DateComponent::Minute,
+                value: 60,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parse_time_partial(b"105960"),
+            Err(Error::InvalidComponent {
+                component: DateComponent::Second,
+                value: 60,
+                ..
+            })
+        ));
+    }
+    /*
     #[test]
     fn test_datetime() {
         let default_offset = FixedOffset::east(0);
