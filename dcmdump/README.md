@@ -5,14 +5,21 @@
 
 A command line utility for inspecting DICOM files.
 
-Although the tool's output may resemble that of existing `dcmdump` tools in other
-projects, this program does not intend to be fully compatible with them in
-terms of CLI usage or output format.
-
 This tool is part of the [DICOM-rs](https://github.com/Enet4/dicom-rs) project.
 
 ## Usage
 
-```shell
-> dcmdump [FILE]
+```none
+    dcmdump [FLAGS] [OPTIONS] <file>
+
+FLAGS:
+    -h, --help             Prints help information
+        --no-text-limit    whether text value width limit is disabled (limited to `width` by default)
+    -V, --version          Prints version information
+
+OPTIONS:
+    -w, --width <width>    the width of the display (default is to check automatically)
+
+ARGS:
+    <file>    The DICOM file to read
 ```

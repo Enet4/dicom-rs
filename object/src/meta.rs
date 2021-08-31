@@ -44,8 +44,8 @@ pub enum Error {
         source: dicom_encoding::text::DecodeTextError,
     },
 
-    /// Invalid DICOM data, detected from checking the `DICM` code.
-    #[snafu(display("Invalid DICOM data"))]
+    /// Invalid DICOM data, detected by checking the `DICM` code.
+    #[snafu(display("Invalid DICOM file (magic code check failed)"))]
     NotDicom { backtrace: Backtrace },
 
     /// An issue occurred while decoding the next data element

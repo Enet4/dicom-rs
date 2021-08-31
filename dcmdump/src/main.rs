@@ -21,13 +21,28 @@ use snafu::ErrorCompat;
 use std::borrow::Cow;
 use std::fmt;
 use std::io::{stdout, ErrorKind, Result as IoResult, Write};
+use std::path::PathBuf;
+use structopt::StructOpt;
 
-/// Exit code for missing CLI arguments or --help
-const ERROR_NO: i32 = -1;
 /// Exit code for when an error emerged while reading the DICOM file.
 const ERROR_READ: i32 = -2;
 /// Exit code for when an error emerged while dumping the file.
 const ERROR_PRINT: i32 = -3;
+
+/// Dump the contents of DICOM files
+#[derive(Debug, StructOpt)]
+struct App {
+    /// The DICOM file to read
+    file: PathBuf,
+    /// whether text value width limit is disabled
+    /// (limited to `width` by default)
+    #[structopt(long = "no-text-limit")]
+    no_text_limit: bool,
+    /// the width of the display
+    /// (default is to check automatically)
+    #[structopt(short = "w", long = "width")]
+    width: Option<u32>,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum DumpValue<T>
@@ -105,21 +120,22 @@ fn main() {
         eprintln!("Error setting OS compatibility for colored output");
     });
 
-    let filename = ::std::env::args()
-        .nth(1)
-        .unwrap_or_else(|| "--help".to_string());
-
-    if filename == "--help" || filename == "-h" {
-        println!("Usage: dcmdump <FILE>");
-        std::process::exit(ERROR_NO);
-    }
+    let App {
+        file: filename,
+        no_text_limit,
+        width,
+    } = App::from_args();
 
     let obj = open_file(filename).unwrap_or_else(|e| {
         report(e);
         std::process::exit(ERROR_READ);
     });
 
-    match dump_file(obj) {
+    let width = width
+        .or_else(|| term_size::dimensions().map(|(width, _)| width as u32))
+        .unwrap_or(120);
+
+    match dump_file(obj, width, no_text_limit) {
         Err(ref e) if e.kind() == ErrorKind::BrokenPipe => {
             // handle broken pipe separately with a no-op
         }
@@ -131,23 +147,15 @@ fn main() {
     }
 }
 
-fn dump_file(obj: DefaultDicomObject) -> IoResult<()> {
+fn dump_file(obj: DefaultDicomObject, width: u32, no_text_limit: bool) -> IoResult<()> {
     let mut to = stdout();
-    write!(to, "# Dicom-File-Format\n\n")?;
-
     let meta = obj.meta();
-
-    let width = if let Some((width, _)) = term_size::dimensions() {
-        width as u32
-    } else {
-        120
-    };
 
     meta_dump(&mut to, &meta, width)?;
 
-    println!("{:-<46}", "");
+    println!("{:-<58}", "");
 
-    dump(&mut to, &obj, width, 0)?;
+    dump(&mut to, &obj, width, 0, no_text_limit)?;
 
     Ok(())
 }
@@ -163,48 +171,70 @@ where
 {
     writeln!(
         to,
-        "Media Storage SOP Class UID: {}",
-        meta.media_storage_sop_class_uid.trim_end_matches(whitespace_or_null),
+        "{}: {}",
+        "Media Storage SOP Class UID".bold(),
+        meta.media_storage_sop_class_uid
+            .trim_end_matches(whitespace_or_null),
     )?;
     writeln!(
         to,
-        "Media Storage SOP Instance UID: {}",
-        meta.media_storage_sop_instance_uid.trim_end_matches(whitespace_or_null),
+        "{}: {}",
+        "Media Storage SOP Instance UID".bold(),
+        meta.media_storage_sop_instance_uid
+            .trim_end_matches(whitespace_or_null),
     )?;
     if let Some(ts) = TransferSyntaxRegistry.get(&meta.transfer_syntax) {
-        writeln!(to, "Transfer Syntax: {} ({})", ts.uid(), ts.name())?;
+        writeln!(
+            to,
+            "{}: {} ({})",
+            "Transfer Syntax".bold(),
+            ts.uid(),
+            ts.name()
+        )?;
     } else {
-        writeln!(to, "Transfer Syntax: {} («UNKNOWN»)", meta.transfer_syntax.trim_end_matches(whitespace_or_null))?;
+        writeln!(
+            to,
+            "{}: {} («UNKNOWN»)",
+            "Transfer Syntax".bold(),
+            meta.transfer_syntax.trim_end_matches(whitespace_or_null)
+        )?;
     }
     writeln!(
         to,
-        "Implementation Class UID: {}",
-        meta.implementation_class_uid.trim_end_matches(whitespace_or_null),
+        "{}: {}",
+        "Implementation Class UID".bold(),
+        meta.implementation_class_uid
+            .trim_end_matches(whitespace_or_null),
     )?;
 
     if let Some(v) = meta.implementation_version_name.as_ref() {
-        writeln!(to, "Implementation version name: {}", v.trim_end())?;
+        writeln!(to, "{}: {}", "Implementation version name".bold(), v.trim_end())?;
     }
+
     if let Some(v) = meta.source_application_entity_title.as_ref() {
-        writeln!(to, "Source Application Entity Title: {}", v.trim_end())?;
+        writeln!(to, "{}: {}", "Source Application Entity Title".bold(), v.trim_end())?;
     }
 
     if let Some(v) = meta.sending_application_entity_title.as_ref() {
-        writeln!(to, "Sending Application Entity Title: {}", v.trim_end())?;
+        writeln!(to, "{}: {}", "Sending Application Entity Title".bold(), v.trim_end())?;
     }
 
     if let Some(v) = meta.receiving_application_entity_title.as_ref() {
-        writeln!(to, "Receiving Application Entity Title: {}", v.trim_end())?;
+        writeln!(to, "{}: {}", "Receiving Application Entity Title".bold(), v.trim_end())?;
     }
 
     if let Some(v) = meta.private_information_creator_uid.as_ref() {
-        writeln!(to, "Private Information Creator UID: {}", v.trim_end_matches(whitespace_or_null))?;
+        writeln!(
+            to,
+            "{}: {}",
+            "Private Information Creator UID".bold(),
+            v.trim_end_matches(whitespace_or_null)
+        )?;
     }
 
     if let Some(v) = meta.private_information.as_ref() {
-        writeln!(
-            to,
-            "Private Information: {}",
+        writeln!(to, "{}: {}",
+            "Private Information".bold(),
             format_value_list(v.iter().map(|n| format!("{:02X}", n)), width, false)
         )?;
     }
@@ -213,19 +243,31 @@ where
     Ok(())
 }
 
-fn dump<W, D>(to: &mut W, obj: &InMemDicomObject<D>, width: u32, depth: u32) -> IoResult<()>
+fn dump<W, D>(
+    to: &mut W,
+    obj: &InMemDicomObject<D>,
+    width: u32,
+    depth: u32,
+    no_text_limit: bool,
+) -> IoResult<()>
 where
     W: ?Sized + Write,
     D: DataDictionary,
 {
     for elem in obj {
-        dump_element(&mut *to, &elem, width, depth)?;
+        dump_element(&mut *to, &elem, width, depth, no_text_limit)?;
     }
 
     Ok(())
 }
 
-fn dump_element<W, D>(to: &mut W, elem: &InMemElement<D>, width: u32, depth: u32) -> IoResult<()>
+fn dump_element<W, D>(
+    to: &mut W,
+    elem: &InMemElement<D>,
+    width: u32,
+    depth: u32,
+    no_text_limit: bool,
+) -> IoResult<()>
 where
     W: ?Sized + Write,
     D: DataDictionary,
@@ -245,7 +287,7 @@ where
         DicomValue::Sequence { items, .. } => {
             writeln!(
                 to,
-                "{} {:35} {} ({} Item{})",
+                "{} {:28} {} ({} Item{})",
                 DumpValue::TagNum(elem.tag()),
                 DumpValue::Alias(tag_alias),
                 elem.vr(),
@@ -253,7 +295,7 @@ where
                 if vm == 1 { "" } else { "s" },
             )?;
             for item in items {
-                dump_item(&mut *to, item, width, depth + 2)?;
+                dump_item(&mut *to, item, width, depth + 2, no_text_limit)?;
             }
             to.write_all(&indent)?;
             writeln!(
@@ -272,9 +314,9 @@ where
             let num_items = 1 + fragments.len();
             writeln!(
                 to,
-                "{} PixelData {:25} {} (PixelSequence, {} Item{})",
+                "{} {:28} {} (PixelSequence, {} Item{})",
                 DumpValue::TagNum(elem.tag()),
-                "",
+                "PixelData".bold(),
                 vr,
                 num_items,
                 if num_items == 1 { "" } else { "s" },
@@ -287,7 +329,7 @@ where
                 "  {} pi ({:>3} bytes, 1 Item): {:48}",
                 DumpValue::TagNum("(FFFE,E000)"),
                 byte_len,
-                item_value_summary(&offset_table, width.saturating_sub(42 + depth * 2)),
+                item_value_summary(&offset_table, width.saturating_sub(38 + depth * 2)),
             )?;
 
             // write compressed fragments
@@ -298,7 +340,7 @@ where
                     "  {} pi ({:>3} bytes, 1 Item): {:48}",
                     DumpValue::TagNum("(FFFE,E000)"),
                     byte_len,
-                    item_value_summary(&fragment, width.saturating_sub(42 + depth * 2)),
+                    item_value_summary(&fragment, width.saturating_sub(38 + depth * 2)),
                 )?;
             }
         }
@@ -307,13 +349,18 @@ where
             let byte_len = value.calculate_byte_len();
             writeln!(
                 to,
-                "{} {:35} {} ({},{:>3} bytes): {}",
+                "{} {:28} {} ({},{:>3} bytes): {}",
                 DumpValue::TagNum(elem.tag()),
                 DumpValue::Alias(tag_alias),
                 vr,
                 vm,
                 byte_len,
-                value_summary(&value, vr, width.saturating_sub(68 + depth * 2)),
+                value_summary(
+                    &value,
+                    vr,
+                    width.saturating_sub(63 + depth * 2),
+                    no_text_limit
+                ),
             )?;
         }
     }
@@ -321,7 +368,13 @@ where
     Ok(())
 }
 
-fn dump_item<W, D>(to: &mut W, item: &InMemDicomObject<D>, width: u32, depth: u32) -> IoResult<()>
+fn dump_item<W, D>(
+    to: &mut W,
+    item: &InMemDicomObject<D>,
+    width: u32,
+    depth: u32,
+    no_text_limit: bool,
+) -> IoResult<()>
 where
     W: ?Sized + Write,
     D: DataDictionary,
@@ -334,7 +387,7 @@ where
         DumpValue::TagNum("(FFFE,E000)"),
         DumpValue::Alias("Item"),
     )?;
-    dump(to, item, width, depth + 1)?;
+    dump(to, item, width, depth + 1, no_text_limit)?;
     writeln!(
         to,
         "{}{} {}",
@@ -345,38 +398,64 @@ where
     Ok(())
 }
 
-fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> DumpValue<String> {
+fn value_summary(
+    value: &PrimitiveValue,
+    vr: VR,
+    max_characters: u32,
+    no_text_limit: bool,
+) -> DumpValue<String> {
     use PrimitiveValue::*;
+
+    let max = if no_text_limit {
+        match vr {
+            VR::CS
+            | VR::AE
+            | VR::DA
+            | VR::DS
+            | VR::DT
+            | VR::IS
+            | VR::LO
+            | VR::LT
+            | VR::PN
+            | VR::TM
+            | VR::UC
+            | VR::UI
+            | VR::UR => u32::MAX,
+            _ => max_characters,
+        }
+    } else {
+        max_characters
+    };
     match (value, vr) {
-        (F32(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
-        (F64(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
-        (I32(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
-        (I64(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
-        (U32(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
-        (U64(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
-        (I16(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
+        (F32(values), _) => DumpValue::Num(format_value_list(values, max, false)),
+        (F64(values), _) => DumpValue::Num(format_value_list(values, max, false)),
+        (I32(values), _) => DumpValue::Num(format_value_list(values, max, false)),
+        (I64(values), _) => DumpValue::Num(format_value_list(values, max, false)),
+        (U32(values), _) => DumpValue::Num(format_value_list(values, max, false)),
+        (U64(values), _) => DumpValue::Num(format_value_list(values, max, false)),
+        (I16(values), _) => DumpValue::Num(format_value_list(values, max, false)),
         (U16(values), VR::OW) => DumpValue::Num(format_value_list(
             values.into_iter().map(|n| format!("{:02X}", n)),
-            max_characters,
+            max,
             false,
         )),
-        (U16(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
+        (U16(values), _) => DumpValue::Num(format_value_list(values, max, false)),
         (U8(values), VR::OB) | (U8(values), VR::UN) => DumpValue::Num(format_value_list(
             values.into_iter().map(|n| format!("{:02X}", n)),
-            max_characters,
+            max,
             false,
         )),
-        (U8(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
-        (Tags(values), _) => DumpValue::Str(format_value_list(values, max_characters, false)),
+        (U8(values), _) => DumpValue::Num(format_value_list(values, max, false)),
+        (Tags(values), _) => DumpValue::Str(format_value_list(values, max, false)),
         (Strs(values), VR::DA) => {
             match value.to_multi_date() {
                 Ok(values) => {
                     // print as reformatted date
-                    DumpValue::DateTime(format_value_list(values, max_characters, false))
+                    DumpValue::DateTime(format_value_list(values, max, false))
                 }
                 Err(_e) => {
                     // print as text
-                    DumpValue::Invalid(format_value_list(values, max_characters, true))
+                    DumpValue::Invalid(format_value_list(values, max, true))
                 }
             }
         }
@@ -384,11 +463,11 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> DumpVal
             match value.to_multi_time() {
                 Ok(values) => {
                     // print as reformatted date
-                    DumpValue::DateTime(format_value_list(values, max_characters, false))
+                    DumpValue::DateTime(format_value_list(values, max, false))
                 }
                 Err(_e) => {
                     // print as text
-                    DumpValue::Invalid(format_value_list(values, max_characters, true))
+                    DumpValue::Invalid(format_value_list(values, max, true))
                 }
             }
         }
@@ -396,28 +475,31 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> DumpVal
             match value.to_multi_datetime(dicom::core::chrono::FixedOffset::east(0)) {
                 Ok(values) => {
                     // print as reformatted date
-                    DumpValue::DateTime(format_value_list(values, max_characters, false))
+                    DumpValue::DateTime(format_value_list(values, max, false))
                 }
                 Err(_e) => {
                     // print as text
-                    DumpValue::Invalid(format_value_list(values, max_characters, true))
+                    DumpValue::Invalid(format_value_list(values, max, true))
                 }
             }
         }
         (Strs(values), _) => DumpValue::Str(format_value_list(
-            values.iter().map(|s| s.trim_end_matches(whitespace_or_null)),
-            max_characters,
+            values
+                .iter()
+                .map(|s| s.trim_end_matches(whitespace_or_null)),
+            max,
             true,
         )),
-        (Date(values), _) => DumpValue::DateTime(format_value_list(values, max_characters, true)),
-        (Time(values), _) => DumpValue::DateTime(format_value_list(values, max_characters, true)),
-        (DateTime(values), _) => {
-            DumpValue::DateTime(format_value_list(values, max_characters, true))
-        }
+        (Date(values), _) => DumpValue::DateTime(format_value_list(values, max, true)),
+        (Time(values), _) => DumpValue::DateTime(format_value_list(values, max, true)),
+        (DateTime(values), _) => DumpValue::DateTime(format_value_list(values, max, true)),
         (Str(value), _) => DumpValue::Str(
             cut_str(
-                &format!("\"{}\"", value.to_string().trim_end_matches(whitespace_or_null)),
-                max_characters,
+                &format!(
+                    "\"{}\"",
+                    value.to_string().trim_end_matches(whitespace_or_null)
+                ),
+                max,
             )
             .to_string(),
         ),
@@ -425,12 +507,12 @@ fn value_summary(value: &PrimitiveValue, vr: VR, max_characters: u32) -> DumpVal
     }
 }
 
-fn item_value_summary(data: &[u8], max_characters: u32) -> String {
-    format_value_list(
+fn item_value_summary(data: &[u8], max_characters: u32) -> DumpValue<String> {
+    DumpValue::Num(format_value_list(
         data.iter().map(|n| format!("{:02X}", n)),
         max_characters,
         false,
-    )
+    ))
 }
 
 fn format_value_list<I>(values: I, max_characters: u32, quoted: bool) -> String
@@ -465,8 +547,14 @@ where
 
 fn cut_str(s: &str, max_characters: u32) -> Cow<str> {
     let max = (max_characters.saturating_sub(3)) as usize;
-    if s.len() > max {
-        format!("{}...", &s[..max]).into()
+    let len = s.chars().count();
+
+    if len > max {
+        s.chars()
+            .take(max)
+            .chain("...".chars())
+            .collect::<String>()
+            .into()
     } else {
         s.into()
     }
