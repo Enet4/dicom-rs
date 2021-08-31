@@ -6,6 +6,7 @@ use crate::value::partial::{
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use std::ops::{Add, Mul, Sub};
+use std::convert::TryFrom;
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -136,10 +137,10 @@ pub fn parse_date(buf: &[u8]) -> Result<NaiveDate> {
         len if len >= 8 => {
             let year = read_number(&buf[0..4])?;
             let month: u32 = read_number(&buf[4..6])?;
-            check_component(DateComponent::Month, month).context(InvalidComponent)?;
+            check_component(DateComponent::Month, &month).context(InvalidComponent)?;
 
             let day: u32 = read_number(&buf[6..8])?;
-            check_component(DateComponent::Day, day).context(InvalidComponent)?;
+            check_component(DateComponent::Day, &day).context(InvalidComponent)?;
 
             NaiveDate::from_ymd_opt(year, month, day).context(InvalidDate)
         }
@@ -158,20 +159,20 @@ pub fn parse_date_partial(buf: &[u8]) -> Result<(PartialDate, &[u8])> {
         let year: u16 = read_number(&buf[0..4])?;
         let buf = &buf[4..];
         if buf.len() < 2 {
-            Ok((PartialDate::from_y(year).context(PartialValue)?, buf))
+            Ok((PartialDate::from_y(&year).context(PartialValue)?, buf))
         } else {
             let month: u8 = read_number(&buf[0..2])?;
             let buf = &buf[2..];
             if buf.len() < 2 {
                 Ok((
-                    PartialDate::from_ym(year, month).context(PartialValue)?,
+                    PartialDate::from_ym(&year, &month).context(PartialValue)?,
                     buf,
                 ))
             } else {
                 let day: u8 = read_number(&buf[0..2])?;
                 let buf = &buf[2..];
                 Ok((
-                    PartialDate::from_ymd(year, month, day).context(PartialValue)?,
+                    PartialDate::from_ymd(&year, &month, &day).context(PartialValue)?,
                     buf,
                 ))
             }
@@ -181,7 +182,8 @@ pub fn parse_date_partial(buf: &[u8]) -> Result<(PartialDate, &[u8])> {
 
 /** Decode a single DICOM Time (TM) into a `PartialTime` value.
  * Unlike `parse_time`, this method allows for missing Time components.
- * The precision of the value is stored.
+ * The precision of the second fraction is stored and can be returned as a range later.
+ * b".123" is stored as 123, unlike 123_000 in `parse_time`
  */
 pub fn parse_time_partial(buf: &[u8]) -> Result<(PartialTime, &[u8])> {
     if buf.len() < 2 {
@@ -190,13 +192,13 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(PartialTime, &[u8])> {
         let hour: u8 = read_number(&buf[0..2])?;
         let buf = &buf[2..];
         if buf.len() < 2 {
-            Ok((PartialTime::from_h(hour).context(PartialValue)?, buf))
+            Ok((PartialTime::from_h(&hour).context(PartialValue)?, buf))
         } else {
             let minute: u8 = read_number(&buf[0..2])?;
             let buf = &buf[2..];
             if buf.len() < 2 {
                 Ok((
-                    PartialTime::from_hm(hour, minute).context(PartialValue)?,
+                    PartialTime::from_hm(&hour, &minute).context(PartialValue)?,
                     buf,
                 ))
             } else {
@@ -204,7 +206,7 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(PartialTime, &[u8])> {
                 let buf = &buf[2..];
                 if buf.len() < 2 {
                     Ok((
-                        PartialTime::from_hms(hour, minute, second).context(PartialValue)?,
+                        PartialTime::from_hms(&hour, &minute, &second).context(PartialValue)?,
                         buf,
                     ))
                 } else if buf[0] != b'.' {
@@ -212,15 +214,16 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(PartialTime, &[u8])> {
                 } else {
                     let buf = &buf[1..];
                     let n = usize::min(6, buf.len());
-                    let mut fraction: u32 = read_number(&buf[0..n])?;
-                    let mut acc = n;
+                    let fraction: u32 = read_number(&buf[0..n])?;
+                    /*let mut acc = n;
                     while acc < 6 {
                         fraction *= 10;
                         acc += 1;
-                    }
+                    }*/
                     let buf = &buf[n..];
+                    let mul :u8 = 6 - u8::try_from(n).unwrap();
                     Ok((
-                        PartialTime::from_hmsf(hour, minute, second, fraction)
+                        PartialTime::from_hmsf(&hour, &minute, &second, &fraction, &mul)
                             .context(PartialValue)?,
                         buf,
                     ))
@@ -242,7 +245,7 @@ pub fn parse_time(buf: &[u8]) -> Result<NaiveTime> {
     match buf.len() {
         2 => {
             let hour: u32 = read_number(&buf[0..2])?;
-            check_component(DateComponent::Hour, hour).context(InvalidComponent)?;
+            check_component(DateComponent::Hour, &hour).context(InvalidComponent)?;
             IncompleteValue {
                 component: DateComponent::Minute,
             }
@@ -250,9 +253,9 @@ pub fn parse_time(buf: &[u8]) -> Result<NaiveTime> {
         }
         4 => {
             let hour: u32 = read_number(&buf[0..2])?;
-            check_component(DateComponent::Hour, hour).context(InvalidComponent)?;
+            check_component(DateComponent::Hour, &hour).context(InvalidComponent)?;
             let minute: u32 = read_number(&buf[2..4])?;
-            check_component(DateComponent::Minute, minute).context(InvalidComponent)?;
+            check_component(DateComponent::Minute, &minute).context(InvalidComponent)?;
             IncompleteValue {
                 component: DateComponent::Second,
             }
@@ -260,11 +263,11 @@ pub fn parse_time(buf: &[u8]) -> Result<NaiveTime> {
         }
         6 => {
             let hour: u32 = read_number(&buf[0..2])?;
-            check_component(DateComponent::Hour, hour).context(InvalidComponent)?;
+            check_component(DateComponent::Hour, &hour).context(InvalidComponent)?;
             let minute: u32 = read_number(&buf[2..4])?;
-            check_component(DateComponent::Minute, minute).context(InvalidComponent)?;
+            check_component(DateComponent::Minute, &minute).context(InvalidComponent)?;
             let second: u32 = read_number(&buf[4..6])?;
-            check_component(DateComponent::Second, second).context(InvalidComponent)?;
+            check_component(DateComponent::Second, &second).context(InvalidComponent)?;
             IncompleteValue {
                 component: DateComponent::Fraction,
             }
@@ -272,11 +275,11 @@ pub fn parse_time(buf: &[u8]) -> Result<NaiveTime> {
         }
         len if len >= 8 => {
             let hour: u32 = read_number(&buf[0..2])?;
-            check_component(DateComponent::Hour, hour).context(InvalidComponent)?;
+            check_component(DateComponent::Hour, &hour).context(InvalidComponent)?;
             let minute: u32 = read_number(&buf[2..4])?;
-            check_component(DateComponent::Minute, minute).context(InvalidComponent)?;
+            check_component(DateComponent::Minute, &minute).context(InvalidComponent)?;
             let second: u32 = read_number(&buf[4..6])?;
-            check_component(DateComponent::Second, second).context(InvalidComponent)?;
+            check_component(DateComponent::Second, &second).context(InvalidComponent)?;
             let buf = &buf[6..];
             if buf[0] != b'.' {
                 FractionDelimiter { value: buf[0] }.fail()
@@ -289,7 +292,7 @@ pub fn parse_time(buf: &[u8]) -> Result<NaiveTime> {
                     fraction *= 10;
                     acc += 1;
                 }
-                check_component(DateComponent::Fraction, fraction).context(InvalidComponent)?;
+                check_component(DateComponent::Fraction, &fraction).context(InvalidComponent)?;
                 Ok(NaiveTime::from_hms_micro(hour, minute, second, fraction))
             }
         }
@@ -297,27 +300,7 @@ pub fn parse_time(buf: &[u8]) -> Result<NaiveTime> {
     }
 }
 
-/// A version of `NaiveTime::from_hms` which returns a more informative error.
 /*
-fn naive_time_from_components(
-    hour: u32,
-    minute: u32,
-    second: u32,
-    micro: u32,
-) -> Result<NaiveTime> {
-    if hour >= 24 {
-        InvalidDateTimeHour { value: hour }.fail()
-    } else if minute >= 60 {
-        InvalidDateTimeMinute { value: minute }.fail()
-    } else if second >= 60 {
-        InvalidDateTimeSecond { value: second }.fail()
-    } else if micro >= 2_000_000 {
-        InvalidDateTimeMicrosecond { value: micro }.fail()
-    } else {
-        Ok(NaiveTime::from_hms_micro(hour, minute, second, micro))
-    }
-}
-
 fn parse_time_impl(buf: &[u8], for_datetime: bool) -> Result<(NaiveTime, &[u8])> {
     const Z: i32 = b'0' as i32;
     // HH(MM(SS(.F{1,6})?)?)?
@@ -563,8 +546,11 @@ mod tests {
         assert!(matches!(
             parse_date(b"19021515"),
             Err(Error::InvalidComponent {
-                component: DateComponent::Month,
-                value: 15,
+                source: PartialValuesError::InvalidComponent {
+                    component: DateComponent::Month,
+                    value: 15,
+                    ..
+                },
                 ..
             })
         ));
@@ -572,8 +558,11 @@ mod tests {
         assert!(matches!(
             parse_date(b"19021200"),
             Err(Error::InvalidComponent {
-                component: DateComponent::Day,
-                value: 0,
+                source: PartialValuesError::InvalidComponent {
+                    component: DateComponent::Day,
+                    value: 0,
+                    ..
+                },
                 ..
             })
         ));
@@ -581,8 +570,11 @@ mod tests {
         assert!(matches!(
             parse_date(b"19021232"),
             Err(Error::InvalidComponent {
-                component: DateComponent::Day,
-                value: 32,
+                source: PartialValuesError::InvalidComponent {
+                    component: DateComponent::Day,
+                    value: 32,
+                    ..
+                },
                 ..
             })
         ));
@@ -648,27 +640,36 @@ mod tests {
 
         assert!(matches!(
             parse_date_partial(b"19021515"),
-            Err(Error::InvalidComponent {
-                component: DateComponent::Month,
-                value: 15,
+            Err(Error::PartialValue {
+                source: PartialValuesError::InvalidComponent {
+                    component: DateComponent::Month,
+                    value: 15,
+                    ..
+                },
                 ..
             })
         ));
 
         assert!(matches!(
             parse_date_partial(b"19021200"),
-            Err(Error::InvalidComponent {
-                component: DateComponent::Day,
-                value: 0,
+            Err(Error::PartialValue {
+                source: PartialValuesError::InvalidComponent {
+                    component: DateComponent::Day,
+                    value: 0,
+                    ..
+                },
                 ..
             })
         ));
 
         assert!(matches!(
             parse_date_partial(b"19021232"),
-            Err(Error::InvalidComponent {
-                component: DateComponent::Day,
-                value: 32,
+            Err(Error::PartialValue {
+                source: PartialValuesError::InvalidComponent {
+                    component: DateComponent::Day,
+                    value: 32,
+                    ..
+                },
                 ..
             })
         ));
@@ -696,8 +697,11 @@ mod tests {
         assert!(matches!(
             parse_time(b"24"),
             Err(Error::InvalidComponent {
-                component: DateComponent::Hour,
-                value: 24,
+                source: PartialValuesError::InvalidComponent {
+                    component: DateComponent::Hour,
+                    value: 24,
+                    ..
+                },
                 ..
             })
         ));
@@ -711,8 +715,11 @@ mod tests {
         assert!(matches!(
             parse_time(b"1560"),
             Err(Error::InvalidComponent {
-                component: DateComponent::Minute,
-                value: 60,
+                source: PartialValuesError::InvalidComponent {
+                    component: DateComponent::Minute,
+                    value: 60,
+                    ..
+                },
                 ..
             })
         ));
@@ -726,8 +733,11 @@ mod tests {
         assert!(matches!(
             parse_time(b"153099"),
             Err(Error::InvalidComponent {
-                component: DateComponent::Second,
-                value: 99,
+                source: PartialValuesError::InvalidComponent {
+                    component: DateComponent::Second,
+                    value: 99,
+                    ..
+                },
                 ..
             })
         ));
@@ -772,19 +782,19 @@ mod tests {
         );
         assert_eq!(
             parse_time_partial(b"075501.5").unwrap(),
-            (PartialTime::Fraction(7, 55, 1, 500_000), &[][..])
+            (PartialTime::Fraction(7, 55, 1, 5, 5), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"075501.123").unwrap(),
-            (PartialTime::Fraction(7, 55, 1, 123_000), &[][..])
+            (PartialTime::Fraction(7, 55, 1, 123, 3), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"075501.999999").unwrap(),
-            (PartialTime::Fraction(7, 55, 1, 999_999), &[][..])
+            (PartialTime::Fraction(7, 55, 1, 999_999, 0), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"075501.9999994").unwrap(),
-            (PartialTime::Fraction(7, 55, 1, 999_999), &b"4"[..])
+            (PartialTime::Fraction(7, 55, 1, 999_999, 0), &b"4"[..])
         );
         assert!(matches!(
             parse_time_partial(b"075501x123456"),
@@ -792,25 +802,34 @@ mod tests {
         ));
         assert!(matches!(
             parse_time_partial(b"24"),
-            Err(Error::InvalidComponent {
-                component: DateComponent::Hour,
-                value: 24,
+            Err(Error::PartialValue {
+                source: PartialValuesError::InvalidComponent {
+                    component: DateComponent::Hour,
+                    value: 24,
+                    ..
+                },
                 ..
             })
         ));
         assert!(matches!(
             parse_time_partial(b"1060"),
-            Err(Error::InvalidComponent {
-                component: DateComponent::Minute,
-                value: 60,
+            Err(Error::PartialValue {
+                source: PartialValuesError::InvalidComponent {
+                    component: DateComponent::Minute,
+                    value: 60,
+                    ..
+                },
                 ..
             })
         ));
         assert!(matches!(
             parse_time_partial(b"105960"),
-            Err(Error::InvalidComponent {
-                component: DateComponent::Second,
-                value: 60,
+            Err(Error::PartialValue {
+                source: PartialValuesError::InvalidComponent {
+                    component: DateComponent::Second,
+                    value: 60,
+                    ..
+                },
                 ..
             })
         ));
