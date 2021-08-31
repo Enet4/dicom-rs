@@ -40,11 +40,13 @@ enum Coloring {
     Always,
 }
 
-impl ToString for ColoringError {
-    fn to_string(&self) -> String {
-        "invalid color mode".into()
+impl Display for ColoringError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("invalid color mode")
     }
 }
+
+impl std::error::Error for Coloring {}
 
 impl FromStr for Coloring {
     type Err = ColoringError;
