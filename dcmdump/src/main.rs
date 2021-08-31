@@ -20,6 +20,7 @@ use dicom::transfer_syntax::TransferSyntaxRegistry;
 use snafu::ErrorCompat;
 use std::borrow::Cow;
 use std::fmt;
+use std::str::FromStr;
 use std::io::{stdout, ErrorKind, Result as IoResult, Write};
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -28,6 +29,44 @@ use structopt::StructOpt;
 const ERROR_READ: i32 = -2;
 /// Exit code for when an error emerged while dumping the file.
 const ERROR_PRINT: i32 = -3;
+
+#[derive(Debug)]
+struct ColoringError { }
+
+#[derive(Clone, Copy, Debug)]
+enum Coloring {
+    Never,
+    Auto,
+    Always,
+}
+
+impl ToString for ColoringError {
+    fn to_string(&self) -> String {
+        "invalid color mode".into()
+    }
+}
+
+impl FromStr for Coloring {
+    type Err = ColoringError;
+    fn from_str(color: &str) -> Result<Self, Self::Err> {
+        match color {
+            "never" => Ok(Coloring::Never),
+            "auto" => Ok(Coloring::Auto),
+            "always" => Ok(Coloring::Always),
+            _ => Err(ColoringError{})
+        }
+    }
+}
+
+impl ToString for Coloring {
+    fn to_string(&self) -> String {
+        match self {
+            Coloring::Never => "never".into(),
+            Coloring::Auto => "auto".into(),
+            Coloring::Always => "always".into(),
+        }
+    }
+}
 
 /// Dump the contents of DICOM files
 #[derive(Debug, StructOpt)]
@@ -42,6 +81,9 @@ struct App {
     /// (default is to check automatically)
     #[structopt(short = "w", long = "width")]
     width: Option<u32>,
+    /// color mode
+    #[structopt(long="color", default_value = "auto")]
+    color: Coloring
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -124,6 +166,7 @@ fn main() {
         file: filename,
         no_text_limit,
         width,
+        color,
     } = App::from_args();
 
     let obj = open_file(filename).unwrap_or_else(|e| {
@@ -134,6 +177,12 @@ fn main() {
     let width = width
         .or_else(|| term_size::dimensions().map(|(width, _)| width as u32))
         .unwrap_or(120);
+
+    match color {
+        Coloring::Never => colored::control::set_override(false),
+        Coloring::Always => colored::control::set_override(true),
+        _ => {}
+    }
 
     match dump_file(obj, width, no_text_limit) {
         Err(ref e) if e.kind() == ErrorKind::BrokenPipe => {
