@@ -62,7 +62,7 @@ pub enum PartialTime {
     Hour(u8),
     Minute(u8, u8),
     Second(u8, u8, u8),
-    Fraction(u8, u8, u8, u32),
+    Fraction(u8, u8, u8, u32, u8),
 }
 
 /**
@@ -85,7 +85,7 @@ pub enum PartialDateTime {
  */
 pub fn check_component<T>(component: DateComponent, value: &T) -> Result<()>
 where
-    for<'a> &'a T: Into<u32>,
+    T: Into<u32> + Copy,
 {
     let range = match component {
         DateComponent::Year => 0..=9_999,
@@ -94,11 +94,11 @@ where
         DateComponent::Hour => 0..=23,
         DateComponent::Minute => 0..=59,
         DateComponent::Second => 0..=59,
-        DateComponent::Fraction => 0..=1_999_999,
+        DateComponent::Fraction => 0..=999_999,
         DateComponent::UTCOffset => 0..=86_399,
     };
 
-    let value: u32 = value.into();
+    let value: u32 = (*value).into();
     if range.contains(&value) {
         Ok(())
     } else {
@@ -113,87 +113,118 @@ where
 
 impl PartialDate {
     /**
-     * Constructs a new `PartialDate` with a Year precision
+     * Constructs a new `PartialDate` with year precision
      * (YYYY)
      */
     pub fn from_y<T>(y: &T) -> Result<PartialDate>
     where
-        for<'a> &'a T: Into<u32> + Into<u16>,
+        T: Into<u32> + Into<u16> + Copy,
     {
         check_component(DateComponent::Year, y)?;
-        Ok(PartialDate::Year(y.into()))
+        Ok(PartialDate::Year((*y).into()))
     }
     /**
-     * Constructs a new `PartialDate` with a Year and Month precision
+     * Constructs a new `PartialDate` with year and month precision
      * (YYYYMM)
      */
     pub fn from_ym<T, U>(y: &T, m: &U) -> Result<PartialDate>
     where
-        for<'a> &'a T: Into<u32> + Into<u16>,
-        for<'a> &'a U: Into<u32> + Into<u8>,
+        T: Into<u32> + Into<u16> + Copy,
+        U: Into<u32> + Into<u8> + Copy,
     {
         check_component(DateComponent::Year, y)?;
         check_component(DateComponent::Month, m)?;
-        Ok(PartialDate::Month(y.into(), m.into()))
+        Ok(PartialDate::Month((*y).into(), (*m).into()))
     }
     /**
-     * Constructs a new `PartialDate` with a Year,Month and Day precision
+     * Constructs a new `PartialDate` with a year, month and day precision
      * (YYYYMMDD)
      */
     pub fn from_ymd<T, U>(y: &T, m: &U, d: &U) -> Result<PartialDate>
     where
-        for<'a> &'a T: Into<u32> + Into<u16>,
-        for<'a> &'a U: Into<u32> + Into<u8>,
+        T: Into<u32> + Into<u16> + Copy,
+        U: Into<u32> + Into<u8> + Copy,
     {
         check_component(DateComponent::Year, y)?;
         check_component(DateComponent::Month, m)?;
         check_component(DateComponent::Day, d)?;
-        Ok(PartialDate::Day(y.into(), m.into(), d.into()))
+        Ok(PartialDate::Day((*y).into(), (*m).into(), (*d).into()))
     }
 }
 
 impl PartialTime {
-    pub fn from_h<T>(h: &T) -> Result<PartialTime>
+    /**
+     * Constructs a new `PartialTime` with hour precision
+     * (HH)
+     */
+    pub fn from_h<T>(hour: &T) -> Result<PartialTime>
     where
-        for<'a> &'a T: Into<u32> + Into<u8>,
+        T: Into<u32> + Into<u8> + Copy,
     {
-        check_component(DateComponent::Hour, h)?;
-        Ok(PartialTime::Hour(h.into()))
+        check_component(DateComponent::Hour, hour)?;
+        Ok(PartialTime::Hour((*hour).into()))
     }
 
-    pub fn from_hm<T>(h: &T, m: &T) -> Result<PartialTime>
+    /**
+     * Constructs a new `PartialTime` with hour and minute precision
+     * (HHMM)
+     */
+    pub fn from_hm<T>(hour: &T, minute: &T) -> Result<PartialTime>
     where
-        for<'a> &'a T: Into<u32> + Into<u8>,
+        T: Into<u32> + Into<u8> + Copy,
     {
-        check_component(DateComponent::Hour, h)?;
-        check_component(DateComponent::Minute, m)?;
-        Ok(PartialTime::Minute(h.into(), m.into()))
+        check_component(DateComponent::Hour, hour)?;
+        check_component(DateComponent::Minute, minute)?;
+        Ok(PartialTime::Minute((*hour).into(), (*minute).into()))
     }
 
-    pub fn from_hms<T>(h: &T, m: &T, s: &T) -> Result<PartialTime>
+    /**
+     * Constructs a new `PartialTime` with hour, minute and second precision
+     * (HHMMSS)
+     */
+    pub fn from_hms<T>(hour: &T, minute: &T, second: &T) -> Result<PartialTime>
     where
-        for<'a> &'a T: Into<u32> + Into<u8>,
+        T: Into<u32> + Into<u8> + Copy,
     {
-        check_component(DateComponent::Hour, h)?;
-        check_component(DateComponent::Minute, m)?;
-        check_component(DateComponent::Second, s)?;
-        Ok(PartialTime::Second(h.into(), m.into(), s.into()))
+        check_component(DateComponent::Hour, hour)?;
+        check_component(DateComponent::Minute, minute)?;
+        check_component(DateComponent::Second, second)?;
+        Ok(PartialTime::Second(
+            (*hour).into(),
+            (*minute).into(),
+            (*second).into(),
+        ))
     }
 
-    pub fn from_hmsf<T, U>(h: &T, m: &T, s: &T, f: &U) -> Result<PartialTime>
+    /**
+     * Constructs a new `PartialTime` with hour, minute, second and second fraction
+     * (HHMMSS.FFFFFF) precision.
+     * `missing` (0-5) compensates for the missing digits in fraction
+     */
+    pub fn from_hmsf<T, U>(
+        hour: &T,
+        minute: &T,
+        second: &T,
+        fraction: &U,
+        missing: &T,
+    ) -> Result<PartialTime>
     where
-        for<'a> &'a T: Into<u32> + Into<u8>,
-        for<'a> &'a U: Into<u32>,
+        T: Into<u32> + Into<u8> + Copy,
+        U: Into<u32> + Copy,
     {
-        check_component(DateComponent::Hour, h)?;
-        check_component(DateComponent::Minute, m)?;
-        check_component(DateComponent::Second, s)?;
-        check_component(DateComponent::Fraction, f)?;
+        check_component(DateComponent::Hour, hour)?;
+        check_component(DateComponent::Minute, minute)?;
+        check_component(DateComponent::Second, second)?;
+        // fraction needs to be calculated from partial fraction and multiplier
+        // lets go with minimal value = fraction * pow(10, multiplier)
+        let f: u32 = (*fraction).into() * u32::pow(10, (*missing).into());
+        check_component(DateComponent::Fraction, &f)?;
         Ok(PartialTime::Fraction(
-            h.into(),
-            m.into(),
-            s.into(),
-            f.into(),
+            (*hour).into(),
+            (*minute).into(),
+            (*second).into(),
+            (*fraction).into(),
+            (*missing).into(),
         ))
     }
 }
@@ -305,22 +336,32 @@ impl AsTemporalRange<NaiveDate> for PartialDate {
 
 impl AsTemporalRange<NaiveTime> for PartialTime {
     fn earliest(&self) -> Result<NaiveTime> {
+        let fr: u32;
         let (h, m, s, f) = match self {
-            PartialTime::Hour(h) => (*h as u32, 0, 0, 0),
-            PartialTime::Minute(h, m) => (*h as u32, *m as u32, 0, 0),
-            PartialTime::Second(h, m, s) => (*h as u32, *m as u32, *s as u32, 0),
-            PartialTime::Fraction(h, m, s, f) => (*h as u32, *m as u32, *s as u32, *f),
+            PartialTime::Hour(h) => (h, &0, &0, &0),
+            PartialTime::Minute(h, m) => (h, m, &0, &0),
+            PartialTime::Second(h, m, s) => (h, m, s, &0),
+            PartialTime::Fraction(h, m, s, f, mul) => {
+                fr = *f * u32::pow(10, (*mul).into());
+                (h, m, s, &fr)
+            }
         };
-        NaiveTime::from_hms_micro_opt(h, m, s, f).context(InvalidTime)
+        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), (*f).into())
+            .context(InvalidTime)
     }
     fn latest(&self) -> Result<NaiveTime> {
+        let fr: u32;
         let (h, m, s, f) = match self {
-            PartialTime::Hour(h) => (*h as u32, 59, 59, 999_999),
-            PartialTime::Minute(h, m) => (*h as u32, *m as u32, 59, 999_999),
-            PartialTime::Second(h, m, s) => (*h as u32, *m as u32, *s as u32, 999_999),
-            PartialTime::Fraction(h, m, s, f) => (*h as u32, *m as u32, *s as u32, *f),
+            PartialTime::Hour(h) => (h, &59, &59, &999_999),
+            PartialTime::Minute(h, m) => (h, m, &59, &999_999),
+            PartialTime::Second(h, m, s) => (h, m, s, &999_999),
+            PartialTime::Fraction(h, m, s, f, mul) => {
+                fr = (*f * u32::pow(10, u32::from(*mul))) + (u32::pow(10, u32::from(*mul))) - 1;
+                (h, m, s, &fr)
+            }
         };
-        NaiveTime::from_hms_micro_opt(h, m, s, f).context(InvalidTime)
+        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), (*f).into())
+            .context(InvalidTime)
     }
 }
 
@@ -329,28 +370,134 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_date_precision() {
-        let ymd = PartialDate::Day(1944, 2, 29);
-        let ym = PartialDate::Month(1944, 2);
-        let y = PartialDate::Year(1944);
-        assert_eq!(ymd.is_precise(), true);
-        assert_eq!(ym.is_precise(), false);
-        assert_eq!(y.is_precise(), false);
-        assert_eq!(ymd.earliest().unwrap(), NaiveDate::from_ymd(1944, 2, 29));
-        assert_eq!(ymd.latest().unwrap(), NaiveDate::from_ymd(1944, 2, 29));
-        assert_eq!(ym.earliest().unwrap(), NaiveDate::from_ymd(1944, 2, 1));
-        // detects leap year
-        assert_eq!(ym.latest().unwrap(), NaiveDate::from_ymd(1944, 2, 29));
-        assert_eq!(y.latest().unwrap(), NaiveDate::from_ymd(1944, 12, 31));
+    fn test_partial_date() {
+        assert_eq!(
+            PartialDate::from_ymd(&1944u16, &2, &29).unwrap(),
+            PartialDate::Day(1944, 2, 29)
+        );
+        assert_eq!(
+            PartialDate::from_ym(&1944u16, &2).unwrap(),
+            PartialDate::Month(1944, 2)
+        );
+        assert_eq!(
+            PartialDate::from_y(&1944u16).unwrap(),
+            PartialDate::Year(1944)
+        );
 
         assert_eq!(
-            PartialDate::Month(1945, 2).latest().unwrap(),
+            PartialDate::from_ymd(&1944u16, &2, &29)
+                .unwrap()
+                .is_precise(),
+            true
+        );
+        assert_eq!(
+            PartialDate::from_ym(&1944u16, &2).unwrap().is_precise(),
+            false
+        );
+        assert_eq!(PartialDate::from_y(&1944u16).unwrap().is_precise(), false);
+        assert_eq!(
+            PartialDate::from_ymd(&1944u16, &2, &29)
+                .unwrap()
+                .earliest()
+                .unwrap(),
+            NaiveDate::from_ymd(1944, 2, 29)
+        );
+        assert_eq!(
+            PartialDate::from_ymd(&1944u16, &2, &29)
+                .unwrap()
+                .latest()
+                .unwrap(),
+            NaiveDate::from_ymd(1944, 2, 29)
+        );
+
+        assert_eq!(
+            PartialDate::from_y(&1944u16).unwrap().earliest().unwrap(),
+            NaiveDate::from_ymd(1944, 1, 1)
+        );
+        // detects leap year
+        assert_eq!(
+            PartialDate::from_ym(&1944u16, &2)
+                .unwrap()
+                .latest()
+                .unwrap(),
+            NaiveDate::from_ymd(1944, 2, 29)
+        );
+        assert_eq!(
+            PartialDate::from_ym(&1945u16, &2)
+                .unwrap()
+                .latest()
+                .unwrap(),
             NaiveDate::from_ymd(1945, 2, 28)
         );
     }
 
     #[test]
-    fn test_time_precision() {
-        let hmsf = PartialTime::Fraction(9, 1, 1, 1234567);
+    fn test_partial_time() {
+        assert_eq!(
+            PartialTime::from_hmsf(&9, &1, &1, &123456u32, &0).unwrap(),
+            PartialTime::Fraction(9, 1, 1, 123456, 0)
+        );
+        assert_eq!(
+            PartialTime::from_hms(&9u8, &0, &0).unwrap(),
+            PartialTime::Second(9, 0, 0)
+        );
+        assert_eq!(
+            PartialTime::from_hm(&23, &59).unwrap(),
+            PartialTime::Minute(23, 59)
+        );
+        assert_eq!(PartialTime::from_h(&1).unwrap(), PartialTime::Hour(1));
+
+        assert_eq!(
+            PartialTime::from_hmsf(&9, &1, &1, &123u32, &3)
+                .unwrap()
+                .earliest()
+                .unwrap(),
+            NaiveTime::from_hms_micro(9, 1, 1, 123_000)
+        );
+        assert_eq!(
+            PartialTime::from_hmsf(&9, &1, &1, &123u32, &3)
+                .unwrap()
+                .latest()
+                .unwrap(),
+            NaiveTime::from_hms_micro(9, 1, 1, 123_999)
+        );
+
+        assert_eq!(
+            PartialTime::from_hmsf(&9, &1, &1, &1u32, &5)
+                .unwrap()
+                .earliest()
+                .unwrap(),
+            NaiveTime::from_hms_micro(9, 1, 1, 100_000)
+        );
+        assert_eq!(
+            PartialTime::from_hmsf(&9, &1, &1, &1u32, &5)
+                .unwrap()
+                .latest()
+                .unwrap(),
+            NaiveTime::from_hms_micro(9, 1, 1, 199_999)
+        );
+
+        assert_eq!(
+            PartialTime::from_hmsf(&9, &1, &1, &12345u32, &1)
+                .unwrap()
+                .is_precise(),
+            false
+        );
+
+        assert_eq!(
+            PartialTime::from_hmsf(&9, &1, &1, &123456u32, &0)
+                .unwrap()
+                .is_precise(),
+            true
+        );
+
+        assert!(matches!(
+            PartialTime::from_hmsf(&9, &1, &1, &1u32, &6),
+            Err(Error::InvalidComponent {
+                component: DateComponent::Fraction,
+                value: 1_000_000,
+                ..
+            })
+        ));
     }
 }
