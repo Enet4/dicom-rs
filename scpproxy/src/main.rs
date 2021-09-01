@@ -98,7 +98,7 @@ pub enum ThreadMessage {
     },
 }
 
-fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
+fn run(scu_stream: &mut TcpStream, destination_addr: &str, strict: bool) -> Result<()> {
     // Before we do anything, let's also open another connection to the destination
     // SCP.
     match TcpStream::connect(destination_addr) {
@@ -114,7 +114,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
                 let message_tx = message_tx.clone();
                 scu_reader_thread = thread::spawn(move || {
                     loop {
-                        match read_pdu(&mut reader, DEFAULT_MAX_PDU) {
+                        match read_pdu(&mut reader, DEFAULT_MAX_PDU, strict) {
                             Ok(pdu) => {
                                 message_tx
                                     .send(ThreadMessage::SendPdu {
@@ -151,7 +151,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
                 let mut reader = scp_stream.try_clone().context(CloneSocket)?;
                 scp_reader_thread = thread::spawn(move || {
                     loop {
-                        match read_pdu(&mut reader, DEFAULT_MAX_PDU) {
+                        match read_pdu(&mut reader, DEFAULT_MAX_PDU, strict) {
                             Ok(pdu) => {
                                 message_tx
                                     .send(ThreadMessage::SendPdu {
@@ -258,11 +258,20 @@ fn main() {
                 .default_value("3333")
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("strict")
+                .help("Enforce max PDU length")
+                .short("-s")
+                .long("--strict")
+                .required(false)
+                .takes_value(false)
+        )
         .get_matches();
 
     let destination_host = matches.value_of("destination-host").unwrap();
     let destination_port = matches.value_of("destination-port").unwrap();
     let listen_port = matches.value_of("listen-port").unwrap();
+    let strict: bool = matches.is_present("strict");
 
     let listen_addr = format!("0.0.0.0:{}", listen_port);
     let destination_addr = format!("{}:{}", destination_host, destination_port);
@@ -274,7 +283,7 @@ fn main() {
     for mut stream in listener.incoming() {
         match stream {
             Ok(ref mut scu_stream) => {
-                if let Err(e) = run(scu_stream, &destination_addr) {
+                if let Err(e) = run(scu_stream, &destination_addr, strict) {
                     report(e);
                 }
             }

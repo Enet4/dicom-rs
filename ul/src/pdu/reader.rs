@@ -3,7 +3,7 @@ use crate::pdu::*;
 use byteordered::byteorder::{BigEndian, ReadBytesExt};
 use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
-use std::io::{Cursor, ErrorKind, Read, Seek, SeekFrom};
+use std::{char::MAX, io::{Cursor, ErrorKind, Read, Seek, SeekFrom}};
 
 pub const DEFAULT_MAX_PDU: u32 = 16_384;
 pub const MINIMUM_PDU_SIZE: u32 = 4_096;
@@ -90,7 +90,7 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub fn read_pdu<R>(reader: &mut R, max_pdu_length: u32) -> Result<Pdu>
+pub fn read_pdu<R>(reader: &mut R, max_pdu_length: u32, strict: bool) -> Result<Pdu>
 where
     R: Read,
 {
@@ -115,14 +115,29 @@ where
         .read_u32::<BigEndian>()
         .context(ReadPduField { field: "length" })?;
 
-    // FIXME: check commented, but we should maybe at least emit a warning
-    // ensure!(
-    //     pdu_length <= max_pdu_length,
-    //     PduTooLarge {
-    //         pdu_length,
-    //         max_pdu_length
-    //     }
-    // );
+    // Check max_pdu_length. See also (#49)
+    if strict {
+        ensure!(
+            pdu_length <= max_pdu_length,
+            PduTooLarge {
+                pdu_length,
+                max_pdu_length
+            }
+        );
+    } else if pdu_length > max_pdu_length {
+        ensure!(
+            pdu_length <= MAXIMUM_PDU_SIZE,
+            PduTooLarge {
+                pdu_length,
+                max_pdu_length: MAXIMUM_PDU_SIZE
+            }
+        );
+        eprintln!("[WARNING] Incoming pdu was too large: length {}, maximum is {}",
+            pdu_length,
+            max_pdu_length
+        );
+    }
+
 
     let bytes = read_n(reader, pdu_length as usize).context(ReadPdu)?;
     let mut cursor = Cursor::new(bytes);

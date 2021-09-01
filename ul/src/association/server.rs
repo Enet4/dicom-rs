@@ -294,7 +294,7 @@ where
 
         let max_pdu_length = self.max_pdu_length;
 
-        let pdu = read_pdu(&mut socket, max_pdu_length).context(ReceiveRequest)?;
+        let pdu = read_pdu(&mut socket, max_pdu_length, true).context(ReceiveRequest)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         match pdu {
             Pdu::AssociationRQ {
@@ -455,7 +455,7 @@ impl ServerAssociation {
 
     /// Read a PDU message from the other intervenient.
     pub fn receive(&mut self) -> Result<Pdu> {
-        read_pdu(&mut self.socket, self.max_pdu_length).context(Receive)
+        read_pdu(&mut self.socket, self.max_pdu_length, true).context(Receive)
     }
 
     /// Send a provider initiated abort message
