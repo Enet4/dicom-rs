@@ -1,5 +1,5 @@
 use clap::{App, Arg};
-use dicom_ul::pdu::reader::{DEFAULT_MAX_PDU, MINIMUM_PDU_SIZE, read_pdu};
+use dicom_ul::pdu::reader::{DEFAULT_MAX_PDU, read_pdu};
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::Pdu;
 use snafu::{Backtrace, ErrorCompat, OptionExt, ResultExt, Snafu};
@@ -98,7 +98,7 @@ pub enum ThreadMessage {
     },
 }
 
-fn run(scu_stream: &mut TcpStream, destination_addr: &str, strict: bool, verbose: bool) -> Result<()> {
+fn run(scu_stream: &mut TcpStream, destination_addr: &str, strict: bool, verbose: bool, max_pdu_length: u32 ) -> Result<()> {
     // Before we do anything, let's also open another connection to the destination
     // SCP.
     match TcpStream::connect(destination_addr) {
@@ -114,7 +114,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str, strict: bool, verbose
                 let message_tx = message_tx.clone();
                 scu_reader_thread = thread::spawn(move || {
                     loop {
-                        match read_pdu(&mut reader, DEFAULT_MAX_PDU, strict) {
+                        match read_pdu(&mut reader, max_pdu_length, strict) {
                             Ok(pdu) => {
                                 message_tx
                                     .send(ThreadMessage::SendPdu {
@@ -151,7 +151,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str, strict: bool, verbose
                 let mut reader = scp_stream.try_clone().context(CloneSocket)?;
                 scp_reader_thread = thread::spawn(move || {
                     loop {
-                        match read_pdu(&mut reader, DEFAULT_MAX_PDU, strict) {
+                        match read_pdu(&mut reader, max_pdu_length, strict) {
                             Ok(pdu) => {
                                 message_tx
                                     .send(ThreadMessage::SendPdu {
@@ -183,7 +183,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str, strict: bool, verbose
                     Ok(())
                 });
             }
-            let mut buffer: Vec<u8> = Vec::with_capacity(MINIMUM_PDU_SIZE as usize);
+            let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
 
             loop {
                 let message = message_rx.recv().context(ReceiveMessage)?;
@@ -241,6 +241,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str, strict: bool, verbose
 }
 
 fn main() {
+    let default_max = DEFAULT_MAX_PDU.to_string();
     let matches = App::new("scpproxy")
         .arg(
             Arg::with_name("destination-host")
@@ -277,6 +278,14 @@ fn main() {
                 .long("--verbose")
                 .takes_value(false)
         )
+        .arg(
+            Arg::with_name("max-pdu-length")
+                .help("Maximum PDU length")
+                .short("-m")
+                .long("--max-pdu-length")
+                .default_value(&default_max)
+                .takes_value(true)
+        )
         .get_matches();
 
     let destination_host = matches.value_of("destination-host").unwrap();
@@ -284,6 +293,7 @@ fn main() {
     let listen_port = matches.value_of("listen-port").unwrap();
     let strict: bool = matches.is_present("strict");
     let verbose = matches.is_present("verbose");
+    let max_pdu_length: u32 = matches.value_of("max-pdu-length").unwrap().parse().unwrap();
 
     let listen_addr = format!("0.0.0.0:{}", listen_port);
     let destination_addr = format!("{}:{}", destination_host, destination_port);
@@ -296,7 +306,7 @@ fn main() {
     for mut stream in listener.incoming() {
         match stream {
             Ok(ref mut scu_stream) => {
-                if let Err(e) = run(scu_stream, &destination_addr, strict, verbose) {
+                if let Err(e) = run(scu_stream, &destination_addr, strict, verbose, max_pdu_length) {
                     report(e);
                 }
             }
