@@ -277,8 +277,6 @@ where
                 })?
                 .trim()
                 .to_string();
-            // eprintln!("Called-AE-title: {:?} [{}]", ae_bytes, called_ae_title);
-
 
             // 27-42 - Reserved - This reserved field shall be sent with a value identical to
             // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
@@ -294,7 +292,6 @@ where
                 })?
                 .trim()
                 .to_string();
-            // eprintln!("Calling-AE-title: {:?} [{}]", ae_bytes, calling_ae_title);
 
             // 43-74 - Reserved - This reserved field shall be sent with a value identical to
             // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
