@@ -301,7 +301,7 @@ where
             // shall not be tested when received.
             cursor
                 .seek(SeekFrom::Current(32))
-                .context(ReadReserved { bytes: 64_u32 })?;
+                .context(ReadReserved { bytes: 32_u32 })?;
 
             // 75-xxx - Variable items - This variable field shall contain the following items:
             // one Application Context Item, one or more Presentation Context Item(s) and one

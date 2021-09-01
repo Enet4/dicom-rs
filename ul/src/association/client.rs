@@ -251,8 +251,8 @@ impl<'a> ClientAssociationOptions<'a> {
                 protocol_version: protocol_version_scp,
                 application_context_name: _,
                 presentation_contexts: presentation_contexts_scp,
-                calling_ae_title,
-                called_ae_title,
+                calling_ae_title: _,
+                called_ae_title: _,
                 user_variables: _,
             } => {
                 ensure!(

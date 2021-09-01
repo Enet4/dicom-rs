@@ -30,9 +30,10 @@ pub enum Error {
     /// failed to send association response
     SendResponse { source: crate::pdu::writer::Error },
 
-    /// failed to send PDU
+    /// failed to prepare PDU
     Send { source: crate::pdu::writer::Error },
 
+    /// failed to send PDU over the wire
     WireSend { source: std::io::Error },
 
     /// failed to receive PDU

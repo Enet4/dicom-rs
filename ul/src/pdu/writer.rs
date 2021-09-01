@@ -230,7 +230,7 @@ where
 
                 // 11-26 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
-                // shall not be tested when received. TODO: write AE title
+                // shall not be tested when received.
                 let mut ae_title_bytes = codec.encode(called_ae_title).context(EncodeField {
                     field: "Called-AE-title",
                 })?;
@@ -240,7 +240,7 @@ where
                 })?;
                 // 27-42 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
-                // shall not be tested when received. TODO: write AE title
+                // shall not be tested when received.
                 let mut ae_title_bytes = codec.encode(calling_ae_title).context(EncodeField {
                     field: "Calling-AE-title",
                 })?;
