@@ -98,7 +98,7 @@ pub enum ThreadMessage {
     },
 }
 
-fn run(scu_stream: &mut TcpStream, destination_addr: &str, strict: bool) -> Result<()> {
+fn run(scu_stream: &mut TcpStream, destination_addr: &str, strict: bool, verbose: bool) -> Result<()> {
     // Before we do anything, let's also open another connection to the destination
     // SCP.
     match TcpStream::connect(destination_addr) {
@@ -190,15 +190,17 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str, strict: bool) -> Resu
                 match message {
                     ThreadMessage::SendPdu { to, pdu } => match to {
                         ProviderType::Scu => {
-                            // println!("scu <---- scp: {:?}", &pdu);
-                            println!("scu <---- scp");
+                            if verbose {
+                                println!("scu <---- scp: {}", pdu.short_description());
+                            }
                             buffer.clear();
                             write_pdu(&mut buffer, &pdu).unwrap();
                             scu_stream.write_all(&buffer).unwrap();
                         }
                         ProviderType::Scp => {
-                            // println!("scu ----> scp: {:?}", &pdu);
-                            println!("scu ----> scp");
+                            if verbose {
+                                println!("scu ----> scp: {}", pdu.short_description());
+                            }
                             buffer.clear();
                             write_pdu(&mut buffer, &pdu).unwrap();
                             scp_stream.write_all(&buffer).unwrap();
@@ -215,7 +217,9 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str, strict: bool) -> Resu
                         break;
                     }
                     ThreadMessage::Shutdown { initiator } => {
-                        println!("shutdown initiated from: {:?}", initiator);
+                        if verbose {
+                            println!("shutdown initiated from: {:?}", initiator);
+                        }
                         break;
                     }
                 }
@@ -266,24 +270,33 @@ fn main() {
                 .required(false)
                 .takes_value(false)
         )
+        .arg(
+            Arg::with_name("verbose")
+                .help("Verbose")
+                .short("-v")
+                .long("--verbose")
+                .takes_value(false)
+        )
         .get_matches();
 
     let destination_host = matches.value_of("destination-host").unwrap();
     let destination_port = matches.value_of("destination-port").unwrap();
     let listen_port = matches.value_of("listen-port").unwrap();
     let strict: bool = matches.is_present("strict");
+    let verbose = matches.is_present("verbose");
 
     let listen_addr = format!("0.0.0.0:{}", listen_port);
     let destination_addr = format!("{}:{}", destination_host, destination_port);
 
     let listener = TcpListener::bind(&listen_addr).unwrap();
-    println!("listening on: {}", listen_addr);
-    println!("forwarding to: {}", destination_addr);
-
+    if verbose {
+        println!("listening on: {}", listen_addr);
+        println!("forwarding to: {}", destination_addr);
+    }
     for mut stream in listener.incoming() {
         match stream {
             Ok(ref mut scu_stream) => {
-                if let Err(e) = run(scu_stream, &destination_addr, strict) {
+                if let Err(e) = run(scu_stream, &destination_addr, strict, verbose) {
                     report(e);
                 }
             }

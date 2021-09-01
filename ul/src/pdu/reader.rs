@@ -3,7 +3,7 @@ use crate::pdu::*;
 use byteordered::byteorder::{BigEndian, ReadBytesExt};
 use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
-use std::{char::MAX, io::{Cursor, ErrorKind, Read, Seek, SeekFrom}};
+use std::io::{Cursor, ErrorKind, Read, Seek, SeekFrom};
 
 pub const DEFAULT_MAX_PDU: u32 = 16_384;
 pub const MINIMUM_PDU_SIZE: u32 = 4_096;
@@ -184,7 +184,6 @@ where
                 })?
                 .trim()
                 .to_string();
-            // eprintln!("Called-AE-title: {:?} [{}]", ae_bytes, called_ae_title);
 
             // 27-42 - Calling-AE-title - Source DICOM Application Name. It shall be encoded as
             // 16 characters as defined by the ISO 646:1990-Basic G0 Set with leading and
@@ -202,7 +201,6 @@ where
                 })?
                 .trim()
                 .to_string();
-            // eprintln!("Calling-AE-title: {:?} [{}]", ae_bytes, calling_ae_title);
 
             // 43-74 - Reserved - This reserved field shall be sent with a value 00H for all
             // bytes but not tested to this value when received
