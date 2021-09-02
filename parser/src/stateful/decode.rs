@@ -177,6 +177,11 @@ pub trait StatefulDecode {
     /// Read the following number of bytes into a vector.
     fn read_to_vec(&mut self, length: u32, vec: &mut Vec<u8>) -> Result<()>;
 
+    /// Read the following number of bytes
+    /// as a sequence of unsigned 32 bit integers
+    /// into a vector.
+    fn read_u32_to_vec(&mut self, length: u32, vec: &mut Vec<u32>) -> Result<()>;
+
     /// Read the following number of bytes into a generic writer.
     fn read_to<W>(&mut self, length: u32, out: W) -> Result<()>
     where
@@ -678,6 +683,18 @@ where
         Ok(PrimitiveValue::U32(vec?))
     }
 
+    fn read_u32(&mut self, n: usize, vec: &mut Vec<u32>) -> Result<()> {
+        vec.reserve(n);
+        for _ in 0..n {
+            let v = self.basic.decode_ul(&mut self.from).context(ReadValueData {
+                    position: self.position,
+            })?;
+            vec.push(v);
+        }
+        self.position += n as u64 * 4;
+        Ok(())
+    }
+
     fn read_value_us(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = self.require_known_length(header)?;
         // sequence of 16-bit unsigned integers
@@ -815,6 +832,10 @@ where
 
     fn read_to_vec(&mut self, length: u32, vec: &mut Vec<u8>) -> Result<()> {
         (**self).read_to_vec(length, vec)
+    }
+
+    fn read_u32_to_vec(&mut self, length: u32, vec: &mut Vec<u32>) -> Result<()> {
+        (**self).read_u32_to_vec(length, vec)
     }
 
     fn read_to<W>(&mut self, length: u32, out: W) -> Result<()>
@@ -975,6 +996,10 @@ where
 
     fn read_to_vec(&mut self, length: u32, vec: &mut Vec<u8>) -> Result<()> {
         self.read_to(length, vec)
+    }
+
+    fn read_u32_to_vec(&mut self, length: u32, vec: &mut Vec<u32>) -> Result<()> {
+        self.read_u32((length >> 2) as usize, vec)
     }
 
     fn read_to<W>(&mut self, length: u32, mut out: W) -> Result<()>
