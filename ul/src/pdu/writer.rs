@@ -246,7 +246,7 @@ where
                 })?;
                 ae_title_bytes.resize(16, b' ');
                 writer.write_all(&ae_title_bytes).context(WriteField {
-                    field: "Called-AE-title",
+                    field: "Calling-AE-title",
                 })?;
 
                 // 43-74 - Reserved - This reserved field shall be sent with a value identical to
