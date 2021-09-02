@@ -51,7 +51,7 @@ pub enum DataToken {
     /// An owned piece of raw data representing an item's value.
     ///
     /// This variant is used to represent
-    /// the value of a compressed fragment.
+    /// the value of an encoded fragment.
     /// It should not be used to represent nested data sets.
     ItemValue(Vec<u8>),
     /// An owned sequence of unsigned 32 bit integers
