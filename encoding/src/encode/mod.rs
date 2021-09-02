@@ -487,6 +487,8 @@ pub trait EncodeTo<W: ?Sized> {
     /// Encode and write a DICOM pixel data offset table
     /// to the given destination.
     ///
+    /// For convenience, returns the number of bytes written on success,
+    /// equivalent to `offset_table.len() * 4`.
     // Note that offset tables might not apply to all forms of encoding,
     // but this method needs to exist nevertheless.
     fn encode_offset_table(&self, to: &mut W, offset_table: &[u32]) -> Result<usize>
