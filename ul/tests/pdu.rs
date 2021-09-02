@@ -35,7 +35,7 @@ fn can_read_write_associate_rq() -> Result<(), Box<dyn std::error::Error>> {
     let mut bytes = vec![0u8; 0];
     write_pdu(&mut bytes, &association_rq)?;
 
-    let result = read_pdu(&mut Cursor::new(&bytes), DEFAULT_MAX_PDU)?;
+    let result = read_pdu(&mut Cursor::new(&bytes), DEFAULT_MAX_PDU, true)?;
 
     if let Pdu::AssociationRQ {
         protocol_version,
@@ -93,7 +93,7 @@ fn can_read_write_pdata() -> Result<(), Box<dyn std::error::Error>> {
     let mut bytes = Vec::new();
     write_pdu(&mut bytes, &pdata_rq)?;
 
-    let result = read_pdu(&mut Cursor::new(&bytes), DEFAULT_MAX_PDU)?;
+    let result = read_pdu(&mut Cursor::new(&bytes), DEFAULT_MAX_PDU, true)?;
 
     if let Pdu::PData { data } = result {
         assert_eq!(data.len(), 1);

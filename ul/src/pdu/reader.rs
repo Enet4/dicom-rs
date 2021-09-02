@@ -90,7 +90,7 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub fn read_pdu<R>(reader: &mut R, max_pdu_length: u32) -> Result<Pdu>
+pub fn read_pdu<R>(reader: &mut R, max_pdu_length: u32, strict: bool) -> Result<Pdu>
 where
     R: Read,
 {
@@ -115,13 +115,29 @@ where
         .read_u32::<BigEndian>()
         .context(ReadPduField { field: "length" })?;
 
-    ensure!(
-        pdu_length <= max_pdu_length,
-        PduTooLarge {
+    // Check max_pdu_length. See also (#49)
+    if strict {
+        ensure!(
+            pdu_length <= max_pdu_length,
+            PduTooLarge {
+                pdu_length,
+                max_pdu_length
+            }
+        );
+    } else if pdu_length > max_pdu_length {
+        ensure!(
+            pdu_length <= MAXIMUM_PDU_SIZE,
+            PduTooLarge {
+                pdu_length,
+                max_pdu_length: MAXIMUM_PDU_SIZE
+            }
+        );
+        eprintln!("[WARNING] Incoming pdu was too large: length {}, maximum is {}",
             pdu_length,
             max_pdu_length
-        }
-    );
+        );
+    }
+
 
     let bytes = read_n(reader, pdu_length as usize).context(ReadPdu)?;
     let mut cursor = Cursor::new(bytes);
@@ -248,15 +264,39 @@ where
             // 11-26 - Reserved - This reserved field shall be sent with a value identical to
             // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
             // shall not be tested when received.
+            let mut ae_bytes = [0; 16];
+            cursor.read_exact(&mut ae_bytes).context(ReadPduField {
+                field: "Called-AE-title",
+            })?;
+            let called_ae_title = codec
+                .decode(&ae_bytes)
+                .context(DecodeText {
+                    field: "Called-AE-title",
+                })?
+                .trim()
+                .to_string();
+
             // 27-42 - Reserved - This reserved field shall be sent with a value identical to
             // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
             // shall not be tested when received.
+            let mut ae_bytes = [0; 16];
+            cursor.read_exact(&mut ae_bytes).context(ReadPduField {
+                field: "Calling-AE-title",
+            })?;
+            let calling_ae_title = codec
+                .decode(&ae_bytes)
+                .context(DecodeText {
+                    field: "Calling-AE-title",
+                })?
+                .trim()
+                .to_string();
+
             // 43-74 - Reserved - This reserved field shall be sent with a value identical to
             // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
             // shall not be tested when received.
             cursor
-                .seek(SeekFrom::Current(16 + 16 + 32))
-                .context(ReadReserved { bytes: 64_u32 })?;
+                .seek(SeekFrom::Current(32))
+                .context(ReadReserved { bytes: 32_u32 })?;
 
             // 75-xxx - Variable items - This variable field shall contain the following items:
             // one Application Context Item, one or more Presentation Context Item(s) and one
@@ -283,6 +323,8 @@ where
                 protocol_version,
                 application_context_name: application_context_name
                     .context(MissingApplicationContextName)?,
+                called_ae_title,
+                calling_ae_title,
                 presentation_contexts,
                 user_variables,
             })

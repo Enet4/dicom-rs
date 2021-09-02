@@ -1,8 +1,9 @@
 use clap::{App, Arg};
-use dicom_ul::pdu::reader::{read_pdu, DEFAULT_MAX_PDU};
+use dicom_ul::pdu::reader::{DEFAULT_MAX_PDU, read_pdu};
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::Pdu;
 use snafu::{Backtrace, ErrorCompat, OptionExt, ResultExt, Snafu};
+use std::io::Write;
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
@@ -97,7 +98,7 @@ pub enum ThreadMessage {
     },
 }
 
-fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
+fn run(scu_stream: &mut TcpStream, destination_addr: &str, strict: bool, verbose: bool, max_pdu_length: u32 ) -> Result<()> {
     // Before we do anything, let's also open another connection to the destination
     // SCP.
     match TcpStream::connect(destination_addr) {
@@ -113,7 +114,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
                 let message_tx = message_tx.clone();
                 scu_reader_thread = thread::spawn(move || {
                     loop {
-                        match read_pdu(&mut reader, DEFAULT_MAX_PDU) {
+                        match read_pdu(&mut reader, max_pdu_length, strict) {
                             Ok(pdu) => {
                                 message_tx
                                     .send(ThreadMessage::SendPdu {
@@ -150,7 +151,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
                 let mut reader = scp_stream.try_clone().context(CloneSocket)?;
                 scp_reader_thread = thread::spawn(move || {
                     loop {
-                        match read_pdu(&mut reader, DEFAULT_MAX_PDU) {
+                        match read_pdu(&mut reader, max_pdu_length, strict) {
                             Ok(pdu) => {
                                 message_tx
                                     .send(ThreadMessage::SendPdu {
@@ -182,18 +183,27 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
                     Ok(())
                 });
             }
+            let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
 
             loop {
                 let message = message_rx.recv().context(ReceiveMessage)?;
                 match message {
                     ThreadMessage::SendPdu { to, pdu } => match to {
                         ProviderType::Scu => {
-                            println!("scu <---- scp: {:?}", &pdu);
-                            write_pdu(scu_stream, &pdu).unwrap();
+                            if verbose {
+                                println!("scu <---- scp: {}", pdu.short_description());
+                            }
+                            buffer.clear();
+                            write_pdu(&mut buffer, &pdu).unwrap();
+                            scu_stream.write_all(&buffer).unwrap();
                         }
                         ProviderType::Scp => {
-                            println!("scu ----> scp: {:?}", &pdu);
-                            write_pdu(scp_stream, &pdu).unwrap();
+                            if verbose {
+                                println!("scu ----> scp: {}", pdu.short_description());
+                            }
+                            buffer.clear();
+                            write_pdu(&mut buffer, &pdu).unwrap();
+                            scp_stream.write_all(&buffer).unwrap();
                         }
                     },
                     ThreadMessage::ReadErr { from, err } => {
@@ -207,7 +217,9 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
                         break;
                     }
                     ThreadMessage::Shutdown { initiator } => {
-                        println!("shutdown initiated from: {:?}", initiator);
+                        if verbose {
+                            println!("shutdown initiated from: {:?}", initiator);
+                        }
                         break;
                     }
                 }
@@ -229,6 +241,7 @@ fn run(scu_stream: &mut TcpStream, destination_addr: &str) -> Result<()> {
 }
 
 fn main() {
+    let default_max = DEFAULT_MAX_PDU.to_string();
     let matches = App::new("scpproxy")
         .arg(
             Arg::with_name("destination-host")
@@ -250,23 +263,50 @@ fn main() {
                 .default_value("3333")
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("strict")
+                .help("Enforce max PDU length")
+                .short("-s")
+                .long("--strict")
+                .required(false)
+                .takes_value(false)
+        )
+        .arg(
+            Arg::with_name("verbose")
+                .help("Verbose")
+                .short("-v")
+                .long("--verbose")
+                .takes_value(false)
+        )
+        .arg(
+            Arg::with_name("max-pdu-length")
+                .help("Maximum PDU length")
+                .short("-m")
+                .long("--max-pdu-length")
+                .default_value(&default_max)
+                .takes_value(true)
+        )
         .get_matches();
 
     let destination_host = matches.value_of("destination-host").unwrap();
     let destination_port = matches.value_of("destination-port").unwrap();
     let listen_port = matches.value_of("listen-port").unwrap();
+    let strict: bool = matches.is_present("strict");
+    let verbose = matches.is_present("verbose");
+    let max_pdu_length: u32 = matches.value_of("max-pdu-length").unwrap().parse().unwrap();
 
     let listen_addr = format!("0.0.0.0:{}", listen_port);
     let destination_addr = format!("{}:{}", destination_host, destination_port);
 
     let listener = TcpListener::bind(&listen_addr).unwrap();
-    println!("listening on: {}", listen_addr);
-    println!("forwarding to: {}", destination_addr);
-
+    if verbose {
+        println!("listening on: {}", listen_addr);
+        println!("forwarding to: {}", destination_addr);
+    }
     for mut stream in listener.incoming() {
         match stream {
             Ok(ref mut scu_stream) => {
-                if let Err(e) = run(scu_stream, &destination_addr) {
+                if let Err(e) = run(scu_stream, &destination_addr, strict, verbose, max_pdu_length) {
                     report(e);
                 }
             }

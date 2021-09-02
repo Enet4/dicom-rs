@@ -248,6 +248,8 @@ pub enum Pdu {
     },
     AssociationAC {
         protocol_version: u16,
+        calling_ae_title: String,
+        called_ae_title: String,
         application_context_name: String,
         presentation_contexts: Vec<PresentationContextResult>,
         user_variables: Vec<UserVariableItem>,
@@ -266,6 +268,20 @@ pub enum Pdu {
     },
 }
 
+impl Pdu {
+    pub fn short_description(&self) -> String {
+        match self {
+            Pdu::Unknown { pdu_type, data: _ } => format!("Unknown {{pdu_type: {}, data: ...}}", pdu_type),
+            Pdu::AssociationRQ { .. }
+            | Pdu::AssociationAC { .. }
+            | Pdu::AssociationRJ { .. }
+            | Pdu::ReleaseRQ
+            | Pdu::ReleaseRP
+            | Pdu::AbortRQ { .. } => format!("{:?}", self),
+            Pdu::PData { data: _ } => "PData { data: ... }".into(),
+        }
+    }
+}
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 struct AssociationRQ {
     protocol_version: u16,

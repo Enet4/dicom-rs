@@ -155,7 +155,7 @@ mod tests {
         }
 
         let mut cursor = &buf[..];
-        let same_pdu = read_pdu(&mut cursor, MINIMUM_PDU_SIZE).unwrap();
+        let same_pdu = read_pdu(&mut cursor, MINIMUM_PDU_SIZE, true).unwrap();
 
         // concatenate data chunks, compare with all data
 
@@ -190,8 +190,8 @@ mod tests {
         }
 
         let mut cursor = &buf[..];
-        let same_pdu_1 = read_pdu(&mut cursor, MINIMUM_PDU_SIZE).unwrap();
-        let same_pdu_2 = read_pdu(&mut cursor, MINIMUM_PDU_SIZE).unwrap();
+        let same_pdu_1 = read_pdu(&mut cursor, MINIMUM_PDU_SIZE, true).unwrap();
+        let same_pdu_2 = read_pdu(&mut cursor, MINIMUM_PDU_SIZE, true).unwrap();
 
         // concatenate data chunks, compare with all data
 
