@@ -458,6 +458,10 @@ pub trait EncodeTo<W: ?Sized> {
 
     /// Encode and write a data element header to the given destination.
     /// Returns the number of bytes effectively written on success.
+    ///
+    /// Note that data element header should be encoded as is,
+    /// regardless of the given value length.
+    /// Any eventual padding logic should be done at a higher level.
     fn encode_element_header(&self, to: &mut W, de: DataElementHeader) -> Result<usize>
     where
         W: Write;
