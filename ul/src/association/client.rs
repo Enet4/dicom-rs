@@ -10,7 +10,15 @@ use std::{
     net::{TcpStream, ToSocketAddrs},
 };
 
-use crate::pdu::{AbortRQSource, AssociationRJResult, AssociationRJSource, Pdu, PresentationContextProposed, PresentationContextResult, PresentationContextResultReason, UserVariableItem, reader::{DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE, read_pdu}, writer::write_pdu};
+use crate::{
+    pdu::{
+        reader::{read_pdu, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE},
+        writer::write_pdu,
+        AbortRQSource, AssociationRJResult, AssociationRJSource, Pdu, PresentationContextProposed,
+        PresentationContextResult, PresentationContextResultReason, UserVariableItem,
+    },
+    IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
+};
 use snafu::{ensure, ResultExt, Snafu};
 
 use super::pdata::PDataWriter;
@@ -64,7 +72,10 @@ pub enum Error {
     #[non_exhaustive]
     WireSend { source: std::io::Error },
 
-    #[snafu(display("PDU is too large ({} bytes) to be sent to the remote application entity", length))]
+    #[snafu(display(
+        "PDU is too large ({} bytes) to be sent to the remote application entity",
+        length
+    ))]
     #[non_exhaustive]
     SendTooLongPdu { length: usize },
 
@@ -188,7 +199,8 @@ impl<'a> ClientAssociationOptions<'a> {
         self
     }
 
-    /// Override the maximum expected PDU length.
+    /// Override the maximum PDU length
+    /// that this application entity will admit.
     pub fn max_pdu_length(mut self, value: u32) -> Self {
         self.max_pdu_length = value;
         self
@@ -238,7 +250,13 @@ impl<'a> ClientAssociationOptions<'a> {
             called_ae_title: called_ae_title.to_string(),
             application_context_name: application_context_name.to_string(),
             presentation_contexts: presentation_contexts.clone(),
-            user_variables: vec![],
+            user_variables: vec![
+                UserVariableItem::MaxLength(max_pdu_length),
+                UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
+                UserVariableItem::ImplementationVersionName(
+                    IMPLEMENTATION_VERSION_NAME.to_string(),
+                ),
+            ],
         };
 
         let mut socket = std::net::TcpStream::connect(address).context(Connect)?;
@@ -249,7 +267,7 @@ impl<'a> ClientAssociationOptions<'a> {
         socket.write_all(&buffer).context(WireSend)?;
         buffer.clear();
         // receive response
-        let msg = read_pdu(&mut socket, max_pdu_length, true).context(ReceiveResponse)?;
+        let msg = read_pdu(&mut socket, MAXIMUM_PDU_SIZE, true).context(ReceiveResponse)?;
 
         match msg {
             Pdu::AssociationAC {
@@ -397,8 +415,11 @@ impl ClientAssociation {
         self.buffer.clear();
         write_pdu(&mut self.buffer, &msg).context(Send)?;
         if self.buffer.len() > self.acceptor_max_pdu_length as usize {
-            return SendTooLongPdu { length: self.buffer.len() }.fail();
-        }       
+            return SendTooLongPdu {
+                length: self.buffer.len(),
+            }
+            .fail();
+        }
         self.socket.write_all(&self.buffer).context(WireSend)
     }
 
@@ -460,7 +481,8 @@ impl ClientAssociation {
     fn release_impl(&mut self) -> Result<()> {
         let pdu = Pdu::ReleaseRQ;
         self.send(&pdu)?;
-        let pdu = read_pdu(&mut self.socket, self.requestor_max_pdu_length, true).context(Receive)?;
+        let pdu =
+            read_pdu(&mut self.socket, self.requestor_max_pdu_length, true).context(Receive)?;
 
         match pdu {
             Pdu::ReleaseRP => {}

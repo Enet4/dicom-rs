@@ -10,12 +10,15 @@ use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use snafu::{ensure, ResultExt, Snafu};
 
-use crate::pdu::{
-    reader::{read_pdu, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE},
-    writer::write_pdu,
-    AbortRQServiceProviderReason, AbortRQSource, AssociationRJResult,
-    AssociationRJServiceUserReason, AssociationRJSource, Pdu, PresentationContextResult,
-    PresentationContextResultReason, UserVariableItem,
+use crate::{
+    pdu::{
+        reader::{read_pdu, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE},
+        writer::write_pdu,
+        AbortRQServiceProviderReason, AbortRQSource, AssociationRJResult,
+        AssociationRJServiceUserReason, AssociationRJSource, Pdu, PresentationContextResult,
+        PresentationContextResultReason, UserVariableItem,
+    },
+    IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
 
 use super::pdata::PDataWriter;
@@ -415,7 +418,15 @@ where
                         presentation_contexts: presentation_contexts.clone(),
                         calling_ae_title,
                         called_ae_title,
-                        user_variables: vec![],
+                        user_variables: vec![
+                            UserVariableItem::MaxLength(max_pdu_length),
+                            UserVariableItem::ImplementationClassUID(
+                                IMPLEMENTATION_CLASS_UID.to_string(),
+                            ),
+                            UserVariableItem::ImplementationVersionName(
+                                IMPLEMENTATION_VERSION_NAME.to_string(),
+                            ),
+                        ],
                     },
                 )
                 .context(SendResponse)?;
