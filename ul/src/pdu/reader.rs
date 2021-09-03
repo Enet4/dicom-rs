@@ -5,10 +5,23 @@ use dicom_encoding::text::{DefaultCharacterSetCodec, TextCodec};
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::io::{Cursor, ErrorKind, Read, Seek, SeekFrom};
 
+/// The default maximum PDU size
 pub const DEFAULT_MAX_PDU: u32 = 16_384;
+
+/// The minimum PDU size,
+/// as specified by the standard
 pub const MINIMUM_PDU_SIZE: u32 = 4_096;
+
+/// The maximum PDU size,
+/// as specified by the standard
 pub const MAXIMUM_PDU_SIZE: u32 = 131_072;
-pub const PDU_HEADER_SIZE: u32 = 12;
+
+/// The length of the PDU header in bytes,
+/// comprising the PDU type (1 byte),
+/// reserved byte (1 byte),
+/// and PDU length (4 bytes).
+pub const PDU_HEADER_SIZE: u32 = 6;
+
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum Error {
