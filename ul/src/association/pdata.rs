@@ -49,7 +49,6 @@ use crate::pdu::reader::PDU_HEADER_SIZE;
 pub struct PDataWriter<W: Write> {
     buffer: Vec<u8>,
     stream: W,
-    presentation_context_id: u8,
     max_data_len: u32,
 }
 
@@ -62,11 +61,32 @@ where
     /// `max_pdu_length` is the maximum value of the PDU-length property.
     pub(crate) fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32) -> Self {
         let max_data_length = calculate_max_data_len_single(max_pdu_length);
+        let mut buffer = Vec::with_capacity((max_data_length + PDU_HEADER_SIZE) as usize);
+        // initial buffer set up
+        buffer.extend([
+            // PDU-type + reserved byte
+            0x04,
+            0x00,
+            // full PDU length, unknown at this point
+            0xFF,
+            0xFF,
+            0xFF,
+            0xFF,
+            // presentation data length, unknown at this point
+            0xFF,
+            0xFF,
+            0xFF,
+            0xFF,
+            // presentation context id
+            presentation_context_id,
+            // message control header, unknown at this point
+            0xFF,
+        ]);
+
         PDataWriter {
             stream,
-            presentation_context_id,
             max_data_len: max_data_length,
-            buffer: Vec::with_capacity(max_data_length as usize),
+            buffer,
         }
     }
 
@@ -79,44 +99,36 @@ where
         Ok(())
     }
 
-    fn create_pdata_header(&self, data_len: u32, is_last: bool) -> [u8; 12] {
-        let pdu_len = data_len + 4 + 2;
-        let pdv_data_len = data_len + 2;
-        let pdu_len_bytes = pdu_len.to_be_bytes();
-        let data_len_bytes = pdv_data_len.to_be_bytes();
-        [
-            // PDU-type + reserved byte
-            0x04,
-            0x00,
-            // full PDU length (minus PDU type and reserved byte)
-            pdu_len_bytes[0],
-            pdu_len_bytes[1],
-            pdu_len_bytes[2],
-            pdu_len_bytes[3],
-            // presentation data length (data + 2 properties below)
-            data_len_bytes[0],
-            data_len_bytes[1],
-            data_len_bytes[2],
-            data_len_bytes[3],
-            // presentation context id
-            self.presentation_context_id,
-            // message control header
-            if is_last { 0x02 } else { 0x00 },
-        ]
-    }
+    /// Set up the P-Data PDU header for sending.
+    fn setup_pdata_header(&mut self, is_last: bool) {
+        let data_len = (self.buffer.len() - 12) as u32;
 
-    /// Send the header of a single P-Data PDU,
-    /// containing a single data fragment.
-    fn send_pdata_header(&mut self, data_len: u32, is_last: bool) -> std::io::Result<()> {
-        self.stream
-            .write_all(&self.create_pdata_header(data_len, is_last))
+        // full PDU length (minus PDU type and reserved byte)
+        let pdu_len = data_len + 4 + 2;
+        let pdu_len_bytes = pdu_len.to_be_bytes();
+
+        self.buffer[2] = pdu_len_bytes[0];
+        self.buffer[3] = pdu_len_bytes[1];
+        self.buffer[4] = pdu_len_bytes[2];
+        self.buffer[5] = pdu_len_bytes[3];
+
+        // presentation data length (data + 2 properties below)
+        let pdv_data_len = data_len + 2;
+        let data_len_bytes = pdv_data_len.to_be_bytes();
+
+        self.buffer[6] = data_len_bytes[0];
+        self.buffer[7] = data_len_bytes[1];
+        self.buffer[8] = data_len_bytes[2];
+        self.buffer[9] = data_len_bytes[3];
+
+        // message control header
+        self.buffer[11] = if is_last { 0x02 } else { 0x00 };
     }
 
     fn finish_impl(&mut self) -> std::io::Result<()> {
-        self.dispatch_excess_data()?;
         if !self.buffer.is_empty() {
             // send last PDU
-            self.send_pdata_header(self.buffer.len() as u32, true)?;
+            self.setup_pdata_header(true);
             self.stream.write_all(&self.buffer[..])?;
             // clear buffer so that subsequent calls to `finish_impl`
             // do not send any more PDUs
@@ -128,37 +140,16 @@ where
     /// Use the current state of the buffer to send new PDUs
     ///
     /// Pre-condition:
-    /// buffer must have enough data for one full P-Data-tf PDU
-    fn dispatch_pdus(&mut self) -> std::io::Result<()> {
-        debug_assert!(self.buffer.len() >= self.max_data_len as usize);
+    /// buffer must have enough data for one P-Data-tf PDU
+    fn dispatch_pdu(&mut self) -> std::io::Result<()> {
+        debug_assert!(self.buffer.len() >= 12);
         // send PDU now
+        self.setup_pdata_header(false);
+        self.stream.write_all(&self.buffer)?;
 
-        let mut acc_len = 0;
-        for chunk in self.buffer.chunks(self.max_data_len as usize) {
-            if chunk.len() < self.max_data_len as usize {
-                break;
-            }
-            let header = self.create_pdata_header(self.max_data_len, false);
-            self.stream.write_all(&header)?;
-            self.stream.write_all(chunk)?;
-            acc_len += chunk.len();
-        }
+        // back to just the header
+        self.buffer.truncate(12);
 
-        // shift the remaining contents to the beginning of the buffer
-        // (guaranteed to be shorter than `self.max_data_len`)
-        let (p1, p2) = (&mut self.buffer[..]).split_at_mut(acc_len);
-        for (e1, e2) in std::iter::Iterator::zip(p1.iter_mut(), p2.iter()) {
-            *e1 = *e2;
-        }
-        self.buffer.truncate(self.buffer.len() - acc_len as usize);
-
-        Ok(())
-    }
-
-    fn dispatch_excess_data(&mut self) -> std::io::Result<()> {
-        while self.buffer.len() > self.max_data_len as usize {
-            self.dispatch_pdus()?;
-        }
         Ok(())
     }
 }
@@ -168,9 +159,20 @@ where
     W: Write,
 {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.buffer.extend(buf);
-        self.dispatch_excess_data()?;
-        Ok(buf.len())
+        let total_len = self.max_data_len as usize + 12;
+        if self.buffer.len() + buf.len() <= total_len {
+            // accumulate into buffer, do nothing
+            self.buffer.extend(buf);
+            Ok(buf.len())
+        } else {
+            // fill in the rest of the buffer, send PDU,
+            // and leave out the rest for subsequent writes
+            let buf = &buf[..total_len - self.buffer.len()];
+            self.buffer.extend(buf);
+            debug_assert_eq!(self.buffer.len(), total_len);
+            self.dispatch_pdu()?;
+            Ok(buf.len())
+        }
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
@@ -199,7 +201,7 @@ where
 fn calculate_max_data_len_single(pdu_len: u32) -> u32 {
     // data length: 4 bytes
     // control header: 2 bytes
-    pdu_len - PDU_HEADER_SIZE
+    pdu_len - 4 - 2
 }
 
 #[cfg(test)]
@@ -297,7 +299,9 @@ mod tests {
                 // check data consistency
                 assert_eq!(
                     &data_1.data[..],
-                    (0..MINIMUM_PDU_SIZE - PDU_HEADER_SIZE).map(|x| x as u8).collect::<Vec<_>>()
+                    (0..MINIMUM_PDU_SIZE - PDU_HEADER_SIZE)
+                        .map(|x| x as u8)
+                        .collect::<Vec<_>>()
                 );
                 assert_eq!(
                     data_1.data.len() + data_2.data.len() + data_3.data.len(),
