@@ -23,6 +23,21 @@ pub enum Error {
         range: RangeInclusive<u32>,
         backtrace: Backtrace,
     },
+    #[snafu(display(
+        "Second fraction precision '{}' is out of range, must be in 0..=6.",
+        value
+    ))]
+    FractionPrecisionRange { value: u32, backtrace: Backtrace },
+    #[snafu(display(
+        "Number of digits in decimal representation of fraction '{}' does not match it's precision '{}'.",
+        fraction,
+        precision
+    ))]
+    FractionPrecisionMismatch {
+        fraction: u32,
+        precision: u32,
+        backtrace: Backtrace,
+    },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -44,7 +59,7 @@ pub enum DateComponent {
 
 /**
  * Represents a Dicom Date value with a partial precision,
- * where some components may be missing.
+ * where some time components may be missing.
  */
 #[derive(Debug, PartialEq)]
 pub enum PartialDate {
@@ -55,7 +70,7 @@ pub enum PartialDate {
 
 /**
  * Represents a Dicom Time value with a partial precision,
- * where some components may be missing.
+ * where some time components may be missing.
  */
 #[derive(Debug, PartialEq)]
 pub enum PartialTime {
@@ -67,7 +82,7 @@ pub enum PartialTime {
 
 /**
  * Represents a Dicom DateTime value with a partial precision,
- * where some components may be missing.
+ * where some time components may be missing.
  */
 #[derive(Debug, PartialEq)]
 pub enum PartialDateTime {
@@ -199,40 +214,68 @@ impl PartialTime {
     /**
      * Constructs a new `PartialTime` with hour, minute, second and second fraction
      * (HHMMSS.FFFFFF) precision.
-     * `missing` (0-5) compensates for the missing digits in fraction
+     * `frac_precision` (1-6) ... TODO
      */
     pub fn from_hmsf<T, U>(
         hour: &T,
         minute: &T,
         second: &T,
         fraction: &U,
-        missing: &T,
+        frac_precision: &T,
     ) -> Result<PartialTime>
     where
         T: Into<u32> + Into<u8> + Copy,
         U: Into<u32> + Copy,
     {
+        let fp_copy: u32 = (*frac_precision).into();
+        if !(1..=6).contains(&fp_copy) {
+            return FractionPrecisionRange { value: fp_copy }.fail();
+        }
+
+        let fr_copy: u32 = (*fraction).into();
+        if u32::pow(10, fp_copy) < fr_copy {
+            return FractionPrecisionMismatch {
+                fraction: fr_copy,
+                precision: fp_copy,
+            }
+            .fail();
+        }
+
         check_component(DateComponent::Hour, hour)?;
         check_component(DateComponent::Minute, minute)?;
         check_component(DateComponent::Second, second)?;
-        // fraction needs to be calculated from partial fraction and multiplier
-        // lets go with minimal value = fraction * pow(10, multiplier)
-        let f: u32 = (*fraction).into() * u32::pow(10, (*missing).into());
+        let f: u32 = (*fraction).into() * u32::pow(10, 6 - fp_copy);
         check_component(DateComponent::Fraction, &f)?;
         Ok(PartialTime::Fraction(
             (*hour).into(),
             (*minute).into(),
             (*second).into(),
-            (*fraction).into(),
-            (*missing).into(),
+            fr_copy,
+            (*frac_precision).into(),
         ))
     }
 }
 
+/*
+impl PartialDateTime {
+     /**
+     * Constructs a new `PartialDate` with year precision
+     * (YYYY)
+     */
+    pub fn from_y<T>(y: &T, offset: FixedOffset) -> Result<PartialDateTime>
+    where
+        T: Into<u32> + Into<u16> + Copy,
+    {
+        check_component(DateComponent::Year, y)?;
+        Ok(PartialDate::Year((*y).into()))
+    }
+
+}*/
+
 /**
  * This trait is implemented by partial precision
  * Date, Time and DateTime structures.
- * Trait method returns the last fully precise component of the value.
+ * Trait method returns the last fully precise `DateComponent` of the structure.
  */
 pub trait Precision {
     fn precision(&self) -> DateComponent;
@@ -272,13 +315,13 @@ where
     /**
      * Returns the earliest possible value from a partial precision structure.
      * So missing components default to 1 (days, months) or 0 (hours, minutes, ...)
-     * If structure contain invalid combination of date/time components, it fails.
+     * If structure contains invalid combination of `DateComponent`s, it fails.
      */
     fn earliest(&self) -> Result<T>;
 
     /**
      * Returns the latest possible value from a partial precision structure.
-     * If structure contain invalid combination of date/time components, it fails.
+     * If structure contains invalid combination of `DateComponent`s, it fails.
      */
     fn latest(&self) -> Result<T>;
 
@@ -291,9 +334,8 @@ where
     }
 
     /**
-     * Returns true, if partial precision structure has maximum possible accuracy.
-     * For fraction of a second, ... TODO decide what to do, as RUST Chrono is more
-     * precise than 6 digits of DICOM standard ...
+     * Returns `true`, if partial precision structure has maximum possible accuracy.
+     * For fraction of a second, only a 6 digit precision returns `true`.
      */
     fn is_precise(&self) -> bool {
         let e = self.earliest();
@@ -341,12 +383,12 @@ impl AsTemporalRange<NaiveTime> for PartialTime {
             PartialTime::Hour(h) => (h, &0, &0, &0),
             PartialTime::Minute(h, m) => (h, m, &0, &0),
             PartialTime::Second(h, m, s) => (h, m, s, &0),
-            PartialTime::Fraction(h, m, s, f, mul) => {
-                fr = *f * u32::pow(10, (*mul).into());
+            PartialTime::Fraction(h, m, s, f, fp) => {
+                fr = *f * u32::pow(10, 6 - <u32>::from(*fp));
                 (h, m, s, &fr)
             }
         };
-        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), (*f).into())
+        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), *f)
             .context(InvalidTime)
     }
     fn latest(&self) -> Result<NaiveTime> {
@@ -355,12 +397,13 @@ impl AsTemporalRange<NaiveTime> for PartialTime {
             PartialTime::Hour(h) => (h, &59, &59, &999_999),
             PartialTime::Minute(h, m) => (h, m, &59, &999_999),
             PartialTime::Second(h, m, s) => (h, m, s, &999_999),
-            PartialTime::Fraction(h, m, s, f, mul) => {
-                fr = (*f * u32::pow(10, u32::from(*mul))) + (u32::pow(10, u32::from(*mul))) - 1;
+            PartialTime::Fraction(h, m, s, f, fp) => {
+                fr = (*f * u32::pow(10, 6 - u32::from(*fp))) + (u32::pow(10, 6 - u32::from(*fp)))
+                    - 1;
                 (h, m, s, &fr)
             }
         };
-        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), (*f).into())
+        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), *f)
             .context(InvalidTime)
     }
 }
@@ -434,11 +477,15 @@ mod tests {
     #[test]
     fn test_partial_time() {
         assert_eq!(
-            PartialTime::from_hmsf(&9, &1, &1, &123456u32, &0).unwrap(),
-            PartialTime::Fraction(9, 1, 1, 123456, 0)
+            PartialTime::from_hmsf(&9, &1, &1, &123456u32, &6).unwrap(),
+            PartialTime::Fraction(9, 1, 1, 123456, 6)
         );
         assert_eq!(
-            PartialTime::from_hms(&9u8, &0, &0).unwrap(),
+            PartialTime::from_hmsf(&9, &1, &1, &1u32, &6).unwrap(),
+            PartialTime::Fraction(9, 1, 1, 1, 6)
+        );
+        assert_eq!(
+            PartialTime::from_hms(&9, &0, &0).unwrap(),
             PartialTime::Second(9, 0, 0)
         );
         assert_eq!(
@@ -463,14 +510,14 @@ mod tests {
         );
 
         assert_eq!(
-            PartialTime::from_hmsf(&9, &1, &1, &1u32, &5)
+            PartialTime::from_hmsf(&9, &1, &1, &1u32, &1)
                 .unwrap()
                 .earliest()
                 .unwrap(),
             NaiveTime::from_hms_micro(9, 1, 1, 100_000)
         );
         assert_eq!(
-            PartialTime::from_hmsf(&9, &1, &1, &1u32, &5)
+            PartialTime::from_hmsf(&9, &1, &1, &1u32, &1)
                 .unwrap()
                 .latest()
                 .unwrap(),
@@ -478,24 +525,29 @@ mod tests {
         );
 
         assert_eq!(
-            PartialTime::from_hmsf(&9, &1, &1, &12345u32, &1)
+            PartialTime::from_hmsf(&9, &1, &1, &12345u32, &5)
                 .unwrap()
                 .is_precise(),
             false
         );
 
         assert_eq!(
-            PartialTime::from_hmsf(&9, &1, &1, &123456u32, &0)
+            PartialTime::from_hmsf(&9, &1, &1, &123456u32, &6)
                 .unwrap()
                 .is_precise(),
             true
         );
 
         assert!(matches!(
-            PartialTime::from_hmsf(&9, &1, &1, &1u32, &6),
-            Err(Error::InvalidComponent {
-                component: DateComponent::Fraction,
-                value: 1_000_000,
+            PartialTime::from_hmsf(&9, &1, &1, &1u32, &7),
+            Err(Error::FractionPrecisionRange { value: 7, .. })
+        ));
+
+        assert!(matches!(
+            PartialTime::from_hmsf(&9, &1, &1, &123456u32, &3),
+            Err(Error::FractionPrecisionMismatch {
+                fraction: 123456,
+                precision: 3,
                 ..
             })
         ));
