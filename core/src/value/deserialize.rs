@@ -346,7 +346,6 @@ where
 * For DateTime with missing components, or if exact second fraction accuracy needs to be preserved,
   use `parse_datetime_partial`.
 */
-
 pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime<FixedOffset>> {
     let date = parse_date(buf)?;
     // date checks OK, so can skip exactly 8 bytes
@@ -384,6 +383,54 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
         .and_time(time)
         .context(InvalidDateTimeZone)
 }
+
+/** Decode a single DICOM DateTime (DT) into a `PartialDateTime` value.
+ * Unlike `parse_datetime`, this method allows for missing Date / Time components.
+ * The precision of the second fraction is stored and can be returned as a range later.
+ *//*
+pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime<FixedOffset>> {
+    let (date, rest) = parse_date_partial(buf)?;
+    let (time, buf) = parse_time_partial(rest)?;
+
+    let da = match date.precision() {
+        DateComponent::Day => NaiveDate::from_ymd_opt(
+            year: i32, month: u32, day: u32).context(InvalidDate),
+            _ => {}
+    };
+
+    let offset = match buf.len() {
+        0 => {
+            // A Date Time value without the optional suffix should be interpreted to be
+            // the local time zone of the application creating the Data Element, and can
+            // be overridden by the _Timezone Offset from UTC_ attribute.
+            let dt: Result<_> = dt_utc_offset
+                .from_local_date(&date)
+                .and_time(time)
+                .single()
+                .context(InvalidDateTimeZone);
+            return Ok(dt?);
+        }
+        len if len > 4 => {
+            let tz_sign = buf[0];
+            let buf = &buf[1..];
+            let tz_h: i32 = read_number(&buf[0..2])?;
+            let tz_m: i32 = read_number(&buf[2..4])?;
+            let s = (tz_h * 60 + tz_m) * 60;
+            match tz_sign {
+                b'+' => FixedOffset::east(s),
+                b'-' => FixedOffset::west(s),
+                c => return InvalidTimeZoneSignToken { value: c }.fail(),
+            }
+        }
+        _ => return UnexpectedEndOfElement.fail(),
+    };
+
+    offset
+        .from_utc_date(&date)
+        .and_time(time)
+        .context(InvalidDateTimeZone)
+}*/
+
 
 #[cfg(test)]
 mod tests {
@@ -794,22 +841,47 @@ mod tests {
                 .ymd(2017, 11, 30)
                 .and_hms_micro(10, 10, 10, 0)
         );
-         // TODO rewrite tests from here
-        assert_eq!(
-            parse_datetime(b"201801010930", default_offset).unwrap(),
-            FixedOffset::east(0).ymd(2018, 1, 1).and_hms(9, 30, 0)
-        );
-        assert_eq!(
-            parse_datetime(b"19711231065003", default_offset).unwrap(),
-            FixedOffset::east(0).ymd(1971, 12, 31).and_hms(6, 50, 3)
-        );
+        assert!(matches!(
+            parse_datetime(b"20180101093059", default_offset),
+            Err(Error::IncompleteValue {
+                component: DateComponent::Fraction,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parse_datetime(b"201801010930", default_offset),
+            Err(Error::IncompleteValue {
+                component: DateComponent::Second,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parse_datetime(b"2018010109", default_offset),
+            Err(Error::IncompleteValue {
+                component: DateComponent::Minute,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parse_datetime(b"20180101", default_offset),
+            Err(Error::UnexpectedEndOfElement { .. })
+        ));
+        assert!(matches!(
+            parse_datetime(b"201801", default_offset),
+            Err(Error::IncompleteValue {
+                component: DateComponent::Day,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parse_datetime(b"1526", default_offset),
+            Err(Error::IncompleteValue {
+                component: DateComponent::Month,
+                ..
+            })
+        ));
 
-        assert_eq!(
-            parse_datetime(b"20180314000000.25", default_offset).unwrap(),
-            FixedOffset::east(0)
-                .ymd(2018, 03, 14)
-                .and_hms_micro(0, 0, 0, 250_000)
-        );
+        
         let dt = parse_datetime(b"20171130101010.204+0100", default_offset).unwrap();
         assert_eq!(
             dt,
@@ -832,22 +904,6 @@ mod tests {
         assert_eq!(
             format!("{:?}", dt),
             "2017-11-30T10:10:10.204+05:35".to_string()
-        );
-        assert_eq!(
-            parse_datetime(b"20140426", default_offset).unwrap(),
-            FixedOffset::east(0).ymd(2014, 4, 26).and_hms(0, 0, 0)
-        );
-        assert_eq!(
-            parse_datetime(b"2014+0535", default_offset).unwrap(),
-            FixedOffset::east(5 * 3600 + 35 * 60)
-                .ymd(2014, 1, 1)
-                .and_hms(0, 0, 0)
-        );
-        assert_eq!(
-            parse_datetime(b"20140505+0535", default_offset).unwrap(),
-            FixedOffset::east(5 * 3600 + 35 * 60)
-                .ymd(2014, 5, 5)
-                .and_hms(0, 0, 0)
         );
         assert_eq!(
             parse_datetime(b"20140505120101.204+0535", default_offset).unwrap(),
