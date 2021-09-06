@@ -105,7 +105,12 @@ pub fn parse_date_partial(buf: &[u8]) -> Result<(PartialDate, &[u8])> {
         if buf.len() < 2 {
             Ok((PartialDate::from_y(&year).context(PartialValue)?, buf))
         } else {
-            let month: u8 = read_number(&buf[0..2])?;
+            let month: Result<u8> = read_number(&buf[0..2]);
+            // month failed so return year
+            if month.is_err(){
+                return Ok((PartialDate::from_y(&year).context(PartialValue)?, buf));
+            }
+            let month = month.unwrap();
             let buf = &buf[2..];
             if buf.len() < 2 {
                 Ok((
@@ -113,7 +118,12 @@ pub fn parse_date_partial(buf: &[u8]) -> Result<(PartialDate, &[u8])> {
                     buf,
                 ))
             } else {
-                let day: u8 = read_number(&buf[0..2])?;
+                let day: Result<u8> = read_number(&buf[0..2]);
+                // day failed so return month
+                if day.is_err(){
+                    return Ok((PartialDate::from_ym(&year,&month).context(PartialValue)?, buf));
+                }
+                let day = day.unwrap();
                 let buf = &buf[2..];
                 Ok((
                     PartialDate::from_ymd(&year, &month, &day).context(PartialValue)?,
@@ -137,7 +147,12 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(PartialTime, &[u8])> {
         if buf.len() < 2 {
             Ok((PartialTime::from_h(&hour).context(PartialValue)?, buf))
         } else {
-            let minute: u8 = read_number(&buf[0..2])?;
+            let minute: Result<u8> = read_number(&buf[0..2]);
+            // minute failed so return hour
+            if minute.is_err(){
+                return Ok((PartialTime::from_h(&hour).context(PartialValue)?, buf));
+            }
+            let minute = minute.unwrap();
             let buf = &buf[2..];
             if buf.len() < 2 {
                 Ok((
@@ -145,7 +160,12 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(PartialTime, &[u8])> {
                     buf,
                 ))
             } else {
-                let second: u8 = read_number(&buf[0..2])?;
+                let second: Result<u8> = read_number(&buf[0..2]);
+                // second failed so return minute
+                if second.is_err(){
+                    return Ok((PartialTime::from_hm(&hour, &minute).context(PartialValue)?, buf));
+                }
+                let second = second.unwrap();
                 let buf = &buf[2..];
                 // buf contains at least ".F" otherwise ignore
                 if buf.len() > 1 && buf[0] == b'.' {
@@ -376,7 +396,7 @@ pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<
 
     let (time, buf) = match parse_time_partial(rest) {
         Ok((time, buf)) => (Some(time), buf),
-        Err(_) => (None, &[][..])
+        Err(_) => (None, rest)
     };
 
     let offset = match buf.len() {
@@ -522,6 +542,14 @@ mod tests {
         assert_eq!(
             parse_date_partial(b"20180101xxxx").unwrap(),
             (PartialDate::Day(2018, 1, 1), &b"xxxx"[..])
+        );
+        assert_eq!(
+            parse_date_partial(b"201801xxxx").unwrap(),
+            (PartialDate::Month(2018, 1), &b"xxxx"[..])
+        );
+        assert_eq!(
+            parse_date_partial(b"2018xxxx").unwrap(),
+            (PartialDate::Year(2018), &b"xxxx"[..])
         );
         assert_eq!(
             parse_date_partial(b"19020404-0101").unwrap(),
@@ -978,6 +1006,27 @@ mod tests {
                 FixedOffset::east(5 * 3600 + 35 * 60)
             )
             .unwrap()
+        );
+        assert_eq!(
+            parse_datetime_partial(b"20171130-0135", default_offset).unwrap(),
+            PartialDateTime::from_partial_date(
+                PartialDate::from_ymd(&2017u16, &11, &30).unwrap(),
+                FixedOffset::west(1 * 3600 + 35 * 60)
+            )
+        );
+        assert_eq!(
+            parse_datetime_partial(b"201711-0135", default_offset).unwrap(),
+            PartialDateTime::from_partial_date(
+                PartialDate::from_ym(&2017u16, &11).unwrap(),
+                FixedOffset::west(1 * 3600 + 35 * 60)
+            )
+        );
+        assert_eq!(
+            parse_datetime_partial(b"2017-0135", default_offset).unwrap(),
+            PartialDateTime::from_partial_date(
+                PartialDate::from_y(&2017u16).unwrap(),
+                FixedOffset::west(1 * 3600 + 35 * 60)
+            )
         );
         /*
         assert_eq!(
