@@ -1,7 +1,7 @@
 // Handling of partial precision of Date, Time and DateTime values.
 
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
-use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
+use snafu::{Backtrace, OptionExt, Snafu};
 use std::ops::RangeInclusive;
 
 #[derive(Debug, Snafu)]
@@ -11,8 +11,15 @@ pub enum Error {
     InvalidDate { backtrace: Backtrace },
     #[snafu(display("Time is invalid."))]
     InvalidTime { backtrace: Backtrace },
+    #[snafu(display("DateTime is invalid."))]
+    InvalidDateTime { backtrace: Backtrace },
+    #[snafu(display("To combine a PartialDate with a PartialTime value, the PartialDate has to be precise. Precision is: '{:?}'.", value))]
+    DateTimeFromPartials {
+        value: DateComponent,
+        backtrace: Backtrace,
+    },
     #[snafu(display(
-        "{:?} has invalid value:  {}, must be in {:?}",
+        "'{:?}' has invalid value: '{}', must be in {:?}",
         component,
         value,
         range
@@ -61,7 +68,7 @@ pub enum DateComponent {
  * Represents a Dicom Date value with a partial precision,
  * where some time components may be missing.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PartialDate {
     Year(u16),
     Month(u16, u8),
@@ -72,7 +79,7 @@ pub enum PartialDate {
  * Represents a Dicom Time value with a partial precision,
  * where some time components may be missing.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PartialTime {
     Hour(u8),
     Minute(u8, u8),
@@ -84,15 +91,11 @@ pub enum PartialTime {
  * Represents a Dicom DateTime value with a partial precision,
  * where some time components may be missing.
  */
-#[derive(Debug, PartialEq)]
-pub enum PartialDateTime {
-    Year(u16),
-    Month(u16, u8),
-    Day(u16, u8, u8),
-    Hour(u16, u8, u8, u8),
-    Minute(u16, u8, u8, u8, u8),
-    Second(u16, u8, u8, u8, u8, u8),
-    Fraction(u16, u8, u8, u8, u8, u8, u32),
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct PartialDateTime {
+    date: PartialDate,
+    time: Option<PartialTime>,
+    offset: FixedOffset,
 }
 
 /**
@@ -131,39 +134,43 @@ impl PartialDate {
      * Constructs a new `PartialDate` with year precision
      * (YYYY)
      */
-    pub fn from_y<T>(y: &T) -> Result<PartialDate>
+    pub fn from_y<T>(year: &T) -> Result<PartialDate>
     where
         T: Into<u32> + Into<u16> + Copy,
     {
-        check_component(DateComponent::Year, y)?;
-        Ok(PartialDate::Year((*y).into()))
+        check_component(DateComponent::Year, year)?;
+        Ok(PartialDate::Year((*year).into()))
     }
     /**
      * Constructs a new `PartialDate` with year and month precision
      * (YYYYMM)
      */
-    pub fn from_ym<T, U>(y: &T, m: &U) -> Result<PartialDate>
+    pub fn from_ym<T, U>(year: &T, month: &U) -> Result<PartialDate>
     where
         T: Into<u32> + Into<u16> + Copy,
         U: Into<u32> + Into<u8> + Copy,
     {
-        check_component(DateComponent::Year, y)?;
-        check_component(DateComponent::Month, m)?;
-        Ok(PartialDate::Month((*y).into(), (*m).into()))
+        check_component(DateComponent::Year, year)?;
+        check_component(DateComponent::Month, month)?;
+        Ok(PartialDate::Month((*year).into(), (*month).into()))
     }
     /**
      * Constructs a new `PartialDate` with a year, month and day precision
      * (YYYYMMDD)
      */
-    pub fn from_ymd<T, U>(y: &T, m: &U, d: &U) -> Result<PartialDate>
+    pub fn from_ymd<T, U>(year: &T, month: &U, day: &U) -> Result<PartialDate>
     where
         T: Into<u32> + Into<u16> + Copy,
         U: Into<u32> + Into<u8> + Copy,
     {
-        check_component(DateComponent::Year, y)?;
-        check_component(DateComponent::Month, m)?;
-        check_component(DateComponent::Day, d)?;
-        Ok(PartialDate::Day((*y).into(), (*m).into(), (*d).into()))
+        check_component(DateComponent::Year, year)?;
+        check_component(DateComponent::Month, month)?;
+        check_component(DateComponent::Day, day)?;
+        Ok(PartialDate::Day(
+            (*year).into(),
+            (*month).into(),
+            (*day).into(),
+        ))
     }
 }
 
@@ -213,8 +220,7 @@ impl PartialTime {
 
     /**
      * Constructs a new `PartialTime` with hour, minute, second and second fraction
-     * (HHMMSS.FFFFFF) precision.
-     * `frac_precision` (1-6) ... TODO
+     * precision (HHMMSS.FFFFFF).
      */
     pub fn from_hmsf<T, U>(
         hour: &T,
@@ -256,21 +262,41 @@ impl PartialTime {
     }
 }
 
-/*
 impl PartialDateTime {
-     /**
-     * Constructs a new `PartialDate` with year precision
-     * (YYYY)
+    /**
+     * Constructs a new `PartialDateTime` from a `PartialDate` and a given `FixedOffset`.
      */
-    pub fn from_y<T>(y: &T, offset: FixedOffset) -> Result<PartialDateTime>
-    where
-        T: Into<u32> + Into<u16> + Copy,
-    {
-        check_component(DateComponent::Year, y)?;
-        Ok(PartialDate::Year((*y).into()))
+    pub fn from_partial_date(date: PartialDate, offset: FixedOffset) -> PartialDateTime {
+        PartialDateTime {
+            date,
+            time: None,
+            offset,
+        }
     }
 
-}*/
+    /**
+     * Constructs a new `PartialDateTime` from a `PartialDate`, `PartialTime` and a given `FixedOffset`,
+     * providing that `PartialDate.is_precise() == true`.
+     */
+    pub fn from_partial_date_and_time(
+        date: PartialDate,
+        time: PartialTime,
+        offset: FixedOffset,
+    ) -> Result<PartialDateTime> {
+        if date.is_precise() {
+            Ok(PartialDateTime {
+                date,
+                time: Some(time),
+                offset,
+            })
+        } else {
+            DateTimeFromPartials {
+                value: date.precision(),
+            }
+            .fail()
+        }
+    }
+}
 
 /**
  * This trait is implemented by partial precision
@@ -298,6 +324,16 @@ impl Precision for PartialTime {
             PartialTime::Minute(..) => DateComponent::Minute,
             PartialTime::Second(..) => DateComponent::Second,
             PartialTime::Fraction(..) => DateComponent::Fraction,
+        }
+    }
+}
+
+impl Precision for PartialDateTime {
+    fn precision(&self) -> DateComponent {
+        if self.time.is_some() {
+            self.time.unwrap().precision()
+        } else {
+            self.date.precision()
         }
     }
 }
@@ -405,6 +441,33 @@ impl AsTemporalRange<NaiveTime> for PartialTime {
         };
         NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), *f)
             .context(InvalidTime)
+    }
+}
+
+impl AsTemporalRange<DateTime<FixedOffset>> for PartialDateTime {
+    fn earliest(&self) -> Result<DateTime<FixedOffset>> {
+        let date = self.date.earliest()?;
+        let time = match self.time {
+            Some(time) => time.earliest()?,
+            None => NaiveTime::from_hms(0, 0, 0),
+        };
+
+        self.offset
+            .from_utc_date(&date)
+            .and_time(time)
+            .context(InvalidDateTime)
+    }
+
+    fn latest(&self) -> Result<DateTime<FixedOffset>> {
+        let date = self.date.latest()?;
+        let time = match self.time {
+            Some(time) => time.latest()?,
+            None => NaiveTime::from_hms_micro(23, 59, 59, 999_999),
+        };
+        self.offset
+            .from_utc_date(&date)
+            .and_time(time)
+            .context(InvalidDateTime)
     }
 }
 
@@ -548,6 +611,105 @@ mod tests {
             Err(Error::FractionPrecisionMismatch {
                 fraction: 123456,
                 precision: 3,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn test_partial_datetime() {
+        let default_offset = FixedOffset::east(0);
+        assert_eq!(
+            PartialDateTime::from_partial_date(
+                PartialDate::from_ymd(&2020u16, &2, &29).unwrap(),
+                default_offset
+            ),
+            PartialDateTime {
+                date: PartialDate::from_ymd(&2020u16, &2, &29).unwrap(),
+                time: None,
+                offset: default_offset
+            }
+        );
+
+        assert_eq!(
+            PartialDateTime::from_partial_date(
+                PartialDate::from_ym(&2020u16, &2).unwrap(),
+                default_offset
+            )
+            .earliest()
+            .unwrap(),
+            FixedOffset::east(0)
+                .ymd(2020, 2, 1)
+                .and_hms_micro(0, 0, 0, 0)
+        );
+
+        assert_eq!(
+            PartialDateTime::from_partial_date(
+                PartialDate::from_ym(&2020u16, &2).unwrap(),
+                default_offset
+            )
+            .latest()
+            .unwrap(),
+            FixedOffset::east(0)
+                .ymd(2020, 2, 29)
+                .and_hms_micro(23, 59, 59, 999_999)
+        );
+
+        assert_eq!(
+            PartialDateTime::from_partial_date_and_time(
+                PartialDate::from_ymd(&2020u16, &2, &29).unwrap(),
+                PartialTime::from_hmsf(&23, &59, &59, &10u32, &2).unwrap(),
+                default_offset
+            )
+            .unwrap()
+            .earliest()
+            .unwrap(),
+            FixedOffset::east(0)
+                .ymd(2020, 2, 29)
+                .and_hms_micro(23, 59, 59, 100_000)
+        );
+        assert_eq!(
+            PartialDateTime::from_partial_date_and_time(
+                PartialDate::from_ymd(&2020u16, &2, &29).unwrap(),
+                PartialTime::from_hmsf(&23, &59, &59, &10u32, &2).unwrap(),
+                default_offset
+            )
+            .unwrap()
+            .latest()
+            .unwrap(),
+            FixedOffset::east(0)
+                .ymd(2020, 2, 29)
+                .and_hms_micro(23, 59, 59, 109_999)
+        );
+
+        assert!(matches!(
+            PartialDateTime::from_partial_date(
+                PartialDate::from_ymd(&2021u16, &2, &29).unwrap(),
+                default_offset
+            )
+            .earliest(),
+            Err(Error::InvalidDate { .. })
+        ));
+
+        assert!(matches!(
+            PartialDateTime::from_partial_date_and_time(
+                PartialDate::from_ym(&2020u16, &2).unwrap(),
+                PartialTime::from_hmsf(&23, &59, &59, &10u32, &2).unwrap(),
+                default_offset
+            ),
+            Err(Error::DateTimeFromPartials {
+                value: DateComponent::Month,
+                ..
+            })
+        ));
+        assert!(matches!(
+            PartialDateTime::from_partial_date_and_time(
+                PartialDate::from_y(&1u16).unwrap(),
+                PartialTime::from_hmsf(&23, &59, &59, &10u32, &2).unwrap(),
+                default_offset
+            ),
+            Err(Error::DateTimeFromPartials {
+                value: DateComponent::Year,
                 ..
             })
         ));

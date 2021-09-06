@@ -1,6 +1,6 @@
 //! Parsing of primitive values
 use crate::value::partial::{
-    check_component, AsTemporalRange, DateComponent, Error as PartialValuesError, PartialDate,
+    check_component, DateComponent, Error as PartialValuesError, PartialDate, PartialDateTime,
     PartialTime,
 };
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
@@ -15,28 +15,15 @@ pub enum Error {
     UnexpectedEndOfElement { backtrace: Backtrace },
     #[snafu(display("Invalid date"))]
     InvalidDate { backtrace: Backtrace },
-    /// TODO DELETE THIS UP TO ...
-    #[snafu(display("Invalid month component: got {}, but must be in 1..=12", value))]
-    InvalidDateMonth { value: u32, backtrace: Backtrace },
-    #[snafu(display("Invalid day component: got {}, but must be in 1..=31", value))]
-    InvalidDateDay { value: u32, backtrace: Backtrace },
+    #[snafu(display("Invalid time"))]
+    InvalidTime { backtrace: Backtrace },
+    #[snafu(display("Invalid DateTime"))]
+    InvalidDateTime {
+        #[snafu(backtrace)]
+        source: PartialValuesError,
+    },
     #[snafu(display("Invalid date-time zone component"))]
     InvalidDateTimeZone { backtrace: Backtrace },
-    #[snafu(display("Invalid hour component: got {}, but must be in 0..24", value))]
-    InvalidDateTimeHour { value: u32, backtrace: Backtrace },
-    #[snafu(display("Invalid minute component: got {}, but must be in 0..60", value))]
-    InvalidDateTimeMinute { value: u32, backtrace: Backtrace },
-    #[snafu(display("Invalid second component: got {}, but must be in 0..60", value))]
-    InvalidDateTimeSecond { value: u32, backtrace: Backtrace },
-    #[snafu(display(
-        "Invalid microsecond component: got {}, but must be in 0..2_000_000",
-        value
-    ))]
-    InvalidDateTimeMicrosecond { value: u32, backtrace: Backtrace },
-
-    #[snafu(display("Unexpected token after date: got '{}', but must be '.', '+', or '-'", *value as char))]
-    UnexpectedAfterDateToken { value: u8, backtrace: Backtrace },
-    // UP TO These ...
     #[snafu(display("Expected fraction delimiter '.', got '{}'", *value as char))]
     FractionDelimiter { value: u8, backtrace: Backtrace },
     #[snafu(display("Invalid number length: it is {}, but must be between 1 and 9", len))]
@@ -140,7 +127,6 @@ pub fn parse_date_partial(buf: &[u8]) -> Result<(PartialDate, &[u8])> {
 /** Decode a single DICOM Time (TM) into a `PartialTime` value.
  * Unlike `parse_time`, this method allows for missing Time components.
  * The precision of the second fraction is stored and can be returned as a range later.
- * b".123" is stored as 123, unlike 123_000 in `parse_time`
  */
 pub fn parse_time_partial(buf: &[u8]) -> Result<(PartialTime, &[u8])> {
     if buf.len() < 2 {
@@ -161,27 +147,24 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(PartialTime, &[u8])> {
             } else {
                 let second: u8 = read_number(&buf[0..2])?;
                 let buf = &buf[2..];
-                if buf.len() < 2 {
-                    Ok((
-                        PartialTime::from_hms(&hour, &minute, &second).context(PartialValue)?,
-                        buf,
-                    ))
-                } else if buf[0] != b'.' {
-                    FractionDelimiter { value: buf[0] }.fail()
-                } else {
+                // buf contains at least ".F" otherwise ignore
+                if buf.len() > 1 && buf[0] == b'.' {
                     let buf = &buf[1..];
-                    let n = usize::min(6, buf.len());
+                    let no_digits_index = buf.iter().position(|b| !(b'0'..=b'9').contains(b));
+                    let max = no_digits_index.unwrap_or(buf.len());
+                    let n = usize::min(6, max);
                     let fraction: u32 = read_number(&buf[0..n])?;
-                    /*let mut acc = n;
-                    while acc < 6 {
-                        fraction *= 10;
-                        acc += 1;
-                    }*/
                     let buf = &buf[n..];
                     let fp = u8::try_from(n).unwrap();
                     Ok((
                         PartialTime::from_hmsf(&hour, &minute, &second, &fraction, &fp)
                             .context(PartialValue)?,
+                        buf,
+                    ))
+                }
+                else{
+                    Ok((
+                        PartialTime::from_hms(&hour, &minute, &second).context(PartialValue)?,
                         buf,
                     ))
                 }
@@ -254,7 +237,8 @@ pub fn parse_time(buf: &[u8]) -> Result<(NaiveTime, &[u8])> {
                 let buf = &buf[n..];
                 check_component(DateComponent::Fraction, &fraction).context(InvalidComponent)?;
                 Ok((
-                    NaiveTime::from_hms_micro(hour, minute, second, fraction),
+                    NaiveTime::from_hms_micro_opt(hour, minute, second, fraction)
+                        .context(InvalidTime)?,
                     buf,
                 ))
             }
@@ -348,7 +332,6 @@ where
 */
 pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime<FixedOffset>> {
     let date = parse_date(buf)?;
-    // date checks OK, so can skip exactly 8 bytes
     let buf = &buf[8..];
     let (time, buf) = parse_time(buf)?;
     let offset = match buf.len() {
@@ -387,29 +370,17 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
 /** Decode a single DICOM DateTime (DT) into a `PartialDateTime` value.
  * Unlike `parse_datetime`, this method allows for missing Date / Time components.
  * The precision of the second fraction is stored and can be returned as a range later.
- *//*
-pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime<FixedOffset>> {
+ */
+pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<PartialDateTime> {
     let (date, rest) = parse_date_partial(buf)?;
-    let (time, buf) = parse_time_partial(rest)?;
 
-    let da = match date.precision() {
-        DateComponent::Day => NaiveDate::from_ymd_opt(
-            year: i32, month: u32, day: u32).context(InvalidDate),
-            _ => {}
+    let (time, buf) = match parse_time_partial(rest) {
+        Ok((time, buf)) => (Some(time), buf),
+        Err(_) => (None, &[][..])
     };
 
     let offset = match buf.len() {
-        0 => {
-            // A Date Time value without the optional suffix should be interpreted to be
-            // the local time zone of the application creating the Data Element, and can
-            // be overridden by the _Timezone Offset from UTC_ attribute.
-            let dt: Result<_> = dt_utc_offset
-                .from_local_date(&date)
-                .and_time(time)
-                .single()
-                .context(InvalidDateTimeZone);
-            return Ok(dt?);
-        }
+        0 => dt_utc_offset,
         len if len > 4 => {
             let tz_sign = buf[0];
             let buf = &buf[1..];
@@ -425,12 +396,14 @@ pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<
         _ => return UnexpectedEndOfElement.fail(),
     };
 
-    offset
-        .from_utc_date(&date)
-        .and_time(time)
-        .context(InvalidDateTimeZone)
-}*/
+    if time.is_some(){ 
+        PartialDateTime::from_partial_date_and_time(date, time.unwrap(), offset).context(InvalidDateTime)
+    }
+    else{
+        Ok(PartialDateTime::from_partial_date(date, offset))
+    }
 
+    }
 
 #[cfg(test)]
 mod tests {
@@ -751,6 +724,22 @@ mod tests {
             (PartialTime::Fraction(7, 55, 1, 123, 3), &[][..])
         );
         assert_eq!(
+            parse_time_partial(b"10+0101").unwrap(),
+            (PartialTime::Hour(10), &b"+0101"[..])
+        );
+        assert_eq!(
+            parse_time_partial(b"1030+0101").unwrap(),
+            (PartialTime::Minute(10,30), &b"+0101"[..])
+        );
+        assert_eq!(
+            parse_time_partial(b"075501.123+0101").unwrap(),
+            (PartialTime::Fraction(7, 55, 1, 123, 3), &b"+0101"[..])
+        );
+        assert_eq!(
+            parse_time_partial(b"075501+0101").unwrap(),
+            (PartialTime::Second(7, 55, 1), &b"+0101"[..])
+        );
+        assert_eq!(
             parse_time_partial(b"075501.999999").unwrap(),
             (PartialTime::Fraction(7, 55, 1, 999_999, 6), &[][..])
         );
@@ -758,10 +747,6 @@ mod tests {
             parse_time_partial(b"075501.9999994").unwrap(),
             (PartialTime::Fraction(7, 55, 1, 999_999, 6), &b"4"[..])
         );
-        assert!(matches!(
-            parse_time_partial(b"075501x123456"),
-            Err(Error::FractionDelimiter { value: 0x78_u8, .. })
-        ));
         assert!(matches!(
             parse_time_partial(b"24"),
             Err(Error::PartialValue {
@@ -797,7 +782,7 @@ mod tests {
         ));
     }
     #[test]
-    fn test_datetime() {
+    fn test_parse_datetime() {
         let default_offset = FixedOffset::east(0);
         assert_eq!(
             parse_datetime(b"20171130101010.204", default_offset).unwrap(),
@@ -881,7 +866,6 @@ mod tests {
             })
         ));
 
-        
         let dt = parse_datetime(b"20171130101010.204+0100", default_offset).unwrap();
         assert_eq!(
             dt,
@@ -931,30 +915,147 @@ mod tests {
         assert!(parse_datetime(b"20171130101010.204+011", default_offset).is_err());
     }
 
-    /*
     #[test]
-    fn test_datetime_partial() {
+    fn test_parse_datetime_partial() {
         let default_offset = FixedOffset::east(0);
         assert_eq!(
-            parse_datetime(b"201801010930", default_offset).unwrap(),
-            FixedOffset::east(0).ymd(2018, 1, 1).and_hms(9, 30, 0)
+            parse_datetime_partial(b"20171130101010.204", default_offset).unwrap(),
+            PartialDateTime::from_partial_date_and_time(
+                PartialDate::from_ymd(&2017u16, &11, &30).unwrap(),
+                PartialTime::from_hmsf(&10, &10, &10, &204u32, &3).unwrap(),
+                default_offset
+            )
+            .unwrap()
         );
         assert_eq!(
-            parse_datetime(b"19711231065003", default_offset).unwrap(),
-            FixedOffset::east(0).ymd(1971, 12, 31).and_hms(6, 50, 3)
+            parse_datetime_partial(b"20171130101010", default_offset).unwrap(),
+            PartialDateTime::from_partial_date_and_time(
+                PartialDate::from_ymd(&2017u16, &11, &30).unwrap(),
+                PartialTime::from_hms(&10, &10, &10).unwrap(),
+                default_offset
+            )
+            .unwrap()
         );
         assert_eq!(
-            parse_datetime(b"20171130101010.204", default_offset).unwrap(),
+            parse_datetime_partial(b"2017113023", default_offset).unwrap(),
+            PartialDateTime::from_partial_date_and_time(
+                PartialDate::from_ymd(&2017u16, &11, &30).unwrap(),
+                PartialTime::from_h(&23).unwrap(),
+                default_offset
+            )
+            .unwrap()
+        );
+        assert_eq!(
+            parse_datetime_partial(b"201711", default_offset).unwrap(),
+            PartialDateTime::from_partial_date(
+                PartialDate::from_ym(&2017u16, &11).unwrap(),
+                default_offset
+            )
+        );
+        assert_eq!(
+            parse_datetime_partial(b"20171130101010.204+0535", default_offset).unwrap(),
+            PartialDateTime::from_partial_date_and_time(
+                PartialDate::from_ymd(&2017u16, &11, &30).unwrap(),
+                PartialTime::from_hmsf(&10, &10, &10, &204u32, &3).unwrap(),
+                FixedOffset::east(5 * 3600 + 35 * 60)
+            )
+            .unwrap()
+        );
+        assert_eq!(
+            parse_datetime_partial(b"20171130101010+0535", default_offset).unwrap(),
+            PartialDateTime::from_partial_date_and_time(
+                PartialDate::from_ymd(&2017u16, &11, &30).unwrap(),
+                PartialTime::from_hms(&10, &10, &10).unwrap(),
+                FixedOffset::east(5 * 3600 + 35 * 60)
+            )
+            .unwrap()
+        );
+        assert_eq!(
+            parse_datetime_partial(b"2017113010+0535", default_offset).unwrap(),
+            PartialDateTime::from_partial_date_and_time(
+                PartialDate::from_ymd(&2017u16, &11, &30).unwrap(),
+                PartialTime::from_h(&10).unwrap(),
+                FixedOffset::east(5 * 3600 + 35 * 60)
+            )
+            .unwrap()
+        );
+        /*
+        assert_eq!(
+            parse_datetime(b"19440229101010.1", default_offset).unwrap(),
             FixedOffset::east(0)
+                .ymd(1944, 2, 29)
+                .and_hms_micro(10, 10, 10, 100_000)
+        );
+        assert_eq!(
+            parse_datetime(b"19450228101010.999999", default_offset).unwrap(),
+            FixedOffset::east(0)
+                .ymd(1945, 2, 28)
+                .and_hms_micro(10, 10, 10, 999_999)
+        );
+        assert_eq!(
+            parse_datetime(b"20171130101010.564204-1001", default_offset).unwrap(),
+            FixedOffset::west(10 * 3600 + 1 * 60)
                 .ymd(2017, 11, 30)
-                .and_hms_micro(10, 10, 10, 204_000)
+                .and_hms_micro(10, 10, 10, 564_204)
         );
         assert_eq!(
-            parse_datetime(b"20180314000000.25", default_offset).unwrap(),
-            FixedOffset::east(0)
-                .ymd(2018, 03, 14)
-                .and_hms_micro(0, 0, 0, 250_000)
+            parse_datetime(b"20171130101010.564204-1001abcd", default_offset).unwrap(),
+            FixedOffset::west(10 * 3600 + 1 * 60)
+                .ymd(2017, 11, 30)
+                .and_hms_micro(10, 10, 10, 564_204)
         );
+        assert_eq!(
+            parse_datetime(b"20171130101010.2-1100", default_offset).unwrap(),
+            FixedOffset::west(11 * 3600)
+                .ymd(2017, 11, 30)
+                .and_hms_micro(10, 10, 10, 200_000)
+        );
+        assert_eq!(
+            parse_datetime(b"20171130101010.0-1100", default_offset).unwrap(),
+            FixedOffset::west(11 * 3600)
+                .ymd(2017, 11, 30)
+                .and_hms_micro(10, 10, 10, 0)
+        );
+        assert!(matches!(
+            parse_datetime(b"20180101093059", default_offset),
+            Err(Error::IncompleteValue {
+                component: DateComponent::Fraction,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parse_datetime(b"201801010930", default_offset),
+            Err(Error::IncompleteValue {
+                component: DateComponent::Second,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parse_datetime(b"2018010109", default_offset),
+            Err(Error::IncompleteValue {
+                component: DateComponent::Minute,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parse_datetime(b"20180101", default_offset),
+            Err(Error::UnexpectedEndOfElement { .. })
+        ));
+        assert!(matches!(
+            parse_datetime(b"201801", default_offset),
+            Err(Error::IncompleteValue {
+                component: DateComponent::Day,
+                ..
+            })
+        ));
+        assert!(matches!(
+            parse_datetime(b"1526", default_offset),
+            Err(Error::IncompleteValue {
+                component: DateComponent::Month,
+                ..
+            })
+        ));
+
         let dt = parse_datetime(b"20171130101010.204+0100", default_offset).unwrap();
         assert_eq!(
             dt,
@@ -967,12 +1068,6 @@ mod tests {
             "2017-11-30T10:10:10.204+01:00".to_string()
         );
 
-        assert_eq!(
-            parse_datetime(b"20171130101010.204-1000", default_offset).unwrap(),
-            FixedOffset::west(10 * 3600)
-                .ymd(2017, 11, 30)
-                .and_hms_micro(10, 10, 10, 204_000)
-        );
         let dt = parse_datetime(b"20171130101010.204+0535", default_offset).unwrap();
         assert_eq!(
             dt,
@@ -983,22 +1078,6 @@ mod tests {
         assert_eq!(
             format!("{:?}", dt),
             "2017-11-30T10:10:10.204+05:35".to_string()
-        );
-        assert_eq!(
-            parse_datetime(b"20140426", default_offset).unwrap(),
-            FixedOffset::east(0).ymd(2014, 4, 26).and_hms(0, 0, 0)
-        );
-        assert_eq!(
-            parse_datetime(b"2014+0535", default_offset).unwrap(),
-            FixedOffset::east(5 * 3600 + 35 * 60)
-                .ymd(2014, 1, 1)
-                .and_hms(0, 0, 0)
-        );
-        assert_eq!(
-            parse_datetime(b"20140505+0535", default_offset).unwrap(),
-            FixedOffset::east(5 * 3600 + 35 * 60)
-                .ymd(2014, 5, 5)
-                .and_hms(0, 0, 0)
         );
         assert_eq!(
             parse_datetime(b"20140505120101.204+0535", default_offset).unwrap(),
@@ -1024,5 +1103,6 @@ mod tests {
         assert!(parse_datetime(b"20171130101010.204+1", default_offset).is_err());
         assert!(parse_datetime(b"20171130101010.204+01", default_offset).is_err());
         assert!(parse_datetime(b"20171130101010.204+011", default_offset).is_err());
-    }*/
+        */
+    }
 }
