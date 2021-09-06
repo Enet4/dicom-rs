@@ -232,7 +232,13 @@ impl<I, P> DataElement<I, P>
 where
     I: HasLength,
 {
-    /// Create a primitive data element from the given parts.
+    /// Create a primitive data element from the given parts,
+    /// where the length is inferred from the value's byte length.
+    /// 
+    /// If the value is textual,
+    /// the byte length of that value encoded in UTF-8 is assumed.
+    /// If you already have a length in this context,
+    /// prefer calling `new_with_len` instead.
     ///
     /// This method will not check whether the value representation is
     /// compatible with the given value.
@@ -246,6 +252,26 @@ where
                 tag,
                 vr,
                 len: value.length(),
+            },
+            value,
+        }
+    }
+
+    /// Create a primitive data element from the given parts.
+    ///
+    /// This method will not check
+    /// whether the length accurately represents the given value's byte length,
+    /// nor whether the value representation is compatible with the value.
+    pub fn new_with_len<T>(tag: Tag, vr: VR, length: Length, value: T) -> Self
+    where
+        T: Into<Value<I, P>>,
+    {
+        let value = value.into();
+        DataElement {
+            header: DataElementHeader {
+                tag,
+                vr,
+                len: length,
             },
             value,
         }
