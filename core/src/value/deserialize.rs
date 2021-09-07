@@ -103,30 +103,33 @@ pub fn parse_date_partial(buf: &[u8]) -> Result<(PartialDate, &[u8])> {
         let year: u16 = read_number(&buf[0..4])?;
         let buf = &buf[4..];
         if buf.len() < 2 {
-            Ok((PartialDate::from_y(&year).context(PartialValue)?, buf))
+            Ok((PartialDate::from_y(year).context(PartialValue)?, buf))
         } else {
             let month: Result<u8> = read_number(&buf[0..2]);
             // month failed so return year
-            if month.is_err(){
-                return Ok((PartialDate::from_y(&year).context(PartialValue)?, buf));
+            if month.is_err() {
+                return Ok((PartialDate::from_y(year).context(PartialValue)?, buf));
             }
             let month = month.unwrap();
             let buf = &buf[2..];
             if buf.len() < 2 {
                 Ok((
-                    PartialDate::from_ym(&year, &month).context(PartialValue)?,
+                    PartialDate::from_ym(year, month).context(PartialValue)?,
                     buf,
                 ))
             } else {
                 let day: Result<u8> = read_number(&buf[0..2]);
                 // day failed so return month
-                if day.is_err(){
-                    return Ok((PartialDate::from_ym(&year,&month).context(PartialValue)?, buf));
+                if day.is_err() {
+                    return Ok((
+                        PartialDate::from_ym(year, month).context(PartialValue)?,
+                        buf,
+                    ));
                 }
                 let day = day.unwrap();
                 let buf = &buf[2..];
                 Ok((
-                    PartialDate::from_ymd(&year, &month, &day).context(PartialValue)?,
+                    PartialDate::from_ymd(year, month, day).context(PartialValue)?,
                     buf,
                 ))
             }
@@ -145,25 +148,28 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(PartialTime, &[u8])> {
         let hour: u8 = read_number(&buf[0..2])?;
         let buf = &buf[2..];
         if buf.len() < 2 {
-            Ok((PartialTime::from_h(&hour).context(PartialValue)?, buf))
+            Ok((PartialTime::from_h(hour).context(PartialValue)?, buf))
         } else {
             let minute: Result<u8> = read_number(&buf[0..2]);
             // minute failed so return hour
-            if minute.is_err(){
-                return Ok((PartialTime::from_h(&hour).context(PartialValue)?, buf));
+            if minute.is_err() {
+                return Ok((PartialTime::from_h(hour).context(PartialValue)?, buf));
             }
             let minute = minute.unwrap();
             let buf = &buf[2..];
             if buf.len() < 2 {
                 Ok((
-                    PartialTime::from_hm(&hour, &minute).context(PartialValue)?,
+                    PartialTime::from_hm(hour, minute).context(PartialValue)?,
                     buf,
                 ))
             } else {
                 let second: Result<u8> = read_number(&buf[0..2]);
                 // second failed so return minute
-                if second.is_err(){
-                    return Ok((PartialTime::from_hm(&hour, &minute).context(PartialValue)?, buf));
+                if second.is_err() {
+                    return Ok((
+                        PartialTime::from_hm(hour, minute).context(PartialValue)?,
+                        buf,
+                    ));
                 }
                 let second = second.unwrap();
                 let buf = &buf[2..];
@@ -177,14 +183,13 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(PartialTime, &[u8])> {
                     let buf = &buf[n..];
                     let fp = u8::try_from(n).unwrap();
                     Ok((
-                        PartialTime::from_hmsf(&hour, &minute, &second, &fraction, &fp)
+                        PartialTime::from_hmsf(hour, minute, second, fraction, fp)
                             .context(PartialValue)?,
                         buf,
                     ))
-                }
-                else{
+                } else {
                     Ok((
-                        PartialTime::from_hms(&hour, &minute, &second).context(PartialValue)?,
+                        PartialTime::from_hms(hour, minute, second).context(PartialValue)?,
                         buf,
                     ))
                 }
@@ -396,7 +401,7 @@ pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<
 
     let (time, buf) = match parse_time_partial(rest) {
         Ok((time, buf)) => (Some(time), buf),
-        Err(_) => (None, rest)
+        Err(_) => (None, rest),
     };
 
     let offset = match buf.len() {
@@ -404,26 +409,26 @@ pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<
         len if len > 4 => {
             let tz_sign = buf[0];
             let buf = &buf[1..];
-            let tz_h: i32 = read_number(&buf[0..2])?;
-            let tz_m: i32 = read_number(&buf[2..4])?;
+            let tz_h: u32 = read_number(&buf[0..2])?;
+            let tz_m: u32 = read_number(&buf[2..4])?;
             let s = (tz_h * 60 + tz_m) * 60;
+            check_component(DateComponent::UTCOffset, &s).context(InvalidComponent)?;
             match tz_sign {
-                b'+' => FixedOffset::east(s),
-                b'-' => FixedOffset::west(s),
+                b'+' => FixedOffset::east(s as i32),
+                b'-' => FixedOffset::west(s as i32),
                 c => return InvalidTimeZoneSignToken { value: c }.fail(),
             }
         }
         _ => return UnexpectedEndOfElement.fail(),
     };
 
-    if time.is_some(){ 
-        PartialDateTime::from_partial_date_and_time(date, time.unwrap(), offset).context(InvalidDateTime)
-    }
-    else{
+    if time.is_some() {
+        PartialDateTime::from_partial_date_and_time(date, time.unwrap(), offset)
+            .context(InvalidDateTime)
+    } else {
         Ok(PartialDateTime::from_partial_date(date, offset))
     }
-
-    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -757,7 +762,7 @@ mod tests {
         );
         assert_eq!(
             parse_time_partial(b"1030+0101").unwrap(),
-            (PartialTime::Minute(10,30), &b"+0101"[..])
+            (PartialTime::Minute(10, 30), &b"+0101"[..])
         );
         assert_eq!(
             parse_time_partial(b"075501.123+0101").unwrap(),
@@ -949,8 +954,8 @@ mod tests {
         assert_eq!(
             parse_datetime_partial(b"20171130101010.204", default_offset).unwrap(),
             PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ymd(&2017u16, &11, &30).unwrap(),
-                PartialTime::from_hmsf(&10, &10, &10, &204u32, &3).unwrap(),
+                PartialDate::from_ymd(2017, 11, 30).unwrap(),
+                PartialTime::from_hmsf(10, 10, 10, 204, 3).unwrap(),
                 default_offset
             )
             .unwrap()
@@ -958,8 +963,8 @@ mod tests {
         assert_eq!(
             parse_datetime_partial(b"20171130101010", default_offset).unwrap(),
             PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ymd(&2017u16, &11, &30).unwrap(),
-                PartialTime::from_hms(&10, &10, &10).unwrap(),
+                PartialDate::from_ymd(2017, 11, 30).unwrap(),
+                PartialTime::from_hms(10, 10, 10).unwrap(),
                 default_offset
             )
             .unwrap()
@@ -967,8 +972,8 @@ mod tests {
         assert_eq!(
             parse_datetime_partial(b"2017113023", default_offset).unwrap(),
             PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ymd(&2017u16, &11, &30).unwrap(),
-                PartialTime::from_h(&23).unwrap(),
+                PartialDate::from_ymd(2017, 11, 30).unwrap(),
+                PartialTime::from_h(23).unwrap(),
                 default_offset
             )
             .unwrap()
@@ -976,15 +981,15 @@ mod tests {
         assert_eq!(
             parse_datetime_partial(b"201711", default_offset).unwrap(),
             PartialDateTime::from_partial_date(
-                PartialDate::from_ym(&2017u16, &11).unwrap(),
+                PartialDate::from_ym(2017, 11).unwrap(),
                 default_offset
             )
         );
         assert_eq!(
             parse_datetime_partial(b"20171130101010.204+0535", default_offset).unwrap(),
             PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ymd(&2017u16, &11, &30).unwrap(),
-                PartialTime::from_hmsf(&10, &10, &10, &204u32, &3).unwrap(),
+                PartialDate::from_ymd(2017, 11, 30).unwrap(),
+                PartialTime::from_hmsf(10, 10, 10, 204, 3).unwrap(),
                 FixedOffset::east(5 * 3600 + 35 * 60)
             )
             .unwrap()
@@ -992,8 +997,8 @@ mod tests {
         assert_eq!(
             parse_datetime_partial(b"20171130101010+0535", default_offset).unwrap(),
             PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ymd(&2017u16, &11, &30).unwrap(),
-                PartialTime::from_hms(&10, &10, &10).unwrap(),
+                PartialDate::from_ymd(2017, 11, 30).unwrap(),
+                PartialTime::from_hms(10, 10, 10).unwrap(),
                 FixedOffset::east(5 * 3600 + 35 * 60)
             )
             .unwrap()
@@ -1001,8 +1006,8 @@ mod tests {
         assert_eq!(
             parse_datetime_partial(b"2017113010+0535", default_offset).unwrap(),
             PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ymd(&2017u16, &11, &30).unwrap(),
-                PartialTime::from_h(&10).unwrap(),
+                PartialDate::from_ymd(2017, 11, 30).unwrap(),
+                PartialTime::from_h(10).unwrap(),
                 FixedOffset::east(5 * 3600 + 35 * 60)
             )
             .unwrap()
@@ -1010,148 +1015,46 @@ mod tests {
         assert_eq!(
             parse_datetime_partial(b"20171130-0135", default_offset).unwrap(),
             PartialDateTime::from_partial_date(
-                PartialDate::from_ymd(&2017u16, &11, &30).unwrap(),
+                PartialDate::from_ymd(2017, 11, 30).unwrap(),
                 FixedOffset::west(1 * 3600 + 35 * 60)
             )
         );
         assert_eq!(
             parse_datetime_partial(b"201711-0135", default_offset).unwrap(),
             PartialDateTime::from_partial_date(
-                PartialDate::from_ym(&2017u16, &11).unwrap(),
+                PartialDate::from_ym(2017, 11).unwrap(),
                 FixedOffset::west(1 * 3600 + 35 * 60)
             )
         );
         assert_eq!(
             parse_datetime_partial(b"2017-0135", default_offset).unwrap(),
             PartialDateTime::from_partial_date(
-                PartialDate::from_y(&2017u16).unwrap(),
+                PartialDate::from_y(2017).unwrap(),
                 FixedOffset::west(1 * 3600 + 35 * 60)
             )
         );
-        /*
-        assert_eq!(
-            parse_datetime(b"19440229101010.1", default_offset).unwrap(),
-            FixedOffset::east(0)
-                .ymd(1944, 2, 29)
-                .and_hms_micro(10, 10, 10, 100_000)
-        );
-        assert_eq!(
-            parse_datetime(b"19450228101010.999999", default_offset).unwrap(),
-            FixedOffset::east(0)
-                .ymd(1945, 2, 28)
-                .and_hms_micro(10, 10, 10, 999_999)
-        );
-        assert_eq!(
-            parse_datetime(b"20171130101010.564204-1001", default_offset).unwrap(),
-            FixedOffset::west(10 * 3600 + 1 * 60)
-                .ymd(2017, 11, 30)
-                .and_hms_micro(10, 10, 10, 564_204)
-        );
-        assert_eq!(
-            parse_datetime(b"20171130101010.564204-1001abcd", default_offset).unwrap(),
-            FixedOffset::west(10 * 3600 + 1 * 60)
-                .ymd(2017, 11, 30)
-                .and_hms_micro(10, 10, 10, 564_204)
-        );
-        assert_eq!(
-            parse_datetime(b"20171130101010.2-1100", default_offset).unwrap(),
-            FixedOffset::west(11 * 3600)
-                .ymd(2017, 11, 30)
-                .and_hms_micro(10, 10, 10, 200_000)
-        );
-        assert_eq!(
-            parse_datetime(b"20171130101010.0-1100", default_offset).unwrap(),
-            FixedOffset::west(11 * 3600)
-                .ymd(2017, 11, 30)
-                .and_hms_micro(10, 10, 10, 0)
-        );
+
         assert!(matches!(
-            parse_datetime(b"20180101093059", default_offset),
-            Err(Error::IncompleteValue {
-                component: DateComponent::Fraction,
-                ..
-            })
-        ));
-        assert!(matches!(
-            parse_datetime(b"201801010930", default_offset),
-            Err(Error::IncompleteValue {
-                component: DateComponent::Second,
-                ..
-            })
-        ));
-        assert!(matches!(
-            parse_datetime(b"2018010109", default_offset),
-            Err(Error::IncompleteValue {
-                component: DateComponent::Minute,
-                ..
-            })
-        ));
-        assert!(matches!(
-            parse_datetime(b"20180101", default_offset),
-            Err(Error::UnexpectedEndOfElement { .. })
-        ));
-        assert!(matches!(
-            parse_datetime(b"201801", default_offset),
-            Err(Error::IncompleteValue {
-                component: DateComponent::Day,
-                ..
-            })
-        ));
-        assert!(matches!(
-            parse_datetime(b"1526", default_offset),
-            Err(Error::IncompleteValue {
-                component: DateComponent::Month,
-                ..
-            })
+            parse_datetime_partial(b"xxxx0229101010.204", default_offset),
+            Err(Error::InvalidNumberToken { .. })
         ));
 
-        let dt = parse_datetime(b"20171130101010.204+0100", default_offset).unwrap();
-        assert_eq!(
-            dt,
-            FixedOffset::east(3600)
-                .ymd(2017, 11, 30)
-                .and_hms_micro(10, 10, 10, 204_000)
-        );
-        assert_eq!(
-            format!("{:?}", dt),
-            "2017-11-30T10:10:10.204+01:00".to_string()
-        );
-
-        let dt = parse_datetime(b"20171130101010.204+0535", default_offset).unwrap();
-        assert_eq!(
-            dt,
-            FixedOffset::east(5 * 3600 + 35 * 60)
-                .ymd(2017, 11, 30)
-                .and_hms_micro(10, 10, 10, 204_000)
-        );
-        assert_eq!(
-            format!("{:?}", dt),
-            "2017-11-30T10:10:10.204+05:35".to_string()
-        );
-        assert_eq!(
-            parse_datetime(b"20140505120101.204+0535", default_offset).unwrap(),
-            FixedOffset::east(5 * 3600 + 35 * 60)
-                .ymd(2014, 5, 5)
-                .and_hms_micro(12, 1, 1, 204_000)
-        );
-
-        assert!(parse_datetime(b"", default_offset).is_err());
-        assert!(parse_datetime(&[0x00_u8; 8], default_offset).is_err());
-        assert!(parse_datetime(&[0xFF_u8; 8], default_offset).is_err());
-        assert!(parse_datetime(&[b'0'; 8], default_offset).is_err());
-        assert!(parse_datetime(&[b' '; 8], default_offset).is_err());
-        assert!(parse_datetime(b"nope", default_offset).is_err());
-        assert!(parse_datetime(b"2015dec", default_offset).is_err());
-        assert!(parse_datetime(b"20151231162945.", default_offset).is_err());
-        assert!(parse_datetime(b"20151130161445+", default_offset).is_err());
-        assert!(parse_datetime(b"20151130161445+----", default_offset).is_err());
-        assert!(parse_datetime(b"20151130161445. ", default_offset).is_err());
-        assert!(parse_datetime(b"20151130161445. +0000", default_offset).is_err());
-        assert!(parse_datetime(b"20100423164000.001+3", default_offset).is_err());
-        assert!(parse_datetime(b"200809112945*1000", default_offset).is_err());
-        assert!(parse_datetime(b"20171130101010.204+1", default_offset).is_err());
-        assert!(parse_datetime(b"20171130101010.204+01", default_offset).is_err());
-        assert!(parse_datetime(b"20171130101010.204+011", default_offset).is_err());
-        */
+        assert!(parse_datetime_partial(b"", default_offset).is_err());
+        assert!(parse_datetime_partial(&[0x00_u8; 8], default_offset).is_err());
+        assert!(parse_datetime_partial(&[0xFF_u8; 8], default_offset).is_err());
+        assert!(parse_datetime_partial(&[b'0'; 8], default_offset).is_err());
+        assert!(parse_datetime_partial(&[b' '; 8], default_offset).is_err());
+        assert!(parse_datetime_partial(b"nope", default_offset).is_err());
+        assert!(parse_datetime_partial(b"2015dec", default_offset).is_err());
+        assert!(parse_datetime_partial(b"20151231162945.", default_offset).is_err());
+        assert!(parse_datetime_partial(b"20151130161445+", default_offset).is_err());
+        assert!(parse_datetime_partial(b"20151130161445+----", default_offset).is_err());
+        assert!(parse_datetime_partial(b"20151130161445. ", default_offset).is_err());
+        assert!(parse_datetime_partial(b"20151130161445. +0000", default_offset).is_err());
+        assert!(parse_datetime_partial(b"20100423164000.001+3", default_offset).is_err());
+        assert!(parse_datetime_partial(b"200809112945*1000", default_offset).is_err());
+        assert!(parse_datetime_partial(b"20171130101010.204+1", default_offset).is_err());
+        assert!(parse_datetime_partial(b"20171130101010.204+01", default_offset).is_err());
+        assert!(parse_datetime_partial(b"20171130101010.204+011", default_offset).is_err());
     }
 }

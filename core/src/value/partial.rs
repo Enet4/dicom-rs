@@ -134,43 +134,28 @@ impl PartialDate {
      * Constructs a new `PartialDate` with year precision
      * (YYYY)
      */
-    pub fn from_y<T>(year: &T) -> Result<PartialDate>
-    where
-        T: Into<u32> + Into<u16> + Copy,
-    {
-        check_component(DateComponent::Year, year)?;
-        Ok(PartialDate::Year((*year).into()))
+    pub fn from_y(year: u16) -> Result<PartialDate> {
+        check_component(DateComponent::Year, &year)?;
+        Ok(PartialDate::Year(year))
     }
     /**
      * Constructs a new `PartialDate` with year and month precision
      * (YYYYMM)
      */
-    pub fn from_ym<T, U>(year: &T, month: &U) -> Result<PartialDate>
-    where
-        T: Into<u32> + Into<u16> + Copy,
-        U: Into<u32> + Into<u8> + Copy,
-    {
-        check_component(DateComponent::Year, year)?;
-        check_component(DateComponent::Month, month)?;
-        Ok(PartialDate::Month((*year).into(), (*month).into()))
+    pub fn from_ym(year: u16, month: u8) -> Result<PartialDate> {
+        check_component(DateComponent::Year, &year)?;
+        check_component(DateComponent::Month, &month)?;
+        Ok(PartialDate::Month(year, month))
     }
     /**
      * Constructs a new `PartialDate` with a year, month and day precision
      * (YYYYMMDD)
      */
-    pub fn from_ymd<T, U>(year: &T, month: &U, day: &U) -> Result<PartialDate>
-    where
-        T: Into<u32> + Into<u16> + Copy,
-        U: Into<u32> + Into<u8> + Copy,
-    {
-        check_component(DateComponent::Year, year)?;
-        check_component(DateComponent::Month, month)?;
-        check_component(DateComponent::Day, day)?;
-        Ok(PartialDate::Day(
-            (*year).into(),
-            (*month).into(),
-            (*day).into(),
-        ))
+    pub fn from_ymd(year: u16, month: u8, day: u8) -> Result<PartialDate> {
+        check_component(DateComponent::Year, &year)?;
+        check_component(DateComponent::Month, &month)?;
+        check_component(DateComponent::Day, &day)?;
+        Ok(PartialDate::Day(year, month, day))
     }
 }
 
@@ -179,85 +164,68 @@ impl PartialTime {
      * Constructs a new `PartialTime` with hour precision
      * (HH)
      */
-    pub fn from_h<T>(hour: &T) -> Result<PartialTime>
-    where
-        T: Into<u32> + Into<u8> + Copy,
-    {
-        check_component(DateComponent::Hour, hour)?;
-        Ok(PartialTime::Hour((*hour).into()))
+    pub fn from_h(hour: u8) -> Result<PartialTime> {
+        check_component(DateComponent::Hour, &hour)?;
+        Ok(PartialTime::Hour(hour))
     }
 
     /**
      * Constructs a new `PartialTime` with hour and minute precision
      * (HHMM)
      */
-    pub fn from_hm<T>(hour: &T, minute: &T) -> Result<PartialTime>
-    where
-        T: Into<u32> + Into<u8> + Copy,
-    {
-        check_component(DateComponent::Hour, hour)?;
-        check_component(DateComponent::Minute, minute)?;
-        Ok(PartialTime::Minute((*hour).into(), (*minute).into()))
+    pub fn from_hm(hour: u8, minute: u8) -> Result<PartialTime> {
+        check_component(DateComponent::Hour, &hour)?;
+        check_component(DateComponent::Minute, &minute)?;
+        Ok(PartialTime::Minute(hour, minute))
     }
 
     /**
      * Constructs a new `PartialTime` with hour, minute and second precision
      * (HHMMSS)
      */
-    pub fn from_hms<T>(hour: &T, minute: &T, second: &T) -> Result<PartialTime>
-    where
-        T: Into<u32> + Into<u8> + Copy,
-    {
-        check_component(DateComponent::Hour, hour)?;
-        check_component(DateComponent::Minute, minute)?;
-        check_component(DateComponent::Second, second)?;
-        Ok(PartialTime::Second(
-            (*hour).into(),
-            (*minute).into(),
-            (*second).into(),
-        ))
+    pub fn from_hms(hour: u8, minute: u8, second: u8) -> Result<PartialTime> {
+        check_component(DateComponent::Hour, &hour)?;
+        check_component(DateComponent::Minute, &minute)?;
+        check_component(DateComponent::Second, &second)?;
+        Ok(PartialTime::Second(hour, minute, second))
     }
 
     /**
      * Constructs a new `PartialTime` with hour, minute, second and second fraction
      * precision (HHMMSS.FFFFFF).
      */
-    pub fn from_hmsf<T, U>(
-        hour: &T,
-        minute: &T,
-        second: &T,
-        fraction: &U,
-        frac_precision: &T,
-    ) -> Result<PartialTime>
-    where
-        T: Into<u32> + Into<u8> + Copy,
-        U: Into<u32> + Copy,
-    {
-        let fp_copy: u32 = (*frac_precision).into();
-        if !(1..=6).contains(&fp_copy) {
-            return FractionPrecisionRange { value: fp_copy }.fail();
+    pub fn from_hmsf(
+        hour: u8,
+        minute: u8,
+        second: u8,
+        fraction: u32,
+        frac_precision: u8,
+    ) -> Result<PartialTime> {
+        if !(1..=6).contains(&frac_precision) {
+            return FractionPrecisionRange {
+                value: frac_precision,
+            }
+            .fail();
         }
-
-        let fr_copy: u32 = (*fraction).into();
-        if u32::pow(10, fp_copy) < fr_copy {
+        if u32::pow(10, frac_precision as u32) < fraction {
             return FractionPrecisionMismatch {
-                fraction: fr_copy,
-                precision: fp_copy,
+                fraction: fraction,
+                precision: frac_precision,
             }
             .fail();
         }
 
-        check_component(DateComponent::Hour, hour)?;
-        check_component(DateComponent::Minute, minute)?;
-        check_component(DateComponent::Second, second)?;
-        let f: u32 = (*fraction).into() * u32::pow(10, 6 - fp_copy);
+        check_component(DateComponent::Hour, &hour)?;
+        check_component(DateComponent::Minute, &minute)?;
+        check_component(DateComponent::Second, &second)?;
+        let f: u32 = fraction * u32::pow(10, 6 - frac_precision as u32);
         check_component(DateComponent::Fraction, &f)?;
         Ok(PartialTime::Fraction(
-            (*hour).into(),
-            (*minute).into(),
-            (*second).into(),
-            fr_copy,
-            (*frac_precision).into(),
+            hour,
+            minute,
+            second,
+            fraction,
+            frac_precision,
         ))
     }
 }
@@ -478,38 +446,30 @@ mod tests {
     #[test]
     fn test_partial_date() {
         assert_eq!(
-            PartialDate::from_ymd(&1944u16, &2, &29).unwrap(),
+            PartialDate::from_ymd(1944, 2, 29).unwrap(),
             PartialDate::Day(1944, 2, 29)
         );
         assert_eq!(
-            PartialDate::from_ym(&1944u16, &2).unwrap(),
+            PartialDate::from_ym(1944, 2).unwrap(),
             PartialDate::Month(1944, 2)
         );
-        assert_eq!(
-            PartialDate::from_y(&1944u16).unwrap(),
-            PartialDate::Year(1944)
-        );
+        assert_eq!(PartialDate::from_y(1944).unwrap(), PartialDate::Year(1944));
 
         assert_eq!(
-            PartialDate::from_ymd(&1944u16, &2, &29)
-                .unwrap()
-                .is_precise(),
+            PartialDate::from_ymd(1944, 2, 29).unwrap().is_precise(),
             true
         );
+        assert_eq!(PartialDate::from_ym(1944, 2).unwrap().is_precise(), false);
+        assert_eq!(PartialDate::from_y(1944).unwrap().is_precise(), false);
         assert_eq!(
-            PartialDate::from_ym(&1944u16, &2).unwrap().is_precise(),
-            false
-        );
-        assert_eq!(PartialDate::from_y(&1944u16).unwrap().is_precise(), false);
-        assert_eq!(
-            PartialDate::from_ymd(&1944u16, &2, &29)
+            PartialDate::from_ymd(1944, 2, 29)
                 .unwrap()
                 .earliest()
                 .unwrap(),
             NaiveDate::from_ymd(1944, 2, 29)
         );
         assert_eq!(
-            PartialDate::from_ymd(&1944u16, &2, &29)
+            PartialDate::from_ymd(1944, 2, 29)
                 .unwrap()
                 .latest()
                 .unwrap(),
@@ -517,22 +477,16 @@ mod tests {
         );
 
         assert_eq!(
-            PartialDate::from_y(&1944u16).unwrap().earliest().unwrap(),
+            PartialDate::from_y(1944).unwrap().earliest().unwrap(),
             NaiveDate::from_ymd(1944, 1, 1)
         );
         // detects leap year
         assert_eq!(
-            PartialDate::from_ym(&1944u16, &2)
-                .unwrap()
-                .latest()
-                .unwrap(),
+            PartialDate::from_ym(1944, 2).unwrap().latest().unwrap(),
             NaiveDate::from_ymd(1944, 2, 29)
         );
         assert_eq!(
-            PartialDate::from_ym(&1945u16, &2)
-                .unwrap()
-                .latest()
-                .unwrap(),
+            PartialDate::from_ym(1945, 2).unwrap().latest().unwrap(),
             NaiveDate::from_ymd(1945, 2, 28)
         );
     }
@@ -540,32 +494,32 @@ mod tests {
     #[test]
     fn test_partial_time() {
         assert_eq!(
-            PartialTime::from_hmsf(&9, &1, &1, &123456u32, &6).unwrap(),
+            PartialTime::from_hmsf(9, 1, 1, 123456, 6).unwrap(),
             PartialTime::Fraction(9, 1, 1, 123456, 6)
         );
         assert_eq!(
-            PartialTime::from_hmsf(&9, &1, &1, &1u32, &6).unwrap(),
+            PartialTime::from_hmsf(9, 1, 1, 1, 6).unwrap(),
             PartialTime::Fraction(9, 1, 1, 1, 6)
         );
         assert_eq!(
-            PartialTime::from_hms(&9, &0, &0).unwrap(),
+            PartialTime::from_hms(9, 0, 0).unwrap(),
             PartialTime::Second(9, 0, 0)
         );
         assert_eq!(
-            PartialTime::from_hm(&23, &59).unwrap(),
+            PartialTime::from_hm(23, 59).unwrap(),
             PartialTime::Minute(23, 59)
         );
-        assert_eq!(PartialTime::from_h(&1).unwrap(), PartialTime::Hour(1));
+        assert_eq!(PartialTime::from_h(1).unwrap(), PartialTime::Hour(1));
 
         assert_eq!(
-            PartialTime::from_hmsf(&9, &1, &1, &123u32, &3)
+            PartialTime::from_hmsf(9, 1, 1, 123, 3)
                 .unwrap()
                 .earliest()
                 .unwrap(),
             NaiveTime::from_hms_micro(9, 1, 1, 123_000)
         );
         assert_eq!(
-            PartialTime::from_hmsf(&9, &1, &1, &123u32, &3)
+            PartialTime::from_hmsf(9, 1, 1, 123, 3)
                 .unwrap()
                 .latest()
                 .unwrap(),
@@ -573,14 +527,14 @@ mod tests {
         );
 
         assert_eq!(
-            PartialTime::from_hmsf(&9, &1, &1, &1u32, &1)
+            PartialTime::from_hmsf(9, 1, 1, 1, 1)
                 .unwrap()
                 .earliest()
                 .unwrap(),
             NaiveTime::from_hms_micro(9, 1, 1, 100_000)
         );
         assert_eq!(
-            PartialTime::from_hmsf(&9, &1, &1, &1u32, &1)
+            PartialTime::from_hmsf(9, 1, 1, 1, 1)
                 .unwrap()
                 .latest()
                 .unwrap(),
@@ -588,26 +542,26 @@ mod tests {
         );
 
         assert_eq!(
-            PartialTime::from_hmsf(&9, &1, &1, &12345u32, &5)
+            PartialTime::from_hmsf(9, 1, 1, 12345, 5)
                 .unwrap()
                 .is_precise(),
             false
         );
 
         assert_eq!(
-            PartialTime::from_hmsf(&9, &1, &1, &123456u32, &6)
+            PartialTime::from_hmsf(9, 1, 1, 123456, 6)
                 .unwrap()
                 .is_precise(),
             true
         );
 
         assert!(matches!(
-            PartialTime::from_hmsf(&9, &1, &1, &1u32, &7),
+            PartialTime::from_hmsf(9, 1, 1, 1, 7),
             Err(Error::FractionPrecisionRange { value: 7, .. })
         ));
 
         assert!(matches!(
-            PartialTime::from_hmsf(&9, &1, &1, &123456u32, &3),
+            PartialTime::from_hmsf(9, 1, 1, 123456, 3),
             Err(Error::FractionPrecisionMismatch {
                 fraction: 123456,
                 precision: 3,
@@ -621,11 +575,11 @@ mod tests {
         let default_offset = FixedOffset::east(0);
         assert_eq!(
             PartialDateTime::from_partial_date(
-                PartialDate::from_ymd(&2020u16, &2, &29).unwrap(),
+                PartialDate::from_ymd(2020, 2, 29).unwrap(),
                 default_offset
             ),
             PartialDateTime {
-                date: PartialDate::from_ymd(&2020u16, &2, &29).unwrap(),
+                date: PartialDate::from_ymd(2020, 2, 29).unwrap(),
                 time: None,
                 offset: default_offset
             }
@@ -633,7 +587,7 @@ mod tests {
 
         assert_eq!(
             PartialDateTime::from_partial_date(
-                PartialDate::from_ym(&2020u16, &2).unwrap(),
+                PartialDate::from_ym(2020, 2).unwrap(),
                 default_offset
             )
             .earliest()
@@ -645,7 +599,7 @@ mod tests {
 
         assert_eq!(
             PartialDateTime::from_partial_date(
-                PartialDate::from_ym(&2020u16, &2).unwrap(),
+                PartialDate::from_ym(2020, 2).unwrap(),
                 default_offset
             )
             .latest()
@@ -657,8 +611,8 @@ mod tests {
 
         assert_eq!(
             PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ymd(&2020u16, &2, &29).unwrap(),
-                PartialTime::from_hmsf(&23, &59, &59, &10u32, &2).unwrap(),
+                PartialDate::from_ymd(2020, 2, 29).unwrap(),
+                PartialTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
             )
             .unwrap()
@@ -670,8 +624,8 @@ mod tests {
         );
         assert_eq!(
             PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ymd(&2020u16, &2, &29).unwrap(),
-                PartialTime::from_hmsf(&23, &59, &59, &10u32, &2).unwrap(),
+                PartialDate::from_ymd(2020, 2, 29).unwrap(),
+                PartialTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
             )
             .unwrap()
@@ -684,7 +638,7 @@ mod tests {
 
         assert!(matches!(
             PartialDateTime::from_partial_date(
-                PartialDate::from_ymd(&2021u16, &2, &29).unwrap(),
+                PartialDate::from_ymd(2021, 2, 29).unwrap(),
                 default_offset
             )
             .earliest(),
@@ -693,8 +647,8 @@ mod tests {
 
         assert!(matches!(
             PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ym(&2020u16, &2).unwrap(),
-                PartialTime::from_hmsf(&23, &59, &59, &10u32, &2).unwrap(),
+                PartialDate::from_ym(2020, 2).unwrap(),
+                PartialTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
             ),
             Err(Error::DateTimeFromPartials {
@@ -704,8 +658,8 @@ mod tests {
         ));
         assert!(matches!(
             PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_y(&1u16).unwrap(),
-                PartialTime::from_hmsf(&23, &59, &59, &10u32, &2).unwrap(),
+                PartialDate::from_y(1).unwrap(),
+                PartialTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
             ),
             Err(Error::DateTimeFromPartials {

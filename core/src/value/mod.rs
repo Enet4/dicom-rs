@@ -421,7 +421,7 @@ where
             }),
         }
     }
-/*
+
     /// Retrieve and convert the primitive value into a time.
     ///
     /// If the value is a primitive, it will be converted into
@@ -496,7 +496,6 @@ where
         }
     }
 
-    */
     /// Retrieves the primitive value as a DICOM tag.
     pub fn to_tag(&self) -> Result<Tag, CastValueError> {
         match self {
