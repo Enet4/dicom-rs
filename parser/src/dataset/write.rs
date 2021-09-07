@@ -178,8 +178,11 @@ where
                 Ok(())
             }
             DataToken::ElementHeader(de) => {
+                // save the header for later
                 self.last_de = Some(de);
-                self.write_impl(&token)
+
+                // postpone writing the header until the value token is given
+                Ok(())
             }
             token @ DataToken::PixelSequenceStart => {
                 self.seq_tokens.push(SeqToken {
@@ -228,11 +231,12 @@ where
                     .context(WriteItemDelimiter)?;
             }
             DataToken::PrimitiveValue(ref value) => {
-                let last_de = self.last_de.as_ref().with_context(|| UnexpectedToken {
+                let last_de = self.last_de.take().with_context(|| UnexpectedToken {
                     token: token.clone(),
                 })?;
+
                 self.printer
-                    .encode_primitive(last_de, value)
+                    .encode_primitive_element(&last_de, value)
                     .context(WriteValue)?;
                 self.last_de = None;
             }
@@ -240,7 +244,7 @@ where
                 self.printer.encode_offset_table(table).context(WriteValue)?;
             }
             DataToken::ItemValue(data) => {
-                self.printer.write_bytes(&data).context(WriteValue)?;
+                self.printer.write_bytes(data).context(WriteValue)?;
             }
         }
         Ok(())
@@ -333,6 +337,44 @@ mod tests {
             // -- 58 --
             0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4  
             b'T', b'E', b'S', b'T', // value = "TEST"
+        ];
+
+        validate_dataset_writer(tokens, GROUND_TRUTH);
+    }
+
+    #[test]
+    fn write_element_overrides_len() {
+        let tokens = vec![
+            DataToken::ElementHeader(DataElementHeader {
+                // Specific Character Set (0008,0005)
+                tag: Tag(0x0008, 0x0005),
+                vr: VR::CS,
+                len: Length(10),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::from("ISO_IR 100")),
+            DataToken::ElementHeader(DataElementHeader {
+                // Referring Physician's Name (0008,0090)
+                tag: Tag(0x0008, 0x0090),
+                vr: VR::PN,
+                // deliberately incorrect length
+                len: Length("Simões^João".len() as u32),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::from("Simões^João")),
+        ];
+
+        #[rustfmt::skip]
+        static GROUND_TRUTH: &[u8] = &[
+            // Specific Character Set (0008,0005)
+            0x08, 0x00, 0x05, 0x00, //
+            b'C', b'S', // VR
+            0x0a, 0x00, // length: 10
+            b'I', b'S', b'O', b'_', b'I', b'R', b' ', b'1', b'0', b'0', // value = "ISO_IR 100"
+            // Referring Physician's Name (0008,0090)
+            0x08, 0x00, 0x90, 0x00, //
+            b'P', b'N', // VR
+            0x0c, 0x00, // length: 12
+            // value = "Simões^João "
+            b'S', b'i', b'm', 0xF5, b'e', b's', b'^', b'J', b'o', 0xE3, b'o', b' '
         ];
 
         validate_dataset_writer(tokens, GROUND_TRUTH);
