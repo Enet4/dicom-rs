@@ -199,7 +199,7 @@ fn main() {
     }
 }
 
-fn dump_file(obj: DefaultDicomObject, width: u32, no_text_limit: bool) -> IoResult<()> {
+pub fn dump_file(obj: DefaultDicomObject, width: u32, no_text_limit: bool) -> IoResult<()> {
     let mut to = stdout();
     let meta = obj.meta();
 
@@ -317,7 +317,7 @@ where
     Ok(())
 }
 
-fn dump<W, D>(
+pub fn dump<W, D>(
     to: &mut W,
     obj: &InMemDicomObject<D>,
     width: u32,
