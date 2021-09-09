@@ -165,6 +165,16 @@ impl Encode for ExplicitVRLittleEndianEncoder {
     {
         self.basic.encode_primitive(to, value)
     }
+
+    fn encode_offset_table<W>(&self, mut to: W, offset_table: &[u32]) -> Result<usize>
+    where
+        W: Write
+    {
+        for v in offset_table {
+            self.basic.encode_ul(&mut to, *v).context(WriteOffsetTable)?;
+        }
+        Ok(offset_table.len() * 4)
+    }
 }
 
 #[cfg(test)]

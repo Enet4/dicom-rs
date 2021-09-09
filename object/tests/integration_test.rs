@@ -13,7 +13,11 @@ fn test_ob_value_with_unknown_length() {
     let element = object.element_by_name("PixelData").unwrap();
 
     match element.value() {
-        Value::PixelSequence { fragments, .. } => {
+        Value::PixelSequence { fragments, offset_table } => {
+
+            // check offset table
+            assert_eq!(offset_table.len(), 0);
+
             // check if the leading and trailing bytes look right
             assert_eq!(fragments.len(), 1);
             let fragment = &fragments[0];

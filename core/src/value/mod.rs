@@ -58,7 +58,7 @@ pub enum Value<I = EmptyObject, P = [u8; 0]> {
     /// An encapsulated pixel data sequence.
     PixelSequence {
         /// The value contents of the offset table.
-        offset_table: C<u8>,
+        offset_table: C<u32>,
         /// The sequence of compressed fragments.
         fragments: C<P>,
     },
@@ -70,7 +70,7 @@ impl<P> Value<EmptyObject, P> {
     ///
     /// Note: This function does not validate the offset table
     /// against the fragments.
-    pub fn new_pixel_sequence<T>(offset_table: C<u8>, fragments: T) -> Self
+    pub fn new_pixel_sequence<T>(offset_table: C<u32>, fragments: T) -> Self
     where
         T: Into<C<P>>,
     {
@@ -154,7 +154,7 @@ impl<I, P> Value<I, P> {
     }
 
     /// Gets a reference to the encapsulated pixel data's offset table.
-    pub fn offset_table(&self) -> Option<&[u8]> {
+    pub fn offset_table(&self) -> Option<&[u32]> {
         match self {
             Value::PixelSequence { offset_table, .. } => Some(&offset_table),
             _ => None,

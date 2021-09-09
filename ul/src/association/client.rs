@@ -4,10 +4,7 @@
 //! in which this application entity is the one requesting the association.
 //! See [`ClientAssociationOptions`](self::ClientAssociationOptions)
 //! for details and examples on how to create an association.
-use std::{
-    borrow::Cow,
-    net::{TcpStream, ToSocketAddrs},
-};
+use std::{borrow::Cow, io::Write, net::{TcpStream, ToSocketAddrs}};
 
 use crate::pdu::{
     reader::read_pdu, writer::write_pdu, AbortRQSource, AssociationRJResult, AssociationRJSource,
@@ -61,6 +58,10 @@ pub enum Error {
     /// failed to send PDU message
     #[non_exhaustive]
     Send { source: crate::pdu::writer::Error },
+
+    /// failed to send PDU message on wire
+    #[non_exhaustive]
+    WireSend { source: std::io::Error },
 
     /// failed to receive PDU message
     #[non_exhaustive]
@@ -236,18 +237,22 @@ impl<'a> ClientAssociationOptions<'a> {
         };
 
         let mut socket = std::net::TcpStream::connect(address).context(Connect)?;
-
+        let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         // send request
-        write_pdu(&mut socket, &msg).context(SendRequest)?;
 
+        write_pdu(&mut buffer, &msg).context(SendRequest)?;
+        socket.write_all(&buffer).context(WireSend)?;
+        buffer.clear();
         // receive response
-        let msg = read_pdu(&mut socket, max_pdu_length).context(ReceiveResponse)?;
+        let msg = read_pdu(&mut socket, max_pdu_length, true).context(ReceiveResponse)?;
 
         match msg {
             Pdu::AssociationAC {
                 protocol_version: protocol_version_scp,
                 application_context_name: _,
                 presentation_contexts: presentation_contexts_scp,
+                calling_ae_title: _,
+                called_ae_title: _,
                 user_variables: _,
             } => {
                 ensure!(
@@ -265,18 +270,20 @@ impl<'a> ClientAssociationOptions<'a> {
                 if presentation_contexts.is_empty() {
                     // abort connection
                     let _ = write_pdu(
-                        &mut socket,
+                        &mut buffer,
                         &Pdu::AbortRQ {
                             source: AbortRQSource::ServiceUser,
                         },
                     );
+                    let _ = socket.write_all(&buffer);
+                    buffer.clear();
                     return NoAcceptedPresentationContexts.fail();
                 }
-
                 Ok(ClientAssociation {
                     presentation_contexts,
                     max_pdu_length,
                     socket,
+                    buffer
                 })
             }
             Pdu::AssociationRJ { result, source } => Rejected {
@@ -291,21 +298,23 @@ impl<'a> ClientAssociationOptions<'a> {
             | pdu @ Pdu::ReleaseRP { .. } => {
                 // abort connection
                 let _ = write_pdu(
-                    &mut socket,
+                    &mut buffer,
                     &Pdu::AbortRQ {
                         source: AbortRQSource::ServiceUser,
                     },
                 );
+                let _ = socket.write_all(&buffer);
                 UnexpectedResponse { pdu }.fail()
             }
             pdu @ Pdu::Unknown { .. } => {
                 // abort connection
                 let _ = write_pdu(
-                    &mut socket,
+                    &mut buffer,
                     &Pdu::AbortRQ {
                         source: AbortRQSource::ServiceUser,
                     },
                 );
+                let _ = socket.write_all(&buffer);
                 UnknownResponse { pdu }.fail()
             }
         }
@@ -334,6 +343,8 @@ pub struct ClientAssociation {
     max_pdu_length: u32,
     /// The TCP stream to the other DICOM node
     socket: TcpStream,
+    /// Buffer to assemble PDU before sending it on wire
+    buffer: Vec<u8>,
 }
 
 impl ClientAssociation {
@@ -344,12 +355,14 @@ impl ClientAssociation {
 
     /// Send a PDU message to the other intervenient.
     pub fn send(&mut self, msg: &Pdu) -> Result<()> {
-        write_pdu(&mut self.socket, &msg).context(Send)
+        self.buffer.clear();
+        write_pdu(&mut self.buffer, &msg).context(Send)?;
+        self.socket.write_all(&self.buffer).context(WireSend)
     }
 
     /// Read a PDU message from the other intervenient.
     pub fn receive(&mut self) -> Result<Pdu> {
-        read_pdu(&mut self.socket, self.max_pdu_length).context(Receive)
+        read_pdu(&mut self.socket, self.max_pdu_length, true).context(Receive)
     }
 
     /// Gracefully terminate the association by exchanging release messages
@@ -368,14 +381,10 @@ impl ClientAssociation {
     /// Send an abort message and shut down the TCP connection,
     /// terminating the association.
     pub fn abort(mut self) -> Result<()> {
-        let out = write_pdu(
-            &mut self.socket,
-            &Pdu::AbortRQ {
-                source: AbortRQSource::ServiceUser,
-            },
-        )
-        .context(Send);
-
+        let pdu = Pdu::AbortRQ {
+            source: AbortRQSource::ServiceUser,
+        };
+        let out =self.send(&pdu);
         let _ = self.socket.shutdown(std::net::Shutdown::Both);
         out
     }
@@ -407,9 +416,9 @@ impl ClientAssociation {
     }
 
     fn release_impl(&mut self) -> Result<()> {
-        write_pdu(&mut self.socket, &Pdu::ReleaseRQ).context(Send)?;
-
-        let pdu = read_pdu(&mut self.socket, self.max_pdu_length).context(Receive)?;
+        let pdu = Pdu::ReleaseRQ;
+        self.send(&pdu)?;
+        let pdu = read_pdu(&mut self.socket, self.max_pdu_length, true).context(Receive)?;
 
         match pdu {
             Pdu::ReleaseRP => {}

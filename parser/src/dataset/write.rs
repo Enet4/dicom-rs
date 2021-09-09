@@ -1,4 +1,11 @@
 //! Module for the data set writer
+//!
+//! This module contains a mid-level abstraction for printing DICOM data sets
+//! sequentially.
+//! The [`DataSetWriter`] receieves data tokens to be encoded and written
+//! to a writer.
+//! In this process, the writer will also adapt values
+//! to the necessary DICOM encoding rules.
 use crate::dataset::*;
 use crate::stateful::encode::StatefulEncoder;
 use dicom_core::{DataElementHeader, Length, VR};
@@ -181,7 +188,7 @@ where
                 });
                 self.write_impl(&token)
             }
-            token @ DataToken::ItemValue(_) | token @ DataToken::PrimitiveValue(_) => {
+            token @ DataToken::ItemValue(_) | token @ DataToken::PrimitiveValue(_) | token @ DataToken::OffsetTable(_) => {
                 self.write_impl(&token)
             }
         }
@@ -228,6 +235,9 @@ where
                     .encode_primitive(last_de, value)
                     .context(WriteValue)?;
                 self.last_de = None;
+            }
+            DataToken::OffsetTable(table) => {
+                self.printer.encode_offset_table(table).context(WriteValue)?;
             }
             DataToken::ItemValue(data) => {
                 self.printer.write_bytes(&data).context(WriteValue)?;
