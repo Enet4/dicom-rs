@@ -171,7 +171,7 @@ where
     Ok(())
 }
 
-fn dump_element<W, D>(
+pub fn dump_element<W, D>(
     to: &mut W,
     elem: &InMemElement<D>,
     width: u32,
