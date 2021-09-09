@@ -104,7 +104,7 @@ pub struct DicomSquare {
 }
 
 impl DicomSquare {
-    
+
     pub fn new(uri: &str, local_storage: &str, timeout: u64) -> Self {
         Self {
             uri: uri.into(),
@@ -264,7 +264,7 @@ impl DicomSquare {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    /* use std::path::PathBuf;
 
     use crate::{DicomResponse, DicomSquare, Error, Qido, decode_response_item};
     use serde_json::{json, Value};
@@ -447,7 +447,7 @@ mod tests {
         path.push("1.3.6.1.4.1.14301.77.4.14093378.1");
         path.push("1.3.12.2.1107.5.2.19.45188.2019121218553837036261998.0.0.0");
         path.push("1.3.12.2.1107.5.2.19.45188.2019121219011265545063168.dcm");
-    
+
         let cli = DicomSquare::new("http://localhost:8042/dicom-web", "", 5);
         match cli.store(&path) {
             Ok(resp) => {
@@ -474,5 +474,5 @@ mod tests {
                 panic!("unexpected error: {:#?}", err);
             }
         }
-    }
+    } */
 }
