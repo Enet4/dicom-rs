@@ -70,6 +70,23 @@ pub fn dump_file(obj: DefaultDicomObject, width: u32, no_text_limit: bool) -> Io
     Ok(())
 }
 
+pub fn dump_object(obj: &InMemDicomObject<StandardDataDictionary>, no_text_limit: bool) -> IoResult<()> {
+    let mut to = stdout();
+
+    let width = if let Some((width, _)) = term_size::dimensions() {
+        width as u32
+    } else {
+        120
+    };
+
+    println!("{:-<65}", "");
+
+    dump(&mut to, &obj, width, 0, no_text_limit)?;
+
+    Ok(())
+
+}
+
 #[inline]
 fn whitespace_or_null(c: char) -> bool {
     c.is_whitespace() || c == '\0'
