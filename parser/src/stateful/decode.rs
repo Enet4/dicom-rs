@@ -1055,11 +1055,12 @@ fn trim_trail_empty_bytes(mut x: &[u8]) -> &[u8] {
 #[cfg(test)]
 mod tests {
     use super::{StatefulDecode, StatefulDecoder};
-    use dicom_core::header::{DataElementHeader, HasLength, Header, Length};
+    use dicom_core::header::{DataElementHeader, HasLength, Header, Length, SequenceItemHeader};
     use dicom_core::{Tag, VR};
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
     use dicom_encoding::text::{DefaultCharacterSetCodec, DynamicTextCodec};
     use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
+    use dicom_encoding::transfer_syntax::implicit_le::ImplicitVRLittleEndianDecoder;
     use std::io::{Cursor, Seek, SeekFrom};
 
     // manually crafting some DICOM data elements
@@ -1262,5 +1263,210 @@ mod tests {
 
             assert_eq!(decoder.position(), 128 + 8 + 26 + 8 + 20 + 20);
         }
+    }
+
+    #[test]
+    fn decode_nested_datasets() {
+        const RAW: &'static [u8; 138] = &[
+            // 0: (2001, 9000) private sequence
+            0x01, 0x20, 0x00, 0x90, //
+            // length: undefined
+            0xFF, 0xFF, 0xFF, 0xFF, //
+            // 8: Item start
+            0xFE, 0xFF, 0x00, 0xE0, //
+            // Item length explicit (114)
+            0x72, 0x00, 0x00, 0x00, //
+            // 16: (0008,1115) ReferencedSeriesSequence
+            0x08, 0x00, 0x15, 0x11, //
+            // length: undefined
+            0xFF, 0xFF, 0xFF, 0xFF, //
+            // 24: Item start
+            0xFE, 0xFF, 0x00, 0xE0, //
+            // Item length undefined
+            0xFF, 0xFF, 0xFF, 0xFF, //
+            // 32: (0008,1140) ReferencedImageSequence
+            0x08, 0x00, 0x40, 0x11, //
+            // length: undefined
+            0xFF, 0xFF, 0xFF, 0xFF, //
+            // 40: Item start
+            0xFE, 0xFF, 0x00, 0xE0, //
+            // Item length undefined
+            0xFF, 0xFF, 0xFF, 0xFF, //
+            // 48: (0008,1150) ReferencedSOPClassUID
+            0x08, 0x00, 0x50, 0x11, //
+            // length: 26
+            0x1a, 0x00, 0x00, 0x00, //
+            // Value: "1.2.840.10008.5.1.4.1.1.7\0" (SecondaryCaptureImageStorage)
+            b'1', b'.', b'2', b'.', b'8', b'4', b'0', b'.', b'1', b'0', b'0', b'0', b'8', b'.',
+            b'5', b'.', b'1', b'.', b'4', b'.', b'1', b'.', b'1', b'.', b'7', b'\0',
+            // 82: Item End (ReferencedImageSequence)
+            0xFE, 0xFF, 0x0D, 0xE0, //
+            0x00, 0x00, 0x00, 0x00, //
+            // 90: Sequence End (ReferencedImageSequence)
+            0xFE, 0xFF, 0xDD, 0xE0, //
+            0x00, 0x00, 0x00, 0x00, //
+            // 98: Item End (ReferencedSeriesSequence)
+            0xFE, 0xFF, 0x0D, 0xE0, //
+            0x00, 0x00, 0x00, 0x00, //
+            // 106: Sequence End (ReferencedSeriesSequence)
+            0xFE, 0xFF, 0xDD, 0xE0, //
+            0x00, 0x00, 0x00, 0x00, //
+            // 114: (2050,0020) PresentationLUTShape (CS)
+            0x50, 0x20, 0x20, 0x00, //
+            // length: 8
+            0x08, 0x00, 0x00, 0x00, //
+            b'I', b'D', b'E', b'N', b'T', b'I', b'T', b'Y', // 130: Sequence end
+            0xFE, 0xFF, 0xDD, 0xE0, //
+            0x00, 0x00, 0x00, 0x00, //
+        ];
+
+        let mut cursor = &RAW[..];
+        let mut decoder = StatefulDecoder::new(
+            &mut cursor,
+            ImplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            Box::new(DefaultCharacterSetCodec) as DynamicTextCodec,
+        );
+
+        is_stateful_decoder(&decoder);
+
+        let header = decoder
+            .decode_header()
+            .expect("should find an element header");
+        assert_eq!(header.tag(), Tag(0x2001, 0x9000));
+        assert_eq!(header.vr(), VR::UN);
+        assert!(header.length().is_undefined());
+
+        assert_eq!(decoder.position(), 8);
+
+        let item_header = decoder
+            .decode_item_header()
+            .expect("should find an item header");
+        assert_eq!(item_header, SequenceItemHeader::Item { len: Length(114) });
+
+        assert_eq!(decoder.position(), 16);
+
+        // enter ReferencedSeriesSequence
+        let header = decoder
+            .decode_header()
+            .expect("should find an element header");
+        assert_eq!(header.tag(), Tag(0x0008, 0x1115));
+        assert_eq!(header.vr(), VR::SQ);
+        assert!(header.length().is_undefined());
+
+        assert_eq!(decoder.position(), 24);
+
+        let item_header = decoder
+            .decode_item_header()
+            .expect("should find an item header (ReferencedSeriesSequence)");
+        assert!(matches!(
+            item_header,
+            SequenceItemHeader::Item {
+                len,
+            } if len.is_undefined()
+        ));
+
+        assert_eq!(decoder.position(), 32);
+
+        // enter ReferencedImageSequence
+        let header = decoder
+            .decode_header()
+            .expect("should find an element header");
+        assert_eq!(header.tag(), Tag(0x0008, 0x1140));
+        assert_eq!(header.vr(), VR::SQ);
+        assert!(header.length().is_undefined());
+
+        assert_eq!(decoder.position(), 40);
+
+        let item_header = decoder
+            .decode_item_header()
+            .expect("should find an item header (ReferencedImageSequence)");
+        assert!(matches!(
+            item_header,
+            SequenceItemHeader::Item {
+                len,
+            } if len.is_undefined()
+        ));
+
+        assert_eq!(decoder.position(), 48);
+
+        // read ReferencedSOPClassUID
+
+        let header = decoder
+            .decode_header()
+            .expect("should find an element header");
+        assert_eq!(header.tag(), Tag(0x0008, 0x1150));
+        assert_eq!(header.vr(), VR::UI);
+        assert_eq!(header.length(), Length(26));
+
+        assert_eq!(decoder.position(), 56);
+
+        let value = decoder
+            .read_value(&header)
+            .expect("should find a value after element header");
+        assert_eq!(value.to_clean_str(), "1.2.840.10008.5.1.4.1.1.7");
+
+        assert_eq!(decoder.position(), 82);
+
+        // exit ReferencedImageSequence
+
+        let item_header = decoder
+            .decode_item_header()
+            .expect("should find item delimiter");
+        assert_eq!(item_header, SequenceItemHeader::ItemDelimiter);
+
+        assert_eq!(decoder.position(), 90);
+
+        let item_header = decoder
+            .decode_item_header()
+            .expect("should find sequence delimiter");
+        assert_eq!(item_header, SequenceItemHeader::SequenceDelimiter);
+
+        assert_eq!(decoder.position(), 98);
+
+        // exit ReferencedSeriesSequence
+
+        let item_header = decoder
+            .decode_item_header()
+            .expect("should find item delimiter");
+        assert_eq!(item_header, SequenceItemHeader::ItemDelimiter);
+
+        assert_eq!(decoder.position(), 106);
+
+        let item_header = decoder
+            .decode_item_header()
+            .expect("should find sequence delimiter");
+        assert_eq!(item_header, SequenceItemHeader::SequenceDelimiter);
+
+        assert_eq!(decoder.position(), 114);
+
+        // read PresentationLUTShape
+
+        let header = decoder
+            .decode_header()
+            .expect("should find an element header");
+        assert_eq!(header.tag(), Tag(0x2050, 0x0020));
+        assert_eq!(header.vr(), VR::CS);
+        assert_eq!(header.length(), Length(8));
+
+        assert_eq!(decoder.position(), 122);
+
+        let value = decoder
+            .read_value(&header)
+            .expect("value after element header");
+        assert_eq!(value.multiplicity(), 1);
+        assert_eq!(value.to_str(), "IDENTITY");
+
+        assert_eq!(decoder.position(), 130);
+
+        // exit private sequence
+        // (no item delimiter because length is explicit)
+
+        let item_header = decoder
+            .decode_item_header()
+            .expect("should find an item header");
+        assert_eq!(item_header, SequenceItemHeader::SequenceDelimiter);
+
+        assert_eq!(decoder.position(), 138);
     }
 }

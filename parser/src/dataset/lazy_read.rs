@@ -279,12 +279,16 @@ where
                             // closed an item
                             self.seq_delimiters.pop();
                             self.in_sequence = true;
+                            // sequences can end after an item delimiter
+                            self.delimiter_check_pending = true;
                             Some(Ok(LazyDataToken::ItemEnd))
                         }
                         SequenceItemHeader::SequenceDelimiter => {
                             // closed a sequence
                             self.seq_delimiters.pop();
                             self.in_sequence = false;
+                            // items can end after a nested sequence ends
+                            self.delimiter_check_pending = true;
                             Some(Ok(LazyDataToken::SequenceEnd))
                         }
                     }
@@ -383,6 +387,10 @@ where
                     ..
                 }) => {
                     self.in_sequence = true;
+                    // pop item delimiter
+                    self.seq_delimiters.pop();
+                    // sequences can end after this token
+                    self.delimiter_check_pending = true;
                     Some(Ok(LazyDataToken::ItemEnd))
                 }
                 Ok(header) if header.is_encapsulated_pixeldata() => {
@@ -713,6 +721,103 @@ mod tests {
         ];
 
         validate_dataset_reader_explicit_vr(DATA, ground_truth);
+    }
+
+    #[test]
+    fn lazy_read_dataset_in_dataset() {
+
+        #[rustfmt::skip]
+        const DATA: &'static [u8; 138] = &[
+            // 0: (2001, 9000) private sequence
+            0x01, 0x20, 0x00, 0x90, //
+            // length: undefined
+            0xFF, 0xFF, 0xFF, 0xFF, //
+            // 8: Item start
+            0xFE, 0xFF, 0x00, 0xE0, //
+            // Item length explicit (114 bytes)
+            0x72, 0x00, 0x00, 0x00, //
+            // 16: (0008,1115) ReferencedSeriesSequence
+            0x08, 0x00, 0x15, 0x11, //
+            // length: undefined
+            0xFF, 0xFF, 0xFF, 0xFF, //
+            // 24: Item start
+            0xFE, 0xFF, 0x00, 0xE0, //
+            // Item length undefined
+            0xFF, 0xFF, 0xFF, 0xFF, //
+            // 32: (0008,1140) ReferencedImageSequence
+            0x08, 0x00, 0x40, 0x11, //
+            // length: undefined
+            0xFF, 0xFF, 0xFF, 0xFF, //
+            // 40: Item start
+            0xFE, 0xFF, 0x00, 0xE0, //
+            // Item length undefined
+            0xFF, 0xFF, 0xFF, 0xFF, //
+            // 48: (0008,1150) ReferencedSOPClassUID
+            0x08, 0x00, 0x50, 0x11, //
+            // length: 26
+            0x1a, 0x00, 0x00, 0x00, //
+            // Value: "1.2.840.10008.5.1.4.1.1.7\0" (SecondaryCaptureImageStorage)
+            b'1', b'.', b'2', b'.', b'8', b'4', b'0', b'.', b'1', b'0', b'0', b'0', b'8', b'.',
+            b'5', b'.', b'1', b'.', b'4', b'.', b'1', b'.', b'1', b'.', b'7', b'\0',
+            // 82: Item End (ReferencedImageSequence)
+            0xFE, 0xFF, 0x0D, 0xE0, //
+            0x00, 0x00, 0x00, 0x00, //
+            // 90: Sequence End (ReferencedImageSequence)
+            0xFE, 0xFF, 0xDD, 0xE0, //
+            0x00, 0x00, 0x00, 0x00, //
+            // 98: Item End (ReferencedSeriesSequence)
+            0xFE, 0xFF, 0x0D, 0xE0, //
+            0x00, 0x00, 0x00, 0x00, //
+            // 106: Sequence End (ReferencedSeriesSequence)
+            0xFE, 0xFF, 0xDD, 0xE0, //
+            0x00, 0x00, 0x00, 0x00, //
+            // 114: (2050,0020) PresentationLUTShape (CS)
+            0x50, 0x20, 0x20, 0x00, //
+            // length: 8
+            0x08, 0x00, 0x00, 0x00, //
+            b'I', b'D', b'E', b'N', b'T', b'I', b'T', b'Y', //
+            // 130: Sequence end
+            0xFE, 0xFF, 0xDD, 0xE0, //
+            0x00, 0x00, 0x00, 0x00, //
+        ];
+
+        let ground_truth = vec![
+            DataToken::SequenceStart {
+                tag: Tag(0x2001, 0x9000),
+                len: Length::UNDEFINED,
+            },
+            DataToken::ItemStart { len: Length(114) },
+            DataToken::SequenceStart {
+                tag: Tag(0x0008, 0x1115),
+                len: Length::UNDEFINED,
+            },
+            DataToken::ItemStart { len: Length::UNDEFINED },
+            DataToken::SequenceStart {
+                tag: Tag(0x0008, 0x1140),
+                len: Length::UNDEFINED,
+            },
+            DataToken::ItemStart { len: Length::UNDEFINED },
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0008, 0x1150),
+                vr: VR::UI,
+                len: Length(26),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::from("1.2.840.10008.5.1.4.1.1.7\0")),
+            DataToken::ItemEnd,
+            DataToken::SequenceEnd,
+            DataToken::ItemEnd,
+            DataToken::SequenceEnd,
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x2050, 0x0020),
+                vr: VR::CS,
+                len: Length(8),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::from("IDENTITY")),
+            DataToken::ItemEnd, // inserted automatically
+            DataToken::SequenceEnd,
+        ];
+
+        validate_dataset_reader_implicit_vr(DATA, ground_truth);
     }
 
     #[test]
