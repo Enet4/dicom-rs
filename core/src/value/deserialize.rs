@@ -1,7 +1,7 @@
 //! Parsing of primitive values
 use crate::value::partial::{
-    check_component, DateComponent, Error as PartialValuesError, PartialDate, PartialDateTime,
-    PartialTime,
+    check_component, DateComponent, Error as PartialValuesError, DicomDate, DicomDateTime,
+    DicomTime,
 };
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
@@ -92,29 +92,29 @@ pub fn parse_date(buf: &[u8]) -> Result<NaiveDate> {
     }
 }
 
-/** Decode a single DICOM Date (DA) into a `PartialDate` value.
+/** Decode a single DICOM Date (DA) into a `DicomDate` value.
  * Unlike `parse_date`, this method accepts incomplete dates such as YYYY and YYYYMM
  * The precision of the value is stored.
  */
-pub fn parse_date_partial(buf: &[u8]) -> Result<(PartialDate, &[u8])> {
+pub fn parse_date_partial(buf: &[u8]) -> Result<(DicomDate, &[u8])> {
     if buf.len() < 4 {
         UnexpectedEndOfElement.fail()
     } else {
         let year: u16 = read_number(&buf[0..4])?;
         let buf = &buf[4..];
         if buf.len() < 2 {
-            Ok((PartialDate::from_y(year).context(PartialValue)?, buf))
+            Ok((DicomDate::from_y(year).context(PartialValue)?, buf))
         } else {
             let month: Result<u8> = read_number(&buf[0..2]);
             // month failed so return year
             if month.is_err() {
-                return Ok((PartialDate::from_y(year).context(PartialValue)?, buf));
+                return Ok((DicomDate::from_y(year).context(PartialValue)?, buf));
             }
             let month = month.unwrap();
             let buf = &buf[2..];
             if buf.len() < 2 {
                 Ok((
-                    PartialDate::from_ym(year, month).context(PartialValue)?,
+                    DicomDate::from_ym(year, month).context(PartialValue)?,
                     buf,
                 ))
             } else {
@@ -122,14 +122,14 @@ pub fn parse_date_partial(buf: &[u8]) -> Result<(PartialDate, &[u8])> {
                 // day failed so return month
                 if day.is_err() {
                     return Ok((
-                        PartialDate::from_ym(year, month).context(PartialValue)?,
+                        DicomDate::from_ym(year, month).context(PartialValue)?,
                         buf,
                     ));
                 }
                 let day = day.unwrap();
                 let buf = &buf[2..];
                 Ok((
-                    PartialDate::from_ymd(year, month, day).context(PartialValue)?,
+                    DicomDate::from_ymd(year, month, day).context(PartialValue)?,
                     buf,
                 ))
             }
@@ -137,29 +137,29 @@ pub fn parse_date_partial(buf: &[u8]) -> Result<(PartialDate, &[u8])> {
     }
 }
 
-/** Decode a single DICOM Time (TM) into a `PartialTime` value.
+/** Decode a single DICOM Time (TM) into a `DicomTime` value.
  * Unlike `parse_time`, this method allows for missing Time components.
  * The precision of the second fraction is stored and can be returned as a range later.
  */
-pub fn parse_time_partial(buf: &[u8]) -> Result<(PartialTime, &[u8])> {
+pub fn parse_time_partial(buf: &[u8]) -> Result<(DicomTime, &[u8])> {
     if buf.len() < 2 {
         UnexpectedEndOfElement.fail()
     } else {
         let hour: u8 = read_number(&buf[0..2])?;
         let buf = &buf[2..];
         if buf.len() < 2 {
-            Ok((PartialTime::from_h(hour).context(PartialValue)?, buf))
+            Ok((DicomTime::from_h(hour).context(PartialValue)?, buf))
         } else {
             let minute: Result<u8> = read_number(&buf[0..2]);
             // minute failed so return hour
             if minute.is_err() {
-                return Ok((PartialTime::from_h(hour).context(PartialValue)?, buf));
+                return Ok((DicomTime::from_h(hour).context(PartialValue)?, buf));
             }
             let minute = minute.unwrap();
             let buf = &buf[2..];
             if buf.len() < 2 {
                 Ok((
-                    PartialTime::from_hm(hour, minute).context(PartialValue)?,
+                    DicomTime::from_hm(hour, minute).context(PartialValue)?,
                     buf,
                 ))
             } else {
@@ -167,7 +167,7 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(PartialTime, &[u8])> {
                 // second failed so return minute
                 if second.is_err() {
                     return Ok((
-                        PartialTime::from_hm(hour, minute).context(PartialValue)?,
+                        DicomTime::from_hm(hour, minute).context(PartialValue)?,
                         buf,
                     ));
                 }
@@ -183,13 +183,13 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(PartialTime, &[u8])> {
                     let buf = &buf[n..];
                     let fp = u8::try_from(n).unwrap();
                     Ok((
-                        PartialTime::from_hmsf(hour, minute, second, fraction, fp)
+                        DicomTime::from_hmsf(hour, minute, second, fraction, fp)
                             .context(PartialValue)?,
                         buf,
                     ))
                 } else {
                     Ok((
-                        PartialTime::from_hms(hour, minute, second).context(PartialValue)?,
+                        DicomTime::from_hms(hour, minute, second).context(PartialValue)?,
                         buf,
                     ))
                 }
@@ -392,11 +392,11 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
         .context(InvalidDateTimeZone)
 }
 
-/** Decode a single DICOM DateTime (DT) into a `PartialDateTime` value.
+/** Decode a single DICOM DateTime (DT) into a `DicomDateTime` value.
  * Unlike `parse_datetime`, this method allows for missing Date / Time components.
  * The precision of the second fraction is stored and can be returned as a range later.
  */
-pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<PartialDateTime> {
+pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DicomDateTime> {
     let (date, rest) = parse_date_partial(buf)?;
 
     let (time, buf) = match parse_time_partial(rest) {
@@ -423,10 +423,10 @@ pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<
     };
 
     if time.is_some() {
-        PartialDateTime::from_partial_date_and_time(date, time.unwrap(), offset)
+        DicomDateTime::from_partial_date_and_time(date, time.unwrap(), offset)
             .context(InvalidDateTime)
     } else {
-        Ok(PartialDateTime::from_partial_date(date, offset))
+        Ok(DicomDateTime::from_partial_date(date, offset))
     }
 }
 
@@ -538,51 +538,51 @@ mod tests {
     fn test_parse_date_partial() {
         assert_eq!(
             parse_date_partial(b"20180101").unwrap(),
-            (PartialDate::Day(2018, 1, 1), &[][..])
+            (DicomDate::Day(2018, 1, 1), &[][..])
         );
         assert_eq!(
             parse_date_partial(b"19711231").unwrap(),
-            (PartialDate::Day(1971, 12, 31), &[][..])
+            (DicomDate::Day(1971, 12, 31), &[][..])
         );
         assert_eq!(
             parse_date_partial(b"20180101xxxx").unwrap(),
-            (PartialDate::Day(2018, 1, 1), &b"xxxx"[..])
+            (DicomDate::Day(2018, 1, 1), &b"xxxx"[..])
         );
         assert_eq!(
             parse_date_partial(b"201801xxxx").unwrap(),
-            (PartialDate::Month(2018, 1), &b"xxxx"[..])
+            (DicomDate::Month(2018, 1), &b"xxxx"[..])
         );
         assert_eq!(
             parse_date_partial(b"2018xxxx").unwrap(),
-            (PartialDate::Year(2018), &b"xxxx"[..])
+            (DicomDate::Year(2018), &b"xxxx"[..])
         );
         assert_eq!(
             parse_date_partial(b"19020404-0101").unwrap(),
-            (PartialDate::Day(1902, 4, 4), &b"-0101"[..][..])
+            (DicomDate::Day(1902, 4, 4), &b"-0101"[..][..])
         );
         assert_eq!(
             parse_date_partial(b"201811").unwrap(),
-            (PartialDate::Month(2018, 11), &[][..])
+            (DicomDate::Month(2018, 11), &[][..])
         );
         assert_eq!(
             parse_date_partial(b"1914").unwrap(),
-            (PartialDate::Year(1914), &[][..])
+            (DicomDate::Year(1914), &[][..])
         );
 
         assert_eq!(
             parse_date_partial(b"19140").unwrap(),
-            (PartialDate::Year(1914), &b"0"[..])
+            (DicomDate::Year(1914), &b"0"[..])
         );
 
         assert_eq!(
             parse_date_partial(b"1914121").unwrap(),
-            (PartialDate::Month(1914, 12), &b"1"[..])
+            (DicomDate::Month(1914, 12), &b"1"[..])
         );
 
         // does not check for leap year
         assert_eq!(
             parse_date_partial(b"20210229").unwrap(),
-            (PartialDate::Day(2021, 2, 29), &[][..])
+            (DicomDate::Day(2021, 2, 29), &[][..])
         );
 
         assert!(matches!(
@@ -730,55 +730,55 @@ mod tests {
     fn test_parse_time_partial() {
         assert_eq!(
             parse_time_partial(b"10").unwrap(),
-            (PartialTime::Hour(10), &[][..])
+            (DicomTime::Hour(10), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"101").unwrap(),
-            (PartialTime::Hour(10), &b"1"[..])
+            (DicomTime::Hour(10), &b"1"[..])
         );
         assert_eq!(
             parse_time_partial(b"0755").unwrap(),
-            (PartialTime::Minute(7, 55), &[][..])
+            (DicomTime::Minute(7, 55), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"075500").unwrap(),
-            (PartialTime::Second(7, 55, 0), &[][..])
+            (DicomTime::Second(7, 55, 0), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"065003").unwrap(),
-            (PartialTime::Second(6, 50, 3), &[][..])
+            (DicomTime::Second(6, 50, 3), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"075501.5").unwrap(),
-            (PartialTime::Fraction(7, 55, 1, 5, 1), &[][..])
+            (DicomTime::Fraction(7, 55, 1, 5, 1), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"075501.123").unwrap(),
-            (PartialTime::Fraction(7, 55, 1, 123, 3), &[][..])
+            (DicomTime::Fraction(7, 55, 1, 123, 3), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"10+0101").unwrap(),
-            (PartialTime::Hour(10), &b"+0101"[..])
+            (DicomTime::Hour(10), &b"+0101"[..])
         );
         assert_eq!(
             parse_time_partial(b"1030+0101").unwrap(),
-            (PartialTime::Minute(10, 30), &b"+0101"[..])
+            (DicomTime::Minute(10, 30), &b"+0101"[..])
         );
         assert_eq!(
             parse_time_partial(b"075501.123+0101").unwrap(),
-            (PartialTime::Fraction(7, 55, 1, 123, 3), &b"+0101"[..])
+            (DicomTime::Fraction(7, 55, 1, 123, 3), &b"+0101"[..])
         );
         assert_eq!(
             parse_time_partial(b"075501+0101").unwrap(),
-            (PartialTime::Second(7, 55, 1), &b"+0101"[..])
+            (DicomTime::Second(7, 55, 1), &b"+0101"[..])
         );
         assert_eq!(
             parse_time_partial(b"075501.999999").unwrap(),
-            (PartialTime::Fraction(7, 55, 1, 999_999, 6), &[][..])
+            (DicomTime::Fraction(7, 55, 1, 999_999, 6), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"075501.9999994").unwrap(),
-            (PartialTime::Fraction(7, 55, 1, 999_999, 6), &b"4"[..])
+            (DicomTime::Fraction(7, 55, 1, 999_999, 6), &b"4"[..])
         );
         assert!(matches!(
             parse_time_partial(b"24"),
@@ -953,83 +953,83 @@ mod tests {
         let default_offset = FixedOffset::east(0);
         assert_eq!(
             parse_datetime_partial(b"20171130101010.204", default_offset).unwrap(),
-            PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ymd(2017, 11, 30).unwrap(),
-                PartialTime::from_hmsf(10, 10, 10, 204, 3).unwrap(),
+            DicomDateTime::from_partial_date_and_time(
+                DicomDate::from_ymd(2017, 11, 30).unwrap(),
+                DicomTime::from_hmsf(10, 10, 10, 204, 3).unwrap(),
                 default_offset
             )
             .unwrap()
         );
         assert_eq!(
             parse_datetime_partial(b"20171130101010", default_offset).unwrap(),
-            PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ymd(2017, 11, 30).unwrap(),
-                PartialTime::from_hms(10, 10, 10).unwrap(),
+            DicomDateTime::from_partial_date_and_time(
+                DicomDate::from_ymd(2017, 11, 30).unwrap(),
+                DicomTime::from_hms(10, 10, 10).unwrap(),
                 default_offset
             )
             .unwrap()
         );
         assert_eq!(
             parse_datetime_partial(b"2017113023", default_offset).unwrap(),
-            PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ymd(2017, 11, 30).unwrap(),
-                PartialTime::from_h(23).unwrap(),
+            DicomDateTime::from_partial_date_and_time(
+                DicomDate::from_ymd(2017, 11, 30).unwrap(),
+                DicomTime::from_h(23).unwrap(),
                 default_offset
             )
             .unwrap()
         );
         assert_eq!(
             parse_datetime_partial(b"201711", default_offset).unwrap(),
-            PartialDateTime::from_partial_date(
-                PartialDate::from_ym(2017, 11).unwrap(),
+            DicomDateTime::from_partial_date(
+                DicomDate::from_ym(2017, 11).unwrap(),
                 default_offset
             )
         );
         assert_eq!(
             parse_datetime_partial(b"20171130101010.204+0535", default_offset).unwrap(),
-            PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ymd(2017, 11, 30).unwrap(),
-                PartialTime::from_hmsf(10, 10, 10, 204, 3).unwrap(),
+            DicomDateTime::from_partial_date_and_time(
+                DicomDate::from_ymd(2017, 11, 30).unwrap(),
+                DicomTime::from_hmsf(10, 10, 10, 204, 3).unwrap(),
                 FixedOffset::east(5 * 3600 + 35 * 60)
             )
             .unwrap()
         );
         assert_eq!(
             parse_datetime_partial(b"20171130101010+0535", default_offset).unwrap(),
-            PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ymd(2017, 11, 30).unwrap(),
-                PartialTime::from_hms(10, 10, 10).unwrap(),
+            DicomDateTime::from_partial_date_and_time(
+                DicomDate::from_ymd(2017, 11, 30).unwrap(),
+                DicomTime::from_hms(10, 10, 10).unwrap(),
                 FixedOffset::east(5 * 3600 + 35 * 60)
             )
             .unwrap()
         );
         assert_eq!(
             parse_datetime_partial(b"2017113010+0535", default_offset).unwrap(),
-            PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ymd(2017, 11, 30).unwrap(),
-                PartialTime::from_h(10).unwrap(),
+            DicomDateTime::from_partial_date_and_time(
+                DicomDate::from_ymd(2017, 11, 30).unwrap(),
+                DicomTime::from_h(10).unwrap(),
                 FixedOffset::east(5 * 3600 + 35 * 60)
             )
             .unwrap()
         );
         assert_eq!(
             parse_datetime_partial(b"20171130-0135", default_offset).unwrap(),
-            PartialDateTime::from_partial_date(
-                PartialDate::from_ymd(2017, 11, 30).unwrap(),
+            DicomDateTime::from_partial_date(
+                DicomDate::from_ymd(2017, 11, 30).unwrap(),
                 FixedOffset::west(1 * 3600 + 35 * 60)
             )
         );
         assert_eq!(
             parse_datetime_partial(b"201711-0135", default_offset).unwrap(),
-            PartialDateTime::from_partial_date(
-                PartialDate::from_ym(2017, 11).unwrap(),
+            DicomDateTime::from_partial_date(
+                DicomDate::from_ym(2017, 11).unwrap(),
                 FixedOffset::west(1 * 3600 + 35 * 60)
             )
         );
         assert_eq!(
             parse_datetime_partial(b"2017-0135", default_offset).unwrap(),
-            PartialDateTime::from_partial_date(
-                PartialDate::from_y(2017).unwrap(),
+            DicomDateTime::from_partial_date(
+                DicomDate::from_y(2017).unwrap(),
                 FixedOffset::west(1 * 3600 + 35 * 60)
             )
         );

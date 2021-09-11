@@ -13,7 +13,7 @@ pub enum Error {
     InvalidTime { backtrace: Backtrace },
     #[snafu(display("DateTime is invalid."))]
     InvalidDateTime { backtrace: Backtrace },
-    #[snafu(display("To combine a PartialDate with a PartialTime value, the PartialDate has to be precise. Precision is: '{:?}'.", value))]
+    #[snafu(display("To combine a DicomDate with a DicomTime value, the DicomDate has to be precise. Precision is: '{:?}'.", value))]
     DateTimeFromPartials {
         value: DateComponent,
         backtrace: Backtrace,
@@ -69,7 +69,7 @@ pub enum DateComponent {
  * where some time components may be missing.
  */
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PartialDate {
+pub enum DicomDate {
     Year(u16),
     Month(u16, u8),
     Day(u16, u8, u8),
@@ -80,7 +80,7 @@ pub enum PartialDate {
  * where some time components may be missing.
  */
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PartialTime {
+pub enum DicomTime {
     Hour(u8),
     Minute(u8, u8),
     Second(u8, u8, u8),
@@ -92,9 +92,9 @@ pub enum PartialTime {
  * where some time components may be missing.
  */
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub struct PartialDateTime {
-    date: PartialDate,
-    time: Option<PartialTime>,
+pub struct DicomDateTime {
+    date: DicomDate,
+    time: Option<DicomTime>,
     offset: FixedOffset,
 }
 
@@ -129,69 +129,69 @@ where
     }
 }
 
-impl PartialDate {
+impl DicomDate {
     /**
-     * Constructs a new `PartialDate` with year precision
+     * Constructs a new `DicomDate` with year precision
      * (YYYY)
      */
-    pub fn from_y(year: u16) -> Result<PartialDate> {
+    pub fn from_y(year: u16) -> Result<DicomDate> {
         check_component(DateComponent::Year, &year)?;
-        Ok(PartialDate::Year(year))
+        Ok(DicomDate::Year(year))
     }
     /**
-     * Constructs a new `PartialDate` with year and month precision
+     * Constructs a new `DicomDate` with year and month precision
      * (YYYYMM)
      */
-    pub fn from_ym(year: u16, month: u8) -> Result<PartialDate> {
+    pub fn from_ym(year: u16, month: u8) -> Result<DicomDate> {
         check_component(DateComponent::Year, &year)?;
         check_component(DateComponent::Month, &month)?;
-        Ok(PartialDate::Month(year, month))
+        Ok(DicomDate::Month(year, month))
     }
     /**
-     * Constructs a new `PartialDate` with a year, month and day precision
+     * Constructs a new `DicomDate` with a year, month and day precision
      * (YYYYMMDD)
      */
-    pub fn from_ymd(year: u16, month: u8, day: u8) -> Result<PartialDate> {
+    pub fn from_ymd(year: u16, month: u8, day: u8) -> Result<DicomDate> {
         check_component(DateComponent::Year, &year)?;
         check_component(DateComponent::Month, &month)?;
         check_component(DateComponent::Day, &day)?;
-        Ok(PartialDate::Day(year, month, day))
+        Ok(DicomDate::Day(year, month, day))
     }
 }
 
-impl PartialTime {
+impl DicomTime {
     /**
-     * Constructs a new `PartialTime` with hour precision
+     * Constructs a new `DicomTime` with hour precision
      * (HH)
      */
-    pub fn from_h(hour: u8) -> Result<PartialTime> {
+    pub fn from_h(hour: u8) -> Result<DicomTime> {
         check_component(DateComponent::Hour, &hour)?;
-        Ok(PartialTime::Hour(hour))
+        Ok(DicomTime::Hour(hour))
     }
 
     /**
-     * Constructs a new `PartialTime` with hour and minute precision
+     * Constructs a new `DicomTime` with hour and minute precision
      * (HHMM)
      */
-    pub fn from_hm(hour: u8, minute: u8) -> Result<PartialTime> {
+    pub fn from_hm(hour: u8, minute: u8) -> Result<DicomTime> {
         check_component(DateComponent::Hour, &hour)?;
         check_component(DateComponent::Minute, &minute)?;
-        Ok(PartialTime::Minute(hour, minute))
+        Ok(DicomTime::Minute(hour, minute))
     }
 
     /**
-     * Constructs a new `PartialTime` with hour, minute and second precision
+     * Constructs a new `DicomTime` with hour, minute and second precision
      * (HHMMSS)
      */
-    pub fn from_hms(hour: u8, minute: u8, second: u8) -> Result<PartialTime> {
+    pub fn from_hms(hour: u8, minute: u8, second: u8) -> Result<DicomTime> {
         check_component(DateComponent::Hour, &hour)?;
         check_component(DateComponent::Minute, &minute)?;
         check_component(DateComponent::Second, &second)?;
-        Ok(PartialTime::Second(hour, minute, second))
+        Ok(DicomTime::Second(hour, minute, second))
     }
 
     /**
-     * Constructs a new `PartialTime` with hour, minute, second and second fraction
+     * Constructs a new `DicomTime` with hour, minute, second and second fraction
      * precision (HHMMSS.FFFFFF).
      */
     pub fn from_hmsf(
@@ -200,7 +200,7 @@ impl PartialTime {
         second: u8,
         fraction: u32,
         frac_precision: u8,
-    ) -> Result<PartialTime> {
+    ) -> Result<DicomTime> {
         if !(1..=6).contains(&frac_precision) {
             return FractionPrecisionRange {
                 value: frac_precision,
@@ -220,7 +220,7 @@ impl PartialTime {
         check_component(DateComponent::Second, &second)?;
         let f: u32 = fraction * u32::pow(10, 6 - frac_precision as u32);
         check_component(DateComponent::Fraction, &f)?;
-        Ok(PartialTime::Fraction(
+        Ok(DicomTime::Fraction(
             hour,
             minute,
             second,
@@ -230,12 +230,12 @@ impl PartialTime {
     }
 }
 
-impl PartialDateTime {
+impl DicomDateTime {
     /**
-     * Constructs a new `PartialDateTime` from a `PartialDate` and a given `FixedOffset`.
+     * Constructs a new `DicomDateTime` from a `DicomDate` and a given `FixedOffset`.
      */
-    pub fn from_partial_date(date: PartialDate, offset: FixedOffset) -> PartialDateTime {
-        PartialDateTime {
+    pub fn from_partial_date(date: DicomDate, offset: FixedOffset) -> DicomDateTime {
+        DicomDateTime {
             date,
             time: None,
             offset,
@@ -243,16 +243,16 @@ impl PartialDateTime {
     }
 
     /**
-     * Constructs a new `PartialDateTime` from a `PartialDate`, `PartialTime` and a given `FixedOffset`,
-     * providing that `PartialDate.is_precise() == true`.
+     * Constructs a new `DicomDateTime` from a `DicomDate`, `DicomTime` and a given `FixedOffset`,
+     * providing that `DicomDate.is_precise() == true`.
      */
     pub fn from_partial_date_and_time(
-        date: PartialDate,
-        time: PartialTime,
+        date: DicomDate,
+        time: DicomTime,
         offset: FixedOffset,
-    ) -> Result<PartialDateTime> {
+    ) -> Result<DicomDateTime> {
         if date.is_precise() {
-            Ok(PartialDateTime {
+            Ok(DicomDateTime {
                 date,
                 time: Some(time),
                 offset,
@@ -275,28 +275,28 @@ pub trait Precision {
     fn precision(&self) -> DateComponent;
 }
 
-impl Precision for PartialDate {
+impl Precision for DicomDate {
     fn precision(&self) -> DateComponent {
         match self {
-            PartialDate::Year(..) => DateComponent::Year,
-            PartialDate::Month(..) => DateComponent::Month,
-            PartialDate::Day(..) => DateComponent::Day,
+            DicomDate::Year(..) => DateComponent::Year,
+            DicomDate::Month(..) => DateComponent::Month,
+            DicomDate::Day(..) => DateComponent::Day,
         }
     }
 }
 
-impl Precision for PartialTime {
+impl Precision for DicomTime {
     fn precision(&self) -> DateComponent {
         match self {
-            PartialTime::Hour(..) => DateComponent::Hour,
-            PartialTime::Minute(..) => DateComponent::Minute,
-            PartialTime::Second(..) => DateComponent::Second,
-            PartialTime::Fraction(..) => DateComponent::Fraction,
+            DicomTime::Hour(..) => DateComponent::Hour,
+            DicomTime::Minute(..) => DateComponent::Minute,
+            DicomTime::Second(..) => DateComponent::Second,
+            DicomTime::Fraction(..) => DateComponent::Fraction,
         }
     }
 }
 
-impl Precision for PartialDateTime {
+impl Precision for DicomDateTime {
     fn precision(&self) -> DateComponent {
         if self.time.is_some() {
             self.time.unwrap().precision()
@@ -349,20 +349,20 @@ where
     }
 }
 
-impl AsTemporalRange<NaiveDate> for PartialDate {
+impl AsTemporalRange<NaiveDate> for DicomDate {
     fn earliest(&self) -> Result<NaiveDate> {
         let (y, m, d) = match self {
-            PartialDate::Year(y) => (*y as i32, 1, 1),
-            PartialDate::Month(y, m) => (*y as i32, *m as u32, 1),
-            PartialDate::Day(y, m, d) => (*y as i32, *m as u32, *d as u32),
+            DicomDate::Year(y) => (*y as i32, 1, 1),
+            DicomDate::Month(y, m) => (*y as i32, *m as u32, 1),
+            DicomDate::Day(y, m, d) => (*y as i32, *m as u32, *d as u32),
         };
         NaiveDate::from_ymd_opt(y, m, d).context(InvalidDate)
     }
 
     fn latest(&self) -> Result<NaiveDate> {
         let (y, m, d) = match self {
-            PartialDate::Year(y) => (*y as i32, 12, 31),
-            PartialDate::Month(y, m) => {
+            DicomDate::Year(y) => (*y as i32, 12, 31),
+            DicomDate::Month(y, m) => {
                 let d = {
                     if m == &12 {
                         NaiveDate::from_ymd(*y as i32 + 1, 1, 1)
@@ -374,20 +374,20 @@ impl AsTemporalRange<NaiveDate> for PartialDate {
                 };
                 (*y as i32, *m as u32, d as u32)
             }
-            PartialDate::Day(y, m, d) => (*y as i32, *m as u32, *d as u32),
+            DicomDate::Day(y, m, d) => (*y as i32, *m as u32, *d as u32),
         };
         NaiveDate::from_ymd_opt(y, m, d).context(InvalidDate)
     }
 }
 
-impl AsTemporalRange<NaiveTime> for PartialTime {
+impl AsTemporalRange<NaiveTime> for DicomTime {
     fn earliest(&self) -> Result<NaiveTime> {
         let fr: u32;
         let (h, m, s, f) = match self {
-            PartialTime::Hour(h) => (h, &0, &0, &0),
-            PartialTime::Minute(h, m) => (h, m, &0, &0),
-            PartialTime::Second(h, m, s) => (h, m, s, &0),
-            PartialTime::Fraction(h, m, s, f, fp) => {
+            DicomTime::Hour(h) => (h, &0, &0, &0),
+            DicomTime::Minute(h, m) => (h, m, &0, &0),
+            DicomTime::Second(h, m, s) => (h, m, s, &0),
+            DicomTime::Fraction(h, m, s, f, fp) => {
                 fr = *f * u32::pow(10, 6 - <u32>::from(*fp));
                 (h, m, s, &fr)
             }
@@ -398,10 +398,10 @@ impl AsTemporalRange<NaiveTime> for PartialTime {
     fn latest(&self) -> Result<NaiveTime> {
         let fr: u32;
         let (h, m, s, f) = match self {
-            PartialTime::Hour(h) => (h, &59, &59, &999_999),
-            PartialTime::Minute(h, m) => (h, m, &59, &999_999),
-            PartialTime::Second(h, m, s) => (h, m, s, &999_999),
-            PartialTime::Fraction(h, m, s, f, fp) => {
+            DicomTime::Hour(h) => (h, &59, &59, &999_999),
+            DicomTime::Minute(h, m) => (h, m, &59, &999_999),
+            DicomTime::Second(h, m, s) => (h, m, s, &999_999),
+            DicomTime::Fraction(h, m, s, f, fp) => {
                 fr = (*f * u32::pow(10, 6 - u32::from(*fp))) + (u32::pow(10, 6 - u32::from(*fp)))
                     - 1;
                 (h, m, s, &fr)
@@ -412,7 +412,7 @@ impl AsTemporalRange<NaiveTime> for PartialTime {
     }
 }
 
-impl AsTemporalRange<DateTime<FixedOffset>> for PartialDateTime {
+impl AsTemporalRange<DateTime<FixedOffset>> for DicomDateTime {
     fn earliest(&self) -> Result<DateTime<FixedOffset>> {
         let date = self.date.earliest()?;
         let time = match self.time {
@@ -446,30 +446,30 @@ mod tests {
     #[test]
     fn test_partial_date() {
         assert_eq!(
-            PartialDate::from_ymd(1944, 2, 29).unwrap(),
-            PartialDate::Day(1944, 2, 29)
+            DicomDate::from_ymd(1944, 2, 29).unwrap(),
+            DicomDate::Day(1944, 2, 29)
         );
         assert_eq!(
-            PartialDate::from_ym(1944, 2).unwrap(),
-            PartialDate::Month(1944, 2)
+            DicomDate::from_ym(1944, 2).unwrap(),
+            DicomDate::Month(1944, 2)
         );
-        assert_eq!(PartialDate::from_y(1944).unwrap(), PartialDate::Year(1944));
+        assert_eq!(DicomDate::from_y(1944).unwrap(), DicomDate::Year(1944));
 
         assert_eq!(
-            PartialDate::from_ymd(1944, 2, 29).unwrap().is_precise(),
+            DicomDate::from_ymd(1944, 2, 29).unwrap().is_precise(),
             true
         );
-        assert_eq!(PartialDate::from_ym(1944, 2).unwrap().is_precise(), false);
-        assert_eq!(PartialDate::from_y(1944).unwrap().is_precise(), false);
+        assert_eq!(DicomDate::from_ym(1944, 2).unwrap().is_precise(), false);
+        assert_eq!(DicomDate::from_y(1944).unwrap().is_precise(), false);
         assert_eq!(
-            PartialDate::from_ymd(1944, 2, 29)
+            DicomDate::from_ymd(1944, 2, 29)
                 .unwrap()
                 .earliest()
                 .unwrap(),
             NaiveDate::from_ymd(1944, 2, 29)
         );
         assert_eq!(
-            PartialDate::from_ymd(1944, 2, 29)
+            DicomDate::from_ymd(1944, 2, 29)
                 .unwrap()
                 .latest()
                 .unwrap(),
@@ -477,16 +477,16 @@ mod tests {
         );
 
         assert_eq!(
-            PartialDate::from_y(1944).unwrap().earliest().unwrap(),
+            DicomDate::from_y(1944).unwrap().earliest().unwrap(),
             NaiveDate::from_ymd(1944, 1, 1)
         );
         // detects leap year
         assert_eq!(
-            PartialDate::from_ym(1944, 2).unwrap().latest().unwrap(),
+            DicomDate::from_ym(1944, 2).unwrap().latest().unwrap(),
             NaiveDate::from_ymd(1944, 2, 29)
         );
         assert_eq!(
-            PartialDate::from_ym(1945, 2).unwrap().latest().unwrap(),
+            DicomDate::from_ym(1945, 2).unwrap().latest().unwrap(),
             NaiveDate::from_ymd(1945, 2, 28)
         );
     }
@@ -494,32 +494,32 @@ mod tests {
     #[test]
     fn test_partial_time() {
         assert_eq!(
-            PartialTime::from_hmsf(9, 1, 1, 123456, 6).unwrap(),
-            PartialTime::Fraction(9, 1, 1, 123456, 6)
+            DicomTime::from_hmsf(9, 1, 1, 123456, 6).unwrap(),
+            DicomTime::Fraction(9, 1, 1, 123456, 6)
         );
         assert_eq!(
-            PartialTime::from_hmsf(9, 1, 1, 1, 6).unwrap(),
-            PartialTime::Fraction(9, 1, 1, 1, 6)
+            DicomTime::from_hmsf(9, 1, 1, 1, 6).unwrap(),
+            DicomTime::Fraction(9, 1, 1, 1, 6)
         );
         assert_eq!(
-            PartialTime::from_hms(9, 0, 0).unwrap(),
-            PartialTime::Second(9, 0, 0)
+            DicomTime::from_hms(9, 0, 0).unwrap(),
+            DicomTime::Second(9, 0, 0)
         );
         assert_eq!(
-            PartialTime::from_hm(23, 59).unwrap(),
-            PartialTime::Minute(23, 59)
+            DicomTime::from_hm(23, 59).unwrap(),
+            DicomTime::Minute(23, 59)
         );
-        assert_eq!(PartialTime::from_h(1).unwrap(), PartialTime::Hour(1));
+        assert_eq!(DicomTime::from_h(1).unwrap(), DicomTime::Hour(1));
 
         assert_eq!(
-            PartialTime::from_hmsf(9, 1, 1, 123, 3)
+            DicomTime::from_hmsf(9, 1, 1, 123, 3)
                 .unwrap()
                 .earliest()
                 .unwrap(),
             NaiveTime::from_hms_micro(9, 1, 1, 123_000)
         );
         assert_eq!(
-            PartialTime::from_hmsf(9, 1, 1, 123, 3)
+            DicomTime::from_hmsf(9, 1, 1, 123, 3)
                 .unwrap()
                 .latest()
                 .unwrap(),
@@ -527,14 +527,14 @@ mod tests {
         );
 
         assert_eq!(
-            PartialTime::from_hmsf(9, 1, 1, 1, 1)
+            DicomTime::from_hmsf(9, 1, 1, 1, 1)
                 .unwrap()
                 .earliest()
                 .unwrap(),
             NaiveTime::from_hms_micro(9, 1, 1, 100_000)
         );
         assert_eq!(
-            PartialTime::from_hmsf(9, 1, 1, 1, 1)
+            DicomTime::from_hmsf(9, 1, 1, 1, 1)
                 .unwrap()
                 .latest()
                 .unwrap(),
@@ -542,26 +542,26 @@ mod tests {
         );
 
         assert_eq!(
-            PartialTime::from_hmsf(9, 1, 1, 12345, 5)
+            DicomTime::from_hmsf(9, 1, 1, 12345, 5)
                 .unwrap()
                 .is_precise(),
             false
         );
 
         assert_eq!(
-            PartialTime::from_hmsf(9, 1, 1, 123456, 6)
+            DicomTime::from_hmsf(9, 1, 1, 123456, 6)
                 .unwrap()
                 .is_precise(),
             true
         );
 
         assert!(matches!(
-            PartialTime::from_hmsf(9, 1, 1, 1, 7),
+            DicomTime::from_hmsf(9, 1, 1, 1, 7),
             Err(Error::FractionPrecisionRange { value: 7, .. })
         ));
 
         assert!(matches!(
-            PartialTime::from_hmsf(9, 1, 1, 123456, 3),
+            DicomTime::from_hmsf(9, 1, 1, 123456, 3),
             Err(Error::FractionPrecisionMismatch {
                 fraction: 123456,
                 precision: 3,
@@ -574,20 +574,20 @@ mod tests {
     fn test_partial_datetime() {
         let default_offset = FixedOffset::east(0);
         assert_eq!(
-            PartialDateTime::from_partial_date(
-                PartialDate::from_ymd(2020, 2, 29).unwrap(),
+            DicomDateTime::from_partial_date(
+                DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 default_offset
             ),
-            PartialDateTime {
-                date: PartialDate::from_ymd(2020, 2, 29).unwrap(),
+            DicomDateTime {
+                date: DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 time: None,
                 offset: default_offset
             }
         );
 
         assert_eq!(
-            PartialDateTime::from_partial_date(
-                PartialDate::from_ym(2020, 2).unwrap(),
+            DicomDateTime::from_partial_date(
+                DicomDate::from_ym(2020, 2).unwrap(),
                 default_offset
             )
             .earliest()
@@ -598,8 +598,8 @@ mod tests {
         );
 
         assert_eq!(
-            PartialDateTime::from_partial_date(
-                PartialDate::from_ym(2020, 2).unwrap(),
+            DicomDateTime::from_partial_date(
+                DicomDate::from_ym(2020, 2).unwrap(),
                 default_offset
             )
             .latest()
@@ -610,9 +610,9 @@ mod tests {
         );
 
         assert_eq!(
-            PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ymd(2020, 2, 29).unwrap(),
-                PartialTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
+            DicomDateTime::from_partial_date_and_time(
+                DicomDate::from_ymd(2020, 2, 29).unwrap(),
+                DicomTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
             )
             .unwrap()
@@ -623,9 +623,9 @@ mod tests {
                 .and_hms_micro(23, 59, 59, 100_000)
         );
         assert_eq!(
-            PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ymd(2020, 2, 29).unwrap(),
-                PartialTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
+            DicomDateTime::from_partial_date_and_time(
+                DicomDate::from_ymd(2020, 2, 29).unwrap(),
+                DicomTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
             )
             .unwrap()
@@ -637,8 +637,8 @@ mod tests {
         );
 
         assert!(matches!(
-            PartialDateTime::from_partial_date(
-                PartialDate::from_ymd(2021, 2, 29).unwrap(),
+            DicomDateTime::from_partial_date(
+                DicomDate::from_ymd(2021, 2, 29).unwrap(),
                 default_offset
             )
             .earliest(),
@@ -646,9 +646,9 @@ mod tests {
         ));
 
         assert!(matches!(
-            PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_ym(2020, 2).unwrap(),
-                PartialTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
+            DicomDateTime::from_partial_date_and_time(
+                DicomDate::from_ym(2020, 2).unwrap(),
+                DicomTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
             ),
             Err(Error::DateTimeFromPartials {
@@ -657,9 +657,9 @@ mod tests {
             })
         ));
         assert!(matches!(
-            PartialDateTime::from_partial_date_and_time(
-                PartialDate::from_y(1).unwrap(),
-                PartialTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
+            DicomDateTime::from_partial_date_and_time(
+                DicomDate::from_y(1).unwrap(),
+                DicomTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
             ),
             Err(Error::DateTimeFromPartials {

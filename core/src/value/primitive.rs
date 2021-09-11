@@ -4,7 +4,7 @@
 
 use super::DicomValueType;
 use crate::header::{HasLength, Length, Tag};
-use crate::value::partial::{PartialDate, PartialDateTime, PartialTime};
+use crate::value::partial::{DicomDate, DicomDateTime, DicomTime};
 use chrono::{FixedOffset, Timelike};
 use itertools::Itertools;
 use num_traits::NumCast;
@@ -1974,16 +1974,16 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve a single `PartialDate` from this value.
+    /// Retrieve a single `DicomDate` from this value.
     ///
     ///
-    pub fn to_partial_date(&self) -> Result<PartialDate, ConvertValueError> {
+    pub fn to_partial_date(&self) -> Result<DicomDate, ConvertValueError> {
         match self {
             PrimitiveValue::Str(s) => super::deserialize::parse_date_partial(s.as_bytes())
                 .map(|(date, _)| date)
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
-                    requested: "PartialDate",
+                    requested: "DicomDate",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
@@ -1993,7 +1993,7 @@ impl PrimitiveValue {
             .map(|(date, _)| date)
             .context(ParseDate)
             .map_err(|err| ConvertValueError {
-                requested: "PartialDate",
+                requested: "DicomDate",
                 original: self.value_type(),
                 cause: Some(err),
             }),
@@ -2001,28 +2001,28 @@ impl PrimitiveValue {
                 .map(|(date, _)| date)
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
-                    requested: "PartialDate",
+                    requested: "DicomDate",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
             _ => Err(ConvertValueError {
-                requested: "PartialDate",
+                requested: "DicomDate",
                 original: self.value_type(),
                 cause: None,
             }),
         }
     }
 
-    /// Retrieve the full sequence of `PartialDate`s from this value.
+    /// Retrieve the full sequence of `DicomDate`s from this value.
     ///
-    pub fn to_multi_partial_date(&self) -> Result<Vec<PartialDate>, ConvertValueError> {
+    pub fn to_multi_partial_date(&self) -> Result<Vec<DicomDate>, ConvertValueError> {
         match self {
             PrimitiveValue::Str(s) => {
                 super::deserialize::parse_date_partial(s.trim_end().as_bytes())
                     .map(|(date, _)| vec![date])
                     .context(ParseDate)
                     .map_err(|err| ConvertValueError {
-                        requested: "PartialDate",
+                        requested: "DicomDate",
                         original: self.value_type(),
                         cause: Some(err),
                     })
@@ -2036,7 +2036,7 @@ impl PrimitiveValue {
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
-                    requested: "PartialDate",
+                    requested: "DicomDate",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
@@ -2047,12 +2047,12 @@ impl PrimitiveValue {
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
-                    requested: "PartialDate",
+                    requested: "DicomDate",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
             _ => Err(ConvertValueError {
-                requested: "PartialDate",
+                requested: "DicomDate",
                 original: self.value_type(),
                 cause: None,
             }),
@@ -2203,16 +2203,16 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve a single `PartialTime` from this value.
+    /// Retrieve a single `DicomTime` from this value.
     ///
-    pub fn to_partial_time(&self) -> Result<PartialTime, ConvertValueError> {
+    pub fn to_partial_time(&self) -> Result<DicomTime, ConvertValueError> {
         match self {
             PrimitiveValue::Str(s) => {
                 super::deserialize::parse_time_partial(s.trim_end().as_bytes())
                     .map(|(date, _rest)| date)
                     .context(ParseTime)
                     .map_err(|err| ConvertValueError {
-                        requested: "PartialTime",
+                        requested: "DicomTime",
                         original: self.value_type(),
                         cause: Some(err),
                     })
@@ -2223,7 +2223,7 @@ impl PrimitiveValue {
             .map(|(date, _rest)| date)
             .context(ParseTime)
             .map_err(|err| ConvertValueError {
-                requested: "PartialTime",
+                requested: "DicomTime",
                 original: self.value_type(),
                 cause: Some(err),
             }),
@@ -2232,29 +2232,29 @@ impl PrimitiveValue {
                     .map(|(date, _rest)| date)
                     .context(ParseTime)
                     .map_err(|err| ConvertValueError {
-                        requested: "PartialTime",
+                        requested: "DicomTime",
                         original: self.value_type(),
                         cause: Some(err),
                     })
             }
             _ => Err(ConvertValueError {
-                requested: "PartialTime",
+                requested: "DicomTime",
                 original: self.value_type(),
                 cause: None,
             }),
         }
     }
 
-    /// Retrieve the full sequence of `PartialTime`s from this value.
+    /// Retrieve the full sequence of `DicomTime`s from this value.
     ///
-    pub fn to_multi_partial_time(&self) -> Result<Vec<PartialTime>, ConvertValueError> {
+    pub fn to_multi_partial_time(&self) -> Result<Vec<DicomTime>, ConvertValueError> {
         match self {
             PrimitiveValue::Str(s) => {
                 super::deserialize::parse_time_partial(s.trim_end().as_bytes())
                     .map(|(date, _rest)| vec![date])
                     .context(ParseDate)
                     .map_err(|err| ConvertValueError {
-                        requested: "PartialTime",
+                        requested: "DicomTime",
                         original: self.value_type(),
                         cause: Some(err),
                     })
@@ -2268,7 +2268,7 @@ impl PrimitiveValue {
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
-                    requested: "PartialTime",
+                    requested: "DicomTime",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
@@ -2279,12 +2279,12 @@ impl PrimitiveValue {
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
-                    requested: "PartialTime",
+                    requested: "DicomTime",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
             _ => Err(ConvertValueError {
-                requested: "PartialTime",
+                requested: "DicomTime",
                 original: self.value_type(),
                 cause: None,
             }),
@@ -2473,18 +2473,18 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve a single `PartialDateTime` from this value.
+    /// Retrieve a single `DicomDateTime` from this value.
     ///
     pub fn to_partial_datetime(
         &self,
         default_offset: FixedOffset,
-    ) -> Result<PartialDateTime, ConvertValueError> {
+    ) -> Result<DicomDateTime, ConvertValueError> {
         match self {
             PrimitiveValue::Str(s) => {
                 super::deserialize::parse_datetime_partial(s.trim_end().as_bytes(), default_offset)
                     .context(ParseDateTime)
                     .map_err(|err| ConvertValueError {
-                        requested: "PartialDateTime",
+                        requested: "DicomDateTime",
                         original: self.value_type(),
                         cause: Some(err),
                     })
@@ -2495,7 +2495,7 @@ impl PrimitiveValue {
             )
             .context(ParseDateTime)
             .map_err(|err| ConvertValueError {
-                requested: "PartialDateTime",
+                requested: "DicomDateTime",
                 original: self.value_type(),
                 cause: Some(err),
             }),
@@ -2505,31 +2505,31 @@ impl PrimitiveValue {
             )
             .context(ParseDateTime)
             .map_err(|err| ConvertValueError {
-                requested: "PartialDateTime",
+                requested: "DicomDateTime",
                 original: self.value_type(),
                 cause: Some(err),
             }),
             _ => Err(ConvertValueError {
-                requested: "PartialDateTime",
+                requested: "DicomDateTime",
                 original: self.value_type(),
                 cause: None,
             }),
         }
     }
 
-    /// Retrieve the full sequence of `PartialDateTime`s from this value.
+    /// Retrieve the full sequence of `DicomDateTime`s from this value.
     ///
     pub fn to_multi_partial_datetime(
         &self,
         default_offset: FixedOffset,
-    ) -> Result<Vec<PartialDateTime>, ConvertValueError> {
+    ) -> Result<Vec<DicomDateTime>, ConvertValueError> {
         match self {
             PrimitiveValue::Str(s) => {
                 super::deserialize::parse_datetime_partial(s.trim_end().as_bytes(), default_offset)
                     .map(|date| vec![date])
                     .context(ParseDate)
                     .map_err(|err| ConvertValueError {
-                        requested: "PartialDateTime",
+                        requested: "DicomDateTime",
                         original: self.value_type(),
                         cause: Some(err),
                     })
@@ -2545,7 +2545,7 @@ impl PrimitiveValue {
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
-                    requested: "PartialDateTime",
+                    requested: "DicomDateTime",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
@@ -2556,12 +2556,12 @@ impl PrimitiveValue {
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
-                    requested: "PartialDateTime",
+                    requested: "DicomDateTime",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
             _ => Err(ConvertValueError {
-                requested: "PartialDate",
+                requested: "DicomDate",
                 original: self.value_type(),
                 cause: None,
             }),
