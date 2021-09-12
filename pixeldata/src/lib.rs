@@ -1,18 +1,28 @@
-//! This crate contains the Dicom pixeldata handlers and is
-//! responsible for decoding pixeldata, such as JPEG-lossy and convert it
-//! into a [`DynamicImage`], [`Array`] or raw [`DecodedPixelData`].
+//! This crate contains the DICOM pixel data handlers and is
+//! responsible for decoding various forms of native and compressed pixel data,
+//! such as JPEG lossless,
+//! and convert it into a [`DynamicImage`],
+//! [`Array`] or raw [`DecodedPixelData`].
 //!
-//! This crate is using GDCM bindings to convert
-//! different compression formats to raw pixeldata.
+//! `dicom-pixeldata` currently supports a small,
+//! but increasing number of DICOM image encodings in pure Rust.
+//! As a way to mitigate the current gap,
+//! this library has an integration with [GDCM bindings]
+//! for an extended range of encodings.
+//! This integration is behind the Cargo feature "gdcm",
+//! which requires CMake and a C++ compiler.
 //!
-//! # WebAssembly support
-//! Disable the default features to compile this crate without GDCM bindings.
-//! This would allow the crate to be compiled for WebAssembly albeit at the cost
-//! of supporting a less variety of compression algorithms.
+//! [GDCM bindings]: https://github.com/pevers/gdcm-rs
 //!
 //! ```toml
-//! dicom-pixeldata = { version = "0.1", default-features = false }
+//! dicom-pixeldata = { version = "0.1", features = ["gdcm"] }
 //! ```
+//!
+//! # WebAssembly support
+//! This library works in WebAssembly
+//! by ensuring that the "gdcm" feature is disabled.
+//! This allows the crate to be compiled for WebAssembly
+//! albeit at the cost of supporting a lesser variety of compression algorithms.
 //!
 //! # Examples
 //!
@@ -21,30 +31,28 @@
 //! # use std::error::Error;
 //! use dicom_object::open_file;
 //! use dicom_pixeldata::PixelDecoder;
-//!
 //! # fn main() -> Result<(), Box<dyn Error>> {
 //! let obj = open_file("dicom.dcm")?;
 //! let image = obj.decode_pixel_data()?;
 //! let dynamic_image = image.to_dynamic_image()?;
 //! dynamic_image.save("out.png")?;
-//! #   Ok(())
+//! # Ok(())
 //! # }
 //! ```
 //!
 //! Example using `to_ndarray`
 //! ```no_run
-//! use std::error::Error;
+//! # use std::error::Error;
 //! use dicom_object::open_file;
-//! use dicom_pixeldata::{PixelDecoder};
+//! use dicom_pixeldata::PixelDecoder;
 //! use ndarray::s;
-
-//! fn main() -> Result<(), Box<dyn Error>> {
-//!     let obj = open_file("rgb_dicom.dcm")?;
-//!     let pixel_data = obj.decode_pixel_data()?;
-//!     let ndarray = pixel_data.to_ndarray::<u16>()?;
-//!     let red_values = ndarray.slice(s![.., .., 0]);
-//!     Ok(())
-//! }
+//! # fn main() -> Result<(), Box<dyn Error>> {
+//! let obj = open_file("rgb_dicom.dcm")?;
+//! let pixel_data = obj.decode_pixel_data()?;
+//! let ndarray = pixel_data.to_ndarray::<u16>()?;
+//! let red_values = ndarray.slice(s![.., .., 0]);
+//! # Ok(())
+//! # }
 //! ```
 
 use byteorder::{ByteOrder, NativeEndian};
