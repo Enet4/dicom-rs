@@ -348,7 +348,14 @@ where
         self.to.write_all(&encoded_value).context(WriteValueData {
             position: self.bytes_written,
         })?;
-        self.bytes_written += 1;
+        self.bytes_written += encoded_value.len() as u64;
+
+        // if element is Specific Character Set,
+        // update the text codec
+        if de.tag == Tag(0x0008, 0x0005) {
+            self.try_new_codec(text);
+        }
+
         Ok(())
     }
 
@@ -381,6 +388,15 @@ where
             position: self.bytes_written,
         })?;
         self.bytes_written += self.buffer.len() as u64;
+
+        // if element is Specific Character Set,
+        // update the text codec
+        if de.tag == Tag(0x0008, 0x0005) {
+            if let Some(charset_name) = texts.first() {
+                self.try_new_codec(charset_name.as_ref());
+            }
+        }
+
         Ok(())
     }
 
@@ -635,9 +651,7 @@ mod tests {
         };
         let scs_value = PrimitiveValue::from("ISO_IR 192");
 
-        encoder.encode_element_header(scs).unwrap();
-
-        encoder.encode_primitive(&scs, &scs_value).unwrap();
+        encoder.encode_primitive_element(&scs, &scs_value).unwrap();
 
         // check that the encoder has changed
         assert_eq!(encoder.text.name(), "ISO_IR 192");
@@ -649,10 +663,9 @@ mod tests {
             len: Length(28),
         };
         let pn_value = PrimitiveValue::from("Иванков^Андрей ");
-        encoder.encode_element_header(pn).unwrap();
-        encoder.encode_primitive(&pn, &pn_value).unwrap();
+        encoder.encode_primitive_element(&pn, &pn_value).unwrap();
 
         // test all output against ground truth
-        assert_eq!(&sink, GT,);
+        assert_eq!(&sink, GT);
     }
 }
