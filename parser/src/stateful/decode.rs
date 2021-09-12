@@ -1330,7 +1330,7 @@ mod tests {
             &mut cursor,
             ImplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder,
-            Box::new(DefaultCharacterSetCodec) as DynamicTextCodec,
+            SpecificCharacterSet::Default,
         );
 
         is_stateful_decoder(&decoder);
