@@ -1,7 +1,8 @@
 // Handling of partial precision of Date, Time and DateTime values.
 
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
-use snafu::{Backtrace, OptionExt, Snafu};
+use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveTime, TimeZone, Timelike};
+use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
+use std::convert::{TryFrom, TryInto};
 use std::ops::RangeInclusive;
 
 #[derive(Debug, Snafu)]
@@ -44,6 +45,11 @@ pub enum Error {
         fraction: u32,
         precision: u32,
         backtrace: Backtrace,
+    },
+    #[snafu(display("Conversion Failed."))]
+    Conversion {
+        //#[snafu(backtrace)]
+        source: std::num::TryFromIntError,
     },
 }
 
@@ -159,6 +165,16 @@ impl DicomDate {
     }
 }
 
+impl TryFrom<&NaiveDate> for DicomDate {
+    type Error = Error;
+    fn try_from(date: &NaiveDate) -> Result<Self, Self::Error> {
+        let year: u16 = date.year().try_into().context(Conversion)?;
+        let month: u8 = date.month().try_into().context(Conversion)?;
+        let day: u8 = date.day().try_into().context(Conversion)?;
+        Ok(DicomDate::from_ymd(year, month, day)?)
+    }
+}
+
 impl DicomTime {
     /**
      * Constructs a new `DicomTime` with hour precision
@@ -230,6 +246,17 @@ impl DicomTime {
     }
 }
 
+impl TryFrom<&NaiveTime> for DicomTime {
+    type Error = Error;
+    fn try_from(time: &NaiveTime) -> Result<Self> {
+        let h: u8 = time.hour().try_into().context(Conversion)?;
+        let m: u8 = time.minute().try_into().context(Conversion)?;
+        let s: u8 = time.second().try_into().context(Conversion)?;
+        let f: u32 = time.nanosecond() / 1000;
+        Ok(DicomTime::from_hmsf(h, m, s, f, 6)?)
+    }
+}
+
 impl DicomDateTime {
     /**
      * Constructs a new `DicomDateTime` from a `DicomDate` and a given `FixedOffset`.
@@ -263,6 +290,26 @@ impl DicomDateTime {
             }
             .fail()
         }
+    }
+}
+
+impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
+    type Error = Error;
+    fn try_from(dt: &DateTime<FixedOffset>) -> Result<Self> {
+        let year: u16 = dt.year().try_into().context(Conversion)?;
+        let month: u8 = dt.month().try_into().context(Conversion)?;
+        let day: u8 = dt.day().try_into().context(Conversion)?;
+        let hour: u8 = dt.hour().try_into().context(Conversion)?;
+        let minute: u8 = dt.minute().try_into().context(Conversion)?;
+        let second: u8 = dt.second().try_into().context(Conversion)?;
+        let fraction: u32 = dt.nanosecond() / 1000;
+        todo!("Calculate precision as 10 over X"); 
+
+        Ok(DicomDateTime::from_partial_date_and_time(
+            DicomDate::from_ymd(year, month, day)?,
+            DicomTime::from_hmsf(hour, minute, second, fraction, 6)?,
+            *dt.offset(),
+        )?)
     }
 }
 
@@ -455,10 +502,7 @@ mod tests {
         );
         assert_eq!(DicomDate::from_y(1944).unwrap(), DicomDate::Year(1944));
 
-        assert_eq!(
-            DicomDate::from_ymd(1944, 2, 29).unwrap().is_precise(),
-            true
-        );
+        assert_eq!(DicomDate::from_ymd(1944, 2, 29).unwrap().is_precise(), true);
         assert_eq!(DicomDate::from_ym(1944, 2).unwrap().is_precise(), false);
         assert_eq!(DicomDate::from_y(1944).unwrap().is_precise(), false);
         assert_eq!(
@@ -469,10 +513,7 @@ mod tests {
             NaiveDate::from_ymd(1944, 2, 29)
         );
         assert_eq!(
-            DicomDate::from_ymd(1944, 2, 29)
-                .unwrap()
-                .latest()
-                .unwrap(),
+            DicomDate::from_ymd(1944, 2, 29).unwrap().latest().unwrap(),
             NaiveDate::from_ymd(1944, 2, 29)
         );
 
@@ -586,24 +627,18 @@ mod tests {
         );
 
         assert_eq!(
-            DicomDateTime::from_partial_date(
-                DicomDate::from_ym(2020, 2).unwrap(),
-                default_offset
-            )
-            .earliest()
-            .unwrap(),
+            DicomDateTime::from_partial_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
+                .earliest()
+                .unwrap(),
             FixedOffset::east(0)
                 .ymd(2020, 2, 1)
                 .and_hms_micro(0, 0, 0, 0)
         );
 
         assert_eq!(
-            DicomDateTime::from_partial_date(
-                DicomDate::from_ym(2020, 2).unwrap(),
-                default_offset
-            )
-            .latest()
-            .unwrap(),
+            DicomDateTime::from_partial_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
+                .latest()
+                .unwrap(),
             FixedOffset::east(0)
                 .ymd(2020, 2, 29)
                 .and_hms_micro(23, 59, 59, 999_999)
