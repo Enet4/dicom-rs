@@ -62,6 +62,7 @@ pub struct StatefulEncoder<W, E, T> {
     encoder: E,
     text: T,
     bytes_written: u64,
+    buffer: Vec<u8>,
 }
 
 pub type DynStatefulEncoder<'w> =
@@ -74,6 +75,7 @@ impl<W, E, T> StatefulEncoder<W, E, T> {
             encoder,
             text,
             bytes_written: 0,
+            buffer: Vec::with_capacity(128),
         }
     }
 
@@ -83,6 +85,7 @@ impl<W, E, T> StatefulEncoder<W, E, T> {
             encoder: self.encoder,
             text,
             bytes_written: 0,
+            buffer: Vec::with_capacity(128),
         }
     }
 }
@@ -214,12 +217,62 @@ where
         Ok(())
     }
 
-    /// Encode and write a primitive value.
+    /// Encode and write a data element with a primitive value.
     ///
     /// This method will perform the necessary padding to ensure that the
     /// encoded value is an even number of bytes.
     /// Where applicable,
     /// this will use the inner text codec for textual values.
+    /// The length property of the header is ignored,
+    /// the true byte length of the value in its encoded form is used instead.
+    pub fn encode_primitive_element(
+        &mut self,
+        de: &DataElementHeader,
+        value: &PrimitiveValue,
+    ) -> Result<()> {
+        // intercept string encoding calls to use the text codec
+        match value {
+            PrimitiveValue::Str(text) => {
+                self.encode_text_element(text, *de)?;
+                Ok(())
+            }
+            PrimitiveValue::Strs(texts) => {
+                self.encode_texts_element(&texts[..], *de)?;
+                Ok(())
+            }
+            _ => {
+                let byte_len = value.calculate_byte_len();
+                self.encode_element_header(DataElementHeader {
+                    tag: de.tag,
+                    vr: de.vr,
+                    len: Length(byte_len as u32),
+                })?;
+                let bytes =
+                    self.encoder
+                        .encode_primitive(&mut self.to, value)
+                        .context(EncodeData {
+                            position: self.bytes_written,
+                        })?;
+
+                self.bytes_written += bytes as u64;
+                if bytes % 2 != 0 {
+                    self.to.write_all(&[0]).context(WriteValueData {
+                        position: self.bytes_written,
+                    })?;
+                    self.bytes_written += 1;
+                }
+                Ok(())
+            }
+        }
+    }
+
+    /// Encode and write a primitive value.
+    ///
+    /// Its use is not recommended
+    /// because the encoded value's real length
+    /// might not match the header's length,
+    /// leading to an inconsistent data set.
+    #[deprecated(note = "use `encode_primitive_element` instead")]
     pub fn encode_primitive(
         &mut self,
         de: &DataElementHeader,
@@ -268,6 +321,59 @@ where
         Ok(())
     }
 
+    fn encode_text_element(&mut self, text: &str, de: DataElementHeader) -> Result<()> {
+        // encode it in memory first so that we know the real length
+        let mut encoded_value = self.convert_text_untrailed(text, de.vr)?;
+        // pad to even length
+        if encoded_value.len() % 2 == 1 {
+            let pad = if de.vr == VR::UI { b'\0' } else { b' ' };
+            encoded_value.push(pad);
+        }
+        
+        // now we can write the header with the correct length
+        self.encode_element_header(DataElementHeader {
+            tag: de.tag,
+            vr: de.vr,
+            len: Length(encoded_value.len() as u32),
+        })?;
+        self.to.write_all(&encoded_value).context(WriteValueData {
+            position: self.bytes_written,
+        })?;
+        self.bytes_written += 1;
+        Ok(())
+    }
+
+    fn encode_texts_element<S>(&mut self, texts: &[S], de: DataElementHeader) -> Result<()>
+    where
+        S: AsRef<str>,
+    {
+        self.buffer.clear();
+        for (i, t) in texts.iter().enumerate() {
+            self.buffer.extend_from_slice(&self.convert_text_untrailed(t.as_ref(), de.vr)?);
+            if i < texts.len() - 1 {
+                self.buffer.push(b'\\');
+            }
+        }
+        // pad to even length
+        if self.buffer.len() % 2 == 1 {
+            let pad = if de.vr == VR::UI { b'\0' } else { b' ' };
+            self.buffer.push(pad);
+        }
+
+        // now we can write the header with the correct length
+        self.encode_element_header(DataElementHeader {
+            tag: de.tag,
+            vr: de.vr,
+            len: Length(self.buffer.len() as u32),
+        })?;
+
+        self.to.write_all(&self.buffer).context(WriteValueData {
+            position: self.bytes_written,
+        })?;
+        self.bytes_written += self.buffer.len() as u64;
+        Ok(())
+    }
+
     fn encode_texts<S>(&mut self, texts: &[S], vr: VR) -> Result<()>
     where
         S: AsRef<str>,
@@ -295,22 +401,26 @@ where
     }
 
     fn encode_text_untrailed(&mut self, text: &str, vr: VR) -> Result<usize> {
-        let data = match vr {
-            VR::AE | VR::AS | VR::CS | VR::DA | VR::DS | VR::DT | VR::IS | VR::TM | VR::UI => {
-                // these VRs always use the default character repertoire
-                DefaultCharacterSetCodec.encode(text).context(EncodeText {
-                    position: self.bytes_written,
-                })?
-            }
-            _ => self.text.encode(text).context(EncodeText {
-                position: self.bytes_written,
-            })?,
-        };
+        let data = self.convert_text_untrailed(text, vr)?;
         self.to.write_all(&data).context(WriteValueData {
             position: self.bytes_written,
         })?;
         self.bytes_written += data.len() as u64;
         Ok(data.len())
+    }
+    
+    fn convert_text_untrailed(&self, text: &str, vr: VR) -> Result<Vec<u8>> {
+        match vr {
+            VR::AE | VR::AS | VR::CS | VR::DA | VR::DS | VR::DT | VR::IS | VR::TM | VR::UI => {
+                // these VRs always use the default character repertoire
+                DefaultCharacterSetCodec.encode(text).context(EncodeText {
+                    position: self.bytes_written,
+                })
+            }
+            _ => self.text.encode(text).context(EncodeText {
+                position: self.bytes_written,
+            }),
+        }
     }
 }
 
@@ -347,9 +457,8 @@ mod tests {
                 SpecificCharacterSet::Default.codec().unwrap(),
             );
 
-            encoder.encode_element_header(*element.header()).unwrap();
             encoder
-                .encode_primitive(element.header(), element.value().primitive().unwrap())
+                .encode_primitive_element(element.header(), element.value().primitive().unwrap())
                 .unwrap();
         }
 
@@ -383,9 +492,8 @@ mod tests {
                 SpecificCharacterSet::Default.codec().unwrap(),
             );
 
-            encoder.encode_element_header(*element.header()).unwrap();
             encoder
-                .encode_primitive(element.header(), element.value().primitive().unwrap())
+                .encode_primitive_element(element.header(), element.value().primitive().unwrap())
                 .unwrap();
         }
 
@@ -420,9 +528,8 @@ mod tests {
                 SpecificCharacterSet::Default.codec().unwrap(),
             );
 
-            encoder.encode_element_header(*element.header()).unwrap();
             encoder
-                .encode_primitive(element.header(), element.value().primitive().unwrap())
+                .encode_primitive_element(element.header(), element.value().primitive().unwrap())
                 .unwrap();
         }
 
