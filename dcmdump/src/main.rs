@@ -398,7 +398,7 @@ where
         }
         DicomValue::Primitive(value) => {
             let vr = elem.vr();
-            let byte_len = value.calculate_byte_len();
+            let byte_len = elem.header().len.0;
             writeln!(
                 to,
                 "{} {:28} {} ({},{:>3} bytes): {}",
