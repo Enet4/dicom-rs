@@ -2023,10 +2023,10 @@ impl PrimitiveValue {
     /// # use smallvec::smallvec;
     /// # use chrono::NaiveDate;
     ///  use dicom_core::value::partial::AsTemporalRange;
-    /// 
+    ///
     ///  let value = PrimitiveValue::Str("200002".into());
     ///  let dicom_date = value.to_dicom_date().unwrap();
-    /// 
+    ///
     ///  assert_eq!(
     ///     dicom_date.is_precise(),
     ///     false
@@ -2040,7 +2040,7 @@ impl PrimitiveValue {
     ///     NaiveDate::from_ymd(2000,2,29)
     ///     );
     ///  assert!(dicom_date.exact().is_err());
-    /// 
+    ///
     /// ```
     pub fn to_dicom_date(&self) -> Result<DicomDate, ConvertValueError> {
         match self {
@@ -2086,25 +2086,25 @@ impl PrimitiveValue {
     }
 
     /// Retrieve the full sequence of `DicomDate`s from this value.
-    /// 
+    ///
     /// # Example
-    ///
     /// ```
-    /// # use dicom_core::value::{C, PrimitiveValue};
-    /// # use smallvec::smallvec;
+    /// # use dicom_core::value::{PrimitiveValue};
+    /// # use dicom_core::dicom_value;
     /// # use dicom_core::value::partial::DicomDate;
-    ///
-    /// assert_eq!(
-    ///     PrimitiveValue::Strs(smallvec![
-    ///         "201410".to_string(),
-    ///         "2020".to_string(),
-    ///     ]).to_multi_dicom_date().ok(),
-    ///     Some(vec![
-    ///         DicomDate::from_ym(2014, 10),
-    ///         DicomDate::from_y(2020),
-    ///     ])
-    /// );
+    /// 
+    ///  assert_eq!(
+    ///    dicom_value!(Strs, ["201410", "2020", "20200101"])
+    ///    .to_multi_dicom_date()
+    ///    .unwrap(),
+    /// vec![
+    ///    DicomDate::Month(2014, 10),
+    ///    DicomDate::from_y(2020).unwrap(),
+    ///    DicomDate::from_ymd(2020, 1, 1).unwrap()
+    ///     ]    
+    ///     );
     /// ```
+    ///
     pub fn to_multi_dicom_date(&self) -> Result<Vec<DicomDate>, ConvertValueError> {
         match self {
             PrimitiveValue::Date(d) => d
@@ -3043,6 +3043,7 @@ fn trim_last_whitespace(x: &[u8]) -> &[u8] {
 mod tests {
     use super::{CastValueError, ConvertValueError, InvalidValueReadError};
     use crate::dicom_value;
+    use crate::value::partial::{DicomDate, DicomDateTime, DicomTime};
     use crate::value::{PrimitiveValue, ValueType};
     use chrono::{FixedOffset, NaiveDate, NaiveTime, TimeZone};
     use smallvec::smallvec;
@@ -3321,6 +3322,20 @@ mod tests {
                 cause: Some(_),
             })
         ));
+    }
+
+    #[test]
+    fn primitive_value_to_multi_dicom_date() {
+        assert_eq!(
+            dicom_value!(Strs, ["201410", "2020", "20200101"])
+                .to_multi_dicom_date()
+                .unwrap(),
+            vec![
+                DicomDate::Month(2014, 10),
+                DicomDate::from_y(2020).unwrap(),
+                DicomDate::from_ymd(2020, 1, 1).unwrap()
+            ]
+        );
     }
 
     #[test]
