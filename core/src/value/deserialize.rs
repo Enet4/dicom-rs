@@ -423,10 +423,10 @@ pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<
     };
 
     if time.is_some() {
-        DicomDateTime::from_partial_date_and_time(date, time.unwrap(), offset)
+        DicomDateTime::from_dicom_date_and_time(date, time.unwrap(), offset)
             .context(InvalidDateTime)
     } else {
-        Ok(DicomDateTime::from_partial_date(date, offset))
+        Ok(DicomDateTime::from_dicom_date(date, offset))
     }
 }
 
@@ -953,7 +953,7 @@ mod tests {
         let default_offset = FixedOffset::east(0);
         assert_eq!(
             parse_datetime_partial(b"20171130101010.204", default_offset).unwrap(),
-            DicomDateTime::from_partial_date_and_time(
+            DicomDateTime::from_dicom_date_and_time(
                 DicomDate::from_ymd(2017, 11, 30).unwrap(),
                 DicomTime::from_hmsf(10, 10, 10, 204, 3).unwrap(),
                 default_offset
@@ -962,7 +962,7 @@ mod tests {
         );
         assert_eq!(
             parse_datetime_partial(b"20171130101010", default_offset).unwrap(),
-            DicomDateTime::from_partial_date_and_time(
+            DicomDateTime::from_dicom_date_and_time(
                 DicomDate::from_ymd(2017, 11, 30).unwrap(),
                 DicomTime::from_hms(10, 10, 10).unwrap(),
                 default_offset
@@ -971,7 +971,7 @@ mod tests {
         );
         assert_eq!(
             parse_datetime_partial(b"2017113023", default_offset).unwrap(),
-            DicomDateTime::from_partial_date_and_time(
+            DicomDateTime::from_dicom_date_and_time(
                 DicomDate::from_ymd(2017, 11, 30).unwrap(),
                 DicomTime::from_h(23).unwrap(),
                 default_offset
@@ -980,14 +980,14 @@ mod tests {
         );
         assert_eq!(
             parse_datetime_partial(b"201711", default_offset).unwrap(),
-            DicomDateTime::from_partial_date(
+            DicomDateTime::from_dicom_date(
                 DicomDate::from_ym(2017, 11).unwrap(),
                 default_offset
             )
         );
         assert_eq!(
             parse_datetime_partial(b"20171130101010.204+0535", default_offset).unwrap(),
-            DicomDateTime::from_partial_date_and_time(
+            DicomDateTime::from_dicom_date_and_time(
                 DicomDate::from_ymd(2017, 11, 30).unwrap(),
                 DicomTime::from_hmsf(10, 10, 10, 204, 3).unwrap(),
                 FixedOffset::east(5 * 3600 + 35 * 60)
@@ -996,7 +996,7 @@ mod tests {
         );
         assert_eq!(
             parse_datetime_partial(b"20171130101010+0535", default_offset).unwrap(),
-            DicomDateTime::from_partial_date_and_time(
+            DicomDateTime::from_dicom_date_and_time(
                 DicomDate::from_ymd(2017, 11, 30).unwrap(),
                 DicomTime::from_hms(10, 10, 10).unwrap(),
                 FixedOffset::east(5 * 3600 + 35 * 60)
@@ -1005,7 +1005,7 @@ mod tests {
         );
         assert_eq!(
             parse_datetime_partial(b"2017113010+0535", default_offset).unwrap(),
-            DicomDateTime::from_partial_date_and_time(
+            DicomDateTime::from_dicom_date_and_time(
                 DicomDate::from_ymd(2017, 11, 30).unwrap(),
                 DicomTime::from_h(10).unwrap(),
                 FixedOffset::east(5 * 3600 + 35 * 60)
@@ -1014,21 +1014,21 @@ mod tests {
         );
         assert_eq!(
             parse_datetime_partial(b"20171130-0135", default_offset).unwrap(),
-            DicomDateTime::from_partial_date(
+            DicomDateTime::from_dicom_date(
                 DicomDate::from_ymd(2017, 11, 30).unwrap(),
                 FixedOffset::west(1 * 3600 + 35 * 60)
             )
         );
         assert_eq!(
             parse_datetime_partial(b"201711-0135", default_offset).unwrap(),
-            DicomDateTime::from_partial_date(
+            DicomDateTime::from_dicom_date(
                 DicomDate::from_ym(2017, 11).unwrap(),
                 FixedOffset::west(1 * 3600 + 35 * 60)
             )
         );
         assert_eq!(
             parse_datetime_partial(b"2017-0135", default_offset).unwrap(),
-            DicomDateTime::from_partial_date(
+            DicomDateTime::from_dicom_date(
                 DicomDate::from_y(2017).unwrap(),
                 FixedOffset::west(1 * 3600 + 35 * 60)
             )

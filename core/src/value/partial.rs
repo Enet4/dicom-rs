@@ -1,4 +1,4 @@
-// Handling of partial precision of Date, Time and DateTime values.
+//! Handling of partial precision of Date, Time and DateTime values.
 
 use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveTime, TimeZone, Timelike};
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
@@ -47,10 +47,11 @@ pub enum Error {
         backtrace: Backtrace,
     },
     #[snafu(display("Conversion Failed."))]
-    Conversion {
-        //#[snafu(backtrace)]
-        source: std::num::TryFromIntError,
-    },
+    Conversion { source: std::num::TryFromIntError },
+    #[snafu(display(
+        "Cannot convert from an imprecise value. This value represents a date / time range."
+    ))]
+    ImpreciseValue { backtrace: Backtrace },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -73,6 +74,10 @@ pub enum DateComponent {
 /**
  * Represents a Dicom Date value with a partial precision,
  * where some time components may be missing.
+ * 
+ * Although the DICOM protocol does not allow for an incomplete DA value,
+ * this structure is necessary for range matching purposes, where incomplete
+ * date values occur.
  */
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DicomDate {
@@ -84,6 +89,10 @@ pub enum DicomDate {
 /**
  * Represents a Dicom Time value with a partial precision,
  * where some time components may be missing.
+ * 
+ * Unlike RUSTs `chrono::NaiveTime`, this implemenation of time is DICOM compliant:  
+ * - has only 6 digit precision for fraction of a second
+ * - has no means to handle leap seconds
  */
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DicomTime {
@@ -95,7 +104,7 @@ pub enum DicomTime {
 
 /**
  * Represents a Dicom DateTime value with a partial precision,
- * where some time components may be missing.
+ * where some date / time components may be missing.
  */
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct DicomDateTime {
@@ -105,7 +114,7 @@ pub struct DicomDateTime {
 }
 
 /**
- * Throws a detailed `InvalidComponent` error if Date / Time components are out of range.
+ * Throws a detailed `InvalidComponent` error if date / time components are out of range.
  */
 pub fn check_component<T>(component: DateComponent, value: &T) -> Result<()>
 where
@@ -167,7 +176,7 @@ impl DicomDate {
 
 impl TryFrom<&NaiveDate> for DicomDate {
     type Error = Error;
-    fn try_from(date: &NaiveDate) -> Result<Self, Self::Error> {
+    fn try_from(date: &NaiveDate) -> Result<Self> {
         let year: u16 = date.year().try_into().context(Conversion)?;
         let month: u8 = date.month().try_into().context(Conversion)?;
         let day: u8 = date.day().try_into().context(Conversion)?;
@@ -178,7 +187,7 @@ impl TryFrom<&NaiveDate> for DicomDate {
 impl DicomTime {
     /**
      * Constructs a new `DicomTime` with hour precision
-     * (HH)
+     * (HH).
      */
     pub fn from_h(hour: u8) -> Result<DicomTime> {
         check_component(DateComponent::Hour, &hour)?;
@@ -187,7 +196,7 @@ impl DicomTime {
 
     /**
      * Constructs a new `DicomTime` with hour and minute precision
-     * (HHMM)
+     * (HHMM).
      */
     pub fn from_hm(hour: u8, minute: u8) -> Result<DicomTime> {
         check_component(DateComponent::Hour, &hour)?;
@@ -197,7 +206,7 @@ impl DicomTime {
 
     /**
      * Constructs a new `DicomTime` with hour, minute and second precision
-     * (HHMMSS)
+     * (HHMMSS).
      */
     pub fn from_hms(hour: u8, minute: u8, second: u8) -> Result<DicomTime> {
         check_component(DateComponent::Hour, &hour)?;
@@ -249,11 +258,27 @@ impl DicomTime {
 impl TryFrom<&NaiveTime> for DicomTime {
     type Error = Error;
     fn try_from(time: &NaiveTime) -> Result<Self> {
-        let h: u8 = time.hour().try_into().context(Conversion)?;
-        let m: u8 = time.minute().try_into().context(Conversion)?;
-        let s: u8 = time.second().try_into().context(Conversion)?;
-        let f: u32 = time.nanosecond() / 1000;
-        Ok(DicomTime::from_hmsf(h, m, s, f, 6)?)
+        let hour: u8 = time.hour().try_into().context(Conversion)?;
+        let minute: u8 = time.minute().try_into().context(Conversion)?;
+        let second: u8 = time.second().try_into().context(Conversion)?;
+        let fraction: u32 = time.nanosecond() / 1000;
+        // fracition 0 needs to be converted to precise accuracy (6 digits)
+        let precision = match fraction {
+            0 => 6,
+            _ => {
+                let mut fr = fraction;
+                let mut precision: u8 = 0;
+                while fr >= 1 {
+                    fr = fr / 10;
+                    precision += 1;
+                }
+                u8::min(6, precision)
+            }
+        };
+
+        Ok(DicomTime::from_hmsf(
+            hour, minute, second, fraction, precision,
+        )?)
     }
 }
 
@@ -261,7 +286,7 @@ impl DicomDateTime {
     /**
      * Constructs a new `DicomDateTime` from a `DicomDate` and a given `FixedOffset`.
      */
-    pub fn from_partial_date(date: DicomDate, offset: FixedOffset) -> DicomDateTime {
+    pub fn from_dicom_date(date: DicomDate, offset: FixedOffset) -> DicomDateTime {
         DicomDateTime {
             date,
             time: None,
@@ -271,9 +296,9 @@ impl DicomDateTime {
 
     /**
      * Constructs a new `DicomDateTime` from a `DicomDate`, `DicomTime` and a given `FixedOffset`,
-     * providing that `DicomDate.is_precise() == true`.
+     * providing that `DicomDate` is precise.
      */
-    pub fn from_partial_date_and_time(
+    pub fn from_dicom_date_and_time(
         date: DicomDate,
         time: DicomTime,
         offset: FixedOffset,
@@ -303,11 +328,22 @@ impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
         let minute: u8 = dt.minute().try_into().context(Conversion)?;
         let second: u8 = dt.second().try_into().context(Conversion)?;
         let fraction: u32 = dt.nanosecond() / 1000;
-        todo!("Calculate precision as 10 over X"); 
+        let precision = match fraction {
+            0 => 6,
+            _ => {
+                let mut fr = fraction;
+                let mut precision = 0;
+                while fr >= 1 {
+                    fr = fr / 10;
+                    precision += 1;
+                }
+                u8::min(6, precision)
+            }
+        };
 
-        Ok(DicomDateTime::from_partial_date_and_time(
+        Ok(DicomDateTime::from_dicom_date_and_time(
             DicomDate::from_ymd(year, month, day)?,
-            DicomTime::from_hmsf(hour, minute, second, fraction, 6)?,
+            DicomTime::from_hmsf(hour, minute, second, fraction, precision)?,
             *dt.offset(),
         )?)
     }
@@ -354,24 +390,25 @@ impl Precision for DicomDateTime {
 }
 
 /**
- * This trait is implemented by partial precision Date, Time and DateTime structures.
- * Unlike RUSTs `chrono`, this implemenation of Date / Time is DICOM compliant:  
- * has only 6 digit precision for fracion of a second
- * and has no means to handle leap seconds
+ * The DICOM protocol accepts date / time values with null compoments.
+ * 
+ * Missing components are to be handled as date / time ranges.
+ * This trait is implemented by date / time structures with partial precision,
+ * which means they can be converted into a date / time range.
  */
 pub trait AsTemporalRange<T>: Precision
 where
     T: PartialEq,
 {
     /**
-     * Returns the earliest possible value from a partial precision structure.
+     * Returns the earliest possible `chrono` value from a partial precision structure.
      * So missing components default to 1 (days, months) or 0 (hours, minutes, ...)
      * If structure contains invalid combination of `DateComponent`s, it fails.
      */
     fn earliest(&self) -> Result<T>;
 
     /**
-     * Returns the latest possible value from a partial precision structure.
+     * Returns the latest possible `chrono` value from a partial precision structure.
      * If structure contains invalid combination of `DateComponent`s, it fails.
      */
     fn latest(&self) -> Result<T>;
@@ -386,13 +423,26 @@ where
 
     /**
      * Returns `true`, if partial precision structure has maximum possible accuracy.
-     * For fraction of a second, only a 6 digit precision returns `true`.
+     * For fraction of a second, full 6 digits are required for the value to be precise.
      */
     fn is_precise(&self) -> bool {
         let e = self.earliest();
         let l = self.latest();
 
         e.is_ok() && l.is_ok() && e.ok() == l.ok()
+    }
+
+    // this one needs to be reimplemented for DicomTime, as to loosen the strict requirement
+    // of 6 digits fraction accuracy
+    /**
+     * Returns a corresponding `chrono` structure, if the partial precision structure has full accuracy.
+     */
+    fn exact(&self) -> Result<T> {
+        if self.is_precise() {
+            Ok(self.earliest()?)
+        } else {
+            ImpreciseValue.fail()
+        }
     }
 }
 
@@ -457,6 +507,15 @@ impl AsTemporalRange<NaiveTime> for DicomTime {
         NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), *f)
             .context(InvalidTime)
     }
+
+    // If fraction with any accuracy is present, `DicomTime` is handled as precise.
+    // missing accuracy falls back to zeros.
+    fn exact(&self) -> Result<NaiveTime> {
+        match self {
+            DicomTime::Fraction(..) => Ok(self.earliest()?),
+            _ => ImpreciseValue.fail(),
+        }
+    }
 }
 
 impl AsTemporalRange<DateTime<FixedOffset>> for DicomDateTime {
@@ -491,7 +550,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_partial_date() {
+    fn test_dicom_date() {
         assert_eq!(
             DicomDate::from_ymd(1944, 2, 29).unwrap(),
             DicomDate::Day(1944, 2, 29)
@@ -530,10 +589,28 @@ mod tests {
             DicomDate::from_ym(1945, 2).unwrap().latest().unwrap(),
             NaiveDate::from_ymd(1945, 2, 28)
         );
+
+        assert_eq!(
+            DicomDate::try_from(&NaiveDate::from_ymd(1945, 2, 28)).unwrap(),
+            DicomDate::Day(1945, 2, 28)
+        );
+
+        assert!(matches!(
+            DicomDate::try_from(&NaiveDate::from_ymd(-2000, 2, 28)),
+            Err(Error::Conversion { .. })
+        ));
+
+        assert!(matches!(
+            DicomDate::try_from(&NaiveDate::from_ymd(10_000, 2, 28)),
+            Err(Error::InvalidComponent {
+                component: DateComponent::Year,
+                ..
+            })
+        ));
     }
 
     #[test]
-    fn test_partial_time() {
+    fn test_dicom_time() {
         assert_eq!(
             DicomTime::from_hmsf(9, 1, 1, 123456, 6).unwrap(),
             DicomTime::Fraction(9, 1, 1, 123456, 6)
@@ -596,6 +673,21 @@ mod tests {
             true
         );
 
+        assert_eq!(
+            DicomTime::try_from(&NaiveTime::from_hms_micro(16, 31, 28, 123)).unwrap(),
+            DicomTime::Fraction(16, 31, 28, 123, 3)
+        );
+
+        assert_eq!(
+            DicomTime::try_from(&NaiveTime::from_hms_micro(16, 31, 28, 123_456)).unwrap(),
+            DicomTime::Fraction(16, 31, 28, 123_456, 6)
+        );
+
+        assert_eq!(
+            DicomTime::try_from(&NaiveTime::from_hms_micro(16, 31, 28, 0)).unwrap(),
+            DicomTime::Fraction(16, 31, 28, 0, 6)
+        );
+
         assert!(matches!(
             DicomTime::from_hmsf(9, 1, 1, 1, 7),
             Err(Error::FractionPrecisionRange { value: 7, .. })
@@ -609,13 +701,21 @@ mod tests {
                 ..
             })
         ));
+
+        assert!(matches!(
+            DicomTime::try_from(&NaiveTime::from_hms_micro(16, 31, 28, 1_000_000)),
+            Err(Error::InvalidComponent {
+                component: DateComponent::Fraction,
+                ..
+            })
+        ));
     }
 
     #[test]
-    fn test_partial_datetime() {
+    fn test_dicom_datetime() {
         let default_offset = FixedOffset::east(0);
         assert_eq!(
-            DicomDateTime::from_partial_date(
+            DicomDateTime::from_dicom_date(
                 DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 default_offset
             ),
@@ -627,7 +727,7 @@ mod tests {
         );
 
         assert_eq!(
-            DicomDateTime::from_partial_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
+            DicomDateTime::from_dicom_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
                 .earliest()
                 .unwrap(),
             FixedOffset::east(0)
@@ -636,7 +736,7 @@ mod tests {
         );
 
         assert_eq!(
-            DicomDateTime::from_partial_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
+            DicomDateTime::from_dicom_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
                 .latest()
                 .unwrap(),
             FixedOffset::east(0)
@@ -645,7 +745,7 @@ mod tests {
         );
 
         assert_eq!(
-            DicomDateTime::from_partial_date_and_time(
+            DicomDateTime::from_dicom_date_and_time(
                 DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 DicomTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
@@ -658,7 +758,7 @@ mod tests {
                 .and_hms_micro(23, 59, 59, 100_000)
         );
         assert_eq!(
-            DicomDateTime::from_partial_date_and_time(
+            DicomDateTime::from_dicom_date_and_time(
                 DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 DicomTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
@@ -671,8 +771,36 @@ mod tests {
                 .and_hms_micro(23, 59, 59, 109_999)
         );
 
+        assert_eq!(
+            DicomDateTime::try_from(
+                &FixedOffset::east(0)
+                    .ymd(2020, 2, 29)
+                    .and_hms_micro(23, 59, 59, 999_999)
+            )
+            .unwrap(),
+            DicomDateTime {
+                date: DicomDate::from_ymd(2020, 2, 29).unwrap(),
+                time: Some(DicomTime::from_hmsf(23, 59, 59, 999_999, 6).unwrap()),
+                offset: default_offset
+            }
+        );
+
+        assert_eq!(
+            DicomDateTime::try_from(
+                &FixedOffset::east(0)
+                    .ymd(2020, 2, 29)
+                    .and_hms_micro(23, 59, 59, 0)
+            )
+            .unwrap(),
+            DicomDateTime {
+                date: DicomDate::from_ymd(2020, 2, 29).unwrap(),
+                time: Some(DicomTime::from_hmsf(23, 59, 59, 0, 6).unwrap()),
+                offset: default_offset
+            }
+        );
+
         assert!(matches!(
-            DicomDateTime::from_partial_date(
+            DicomDateTime::from_dicom_date(
                 DicomDate::from_ymd(2021, 2, 29).unwrap(),
                 default_offset
             )
@@ -681,7 +809,7 @@ mod tests {
         ));
 
         assert!(matches!(
-            DicomDateTime::from_partial_date_and_time(
+            DicomDateTime::from_dicom_date_and_time(
                 DicomDate::from_ym(2020, 2).unwrap(),
                 DicomTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
@@ -692,7 +820,7 @@ mod tests {
             })
         ));
         assert!(matches!(
-            DicomDateTime::from_partial_date_and_time(
+            DicomDateTime::from_dicom_date_and_time(
                 DicomDate::from_y(1).unwrap(),
                 DicomTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
