@@ -1,17 +1,11 @@
-# dicom-pixeldata
-Pixel data handler for the dicom-rs crate.
+# DICOM-rs `pixeldata`
 
-## Example
-```rust
-use std::error::Error;
-use dicom_object::open_file;
-use dicom_pixeldata::PixelDecoder;
+[![CratesIO](https://img.shields.io/crates/v/dicom-pixeldata.svg)](https://crates.io/crates/dicom-pixeldata)
+[![Documentation](https://docs.rs/dicom-pixeldata/badge.svg)](https://docs.rs/dicom-pixeldata)
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let obj = open_file("dicom.dcm")?;
-    let image = obj.decode_pixel_data()?;
-    let dynamic_image = image.to_dynamic_image()?;
-    dynamic_image.save("out.png")?;
-    Ok(())
-}
-```
+This sub-project is directed at users of the DICOM-rs ecosystem.
+It provides constructs for handling DICOM pixel data
+and is responsible for decoding pixel data elements
+into images or multi-dimensional arrays.
+
+This crate is part of the [DICOM-rs](https://github.com/Enet4/dicom-rs) project.
