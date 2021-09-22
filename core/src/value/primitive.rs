@@ -2692,7 +2692,7 @@ impl PrimitiveValue {
     /// If the value is a sequence of U8 bytes, the bytes are
     /// first interpreted as an ASCII character string.
     ///
-    /// Unlike Rust's `chrono::DateTime`, `DicomDate` allows for missing date or time components.
+    /// Unlike Rust's `chrono::DateTime`, `DicomDateTime` allows for missing date or time components.
     /// DicomDateTime implements `TemporalRange` trait, so specific `chrono::DateTime` values can be retrieved.
     /// - .exact()
     /// - .earliest()
