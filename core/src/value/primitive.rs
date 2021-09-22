@@ -2010,7 +2010,7 @@ impl PrimitiveValue {
     /// first interpreted as an ASCII character string.
     ///
     /// Unlike Rust's `chrono::NaiveDate`, `DicomDate` allows for missing date components.
-    /// DicomDate implements `AsTemporalRange` trait, so specific `chrono::NaiveDate` values can be retrieved.
+    /// DicomDate implements `TemporalRange` trait, so specific `chrono::NaiveDate` values can be retrieved.
     /// - .exact()
     /// - .earliest()
     /// - .latest()
@@ -2022,7 +2022,7 @@ impl PrimitiveValue {
     /// # use dicom_core::value::{C, PrimitiveValue};
     /// # use smallvec::smallvec;
     /// # use chrono::NaiveDate;
-    ///  use dicom_core::value::partial::AsTemporalRange;
+    ///  use dicom_core::value::partial::TemporalRange;
     ///
     ///  let value = PrimitiveValue::Str("200002".into());
     ///  let dicom_date = value.to_dicom_date().unwrap();
@@ -2092,7 +2092,7 @@ impl PrimitiveValue {
     /// # use dicom_core::value::{PrimitiveValue};
     /// # use dicom_core::dicom_value;
     /// # use dicom_core::value::partial::DicomDate;
-    /// 
+    ///
     ///  assert_eq!(
     ///    dicom_value!(Strs, ["201410", "2020", "20200101"])
     ///    .to_multi_dicom_date()
@@ -2169,6 +2169,11 @@ impl PrimitiveValue {
     /// first interpreted as an ASCII character string.
     /// Otherwise, the operation fails.
     ///
+    /// Users are advised that this method requires at least 1 out of 6 digits of the second
+    /// fraction .F to be present. Otherwise, the operation fails.
+    ///
+    /// Partial precision times are handled by `DicomTime`, which can be retrieved by `.to_dicom_time()`.
+    ///
     /// # Example
     ///
     /// ```
@@ -2225,7 +2230,7 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve the full sequence of DICOM times from this value.
+    /// Retrieve the full sequence of `chrono::NaiveTime`s from this value.
     ///
     /// If the value is already represented as a sequence of times,
     /// it is returned as is.
@@ -2236,6 +2241,11 @@ impl PrimitiveValue {
     /// first interpreted as an ASCII character string,
     /// then as a backslash-separated list of times.
     /// Otherwise, the operation fails.
+    ///
+    /// Users are advised that this method requires at least 1 out of 6 digits of the second
+    /// fraction .F to be present. Otherwise, the operation fails.
+    ///
+    /// Partial precision times are handled by `DicomTime`, which can be retrieved by `.to_multi_dicom_time()`.
     ///
     /// # Example
     ///
@@ -2305,6 +2315,45 @@ impl PrimitiveValue {
 
     /// Retrieve a single `DicomTime` from this value.
     ///
+    /// If the value is already represented as a time, it is converted into DicomTime.
+    /// If the value is a string or sequence of strings,
+    /// the first string is decoded to obtain a DicomTime, potentially failing if the
+    /// string does not represent a valid DicomTime.
+    /// If the value is a sequence of U8 bytes, the bytes are
+    /// first interpreted as an ASCII character string.
+    ///
+    /// Unlike Rust's `chrono::NaiveTime`, `DicomTime` allows for missing time components.
+    /// DicomTime implements `TemporalRange` trait, so specific `chrono::NaiveTime` values can be retrieved.
+    /// - .exact()
+    /// - .earliest()
+    /// - .latest()
+    /// - .to_range()
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use chrono::NaiveTime;
+    ///  use dicom_core::value::partial::TemporalRange;
+    ///
+    ///  let value = PrimitiveValue::Str("10".into());
+    ///  let dicom_time = value.to_dicom_time().unwrap();
+    ///
+    ///  assert_eq!(
+    ///     dicom_time.is_precise(),
+    ///     false
+    ///     );
+    ///  assert_eq!(
+    ///     dicom_time.earliest().ok(),
+    ///     Some(NaiveTime::from_hms(10,0,0))
+    ///     );
+    ///  assert_eq!(
+    ///     dicom_time.latest().ok(),
+    ///     Some(NaiveTime::from_hms_micro(10,59,59,999_999))
+    ///     );
+    ///  assert!(dicom_time.exact().is_err());
+    ///
+    /// ```
     pub fn to_dicom_time(&self) -> Result<DicomTime, ConvertValueError> {
         match self {
             PrimitiveValue::Time(t) if !t.is_empty() => DicomTime::try_from(&t[0])
@@ -2354,6 +2403,40 @@ impl PrimitiveValue {
 
     /// Retrieve the full sequence of `DicomTime`s from this value.
     ///
+    /// If the value is already represented as a time, it is converted into DicomTime.
+    /// If the value is a string or sequence of strings,
+    /// the first string is decoded to obtain a DicomTime, potentially failing if the
+    /// string does not represent a valid DicomTime.
+    /// If the value is a sequence of U8 bytes, the bytes are
+    /// first interpreted as an ASCII character string.
+    ///
+    /// Unlike Rust's `chrono::NaiveTime`, `DicomTime` allows for missing time components.
+    /// DicomTime implements `TemporalRange` trait, so specific `chrono::NaiveTime` values can be retrieved.
+    /// - .exact()
+    /// - .earliest()
+    /// - .latest()
+    /// - .to_range()
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    /// # use dicom_core::value::partial::DicomTime;
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::Strs(smallvec![
+    ///         "2258".to_string(),
+    ///         "225916.7423".to_string(),
+    ///     ]).to_multi_dicom_time().ok(),
+    ///     Some(vec![
+    ///         DicomTime::from_hm(22, 58).unwrap(),
+    ///         DicomTime::from_hmsf(22, 59, 16, 7423, 4).unwrap(),
+    ///     ]),
+    /// );
+    ///
+    ///
+    /// ```
     pub fn to_multi_dicom_time(&self) -> Result<Vec<DicomTime>, ConvertValueError> {
         match self {
             PrimitiveValue::Time(t) => t
@@ -2408,7 +2491,7 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve a single DICOM date-time from this value.
+    /// Retrieve a single `chrono::DateTime` from this value.
     ///
     /// If the value is already represented as a date-time,
     /// it is returned as is.
@@ -2424,6 +2507,11 @@ impl PrimitiveValue {
     /// Users of this method are advised to retrieve
     /// the default time zone offset
     /// from the same source of the DICOM value.
+    ///
+    /// Users are advised that this method requires at least 1 out of 6 digits of the second
+    /// fraction .F to be present. Otherwise, the operation fails.
+    ///
+    /// Partial precision date-times are handled by `DicomDateTime`, which can be retrieved by `.to_dicom_datetime()`.
     ///
     /// # Example
     ///
@@ -2496,7 +2584,7 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve the full sequence of DICOM date-times from this value.
+    /// Retrieve the full sequence of `chrono::DateTime`s from this value.
     ///
     /// If the value is already represented as a sequence of date-times,
     /// it is returned as is.
@@ -2507,6 +2595,11 @@ impl PrimitiveValue {
     /// first interpreted as an ASCII character string,
     /// then as a backslash-separated list of date-times.
     /// Otherwise, the operation fails.
+    ///
+    /// Users are advised that this method requires at least 1 out of 6 digits of the second
+    /// fraction .F to be present. Otherwise, the operation fails.
+    ///
+    /// Partial precision date-times are handled by `DicomDateTime`, which can be retrieved by `.to_multi_dicom_datetime()`.
     ///
     /// # Example
     ///
@@ -2592,6 +2685,61 @@ impl PrimitiveValue {
 
     /// Retrieve a single `DicomDateTime` from this value.
     ///
+    /// If the value is already represented as a date-time, it is converted into DicomDateTime.
+    /// If the value is a string or sequence of strings,
+    /// the first string is decoded to obtain a DicomDateTime, potentially failing if the
+    /// string does not represent a valid DicomDateTime.
+    /// If the value is a sequence of U8 bytes, the bytes are
+    /// first interpreted as an ASCII character string.
+    ///
+    /// Unlike Rust's `chrono::DateTime`, `DicomDate` allows for missing date or time components.
+    /// DicomDateTime implements `TemporalRange` trait, so specific `chrono::DateTime` values can be retrieved.
+    /// - .exact()
+    /// - .earliest()
+    /// - .latest()
+    /// - .to_range()
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    /// # use chrono::{DateTime, FixedOffset, TimeZone};
+    /// # use dicom_core::value::partial::{DicomDateTime, TemporalRange};
+    /// let default_offset = FixedOffset::east(0);
+    ///
+    /// let dt_value = PrimitiveValue::from("20121221093001.1").to_dicom_datetime(default_offset).unwrap();
+    ///
+    /// assert_eq!(
+    ///     dt_value.earliest().ok(),
+    ///     Some(FixedOffset::east(0)
+    ///         .ymd(2012, 12, 21)
+    ///         .and_hms_micro(9, 30, 1, 100_000)
+    ///     ),
+    /// );
+    /// assert_eq!(
+    ///     dt_value.latest().ok(),
+    ///     Some(FixedOffset::east(0)
+    ///         .ymd(2012, 12, 21)
+    ///         .and_hms_micro(9, 30, 1, 199_999)
+    ///     ),
+    /// );
+    ///
+    /// let dt_value = PrimitiveValue::from("20121221093001.123456").to_dicom_datetime(default_offset).unwrap();
+    /// 
+    /// assert_eq!(dt_value.is_precise(), true);
+    /// 
+    /// assert_eq!(
+    ///     dt_value.to_range().unwrap(),
+    ///     (
+    ///     Some(FixedOffset::east(0)
+    ///         .ymd(2012, 12, 21)
+    ///         .and_hms_micro(9, 30, 1, 123_456)),
+    ///     Some(FixedOffset::east(0)
+    ///         .ymd(2012, 12, 21)
+    ///         .and_hms_micro(9, 30, 1, 123_456))
+    ///     )
+    /// );
+    /// ```
     pub fn to_dicom_datetime(
         &self,
         default_offset: FixedOffset,

@@ -56,7 +56,7 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-/** Decode a single DICOM Date (DA) into a `NaiveDate` value.
+/** Decode a single DICOM Date (DA) into a `chrono::NaiveDate` value.
   * As per standard, a full 8 byte representation (YYYYMMDD) is required,
   otherwise, the operation fails.
 */
@@ -198,7 +198,7 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(DicomTime, &[u8])> {
     }
 }
 
-/** Decode a single DICOM Time (TM) into a `NaiveTime` value.
+/** Decode a single DICOM Time (TM) into a `chrono::NaiveTime` value.
 * If a time component is missing, the operation fails.
 * Presence of the second fraction component `.FFFFFF` is mandatory with at
   least one digit accuracy `.F` while missing digits default to zero.
@@ -348,7 +348,7 @@ where
     })
 }
 
-/** Retrieve a DICOM date-time from the given text, while assuming the given UTC offset.
+/** Retrieve a `chrono::DateTime` from the given text, while assuming the given UTC offset.
 * If a date/time component is missing, the operation fails.
 * Presence of the second fraction component `.FFFFFF` is mandatory with at
   least one digit accuracy `.F` while missing digits default to zero.
@@ -392,7 +392,7 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
         .context(InvalidDateTimeZone)
 }
 
-/** Decode a single DICOM DateTime (DT) into a `DicomDateTime` value.
+/** Decode text into a `DicomDateTime` value.
  * Unlike `parse_datetime`, this method allows for missing Date / Time components.
  * The precision of the second fraction is stored and can be returned as a range later.
  */

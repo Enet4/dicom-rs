@@ -396,7 +396,7 @@ impl Precision for DicomDateTime {
  * This trait is implemented by date / time structures with partial precision,
  * which means they can be converted into a date / time range.
  */
-pub trait AsTemporalRange<T>: Precision
+pub trait TemporalRange<T>: Precision
 where
     T: PartialEq,
 {
@@ -446,7 +446,7 @@ where
     }
 }
 
-impl AsTemporalRange<NaiveDate> for DicomDate {
+impl TemporalRange<NaiveDate> for DicomDate {
     fn earliest(&self) -> Result<NaiveDate> {
         let (y, m, d) = match self {
             DicomDate::Year(y) => (*y as i32, 1, 1),
@@ -477,7 +477,7 @@ impl AsTemporalRange<NaiveDate> for DicomDate {
     }
 }
 
-impl AsTemporalRange<NaiveTime> for DicomTime {
+impl TemporalRange<NaiveTime> for DicomTime {
     fn earliest(&self) -> Result<NaiveTime> {
         let fr: u32;
         let (h, m, s, f) = match self {
@@ -518,7 +518,7 @@ impl AsTemporalRange<NaiveTime> for DicomTime {
     }
 }
 
-impl AsTemporalRange<DateTime<FixedOffset>> for DicomDateTime {
+impl TemporalRange<DateTime<FixedOffset>> for DicomDateTime {
     fn earliest(&self) -> Result<DateTime<FixedOffset>> {
         let date = self.date.earliest()?;
         let time = match self.time {
