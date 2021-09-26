@@ -422,11 +422,11 @@ pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<
         _ => return UnexpectedEndOfElement.fail(),
     };
 
-    if time.is_some() {
-        DicomDateTime::from_dicom_date_and_time(date, time.unwrap(), offset)
-            .context(InvalidDateTime)
-    } else {
-        Ok(DicomDateTime::from_dicom_date(date, offset))
+    match time {
+        Some(tm) => DicomDateTime::from_dicom_date_and_time(date, tm, offset)
+                   .context(InvalidDateTime),
+        None => Ok(DicomDateTime::from_dicom_date(date, offset))
+                
     }
 }
 

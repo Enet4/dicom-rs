@@ -74,7 +74,7 @@ pub enum DateComponent {
 /**
  * Represents a Dicom Date value with a partial precision,
  * where some time components may be missing.
- * 
+ *
  * Although the DICOM protocol does not allow for an incomplete DA value,
  * this structure is necessary for range matching purposes, where incomplete
  * date values occur.
@@ -89,7 +89,7 @@ pub enum DicomDate {
 /**
  * Represents a Dicom Time value with a partial precision,
  * where some time components may be missing.
- * 
+ *
  * Unlike RUSTs `chrono::NaiveTime`, this implemenation of time is DICOM compliant:  
  * - has only 6 digit precision for fraction of a second
  * - has no means to handle leap seconds
@@ -234,7 +234,7 @@ impl DicomTime {
         }
         if u32::pow(10, frac_precision as u32) < fraction {
             return FractionPrecisionMismatch {
-                fraction: fraction,
+                fraction,
                 precision: frac_precision,
             }
             .fail();
@@ -262,23 +262,8 @@ impl TryFrom<&NaiveTime> for DicomTime {
         let minute: u8 = time.minute().try_into().context(Conversion)?;
         let second: u8 = time.second().try_into().context(Conversion)?;
         let fraction: u32 = time.nanosecond() / 1000;
-        // fracition 0 needs to be converted to precise accuracy (6 digits)
-        let precision = match fraction {
-            0 => 6,
-            _ => {
-                let mut fr = fraction;
-                let mut precision: u8 = 0;
-                while fr >= 1 {
-                    fr = fr / 10;
-                    precision += 1;
-                }
-                u8::min(6, precision)
-            }
-        };
-
-        Ok(DicomTime::from_hmsf(
-            hour, minute, second, fraction, precision,
-        )?)
+        // conversion from NaiveTime always leads to full precision (6)
+        Ok(DicomTime::from_hmsf(hour, minute, second, fraction, 6)?)
     }
 }
 
@@ -334,7 +319,7 @@ impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
                 let mut fr = fraction;
                 let mut precision = 0;
                 while fr >= 1 {
-                    fr = fr / 10;
+                    fr /= 10;
                     precision += 1;
                 }
                 u8::min(6, precision)
@@ -391,7 +376,7 @@ impl Precision for DicomDateTime {
 
 /**
  * The DICOM protocol accepts date / time values with null compoments.
- * 
+ *
  * Missing components are to be handled as date / time ranges.
  * This trait is implemented by date / time structures with partial precision,
  * which means they can be converted into a date / time range.
@@ -674,13 +659,18 @@ mod tests {
         );
 
         assert_eq!(
-            DicomTime::try_from(&NaiveTime::from_hms_micro(16, 31, 28, 123)).unwrap(),
-            DicomTime::Fraction(16, 31, 28, 123, 3)
+            DicomTime::try_from(&NaiveTime::from_hms_milli(16, 31, 28, 123)).unwrap(),
+            DicomTime::Fraction(16, 31, 28, 123_000, 6)
         );
 
         assert_eq!(
-            DicomTime::try_from(&NaiveTime::from_hms_micro(16, 31, 28, 123_456)).unwrap(),
-            DicomTime::Fraction(16, 31, 28, 123_456, 6)
+            DicomTime::try_from(&NaiveTime::from_hms_micro(16, 31, 28, 123)).unwrap(),
+            DicomTime::Fraction(16, 31, 28, 000123, 6)
+        );
+
+        assert_eq!(
+            DicomTime::try_from(&NaiveTime::from_hms_micro(16, 31, 28, 1234)).unwrap(),
+            DicomTime::Fraction(16, 31, 28, 001234, 6)
         );
 
         assert_eq!(

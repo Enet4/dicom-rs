@@ -2109,7 +2109,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Date(d) => d
                 .into_iter()
-                .map(|d| DicomDate::try_from(d))
+                .map(DicomDate::try_from)
                 .collect::<Result<Vec<_>, _>>()
                 .context(IntoDicomDate)
                 .map_err(|err| ConvertValueError {
@@ -2441,7 +2441,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Time(t) => t
                 .into_iter()
-                .map(|t| DicomTime::try_from(t))
+                .map(DicomTime::try_from)
                 .collect::<Result<Vec<_>, _>>()
                 .context(IntoDicomTime)
                 .map_err(|err| ConvertValueError {
@@ -2725,9 +2725,9 @@ impl PrimitiveValue {
     /// );
     ///
     /// let dt_value = PrimitiveValue::from("20121221093001.123456").to_dicom_datetime(default_offset).unwrap();
-    /// 
+    ///
     /// assert_eq!(dt_value.is_precise(), true);
-    /// 
+    ///
     /// assert_eq!(
     ///     dt_value.to_range().unwrap(),
     ///     (
@@ -2798,7 +2798,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::DateTime(v) => v
                 .into_iter()
-                .map(|v| DicomDateTime::try_from(v))
+                .map(DicomDateTime::try_from)
                 .collect::<Result<Vec<_>, _>>()
                 .context(IntoDicomDateTime)
                 .map_err(|err| ConvertValueError {
@@ -3192,6 +3192,7 @@ mod tests {
     use super::{CastValueError, ConvertValueError, InvalidValueReadError};
     use crate::dicom_value;
     use crate::value::partial::{DicomDate, DicomDateTime, DicomTime};
+    use crate::value::partial::TemporalRange;
     use crate::value::{PrimitiveValue, ValueType};
     use chrono::{FixedOffset, NaiveDate, NaiveTime, TimeZone};
     use smallvec::smallvec;
@@ -3473,6 +3474,25 @@ mod tests {
     }
 
     #[test]
+    fn primitive_value_to_dicom_date() {
+        assert_eq!(
+            dicom_value!(Strs, ["201410", "2020", "20200101"])
+                .to_multi_dicom_date()
+                .unwrap(),
+            vec![
+                DicomDate::Month(2014, 10),
+                DicomDate::from_y(2020).unwrap(),
+                DicomDate::from_ymd(2020, 1, 1).unwrap()
+            ]
+        );
+
+        // no year BC in Dicom
+        assert!(dicom_value!(Date, NaiveDate::from_ymd(-44, 1, 1))
+            .to_dicom_date()
+            .is_err());
+    }
+
+    #[test]
     fn primitive_value_to_multi_dicom_date() {
         assert_eq!(
             dicom_value!(Strs, ["201410", "2020", "20200101"])
@@ -3484,6 +3504,8 @@ mod tests {
                 DicomDate::from_ymd(2020, 1, 1).unwrap()
             ]
         );
+
+        assert!(dicom_value!(Strs, ["-44"]).to_multi_dicom_date().is_err());
     }
 
     #[test]
@@ -3511,7 +3533,7 @@ mod tests {
             NaiveTime::from_hms_milli(11, 9, 26, 380),
         );
 
-        // absence of a second fraction is considered a incomplete value
+        // absence of a second fraction is considered to be incomplete value
         assert!(dicom_value!(Str, "110926").to_time().is_err());
         assert!(PrimitiveValue::from(&"110926"[..]).to_time().is_err(),);
         assert!(dicom_value!(Strs, ["110926"]).to_time().is_err());
@@ -3526,57 +3548,71 @@ mod tests {
             })
         ));
     }
-    /*
-        #[test]
-        fn primitive_value_to_partial_time() {
-            // trivial conversion
-            assert_eq!(
-                PrimitiveValue::from(NaiveTime::from_hms(11, 9, 26))
-                    .to_time()
-                    .unwrap(),
-                NaiveTime::from_hms(11, 9, 26),
-            );
-            // from text (Str)
-            assert_eq!(
-                dicom_value!(Str, "110926").to_time().unwrap(),
-                NaiveTime::from_hms(11, 9, 26),
-            );
-            // from text with fraction of a second + padding
-            assert_eq!(
-                PrimitiveValue::from(&"110926.38 "[..]).to_time().unwrap(),
-                NaiveTime::from_hms_milli(11, 9, 26, 380),
-            );
-            // from text (Strs)
-            assert_eq!(
-                dicom_value!(Strs, ["110926"]).to_time().unwrap(),
-                NaiveTime::from_hms(11, 9, 26),
-            );
-            // from text (Strs) with fraction of a second
-            assert_eq!(
-                dicom_value!(Strs, ["110926.123456"]).to_time().unwrap(),
-                NaiveTime::from_hms_micro(11, 9, 26, 123_456),
-            );
-            // from bytes with fraction of a second
-            assert_eq!(
-                PrimitiveValue::from(&b"110926.987"[..]).to_time().unwrap(),
-                NaiveTime::from_hms_milli(11, 9, 26, 987),
-            );
-            // from bytes with fraction of a second + padding
-            assert_eq!(
-                PrimitiveValue::from(&b"110926.38 "[..]).to_time().unwrap(),
-                NaiveTime::from_hms_milli(11, 9, 26, 380),
-            );
-            // not a time
-            assert!(matches!(
-                PrimitiveValue::Str("Smith^John".to_string()).to_time(),
-                Err(ConvertValueError {
-                    requested: "Time",
-                    original: ValueType::Str,
-                    ..
-                })
-            ));
-        }
-    */
+
+    #[test]
+    fn primitive_value_to_dicom_time() {
+        
+        // from NaiveTime - results in exact DicomTime with default fraction
+        assert_eq!(
+            PrimitiveValue::from(NaiveTime::from_hms(11, 9, 26))
+                .to_dicom_time()
+                .unwrap(),
+            DicomTime::Fraction(11, 9, 26, 0, 6),
+        );
+        // from NaiveTime with milli precision
+        assert_eq!(
+            PrimitiveValue::from(NaiveTime::from_hms_milli(11, 9, 26, 123))
+                .to_dicom_time()
+                .unwrap(),
+            DicomTime::Fraction(11, 9, 26, 123_000, 6),
+        );
+        // from NaiveTime with micro precision
+        assert_eq!(
+            PrimitiveValue::from(NaiveTime::from_hms_micro(11, 9, 26, 123))
+                .to_dicom_time()
+                .unwrap(),
+            DicomTime::Fraction(11, 9, 26, 123, 6),
+        );
+        // from text (Str)
+        assert_eq!(
+            dicom_value!(Str, "110926").to_dicom_time().unwrap(),
+            DicomTime::Second(11, 9, 26),
+        );
+        // from text with fraction of a second + padding
+        assert_eq!(
+            PrimitiveValue::from(&"110926.38 "[..]).to_dicom_time().unwrap(),
+            DicomTime::Fraction(11, 9, 26, 38, 2),
+        );
+        // from text (Strs)
+        assert_eq!(
+            dicom_value!(Strs, ["110926"]).to_dicom_time().unwrap(),
+            DicomTime::Second(11, 9, 26),
+        );
+        // from text (Strs) with fraction of a second
+        assert_eq!(
+            dicom_value!(Strs, ["110926.123456"]).to_dicom_time().unwrap(),
+            DicomTime::Fraction(11, 9, 26, 123_456, 6),
+        );
+        // from bytes with fraction of a second
+        assert_eq!(
+            PrimitiveValue::from(&b"110926.987"[..]).to_dicom_time().unwrap(),
+            DicomTime::Fraction(11, 9, 26, 987, 3),
+        );
+        // from bytes with fraction of a second + padding
+        assert_eq!(
+            PrimitiveValue::from(&b"110926.38 "[..]).to_dicom_time().unwrap(),
+            DicomTime::Fraction(11, 9, 26, 38, 2),
+        );
+        // not a time
+        assert!(matches!(
+            PrimitiveValue::Str("Smith^John".to_string()).to_dicom_time(),
+            Err(ConvertValueError {
+                requested: "DicomTime",
+                original: ValueType::Str,
+                ..
+            })
+        ));
+    }
 
     /*
         #[test]
