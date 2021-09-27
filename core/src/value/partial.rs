@@ -56,9 +56,7 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-/**
- * Represents components of Date, Time and DateTime values.
- */
+/// Represents components of Date, Time and DateTime values.
 #[derive(Debug, PartialEq)]
 pub enum DateComponent {
     Year,
@@ -71,14 +69,15 @@ pub enum DateComponent {
     UTCOffset,
 }
 
-/**
- * Represents a Dicom Date value with a partial precision,
- * where some time components may be missing.
- *
- * Although the DICOM protocol does not allow for an incomplete DA value,
- * this structure is necessary for range matching purposes, where incomplete
- * date values occur.
- */
+
+/// Represents a Dicom Date value with a partial precision,
+/// where some date components may be missing.
+/// 
+/// Unlike RUSTs `chrono::NaiveDate`, it does not allow for negative years.
+///
+/// Although the DICOM protocol does not allow for an incomplete DA value,
+/// this structure is necessary for range matching purposes, where incomplete
+/// date values occur.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DicomDate {
     Year(u16),
@@ -86,14 +85,13 @@ pub enum DicomDate {
     Day(u16, u8, u8),
 }
 
-/**
- * Represents a Dicom Time value with a partial precision,
- * where some time components may be missing.
- *
- * Unlike RUSTs `chrono::NaiveTime`, this implemenation of time is DICOM compliant:  
- * - has only 6 digit precision for fraction of a second
- * - has no means to handle leap seconds
- */
+
+/// Represents a Dicom Time value with a partial precision,
+/// where some time components may be missing.
+/// 
+/// Unlike RUSTs `chrono::NaiveTime`, this implemenation of time is DICOM compliant:  
+/// - has only 6 digit precision for fraction of a second
+/// - has no means to handle leap seconds
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DicomTime {
     Hour(u8),
@@ -102,10 +100,9 @@ pub enum DicomTime {
     Fraction(u8, u8, u8, u32, u8),
 }
 
-/**
- * Represents a Dicom DateTime value with a partial precision,
- * where some date / time components may be missing.
- */
+
+/// Represents a Dicom DateTime value with a partial precision,
+/// where some date / time components may be missing.
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct DicomDateTime {
     date: DicomDate,
@@ -313,7 +310,7 @@ impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
         let minute: u8 = dt.minute().try_into().context(Conversion)?;
         let second: u8 = dt.second().try_into().context(Conversion)?;
         let fraction: u32 = dt.nanosecond() / 1000;
-        
+
         Ok(DicomDateTime::from_dicom_date_and_time(
             DicomDate::from_ymd(year, month, day)?,
             DicomTime::from_hmsf(hour, minute, second, fraction, 6)?,
@@ -362,24 +359,22 @@ impl Precision for DicomDateTime {
     }
 }
 
-/**
- * The DICOM protocol accepts date / time values with null compoments.
- * Missing components are to be handled as date / time ranges.
- * This trait is implemented by date / time structures with partial precision.
- * 
- * - exact() - Returns a corresponding `chrono` value, if the partial precision structure has full accuracy.
- * - earliest() - Returns the earliest possible `chrono` value from a partial precision structure.
- * - latest() - Returns the latest possible `chrono` value from a partial precision structure.
- * - range() - Returns a range from earliest to latest possible `chrono` value.
- * - is_precise() - Returns `true`, if partial precision structure has maximum possible accuracy.
- */
+/// The DICOM protocol accepts date / time values with null components.
+/// Missing components are to be handled as date / time ranges.
+/// This trait is implemented by date / time structures with partial precision.
+///
+/// - `.exact()` - Returns a corresponding `chrono` value, if the partial precision structure has full accuracy.
+/// - `.earliest()` - Returns the earliest possible `chrono` value from a partial precision structure.
+/// - `.latest()` - Returns the latest possible `chrono` value from a partial precision structure.
+/// - `.range()` - Returns a range from earliest to latest possible `chrono` value.
+/// - `.is_precise()` - Returns `true`, if partial precision structure has maximum possible accuracy.
 pub trait AsRange<T>: Precision
 where
     T: PartialEq,
 {
     /**
      * Returns the earliest possible `chrono` value from a partial precision structure.
-     * So missing components default to 1 (days, months) or 0 (hours, minutes, ...)
+     * Missing components default to 1 (days, months) or 0 (hours, minutes, ...)
      * If structure contains invalid combination of `DateComponent`s, it fails.
      */
     fn earliest(&self) -> Result<T>;
