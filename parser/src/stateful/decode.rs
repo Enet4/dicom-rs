@@ -507,7 +507,7 @@ where
                     .context(DeserializeValue {
                         position: self.position,
                     })?
-                    .0)
+                    )
             })
             .collect();
         self.position += len as u64;
