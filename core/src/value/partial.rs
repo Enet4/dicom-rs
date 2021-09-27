@@ -313,22 +313,10 @@ impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
         let minute: u8 = dt.minute().try_into().context(Conversion)?;
         let second: u8 = dt.second().try_into().context(Conversion)?;
         let fraction: u32 = dt.nanosecond() / 1000;
-        let precision = match fraction {
-            0 => 6,
-            _ => {
-                let mut fr = fraction;
-                let mut precision = 0;
-                while fr >= 1 {
-                    fr /= 10;
-                    precision += 1;
-                }
-                u8::min(6, precision)
-            }
-        };
-
+        
         Ok(DicomDateTime::from_dicom_date_and_time(
             DicomDate::from_ymd(year, month, day)?,
-            DicomTime::from_hmsf(hour, minute, second, fraction, precision)?,
+            DicomTime::from_hmsf(hour, minute, second, fraction, 6)?,
             *dt.offset(),
         )?)
     }
@@ -376,12 +364,16 @@ impl Precision for DicomDateTime {
 
 /**
  * The DICOM protocol accepts date / time values with null compoments.
- *
  * Missing components are to be handled as date / time ranges.
- * This trait is implemented by date / time structures with partial precision,
- * which means they can be converted into a date / time range.
+ * This trait is implemented by date / time structures with partial precision.
+ * 
+ * - exact() - Returns a corresponding `chrono` value, if the partial precision structure has full accuracy.
+ * - earliest() - Returns the earliest possible `chrono` value from a partial precision structure.
+ * - latest() - Returns the latest possible `chrono` value from a partial precision structure.
+ * - range() - Returns a range from earliest to latest possible `chrono` value.
+ * - is_precise() - Returns `true`, if partial precision structure has maximum possible accuracy.
  */
-pub trait TemporalRange<T>: Precision
+pub trait AsRange<T>: Precision
 where
     T: PartialEq,
 {
@@ -402,7 +394,7 @@ where
      * Returns a tuple of the earliest and latest possible value from a partial precision structure.
      *
      */
-    fn to_range(&self) -> Result<(Option<T>, Option<T>)> {
+    fn range(&self) -> Result<(Option<T>, Option<T>)> {
         Ok((self.earliest().ok(), self.latest().ok()))
     }
 
@@ -420,7 +412,7 @@ where
     // this one needs to be reimplemented for DicomTime, as to loosen the strict requirement
     // of 6 digits fraction accuracy
     /**
-     * Returns a corresponding `chrono` structure, if the partial precision structure has full accuracy.
+     * Returns a corresponding `chrono` value, if the partial precision structure has full accuracy.
      */
     fn exact(&self) -> Result<T> {
         if self.is_precise() {
@@ -431,7 +423,7 @@ where
     }
 }
 
-impl TemporalRange<NaiveDate> for DicomDate {
+impl AsRange<NaiveDate> for DicomDate {
     fn earliest(&self) -> Result<NaiveDate> {
         let (y, m, d) = match self {
             DicomDate::Year(y) => (*y as i32, 1, 1),
@@ -462,7 +454,7 @@ impl TemporalRange<NaiveDate> for DicomDate {
     }
 }
 
-impl TemporalRange<NaiveTime> for DicomTime {
+impl AsRange<NaiveTime> for DicomTime {
     fn earliest(&self) -> Result<NaiveTime> {
         let fr: u32;
         let (h, m, s, f) = match self {
@@ -503,7 +495,7 @@ impl TemporalRange<NaiveTime> for DicomTime {
     }
 }
 
-impl TemporalRange<DateTime<FixedOffset>> for DicomDateTime {
+impl AsRange<DateTime<FixedOffset>> for DicomDateTime {
     fn earliest(&self) -> Result<DateTime<FixedOffset>> {
         let date = self.date.earliest()?;
         let time = match self.time {

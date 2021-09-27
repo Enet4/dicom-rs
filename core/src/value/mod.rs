@@ -14,6 +14,7 @@ pub use self::deserialize::Error as DeserializeError;
 pub use self::primitive::{
     CastValueError, ConvertValueError, InvalidValueReadError, PrimitiveValue, ValueType,
 };
+pub use self::partial::{AsRange, DicomDate, DicomTime, DicomDateTime};
 
 /// re-exported from chrono
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
@@ -396,7 +397,7 @@ where
     /// [`PrimitiveValue::to_date`]: ../enum.PrimitiveValue.html#to_date
     pub fn to_date(&self) -> Result<NaiveDate, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_date(),
+            Value::Primitive(v) => v.to_naive_date(),
             _ => Err(ConvertValueError {
                 requested: "Date",
                 original: self.value_type(),
@@ -413,7 +414,7 @@ where
     /// [`PrimitiveValue::to_multi_date`]: ../enum.PrimitiveValue.html#to_multi_date
     pub fn to_multi_date(&self) -> Result<Vec<NaiveDate>, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_multi_date(),
+            Value::Primitive(v) => v.to_multi_naive_date(),
             _ => Err(ConvertValueError {
                 requested: "Date",
                 original: self.value_type(),
@@ -430,7 +431,7 @@ where
     /// [`PrimitiveValue::to_time`]: ../enum.PrimitiveValue.html#to_time
     pub fn to_time(&self) -> Result<NaiveTime, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_time(),
+            Value::Primitive(v) => v.to_naive_time(),
             _ => Err(ConvertValueError {
                 requested: "Time",
                 original: self.value_type(),
@@ -447,7 +448,7 @@ where
     /// [`PrimitiveValue::to_multi_time`]: ../enum.PrimitiveValue.html#to_multi_time
     pub fn to_multi_time(&self) -> Result<Vec<NaiveTime>, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_multi_time(),
+            Value::Primitive(v) => v.to_multi_naive_time(),
             _ => Err(ConvertValueError {
                 requested: "Time",
                 original: self.value_type(),
