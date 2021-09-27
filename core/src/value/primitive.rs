@@ -361,8 +361,8 @@ impl PrimitiveValue {
     }
 
     /// Create a single I32 value.
-    pub fn new_i32(value: u32) -> Self {
-        PrimitiveValue::U32(C::from_elem(value, 1))
+    pub fn new_i32(value: i32) -> Self {
+        PrimitiveValue::I32(C::from_elem(value, 1))
     }
 
     /// Obtain the number of individual elements. This number may not
