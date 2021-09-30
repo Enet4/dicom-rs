@@ -15,15 +15,18 @@ use crate::{
 
 type Result<T, E = super::Error> = std::result::Result<T, E>;
 
-/// A lazy element, which may be loaded in memory or not.
+/// A DICOM element, which may be loaded in memory or not.
+/// 
+/// This type alone does not have the means to load the element's value.
+/// A byte source must be provided whenever a load is attempted.
 #[derive(Debug, Clone)]
-pub struct LazyElement<D = StandardDataDictionary> {
+pub struct MaybeElement<D = StandardDataDictionary> {
     header: DataElementHeader,
     position: u64,
     value: MaybeValue<D>,
 }
 
-impl<D> LazyElement<D>
+impl<D> MaybeElement<D>
 where
     D: DataDictionary,
     D: Clone,
@@ -31,7 +34,7 @@ where
     /// Create a new lazy element with the given properties,
     /// without loading its value in memory.
     pub fn new_unloaded(header: DataElementHeader, position: u64) -> Self {
-        LazyElement {
+        MaybeElement {
             header,
             position,
             value: MaybeValue::Unloaded,
@@ -41,7 +44,7 @@ where
     /// Create a new lazy element with the given properties,
     /// already loaded with an in-memory value.
     pub fn new_loaded(header: DataElementHeader, position: u64, value: LoadedValue<D>) -> Self {
-        LazyElement {
+        MaybeElement {
             header,
             position,
             value: MaybeValue::Loaded {
@@ -238,7 +241,7 @@ pub type LoadedValue<D> = DicomValue<LazyNestedObject<D>, MaybeFragment>;
 #[derive(Debug, Clone)]
 pub struct LazyNestedObject<D = StandardDataDictionary> {
     /// the element dictionary
-    entries: BTreeMap<Tag, LazyElement<D>>,
+    entries: BTreeMap<Tag, MaybeElement<D>>,
     /// the data attribute dictionary
     dict: D,
     /// The length of the DICOM object in bytes.
@@ -307,7 +310,7 @@ mod tests {
     use crate::mem::InMemElement;
     use crate::InMemDicomObject;
 
-    use super::LazyElement;
+    use super::MaybeElement;
     use super::LazyNestedObject;
     use super::MaybeValue;
 
@@ -331,7 +334,7 @@ mod tests {
         );
 
         // Create an unloaded lazy element (actual value starts at 8)
-        let mut lazy_element: LazyElement<StandardDataDictionary> = LazyElement {
+        let mut lazy_element: MaybeElement<StandardDataDictionary> = MaybeElement {
             header: DataElementHeader::new(Tag(0x0010, 0x0010), VR::PN, Length(8)),
             position: 8,
             value: MaybeValue::Unloaded,
@@ -381,7 +384,7 @@ mod tests {
         parser.seek(66).expect("Failed to seek to end of file");
 
         // Create an unloaded lazy element
-        let mut lazy_element: LazyElement<StandardDataDictionary> = LazyElement {
+        let mut lazy_element: MaybeElement<StandardDataDictionary> = MaybeElement {
             header: DataElementHeader::new(Tag(0x0010, 0x0010), VR::PN, Length(8)),
             position: 38,
             value: MaybeValue::Unloaded,
@@ -448,7 +451,7 @@ mod tests {
                 // CodeValue element
                 (
                     Tag(0x0008, 0x0100),
-                    LazyElement::new_unloaded(
+                    MaybeElement::new_unloaded(
                         DataElementHeader::new(Tag(0x0008, 0x0100), VR::SH, Length(8)),
                         28,
                     ),
@@ -456,7 +459,7 @@ mod tests {
                 // CodingSchemeDesignator element
                 (
                     Tag(0x0008, 0x0102),
-                    LazyElement::new_unloaded(
+                    MaybeElement::new_unloaded(
                         DataElementHeader::new(Tag(0x0008, 0x0102), VR::SH, Length(4)),
                         44,
                     ),
@@ -464,7 +467,7 @@ mod tests {
                 // CodeMeaning element
                 (
                     Tag(0x0008, 0x0104),
-                    LazyElement::new_unloaded(
+                    MaybeElement::new_unloaded(
                         DataElementHeader::new(Tag(0x0008, 0x0104), VR::LO, Length(10)),
                         56,
                     ),

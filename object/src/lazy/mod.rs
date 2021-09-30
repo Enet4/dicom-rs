@@ -6,11 +6,13 @@
 //! A pointer to the original data source is kept for future access,
 //! so that the element is fetched and its value is decoded on demand.
 
+use dicom_dictionary_std::StandardDataDictionary;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use smallvec::SmallVec;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
+use std::cell::RefCell;
 use std::{collections::BTreeMap, io::Seek, io::SeekFrom};
 
 use crate::DicomObject;
@@ -35,7 +37,8 @@ use dicom_parser::{
 };
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 
-pub use self::element::{LazyElement, LazyNestedObject, MaybeValue};
+use self::element::LoadedValue;
+pub use self::element::{MaybeElement, LazyNestedObject, MaybeValue};
 use self::record::{DataSetTable, RecordBuildingDataSetReader};
 
 pub(crate) mod element;
@@ -112,13 +115,20 @@ pub enum Error {
     },
     /// Premature data set end
     PrematureEnd { backtrace: Backtrace },
+    #[snafu(display("No such data element with tag {}", tag))]
+    NoSuchDataElementTag { tag: Tag, backtrace: Backtrace },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// The options for opening a DICOM file
+/// as a lazily evaluated object.
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct OpenFileOptions<D, T> {
+#[non_exhaustive]
+pub struct OpenFileOptions<D = StandardDataDictionary, T = TransferSyntaxRegistry> {
+    /// the data dictionary to use
     pub dictionary: D,
+    /// the transfer syntax registry to use
     pub ts_index: T,
 }
 
@@ -128,7 +138,7 @@ pub struct LazyDicomObject<S, D> {
     /// the binary source to fetch DICOM data from
     source: S,
     /// the element dictionary at this level
-    entries: BTreeMap<Tag, LazyElement<D>>,
+    entries: BTreeMap<Tag, MaybeElement<D>>,
     /// the full record table
     records: DataSetTable,
     /// the data element dictionary
@@ -141,22 +151,41 @@ pub struct LazyDicomObject<S, D> {
 
 pub type LazyFileDicomObject<S, D> = FileDicomObject<LazyDicomObject<DynStatefulDecoder<S>, D>>;
 
-/*
-impl<S, D> LazyFileDicomObject<S, D> {
+/// A temporary reference to a DICOM element which fetches its value on demand.
+#[derive(Debug)]
+pub struct LazyElement<'a, S: 'a, D> {
+    source: &'a mut S,
+    elem: &'a mut MaybeElement<D>,
+}
+
+impl<'a, S, D> LazyElement<'a, S, D>
+where
+    S: StatefulDecode,
+    <S as StatefulDecode>::Reader: ReadSeek,
+    D: Clone + DataDictionary,
+{
+    
+    pub fn to_value(self) -> Result<LoadedValue<D>> {
+        self.elem.load(self.source)?;
+
+        todo!()
+    }
+}
+
+impl LazyFileDicomObject<File, StandardDataDictionary> {
     /// Load a new lazy DICOM object from a file
     pub fn from_file<P>(path: P) -> Result<Self>
     where
         P: AsRef<Path>,
-        D: DataDictionary,
-        D: Clone,
-        D: Default,
     {
         Self::from_file_with(
             path,
             OpenFileOptions::<_, TransferSyntaxRegistry>::default(),
         )
     }
+}
 
+impl<D> LazyFileDicomObject<File, D> {
     /// Load a new lazy DICOM object from a file,
     /// using the given options.
     pub fn from_file_with<P, T>(path: P, options: OpenFileOptions<D, T>) -> Result<Self>
@@ -186,9 +215,9 @@ impl<S, D> LazyFileDicomObject<S, D> {
         let meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSet)?;
 
         // read rest of data according to metadata, feed it to object
-        if let Some(ts) = options.ts_index.get(&meta.transfer_syntax) {
+        if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let cs = SpecificCharacterSet::Default;
-            let mut dataset =
+            let dataset =
                 LazyDataSetReader::new_with_dictionary(file, dictionary.clone(), ts, cs)
                     .context(CreateParser)?;
 
@@ -200,7 +229,7 @@ impl<S, D> LazyFileDicomObject<S, D> {
             LazyDicomObject::build_object(
                 &mut dataset,
                 &mut entries,
-                dictionary,
+                dictionary.clone(),
                 false,
                 Length::UNDEFINED,
             )?;
@@ -224,6 +253,71 @@ impl<S, D> LazyFileDicomObject<S, D> {
     }
 }
 
+impl<S> LazyDicomObject<S, StandardDataDictionary>
+where
+    S: StatefulDecode,
+    <S as StatefulDecode>::Reader: ReadSeek,
+{
+
+    pub fn read_dataset(reader: LazyDataSetReader<S>) -> Result<Self> {
+        Self::read_dataset_with(reader, StandardDataDictionary)
+    }
+}
+
+
+impl<S, D> LazyDicomObject<S, D>
+where
+    S: StatefulDecode,
+    <S as StatefulDecode>::Reader: ReadSeek,
+    D: DataDictionary,
+{
+
+    pub fn read_dataset_with(reader: LazyDataSetReader<S, D>, dict: D) -> Result<Self> {
+        todo!()
+    }
+
+    pub fn element<'a>(&'a mut self, tag: Tag) -> Result<LazyElement<'a, S, D>> {
+        let source = &mut self.source;
+        self.entries
+            .get_mut(&tag)
+            .ok_or_else(|| NoSuchDataElementTag { tag }.build())
+            .map(move |elem| LazyElement {
+                source,
+                elem,
+            })
+    }
+
+    pub fn element_mut<'a>(&'a mut self, tag: Tag) -> Result<LazyElement<'a, S, D>> {
+        let source = &mut self.source;
+        self.entries
+            .get_mut(&tag)
+            .ok_or_else(|| NoSuchDataElementTag { tag }.build())
+            .map(move |elem| LazyElement {
+                source,
+                elem,
+            })
+    }
+}
+
+impl<S, D> LazyDicomObject<S, D>
+where
+    S: StatefulDecode,
+    <S as StatefulDecode>::Reader: ReadSeek,
+    D: DataDictionary,
+{
+
+    /// Build an object by consuming a data set parser.
+    fn build_object(
+        dataset: &mut RecordBuildingDataSetReader<S, D>,
+        entries: &mut BTreeMap<Tag, MaybeElement<D>>,
+        dict: D,
+        in_item: bool,
+        len: Length,
+    ) -> Result<()> {
+        todo!()
+    }
+}
+
 impl<S, D> HasLength for LazyDicomObject<S, D>
 where
     S: StatefulDecode,
@@ -239,233 +333,22 @@ where
     }
 }
 
-impl<S, D> LazyDicomObject<S, D>
-where
-    S: StatefulDecode,
-    <S as StatefulDecode>::Reader: ReadSeek,
-    D: DataDictionary,
-{
-
-    /// Build an object by consuming a data set parser.
-    fn build_object(
-        dataset: &mut RecordBuildingDataSetReader<S, D>,
-        entries: &mut BTreeMap<Tag, LazyElement<D>>,
-        dict: D,
-        in_item: bool,
-        len: Length,
-    ) -> Result<()> {
-        let mut pixel_sequence_record = None;
-
-        // perform a structured parsing of incoming tokens
-        while let Some(token) = dataset.advance() {
-            let token = token.context(ReadToken)?;
-
-            let elem = match token {
-                LazyDataToken::PixelSequenceStart => {
-                    pixel_sequence_record = Some(LazyDicomObject::build_encapsulated_data(&mut *dataset)?);
-                    continue;
-                }
-                LazyDataToken::ElementHeader(header) => {
-                    // fetch respective value, place it in the entries
-                    let next_token = dataset.advance().context(MissingElementValue)?;
-                    match next_token.context(ReadToken)? {
-                        t @ LazyDataToken::LazyValue { header, decoder } => LazyElement::new_unloaded(header, decoder.position()),
-                        token => {
-                            return UnexpectedToken { token }.fail();
-                        }
-                    }
-                }
-                LazyDataToken::SequenceStart { tag, len } => {
-                    // delegate sequence building to another function
-                    let items = Self::build_sequence(tag, len, &mut *dataset, &dict)?;
-                    let position = 0;
-                    LazyElement::new_loaded(DataElementHeader::new(tag, VR::SQ, len), 0, Value::Sequence { items, size: len })
-                }
-                LazyDataToken::ItemEnd if in_item => {
-                    // end of item, leave now
-                    return Ok(());
-                }
-                token => return UnexpectedToken { token }.fail(),
-            };
-            entries.insert(elem.header.tag(), elem);
-        }
-
-        Ok(())
-    }
-
-    /// Construct a lazy record of pixel data fragment positions
-    /// and its offset table.
-    fn build_encapsulated_data(
-        dataset: &mut RecordBuildingDataSetReader<S, D>,
-    ) -> Result<PixelSequenceRecord> {
-        // continue fetching tokens to retrieve:
-        // - the offset table
-        // - the positions of the various compressed fragments
-        let mut offset_table = None;
-
-        let mut fragment_positions = C::new();
-
-        while let Some(token) = dataset.advance() {
-            match token.context(ReadToken)? {
-                LazyDataToken::LazyItemValue { len, decoder } => {
-                    if offset_table.is_none() {
-                        // retrieve the data into the offset table
-                        let mut data = Vec::new();
-                        decoder.read_to_vec(len, &mut data).context(ReadOffsetTable)?;
-                        offset_table = Some(data.into());
-                    } else {
-                        fragment_positions.push(decoder.position());
-                    }
-                }
-                LazyDataToken::ItemEnd => {
-                    // at the end of the first item ensure the presence of
-                    // an empty offset_table here, so that the next items
-                    // are seen as compressed fragments
-                    if offset_table.is_none() {
-                        offset_table = Some(C::new())
-                    }
-                }
-                LazyDataToken::ItemStart { len: _ } => { /* no-op */ }
-                LazyDataToken::SequenceEnd => {
-                    // end of pixel data
-                    break;
-                }
-                // the following variants are unexpected
-                token @ LazyDataToken::ElementHeader(_)
-                | token @ LazyDataToken::PixelSequenceStart
-                | token @ LazyDataToken::SequenceStart { .. }
-                | token @ LazyDataToken::LazyValue { .. } => {
-                    return UnexpectedToken { token }.fail();
-                }
-            }
-        }
-
-        Ok(PixelSequenceRecord {
-            offset_table: offset_table.unwrap_or_default(),
-            fragment_positions,
-        })
-    }
-
-    /// Build a DICOM sequence by consuming a data set parser.
-    fn build_sequence<I: ?Sized>(
-        _tag: Tag,
-        _len: Length,
-        dataset: &mut I,
-        dict: &D,
-    ) -> Result<C<LazyDicomObject<S, D>>>
-    where
-        I: Iterator<Item = ParserResult<DataToken>>,
-    {
-        let mut items: C<_> = SmallVec::new();
-        while let Some(token) = dataset.next() {
-            match token.context(ReadToken)? {
-                DataToken::ItemStart { len } => {
-                    items.push(Self::build_nested_object(
-                        &mut *dataset,
-                        *dict.clone(),
-                        true,
-                        len,
-                    )?);
-                }
-                DataToken::SequenceEnd => {
-                    return Ok(items);
-                }
-                token => return UnexpectedToken { token }.fail(),
-            };
-        }
-
-        // iterator fully consumed without a sequence delimiter
-        PrematureEnd.fail()
-    }
-
-    /// Build a nested object by consuming a data set parser.
-    fn build_nested_object(
-        dataset: &mut LazyDataSetReader<S, D>,
-        dict: D,
-        in_item: bool,
-        len: Length,
-    ) -> Result<LazyNestedObject> {
-        let mut entries: BTreeMap<Tag, LazyElement<D>> = BTreeMap::new();
-        // perform a structured parsing of incoming tokens
-        while let Some(token) = dataset.advance() {
-            let elem = match token.context(ReadToken)? {
-                LazyDataToken::PixelSequenceStart => {
-                    let value = LazyDicomObject::build_encapsulated_data(&mut *dataset)?;
-                    LazyElement::new_loaded(
-                        DataElementHeader::new(Tag(0x7fe0, 0x0010), VR::OB, todo!()),
-                        todo!(),
-                        value,
-                    )
-                }
-                LazyDataToken::ElementHeader(header) => {
-                    // fetch respective value, place it in the entries
-                    let next_token = dataset.advance().context(MissingElementValue)?;
-                    match next_token.context(ReadToken)? {
-                        t @ LazyDataToken::LazyValue { header, decoder } => {
-                            // TODO choose whether to eagerly fetch the elemet or keep it unloaded
-                            LazyElement {
-                                header,
-                                position: decoder.position(),
-                                value: MaybeValue::Unloaded,
-                            }
-                        },
-                        token => {
-                            return UnexpectedToken { token }.fail();
-                        }
-                    }
-                }
-                LazyDataToken::SequenceStart { tag, len } => {
-                    // delegate sequence building to another function
-                    let items = Self::build_sequence(tag, len, dataset, &dict)?;
-                    
-                    // !!! Lazy Element does not fit the sequence system
-                    todo!()
-                    //LazyElement::new(tag, VR::SQ, Value::Sequence { items, size: len })
-                }
-                LazyDataToken::ItemEnd if in_item => {
-                    // end of item, leave now
-                    return Ok(LazyNestedObject { entries, dict, len });
-                }
-                token => return UnexpectedToken { token }.fail(),
-            };
-            entries.insert(elem.header.tag(), elem);
-        }
-
-        Ok(LazyNestedObject { entries, dict, len })
-    }
-}
-
-*/
-
 #[cfg(test)]
 mod tests {
 
+    use std::io::Cursor;
+
     use super::*;
-    use crate::InMemDicomObject;
-    use crate::{meta::FileMetaTableBuilder, open_file, Error};
     use byteordered::Endianness;
-    use dicom_core::value::PrimitiveValue;
     use dicom_core::{
         dicom_value,
         header::{DataElementHeader, Length, VR},
     };
     use dicom_encoding::{
         decode::{basic::BasicDecoder, implicit_le::ImplicitVRLittleEndianDecoder},
-        encode::EncoderFor,
         text::DefaultCharacterSetCodec,
-        transfer_syntax::implicit_le::ImplicitVRLittleEndianEncoder,
     };
-    use dicom_parser::{dataset::IntoTokens, StatefulDecoder};
-    use tempfile;
-
-    fn assert_obj_eq<D>(obj1: &InMemDicomObject<D>, obj2: &InMemDicomObject<D>)
-    where
-        D: std::fmt::Debug,
-    {
-        // debug representation because it makes a stricter comparison and
-        // assumes that Undefined lengths are equal.
-        assert_eq!(format!("{:?}", obj1), format!("{:?}", obj2))
-    }
+    use dicom_parser::StatefulDecoder;
 
     #[test]
     #[ignore]
@@ -478,26 +361,26 @@ mod tests {
 
         let decoder = ImplicitVRLittleEndianDecoder::default();
         let text = Box::new(DefaultCharacterSetCodec) as Box<_>;
-        let mut cursor = &data_in[..];
+        let mut cursor = Cursor::new(&data_in[..]);
         let parser = StatefulDecoder::new(
             &mut cursor,
             decoder,
             BasicDecoder::new(Endianness::Little),
             text,
         );
+        let dataset = LazyDataSetReader::new(parser);
 
-        let obj = todo!(); // LazyDicomObject::read_dataset(parser).unwrap();
-
-        let mut gt = InMemDicomObject::create_empty();
+        let mut obj: LazyDicomObject<_, _> = LazyDicomObject::read_dataset(dataset).unwrap();
 
         let patient_name = DataElement::new(
             Tag(0x0010, 0x0010),
             VR::PN,
-            dicom_value!(Strs, ["Doe^John"]),
+            DicomValue::new(dicom_value!(Strs, ["Doe^John"])),
         );
-        gt.put(patient_name);
 
-        //assert_eq!(obj, gt);
+        let lazy_patient_name = obj.element(Tag(0x0010, 0x0010)).expect("Failed to retrieve element");
+
+
     }
 
 }

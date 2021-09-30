@@ -260,21 +260,20 @@ impl DataSetRecordBuilder {
 ///
 /// [1]: dicom_parser::dataset::lazy_read::LazyDataSetReader
 #[derive(Debug)]
-pub struct RecordBuildingDataSetReader<'a, S, D> {
+pub struct RecordBuildingDataSetReader<'a, S> {
     builder: &'a mut DataSetTableBuilder,
-    reader: LazyDataSetReader<S, D>,
+    reader: LazyDataSetReader<S>,
 }
 
-impl<'a, S, D> RecordBuildingDataSetReader<'a, S, D>
+impl<'a, S, D> RecordBuildingDataSetReader<'a, S>
 where
     S: StatefulDecode,
-    D: DataDictionary,
 {
-    pub fn new(reader: LazyDataSetReader<S, D>, builder: &'a mut DataSetTableBuilder) -> Self {
+    pub fn new(reader: LazyDataSetReader<S>, builder: &'a mut DataSetTableBuilder) -> Self {
         RecordBuildingDataSetReader { builder, reader }
     }
 
-    pub fn into_inner(self) -> LazyDataSetReader<S, D> {
+    pub fn into_inner(self) -> LazyDataSetReader<S> {
         self.reader
     }
 
