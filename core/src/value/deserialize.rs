@@ -1,7 +1,7 @@
 //! Parsing of primitive values
 use crate::value::partial::{
-    check_component, DateComponent, Error as PartialValuesError, DicomDate, DicomDateTime,
-    DicomTime,
+    check_component, DateComponent, DicomDate, DicomDateTime, DicomTime,
+    Error as PartialValuesError,
 };
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
@@ -105,33 +105,27 @@ pub fn parse_date_partial(buf: &[u8]) -> Result<(DicomDate, &[u8])> {
         if buf.len() < 2 {
             Ok((DicomDate::from_y(year).context(PartialValue)?, buf))
         } else {
-            let month: Result<u8> = read_number(&buf[0..2]);
-            // month failed so return year
-            if month.is_err() {
-                return Ok((DicomDate::from_y(year).context(PartialValue)?, buf));
-            }
-            let month = month.unwrap();
-            let buf = &buf[2..];
-            if buf.len() < 2 {
-                Ok((
-                    DicomDate::from_ym(year, month).context(PartialValue)?,
-                    buf,
-                ))
-            } else {
-                let day: Result<u8> = read_number(&buf[0..2]);
-                // day failed so return month
-                if day.is_err() {
-                    return Ok((
-                        DicomDate::from_ym(year, month).context(PartialValue)?,
-                        buf,
-                    ));
+            match read_number::<u8>(&buf[0..2]) {
+                Err(_) => Ok((DicomDate::from_y(year).context(PartialValue)?, buf)),
+                Ok(month) => {
+                    let buf = &buf[2..];
+                    if buf.len() < 2 {
+                        Ok((DicomDate::from_ym(year, month).context(PartialValue)?, buf))
+                    } else {
+                        match read_number::<u8>(&buf[0..2]) {
+                            Err(_) => {
+                                Ok((DicomDate::from_ym(year, month).context(PartialValue)?, buf))
+                            }
+                            Ok(day) => {
+                                let buf = &buf[2..];
+                                Ok((
+                                    DicomDate::from_ymd(year, month, day).context(PartialValue)?,
+                                    buf,
+                                ))
+                            }
+                        }
+                    }
                 }
-                let day = day.unwrap();
-                let buf = &buf[2..];
-                Ok((
-                    DicomDate::from_ymd(year, month, day).context(PartialValue)?,
-                    buf,
-                ))
             }
         }
     }
@@ -150,48 +144,44 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(DicomTime, &[u8])> {
         if buf.len() < 2 {
             Ok((DicomTime::from_h(hour).context(PartialValue)?, buf))
         } else {
-            let minute: Result<u8> = read_number(&buf[0..2]);
-            // minute failed so return hour
-            if minute.is_err() {
-                return Ok((DicomTime::from_h(hour).context(PartialValue)?, buf));
-            }
-            let minute = minute.unwrap();
-            let buf = &buf[2..];
-            if buf.len() < 2 {
-                Ok((
-                    DicomTime::from_hm(hour, minute).context(PartialValue)?,
-                    buf,
-                ))
-            } else {
-                let second: Result<u8> = read_number(&buf[0..2]);
-                // second failed so return minute
-                if second.is_err() {
-                    return Ok((
-                        DicomTime::from_hm(hour, minute).context(PartialValue)?,
-                        buf,
-                    ));
-                }
-                let second = second.unwrap();
-                let buf = &buf[2..];
-                // buf contains at least ".F" otherwise ignore
-                if buf.len() > 1 && buf[0] == b'.' {
-                    let buf = &buf[1..];
-                    let no_digits_index = buf.iter().position(|b| !(b'0'..=b'9').contains(b));
-                    let max = no_digits_index.unwrap_or(buf.len());
-                    let n = usize::min(6, max);
-                    let fraction: u32 = read_number(&buf[0..n])?;
-                    let buf = &buf[n..];
-                    let fp = u8::try_from(n).unwrap();
-                    Ok((
-                        DicomTime::from_hmsf(hour, minute, second, fraction, fp)
-                            .context(PartialValue)?,
-                        buf,
-                    ))
-                } else {
-                    Ok((
-                        DicomTime::from_hms(hour, minute, second).context(PartialValue)?,
-                        buf,
-                    ))
+            match read_number::<u8>(&buf[0..2]) {
+                Err(_) => Ok((DicomTime::from_h(hour).context(PartialValue)?, buf)),
+                Ok(minute) => {
+                    let buf = &buf[2..];
+                    if buf.len() < 2 {
+                        Ok((DicomTime::from_hm(hour, minute).context(PartialValue)?, buf))
+                    } else {
+                        match read_number::<u8>(&buf[0..2]) {
+                            Err(_) => {
+                                Ok((DicomTime::from_hm(hour, minute).context(PartialValue)?, buf))
+                            }
+                            Ok(second) => {
+                                let buf = &buf[2..];
+                                // buf contains at least ".F" otherwise ignore
+                                if buf.len() > 1 && buf[0] == b'.' {
+                                    let buf = &buf[1..];
+                                    let no_digits_index =
+                                        buf.iter().position(|b| !(b'0'..=b'9').contains(b));
+                                    let max = no_digits_index.unwrap_or(buf.len());
+                                    let n = usize::min(6, max);
+                                    let fraction: u32 = read_number(&buf[0..n])?;
+                                    let buf = &buf[n..];
+                                    let fp = u8::try_from(n).unwrap();
+                                    Ok((
+                                        DicomTime::from_hmsf(hour, minute, second, fraction, fp)
+                                            .context(PartialValue)?,
+                                        buf,
+                                    ))
+                                } else {
+                                    Ok((
+                                        DicomTime::from_hms(hour, minute, second)
+                                            .context(PartialValue)?,
+                                        buf,
+                                    ))
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -423,10 +413,10 @@ pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<
     };
 
     match time {
-        Some(tm) => DicomDateTime::from_dicom_date_and_time(date, tm, offset)
-                   .context(InvalidDateTime),
-        None => Ok(DicomDateTime::from_dicom_date(date, offset))
-                
+        Some(tm) => {
+            DicomDateTime::from_dicom_date_and_time(date, tm, offset).context(InvalidDateTime)
+        }
+        None => Ok(DicomDateTime::from_dicom_date(date, offset)),
     }
 }
 
@@ -980,10 +970,7 @@ mod tests {
         );
         assert_eq!(
             parse_datetime_partial(b"201711", default_offset).unwrap(),
-            DicomDateTime::from_dicom_date(
-                DicomDate::from_ym(2017, 11).unwrap(),
-                default_offset
-            )
+            DicomDateTime::from_dicom_date(DicomDate::from_ym(2017, 11).unwrap(), default_offset)
         );
         assert_eq!(
             parse_datetime_partial(b"20171130101010.204+0535", default_offset).unwrap(),
