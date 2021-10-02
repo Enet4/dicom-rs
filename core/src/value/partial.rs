@@ -69,10 +69,9 @@ pub enum DateComponent {
     UTCOffset,
 }
 
-
 /// Represents a Dicom Date value with a partial precision,
 /// where some date components may be missing.
-/// 
+///
 /// Unlike RUSTs `chrono::NaiveDate`, it does not allow for negative years.
 ///
 /// Although the DICOM protocol does not allow for an incomplete DA value,
@@ -85,10 +84,9 @@ pub enum DicomDate {
     Day(u16, u8, u8),
 }
 
-
 /// Represents a Dicom Time value with a partial precision,
 /// where some time components may be missing.
-/// 
+///
 /// Unlike RUSTs `chrono::NaiveTime`, this implemenation of time is DICOM compliant:  
 /// - has only 6 digit precision for fraction of a second
 /// - has no means to handle leap seconds
@@ -99,7 +97,6 @@ pub enum DicomTime {
     Second(u8, u8, u8),
     Fraction(u8, u8, u8, u32, u8),
 }
-
 
 /// Represents a Dicom DateTime value with a partial precision,
 /// where some date / time components may be missing.
@@ -351,17 +348,18 @@ impl Precision for DicomTime {
 
 impl Precision for DicomDateTime {
     fn precision(&self) -> DateComponent {
-        if self.time.is_some() {
-            self.time.unwrap().precision()
-        } else {
-            self.date.precision()
+        match self.time {
+            Some(time) => time.precision(),
+            None => self.date.precision(),
         }
     }
 }
 
 /// The DICOM protocol accepts date / time values with null components.
-/// Missing components are to be handled as date / time ranges.
+/// Imprecise values are to be handled as date / time ranges.
 /// This trait is implemented by date / time structures with partial precision.
+/// If the date / time structure is not precise, it is up to the user to call one of these
+/// methods to retrieve a suitable  `chrono` value.
 ///
 /// - `.exact()` - Returns a corresponding `chrono` value, if the partial precision structure has full accuracy.
 /// - `.earliest()` - Returns the earliest possible `chrono` value from a partial precision structure.
@@ -372,6 +370,16 @@ pub trait AsRange<T>: Precision
 where
     T: PartialEq,
 {
+    /**
+     * Returns a corresponding `chrono` value, if the partial precision structure has full accuracy.
+     */
+    fn exact(&self) -> Result<T> {
+        if self.is_precise() {
+            Ok(self.earliest()?)
+        } else {
+            ImpreciseValue.fail()
+        }
+    }
     /**
      * Returns the earliest possible `chrono` value from a partial precision structure.
      * Missing components default to 1 (days, months) or 0 (hours, minutes, ...)
@@ -402,19 +410,6 @@ where
         let l = self.latest();
 
         e.is_ok() && l.is_ok() && e.ok() == l.ok()
-    }
-
-    // this one needs to be reimplemented for DicomTime, as to loosen the strict requirement
-    // of 6 digits fraction accuracy
-    /**
-     * Returns a corresponding `chrono` value, if the partial precision structure has full accuracy.
-     */
-    fn exact(&self) -> Result<T> {
-        if self.is_precise() {
-            Ok(self.earliest()?)
-        } else {
-            ImpreciseValue.fail()
-        }
     }
 }
 
@@ -479,15 +474,6 @@ impl AsRange<NaiveTime> for DicomTime {
         NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), *f)
             .context(InvalidTime)
     }
-
-    // If fraction with any accuracy is present, `DicomTime` is handled as precise.
-    // missing accuracy falls back to zeros.
-    fn exact(&self) -> Result<NaiveTime> {
-        match self {
-            DicomTime::Fraction(..) => Ok(self.earliest()?),
-            _ => ImpreciseValue.fail(),
-        }
-    }
 }
 
 impl AsRange<DateTime<FixedOffset>> for DicomDateTime {
@@ -514,6 +500,33 @@ impl AsRange<DateTime<FixedOffset>> for DicomDateTime {
             .from_utc_date(&date)
             .and_time(time)
             .context(InvalidDateTime)
+    }
+}
+
+impl DicomDate {
+    /**
+     * Retrieves a `chrono::NaiveDate` if value is precise.
+     */
+    pub fn as_naive_date(self) -> Result<NaiveDate> {
+        self.exact()
+    }
+}
+
+impl DicomTime {
+    /**
+     * Retrieves a `chrono::NaiveTime` if value is precise.
+     */
+    pub fn as_naive_time(self) -> Result<NaiveTime> {
+        self.exact()
+    }
+}
+
+impl DicomDateTime {
+    /**
+     * Retrieves a `chrono::DateTime<FixedOffset>` if value is precise.
+     */
+    pub fn as_chrono_datetime(self) -> Result<DateTime<FixedOffset>> {
+        self.exact()
     }
 }
 
@@ -637,7 +650,6 @@ mod tests {
                 .is_precise(),
             false
         );
-
         assert_eq!(
             DicomTime::from_hmsf(9, 1, 1, 123456, 6)
                 .unwrap()
@@ -685,6 +697,11 @@ mod tests {
                 component: DateComponent::Fraction,
                 ..
             })
+        ));
+
+        assert!(matches!(
+            DicomTime::from_hmsf(9, 1, 1, 12345, 5).unwrap().exact(),
+            Err(Error::ImpreciseValue { .. })
         ));
     }
 
@@ -806,6 +823,16 @@ mod tests {
                 value: DateComponent::Year,
                 ..
             })
+        ));
+        assert!(matches!(
+            DicomDateTime::from_dicom_date_and_time(
+                DicomDate::from_ymd(2000, 1, 1).unwrap(),
+                DicomTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
+                default_offset
+            )
+            .unwrap()
+            .exact(),
+            Err(Error::ImpreciseValue { .. })
         ));
     }
 }

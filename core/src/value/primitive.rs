@@ -2022,7 +2022,7 @@ impl PrimitiveValue {
     /// # use dicom_core::value::{C, PrimitiveValue};
     /// # use smallvec::smallvec;
     /// # use chrono::NaiveDate;
-    ///  use dicom_core::value::AsRange;
+    ///  use dicom_core::value::{AsRange, DicomDate};
     ///
     ///  let value = PrimitiveValue::Str("200002".into());
     ///  let dicom_date = value.to_dicom_date().unwrap();
@@ -2040,6 +2040,14 @@ impl PrimitiveValue {
     ///     NaiveDate::from_ymd(2000,2,29)
     ///     );
     ///  assert!(dicom_date.exact().is_err());
+    /// 
+    ///  let dicom_date = PrimitiveValue::Str("20000201".into())
+    ///                   .to_dicom_date()
+    ///                   .unwrap();
+    ///  assert_eq!(
+    ///     dicom_date.exact().unwrap(),
+    ///     dicom_date.as_naive_date().unwrap()
+    ///  );
     ///
     /// ```
     pub fn to_dicom_date(&self) -> Result<DicomDate, ConvertValueError> {
@@ -2324,7 +2332,7 @@ impl PrimitiveValue {
     ///
     /// Unlike Rust's `chrono::NaiveTime`, `DicomTime` allows for missing time components.
     /// DicomTime implements `AsRange` trait, so specific `chrono::NaiveTime` values can be retrieved.
-    /// - .exact()
+    /// - .exact() 
     /// - .earliest()
     /// - .latest()
     /// - .range()
@@ -2352,6 +2360,20 @@ impl PrimitiveValue {
     ///     Some(NaiveTime::from_hms_micro(10,59,59,999_999))
     ///     );
     ///  assert!(dicom_time.exact().is_err());
+    /// 
+    ///  let fraction6 = PrimitiveValue::Str("101259.123456".into());
+    ///  let fraction5 = PrimitiveValue::Str("101259.12345".into());
+    ///   
+    ///  assert!(
+    ///     fraction5.to_dicom_time().unwrap().exact().is_err()
+    ///  );
+    ///  assert!(
+    ///     fraction6.to_dicom_time().unwrap().exact().is_ok()
+    ///  );
+    ///  assert_eq!(
+    ///     fraction6.to_dicom_time().unwrap().exact().unwrap(),
+    ///     fraction6.to_dicom_time().unwrap().as_naive_time().unwrap()
+    ///  );
     ///
     /// ```
     pub fn to_dicom_time(&self) -> Result<DicomTime, ConvertValueError> {
@@ -2541,6 +2563,7 @@ impl PrimitiveValue {
     ///         .and_hms_micro(9, 30, 1, 100_000)
     ///     ),
     /// );
+    /// 
     /// ```
     pub fn to_datetime(
         &self,
@@ -2727,6 +2750,13 @@ impl PrimitiveValue {
     /// let dt_value = PrimitiveValue::from("20121221093001.123456").to_dicom_datetime(default_offset).unwrap();
     ///
     /// assert_eq!(dt_value.is_precise(), true);
+    /// 
+    /// assert!(dt_value.exact().is_ok());
+    /// 
+    /// assert_eq!(
+    ///     dt_value.as_chrono_datetime().unwrap(),
+    ///     dt_value.exact().unwrap()
+    /// );
     ///
     /// assert_eq!(
     ///     dt_value.range().unwrap(),
