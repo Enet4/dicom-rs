@@ -3,6 +3,7 @@
 use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveTime, TimeZone, Timelike};
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use std::convert::{TryFrom, TryInto};
+use std::fmt;
 use std::ops::RangeInclusive;
 
 #[derive(Debug, Snafu)]
@@ -100,7 +101,7 @@ pub enum DicomTime {
 
 /// Represents a Dicom DateTime value with a partial precision,
 /// where some date / time components may be missing.
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)] // PartialOrd ?
 pub struct DicomDateTime {
     date: DicomDate,
     time: Option<DicomTime>,
@@ -175,6 +176,16 @@ impl TryFrom<&NaiveDate> for DicomDate {
         let month: u8 = date.month().try_into().context(Conversion)?;
         let day: u8 = date.day().try_into().context(Conversion)?;
         Ok(DicomDate::from_ymd(year, month, day)?)
+    }
+}
+
+impl fmt::Display for DicomDate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DicomDate::Year(y) => write!(f, "{:04}-MM-DD", y),
+            DicomDate::Month(y, m) => write!(f, "{:04}-{:02}-DD", y, m),
+            DicomDate::Day(y, m, d) => write!(f, "{:04}-{:02}-{:02}", y, m, d),
+        }
     }
 }
 
@@ -261,6 +272,19 @@ impl TryFrom<&NaiveTime> for DicomTime {
     }
 }
 
+impl fmt::Display for DicomTime {
+    fn fmt(&self, frm: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DicomTime::Hour(h) => write!(frm, "{:02}:mm:ss.F", h),
+            DicomTime::Minute(h, m) => write!(frm, "{:02}:{:02}:ss.F", h, m),
+            DicomTime::Second(h, m, s) => write!(frm, "{:02}:{:02}:{:02}.F", h, m, s),
+            DicomTime::Fraction(h, m, s, f, _fp) => {
+                write!(frm, "{:02}:{:02}:{:02}.{:F<6}", h, m, s, f)
+            }
+        }
+    }
+}
+
 impl DicomDateTime {
     /**
      * Constructs a new `DicomDateTime` from a `DicomDate` and a given `FixedOffset`.
@@ -316,6 +340,15 @@ impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
     }
 }
 
+impl fmt::Display for DicomDateTime {
+    fn fmt(&self, frm: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.time {
+            None => write!(frm, "{} {}", self.date, self.offset),
+            Some(time) => write!(frm, "{} {} {}", self.date, time, self.offset),
+        }
+    }
+}
+
 /**
  * This trait is implemented by partial precision
  * Date, Time and DateTime structures.
@@ -368,7 +401,7 @@ impl Precision for DicomDateTime {
 /// - `.is_precise()` - Returns `true`, if partial precision structure has maximum possible accuracy.
 pub trait AsRange<T>: Precision
 where
-    T: PartialEq,
+    T: PartialEq + PartialOrd,
 {
     /**
      * Returns a corresponding `chrono` value, if the partial precision structure has full accuracy.
@@ -517,6 +550,7 @@ impl DicomTime {
      * Retrieves a `chrono::NaiveTime` if value is precise.
      */
     pub fn as_naive_time(self) -> Result<NaiveTime> {
+        // tweak here, if full DicomTime precision req. proves impractical
         self.exact()
     }
 }
@@ -526,6 +560,7 @@ impl DicomDateTime {
      * Retrieves a `chrono::DateTime<FixedOffset>` if value is precise.
      */
     pub fn as_chrono_datetime(self) -> Result<DateTime<FixedOffset>> {
+        // tweak here, if full DicomTime precision req. proves impractical
         self.exact()
     }
 }

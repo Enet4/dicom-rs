@@ -8,10 +8,13 @@ use std::{borrow::Cow, str::FromStr};
 pub mod deserialize;
 pub mod partial;
 mod primitive;
+pub mod range;
 pub mod serialize;
 
 pub use self::deserialize::Error as DeserializeError;
 pub use self::partial::{AsRange, DicomDate, DicomDateTime, DicomTime};
+pub use self::range::{DateRange, DateTimeRange, TimeRange};
+
 pub use self::primitive::{
     CastValueError, ConvertValueError, InvalidValueReadError, PrimitiveValue, ValueType,
 };

@@ -40,8 +40,6 @@ pub enum Error {
         component: DateComponent,
         backtrace: Backtrace,
     },
-    #[snafu(display("Range is zero"))]
-    ZeroRange { backtrace: Backtrace },
     #[snafu(display("Component is invalid."))]
     InvalidComponent {
         #[snafu(backtrace)]
