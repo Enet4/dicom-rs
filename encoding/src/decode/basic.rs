@@ -304,11 +304,25 @@ impl BasicDecode for BasicDecoder {
         for_both!(self, |e| e.decode_us(source))
     }
 
+    fn decode_us_into<S>(&self, source: S, target: &mut [u16]) -> Result<()>
+    where
+        S: Read,
+    {
+        for_both!(self, |e| e.decode_us_into(source, target))
+    }
+
     fn decode_ul<S>(&self, source: S) -> Result<u32>
     where
         S: Read,
     {
         for_both!(self, |e| e.decode_ul(source))
+    }
+
+    fn decode_ul_into<S>(&self, source: S, target: &mut [u32]) -> Result<()>
+    where
+        S: Read,
+    {
+        for_both!(self, |e| e.decode_ul_into(source, target))
     }
 
     fn decode_uv<S>(&self, source: S) -> Result<u64>
@@ -318,11 +332,25 @@ impl BasicDecode for BasicDecoder {
         for_both!(self, |e| e.decode_uv(source))
     }
 
+    fn decode_uv_into<S>(&self, source: S, target: &mut [u64]) -> Result<()>
+    where
+        S: Read,
+    {
+        for_both!(self, |e| e.decode_uv_into(source, target))
+    }
+
     fn decode_ss<S>(&self, source: S) -> Result<i16>
     where
         S: Read,
     {
         for_both!(self, |e| e.decode_ss(source))
+    }
+
+    fn decode_ss_into<S>(&self, source: S, target: &mut [i16]) -> Result<()>
+    where
+        S: Read,
+    {
+        for_both!(self, |e| e.decode_ss_into(source, target))
     }
 
     fn decode_sl<S>(&self, source: S) -> Result<i32>
@@ -332,11 +360,25 @@ impl BasicDecode for BasicDecoder {
         for_both!(self, |e| e.decode_sl(source))
     }
 
+    fn decode_sl_into<S>(&self, source: S, target: &mut [i32]) -> Result<()>
+    where
+        S: Read,
+    {
+        for_both!(self, |e| e.decode_sl_into(source, target))
+    }
+
     fn decode_sv<S>(&self, source: S) -> Result<i64>
     where
         S: Read,
     {
         for_both!(self, |e| e.decode_sv(source))
+    }
+
+    fn decode_sv_into<S>(&self, source: S, target: &mut [i64]) -> Result<()>
+    where
+        S: Read,
+    {
+        for_both!(self, |e| e.decode_sv_into(source, target))
     }
 
     fn decode_fl<S>(&self, source: S) -> Result<f32>
@@ -346,11 +388,25 @@ impl BasicDecode for BasicDecoder {
         for_both!(self, |e| e.decode_fl(source))
     }
 
+    fn decode_fl_into<S>(&self, source: S, target: &mut [f32]) -> Result<()>
+    where
+        S: Read,
+    {
+        for_both!(self, |e| e.decode_fl_into(source, target))
+    }
+
     fn decode_fd<S>(&self, source: S) -> Result<f64>
     where
         S: Read,
     {
         for_both!(self, |e| e.decode_fd(source))
+    }
+
+    fn decode_fd_into<S>(&self, source: S, target: &mut [f64]) -> Result<()>
+    where
+        S: Read,
+    {
+        for_both!(self, |e| e.decode_fd_into(source, target))
     }
 }
 
