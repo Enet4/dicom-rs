@@ -21,11 +21,7 @@ use dicom_core::value::{Value, C};
 use dicom_core::{DataElement, Length, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
-use dicom_encoding::{
-    encode::EncodeTo,
-    text::{SpecificCharacterSet, TextCodec},
-    TransferSyntax,
-};
+use dicom_encoding::{encode::EncodeTo, text::SpecificCharacterSet, TransferSyntax};
 use dicom_parser::dataset::{DataSetReader, DataToken};
 use dicom_parser::{
     dataset::{read::Error as ParserError, DataSetWriter, IntoTokens},
@@ -463,22 +459,25 @@ where
     }
 
     /// Write this object's data set into the given writer,
-    /// with the specified encoder specifications,
+    /// with the given encoder specifications,
     /// without preamble, magic code, nor file meta group.
+    ///
+    /// The text encoding to use will be the default character set
+    /// until _Specific Character Set_ is found in the data set,
+    /// in which then that character set will be used.
     ///
     /// Note: [`write_dataset_with_ts`] and [`write_dataset_with_ts_cs`]
     /// may be easier to use.
     ///
     /// [`write_dataset_with_ts`]: #method.write_dataset_with_ts
     /// [`write_dataset_with_ts_cs`]: #method.write_dataset_with_ts_cs
-    pub fn write_dataset<W, E, T>(&self, to: W, encoder: E, text_encoder: T) -> Result<()>
+    pub fn write_dataset<W, E>(&self, to: W, encoder: E) -> Result<()>
     where
         W: Write,
         E: EncodeTo<W>,
-        T: TextCodec,
     {
         // prepare data set writer
-        let mut dset_writer = DataSetWriter::new(to, encoder, text_encoder);
+        let mut dset_writer = DataSetWriter::new(to, encoder);
 
         // write object
         dset_writer
@@ -514,7 +513,7 @@ where
         Ok(())
     }
 
-    /// Write this object's data set into the given printer,
+    /// Write this object's data set into the given writer,
     /// with the specified transfer syntax,
     /// without preamble, magic code, nor file meta group.
     ///
@@ -762,7 +761,6 @@ mod tests {
     use dicom_encoding::{
         decode::{basic::BasicDecoder, implicit_le::ImplicitVRLittleEndianDecoder},
         encode::EncoderFor,
-        text::DefaultCharacterSetCodec,
         transfer_syntax::implicit_le::ImplicitVRLittleEndianEncoder,
     };
     use dicom_parser::{dataset::IntoTokens, StatefulDecoder};
@@ -798,7 +796,7 @@ mod tests {
         ];
 
         let decoder = ImplicitVRLittleEndianDecoder::default();
-        let text = Box::new(DefaultCharacterSetCodec) as Box<_>;
+        let text = SpecificCharacterSet::Default;
         let mut cursor = &data_in[..];
         let parser = StatefulDecoder::new(
             &mut cursor,
@@ -896,9 +894,8 @@ mod tests {
         let mut out = Vec::new();
 
         let printer = EncoderFor::new(ImplicitVRLittleEndianEncoder::default());
-        let text = DefaultCharacterSetCodec;
 
-        obj.write_dataset(&mut out, printer, text).unwrap();
+        obj.write_dataset(&mut out, printer).unwrap();
 
         assert_eq!(
             out,

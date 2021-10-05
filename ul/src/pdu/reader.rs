@@ -1,7 +1,7 @@
 /// PDU reader module
 use crate::pdu::*;
 use byteordered::byteorder::{BigEndian, ReadBytesExt};
-use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
+use dicom_encoding::text::{DefaultCharacterSetCodec, TextCodec};
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::io::{Cursor, ErrorKind, Read, Seek, SeekFrom};
 
@@ -141,9 +141,7 @@ where
 
     let bytes = read_n(reader, pdu_length as usize).context(ReadPdu)?;
     let mut cursor = Cursor::new(bytes);
-    let codec = SpecificCharacterSet::Default
-        .codec()
-        .expect("Support for the default character set is mandatory");
+    let codec = DefaultCharacterSetCodec;
 
     match pdu_type {
         0x01 => {
