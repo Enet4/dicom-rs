@@ -494,6 +494,57 @@ where
         }
     }
 
+    /// Retrieve and convert the primitive value into a `DateRange`.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a `DateRange` as described in [`PrimitiveValue::to_date_range`].
+    ///
+    pub fn to_date_range(&self) -> Result<DateRange, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_date_range(),
+            _ => Err(ConvertValueError {
+                requested: "DateRange",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value into a `TimeRange`.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a `TimeRange` as described in [`PrimitiveValue::to_time_range`].
+    ///
+    pub fn to_time_range(&self) -> Result<TimeRange, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_time_range(),
+            _ => Err(ConvertValueError {
+                requested: "TimeRange",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value into a `DateTimeRange`.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a `DateTimeRange` as described in [`PrimitiveValue::to_datetime_range`].
+    ///
+    pub fn to_datetime_range(
+        &self,
+        offset: FixedOffset,
+    ) -> Result<DateTimeRange, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_datetime_range(offset),
+            _ => Err(ConvertValueError {
+                requested: "DateTimeRange",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
     /// Retrieves the primitive value as a DICOM tag.
     pub fn to_tag(&self) -> Result<Tag, CastValueError> {
         match self {

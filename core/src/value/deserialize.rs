@@ -40,12 +40,12 @@ pub enum Error {
         component: DateComponent,
         backtrace: Backtrace,
     },
-    #[snafu(display("Component is invalid."))]
+    #[snafu(display("Component is invalid"))]
     InvalidComponent {
         #[snafu(backtrace)]
         source: PartialValuesError,
     },
-    #[snafu(display("Failed to construct partial value."))]
+    #[snafu(display("Failed to construct partial value"))]
     PartialValue {
         #[snafu(backtrace)]
         source: PartialValuesError,
@@ -60,22 +60,14 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 */
 pub fn parse_date(buf: &[u8]) -> Result<NaiveDate> {
     match buf.len() {
-        4 => {
-            let _year: i32 = read_number(&buf[0..4])?;
-            IncompleteValue {
-                component: DateComponent::Month,
-            }
-            .fail()
+        4 => IncompleteValue {
+            component: DateComponent::Month,
         }
-        6 => {
-            let _year: i32 = read_number(&buf[0..4])?;
-            let month: u32 = read_number(&buf[4..6])?;
-            check_component(DateComponent::Month, &month).context(InvalidComponent)?;
-            IncompleteValue {
-                component: DateComponent::Day,
-            }
-            .fail()
+        .fail(),
+        6 => IncompleteValue {
+            component: DateComponent::Day,
         }
+        .fail(),
         len if len >= 8 => {
             let year = read_number(&buf[0..4])?;
             let month: u32 = read_number(&buf[4..6])?;
@@ -196,36 +188,18 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(DicomTime, &[u8])> {
 pub fn parse_time(buf: &[u8]) -> Result<(NaiveTime, &[u8])> {
     // at least HHMMSS.F required
     match buf.len() {
-        2 => {
-            let hour: u32 = read_number(&buf[0..2])?;
-            check_component(DateComponent::Hour, &hour).context(InvalidComponent)?;
-            IncompleteValue {
-                component: DateComponent::Minute,
-            }
-            .fail()
+        2 => IncompleteValue {
+            component: DateComponent::Minute,
         }
-        4 => {
-            let hour: u32 = read_number(&buf[0..2])?;
-            check_component(DateComponent::Hour, &hour).context(InvalidComponent)?;
-            let minute: u32 = read_number(&buf[2..4])?;
-            check_component(DateComponent::Minute, &minute).context(InvalidComponent)?;
-            IncompleteValue {
-                component: DateComponent::Second,
-            }
-            .fail()
+        .fail(),
+        4 => IncompleteValue {
+            component: DateComponent::Second,
         }
-        6 => {
-            let hour: u32 = read_number(&buf[0..2])?;
-            check_component(DateComponent::Hour, &hour).context(InvalidComponent)?;
-            let minute: u32 = read_number(&buf[2..4])?;
-            check_component(DateComponent::Minute, &minute).context(InvalidComponent)?;
-            let second: u32 = read_number(&buf[4..6])?;
-            check_component(DateComponent::Second, &second).context(InvalidComponent)?;
-            IncompleteValue {
-                component: DateComponent::Fraction,
-            }
-            .fail()
+        .fail(),
+        6 => IncompleteValue {
+            component: DateComponent::Fraction,
         }
+        .fail(),
         len if len >= 8 => {
             let hour: u32 = read_number(&buf[0..2])?;
             check_component(DateComponent::Hour, &hour).context(InvalidComponent)?;
@@ -383,6 +357,7 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
 /** Decode text into a `DicomDateTime` value.
  * Unlike `parse_datetime`, this method allows for missing Date / Time components.
  * The precision of the second fraction is stored and can be returned as a range later.
+ * If a UTC offset is present, it will override the provided `dt_utc_offset` value.
  */
 pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DicomDateTime> {
     let (date, rest) = parse_date_partial(buf)?;
@@ -400,7 +375,7 @@ pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<
             let tz_h: u32 = read_number(&buf[0..2])?;
             let tz_m: u32 = read_number(&buf[2..4])?;
             let s = (tz_h * 60 + tz_m) * 60;
-            check_component(DateComponent::UTCOffset, &s).context(InvalidComponent)?;
+            check_component(DateComponent::UtcOffset, &s).context(InvalidComponent)?;
             match tz_sign {
                 b'+' => FixedOffset::east(s as i32),
                 b'-' => FixedOffset::west(s as i32),
@@ -415,6 +390,23 @@ pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<
             DicomDateTime::from_dicom_date_and_time(date, tm, offset).context(InvalidDateTime)
         }
         None => Ok(DicomDateTime::from_dicom_date(date, offset)),
+    }
+}
+
+/** Decode text into a `DicomDateTime` value.
+ * While parsing, this method ignores the presence of an UTC offset.
+ *
+ */
+pub fn parse_datetime_partial_ignore_offset(
+    buf: &[u8],
+    dt_utc_offset: FixedOffset,
+) -> Result<DicomDateTime> {
+    let (date, rest) = parse_date_partial(buf)?;
+
+    match parse_time_partial(rest) {
+        Ok((tm, _)) => DicomDateTime::from_dicom_date_and_time(date, tm, dt_utc_offset)
+            .context(InvalidDateTime),
+        Err(_) => Ok(DicomDateTime::from_dicom_date(date, dt_utc_offset)),
     }
 }
 
@@ -526,51 +518,51 @@ mod tests {
     fn test_parse_date_partial() {
         assert_eq!(
             parse_date_partial(b"20180101").unwrap(),
-            (DicomDate::Day(2018, 1, 1), &[][..])
+            (DicomDate::from_ymd(2018, 1, 1).unwrap(), &[][..])
         );
         assert_eq!(
             parse_date_partial(b"19711231").unwrap(),
-            (DicomDate::Day(1971, 12, 31), &[][..])
+            (DicomDate::from_ymd(1971, 12, 31).unwrap(), &[][..])
         );
         assert_eq!(
             parse_date_partial(b"20180101xxxx").unwrap(),
-            (DicomDate::Day(2018, 1, 1), &b"xxxx"[..])
+            (DicomDate::from_ymd(2018, 1, 1).unwrap(), &b"xxxx"[..])
         );
         assert_eq!(
             parse_date_partial(b"201801xxxx").unwrap(),
-            (DicomDate::Month(2018, 1), &b"xxxx"[..])
+            (DicomDate::from_ym(2018, 1).unwrap(), &b"xxxx"[..])
         );
         assert_eq!(
             parse_date_partial(b"2018xxxx").unwrap(),
-            (DicomDate::Year(2018), &b"xxxx"[..])
+            (DicomDate::from_y(2018).unwrap(), &b"xxxx"[..])
         );
         assert_eq!(
             parse_date_partial(b"19020404-0101").unwrap(),
-            (DicomDate::Day(1902, 4, 4), &b"-0101"[..][..])
+            (DicomDate::from_ymd(1902, 4, 4).unwrap(), &b"-0101"[..][..])
         );
         assert_eq!(
             parse_date_partial(b"201811").unwrap(),
-            (DicomDate::Month(2018, 11), &[][..])
+            (DicomDate::from_ym(2018, 11).unwrap(), &[][..])
         );
         assert_eq!(
             parse_date_partial(b"1914").unwrap(),
-            (DicomDate::Year(1914), &[][..])
+            (DicomDate::from_y(1914).unwrap(), &[][..])
         );
 
         assert_eq!(
             parse_date_partial(b"19140").unwrap(),
-            (DicomDate::Year(1914), &b"0"[..])
+            (DicomDate::from_y(1914).unwrap(), &b"0"[..])
         );
 
         assert_eq!(
             parse_date_partial(b"1914121").unwrap(),
-            (DicomDate::Month(1914, 12), &b"1"[..])
+            (DicomDate::from_ym(1914, 12).unwrap(), &b"1"[..])
         );
 
         // does not check for leap year
         assert_eq!(
             parse_date_partial(b"20210229").unwrap(),
-            (DicomDate::Day(2021, 2, 29), &[][..])
+            (DicomDate::from_ymd(2021, 2, 29).unwrap(), &[][..])
         );
 
         assert!(matches!(
@@ -651,17 +643,6 @@ mod tests {
             (NaiveTime::from_hms(0, 0, 0), &[][..])
         );
         assert!(matches!(
-            parse_time(b"24"),
-            Err(Error::InvalidComponent {
-                source: PartialValuesError::InvalidComponent {
-                    component: DateComponent::Hour,
-                    value: 24,
-                    ..
-                },
-                ..
-            })
-        ));
-        assert!(matches!(
             parse_time(b"23"),
             Err(Error::IncompleteValue {
                 component: DateComponent::Minute,
@@ -669,31 +650,9 @@ mod tests {
             })
         ));
         assert!(matches!(
-            parse_time(b"1560"),
-            Err(Error::InvalidComponent {
-                source: PartialValuesError::InvalidComponent {
-                    component: DateComponent::Minute,
-                    value: 60,
-                    ..
-                },
-                ..
-            })
-        ));
-        assert!(matches!(
             parse_time(b"1530"),
             Err(Error::IncompleteValue {
                 component: DateComponent::Second,
-                ..
-            })
-        ));
-        assert!(matches!(
-            parse_time(b"153099"),
-            Err(Error::InvalidComponent {
-                source: PartialValuesError::InvalidComponent {
-                    component: DateComponent::Second,
-                    value: 99,
-                    ..
-                },
                 ..
             })
         ));
@@ -718,55 +677,66 @@ mod tests {
     fn test_parse_time_partial() {
         assert_eq!(
             parse_time_partial(b"10").unwrap(),
-            (DicomTime::Hour(10), &[][..])
+            (DicomTime::from_h(10).unwrap(), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"101").unwrap(),
-            (DicomTime::Hour(10), &b"1"[..])
+            (DicomTime::from_h(10).unwrap(), &b"1"[..])
         );
         assert_eq!(
             parse_time_partial(b"0755").unwrap(),
-            (DicomTime::Minute(7, 55), &[][..])
+            (DicomTime::from_hm(7, 55).unwrap(), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"075500").unwrap(),
-            (DicomTime::Second(7, 55, 0), &[][..])
+            (DicomTime::from_hms(7, 55, 0).unwrap(), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"065003").unwrap(),
-            (DicomTime::Second(6, 50, 3), &[][..])
+            (DicomTime::from_hms(6, 50, 3).unwrap(), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"075501.5").unwrap(),
-            (DicomTime::Fraction(7, 55, 1, 5, 1), &[][..])
+            (DicomTime::from_hmsf(7, 55, 1, 5, 1).unwrap(), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"075501.123").unwrap(),
-            (DicomTime::Fraction(7, 55, 1, 123, 3), &[][..])
+            (DicomTime::from_hmsf(7, 55, 1, 123, 3).unwrap(), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"10+0101").unwrap(),
-            (DicomTime::Hour(10), &b"+0101"[..])
+            (DicomTime::from_h(10).unwrap(), &b"+0101"[..])
         );
         assert_eq!(
             parse_time_partial(b"1030+0101").unwrap(),
-            (DicomTime::Minute(10, 30), &b"+0101"[..])
+            (DicomTime::from_hm(10, 30).unwrap(), &b"+0101"[..])
         );
         assert_eq!(
             parse_time_partial(b"075501.123+0101").unwrap(),
-            (DicomTime::Fraction(7, 55, 1, 123, 3), &b"+0101"[..])
+            (
+                DicomTime::from_hmsf(7, 55, 1, 123, 3).unwrap(),
+                &b"+0101"[..]
+            )
         );
         assert_eq!(
             parse_time_partial(b"075501+0101").unwrap(),
-            (DicomTime::Second(7, 55, 1), &b"+0101"[..])
+            (DicomTime::from_hms(7, 55, 1).unwrap(), &b"+0101"[..])
         );
         assert_eq!(
             parse_time_partial(b"075501.999999").unwrap(),
-            (DicomTime::Fraction(7, 55, 1, 999_999, 6), &[][..])
+            (DicomTime::from_hmsf(7, 55, 1, 999_999, 6).unwrap(), &[][..])
         );
         assert_eq!(
             parse_time_partial(b"075501.9999994").unwrap(),
-            (DicomTime::Fraction(7, 55, 1, 999_999, 6), &b"4"[..])
+            (
+                DicomTime::from_hmsf(7, 55, 1, 999_999, 6).unwrap(),
+                &b"4"[..]
+            )
+        );
+        // 60 seconds for leap second
+        assert_eq!(
+            parse_time_partial(b"105960").unwrap(),
+            (DicomTime::from_hms(10, 59, 60).unwrap(), &[][..])
         );
         assert!(matches!(
             parse_time_partial(b"24"),
@@ -784,17 +754,6 @@ mod tests {
             Err(Error::PartialValue {
                 source: PartialValuesError::InvalidComponent {
                     component: DateComponent::Minute,
-                    value: 60,
-                    ..
-                },
-                ..
-            })
-        ));
-        assert!(matches!(
-            parse_time_partial(b"105960"),
-            Err(Error::PartialValue {
-                source: PartialValuesError::InvalidComponent {
-                    component: DateComponent::Second,
                     value: 60,
                     ..
                 },
