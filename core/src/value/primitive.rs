@@ -3122,10 +3122,10 @@ impl PrimitiveValue {
     ///
     /// let dt_range = PrimitiveValue::from("19920101153020.123+0500-1993").to_datetime_range(offset)?;
     ///
-    /// // method does not parse offset, uses the default one
+    /// // default offset override with parsed value
     /// assert_eq!(
     ///     dt_range.start(),
-    ///     Some(&offset.ymd(1992, 1, 1)
+    ///     Some(&FixedOffset::east(5*3600).ymd(1992, 1, 1)
     ///         .and_hms_micro(15, 30, 20, 123_000)  
     ///     )
     /// );
@@ -4168,14 +4168,16 @@ mod tests {
             )
             .unwrap()
         );
-        // UTC offset ignored, only default used
+        // East UTC offset gets parsed
         assert_eq!(
             PrimitiveValue::from(&b"2020-2030+0800"[..])
                 .to_datetime_range(offset)
                 .unwrap(),
             DateTimeRange::from_start_to_end(
                 offset.ymd(2020, 1, 1).and_hms(0, 0, 0),
-                offset.ymd(2030, 12, 31).and_hms_micro(23, 59, 59, 999_999)
+                FixedOffset::east(8 * 3600)
+                    .ymd(2030, 12, 31)
+                    .and_hms_micro(23, 59, 59, 999_999)
             )
             .unwrap()
         );
