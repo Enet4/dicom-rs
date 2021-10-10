@@ -375,10 +375,15 @@ pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<
             let tz_h: u32 = read_number(&buf[0..2])?;
             let tz_m: u32 = read_number(&buf[2..4])?;
             let s = (tz_h * 60 + tz_m) * 60;
-            check_component(DateComponent::UtcOffset, &s).context(InvalidComponent)?;
             match tz_sign {
-                b'+' => FixedOffset::east(s as i32),
-                b'-' => FixedOffset::west(s as i32),
+                b'+' => {
+                    check_component(DateComponent::UtcEast, &s).context(InvalidComponent)?;
+                    FixedOffset::east(s as i32)
+                }
+                b'-' => {
+                    check_component(DateComponent::UtcWest, &s).context(InvalidComponent)?;
+                    FixedOffset::west(s as i32)
+                }
                 c => return InvalidTimeZoneSignToken { value: c }.fail(),
             }
         }
@@ -390,23 +395,6 @@ pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<
             DicomDateTime::from_dicom_date_and_time(date, tm, offset).context(InvalidDateTime)
         }
         None => Ok(DicomDateTime::from_dicom_date(date, offset)),
-    }
-}
-
-/** Decode text into a `DicomDateTime` value.
- * While parsing, this method ignores the presence of an UTC offset.
- *
- */
-pub fn parse_datetime_partial_ignore_offset(
-    buf: &[u8],
-    dt_utc_offset: FixedOffset,
-) -> Result<DicomDateTime> {
-    let (date, rest) = parse_date_partial(buf)?;
-
-    match parse_time_partial(rest) {
-        Ok((tm, _)) => DicomDateTime::from_dicom_date_and_time(date, tm, dt_utc_offset)
-            .context(InvalidDateTime),
-        Err(_) => Ok(DicomDateTime::from_dicom_date(date, dt_utc_offset)),
     }
 }
 
@@ -977,6 +965,18 @@ mod tests {
                 FixedOffset::west(1 * 3600 + 35 * 60)
             )
         );
+
+        // West UTC offset out of range
+        assert!(matches!(
+            parse_datetime_partial(b"20200101-1201", default_offset),
+            Err(Error::InvalidComponent {..})
+        ));
+
+        // East UTC offset out of range
+        assert!(matches!(
+            parse_datetime_partial(b"20200101+1401", default_offset),
+            Err(Error::InvalidComponent {..})
+        ));
 
         assert!(matches!(
             parse_datetime_partial(b"xxxx0229101010.204", default_offset),

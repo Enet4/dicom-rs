@@ -5,8 +5,7 @@ use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 
 use crate::value::deserialize::{
-    parse_date_partial, parse_datetime_partial_ignore_offset, parse_time_partial,
-    Error as DeserializeError,
+    parse_date_partial, parse_datetime_partial, parse_time_partial, Error as DeserializeError,
 };
 use crate::value::partial::{AsRange, Error as PartialValuesError};
 
@@ -33,8 +32,8 @@ pub enum Error {
     },
     #[snafu(display("No range separator present"))]
     NoRangeSeparator { backtrace: Backtrace },
-    #[snafu(display("For a date-time range, only a single '-' character can be present"))]
-    OneRangeSeparator { backtrace: Backtrace },
+    #[snafu(display("Date-time range can contain 1-3 '-' characters, {} were found", value))]
+    SeparatorCount { value: usize, backtrace: Backtrace },
     #[snafu(display("Invalid date-time"))]
     InvalidDateTime { backtrace: Backtrace },
 }
@@ -46,9 +45,9 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// ```
 /// use chrono::NaiveDate;
 /// use dicom_core::value::DateRange;
-/// 
+///
 /// let dr = DateRange::from_start(NaiveDate::from_ymd(2000, 5, 3));
-/// 
+///
 /// assert!(dr.start().is_some());
 /// assert!(dr.end().is_none());
 /// ```
@@ -63,9 +62,9 @@ pub struct DateRange {
 /// ```
 /// use chrono::NaiveTime;
 /// use dicom_core::value::TimeRange;
-/// 
+///
 /// let tr = TimeRange::from_end(NaiveTime::from_hms(10, 30, 15));
-/// 
+///
 /// assert!(tr.start().is_none());
 /// assert!(tr.end().is_some());
 /// ```
@@ -82,14 +81,14 @@ pub struct TimeRange {
 /// # fn main() -> Result<(), Box<dyn Error>> {
 /// use chrono::{DateTime, FixedOffset, TimeZone};
 /// use dicom_core::value::DateTimeRange;
-/// 
+///
 /// let offset = FixedOffset::west(3600);
-/// 
+///
 /// let dtr = DateTimeRange::from_start_to_end(
 ///     offset.ymd(2000, 5, 6).and_hms(15, 0, 0),
 ///     offset.ymd(2000, 5, 6).and_hms(16, 30, 0)
 /// )?;
-/// 
+///
 /// assert!(dtr.start().is_some());
 /// assert!(dtr.end().is_some());
 /// # Ok(())
@@ -401,50 +400,91 @@ pub fn parse_time_range(buf: &[u8]) -> Result<TimeRange> {
 /**
  *  Looks for a range separator '-'.
  *  Returns a `DateTimeRange`.
- *  As it is programatically impossible to distinguish between the shortest valid date-time
- * (-YYYY) and a valid 'west' UTC offset (-hhmm), this method assumes no offsets will be parsed and will always
- * use the provided `FixedOffset` for both values in range, effectively looking for exactly one
- * '-' character as a range separator.
- */
-
+ *  Users are advised, that for very specific inputs, inconsistent behavior can occur.
+ *  This behavior can only be produced when all of the following is true:
+ *  - two very short date-times in the form of YYYY are presented
+ *  - both YYYY values can be exchanged for a valid west UTC offset, meaning year <= 1200
+ *  - only one west UTC offset is presented.
+ *
+ *  In such cases, two '-' characters are present and the parser will favor the first one,
+ *  if it produces a valid `DateTimeRange`. Otherwise, it tries the second one.
+**/
 pub fn parse_datetime_range(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTimeRange> {
     // minimum length of one valid DicomDateTime (YYYY) and one '-' separator
     if buf.len() < 5 {
         return UnexpectedEndOfElement.fail();
     }
-    #[allow(clippy::naive_bytecount)]
-    match buf.iter().filter(|c| **c == b'-').count() {
-        0 => NoRangeSeparator.fail(),
-        1 => {
-            let separator = buf.iter().position(|e| *e == b'-').unwrap();
-            let (start, end) = buf.split_at(separator);
-            let end = &end[1..];
-            match separator {
-                0 => Ok(DateTimeRange::from_end(
-                    parse_datetime_partial_ignore_offset(end, dt_utc_offset)
-                        .context(Parse)?
-                        .latest()
-                        .context(PartialAsRange)?,
-                )),
-                i if i == buf.len() - 1 => Ok(DateTimeRange::from_start(
-                    parse_datetime_partial_ignore_offset(start, dt_utc_offset)
-                        .context(Parse)?
-                        .earliest()
-                        .context(PartialAsRange)?,
-                )),
-                _ => Ok(DateTimeRange::from_start_to_end(
-                    parse_datetime_partial_ignore_offset(start, dt_utc_offset)
-                        .context(Parse)?
-                        .earliest()
-                        .context(PartialAsRange)?,
-                    parse_datetime_partial_ignore_offset(end, dt_utc_offset)
-                        .context(Parse)?
-                        .latest()
-                        .context(PartialAsRange)?,
-                )?),
+    // simplest first, check for open upper and lower bound of range
+    if buf[0] == b'-' {
+        // starting with separator, range is None-Some
+        let buf = &buf[1..];
+        Ok(DateTimeRange::from_end(
+            parse_datetime_partial(buf, dt_utc_offset)
+                .context(Parse)?
+                .latest()
+                .context(PartialAsRange)?,
+        ))
+    } else if buf[buf.len() - 1] == b'-' {
+        // ends with separator, range is Some-None
+        let buf = &buf[0..(buf.len() - 1)];
+        Ok(DateTimeRange::from_start(
+            parse_datetime_partial(buf, dt_utc_offset)
+                .context(Parse)?
+                .earliest()
+                .context(PartialAsRange)?,
+        ))
+    } else {
+        // range must be Some-Some, now, count number of dashes and get their indexes
+        let dashes: Vec<usize> = buf
+            .iter()
+            .enumerate()
+            .filter(|(_i, c)| **c == b'-')
+            .map(|(i, _c)| i)
+            .collect();
+
+        let separator = match dashes.len() {
+            0 => return NoRangeSeparator.fail(), // no separator
+            1 => dashes[0],                      // the only possible separator
+            2 => {
+                // there's one West UTC offset (-hhmm) in one part of the range
+                let (start1, end1) = buf.split_at(dashes[0]);
+
+                let first = (
+                    parse_datetime_partial(start1, dt_utc_offset),
+                    parse_datetime_partial(&end1[1..], dt_utc_offset),
+                );
+                match first {
+                    // if split at the first dash produces a valid range, accept. Else try the other dash
+                    (Ok(s), Ok(e)) => {
+                        //create a result here, to check for range inversion
+                        let dtr = DateTimeRange::from_start_to_end(
+                            s.earliest().context(PartialAsRange)?,
+                            e.latest().context(PartialAsRange)?,
+                        );
+                        match dtr {
+                            Ok(val) => return Ok(val),
+                            Err(_) => dashes[1],
+                        }
+                    }
+                    _ => dashes[1],
+                }
             }
-        }
-        _ => OneRangeSeparator.fail(),
+            3 => dashes[1], // maximum valid count of dashes, two West UTC offsets and one separator, it's middle one
+            len => return SeparatorCount { value: len }.fail(),
+        };
+
+        let (start, end) = buf.split_at(separator);
+        let end = &end[1..];
+        DateTimeRange::from_start_to_end(
+            parse_datetime_partial(start, dt_utc_offset)
+                .context(Parse)?
+                .earliest()
+                .context(PartialAsRange)?,
+            parse_datetime_partial(end, dt_utc_offset)
+                .context(Parse)?
+                .latest()
+                .context(PartialAsRange)?,
+        )
     }
 }
 
@@ -731,33 +771,88 @@ mod tests {
                 end: None
             })
         );
-        // presence of 'east' UTC offsets doesn't fail, but they are ignored.
+        // two 'east' UTC offsets get parsed
         assert_eq!(
-            parse_datetime_range(b"19900101+0500-1999+0700", offset).ok(),
+            parse_datetime_range(b"19900101+0500-1999+1400", offset).ok(),
             Some(DateTimeRange {
-                start: Some(offset.ymd(1990, 1, 1).and_hms_micro(0, 0, 0, 0)),
-                end: Some(offset.ymd(1999, 12, 31).and_hms_micro(23, 59, 59, 999_999))
+                start: Some(
+                    FixedOffset::east(5 * 3600)
+                        .ymd(1990, 1, 1)
+                        .and_hms_micro(0, 0, 0, 0)
+                ),
+                end: Some(
+                    FixedOffset::east(14 * 3600)
+                        .ymd(1999, 12, 31)
+                        .and_hms_micro(23, 59, 59, 999_999)
+                )
             })
         );
-        // any sequence with more than one dash '-' is refused.
+        // two 'west' UTC offsets get parsed
+        assert_eq!(
+            parse_datetime_range(b"19900101-0500-1999-1200", offset).ok(),
+            Some(DateTimeRange {
+                start: Some(
+                    FixedOffset::west(5 * 3600)
+                        .ymd(1990, 1, 1)
+                        .and_hms_micro(0, 0, 0, 0)
+                ),
+                end: Some(
+                    FixedOffset::west(12 * 3600)
+                        .ymd(1999, 12, 31)
+                        .and_hms_micro(23, 59, 59, 999_999)
+                )
+            })
+        );
+        // 'east' and 'west' UTC offsets get parsed
+        assert_eq!(
+            parse_datetime_range(b"19900101+1400-1999-1200", offset).ok(),
+            Some(DateTimeRange {
+                start: Some(
+                    FixedOffset::east(14 * 3600)
+                        .ymd(1990, 1, 1)
+                        .and_hms_micro(0, 0, 0, 0)
+                ),
+                end: Some(
+                    FixedOffset::west(12 * 3600)
+                        .ymd(1999, 12, 31)
+                        .and_hms_micro(23, 59, 59, 999_999)
+                )
+            })
+        );
+        // one 'west' UTC offsets gets parsed, offset cannot be mistaken for a date-time
+        assert_eq!(
+            parse_datetime_range(b"19900101-1200-1999", offset).unwrap(),
+            DateTimeRange {
+                start: Some(
+                    FixedOffset::west(12 * 3600)
+                        .ymd(1990, 1, 1)
+                        .and_hms_micro(0, 0, 0, 0)
+                ),
+                end: Some(offset.ymd(1999, 12, 31).and_hms_micro(23, 59, 59, 999_999))
+            }
+        );
+        // '0500' can either be a valid west UTC offset on left side, or a valid datime on the right side
+        // Now, the first dash is considered to be a separator.
+        assert_eq!(
+            parse_datetime_range(b"0050-0500-1000", offset).unwrap(),
+            DateTimeRange {
+                start: Some(offset.ymd(50, 1, 1).and_hms_micro(0, 0, 0, 0)),
+                end: Some(
+                    FixedOffset::west(10 * 3600)
+                        .ymd(500, 12, 31)
+                        .and_hms_micro(23, 59, 59, 999_999)
+                )
+            }
+        );
+        // sequence with more than 3 dashes '-' is refused.
         assert!(matches!(
-            parse_datetime_range(b"00021231-0100-", offset),
-            Err(Error::OneRangeSeparator { .. })
+            parse_datetime_range(b"0001-00021231-2021-0100-0100", offset),
+            Err(Error::SeparatorCount { .. })
         ));
-        // any sequence with more than one dash '-' is refused.
+        // any sequence without a dash '-' is refused.
         assert!(matches!(
-            parse_datetime_range(b"-00021231-0500", offset),
-            Err(Error::OneRangeSeparator { .. })
-        ));
-        // any sequence with more than one dash '-' is refused.
-        assert!(matches!(
-            parse_datetime_range(b"1990-0100-1999-0100", offset),
-            Err(Error::OneRangeSeparator { .. })
-        ));
-        // any sequence with more than one dash '-' is refused.
-        assert!(matches!(
-            parse_datetime_range(b"1990-1999-0200", offset),
-            Err(Error::OneRangeSeparator { .. })
+            parse_datetime_range(b"00021231+0500", offset),
+            Err(Error::NoRangeSeparator { .. })
         ));
     }
 }

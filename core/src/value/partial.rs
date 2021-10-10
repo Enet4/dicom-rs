@@ -72,7 +72,8 @@ pub enum DateComponent {
     Second,
     Millisecond,
     Fraction,
-    UtcOffset,
+    UtcWest,
+    UtcEast,
 }
 
 /// Represents a Dicom Date value with a partial precision,
@@ -243,7 +244,8 @@ where
         DateComponent::Second => 0..=60,
         DateComponent::Millisecond => 0..=999,
         DateComponent::Fraction => 0..=999_999,
-        DateComponent::UtcOffset => 0..=86_399,
+        DateComponent::UtcWest => 0..=(12 * 3600),
+        DateComponent::UtcEast => 0..=(14 * 3600),
     };
 
     let value: u32 = (*value).into();
