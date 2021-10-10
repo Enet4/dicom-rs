@@ -9,8 +9,8 @@ use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
 use dicom_encoding::decode::primitive_value::*;
 use dicom_encoding::decode::{BasicDecode, DecodeFrom};
 use dicom_encoding::text::{
-    validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, DynamicTextCodec,
-    SpecificCharacterSet, TextCodec, TextValidationOutcome,
+    validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, SpecificCharacterSet,
+    TextCodec, TextValidationOutcome,
 };
 use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
 use dicom_encoding::transfer_syntax::{DynDecoder, TransferSyntax};
@@ -223,7 +223,7 @@ const PARSER_BUFFER_CAPACITY: usize = 2048;
 /// whereas `DB` is the parameter type for the basic decoder.
 /// `TC` defines the text codec used underneath.
 #[derive(Debug)]
-pub struct StatefulDecoder<D, S, BD = BasicDecoder, TC = DynamicTextCodec> {
+pub struct StatefulDecoder<D, S, BD = BasicDecoder, TC = SpecificCharacterSet> {
     from: S,
     decoder: D,
     basic: BD,
@@ -250,13 +250,22 @@ impl<S> StatefulDecoder<DynDecoder<S>, S> {
         let decoder = ts
             .decoder_for::<S>()
             .context(UnsupportedTransferSyntax { ts: ts.name() })?;
-        let text = charset
-            .codec()
-            .context(UnsupportedCharacterSet { charset })?;
 
         Ok(StatefulDecoder::new_with_position(
-            from, decoder, basic, text, position,
+            from, decoder, basic, charset, position,
         ))
+    }
+
+    /// Create a new DICOM parser for the given transfer syntax
+    /// and assumed position of the reader source.
+    ///
+    /// The default character set is assumed
+    /// until a _Specific Character Set_ attribute is found.
+    pub fn new_with_ts(from: S, ts: &TransferSyntax, position: u64) -> Result<Self>
+    where
+        S: Read,
+    {
+        Self::new_with(from, ts, SpecificCharacterSet::default(), position)
     }
 }
 
@@ -532,7 +541,7 @@ where
         let parts: Result<_> = buf
             .split(|b| *b == b'\\')
             .map(|slice| {
-                let codec = SpecificCharacterSet::Default.codec().unwrap();
+                let codec = DefaultCharacterSetCodec;
                 let txt = codec.decode(slice).context(DecodeText {
                     position: self.position,
                 })?;
@@ -601,7 +610,7 @@ where
         let parts: Result<_> = buf
             .split(|v| *v == b'\\')
             .map(|slice| {
-                let codec = SpecificCharacterSet::Default.codec().unwrap();
+                let codec = DefaultCharacterSetCodec;
                 let txt = codec.decode(slice).context(DecodeText {
                     position: self.position,
                 })?;
@@ -760,16 +769,14 @@ where
     }
 }
 
-impl<S, D, BD> StatefulDecoder<D, S, BD, DynamicTextCodec>
+impl<S, D, BD> StatefulDecoder<D, S, BD>
 where
     D: DecodeFrom<S>,
     BD: BasicDecode,
     S: Read,
 {
     fn set_character_set(&mut self, charset: SpecificCharacterSet) -> Result<()> {
-        self.text = charset
-            .codec()
-            .context(UnsupportedCharacterSet { charset })?;
+        self.text = charset;
         Ok(())
     }
 
@@ -862,7 +869,7 @@ where
     }
 }
 
-impl<D, S, BD> StatefulDecode for StatefulDecoder<D, S, BD, DynamicTextCodec>
+impl<D, S, BD> StatefulDecode for StatefulDecoder<D, S, BD>
 where
     D: DecodeFrom<S>,
     BD: BasicDecode,
@@ -1008,11 +1015,9 @@ where
         W: std::io::Write,
     {
         let length = u64::from(length);
-        std::io::copy(&mut self.from.by_ref().take(length), &mut out).context(
-            ReadValueData {
-                position: self.position,
-            },
-        )?;
+        std::io::copy(&mut self.from.by_ref().take(length), &mut out).context(ReadValueData {
+            position: self.position,
+        })?;
         self.position += length;
         Ok(())
     }
@@ -1058,7 +1063,7 @@ mod tests {
     use dicom_core::header::{DataElementHeader, HasLength, Header, Length, SequenceItemHeader};
     use dicom_core::{Tag, VR};
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
-    use dicom_encoding::text::{DefaultCharacterSetCodec, DynamicTextCodec};
+    use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
     use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
     use dicom_encoding::transfer_syntax::implicit_le::ImplicitVRLittleEndianDecoder;
     use std::io::{Cursor, Seek, SeekFrom};
@@ -1095,7 +1100,7 @@ mod tests {
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder,
-            Box::new(DefaultCharacterSetCodec) as DynamicTextCodec,
+            SpecificCharacterSet::Default,
         );
 
         is_stateful_decoder(&decoder);
@@ -1168,7 +1173,7 @@ mod tests {
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder,
-            Box::new(DefaultCharacterSetCodec) as DynamicTextCodec,
+            SpecificCharacterSet::Default,
         );
 
         is_stateful_decoder(&decoder);
@@ -1209,7 +1214,7 @@ mod tests {
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder,
-            Box::new(DefaultCharacterSetCodec) as DynamicTextCodec,
+            SpecificCharacterSet::Default,
             128,
         );
 
@@ -1325,7 +1330,7 @@ mod tests {
             &mut cursor,
             ImplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder,
-            Box::new(DefaultCharacterSetCodec) as DynamicTextCodec,
+            SpecificCharacterSet::Default,
         );
 
         is_stateful_decoder(&decoder);

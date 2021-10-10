@@ -120,6 +120,7 @@ where
 ///
 /// It is important because stateful decoders may need to change the expected
 /// text encoding format at run-time.
+#[deprecated(since = "0.5.0", note = "Use `SpecificCharacterSet` instead")]
 pub type DynamicTextCodec = Box<dyn TextCodec>;
 
 /// An enum type for all currently supported character sets.
@@ -145,7 +146,7 @@ pub enum SpecificCharacterSet {
     /// **ISO-IR 192**: The Unicode character set based on the UTF-8 encoding.
     IsoIr192,
     /// **GB18030**: The Simplified Chinese character set.
-    GB18030,
+    Gb18030,
     // Support for more text encodings is tracked in issue #40.
 }
 
@@ -178,13 +179,14 @@ impl SpecificCharacterSet {
             "ISO_IR_110" | "ISO_IR 110" | "ISO 2022 IR 110" => Some(IsoIr110),
             "ISO_IR_144" | "ISO_IR 144" | "ISO 2022 IR 144" => Some(IsoIr144),
             "ISO_IR_192" | "ISO_IR 192" => Some(IsoIr192),
-            "GB18030" => Some(GB18030),
+            "GB18030" => Some(Gb18030),
             _ => None,
         }
     }
 
     /// Retrieve the respective text codec.
-    pub fn codec(self) -> Option<DynamicTextCodec> {
+    #[deprecated]
+    pub fn codec(self) -> Option<Box<dyn TextCodec>> {
         match self {
             SpecificCharacterSet::Default => Some(Box::new(DefaultCharacterSetCodec)),
             SpecificCharacterSet::IsoIr100 => Some(Box::new(IsoIr100CharacterSetCodec)),
@@ -193,7 +195,48 @@ impl SpecificCharacterSet {
             SpecificCharacterSet::IsoIr110 => Some(Box::new(IsoIr110CharacterSetCodec)),
             SpecificCharacterSet::IsoIr144 => Some(Box::new(IsoIr144CharacterSetCodec)),
             SpecificCharacterSet::IsoIr192 => Some(Box::new(Utf8CharacterSetCodec)),
-            SpecificCharacterSet::GB18030 => Some(Box::new(Gb18030CharacterSetCodec)),
+            SpecificCharacterSet::Gb18030 => Some(Box::new(Gb18030CharacterSetCodec)),
+        }
+    }
+}
+
+impl TextCodec for SpecificCharacterSet {
+    fn name(&self) -> &'static str {
+        match self {
+            SpecificCharacterSet::Default => "ISO_IR 6",
+            SpecificCharacterSet::IsoIr100 => "ISO_IR 100",
+            SpecificCharacterSet::IsoIr101 => "ISO_IR 101",
+            SpecificCharacterSet::IsoIr109 => "ISO_IR 109",
+            SpecificCharacterSet::IsoIr110 => "ISO_IR 110",
+            SpecificCharacterSet::IsoIr144 => "ISO_IR 144",
+            SpecificCharacterSet::IsoIr192 => "ISO_IR 192",
+            SpecificCharacterSet::Gb18030 => "GB18030",
+        }
+    }
+
+    fn decode(&self, text: &[u8]) -> DecodeResult<String> {
+        match self {
+            SpecificCharacterSet::Default => DefaultCharacterSetCodec.decode(text),
+            SpecificCharacterSet::IsoIr100 => IsoIr100CharacterSetCodec.decode(text),
+            SpecificCharacterSet::IsoIr101 => IsoIr101CharacterSetCodec.decode(text),
+            SpecificCharacterSet::IsoIr109 => IsoIr109CharacterSetCodec.decode(text),
+            SpecificCharacterSet::IsoIr110 => IsoIr110CharacterSetCodec.decode(text),
+            SpecificCharacterSet::IsoIr144 => IsoIr144CharacterSetCodec.decode(text),
+            SpecificCharacterSet::IsoIr192 => Utf8CharacterSetCodec.decode(text),
+            SpecificCharacterSet::Gb18030 => Gb18030CharacterSetCodec.decode(text),
+        }
+    }
+
+    fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
+        match self {
+            SpecificCharacterSet::Default => DefaultCharacterSetCodec.encode(text),
+            SpecificCharacterSet::IsoIr100 => IsoIr100CharacterSetCodec.encode(text),
+            SpecificCharacterSet::IsoIr101 => IsoIr101CharacterSetCodec.encode(text),
+            SpecificCharacterSet::IsoIr109 => IsoIr109CharacterSetCodec.encode(text),
+            SpecificCharacterSet::IsoIr110 => IsoIr110CharacterSetCodec.encode(text),
+            SpecificCharacterSet::IsoIr144 => IsoIr144CharacterSetCodec.encode(text),
+            SpecificCharacterSet::IsoIr192 => Utf8CharacterSetCodec.encode(text),
+            SpecificCharacterSet::Gb18030 => Gb18030CharacterSetCodec.encode(text),
         }
     }
 }
@@ -359,43 +402,33 @@ mod tests {
 
     #[test]
     fn iso_ir_6_baseline() {
-        let codec = SpecificCharacterSet::Default
-            .codec()
-            .expect("Must be fully supported");
+        let codec = SpecificCharacterSet::Default;
         test_codec(codec, "Smith^John", b"Smith^John");
     }
 
     #[test]
     fn iso_ir_192_baseline() {
-        let codec = SpecificCharacterSet::IsoIr192
-            .codec()
-            .expect("Should be fully supported");
+        let codec = SpecificCharacterSet::IsoIr192;
         test_codec(&codec, "Simões^John", "Simões^John".as_bytes());
         test_codec(codec, "Иванков^Андрей", "Иванков^Андрей".as_bytes());
     }
 
     #[test]
     fn iso_ir_100_baseline() {
-        let codec = SpecificCharacterSet::IsoIr100
-            .codec()
-            .expect("Should be fully supported");
+        let codec = SpecificCharacterSet::IsoIr100;
         test_codec(&codec, "Simões^João", b"Sim\xF5es^Jo\xE3o");
         test_codec(codec, "Günther^Hans", b"G\xfcnther^Hans");
     }
 
     #[test]
     fn iso_ir_101_baseline() {
-        let codec = SpecificCharacterSet::IsoIr101
-            .codec()
-            .expect("Should be fully supported");
+        let codec = SpecificCharacterSet::IsoIr101;
         test_codec(codec, "Günther^Hans", b"G\xfcnther^Hans");
     }
 
     #[test]
     fn iso_ir_144_baseline() {
-        let codec = SpecificCharacterSet::IsoIr144
-            .codec()
-            .expect("Should be fully supported");
+        let codec = SpecificCharacterSet::IsoIr144;
         test_codec(
             codec,
             "Иванков^Андрей",

@@ -451,8 +451,7 @@ mod tests {
         header::{DataElementHeader, Length},
     };
     use dicom_core::{Tag, VR};
-    use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
-    use dicom_encoding::text::DefaultCharacterSetCodec;
+    use dicom_encoding::{decode::basic::LittleEndianBasicDecoder, text::SpecificCharacterSet};
     use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
     use dicom_encoding::transfer_syntax::implicit_le::ImplicitVRLittleEndianDecoder;
 
@@ -465,7 +464,7 @@ mod tests {
             &mut cursor,
             ImplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder::default(),
-            Box::new(DefaultCharacterSetCodec::default()) as Box<_>, // trait object
+            SpecificCharacterSet::Default,
         );
 
         validate_dataset_reader(data, parser, ground_truth)
@@ -480,7 +479,7 @@ mod tests {
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder::default(),
-            Box::new(DefaultCharacterSetCodec::default()) as Box<_>, // trait object
+            SpecificCharacterSet::Default,
         );
 
         validate_dataset_reader(&data, parser, ground_truth)
@@ -1032,7 +1031,7 @@ mod tests {
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder::default(),
-            Box::new(DefaultCharacterSetCodec::default()) as Box<_>, // trait object
+            SpecificCharacterSet::Default,
         );
 
         let mut dset_reader = LazyDataSetReader::new(parser);
@@ -1085,7 +1084,7 @@ mod tests {
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder::default(),
-            Box::new(DefaultCharacterSetCodec::default()) as Box<_>, // trait object
+            SpecificCharacterSet::Default,
         );
 
         let mut dset_reader = LazyDataSetReader::new(parser);
