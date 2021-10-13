@@ -10,12 +10,6 @@ use std::ops::RangeInclusive;
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum Error {
-    #[snafu(display("Date is invalid"))]
-    InvalidDate { backtrace: Backtrace },
-    #[snafu(display("Time is invalid"))]
-    InvalidTime { backtrace: Backtrace },
-    #[snafu(display("DateTime is invalid"))]
-    InvalidDateTime { backtrace: Backtrace },
     #[snafu(display("To combine a DicomDate with a DicomTime value, the DicomDate has to be precise. Precision is: '{:?}'", value))]
     DateTimeFromPartials {
         value: DateComponent,
@@ -61,24 +55,6 @@ pub enum Error {
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
-
-#[derive(Debug)]
-pub struct ToRangeError {
-    pub value: String,
-    pub requested: &'static str,
-    pub cause: Option<crate::value::range::Error>,
-}
-
-impl fmt::Display for ToRangeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Could not convert '{}' to {}",
-            self.value, self.requested
-        )
-    }
-}
-impl std::error::Error for ToRangeError {}
 
 /// Represents components of Date, Time and DateTime values.
 #[derive(Debug, PartialEq, Copy, Clone, Eq, Hash, PartialOrd, Ord)]
