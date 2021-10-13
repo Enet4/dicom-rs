@@ -1,7 +1,8 @@
 //! Handling of partial precision of Date, Time and DateTime values.
 
-use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveTime, TimeZone, Timelike};
-use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
+use crate::value::range::AsRange;
+use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveTime, Timelike};
+use snafu::{Backtrace, ResultExt, Snafu};
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::ops::RangeInclusive;
@@ -61,6 +62,24 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+#[derive(Debug)]
+pub struct ToRangeError {
+    pub value: String,
+    pub requested: &'static str,
+    pub cause: Option<crate::value::range::Error>,
+}
+
+impl fmt::Display for ToRangeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Could not convert '{}' to {}",
+            self.value, self.requested
+        )
+    }
+}
+impl std::error::Error for ToRangeError {}
+
 /// Represents components of Date, Time and DateTime values.
 #[derive(Debug, PartialEq, Copy, Clone, Eq, Hash, PartialOrd, Ord)]
 pub enum DateComponent {
@@ -79,7 +98,7 @@ pub enum DateComponent {
 /// Represents a Dicom Date value with a partial precision,
 /// where some date components may be missing.
 ///
-/// Unlike RUSTs `chrono::NaiveDate`, it does not allow for negative years.
+/// Unlike Rust's `chrono::NaiveDate`, it does not allow for negative years.
 ///
 /// `DicomDate` implements `AsRange` trait, enabling to retrieve specific
 /// `chrono::NaiveDate` values.
@@ -289,6 +308,31 @@ impl DicomDate {
         check_component(DateComponent::Day, &day)?;
         Ok(DicomDate(DicomDateImpl::Day(year, month, day)))
     }
+
+    // Retrievies the year from a date as a reference
+    pub fn year(&self) -> &u16 {
+        match self {
+            DicomDate(DicomDateImpl::Year(y)) => y,
+            DicomDate(DicomDateImpl::Month(y, _)) => y,
+            DicomDate(DicomDateImpl::Day(y, _, _)) => y,
+        }
+    }
+    // Retrievies the month from a date as a reference
+    pub fn month(&self) -> Option<&u8> {
+        match self {
+            DicomDate(DicomDateImpl::Year(_)) => None,
+            DicomDate(DicomDateImpl::Month(_, m)) => Some(m),
+            DicomDate(DicomDateImpl::Day(_, m, _)) => Some(m),
+        }
+    }
+    // Retrievies the day from a date as a reference
+    pub fn day(&self) -> Option<&u8> {
+        match self {
+            DicomDate(DicomDateImpl::Year(_)) => None,
+            DicomDate(DicomDateImpl::Month(_, _)) => None,
+            DicomDate(DicomDateImpl::Day(_, _, d)) => Some(d),
+        }
+    }
 }
 
 impl TryFrom<&NaiveDate> for DicomDate {
@@ -379,7 +423,42 @@ impl DicomTime {
             6,
         )))
     }
-
+    /** Retrievies the hour from a time as a reference */
+    pub fn hour(&self) -> &u8 {
+        match self {
+            DicomTime(DicomTimeImpl::Hour(h)) => h,
+            DicomTime(DicomTimeImpl::Minute(h, _)) => h,
+            DicomTime(DicomTimeImpl::Second(h, _, _)) => h,
+            DicomTime(DicomTimeImpl::Fraction(h, _, _, _, _)) => h,
+        }
+    }
+    /** Retrievies the minute from a time as a reference */
+    pub fn minute(&self) -> Option<&u8> {
+        match self {
+            DicomTime(DicomTimeImpl::Hour(_)) => None,
+            DicomTime(DicomTimeImpl::Minute(_, m)) => Some(m),
+            DicomTime(DicomTimeImpl::Second(_, m, _)) => Some(m),
+            DicomTime(DicomTimeImpl::Fraction(_, m, _, _, _)) => Some(m),
+        }
+    }
+    /** Retrievies the minute from a time as a reference */
+    pub fn second(&self) -> Option<&u8> {
+        match self {
+            DicomTime(DicomTimeImpl::Hour(_)) => None,
+            DicomTime(DicomTimeImpl::Minute(_, __)) => None,
+            DicomTime(DicomTimeImpl::Second(_, _, s)) => Some(s),
+            DicomTime(DicomTimeImpl::Fraction(_, _, s, _, _)) => Some(s),
+        }
+    }
+    /** Retrievies the fraction it's precision from a time as a reference */
+    pub fn fraction_and_precision(&self) -> Option<(&u32, &u8)> {
+        match self {
+            DicomTime(DicomTimeImpl::Hour(_)) => None,
+            DicomTime(DicomTimeImpl::Minute(_, __)) => None,
+            DicomTime(DicomTimeImpl::Second(_, _, _)) => None,
+            DicomTime(DicomTimeImpl::Fraction(_, _, _, f, fp)) => Some((f, fp)),
+        }
+    }
     /**
      * Constructs a new `DicomTime` from an hour, minute, second, second fraction
      * and fraction precision value (1-6). Function used for parsing only.
@@ -488,6 +567,21 @@ impl DicomDateTime {
             .fail()
         }
     }
+
+    /** Retrieves a refrence to the internal date value */
+    pub fn date(&self) -> &DicomDate {
+        &self.date
+    }
+
+    /** Retrieves a refrence to the internal time value, if present */
+    pub fn time(&self) -> Option<&DicomTime> {
+        self.time.as_ref()
+    }
+
+    /** Retrieves a refrence to the internal offset value */
+    pub fn offset(&self) -> &FixedOffset {
+        &self.offset
+    }
 }
 
 impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
@@ -574,191 +668,7 @@ impl Precision for DicomDateTime {
     }
 }
 
-/// The DICOM protocol accepts date / time values with null components.
-/// Imprecise values are to be handled as date / time ranges.
-/// This trait is implemented by date / time structures with partial precision.
-/// If the date / time structure is not precise, it is up to the user to call one of these
-/// methods to retrieve a suitable  `chrono` value.
-///
-/// # Examples
-///
-/// ```
-/// # use dicom_core::value::{C, PrimitiveValue};
-/// # use smallvec::smallvec;
-/// # use std::error::Error;
-/// use chrono::{NaiveDate, NaiveTime};
-/// use dicom_core::value::{AsRange, DicomDate, DicomTime};
-/// # fn main() -> Result<(), Box<dyn Error>> {
-///
-/// let dicom_date = DicomDate::from_ym(2010,1)?;
-/// assert_eq!(dicom_date.is_precise(), false);
-/// assert_eq!(
-///     dicom_date.earliest()?,
-///     NaiveDate::from_ymd(2010,1,1)
-/// );
-/// assert_eq!(
-///     dicom_date.latest()?,
-///     NaiveDate::from_ymd(2010,1,31)
-/// );
-///
-/// let dicom_time = DicomTime::from_hm(10,0)?;
-/// assert_eq!(
-///     dicom_time.range()?,
-///     (Some(NaiveTime::from_hms(10, 0, 0)),
-///      Some(NaiveTime::from_hms_micro(10, 0, 59, 999_999)))
-/// );
-/// // only a time with 6 digits second fraction is considered precise
-/// assert!(dicom_time.exact().is_err());
-///
-/// # Ok(())
-/// # }
-/// ```
-pub trait AsRange: Precision {
-    type Item: PartialEq + PartialOrd;
-    /**
-     * Returns a corresponding `chrono` value, if the partial precision structure has full accuracy.
-     */
-    fn exact(&self) -> Result<Self::Item> {
-        if self.is_precise() {
-            Ok(self.earliest()?)
-        } else {
-            ImpreciseValue.fail()
-        }
-    }
-    /**
-     * Returns the earliest possible `chrono` value from a partial precision structure.
-     * Missing components default to 1 (days, months) or 0 (hours, minutes, ...)
-     * If structure contains invalid combination of `DateComponent`s, it fails.
-     */
-    fn earliest(&self) -> Result<Self::Item>;
-
-    /**
-     * Returns the latest possible `chrono` value from a partial precision structure.
-     * If structure contains invalid combination of `DateComponent`s, it fails.
-     */
-    fn latest(&self) -> Result<Self::Item>;
-
-    /**
-     * Returns a tuple of the earliest and latest possible value from a partial precision structure.
-     *
-     */
-    #[allow(clippy::type_complexity)]
-    fn range(&self) -> Result<(Option<Self::Item>, Option<Self::Item>)> {
-        Ok((self.earliest().ok(), self.latest().ok()))
-    }
-
-    /**
-     * Returns `true`, if partial precision structure has maximum possible accuracy.
-     * For fraction of a second, full 6 digits are required for the value to be precise.
-     */
-    fn is_precise(&self) -> bool {
-        let e = self.earliest();
-        let l = self.latest();
-
-        e.is_ok() && l.is_ok() && e.ok() == l.ok()
-    }
-}
-
-impl AsRange for DicomDate {
-    type Item = NaiveDate;
-    fn earliest(&self) -> Result<NaiveDate> {
-        let (y, m, d) = match self {
-            DicomDate(DicomDateImpl::Year(y)) => (*y as i32, 1, 1),
-            DicomDate(DicomDateImpl::Month(y, m)) => (*y as i32, *m as u32, 1),
-            DicomDate(DicomDateImpl::Day(y, m, d)) => (*y as i32, *m as u32, *d as u32),
-        };
-        NaiveDate::from_ymd_opt(y, m, d).context(InvalidDate)
-    }
-
-    fn latest(&self) -> Result<NaiveDate> {
-        let (y, m, d) = match self {
-            DicomDate(DicomDateImpl::Year(y)) => (*y as i32, 12, 31),
-            DicomDate(DicomDateImpl::Month(y, m)) => {
-                let d = {
-                    if m == &12 {
-                        NaiveDate::from_ymd(*y as i32 + 1, 1, 1)
-                    } else {
-                        NaiveDate::from_ymd(*y as i32, *m as u32 + 1, 1)
-                    }
-                    .signed_duration_since(NaiveDate::from_ymd(*y as i32, *m as u32, 1))
-                    .num_days()
-                };
-                (*y as i32, *m as u32, d as u32)
-            }
-            DicomDate(DicomDateImpl::Day(y, m, d)) => (*y as i32, *m as u32, *d as u32),
-        };
-        NaiveDate::from_ymd_opt(y, m, d).context(InvalidDate)
-    }
-}
-
-impl AsRange for DicomTime {
-    type Item = NaiveTime;
-    fn earliest(&self) -> Result<NaiveTime> {
-        let fr: u32;
-        let (h, m, s, f) = match self {
-            DicomTime(DicomTimeImpl::Hour(h)) => (h, &0, &0, &0),
-            DicomTime(DicomTimeImpl::Minute(h, m)) => (h, m, &0, &0),
-            DicomTime(DicomTimeImpl::Second(h, m, s)) => (h, m, s, &0),
-            DicomTime(DicomTimeImpl::Fraction(h, m, s, f, fp)) => {
-                fr = *f * u32::pow(10, 6 - <u32>::from(*fp));
-                (h, m, s, &fr)
-            }
-        };
-        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), *f)
-            .context(InvalidTime)
-    }
-    fn latest(&self) -> Result<NaiveTime> {
-        let fr: u32;
-        let (h, m, s, f) = match self {
-            DicomTime(DicomTimeImpl::Hour(h)) => (h, &59, &59, &999_999),
-            DicomTime(DicomTimeImpl::Minute(h, m)) => (h, m, &59, &999_999),
-            DicomTime(DicomTimeImpl::Second(h, m, s)) => (h, m, s, &999_999),
-            DicomTime(DicomTimeImpl::Fraction(h, m, s, f, fp)) => {
-                fr = (*f * u32::pow(10, 6 - u32::from(*fp))) + (u32::pow(10, 6 - u32::from(*fp)))
-                    - 1;
-                (h, m, s, &fr)
-            }
-        };
-        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), *f)
-            .context(InvalidTime)
-    }
-}
-
-impl AsRange for DicomDateTime {
-    type Item = DateTime<FixedOffset>;
-    fn earliest(&self) -> Result<DateTime<FixedOffset>> {
-        let date = self.date.earliest()?;
-        let time = match self.time {
-            Some(time) => time.earliest()?,
-            None => NaiveTime::from_hms(0, 0, 0),
-        };
-
-        self.offset
-            .from_utc_date(&date)
-            .and_time(time)
-            .context(InvalidDateTime)
-    }
-
-    fn latest(&self) -> Result<DateTime<FixedOffset>> {
-        let date = self.date.latest()?;
-        let time = match self.time {
-            Some(time) => time.latest()?,
-            None => NaiveTime::from_hms_micro(23, 59, 59, 999_999),
-        };
-        self.offset
-            .from_utc_date(&date)
-            .and_time(time)
-            .context(InvalidDateTime)
-    }
-}
-
 impl DicomDate {
-    /**
-     * Retrieves a `chrono::NaiveDate` if value is precise.
-     */
-    pub fn to_naive_date(self) -> Result<NaiveDate> {
-        self.exact()
-    }
     /**
      * Retrieves a dicom encoded string representation of the value.
      */
@@ -772,17 +682,6 @@ impl DicomDate {
 }
 
 impl DicomTime {
-    /**
-     * Retrieves a `chrono::NaiveTime` if value is precise.
-     * This method consideres a `DicomTime` value to be precise, if it contains a second component.
-     * Missing second fraction defaults to zero.
-     */
-    pub fn to_naive_time(self) -> Result<NaiveTime> {
-        match self.precision() {
-            DateComponent::Second | DateComponent::Fraction => self.earliest(),
-            _ => ImpreciseValue.fail(),
-        }
-    }
     /**
      * Retrieves a dicom encoded string representation of the value.
      */
@@ -799,13 +698,6 @@ impl DicomTime {
 }
 
 impl DicomDateTime {
-    /**
-     * Retrieves a `chrono::DateTime<FixedOffset>` if value is precise.
-     */
-    pub fn to_chrono_datetime(self) -> Result<DateTime<FixedOffset>> {
-        // tweak here, if full DicomTime precision req. proves impractical
-        self.exact()
-    }
     /**
      * Retrieves a dicom encoded string representation of the value.
      */
@@ -829,6 +721,7 @@ impl DicomDateTime {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
 
     #[test]
     fn test_dicom_date() {
@@ -1005,7 +898,7 @@ mod tests {
 
         assert!(matches!(
             DicomTime::from_hmsf(9, 1, 1, 12345, 5).unwrap().exact(),
-            Err(Error::ImpreciseValue { .. })
+            Err(crate::value::range::Error::ImpreciseValue { .. })
         ));
     }
 
@@ -1103,7 +996,7 @@ mod tests {
                 default_offset
             )
             .earliest(),
-            Err(Error::InvalidDate { .. })
+            Err(crate::value::range::Error::InvalidDate { .. })
         ));
 
         assert!(matches!(
@@ -1128,6 +1021,7 @@ mod tests {
                 ..
             })
         ));
+
         assert!(matches!(
             DicomDateTime::from_dicom_date_and_time(
                 DicomDate::from_ymd(2000, 1, 1).unwrap(),
@@ -1136,7 +1030,7 @@ mod tests {
             )
             .unwrap()
             .exact(),
-            Err(Error::ImpreciseValue { .. })
+            Err(crate::value::range::Error::ImpreciseValue { .. })
         ));
     }
 }

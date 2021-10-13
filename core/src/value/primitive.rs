@@ -2795,7 +2795,7 @@ impl PrimitiveValue {
     /// # use smallvec::smallvec;
     /// # use chrono::{DateTime, FixedOffset, TimeZone};
     /// # use std::error::Error;
-    /// use dicom_core::value::{DicomDateTime, AsRange};
+    /// use dicom_core::value::{DicomDateTime, AsRange, DateTimeRange};
     ///
     /// # fn main() -> Result<(), Box<dyn Error>> {
     /// let default_offset = FixedOffset::east(0);
@@ -2831,14 +2831,14 @@ impl PrimitiveValue {
     /// // ranges are inclusive, for a precise value, two identical values are returned
     /// assert_eq!(
     ///     dt_value.range()?,
-    ///     (
-    ///     Some(FixedOffset::east(0)
-    ///         .ymd(2012, 12, 21)
-    ///         .and_hms_micro(9, 30, 1, 123_456)),
-    ///     Some(FixedOffset::east(0)
-    ///         .ymd(2012, 12, 21)
-    ///         .and_hms_micro(9, 30, 1, 123_456))
-    ///     )
+    ///     DateTimeRange::from_start_to_end(
+    ///         FixedOffset::east(0)
+    ///             .ymd(2012, 12, 21)
+    ///             .and_hms_micro(9, 30, 1, 123_456),
+    ///         FixedOffset::east(0)
+    ///             .ymd(2012, 12, 21)
+    ///             .and_hms_micro(9, 30, 1, 123_456))?
+    ///     
     /// );
     /// # Ok(())
     /// # }

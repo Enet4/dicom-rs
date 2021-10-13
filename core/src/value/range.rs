@@ -7,7 +7,7 @@ use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use crate::value::deserialize::{
     parse_date_partial, parse_datetime_partial, parse_time_partial, Error as DeserializeError,
 };
-use crate::value::partial::{AsRange, Error as PartialValuesError};
+use crate::value::partial::{DateComponent, DicomDate, DicomDateTime, DicomTime, Precision};
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -18,11 +18,6 @@ pub enum Error {
     Parse {
         #[snafu(backtrace)]
         source: DeserializeError,
-    },
-    #[snafu(display("Operation on partial value as a range failed"))]
-    PartialAsRange {
-        #[snafu(backtrace)]
-        source: PartialValuesError,
     },
     #[snafu(display("End {} is before start {}", end, start))]
     RangeInversion {
@@ -36,8 +31,248 @@ pub enum Error {
     SeparatorCount { value: usize, backtrace: Backtrace },
     #[snafu(display("Invalid date-time"))]
     InvalidDateTime { backtrace: Backtrace },
+    #[snafu(display(
+        "Cannot convert from an imprecise value. This value represents a date / time range"
+    ))]
+    ImpreciseValue { backtrace: Backtrace },
+    #[snafu(display("Date is invalid"))]
+    InvalidDate { backtrace: Backtrace },
+    #[snafu(display("Time is invalid"))]
+    InvalidTime { backtrace: Backtrace },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// The DICOM protocol accepts date / time values with null components.
+/// Imprecise values are to be handled as date / time ranges.
+/// This trait is implemented by date / time structures with partial precision.
+/// If the date / time structure is not precise, it is up to the user to call one of these
+/// methods to retrieve a suitable  `chrono` value.
+///
+/// # Examples
+///
+/// ```
+/// # use dicom_core::value::{C, PrimitiveValue};
+/// # use smallvec::smallvec;
+/// # use std::error::Error;
+/// use chrono::{NaiveDate, NaiveTime};
+/// use dicom_core::value::{AsRange, DicomDate, DicomTime, TimeRange};
+/// # fn main() -> Result<(), Box<dyn Error>> {
+///
+/// let dicom_date = DicomDate::from_ym(2010,1)?;
+/// assert_eq!(dicom_date.is_precise(), false);
+/// assert_eq!(
+///     dicom_date.earliest()?,
+///     NaiveDate::from_ymd(2010,1,1)
+/// );
+/// assert_eq!(
+///     dicom_date.latest()?,
+///     NaiveDate::from_ymd(2010,1,31)
+/// );
+///
+/// let dicom_time = DicomTime::from_hm(10,0)?;
+/// assert_eq!(
+///     dicom_time.range()?,
+///     TimeRange::from_start_to_end(NaiveTime::from_hms(10, 0, 0),
+///         NaiveTime::from_hms_micro(10, 0, 59, 999_999))?
+/// );
+/// // only a time with 6 digits second fraction is considered precise
+/// assert!(dicom_time.exact().is_err());
+///
+/// # Ok(())
+/// # }
+/// ```
+pub trait AsRange: Precision {
+    type Item: PartialEq + PartialOrd;
+    type Range;
+    /**
+     * Returns a corresponding `chrono` value, if the partial precision structure has full accuracy.
+     */
+    fn exact(&self) -> Result<Self::Item> {
+        if self.is_precise() {
+            Ok(self.earliest()?)
+        } else {
+            ImpreciseValue.fail()
+        }
+    }
+    /**
+     * Returns the earliest possible `chrono` value from a partial precision structure.
+     * Missing components default to 1 (days, months) or 0 (hours, minutes, ...)
+     * If structure contains invalid combination of `DateComponent`s, it fails.
+     */
+    fn earliest(&self) -> Result<Self::Item>;
+
+    /**
+     * Returns the latest possible `chrono` value from a partial precision structure.
+     * If structure contains invalid combination of `DateComponent`s, it fails.
+     */
+    fn latest(&self) -> Result<Self::Item>;
+
+    /**
+     * Returns a tuple of the earliest and latest possible value from a partial precision structure.
+     *
+     */
+    //#[allow(clippy::type_complexity)]
+    fn range(&self) -> Result<Self::Range>;
+
+    /**
+     * Returns `true`, if partial precision structure has maximum possible accuracy.
+     * For fraction of a second, full 6 digits are required for the value to be precise.
+     */
+    fn is_precise(&self) -> bool {
+        let e = self.earliest();
+        let l = self.latest();
+
+        e.is_ok() && l.is_ok() && e.ok() == l.ok()
+    }
+}
+
+impl AsRange for DicomDate {
+    type Item = NaiveDate;
+    type Range = DateRange;
+    fn earliest(&self) -> Result<NaiveDate> {
+        let (y, m, d) = {
+            (
+                *self.year() as i32,
+                *self.month().unwrap_or(&1) as u32,
+                *self.day().unwrap_or(&1) as u32,
+            )
+        };
+        NaiveDate::from_ymd_opt(y, m, d).context(InvalidDate)
+    }
+
+    fn latest(&self) -> Result<NaiveDate> {
+        let (y, m, d) = (
+            self.year(),
+            self.month().unwrap_or(&12),
+            match self.day() {
+                Some(d) => *d as u32,
+                None => {
+                    let y = self.year();
+                    let m = self.month().unwrap_or(&12);
+                    if m == &12 {
+                        NaiveDate::from_ymd(*y as i32 + 1, 1, 1)
+                    } else {
+                        NaiveDate::from_ymd(*y as i32, *m as u32 + 1, 1)
+                    }
+                    .signed_duration_since(NaiveDate::from_ymd(*y as i32, *m as u32, 1))
+                    .num_days() as u32
+                }
+            },
+        );
+
+        NaiveDate::from_ymd_opt(*y as i32, *m as u32, d).context(InvalidDate)
+    }
+
+    fn range(&self) -> Result<DateRange> {
+        let start = self.earliest()?;
+        let end = self.latest()?;
+        DateRange::from_start_to_end(start, end)
+    }
+}
+
+impl AsRange for DicomTime {
+    type Item = NaiveTime;
+    type Range = TimeRange;
+    fn earliest(&self) -> Result<NaiveTime> {
+        let (h, m, s, f) = (
+            self.hour(),
+            self.minute().unwrap_or(&0),
+            self.second().unwrap_or(&0),
+            match self.fraction_and_precision() {
+                None => 0,
+                Some((f, fp)) => *f * u32::pow(10, 6 - <u32>::from(*fp)),
+            },
+        );
+
+        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), f).context(InvalidTime)
+    }
+    fn latest(&self) -> Result<NaiveTime> {
+        let (h, m, s, f) = (
+            self.hour(),
+            self.minute().unwrap_or(&59),
+            self.second().unwrap_or(&59),
+            match self.fraction_and_precision() {
+                None => 999_999,
+                Some((f, fp)) => {
+                    (*f * u32::pow(10, 6 - u32::from(*fp))) + (u32::pow(10, 6 - u32::from(*fp))) - 1
+                }
+            },
+        );
+        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), f).context(InvalidTime)
+    }
+    fn range(&self) -> Result<TimeRange> {
+        let start = self.earliest()?;
+        let end = self.latest()?;
+        TimeRange::from_start_to_end(start, end)
+    }
+}
+
+impl AsRange for DicomDateTime {
+    type Item = DateTime<FixedOffset>;
+    type Range = DateTimeRange;
+    fn earliest(&self) -> Result<DateTime<FixedOffset>> {
+        let date = self.date().earliest()?;
+        let time = match self.time() {
+            Some(time) => time.earliest()?,
+            None => NaiveTime::from_hms(0, 0, 0),
+        };
+
+        self.offset()
+            .from_utc_date(&date)
+            .and_time(time)
+            .context(InvalidDateTime)
+    }
+
+    fn latest(&self) -> Result<DateTime<FixedOffset>> {
+        let date = self.date().latest()?;
+        let time = match self.time() {
+            Some(time) => time.latest()?,
+            None => NaiveTime::from_hms_micro(23, 59, 59, 999_999),
+        };
+        self.offset()
+            .from_utc_date(&date)
+            .and_time(time)
+            .context(InvalidDateTime)
+    }
+    fn range(&self) -> Result<DateTimeRange> {
+        let start = self.earliest()?;
+        let end = self.latest()?;
+        DateTimeRange::from_start_to_end(start, end)
+    }
+}
+
+impl DicomDate {
+    /**
+     * Retrieves a `chrono::NaiveDate` if value is precise.
+     */
+    pub fn to_naive_date(self) -> Result<NaiveDate> {
+        self.exact()
+    }
+}
+
+impl DicomTime {
+    /**
+     * Retrieves a `chrono::NaiveTime` if value is precise.
+     * This method consideres a `DicomTime` value to be precise, if it contains a second component.
+     * Missing second fraction defaults to zero.
+     */
+    pub fn to_naive_time(self) -> Result<NaiveTime> {
+        match self.precision() {
+            DateComponent::Second | DateComponent::Fraction => self.earliest(),
+            _ => ImpreciseValue.fail(),
+        }
+    }
+}
+
+impl DicomDateTime {
+    /**
+     * Retrieves a `chrono::DateTime<FixedOffset>` if value is precise.
+     */
+    pub fn to_chrono_datetime(self) -> Result<DateTime<FixedOffset>> {
+        // tweak here, if full DicomTime precision req. proves impractical
+        self.exact()
+    }
+}
 
 /// Represents a date range as two `Option<chrono::NaiveDate>` values.
 /// `None` means no upper or no lower bound for range is present.
@@ -320,30 +555,14 @@ pub fn parse_date_range(buf: &[u8]) -> Result<DateRange> {
         let end = &end[1..];
         match separator {
             0 => Ok(DateRange::from_end(
-                parse_date_partial(end)
-                    .context(Parse)?
-                    .0
-                    .latest()
-                    .context(PartialAsRange)?,
+                parse_date_partial(end).context(Parse)?.0.latest()?,
             )),
             i if i == buf.len() - 1 => Ok(DateRange::from_start(
-                parse_date_partial(start)
-                    .context(Parse)?
-                    .0
-                    .earliest()
-                    .context(PartialAsRange)?,
+                parse_date_partial(start).context(Parse)?.0.earliest()?,
             )),
             _ => Ok(DateRange::from_start_to_end(
-                parse_date_partial(start)
-                    .context(Parse)?
-                    .0
-                    .earliest()
-                    .context(PartialAsRange)?,
-                parse_date_partial(end)
-                    .context(Parse)?
-                    .0
-                    .latest()
-                    .context(PartialAsRange)?,
+                parse_date_partial(start).context(Parse)?.0.earliest()?,
+                parse_date_partial(end).context(Parse)?.0.latest()?,
             )?),
         }
     } else {
@@ -366,30 +585,14 @@ pub fn parse_time_range(buf: &[u8]) -> Result<TimeRange> {
         let end = &end[1..];
         match separator {
             0 => Ok(TimeRange::from_end(
-                parse_time_partial(end)
-                    .context(Parse)?
-                    .0
-                    .latest()
-                    .context(PartialAsRange)?,
+                parse_time_partial(end).context(Parse)?.0.latest()?,
             )),
             i if i == buf.len() - 1 => Ok(TimeRange::from_start(
-                parse_time_partial(start)
-                    .context(Parse)?
-                    .0
-                    .earliest()
-                    .context(PartialAsRange)?,
+                parse_time_partial(start).context(Parse)?.0.earliest()?,
             )),
             _ => Ok(TimeRange::from_start_to_end(
-                parse_time_partial(start)
-                    .context(Parse)?
-                    .0
-                    .earliest()
-                    .context(PartialAsRange)?,
-                parse_time_partial(end)
-                    .context(Parse)?
-                    .0
-                    .latest()
-                    .context(PartialAsRange)?,
+                parse_time_partial(start).context(Parse)?.0.earliest()?,
+                parse_time_partial(end).context(Parse)?.0.latest()?,
             )?),
         }
     } else {
@@ -421,8 +624,7 @@ pub fn parse_datetime_range(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<Da
         Ok(DateTimeRange::from_end(
             parse_datetime_partial(buf, dt_utc_offset)
                 .context(Parse)?
-                .latest()
-                .context(PartialAsRange)?,
+                .latest()?,
         ))
     } else if buf[buf.len() - 1] == b'-' {
         // ends with separator, range is Some-None
@@ -430,8 +632,7 @@ pub fn parse_datetime_range(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<Da
         Ok(DateTimeRange::from_start(
             parse_datetime_partial(buf, dt_utc_offset)
                 .context(Parse)?
-                .earliest()
-                .context(PartialAsRange)?,
+                .earliest()?,
         ))
     } else {
         // range must be Some-Some, now, count number of dashes and get their indexes
@@ -457,10 +658,7 @@ pub fn parse_datetime_range(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<Da
                     // if split at the first dash produces a valid range, accept. Else try the other dash
                     (Ok(s), Ok(e)) => {
                         //create a result here, to check for range inversion
-                        let dtr = DateTimeRange::from_start_to_end(
-                            s.earliest().context(PartialAsRange)?,
-                            e.latest().context(PartialAsRange)?,
-                        );
+                        let dtr = DateTimeRange::from_start_to_end(s.earliest()?, e.latest()?);
                         match dtr {
                             Ok(val) => return Ok(val),
                             Err(_) => dashes[1],
@@ -478,12 +676,10 @@ pub fn parse_datetime_range(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<Da
         DateTimeRange::from_start_to_end(
             parse_datetime_partial(start, dt_utc_offset)
                 .context(Parse)?
-                .earliest()
-                .context(PartialAsRange)?,
+                .earliest()?,
             parse_datetime_partial(end, dt_utc_offset)
                 .context(Parse)?
-                .latest()
-                .context(PartialAsRange)?,
+                .latest()?,
         )
     }
 }
