@@ -316,7 +316,7 @@ where
                 called_ae_title,
                 application_context_name,
                 presentation_contexts,
-                user_variables, // TODO check maximum length sub-item
+                user_variables,
             } => {
                 if protocol_version != self.protocol_version {
                     write_pdu(
