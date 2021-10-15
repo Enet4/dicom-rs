@@ -18,6 +18,6 @@ inventory-registry = ['inventory']
 dicom-core = { path = "../core", version = "0.4.0" }
 dicom-dictionary-std = { path = "../dictionary-std", version = "0.4.0" }
 encoding = "0.2.33"
-byteordered = "0.5.0"
+byteordered = "0.6"
 inventory = { version = "0.1.4", optional = true }
 snafu = "0.6.8"
