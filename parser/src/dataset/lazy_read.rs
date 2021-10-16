@@ -451,8 +451,9 @@ mod tests {
         header::{DataElementHeader, Length},
     };
     use dicom_core::{Tag, VR};
-    use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-    use dicom_encoding::transfer_syntax::implicit_le::ImplicitVRLittleEndianDecoder;
+    use dicom_encoding::decode::{
+        explicit_le::ExplicitVRLittleEndianDecoder, implicit_le::ImplicitVRLittleEndianDecoder,
+    };
     use dicom_encoding::{decode::basic::LittleEndianBasicDecoder, text::SpecificCharacterSet};
 
     fn validate_dataset_reader_implicit_vr<I>(data: &[u8], ground_truth: I)

@@ -7,7 +7,7 @@ use dicom_core::{Length, Tag, VR};
 use dicom_encoding::decode::{self, DecodeFrom};
 use dicom_encoding::encode::EncoderFor;
 use dicom_encoding::text::{self, TextCodec};
-use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder;
+use dicom_encoding::encode::explicit_le::ExplicitVRLittleEndianEncoder;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::io::{Read, Write};

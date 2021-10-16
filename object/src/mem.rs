@@ -768,8 +768,7 @@ mod tests {
     };
     use dicom_encoding::{
         decode::{basic::BasicDecoder, implicit_le::ImplicitVRLittleEndianDecoder},
-        encode::EncoderFor,
-        transfer_syntax::implicit_le::ImplicitVRLittleEndianEncoder,
+        encode::{implicit_le::ImplicitVRLittleEndianEncoder, EncoderFor},
     };
     use dicom_parser::{dataset::IntoTokens, StatefulDecoder};
     use tempfile;

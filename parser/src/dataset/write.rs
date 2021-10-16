@@ -268,8 +268,7 @@ mod tests {
         value::PrimitiveValue,
         Tag, VR,
     };
-    use dicom_encoding::encode::EncoderFor;
-    use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder;
+    use dicom_encoding::encode::{explicit_le::ExplicitVRLittleEndianEncoder, EncoderFor};
 
     fn validate_dataset_writer<I>(tokens: I, ground_truth: &[u8])
     where

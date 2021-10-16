@@ -461,8 +461,8 @@ mod tests {
         dicom_value, DataElement, DataElementHeader, DicomValue, Length, PrimitiveValue, Tag, VR,
     };
     use dicom_encoding::{
-        encode::EncoderFor, text::SpecificCharacterSet, text::TextCodec,
-        transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder,
+        encode::{explicit_le::ExplicitVRLittleEndianEncoder, EncoderFor},
+        text::{SpecificCharacterSet, TextCodec},
     };
 
     use super::StatefulEncoder;
