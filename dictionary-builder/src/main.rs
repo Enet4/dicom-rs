@@ -14,6 +14,7 @@ use regex::Regex;
 use serde::Serialize;
 
 use heck::ShoutySnakeCase;
+use std::borrow::Cow;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::{
@@ -318,10 +319,11 @@ where
 
         let (vr1, vr2) = e.vr.split_at(2);
 
-        let second_vr = if vr2.is_empty() {
-            format!(" /*{} */", vr2)
+        let vr2 = vr2.trim();
+        let second_vr: Cow<str> = if !vr2.is_empty() {
+            format!(" /*{} */", vr2).into()
         } else {
-            vr2.to_string()
+            vr2.into()
         };
 
         let tag_set = match e.tag_type {
