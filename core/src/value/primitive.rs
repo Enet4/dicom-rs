@@ -2141,19 +2141,18 @@ impl PrimitiveValue {
     /// ```
     /// # use dicom_core::value::{PrimitiveValue};
     /// # use dicom_core::dicom_value;
-    ///   use dicom_core::value::DicomDate;
+    /// use dicom_core::value::DicomDate;
     /// # use std::error::Error;
     /// # fn main() -> Result<(), Box<dyn Error>> {
     ///
     /// assert_eq!(
-    ///    dicom_value!(Strs, ["201410", "2020", "20200101"])
-    ///    .to_multi_dicom_date()?,
-    /// vec![
-    ///    DicomDate::from_ym(2014, 10)?,
-    ///    DicomDate::from_y(2020)?,
-    ///    DicomDate::from_ymd(2020, 1, 1)?
-    ///     ]    
-    ///     );
+    ///     dicom_value!(Strs, ["201410", "2020", "20200101"])
+    ///         .to_multi_dicom_date()?,
+    ///     vec![
+    ///         DicomDate::from_ym(2014, 10)?,
+    ///         DicomDate::from_y(2020)?,
+    ///         DicomDate::from_ymd(2020, 1, 1)?
+    ///     ]);
     ///
     /// # Ok(())
     /// # }
