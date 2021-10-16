@@ -2,7 +2,9 @@
 //! It comprises a variety of basic data types, such as the DICOM attribute tag, the
 //! element header, and element composite types.
 
-use crate::value::{CastValueError, ConvertValueError, PrimitiveValue, Value};
+use crate::value::{
+    CastValueError, ConvertValueError, DicomDate, DicomDateTime, DicomTime, PrimitiveValue, Value,
+};
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
 use num_traits::NumCast;
 use snafu::{Backtrace, Snafu};
@@ -234,7 +236,7 @@ where
 {
     /// Create a primitive data element from the given parts,
     /// where the length is inferred from the value's byte length.
-    /// 
+    ///
     /// If the value is textual,
     /// the byte length of that value encoded in UTF-8 is assumed.
     /// If you already have a length in this context,
@@ -398,78 +400,72 @@ where
     /// Retrieve and convert the primitive value into a date.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a `NaiveDate` as described in [`PrimitiveValue::to_date`].
+    /// a `DicomDate` as described in [`PrimitiveValue::to_dicom_date`].
     ///
     /// Returns an error if the value is not primitive.
     ///
-    /// [`PrimitiveValue::to_date`]: ../enum.PrimitiveValue.html#to_date
-    pub fn to_date(&self) -> Result<NaiveDate, ConvertValueError> {
+    pub fn to_date(&self) -> Result<DicomDate, ConvertValueError> {
         self.value().to_date()
     }
 
     /// Retrieve and convert the primitive value into a sequence of dates.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of `NaiveDate` as described in [`PrimitiveValue::to_multi_date`].
+    /// a vector of `DicomDate` as described in [`PrimitiveValue::to_multi_dicom_date`].
     ///
     /// Returns an error if the value is not primitive.
     ///
-    /// [`PrimitiveValue::to_multi_date`]: ../enum.PrimitiveValue.html#to_multi_date
-    pub fn to_multi_date(&self) -> Result<Vec<NaiveDate>, ConvertValueError> {
+    pub fn to_multi_date(&self) -> Result<Vec<DicomDate>, ConvertValueError> {
         self.value().to_multi_date()
     }
 
     /// Retrieve and convert the primitive value into a time.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a `NaiveTime` as described in [`PrimitiveValue::to_time`].
+    /// a `DicomTime` as described in [`PrimitiveValue::to_dicom_time`].
     ///
     /// Returns an error if the value is not primitive.
     ///
-    /// [`PrimitiveValue::to_time`]: ../enum.PrimitiveValue.html#to_time
-    pub fn to_time(&self) -> Result<NaiveTime, ConvertValueError> {
+    pub fn to_time(&self) -> Result<DicomTime, ConvertValueError> {
         self.value().to_time()
     }
 
     /// Retrieve and convert the primitive value into a sequence of times.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of `NaiveTime` as described in [`PrimitiveValue::to_multi_time`].
+    /// a vector of `DicomTime` as described in [`PrimitiveValue::to_multi_dicom_time`].
     ///
     /// Returns an error if the value is not primitive.
     ///
-    /// [`PrimitiveValue::to_multi_time`]: ../enum.PrimitiveValue.html#to_multi_time
-    pub fn to_multi_time(&self) -> Result<Vec<NaiveTime>, ConvertValueError> {
+    pub fn to_multi_time(&self) -> Result<Vec<DicomTime>, ConvertValueError> {
         self.value().to_multi_time()
     }
 
     /// Retrieve and convert the primitive value into a date-time.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a `DateTime` as described in [`PrimitiveValue::to_datetime`].
+    /// a `DicomDateTime` as described in [`PrimitiveValue::to_dicom_datetime`].
     ///
     /// Returns an error if the value is not primitive.
     ///
-    /// [`PrimitiveValue::to_datetime`]: ../enum.PrimitiveValue.html#to_datetime
     pub fn to_datetime(
         &self,
         default_offset: FixedOffset,
-    ) -> Result<DateTime<FixedOffset>, ConvertValueError> {
+    ) -> Result<DicomDateTime, ConvertValueError> {
         self.value().to_datetime(default_offset)
     }
 
     /// Retrieve and convert the primitive value into a sequence of date-times.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of `DateTime` as described in [`PrimitiveValue::to_multi_datetime`].
+    /// a vector of `DicomDateTime` as described in [`PrimitiveValue::to_multi_dicom_datetime`].
     ///
     /// Returns an error if the value is not primitive.
     ///
-    /// [`PrimitiveValue::to_multi_datetime`]: ../enum.PrimitiveValue.html#to_multi_datetime
     pub fn to_multi_datetime(
         &self,
         default_offset: FixedOffset,
-    ) -> Result<Vec<DateTime<FixedOffset>>, ConvertValueError> {
+    ) -> Result<Vec<DicomDateTime>, ConvertValueError> {
         self.value().to_multi_datetime(default_offset)
     }
 }
@@ -1214,7 +1210,7 @@ mod tests {
 
         assert_eq!(
             data_element.to_date().unwrap(),
-            NaiveDate::from_ymd(1994, 10, 12),
+            DicomDate::from_ymd(1994, 10, 12).unwrap(),
         );
     }
 
