@@ -92,7 +92,7 @@ fn main() {
             .find(|l| l.contains("Copyright"))
             .unwrap_or("");
         let preamble = format!(
-            "Adapted from the DCMTK project.\nURL: {}\nLicense: {}\n{}",
+            "Adapted from the DCMTK project.\nURL: <{}>\nLicense: <{}>\n{}",
             src, "https://github.com/DCMTK/dcmtk/blob/master/COPYRIGHT", preamble,
         );
 
