@@ -421,7 +421,7 @@ impl DicomTime {
     pub fn second(&self) -> Option<&u8> {
         match self {
             DicomTime(DicomTimeImpl::Hour(_)) => None,
-            DicomTime(DicomTimeImpl::Minute(_, __)) => None,
+            DicomTime(DicomTimeImpl::Minute(_, _)) => None,
             DicomTime(DicomTimeImpl::Second(_, _, s)) => Some(s),
             DicomTime(DicomTimeImpl::Fraction(_, _, s, _, _)) => Some(s),
         }
