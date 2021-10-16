@@ -190,7 +190,7 @@ pub struct DataSetReader<S, D> {
 impl<S> DataSetReader<DynStatefulDecoder<S>, StandardDataDictionary> {
     /// Creates a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
-    #[deprecated(note = "Instead use other `new` methods receiving reader options")]
+    #[deprecated(since = "0.5.0", note = "Instead use other `new` methods receiving reader options")]
     pub fn new_with(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
     where
         S: Read,

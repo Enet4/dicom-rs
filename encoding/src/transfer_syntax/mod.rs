@@ -9,25 +9,6 @@
 //!
 //! [`TransferSyntaxIndex`]: ./trait.TransferSyntaxIndex.html
 
-/// Explicit VR Big Endian implementation
-#[deprecated(
-    since = "0.3.0",
-    note = "See `decode::explicit_be` or `encode::explicit_be` instead"
-)]
-pub mod explicit_be;
-/// Explicit VR Little Endian implementation
-#[deprecated(
-    since = "0.3.0",
-    note = "See `decode::explicit_le` or `encode::explicit_le` instead"
-)]
-pub mod explicit_le;
-/// Implicit VR Little Endian implementation
-#[deprecated(
-    since = "0.3.0",
-    note = "See `decode::implicit_le` or `encode::implicit_le` instead"
-)]
-pub mod implicit_le;
-
 use crate::adapters::{DynPixelRWAdapter, NeverPixelAdapter, PixelRWAdapter};
 use crate::decode::basic::BasicDecoder;
 use crate::decode::DecodeFrom;

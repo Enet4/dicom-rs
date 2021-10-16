@@ -185,7 +185,7 @@ impl SpecificCharacterSet {
     }
 
     /// Retrieve the respective text codec.
-    #[deprecated]
+    #[deprecated(since = "0.5.0", note = "Use this value as the codec itself")]
     pub fn codec(self) -> Option<Box<dyn TextCodec>> {
         match self {
             SpecificCharacterSet::Default => Some(Box::new(DefaultCharacterSetCodec)),

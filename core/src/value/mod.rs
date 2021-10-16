@@ -262,20 +262,6 @@ where
         }
     }
 
-    /// Retrieves the primitive value as a sequence of unsigned bytes
-    /// without conversions.
-    #[deprecated(note = "use `uint8_slice` instead")]
-    pub fn as_u8(&self) -> Result<&[u8], CastValueError> {
-        self.uint8_slice()
-    }
-
-    /// Retrieves the primitive value as a sequence of signed 32-bit integers
-    /// without conversions.
-    #[deprecated(note = "use `int32_slice` instead")]
-    pub fn as_i32(&self) -> Result<&[i32], CastValueError> {
-        self.int32_slice()
-    }
-
     /// Retrieve and convert the primitive value into an integer.
     ///
     /// If the value is a primitive, it will be converted into
@@ -554,12 +540,6 @@ where
                 got: self.value_type(),
             }),
         }
-    }
-
-    /// Retrieves the primitive value as a sequence of DICOM tags.
-    #[deprecated(note = "use `tags` instead")]
-    pub fn as_tags(&self) -> Result<&[Tag], CastValueError> {
-        self.tags()
     }
 }
 

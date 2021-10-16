@@ -257,7 +257,7 @@ where
     /// because the encoded value's real length
     /// might not match the header's length,
     /// leading to an inconsistent data set.
-    #[deprecated(note = "use `encode_primitive_element` instead")]
+    #[deprecated(since = "0.5.0", note = "use `encode_primitive_element` instead")]
     pub fn encode_primitive(
         &mut self,
         de: &DataElementHeader,

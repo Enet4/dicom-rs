@@ -11,9 +11,6 @@ pub mod explicit_be;
 pub mod explicit_le;
 pub mod implicit_le;
 
-#[deprecated]
-pub use dicom_core::value::serialize as primitive_value;
-
 /// Module-level error type:
 /// for errors which may occur while encoding DICOM data.
 #[derive(Debug, Snafu)]
