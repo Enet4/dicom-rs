@@ -17,6 +17,18 @@
 pub mod association;
 pub mod pdu;
 
+/// The current implementation class UID generically referring to DICOM-rs.
+///
+/// Automatically generated as per the standard, part 5, section B.2.
+///
+/// This UID is subject to changes in future versions.
+pub const IMPLEMENTATION_CLASS_UID: &str = "2.25.137038125948464847900039011591283709926";
+
+/// The current implementation version name generically referring to DICOM-rs.
+///
+/// This names is subject to changes in future versions.
+pub const IMPLEMENTATION_VERSION_NAME: &str = "DICOM-rs 0.3";
+
 // re-exports
 
 pub use association::client::{ClientAssociation, ClientAssociationOptions};
