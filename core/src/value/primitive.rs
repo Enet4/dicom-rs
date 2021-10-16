@@ -2045,10 +2045,10 @@ impl PrimitiveValue {
     ///
     /// Unlike Rust's `chrono::NaiveDate`, `DicomDate` allows for missing date components.
     /// DicomDate implements `AsRange` trait, so specific `chrono::NaiveDate` values can be retrieved.
-    /// - .exact()
-    /// - .earliest()
-    /// - .latest()
-    /// - .range()
+    /// - [`.exact()`](crate::value::range::AsRange::exact)
+    /// - [`.earliest()`](crate::value::range::AsRange::earliest)
+    /// - [`.latest()`](crate::value::range::AsRange::latest)
+    /// - [`.range()`](crate::value::range::AsRange::range)
     ///
     /// # Example
     ///
@@ -2377,10 +2377,10 @@ impl PrimitiveValue {
     ///
     /// Unlike Rust's `chrono::NaiveTime`, `DicomTime` allows for missing time components.
     /// DicomTime implements `AsRange` trait, so specific `chrono::NaiveTime` values can be retrieved.
-    /// - .exact()
-    /// - .earliest()
-    /// - .latest()
-    /// - .range()
+    /// - [`.exact()`](crate::value::range::AsRange::exact)
+    /// - [`.earliest()`](crate::value::range::AsRange::earliest)
+    /// - [`.latest()`](crate::value::range::AsRange::latest)
+    /// - [`.range()`](crate::value::range::AsRange::range)
     ///
     /// # Example
     ///
@@ -2497,10 +2497,10 @@ impl PrimitiveValue {
     ///
     /// Unlike Rust's `chrono::NaiveTime`, `DicomTime` allows for missing time components.
     /// DicomTime implements `AsRange` trait, so specific `chrono::NaiveTime` values can be retrieved.
-    /// - .exact()
-    /// - .earliest()
-    /// - .latest()
-    /// - .range()
+    /// - [`.exact()`](crate::value::range::AsRange::exact)
+    /// - [`.earliest()`](crate::value::range::AsRange::earliest)
+    /// - [`.latest()`](crate::value::range::AsRange::latest)
+    /// - [`.range()`](crate::value::range::AsRange::range)
     ///
     /// # Example
     ///
@@ -2783,10 +2783,10 @@ impl PrimitiveValue {
     ///
     /// Unlike Rust's `chrono::DateTime`, `DicomDateTime` allows for missing date or time components.
     /// DicomDateTime implements `AsRange` trait, so specific `chrono::DateTime` values can be retrieved.
-    /// - .exact()
-    /// - .earliest()
-    /// - .latest()
-    /// - .range()
+    /// - [`.exact()`](crate::value::range::AsRange::exact)
+    /// - [`.earliest()`](crate::value::range::AsRange::earliest)
+    /// - [`.latest()`](crate::value::range::AsRange::latest)
+    /// - [`.range()`](crate::value::range::AsRange::range)
     /// # Example
     ///
     /// ```
