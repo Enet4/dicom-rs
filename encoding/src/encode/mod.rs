@@ -328,7 +328,7 @@ pub trait Encode {
     fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<usize>
     where
         W: Write;
-    
+
     /// Encode and write a DICOM pixel data offset table
     /// to the given destination.
     ///
@@ -389,7 +389,7 @@ where
 
     fn encode_offset_table<W>(&self, to: W, offset_table: &[u32]) -> Result<usize>
     where
-        W: Write
+        W: Write,
     {
         (**self).encode_offset_table(to, offset_table)
     }
@@ -443,7 +443,7 @@ where
 
     fn encode_offset_table<W>(&self, to: W, offset_table: &[u32]) -> Result<usize>
     where
-        W: Write
+        W: Write,
     {
         (**self).encode_offset_table(to, offset_table)
     }
@@ -549,7 +549,7 @@ where
 
     fn encode_offset_table(&self, to: &mut W, offset_table: &[u32]) -> Result<usize>
     where
-        W: Write
+        W: Write,
     {
         (**self).encode_offset_table(to, offset_table)
     }
@@ -604,7 +604,7 @@ where
 
     fn encode_offset_table(&self, to: &mut W, offset_table: &[u32]) -> Result<usize>
     where
-        W: Write
+        W: Write,
     {
         (**self).encode_offset_table(to, offset_table)
     }

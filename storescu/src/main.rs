@@ -9,7 +9,7 @@ use dicom::{
 use dicom_ul::pdu::Pdu;
 use dicom_ul::{
     association::ClientAssociationOptions,
-    pdu::{PDataValue, PDataValueType, reader::PDU_HEADER_SIZE},
+    pdu::{reader::PDU_HEADER_SIZE, PDataValue, PDataValueType},
 };
 use smallvec::smallvec;
 use std::path::PathBuf;
@@ -174,14 +174,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         for (i, chunk) in object_data.chunks(chunk_size).enumerate() {
             let pdu = Pdu::PData {
-                data: vec![
-                    PDataValue {
-                        presentation_context_id: pc_selected.id,
-                        value_type: PDataValueType::Data,
-                        is_last: i == last_chunk,
-                        data: chunk.to_vec(),
-                    }
-                ]
+                data: vec![PDataValue {
+                    presentation_context_id: pc_selected.id,
+                    value_type: PDataValueType::Data,
+                    is_last: i == last_chunk,
+                    data: chunk.to_vec(),
+                }],
             };
             scu.send(&pdu)?;
         }

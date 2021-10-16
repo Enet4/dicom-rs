@@ -619,7 +619,11 @@ mod tests {
         while let Some((res, gt_token)) = iter.next() {
             let token = res.expect("should parse without an error");
             eprintln!("Next token: {:2?} ; Expected: {:2?}", token, gt_token);
-            assert_eq!(token, gt_token, "Got token {:2?} ; but expected {:2?}", token, gt_token);
+            assert_eq!(
+                token, gt_token,
+                "Got token {:2?} ; but expected {:2?}",
+                token, gt_token
+            );
         }
 
         assert_eq!(
@@ -628,7 +632,8 @@ mod tests {
             "unexpected number of tokens remaining"
         );
         assert_eq!(
-            dset_reader.parser.position(), data.len() as u64,
+            dset_reader.parser.position(),
+            data.len() as u64,
             "Decoder position did not match end of data",
         );
     }
@@ -983,7 +988,6 @@ mod tests {
 
     #[test]
     fn read_dataset_in_dataset() {
-
         #[rustfmt::skip]
         const DATA: &'static [u8; 138] = &[
             // 0: (2001, 9000) private sequence
@@ -1049,12 +1053,16 @@ mod tests {
                 tag: Tag(0x0008, 0x1115),
                 len: Length::UNDEFINED,
             },
-            DataToken::ItemStart { len: Length::UNDEFINED },
+            DataToken::ItemStart {
+                len: Length::UNDEFINED,
+            },
             DataToken::SequenceStart {
                 tag: Tag(0x0008, 0x1140),
                 len: Length::UNDEFINED,
             },
-            DataToken::ItemStart { len: Length::UNDEFINED },
+            DataToken::ItemStart {
+                len: Length::UNDEFINED,
+            },
             DataToken::ElementHeader(DataElementHeader {
                 tag: Tag(0x0008, 0x1150),
                 vr: VR::UI,

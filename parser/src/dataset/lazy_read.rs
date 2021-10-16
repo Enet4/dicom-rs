@@ -451,9 +451,9 @@ mod tests {
         header::{DataElementHeader, Length},
     };
     use dicom_core::{Tag, VR};
-    use dicom_encoding::{decode::basic::LittleEndianBasicDecoder, text::SpecificCharacterSet};
     use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
     use dicom_encoding::transfer_syntax::implicit_le::ImplicitVRLittleEndianDecoder;
+    use dicom_encoding::{decode::basic::LittleEndianBasicDecoder, text::SpecificCharacterSet};
 
     fn validate_dataset_reader_implicit_vr<I>(data: &[u8], ground_truth: I)
     where
@@ -724,7 +724,6 @@ mod tests {
 
     #[test]
     fn lazy_read_dataset_in_dataset() {
-
         #[rustfmt::skip]
         const DATA: &'static [u8; 138] = &[
             // 0: (2001, 9000) private sequence
@@ -790,12 +789,16 @@ mod tests {
                 tag: Tag(0x0008, 0x1115),
                 len: Length::UNDEFINED,
             },
-            DataToken::ItemStart { len: Length::UNDEFINED },
+            DataToken::ItemStart {
+                len: Length::UNDEFINED,
+            },
             DataToken::SequenceStart {
                 tag: Tag(0x0008, 0x1140),
                 len: Length::UNDEFINED,
             },
-            DataToken::ItemStart { len: Length::UNDEFINED },
+            DataToken::ItemStart {
+                len: Length::UNDEFINED,
+            },
             DataToken::ElementHeader(DataElementHeader {
                 tag: Tag(0x0008, 0x1150),
                 vr: VR::UI,

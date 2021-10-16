@@ -271,7 +271,9 @@ pub enum Pdu {
 impl Pdu {
     pub fn short_description(&self) -> String {
         match self {
-            Pdu::Unknown { pdu_type, data: _ } => format!("Unknown {{pdu_type: {}, data: ...}}", pdu_type),
+            Pdu::Unknown { pdu_type, data: _ } => {
+                format!("Unknown {{pdu_type: {}, data: ...}}", pdu_type)
+            }
             Pdu::AssociationRQ { .. }
             | Pdu::AssociationAC { .. }
             | Pdu::AssociationRJ { .. }

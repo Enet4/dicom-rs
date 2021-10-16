@@ -4,7 +4,11 @@
 //! in which this application entity is the one requesting the association.
 //! See [`ClientAssociationOptions`](self::ClientAssociationOptions)
 //! for details and examples on how to create an association.
-use std::{borrow::Cow, io::Write, net::{TcpStream, ToSocketAddrs}};
+use std::{
+    borrow::Cow,
+    io::Write,
+    net::{TcpStream, ToSocketAddrs},
+};
 
 use crate::pdu::{
     reader::read_pdu, writer::write_pdu, AbortRQSource, AssociationRJResult, AssociationRJSource,
@@ -283,7 +287,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     presentation_contexts,
                     max_pdu_length,
                     socket,
-                    buffer
+                    buffer,
                 })
             }
             Pdu::AssociationRJ { result, source } => Rejected {
@@ -384,7 +388,7 @@ impl ClientAssociation {
         let pdu = Pdu::AbortRQ {
             source: AbortRQSource::ServiceUser,
         };
-        let out =self.send(&pdu);
+        let out = self.send(&pdu);
         let _ = self.socket.shutdown(std::net::Shutdown::Both);
         out
     }

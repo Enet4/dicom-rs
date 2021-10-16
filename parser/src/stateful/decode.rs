@@ -459,9 +459,11 @@ where
 
         let n = len >> 1;
         let mut vec = smallvec![0; n];
-        self.basic.decode_ss_into(&mut self.from, &mut vec[..]).context(ReadValueData {
-            position: self.position,
-        })?;
+        self.basic
+            .decode_ss_into(&mut self.from, &mut vec[..])
+            .context(ReadValueData {
+                position: self.position,
+            })?;
 
         self.position += len as u64;
         Ok(PrimitiveValue::I16(vec))
@@ -472,9 +474,11 @@ where
         // sequence of 32-bit floats
         let n = len >> 2;
         let mut vec = smallvec![0.; n];
-        self.basic.decode_fl_into(&mut self.from, &mut vec[..]).context(ReadValueData {
-            position: self.position,
-        })?;
+        self.basic
+            .decode_fl_into(&mut self.from, &mut vec[..])
+            .context(ReadValueData {
+                position: self.position,
+            })?;
         self.position += len as u64;
         Ok(PrimitiveValue::F32(vec))
     }
@@ -507,11 +511,9 @@ where
         let vec: Result<_> = buf
             .split(|b| *b == b'\\')
             .map(|part| {
-                Ok(parse_date(part)
-                    .context(DeserializeValue {
-                        position: self.position,
-                    })?
-                    )
+                Ok(parse_date(part).context(DeserializeValue {
+                    position: self.position,
+                })?)
             })
             .collect();
         self.position += len as u64;
@@ -661,9 +663,11 @@ where
         // sequence of 64-bit floats
         let n = len >> 3;
         let mut vec = smallvec![0.; n];
-        self.basic.decode_fd_into(&mut self.from, &mut vec[..]).context(ReadValueData {
-            position: self.position,
-        })?;
+        self.basic
+            .decode_fd_into(&mut self.from, &mut vec[..])
+            .context(ReadValueData {
+                position: self.position,
+            })?;
         self.position += len as u64;
         Ok(PrimitiveValue::F64(vec))
     }
@@ -674,9 +678,11 @@ where
 
         let n = len >> 2;
         let mut vec = smallvec![0u32; n];
-        self.basic.decode_ul_into(&mut self.from, &mut vec[..]).context(ReadValueData {
-            position: self.position,
-        })?;
+        self.basic
+            .decode_ul_into(&mut self.from, &mut vec[..])
+            .context(ReadValueData {
+                position: self.position,
+            })?;
         self.position += len as u64;
         Ok(PrimitiveValue::U32(vec))
     }
@@ -685,9 +691,11 @@ where
         let base = vec.len();
         vec.resize(base + n, 0);
 
-        self.basic.decode_ul_into(&mut self.from, &mut vec[base..]).context(ReadValueData {
-            position: self.position,
-        })?;
+        self.basic
+            .decode_ul_into(&mut self.from, &mut vec[base..])
+            .context(ReadValueData {
+                position: self.position,
+            })?;
         self.position += n as u64 * 4;
         Ok(())
     }
@@ -698,9 +706,11 @@ where
 
         let n = len >> 1;
         let mut vec = smallvec![0; n];
-        self.basic.decode_us_into(&mut self.from, &mut vec[..]).context(ReadValueData {
-            position: self.position,
-        })?;
+        self.basic
+            .decode_us_into(&mut self.from, &mut vec[..])
+            .context(ReadValueData {
+                position: self.position,
+            })?;
 
         self.position += len as u64;
         Ok(PrimitiveValue::U16(vec))
@@ -712,9 +722,11 @@ where
 
         let n = len >> 3;
         let mut vec = smallvec![0; n];
-        self.basic.decode_uv_into(&mut self.from, &mut vec[..]).context(ReadValueData {
-            position: self.position,
-        })?;
+        self.basic
+            .decode_uv_into(&mut self.from, &mut vec[..])
+            .context(ReadValueData {
+                position: self.position,
+            })?;
         self.position += len as u64;
         Ok(PrimitiveValue::U64(vec))
     }
@@ -725,9 +737,11 @@ where
 
         let n = len >> 2;
         let mut vec = smallvec![0; n];
-        self.basic.decode_sl_into(&mut self.from, &mut vec[..]).context(ReadValueData {
-            position: self.position,
-        })?;
+        self.basic
+            .decode_sl_into(&mut self.from, &mut vec[..])
+            .context(ReadValueData {
+                position: self.position,
+            })?;
         self.position += len as u64;
         Ok(PrimitiveValue::I32(vec))
     }
@@ -738,9 +752,11 @@ where
 
         let n = len >> 3;
         let mut vec = smallvec![0; n];
-        self.basic.decode_sv_into(&mut self.from, &mut vec[..]).context(ReadValueData {
-            position: self.position,
-        })?;
+        self.basic
+            .decode_sv_into(&mut self.from, &mut vec[..])
+            .context(ReadValueData {
+                position: self.position,
+            })?;
         self.position += len as u64;
         Ok(PrimitiveValue::I64(vec))
     }

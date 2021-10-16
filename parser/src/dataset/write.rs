@@ -197,9 +197,9 @@ where
                 });
                 self.write_impl(&token)
             }
-            token @ DataToken::ItemValue(_) | token @ DataToken::PrimitiveValue(_) | token @ DataToken::OffsetTable(_) => {
-                self.write_impl(&token)
-            }
+            token @ DataToken::ItemValue(_)
+            | token @ DataToken::PrimitiveValue(_)
+            | token @ DataToken::OffsetTable(_) => self.write_impl(&token),
         }
     }
 
@@ -247,7 +247,9 @@ where
                 self.last_de = None;
             }
             DataToken::OffsetTable(table) => {
-                self.printer.encode_offset_table(table).context(WriteValue)?;
+                self.printer
+                    .encode_offset_table(table)
+                    .context(WriteValue)?;
             }
             DataToken::ItemValue(data) => {
                 self.printer.write_bytes(data).context(WriteValue)?;

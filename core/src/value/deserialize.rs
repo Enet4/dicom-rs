@@ -969,13 +969,13 @@ mod tests {
         // West UTC offset out of range
         assert!(matches!(
             parse_datetime_partial(b"20200101-1201", default_offset),
-            Err(Error::InvalidComponent {..})
+            Err(Error::InvalidComponent { .. })
         ));
 
         // East UTC offset out of range
         assert!(matches!(
             parse_datetime_partial(b"20200101+1401", default_offset),
-            Err(Error::InvalidComponent {..})
+            Err(Error::InvalidComponent { .. })
         ));
 
         assert!(matches!(

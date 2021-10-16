@@ -96,7 +96,7 @@ pub trait BasicDecode {
     fn decode_us<S>(&self, source: S) -> std::io::Result<u16>
     where
         S: Read;
-    
+
     /// Decode a sequence of unsigned shorts value from the given source
     /// into the given destination.
     fn decode_us_into<S>(&self, mut source: S, dst: &mut [u16]) -> std::io::Result<()>

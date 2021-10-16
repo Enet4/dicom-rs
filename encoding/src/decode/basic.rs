@@ -27,7 +27,9 @@ impl BasicDecode for LittleEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::le(source).read_u16_into(target).map_err(Into::into)
+        ByteOrdered::le(source)
+            .read_u16_into(target)
+            .map_err(Into::into)
     }
 
     fn decode_ul<S>(&self, source: S) -> Result<u32>
@@ -41,7 +43,9 @@ impl BasicDecode for LittleEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::le(source).read_u32_into(target).map_err(Into::into)
+        ByteOrdered::le(source)
+            .read_u32_into(target)
+            .map_err(Into::into)
     }
 
     fn decode_uv<S>(&self, source: S) -> Result<u64>
@@ -55,7 +59,9 @@ impl BasicDecode for LittleEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::le(source).read_u64_into(target).map_err(Into::into)
+        ByteOrdered::le(source)
+            .read_u64_into(target)
+            .map_err(Into::into)
     }
 
     fn decode_ss<S>(&self, source: S) -> Result<i16>
@@ -69,7 +75,9 @@ impl BasicDecode for LittleEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::le(source).read_i16_into(target).map_err(Into::into)
+        ByteOrdered::le(source)
+            .read_i16_into(target)
+            .map_err(Into::into)
     }
 
     fn decode_sl<S>(&self, source: S) -> Result<i32>
@@ -83,7 +91,9 @@ impl BasicDecode for LittleEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::le(source).read_i32_into(target).map_err(Into::into)
+        ByteOrdered::le(source)
+            .read_i32_into(target)
+            .map_err(Into::into)
     }
 
     fn decode_sv<S>(&self, source: S) -> Result<i64>
@@ -97,7 +107,9 @@ impl BasicDecode for LittleEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::le(source).read_i64_into(target).map_err(Into::into)
+        ByteOrdered::le(source)
+            .read_i64_into(target)
+            .map_err(Into::into)
     }
 
     fn decode_fl<S>(&self, source: S) -> Result<f32>
@@ -111,7 +123,9 @@ impl BasicDecode for LittleEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::le(source).read_f32_into(target).map_err(Into::into)
+        ByteOrdered::le(source)
+            .read_f32_into(target)
+            .map_err(Into::into)
     }
 
     fn decode_fd<S>(&self, source: S) -> Result<f64>
@@ -125,7 +139,9 @@ impl BasicDecode for LittleEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::le(source).read_f64_into(target).map_err(Into::into)
+        ByteOrdered::le(source)
+            .read_f64_into(target)
+            .map_err(Into::into)
     }
 }
 
@@ -149,7 +165,9 @@ impl BasicDecode for BigEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::be(source).read_u16_into(target).map_err(Into::into)
+        ByteOrdered::be(source)
+            .read_u16_into(target)
+            .map_err(Into::into)
     }
 
     fn decode_ul<S>(&self, source: S) -> Result<u32>
@@ -163,7 +181,9 @@ impl BasicDecode for BigEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::be(source).read_u32_into(target).map_err(Into::into)
+        ByteOrdered::be(source)
+            .read_u32_into(target)
+            .map_err(Into::into)
     }
 
     fn decode_uv<S>(&self, source: S) -> Result<u64>
@@ -177,7 +197,9 @@ impl BasicDecode for BigEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::be(source).read_u64_into(target).map_err(Into::into)
+        ByteOrdered::be(source)
+            .read_u64_into(target)
+            .map_err(Into::into)
     }
 
     fn decode_ss<S>(&self, source: S) -> Result<i16>
@@ -191,7 +213,9 @@ impl BasicDecode for BigEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::be(source).read_i16_into(target).map_err(Into::into)
+        ByteOrdered::be(source)
+            .read_i16_into(target)
+            .map_err(Into::into)
     }
 
     fn decode_sl<S>(&self, source: S) -> Result<i32>
@@ -205,7 +229,9 @@ impl BasicDecode for BigEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::be(source).read_i32_into(target).map_err(Into::into)
+        ByteOrdered::be(source)
+            .read_i32_into(target)
+            .map_err(Into::into)
     }
 
     fn decode_sv<S>(&self, source: S) -> Result<i64>
@@ -219,7 +245,9 @@ impl BasicDecode for BigEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::be(source).read_i64_into(target).map_err(Into::into)
+        ByteOrdered::be(source)
+            .read_i64_into(target)
+            .map_err(Into::into)
     }
 
     fn decode_fl<S>(&self, source: S) -> Result<f32>
@@ -233,7 +261,9 @@ impl BasicDecode for BigEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::be(source).read_f32_into(target).map_err(Into::into)
+        ByteOrdered::be(source)
+            .read_f32_into(target)
+            .map_err(Into::into)
     }
 
     fn decode_fd<S>(&self, source: S) -> Result<f64>
@@ -247,7 +277,9 @@ impl BasicDecode for BigEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::be(source).read_f64_into(target).map_err(Into::into)
+        ByteOrdered::be(source)
+            .read_f64_into(target)
+            .map_err(Into::into)
     }
 }
 

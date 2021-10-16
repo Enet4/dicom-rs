@@ -464,10 +464,10 @@ impl ServerAssociation {
     /// terminating the association.
     pub fn abort(mut self) -> Result<()> {
         let pdu = Pdu::AbortRQ {
-                source: AbortRQSource::ServiceProvider(
-                    AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu,
-                ),
-            };
+            source: AbortRQSource::ServiceProvider(
+                AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu,
+            ),
+        };
         let out = self.send(&pdu);
         let _ = self.socket.shutdown(std::net::Shutdown::Both);
         out

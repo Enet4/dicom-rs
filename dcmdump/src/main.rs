@@ -21,9 +21,9 @@ use snafu::ErrorCompat;
 use std::borrow::Cow;
 use std::fmt;
 use std::fmt::{Display, Formatter};
-use std::str::FromStr;
 use std::io::{stdout, ErrorKind, Result as IoResult, Write};
 use std::path::PathBuf;
+use std::str::FromStr;
 use structopt::StructOpt;
 
 /// Exit code for when an error emerged while reading the DICOM file.
@@ -32,7 +32,7 @@ const ERROR_READ: i32 = -2;
 const ERROR_PRINT: i32 = -3;
 
 #[derive(Debug)]
-struct ColoringError { }
+struct ColoringError {}
 
 #[derive(Clone, Copy, Debug)]
 enum Coloring {
@@ -56,7 +56,7 @@ impl FromStr for Coloring {
             "never" => Ok(Coloring::Never),
             "auto" => Ok(Coloring::Auto),
             "always" => Ok(Coloring::Always),
-            _ => Err(ColoringError{})
+            _ => Err(ColoringError {}),
         }
     }
 }
@@ -85,8 +85,8 @@ struct App {
     #[structopt(short = "w", long = "width")]
     width: Option<u32>,
     /// color mode
-    #[structopt(long="color", default_value = "auto")]
-    color: Coloring
+    #[structopt(long = "color", default_value = "auto")]
+    color: Coloring,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -260,19 +260,39 @@ where
     )?;
 
     if let Some(v) = meta.implementation_version_name.as_ref() {
-        writeln!(to, "{}: {}", "Implementation version name".bold(), v.trim_end())?;
+        writeln!(
+            to,
+            "{}: {}",
+            "Implementation version name".bold(),
+            v.trim_end()
+        )?;
     }
 
     if let Some(v) = meta.source_application_entity_title.as_ref() {
-        writeln!(to, "{}: {}", "Source Application Entity Title".bold(), v.trim_end())?;
+        writeln!(
+            to,
+            "{}: {}",
+            "Source Application Entity Title".bold(),
+            v.trim_end()
+        )?;
     }
 
     if let Some(v) = meta.sending_application_entity_title.as_ref() {
-        writeln!(to, "{}: {}", "Sending Application Entity Title".bold(), v.trim_end())?;
+        writeln!(
+            to,
+            "{}: {}",
+            "Sending Application Entity Title".bold(),
+            v.trim_end()
+        )?;
     }
 
     if let Some(v) = meta.receiving_application_entity_title.as_ref() {
-        writeln!(to, "{}: {}", "Receiving Application Entity Title".bold(), v.trim_end())?;
+        writeln!(
+            to,
+            "{}: {}",
+            "Receiving Application Entity Title".bold(),
+            v.trim_end()
+        )?;
     }
 
     if let Some(v) = meta.private_information_creator_uid.as_ref() {
@@ -285,7 +305,9 @@ where
     }
 
     if let Some(v) = meta.private_information.as_ref() {
-        writeln!(to, "{}: {}",
+        writeln!(
+            to,
+            "{}: {}",
             "Private Information".bold(),
             format_value_list(v.iter().map(|n| format!("{:02X}", n)), width, false)
         )?;

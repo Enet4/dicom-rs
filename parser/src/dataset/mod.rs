@@ -460,7 +460,7 @@ where
     /// the offset table next
     PixelData(
         /// Pixel fragments
-        /// 
+        ///
         /// Option is used for easy taking from a &mut,
         /// should always be Some in practice
         Option<dicom_core::value::C<P>>,

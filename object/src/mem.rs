@@ -579,9 +579,12 @@ where
                     // fetch respective value, place it in the entries
                     let next_token = dataset.next().context(MissingElementValue)?;
                     match next_token.context(ReadToken)? {
-                        DataToken::PrimitiveValue(v) => {
-                            InMemElement::new_with_len(header.tag, header.vr, header.len, Value::Primitive(v))
-                        }
+                        DataToken::PrimitiveValue(v) => InMemElement::new_with_len(
+                            header.tag,
+                            header.vr,
+                            header.len,
+                            Value::Primitive(v),
+                        ),
                         token => {
                             return UnexpectedToken { token }.fail();
                         }
@@ -590,7 +593,12 @@ where
                 DataToken::SequenceStart { tag, len } => {
                     // delegate sequence building to another function
                     let items = Self::build_sequence(tag, len, &mut *dataset, &dict)?;
-                    DataElement::new_with_len(tag, VR::SQ, len, Value::Sequence { items, size: len })
+                    DataElement::new_with_len(
+                        tag,
+                        VR::SQ,
+                        len,
+                        Value::Sequence { items, size: len },
+                    )
                 }
                 DataToken::ItemEnd if in_item => {
                     // end of item, leave now
@@ -864,23 +872,23 @@ mod tests {
             // ReferringPhysicianName (0008,0090)
             0x08, 0x00, 0x90, 0x00, //
             // Length: 12
-            0x0c, 0x00, 0x00, 0x00,
-            b'S', b'i', b'm', 0xF5, b'e', b's', b'^', b'J', b'o', 0xE3, b'o', b' ',
+            0x0c, 0x00, 0x00, 0x00, b'S', b'i', b'm', 0xF5, b'e', b's', b'^', b'J', b'o', 0xE3,
+            b'o', b' ',
         ];
 
         let ts = TransferSyntaxRegistry.get("1.2.840.10008.1.2").unwrap();
         let mut cursor = &data_in[..];
 
-        let obj = InMemDicomObject::read_dataset_with_dict_ts(
-            &mut cursor,
-            StandardDataDictionary,
-            &ts,
-        )
-        .unwrap();
+        let obj =
+            InMemDicomObject::read_dataset_with_dict_ts(&mut cursor, StandardDataDictionary, &ts)
+                .unwrap();
 
         let physician_name = obj.element(Tag(0x0008, 0x0090)).unwrap();
         assert_eq!(physician_name.header().len, Length(12));
-        assert_eq!(physician_name.value().to_clean_str().unwrap(), "Simões^João");
+        assert_eq!(
+            physician_name.value().to_clean_str().unwrap(),
+            "Simões^João"
+        );
     }
 
     #[test]

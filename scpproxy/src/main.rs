@@ -1,5 +1,5 @@
 use clap::{App, Arg};
-use dicom_ul::pdu::reader::{DEFAULT_MAX_PDU, read_pdu};
+use dicom_ul::pdu::reader::{read_pdu, DEFAULT_MAX_PDU};
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::Pdu;
 use snafu::{Backtrace, ErrorCompat, OptionExt, ResultExt, Snafu};
@@ -98,7 +98,13 @@ pub enum ThreadMessage {
     },
 }
 
-fn run(scu_stream: &mut TcpStream, destination_addr: &str, strict: bool, verbose: bool, max_pdu_length: u32 ) -> Result<()> {
+fn run(
+    scu_stream: &mut TcpStream,
+    destination_addr: &str,
+    strict: bool,
+    verbose: bool,
+    max_pdu_length: u32,
+) -> Result<()> {
     // Before we do anything, let's also open another connection to the destination
     // SCP.
     match TcpStream::connect(destination_addr) {
@@ -269,14 +275,14 @@ fn main() {
                 .short("-s")
                 .long("--strict")
                 .required(false)
-                .takes_value(false)
+                .takes_value(false),
         )
         .arg(
             Arg::with_name("verbose")
                 .help("Verbose")
                 .short("-v")
                 .long("--verbose")
-                .takes_value(false)
+                .takes_value(false),
         )
         .arg(
             Arg::with_name("max-pdu-length")
@@ -284,7 +290,7 @@ fn main() {
                 .short("-m")
                 .long("--max-pdu-length")
                 .default_value(&default_max)
-                .takes_value(true)
+                .takes_value(true),
         )
         .get_matches();
 
@@ -306,7 +312,13 @@ fn main() {
     for mut stream in listener.incoming() {
         match stream {
             Ok(ref mut scu_stream) => {
-                if let Err(e) = run(scu_stream, &destination_addr, strict, verbose, max_pdu_length) {
+                if let Err(e) = run(
+                    scu_stream,
+                    &destination_addr,
+                    strict,
+                    verbose,
+                    max_pdu_length,
+                ) {
                     report(e);
                 }
             }

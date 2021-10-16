@@ -132,12 +132,11 @@ where
                 max_pdu_length: MAXIMUM_PDU_SIZE
             }
         );
-        eprintln!("[WARNING] Incoming pdu was too large: length {}, maximum is {}",
-            pdu_length,
-            max_pdu_length
+        eprintln!(
+            "[WARNING] Incoming pdu was too large: length {}, maximum is {}",
+            pdu_length, max_pdu_length
         );
     }
-
 
     let bytes = read_n(reader, pdu_length as usize).context(ReadPdu)?;
     let mut cursor = Cursor::new(bytes);
