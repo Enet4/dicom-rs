@@ -430,7 +430,7 @@ impl DicomTime {
     pub fn fraction_and_precision(&self) -> Option<(&u32, &u8)> {
         match self {
             DicomTime(DicomTimeImpl::Hour(_)) => None,
-            DicomTime(DicomTimeImpl::Minute(_, __)) => None,
+            DicomTime(DicomTimeImpl::Minute(_, _)) => None,
             DicomTime(DicomTimeImpl::Second(_, _, _)) => None,
             DicomTime(DicomTimeImpl::Fraction(_, _, _, f, fp)) => Some((f, fp)),
         }
