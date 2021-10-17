@@ -513,7 +513,7 @@ where
 
     /// Return a specific encoded pixel fragment by index as Vec<u8>
     /// or None if no pixel data is found
-    fn get_fragment(&self, fragment: usize) -> Option<Vec<u8>> {
+    fn fragment(&self, fragment: usize) -> Option<Vec<u8>> {
         let pixel_data = self.element(dicom_dictionary_std::tags::PIXEL_DATA).ok()?;
         match pixel_data.value() {
             dicom_core::DicomValue::PixelSequence {

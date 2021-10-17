@@ -20,7 +20,11 @@ pub enum DecodeError {
 pub enum EncodeError {
     /// A custom error when encoding fails
     #[snafu(display("Error encoding pixel data {}", message))]
-    CustomEncodeError { message: &'static str },
+    CustomEncodeError {
+        message: &'static str,
+    },
+
+    NotImplementedError,
 }
 
 pub type DecodeResult<T, E = DecodeError> = Result<T, E>;
@@ -61,7 +65,7 @@ pub trait PixelDataObject {
 
     /// Return a specific encoded pixel fragment by index as Vec<u8>
     /// or None if no pixel data is found
-    fn get_fragment(&self, fragment: usize) -> Option<Vec<u8>>;
+    fn fragment(&self, fragment: usize) -> Option<Vec<u8>>;
 
     /// Should return either a byte slice/vector if native pixel data
     /// or byte fragments if encapsulated.

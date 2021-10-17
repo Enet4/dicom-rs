@@ -1,10 +1,14 @@
+/// RLE Lossless implementation taken from Pydicom
+/// Copyright 2008-2021 pydicom authors.
+/// License: <https://github.com/pydicom/pydicom/blob/master/LICENSE>
+/// https://github.com/pydicom/pydicom/blob/master/pydicom/pixel_data_handlers/rle_handler.py
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 use snafu::OptionExt;
 
 use crate::adapters::{DecodeResult, EncodeResult, PixelDataObject, PixelRWAdapter};
 use std::io::{self, Read, Seek};
 
-use super::{CustomDecodeError, CustomEncodeError, MissingAttribute};
+use super::{CustomDecodeError, MissingAttribute, NotImplementedError};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RLELosslessAdapter;
@@ -14,8 +18,6 @@ impl PixelRWAdapter for RLELosslessAdapter {
     /// Decode RLE Lossless decoded dicom completely
     /// See http://dicom.nema.org/medical/Dicom/2018d/output/chtml/part05/chapter_G.html
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()> {
-        // Implementation is taken from Pydicom
-        // https://github.com/pydicom/pydicom/blob/master/pydicom/pixel_data_handlers/rle_handler.py
         let cols = src.cols().context(MissingAttribute { name: "Columns" })?;
         let rows = src.rows().context(MissingAttribute { name: "Rows" })?;
         let samples_per_pixel = src.samples_per_pixel().context(MissingAttribute {
@@ -53,7 +55,7 @@ impl PixelRWAdapter for RLELosslessAdapter {
         //    LSB MSB LSB MSB ... LSB MSB | LSB MSB LSB MSB ... LSB MSB | ...
 
         for i in 0..nr_frames {
-            let fragment = &src.get_fragment(i).context(CustomDecodeError {
+            let fragment = &src.fragment(i).context(CustomDecodeError {
                 message: "No pixel data found for frame",
             })?;
             let mut offsets = read_rle_header(fragment);
@@ -95,10 +97,7 @@ impl PixelRWAdapter for RLELosslessAdapter {
     }
 
     fn encode(&self, _src: &[u8], _dst: &mut Vec<u8>) -> EncodeResult<()> {
-        CustomEncodeError {
-            message: "Not implemented",
-        }
-        .fail()?
+        NotImplementedError {}.fail()?
     }
 }
 
@@ -110,7 +109,9 @@ fn read_rle_header(fragment: &[u8]) -> Vec<u32> {
     offsets
 }
 
-/// PackBits Reader
+/// PackBits Reader from the image-tiff crate
+/// Copyright 2018-2021 PistonDevelopers.
+/// License: <https://github.com/image-rs/image-tiff/blob/master/LICENSE>
 /// From: https://github.com/image-rs/image-tiff/blob/master/src/decoder/stream.rs
 #[derive(Debug)]
 pub struct PackBitsReader {
