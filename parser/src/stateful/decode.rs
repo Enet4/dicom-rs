@@ -5,7 +5,7 @@ use crate::util::n_times;
 use chrono::FixedOffset;
 use dicom_core::header::{DataElementHeader, HasLength, Length, SequenceItemHeader, Tag, VR};
 use dicom_core::value::PrimitiveValue;
-use dicom_core::value::deserialize::{parse_date, parse_datetime, parse_time};
+use dicom_core::value::deserialize::{parse_date_partial, parse_datetime, parse_time};
 use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
 use dicom_encoding::decode::{BasicDecode, DecodeFrom};
 use dicom_encoding::text::{
@@ -511,9 +511,9 @@ where
         let vec: Result<_> = buf
             .split(|b| *b == b'\\')
             .map(|part| {
-                parse_date(part).context(DeserializeValue {
+                Ok(parse_date_partial(part).context(DeserializeValue {
                     position: self.position,
-                })
+                })?.0)
             })
             .collect();
         self.position += len as u64;
