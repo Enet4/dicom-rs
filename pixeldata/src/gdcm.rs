@@ -43,6 +43,7 @@ where
         let pixel_representation = pixel_representation(self)?;
         let rescale_intercept = rescale_intercept(self);
         let rescale_slope = rescale_slope(self);
+        let number_of_frames = number_of_frames(self);
 
         let decoded_pixel_data = match pixel_data.value() {
             Value::PixelSequence {
@@ -85,6 +86,7 @@ where
             data: Cow::from(decoded_pixel_data),
             cols: cols.into(),
             rows: rows.into(),
+            number_of_frames,
             photometric_interpretation,
             samples_per_pixel,
             bits_allocated,
@@ -237,7 +239,11 @@ mod tests {
         let test_file = dicom_test_files::path(value).unwrap();
         println!("Parsing pixel data for {}", test_file.display());
         let obj = open_file(test_file).unwrap();
-        let image = obj.decode_pixel_data().unwrap().to_dynamic_image().unwrap();
+        let image = obj
+            .decode_pixel_data()
+            .unwrap()
+            .to_dynamic_image(0)
+            .unwrap();
         image
             .save(format!(
                 "../target/dicom_test_files/pydicom/{}.png",
@@ -255,8 +261,8 @@ mod tests {
             .unwrap()
             .to_ndarray::<i16>()
             .unwrap();
-        assert_eq!(ndarray.shape(), &[1024, 256, 1]);
+        assert_eq!(ndarray.shape(), &[1, 1024, 256, 1]);
         assert_eq!(ndarray.len(), 262144);
-        assert_eq!(ndarray[[260, 0, 0]], -3);
+        assert_eq!(ndarray[[0, 260, 0, 0]], -3);
     }
 }

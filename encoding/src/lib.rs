@@ -15,6 +15,7 @@
 //!
 //! [transfer syntax specifier]: ./transfer_syntax/index.html
 
+pub mod adapters;
 pub mod decode;
 pub mod encode;
 pub mod text;

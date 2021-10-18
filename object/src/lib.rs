@@ -107,6 +107,7 @@ mod util;
 pub use crate::file::{from_reader, open_file};
 pub use crate::mem::InMemDicomObject;
 pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
+use dicom_core::DataDictionary;
 pub use dicom_core::Tag;
 pub use dicom_dictionary_std::StandardDataDictionary;
 
@@ -114,9 +115,11 @@ pub use dicom_dictionary_std::StandardDataDictionary;
 pub type DefaultDicomObject = FileDicomObject<mem::InMemDicomObject<StandardDataDictionary>>;
 
 use dicom_core::header::Header;
+use dicom_encoding::adapters::{PixelDataObject, RawPixelData};
 use dicom_encoding::{text::SpecificCharacterSet, transfer_syntax::TransferSyntaxIndex};
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
+use smallvec::SmallVec;
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -447,6 +450,105 @@ where
 
     fn into_iter(self) -> Self::IntoIter {
         self.obj.into_iter()
+    }
+}
+
+/// Implement basic pixeldata encoder/decoder functionality
+impl<D> PixelDataObject for FileDicomObject<InMemDicomObject<D>>
+where
+    D: DataDictionary + Clone,
+{
+    /// Return the Rows attribute or None if it is not found
+    fn rows(&self) -> Option<u16> {
+        self.element(dicom_dictionary_std::tags::ROWS)
+            .ok()?
+            .uint16()
+            .ok()
+    }
+
+    /// Return the Columns attribute or None if it is not found
+    fn cols(&self) -> Option<u16> {
+        self.element(dicom_dictionary_std::tags::COLUMNS)
+            .ok()?
+            .uint16()
+            .ok()
+    }
+
+    /// Return the SamplesPerPixel attribute or None if it is not found
+    fn samples_per_pixel(&self) -> Option<u16> {
+        self.element(dicom_dictionary_std::tags::SAMPLES_PER_PIXEL)
+            .ok()?
+            .uint16()
+            .ok()
+    }
+
+    /// Return the BitsAllocated attribute or None if it is not set
+    fn bits_allocated(&self) -> Option<u16> {
+        self.element(dicom_dictionary_std::tags::BITS_ALLOCATED)
+            .ok()?
+            .uint16()
+            .ok()
+    }
+
+    /// Return the NumberOfFrames attribute or None if it is not set
+    fn number_of_frames(&self) -> Option<u16> {
+        self.element(dicom_dictionary_std::tags::NUMBER_OF_FRAMES)
+            .ok()?
+            .to_int()
+            .ok()
+    }
+
+    /// Returns the number of fragments or None for native pixel data
+    fn number_of_fragments(&self) -> Option<u32> {
+        let pixel_data = self.element(dicom_dictionary_std::tags::PIXEL_DATA).ok()?;
+        match pixel_data.value() {
+            dicom_core::DicomValue::Primitive(_p) => Some(1),
+            dicom_core::DicomValue::PixelSequence {
+                offset_table: _,
+                fragments,
+            } => Some(fragments.len() as u32),
+            dicom_core::DicomValue::Sequence { items: _, size: _ } => None,
+        }
+    }
+
+    /// Return a specific encoded pixel fragment by index as Vec<u8>
+    /// or None if no pixel data is found
+    fn fragment(&self, fragment: usize) -> Option<Vec<u8>> {
+        let pixel_data = self.element(dicom_dictionary_std::tags::PIXEL_DATA).ok()?;
+        match pixel_data.value() {
+            dicom_core::DicomValue::PixelSequence {
+                offset_table: _,
+                fragments,
+            } => Some(fragments[fragment as usize].clone()),
+            _ => None,
+        }
+    }
+
+    /// Should return either a byte slice/vector if native pixel data
+    /// or byte fragments if encapsulated.
+    /// Returns None if no pixel data is found
+    fn raw_pixel_data(&self) -> Option<RawPixelData> {
+        let pixel_data = self.element(dicom_dictionary_std::tags::PIXEL_DATA).ok()?;
+        match pixel_data.value() {
+            dicom_core::DicomValue::Primitive(p) => {
+                // Create 1 fragment with all bytes
+                let fragment = p.to_bytes().to_vec();
+                let mut fragments = SmallVec::new();
+                fragments.push(fragment);
+                Some(RawPixelData {
+                    fragments,
+                    offset_table: SmallVec::new(),
+                })
+            }
+            dicom_core::DicomValue::PixelSequence {
+                offset_table,
+                fragments,
+            } => Some(RawPixelData {
+                fragments: fragments.clone(),
+                offset_table: offset_table.clone(),
+            }),
+            dicom_core::DicomValue::Sequence { items: _, size: _ } => None,
+        }
     }
 }
 

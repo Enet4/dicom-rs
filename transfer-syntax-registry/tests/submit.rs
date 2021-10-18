@@ -3,6 +3,7 @@
 //! Only applicable to the inventory-based registry.
 #![cfg(feature = "inventory-registry")]
 
+use dicom_encoding::adapters::rle_lossless::RLELosslessAdapter;
 use dicom_encoding::submit_transfer_syntax;
 use dicom_encoding::transfer_syntax::{
     Codec, DataRWAdapter, Endianness, TransferSyntax, TransferSyntaxIndex,
@@ -40,7 +41,7 @@ submit_transfer_syntax! {
         "Dummy Explicit VR Little Endian",
         Endianness::Little,
         true,
-        Codec::Dataset(DummyCodecAdapter),
+        Codec::Dataset::<_, RLELosslessAdapter>(DummyCodecAdapter)
     )
 }
 
