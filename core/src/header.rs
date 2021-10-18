@@ -5,7 +5,7 @@
 use crate::value::{
     CastValueError, ConvertValueError, DicomDate, DicomDateTime, DicomTime, PrimitiveValue, Value,
 };
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
+use chrono::{DateTime, FixedOffset, NaiveTime};
 use num_traits::NumCast;
 use snafu::{Backtrace, Snafu};
 use std::borrow::Cow;
@@ -552,7 +552,7 @@ impl<I, P> DataElement<I, P> {
         self.value().strings()
     }
 
-    impl_primitive_getters!(date, dates, Date, NaiveDate);
+    impl_primitive_getters!(date, dates, Date, DicomDate);
     impl_primitive_getters!(time, times, Time, NaiveTime);
     impl_primitive_getters!(datetime, datetimes, DateTime, DateTime<FixedOffset>);
     impl_primitive_getters!(uint8, uint8_slice, U8, u8);

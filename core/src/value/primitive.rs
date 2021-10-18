@@ -4,7 +4,7 @@
 
 use super::DicomValueType;
 use crate::header::{HasLength, Length, Tag};
-use crate::value::partial::{DicomDate, DicomDateTime, DicomTime};
+use crate::value::partial::{DateComponent, DicomDate, DicomDateTime, DicomTime, Precision};
 use crate::value::range::{DateRange, DateTimeRange, TimeRange};
 use chrono::{FixedOffset, Timelike};
 use itertools::Itertools;
@@ -259,7 +259,7 @@ pub enum PrimitiveValue {
 
     /// A sequence of complete dates.
     /// Used for the DA representation.
-    Date(C<NaiveDate>),
+    Date(C<DicomDate>),
 
     /// A sequence of complete date-time values.
     /// Used for the DT representation.
@@ -293,7 +293,7 @@ impl_from_for_primitive!(f32, F32);
 impl_from_for_primitive!(f64, F64);
 
 impl_from_for_primitive!(Tag, Tags);
-impl_from_for_primitive!(NaiveDate, Date);
+impl_from_for_primitive!(DicomDate, Date);
 impl_from_for_primitive!(NaiveTime, Time);
 impl_from_for_primitive!(DateTime<FixedOffset>, DateTime);
 
@@ -318,12 +318,6 @@ impl From<Vec<u8>> for PrimitiveValue {
 impl From<&[u8]> for PrimitiveValue {
     fn from(value: &[u8]) -> Self {
         PrimitiveValue::U8(C::from(value))
-    }
-}
-
-impl From<DicomDate> for PrimitiveValue {
-    fn from(value: DicomDate) -> Self {
-        PrimitiveValue::Str(value.to_encoded())
     }
 }
 
@@ -379,7 +373,7 @@ impl_from_array_for_primitive_1_to_8!(u64, U64);
 impl_from_array_for_primitive_1_to_8!(i64, I64);
 impl_from_array_for_primitive_1_to_8!(f32, F32);
 impl_from_array_for_primitive_1_to_8!(f64, F64);
-impl_from_array_for_primitive_1_to_8!(NaiveDate, Date);
+impl_from_array_for_primitive_1_to_8!(DicomDate, Date);
 impl_from_array_for_primitive_1_to_8!(NaiveTime, Time);
 impl_from_array_for_primitive_1_to_8!(DateTime<FixedOffset>, DateTime);
 
@@ -453,9 +447,14 @@ impl PrimitiveValue {
             F32(c) => c.len() * 4,
             F64(c) => c.len() * 8,
             Tags(c) => c.len() * 4,
-            Date(c) => (c.len() * 9) & !1,
             Str(s) => s.as_bytes().len(),
             Strs(c) => c.iter().map(|s| s.as_bytes().len() + 1).sum::<usize>() & !1,
+            Date(c) => {
+                c.iter()
+                    .map(|t| PrimitiveValue::da_byte_len(*t) + 1)
+                    .sum::<usize>()
+                    & !1
+            }
             Time(c) => {
                 c.iter()
                     .map(|t| PrimitiveValue::tm_byte_len(*t) + 1)
@@ -468,6 +467,15 @@ impl PrimitiveValue {
                     .sum::<usize>()
                     & !1
             }
+        }
+    }
+
+    fn da_byte_len(date: DicomDate) -> usize {
+        match date.precision() {
+            DateComponent::Year => 4,
+            DateComponent::Month => 6,
+            DateComponent::Day => 8,
+            _ => panic!("Impossible precision for a DicomDate")
         }
     }
 
@@ -525,16 +533,16 @@ impl PrimitiveValue {
     ///
     /// ```
     /// # use dicom_core::dicom_value;
-    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use dicom_core::value::{C, PrimitiveValue, DicomDate};
     /// # use smallvec::smallvec;
-    /// # use chrono::NaiveDate;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// assert_eq!(
     ///     dicom_value!(Str, "Smith^John").to_str(),
     ///     "Smith^John",
     /// );
     /// assert_eq!(
-    ///     dicom_value!(Date, NaiveDate::from_ymd(2014, 10, 12)).to_str(),
-    ///     "20141012",
+    ///     dicom_value!(Date, DicomDate::from_y(2014)?).to_str(),
+    ///     "2014",
     /// );
     /// assert_eq!(
     ///     dicom_value!(Strs, [
@@ -546,6 +554,8 @@ impl PrimitiveValue {
     ///     .to_str(),
     ///     "DERIVED\\PRIMARY\\WHOLE BODY\\EMISSION",
     /// );
+    /// Ok(())
+    /// }
     /// ```
     pub fn to_str(&self) -> Cow<str> {
         match self {
@@ -583,9 +593,9 @@ impl PrimitiveValue {
     ///
     /// ```
     /// # use dicom_core::dicom_value;
-    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use dicom_core::value::{C, PrimitiveValue, DicomDate};
     /// # use smallvec::smallvec;
-    /// # use chrono::NaiveDate;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// assert_eq!(
     ///     dicom_value!(Strs, [
     ///         "DERIVED",
@@ -603,14 +613,16 @@ impl PrimitiveValue {
     /// );
     ///
     /// assert_eq!(
-    ///     dicom_value!(Date, NaiveDate::from_ymd(2014, 10, 12)).to_multi_str(),
-    ///     &["20141012"][..],
+    ///     dicom_value!(Date, DicomDate::from_ym(2014, 10)?).to_multi_str(),
+    ///     &["201410"][..],
     /// );
     ///
     /// assert_eq!(
     ///     dicom_value!(I64, [128, 256, 512]).to_multi_str(),
     ///     &["128", "256", "512"][..],
     /// );
+    /// Ok(())
+    /// }
     /// ```
     pub fn to_multi_str(&self) -> Cow<[String]> {
         /// Auxilliary function for turning a sequence of values
@@ -629,7 +641,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(values) => Cow::from(&values[..]),
             PrimitiveValue::Date(values) => values
                 .into_iter()
-                .map(|date| date.format("%Y%m%d").to_string())
+                .map(|date| date.to_string())
                 .collect::<Vec<_>>()
                 .into(),
             PrimitiveValue::Time(values) => values
@@ -681,9 +693,9 @@ impl PrimitiveValue {
     ///
     /// ```
     /// # use dicom_core::dicom_value;
-    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use dicom_core::value::{C, PrimitiveValue, DicomDate};
     /// # use smallvec::smallvec;
-    /// # use chrono::NaiveDate;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// assert_eq!(
     ///     dicom_value!(Str, "Smith^John ").to_clean_str(),
     ///     "Smith^John",
@@ -693,7 +705,7 @@ impl PrimitiveValue {
     ///     " Smith^John",
     /// );
     /// assert_eq!(
-    ///     dicom_value!(Date, NaiveDate::from_ymd(2014, 10, 12)).to_clean_str(),
+    ///     dicom_value!(Date, DicomDate::from_ymd(2014, 10, 12)?).to_clean_str(),
     ///     "20141012",
     /// );
     /// assert_eq!(
@@ -706,6 +718,8 @@ impl PrimitiveValue {
     ///     .to_clean_str(),
     ///     "DERIVED\\PRIMARY\\ WHOLE BODY\\EMISSION",
     /// );
+    /// Ok(())
+    /// }
     /// ```
     pub fn to_clean_str(&self) -> Cow<str> {
         match self {
@@ -760,7 +774,7 @@ impl PrimitiveValue {
     /// `U8` provides a straight, zero-copy slice of bytes.
     ///
     /// ```
-    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use dicom_core::value::{C, PrimitiveValue, DicomDate};
     /// # use smallvec::smallvec;
     ///
     /// assert_eq!(
@@ -775,15 +789,15 @@ impl PrimitiveValue {
     ///
     /// ```
     /// # use dicom_core::dicom_value;
-    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use dicom_core::value::{C, PrimitiveValue, DicomDate};
     /// # use smallvec::smallvec;
-    /// # use chrono::NaiveDate;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// assert_eq!(
     ///     PrimitiveValue::from("Smith^John").to_bytes(),
     ///     &b"Smith^John"[..],
     /// );
     /// assert_eq!(
-    ///     PrimitiveValue::from(NaiveDate::from_ymd(2014, 10, 12))
+    ///     PrimitiveValue::from(DicomDate::from_ymd(2014, 10, 12)?)
     ///     .to_bytes(),
     ///     &b"20141012"[..],
     /// );
@@ -797,6 +811,8 @@ impl PrimitiveValue {
     ///     .to_bytes(),
     ///     &b"DERIVED\\PRIMARY\\WHOLE BODY\\EMISSION"[..],
     /// );
+    /// Ok(())
+    /// }
     /// ```
     pub fn to_bytes(&self) -> Cow<[u8]> {
         match self {
@@ -1877,7 +1893,8 @@ impl PrimitiveValue {
 
     /// Retrieve a single `chrono::NaiveDate` from this value.
     ///
-    /// If the value is already represented as a date, it is returned as is.
+    /// If the value is already represented as a precise `DicomDate`, it is converted
+    ///  to a `NaiveDate` value. It fails for imprecise values.
     /// If the value is a string or sequence of strings,
     /// the first string is decoded to obtain a date, potentially failing if the
     /// string does not represent a valid date.
@@ -1893,13 +1910,14 @@ impl PrimitiveValue {
     /// # Example
     ///
     /// ```
-    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use dicom_core::value::{C, PrimitiveValue, DicomDate};
     /// # use smallvec::smallvec;
     /// # use chrono::NaiveDate;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     ///
     /// assert_eq!(
     ///     PrimitiveValue::Date(smallvec![
-    ///         NaiveDate::from_ymd(2014, 10, 12),
+    ///         DicomDate::from_ymd(2014, 10, 12)?,
     ///     ])
     ///     .to_naive_date().ok(),
     ///     Some(NaiveDate::from_ymd(2014, 10, 12)),
@@ -1917,14 +1935,22 @@ impl PrimitiveValue {
     ///     PrimitiveValue::Str("201410".to_string())
     ///     .to_naive_date().is_err()
     /// );
+    /// Ok(())
+    /// }
     /// ```
     pub fn to_naive_date(&self) -> Result<NaiveDate, ConvertValueError> {
         match self {
-            PrimitiveValue::Date(v) if !v.is_empty() => Ok(v[0]),
+            PrimitiveValue::Date(v) if !v.is_empty() => v[0].to_naive_date()
+                .context(ParseDateRange)
+                .map_err(|err| ConvertValueError {
+                    requested: "NaiveDate",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
             PrimitiveValue::Str(s) => super::deserialize::parse_date(s.as_bytes())
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
-                    requested: "Date",
+                    requested: "NaiveDate",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
@@ -1932,7 +1958,7 @@ impl PrimitiveValue {
                 super::deserialize::parse_date(s.first().map(|s| s.as_bytes()).unwrap_or(&[]))
                     .context(ParseDate)
                     .map_err(|err| ConvertValueError {
-                        requested: "Date",
+                        requested: "NaiveDate",
                         original: self.value_type(),
                         cause: Some(err),
                     })
@@ -1940,12 +1966,12 @@ impl PrimitiveValue {
             PrimitiveValue::U8(bytes) => super::deserialize::parse_date(bytes)
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
-                    requested: "Date",
+                    requested: "NaiveDate",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
             _ => Err(ConvertValueError {
-                requested: "Date",
+                requested: "NaiveDate",
                 original: self.value_type(),
                 cause: None,
             }),
@@ -1954,8 +1980,8 @@ impl PrimitiveValue {
 
     /// Retrieve the full sequence of `chrono::NaiveDate`s from this value.
     ///
-    /// If the value is already represented as a sequence of dates,
-    /// it is returned as is.
+    /// If the value is already represented as a sequence of precise `DicomDate` values,
+    /// it is converted. It fails for imprecise values.
     /// If the value is a string or sequence of strings,
     /// the strings are decoded to obtain a date, potentially failing if
     /// any of the strings does not represent a valid date.
@@ -1972,13 +1998,14 @@ impl PrimitiveValue {
     /// # Example
     ///
     /// ```
-    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use dicom_core::value::{C, PrimitiveValue, DicomDate};
     /// # use smallvec::smallvec;
     /// # use chrono::NaiveDate;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     ///
     /// assert_eq!(
     ///     PrimitiveValue::Date(smallvec![
-    ///         NaiveDate::from_ymd(2014, 10, 12),
+    ///         DicomDate::from_ymd(2014, 10, 12)?,
     ///     ]).to_multi_naive_date().ok(),
     ///     Some(vec![NaiveDate::from_ymd(2014, 10, 12)]),
     /// );
@@ -1993,15 +2020,27 @@ impl PrimitiveValue {
     ///         NaiveDate::from_ymd(2020, 8, 28),
     ///     ]),
     /// );
+    /// Ok(())
+    /// }
     /// ```
     pub fn to_multi_naive_date(&self) -> Result<Vec<NaiveDate>, ConvertValueError> {
         match self {
-            PrimitiveValue::Date(v) if !v.is_empty() => Ok(v.to_vec()),
+            PrimitiveValue::Date(v) if !v.is_empty() => v
+                .into_iter()
+                .map(|d| d.to_naive_date())
+                .collect::<Result<Vec<_>, _>>()
+                .context(ParseDateRange)
+                .map_err(|err| ConvertValueError {
+                    requested: "NaiveDate",
+                    original: self.value_type(),
+                    cause: Some(err),
+                })
+                ,
             PrimitiveValue::Str(s) => super::deserialize::parse_date(s.trim_end().as_bytes())
                 .map(|date| vec![date])
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
-                    requested: "Date",
+                    requested: "NaiveDate",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
@@ -2011,7 +2050,7 @@ impl PrimitiveValue {
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
-                    requested: "Date",
+                    requested: "NaiveDate",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
@@ -2022,12 +2061,12 @@ impl PrimitiveValue {
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
-                    requested: "Date",
+                    requested: "NaiveDate",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
             _ => Err(ConvertValueError {
-                requested: "Date",
+                requested: "NaiveDate",
                 original: self.value_type(),
                 cause: None,
             }),
@@ -2036,7 +2075,7 @@ impl PrimitiveValue {
 
     /// Retrieve a single `DicomDate` from this value.
     ///
-    /// If the value is already represented as a date, it is converted into `DicomDate`.
+    /// If the value is already represented as a `DicomDate`, it is returned.
     /// If the value is a string or sequence of strings,
     /// the first string is decoded to obtain a DicomDate, potentially failing if the
     /// string does not represent a valid DicomDate.
@@ -2094,13 +2133,7 @@ impl PrimitiveValue {
     /// ```
     pub fn to_dicom_date(&self) -> Result<DicomDate, ConvertValueError> {
         match self {
-            PrimitiveValue::Date(d) if !d.is_empty() => DicomDate::try_from(&d[0])
-                .context(IntoDicomDate)
-                .map_err(|err| ConvertValueError {
-                    requested: "DicomDate",
-                    original: self.value_type(),
-                    cause: Some(err),
-                }),
+            PrimitiveValue::Date(d) if !d.is_empty() => Ok(d[0]),
             PrimitiveValue::Str(s) => super::deserialize::parse_date_partial(s.as_bytes())
                 .map(|(date, _)| date)
                 .context(ParseDate)
@@ -2160,16 +2193,7 @@ impl PrimitiveValue {
     ///
     pub fn to_multi_dicom_date(&self) -> Result<Vec<DicomDate>, ConvertValueError> {
         match self {
-            PrimitiveValue::Date(d) => d
-                .into_iter()
-                .map(DicomDate::try_from)
-                .collect::<Result<Vec<_>, _>>()
-                .context(IntoDicomDate)
-                .map_err(|err| ConvertValueError {
-                    requested: "DicomDate",
-                    original: self.value_type(),
-                    cause: Some(err),
-                }),
+            PrimitiveValue::Date(d) => Ok(d.to_vec()),
             PrimitiveValue::Str(s) => {
                 super::deserialize::parse_date_partial(s.trim_end().as_bytes())
                     .map(|(date, _)| vec![date])
@@ -3277,7 +3301,7 @@ impl PrimitiveValue {
     }
 
     impl_primitive_getters!(tag, tags, Tags, Tag);
-    impl_primitive_getters!(date, dates, Date, NaiveDate);
+    impl_primitive_getters!(date, dates, Date, DicomDate);
     impl_primitive_getters!(time, times, Time, NaiveTime);
     impl_primitive_getters!(datetime, datetimes, DateTime, DateTime<FixedOffset>);
     impl_primitive_getters!(uint8, uint8_slice, U8, u8);
@@ -3317,7 +3341,7 @@ impl std::fmt::Display for PrimitiveValue {
             PrimitiveValue::Date(values) => f.write_str(
                 &values
                     .into_iter()
-                    .map(|date| date.format("%Y%m%d").to_string())
+                    .map(|date| date.to_string())
                     .join("\\"),
             ),
             PrimitiveValue::Time(values) => f.write_str(
@@ -3546,7 +3570,7 @@ mod tests {
         }
 
         assert_eq!(
-            PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)]).to_str(),
+            PrimitiveValue::Date(smallvec![DicomDate::from_ymd(2014, 10, 12).unwrap()]).to_str(),
             "20141012",
         );
         assert_eq!(
@@ -3604,8 +3628,8 @@ mod tests {
         }
 
         assert_eq!(
-            PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)]).to_bytes(),
-            &b"20141012"[..],
+            PrimitiveValue::Date(smallvec![DicomDate::from_ym(2014, 10).unwrap()]).to_bytes(),
+            &b"201410"[..],
         );
         assert_eq!(
             dicom_value!(Strs, ["DERIVED", "PRIMARY", "WHOLE BODY", "EMISSION",]).to_bytes(),
@@ -3770,9 +3794,9 @@ mod tests {
 
     #[test]
     fn primitive_value_to_naive_date() {
-        // trivial conversion
+        // to NaiveDate
         assert_eq!(
-            PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)])
+            PrimitiveValue::Date(smallvec![DicomDate::from_ymd(2014, 10, 12).unwrap()])
                 .to_naive_date()
                 .unwrap(),
             NaiveDate::from_ymd(2014, 10, 12),
@@ -3796,7 +3820,7 @@ mod tests {
         assert!(matches!(
             PrimitiveValue::Str("Smith^John".to_string()).to_naive_date(),
             Err(ConvertValueError {
-                requested: "Date",
+                requested: "NaiveDate",
                 original: ValueType::Str,
                 // would try to parse as a date and fail
                 cause: Some(_),
@@ -3806,9 +3830,9 @@ mod tests {
 
     #[test]
     fn primitive_value_to_dicom_date() {
-        // try from NaiveDate
+        // primitive conversion
         assert_eq!(
-            PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)])
+            PrimitiveValue::Date(smallvec![DicomDate::from_ymd(2014, 10, 12).unwrap()])
                 .to_dicom_date()
                 .ok(),
             Some(DicomDate::from_ymd(2014, 10, 12).unwrap()),
@@ -3827,11 +3851,6 @@ mod tests {
             PrimitiveValue::from(b"202002").to_dicom_date().ok(),
             Some(DicomDate::from_ym(2020, 2).unwrap())
         );
-
-        // no year BC in Dicom
-        assert!(dicom_value!(Date, NaiveDate::from_ymd(-44, 1, 1))
-            .to_dicom_date()
-            .is_err());
     }
 
     #[test]
@@ -4200,27 +4219,27 @@ mod tests {
         assert_eq!(val.calculate_byte_len(), 10);
 
         // multi date, no padding
-        // b"20141012\\20200915\\20180101"
+        // b"20141012\\202009\\20180101"
         let val = dicom_value!(
             Date,
             [
-                NaiveDate::from_ymd(2014, 10, 12),
-                NaiveDate::from_ymd(2020, 9, 15),
-                NaiveDate::from_ymd(2018, 1, 1)
+                DicomDate::from_ymd(2014, 10, 12).unwrap(),
+                DicomDate::from_ym(2020, 9).unwrap(),
+                DicomDate::from_ymd(2018, 1, 1).unwrap()
             ]
         );
-        assert_eq!(val.calculate_byte_len(), 26);
+        assert_eq!(val.calculate_byte_len(), 24);
 
         // multi date with padding
-        // b"20141012\\20200915 "
+        // b"20141012\\2020 "
         let val = dicom_value!(
             Date,
             [
-                NaiveDate::from_ymd(2014, 10, 12),
-                NaiveDate::from_ymd(2020, 9, 15)
+                DicomDate::from_ymd(2014, 10, 12).unwrap(),
+                DicomDate::from_y(2020).unwrap()
             ]
         );
-        assert_eq!(val.calculate_byte_len(), 18);
+        assert_eq!(val.calculate_byte_len(), 14);
 
         // single time with second fragment
         // b"185530.4756"
@@ -4282,14 +4301,14 @@ mod tests {
         ));
 
         assert_eq!(
-            PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)])
+            PrimitiveValue::Date(smallvec![DicomDate::from_ymd(2014, 10, 12).unwrap()])
                 .date()
                 .unwrap(),
-            NaiveDate::from_ymd(2014, 10, 12),
+            DicomDate::from_ymd(2014, 10, 12).unwrap(),
         );
 
         assert!(matches!(
-            PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(2014, 10, 12)]).time(),
+            PrimitiveValue::Date(smallvec![DicomDate::from_ymd(2014, 10, 12).unwrap()]).time(),
             Err(CastValueError {
                 requested: "time",
                 got: ValueType::Date,

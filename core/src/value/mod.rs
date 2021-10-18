@@ -20,7 +20,7 @@ pub use self::primitive::{
 };
 
 /// re-exported from chrono
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
+use chrono::{DateTime, FixedOffset, NaiveTime};
 
 /// An aggregation of one or more elements in a value.
 pub type C<T> = SmallVec<[T; 2]>;
@@ -621,7 +621,7 @@ impl<I, P> Value<I, P> {
     }
 
     impl_primitive_getters!(tag, tags, Tags, Tag);
-    impl_primitive_getters!(date, dates, Date, NaiveDate);
+    impl_primitive_getters!(date, dates, Date, DicomDate);
     impl_primitive_getters!(time, times, Time, NaiveTime);
     impl_primitive_getters!(datetime, datetimes, DateTime, DateTime<FixedOffset>);
     impl_primitive_getters!(uint8, uint8_slice, U8, u8);
@@ -740,27 +740,27 @@ mod tests {
         ));
 
         assert_eq!(
-            Value::new(PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(
+            Value::new(PrimitiveValue::Date(smallvec![DicomDate::from_ymd(
                 2014, 10, 12
-            )]))
+            ).unwrap()]))
             .date()
-            .unwrap(),
-            NaiveDate::from_ymd(2014, 10, 12),
+            .ok(),
+            Some(DicomDate::from_ymd(2014, 10, 12).unwrap()),
         );
 
         assert_eq!(
             Value::new(PrimitiveValue::Date(
-                smallvec![NaiveDate::from_ymd(2014, 10, 12); 5]
+                smallvec![DicomDate::from_ymd(2014, 10, 12).unwrap(); 5]
             ))
             .dates()
             .unwrap(),
-            &[NaiveDate::from_ymd(2014, 10, 12); 5]
+            &[DicomDate::from_ymd(2014, 10, 12).unwrap(); 5]
         );
 
         assert!(matches!(
-            Value::new(PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(
+            Value::new(PrimitiveValue::Date(smallvec![DicomDate::from_ymd(
                 2014, 10, 12
-            )]))
+            ).unwrap()]))
             .time(),
             Err(CastValueError {
                 requested: "time",

@@ -98,11 +98,11 @@ pub enum DateComponent {
 /// // conversion from chrono value leads to a precise value
 /// assert_eq!(date.is_precise(), true);
 ///
-/// assert_eq!(date.to_encoded(), "19000503");
+/// assert_eq!(date.to_string(), "19000503");
 /// # Ok(())
 /// }
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct DicomDate(DicomDateImpl);
 
 /// Represents a Dicom Time value with a partial precision,
@@ -331,6 +331,17 @@ impl TryFrom<&NaiveDate> for DicomDate {
 }
 
 impl fmt::Display for DicomDate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DicomDate(DicomDateImpl::Year(y)) => write!(f, "{:04}", y),
+            DicomDate(DicomDateImpl::Month(y, m)) => write!(f, "{:04}{:02}", y, m),
+            DicomDate(DicomDateImpl::Day(y, m, d)) => write!(f, "{:04}{:02}{:02}", y, m, d),
+        }
+    }
+}
+
+
+impl fmt::Debug for DicomDate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DicomDate(DicomDateImpl::Year(y)) => write!(f, "{:04}-MM-DD", y),
@@ -643,7 +654,7 @@ impl Precision for DicomDateTime {
         }
     }
 }
-
+/*
 impl DicomDate {
     /**
      * Retrieves a dicom encoded string representation of the value.
@@ -655,7 +666,7 @@ impl DicomDate {
             DicomDate(DicomDateImpl::Day(y, m, d)) => format!("{:04}{:02}{:02}", y, m, d),
         }
     }
-}
+}*/
 
 impl DicomTime {
     /**
@@ -681,13 +692,13 @@ impl DicomDateTime {
         match self.time {
             Some(time) => format!(
                 "{}{}{}",
-                self.date.to_encoded(),
+                self.date.to_string(),
                 time.to_encoded(),
                 self.offset.to_string().replace(":", "")
             ),
             None => format!(
                 "{}{}",
-                self.date.to_encoded(),
+                self.date.to_string(),
                 self.offset.to_string().replace(":", "")
             ),
         }
