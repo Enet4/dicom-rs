@@ -1,0 +1,20 @@
+[package]
+name = "dicom-toimage"
+version = "0.1.0"
+edition = "2018"
+authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
+description = "A CLI tool for converting DICOM files into general purpose image files"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Enet4/dicom-rs"
+categories = ["command-line-utilities"]
+keywords = ["cli", "dicom", "image", "image-conversion"]
+readme = "README.md"
+
+[features]
+default = ['dicom-object/inventory-registry', 'dicom-object/backtraces']
+
+[dependencies]
+dicom-object = { path = "../object/" }
+dicom-pixeldata = { path = "../pixeldata/" }
+snafu = "0.7.0"
+structopt = "0.3.23"

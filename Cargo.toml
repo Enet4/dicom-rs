@@ -15,7 +15,8 @@ members = [
     "echoscu",
     "storescu",
     "pixeldata",
-    "fromimage"
+    "fromimage",
+    "toimage"
 ]
 
 # optimize JPEG decoder to run tests faster
