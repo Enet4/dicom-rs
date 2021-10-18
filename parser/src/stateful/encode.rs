@@ -257,7 +257,7 @@ where
     /// because the encoded value's real length
     /// might not match the header's length,
     /// leading to an inconsistent data set.
-    #[deprecated(note = "use `encode_primitive_element` instead")]
+    #[deprecated(since = "0.5.0", note = "use `encode_primitive_element` instead")]
     pub fn encode_primitive(
         &mut self,
         de: &DataElementHeader,
@@ -461,8 +461,8 @@ mod tests {
         dicom_value, DataElement, DataElementHeader, DicomValue, Length, PrimitiveValue, Tag, VR,
     };
     use dicom_encoding::{
-        encode::EncoderFor, text::SpecificCharacterSet, text::TextCodec,
-        transfer_syntax::explicit_le::ExplicitVRLittleEndianEncoder,
+        encode::{explicit_le::ExplicitVRLittleEndianEncoder, EncoderFor},
+        text::{SpecificCharacterSet, TextCodec},
     };
 
     use super::StatefulEncoder;

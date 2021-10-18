@@ -13,9 +13,6 @@ pub mod explicit_be;
 pub mod explicit_le;
 pub mod implicit_le;
 
-#[deprecated(since = "0.3.0")]
-pub use dicom_core::value::deserialize as primitive_value;
-
 /// Module-level error type:
 /// for errors which may occur while decoding DICOM data.
 #[derive(Debug, Snafu)]

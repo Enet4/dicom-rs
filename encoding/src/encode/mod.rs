@@ -1,5 +1,6 @@
 //! This module contains all DICOM data element encoding logic.
 use byteordered::Endianness;
+use dicom_core::value::serialize::{encode_date, encode_datetime, encode_time};
 use dicom_core::{DataElementHeader, PrimitiveValue, Tag};
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::fmt;
@@ -10,9 +11,6 @@ pub mod basic;
 pub mod explicit_be;
 pub mod explicit_le;
 pub mod implicit_le;
-
-#[deprecated]
-pub use dicom_core::value::serialize as primitive_value;
 
 /// Module-level error type:
 /// for errors which may occur while encoding DICOM data.
@@ -165,16 +163,16 @@ pub trait BasicEncode {
         match value {
             Empty => Ok(0), // no-op
             Date(date) => encode_collection_delimited(&mut to, &*date, |to, date| {
-                primitive_value::encode_date(to, *date)
+                encode_date(to, *date)
             })
             .context(WriteDate),
             Time(time) => encode_collection_delimited(&mut to, &*time, |to, time| {
-                primitive_value::encode_time(to, *time)
+                encode_time(to, *time)
             })
             .context(WriteTime),
             DateTime(datetime) => {
                 encode_collection_delimited(&mut to, &*datetime, |to, datetime| {
-                    primitive_value::encode_datetime(to, *datetime)
+                    encode_datetime(to, *datetime)
                 })
                 .context(WriteDateTime)
             }

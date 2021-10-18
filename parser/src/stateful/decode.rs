@@ -5,14 +5,14 @@ use crate::util::n_times;
 use chrono::FixedOffset;
 use dicom_core::header::{DataElementHeader, HasLength, Length, SequenceItemHeader, Tag, VR};
 use dicom_core::value::PrimitiveValue;
+use dicom_core::value::deserialize::{parse_date, parse_datetime, parse_time};
 use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
-use dicom_encoding::decode::primitive_value::*;
 use dicom_encoding::decode::{BasicDecode, DecodeFrom};
 use dicom_encoding::text::{
     validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, SpecificCharacterSet,
     TextCodec, TextValidationOutcome,
 };
-use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
+use dicom_encoding::decode::explicit_le::ExplicitVRLittleEndianDecoder;
 use dicom_encoding::transfer_syntax::{DynDecoder, TransferSyntax};
 use smallvec::smallvec;
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
@@ -1057,8 +1057,9 @@ mod tests {
     use dicom_core::{Tag, VR};
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
     use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
-    use dicom_encoding::transfer_syntax::explicit_le::ExplicitVRLittleEndianDecoder;
-    use dicom_encoding::transfer_syntax::implicit_le::ImplicitVRLittleEndianDecoder;
+    use dicom_encoding::decode::{
+        explicit_le::ExplicitVRLittleEndianDecoder, implicit_le::ImplicitVRLittleEndianDecoder,
+    };
     use std::io::{Cursor, Seek, SeekFrom};
 
     // manually crafting some DICOM data elements

@@ -9,29 +9,16 @@
 //!
 //! [`TransferSyntaxIndex`]: ./trait.TransferSyntaxIndex.html
 
-/// Explicit VR Big Endian implementation
-#[deprecated(
-    since = "0.3.0",
-    note = "See `decode::explicit_be` or `encode::explicit_be` instead"
-)]
-pub mod explicit_be;
-/// Explicit VR Little Endian implementation
-#[deprecated(
-    since = "0.3.0",
-    note = "See `decode::explicit_le` or `encode::explicit_le` instead"
-)]
-pub mod explicit_le;
-/// Implicit VR Little Endian implementation
-#[deprecated(
-    since = "0.3.0",
-    note = "See `decode::implicit_le` or `encode::implicit_le` instead"
-)]
-pub mod implicit_le;
-
 use crate::adapters::{DynPixelRWAdapter, NeverPixelAdapter, PixelRWAdapter};
-use crate::decode::basic::BasicDecoder;
-use crate::decode::DecodeFrom;
-use crate::encode::{EncodeTo, EncoderFor};
+use crate::decode::{
+    basic::BasicDecoder, explicit_be::ExplicitVRBigEndianDecoder,
+    explicit_le::ExplicitVRLittleEndianDecoder, implicit_le::ImplicitVRLittleEndianDecoder,
+    DecodeFrom,
+};
+use crate::encode::{
+    explicit_be::ExplicitVRBigEndianEncoder, explicit_le::ExplicitVRLittleEndianEncoder,
+    implicit_le::ImplicitVRLittleEndianEncoder, EncodeTo, EncoderFor,
+};
 use std::io::{Read, Write};
 
 pub use byteordered::Endianness;
@@ -327,15 +314,9 @@ impl<A, B> TransferSyntax<A, B> {
         S: ?Sized + Read,
     {
         match (self.byte_order, self.explicit_vr) {
-            (Endianness::Little, false) => Some(Box::new(
-                implicit_le::ImplicitVRLittleEndianDecoder::default(),
-            )),
-            (Endianness::Little, true) => Some(Box::new(
-                explicit_le::ExplicitVRLittleEndianDecoder::default(),
-            )),
-            (Endianness::Big, true) => {
-                Some(Box::new(explicit_be::ExplicitVRBigEndianDecoder::default()))
-            }
+            (Endianness::Little, false) => Some(Box::new(ImplicitVRLittleEndianDecoder::default())),
+            (Endianness::Little, true) => Some(Box::new(ExplicitVRLittleEndianDecoder::default())),
+            (Endianness::Big, true) => Some(Box::new(ExplicitVRBigEndianDecoder::default())),
             _ => None,
         }
     }
@@ -358,13 +339,13 @@ impl<A, B> TransferSyntax<A, B> {
     {
         match (self.byte_order, self.explicit_vr) {
             (Endianness::Little, false) => Some(Box::new(EncoderFor::new(
-                implicit_le::ImplicitVRLittleEndianEncoder::default(),
+                ImplicitVRLittleEndianEncoder::default(),
             ))),
             (Endianness::Little, true) => Some(Box::new(EncoderFor::new(
-                explicit_le::ExplicitVRLittleEndianEncoder::default(),
+                ExplicitVRLittleEndianEncoder::default(),
             ))),
             (Endianness::Big, true) => Some(Box::new(EncoderFor::new(
-                explicit_be::ExplicitVRBigEndianEncoder::default(),
+                ExplicitVRBigEndianEncoder::default(),
             ))),
             _ => None,
         }
