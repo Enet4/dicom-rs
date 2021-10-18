@@ -403,7 +403,7 @@ fn convert_colorspace_u16(i: &mut Vec<u16>) {
 }
 
 // Noramlize i16 vector using min/max normalization
-fn normalize_i16_to_u16(i: &Vec<i16>) -> Vec<u16> {
+fn normalize_i16_to_u16(i: &[i16]) -> Vec<u16> {
     let min = *i.iter().min().unwrap() as f64;
     let max = *i.iter().max().unwrap() as f64;
     i.par_iter()
@@ -461,7 +461,7 @@ where
         let number_of_frames = number_of_frames(self);
 
         let transfer_syntax = &self.meta().transfer_syntax;
-        let registry = TransferSyntaxRegistry.get(&&transfer_syntax).unwrap();
+        let registry = TransferSyntaxRegistry.get(transfer_syntax).unwrap();
 
         // Try decoding it using a native Rust decoder
         if let Codec::PixelData(decoder) = registry.codec() {

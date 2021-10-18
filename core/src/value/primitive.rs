@@ -3267,7 +3267,7 @@ impl PrimitiveValue {
     pub fn strings(&self) -> Result<&[String], CastValueError> {
         use self::PrimitiveValue::*;
         match self {
-            Strs(c) => Ok(&c),
+            Strs(c) => Ok(c),
             Str(s) => Ok(std::slice::from_ref(s)),
             value => Err(CastValueError {
                 requested: "strings",

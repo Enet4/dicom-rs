@@ -615,7 +615,7 @@ where
     /// Build an encapsulated pixel data by collecting all fragments into an
     /// in-memory DICOM value.
     fn build_encapsulated_data<I>(
-        mut dataset: I,
+        dataset: I,
     ) -> Result<Value<InMemDicomObject<D>, InMemFragment>>
     where
         I: Iterator<Item = ParserResult<DataToken>>,
@@ -632,7 +632,7 @@ where
 
         let mut fragments = C::new();
 
-        while let Some(token) = dataset.next() {
+        for token in dataset {
             match token.context(ReadToken)? {
                 DataToken::OffsetTable(table) => {
                     offset_table = Some(table);

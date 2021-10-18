@@ -126,7 +126,7 @@ impl Display for StandardDataDictionary {
 fn init_dictionary() -> StandardDictionaryRegistry {
     let mut d = StandardDictionaryRegistry::new();
     for entry in ENTRIES {
-        d.index(&entry);
+        d.index(entry);
     }
     d
 }

@@ -331,7 +331,7 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
                 .and_time(time)
                 .single()
                 .context(InvalidDateTimeZone);
-            return Ok(dt?);
+            return dt;
         }
         len if len > 4 => {
             let tz_sign = buf[0];

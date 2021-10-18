@@ -495,7 +495,7 @@ where
 
     /// Retrieves the DICOM value.
     pub fn value(&self) -> &Value<I, P> {
-        &self.value
+        self.value
     }
 }
 
