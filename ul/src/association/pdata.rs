@@ -63,7 +63,7 @@ where
         let max_data_length = calculate_max_data_len_single(max_pdu_length);
         let mut buffer = Vec::with_capacity((max_data_length + PDU_HEADER_SIZE) as usize);
         // initial buffer set up
-        buffer.extend([
+        buffer.extend(&[
             // PDU-type + reserved byte
             0x04,
             0x00,
