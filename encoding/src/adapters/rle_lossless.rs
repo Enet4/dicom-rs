@@ -1,7 +1,11 @@
-/// RLE Lossless implementation taken from Pydicom
-/// Copyright 2008-2021 pydicom authors.
-/// License: <https://github.com/pydicom/pydicom/blob/master/LICENSE>
-/// https://github.com/pydicom/pydicom/blob/master/pydicom/pixel_data_handlers/rle_handler.py
+//! Support for RLE Lossless image decoding.
+//!
+//! implementation taken from Pydicom:
+//! <https://github.com/pydicom/pydicom/blob/master/pydicom/pixel_data_handlers/rle_handler.py>
+//!
+//! Copyright 2008-2021 pydicom authors.
+//!
+//! License: <https://github.com/pydicom/pydicom/blob/master/LICENSE>
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 use snafu::OptionExt;
 
@@ -15,8 +19,9 @@ pub struct RLELosslessAdapter;
 
 /// Decode TS: 1.2.840.10008.1.2.5 (RLE Lossless)
 impl PixelRWAdapter for RLELosslessAdapter {
-    /// Decode RLE Lossless decoded dicom completely
-    /// See http://dicom.nema.org/medical/Dicom/2018d/output/chtml/part05/chapter_G.html
+    /// Decode the DICOM image from RLE Lossless completely.
+    ///
+    /// See <http://dicom.nema.org/medical/Dicom/2018d/output/chtml/part05/chapter_G.html>
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()> {
         let cols = src.cols().context(MissingAttribute { name: "Columns" })?;
         let rows = src.rows().context(MissingAttribute { name: "Rows" })?;
