@@ -20,7 +20,7 @@ pub use self::primitive::{
 };
 
 /// re-exported from chrono
-use chrono::{DateTime, FixedOffset, NaiveTime};
+use chrono::{DateTime, FixedOffset};
 
 /// An aggregation of one or more elements in a value.
 pub type C<T> = SmallVec<[T; 2]>;
@@ -622,7 +622,7 @@ impl<I, P> Value<I, P> {
 
     impl_primitive_getters!(tag, tags, Tags, Tag);
     impl_primitive_getters!(date, dates, Date, DicomDate);
-    impl_primitive_getters!(time, times, Time, NaiveTime);
+    impl_primitive_getters!(time, times, Time, DicomTime);
     impl_primitive_getters!(datetime, datetimes, DateTime, DateTime<FixedOffset>);
     impl_primitive_getters!(uint8, uint8_slice, U8, u8);
     impl_primitive_getters!(uint16, uint16_slice, U16, u16);

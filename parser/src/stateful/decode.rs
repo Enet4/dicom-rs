@@ -511,9 +511,9 @@ where
         let vec: Result<_> = buf
             .split(|b| *b == b'\\')
             .map(|part| {
-                Ok(parse_date_partial(part).context(DeserializeValue {
+                Ok(parse_date_partial(part).map(|t| t.0).context(DeserializeValue {
                     position: self.position,
-                })?.0)
+                })?)
             })
             .collect();
         self.position += len as u64;
@@ -649,7 +649,7 @@ where
         let vec: std::result::Result<_, _> = buf
             .split(|b| *b == b'\\')
             .map(|part| {
-                parse_time(part).map(|t| t.0).context(DeserializeValue {
+                parse_time_partial(part).map(|t| t.0).context(DeserializeValue {
                     position: self.position,
                 })
             })

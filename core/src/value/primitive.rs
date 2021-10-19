@@ -6,7 +6,7 @@ use super::DicomValueType;
 use crate::header::{HasLength, Length, Tag};
 use crate::value::partial::{DateComponent, DicomDate, DicomDateTime, DicomTime, Precision};
 use crate::value::range::{DateRange, DateTimeRange, TimeRange};
-use chrono::{FixedOffset, Timelike};
+use chrono::FixedOffset;
 use itertools::Itertools;
 use num_traits::NumCast;
 use safe_transmute::to_bytes::transmute_to_bytes;
@@ -267,7 +267,7 @@ pub enum PrimitiveValue {
 
     /// A sequence of complete time values.
     /// Used for the TM representation.
-    Time(C<NaiveTime>),
+    Time(C<DicomTime>),
 }
 
 /// A utility macro for implementing the conversion from a core type into a
@@ -294,7 +294,7 @@ impl_from_for_primitive!(f64, F64);
 
 impl_from_for_primitive!(Tag, Tags);
 impl_from_for_primitive!(DicomDate, Date);
-impl_from_for_primitive!(NaiveTime, Time);
+impl_from_for_primitive!(DicomTime, Time);
 impl_from_for_primitive!(DateTime<FixedOffset>, DateTime);
 
 impl From<String> for PrimitiveValue {
@@ -318,12 +318,6 @@ impl From<Vec<u8>> for PrimitiveValue {
 impl From<&[u8]> for PrimitiveValue {
     fn from(value: &[u8]) -> Self {
         PrimitiveValue::U8(C::from(value))
-    }
-}
-
-impl From<DicomTime> for PrimitiveValue {
-    fn from(value: DicomTime) -> Self {
-        PrimitiveValue::Str(value.to_encoded())
     }
 }
 
@@ -374,7 +368,7 @@ impl_from_array_for_primitive_1_to_8!(i64, I64);
 impl_from_array_for_primitive_1_to_8!(f32, F32);
 impl_from_array_for_primitive_1_to_8!(f64, F64);
 impl_from_array_for_primitive_1_to_8!(DicomDate, Date);
-impl_from_array_for_primitive_1_to_8!(NaiveTime, Time);
+impl_from_array_for_primitive_1_to_8!(DicomTime, Time);
 impl_from_array_for_primitive_1_to_8!(DateTime<FixedOffset>, DateTime);
 
 impl PrimitiveValue {
@@ -479,20 +473,16 @@ impl PrimitiveValue {
         }
     }
 
-    fn tm_byte_len(time: NaiveTime) -> usize {
-        match (time.hour(), time.minute(), time.second(), time.nanosecond()) {
-            (_, 0, 0, 0) => 2,
-            (_, _, 0, 0) => 4,
-            (_, _, _, 0) => 6,
-            (_, _, _, nano) => {
-                let mut frac = nano / 1000; // nano to microseconds
-                let mut trailing_zeros = 0;
-                while frac % 10 == 0 {
-                    frac /= 10;
-                    trailing_zeros += 1;
-                }
-                7 + 6 - trailing_zeros
-            }
+    fn tm_byte_len(time: DicomTime) -> usize {
+        match time.precision() {
+            DateComponent::Hour => 2,
+            DateComponent::Minute => 4,
+            DateComponent::Second => 6,
+            DateComponent::Fraction => match time.fraction_and_precision(){
+                None => panic!("DicomTime has fraction precision but no fraction can be retrieved"),
+                Some((_,fp)) => 7 + *fp as usize, // 1 is for the '.'
+            },
+            _ => panic!("Impossible precision for a Dicomtime")
         }
     }
 
@@ -502,12 +492,13 @@ impl PrimitiveValue {
         // It currently cannot distinguish unspecified components from their defaults
         // (e.g. "201812" should be different from "20181201").
         // This will have to be changed at some point (issue #55)
-        8 + PrimitiveValue::tm_byte_len(datetime.time())
+        /*8 + PrimitiveValue::tm_byte_len(datetime.time())
             + if datetime.offset() == &FixedOffset::east(0) {
                 0
             } else {
                 5
-            }
+            }*/
+        12
     }
 
     /// Convert the primitive value into a string representation.
@@ -646,7 +637,7 @@ impl PrimitiveValue {
                 .into(),
             PrimitiveValue::Time(values) => values
                 .into_iter()
-                .map(|date| date.format("%H%M%S%.6f").to_string())
+                .map(|time| time.to_string())
                 .collect::<Vec<_>>()
                 .into(),
             PrimitiveValue::DateTime(values) => values
@@ -2238,7 +2229,8 @@ impl PrimitiveValue {
 
     /// Retrieve a single `chrono::NaiveTime` from this value.
     ///
-    /// If the value is already represented as a time, it is returned as is.
+    /// If the value is represented as a precise `DicomTime`, it is converted to a `NaiveTime`.
+    /// It fails for imprecise values.
     /// If the value is a string or sequence of strings,
     /// the first string is decoded to obtain a time, potentially failing if the
     /// string does not represent a valid time.
@@ -2254,12 +2246,14 @@ impl PrimitiveValue {
     /// # Example
     ///
     /// ```
-    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use dicom_core::value::{C, PrimitiveValue, DicomTime};
     /// # use smallvec::smallvec;
     /// # use chrono::NaiveTime;
+    /// # use std::error::Error;
+    /// # fn main() -> Result<(), Box<dyn Error>> {
     ///
     /// assert_eq!(
-    ///     PrimitiveValue::from(NaiveTime::from_hms(11, 2, 45)).to_naive_time().ok(),
+    ///     PrimitiveValue::from(DicomTime::from_hms(11, 2, 45)?).to_naive_time().ok(),
     ///     Some(NaiveTime::from_hms(11, 2, 45)),
     /// );
     ///
@@ -2267,15 +2261,23 @@ impl PrimitiveValue {
     ///     PrimitiveValue::from("110245.78").to_naive_time().ok(),
     ///     Some(NaiveTime::from_hms_milli(11, 2, 45, 780)),
     /// );
+    /// Ok(())
+    /// }
     /// ```
     pub fn to_naive_time(&self) -> Result<NaiveTime, ConvertValueError> {
         match self {
-            PrimitiveValue::Time(v) if !v.is_empty() => Ok(v[0]),
+            PrimitiveValue::Time(v) if !v.is_empty() => v[0].to_naive_time()
+                    .context(ParseTimeRange)
+                        .map_err(|err| ConvertValueError {
+                            requested: "NaiveTime",
+                            original: self.value_type(),
+                            cause: Some(err),
+                        }),
             PrimitiveValue::Str(s) => super::deserialize::parse_time(s.trim_end().as_bytes())
                 .map(|(date, _rest)| date)
                 .context(ParseTime)
                 .map_err(|err| ConvertValueError {
-                    requested: "Time",
+                    requested: "NaiveTime",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
@@ -2285,7 +2287,7 @@ impl PrimitiveValue {
             .map(|(date, _rest)| date)
             .context(ParseTime)
             .map_err(|err| ConvertValueError {
-                requested: "Time",
+                requested: "NaiveTime",
                 original: self.value_type(),
                 cause: Some(err),
             }),
@@ -2294,13 +2296,13 @@ impl PrimitiveValue {
                     .map(|(date, _rest)| date)
                     .context(ParseTime)
                     .map_err(|err| ConvertValueError {
-                        requested: "Time",
+                        requested: "NaiveTime",
                         original: self.value_type(),
                         cause: Some(err),
                     })
             }
             _ => Err(ConvertValueError {
-                requested: "Time",
+                requested: "NaiveTime",
                 original: self.value_type(),
                 cause: None,
             }),
@@ -2309,8 +2311,8 @@ impl PrimitiveValue {
 
     /// Retrieve the full sequence of `chrono::NaiveTime`s from this value.
     ///
-    /// If the value is already represented as a sequence of times,
-    /// it is returned as is.
+    /// If the value is already represented as a sequence of precise `DicomTime` values,
+    /// it is converted to a sequence of `NaiveTime` values. It fails for imprecise values.
     /// If the value is a string or sequence of strings,
     /// the strings are decoded to obtain a date, potentially failing if
     /// any of the strings does not represent a valid date.
@@ -2327,12 +2329,14 @@ impl PrimitiveValue {
     /// # Example
     ///
     /// ```
-    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use dicom_core::value::{C, PrimitiveValue, DicomTime};
     /// # use smallvec::smallvec;
     /// # use chrono::NaiveTime;
+    /// # use std::error::Error;
+    /// # fn main() -> Result<(), Box<dyn Error>> {
     ///
     /// assert_eq!(
-    ///     PrimitiveValue::from(NaiveTime::from_hms(22, 58, 2)).to_multi_naive_time().ok(),
+    ///     PrimitiveValue::from(DicomTime::from_hms(22, 58, 2)?).to_multi_naive_time().ok(),
     ///     Some(vec![NaiveTime::from_hms(22, 58, 2)]),
     /// );
     ///
@@ -2346,15 +2350,27 @@ impl PrimitiveValue {
     ///         NaiveTime::from_hms_micro(22, 59, 16, 742_388),
     ///     ]),
     /// );
+    /// Ok(())
+    /// }
     /// ```
     pub fn to_multi_naive_time(&self) -> Result<Vec<NaiveTime>, ConvertValueError> {
         match self {
-            PrimitiveValue::Time(v) if !v.is_empty() => Ok(v.to_vec()),
+            PrimitiveValue::Time(v) if !v.is_empty() => v
+                .into_iter()
+                .map(|t| t.to_naive_time())
+                .collect::<Result<Vec<_>, _>>()
+                .context(ParseTimeRange)
+                .map_err(|err| ConvertValueError {
+                    requested: "NaiveTime",
+                    original: self.value_type(),
+                    cause: Some(err),
+                })
+            ,
             PrimitiveValue::Str(s) => super::deserialize::parse_time(s.trim_end().as_bytes())
                 .map(|(date, _rest)| vec![date])
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
-                    requested: "Time",
+                    requested: "NaiveTime",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
@@ -2367,7 +2383,7 @@ impl PrimitiveValue {
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
-                    requested: "Time",
+                    requested: "NaiveTime",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
@@ -2378,12 +2394,12 @@ impl PrimitiveValue {
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDate)
                 .map_err(|err| ConvertValueError {
-                    requested: "Time",
+                    requested: "NaiveTime",
                     original: self.value_type(),
                     cause: Some(err),
                 }),
             _ => Err(ConvertValueError {
-                requested: "Time",
+                requested: "NaiveTime",
                 original: self.value_type(),
                 cause: None,
             }),
@@ -2465,13 +2481,7 @@ impl PrimitiveValue {
     /// ```
     pub fn to_dicom_time(&self) -> Result<DicomTime, ConvertValueError> {
         match self {
-            PrimitiveValue::Time(t) if !t.is_empty() => DicomTime::try_from(&t[0])
-                .context(IntoDicomTime)
-                .map_err(|err| ConvertValueError {
-                    requested: "DicomTime",
-                    original: self.value_type(),
-                    cause: Some(err),
-                }),
+            PrimitiveValue::Time(t) if !t.is_empty() => Ok(t[0]),
             PrimitiveValue::Str(s) => {
                 super::deserialize::parse_time_partial(s.trim_end().as_bytes())
                     .map(|(date, _rest)| date)
@@ -2551,16 +2561,7 @@ impl PrimitiveValue {
     /// ```
     pub fn to_multi_dicom_time(&self) -> Result<Vec<DicomTime>, ConvertValueError> {
         match self {
-            PrimitiveValue::Time(t) => t
-                .into_iter()
-                .map(DicomTime::try_from)
-                .collect::<Result<Vec<_>, _>>()
-                .context(IntoDicomTime)
-                .map_err(|err| ConvertValueError {
-                    requested: "DicomTime",
-                    original: self.value_type(),
-                    cause: Some(err),
-                }),
+            PrimitiveValue::Time(t) => Ok(t.to_vec()),
             PrimitiveValue::Str(s) => {
                 super::deserialize::parse_time_partial(s.trim_end().as_bytes())
                     .map(|(date, _rest)| vec![date])
@@ -3302,7 +3303,7 @@ impl PrimitiveValue {
 
     impl_primitive_getters!(tag, tags, Tags, Tag);
     impl_primitive_getters!(date, dates, Date, DicomDate);
-    impl_primitive_getters!(time, times, Time, NaiveTime);
+    impl_primitive_getters!(time, times, Time, DicomTime);
     impl_primitive_getters!(datetime, datetimes, DateTime, DateTime<FixedOffset>);
     impl_primitive_getters!(uint8, uint8_slice, U8, u8);
     impl_primitive_getters!(uint16, uint16_slice, U16, u16);
@@ -3347,7 +3348,7 @@ impl std::fmt::Display for PrimitiveValue {
             PrimitiveValue::Time(values) => f.write_str(
                 &values
                     .into_iter()
-                    .map(|date| date.format("%H%M%S%.6f").to_string())
+                    .map(|time| time.to_string())
                     .join("\\"),
             ),
             PrimitiveValue::DateTime(values) => f.write_str(
@@ -3873,7 +3874,7 @@ mod tests {
     fn primitive_value_to_naive_time() {
         // trivial conversion
         assert_eq!(
-            PrimitiveValue::from(NaiveTime::from_hms(11, 9, 26))
+            PrimitiveValue::from(DicomTime::from_hms(11, 9, 26).unwrap())
                 .to_naive_time()
                 .unwrap(),
             NaiveTime::from_hms(11, 9, 26),
@@ -3905,7 +3906,7 @@ mod tests {
         assert!(matches!(
             PrimitiveValue::Str("Smith^John".to_string()).to_naive_time(),
             Err(ConvertValueError {
-                requested: "Time",
+                requested: "NaiveTime",
                 original: ValueType::Str,
                 ..
             })
@@ -3916,21 +3917,21 @@ mod tests {
     fn primitive_value_to_dicom_time() {
         // from NaiveTime - results in exact DicomTime with default fraction
         assert_eq!(
-            PrimitiveValue::from(NaiveTime::from_hms(11, 9, 26))
+            PrimitiveValue::from(DicomTime::from_hms_micro(11, 9, 26, 0).unwrap())
                 .to_dicom_time()
                 .unwrap(),
             DicomTime::from_hms_micro(11, 9, 26, 0).unwrap(),
         );
         // from NaiveTime with milli precision
         assert_eq!(
-            PrimitiveValue::from(NaiveTime::from_hms_milli(11, 9, 26, 123))
+            PrimitiveValue::from(DicomTime::from_hms_milli(11, 9, 26, 123).unwrap())
                 .to_dicom_time()
                 .unwrap(),
-            DicomTime::from_hms_micro(11, 9, 26, 123_000).unwrap(),
+            DicomTime::from_hms_milli(11, 9, 26, 123).unwrap(),
         );
         // from NaiveTime with micro precision
         assert_eq!(
-            PrimitiveValue::from(NaiveTime::from_hms_micro(11, 9, 26, 123))
+            PrimitiveValue::from(DicomTime::from_hms_micro(11, 9, 26, 123).unwrap())
                 .to_dicom_time()
                 .unwrap(),
             DicomTime::from_hms_micro(11, 9, 26, 123).unwrap(),
@@ -4241,18 +4242,18 @@ mod tests {
         );
         assert_eq!(val.calculate_byte_len(), 14);
 
-        // single time with second fragment
-        // b"185530.4756"
-        let val = dicom_value!(NaiveTime::from_hms_micro(18, 55, 30, 475600));
-        assert_eq!(val.calculate_byte_len(), 12);
+        // single time with second fragment - full precision
+        // b"185530.475600 "
+        let val = dicom_value!(DicomTime::from_hms_micro(18, 55, 30, 475_600).unwrap());
+        assert_eq!(val.calculate_byte_len(), 14);
 
         // multi time with padding
         // b"185530\\185530 "
         let val = dicom_value!(
             Time,
             [
-                NaiveTime::from_hms(18, 55, 30),
-                NaiveTime::from_hms(18, 55, 30)
+                DicomTime::from_hms(18, 55, 30).unwrap(),
+                DicomTime::from_hms(18, 55, 30).unwrap()
             ]
         );
         assert_eq!(val.calculate_byte_len(), 14);
@@ -4260,7 +4261,7 @@ mod tests {
         // single date-time with time zone, no second fragment
         // b"20121221093001+0100"
         let val = PrimitiveValue::from(FixedOffset::east(1).ymd(2012, 12, 21).and_hms(9, 30, 1));
-        assert_eq!(val.calculate_byte_len(), 20);
+        assert_eq!(val.calculate_byte_len(), 12);
     }
 
     #[test]

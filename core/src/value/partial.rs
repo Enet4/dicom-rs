@@ -149,7 +149,7 @@ pub struct DicomDate(DicomDateImpl);
 /// # Ok(())
 /// }
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct DicomTime(DicomTimeImpl);
 
 /// `DicomDate` is internally represented as this enum.
@@ -437,7 +437,7 @@ impl DicomTime {
             DicomTime(DicomTimeImpl::Fraction(_, _, s, _, _)) => Some(s),
         }
     }
-    /** Retrievies the fraction it's precision from a time as a reference */
+    /** Retrievies the fraction and it's precision from a time as a reference */
     pub fn fraction_and_precision(&self) -> Option<(&u32, &u8)> {
         match self {
             DicomTime(DicomTimeImpl::Hour(_)) => None,
@@ -508,10 +508,25 @@ impl TryFrom<&NaiveTime> for DicomTime {
 impl fmt::Display for DicomTime {
     fn fmt(&self, frm: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DicomTime(DicomTimeImpl::Hour(h)) => write!(frm, "{:02}:mm:ss.F", h),
-            DicomTime(DicomTimeImpl::Minute(h, m)) => write!(frm, "{:02}:{:02}:ss.F", h, m),
+            DicomTime(DicomTimeImpl::Hour(h)) => write!(frm, "{:02}", h),
+            DicomTime(DicomTimeImpl::Minute(h, m)) => write!(frm, "{:02}{:02}", h, m),
             DicomTime(DicomTimeImpl::Second(h, m, s)) => {
-                write!(frm, "{:02}:{:02}:{:02}.F", h, m, s)
+                write!(frm, "{:02}{:02}{:02}", h, m, s)
+            }
+            DicomTime(DicomTimeImpl::Fraction(h, m, s, f, _fp)) => {
+                write!(frm, "{:02}{:02}{:02}.{}", h, m, s, f)
+            }
+        }
+    }
+}
+
+impl fmt::Debug for DicomTime {
+    fn fmt(&self, frm: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DicomTime(DicomTimeImpl::Hour(h)) => write!(frm, "{:02}:mm:ss.FFFFFF", h),
+            DicomTime(DicomTimeImpl::Minute(h, m)) => write!(frm, "{:02}:{:02}:ss.FFFFFF", h, m),
+            DicomTime(DicomTimeImpl::Second(h, m, s)) => {
+                write!(frm, "{:02}:{:02}:{:02}.FFFFFF", h, m, s)
             }
             DicomTime(DicomTimeImpl::Fraction(h, m, s, f, _fp)) => {
                 write!(frm, "{:02}:{:02}:{:02}.{:F<6}", h, m, s, f)
