@@ -274,7 +274,7 @@ where
                     )?;
                 }
 
-                write_pdu_variable_user_variables(writer, &user_variables, &codec)?;
+                write_pdu_variable_user_variables(writer, user_variables, &codec)?;
 
                 Ok(())
             })

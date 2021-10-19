@@ -62,7 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let storage_sop_class_uid = &meta.media_storage_sop_class_uid;
     let storage_sop_instance_uid = &meta.media_storage_sop_instance_uid;
-    let transfer_syntax = &meta.transfer_syntax.trim_end_matches("\0");
+    let transfer_syntax = &meta.transfer_syntax.trim_end_matches('\0');
 
     let file_ts_desc = TransferSyntaxRegistry
         .get(transfer_syntax)
@@ -107,15 +107,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let ts = TransferSyntaxRegistry
         .get(&pc_selected.transfer_syntax)
-        .ok_or_else(|| "Poorly negotiated transfer syntax")?;
+        .ok_or("Poorly negotiated transfer syntax")?;
 
     if verbose {
         println!("Transfer Syntax: {}", ts.name());
     }
 
     let cmd = store_req_command(
-        &storage_sop_class_uid,
-        &storage_sop_instance_uid,
+        storage_sop_class_uid,
+        storage_sop_instance_uid,
         message_id,
     );
 
@@ -126,7 +126,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     let mut object_data = Vec::with_capacity(2048);
-    dicom_file.write_dataset_with_ts(&mut object_data, &ts)?;
+    dicom_file.write_dataset_with_ts(&mut object_data, ts)?;
 
     let nbytes = cmd_data.len() + object_data.len();
 

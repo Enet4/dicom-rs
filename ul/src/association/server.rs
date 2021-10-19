@@ -489,7 +489,7 @@ impl ServerAssociation {
     /// Send a PDU message to the other intervenient.
     pub fn send(&mut self, msg: &Pdu) -> Result<()> {
         self.buffer.clear();
-        write_pdu(&mut self.buffer, &msg).context(Send)?;
+        write_pdu(&mut self.buffer, msg).context(Send)?;
         if self.buffer.len() > self.requestor_max_pdu_length as usize {
             return SendTooLongPdu {
                 length: self.buffer.len(),

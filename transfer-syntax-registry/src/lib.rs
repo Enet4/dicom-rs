@@ -75,7 +75,7 @@ impl TransferSyntaxRegistryImpl {
     /// TS. If no such requirements are imposed, this function returns `false`
     /// and no changes are made.
     fn register(&mut self, ts: &'static TransferSyntax) -> bool {
-        match self.m.entry(&ts.uid()) {
+        match self.m.entry(ts.uid()) {
             Entry::Occupied(mut e) => {
                 let replace = match (&e.get().codec(), ts.codec()) {
                     (Codec::Unsupported, Codec::Dataset(_))

@@ -511,9 +511,9 @@ where
         let vec: Result<_> = buf
             .split(|b| *b == b'\\')
             .map(|part| {
-                Ok(parse_date(part).context(DeserializeValue {
+                parse_date(part).context(DeserializeValue {
                     position: self.position,
-                })?)
+                })
             })
             .collect();
         self.position += len as u64;

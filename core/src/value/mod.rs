@@ -160,7 +160,7 @@ impl<I, P> Value<I, P> {
     /// Gets a reference to the encapsulated pixel data's offset table.
     pub fn offset_table(&self) -> Option<&[u32]> {
         match self {
-            Value::PixelSequence { offset_table, .. } => Some(&offset_table),
+            Value::PixelSequence { offset_table, .. } => Some(offset_table),
             _ => None,
         }
     }

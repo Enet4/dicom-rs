@@ -139,7 +139,7 @@ impl PackBitsReader {
             bytes_read += 1;
 
             let h = header[0] as i8;
-            if h >= -127 && h <= -1 {
+            if (-127..=-1).contains(&h) {
                 let new_len = buffer.len() + (1 - h as isize) as usize;
                 reader.read_exact(&mut data)?;
                 buffer.resize(new_len, data[0]);

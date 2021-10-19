@@ -203,7 +203,7 @@ fn dump_file(obj: DefaultDicomObject, width: u32, no_text_limit: bool) -> IoResu
     let mut to = stdout();
     let meta = obj.meta();
 
-    meta_dump(&mut to, &meta, width)?;
+    meta_dump(&mut to, meta, width)?;
 
     println!("{:-<58}", "");
 
@@ -329,7 +329,7 @@ where
     D: DataDictionary,
 {
     for elem in obj {
-        dump_element(&mut *to, &elem, width, depth, no_text_limit)?;
+        dump_element(&mut *to, elem, width, depth, no_text_limit)?;
     }
 
     Ok(())
@@ -403,7 +403,7 @@ where
                 "  {} offset table ({:>3} bytes, 1 Item): {:48}",
                 DumpValue::TagNum("(FFFE,E000)"),
                 byte_len,
-                offset_table_summary(&offset_table, width.saturating_sub(38 + depth * 2)),
+                offset_table_summary(offset_table, width.saturating_sub(38 + depth * 2)),
             )?;
 
             // write compressed fragments
@@ -414,7 +414,7 @@ where
                     "  {} pi ({:>3} bytes, 1 Item): {:48}",
                     DumpValue::TagNum("(FFFE,E000)"),
                     byte_len,
-                    item_value_summary(&fragment, width.saturating_sub(38 + depth * 2)),
+                    item_value_summary(fragment, width.saturating_sub(38 + depth * 2)),
                 )?;
             }
         }
@@ -430,7 +430,7 @@ where
                 vm,
                 byte_len,
                 value_summary(
-                    &value,
+                    value,
                     vr,
                     width.saturating_sub(63 + depth * 2),
                     no_text_limit
@@ -453,7 +453,7 @@ where
     W: ?Sized + Write,
     D: DataDictionary,
 {
-    let indent: String = std::iter::repeat(' ').take((depth * 2) as usize).collect();
+    let indent: String = "  ".repeat(depth as usize);
     writeln!(
         to,
         "{}{} na {}",

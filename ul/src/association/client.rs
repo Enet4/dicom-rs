@@ -249,7 +249,7 @@ impl<'a> ClientAssociationOptions<'a> {
             calling_ae_title: calling_ae_title.to_string(),
             called_ae_title: called_ae_title.to_string(),
             application_context_name: application_context_name.to_string(),
-            presentation_contexts: presentation_contexts.clone(),
+            presentation_contexts,
             user_variables: vec![
                 UserVariableItem::MaxLength(max_pdu_length),
                 UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
@@ -413,7 +413,7 @@ impl ClientAssociation {
     /// Send a PDU message to the other intervenient.
     pub fn send(&mut self, msg: &Pdu) -> Result<()> {
         self.buffer.clear();
-        write_pdu(&mut self.buffer, &msg).context(Send)?;
+        write_pdu(&mut self.buffer, msg).context(Send)?;
         if self.buffer.len() > self.acceptor_max_pdu_length as usize {
             return SendTooLongPdu {
                 length: self.buffer.len(),
