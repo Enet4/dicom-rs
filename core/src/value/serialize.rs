@@ -1,6 +1,5 @@
 //! Encoding of primitive values.
-use crate::value::{DateTime, DicomDate, DicomTime};
-use chrono::FixedOffset;
+use crate::value::{DicomDate, DicomDateTime, DicomTime};
 use std::io::{Result as IoResult, Write};
 
 /** Encode a single date in accordance to the DICOM Date (DA)
@@ -27,33 +26,25 @@ where
     let len = time.to_string().len();
     write!(to, "{}", time.to_string())?;
     Ok(len) // no test cares about this value
-    
 }
 
 /** Encode a single date-time value in accordance to the DICOM DateTime (DT)
  * value representation.
  */
-pub fn encode_datetime<W>(mut to: W, dt: DateTime<FixedOffset>) -> IoResult<usize>
+pub fn encode_datetime<W>(mut to: W, dt: DicomDateTime) -> IoResult<usize>
 where
     W: Write,
 {
-    //let mut bytes = encode_date(&mut to, dt.date().naive_utc())?;
-    //let mut bytes = &b""[..];
-    /*let mut bytes = encode_time(&mut to, dt.time())?;
-    let offset = *dt.offset();
-    if offset != FixedOffset::east(0) {
-        let offset_hm = offset.local_minus_utc() / 60;
-        let offset_h = offset_hm / 60;
-        let offset_m = offset_hm % 60;
-        write!(to, "{:+03}{:02}", offset_h, offset_m)?;
-        bytes += 5;
-    }*/
-    Ok(7)
+    let len = dt.to_string().len();
+    write!(to, "{}", dt.to_string())?;
+    Ok(len) // no test cares about this value
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use chrono::FixedOffset;
+    use std::str::from_utf8;
 
     #[test]
     fn test_encode_date() {
@@ -65,7 +56,11 @@ mod test {
     #[test]
     fn test_encode_time() {
         let mut data = vec![];
-        encode_time(&mut data, DicomTime::from_hms_micro(23, 59, 48, 123456).unwrap()).unwrap();
+        encode_time(
+            &mut data,
+            DicomTime::from_hms_micro(23, 59, 48, 123456).unwrap(),
+        )
+        .unwrap();
         assert_eq!(&data, &*b"235948.123456");
 
         let mut data = vec![];
@@ -76,25 +71,36 @@ mod test {
         encode_time(&mut data, DicomTime::from_h(9).unwrap()).unwrap();
         assert_eq!(&data, &*b"09");
     }
-    /*  Uncommnet when finisehed
+
     #[test]
     fn test_encode_datetime() {
         let mut data = vec![];
+        let offset = FixedOffset::east(0);
         encode_datetime(
             &mut data,
-            FixedOffset::east(0)
-                .ymd(1985, 12, 31)
-                .and_hms_micro(23, 59, 48, 123456),
+            DicomDateTime::from_dicom_date_and_time(
+                DicomDate::from_ymd(1985, 12, 31).unwrap(),
+                DicomTime::from_hms_micro(23, 59, 48, 123_456).unwrap(),
+                offset,
+            )
+            .unwrap(),
         )
         .unwrap();
-        assert_eq!(from_utf8(&data).unwrap(), "19851231235948.123456");
+        // even zero offset gets encoded into string value
+        assert_eq!(from_utf8(&data).unwrap(), "19851231235948.123456+0000");
 
         let mut data = vec![];
+        let offset = FixedOffset::east(3600);
         encode_datetime(
             &mut data,
-            FixedOffset::east(3_600).ymd(2018, 12, 24).and_hms(4, 0, 0),
+            DicomDateTime::from_dicom_date_and_time(
+                DicomDate::from_ymd(2018, 12, 24).unwrap(),
+                DicomTime::from_h(4).unwrap(),
+                offset,
+            )
+            .unwrap(),
         )
         .unwrap();
         assert_eq!(from_utf8(&data).unwrap(), "2018122404+0100");
-    }*/
+    }
 }

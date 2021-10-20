@@ -20,7 +20,7 @@ pub use self::primitive::{
 };
 
 /// re-exported from chrono
-use chrono::{DateTime, FixedOffset};
+use chrono::FixedOffset;
 
 /// An aggregation of one or more elements in a value.
 pub type C<T> = SmallVec<[T; 2]>;
@@ -623,7 +623,7 @@ impl<I, P> Value<I, P> {
     impl_primitive_getters!(tag, tags, Tags, Tag);
     impl_primitive_getters!(date, dates, Date, DicomDate);
     impl_primitive_getters!(time, times, Time, DicomTime);
-    impl_primitive_getters!(datetime, datetimes, DateTime, DateTime<FixedOffset>);
+    impl_primitive_getters!(datetime, datetimes, DateTime, DicomDateTime);
     impl_primitive_getters!(uint8, uint8_slice, U8, u8);
     impl_primitive_getters!(uint16, uint16_slice, U16, u16);
     impl_primitive_getters!(int16, int16_slice, I16, i16);
@@ -742,7 +742,8 @@ mod tests {
         assert_eq!(
             Value::new(PrimitiveValue::Date(smallvec![DicomDate::from_ymd(
                 2014, 10, 12
-            ).unwrap()]))
+            )
+            .unwrap()]))
             .date()
             .ok(),
             Some(DicomDate::from_ymd(2014, 10, 12).unwrap()),
@@ -760,7 +761,8 @@ mod tests {
         assert!(matches!(
             Value::new(PrimitiveValue::Date(smallvec![DicomDate::from_ymd(
                 2014, 10, 12
-            ).unwrap()]))
+            )
+            .unwrap()]))
             .time(),
             Err(CastValueError {
                 requested: "time",

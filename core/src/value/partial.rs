@@ -100,7 +100,7 @@ pub enum DateComponent {
 ///
 /// assert_eq!(date.to_string(), "19000503");
 /// # Ok(())
-/// }
+/// # }
 /// ```
 #[derive(Clone, Copy, PartialEq)]
 pub struct DicomDate(DicomDateImpl);
@@ -134,7 +134,7 @@ pub struct DicomDate(DicomDateImpl);
 /// // value still not precise to microsecond
 /// assert_eq!(milli.is_precise(), false);
 ///
-/// assert_eq!(milli.to_encoded(), "123059.123");
+/// assert_eq!(milli.to_string(), "123059.123");
 ///
 /// // for convenience, is precise enough to be retrieved as a NaiveTime
 /// assert_eq!(
@@ -147,7 +147,7 @@ pub struct DicomDate(DicomDateImpl);
 /// assert_eq!(time.is_precise(), true);
 ///
 /// # Ok(())
-/// }
+/// # }
 /// ```
 #[derive(Clone, Copy, PartialEq)]
 pub struct DicomTime(DicomTimeImpl);
@@ -212,11 +212,11 @@ enum DicomTimeImpl {
 /// // conversion from chrono value leads to a precise value
 /// assert_eq!(dt.is_precise(), true);
 ///
-/// assert_eq!(dt.to_encoded(), "20201231235900.0+0100");
+/// assert_eq!(dt.to_string(), "20201231235900.0+0100");
 /// # Ok(())
-/// }
+/// # }
 /// ```
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy)]
 pub struct DicomDateTime {
     date: DicomDate,
     time: Option<DicomTime>,
@@ -339,7 +339,6 @@ impl fmt::Display for DicomDate {
         }
     }
 }
-
 
 impl fmt::Debug for DicomDate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -624,6 +623,27 @@ impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
 
 impl fmt::Display for DicomDateTime {
     fn fmt(&self, frm: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // as DicomDateTime always contains a FixedOffset, it will always be written,
+        // even if it is zero.
+        // For absolute consistency between deserialized and serialized date-times,
+        // DicomDateTime would have to contain Some(FixedOffset)/None if none was parsed.
+        // storing an Option is useless, since a FixedOffset has to be available
+        // for conversion into chrono values
+        match self.time {
+            None => write!(frm, "{}{}", self.date, self.offset),
+            Some(time) => write!(
+                frm,
+                "{}{}{}",
+                self.date,
+                time,
+                self.offset.to_string().replace(":", "")
+            ),
+        }
+    }
+}
+
+impl fmt::Debug for DicomDateTime {
+    fn fmt(&self, frm: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.time {
             None => write!(frm, "{} {}", self.date, self.offset),
             Some(time) => write!(frm, "{} {} {}", self.date, time, self.offset),
@@ -666,56 +686,6 @@ impl Precision for DicomDateTime {
         match self.time {
             Some(time) => time.precision(),
             None => self.date.precision(),
-        }
-    }
-}
-/*
-impl DicomDate {
-    /**
-     * Retrieves a dicom encoded string representation of the value.
-     */
-    pub fn to_encoded(&self) -> String {
-        match self {
-            DicomDate(DicomDateImpl::Year(y)) => format!("{:04}", y),
-            DicomDate(DicomDateImpl::Month(y, m)) => format!("{:04}{:02}", y, m),
-            DicomDate(DicomDateImpl::Day(y, m, d)) => format!("{:04}{:02}{:02}", y, m, d),
-        }
-    }
-}*/
-
-impl DicomTime {
-    /**
-     * Retrieves a dicom encoded string representation of the value.
-     */
-    pub fn to_encoded(&self) -> String {
-        match self {
-            DicomTime(DicomTimeImpl::Hour(h)) => format!("{:02}", h),
-            DicomTime(DicomTimeImpl::Minute(h, m)) => format!("{:02}{:02}", h, m),
-            DicomTime(DicomTimeImpl::Second(h, m, s)) => format!("{:02}{:02}{:02}", h, m, s),
-            DicomTime(DicomTimeImpl::Fraction(h, m, s, f, _fp)) => {
-                format!("{:02}{:02}{:02}.{}", h, m, s, f)
-            }
-        }
-    }
-}
-
-impl DicomDateTime {
-    /**
-     * Retrieves a dicom encoded string representation of the value.
-     */
-    pub fn to_encoded(&self) -> String {
-        match self.time {
-            Some(time) => format!(
-                "{}{}{}",
-                self.date.to_string(),
-                time.to_encoded(),
-                self.offset.to_string().replace(":", "")
-            ),
-            None => format!(
-                "{}{}",
-                self.date.to_string(),
-                self.offset.to_string().replace(":", "")
-            ),
         }
     }
 }
