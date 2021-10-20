@@ -5,7 +5,7 @@ use crate::util::n_times;
 use chrono::FixedOffset;
 use dicom_core::header::{DataElementHeader, HasLength, Length, SequenceItemHeader, Tag, VR};
 use dicom_core::value::PrimitiveValue;
-use dicom_core::value::deserialize::{parse_date_partial, parse_datetime, parse_time};
+use dicom_core::value::deserialize::{parse_date_partial, parse_datetime_partial, parse_time_partial};
 use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
 use dicom_encoding::decode::{BasicDecode, DecodeFrom};
 use dicom_encoding::text::{
