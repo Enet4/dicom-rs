@@ -221,7 +221,7 @@ pub enum PrimitiveValue {
     /// Used specifically for AT.
     Tags(C<Tag>),
 
-    /// The value is a sequence of unsigned 16-bit integers.
+    /// The value is a sequence of unsigned 8-bit integers.
     /// Used for OB and UN.
     U8(C<u8>),
 
@@ -229,7 +229,7 @@ pub enum PrimitiveValue {
     /// Used for SS.
     I16(C<i16>),
 
-    /// A sequence of unsigned 168-bit integers.
+    /// A sequence of unsigned 16-bit integers.
     /// Used for US and OW.
     U16(C<u16>),
 
