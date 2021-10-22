@@ -630,7 +630,7 @@ impl fmt::Display for DicomDateTime {
         // storing an Option is useless, since a FixedOffset has to be available
         // for conversion into chrono values
         match self.time {
-            None => write!(frm, "{}{}", self.date, self.offset),
+            None => write!(frm, "{}{}", self.date, self.offset.to_string().replace(":", "")),
             Some(time) => write!(
                 frm,
                 "{}{}{}",
