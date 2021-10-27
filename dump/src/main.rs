@@ -1,3 +1,13 @@
+//! A CLI tool for inspecting the contents of a DICOM file.
+//! Despite the name, this tool may have a different interface and output
+//! from other `dcmdump` tools, and does not aim to make a drop-in
+//! replacement.
+//!
+//! Usage:
+//!
+//! ```none
+//! dicom-dump <file.dcm>
+//! ```
 use dicom_dump::{DumpFileOptions, dump_file};
 use dicom::object::open_file;
 use std::io::ErrorKind;
@@ -63,8 +73,6 @@ impl std::fmt::Display for Coloring {
 }
 
 /// Dump the contents of DICOM files
-/// 
-/// WARNING: Deprecated. Please install `dicom-dump` instead.
 #[derive(Debug, StructOpt)]
 struct App {
     /// The DICOM file to read

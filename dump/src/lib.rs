@@ -1,12 +1,24 @@
-//! A CLI tool for inspecting the contents of a DICOM file.
-//! Despite the name, this tool may have a different interface and output
-//! from other `dcmdump` tools, and does not aim to make a drop-in
-//! replacement.
-//!
-//! Usage:
-//!
-//! ```none
-//! dcmdump <file.dcm>
+//! DICOM data dumping library
+//! 
+//! This is a helper library
+//! for dumping the contents of DICOM objects and elements
+//! in a human readable way.
+//! 
+//! # Examples
+//! 
+//! ```no_run
+//! use dicom::object::open_file;
+//! use dicom_dump::{DumpFileOptions, dump_file};
+//! 
+//! let obj = open_file("path/to/file.dcm")?;
+//! 
+//! // dump to stdout (width = 100)
+//! let options = DumpFileOptions {
+//!    width: 100,
+//!    ..Default::default()
+//! };
+//! dump_file(&obj, &options)?;
+//! # Result::<(), Box<dyn std::error::Error>>::Ok(())
 //! ```
 use colored::*;
 use dicom::core::dictionary::{DataDictionary, DictionaryEntry};
@@ -20,6 +32,17 @@ use dicom::transfer_syntax::TransferSyntaxRegistry;
 use std::borrow::Cow;
 use std::fmt;
 use std::io::{stdout, Result as IoResult, Write};
+
+
+/// Options for the `dump_file` function
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct DumpFileOptions {
+    /// the console width to assume when trimming long values
+    pub width: u32,
+    /// never trim out long text values
+    pub no_text_limit: bool,
+}
+
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum DumpValue<T>
@@ -57,15 +80,24 @@ where
     }
 }
 
-pub fn dump_file(obj: DefaultDicomObject, width: u32, no_text_limit: bool) -> IoResult<()> {
-    let mut to = stdout();
+/// Dump the contents of a DICOM file to stdout.
+/// 
+/// Both file meta table and main data set are dumped.
+pub fn dump_file(obj: &DefaultDicomObject, options: &DumpFileOptions) -> IoResult<()> {
+    dump_file_to(stdout(), obj, options)
+}
+
+/// Dump the contents of a DICOM file to stdout.
+/// 
+/// Both file meta table and main data set are dumped.
+pub fn dump_file_to(mut to: impl Write, obj: &DefaultDicomObject, options: &DumpFileOptions) -> IoResult<()> {
     let meta = obj.meta();
 
-    meta_dump(&mut to, meta, width)?;
+    meta_dump(&mut to, &meta, options.width)?;
 
-    println!("{:-<58}", "");
+    writeln!(to, "{:-<58}", "")?;
 
-    dump(&mut to, &obj, width, 0, no_text_limit)?;
+    dump(&mut to, &obj, options.width, 0, options.no_text_limit)?;
 
     Ok(())
 }
