@@ -98,7 +98,7 @@ pub enum DateComponent {
 /// // conversion from chrono value leads to a precise value
 /// assert_eq!(date.is_precise(), true);
 ///
-/// assert_eq!(date.to_string(), "19000503");
+/// assert_eq!(date.to_string(), "1900-05-03");
 /// # Ok(())
 /// # }
 /// ```
@@ -134,7 +134,7 @@ pub struct DicomDate(DicomDateImpl);
 /// // value still not precise to microsecond
 /// assert_eq!(milli.is_precise(), false);
 ///
-/// assert_eq!(milli.to_string(), "123059.123");
+/// assert_eq!(milli.to_string(), "12:30:59.123");
 ///
 /// // for convenience, is precise enough to be retrieved as a NaiveTime
 /// assert_eq!(
@@ -212,7 +212,7 @@ enum DicomTimeImpl {
 /// // conversion from chrono value leads to a precise value
 /// assert_eq!(dt.is_precise(), true);
 ///
-/// assert_eq!(dt.to_string(), "20201231235900.0+0100");
+/// assert_eq!(dt.to_string(), "2020-12-31 23:59:00.0 +01:00");
 /// # Ok(())
 /// # }
 /// ```

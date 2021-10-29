@@ -686,7 +686,7 @@ impl PrimitiveValue {
     /// );
     /// assert_eq!(
     ///     dicom_value!(Date, DicomDate::from_ymd(2014, 10, 12)?).to_clean_str(),
-    ///     "20141012",
+    ///     "2014-10-12",
     /// );
     /// assert_eq!(
     ///     dicom_value!(Strs, [
@@ -779,7 +779,7 @@ impl PrimitiveValue {
     /// assert_eq!(
     ///     PrimitiveValue::from(DicomDate::from_ymd(2014, 10, 12)?)
     ///     .to_bytes(),
-    ///     &b"20141012"[..],
+    ///     &b"2014-10-12"[..],
     /// );
     /// assert_eq!(
     ///     dicom_value!(Strs, [
@@ -3568,7 +3568,7 @@ mod tests {
 
         assert_eq!(
             PrimitiveValue::Date(smallvec![DicomDate::from_ymd(2014, 10, 12).unwrap()]).to_str(),
-            "20141012",
+            "2014-10-12",
         );
         assert_eq!(
             dicom_value!(Strs, ["DERIVED", "PRIMARY", "WHOLE BODY", "EMISSION"]).to_str(),
@@ -3626,7 +3626,7 @@ mod tests {
 
         assert_eq!(
             PrimitiveValue::Date(smallvec![DicomDate::from_ym(2014, 10).unwrap()]).to_bytes(),
-            &b"201410"[..],
+            &b"2014-10"[..],
         );
         assert_eq!(
             dicom_value!(Strs, ["DERIVED", "PRIMARY", "WHOLE BODY", "EMISSION",]).to_bytes(),
