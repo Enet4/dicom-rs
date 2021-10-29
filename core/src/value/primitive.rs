@@ -256,15 +256,15 @@ pub enum PrimitiveValue {
     /// Used for OD and FD, DS.
     F64(C<f64>),
 
-    /// A sequence of complete dates.
+    /// A sequence of dates with arbitrary precision.
     /// Used for the DA representation.
     Date(C<DicomDate>),
 
-    /// A sequence of complete date-time values.
+    /// A sequence of date-time values with arbitrary precision.
     /// Used for the DT representation.
     DateTime(C<DicomDateTime>),
 
-    /// A sequence of complete time values.
+    /// A sequence of time values with arbitrary precision.
     /// Used for the TM representation.
     Time(C<DicomTime>),
 }
@@ -621,17 +621,17 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(values) => Cow::from(&values[..]),
             PrimitiveValue::Date(values) => values
                 .into_iter()
-                .map(|date| date.to_string())
+                .map(|date| date.to_encoded())
                 .collect::<Vec<_>>()
                 .into(),
             PrimitiveValue::Time(values) => values
                 .into_iter()
-                .map(|time| time.to_string())
+                .map(|time| time.to_encoded())
                 .collect::<Vec<_>>()
                 .into(),
             PrimitiveValue::DateTime(values) => values
                 .into_iter()
-                .map(|dt| dt.to_string())
+                .map(|dt| dt.to_encoded())
                 .collect::<Vec<_>>()
                 .into(),
             PrimitiveValue::U8(values) => Cow::Owned(seq_to_str(values)),

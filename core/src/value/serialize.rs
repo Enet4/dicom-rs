@@ -10,9 +10,9 @@ where
     W: Write,
 {
     // YYYY(MM(DD)?)?
-    let len = date.to_string().len();
-    write!(to, "{}", date.to_string())?;
-    Ok(len) // no test cares about this value
+    let len = date.to_encoded().len();
+    write!(to, "{}", date.to_encoded())?;
+    Ok(len) 
 }
 
 /** Encode a single time value in accordance to the DICOM Time (TM)
@@ -23,9 +23,9 @@ where
     W: Write,
 {
     // HH(MM(SS(.F{1,6})?)?)?
-    let len = time.to_string().len();
-    write!(to, "{}", time.to_string())?;
-    Ok(len) // no test cares about this value
+    let len = time.to_encoded().len();
+    write!(to, "{}", time.to_encoded())?;
+    Ok(len) 
 }
 
 /** Encode a single date-time value in accordance to the DICOM DateTime (DT)
@@ -36,8 +36,8 @@ where
     W: Write,
 {
     let len = dt.to_string().len();
-    write!(to, "{}", dt.to_string())?;
-    Ok(len) // no test cares about this value
+    write!(to, "{}", dt.to_encoded())?;
+    Ok(len) 
 }
 
 #[cfg(test)]

@@ -334,8 +334,8 @@ impl fmt::Display for DicomDate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DicomDate(DicomDateImpl::Year(y)) => write!(f, "{:04}", y),
-            DicomDate(DicomDateImpl::Month(y, m)) => write!(f, "{:04}{:02}", y, m),
-            DicomDate(DicomDateImpl::Day(y, m, d)) => write!(f, "{:04}{:02}{:02}", y, m, d),
+            DicomDate(DicomDateImpl::Month(y, m)) => write!(f, "{:04}-{:02}", y, m),
+            DicomDate(DicomDateImpl::Day(y, m, d)) => write!(f, "{:04}-{:02}-{:02}", y, m, d),
         }
     }
 }
@@ -436,8 +436,20 @@ impl DicomTime {
             DicomTime(DicomTimeImpl::Fraction(_, _, s, _, _)) => Some(s),
         }
     }
-    /** Retrievies the fraction and it's precision from a time as a reference */
-    pub fn fraction_and_precision(&self) -> Option<(&u32, &u8)> {
+    /** Retrievies the fraction of a second as a reference, if it has full (microsecond) precision. */
+    pub fn fraction(&self) -> Option<&u32> {
+        match self {
+            DicomTime(DicomTimeImpl::Hour(_)) => None,
+            DicomTime(DicomTimeImpl::Minute(_, _)) => None,
+            DicomTime(DicomTimeImpl::Second(_, _, _)) => None,
+            DicomTime(DicomTimeImpl::Fraction(_, _, _, f, fp)) => match fp {
+                6 => Some(f),
+                _ => None,
+            },
+        }
+    }
+    /** Retrievies the fraction of a second and it's precision from a time as a reference */
+    pub(crate) fn fraction_and_precision(&self) -> Option<(&u32, &u8)> {
         match self {
             DicomTime(DicomTimeImpl::Hour(_)) => None,
             DicomTime(DicomTimeImpl::Minute(_, _)) => None,
@@ -508,12 +520,12 @@ impl fmt::Display for DicomTime {
     fn fmt(&self, frm: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DicomTime(DicomTimeImpl::Hour(h)) => write!(frm, "{:02}", h),
-            DicomTime(DicomTimeImpl::Minute(h, m)) => write!(frm, "{:02}{:02}", h, m),
+            DicomTime(DicomTimeImpl::Minute(h, m)) => write!(frm, "{:02}:{:02}", h, m),
             DicomTime(DicomTimeImpl::Second(h, m, s)) => {
-                write!(frm, "{:02}{:02}{:02}", h, m, s)
+                write!(frm, "{:02}:{:02}:{:02}", h, m, s)
             }
             DicomTime(DicomTimeImpl::Fraction(h, m, s, f, _fp)) => {
-                write!(frm, "{:02}{:02}{:02}.{}", h, m, s, f)
+                write!(frm, "{:02}:{:02}:{:02}.{}", h, m, s, f)
             }
         }
     }
@@ -630,14 +642,8 @@ impl fmt::Display for DicomDateTime {
         // storing an Option is useless, since a FixedOffset has to be available
         // for conversion into chrono values
         match self.time {
-            None => write!(frm, "{}{}", self.date, self.offset.to_string().replace(":", "")),
-            Some(time) => write!(
-                frm,
-                "{}{}{}",
-                self.date,
-                time,
-                self.offset.to_string().replace(":", "")
-            ),
+            None => write!(frm, "{} {}", self.date, self.offset),
+            Some(time) => write!(frm, "{} {} {}", self.date, time, self.offset),
         }
     }
 }
@@ -645,8 +651,8 @@ impl fmt::Display for DicomDateTime {
 impl fmt::Debug for DicomDateTime {
     fn fmt(&self, frm: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.time {
-            None => write!(frm, "{} {}", self.date, self.offset),
-            Some(time) => write!(frm, "{} {} {}", self.date, time, self.offset),
+            None => write!(frm, "{:?} {:?}", self.date, self.offset),
+            Some(time) => write!(frm, "{:?} {:?} {}", self.date, time, self.offset),
         }
     }
 }
@@ -686,6 +692,56 @@ impl Precision for DicomDateTime {
         match self.time {
             Some(time) => time.precision(),
             None => self.date.precision(),
+        }
+    }
+}
+
+impl DicomDate {
+    /**
+     * Retrieves a dicom encoded string representation of the value.
+     */
+    pub fn to_encoded(&self) -> String {
+        match self {
+            DicomDate(DicomDateImpl::Year(y)) => format!("{:04}", y),
+            DicomDate(DicomDateImpl::Month(y, m)) => format!("{:04}{:02}", y, m),
+            DicomDate(DicomDateImpl::Day(y, m, d)) => format!("{:04}{:02}{:02}", y, m, d),
+        }
+    }
+}
+
+impl DicomTime {
+    /**
+     * Retrieves a dicom encoded string representation of the value.
+     */
+    pub fn to_encoded(&self) -> String {
+        match self {
+            DicomTime(DicomTimeImpl::Hour(h)) => format!("{:02}", h),
+            DicomTime(DicomTimeImpl::Minute(h, m)) => format!("{:02}{:02}", h, m),
+            DicomTime(DicomTimeImpl::Second(h, m, s)) => format!("{:02}{:02}{:02}", h, m, s),
+            DicomTime(DicomTimeImpl::Fraction(h, m, s, f, _fp)) => {
+                format!("{:02}{:02}{:02}.{}", h, m, s, f)
+            }
+        }
+    }
+}
+
+impl DicomDateTime {
+    /**
+     * Retrieves a dicom encoded string representation of the value.
+     */
+    pub fn to_encoded(&self) -> String {
+        match self.time {
+            Some(time) => format!(
+                "{}{}{}",
+                self.date.to_encoded(),
+                time.to_encoded(),
+                self.offset.to_string().replace(":", "")
+            ),
+            None => format!(
+                "{}{}",
+                self.date.to_encoded(),
+                self.offset.to_string().replace(":", "")
+            ),
         }
     }
 }

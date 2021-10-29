@@ -4,15 +4,17 @@
 use crate::util::n_times;
 use chrono::FixedOffset;
 use dicom_core::header::{DataElementHeader, HasLength, Length, SequenceItemHeader, Tag, VR};
+use dicom_core::value::deserialize::{
+    parse_date_partial, parse_datetime_partial, parse_time_partial,
+};
 use dicom_core::value::PrimitiveValue;
-use dicom_core::value::deserialize::{parse_date_partial, parse_datetime_partial, parse_time_partial};
 use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
+use dicom_encoding::decode::explicit_le::ExplicitVRLittleEndianDecoder;
 use dicom_encoding::decode::{BasicDecode, DecodeFrom};
 use dicom_encoding::text::{
     validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, SpecificCharacterSet,
     TextCodec, TextValidationOutcome,
 };
-use dicom_encoding::decode::explicit_le::ExplicitVRLittleEndianDecoder;
 use dicom_encoding::transfer_syntax::{DynDecoder, TransferSyntax};
 use smallvec::smallvec;
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
@@ -511,11 +513,11 @@ where
         let vec: Result<_> = buf
             .split(|b| *b == b'\\')
             .map(|part| {
-                Ok(parse_date_partial(part)
+                parse_date_partial(part)
                     .map(|t| t.0)
                     .context(DeserializeValue {
                         position: self.position,
-                    })?)
+                    })
             })
             .collect();
         self.position += len as u64;
@@ -1060,10 +1062,10 @@ mod tests {
     use dicom_core::header::{DataElementHeader, HasLength, Header, Length, SequenceItemHeader};
     use dicom_core::{Tag, VR};
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
-    use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
     use dicom_encoding::decode::{
         explicit_le::ExplicitVRLittleEndianDecoder, implicit_le::ImplicitVRLittleEndianDecoder,
     };
+    use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
     use std::io::{Cursor, Seek, SeekFrom};
 
     // manually crafting some DICOM data elements
