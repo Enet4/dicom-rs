@@ -5,19 +5,30 @@
 //! in a human readable way.
 //!
 //! # Examples
+//! 
+//! A quick and easy way to dump the contents of a DICOM object
+//! is via [`dump_file`]
+//! (or [`dump_file_to`] to print to an arbitrary writer).
+//! 
+//! ```no_run
+//! use dicom::object::open_file;
+//! use dicom_dump::dump_file;
+//!
+//! let obj = open_file("path/to/file.dcm")?;
+//! dump_file(&obj)?;
+//! # Result::<(), Box<dyn std::error::Error>>::Ok(())
+//! ```
+//! 
+//! See the [`DumpOptions`] builder for additional dumping options.
 //!
 //! ```no_run
 //! use dicom::object::open_file;
-//! use dicom_dump::{DumpFileOptions, dump_file};
+//! use dicom_dump::{DumpOptions, dump_file};
 //!
-//! let obj = open_file("path/to/file.dcm")?;
-//!
+//! let obj = open_file("path/to/file2.dcm")?;
+//! let mut options = DumpOptions::new();
 //! // dump to stdout (width = 100)
-//! let options = DumpFileOptions {
-//!    width: 100,
-//!    ..Default::default()
-//! };
-//! dump_file(&obj, &options)?;
+//! options.width(100).dump_file(&obj)?;
 //! # Result::<(), Box<dyn std::error::Error>>::Ok(())
 //! ```
 use colored::*;
@@ -33,7 +44,7 @@ use std::borrow::Cow;
 use std::fmt;
 use std::io::{stdout, Result as IoResult, Write};
 
-/// The output format for the dump of DICOM data.
+/// An enum of all supported output formats for dumping DICOM data.
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
 pub enum DumpFormat {
     /// The main DICOM dump format adopted by the project.
@@ -49,6 +60,7 @@ pub enum DumpFormat {
     Main,
 }
 
+/// The [main output format](DumpFormat::Main) is used by default.
 impl Default for DumpFormat {
     fn default() -> Self {
         DumpFormat::Main
@@ -63,11 +75,10 @@ impl Default for DumpFormat {
 /// Once set up,
 /// the [`dump_file`] or [`dump_file_to`] methods can be used
 /// to finalize the DICOM data dumping process on an open file.
-/// Alternatively,
-/// [`dump_object`] or [`dump_object_to`] methods can be used
-/// to finalize the DICOM data dumping process on a file.
-///
 /// Both file meta table and main data set are dumped.
+/// Alternatively,
+/// [`dump_object`] or [`dump_object_to`] methods
+/// work on bare DICOM objects without a file meta table.
 ///
 /// [`dump_file`]: DumpOptions::dump_file
 /// [`dump_file_to`]: DumpOptions::dump_file_to
@@ -82,9 +93,12 @@ impl Default for DumpFormat {
 ///
 /// let my_dicom_file = open_file("/path_to_file")?;
 /// let mut options = DumpOptions::new();
-/// // dump to stdout
-/// options.width(120).dump_file(my_dicom_object)?;
-/// # Ok(())
+/// // dump to stdout, 120 max character width except for text values
+/// options
+///     .width(120)
+///     .no_text_limit(true)
+///     .dump_file(&my_dicom_file)?;
+/// # Result::<(), Box<dyn std::error::Error>>::Ok(())
 /// ```
 #[derive(Debug, Default, Clone, PartialEq)]
 #[non_exhaustive]
@@ -102,21 +116,32 @@ impl DumpOptions {
         Default::default()
     }
 
+    /// Set the output format.
+    /// 
+    /// See the [`DumpFormat`] documentation for the list of supported formats.
     pub fn format(&mut self, format: DumpFormat) -> &mut Self {
         self.format = format;
         self
     }
 
+    /// Set the maximum output width in number of characters.
     pub fn width(&mut self, width: u32) -> &mut Self {
         self.width = Some(width);
         self
     }
 
+    /// Set the maximum output width to automatic,
+    /// based on terminal size.
+    /// 
+    /// This is the default behavior.
+    /// If a terminal width could not be determined,
+    /// the default width of 120 characters is used.
     pub fn width_auto(&mut self) -> &mut Self {
         self.width = None;
         self
     }
 
+    /// Set whether to remove the maximum width restriction for text values.
     pub fn no_text_limit(&mut self, no_text_limit: bool) -> &mut Self {
         self.no_text_limit = no_text_limit;
         self
