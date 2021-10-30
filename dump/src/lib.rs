@@ -5,11 +5,11 @@
 //! in a human readable way.
 //!
 //! # Examples
-//! 
+//!
 //! A quick and easy way to dump the contents of a DICOM object
 //! is via [`dump_file`]
 //! (or [`dump_file_to`] to print to an arbitrary writer).
-//! 
+//!
 //! ```no_run
 //! use dicom::object::open_file;
 //! use dicom_dump::dump_file;
@@ -18,7 +18,7 @@
 //! dump_file(&obj)?;
 //! # Result::<(), Box<dyn std::error::Error>>::Ok(())
 //! ```
-//! 
+//!
 //! See the [`DumpOptions`] builder for additional dumping options.
 //!
 //! ```no_run
@@ -117,7 +117,7 @@ impl DumpOptions {
     }
 
     /// Set the output format.
-    /// 
+    ///
     /// See the [`DumpFormat`] documentation for the list of supported formats.
     pub fn format(&mut self, format: DumpFormat) -> &mut Self {
         self.format = format;
@@ -132,7 +132,7 @@ impl DumpOptions {
 
     /// Set the maximum output width to automatic,
     /// based on terminal size.
-    /// 
+    ///
     /// This is the default behavior.
     /// If a terminal width could not be determined,
     /// the default width of 120 characters is used.
@@ -250,7 +250,7 @@ where
     DumpOptions::new().dump_file(obj)
 }
 
-/// Dump the contents of a DICOM file to stdout.
+/// Dump the contents of a DICOM file to the given writer.
 ///
 /// Both file meta table and main data set are dumped.
 pub fn dump_file_to<D>(to: impl Write, obj: &FileDicomObject<InMemDicomObject<D>>) -> IoResult<()>
