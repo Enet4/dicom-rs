@@ -1,4 +1,4 @@
-use dicom_dump::{DumpFileOptions, dump_file};
+use dicom_dump::DumpOptions;
 use dicom::object::open_file;
 use std::io::ErrorKind;
 use snafu::ErrorCompat;
@@ -109,11 +109,12 @@ fn main() {
         _ => {}
     }
 
-    let options = DumpFileOptions {
-        no_text_limit,
-        width,
-    };
-    match dump_file(&obj, &options) {
+    let mut options = DumpOptions::new();
+    match options
+        .no_text_limit(no_text_limit)
+        .width(width)
+        .dump_file(&obj)
+    {
         Err(ref e) if e.kind() == ErrorKind::BrokenPipe => {
             // handle broken pipe separately with a no-op
         }

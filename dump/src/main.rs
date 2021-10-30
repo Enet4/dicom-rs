@@ -8,13 +8,13 @@
 //! ```none
 //! dicom-dump <file.dcm>
 //! ```
-use dicom_dump::{DumpFileOptions, dump_file};
 use dicom::object::open_file;
-use std::io::ErrorKind;
+use dicom_dump::DumpOptions;
 use snafu::ErrorCompat;
 use std::fmt::{Display, Formatter};
-use std::str::FromStr;
+use std::io::ErrorKind;
 use std::path::PathBuf;
+use std::str::FromStr;
 use structopt::StructOpt;
 
 /// Exit code for when an error emerged while reading the DICOM file.
@@ -33,7 +33,7 @@ fn os_compatibility() -> Result<(), ()> {
 }
 
 #[derive(Debug)]
-struct ColoringError { }
+struct ColoringError {}
 
 #[derive(Clone, Copy, Debug)]
 enum Coloring {
@@ -57,7 +57,7 @@ impl FromStr for Coloring {
             "never" => Ok(Coloring::Never),
             "auto" => Ok(Coloring::Auto),
             "always" => Ok(Coloring::Always),
-            _ => Err(ColoringError{})
+            _ => Err(ColoringError {}),
         }
     }
 }
@@ -86,8 +86,8 @@ struct App {
     #[structopt(short = "w", long = "width")]
     width: Option<u32>,
     /// color mode
-    #[structopt(long="color", default_value = "auto")]
-    color: Coloring
+    #[structopt(long = "color", default_value = "auto")]
+    color: Coloring,
 }
 
 fn main() {
@@ -117,11 +117,12 @@ fn main() {
         _ => {}
     }
 
-    let options = DumpFileOptions {
-        no_text_limit,
-        width,
-    };
-    match dump_file(&obj, &options) {
+    let mut options = DumpOptions::new();
+    match options
+        .no_text_limit(no_text_limit)
+        .width(width)
+        .dump_file(&obj)
+    {
         Err(ref e) if e.kind() == ErrorKind::BrokenPipe => {
             // handle broken pipe separately with a no-op
         }
@@ -132,7 +133,6 @@ fn main() {
         _ => {} // all good
     }
 }
-
 
 fn report<E: 'static>(err: E)
 where

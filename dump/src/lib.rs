@@ -1,17 +1,17 @@
 //! DICOM data dumping library
-//! 
+//!
 //! This is a helper library
 //! for dumping the contents of DICOM objects and elements
 //! in a human readable way.
-//! 
+//!
 //! # Examples
-//! 
+//!
 //! ```no_run
 //! use dicom::object::open_file;
 //! use dicom_dump::{DumpFileOptions, dump_file};
-//! 
+//!
 //! let obj = open_file("path/to/file.dcm")?;
-//! 
+//!
 //! // dump to stdout (width = 100)
 //! let options = DumpFileOptions {
 //!    width: 100,
@@ -27,22 +27,157 @@ use dicom::core::value::{PrimitiveValue, Value as DicomValue};
 use dicom::core::VR;
 use dicom::encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom::object::mem::{InMemDicomObject, InMemElement};
-use dicom::object::{DefaultDicomObject, FileMetaTable, StandardDataDictionary};
+use dicom::object::{FileDicomObject, FileMetaTable, StandardDataDictionary};
 use dicom::transfer_syntax::TransferSyntaxRegistry;
 use std::borrow::Cow;
 use std::fmt;
 use std::io::{stdout, Result as IoResult, Write};
 
+/// The output format for the dump of DICOM data.
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+pub enum DumpFormat {
+    /// The main DICOM dump format adopted by the project.
+    ///
+    /// It is primarily designed to be human readable,
+    /// although its output can be used to recover the original object
+    /// in its uncut form (no limit width).
+    /// It makes a distinction between single value and multi-value elements,
+    /// and displays the tag, alias, and VR of each element.
+    ///
+    /// Note that this format is not stabilized,
+    /// and may change with subsequent versions of the crate.
+    Main,
+}
 
-/// Options for the `dump_file` function
+impl Default for DumpFormat {
+    fn default() -> Self {
+        DumpFormat::Main
+    }
+}
+
+/// Options and flags to configure how to dump a DICOM file or object.
+///
+/// This is a builder which exposes the various options available
+/// for printing the contents of the DICOM file in a readable way.
+///
+/// Once set up,
+/// the [`dump_file`] or [`dump_file_to`] methods can be used
+/// to finalize the DICOM data dumping process on an open file.
+/// Alternatively,
+/// [`dump_object`] or [`dump_object_to`] methods can be used
+/// to finalize the DICOM data dumping process on a file.
+///
+/// Both file meta table and main data set are dumped.
+///
+/// [`dump_file`]: DumpOptions::dump_file
+/// [`dump_file_to`]: DumpOptions::dump_file_to
+/// [`dump_object`]: DumpOptions::dump_object
+/// [`dump_object_to`]: DumpOptions::dump_object_to
+///
+/// # Example
+///
+/// ```no_run
+/// use dicom::object::open_file;
+/// use dicom_dump::DumpOptions;
+///
+/// let my_dicom_file = open_file("/path_to_file")?;
+/// let mut options = DumpOptions::new();
+/// // dump to stdout
+/// options.width(120).dump_file(my_dicom_object)?;
+/// # Ok(())
+/// ```
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct DumpFileOptions {
+#[non_exhaustive]
+pub struct DumpOptions {
+    /// the output format,
+    pub format: DumpFormat,
     /// the console width to assume when trimming long values
-    pub width: u32,
+    pub width: Option<u32>,
     /// never trim out long text values
     pub no_text_limit: bool,
 }
 
+impl DumpOptions {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn format(&mut self, format: DumpFormat) -> &mut Self {
+        self.format = format;
+        self
+    }
+
+    pub fn width(&mut self, width: u32) -> &mut Self {
+        self.width = Some(width);
+        self
+    }
+
+    pub fn width_auto(&mut self) -> &mut Self {
+        self.width = None;
+        self
+    }
+
+    pub fn no_text_limit(&mut self, no_text_limit: bool) -> &mut Self {
+        self.no_text_limit = no_text_limit;
+        self
+    }
+
+    /// Dump the contents of an open DICOM file to standard output.
+    pub fn dump_file<D>(&self, obj: &FileDicomObject<InMemDicomObject<D>>) -> IoResult<()>
+    where
+        D: DataDictionary,
+    {
+        self.dump_file_to(stdout(), obj)
+    }
+
+    /// Dump the contents of an open DICOM file to the given writer.
+    pub fn dump_file_to<D>(
+        &self,
+        mut to: impl Write,
+        obj: &FileDicomObject<InMemDicomObject<D>>,
+    ) -> IoResult<()>
+    where
+        D: DataDictionary,
+    {
+        let meta = obj.meta();
+
+        let width = determine_width(self.width);
+
+        meta_dump(&mut to, &meta, width)?;
+
+        writeln!(to, "{:-<58}", "")?;
+
+        dump(&mut to, &obj, width, 0, self.no_text_limit)?;
+
+        Ok(())
+    }
+
+    /// Dump the contents of a DICOM object to standard output.
+    pub fn dump_object<D>(&self, obj: &InMemDicomObject<D>) -> IoResult<()>
+    where
+        D: DataDictionary,
+    {
+        self.dump_object_to(stdout(), obj)
+    }
+
+    /// Dump the contents of a DICOM object to the given writer.
+    pub fn dump_object_to<D>(&self, mut to: impl Write, obj: &InMemDicomObject<D>) -> IoResult<()>
+    where
+        D: DataDictionary,
+    {
+        let width = if let Some((width, _)) = term_size::dimensions() {
+            width as u32
+        } else {
+            120
+        };
+
+        println!("{:-<65}", "");
+
+        dump(&mut to, &obj, width, 0, self.no_text_limit)?;
+
+        Ok(())
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum DumpValue<T>
@@ -81,42 +216,23 @@ where
 }
 
 /// Dump the contents of a DICOM file to stdout.
-/// 
+///
 /// Both file meta table and main data set are dumped.
-pub fn dump_file(obj: &DefaultDicomObject, options: &DumpFileOptions) -> IoResult<()> {
-    dump_file_to(stdout(), obj, options)
+pub fn dump_file<D>(obj: &FileDicomObject<InMemDicomObject<D>>) -> IoResult<()>
+where
+    D: DataDictionary,
+{
+    DumpOptions::new().dump_file(obj)
 }
 
 /// Dump the contents of a DICOM file to stdout.
-/// 
+///
 /// Both file meta table and main data set are dumped.
-pub fn dump_file_to(mut to: impl Write, obj: &DefaultDicomObject, options: &DumpFileOptions) -> IoResult<()> {
-    let meta = obj.meta();
-
-    meta_dump(&mut to, &meta, options.width)?;
-
-    writeln!(to, "{:-<58}", "")?;
-
-    dump(&mut to, &obj, options.width, 0, options.no_text_limit)?;
-
-    Ok(())
-}
-
-pub fn dump_object(obj: &InMemDicomObject<StandardDataDictionary>, no_text_limit: bool) -> IoResult<()> {
-    let mut to = stdout();
-
-    let width = if let Some((width, _)) = term_size::dimensions() {
-        width as u32
-    } else {
-        120
-    };
-
-    println!("{:-<65}", "");
-
-    dump(&mut to, &obj, width, 0, no_text_limit)?;
-
-    Ok(())
-
+pub fn dump_file_to<D>(to: impl Write, obj: &FileDicomObject<InMemDicomObject<D>>) -> IoResult<()>
+where
+    D: DataDictionary,
+{
+    DumpOptions::new().dump_file_to(to, obj)
 }
 
 #[inline]
@@ -224,7 +340,7 @@ where
     Ok(())
 }
 
-pub fn dump<W, D>(
+fn dump<W, D>(
     to: &mut W,
     obj: &InMemDicomObject<D>,
     width: u32,
@@ -551,6 +667,12 @@ fn cut_str(s: &str, max_characters: u32) -> Cow<str> {
     } else {
         s.into()
     }
+}
+
+fn determine_width(user_width: Option<u32>) -> u32 {
+    user_width
+        .or_else(|| term_size::dimensions().map(|(w, _)| w as u32))
+        .unwrap_or(120)
 }
 
 #[cfg(test)]
