@@ -1,13 +1,5 @@
-//! A CLI tool for inspecting the contents of a DICOM file.
-//! Despite the name, this tool may have a different interface and output
-//! from other `dcmdump` tools, and does not aim to make a drop-in
-//! replacement.
-//!
-//! Usage:
-//!
-//! ```none
-//! dicom-dump <file.dcm>
-//! ```
+//! A CLI tool for inspecting the contents of a DICOM file
+//! by printing it in a human readable format.
 use dicom::object::open_file;
 use dicom_dump::DumpOptions;
 use snafu::ErrorCompat;
