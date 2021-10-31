@@ -41,8 +41,9 @@ use dicom::object::mem::{InMemDicomObject, InMemElement};
 use dicom::object::{FileDicomObject, FileMetaTable, StandardDataDictionary};
 use dicom::transfer_syntax::TransferSyntaxRegistry;
 use std::borrow::Cow;
-use std::fmt;
+use std::fmt::{self, Display, Formatter};
 use std::io::{stdout, Result as IoResult, Write};
+use std::str::FromStr;
 
 /// An enum of all supported output formats for dumping DICOM data.
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
@@ -89,22 +90,28 @@ impl Default for DumpFormat {
 ///
 /// ```no_run
 /// use dicom::object::open_file;
-/// use dicom_dump::DumpOptions;
+/// use dicom_dump::{ColorMode, DumpOptions};
 ///
 /// let my_dicom_file = open_file("/path_to_file")?;
 /// let mut options = DumpOptions::new();
-/// // dump to stdout, 120 max character width except for text values
 /// options
+///     // maximum 120 characters per line
 ///     .width(120)
+///     // no limit for text values
 ///     .no_text_limit(true)
+///     // never print colored output
+///     .color_mode(ColorMode::Never)
+///     // dump to stdout
 ///     .dump_file(&my_dicom_file)?;
 /// # Result::<(), Box<dyn std::error::Error>>::Ok(())
 /// ```
 #[derive(Debug, Default, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct DumpOptions {
-    /// the output format,
+    /// the output format
     pub format: DumpFormat,
+    /// the output color mode
+    pub color: ColorMode,
     /// the console width to assume when trimming long values
     pub width: Option<u32>,
     /// never trim out long text values
@@ -147,6 +154,12 @@ impl DumpOptions {
         self
     }
 
+    /// Set the output color mode.
+    pub fn color_mode(&mut self, color: ColorMode) -> &mut Self {
+        self.color = color;
+        self
+    }
+
     /// Dump the contents of an open DICOM file to standard output.
     pub fn dump_file<D>(&self, obj: &FileDicomObject<InMemDicomObject<D>>) -> IoResult<()>
     where
@@ -164,6 +177,12 @@ impl DumpOptions {
     where
         D: DataDictionary,
     {
+        match self.color {
+            ColorMode::Never => colored::control::set_override(false),
+            ColorMode::Always => colored::control::set_override(true),
+            ColorMode::Auto => colored::control::unset_override(),
+        }
+
         let meta = obj.meta();
 
         let width = determine_width(self.width);
@@ -190,6 +209,12 @@ impl DumpOptions {
     where
         D: DataDictionary,
     {
+        match self.color {
+            ColorMode::Never => colored::control::set_override(false),
+            ColorMode::Always => colored::control::set_override(true),
+            ColorMode::Auto => colored::control::unset_override(),
+        }
+
         let width = if let Some((width, _)) = term_size::dimensions() {
             width as u32
         } else {
@@ -203,6 +228,57 @@ impl DumpOptions {
         Ok(())
     }
 }
+
+/// Enumeration of output coloring modes.
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+pub enum ColorMode {
+    /// Produce colored output if supported by the destination
+    Auto,
+    /// Never produce colored output
+    Never,
+    /// Always produce colored output
+    Always,
+}
+
+impl Default for ColorMode {
+    fn default() -> Self {
+        ColorMode::Auto
+    }
+}
+
+impl std::fmt::Display for ColorMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ColorMode::Never => f.write_str("never"),
+            ColorMode::Auto => f.write_str("auto"),
+            ColorMode::Always => f.write_str("always"),
+        }
+    }
+}
+
+impl FromStr for ColorMode {
+    type Err = ColorModeError;
+    fn from_str(color: &str) -> Result<Self, Self::Err> {
+        match color {
+            "never" => Ok(ColorMode::Never),
+            "auto" => Ok(ColorMode::Auto),
+            "always" => Ok(ColorMode::Always),
+            _ => Err(ColorModeError),
+        }
+    }
+}
+
+/// The error raised when providing an invalid color mode.
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
+pub struct ColorModeError;
+
+impl Display for ColorModeError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("invalid color mode")
+    }
+}
+
+impl std::error::Error for ColorModeError {}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum DumpValue<T>

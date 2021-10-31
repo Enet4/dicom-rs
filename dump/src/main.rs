@@ -1,12 +1,10 @@
 //! A CLI tool for inspecting the contents of a DICOM file
 //! by printing it in a human readable format.
 use dicom::object::open_file;
-use dicom_dump::DumpOptions;
+use dicom_dump::{ColorMode, DumpOptions};
 use snafu::ErrorCompat;
-use std::fmt::{Display, Formatter};
 use std::io::ErrorKind;
 use std::path::PathBuf;
-use std::str::FromStr;
 use structopt::StructOpt;
 
 /// Exit code for when an error emerged while reading the DICOM file.
@@ -24,46 +22,6 @@ fn os_compatibility() -> Result<(), ()> {
     Ok(())
 }
 
-#[derive(Debug)]
-struct ColoringError {}
-
-#[derive(Clone, Copy, Debug)]
-enum Coloring {
-    Never,
-    Auto,
-    Always,
-}
-
-impl Display for ColoringError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str("invalid color mode")
-    }
-}
-
-impl std::error::Error for Coloring {}
-
-impl FromStr for Coloring {
-    type Err = ColoringError;
-    fn from_str(color: &str) -> Result<Self, Self::Err> {
-        match color {
-            "never" => Ok(Coloring::Never),
-            "auto" => Ok(Coloring::Auto),
-            "always" => Ok(Coloring::Always),
-            _ => Err(ColoringError {}),
-        }
-    }
-}
-
-impl std::fmt::Display for Coloring {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Coloring::Never => f.write_str("never"),
-            Coloring::Auto => f.write_str("auto"),
-            Coloring::Always => f.write_str("always"),
-        }
-    }
-}
-
 /// Dump the contents of DICOM files
 #[derive(Debug, StructOpt)]
 struct App {
@@ -79,7 +37,7 @@ struct App {
     width: Option<u32>,
     /// color mode
     #[structopt(long = "color", default_value = "auto")]
-    color: Coloring,
+    color: ColorMode,
 }
 
 fn main() {
@@ -103,16 +61,11 @@ fn main() {
         .or_else(|| term_size::dimensions().map(|(width, _)| width as u32))
         .unwrap_or(120);
 
-    match color {
-        Coloring::Never => colored::control::set_override(false),
-        Coloring::Always => colored::control::set_override(true),
-        _ => {}
-    }
-
     let mut options = DumpOptions::new();
     match options
         .no_text_limit(no_text_limit)
         .width(width)
+        .color_mode(color)
         .dump_file(&obj)
     {
         Err(ref e) if e.kind() == ErrorKind::BrokenPipe => {
