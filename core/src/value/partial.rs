@@ -190,7 +190,7 @@ enum DicomTimeImpl {
 /// let offset = FixedOffset::east(3600);
 ///
 /// // the least precise date-time value possible is a 'YYYY'
-/// let dt = DicomDateTime::from_dicom_date(
+/// let dt = DicomDateTime::from_date(
 ///     DicomDate::from_y(2020)?,
 ///     offset
 /// );
@@ -561,7 +561,7 @@ impl DicomDateTime {
     /**
      * Constructs a new `DicomDateTime` from a `DicomDate` and a given `FixedOffset`.
      */
-    pub fn from_dicom_date(date: DicomDate, offset: FixedOffset) -> DicomDateTime {
+    pub fn from_date(date: DicomDate, offset: FixedOffset) -> DicomDateTime {
         DicomDateTime {
             date,
             time: None,
@@ -573,7 +573,7 @@ impl DicomDateTime {
      * Constructs a new `DicomDateTime` from a `DicomDate`, `DicomTime` and a given `FixedOffset`,
      * providing that `DicomDate` is precise.
      */
-    pub fn from_dicom_date_and_time(
+    pub fn from_date_and_time(
         date: DicomDate,
         time: DicomTime,
         offset: FixedOffset,
@@ -636,7 +636,7 @@ impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
             component: DateComponent::Second,
         })?;
 
-        DicomDateTime::from_dicom_date_and_time(
+        DicomDateTime::from_date_and_time(
             DicomDate::from_ymd(year, month, day)?,
             DicomTime::from_hms_micro(hour, minute, second, dt.nanosecond() / 1000)?,
             *dt.offset(),
@@ -978,7 +978,7 @@ mod tests {
     fn test_dicom_datetime() {
         let default_offset = FixedOffset::east(0);
         assert_eq!(
-            DicomDateTime::from_dicom_date(
+            DicomDateTime::from_date(
                 DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 default_offset
             ),
@@ -990,7 +990,7 @@ mod tests {
         );
 
         assert_eq!(
-            DicomDateTime::from_dicom_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
+            DicomDateTime::from_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
                 .earliest()
                 .unwrap(),
             FixedOffset::east(0)
@@ -999,7 +999,7 @@ mod tests {
         );
 
         assert_eq!(
-            DicomDateTime::from_dicom_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
+            DicomDateTime::from_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
                 .latest()
                 .unwrap(),
             FixedOffset::east(0)
@@ -1008,7 +1008,7 @@ mod tests {
         );
 
         assert_eq!(
-            DicomDateTime::from_dicom_date_and_time(
+            DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 DicomTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
@@ -1021,7 +1021,7 @@ mod tests {
                 .and_hms_micro(23, 59, 59, 100_000)
         );
         assert_eq!(
-            DicomDateTime::from_dicom_date_and_time(
+            DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 DicomTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
@@ -1063,7 +1063,7 @@ mod tests {
         );
 
         assert!(matches!(
-            DicomDateTime::from_dicom_date(
+            DicomDateTime::from_date(
                 DicomDate::from_ymd(2021, 2, 29).unwrap(),
                 default_offset
             )
@@ -1072,7 +1072,7 @@ mod tests {
         ));
 
         assert!(matches!(
-            DicomDateTime::from_dicom_date_and_time(
+            DicomDateTime::from_date_and_time(
                 DicomDate::from_ym(2020, 2).unwrap(),
                 DicomTime::from_hms_milli(23, 59, 59, 999).unwrap(),
                 default_offset
@@ -1083,7 +1083,7 @@ mod tests {
             })
         ));
         assert!(matches!(
-            DicomDateTime::from_dicom_date_and_time(
+            DicomDateTime::from_date_and_time(
                 DicomDate::from_y(1).unwrap(),
                 DicomTime::from_hms_micro(23, 59, 59, 10).unwrap(),
                 default_offset
@@ -1095,7 +1095,7 @@ mod tests {
         ));
 
         assert!(matches!(
-            DicomDateTime::from_dicom_date_and_time(
+            DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2000, 1, 1).unwrap(),
                 DicomTime::from_hms_milli(23, 59, 59, 10).unwrap(),
                 default_offset

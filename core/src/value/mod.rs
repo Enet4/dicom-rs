@@ -385,7 +385,7 @@ where
     ///
     pub fn to_date(&self) -> Result<DicomDate, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_dicom_date(),
+            Value::Primitive(v) => v.to_date(),
             _ => Err(ConvertValueError {
                 requested: "DicomDate",
                 original: self.value_type(),
@@ -401,7 +401,7 @@ where
     ///
     pub fn to_multi_date(&self) -> Result<Vec<DicomDate>, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_multi_dicom_date(),
+            Value::Primitive(v) => v.to_multi_date(),
             _ => Err(ConvertValueError {
                 requested: "DicomDate",
                 original: self.value_type(),
@@ -417,7 +417,7 @@ where
     ///
     pub fn to_time(&self) -> Result<DicomTime, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_dicom_time(),
+            Value::Primitive(v) => v.to_time(),
             _ => Err(ConvertValueError {
                 requested: "DicomTime",
                 original: self.value_type(),
@@ -433,7 +433,7 @@ where
     ///
     pub fn to_multi_time(&self) -> Result<Vec<DicomTime>, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_multi_dicom_time(),
+            Value::Primitive(v) => v.to_multi_time(),
             _ => Err(ConvertValueError {
                 requested: "DicomTime",
                 original: self.value_type(),
@@ -452,7 +452,7 @@ where
         default_offset: FixedOffset,
     ) -> Result<DicomDateTime, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_dicom_datetime(default_offset),
+            Value::Primitive(v) => v.to_datetime(default_offset),
             _ => Err(ConvertValueError {
                 requested: "DicomDateTime",
                 original: self.value_type(),
@@ -471,7 +471,7 @@ where
         default_offset: FixedOffset,
     ) -> Result<Vec<DicomDateTime>, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_multi_dicom_datetime(default_offset),
+            Value::Primitive(v) => v.to_multi_datetime(default_offset),
             _ => Err(ConvertValueError {
                 requested: "DicomDateTime",
                 original: self.value_type(),

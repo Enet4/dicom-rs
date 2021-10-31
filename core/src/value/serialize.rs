@@ -78,7 +78,7 @@ mod test {
         let offset = FixedOffset::east(0);
         encode_datetime(
             &mut data,
-            DicomDateTime::from_dicom_date_and_time(
+            DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(1985, 12, 31).unwrap(),
                 DicomTime::from_hms_micro(23, 59, 48, 123_456).unwrap(),
                 offset,
@@ -93,7 +93,7 @@ mod test {
         let offset = FixedOffset::east(3600);
         encode_datetime(
             &mut data,
-            DicomDateTime::from_dicom_date_and_time(
+            DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2018, 12, 24).unwrap(),
                 DicomTime::from_h(4).unwrap(),
                 offset,

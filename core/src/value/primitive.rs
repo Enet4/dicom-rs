@@ -2080,38 +2080,38 @@ impl PrimitiveValue {
     /// # fn main() -> Result<(), Box<dyn Error>> {
     ///
     ///  let value = PrimitiveValue::Str("200002".into());
-    ///  let dicom_date = value.to_dicom_date()?;
+    ///  let date = value.to_date()?;
     ///
     ///  // it is not precise, day of month is unspecified
     ///  assert_eq!(
-    ///     dicom_date.is_precise(),
+    ///     date.is_precise(),
     ///     false
     ///     );
     ///  assert_eq!(
-    ///     dicom_date.earliest()?,
+    ///     date.earliest()?,
     ///     NaiveDate::from_ymd(2000,2,1)
     ///     );
     ///  assert_eq!(
-    ///     dicom_date.latest()?,
+    ///     date.latest()?,
     ///     NaiveDate::from_ymd(2000,2,29)
     ///     );
-    ///  assert!(dicom_date.exact().is_err());
+    ///  assert!(date.exact().is_err());
     ///
-    ///  let dicom_date = PrimitiveValue::Str("20000201".into()).to_dicom_date()?;
+    ///  let date = PrimitiveValue::Str("20000201".into()).to_date()?;
     ///  assert_eq!(
-    ///     dicom_date.is_precise(),
+    ///     date.is_precise(),
     ///     true
     ///     );
     ///  // .to_naive_date() works only for precise values
     ///  assert_eq!(
-    ///     dicom_date.exact()?,
-    ///     dicom_date.to_naive_date()?
+    ///     date.exact()?,
+    ///     date.to_naive_date()?
     ///  );
     /// # Ok(())
     /// # }
     ///
     /// ```
-    pub fn to_dicom_date(&self) -> Result<DicomDate, ConvertValueError> {
+    pub fn to_date(&self) -> Result<DicomDate, ConvertValueError> {
         match self {
             PrimitiveValue::Date(d) if !d.is_empty() => Ok(d[0]),
             PrimitiveValue::Str(s) => super::deserialize::parse_date_partial(s.as_bytes())
@@ -2160,7 +2160,7 @@ impl PrimitiveValue {
     ///
     /// assert_eq!(
     ///     dicom_value!(Strs, ["201410", "2020", "20200101"])
-    ///         .to_multi_dicom_date()?,
+    ///         .to_multi_date()?,
     ///     vec![
     ///         DicomDate::from_ym(2014, 10)?,
     ///         DicomDate::from_y(2020)?,
@@ -2171,7 +2171,7 @@ impl PrimitiveValue {
     /// # }
     /// ```
     ///
-    pub fn to_multi_dicom_date(&self) -> Result<Vec<DicomDate>, ConvertValueError> {
+    pub fn to_multi_date(&self) -> Result<Vec<DicomDate>, ConvertValueError> {
         match self {
             PrimitiveValue::Date(d) => Ok(d.to_vec()),
             PrimitiveValue::Str(s) => {
@@ -2421,31 +2421,31 @@ impl PrimitiveValue {
     /// # fn main() -> Result<(), Box<dyn Error>> {
     ///
     ///  let value = PrimitiveValue::Str("10".into());
-    ///  let dicom_time = value.to_dicom_time()?;
+    ///  let time = value.to_time()?;
     ///
     ///  // is not precise, minute, second and second fraction are unspecified
     ///  assert_eq!(
-    ///     dicom_time.is_precise(),
+    ///     time.is_precise(),
     ///     false
     ///     );
     ///  assert_eq!(
-    ///     dicom_time.earliest()?,
+    ///     time.earliest()?,
     ///     NaiveTime::from_hms(10,0,0)
     ///     );
     ///  assert_eq!(
-    ///     dicom_time.latest()?,
+    ///     time.latest()?,
     ///     NaiveTime::from_hms_micro(10,59,59,999_999)
     ///     );
-    ///  assert!(dicom_time.exact().is_err());
+    ///  assert!(time.exact().is_err());
     ///
     ///  let second = PrimitiveValue::Str("101259".into());
     ///  // not a precise value, fraction of second is unspecified
-    ///  assert!(second.to_dicom_time()?.exact().is_err());
+    ///  assert!(second.to_time()?.exact().is_err());
     ///
     ///  // .to_naive_time() yields a result, for at least second precision values
     ///  // second fraction defaults to zeros
     ///  assert_eq!(
-    ///     second.to_dicom_time()?.to_naive_time()?,
+    ///     second.to_time()?.to_naive_time()?,
     ///     NaiveTime::from_hms_micro(10,12,59,0)
     ///  );
     ///
@@ -2454,21 +2454,21 @@ impl PrimitiveValue {
     ///  
     ///  // is not precise, last digit of second fraction is unspecified
     ///  assert!(
-    ///     fraction5.to_dicom_time()?.exact().is_err()
+    ///     fraction5.to_time()?.exact().is_err()
     ///  );
     ///  assert!(
-    ///     fraction6.to_dicom_time()?.exact().is_ok()
+    ///     fraction6.to_time()?.exact().is_ok()
     ///  );
     ///  
     ///  assert_eq!(
-    ///     fraction6.to_dicom_time()?.exact()?,
-    ///     fraction6.to_dicom_time()?.to_naive_time()?
+    ///     fraction6.to_time()?.exact()?,
+    ///     fraction6.to_time()?.to_naive_time()?
     ///  );
     ///
     /// # Ok(())
     /// # }
     /// ```
-    pub fn to_dicom_time(&self) -> Result<DicomTime, ConvertValueError> {
+    pub fn to_time(&self) -> Result<DicomTime, ConvertValueError> {
         match self {
             PrimitiveValue::Time(t) if !t.is_empty() => Ok(t[0]),
             PrimitiveValue::Str(s) => {
@@ -2538,7 +2538,7 @@ impl PrimitiveValue {
     ///     PrimitiveValue::Strs(smallvec![
     ///         "2258".to_string(),
     ///         "225916.000742".to_string(),
-    ///     ]).to_multi_dicom_time()?,
+    ///     ]).to_multi_time()?,
     ///     vec![
     ///         DicomTime::from_hm(22, 58)?,
     ///         DicomTime::from_hms_micro(22, 59, 16, 742)?,
@@ -2548,7 +2548,7 @@ impl PrimitiveValue {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn to_multi_dicom_time(&self) -> Result<Vec<DicomTime>, ConvertValueError> {
+    pub fn to_multi_time(&self) -> Result<Vec<DicomTime>, ConvertValueError> {
         match self {
             PrimitiveValue::Time(t) => Ok(t.to_vec()),
             PrimitiveValue::Str(s) => {
@@ -2628,12 +2628,12 @@ impl PrimitiveValue {
     /// // full accuracy `DicomDateTime` can be converted
     /// assert_eq!(
     ///     PrimitiveValue::from(
-    ///         DicomDateTime::from_dicom_date_and_time(
+    ///         DicomDateTime::from_date_and_time(
     ///         DicomDate::from_ymd(2012, 12, 21)?,
     ///         DicomTime::from_hms_micro(9, 30, 1, 1)?,
     ///         default_offset
     ///         )?
-    ///     ).to_datetime(default_offset)?,
+    ///     ).to_chrono_datetime(default_offset)?,
     ///     FixedOffset::east(0)
     ///         .ymd(2012, 12, 21)
     ///         .and_hms_micro(9, 30, 1, 1)
@@ -2642,7 +2642,7 @@ impl PrimitiveValue {
     ///
     /// assert_eq!(
     ///     PrimitiveValue::from("20121221093001.1")
-    ///         .to_datetime(default_offset).ok(),
+    ///         .to_chrono_datetime(default_offset).ok(),
     ///     Some(FixedOffset::east(0)
     ///         .ymd(2012, 12, 21)
     ///         .and_hms_micro(9, 30, 1, 100_000)
@@ -2651,7 +2651,7 @@ impl PrimitiveValue {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn to_datetime(
+    pub fn to_chrono_datetime(
         &self,
         default_offset: FixedOffset,
     ) -> Result<DateTime<FixedOffset>, ConvertValueError> {
@@ -2729,12 +2729,12 @@ impl PrimitiveValue {
     /// // full accuracy `DicomDateTime` can be converted
     /// assert_eq!(
     ///     PrimitiveValue::from(
-    ///         DicomDateTime::from_dicom_date_and_time(
+    ///         DicomDateTime::from_date_and_time(
     ///         DicomDate::from_ymd(2012, 12, 21)?,
     ///         DicomTime::from_hms_micro(9, 30, 1, 123_456)?,
     ///         default_offset
     ///         )?
-    ///     ).to_multi_datetime(default_offset)?,
+    ///     ).to_multi_chrono_datetime(default_offset)?,
     ///     vec![FixedOffset::east(0)
     ///         .ymd(2012, 12, 21)
     ///         .and_hms_micro(9, 30, 1, 123_456)
@@ -2745,7 +2745,7 @@ impl PrimitiveValue {
     ///     PrimitiveValue::Strs(smallvec![
     ///         "20121221093001.123".to_string(),
     ///         "20180102100123.123456".to_string(),
-    ///     ]).to_multi_datetime(default_offset).ok(),
+    ///     ]).to_multi_chrono_datetime(default_offset).ok(),
     ///     Some(vec![
     ///         FixedOffset::east(0)
     ///             .ymd(2012, 12, 21)
@@ -2758,7 +2758,7 @@ impl PrimitiveValue {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn to_multi_datetime(
+    pub fn to_multi_chrono_datetime(
         &self,
         default_offset: FixedOffset,
     ) -> Result<Vec<DateTime<FixedOffset>>, ConvertValueError> {
@@ -2841,7 +2841,7 @@ impl PrimitiveValue {
     /// # fn main() -> Result<(), Box<dyn Error>> {
     /// let default_offset = FixedOffset::east(0);
     ///
-    /// let dt_value = PrimitiveValue::from("20121221093001.1").to_dicom_datetime(default_offset)?;
+    /// let dt_value = PrimitiveValue::from("20121221093001.1").to_datetime(default_offset)?;
     ///
     /// assert_eq!(
     ///     dt_value.earliest()?,
@@ -2856,7 +2856,7 @@ impl PrimitiveValue {
     ///         .and_hms_micro(9, 30, 1, 199_999)
     /// );
     ///
-    /// let dt_value = PrimitiveValue::from("20121221093001.123456").to_dicom_datetime(default_offset)?;
+    /// let dt_value = PrimitiveValue::from("20121221093001.123456").to_datetime(default_offset)?;
     ///
     /// // date-time has all components
     /// assert_eq!(dt_value.is_precise(), true);
@@ -2884,7 +2884,7 @@ impl PrimitiveValue {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn to_dicom_datetime(
+    pub fn to_datetime(
         &self,
         default_offset: FixedOffset,
     ) -> Result<DicomDateTime, ConvertValueError> {
@@ -2929,7 +2929,7 @@ impl PrimitiveValue {
 
     /// Retrieve the full sequence of `DicomDateTime`s from this value.
     ///
-    pub fn to_multi_dicom_datetime(
+    pub fn to_multi_datetime(
         &self,
         default_offset: FixedOffset,
     ) -> Result<Vec<DicomDateTime>, ConvertValueError> {
@@ -3830,7 +3830,7 @@ mod tests {
         // primitive conversion
         assert_eq!(
             PrimitiveValue::Date(smallvec![DicomDate::from_ymd(2014, 10, 12).unwrap()])
-                .to_dicom_date()
+                .to_date()
                 .ok(),
             Some(DicomDate::from_ymd(2014, 10, 12).unwrap()),
         );
@@ -3838,14 +3838,14 @@ mod tests {
         // from Strs
         assert_eq!(
             dicom_value!(Strs, ["201410", "2020", "20200101"])
-                .to_dicom_date()
+                .to_date()
                 .unwrap(),
             DicomDate::from_ym(2014, 10).unwrap()
         );
 
         // from bytes
         assert_eq!(
-            PrimitiveValue::from(b"202002").to_dicom_date().ok(),
+            PrimitiveValue::from(b"202002").to_date().ok(),
             Some(DicomDate::from_ym(2020, 2).unwrap())
         );
     }
@@ -3854,7 +3854,7 @@ mod tests {
     fn primitive_value_to_multi_dicom_date() {
         assert_eq!(
             dicom_value!(Strs, ["201410", "2020", "20200101"])
-                .to_multi_dicom_date()
+                .to_multi_date()
                 .unwrap(),
             vec![
                 DicomDate::from_ym(2014, 10).unwrap(),
@@ -3863,7 +3863,7 @@ mod tests {
             ]
         );
 
-        assert!(dicom_value!(Strs, ["-44"]).to_multi_dicom_date().is_err());
+        assert!(dicom_value!(Strs, ["-44"]).to_multi_date().is_err());
     }
 
     #[test]
@@ -3914,65 +3914,65 @@ mod tests {
         // from NaiveTime - results in exact DicomTime with default fraction
         assert_eq!(
             PrimitiveValue::from(DicomTime::from_hms_micro(11, 9, 26, 0).unwrap())
-                .to_dicom_time()
+                .to_time()
                 .unwrap(),
             DicomTime::from_hms_micro(11, 9, 26, 0).unwrap(),
         );
         // from NaiveTime with milli precision
         assert_eq!(
             PrimitiveValue::from(DicomTime::from_hms_milli(11, 9, 26, 123).unwrap())
-                .to_dicom_time()
+                .to_time()
                 .unwrap(),
             DicomTime::from_hms_milli(11, 9, 26, 123).unwrap(),
         );
         // from NaiveTime with micro precision
         assert_eq!(
             PrimitiveValue::from(DicomTime::from_hms_micro(11, 9, 26, 123).unwrap())
-                .to_dicom_time()
+                .to_time()
                 .unwrap(),
             DicomTime::from_hms_micro(11, 9, 26, 123).unwrap(),
         );
         // from text (Str)
         assert_eq!(
-            dicom_value!(Str, "110926").to_dicom_time().unwrap(),
+            dicom_value!(Str, "110926").to_time().unwrap(),
             DicomTime::from_hms(11, 9, 26).unwrap(),
         );
         // from text with fraction of a second + padding
         assert_eq!(
             PrimitiveValue::from(&"110926.38 "[..])
-                .to_dicom_time()
+                .to_time()
                 .unwrap(),
             DicomTime::from_hmsf(11, 9, 26, 38, 2).unwrap(),
         );
         // from text (Strs)
         assert_eq!(
-            dicom_value!(Strs, ["110926"]).to_dicom_time().unwrap(),
+            dicom_value!(Strs, ["110926"]).to_time().unwrap(),
             DicomTime::from_hms(11, 9, 26).unwrap(),
         );
         // from text (Strs) with fraction of a second
         assert_eq!(
             dicom_value!(Strs, ["110926.123456"])
-                .to_dicom_time()
+                .to_time()
                 .unwrap(),
             DicomTime::from_hms_micro(11, 9, 26, 123_456).unwrap(),
         );
         // from bytes with fraction of a second
         assert_eq!(
             PrimitiveValue::from(&b"110926.987"[..])
-                .to_dicom_time()
+                .to_time()
                 .unwrap(),
             DicomTime::from_hms_milli(11, 9, 26, 987).unwrap(),
         );
         // from bytes with fraction of a second + padding
         assert_eq!(
             PrimitiveValue::from(&b"110926.38 "[..])
-                .to_dicom_time()
+                .to_time()
                 .unwrap(),
             DicomTime::from_hmsf(11, 9, 26, 38, 2).unwrap(),
         );
         // not a time
         assert!(matches!(
-            PrimitiveValue::Str("Smith^John".to_string()).to_dicom_time(),
+            PrimitiveValue::Str("Smith^John".to_string()).to_time(),
             Err(ConvertValueError {
                 requested: "DicomTime",
                 original: ValueType::Str,
@@ -3982,7 +3982,7 @@ mod tests {
     }
 
     #[test]
-    fn primitive_value_to_datetime() {
+    fn primitive_value_to_chrono_datetime() {
         let this_datetime = FixedOffset::east(1).ymd(2012, 12, 21).and_hms(11, 9, 26);
         let this_datetime_frac = FixedOffset::east(1)
             .ymd(2012, 12, 21)
@@ -3990,41 +3990,41 @@ mod tests {
         // from text (Str) - fraction is mandatory even if zero
         assert_eq!(
             dicom_value!(Str, "20121221110926.0")
-                .to_datetime(FixedOffset::east(1))
+                .to_chrono_datetime(FixedOffset::east(1))
                 .unwrap(),
             this_datetime,
         );
         // from text with fraction of a second + padding
         assert_eq!(
             PrimitiveValue::from("20121221110926.38 ")
-                .to_datetime(FixedOffset::east(1))
+                .to_chrono_datetime(FixedOffset::east(1))
                 .unwrap(),
             this_datetime_frac,
         );
         // from text (Strs) - fraction is mandatory even if zero
         assert_eq!(
             dicom_value!(Strs, ["20121221110926.0"])
-                .to_datetime(FixedOffset::east(1))
+                .to_chrono_datetime(FixedOffset::east(1))
                 .unwrap(),
             this_datetime,
         );
         // from text (Strs) with fraction of a second + padding
         assert_eq!(
             dicom_value!(Strs, ["20121221110926.38 "])
-                .to_datetime(FixedOffset::east(1))
+                .to_chrono_datetime(FixedOffset::east(1))
                 .unwrap(),
             this_datetime_frac,
         );
         // from bytes with fraction of a second + padding
         assert_eq!(
             PrimitiveValue::from(&b"20121221110926.38 "[..])
-                .to_datetime(FixedOffset::east(1))
+                .to_chrono_datetime(FixedOffset::east(1))
                 .unwrap(),
             this_datetime_frac,
         );
         // no second fractions fails
         assert!(matches!(
-            dicom_value!(Str, "20121221110926").to_datetime(FixedOffset::east(1)),
+            dicom_value!(Str, "20121221110926").to_chrono_datetime(FixedOffset::east(1)),
             Err(ConvertValueError {
                 requested: "DateTime",
                 original: ValueType::Str,
@@ -4033,7 +4033,7 @@ mod tests {
         ));
         // not a datetime
         assert!(matches!(
-            PrimitiveValue::from("Smith^John").to_datetime(FixedOffset::east(1)),
+            PrimitiveValue::from("Smith^John").to_chrono_datetime(FixedOffset::east(1)),
             Err(ConvertValueError {
                 requested: "DateTime",
                 original: ValueType::Str,
@@ -4049,16 +4049,16 @@ mod tests {
         // try from chrono::DateTime
         assert_eq!(
             PrimitiveValue::from(
-                DicomDateTime::from_dicom_date_and_time(
+                DicomDateTime::from_date_and_time(
                     DicomDate::from_ymd(2012, 12, 21).unwrap(),
                     DicomTime::from_hms_micro(11, 9, 26, 000123).unwrap(),
                     offset
                 )
                 .unwrap()
             )
-            .to_dicom_datetime(offset)
+            .to_datetime(offset)
             .unwrap(),
-            DicomDateTime::from_dicom_date_and_time(
+            DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2012, 12, 21).unwrap(),
                 DicomTime::from_hms_micro(11, 9, 26, 000123).unwrap(),
                 offset
@@ -4067,15 +4067,15 @@ mod tests {
         );
         // from text (Str) - minimum allowed is a YYYY
         assert_eq!(
-            dicom_value!(Str, "2012").to_dicom_datetime(offset).unwrap(),
-            DicomDateTime::from_dicom_date(DicomDate::from_y(2012).unwrap(), offset)
+            dicom_value!(Str, "2012").to_datetime(offset).unwrap(),
+            DicomDateTime::from_date(DicomDate::from_y(2012).unwrap(), offset)
         );
         // from text with fraction of a second + padding
         assert_eq!(
             PrimitiveValue::from("20121221110926.38 ")
-                .to_dicom_datetime(offset)
+                .to_datetime(offset)
                 .unwrap(),
-            DicomDateTime::from_dicom_date_and_time(
+            DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2012, 12, 21).unwrap(),
                 DicomTime::from_hmsf(11, 9, 26, 38, 2).unwrap(),
                 offset
@@ -4085,9 +4085,9 @@ mod tests {
         // from text (Strs) with fraction of a second + padding
         assert_eq!(
             dicom_value!(Strs, ["20121221110926.38 "])
-                .to_dicom_datetime(offset)
+                .to_datetime(offset)
                 .unwrap(),
-            DicomDateTime::from_dicom_date_and_time(
+            DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2012, 12, 21).unwrap(),
                 DicomTime::from_hmsf(11, 9, 26, 38, 2).unwrap(),
                 offset
@@ -4096,7 +4096,7 @@ mod tests {
         );
         // not a dicom_datetime
         assert!(matches!(
-            PrimitiveValue::from("Smith^John").to_dicom_datetime(offset),
+            PrimitiveValue::from("Smith^John").to_datetime(offset),
             Err(ConvertValueError {
                 requested: "DicomDateTime",
                 original: ValueType::Str,
@@ -4114,21 +4114,21 @@ mod tests {
                 Strs,
                 ["20121221110926.38 ", "1992", "19901010-0500", "1990+0501"]
             )
-            .to_multi_dicom_datetime(offset)
+            .to_multi_datetime(offset)
             .unwrap(),
             vec!(
-                DicomDateTime::from_dicom_date_and_time(
+                DicomDateTime::from_date_and_time(
                     DicomDate::from_ymd(2012, 12, 21).unwrap(),
                     DicomTime::from_hmsf(11, 9, 26, 38, 2).unwrap(),
                     offset
                 )
                 .unwrap(),
-                DicomDateTime::from_dicom_date(DicomDate::from_y(1992).unwrap(), offset),
-                DicomDateTime::from_dicom_date(
+                DicomDateTime::from_date(DicomDate::from_y(1992).unwrap(), offset),
+                DicomDateTime::from_date(
                     DicomDate::from_ymd(1990, 10, 10).unwrap(),
                     FixedOffset::west(5 * 3600)
                 ),
-                DicomDateTime::from_dicom_date(
+                DicomDateTime::from_date(
                     DicomDate::from_y(1990).unwrap(),
                     FixedOffset::east(5 * 3600 + 60)
                 )
@@ -4248,7 +4248,7 @@ mod tests {
         // b"20121221093001+0100 "
         let offset = FixedOffset::east(1 * 3600);
         let val = PrimitiveValue::from(
-            DicomDateTime::from_dicom_date_and_time(
+            DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2012, 12, 21).unwrap(),
                 DicomTime::from_hms(9, 30, 1).unwrap(),
                 offset,
