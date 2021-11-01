@@ -98,11 +98,11 @@ pub enum DateComponent {
 /// // conversion from chrono value leads to a precise value
 /// assert_eq!(date.is_precise(), true);
 ///
-/// assert_eq!(date.to_encoded(), "19000503");
+/// assert_eq!(date.to_string(), "1900-05-03");
 /// # Ok(())
-/// }
+/// # }
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct DicomDate(DicomDateImpl);
 
 /// Represents a Dicom Time value with a partial precision,
@@ -134,7 +134,7 @@ pub struct DicomDate(DicomDateImpl);
 /// // value still not precise to microsecond
 /// assert_eq!(milli.is_precise(), false);
 ///
-/// assert_eq!(milli.to_encoded(), "123059.123");
+/// assert_eq!(milli.to_string(), "12:30:59.123");
 ///
 /// // for convenience, is precise enough to be retrieved as a NaiveTime
 /// assert_eq!(
@@ -147,9 +147,9 @@ pub struct DicomDate(DicomDateImpl);
 /// assert_eq!(time.is_precise(), true);
 ///
 /// # Ok(())
-/// }
+/// # }
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct DicomTime(DicomTimeImpl);
 
 /// `DicomDate` is internally represented as this enum.
@@ -190,7 +190,7 @@ enum DicomTimeImpl {
 /// let offset = FixedOffset::east(3600);
 ///
 /// // the least precise date-time value possible is a 'YYYY'
-/// let dt = DicomDateTime::from_dicom_date(
+/// let dt = DicomDateTime::from_date(
 ///     DicomDate::from_y(2020)?,
 ///     offset
 /// );
@@ -212,11 +212,11 @@ enum DicomTimeImpl {
 /// // conversion from chrono value leads to a precise value
 /// assert_eq!(dt.is_precise(), true);
 ///
-/// assert_eq!(dt.to_encoded(), "20201231235900.0+0100");
+/// assert_eq!(dt.to_string(), "2020-12-31 23:59:00.0 +01:00");
 /// # Ok(())
-/// }
+/// # }
 /// ```
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy)]
 pub struct DicomDateTime {
     date: DicomDate,
     time: Option<DicomTime>,
@@ -333,6 +333,16 @@ impl TryFrom<&NaiveDate> for DicomDate {
 impl fmt::Display for DicomDate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            DicomDate(DicomDateImpl::Year(y)) => write!(f, "{:04}", y),
+            DicomDate(DicomDateImpl::Month(y, m)) => write!(f, "{:04}-{:02}", y, m),
+            DicomDate(DicomDateImpl::Day(y, m, d)) => write!(f, "{:04}-{:02}-{:02}", y, m, d),
+        }
+    }
+}
+
+impl fmt::Debug for DicomDate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
             DicomDate(DicomDateImpl::Year(y)) => write!(f, "{:04}-MM-DD", y),
             DicomDate(DicomDateImpl::Month(y, m)) => write!(f, "{:04}-{:02}-DD", y, m),
             DicomDate(DicomDateImpl::Day(y, m, d)) => write!(f, "{:04}-{:02}-{:02}", y, m, d),
@@ -426,8 +436,20 @@ impl DicomTime {
             DicomTime(DicomTimeImpl::Fraction(_, _, s, _, _)) => Some(s),
         }
     }
-    /** Retrievies the fraction it's precision from a time as a reference */
-    pub fn fraction_and_precision(&self) -> Option<(&u32, &u8)> {
+    /** Retrievies the fraction of a second as a reference, if it has full (microsecond) precision. */
+    pub fn fraction(&self) -> Option<&u32> {
+        match self {
+            DicomTime(DicomTimeImpl::Hour(_)) => None,
+            DicomTime(DicomTimeImpl::Minute(_, _)) => None,
+            DicomTime(DicomTimeImpl::Second(_, _, _)) => None,
+            DicomTime(DicomTimeImpl::Fraction(_, _, _, f, fp)) => match fp {
+                6 => Some(f),
+                _ => None,
+            },
+        }
+    }
+    /** Retrievies the fraction of a second and it's precision from a time as a reference */
+    pub(crate) fn fraction_and_precision(&self) -> Option<(&u32, &u8)> {
         match self {
             DicomTime(DicomTimeImpl::Hour(_)) => None,
             DicomTime(DicomTimeImpl::Minute(_, _)) => None,
@@ -497,10 +519,36 @@ impl TryFrom<&NaiveTime> for DicomTime {
 impl fmt::Display for DicomTime {
     fn fmt(&self, frm: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DicomTime(DicomTimeImpl::Hour(h)) => write!(frm, "{:02}:mm:ss.F", h),
-            DicomTime(DicomTimeImpl::Minute(h, m)) => write!(frm, "{:02}:{:02}:ss.F", h, m),
+            DicomTime(DicomTimeImpl::Hour(h)) => write!(frm, "{:02}", h),
+            DicomTime(DicomTimeImpl::Minute(h, m)) => write!(frm, "{:02}:{:02}", h, m),
             DicomTime(DicomTimeImpl::Second(h, m, s)) => {
-                write!(frm, "{:02}:{:02}:{:02}.F", h, m, s)
+                write!(frm, "{:02}:{:02}:{:02}", h, m, s)
+            }
+            DicomTime(DicomTimeImpl::Fraction(h, m, s, f, fp)) => {
+                let sfrac = (u32::pow(10, *fp as u32) + f).to_string();
+                write!(
+                    frm,
+                    "{:02}:{:02}:{:02}.{}",
+                    h,
+                    m,
+                    s,
+                    match f {
+                        0 => "0",
+                        _ => sfrac.get(1..).unwrap(),
+                    }
+                )
+            }
+        }
+    }
+}
+
+impl fmt::Debug for DicomTime {
+    fn fmt(&self, frm: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DicomTime(DicomTimeImpl::Hour(h)) => write!(frm, "{:02}:mm:ss.FFFFFF", h),
+            DicomTime(DicomTimeImpl::Minute(h, m)) => write!(frm, "{:02}:{:02}:ss.FFFFFF", h, m),
+            DicomTime(DicomTimeImpl::Second(h, m, s)) => {
+                write!(frm, "{:02}:{:02}:{:02}.FFFFFF", h, m, s)
             }
             DicomTime(DicomTimeImpl::Fraction(h, m, s, f, _fp)) => {
                 write!(frm, "{:02}:{:02}:{:02}.{:F<6}", h, m, s, f)
@@ -513,7 +561,7 @@ impl DicomDateTime {
     /**
      * Constructs a new `DicomDateTime` from a `DicomDate` and a given `FixedOffset`.
      */
-    pub fn from_dicom_date(date: DicomDate, offset: FixedOffset) -> DicomDateTime {
+    pub fn from_date(date: DicomDate, offset: FixedOffset) -> DicomDateTime {
         DicomDateTime {
             date,
             time: None,
@@ -525,7 +573,7 @@ impl DicomDateTime {
      * Constructs a new `DicomDateTime` from a `DicomDate`, `DicomTime` and a given `FixedOffset`,
      * providing that `DicomDate` is precise.
      */
-    pub fn from_dicom_date_and_time(
+    pub fn from_date_and_time(
         date: DicomDate,
         time: DicomTime,
         offset: FixedOffset,
@@ -588,7 +636,7 @@ impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
             component: DateComponent::Second,
         })?;
 
-        DicomDateTime::from_dicom_date_and_time(
+        DicomDateTime::from_date_and_time(
             DicomDate::from_ymd(year, month, day)?,
             DicomTime::from_hms_micro(hour, minute, second, dt.nanosecond() / 1000)?,
             *dt.offset(),
@@ -598,9 +646,24 @@ impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
 
 impl fmt::Display for DicomDateTime {
     fn fmt(&self, frm: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // as DicomDateTime always contains a FixedOffset, it will always be written,
+        // even if it is zero.
+        // For absolute consistency between deserialized and serialized date-times,
+        // DicomDateTime would have to contain Some(FixedOffset)/None if none was parsed.
+        // storing an Option is useless, since a FixedOffset has to be available
+        // for conversion into chrono values
         match self.time {
             None => write!(frm, "{} {}", self.date, self.offset),
             Some(time) => write!(frm, "{} {} {}", self.date, time, self.offset),
+        }
+    }
+}
+
+impl fmt::Debug for DicomDateTime {
+    fn fmt(&self, frm: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.time {
+            None => write!(frm, "{:?} {:?}", self.date, self.offset),
+            Some(time) => write!(frm, "{:?} {:?} {}", self.date, time, self.offset),
         }
     }
 }
@@ -666,8 +729,18 @@ impl DicomTime {
             DicomTime(DicomTimeImpl::Hour(h)) => format!("{:02}", h),
             DicomTime(DicomTimeImpl::Minute(h, m)) => format!("{:02}{:02}", h, m),
             DicomTime(DicomTimeImpl::Second(h, m, s)) => format!("{:02}{:02}{:02}", h, m, s),
-            DicomTime(DicomTimeImpl::Fraction(h, m, s, f, _fp)) => {
-                format!("{:02}{:02}{:02}.{}", h, m, s, f)
+            DicomTime(DicomTimeImpl::Fraction(h, m, s, f, fp)) => {
+                let sfrac = (u32::pow(10, *fp as u32) + f).to_string();
+                format!(
+                    "{:02}{:02}{:02}.{}",
+                    h,
+                    m,
+                    s,
+                    match f {
+                        0 => "0",
+                        _ => sfrac.get(1..).unwrap(),
+                    }
+                )
             }
         }
     }
@@ -823,6 +896,11 @@ mod tests {
         );
 
         assert_eq!(
+            DicomTime::from_hms_milli(9, 1, 1, 1).unwrap(),
+            DicomTime(DicomTimeImpl::Fraction(9, 1, 1, 1, 3))
+        );
+
+        assert_eq!(
             DicomTime::try_from(&NaiveTime::from_hms_milli(16, 31, 28, 123)).unwrap(),
             DicomTime(DicomTimeImpl::Fraction(16, 31, 28, 123_000, 6))
         );
@@ -840,6 +918,24 @@ mod tests {
         assert_eq!(
             DicomTime::try_from(&NaiveTime::from_hms_micro(16, 31, 28, 0)).unwrap(),
             DicomTime(DicomTimeImpl::Fraction(16, 31, 28, 0, 6))
+        );
+
+        assert_eq!(
+            DicomTime::from_hmsf(9, 1, 1, 1, 4).unwrap().to_string(),
+            "09:01:01.0001"
+        );
+        assert_eq!(
+            DicomTime::from_hmsf(9, 1, 1, 0, 1).unwrap().to_string(),
+            "09:01:01.0"
+        );
+        assert_eq!(
+            DicomTime::from_hmsf(7, 55, 1, 1, 5).unwrap().to_encoded(),
+            "075501.00001"
+        );
+        // any precision for zero is just one zero
+        assert_eq!(
+            DicomTime::from_hmsf(9, 1, 1, 0, 6).unwrap().to_encoded(),
+            "090101.0"
         );
 
         assert!(matches!(
@@ -882,7 +978,7 @@ mod tests {
     fn test_dicom_datetime() {
         let default_offset = FixedOffset::east(0);
         assert_eq!(
-            DicomDateTime::from_dicom_date(
+            DicomDateTime::from_date(
                 DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 default_offset
             ),
@@ -894,7 +990,7 @@ mod tests {
         );
 
         assert_eq!(
-            DicomDateTime::from_dicom_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
+            DicomDateTime::from_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
                 .earliest()
                 .unwrap(),
             FixedOffset::east(0)
@@ -903,7 +999,7 @@ mod tests {
         );
 
         assert_eq!(
-            DicomDateTime::from_dicom_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
+            DicomDateTime::from_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
                 .latest()
                 .unwrap(),
             FixedOffset::east(0)
@@ -912,7 +1008,7 @@ mod tests {
         );
 
         assert_eq!(
-            DicomDateTime::from_dicom_date_and_time(
+            DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 DicomTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
@@ -925,7 +1021,7 @@ mod tests {
                 .and_hms_micro(23, 59, 59, 100_000)
         );
         assert_eq!(
-            DicomDateTime::from_dicom_date_and_time(
+            DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 DicomTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
@@ -967,7 +1063,7 @@ mod tests {
         );
 
         assert!(matches!(
-            DicomDateTime::from_dicom_date(
+            DicomDateTime::from_date(
                 DicomDate::from_ymd(2021, 2, 29).unwrap(),
                 default_offset
             )
@@ -976,7 +1072,7 @@ mod tests {
         ));
 
         assert!(matches!(
-            DicomDateTime::from_dicom_date_and_time(
+            DicomDateTime::from_date_and_time(
                 DicomDate::from_ym(2020, 2).unwrap(),
                 DicomTime::from_hms_milli(23, 59, 59, 999).unwrap(),
                 default_offset
@@ -987,7 +1083,7 @@ mod tests {
             })
         ));
         assert!(matches!(
-            DicomDateTime::from_dicom_date_and_time(
+            DicomDateTime::from_date_and_time(
                 DicomDate::from_y(1).unwrap(),
                 DicomTime::from_hms_micro(23, 59, 59, 10).unwrap(),
                 default_offset
@@ -999,7 +1095,7 @@ mod tests {
         ));
 
         assert!(matches!(
-            DicomDateTime::from_dicom_date_and_time(
+            DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2000, 1, 1).unwrap(),
                 DicomTime::from_hms_milli(23, 59, 59, 10).unwrap(),
                 default_offset

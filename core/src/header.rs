@@ -5,7 +5,7 @@
 use crate::value::{
     CastValueError, ConvertValueError, DicomDate, DicomDateTime, DicomTime, PrimitiveValue, Value,
 };
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
+use chrono::FixedOffset;
 use num_traits::NumCast;
 use snafu::{Backtrace, Snafu};
 use std::borrow::Cow;
@@ -400,7 +400,7 @@ where
     /// Retrieve and convert the primitive value into a date.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a `DicomDate` as described in [`PrimitiveValue::to_dicom_date`].
+    /// a `DicomDate` as described in [`PrimitiveValue::to_date`].
     ///
     /// Returns an error if the value is not primitive.
     ///
@@ -411,7 +411,7 @@ where
     /// Retrieve and convert the primitive value into a sequence of dates.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of `DicomDate` as described in [`PrimitiveValue::to_multi_dicom_date`].
+    /// a vector of `DicomDate` as described in [`PrimitiveValue::to_multi_date`].
     ///
     /// Returns an error if the value is not primitive.
     ///
@@ -422,7 +422,7 @@ where
     /// Retrieve and convert the primitive value into a time.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a `DicomTime` as described in [`PrimitiveValue::to_dicom_time`].
+    /// a `DicomTime` as described in [`PrimitiveValue::to_time`].
     ///
     /// Returns an error if the value is not primitive.
     ///
@@ -433,7 +433,7 @@ where
     /// Retrieve and convert the primitive value into a sequence of times.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of `DicomTime` as described in [`PrimitiveValue::to_multi_dicom_time`].
+    /// a vector of `DicomTime` as described in [`PrimitiveValue::to_multi_time`].
     ///
     /// Returns an error if the value is not primitive.
     ///
@@ -444,7 +444,7 @@ where
     /// Retrieve and convert the primitive value into a date-time.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a `DicomDateTime` as described in [`PrimitiveValue::to_dicom_datetime`].
+    /// a `DicomDateTime` as described in [`PrimitiveValue::to_datetime`].
     ///
     /// Returns an error if the value is not primitive.
     ///
@@ -458,7 +458,7 @@ where
     /// Retrieve and convert the primitive value into a sequence of date-times.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of `DicomDateTime` as described in [`PrimitiveValue::to_multi_dicom_datetime`].
+    /// a vector of `DicomDateTime` as described in [`PrimitiveValue::to_multi_datetime`].
     ///
     /// Returns an error if the value is not primitive.
     ///
@@ -552,9 +552,9 @@ impl<I, P> DataElement<I, P> {
         self.value().strings()
     }
 
-    impl_primitive_getters!(date, dates, Date, NaiveDate);
-    impl_primitive_getters!(time, times, Time, NaiveTime);
-    impl_primitive_getters!(datetime, datetimes, DateTime, DateTime<FixedOffset>);
+    impl_primitive_getters!(date, dates, Date, DicomDate);
+    impl_primitive_getters!(time, times, Time, DicomTime);
+    impl_primitive_getters!(datetime, datetimes, DateTime, DicomDateTime);
     impl_primitive_getters!(uint8, uint8_slice, U8, u8);
     impl_primitive_getters!(uint16, uint16_slice, U16, u16);
     impl_primitive_getters!(int16, int16_slice, I16, i16);

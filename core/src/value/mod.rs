@@ -20,7 +20,7 @@ pub use self::primitive::{
 };
 
 /// re-exported from chrono
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime};
+use chrono::FixedOffset;
 
 /// An aggregation of one or more elements in a value.
 pub type C<T> = SmallVec<[T; 2]>;
@@ -381,11 +381,11 @@ where
     /// Retrieve and convert the primitive value into a `DicomDate`.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a `DicomDate` as described in [`PrimitiveValue::to_dicom_date`].
+    /// a `DicomDate` as described in [`PrimitiveValue::to_date`].
     ///
     pub fn to_date(&self) -> Result<DicomDate, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_dicom_date(),
+            Value::Primitive(v) => v.to_date(),
             _ => Err(ConvertValueError {
                 requested: "DicomDate",
                 original: self.value_type(),
@@ -397,11 +397,11 @@ where
     /// Retrieve and convert the primitive value into a sequence of `DicomDate`s.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of `DicomDate` as described in [`PrimitiveValue::to_multi_dicom_date`].
+    /// a vector of `DicomDate` as described in [`PrimitiveValue::to_multi_date`].
     ///
     pub fn to_multi_date(&self) -> Result<Vec<DicomDate>, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_multi_dicom_date(),
+            Value::Primitive(v) => v.to_multi_date(),
             _ => Err(ConvertValueError {
                 requested: "DicomDate",
                 original: self.value_type(),
@@ -413,11 +413,11 @@ where
     /// Retrieve and convert the primitive value into a `DicomTime`.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a `DicomTime` as described in [`PrimitiveValue::to_dicom_time`].
+    /// a `DicomTime` as described in [`PrimitiveValue::to_time`].
     ///
     pub fn to_time(&self) -> Result<DicomTime, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_dicom_time(),
+            Value::Primitive(v) => v.to_time(),
             _ => Err(ConvertValueError {
                 requested: "DicomTime",
                 original: self.value_type(),
@@ -429,11 +429,11 @@ where
     /// Retrieve and convert the primitive value into a sequence of `DicomTime`s.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of `DicomTime` as described in [`PrimitiveValue::to_multi_dicom_time`].
+    /// a vector of `DicomTime` as described in [`PrimitiveValue::to_multi_time`].
     ///
     pub fn to_multi_time(&self) -> Result<Vec<DicomTime>, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_multi_dicom_time(),
+            Value::Primitive(v) => v.to_multi_time(),
             _ => Err(ConvertValueError {
                 requested: "DicomTime",
                 original: self.value_type(),
@@ -445,14 +445,14 @@ where
     /// Retrieve and convert the primitive value into a `DicomDateTime`.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a `DateTime` as described in [`PrimitiveValue::to_dicom_datetime`].
+    /// a `DateTime` as described in [`PrimitiveValue::to_datetime`].
     ///
     pub fn to_datetime(
         &self,
         default_offset: FixedOffset,
     ) -> Result<DicomDateTime, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_dicom_datetime(default_offset),
+            Value::Primitive(v) => v.to_datetime(default_offset),
             _ => Err(ConvertValueError {
                 requested: "DicomDateTime",
                 original: self.value_type(),
@@ -464,14 +464,14 @@ where
     /// Retrieve and convert the primitive value into a sequence of `DicomDateTime`s.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of `DicomDateTime` as described in [`PrimitiveValue::to_multi_dicom_datetime`].
+    /// a vector of `DicomDateTime` as described in [`PrimitiveValue::to_multi_datetime`].
     ///
     pub fn to_multi_datetime(
         &self,
         default_offset: FixedOffset,
     ) -> Result<Vec<DicomDateTime>, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_multi_dicom_datetime(default_offset),
+            Value::Primitive(v) => v.to_multi_datetime(default_offset),
             _ => Err(ConvertValueError {
                 requested: "DicomDateTime",
                 original: self.value_type(),
@@ -621,9 +621,9 @@ impl<I, P> Value<I, P> {
     }
 
     impl_primitive_getters!(tag, tags, Tags, Tag);
-    impl_primitive_getters!(date, dates, Date, NaiveDate);
-    impl_primitive_getters!(time, times, Time, NaiveTime);
-    impl_primitive_getters!(datetime, datetimes, DateTime, DateTime<FixedOffset>);
+    impl_primitive_getters!(date, dates, Date, DicomDate);
+    impl_primitive_getters!(time, times, Time, DicomTime);
+    impl_primitive_getters!(datetime, datetimes, DateTime, DicomDateTime);
     impl_primitive_getters!(uint8, uint8_slice, U8, u8);
     impl_primitive_getters!(uint16, uint16_slice, U16, u16);
     impl_primitive_getters!(int16, int16_slice, I16, i16);
@@ -740,27 +740,29 @@ mod tests {
         ));
 
         assert_eq!(
-            Value::new(PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(
+            Value::new(PrimitiveValue::Date(smallvec![DicomDate::from_ymd(
                 2014, 10, 12
-            )]))
+            )
+            .unwrap()]))
             .date()
-            .unwrap(),
-            NaiveDate::from_ymd(2014, 10, 12),
+            .ok(),
+            Some(DicomDate::from_ymd(2014, 10, 12).unwrap()),
         );
 
         assert_eq!(
             Value::new(PrimitiveValue::Date(
-                smallvec![NaiveDate::from_ymd(2014, 10, 12); 5]
+                smallvec![DicomDate::from_ymd(2014, 10, 12).unwrap(); 5]
             ))
             .dates()
             .unwrap(),
-            &[NaiveDate::from_ymd(2014, 10, 12); 5]
+            &[DicomDate::from_ymd(2014, 10, 12).unwrap(); 5]
         );
 
         assert!(matches!(
-            Value::new(PrimitiveValue::Date(smallvec![NaiveDate::from_ymd(
+            Value::new(PrimitiveValue::Date(smallvec![DicomDate::from_ymd(
                 2014, 10, 12
-            )]))
+            )
+            .unwrap()]))
             .time(),
             Err(CastValueError {
                 requested: "time",

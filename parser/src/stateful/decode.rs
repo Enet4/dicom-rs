@@ -4,15 +4,17 @@
 use crate::util::n_times;
 use chrono::FixedOffset;
 use dicom_core::header::{DataElementHeader, HasLength, Length, SequenceItemHeader, Tag, VR};
+use dicom_core::value::deserialize::{
+    parse_date_partial, parse_datetime_partial, parse_time_partial,
+};
 use dicom_core::value::PrimitiveValue;
-use dicom_core::value::deserialize::{parse_date, parse_datetime, parse_time};
 use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
+use dicom_encoding::decode::explicit_le::ExplicitVRLittleEndianDecoder;
 use dicom_encoding::decode::{BasicDecode, DecodeFrom};
 use dicom_encoding::text::{
     validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, SpecificCharacterSet,
     TextCodec, TextValidationOutcome,
 };
-use dicom_encoding::decode::explicit_le::ExplicitVRLittleEndianDecoder;
 use dicom_encoding::transfer_syntax::{DynDecoder, TransferSyntax};
 use smallvec::smallvec;
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
@@ -511,9 +513,11 @@ where
         let vec: Result<_> = buf
             .split(|b| *b == b'\\')
             .map(|part| {
-                parse_date(part).context(DeserializeValue {
-                    position: self.position,
-                })
+                parse_date_partial(part)
+                    .map(|t| t.0)
+                    .context(DeserializeValue {
+                        position: self.position,
+                    })
             })
             .collect();
         self.position += len as u64;
@@ -580,7 +584,7 @@ where
         let vec: Result<_> = buf
             .split(|b| *b == b'\\')
             .map(|part| {
-                parse_datetime(part, self.dt_utc_offset).context(DeserializeValue {
+                parse_datetime_partial(part, self.dt_utc_offset).context(DeserializeValue {
                     position: self.position,
                 })
             })
@@ -649,9 +653,11 @@ where
         let vec: std::result::Result<_, _> = buf
             .split(|b| *b == b'\\')
             .map(|part| {
-                parse_time(part).map(|t| t.0).context(DeserializeValue {
-                    position: self.position,
-                })
+                parse_time_partial(part)
+                    .map(|t| t.0)
+                    .context(DeserializeValue {
+                        position: self.position,
+                    })
             })
             .collect();
         self.position += len as u64;
@@ -1056,10 +1062,10 @@ mod tests {
     use dicom_core::header::{DataElementHeader, HasLength, Header, Length, SequenceItemHeader};
     use dicom_core::{Tag, VR};
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
-    use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
     use dicom_encoding::decode::{
         explicit_le::ExplicitVRLittleEndianDecoder, implicit_le::ImplicitVRLittleEndianDecoder,
     };
+    use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
     use std::io::{Cursor, Seek, SeekFrom};
 
     // manually crafting some DICOM data elements

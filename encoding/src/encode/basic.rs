@@ -249,7 +249,7 @@ impl BasicEncode for BasicEncoder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dicom_core::chrono::NaiveDate;
+    use dicom_core::value::DicomDate;
     use dicom_core::{PrimitiveValue, Tag};
 
     fn test_one_primitive_be(value: PrimitiveValue, raw: &[u8]) {
@@ -291,8 +291,8 @@ mod tests {
         test_one_primitive_le(
             PrimitiveValue::Date(
                 vec![
-                    NaiveDate::from_ymd(2016, 12, 01),
-                    NaiveDate::from_ymd(2123, 9, 13),
+                    DicomDate::from_ymd(2016, 12, 01).unwrap(),
+                    DicomDate::from_ymd(2123, 9, 13).unwrap(),
                 ]
                 .into(),
             ),
@@ -328,12 +328,12 @@ mod tests {
         test_one_primitive_be(
             PrimitiveValue::Date(
                 vec![
-                    NaiveDate::from_ymd(2016, 12, 01),
-                    NaiveDate::from_ymd(2123, 9, 13),
+                    DicomDate::from_ymd(2016, 12, 01).unwrap(),
+                    DicomDate::from_ym(2123, 9).unwrap(),
                 ]
                 .into(),
             ),
-            &*b"20161201\\21230913",
+            &*b"20161201\\212309",
         );
 
         test_one_primitive_be(
