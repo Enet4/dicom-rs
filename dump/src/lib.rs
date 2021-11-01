@@ -187,11 +187,11 @@ impl DumpOptions {
 
         let width = determine_width(self.width);
 
-        meta_dump(&mut to, &meta, width)?;
+        meta_dump(&mut to, meta, width)?;
 
         writeln!(to, "{:-<58}", "")?;
 
-        dump(&mut to, &obj, width, 0, self.no_text_limit)?;
+        dump(&mut to, obj, width, 0, self.no_text_limit)?;
 
         Ok(())
     }
@@ -223,7 +223,7 @@ impl DumpOptions {
 
         println!("{:-<65}", "");
 
-        dump(&mut to, &obj, width, 0, self.no_text_limit)?;
+        dump(&mut to, obj, width, 0, self.no_text_limit)?;
 
         Ok(())
     }
