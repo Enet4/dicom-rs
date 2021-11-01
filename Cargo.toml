@@ -9,6 +9,7 @@ members = [
     "dictionary-std",
     "dictionary-builder",
     "dcmdump",
+    "dump",
     "ul",
     "scpproxy",
     "echoscu",

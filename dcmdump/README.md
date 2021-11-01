@@ -3,6 +3,8 @@
 [![CratesIO](https://img.shields.io/crates/v/dcmdump.svg)](https://crates.io/crates/dcmdump)
 [![Documentation](https://docs.rs/dcmdump/badge.svg)](https://docs.rs/dcmdump)
 
+**Warning:** This tool is deprecated in favor of [`dicom-dump`](../dump).
+
 A command line utility for inspecting DICOM files.
 
 This tool is part of the [DICOM-rs](https://github.com/Enet4/dicom-rs) project.

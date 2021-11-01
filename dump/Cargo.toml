@@ -1,8 +1,8 @@
 [package]
-name = "dcmdump"
+name = "dicom-dump"
 version = "0.4.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
-description = "(DEPRECATED) A CLI tool for inspecting DICOM files"
+description = "A CLI tool for inspecting DICOM files"
 edition = "2018"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
@@ -10,11 +10,18 @@ categories = ["command-line-utilities"]
 keywords = ["cli", "dicom", "dump"]
 readme = "README.md"
 
+[lib]
+name = "dicom_dump"
+path = "src/lib.rs"
+
+[[bin]]
+name = "dicom-dump"
+path = "src/main.rs"
+
 [features]
 default = ['dicom/inventory-registry', 'dicom/backtraces']
 
 [dependencies]
-dicom-dump = { path = "../dump", version = "0.4.0" }
 dicom = { path = "../parent/", version = "0.4.0", default-features = false }
 term_size = "0.3.2"
 itertools = "0.10"
