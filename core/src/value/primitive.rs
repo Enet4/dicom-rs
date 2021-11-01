@@ -1885,7 +1885,7 @@ impl PrimitiveValue {
     /// date representation of YYYYMMDD is required. Otherwise, the operation fails.
     ///  
     /// Partial precision dates are handled by `DicomDate`, which can be retrieved
-    /// by `.to_dicom_date()`
+    /// by [`.to_date()`](PrimitiveValue::to_date).
     ///
     /// # Example
     ///
@@ -1974,7 +1974,7 @@ impl PrimitiveValue {
     /// date representation of YYYYMMDD is required. Otherwise, the operation fails.
     ///  
     /// Partial precision dates are handled by `DicomDate`, which can be retrieved
-    /// by `.to_multi_dicom_date()`
+    /// by [`.to_multi_date()`](PrimitiveValue::to_multi_date).
     ///
     /// # Example
     ///
@@ -2230,7 +2230,8 @@ impl PrimitiveValue {
     /// Users are advised that this method requires at least 1 out of 6 digits of the second
     /// fraction .F to be present. Otherwise, the operation fails.
     ///
-    /// Partial precision times are handled by `DicomTime`, which can be retrieved by `.to_dicom_time()`.
+    /// Partial precision times are handled by `DicomTime`,
+    /// which can be retrieved by [`.to_time()`](PrimitiveValue::to_time).
     ///
     /// # Example
     ///
@@ -2314,7 +2315,8 @@ impl PrimitiveValue {
     /// Users are advised that this method requires at least 1 out of 6 digits of the second
     /// fraction .F to be present. Otherwise, the operation fails.
     ///
-    /// Partial precision times are handled by `DicomTime`, which can be retrieved by `.to_multi_dicom_time()`.
+    /// Partial precision times are handled by `DicomTime`,
+    /// which can be retrieved by [`.to_multi_time()`](PrimitiveValue::to_multi_time).
     ///
     /// # Example
     ///
@@ -2613,7 +2615,8 @@ impl PrimitiveValue {
     /// Users are advised that this method requires at least 1 out of 6 digits of the second
     /// fraction .F to be present. Otherwise, the operation fails.
     ///
-    /// Partial precision date-times are handled by `DicomDateTime`, which can be retrieved by `.to_dicom_datetime()`.
+    /// Partial precision date-times are handled by `DicomDateTime`,
+    /// which can be retrieved by [`.to_datetime()`](PrimitiveValue::to_datetime).
     ///
     /// # Example
     ///
@@ -2715,7 +2718,8 @@ impl PrimitiveValue {
     /// Users are advised that this method requires at least 1 out of 6 digits of the second
     /// fraction .F to be present. Otherwise, the operation fails.
     ///
-    /// Partial precision date-times are handled by `DicomDateTime`, which can be retrieved by `.to_multi_dicom_datetime()`.
+    /// Partial precision date-times are handled by `DicomDateTime`,
+    /// which can be retrieved by [`.to_multi_datetime()`](PrimitiveValue::to_multi_datetime).
     ///
     /// # Example
     ///

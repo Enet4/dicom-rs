@@ -381,7 +381,7 @@ where
     /// Retrieve and convert the primitive value into a `DicomDate`.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a `DicomDate` as described in [`PrimitiveValue::to_dicom_date`].
+    /// a `DicomDate` as described in [`PrimitiveValue::to_date`].
     ///
     pub fn to_date(&self) -> Result<DicomDate, ConvertValueError> {
         match self {
@@ -397,7 +397,7 @@ where
     /// Retrieve and convert the primitive value into a sequence of `DicomDate`s.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of `DicomDate` as described in [`PrimitiveValue::to_multi_dicom_date`].
+    /// a vector of `DicomDate` as described in [`PrimitiveValue::to_multi_date`].
     ///
     pub fn to_multi_date(&self) -> Result<Vec<DicomDate>, ConvertValueError> {
         match self {
@@ -413,7 +413,7 @@ where
     /// Retrieve and convert the primitive value into a `DicomTime`.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a `DicomTime` as described in [`PrimitiveValue::to_dicom_time`].
+    /// a `DicomTime` as described in [`PrimitiveValue::to_time`].
     ///
     pub fn to_time(&self) -> Result<DicomTime, ConvertValueError> {
         match self {
@@ -429,7 +429,7 @@ where
     /// Retrieve and convert the primitive value into a sequence of `DicomTime`s.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of `DicomTime` as described in [`PrimitiveValue::to_multi_dicom_time`].
+    /// a vector of `DicomTime` as described in [`PrimitiveValue::to_multi_time`].
     ///
     pub fn to_multi_time(&self) -> Result<Vec<DicomTime>, ConvertValueError> {
         match self {
@@ -445,7 +445,7 @@ where
     /// Retrieve and convert the primitive value into a `DicomDateTime`.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a `DateTime` as described in [`PrimitiveValue::to_dicom_datetime`].
+    /// a `DateTime` as described in [`PrimitiveValue::to_datetime`].
     ///
     pub fn to_datetime(
         &self,
@@ -464,7 +464,7 @@ where
     /// Retrieve and convert the primitive value into a sequence of `DicomDateTime`s.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of `DicomDateTime` as described in [`PrimitiveValue::to_multi_dicom_datetime`].
+    /// a vector of `DicomDateTime` as described in [`PrimitiveValue::to_multi_datetime`].
     ///
     pub fn to_multi_datetime(
         &self,
