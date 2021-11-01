@@ -47,6 +47,7 @@ use std::str::FromStr;
 
 /// An enum of all supported output formats for dumping DICOM data.
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+#[non_exhaustive]
 pub enum DumpFormat {
     /// The main DICOM dump format adopted by the project.
     ///
