@@ -1,8 +1,9 @@
 use std::{fs::File, io::BufReader};
 
 use dicom_core::value::Value;
+use dicom_dictionary_std::tags;
 use dicom_encoding::text::SpecificCharacterSet;
-use dicom_object::{mem::InMemDicomObject, open_file};
+use dicom_object::{file::OpenFileOptions, mem::InMemDicomObject, open_file};
 use dicom_test_files;
 
 #[test]
@@ -30,6 +31,23 @@ fn test_ob_value_with_unknown_length() {
             panic!("expected a pixel sequence, but got {:?}", value);
         }
     }
+}
+
+#[test]
+fn test_read_until_pixel_data() {
+    let path =
+        dicom_test_files::path("pydicom/JPEG2000.dcm").expect("test DICOM file should exist");
+    let object = OpenFileOptions::new()
+        .read_until(tags::PIXEL_DATA)
+        .open_file(&path)
+        .expect("File should open successfully");
+
+    // contains other elements such as modality
+    let element = object.element(tags::MODALITY).unwrap();
+    assert_eq!(element.value().to_str().unwrap(), "NM");
+
+    // but does not contain pixel data
+    assert!(matches!(object.element(tags::PIXEL_DATA), Err(dicom_object::Error::NoSuchDataElementTag { .. })));
 }
 
 #[test]
