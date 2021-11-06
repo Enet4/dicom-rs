@@ -47,22 +47,12 @@ where
 ///     .open_file("path/to/file.dcm")?;
 /// # Result::<(), Box<dyn std::error::Error>>::Ok(())
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 #[non_exhaustive]
 pub struct OpenFileOptions<D = StandardDataDictionary, T = TransferSyntaxRegistry> {
     data_dictionary: D,
     ts_index: T,
     read_until: Option<Tag>,
-}
-
-impl Default for OpenFileOptions {
-    fn default() -> Self {
-        Self {
-            data_dictionary: StandardDataDictionary,
-            ts_index: TransferSyntaxRegistry,
-            read_until: None,
-        }
-    }
 }
 
 impl OpenFileOptions {
