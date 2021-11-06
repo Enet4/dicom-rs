@@ -193,6 +193,11 @@ pub enum Error {
         backtrace: Backtrace,
         source: std::io::Error,
     },
+    /// Could not read preamble bytes
+    ReadPreambleBytes {
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
     #[snafu(display("Could not parse meta group data set"))]
     ParseMetaDataSet {
         #[snafu(backtrace)]

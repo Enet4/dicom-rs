@@ -15,7 +15,7 @@ pub fn from_reader<F>(file: F) -> Result<DefaultDicomObject>
 where
     F: Read,
 {
-    DefaultDicomObject::from_reader(file)
+    OpenFileOptions::new().from_reader(file)
 }
 
 /// Create a DICOM object by reading from a file.
@@ -53,6 +53,7 @@ pub struct OpenFileOptions<D = StandardDataDictionary, T = TransferSyntaxRegistr
     data_dictionary: D,
     ts_index: T,
     read_until: Option<Tag>,
+    read_preamble: ReadPreamble,
 }
 
 impl OpenFileOptions {
@@ -81,6 +82,12 @@ impl<D, T> OpenFileOptions<D, T> {
         self
     }
 
+    /// Set whether to read the 128-byte DICOM file preamble.
+    pub fn read_preamble(mut self, option: ReadPreamble) -> Self {
+        self.read_preamble = option;
+        self
+    }
+
     /// Set the transfer syntax index to use when reading the file.
     pub fn tranfer_syntax_index<Tr>(self, ts_index: Tr) -> OpenFileOptions<D, Tr>
     where
@@ -89,6 +96,7 @@ impl<D, T> OpenFileOptions<D, T> {
         OpenFileOptions {
             data_dictionary: self.data_dictionary,
             read_until: self.read_until,
+            read_preamble: self.read_preamble,
             ts_index,
         }
     }
@@ -102,6 +110,7 @@ impl<D, T> OpenFileOptions<D, T> {
         OpenFileOptions {
             data_dictionary: dict,
             read_until: self.read_until,
+            read_preamble: self.read_preamble,
             ts_index: self.ts_index,
         }
     }
@@ -119,6 +128,7 @@ impl<D, T> OpenFileOptions<D, T> {
             self.data_dictionary,
             self.ts_index,
             self.read_until,
+            self.read_preamble,
         )
     }
 
@@ -139,6 +149,28 @@ impl<D, T> OpenFileOptions<D, T> {
             self.data_dictionary,
             self.ts_index,
             self.read_until,
+            self.read_preamble,
         )
+    }
+}
+
+/// An enumerate of supported options for 
+/// whether to read the 128-byte DICOM file preamble.
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+pub enum ReadPreamble {
+    /// Read the preamble only when opening a file by path,
+    /// and do not read the preamble when reading from a byte source.
+    Auto,
+    /// Never read the preamble,
+    /// thus assuming that the original source does not have it.
+    Never,
+    /// Always read the preamble first,
+    /// thus assuming that the original source always has it.
+    Always,
+}
+
+impl Default for ReadPreamble {
+    fn default() -> Self {
+        ReadPreamble::Auto
     }
 }

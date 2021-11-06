@@ -8,12 +8,13 @@ use std::io::{BufReader, Read};
 use std::path::Path;
 use std::{collections::BTreeMap, io::Write};
 
+use crate::file::ReadPreamble;
 use crate::{meta::FileMetaTable, FileMetaTableBuilder};
 use crate::{
     BuildMetaTable, CreateParser, CreatePrinter, DicomObject, FileDicomObject, MissingElementValue,
     NoSuchAttributeName, NoSuchDataElementAlias, NoSuchDataElementTag, OpenFile, ParseMetaDataSet,
-    PrematureEnd, PrepareMetaTable, PrintDataSet, ReadFile, ReadToken, Result, UnexpectedToken,
-    UnsupportedTransferSyntax,
+    PrematureEnd, PrepareMetaTable, PrintDataSet, ReadFile, ReadPreambleBytes, ReadToken, Result,
+    UnexpectedToken, UnsupportedTransferSyntax,
 };
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::{HasLength, Header};
@@ -223,7 +224,7 @@ where
         P: AsRef<Path>,
         R: TransferSyntaxIndex,
     {
-        Self::open_file_with_all_options(path, dict, ts_index, None)
+        Self::open_file_with_all_options(path, dict, ts_index, None, ReadPreamble::Auto)
     }
 
     pub(crate) fn open_file_with_all_options<P: AsRef<Path>, R>(
@@ -231,6 +232,7 @@ where
         dict: D,
         ts_index: R,
         read_until: Option<Tag>,
+        read_preamble: ReadPreamble,
     ) -> Result<Self>
     where
         P: AsRef<Path>,
@@ -240,8 +242,7 @@ where
         let mut file =
             BufReader::new(File::open(path).with_context(|| OpenFile { filename: path })?);
 
-        // skip preamble
-        {
+        if read_preamble == ReadPreamble::Auto || read_preamble == ReadPreamble::Always {
             let mut buf = [0u8; 128];
             // skip the preamble
             file.read_exact(&mut buf)
@@ -302,15 +303,28 @@ where
         S: Read,
         R: TransferSyntaxIndex,
     {
-        Self::from_reader_with_all_options(src, dict, ts_index, None)
+        Self::from_reader_with_all_options(src, dict, ts_index, None, ReadPreamble::Auto)
     }
 
-    pub(crate) fn from_reader_with_all_options<'s, S: 's, R>(src: S, dict: D, ts_index: R, read_until: Option<Tag>) -> Result<Self>
+    pub(crate) fn from_reader_with_all_options<'s, S: 's, R>(
+        src: S,
+        dict: D,
+        ts_index: R,
+        read_until: Option<Tag>,
+        read_preamble: ReadPreamble,
+    ) -> Result<Self>
     where
         S: Read,
         R: TransferSyntaxIndex,
     {
         let mut file = BufReader::new(src);
+
+        if read_preamble == ReadPreamble::Always {
+            // skip preamble
+            let mut buf = [0u8; 128];
+            // skip the preamble
+            file.read_exact(&mut buf).context(ReadPreambleBytes)?;
+        }
 
         // read metadata header
         let meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSet)?;
