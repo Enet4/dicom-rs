@@ -21,30 +21,33 @@ remaining intrinsically fast and safe to use.
 - [`encoding`](encoding) contains DICOM data encoding and decoding primitives.
 - [`parser`](parser) provides a middle-level abstraction for the parsing and printing of DICOM data sets.
 - [`object`](object) provides a high-level abstraction of DICOM objects and functions for reading and writing DICOM files.
+- [`pixeldata`](pixeldata) enables the conversion of DICOM objects into images and multidimensional arrays.
 - [`dictionary-std`](dictionary-std) contains a Rust definition of the standard data dictionary.
 - [`transfer-syntax-registry`](transfer-syntax-registry) contains a registry of transfer syntax specifications.
 - [`ul`](ul) implements the DICOM upper layer protocol.
 
 ### Tools:
 
-- [`dcmdump`](dcmdump) is a command-line application for inspecting DICOM files.
-- [`dictionary-builder`](dictionary-builder) is a Rust application that generates code and
-  other data structures for a DICOM standard dictionary using entries from the official website.
+- [`dump`](dump) is a command-line application for inspecting DICOM files.
 - [`scpproxy`](scpproxy) implements the Proxy service class provider.
 - [`echoscu`](echoscu) implements a Verification service class user.
 - [`storescu`](storescu) implements a Storage service class user.
 
+### Development tools:
+
+- [`dictionary-builder`](dictionary-builder) is a Rust application that generates code and
+  other data structures for a DICOM standard dictionary.
+
 ## Using as a library
 
-[`dicom-object`](object) is currently the most usable crate for reading DICOM objects from a file or a similar source.
-As an alternative, the parent crate [`dicom`](parent) can be added instead, which aggregates the key components of the
-full library, including `dicom-object`.
+The parent crate [`dicom`](parent) aggregates the key components of the full library.
+[`dicom::object`](object) is currently the most usable crate for reading DICOM objects from a file or a similar source.
+As an alternative, [`dicom_object`](object) can be used directly.
 
 An example of use follows. For more details, please visit the [`dicom-object` documentation](https://docs.rs/dicom-object).
 
 ```rust
-use dicom_object::open_file;
-use dicom_object::Result;
+use dicom::object::open_file;
 
 let obj = open_file("0001.dcm")?;
 let patient_name = obj.element_by_name("PatientName")?.to_str()?;
@@ -56,15 +59,16 @@ let modality = obj.element_by_name("Modality")?.to_str()?;
 You can use Cargo to build all crates in the repository.
 
 ```sh
-cargo build --release
+cargo build
 ```
 
 ## Roadmap & Contributing
 
-This project is a work in progress, but actively developed.
+This project is under active development.
 
 Your feedback during the development of these solutions is welcome. Please see the [wiki](https://github.com/Enet4/dicom-rs/wiki)
 for additional guidelines related to the project's roadmap.
+See also the [contributor guidelines](CONTRIBUTING.md) and the project's [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
