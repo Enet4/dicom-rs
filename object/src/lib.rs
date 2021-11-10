@@ -5,9 +5,12 @@
 //! The end user should prefer using this abstraction when dealing with DICOM
 //! objects.
 //!
+//! Loading a DICOM file can be done with easily via the function [`open_file`].
+//! For additional file reading options, use [`OpenFileOptions`].
+//!
 //! # Examples
 //!
-//! Loading a DICOM file and reading some attributes by their standard alias:
+//! Read an object and fetch some attributes by their standard alias:
 //!
 //! ```no_run
 //! use dicom_object::open_file;
@@ -17,6 +20,19 @@
 //! let modality = obj.element_by_name("Modality")?.to_str()?;
 //! # Ok(())
 //! # }
+//! ```
+//! 
+//! The current default implementation places the full DICOM object in memory.
+//! The pixel data and following elements can be ignored
+//! by using [`OpenFileOptions`]:
+//! 
+//! ```no_run
+//! use dicom_object::OpenFileOptions;
+//! 
+//! let obj = OpenFileOptions::new()
+//!     .read_until(dicom_dictionary_std::tags::PIXEL_DATA)
+//!     .open_file("0002.dcm")?;
+//! # Result::<(), dicom_object::Error>::Ok(())
 //! ```
 //!
 //! Elements can also be fetched by tag.
@@ -92,7 +108,6 @@
 //! # run().unwrap();
 //! ```
 pub mod file;
-pub mod loader;
 pub mod mem;
 pub mod meta;
 #[deprecated(
@@ -104,7 +119,7 @@ pub mod tokens;
 
 mod util;
 
-pub use crate::file::{from_reader, open_file};
+pub use crate::file::{OpenFileOptions, from_reader, open_file};
 pub use crate::mem::InMemDicomObject;
 pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
 use dicom_core::DataDictionary;
@@ -112,7 +127,7 @@ pub use dicom_core::Tag;
 pub use dicom_dictionary_std::StandardDataDictionary;
 
 /// The default implementation of a root DICOM object.
-pub type DefaultDicomObject = FileDicomObject<mem::InMemDicomObject<StandardDataDictionary>>;
+pub type DefaultDicomObject<D = StandardDataDictionary> = FileDicomObject<mem::InMemDicomObject<D>>;
 
 use dicom_core::header::Header;
 use dicom_encoding::adapters::{PixelDataObject, RawPixelData};
@@ -174,6 +189,11 @@ pub enum Error {
     #[snafu(display("Could not read from file '{}'", filename.display()))]
     ReadFile {
         filename: std::path::PathBuf,
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+    /// Could not read preamble bytes
+    ReadPreambleBytes {
         backtrace: Backtrace,
         source: std::io::Error,
     },

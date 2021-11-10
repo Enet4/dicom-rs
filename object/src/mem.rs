@@ -8,12 +8,13 @@ use std::io::{BufReader, Read};
 use std::path::Path;
 use std::{collections::BTreeMap, io::Write};
 
+use crate::file::ReadPreamble;
 use crate::{meta::FileMetaTable, FileMetaTableBuilder};
 use crate::{
     BuildMetaTable, CreateParser, CreatePrinter, DicomObject, FileDicomObject, MissingElementValue,
     NoSuchAttributeName, NoSuchDataElementAlias, NoSuchDataElementTag, OpenFile, ParseMetaDataSet,
-    PrematureEnd, PrepareMetaTable, PrintDataSet, ReadFile, ReadToken, Result, UnexpectedToken,
-    UnsupportedTransferSyntax,
+    PrematureEnd, PrepareMetaTable, PrintDataSet, ReadFile, ReadPreambleBytes, ReadToken, Result,
+    UnexpectedToken, UnsupportedTransferSyntax,
 };
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::{HasLength, Header};
@@ -223,12 +224,25 @@ where
         P: AsRef<Path>,
         R: TransferSyntaxIndex,
     {
+        Self::open_file_with_all_options(path, dict, ts_index, None, ReadPreamble::Auto)
+    }
+
+    pub(crate) fn open_file_with_all_options<P: AsRef<Path>, R>(
+        path: P,
+        dict: D,
+        ts_index: R,
+        read_until: Option<Tag>,
+        read_preamble: ReadPreamble,
+    ) -> Result<Self>
+    where
+        P: AsRef<Path>,
+        R: TransferSyntaxIndex,
+    {
         let path = path.as_ref();
         let mut file =
             BufReader::new(File::open(path).with_context(|| OpenFile { filename: path })?);
 
-        // skip preamble
-        {
+        if read_preamble == ReadPreamble::Auto || read_preamble == ReadPreamble::Always {
             let mut buf = [0u8; 128];
             // skip the preamble
             file.read_exact(&mut buf)
@@ -247,7 +261,13 @@ where
 
             Ok(FileDicomObject {
                 meta,
-                obj: InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?,
+                obj: InMemDicomObject::build_object(
+                    &mut dataset,
+                    dict,
+                    false,
+                    Length::UNDEFINED,
+                    read_until,
+                )?,
             })
         } else {
             UnsupportedTransferSyntax {
@@ -283,7 +303,28 @@ where
         S: Read,
         R: TransferSyntaxIndex,
     {
+        Self::from_reader_with_all_options(src, dict, ts_index, None, ReadPreamble::Auto)
+    }
+
+    pub(crate) fn from_reader_with_all_options<'s, S: 's, R>(
+        src: S,
+        dict: D,
+        ts_index: R,
+        read_until: Option<Tag>,
+        read_preamble: ReadPreamble,
+    ) -> Result<Self>
+    where
+        S: Read,
+        R: TransferSyntaxIndex,
+    {
         let mut file = BufReader::new(src);
+
+        if read_preamble == ReadPreamble::Always {
+            // skip preamble
+            let mut buf = [0u8; 128];
+            // skip the preamble
+            file.read_exact(&mut buf).context(ReadPreambleBytes)?;
+        }
 
         // read metadata header
         let meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSet)?;
@@ -294,7 +335,13 @@ where
             let mut dataset =
                 DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs, Default::default())
                     .context(CreateParser)?;
-            let obj = InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)?;
+            let obj = InMemDicomObject::build_object(
+                &mut dataset,
+                dict,
+                false,
+                Length::UNDEFINED,
+                read_until,
+            )?;
             Ok(FileDicomObject { meta, obj })
         } else {
             UnsupportedTransferSyntax {
@@ -368,7 +415,7 @@ where
         D: DataDictionary,
     {
         let mut dataset = DataSetReader::new(decoder, Default::default());
-        InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)
+        InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
     }
 
     /// Read an object from a source,
@@ -403,7 +450,7 @@ where
         let mut dataset =
             DataSetReader::new_with_dictionary(from, dict.clone(), ts, cs, Default::default())
                 .context(CreateParser)?;
-        InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED)
+        InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
     }
 
     // Standard methods follow. They are not placed as a trait implementation
@@ -563,7 +610,13 @@ where
     // private methods
 
     /// Build an object by consuming a data set parser.
-    fn build_object<I: ?Sized>(dataset: &mut I, dict: D, in_item: bool, len: Length) -> Result<Self>
+    fn build_object<I: ?Sized>(
+        dataset: &mut I,
+        dict: D,
+        in_item: bool,
+        len: Length,
+        read_until: Option<Tag>,
+    ) -> Result<Self>
     where
         I: Iterator<Item = ParserResult<DataToken>>,
     {
@@ -572,10 +625,22 @@ where
         while let Some(token) = dataset.next() {
             let elem = match token.context(ReadToken)? {
                 DataToken::PixelSequenceStart => {
+                    // stop reading if reached `read_until` tag
+                    if read_until
+                        .map(|t| t <= Tag(0x7fe0, 0x0010))
+                        .unwrap_or(false)
+                    {
+                        break;
+                    }
                     let value = InMemDicomObject::build_encapsulated_data(&mut *dataset)?;
                     DataElement::new(Tag(0x7fe0, 0x0010), VR::OB, value)
                 }
                 DataToken::ElementHeader(header) => {
+                    // stop reading if reached `read_until` tag
+                    if read_until.map(|t| t <= header.tag).unwrap_or(false) {
+                        break;
+                    }
+
                     // fetch respective value, place it in the entries
                     let next_token = dataset.next().context(MissingElementValue)?;
                     match next_token.context(ReadToken)? {
@@ -591,6 +656,11 @@ where
                     }
                 }
                 DataToken::SequenceStart { tag, len } => {
+                    // stop reading if reached `read_until` tag
+                    if read_until.map(|t| t <= tag).unwrap_or(false) {
+                        break;
+                    }
+
                     // delegate sequence building to another function
                     let items = Self::build_sequence(tag, len, &mut *dataset, &dict)?;
                     DataElement::new_with_len(
@@ -614,9 +684,7 @@ where
 
     /// Build an encapsulated pixel data by collecting all fragments into an
     /// in-memory DICOM value.
-    fn build_encapsulated_data<I>(
-        dataset: I,
-    ) -> Result<Value<InMemDicomObject<D>, InMemFragment>>
+    fn build_encapsulated_data<I>(dataset: I) -> Result<Value<InMemDicomObject<D>, InMemFragment>>
     where
         I: Iterator<Item = ParserResult<DataToken>>,
     {
@@ -683,7 +751,13 @@ where
         while let Some(token) = dataset.next() {
             match token.context(ReadToken)? {
                 DataToken::ItemStart { len } => {
-                    items.push(Self::build_object(&mut *dataset, dict.clone(), true, len)?);
+                    items.push(Self::build_object(
+                        &mut *dataset,
+                        dict.clone(),
+                        true,
+                        len,
+                        None,
+                    )?);
                 }
                 DataToken::SequenceEnd => {
                     return Ok(items);
@@ -1162,6 +1236,7 @@ mod tests {
             StandardDataDictionary,
             false,
             Length::UNDEFINED,
+            None,
         )
         .unwrap();
 
@@ -1277,6 +1352,7 @@ mod tests {
             StandardDataDictionary,
             false,
             Length::UNDEFINED,
+            None,
         )
         .unwrap();
 
@@ -1384,6 +1460,7 @@ mod tests {
             StandardDataDictionary,
             false,
             Length::UNDEFINED,
+            None,
         )
         .unwrap();
 
