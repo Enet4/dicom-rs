@@ -13,8 +13,8 @@ readme = "README.md"
 [dependencies]
 byteordered = "0.6"
 dicom-encoding = { path = "../encoding/", version = "0.5.0-rc.1" }
-snafu = "0.6.8"
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.5.0-rc.1" }
+snafu = "0.7.0-beta.2"
 
 [dev-dependencies]
 matches = "0.1.8"
