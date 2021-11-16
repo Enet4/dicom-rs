@@ -116,7 +116,7 @@ fn run(
             let scp_reader_thread: JoinHandle<Result<()>>;
 
             {
-                let mut reader = scu_stream.try_clone().context(CloneSocket)?;
+                let mut reader = scu_stream.try_clone().context(CloneSocketSnafu)?;
                 let message_tx = message_tx.clone();
                 scu_reader_thread = thread::spawn(move || {
                     loop {
@@ -127,14 +127,14 @@ fn run(
                                         to: ProviderType::Scp,
                                         pdu,
                                     })
-                                    .context(SendMessage)?;
+                                    .context(SendMessageSnafu)?;
                             }
                             Err(dicom_ul::pdu::reader::Error::NoPduAvailable { .. }) => {
                                 message_tx
                                     .send(ThreadMessage::Shutdown {
                                         initiator: ProviderType::Scu,
                                     })
-                                    .context(SendMessage)?;
+                                    .context(SendMessageSnafu)?;
                                 break;
                             }
                             Err(err) => {
@@ -143,7 +143,7 @@ fn run(
                                         from: ProviderType::Scu,
                                         err,
                                     })
-                                    .context(SendMessage)?;
+                                    .context(SendMessageSnafu)?;
                                 break;
                             }
                         }
@@ -154,7 +154,7 @@ fn run(
             }
 
             {
-                let mut reader = scp_stream.try_clone().context(CloneSocket)?;
+                let mut reader = scp_stream.try_clone().context(CloneSocketSnafu)?;
                 scp_reader_thread = thread::spawn(move || {
                     loop {
                         match read_pdu(&mut reader, max_pdu_length, strict) {
@@ -164,14 +164,14 @@ fn run(
                                         to: ProviderType::Scu,
                                         pdu,
                                     })
-                                    .context(SendMessage)?;
+                                    .context(SendMessageSnafu)?;
                             }
                             Err(dicom_ul::pdu::reader::Error::NoPduAvailable { .. }) => {
                                 message_tx
                                     .send(ThreadMessage::Shutdown {
                                         initiator: ProviderType::Scp,
                                     })
-                                    .context(SendMessage)?;
+                                    .context(SendMessageSnafu)?;
                                 break;
                             }
                             Err(err) => {
@@ -180,7 +180,7 @@ fn run(
                                         from: ProviderType::Scp,
                                         err,
                                     })
-                                    .context(SendMessage)?;
+                                    .context(SendMessageSnafu)?;
                                 break;
                             }
                         }
@@ -192,7 +192,7 @@ fn run(
             let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
 
             loop {
-                let message = message_rx.recv().context(ReceiveMessage)?;
+                let message = message_rx.recv().context(ReceiveMessageSnafu)?;
                 match message {
                     ThreadMessage::SendPdu { to, pdu } => match to {
                         ProviderType::Scu => {
@@ -231,17 +231,17 @@ fn run(
                 }
             }
 
-            scu_stream.shutdown(Shutdown::Read).context(CloseSocket)?;
-            scu_reader_thread.join().ok().context(ScuReaderPanic)??;
+            scu_stream.shutdown(Shutdown::Read).context(CloseSocketSnafu)?;
+            scu_reader_thread.join().ok().context(ScuReaderPanicSnafu)??;
 
-            scp_stream.shutdown(Shutdown::Read).context(CloseSocket)?;
-            scp_reader_thread.join().ok().context(ScpReaderPanic)??;
+            scp_stream.shutdown(Shutdown::Read).context(CloseSocketSnafu)?;
+            scp_reader_thread.join().ok().context(ScpReaderPanicSnafu)??;
 
             Ok(())
         }
         Err(e) => {
-            scu_stream.shutdown(Shutdown::Both).context(CloseSocket)?;
-            Err(e).context(Connect)
+            scu_stream.shutdown(Shutdown::Both).context(CloseSocketSnafu)?;
+            Err(e).context(ConnectSnafu)
         }
     }
 }

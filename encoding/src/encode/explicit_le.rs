@@ -85,7 +85,7 @@ impl Encode for ExplicitVRLittleEndianEncoder {
         let mut buf = [0u8, 4];
         LittleEndian::write_u16(&mut buf[..], tag.group());
         LittleEndian::write_u16(&mut buf[2..], tag.element());
-        to.write_all(&buf).context(WriteTag)
+        to.write_all(&buf).context(WriteTagSnafu)
     }
 
     fn encode_element_header<W>(&self, mut to: W, de: DataElementHeader) -> Result<usize>
@@ -111,7 +111,7 @@ impl Encode for ExplicitVRLittleEndianEncoder {
                 buf[5] = vr_bytes[1];
                 // buf[6..8] is kept zero'd
                 LittleEndian::write_u32(&mut buf[8..], de.length().0);
-                to.write_all(&buf).context(WriteHeader)?;
+                to.write_all(&buf).context(WriteHeaderSnafu)?;
                 Ok(12)
             }
             _ => {
@@ -122,7 +122,7 @@ impl Encode for ExplicitVRLittleEndianEncoder {
                 buf[4] = vr_bytes[0];
                 buf[5] = vr_bytes[1];
                 LittleEndian::write_u16(&mut buf[6..], de.length().0 as u16);
-                to.write_all(&buf).context(WriteHeader)?;
+                to.write_all(&buf).context(WriteHeaderSnafu)?;
                 Ok(8)
             }
         }
@@ -136,7 +136,7 @@ impl Encode for ExplicitVRLittleEndianEncoder {
         LittleEndian::write_u16(&mut buf, 0xFFFE);
         LittleEndian::write_u16(&mut buf[2..], 0xE000);
         LittleEndian::write_u32(&mut buf[4..], len);
-        to.write_all(&buf).context(WriteItemHeader)
+        to.write_all(&buf).context(WriteItemHeaderSnafu)
     }
 
     fn encode_item_delimiter<W>(&self, mut to: W) -> Result<()>
@@ -146,7 +146,7 @@ impl Encode for ExplicitVRLittleEndianEncoder {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf, 0xFFFE);
         LittleEndian::write_u16(&mut buf[2..], 0xE00D);
-        to.write_all(&buf).context(WriteItemDelimiter)
+        to.write_all(&buf).context(WriteItemDelimiterSnafu)
     }
 
     fn encode_sequence_delimiter<W>(&self, mut to: W) -> Result<()>
@@ -156,7 +156,7 @@ impl Encode for ExplicitVRLittleEndianEncoder {
         let mut buf = [0u8; 8];
         LittleEndian::write_u16(&mut buf, 0xFFFE);
         LittleEndian::write_u16(&mut buf[2..], 0xE0DD);
-        to.write_all(&buf).context(WriteSequenceDelimiter)
+        to.write_all(&buf).context(WriteSequenceDelimiterSnafu)
     }
 
     fn encode_primitive<W>(&self, to: W, value: &PrimitiveValue) -> Result<usize>
@@ -173,7 +173,7 @@ impl Encode for ExplicitVRLittleEndianEncoder {
         for v in offset_table {
             self.basic
                 .encode_ul(&mut to, *v)
-                .context(WriteOffsetTable)?;
+                .context(WriteOffsetTableSnafu)?;
         }
         Ok(offset_table.len() * 4)
     }

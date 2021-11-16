@@ -60,25 +60,25 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 */
 pub fn parse_date(buf: &[u8]) -> Result<NaiveDate> {
     match buf.len() {
-        4 => IncompleteValue {
+        4 => IncompleteValueSnafu {
             component: DateComponent::Month,
         }
         .fail(),
-        6 => IncompleteValue {
+        6 => IncompleteValueSnafu {
             component: DateComponent::Day,
         }
         .fail(),
         len if len >= 8 => {
             let year = read_number(&buf[0..4])?;
             let month: u32 = read_number(&buf[4..6])?;
-            check_component(DateComponent::Month, &month).context(InvalidComponent)?;
+            check_component(DateComponent::Month, &month).context(InvalidComponentSnafu)?;
 
             let day: u32 = read_number(&buf[6..8])?;
-            check_component(DateComponent::Day, &day).context(InvalidComponent)?;
+            check_component(DateComponent::Day, &day).context(InvalidComponentSnafu)?;
 
-            NaiveDate::from_ymd_opt(year, month, day).context(InvalidDate)
+            NaiveDate::from_ymd_opt(year, month, day).context(InvalidDateSnafu)
         }
-        _ => UnexpectedEndOfElement.fail(),
+        _ => UnexpectedEndOfElementSnafu.fail(),
     }
 }
 
@@ -88,28 +88,28 @@ pub fn parse_date(buf: &[u8]) -> Result<NaiveDate> {
  */
 pub fn parse_date_partial(buf: &[u8]) -> Result<(DicomDate, &[u8])> {
     if buf.len() < 4 {
-        UnexpectedEndOfElement.fail()
+        UnexpectedEndOfElementSnafu.fail()
     } else {
         let year: u16 = read_number(&buf[0..4])?;
         let buf = &buf[4..];
         if buf.len() < 2 {
-            Ok((DicomDate::from_y(year).context(PartialValue)?, buf))
+            Ok((DicomDate::from_y(year).context(PartialValueSnafu)?, buf))
         } else {
             match read_number::<u8>(&buf[0..2]) {
-                Err(_) => Ok((DicomDate::from_y(year).context(PartialValue)?, buf)),
+                Err(_) => Ok((DicomDate::from_y(year).context(PartialValueSnafu)?, buf)),
                 Ok(month) => {
                     let buf = &buf[2..];
                     if buf.len() < 2 {
-                        Ok((DicomDate::from_ym(year, month).context(PartialValue)?, buf))
+                        Ok((DicomDate::from_ym(year, month).context(PartialValueSnafu)?, buf))
                     } else {
                         match read_number::<u8>(&buf[0..2]) {
                             Err(_) => {
-                                Ok((DicomDate::from_ym(year, month).context(PartialValue)?, buf))
+                                Ok((DicomDate::from_ym(year, month).context(PartialValueSnafu)?, buf))
                             }
                             Ok(day) => {
                                 let buf = &buf[2..];
                                 Ok((
-                                    DicomDate::from_ymd(year, month, day).context(PartialValue)?,
+                                    DicomDate::from_ymd(year, month, day).context(PartialValueSnafu)?,
                                     buf,
                                 ))
                             }
@@ -127,23 +127,23 @@ pub fn parse_date_partial(buf: &[u8]) -> Result<(DicomDate, &[u8])> {
  */
 pub fn parse_time_partial(buf: &[u8]) -> Result<(DicomTime, &[u8])> {
     if buf.len() < 2 {
-        UnexpectedEndOfElement.fail()
+        UnexpectedEndOfElementSnafu.fail()
     } else {
         let hour: u8 = read_number(&buf[0..2])?;
         let buf = &buf[2..];
         if buf.len() < 2 {
-            Ok((DicomTime::from_h(hour).context(PartialValue)?, buf))
+            Ok((DicomTime::from_h(hour).context(PartialValueSnafu)?, buf))
         } else {
             match read_number::<u8>(&buf[0..2]) {
-                Err(_) => Ok((DicomTime::from_h(hour).context(PartialValue)?, buf)),
+                Err(_) => Ok((DicomTime::from_h(hour).context(PartialValueSnafu)?, buf)),
                 Ok(minute) => {
                     let buf = &buf[2..];
                     if buf.len() < 2 {
-                        Ok((DicomTime::from_hm(hour, minute).context(PartialValue)?, buf))
+                        Ok((DicomTime::from_hm(hour, minute).context(PartialValueSnafu)?, buf))
                     } else {
                         match read_number::<u8>(&buf[0..2]) {
                             Err(_) => {
-                                Ok((DicomTime::from_hm(hour, minute).context(PartialValue)?, buf))
+                                Ok((DicomTime::from_hm(hour, minute).context(PartialValueSnafu)?, buf))
                             }
                             Ok(second) => {
                                 let buf = &buf[2..];
@@ -159,13 +159,13 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(DicomTime, &[u8])> {
                                     let fp = u8::try_from(n).unwrap();
                                     Ok((
                                         DicomTime::from_hmsf(hour, minute, second, fraction, fp)
-                                            .context(PartialValue)?,
+                                            .context(PartialValueSnafu)?,
                                         buf,
                                     ))
                                 } else {
                                     Ok((
                                         DicomTime::from_hms(hour, minute, second)
-                                            .context(PartialValue)?,
+                                            .context(PartialValueSnafu)?,
                                         buf,
                                     ))
                                 }
@@ -188,28 +188,28 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(DicomTime, &[u8])> {
 pub fn parse_time(buf: &[u8]) -> Result<(NaiveTime, &[u8])> {
     // at least HHMMSS.F required
     match buf.len() {
-        2 => IncompleteValue {
+        2 => IncompleteValueSnafu {
             component: DateComponent::Minute,
         }
         .fail(),
-        4 => IncompleteValue {
+        4 => IncompleteValueSnafu {
             component: DateComponent::Second,
         }
         .fail(),
-        6 => IncompleteValue {
+        6 => IncompleteValueSnafu {
             component: DateComponent::Fraction,
         }
         .fail(),
         len if len >= 8 => {
             let hour: u32 = read_number(&buf[0..2])?;
-            check_component(DateComponent::Hour, &hour).context(InvalidComponent)?;
+            check_component(DateComponent::Hour, &hour).context(InvalidComponentSnafu)?;
             let minute: u32 = read_number(&buf[2..4])?;
-            check_component(DateComponent::Minute, &minute).context(InvalidComponent)?;
+            check_component(DateComponent::Minute, &minute).context(InvalidComponentSnafu)?;
             let second: u32 = read_number(&buf[4..6])?;
-            check_component(DateComponent::Second, &second).context(InvalidComponent)?;
+            check_component(DateComponent::Second, &second).context(InvalidComponentSnafu)?;
             let buf = &buf[6..];
             if buf[0] != b'.' {
-                FractionDelimiter { value: buf[0] }.fail()
+                FractionDelimiterSnafu { value: buf[0] }.fail()
             } else {
                 let buf = &buf[1..];
                 let no_digits_index = buf.iter().position(|b| !(b'0'..=b'9').contains(b));
@@ -222,15 +222,15 @@ pub fn parse_time(buf: &[u8]) -> Result<(NaiveTime, &[u8])> {
                     acc += 1;
                 }
                 let buf = &buf[n..];
-                check_component(DateComponent::Fraction, &fraction).context(InvalidComponent)?;
+                check_component(DateComponent::Fraction, &fraction).context(InvalidComponentSnafu)?;
                 Ok((
                     NaiveTime::from_hms_micro_opt(hour, minute, second, fraction)
-                        .context(InvalidTime)?,
+                        .context(InvalidTimeSnafu)?,
                     buf,
                 ))
             }
         }
-        _ => UnexpectedEndOfElement.fail(),
+        _ => UnexpectedEndOfElementSnafu.fail(),
     }
 }
 
@@ -286,10 +286,10 @@ where
     T: Sub<T, Output = T>,
 {
     if text.is_empty() || text.len() > 9 {
-        return InvalidNumberLength { len: text.len() }.fail();
+        return InvalidNumberLengthSnafu { len: text.len() }.fail();
     }
     if let Some(c) = text.iter().cloned().find(|b| !(b'0'..=b'9').contains(b)) {
-        return InvalidNumberToken { value: c }.fail();
+        return InvalidNumberTokenSnafu { value: c }.fail();
     }
 
     Ok(read_number_unchecked(text))
@@ -330,7 +330,7 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
                 .from_local_date(&date)
                 .and_time(time)
                 .single()
-                .context(InvalidDateTimeZone);
+                .context(InvalidDateTimeZoneSnafu);
             return dt;
         }
         len if len > 4 => {
@@ -342,16 +342,16 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
             match tz_sign {
                 b'+' => FixedOffset::east(s),
                 b'-' => FixedOffset::west(s),
-                c => return InvalidTimeZoneSignToken { value: c }.fail(),
+                c => return InvalidTimeZoneSignTokenSnafu { value: c }.fail(),
             }
         }
-        _ => return UnexpectedEndOfElement.fail(),
+        _ => return UnexpectedEndOfElementSnafu.fail(),
     };
 
     offset
         .from_utc_date(&date)
         .and_time(time)
-        .context(InvalidDateTimeZone)
+        .context(InvalidDateTimeZoneSnafu)
 }
 
 /** Decode text into a `DicomDateTime` value.
@@ -377,22 +377,22 @@ pub fn parse_datetime_partial(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<
             let s = (tz_h * 60 + tz_m) * 60;
             match tz_sign {
                 b'+' => {
-                    check_component(DateComponent::UtcEast, &s).context(InvalidComponent)?;
+                    check_component(DateComponent::UtcEast, &s).context(InvalidComponentSnafu)?;
                     FixedOffset::east(s as i32)
                 }
                 b'-' => {
-                    check_component(DateComponent::UtcWest, &s).context(InvalidComponent)?;
+                    check_component(DateComponent::UtcWest, &s).context(InvalidComponentSnafu)?;
                     FixedOffset::west(s as i32)
                 }
-                c => return InvalidTimeZoneSignToken { value: c }.fail(),
+                c => return InvalidTimeZoneSignTokenSnafu { value: c }.fail(),
             }
         }
-        _ => return UnexpectedEndOfElement.fail(),
+        _ => return UnexpectedEndOfElementSnafu.fail(),
     };
 
     match time {
         Some(tm) => {
-            DicomDateTime::from_date_and_time(date, tm, offset).context(InvalidDateTime)
+            DicomDateTime::from_date_and_time(date, tm, offset).context(InvalidDateTimeSnafu)
         }
         None => Ok(DicomDateTime::from_date(date, offset)),
     }

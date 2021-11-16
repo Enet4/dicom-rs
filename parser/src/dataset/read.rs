@@ -195,7 +195,7 @@ impl<S> DataSetReader<DynStatefulDecoder<S>, StandardDataDictionary> {
     where
         S: Read,
     {
-        let parser = DynStatefulDecoder::new_with(source, ts, cs, 0).context(CreateDecoder)?;
+        let parser = DynStatefulDecoder::new_with(source, ts, cs, 0).context(CreateDecoderSnafu)?;
 
         is_stateful_decode(&parser);
 
@@ -228,7 +228,7 @@ impl<S, D> DataSetReader<DynStatefulDecoder<S>, D> {
         S: Read,
     {
         let parser = DynStatefulDecoder::new_with(source, ts, cs, options.base_offset)
-            .context(CreateDecoder)?;
+            .context(CreateDecoderSnafu)?;
 
         is_stateful_decode(&parser);
 
@@ -330,7 +330,7 @@ where
                 }
                 Err(e) => {
                     self.hard_break = true;
-                    Some(Err(e).context(ReadItemHeader))
+                    Some(Err(e).context(ReadItemHeaderSnafu))
                 }
             }
         } else if let Some(SeqToken {
@@ -342,7 +342,7 @@ where
         {
             let len = match len.get() {
                 Some(len) => len as usize,
-                None => return Some(UndefinedItemLength.fail()),
+                None => return Some(UndefinedItemLengthSnafu.fail()),
             };
 
             if self.offset_table_next {
@@ -357,7 +357,7 @@ where
                 Some(
                     match self.parser.read_u32_to_vec(len as u32, &mut offset_table) {
                         Ok(()) => Ok(DataToken::OffsetTable(offset_table)),
-                        Err(e) => Err(e).context(ReadItemValue { len: len as u32 }),
+                        Err(e) => Err(e).context(ReadItemValueSnafu { len: len as u32 }),
                     },
                 )
             } else {
@@ -370,7 +370,7 @@ where
                     self.parser
                         .read_to_vec(len as u32, &mut value)
                         .map(|_| Ok(DataToken::ItemValue(value)))
-                        .unwrap_or_else(|e| Err(e).context(ReadItemValue { len: len as u32 })),
+                        .unwrap_or_else(|e| Err(e).context(ReadItemValueSnafu { len: len as u32 })),
                 )
             }
         } else if let Some(header) = self.last_header {
@@ -401,12 +401,12 @@ where
                         }
                         item => {
                             self.hard_break = true;
-                            Some(UnexpectedItemTag { tag: item.tag() }.fail())
+                            Some(UnexpectedItemTagSnafu { tag: item.tag() }.fail())
                         }
                     },
                     Err(e) => {
                         self.hard_break = true;
-                        Some(Err(e).context(ReadItemHeader))
+                        Some(Err(e).context(ReadItemHeaderSnafu))
                     }
                 }
             } else {
@@ -494,7 +494,7 @@ where
                 }
                 Err(e) => {
                     self.hard_break = true;
-                    Some(Err(e).context(ReadHeader))
+                    Some(Err(e).context(ReadHeaderSnafu))
                 }
             }
         }
@@ -528,7 +528,7 @@ where
                         return Ok(Some(token));
                     }
                     Ordering::Less => {
-                        return InconsistentSequenceEnd {
+                        return InconsistentSequenceEndSnafu {
                             end_of_sequence,
                             bytes_read,
                         }
@@ -558,7 +558,7 @@ where
             ValueReadStrategy::Preserved => self.parser.read_value_preserved(header),
             ValueReadStrategy::Raw => self.parser.read_value_bytes(header),
         }
-        .context(ReadValue {
+        .context(ReadValueSnafu {
             len: header.len.0,
             tag: header.tag,
         })

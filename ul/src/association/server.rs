@@ -303,11 +303,11 @@ where
 
     /// Negotiate an association with the given TCP stream.
     pub fn establish(&self, mut socket: TcpStream) -> Result<ServerAssociation> {
-        ensure!(!self.abstract_syntax_uids.is_empty(), MissingAbstractSyntax);
+        ensure!(!self.abstract_syntax_uids.is_empty(), MissingAbstractSyntaxSnafu);
 
         let max_pdu_length = self.max_pdu_length;
 
-        let pdu = read_pdu(&mut socket, max_pdu_length, true).context(ReceiveRequest)?;
+        let pdu = read_pdu(&mut socket, max_pdu_length, true).context(ReceiveRequestSnafu)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         match pdu {
             Pdu::AssociationRQ {
@@ -328,9 +328,9 @@ where
                             ),
                         },
                     )
-                    .context(SendResponse)?;
-                    socket.write_all(&buffer).context(WireSend)?;
-                    return Rejected.fail();
+                    .context(SendResponseSnafu)?;
+                    socket.write_all(&buffer).context(WireSendSnafu)?;
+                    return RejectedSnafu.fail();
                 }
 
                 if application_context_name != self.application_context_name {
@@ -343,9 +343,9 @@ where
                             ),
                         },
                     )
-                    .context(SendResponse)?;
-                    socket.write_all(&buffer).context(WireSend)?;
-                    return Rejected.fail();
+                    .context(SendResponseSnafu)?;
+                    socket.write_all(&buffer).context(WireSendSnafu)?;
+                    return RejectedSnafu.fail();
                 }
 
                 self.ae_access_control
@@ -359,9 +359,9 @@ where
                                 source: AssociationRJSource::ServiceUser(reason),
                             },
                         )
-                        .context(SendResponse)?;
-                        socket.write_all(&buffer).context(WireSend)?;
-                        Rejected.fail()
+                        .context(SendResponseSnafu)?;
+                        socket.write_all(&buffer).context(WireSendSnafu)?;
+                        RejectedSnafu.fail()
                     })?;
 
                 // fetch requested maximum PDU length
@@ -429,8 +429,8 @@ where
                         ],
                     },
                 )
-                .context(SendResponse)?;
-                socket.write_all(&buffer).context(WireSend)?;
+                .context(SendResponseSnafu)?;
+                socket.write_all(&buffer).context(WireSendSnafu)?;
 
                 Ok(ServerAssociation {
                     presentation_contexts,
@@ -441,16 +441,16 @@ where
                 })
             }
             Pdu::ReleaseRQ => {
-                write_pdu(&mut buffer, &Pdu::ReleaseRP).context(SendResponse)?;
-                socket.write_all(&buffer).context(WireSend)?;
-                Aborted.fail()
+                write_pdu(&mut buffer, &Pdu::ReleaseRP).context(SendResponseSnafu)?;
+                socket.write_all(&buffer).context(WireSendSnafu)?;
+                AbortedSnafu.fail()
             }
             pdu @ Pdu::AssociationAC { .. }
             | pdu @ Pdu::AssociationRJ { .. }
             | pdu @ Pdu::PData { .. }
             | pdu @ Pdu::ReleaseRP
-            | pdu @ Pdu::AbortRQ { .. } => UnexpectedRequest { pdu }.fail(),
-            pdu @ Pdu::Unknown { .. } => UnknownRequest { pdu }.fail(),
+            | pdu @ Pdu::AbortRQ { .. } => UnexpectedRequestSnafu { pdu }.fail(),
+            pdu @ Pdu::Unknown { .. } => UnknownRequestSnafu { pdu }.fail(),
         }
     }
 }
@@ -489,19 +489,19 @@ impl ServerAssociation {
     /// Send a PDU message to the other intervenient.
     pub fn send(&mut self, msg: &Pdu) -> Result<()> {
         self.buffer.clear();
-        write_pdu(&mut self.buffer, msg).context(Send)?;
+        write_pdu(&mut self.buffer, msg).context(SendSnafu)?;
         if self.buffer.len() > self.requestor_max_pdu_length as usize {
-            return SendTooLongPdu {
+            return SendTooLongPduSnafu {
                 length: self.buffer.len(),
             }
             .fail();
         }
-        self.socket.write_all(&self.buffer).context(WireSend)
+        self.socket.write_all(&self.buffer).context(WireSendSnafu)
     }
 
     /// Read a PDU message from the other intervenient.
     pub fn receive(&mut self) -> Result<Pdu> {
-        read_pdu(&mut self.socket, self.acceptor_max_pdu_length, true).context(Receive)
+        read_pdu(&mut self.socket, self.acceptor_max_pdu_length, true).context(ReceiveSnafu)
     }
 
     /// Send a provider initiated abort message

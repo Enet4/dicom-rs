@@ -131,9 +131,9 @@ impl<S, D> LazyDataSetReader<DynStatefulDecoder<S>, D> {
     where
         S: ReadSeek,
     {
-        let position = source.seek(SeekFrom::Current(0)).context(GetPosition)?;
+        let position = source.seek(SeekFrom::Current(0)).context(GetPositionSnafu)?;
         let parser =
-            DynStatefulDecoder::new_with(source, ts, cs, position).context(CreateDecoder)?;
+            DynStatefulDecoder::new_with(source, ts, cs, position).context(CreateDecoderSnafu)?;
 
         Ok(LazyDataSetReader {
             parser,
@@ -205,7 +205,7 @@ where
                         return Ok(Some(token));
                     }
                     Ordering::Less => {
-                        return InconsistentSequenceEnd {
+                        return InconsistentSequenceEndSnafu {
                             end_of_sequence,
                             bytes_read,
                         }
@@ -295,7 +295,7 @@ where
                 }
                 Err(e) => {
                     self.hard_break = true;
-                    Some(Err(e).context(ReadItemHeader { bytes_read }))
+                    Some(Err(e).context(ReadItemHeaderSnafu { bytes_read }))
                 }
             }
         } else if let Some(SeqToken {
@@ -307,7 +307,7 @@ where
         {
             // item value
 
-            let len = match len.get().with_context(|| UndefinedLength { bytes_read }) {
+            let len = match len.get().with_context(|| UndefinedLengthSnafu { bytes_read }) {
                 Ok(len) => len,
                 Err(e) => return Some(Err(e)),
             };
@@ -344,12 +344,12 @@ where
                         }
                         SequenceItemHeader::ItemDelimiter => {
                             self.hard_break = true;
-                            Some(UnexpectedItemDelimiter { bytes_read }.fail())
+                            Some(UnexpectedItemDelimiterSnafu { bytes_read }.fail())
                         }
                     },
                     Err(e) => {
                         self.hard_break = true;
-                        Some(Err(e).context(ReadItemHeader { bytes_read }))
+                        Some(Err(e).context(ReadItemHeaderSnafu { bytes_read }))
                     }
                 }
             } else {
@@ -431,7 +431,7 @@ where
                 }
                 Err(e) => {
                     self.hard_break = true;
-                    Some(Err(e).context(ReadHeader { bytes_read }))
+                    Some(Err(e).context(ReadHeaderSnafu { bytes_read }))
                 }
             }
         }

@@ -165,22 +165,22 @@ pub trait BasicEncode {
             Date(date) => encode_collection_delimited(&mut to, &*date, |to, date| {
                 encode_date(to, *date)
             })
-            .context(WriteDate),
+            .context(WriteDateSnafu),
             Time(time) => encode_collection_delimited(&mut to, &*time, |to, time| {
                 encode_time(to, *time)
             })
-            .context(WriteTime),
+            .context(WriteTimeSnafu),
             DateTime(datetime) => {
                 encode_collection_delimited(&mut to, &*datetime, |to, datetime| {
                     encode_datetime(to, *datetime)
                 })
-                .context(WriteDateTime)
+                .context(WriteDateTimeSnafu)
             }
             Str(s) => {
                 // Note: this will always print in UTF-8. Consumers should
                 // intercept string primitive values and encode them according
                 // to the expected character set.
-                write!(to, "{}", s).context(WriteString)?;
+                write!(to, "{}", s).context(WriteStringSnafu)?;
                 Ok(s.len())
             }
             Strs(s) => encode_collection_delimited(&mut to, &*s, |to, s| {
@@ -190,71 +190,71 @@ pub trait BasicEncode {
                 write!(to, "{}", s)?;
                 Ok(s.len())
             })
-            .context(WriteString),
+            .context(WriteStringSnafu),
             F32(values) => {
                 for v in values {
                     self.encode_fl(&mut to, *v)
-                        .context(WriteBinary { typ: "F32" })?;
+                        .context(WriteBinarySnafu { typ: "F32" })?;
                 }
                 Ok(values.len() * 4)
             }
             F64(values) => {
                 for v in values {
                     self.encode_fd(&mut to, *v)
-                        .context(WriteBinary { typ: "F64" })?;
+                        .context(WriteBinarySnafu { typ: "F64" })?;
                 }
                 Ok(values.len() * 8)
             }
             U64(values) => {
                 for v in values {
                     self.encode_uv(&mut to, *v)
-                        .context(WriteBinary { typ: "U64" })?;
+                        .context(WriteBinarySnafu { typ: "U64" })?;
                 }
                 Ok(values.len() * 8)
             }
             I64(values) => {
                 for v in values {
                     self.encode_sv(&mut to, *v)
-                        .context(WriteBinary { typ: "I64" })?;
+                        .context(WriteBinarySnafu { typ: "I64" })?;
                 }
                 Ok(values.len() * 8)
             }
             U32(values) => {
                 for v in values {
                     self.encode_ul(&mut to, *v)
-                        .context(WriteBinary { typ: "U32" })?;
+                        .context(WriteBinarySnafu { typ: "U32" })?;
                 }
                 Ok(values.len() * 4)
             }
             I32(values) => {
                 for v in values {
                     self.encode_sl(&mut to, *v)
-                        .context(WriteBinary { typ: "I32" })?;
+                        .context(WriteBinarySnafu { typ: "I32" })?;
                 }
                 Ok(values.len() * 4)
             }
             U16(values) => {
                 for v in values {
                     self.encode_us(&mut to, *v)
-                        .context(WriteBinary { typ: "U16" })?;
+                        .context(WriteBinarySnafu { typ: "U16" })?;
                 }
                 Ok(values.len() * 2)
             }
             I16(values) => {
                 for v in values {
                     self.encode_ss(&mut to, *v)
-                        .context(WriteBinary { typ: "I16" })?;
+                        .context(WriteBinarySnafu { typ: "I16" })?;
                 }
                 Ok(values.len() * 2)
             }
             U8(values) => {
-                to.write_all(values).context(WriteBytes)?;
+                to.write_all(values).context(WriteBytesSnafu)?;
                 Ok(values.len())
             }
             Tags(tags) => {
                 for tag in tags {
-                    self.encode_us(&mut to, tag.0).context(WriteTagGroup)?;
-                    self.encode_us(&mut to, tag.1).context(WriteTagElement)?;
+                    self.encode_us(&mut to, tag.0).context(WriteTagGroupSnafu)?;
+                    self.encode_us(&mut to, tag.1).context(WriteTagElementSnafu)?;
                 }
                 Ok(tags.len() * 4)
             }
@@ -308,7 +308,7 @@ pub trait Encode {
         W: Write,
     {
         self.encode_tag(&mut to, Tag(0xFFFE, 0xE00D))?;
-        to.write_all(&[0u8; 4]).context(WriteItemDelimiter)?;
+        to.write_all(&[0u8; 4]).context(WriteItemDelimiterSnafu)?;
         Ok(())
     }
 
@@ -318,7 +318,7 @@ pub trait Encode {
         W: Write,
     {
         self.encode_tag(&mut to, Tag(0xFFFE, 0xE0DD))?;
-        to.write_all(&[0u8; 4]).context(WriteSequenceDelimiter)?;
+        to.write_all(&[0u8; 4]).context(WriteSequenceDelimiterSnafu)?;
         Ok(())
     }
 

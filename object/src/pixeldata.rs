@@ -66,7 +66,7 @@ pub struct InMemoryPixelData<C, P> {
 impl<C, P> InMemoryPixelData<C, P> {
     fn check_bounds(&self, w: u32, h: u32) -> Result<()> {
         if w >= self.cols || h >= self.rows {
-            PixelIndexOutOfBounds.fail()
+            PixelIndexOutOfBoundsSnafu.fail()
         } else {
             Ok(())
         }

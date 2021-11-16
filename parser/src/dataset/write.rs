@@ -96,7 +96,7 @@ where
     W: Write,
 {
     pub fn with_ts_cs(to: W, ts: &TransferSyntax, charset: SpecificCharacterSet) -> Result<Self> {
-        let encoder = ts.encoder_for().context(UnsupportedTransferSyntax {
+        let encoder = ts.encoder_for().context(UnsupportedTransferSyntaxSnafu {
             ts_uid: ts.uid(),
             ts_alias: ts.name(),
         })?;
@@ -208,51 +208,51 @@ where
             DataToken::ElementHeader(header) => {
                 self.printer
                     .encode_element_header(*header)
-                    .context(WriteHeader { tag: header.tag })?;
+                    .context(WriteHeaderSnafu { tag: header.tag })?;
             }
             DataToken::SequenceStart { tag, len } => {
                 self.printer
                     .encode_element_header(DataElementHeader::new(*tag, VR::SQ, *len))
-                    .context(WriteHeader { tag: *tag })?;
+                    .context(WriteHeaderSnafu { tag: *tag })?;
             }
             DataToken::PixelSequenceStart => {
                 let tag = Tag(0x7fe0, 0x0010);
                 self.printer
                     .encode_element_header(DataElementHeader::new(tag, VR::OB, Length::UNDEFINED))
-                    .context(WriteHeader { tag })?;
+                    .context(WriteHeaderSnafu { tag })?;
             }
             DataToken::SequenceEnd => {
                 self.printer
                     .encode_sequence_delimiter()
-                    .context(WriteSequenceDelimiter)?;
+                    .context(WriteSequenceDelimiterSnafu)?;
             }
             DataToken::ItemStart { len } => {
                 self.printer
                     .encode_item_header(len.0)
-                    .context(WriteItemHeader)?;
+                    .context(WriteItemHeaderSnafu)?;
             }
             DataToken::ItemEnd => {
                 self.printer
                     .encode_item_delimiter()
-                    .context(WriteItemDelimiter)?;
+                    .context(WriteItemDelimiterSnafu)?;
             }
             DataToken::PrimitiveValue(ref value) => {
-                let last_de = self.last_de.take().with_context(|| UnexpectedToken {
+                let last_de = self.last_de.take().with_context(|| UnexpectedTokenSnafu {
                     token: token.clone(),
                 })?;
 
                 self.printer
                     .encode_primitive_element(&last_de, value)
-                    .context(WriteValue)?;
+                    .context(WriteValueSnafu)?;
                 self.last_de = None;
             }
             DataToken::OffsetTable(table) => {
                 self.printer
                     .encode_offset_table(table)
-                    .context(WriteValue)?;
+                    .context(WriteValueSnafu)?;
             }
             DataToken::ItemValue(data) => {
-                self.printer.write_bytes(data).context(WriteValue)?;
+                self.printer.write_bytes(data).context(WriteValueSnafu)?;
             }
         }
         Ok(())
