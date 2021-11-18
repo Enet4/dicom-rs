@@ -1,6 +1,6 @@
 [package]
 name = "dcmdump"
-version = "0.4.0"
+version = "0.5.0-rc.1"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "(DEPRECATED) A CLI tool for inspecting DICOM files"
 edition = "2018"
@@ -14,8 +14,8 @@ readme = "README.md"
 default = ['dicom/inventory-registry', 'dicom/backtraces']
 
 [dependencies]
-dicom-dump = { path = "../dump", version = "0.4.0" }
-dicom = { path = "../parent/", version = "0.4.0", default-features = false }
+dicom-dump = { path = "../dump", version = "0.5.0-rc.1" }
+dicom = { path = "../parent/", version = "0.5.0-rc.1", default-features = false }
 term_size = "0.3.2"
 itertools = "0.10"
 snafu = "0.6.8"

@@ -1,6 +1,6 @@
 [package]
 name = "dicom-dump"
-version = "0.4.0"
+version = "0.5.0-rc.1"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A CLI tool for inspecting DICOM files"
 edition = "2018"
@@ -22,7 +22,7 @@ path = "src/main.rs"
 default = ['dicom/inventory-registry', 'dicom/backtraces']
 
 [dependencies]
-dicom = { path = "../parent/", version = "0.4.0", default-features = false }
+dicom = { path = "../parent/", version = "0.5.0-rc.1", default-features = false }
 term_size = "0.3.2"
 itertools = "0.10"
 snafu = "0.6.8"

@@ -1,6 +1,6 @@
 [package]
 name = "dicom"
-version = "0.4.0"
+version = "0.5.0-rc.1"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A pure Rust implementation of the DICOM standard"
 edition = "2018"
@@ -18,10 +18,10 @@ backtraces = ['dicom-object/backtraces']
 ul = ['dicom-ul']
 
 [dependencies]
-dicom-core = { path = "../core", version = "0.4.0" }
-dicom-dictionary-std = { path = "../dictionary-std", version = "0.4.0" }
-dicom-encoding = { path = "../encoding", version = "0.4.0" }
-dicom-parser = { path = "../parser", version = "0.4.0" }
-dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.4.0" }
-dicom-object = { path = "../object", version = "0.4.0", default-features = false }
-dicom-ul = { optional = true, path = "../ul", version = "0.3.0" }
+dicom-core = { path = "../core", version = "0.5.0-rc.1" }
+dicom-dictionary-std = { path = "../dictionary-std", version = "0.5.0-rc.1" }
+dicom-encoding = { path = "../encoding", version = "0.5.0-rc.1" }
+dicom-parser = { path = "../parser", version = "0.5.0-rc.1" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.5.0-rc.1" }
+dicom-object = { path = "../object", version = "0.5.0-rc.1", default-features = false }
+dicom-ul = { optional = true, path = "../ul", version = "0.4.0-rc.1" }
