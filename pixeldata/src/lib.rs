@@ -26,7 +26,7 @@
 //!
 //! # Examples
 //!
-//! Example using `to_dynamic_image`
+//! To convert a DICOM object into a dynamic image:
 //! ```no_run
 //! # use std::error::Error;
 //! use dicom_object::open_file;
@@ -40,7 +40,7 @@
 //! # }
 //! ```
 //!
-//! Example using `to_ndarray`
+//! To convert a DICOM object into an ndarray:
 //! ```no_run
 //! # use std::error::Error;
 //! use dicom_object::open_file;
@@ -58,9 +58,12 @@
 use byteorder::{ByteOrder, NativeEndian};
 use dicom_core::{value::Value, DataDictionary};
 use dicom_encoding::adapters::DecodeError;
+#[cfg(not(feature = "gdcm"))]
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
+#[cfg(not(feature = "gdcm"))]
 use dicom_encoding::Codec;
 use dicom_object::{FileDicomObject, InMemDicomObject};
+#[cfg(not(feature = "gdcm"))]
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use image::{DynamicImage, ImageBuffer, Luma, Rgb};
 use ndarray::{Array, IxDyn};
@@ -69,7 +72,7 @@ use rayon::iter::{
     IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
 use snafu::OptionExt;
-use snafu::{ResultExt, Snafu};
+use snafu::{Backtrace, ResultExt, Snafu};
 use std::borrow::Cow;
 
 pub use image;
@@ -81,75 +84,135 @@ mod gdcm;
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Missing required element"))]
-    MissingRequiredField { source: dicom_object::Error },
-
-    #[snafu(display("Could not cast element"))]
-    CastValueError {
-        source: dicom_core::value::CastValueError,
+    MissingRequiredField {
+        #[snafu(backtrace)]
+        source: dicom_object::Error
     },
 
-    #[snafu(display("Invalid PixelData"))]
-    InvalidPixelData,
+    #[snafu(display("Could not cast pixel data value"))]
+    CastValueError {
+        source: dicom_core::value::CastValueError,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("PixelData attribute is not a primitive value or pixel sequence"))]
+    InvalidPixelData {
+        backtrace: Backtrace,
+    },
 
     #[snafu(display("Invalid PixelRepresentation, must be 0 or 1"))]
-    InvalidPixelRepresentation,
+    InvalidPixelRepresentation {
+        backtrace: Backtrace,
+    },
 
     #[snafu(display("Invalid BitsAllocated, must be 8 or 16"))]
-    InvalidBitsAllocated,
+    InvalidBitsAllocated {
+        backtrace: Backtrace,
+    },
 
     #[snafu(display("Unsupported PhotometricInterpretation {}", pi))]
-    UnsupportedPhotometricInterpretation { pi: String },
+    UnsupportedPhotometricInterpretation {
+        pi: String,
+        backtrace: Backtrace,
+    },
 
     #[snafu(display("Unsupported SamplesPerPixel {}", spp))]
-    UnsupportedSamplesPerPixel { spp: u16 },
+    UnsupportedSamplesPerPixel {
+        spp: u16,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Unknown transfer syntax `{}`", ts_uid))]
+    UnknownTransferSyntax {
+        ts_uid: String,
+        backtrace: Backtrace,
+    },
 
     #[snafu(display("Unsupported TransferSyntax {}", ts))]
-    UnsupportedTransferSyntax { ts: String },
+    UnsupportedTransferSyntax {
+        ts: String,
+        backtrace: Backtrace,
+    },
 
-    #[snafu(display("Multi-frame dicoms are not supported"))]
-    UnsupportedMultiFrame,
+    #[snafu(display("Multi-frame DICOM images are not supported"))]
+    UnsupportedMultiFrame {
+        backtrace: Backtrace,
+    },
 
     #[snafu(display("Invalid buffer when constructing ImageBuffer"))]
-    InvalidImageBuffer,
+    InvalidImageBuffer {
+        backtrace: Backtrace,
+    },
 
-    #[snafu(display("Unknown error while decoding pixel data"))]
+    #[snafu(display("Pixel data decoding failed"))]
     ImplementerError {
         source: Box<dyn std::error::Error + Send + 'static>,
     },
 
     #[snafu(display("Invalid shape for ndarray"))]
-    ShapeError { source: ndarray::ShapeError },
+    ShapeError {
+        source: ndarray::ShapeError,
+        backtrace: Backtrace,
+    },
 
     #[snafu(display("Invalid data type for ndarray element"))]
-    InvalidDataType,
+    InvalidDataType {
+        backtrace: Backtrace,
+    },
 
     #[snafu(display("Unsupported color space"))]
-    UnsupportedColorSpace,
+    UnsupportedColorSpace {
+        backtrace: Backtrace,
+    },
 
-    #[snafu(display("Pixel data decode error"))]
-    PixelDecodeError { source: DecodeError },
+    #[snafu(display("Could not decode pixel data"))]
+    PixelDecodeError {
+        source: DecodeError
+    },
 
-    #[snafu(display("Frame out of range error"))]
-    FrameOutOfRangeError,
+    #[snafu(display("Frame #{} is out of range", frame_number))]
+    FrameOutOfRangeError {
+        frame_number: u32,
+        backtrace: Backtrace,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Decoded pixel data
+/// A blob of decoded pixel data.
+/// 
+/// This is the outcome of decoding a DICOM object's imaging-related attributes,
+/// into a native form.
+/// The decoded data will be stored as raw bytes in native form
+/// without any LUT transformations applied.
+/// Whether to apply such transformations
+/// can be done through one of the various `to_*` methods.
 pub struct DecodedPixelData<'a> {
+    /// the raw bytes of pixel data
     pub data: Cow<'a, [u8]>,
+    /// the number of rows
     pub rows: u32,
+    /// the number of columns
     pub cols: u32,
+    /// the number of frames
     pub number_of_frames: u16,
+    /// the photometric interpretation
     pub photometric_interpretation: String,
+    /// the number of samples per pixel
     pub samples_per_pixel: u16,
+    /// the number of bits allocated, as a multiple of 8
     pub bits_allocated: u16,
+    /// the number of bits stored
     pub bits_stored: u16,
+    /// the high bit, usually `bits_stored - 1`
     pub high_bit: u16,
+    /// the pixel representation: 0 for unsigned, 1 for signed
     pub pixel_representation: u16,
     // Enhanced MR Images are not yet supported having
     // a RescaleSlope/RescaleIntercept Per-Frame Functional Group
+    /// the pixel value rescale intercept
     pub rescale_intercept: i16,
+    /// the pixel value rescale slope
     pub rescale_slope: f32,
 }
 
@@ -168,7 +231,9 @@ impl DecodedPixelData<'_> {
                         let frame_start = frame_length * frame as usize;
                         let frame_end = frame_start + frame_length;
                         if frame_end > (*self.data).len() {
-                            FrameOutOfRangeSnafu.fail()?
+                            FrameOutOfRangeSnafu {
+                                frame_number: frame,
+                            }.fail()?
                         }
                         let buffer: Vec<u8> =
                             (&self.data[(frame_start as usize..frame_end as usize)]).to_vec();
@@ -185,7 +250,9 @@ impl DecodedPixelData<'_> {
                         let frame_start = frame_length * frame as usize;
                         let frame_end = frame_start + frame_length;
                         if frame_end > (*self.data).len() {
-                            FrameOutOfRangeSnafu.fail()?
+                            FrameOutOfRangeSnafu {
+                                frame_number: frame,
+                            }.fail()?
                         }
                         let mut buffer = vec![0; frame_length / 2];
                         match self.pixel_representation {
@@ -231,7 +298,9 @@ impl DecodedPixelData<'_> {
                         let frame_start = frame_length * frame as usize;
                         let frame_end = frame_start + frame_length;
                         if frame_end > (*self.data).len() {
-                            FrameOutOfRangeSnafu.fail()?
+                            FrameOutOfRangeSnafu {
+                                frame_number: frame,
+                            }.fail()?
                         }
                         let mut pixel_array: Vec<u8> =
                             (&self.data[(frame_start as usize..frame_end as usize)]).to_vec();
@@ -259,7 +328,9 @@ impl DecodedPixelData<'_> {
                         let frame_start = frame_length * frame as usize;
                         let frame_end = frame_start + frame_length;
                         if frame_end > (*self.data).len() {
-                            FrameOutOfRangeSnafu.fail()?
+                            FrameOutOfRangeSnafu {
+                                frame_number: frame,
+                            }.fail()?
                         }
                         let buffer: Vec<u8> =
                             (&self.data[(frame_start as usize..frame_end as usize)]).to_vec();
@@ -461,15 +532,20 @@ where
         let number_of_frames = number_of_frames(self);
 
         let transfer_syntax = &self.meta().transfer_syntax;
-        let registry = TransferSyntaxRegistry
+        let ts = TransferSyntaxRegistry
             .get(transfer_syntax)
-            .filter(|ts| ts.fully_supported())
-            .context(UnsupportedTransferSyntax {
-                ts: transfer_syntax,
+            .with_context(|| UnknownTransferSyntax {
+                ts_uid: transfer_syntax,
             })?;
+        
+        if !ts.fully_supported() {
+            return UnsupportedTransferSyntax {
+                ts: transfer_syntax,
+            }.fail();
+        }
 
         // Try decoding it using a native Rust decoder
-        if let Codec::PixelData(decoder) = registry.codec() {
+        if let Codec::PixelData(decoder) = ts.codec() {
             let mut data: Vec<u8> = Vec::new();
             (*decoder)
                 .decode(self, &mut data)
@@ -627,43 +703,6 @@ mod tests {
     use dicom_object::open_file;
     use dicom_test_files;
 
-    #[cfg(feature = "gdcm")]
-    use rstest::rstest;
-    #[cfg(feature = "gdcm")]
-    #[rstest(value => [
-         "pydicom/693_UNCI.dcm",
-         "pydicom/693_UNCR.dcm",
-         "pydicom/CT_small.dcm",
-         "pydicom/MR_small.dcm",
-         "pydicom/MR_small_implicit.dcm",
-         "pydicom/MR_small_bigendian.dcm",
-         "pydicom/MR_small_expb.dcm",
-         "pydicom/SC_rgb.dcm",
-         "pydicom/SC_rgb_16bit.dcm",
-         "pydicom/SC_rgb_expb.dcm", 
-         "pydicom/SC_rgb_expb_16bit.dcm",
-         "pydicom/color-pl.dcm",
-         "pydicom/color-px.dcm",
-         "pydicom/SC_ybr_full_uncompressed.dcm",
-    ])]
-    fn test_parse_dicom_pixel_data(value: &str) {
-        use std::path::Path;
-        let test_file = dicom_test_files::path(value).unwrap();
-        println!("Parsing pixel data for {:?}", test_file);
-        let obj = open_file(test_file).unwrap();
-        let image = obj
-            .decode_pixel_data()
-            .unwrap()
-            .to_dynamic_image(0)
-            .unwrap();
-        image
-            .save(format!(
-                "../target/dicom_test_files/pydicom/{}.png",
-                Path::new(value).file_stem().unwrap().to_str().unwrap()
-            ))
-            .unwrap();
-    }
-
     #[test]
     fn test_to_ndarray_rgb() {
         let test_file = dicom_test_files::path("pydicom/SC_rgb_16bit.dcm").unwrap();
@@ -680,39 +719,32 @@ mod tests {
 
     #[test]
     fn test_to_ndarray_error() {
-        let test_file = dicom_test_files::path("pydicom/JPEG2000.dcm").unwrap();
+        let test_file = dicom_test_files::path("pydicom/CT_small.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
         assert!(matches!(
             obj.decode_pixel_data().unwrap().to_ndarray::<u8>(),
-            Err(Error::InvalidDataType)
+            Err(Error::InvalidDataType { .. })
         ));
     }
 
     #[test]
     fn test_correct_ri_extracted() {
-        // RescaleIntercept exists for this scan
-        let test_file = dicom_test_files::path("pydicom/693_J2KR.dcm").unwrap();
+        // Rescale Slope and Intercept exist for this scan
+        let test_file = dicom_test_files::path("pydicom/CT_small.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
         let pixel_data = obj.decode_pixel_data().unwrap();
         assert_eq!(pixel_data.rescale_intercept, -1024);
+        assert_eq!(pixel_data.rescale_slope, 1.0);
     }
 
     #[test]
-    fn test_correct_ri_extracted_without_element() {
+    fn test_correct_rescale_extracted_without_element() {
         // RescaleIntercept does not exists for this scan
-        let test_file = dicom_test_files::path("pydicom/MR_small_jpeg_ls_lossless.dcm").unwrap();
+        let test_file = dicom_test_files::path("pydicom/MR_small.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
         let pixel_data = obj.decode_pixel_data().unwrap();
         assert_eq!(pixel_data.rescale_intercept, 0);
-    }
-
-    #[test]
-    fn test_correct_rs_extracted() {
-        // RescaleIntercept exists for this scan
-        let test_file = dicom_test_files::path("pydicom/MR_small_jpeg_ls_lossless.dcm").unwrap();
-        let obj = open_file(test_file).unwrap();
-        let pixel_data = obj.decode_pixel_data().unwrap();
-        assert_eq!(pixel_data.rescale_slope, 1.0);
+        assert_eq!(pixel_data.rescale_slope, 1.);
     }
 
     #[cfg(not(feature = "gdcm"))]
@@ -838,8 +870,8 @@ mod tests {
             .unwrap();
         let result = image.decode_pixel_data().unwrap().to_dynamic_image(1);
         match result {
-            Err(Error::FrameOutOfRangeError) => {}
-            _ => panic!("Cannot index frame that is out of range"),
+            Err(Error::FrameOutOfRangeError { frame_number: 1, .. }) => {}
+            _ => panic!("Unexpected positive outcome for out of range access"),
         }
     }
 }
