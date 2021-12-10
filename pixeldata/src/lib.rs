@@ -461,7 +461,12 @@ where
         let number_of_frames = number_of_frames(self);
 
         let transfer_syntax = &self.meta().transfer_syntax;
-        let registry = TransferSyntaxRegistry.get(transfer_syntax).unwrap();
+        let registry = TransferSyntaxRegistry
+            .get(transfer_syntax)
+            .filter(|ts| ts.fully_supported())
+            .context(UnsupportedTransferSyntax {
+                ts: transfer_syntax,
+            })?;
 
         // Try decoding it using a native Rust decoder
         if let Codec::PixelData(decoder) = registry.codec() {
