@@ -736,18 +736,14 @@ where
     let values = values.into_iter();
     let len = values.len();
     let mut pieces = values.take(64).map(|piece| {
+        let mut piece = piece.to_string();
+        piece.retain(|c| !c.is_control());
         if quoted {
-            let mut piece = piece.to_string();
-            if piece.contains('\"') {
-                format!("\"{}\"", piece.replace("\"", "\\\""))
-            } else {
-                piece.insert(0, '"');
-                piece.push('"');
-                piece
-            }
-        } else {
-            piece.to_string()
+            piece = piece.replace("\"", "\\\"");
+            piece.insert(0, '"');
+            piece.push('"');
         }
+        piece
     });
     let mut pieces = pieces.join(", ");
     if len > 1 {
