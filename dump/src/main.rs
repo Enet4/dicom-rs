@@ -25,8 +25,8 @@ fn os_compatibility() -> Result<(), ()> {
 /// Dump the contents of DICOM files
 #[derive(Debug, StructOpt)]
 struct App {
-    /// The DICOM file to read
-    file: PathBuf,
+    /// The DICOM file(s) to read
+    files: Vec<PathBuf>,
     /// whether text value width limit is disabled
     /// (limited to `width` by default)
     #[structopt(long = "no-text-limit")]
@@ -46,36 +46,39 @@ fn main() {
     });
 
     let App {
-        file: filename,
+        files: filenames,
         no_text_limit,
         width,
         color,
     } = App::from_args();
-
-    let obj = open_file(filename).unwrap_or_else(|e| {
-        report(e);
-        std::process::exit(ERROR_READ);
-    });
 
     let width = width
         .or_else(|| term_size::dimensions().map(|(width, _)| width as u32))
         .unwrap_or(120);
 
     let mut options = DumpOptions::new();
-    match options
-        .no_text_limit(no_text_limit)
-        .width(width)
-        .color_mode(color)
-        .dump_file(&obj)
-    {
-        Err(ref e) if e.kind() == ErrorKind::BrokenPipe => {
-            // handle broken pipe separately with a no-op
+
+    for filename in filenames {
+        let obj = open_file(filename).unwrap_or_else(|e| {
+            report(e);
+            std::process::exit(ERROR_READ);
+        });
+        
+        match options
+            .no_text_limit(no_text_limit)
+            .width(width)
+            .color_mode(color)
+            .dump_file(&obj)
+        {
+            Err(ref e) if e.kind() == ErrorKind::BrokenPipe => {
+                // handle broken pipe separately with a no-op
+            }
+            Err(e) => {
+                eprintln!("[ERROR] {}", e);
+                std::process::exit(ERROR_PRINT);
+            }
+            _ => {} // all good
         }
-        Err(e) => {
-            eprintln!("[ERROR] {}", e);
-            std::process::exit(ERROR_PRINT);
-        }
-        _ => {} // all good
     }
 }
 
