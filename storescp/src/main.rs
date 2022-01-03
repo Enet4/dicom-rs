@@ -71,9 +71,12 @@ fn run(
                         let presentation_context_result = PresentationContextResult {
                             id: *id,
                             reason: dicom_ul::pdu::PresentationContextResultReason::Acceptance,
+                            // accept the first proposed transfer syntax
                             transfer_syntax: transfer_syntaxes[0].clone(),
                         };
                         pcid = *id;
+
+                        // copying most variables for now, should be set to application specific values
                         let response = dicom_ul::Pdu::AssociationAC {
                             protocol_version,
                             calling_ae_title,
@@ -113,6 +116,7 @@ fn run(
                             instance_buffer.append(&mut data[0].data);
                             use std::fs;
 
+                            // write the files to the current directory with their SOPInstanceUID as filenames
                             fs::write(sop_instance_uid.trim_end_matches('\0'), &instance_buffer)
                                 .expect("Unable to write file");
 
