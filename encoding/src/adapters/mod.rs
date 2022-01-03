@@ -89,6 +89,29 @@ pub trait PixelDataObject {
     fn raw_pixel_data(&self) -> Option<RawPixelData>;
 }
 
+/// Custom options when encoding pixel data into an encapsulated form.
+#[derive(Debug, Default, Clone)]
+#[non_exhaustive]
+pub struct EncodeOptions {
+    /// The quality of the output image as a number between 0 and 100,
+    /// where 100 is the best quality that the encapsulated form can achieve
+    /// and smaller values represent smaller data size
+    /// with an increasingly higher error.
+    /// It is ignored if the transfer syntax only supports lossless compression.
+    /// If it does support however,
+    /// it is expected that a quality of 100 results in a lossless encoding.
+    ///
+    /// If this option is not specified,
+    /// the output quality is decided automatically by the underlying adapter.
+    pub quality: Option<u8>,
+}
+
+impl EncodeOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 /// Trait object responsible for decoding and encoding
 /// pixel data based on the Transfersyntax.
 /// 
@@ -124,7 +147,7 @@ pub trait PixelRWAdapter {
     /// Implementers leave the default method implementation
     /// for this behavior.
     #[allow(unused_variables)]
-    fn encode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode(&self, src: &dyn PixelDataObject, options: EncodeOptions, dst: &mut Vec<u8>) -> EncodeResult<()> {
         Err(EncodeError::NotImplemented)
     }
 }
@@ -141,7 +164,7 @@ impl PixelRWAdapter for NeverPixelAdapter {
         unreachable!();
     }
 
-    fn encode(&self, _src: &dyn PixelDataObject, _dst: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode(&self, _src: &dyn PixelDataObject, _options: EncodeOptions, _dst: &mut Vec<u8>) -> EncodeResult<()> {
         unreachable!();
     }
 }
