@@ -14,7 +14,7 @@ const ERROR_PRINT: i32 = -3;
 
 #[cfg(windows)]
 fn os_compatibility() -> Result<(), ()> {
-    control::set_virtual_terminal(true)
+    colored::control::set_virtual_terminal(true)
 }
 
 #[cfg(not(windows))]
