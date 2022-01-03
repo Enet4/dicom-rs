@@ -591,16 +591,15 @@ impl PrimitiveValue {
     ///
     /// ```
     /// # use dicom_core::dicom_value;
-    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use dicom_core::value::{C, DicomDate, PrimitiveValue};
     /// # use smallvec::smallvec;
-    /// # use chrono::NaiveDate;
     /// assert_eq!(
     ///     dicom_value!(Str, "Smith^John\0").to_raw_str(),
     ///     "Smith^John\0",
     /// );
     /// assert_eq!(
-    ///     dicom_value!(Date, NaiveDate::from_ymd(2014, 10, 12)).to_raw_str(),
-    ///     "20141012",
+    ///     dicom_value!(Date, DicomDate::from_ymd(2014, 10, 12).unwrap()).to_raw_str(),
+    ///     "2014-10-12",
     /// );
     /// assert_eq!(
     ///     dicom_value!(Strs, [
