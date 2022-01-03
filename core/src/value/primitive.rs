@@ -499,7 +499,7 @@ impl PrimitiveValue {
     /// All other type variants are first converted to a string,
     /// then joined together with a backslash.
     ///
-    /// Trailing whitespace is stripped for display purposes.
+    /// Trailing whitespace is stripped from each string.
     ///
     /// **Note:**
     /// As the process of reading a DICOM value
@@ -574,7 +574,8 @@ impl PrimitiveValue {
     /// All other type variants are first converted to a string,
     /// then joined together with a backslash.
     ///
-    /// Trailing whitespace is maintained.
+    /// This method keeps all trailing whitespace,
+    /// unlike [`to_str()`](PrimitiveValue::to_str).
     ///
     /// **Note:**
     /// As the process of reading a DICOM value
@@ -634,7 +635,9 @@ impl PrimitiveValue {
     /// All other type variants are first converted to a string,
     /// then collected into a vector.
     ///
-    /// Trailing whitespace is stripped for display purposes.
+    /// Trailing whitespace is stripped from each string.
+    /// If keeping it is desired,
+    /// use [`to_raw_str()`](PrimitiveValue::to_raw_str).
     ///
     /// **Note:**
     /// As the process of reading a DICOM value
