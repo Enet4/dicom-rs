@@ -279,14 +279,29 @@ where
         }
     }
 
-    /// Retrieve the element's value as a single string.
+    /// Retrieve the element's value as a single clean string,
+    /// with no trailing whitespace.
+    ///
+    /// Returns an error if the value is not primitive.
     pub fn to_str(&self) -> Result<Cow<str>, CastValueError> {
         self.value.to_str()
     }
 
+    /// Retrieve the element's value as a single raw string,
+    /// with trailing whitespace kept.
+    ///
+    /// Returns an error if the value is not primitive.
+    pub fn to_raw_str(&self) -> Result<Cow<str>, CastValueError> {
+        self.value.to_raw_str()
+    }
+
     /// Retrieves the element's value as a clean string
+    #[deprecated(
+        note = "`to_clean_str()` is now deprecated in favour of using `to_str()` directly. 
+        `to_raw_str()` replaces the old functionality of `to_str()` and maintains all trailing whitespace."
+    )]
     pub fn to_clean_str(&self) -> Result<Cow<str>, CastValueError> {
-        self.value.to_clean_str()
+        self.value.to_str()
     }
 
     /// Convert the full primitive value into raw bytes.
