@@ -42,8 +42,15 @@ pub struct RawPixelData {
     pub offset_table: C<u32>,
 }
 
-/// PixelDataObject trait contains all
-/// relevant data to decode pixel data
+/// A DICOM object trait to be interpreted as pixel data.
+/// 
+/// This trait extends the concept of DICOM object
+/// as defined in [`dicom_object`](::dicom_object),
+/// in order to retrieve important pieces of the object
+/// for pixel data decoding into images or multi-dimensional arrays.
+/// 
+/// It is defined in this crate so that
+/// transfer syntax implementers only have to depend on `dicom_encoding`.
 pub trait PixelDataObject {
     /// Return the Rows attribute or None if it is not found
     fn rows(&self) -> Option<u16>;
@@ -75,13 +82,31 @@ pub trait PixelDataObject {
 
 /// Trait object responsible for decoding and encoding
 /// pixel data based on the Transfersyntax.
-/// Every TS with encapsulated pixel data should implement this.
+/// 
+/// Every transfer syntax with encapsulated pixel data
+/// should implement these methods.
+///
 pub trait PixelRWAdapter {
-    /// Decode complete byte stream to native pixel data
+    /// Decode the given complete byte stream to native pixel data
+    /// `src` is  of the pixel data fragment,
+    /// without headers.
+    /// 
+    /// The output is a sequence of native pixel values
+    /// which follow the image properties of the given object.
+    /// 
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()>;
 
-    /// Write byte stream
-    fn encode(&self, src: &[u8], dst: &mut Vec<u8>) -> EncodeResult<()>;
+    /// Write a byte stream of pixel data fragment values
+    /// into the given destination.
+    /// The input `src` is a sequence of native pixel values.
+    /// 
+    /// Implementers may choose not to support image encoding
+    /// by returning `EncodeError::NotImplementedError`
+    /// or by leaving the default method implementation.
+    #[allow(unused_variables)]
+    fn encode(&self, src: &[u8], dst: &mut Vec<u8>) -> EncodeResult<()> {
+        Err(EncodeError::NotImplementedError)
+    }
 }
 
 /// Alias type for a dynamically dispatched data adapter.
