@@ -1198,7 +1198,7 @@ mod tests {
         let p = dicom_value!(U16, [256, 0, 16]);
         let val = DicomValue::new(p);
         let element = DataElement::new(Tag(0x0028, 0x3002), VR::US, val);
-        assert_eq!(element.to_clean_str().unwrap(), "256\\0\\16",);
+        assert_eq!(element.to_str().unwrap(), "256\\0\\16",);
     }
 
     #[test]

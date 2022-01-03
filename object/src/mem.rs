@@ -959,7 +959,7 @@ mod tests {
         let physician_name = obj.element(Tag(0x0008, 0x0090)).unwrap();
         assert_eq!(physician_name.header().len, Length(12));
         assert_eq!(
-            physician_name.value().to_clean_str().unwrap(),
+            physician_name.value().to_str().unwrap(),
             "Simões^João"
         );
     }
