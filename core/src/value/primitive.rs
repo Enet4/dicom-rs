@@ -697,7 +697,7 @@ impl PrimitiveValue {
             PrimitiveValue::Empty => Cow::from(&[][..]),
             PrimitiveValue::Str(_) => Cow::Owned(vec![self.to_str().to_string()]),
             PrimitiveValue::Strs(_) => {
-                Cow::Owned(self.to_str().split("\\").map(|s| s.to_string()).collect())
+                Cow::Owned(self.to_str().split('\\').map(|s| s.to_string()).collect())
             }
             PrimitiveValue::Date(values) => values
                 .into_iter()
