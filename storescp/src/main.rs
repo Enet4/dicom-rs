@@ -63,18 +63,27 @@ fn run(
                         user_variables,
                     } => {
                         buffer.clear();
-                        let PresentationContextProposed {
-                            id,
-                            abstract_syntax: _,
-                            transfer_syntaxes,
-                        } = &presentation_contexts[0];
-                        let presentation_context_result = PresentationContextResult {
-                            id: *id,
-                            reason: dicom_ul::pdu::PresentationContextResultReason::Acceptance,
-                            // accept the first proposed transfer syntax
-                            transfer_syntax: transfer_syntaxes[0].clone(),
-                        };
-                        pcid = *id;
+                        let presentation_contexts: Vec<PresentationContextResult> =
+                            presentation_contexts
+                                .iter()
+                                .map(|pc| {
+                                    let PresentationContextProposed {
+                                        id,
+                                        abstract_syntax: _,
+                                        transfer_syntaxes,
+                                    } = &pc;
+                                    PresentationContextResult {
+                                    id: *id,
+                                    reason:
+                                        dicom_ul::pdu::PresentationContextResultReason::Acceptance,
+                                    // accept the first proposed transfer syntax
+                                    transfer_syntax: transfer_syntaxes[0].clone(),
+                                }
+                                })
+                                .collect();
+
+                        // I don't understand yet which PC ID should be returned with the C-STORE-RSP, using the first for now
+                        pcid = presentation_contexts[0].id;
 
                         // copying most variables for now, should be set to application specific values
                         let response = dicom_ul::Pdu::AssociationAC {
@@ -82,7 +91,7 @@ fn run(
                             calling_ae_title,
                             called_ae_title,
                             application_context_name,
-                            presentation_contexts: vec![presentation_context_result],
+                            presentation_contexts,
                             user_variables,
                         };
                         write_pdu(&mut buffer, &response).unwrap();
