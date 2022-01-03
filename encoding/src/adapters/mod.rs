@@ -3,6 +3,7 @@ use snafu::Snafu;
 
 pub mod rle_lossless;
 
+/// Error conditions when decoding pixel data.
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum DecodeError {
@@ -10,11 +11,15 @@ pub enum DecodeError {
     #[snafu(display("Error decoding pixel data: {}", message))]
     CustomDecodeError { message: &'static str },
 
+    /// Input pixel data is not encapsulated
+    NotEncapsulated,
+
     /// A required attribute is missing from the DICOM
     #[snafu(display("Missing required attribute: {}", name))]
     MissingAttribute { name: &'static str },
 }
 
+/// Error conditions when encoding pixel data.
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum EncodeError {
@@ -24,7 +29,11 @@ pub enum EncodeError {
         message: &'static str,
     },
 
-    NotImplementedError,
+    /// Input pixel data is not native
+    NotNative,
+
+    /// Encoding is not implemented
+    NotImplemented,
 }
 
 pub type DecodeResult<T, E = DecodeError> = Result<T, E>;
@@ -87,25 +96,36 @@ pub trait PixelDataObject {
 /// should implement these methods.
 ///
 pub trait PixelRWAdapter {
-    /// Decode the given complete byte stream to native pixel data
-    /// `src` is  of the pixel data fragment,
-    /// without headers.
+    /// Decode the given DICOM object
+    /// containing encapsulated pixel data
+    /// into native pixel data as a byte stream.
+    /// 
+    /// It is a necessary precondition that the object's pixel data
+    /// is encoded in accordance to the transfer syntax(es)
+    /// supported by this adapter.
+    /// A `NotEncapsulated` error is returned otherwise.
     /// 
     /// The output is a sequence of native pixel values
     /// which follow the image properties of the given object.
     /// 
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()>;
 
-    /// Write a byte stream of pixel data fragment values
+    /// Encode a DICOM object's image into the format supported by this adapter,
+    /// writing a byte stream of pixel data fragment values
     /// into the given destination.
-    /// The input `src` is a sequence of native pixel values.
     /// 
-    /// Implementers may choose not to support image encoding
-    /// by returning `EncodeError::NotImplementedError`
-    /// or by leaving the default method implementation.
+    /// It is a necessary precondition that the object's pixel data
+    /// is in a _native encoding_.
+    /// A `NotNative` error is returned otherwise.
+    /// 
+    /// It is possible that
+    /// image encoding is not actually supported by this adapter,
+    /// in which case a `NotImplemented` error is returned.
+    /// Implementers leave the default method implementation
+    /// for this behavior.
     #[allow(unused_variables)]
-    fn encode(&self, src: &[u8], dst: &mut Vec<u8>) -> EncodeResult<()> {
-        Err(EncodeError::NotImplementedError)
+    fn encode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> EncodeResult<()> {
+        Err(EncodeError::NotImplemented)
     }
 }
 
@@ -121,7 +141,7 @@ impl PixelRWAdapter for NeverPixelAdapter {
         unreachable!();
     }
 
-    fn encode(&self, _src: &[u8], _dst: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode(&self, _src: &dyn PixelDataObject, _dst: &mut Vec<u8>) -> EncodeResult<()> {
         unreachable!();
     }
 }

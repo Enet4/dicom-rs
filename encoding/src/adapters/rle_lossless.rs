@@ -9,10 +9,10 @@
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 use snafu::OptionExt;
 
-use crate::adapters::{DecodeResult, EncodeResult, PixelDataObject, PixelRWAdapter};
+use crate::adapters::{DecodeResult, PixelDataObject, PixelRWAdapter};
 use std::io::{self, Read, Seek};
 
-use super::{CustomDecodeSnafu, MissingAttributeSnafu, NotImplementedSnafu};
+use super::{CustomDecodeSnafu, MissingAttributeSnafu};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RLELosslessAdapter;
@@ -101,9 +101,7 @@ impl PixelRWAdapter for RLELosslessAdapter {
         Ok(())
     }
 
-    fn encode(&self, _src: &[u8], _dst: &mut Vec<u8>) -> EncodeResult<()> {
-        NotImplementedSnafu {}.fail()?
-    }
+    // TODO(#125) implement `encode`
 }
 
 // Read the RLE header and return the offsets
