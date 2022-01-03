@@ -1123,7 +1123,7 @@ mod tests {
 
         match token.into_owned().unwrap() {
             DataToken::PrimitiveValue(v) => {
-                assert_eq!(v.to_str(), "1.234\0",);
+                assert_eq!(v.to_raw_str(), "1.234\0",);
             }
             t => panic!("Unexpected type of token {:?}", t),
         }
@@ -1153,7 +1153,7 @@ mod tests {
 
         match token.into_owned().unwrap() {
             DataToken::PrimitiveValue(v) => {
-                assert_eq!(v.to_str(), "1.234\0",);
+                assert_eq!(v.to_raw_str(), "1.234\0",);
             }
             t => panic!("Unexpected type of token {:?}", t),
         }

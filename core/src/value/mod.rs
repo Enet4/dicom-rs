@@ -198,9 +198,12 @@ impl<I, P> Value<I, P>
 where
     I: HasLength,
 {
-    /// Convert the full primitive value into a single string.
+    /// Convert the full primitive value into a clean string.
     ///
-    /// If the value contains multiple strings, they are concatenated
+    /// The value is converted into a strings
+    /// as described in [`PrimitiveValue::to_str`].
+    /// If the value contains multiple strings,
+    /// they are trimmed at the end and concatenated
     /// (separated by the standard DICOM value delimiter `'\\'`)
     /// into an owned string.
     ///
@@ -215,17 +218,34 @@ where
         }
     }
 
-    /// Convert the full primitive value into a clean string.
+    /// Convert the full primitive value into a single raw string,
+    /// with trailing whitespace kept.
+    ///
+    /// If the value contains multiple strings, they are concatenated
+    /// (separated by the standard DICOM value delimiter `'\\'`)
+    /// into an owned string.
     ///
     /// Returns an error if the value is not primitive.
-    pub fn to_clean_str(&self) -> Result<Cow<str>, CastValueError> {
+    pub fn to_raw_str(&self) -> Result<Cow<str>, CastValueError> {
         match self {
-            Value::Primitive(prim) => Ok(prim.to_clean_str()),
+            Value::Primitive(prim) => Ok(prim.to_raw_str()),
             _ => Err(CastValueError {
                 requested: "string",
                 got: self.value_type(),
             }),
         }
+    }
+
+
+    /// Convert the full primitive value into a clean string.
+    ///
+    /// Returns an error if the value is not primitive.
+    #[deprecated(
+        note = "`to_clean_str()` is now deprecated in favour of using `to_str()` directly. 
+        `to_raw_str()` replaces the old functionality of `to_str()` and maintains all trailing whitespace."
+    )]
+    pub fn to_clean_str(&self) -> Result<Cow<str>, CastValueError> {
+        self.to_str()
     }
 
     /// Convert the full primitive value into a sequence of strings.

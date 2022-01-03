@@ -13,7 +13,7 @@ use safe_transmute::to_bytes::transmute_to_bytes;
 use smallvec::SmallVec;
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::borrow::Cow;
-use std::fmt;
+use std::fmt::{self, Display};
 use std::str::FromStr;
 
 /** Triggered when a value reading attempt fails.
@@ -115,7 +115,7 @@ pub struct CastValueError {
     pub got: ValueType,
 }
 
-impl fmt::Display for CastValueError {
+impl Display for CastValueError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -141,7 +141,7 @@ pub struct ConvertValueError {
     pub cause: Option<InvalidValueReadError>,
 }
 
-impl fmt::Display for ConvertValueError {
+impl Display for ConvertValueError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -203,7 +203,7 @@ pub type C<T> = SmallVec<[T; 2]>;
 /// [`dicom_value!`]: ../macro.dicom_value.html
 #[derive(Debug, Clone)]
 pub enum PrimitiveValue {
-    /// No data. Usually employed for zero-lengthed values.
+    /// No data. Usually employed for zero-length values.
     Empty,
 
     /// A sequence of strings.
@@ -499,6 +499,8 @@ impl PrimitiveValue {
     /// All other type variants are first converted to a string,
     /// then joined together with a backslash.
     ///
+    /// Trailing whitespace is stripped from each string.
+    ///
     /// **Note:**
     /// As the process of reading a DICOM value
     /// may not always preserve its original nature,
@@ -525,6 +527,10 @@ impl PrimitiveValue {
     ///     "2014",
     /// );
     /// assert_eq!(
+    ///     dicom_value!(Str, "Smith^John\0").to_str(),
+    ///     "Smith^John",
+    /// );
+    /// assert_eq!(
     ///     dicom_value!(Strs, [
     ///         "DERIVED",
     ///         "PRIMARY",
@@ -538,6 +544,75 @@ impl PrimitiveValue {
     /// }
     /// ```
     pub fn to_str(&self) -> Cow<str> {
+        match self {
+            PrimitiveValue::Empty => Cow::from(""),
+            PrimitiveValue::Str(values) => {
+                Cow::from(values.trim_end_matches(|c| c == ' ' || c == '\u{0}'))
+            }
+            PrimitiveValue::Strs(values) => {
+                if values.len() == 1 {
+                    Cow::from(values[0].trim_end_matches(|c| c == ' ' || c == '\u{0}'))
+                } else {
+                    Cow::Owned(
+                        values
+                            .iter()
+                            .map(|s| s.trim_end_matches(|c| c == ' ' || c == '\u{0}'))
+                            .join("\\"),
+                    )
+                }
+            }
+            prim => Cow::from(prim.to_string()),
+        }
+    }
+
+    /// Convert the primitive value into a raw string representation.
+    ///
+    /// String values already encoded with the `Str` and `Strs` variants
+    /// are provided as is.
+    /// In the case of `Strs`, the strings are first joined together
+    /// with a backslash (`'\\'`).
+    /// All other type variants are first converted to a string,
+    /// then joined together with a backslash.
+    ///
+    /// This method keeps all trailing whitespace,
+    /// unlike [`to_str()`](PrimitiveValue::to_str).
+    ///
+    /// **Note:**
+    /// As the process of reading a DICOM value
+    /// may not always preserve its original nature,
+    /// it is not guaranteed that `to_raw_str()` returns a string with
+    /// the exact same byte sequence as the one originally found
+    /// at the source of the value,
+    /// even for the string variants.
+    /// Therefore, this method is not reliable
+    /// for compliant DICOM serialization.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use dicom_core::dicom_value;
+    /// # use dicom_core::value::{C, DicomDate, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    /// assert_eq!(
+    ///     dicom_value!(Str, "Smith^John\0").to_raw_str(),
+    ///     "Smith^John\0",
+    /// );
+    /// assert_eq!(
+    ///     dicom_value!(Date, DicomDate::from_ymd(2014, 10, 12).unwrap()).to_raw_str(),
+    ///     "2014-10-12",
+    /// );
+    /// assert_eq!(
+    ///     dicom_value!(Strs, [
+    ///         "DERIVED",
+    ///         " PRIMARY ",
+    ///         "WHOLE BODY",
+    ///         "EMISSION ",
+    ///     ])
+    ///     .to_raw_str(),
+    ///     "DERIVED\\ PRIMARY \\WHOLE BODY\\EMISSION ",
+    /// );
+    /// ```
+    pub fn to_raw_str(&self) -> Cow<str> {
         match self {
             PrimitiveValue::Empty => Cow::from(""),
             PrimitiveValue::Str(values) => Cow::from(values.as_str()),
@@ -558,6 +633,10 @@ impl PrimitiveValue {
     /// are provided as is.
     /// All other type variants are first converted to a string,
     /// then collected into a vector.
+    ///
+    /// Trailing whitespace is stripped from each string.
+    /// If keeping it is desired,
+    /// use [`to_raw_str()`](PrimitiveValue::to_raw_str).
     ///
     /// **Note:**
     /// As the process of reading a DICOM value
@@ -580,23 +659,24 @@ impl PrimitiveValue {
     ///     dicom_value!(Strs, [
     ///         "DERIVED",
     ///         "PRIMARY",
-    ///         "WHOLE BODY",
-    ///         "EMISSION",
+    ///         "WHOLE BODY ",
+    ///         " EMISSION ",
     ///     ])
     ///     .to_multi_str(),
-    ///     &["DERIVED", "PRIMARY", "WHOLE BODY", "EMISSION"][..],
+    ///     &["DERIVED", "PRIMARY", "WHOLE BODY", " EMISSION"][..],
     /// );
-    ///
     /// assert_eq!(
     ///     dicom_value!(Str, "Smith^John").to_multi_str(),
     ///     &["Smith^John"][..],
     /// );
-    ///
+    /// assert_eq!(
+    ///     dicom_value!(Str, "Smith^John\0").to_multi_str(),
+    ///     &["Smith^John"][..],
+    /// );
     /// assert_eq!(
     ///     dicom_value!(Date, DicomDate::from_ym(2014, 10)?).to_multi_str(),
     ///     &["201410"][..],
     /// );
-    ///
     /// assert_eq!(
     ///     dicom_value!(I64, [128, 256, 512]).to_multi_str(),
     ///     &["128", "256", "512"][..],
@@ -605,20 +685,22 @@ impl PrimitiveValue {
     /// }
     /// ```
     pub fn to_multi_str(&self) -> Cow<[String]> {
-        /// Auxilliary function for turning a sequence of values
+        /// Auxillary function for turning a sequence of values
         /// into a sequence of strings.
         fn seq_to_str<I>(iter: I) -> Vec<String>
         where
             I: IntoIterator,
-            I::Item: std::fmt::Display,
+            I::Item: Display,
         {
             iter.into_iter().map(|x| x.to_string()).collect()
         }
 
         match self {
             PrimitiveValue::Empty => Cow::from(&[][..]),
-            PrimitiveValue::Str(values) => Cow::from(std::slice::from_ref(values)),
-            PrimitiveValue::Strs(values) => Cow::from(&values[..]),
+            PrimitiveValue::Str(_) => Cow::Owned(vec![self.to_str().to_string()]),
+            PrimitiveValue::Strs(_) => {
+                Cow::Owned(self.to_str().split('\\').map(|s| s.to_string()).collect())
+            }
             PrimitiveValue::Date(values) => values
                 .into_iter()
                 .map(|date| date.to_encoded())
@@ -701,30 +783,17 @@ impl PrimitiveValue {
     /// Ok(())
     /// }
     /// ```
+    #[deprecated(
+        note = "`to_clean_str()` is now deprecated in favour of using `to_str()` directly. 
+        `to_raw_str()` replaces the old functionality of `to_str()` and maintains all trailing whitespace."
+    )]
     pub fn to_clean_str(&self) -> Cow<str> {
-        match self {
-            PrimitiveValue::Str(values) => {
-                Cow::from(values.trim_end_matches(|c| c == ' ' || c == '\u{0}'))
-            }
-            PrimitiveValue::Strs(values) => {
-                if values.len() == 1 {
-                    Cow::from(values[0].trim_end_matches(|c| c == ' ' || c == '\u{0}'))
-                } else {
-                    Cow::Owned(
-                        values
-                            .iter()
-                            .map(|s| s.trim_end_matches(|c| c == ' ' || c == '\u{0}'))
-                            .join("\\"),
-                    )
-                }
-            }
-            prim => Cow::from(prim.to_string()),
-        }
+        self.to_str()
     }
 
     /// Retrieve this DICOM value as raw bytes.
     ///
-    /// Binary numeric values are returned with a reintepretation
+    /// Binary numeric values are returned with a reinterpretation
     /// of the holding vector's occupied data block as bytes,
     /// without copying,
     /// under the platform's native byte order.
@@ -3323,28 +3392,22 @@ impl PrimitiveValue {
 }
 
 /// The output of this method is equivalent to calling the method `to_str`
-impl std::fmt::Display for PrimitiveValue {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        /// Auxilliary function for turning a sequence of values
+impl Display for PrimitiveValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        /// Auxillary function for turning a sequence of values
         /// into a backslash-delimited string.
         fn seq_to_str<I>(iter: I) -> String
         where
             I: IntoIterator,
-            I::Item: std::fmt::Display,
+            I::Item: Display,
         {
             iter.into_iter().map(|x| x.to_string()).join("\\")
         }
 
         match self {
             PrimitiveValue::Empty => Ok(()),
-            PrimitiveValue::Str(value) => f.write_str(value),
-            PrimitiveValue::Strs(values) => {
-                if values.len() == 1 {
-                    f.write_str(&values[0])
-                } else {
-                    f.write_str(&seq_to_str(values))
-                }
-            }
+            PrimitiveValue::Str(_) => f.write_str(&self.to_str()),
+            PrimitiveValue::Strs(_) => f.write_str(&self.to_str()),
             PrimitiveValue::Date(values) => {
                 f.write_str(&values.into_iter().map(|date| date.to_string()).join("\\"))
             }
@@ -3381,10 +3444,14 @@ impl PartialEq for PrimitiveValue {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (PrimitiveValue::Empty, PrimitiveValue::Empty) => true,
-            (PrimitiveValue::Strs(v1), PrimitiveValue::Str(v2)) => v1.len() == 1 && &v1[0] == v2,
-            (PrimitiveValue::Str(v1), PrimitiveValue::Strs(v2)) => v2.len() == 1 && v1 == &v2[0],
-            (PrimitiveValue::Strs(v1), PrimitiveValue::Strs(v2)) => v1 == v2,
-            (PrimitiveValue::Str(v1), PrimitiveValue::Str(v2)) => v1 == v2,
+            (PrimitiveValue::Strs(v1), PrimitiveValue::Str(_)) => {
+                v1.len() == 1 && self.to_str() == other.to_str()
+            }
+            (PrimitiveValue::Str(_), PrimitiveValue::Strs(v2)) => {
+                v2.len() == 1 && self.to_str() == other.to_str()
+            }
+            (PrimitiveValue::Strs(_), PrimitiveValue::Strs(_)) => self.to_str() == other.to_str(),
+            (PrimitiveValue::Str(_), PrimitiveValue::Str(_)) => self.to_str() == other.to_str(),
             (PrimitiveValue::Tags(v1), PrimitiveValue::Tags(v2)) => v1 == v2,
             (PrimitiveValue::U8(v1), PrimitiveValue::U8(v2)) => v1 == v2,
             (PrimitiveValue::I16(v1), PrimitiveValue::I16(v2)) => v1 == v2,
@@ -3447,7 +3514,7 @@ pub enum ValueType {
     /// Used specifically for AT.
     Tags,
 
-    /// The value is a sequence of unsigned 16-bit integers.
+    /// The value is a sequence of unsigned 8-bit integers.
     /// Used for OB and UN.
     U8,
 
@@ -3455,7 +3522,7 @@ pub enum ValueType {
     /// Used for SS.
     I16,
 
-    /// A sequence of unsigned 168-bit integers.
+    /// A sequence of unsigned 16-bit integers.
     /// Used for US and OW.
     U16,
 
@@ -3582,25 +3649,44 @@ mod tests {
         // sequence of numbers
         let value = PrimitiveValue::from(vec![10, 11, 12]);
         assert_eq!(value.to_str(), "10\\11\\12",);
+
+        // now test that trailing whitespace is trimmed
+        // removes whitespace at the end of a string
+        let value = PrimitiveValue::from("1.2.345\0".to_string());
+        assert_eq!(&value.to_str(), "1.2.345");
+        let value = PrimitiveValue::from("1.2.345 ".to_string());
+        assert_eq!(&value.to_str(), "1.2.345");
+
+        // removes whitespace at the end on multiple strings
+        let value = dicom_value!(Strs, ["ONE ", "TWO", "THREE", "SIX "]);
+        assert_eq!(&value.to_str(), "ONE\\TWO\\THREE\\SIX");
+
+        // maintains the leading whitespace on a string and removes at the end
+        let value = PrimitiveValue::from("\01.2.345\0".to_string());
+        assert_eq!(&value.to_str(), "\01.2.345");
+
+        // maintains the leading whitespace on multiple strings and removes at the end
+        let value = dicom_value!(Strs, [" ONE", "TWO", "THREE", " SIX "]);
+        assert_eq!(&value.to_str(), " ONE\\TWO\\THREE\\ SIX");
     }
 
     #[test]
-    fn primitive_value_to_clean_str() {
-        //Removes whitespace at the end of a string
+    fn primitive_value_to_raw_str() {
+        // maintains whitespace at the end of a string
         let value = PrimitiveValue::from("1.2.345\0".to_string());
-        assert_eq!(&value.to_clean_str(), "1.2.345");
+        assert_eq!(&value.to_raw_str(), "1.2.345\0");
 
-        //Removes whitespace at the end on multiple strings
+        // maintains whitespace at the end on multiple strings
         let value = dicom_value!(Strs, ["ONE", "TWO", "THREE", "SIX "]);
-        assert_eq!(&value.to_clean_str(), "ONE\\TWO\\THREE\\SIX");
+        assert_eq!(&value.to_raw_str(), "ONE\\TWO\\THREE\\SIX ");
 
-        //Maintains the leading whitespace on a string and removes at the end
+        // maintains the leading whitespace on a string and maintains at the end
         let value = PrimitiveValue::from("\01.2.345\0".to_string());
-        assert_eq!(&value.to_clean_str(), "\01.2.345");
+        assert_eq!(&value.to_raw_str(), "\01.2.345\0");
 
-        //Maintains the leading whitespace on multiple strings and removes at the end
+        // maintains the leading whitespace on multiple strings and maintains at the end
         let value = dicom_value!(Strs, [" ONE", "TWO", "THREE", " SIX "]);
-        assert_eq!(&value.to_clean_str(), " ONE\\TWO\\THREE\\ SIX");
+        assert_eq!(&value.to_raw_str(), " ONE\\TWO\\THREE\\ SIX ");
     }
 
     #[test]
@@ -4320,6 +4406,8 @@ mod tests {
     #[test]
     fn eq_ignores_multi_variants() {
         assert_eq!(dicom_value!(Str, "abc123"), dicom_value!(Strs, ["abc123"]),);
+
+        assert_eq!(dicom_value!(Strs, ["abc123"]), dicom_value!(Str, "abc123"),);
 
         assert_eq!(dicom_value!(Str, "ABC123"), PrimitiveValue::from("ABC123"),);
 
