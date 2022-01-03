@@ -3688,13 +3688,6 @@ mod tests {
     }
 
     #[test]
-    fn primitive_value_to_clean_str_is_deprecated() {
-        // Comment: is it possible to test that a deprecation warning is truly emitted here?
-        let value = PrimitiveValue::from("1.2.345\0".to_string());
-        assert_eq!(&value.to_clean_str(), "1.2.345");
-    }
-
-    #[test]
     fn primitive_value_to_bytes() {
         assert_eq!(PrimitiveValue::Empty.to_bytes(), &[][..]);
 
