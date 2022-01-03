@@ -182,7 +182,7 @@ fn create_echo_command(message_id: u16) -> InMemDicomObject<StandardDataDictiona
     // group length
     obj.put(DataElement::new(
         tags::COMMAND_GROUP_LENGTH,
-        VR::UI,
+        VR::UL,
         PrimitiveValue::from(8 + 18 + 8 + 2 + 8 + 2 + 8 + 2),
     ));
 

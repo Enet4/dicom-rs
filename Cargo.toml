@@ -15,7 +15,8 @@ members = [
     "storescu",
     "pixeldata",
     "fromimage",
-    "toimage"
+    "toimage",
+    "storescp"
 ]
 
 # optimize JPEG decoder to run tests faster

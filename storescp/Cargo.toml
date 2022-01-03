@@ -1,0 +1,18 @@
+[package]
+name = "dicom-storescp"
+version = "0.1.0-rc.1"
+authors = ["Victor Saase <vsaase@gmail.com>", "Eduardo Pinho <enet4mikeenet@gmail.com>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Enet4/dicom-rs"
+description = "A server accepting DICOM C-STORE"
+categories = ["command-line-utilities"]
+keywords = ["dicom"]
+readme = "README.md"
+
+[dependencies]
+dicom-ul = { path = '../ul', version = "0.4.0-rc.1" }
+dicom = { path = '../parent', version = "0.5.0-rc.1" }
+structopt = "0.3.21"
+snafu = "0.6.8"
+smallvec = "1.6.1"
