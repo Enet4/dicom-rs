@@ -104,7 +104,7 @@ fn test_expl_vr_le_no_meta() {
     let series_instance_uid = object.element_by_name("SeriesInstanceUID").unwrap();
     assert_eq!(
         series_instance_uid.to_str().unwrap(),
-        "1.2.333.4444.5.6.7.8.99\0",
+        "1.2.333.4444.5.6.7.8.99",
     );
 
     let frame_of_reference_uid = object.element_by_name("FrameOfReferenceUID").unwrap();

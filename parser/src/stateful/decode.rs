@@ -1409,7 +1409,7 @@ mod tests {
         let value = decoder
             .read_value(&header)
             .expect("should find a value after element header");
-        assert_eq!(value.to_clean_str(), "1.2.840.10008.5.1.4.1.1.7");
+        assert_eq!(value.to_str(), "1.2.840.10008.5.1.4.1.1.7");
 
         assert_eq!(decoder.position(), 82);
 
