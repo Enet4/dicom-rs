@@ -43,7 +43,6 @@ fn run(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
     let mut instance_buffer: Vec<u8> = Vec::with_capacity(1024 * 1024);
-    let mut pcid = 1;
     let mut msgid = 1;
     let mut sop_class_uid = "".to_string();
     let mut sop_instance_uid = "".to_string();
@@ -81,9 +80,6 @@ fn run(
                                 }
                                 })
                                 .collect();
-
-                        // I don't understand yet which PC ID should be returned with the C-STORE-RSP, using the first for now
-                        pcid = presentation_contexts[0].id;
 
                         // copying most variables for now, should be set to application specific values
                         let response = dicom_ul::Pdu::AssociationAC {
@@ -137,16 +133,16 @@ fn run(
                             let obj =
                                 create_cstore_response(msgid, &sop_class_uid, &sop_instance_uid);
 
-                            let mut data = Vec::new();
+                            let mut obj_data = Vec::new();
 
-                            obj.write_dataset_with_ts(&mut data, &ts)?;
+                            obj.write_dataset_with_ts(&mut obj_data, &ts)?;
 
                             let pdu_response = dicom_ul::Pdu::PData {
                                 data: vec![dicom_ul::pdu::PDataValue {
-                                    presentation_context_id: pcid,
+                                    presentation_context_id: data[0].presentation_context_id,
                                     value_type: PDataValueType::Command,
                                     is_last: true,
-                                    data,
+                                    data: obj_data,
                                 }],
                             };
                             buffer.clear();
