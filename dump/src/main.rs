@@ -26,6 +26,7 @@ fn os_compatibility() -> Result<(), ()> {
 #[derive(Debug, StructOpt)]
 struct App {
     /// The DICOM file(s) to read
+    #[structopt(required = true)]
     files: Vec<PathBuf>,
     /// whether text value width limit is disabled
     /// (limited to `width` by default)
@@ -38,6 +39,9 @@ struct App {
     /// color mode
     #[structopt(long = "color", default_value = "auto")]
     color: ColorMode,
+    /// fail if any errors are encountered
+    #[structopt(long = "fail-first")]
+    fail_first: bool,
 }
 
 fn main() {
@@ -50,6 +54,7 @@ fn main() {
         no_text_limit,
         width,
         color,
+        fail_first,
     } = App::from_args();
 
     let width = width
@@ -57,28 +62,36 @@ fn main() {
         .unwrap_or(120);
 
     let mut options = DumpOptions::new();
-
-    for filename in filenames {
-        let obj = open_file(filename).unwrap_or_else(|e| {
-            report(e);
-            std::process::exit(ERROR_READ);
-        });
-        
-        match options
-            .no_text_limit(no_text_limit)
+    options.no_text_limit(no_text_limit)
             .width(width)
-            .color_mode(color)
-            .dump_file(&obj)
-        {
-            Err(ref e) if e.kind() == ErrorKind::BrokenPipe => {
-                // handle broken pipe separately with a no-op
-            }
+            .color_mode(color);
+    
+    let mut errors = vec![];
+
+    for filename in &filenames {
+        println!("{}: ", filename.display());
+        match open_file(filename) {
             Err(e) => {
-                eprintln!("[ERROR] {}", e);
-                std::process::exit(ERROR_PRINT);
+                report(e);
+                if fail_first {
+                    std::process::exit(ERROR_READ);
+                }
+                errors.push((filename,ERROR_READ));
+            },
+            Ok(obj) => {
+                if let Err(ref e) = options.dump_file(&obj) {
+                    if e.kind() == ErrorKind::BrokenPipe {
+                        // handle broken pipe separately with a no-op
+                    } else {
+                        eprintln!("[ERROR] {}", e);
+                        if fail_first {
+                        std::process::exit(ERROR_PRINT);
+                        }
+                    }
+                    errors.push((filename,ERROR_PRINT))
+                } // else all good
             }
-            _ => {} // all good
-        }
+        };
     }
 }
 
