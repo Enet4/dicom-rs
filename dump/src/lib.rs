@@ -737,7 +737,7 @@ where
     let len = values.len();
     let mut pieces = values.take(64).map(|piece| {
         let mut piece = piece.to_string();
-        piece.retain(|c| !c.is_control());
+        piece = piece.replace(|c: char| c.is_control(), "�");
         if quoted {
             piece = piece.replace("\"", "\\\"");
             piece.insert(0, '"');
