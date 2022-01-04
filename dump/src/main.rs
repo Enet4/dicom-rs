@@ -66,7 +66,7 @@ fn main() {
             .width(width)
             .color_mode(color);
     
-    let mut errors = vec![];
+    let mut errors: i32 = 0;
 
     for filename in &filenames {
         println!("{}: ", filename.display());
@@ -76,7 +76,7 @@ fn main() {
                 if fail_first {
                     std::process::exit(ERROR_READ);
                 }
-                errors.push((filename,ERROR_READ));
+                errors = errors + 1;
             },
             Ok(obj) => {
                 if let Err(ref e) = options.dump_file(&obj) {
@@ -88,11 +88,13 @@ fn main() {
                         std::process::exit(ERROR_PRINT);
                         }
                     }
-                    errors.push((filename,ERROR_PRINT))
+                    errors = errors + 1;
                 } // else all good
             }
         };
     }
+
+    std::process::exit(errors);
 }
 
 fn report<E: 'static>(err: E)
