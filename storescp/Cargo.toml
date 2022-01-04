@@ -11,7 +11,6 @@ keywords = ["dicom"]
 readme = "README.md"
 
 [dependencies]
-dicom-ul = { path = '../ul', version = "0.4.0-rc.1" }
 dicom = { path = '../parent', version = "0.5.0-rc.1" }
 structopt = "0.3.21"
 snafu = "0.6.8"
