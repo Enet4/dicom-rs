@@ -7,12 +7,17 @@ use dicom::{
     core::{DataElement, PrimitiveValue, VR},
     dicom_value,
     dictionary_std::tags,
-    object::{InMemDicomObject, StandardDataDictionary},
+    encoding::transfer_syntax::TransferSyntaxIndex,
+    object::{FileMetaTableBuilder, InMemDicomObject, StandardDataDictionary},
 };
-use dicom_ul::{
-    pdu::reader::read_pdu,
-    pdu::{
-        writer::write_pdu, PDataValueType, PresentationContextProposed, PresentationContextResult,
+use dicom::{
+    transfer_syntax::TransferSyntaxRegistry,
+    ul::{
+        pdu::reader::read_pdu,
+        pdu::{
+            writer::write_pdu, PDataValueType, PresentationContextProposed,
+            PresentationContextResult,
+        },
     },
 };
 use structopt::StructOpt;
@@ -46,6 +51,9 @@ fn run(
     let mut msgid = 1;
     let mut sop_class_uid = "".to_string();
     let mut sop_instance_uid = "".to_string();
+
+    let mut presentation_context_results: Vec<PresentationContextResult> = vec![];
+
     loop {
         match read_pdu(scu_stream, max_pdu_length, strict) {
             Ok(mut pdu) => {
@@ -53,7 +61,7 @@ fn run(
                     println!("scu ----> scp: {}", pdu.short_description());
                 }
                 match pdu {
-                    dicom_ul::Pdu::AssociationRQ {
+                    dicom::ul::Pdu::AssociationRQ {
                         protocol_version,
                         calling_ae_title,
                         called_ae_title,
@@ -62,33 +70,32 @@ fn run(
                         user_variables,
                     } => {
                         buffer.clear();
-                        let presentation_contexts: Vec<PresentationContextResult> =
-                            presentation_contexts
-                                .iter()
-                                .map(|pc| {
-                                    let PresentationContextProposed {
-                                        id,
-                                        abstract_syntax: _,
-                                        transfer_syntaxes,
-                                    } = &pc;
-                                    PresentationContextResult {
+                        presentation_context_results = presentation_contexts
+                            .iter()
+                            .map(|pc| {
+                                let PresentationContextProposed {
+                                    id,
+                                    abstract_syntax: _,
+                                    transfer_syntaxes,
+                                } = &pc;
+                                PresentationContextResult {
                                     id: *id,
                                     reason:
-                                        dicom_ul::pdu::PresentationContextResultReason::Acceptance,
+                                        dicom::ul::pdu::PresentationContextResultReason::Acceptance,
                                     // accept the first proposed transfer syntax
                                     transfer_syntax: transfer_syntaxes[0].clone(),
                                 }
-                                })
-                                .collect();
+                            })
+                            .collect();
 
                         // copying most variables for now, should be set to application specific values
-                        let response = dicom_ul::Pdu::AssociationAC {
+                        let response = dicom::ul::Pdu::AssociationAC {
                             protocol_version,
                             calling_ae_title,
                             called_ae_title,
                             application_context_name,
-                            presentation_contexts,
                             user_variables,
+                            presentation_contexts: presentation_context_results.clone(),
                         };
                         write_pdu(&mut buffer, &response).unwrap();
                         if verbose {
@@ -96,7 +103,7 @@ fn run(
                         }
                         scu_stream.write_all(&buffer).unwrap();
                     }
-                    dicom_ul::Pdu::PData { ref mut data } => {
+                    dicom::ul::Pdu::PData { ref mut data } => {
                         if data[0].value_type == PDataValueType::Data && !data[0].is_last {
                             instance_buffer.append(&mut data[0].data);
                         } else if data[0].value_type == PDataValueType::Command && data[0].is_last {
@@ -119,11 +126,31 @@ fn run(
                             instance_buffer.clear();
                         } else if data[0].value_type == PDataValueType::Data && data[0].is_last {
                             instance_buffer.append(&mut data[0].data);
-                            use std::fs;
+
+                            let presentation_context = presentation_context_results
+                                .iter()
+                                .filter(|pc| pc.id == data[0].presentation_context_id)
+                                .next()
+                                .unwrap();
+                            let ts = &presentation_context.transfer_syntax;
+
+                            let obj = InMemDicomObject::read_dataset_with_ts(
+                                instance_buffer.as_slice(),
+                                TransferSyntaxRegistry.get(ts).unwrap(),
+                            )?;
+                            let file_meta = FileMetaTableBuilder::new()
+                                .media_storage_sop_class_uid(
+                                    obj.element_by_name("SOPClassUID")?.to_str()?,
+                                )
+                                .media_storage_sop_instance_uid(
+                                    obj.element_by_name("SOPInstanceUID")?.to_str()?,
+                                )
+                                .transfer_syntax(ts)
+                                .build()?;
+                            let file_obj = obj.with_exact_meta(file_meta);
 
                             // write the files to the current directory with their SOPInstanceUID as filenames
-                            fs::write(sop_instance_uid.trim_end_matches('\0'), &instance_buffer)
-                                .expect("Unable to write file");
+                            file_obj.write_to_file(sop_instance_uid.trim_end_matches('\0'))?;
 
                             // send C-STORE-RSP object
                             // commands are always in implict VR LE
@@ -137,8 +164,8 @@ fn run(
 
                             obj.write_dataset_with_ts(&mut obj_data, &ts)?;
 
-                            let pdu_response = dicom_ul::Pdu::PData {
-                                data: vec![dicom_ul::pdu::PDataValue {
+                            let pdu_response = dicom::ul::Pdu::PData {
+                                data: vec![dicom::ul::pdu::PDataValue {
                                     presentation_context_id: data[0].presentation_context_id,
                                     value_type: PDataValueType::Command,
                                     is_last: true,
@@ -150,15 +177,15 @@ fn run(
                             scu_stream.write_all(&buffer).unwrap();
                         }
                     }
-                    dicom_ul::Pdu::ReleaseRQ => {
+                    dicom::ul::Pdu::ReleaseRQ => {
                         buffer.clear();
-                        write_pdu(&mut buffer, &dicom_ul::Pdu::ReleaseRP).unwrap();
+                        write_pdu(&mut buffer, &dicom::ul::Pdu::ReleaseRP).unwrap();
                         scu_stream.write_all(&buffer).unwrap();
                     }
                     _ => {}
                 }
             }
-            Err(dicom_ul::pdu::reader::Error::NoPduAvailable { .. }) => {
+            Err(dicom::ul::pdu::reader::Error::NoPduAvailable { .. }) => {
                 break;
             }
             Err(_err) => {
