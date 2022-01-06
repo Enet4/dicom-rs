@@ -65,7 +65,7 @@ fn main() {
     options.no_text_limit(no_text_limit)
             .width(width)
             .color_mode(color);
-    
+    let fail_first = filenames.len() == 1 || fail_first;
     let mut errors: i32 = 0;
 
     for filename in &filenames {
@@ -76,7 +76,7 @@ fn main() {
                 if fail_first {
                     std::process::exit(ERROR_READ);
                 }
-                errors = errors + 1;
+                errors += 1;
             },
             Ok(obj) => {
                 if let Err(ref e) = options.dump_file(&obj) {
@@ -85,10 +85,10 @@ fn main() {
                     } else {
                         eprintln!("[ERROR] {}", e);
                         if fail_first {
-                        std::process::exit(ERROR_PRINT);
+                            std::process::exit(ERROR_PRINT);
                         }
                     }
-                    errors = errors + 1;
+                    errors += 1;
                 } // else all good
             }
         };
