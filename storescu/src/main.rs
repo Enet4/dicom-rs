@@ -12,18 +12,20 @@ use dicom_ul::{
     pdu::{PDataValue, PDataValueType},
 };
 use smallvec::smallvec;
+use std::ffi::OsStr;
 use std::io::Write;
 use std::path::PathBuf;
 use structopt::StructOpt;
 use transfer_syntax::TransferSyntaxIndex;
+use std::collections::HashSet;
 
 /// DICOM C-STORE SCU
 #[derive(Debug, StructOpt)]
 struct App {
     /// socket address to STORE SCP (example: "127.0.0.1:104")
     addr: String,
-    /// the DICOM file to store
-    file: PathBuf,
+    /// the DICOM file(s) to store
+    files: Vec<PathBuf>,
     /// verbose mode
     #[structopt(short = "v", long = "verbose")]
     verbose: bool,
@@ -39,183 +41,215 @@ struct App {
     /// the maximum PDU length accepted by the SCU
     #[structopt(long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
+    /// fail if not all DICOM files can be transferred
+    #[structopt(long = "fail-first")]
+    fail_first: bool,
+}
+
+struct DicomFile {
+    /// File path
+    file: PathBuf,
+    /// Storage SOP Class UID
+    sop_class_uid: String,
+    /// Storage SOP Instance UID
+    sop_instance_uid: String,
+    /// File Transfer Syntax
+    file_transfer_syntax: String,
+    /// Transfer Syntax selected
+    ts_selected: Option<String>,
+    /// Presentation Context selected
+    pc_selected: Option<dicom_ul::pdu::PresentationContextResult>,   
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let App {
         addr,
-        file,
+        files,
         verbose,
         message_id,
         calling_ae_title,
         called_ae_title,
         max_pdu_length,
+        fail_first,
     } = App::from_args();
 
-    if verbose {
-        println!("Opening file '{}'...", file.display());
+    let mut dicom_files: Vec<DicomFile> = vec![];
+    let mut presentation_contexts = HashSet::new();
+
+    for file in files {
+
+        if verbose {
+            println!("Opening file '{}'...", file.display());
+        }
+
+        match check_file(file) {
+            Ok(dicom_file) => {
+                presentation_contexts.insert((dicom_file.sop_class_uid.to_string(),dicom_file.file_transfer_syntax.clone()));
+                dicom_files.push(dicom_file);
+            },
+            Err(e) => {
+                if verbose {
+                    println!("Error: {}", e);
+                }
+            }
+        }        
     }
 
-    let dicom_file = open_file(file)?;
-
-    let meta = dicom_file.meta();
-
-    let storage_sop_class_uid = &meta.media_storage_sop_class_uid;
-    let storage_sop_instance_uid = &meta.media_storage_sop_instance_uid;
-    let transfer_syntax = &meta.transfer_syntax.trim_end_matches('\0');
-
-    let file_ts_desc = TransferSyntaxRegistry
-        .get(transfer_syntax)
-        .ok_or("Unsupported file transfer syntax")?;
+    if dicom_files.is_empty() {
+        eprintln!("No supported files to transfer");
+        std::process::exit(-1);
+    }
 
     if verbose {
         println!("Establishing association with '{}'...", &addr);
     }
 
-    let mut scu = ClientAssociationOptions::new()
-        .with_abstract_syntax(storage_sop_class_uid.to_string())
-        .with_transfer_syntax(transfer_syntax.to_string())
-        .calling_ae_title(calling_ae_title)
-        .called_ae_title(called_ae_title)
-        .max_pdu_length(max_pdu_length)
-        .establish(addr)?;
+    let mut scu_init = ClientAssociationOptions::new();
+    
+    for (storage_sop_class_uid,transfer_syntax) in &presentation_contexts {
+        scu_init = scu_init.with_abstract_syntax(storage_sop_class_uid)
+                    .with_transfer_syntax(transfer_syntax);
+    }
+    let mut scu = scu_init.calling_ae_title(calling_ae_title)
+                    .called_ae_title(called_ae_title)
+                    .max_pdu_length(max_pdu_length)
+                    .establish(addr)?;
 
     if verbose {
         println!("Association established");
     }
 
-    // TODO(#106) transfer syntax conversion is currently not supported
-    let pc_selected = if let Some(pc) = scu.presentation_contexts().iter().find(|pc| {
-        // Check support for this transfer syntax.
-        // If it is the same as the file, we're good.
-        // Otherwise, uncompressed data set encoding
-        // and native pixel data is required on both ends.
-        let ts = &pc.transfer_syntax;
-        ts == transfer_syntax
-            || TransferSyntaxRegistry
-                .get(&pc.transfer_syntax)
-                .filter(|ts| file_ts_desc.is_codec_free() && ts.is_codec_free())
-                .map(|_| true)
-                .unwrap_or(false)
-    }) {
-        pc.clone()
-    } else {
-        eprintln!("Could not choose a transfer syntax");
-        let _ = scu.abort();
-        std::process::exit(-2);
-    };
-
-    let ts = TransferSyntaxRegistry
-        .get(&pc_selected.transfer_syntax)
-        .ok_or("Poorly negotiated transfer syntax")?;
-
-    if verbose {
-        println!("Transfer Syntax: {}", ts.name());
-    }
-
-    let cmd = store_req_command(
-        storage_sop_class_uid,
-        storage_sop_instance_uid,
-        message_id,
-    );
-
-    let mut cmd_data = Vec::with_capacity(128);
-    cmd.write_dataset_with_ts(
-        &mut cmd_data,
-        &dicom::transfer_syntax::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
-    )?;
-
-    let mut object_data = Vec::with_capacity(2048);
-    dicom_file.write_dataset_with_ts(&mut object_data, ts)?;
-
-    let nbytes = cmd_data.len() + object_data.len();
-
-    if verbose {
-        println!("Sending payload (~ {} kB)...", nbytes / 1_000);
-    }
-
-    if nbytes < scu.acceptor_max_pdu_length() as usize - 100 {
-        let pdu = Pdu::PData {
-            data: vec![
-                PDataValue {
-                    presentation_context_id: pc_selected.id,
-                    value_type: PDataValueType::Command,
-                    is_last: true,
-                    data: cmd_data,
-                },
-                PDataValue {
-                    presentation_context_id: pc_selected.id,
-                    value_type: PDataValueType::Data,
-                    is_last: true,
-                    data: object_data,
-                },
-            ],
-        };
-
-        scu.send(&pdu)?;
-    } else {
-        let pdu = Pdu::PData {
-            data: vec![PDataValue {
-                presentation_context_id: pc_selected.id,
-                value_type: PDataValueType::Command,
-                is_last: true,
-                data: cmd_data,
-            }],
-        };
-
-        scu.send(&pdu)?;
-
-        {
-            let mut pdata = scu.send_pdata(pc_selected.id);
-            pdata.write_all(&object_data)?;
+    for mut file in &mut dicom_files {
+        // TODO(#106) transfer syntax conversion is currently not supported
+        match check_presentation_contexts(file, scu.presentation_contexts()) {
+            Ok((pc, ts)) => {
+                file.pc_selected = Some(pc);
+                file.ts_selected = Some(ts);
+            },
+            Err(e) => {
+                if fail_first {
+                    eprintln!("Could not choose a transfer syntax: {}", e);
+                    let _ = scu.abort();
+                    std::process::exit(-2);
+                }
+            }
         }
     }
 
-    if verbose {
-        println!("Awaiting response...");
-    }
+    for file in dicom_files {
 
-    let rsp_pdu = scu.receive()?;
+        if let (Some(pc_selected),Some(ts_selected)) = (file.pc_selected, file.ts_selected) {
+            
+            let cmd = store_req_command(
+                &file.sop_class_uid,
+                &file.sop_instance_uid,
+                message_id,
+            );
 
-    match rsp_pdu {
-        Pdu::PData { data } => {
-            let data_value = &data[0];
-
-            let cmd_obj = InMemDicomObject::read_dataset_with_ts(
-                &data_value.data[..],
+            let mut cmd_data = Vec::with_capacity(128);
+            cmd.write_dataset_with_ts(
+                &mut cmd_data,
                 &dicom::transfer_syntax::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
             )?;
+
+            let mut object_data = Vec::with_capacity(2048);
+            let dicom_file = open_file(file.file)?;
+            let ts_selected = TransferSyntaxRegistry.get(&ts_selected).ok_or("Unsupported file transfer syntax")?;
+            dicom_file.write_dataset_with_ts(&mut object_data, ts_selected)?;
+
+            let nbytes = cmd_data.len() + object_data.len();
+
             if verbose {
-                println!("Response: {:?}", cmd_obj);
+                println!("Sending payload (~ {} kB)...", nbytes / 1_000);
             }
-            let status = cmd_obj.element(tags::STATUS)?.to_int::<u16>()?;
-            let storage_sop_instance_uid =
-                storage_sop_instance_uid.trim_end_matches(|c: char| c.is_whitespace() || c == '\0');
-            if status == 0 {
-                println!("Sucessfully stored instance `{}`", storage_sop_instance_uid);
+
+            if nbytes < scu.acceptor_max_pdu_length() as usize - 100 {
+                let pdu = Pdu::PData {
+                    data: vec![
+                        PDataValue {
+                            presentation_context_id: pc_selected.id,
+                            value_type: PDataValueType::Command,
+                            is_last: true,
+                            data: cmd_data,
+                        },
+                        PDataValue {
+                            presentation_context_id: pc_selected.id,
+                            value_type: PDataValueType::Data,
+                            is_last: true,
+                            data: object_data,
+                        },
+                    ],
+                };
+
+                scu.send(&pdu)?;
             } else {
-                println!(
-                    "Failed to store instance `{}` (status code {})",
-                    storage_sop_instance_uid, status
-                );
+                let pdu = Pdu::PData {
+                    data: vec![PDataValue {
+                        presentation_context_id: pc_selected.id,
+                        value_type: PDataValueType::Command,
+                        is_last: true,
+                        data: cmd_data,
+                    }],
+                };
+
+                scu.send(&pdu)?;
+
+                {
+                    let mut pdata = scu.send_pdata(pc_selected.id);
+                    pdata.write_all(&object_data)?;
+                }
             }
 
-            scu.release()?;
-        }
+            if verbose {
+                println!("Awaiting response...");
+            }
 
-        pdu @ Pdu::Unknown { .. }
-        | pdu @ Pdu::AssociationRQ { .. }
-        | pdu @ Pdu::AssociationAC { .. }
-        | pdu @ Pdu::AssociationRJ { .. }
-        | pdu @ Pdu::ReleaseRQ
-        | pdu @ Pdu::ReleaseRP
-        | pdu @ Pdu::AbortRQ { .. } => {
-            eprintln!("Unexpected SCP response: {:?}", pdu);
-            let _ = scu.abort();
-            std::process::exit(-2);
-        }
+            let rsp_pdu = scu.receive()?;
+
+            match rsp_pdu {
+                Pdu::PData { data } => {
+                    let data_value = &data[0];
+
+                    let cmd_obj = InMemDicomObject::read_dataset_with_ts(
+                        &data_value.data[..],
+                        &dicom::transfer_syntax::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
+                    )?;
+                    if verbose {
+                        println!("Response: {:?}", cmd_obj);
+                    }
+                    let status = cmd_obj.element(tags::STATUS)?.to_int::<u16>()?;
+                    let storage_sop_instance_uid =
+                        file.sop_instance_uid.trim_end_matches(|c: char| c.is_whitespace() || c == '\0');
+                    if status == 0 {
+                        println!("Sucessfully stored instance `{}`", storage_sop_instance_uid);
+                    } else {
+                        println!(
+                            "Failed to store instance `{}` (status code {})",
+                            storage_sop_instance_uid, status
+                        );
+                        if fail_first {
+                            let _ = scu.abort();
+                            std::process::exit(-2);
+                        }
+                    }
+                }
+
+                pdu @ Pdu::Unknown { .. }
+                | pdu @ Pdu::AssociationRQ { .. }
+                | pdu @ Pdu::AssociationAC { .. }
+                | pdu @ Pdu::AssociationRJ { .. }
+                | pdu @ Pdu::ReleaseRQ
+                | pdu @ Pdu::ReleaseRP
+                | pdu @ Pdu::AbortRQ { .. } => {
+                    eprintln!("Unexpected SCP response: {:?}", pdu);
+                    let _ = scu.abort();
+                    std::process::exit(-2);
+                }
+            }
+        }   
     }
 
+scu.release()?;
     Ok(())
 }
 
@@ -289,6 +323,48 @@ fn store_req_command(
 
 fn even_len(l: usize) -> u32 {
     ((l + 1) & !1) as u32
+}
+
+fn check_file(file: PathBuf) -> Result<DicomFile, Box<dyn std::error::Error>> {
+    // Ignore DICOMDIR files until better support is added
+    let _ = (file.file_name() != Some(OsStr::new("DICOMDIR"))).then(|| false).ok_or("DICOMDIR file not supported")?;
+    let dicom_file = open_file(&file)?;
+
+    let meta = dicom_file.meta();
+
+    let storage_sop_class_uid = &meta.media_storage_sop_class_uid;
+    let storage_sop_instance_uid = &meta.media_storage_sop_instance_uid;
+    let transfer_syntax_uid = &meta.transfer_syntax.trim_end_matches('\0');
+    let ts = TransferSyntaxRegistry.get(transfer_syntax_uid).ok_or("Unsupported file transfer syntax")?;
+    Ok(DicomFile{file, 
+                 sop_class_uid: storage_sop_class_uid.to_string(), 
+                 sop_instance_uid: storage_sop_instance_uid.to_string(), 
+                 file_transfer_syntax: String::from(ts.uid()), 
+                 ts_selected: None,
+                 pc_selected: None,})           
+}
+
+fn check_presentation_contexts(file: &DicomFile, pcs: &[dicom_ul::pdu::PresentationContextResult]) -> Result<(dicom_ul::pdu::PresentationContextResult, String), Box<dyn std::error::Error>> {
+    let file_ts = TransferSyntaxRegistry.get(&file.file_transfer_syntax).ok_or("Unsupported file transfer syntax")?;
+    // TODO(#106) transfer syntax conversion is currently not supported
+    let pc = pcs.iter().find(|pc| {
+        // Check support for this transfer syntax.
+        // If it is the same as the file, we're good.
+        // Otherwise, uncompressed data set encoding
+        // and native pixel data is required on both ends.
+        let ts = &pc.transfer_syntax;
+        ts == file_ts.uid()
+            || TransferSyntaxRegistry
+               .get(&pc.transfer_syntax)
+               .filter(|ts| file_ts.is_codec_free() && ts.is_codec_free())
+               .map(|_| true)
+               .unwrap_or(false)
+    }).ok_or("No presentation context accepted")?;
+    let ts = TransferSyntaxRegistry
+             .get(&pc.transfer_syntax)
+             .ok_or("Poorly negotiated transfer syntax")?;
+    
+    Ok((pc.clone(), String::from(ts.uid())))
 }
 
 #[cfg(test)]
