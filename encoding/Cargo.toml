@@ -20,4 +20,4 @@ dicom-dictionary-std = { path = "../dictionary-std", version = "0.5.0-rc.1" }
 encoding = "0.2.33"
 byteordered = "0.6"
 inventory = { version = "0.1.4", optional = true }
-snafu = "0.7.0-beta.2"
+snafu = "0.7.0"

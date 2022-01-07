@@ -25,6 +25,6 @@ default = ['dicom/inventory-registry', 'dicom/backtraces']
 dicom = { path = "../parent/", version = "0.5.0-rc.1", default-features = false }
 term_size = "0.3.2"
 itertools = "0.10"
-snafu = "0.7.0-beta.2"
+snafu = "0.7.0"
 colored = "2.0.0"
 structopt = "0.3.21"
