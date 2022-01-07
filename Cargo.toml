@@ -14,7 +14,8 @@ members = [
     "scpproxy",
     "echoscu",
     "storescu",
-    "pixeldata"
+    "pixeldata",
+    "fromimage"
 ]
 
 # optimize JPEG decoder to run tests faster
