@@ -196,10 +196,18 @@ pub fn parse_time(buf: &[u8]) -> Result<(NaiveTime, &[u8])> {
             component: DateComponent::Second,
         }
         .fail(),
-        6 => IncompleteValueSnafu {
-            component: DateComponent::Fraction,
+        6 => {
+            let hour: u32 = read_number(&buf[0..2])?;
+            check_component(DateComponent::Hour, &hour).context(InvalidComponentSnafu)?;
+            let minute: u32 = read_number(&buf[2..4])?;
+            check_component(DateComponent::Minute, &minute).context(InvalidComponentSnafu)?;
+            let second: u32 = read_number(&buf[4..6])?;
+            check_component(DateComponent::Second, &second).context(InvalidComponentSnafu)?;
+            Ok((
+                NaiveTime::from_hms_opt(hour, minute, second).context(InvalidTimeSnafu)?,
+                &buf[6..],
+            ))
         }
-        .fail(),
         len if len >= 8 => {
             let hour: u32 = read_number(&buf[0..2])?;
             check_component(DateComponent::Hour, &hour).context(InvalidComponentSnafu)?;
@@ -627,6 +635,13 @@ mod tests {
             )
         );
         assert_eq!(
+            parse_time(b"153011").unwrap(),
+            (
+                NaiveTime::from_hms(15, 30, 11),
+                &b""[..]
+            )
+        );
+        assert_eq!(
             parse_time(b"000000.000000").unwrap(),
             (NaiveTime::from_hms(0, 0, 0), &[][..])
         );
@@ -641,13 +656,6 @@ mod tests {
             parse_time(b"1530"),
             Err(Error::IncompleteValue {
                 component: DateComponent::Second,
-                ..
-            })
-        ));
-        assert!(matches!(
-            parse_time(b"153011"),
-            Err(Error::IncompleteValue {
-                component: DateComponent::Fraction,
                 ..
             })
         ));
@@ -794,13 +802,12 @@ mod tests {
                 .ymd(2017, 11, 30)
                 .and_hms_micro(10, 10, 10, 0)
         );
-        assert!(matches!(
-            parse_datetime(b"20180101093059", default_offset),
-            Err(Error::IncompleteValue {
-                component: DateComponent::Fraction,
-                ..
-            })
-        ));
+        assert_eq!(
+            parse_datetime(b"20180101093059", default_offset).unwrap(),
+            FixedOffset::east(0)
+                .ymd(2018, 1, 1)
+                .and_hms(9, 30, 59)
+        );
         assert!(matches!(
             parse_datetime(b"201801010930", default_offset),
             Err(Error::IncompleteValue {
