@@ -2106,7 +2106,7 @@ impl PrimitiveValue {
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
                 .into_iter()
-                .map(|s| super::deserialize::parse_date(s))
+                .map(super::deserialize::parse_date)
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
                 .map_err(|err| ConvertValueError {
