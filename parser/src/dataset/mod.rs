@@ -205,9 +205,9 @@ where
             LazyDataToken::LazyValue {
                 header,
                 mut decoder,
-            } => decoder.skip_bytes(header.len.0).context(SkipValue),
+            } => decoder.skip_bytes(header.len.0).context(SkipValueSnafu),
             LazyDataToken::LazyItemValue { len, mut decoder } => {
-                decoder.skip_bytes(len).context(SkipValue)
+                decoder.skip_bytes(len).context(SkipValueSnafu)
             }
             _ => Ok(()), // do nothing
         }
@@ -242,20 +242,20 @@ where
                 // use the stateful decoder to eagerly read the value
                 let value = match strategy {
                     ValueReadStrategy::Interpreted => {
-                        decoder.read_value(&header).context(ReadElementValue)?
+                        decoder.read_value(&header).context(ReadElementValueSnafu)?
                     }
                     ValueReadStrategy::Preserved => decoder
                         .read_value_preserved(&header)
-                        .context(ReadElementValue)?,
+                        .context(ReadElementValueSnafu)?,
                     ValueReadStrategy::Raw => decoder
                         .read_value_bytes(&header)
-                        .context(ReadElementValue)?,
+                        .context(ReadElementValueSnafu)?,
                 };
                 Ok(DataToken::PrimitiveValue(value))
             }
             LazyDataToken::LazyItemValue { len, mut decoder } => {
                 let mut data = Vec::new();
-                decoder.read_to_vec(len, &mut data).context(ReadItemValue)?;
+                decoder.read_to_vec(len, &mut data).context(ReadItemValueSnafu)?;
                 Ok(DataToken::ItemValue(data))
             }
         }
@@ -274,17 +274,17 @@ where
                 // use the stateful decoder to eagerly read the value
                 match strategy {
                     ValueReadStrategy::Interpreted => {
-                        decoder.read_value(&header).context(ReadElementValue)
+                        decoder.read_value(&header).context(ReadElementValueSnafu)
                     }
                     ValueReadStrategy::Preserved => decoder
                         .read_value_preserved(&header)
-                        .context(ReadElementValue),
+                        .context(ReadElementValueSnafu),
                     ValueReadStrategy::Raw => {
-                        decoder.read_value_bytes(&header).context(ReadElementValue)
+                        decoder.read_value_bytes(&header).context(ReadElementValueSnafu)
                     }
                 }
             }
-            _ => UnexpectedTokenType.fail(),
+            _ => UnexpectedTokenTypeSnafu.fail(),
         }
     }
 
@@ -314,13 +314,13 @@ where
                 header,
                 mut decoder,
             } => {
-                let len = header.len.get().context(UndefinedLength)?;
-                decoder.read_to(len, out).context(ReadElementValue)?;
+                let len = header.len.get().context(UndefinedLengthSnafu)?;
+                decoder.read_to(len, out).context(ReadElementValueSnafu)?;
             }
             LazyDataToken::LazyItemValue { len, mut decoder } => {
-                decoder.read_to(len, out).context(ReadItemValue)?;
+                decoder.read_to(len, out).context(ReadItemValueSnafu)?;
             }
-            _other => return UnexpectedTokenType.fail(),
+            _other => return UnexpectedTokenTypeSnafu.fail(),
         };
         Ok(())
     }

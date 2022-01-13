@@ -273,12 +273,12 @@ macro_rules! decl_character_set {
 
             fn decode(&self, text: &[u8]) -> DecodeResult<String> {
                 $val.decode(text, DecoderTrap::Call(decode_text_trap))
-                    .map_err(|message| DecodeCustom { message }.build())
+                    .map_err(|message| DecodeCustomSnafu { message }.build())
             }
 
             fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
                 $val.encode(text, EncoderTrap::Strict)
-                    .map_err(|message| EncodeCustom { message }.build())
+                    .map_err(|message| EncodeCustomSnafu { message }.build())
             }
         }
     };
@@ -298,13 +298,13 @@ impl TextCodec for DefaultCharacterSetCodec {
         // should check for invalid character codes (#40).
         ISO_8859_1
             .decode(text, DecoderTrap::Call(decode_text_trap))
-            .map_err(|message| DecodeCustom { message }.build())
+            .map_err(|message| DecodeCustomSnafu { message }.build())
     }
 
     fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
         ISO_8859_1
             .encode(text, EncoderTrap::Strict)
-            .map_err(|message| EncodeCustom { message }.build())
+            .map_err(|message| EncodeCustomSnafu { message }.build())
     }
 }
 

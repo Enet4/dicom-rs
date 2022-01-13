@@ -158,9 +158,9 @@ where
     T: TextCodec,
 {
     let mut v = vec![0; len as usize];
-    source.read_exact(&mut v).context(ReadValueData)?;
+    source.read_exact(&mut v).context(ReadValueDataSnafu)?;
     *group_length_remaining -= 8 + len;
-    text.decode(&v).context(DecodeText { name: text.name() })
+    text.decode(&v).context(DecodeTextSnafu { name: text.name() })
 }
 
 impl FileMetaTable {
@@ -172,9 +172,9 @@ impl FileMetaTable {
         let mut buff: [u8; 4] = [0; 4];
         {
             // check magic code
-            file.read_exact(&mut buff).context(ReadMagicCode)?;
+            file.read_exact(&mut buff).context(ReadMagicCodeSnafu)?;
 
-            ensure!(buff == DICM_MAGIC_CODE, NotDicom);
+            ensure!(buff == DICM_MAGIC_CODE, NotDicomSnafu);
         }
 
         let decoder = decode::file_header_decoder();
@@ -183,19 +183,19 @@ impl FileMetaTable {
         let builder = FileMetaTableBuilder::new();
 
         let group_length: u32 = {
-            let (elem, _bytes_read) = decoder.decode_header(&mut file).context(DecodeElement)?;
+            let (elem, _bytes_read) = decoder.decode_header(&mut file).context(DecodeElementSnafu)?;
             if elem.tag() != (0x0002, 0x0000) {
-                return UnexpectedTag { tag: elem.tag() }.fail();
+                return UnexpectedTagSnafu { tag: elem.tag() }.fail();
             }
             if elem.length() != Length(4) {
-                return UnexpectedDataValueLength {
+                return UnexpectedDataValueLengthSnafu {
                     tag: elem.tag(),
                     length: elem.length(),
                 }
                 .fail();
             }
             let mut buff: [u8; 4] = [0; 4];
-            file.read_exact(&mut buff).context(ReadValueData)?;
+            file.read_exact(&mut buff).context(ReadValueDataSnafu)?;
             LittleEndian::read_u32(&buff)
         };
 
@@ -205,10 +205,10 @@ impl FileMetaTable {
 
         // Fetch optional data elements
         while group_length_remaining > 0 {
-            let (elem, _bytes_read) = decoder.decode_header(&mut file).context(DecodeElement)?;
+            let (elem, _bytes_read) = decoder.decode_header(&mut file).context(DecodeElementSnafu)?;
             let elem_len = match elem.length().get() {
                 None => {
-                    return UndefinedValueLength { tag: elem.tag() }.fail();
+                    return UndefinedValueLengthSnafu { tag: elem.tag() }.fail();
                 }
                 Some(len) => len,
             };
@@ -216,14 +216,14 @@ impl FileMetaTable {
                 Tag(0x0002, 0x0001) => {
                     // Implementation Version
                     if elem.length() != Length(2) {
-                        return UnexpectedDataValueLength {
+                        return UnexpectedDataValueLengthSnafu {
                             tag: elem.tag(),
                             length: elem.length(),
                         }
                         .fail();
                     }
                     let mut hbuf = [0u8; 2];
-                    file.read_exact(&mut hbuf[..]).context(ReadValueData)?;
+                    file.read_exact(&mut hbuf[..]).context(ReadValueDataSnafu)?;
                     group_length_remaining -= 14;
 
                     builder.information_version(hbuf)
@@ -259,52 +259,52 @@ impl FileMetaTable {
                 Tag(0x0002, 0x0013) => {
                     // Implementation Version Name
                     let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v).context(ReadValueData)?;
+                    file.read_exact(&mut v).context(ReadValueDataSnafu)?;
                     group_length_remaining -= 8 + elem_len;
                     builder.implementation_version_name(
-                        text.decode(&v).context(DecodeText { name: text.name() })?,
+                        text.decode(&v).context(DecodeTextSnafu { name: text.name() })?,
                     )
                 }
                 Tag(0x0002, 0x0016) => {
                     // Source Application Entity Title
                     let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v).context(ReadValueData)?;
+                    file.read_exact(&mut v).context(ReadValueDataSnafu)?;
                     group_length_remaining -= 8 + elem_len;
                     builder.source_application_entity_title(
-                        text.decode(&v).context(DecodeText { name: text.name() })?,
+                        text.decode(&v).context(DecodeTextSnafu { name: text.name() })?,
                     )
                 }
                 Tag(0x0002, 0x0017) => {
                     // Sending Application Entity Title
                     let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v).context(ReadValueData)?;
+                    file.read_exact(&mut v).context(ReadValueDataSnafu)?;
                     group_length_remaining -= 8 + elem_len;
                     builder.sending_application_entity_title(
-                        text.decode(&v).context(DecodeText { name: text.name() })?,
+                        text.decode(&v).context(DecodeTextSnafu { name: text.name() })?,
                     )
                 }
                 Tag(0x0002, 0x0018) => {
                     // Receiving Application Entity Title
                     let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v).context(ReadValueData)?;
+                    file.read_exact(&mut v).context(ReadValueDataSnafu)?;
                     group_length_remaining -= 8 + elem_len;
                     builder.receiving_application_entity_title(
-                        text.decode(&v).context(DecodeText { name: text.name() })?,
+                        text.decode(&v).context(DecodeTextSnafu { name: text.name() })?,
                     )
                 }
                 Tag(0x0002, 0x0100) => {
                     // Private Information Creator UID
                     let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v).context(ReadValueData)?;
+                    file.read_exact(&mut v).context(ReadValueDataSnafu)?;
                     group_length_remaining -= 8 + elem_len;
                     builder.private_information_creator_uid(
-                        text.decode(&v).context(DecodeText { name: text.name() })?,
+                        text.decode(&v).context(DecodeTextSnafu { name: text.name() })?,
                     )
                 }
                 Tag(0x0002, 0x0102) => {
                     // Private Information
                     let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v).context(ReadValueData)?;
+                    file.read_exact(&mut v).context(ReadValueDataSnafu)?;
                     group_length_remaining -= 12 + elem_len;
                     builder.private_information(v)
                 }
@@ -419,7 +419,7 @@ impl FileMetaTable {
                 .into_element_iter()
                 .flat_map(IntoTokens::into_tokens),
         )
-        .context(WriteSet)
+        .context(WriteSetSnafu)
     }
 }
 
@@ -617,15 +617,15 @@ impl FileMetaTableBuilder {
             [0, 1]
         });
         let media_storage_sop_class_uid =
-            self.media_storage_sop_class_uid.context(MissingElement {
+            self.media_storage_sop_class_uid.context(MissingElementSnafu {
                 alias: "MediaStorageSOPClassUID",
             })?;
         let media_storage_sop_instance_uid =
             self.media_storage_sop_instance_uid
-                .context(MissingElement {
+                .context(MissingElementSnafu {
                     alias: "MediaStorageSOPInstanceUID",
                 })?;
-        let transfer_syntax = self.transfer_syntax.context(MissingElement {
+        let transfer_syntax = self.transfer_syntax.context(MissingElementSnafu {
             alias: "TransferSyntax",
         })?;
         let mut implementation_version_name = self.implementation_version_name;

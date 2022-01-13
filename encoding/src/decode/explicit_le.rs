@@ -20,12 +20,12 @@ impl Decode for ExplicitVRLittleEndianDecoder {
         S: ?Sized + Read,
     {
         // retrieve tag
-        let Tag(group, element) = self.basic.decode_tag(&mut source).context(ReadHeaderTag)?;
+        let Tag(group, element) = self.basic.decode_tag(&mut source).context(ReadHeaderTagSnafu)?;
 
         let mut buf = [0u8; 4];
         if group == 0xFFFE {
             // item delimiters do not have VR or reserved field
-            source.read_exact(&mut buf).context(ReadItemLength)?;
+            source.read_exact(&mut buf).context(ReadItemLengthSnafu)?;
             let len = LittleEndian::read_u32(&buf);
             return Ok((
                 DataElementHeader::new((group, element), VR::UN, Length(len)),
@@ -34,7 +34,7 @@ impl Decode for ExplicitVRLittleEndianDecoder {
         }
 
         // retrieve explicit VR
-        source.read_exact(&mut buf[0..2]).context(ReadVr)?;
+        source.read_exact(&mut buf[0..2]).context(ReadVrSnafu)?;
         let vr = VR::from_binary([buf[0], buf[1]]).unwrap_or(VR::UN);
         let bytes_read;
 
@@ -51,14 +51,14 @@ impl Decode for ExplicitVRLittleEndianDecoder {
             | VR::UT
             | VR::UN => {
                 // read 2 reserved bytes, then 4 bytes for data length
-                source.read_exact(&mut buf[0..2]).context(ReadReserved)?;
-                source.read_exact(&mut buf).context(ReadLength)?;
+                source.read_exact(&mut buf[0..2]).context(ReadReservedSnafu)?;
+                source.read_exact(&mut buf).context(ReadLengthSnafu)?;
                 bytes_read = 12;
                 LittleEndian::read_u32(&buf)
             }
             _ => {
                 // read 2 bytes for the data length
-                source.read_exact(&mut buf[0..2]).context(ReadLength)?;
+                source.read_exact(&mut buf[0..2]).context(ReadLengthSnafu)?;
                 bytes_read = 8;
                 u32::from(LittleEndian::read_u16(&buf[0..2]))
             }
@@ -75,13 +75,13 @@ impl Decode for ExplicitVRLittleEndianDecoder {
         S: ?Sized + Read,
     {
         let mut buf = [0u8; 8];
-        source.read_exact(&mut buf).context(ReadItemHeader)?;
+        source.read_exact(&mut buf).context(ReadItemHeaderSnafu)?;
         // retrieve tag
         let group = LittleEndian::read_u16(&buf[0..2]);
         let element = LittleEndian::read_u16(&buf[2..4]);
         let len = LittleEndian::read_u32(&buf[4..8]);
 
-        SequenceItemHeader::new((group, element), Length(len)).context(BadSequenceHeader)
+        SequenceItemHeader::new((group, element), Length(len)).context(BadSequenceHeaderSnafu)
     }
 
     fn decode_tag<S>(&self, source: &mut S) -> Result<Tag>
@@ -89,7 +89,7 @@ impl Decode for ExplicitVRLittleEndianDecoder {
         S: ?Sized + Read,
     {
         let mut buf = [0u8; 4];
-        source.read_exact(&mut buf).context(ReadTag)?;
+        source.read_exact(&mut buf).context(ReadTagSnafu)?;
         Ok(Tag(
             LittleEndian::read_u16(&buf[0..2]),
             LittleEndian::read_u16(&buf[2..4]),

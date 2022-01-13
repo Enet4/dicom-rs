@@ -11,10 +11,10 @@ use std::{collections::BTreeMap, io::Write};
 use crate::file::ReadPreamble;
 use crate::{meta::FileMetaTable, FileMetaTableBuilder};
 use crate::{
-    BuildMetaTable, CreateParser, CreatePrinter, DicomObject, FileDicomObject, MissingElementValue,
-    NoSuchAttributeName, NoSuchDataElementAlias, NoSuchDataElementTag, OpenFile, ParseMetaDataSet,
-    PrematureEnd, PrepareMetaTable, PrintDataSet, ReadFile, ReadPreambleBytes, ReadToken, Result,
-    UnexpectedToken, UnsupportedTransferSyntax,
+    BuildMetaTableSnafu, CreateParserSnafu, CreatePrinterSnafu, DicomObject, FileDicomObject, MissingElementValueSnafu,
+    NoSuchAttributeNameSnafu, NoSuchDataElementAliasSnafu, NoSuchDataElementTagSnafu, OpenFileSnafu, ParseMetaDataSetSnafu,
+    PrematureEndSnafu, PrepareMetaTableSnafu, PrintDataSetSnafu, ReadFileSnafu, ReadPreambleBytesSnafu, ReadTokenSnafu, Result,
+    UnexpectedTokenSnafu, UnsupportedTransferSyntaxSnafu,
 };
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::{HasLength, Header};
@@ -73,7 +73,7 @@ where
     type Element = &'s InMemElement<D>;
 
     fn element(&self, tag: Tag) -> Result<Self::Element> {
-        self.entries.get(&tag).context(NoSuchDataElementTag { tag })
+        self.entries.get(&tag).context(NoSuchDataElementTagSnafu { tag })
     }
 
     fn element_by_name(&self, name: &str) -> Result<Self::Element> {
@@ -240,24 +240,24 @@ where
     {
         let path = path.as_ref();
         let mut file =
-            BufReader::new(File::open(path).with_context(|| OpenFile { filename: path })?);
+            BufReader::new(File::open(path).with_context(|_| OpenFileSnafu { filename: path })?);
 
         if read_preamble == ReadPreamble::Auto || read_preamble == ReadPreamble::Always {
             let mut buf = [0u8; 128];
             // skip the preamble
             file.read_exact(&mut buf)
-                .with_context(|| ReadFile { filename: path })?;
+                .with_context(|_| ReadFileSnafu { filename: path })?;
         }
 
         // read metadata header
-        let meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSet)?;
+        let meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSetSnafu)?;
 
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let cs = SpecificCharacterSet::Default;
             let mut dataset =
                 DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs, Default::default())
-                    .context(CreateParser)?;
+                    .context(CreateParserSnafu)?;
 
             Ok(FileDicomObject {
                 meta,
@@ -270,7 +270,7 @@ where
                 )?,
             })
         } else {
-            UnsupportedTransferSyntax {
+            UnsupportedTransferSyntaxSnafu {
                 uid: meta.transfer_syntax,
             }
             .fail()
@@ -323,18 +323,18 @@ where
             // skip preamble
             let mut buf = [0u8; 128];
             // skip the preamble
-            file.read_exact(&mut buf).context(ReadPreambleBytes)?;
+            file.read_exact(&mut buf).context(ReadPreambleBytesSnafu)?;
         }
 
         // read metadata header
-        let meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSet)?;
+        let meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSetSnafu)?;
 
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let cs = SpecificCharacterSet::Default;
             let mut dataset =
                 DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs, Default::default())
-                    .context(CreateParser)?;
+                    .context(CreateParserSnafu)?;
             let obj = InMemDicomObject::build_object(
                 &mut dataset,
                 dict,
@@ -344,7 +344,7 @@ where
             )?;
             Ok(FileDicomObject { meta, obj })
         } else {
-            UnsupportedTransferSyntax {
+            UnsupportedTransferSyntaxSnafu {
                 uid: meta.transfer_syntax,
             }
             .fail()
@@ -449,7 +449,7 @@ where
         let from = BufReader::new(from);
         let mut dataset =
             DataSetReader::new_with_dictionary(from, dict.clone(), ts, cs, Default::default())
-                .context(CreateParser)?;
+                .context(CreateParserSnafu)?;
         InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
     }
 
@@ -467,7 +467,7 @@ where
 
     /// Retrieve a particular DICOM element by its tag.
     pub fn element(&self, tag: Tag) -> Result<&InMemElement<D>> {
-        self.entries.get(&tag).context(NoSuchDataElementTag { tag })
+        self.entries.get(&tag).context(NoSuchDataElementTagSnafu { tag })
     }
 
     /// Retrieve a particular DICOM element by its name.
@@ -475,7 +475,7 @@ where
         let tag = self.lookup_name(name)?;
         self.entries
             .get(&tag)
-            .with_context(|| NoSuchDataElementAlias {
+            .with_context(|| NoSuchDataElementAliasSnafu {
                 tag,
                 alias: name.to_string(),
             })
@@ -491,7 +491,7 @@ where
     pub fn take_element(&mut self, tag: Tag) -> Result<InMemElement<D>> {
         self.entries
             .remove(&tag)
-            .context(NoSuchDataElementTag { tag })
+            .context(NoSuchDataElementTagSnafu { tag })
     }
 
     /// Removes and returns a particular DICOM element by its name.
@@ -499,7 +499,7 @@ where
         let tag = self.lookup_name(name)?;
         self.entries
             .remove(&tag)
-            .with_context(|| NoSuchDataElementAlias {
+            .with_context(|| NoSuchDataElementAliasSnafu {
                 tag,
                 alias: name.to_string(),
             })
@@ -529,7 +529,7 @@ where
         // write object
         dset_writer
             .write_sequence(self.into_tokens())
-            .context(PrintDataSet)?;
+            .context(PrintDataSetSnafu)?;
 
         Ok(())
     }
@@ -550,12 +550,12 @@ where
         W: Write,
     {
         // prepare data set writer
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinter)?;
+        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
 
         // write object
         dset_writer
             .write_sequence(self.into_tokens())
-            .context(PrintDataSet)?;
+            .context(PrintDataSetSnafu)?;
 
         Ok(())
     }
@@ -595,14 +595,14 @@ where
         match self.element(Tag(0x0008, 0x0008)) {
             Ok(elem) => {
                 meta = meta.media_storage_sop_instance_uid(
-                    elem.value().to_str().context(PrepareMetaTable)?,
+                    elem.value().to_str().context(PrepareMetaTableSnafu)?,
                 );
             }
             Err(crate::Error::NoSuchDataElementTag { .. }) => {}
             Err(err) => return Err(err),
         }
         Ok(FileDicomObject {
-            meta: meta.build().context(BuildMetaTable)?,
+            meta: meta.build().context(BuildMetaTableSnafu)?,
             obj: self,
         })
     }
@@ -623,7 +623,7 @@ where
         let mut entries: BTreeMap<Tag, InMemElement<D>> = BTreeMap::new();
         // perform a structured parsing of incoming tokens
         while let Some(token) = dataset.next() {
-            let elem = match token.context(ReadToken)? {
+            let elem = match token.context(ReadTokenSnafu)? {
                 DataToken::PixelSequenceStart => {
                     // stop reading if reached `read_until` tag
                     if read_until
@@ -642,8 +642,8 @@ where
                     }
 
                     // fetch respective value, place it in the entries
-                    let next_token = dataset.next().context(MissingElementValue)?;
-                    match next_token.context(ReadToken)? {
+                    let next_token = dataset.next().context(MissingElementValueSnafu)?;
+                    match next_token.context(ReadTokenSnafu)? {
                         DataToken::PrimitiveValue(v) => InMemElement::new_with_len(
                             header.tag,
                             header.vr,
@@ -651,7 +651,7 @@ where
                             Value::Primitive(v),
                         ),
                         token => {
-                            return UnexpectedToken { token }.fail();
+                            return UnexpectedTokenSnafu { token }.fail();
                         }
                     }
                 }
@@ -674,7 +674,7 @@ where
                     // end of item, leave now
                     return Ok(InMemDicomObject { entries, dict, len });
                 }
-                token => return UnexpectedToken { token }.fail(),
+                token => return UnexpectedTokenSnafu { token }.fail(),
             };
             entries.insert(elem.tag(), elem);
         }
@@ -701,7 +701,7 @@ where
         let mut fragments = C::new();
 
         for token in dataset {
-            match token.context(ReadToken)? {
+            match token.context(ReadTokenSnafu)? {
                 DataToken::OffsetTable(table) => {
                     offset_table = Some(table);
                 }
@@ -726,7 +726,7 @@ where
                 | token @ DataToken::PixelSequenceStart
                 | token @ DataToken::SequenceStart { .. }
                 | token @ DataToken::PrimitiveValue(_) => {
-                    return UnexpectedToken { token }.fail();
+                    return UnexpectedTokenSnafu { token }.fail();
                 }
             }
         }
@@ -749,7 +749,7 @@ where
     {
         let mut items: C<_> = SmallVec::new();
         while let Some(token) = dataset.next() {
-            match token.context(ReadToken)? {
+            match token.context(ReadTokenSnafu)? {
                 DataToken::ItemStart { len } => {
                     items.push(Self::build_object(
                         &mut *dataset,
@@ -762,18 +762,18 @@ where
                 DataToken::SequenceEnd => {
                     return Ok(items);
                 }
-                token => return UnexpectedToken { token }.fail(),
+                token => return UnexpectedTokenSnafu { token }.fail(),
             };
         }
 
         // iterator fully consumed without a sequence delimiter
-        PrematureEnd.fail()
+        PrematureEndSnafu.fail()
     }
 
     fn lookup_name(&self, name: &str) -> Result<Tag> {
         self.dict
             .by_name(name)
-            .context(NoSuchAttributeName { name })
+            .context(NoSuchAttributeNameSnafu { name })
             .map(|e| e.tag())
     }
 }

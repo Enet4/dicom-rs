@@ -91,7 +91,7 @@ pub trait AsRange: Precision {
         if self.is_precise() {
             Ok(self.earliest()?)
         } else {
-            ImpreciseValue.fail()
+            ImpreciseValueSnafu.fail()
         }
     }
     /**
@@ -137,7 +137,7 @@ impl AsRange for DicomDate {
                 *self.day().unwrap_or(&1) as u32,
             )
         };
-        NaiveDate::from_ymd_opt(y, m, d).context(InvalidDate)
+        NaiveDate::from_ymd_opt(y, m, d).context(InvalidDateSnafu)
     }
 
     fn latest(&self) -> Result<NaiveDate> {
@@ -160,7 +160,7 @@ impl AsRange for DicomDate {
             },
         );
 
-        NaiveDate::from_ymd_opt(*y as i32, *m as u32, d).context(InvalidDate)
+        NaiveDate::from_ymd_opt(*y as i32, *m as u32, d).context(InvalidDateSnafu)
     }
 
     fn range(&self) -> Result<DateRange> {
@@ -184,7 +184,7 @@ impl AsRange for DicomTime {
             },
         );
 
-        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), f).context(InvalidTime)
+        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), f).context(InvalidTimeSnafu)
     }
     fn latest(&self) -> Result<NaiveTime> {
         let (h, m, s, f) = (
@@ -198,7 +198,7 @@ impl AsRange for DicomTime {
                 }
             },
         );
-        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), f).context(InvalidTime)
+        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), f).context(InvalidTimeSnafu)
     }
     fn range(&self) -> Result<TimeRange> {
         let start = self.earliest()?;
@@ -220,7 +220,7 @@ impl AsRange for DicomDateTime {
         self.offset()
             .from_utc_date(&date)
             .and_time(time)
-            .context(InvalidDateTime)
+            .context(InvalidDateTimeSnafu)
     }
 
     fn latest(&self) -> Result<DateTime<FixedOffset>> {
@@ -232,7 +232,7 @@ impl AsRange for DicomDateTime {
         self.offset()
             .from_utc_date(&date)
             .and_time(time)
-            .context(InvalidDateTime)
+            .context(InvalidDateTimeSnafu)
     }
     fn range(&self) -> Result<DateTimeRange> {
         let start = self.earliest()?;
@@ -259,7 +259,7 @@ impl DicomTime {
     pub fn to_naive_time(self) -> Result<NaiveTime> {
         match self.precision() {
             DateComponent::Second | DateComponent::Fraction => self.earliest(),
-            _ => ImpreciseValue.fail(),
+            _ => ImpreciseValueSnafu.fail(),
         }
     }
 }
@@ -342,7 +342,7 @@ impl DateRange {
      */
     pub fn from_start_to_end(start: NaiveDate, end: NaiveDate) -> Result<DateRange> {
         if start > end {
-            RangeInversion {
+            RangeInversionSnafu {
                 start: start.to_string(),
                 end: end.to_string(),
             }
@@ -394,7 +394,7 @@ impl TimeRange {
      */
     pub fn from_start_to_end(start: NaiveTime, end: NaiveTime) -> Result<TimeRange> {
         if start > end {
-            RangeInversion {
+            RangeInversionSnafu {
                 start: start.to_string(),
                 end: end.to_string(),
             }
@@ -449,7 +449,7 @@ impl DateTimeRange {
         end: DateTime<FixedOffset>,
     ) -> Result<DateTimeRange> {
         if start > end {
-            RangeInversion {
+            RangeInversionSnafu {
                 start: start.to_string(),
                 end: end.to_string(),
             }
@@ -514,17 +514,17 @@ impl DateTimeRange {
                     offset
                         .from_utc_date(sd)
                         .and_time(start_time)
-                        .context(InvalidDateTime)?,
+                        .context(InvalidDateTimeSnafu)?,
                     offset
                         .from_utc_date(ed)
                         .and_time(end_time)
-                        .context(InvalidDateTime)?,
+                        .context(InvalidDateTimeSnafu)?,
                 )?),
                 None => Ok(DateTimeRange::from_start(
                     offset
                         .from_utc_date(sd)
                         .and_time(start_time)
-                        .context(InvalidDateTime)?,
+                        .context(InvalidDateTimeSnafu)?,
                 )),
             },
             None => match end_date {
@@ -532,7 +532,7 @@ impl DateTimeRange {
                     offset
                         .from_utc_date(ed)
                         .and_time(end_time)
-                        .context(InvalidDateTime)?,
+                        .context(InvalidDateTimeSnafu)?,
                 )),
                 None => panic!("Impossible combination of two None values for a date range."),
             },
@@ -547,7 +547,7 @@ impl DateTimeRange {
 pub fn parse_date_range(buf: &[u8]) -> Result<DateRange> {
     // minimum length of one valid DicomDate (YYYY) and one '-' separator
     if buf.len() < 5 {
-        return UnexpectedEndOfElement.fail();
+        return UnexpectedEndOfElementSnafu.fail();
     }
 
     if let Some(separator) = buf.iter().position(|e| *e == b'-') {
@@ -555,18 +555,18 @@ pub fn parse_date_range(buf: &[u8]) -> Result<DateRange> {
         let end = &end[1..];
         match separator {
             0 => Ok(DateRange::from_end(
-                parse_date_partial(end).context(Parse)?.0.latest()?,
+                parse_date_partial(end).context(ParseSnafu)?.0.latest()?,
             )),
             i if i == buf.len() - 1 => Ok(DateRange::from_start(
-                parse_date_partial(start).context(Parse)?.0.earliest()?,
+                parse_date_partial(start).context(ParseSnafu)?.0.earliest()?,
             )),
             _ => Ok(DateRange::from_start_to_end(
-                parse_date_partial(start).context(Parse)?.0.earliest()?,
-                parse_date_partial(end).context(Parse)?.0.latest()?,
+                parse_date_partial(start).context(ParseSnafu)?.0.earliest()?,
+                parse_date_partial(end).context(ParseSnafu)?.0.latest()?,
             )?),
         }
     } else {
-        NoRangeSeparator.fail()
+        NoRangeSeparatorSnafu.fail()
     }
 }
 
@@ -577,7 +577,7 @@ pub fn parse_date_range(buf: &[u8]) -> Result<DateRange> {
 pub fn parse_time_range(buf: &[u8]) -> Result<TimeRange> {
     // minimum length of one valid DicomTime (HH) and one '-' separator
     if buf.len() < 3 {
-        return UnexpectedEndOfElement.fail();
+        return UnexpectedEndOfElementSnafu.fail();
     }
 
     if let Some(separator) = buf.iter().position(|e| *e == b'-') {
@@ -585,18 +585,18 @@ pub fn parse_time_range(buf: &[u8]) -> Result<TimeRange> {
         let end = &end[1..];
         match separator {
             0 => Ok(TimeRange::from_end(
-                parse_time_partial(end).context(Parse)?.0.latest()?,
+                parse_time_partial(end).context(ParseSnafu)?.0.latest()?,
             )),
             i if i == buf.len() - 1 => Ok(TimeRange::from_start(
-                parse_time_partial(start).context(Parse)?.0.earliest()?,
+                parse_time_partial(start).context(ParseSnafu)?.0.earliest()?,
             )),
             _ => Ok(TimeRange::from_start_to_end(
-                parse_time_partial(start).context(Parse)?.0.earliest()?,
-                parse_time_partial(end).context(Parse)?.0.latest()?,
+                parse_time_partial(start).context(ParseSnafu)?.0.earliest()?,
+                parse_time_partial(end).context(ParseSnafu)?.0.latest()?,
             )?),
         }
     } else {
-        NoRangeSeparator.fail()
+        NoRangeSeparatorSnafu.fail()
     }
 }
 
@@ -615,7 +615,7 @@ pub fn parse_time_range(buf: &[u8]) -> Result<TimeRange> {
 pub fn parse_datetime_range(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTimeRange> {
     // minimum length of one valid DicomDateTime (YYYY) and one '-' separator
     if buf.len() < 5 {
-        return UnexpectedEndOfElement.fail();
+        return UnexpectedEndOfElementSnafu.fail();
     }
     // simplest first, check for open upper and lower bound of range
     if buf[0] == b'-' {
@@ -623,7 +623,7 @@ pub fn parse_datetime_range(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<Da
         let buf = &buf[1..];
         Ok(DateTimeRange::from_end(
             parse_datetime_partial(buf, dt_utc_offset)
-                .context(Parse)?
+                .context(ParseSnafu)?
                 .latest()?,
         ))
     } else if buf[buf.len() - 1] == b'-' {
@@ -631,7 +631,7 @@ pub fn parse_datetime_range(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<Da
         let buf = &buf[0..(buf.len() - 1)];
         Ok(DateTimeRange::from_start(
             parse_datetime_partial(buf, dt_utc_offset)
-                .context(Parse)?
+                .context(ParseSnafu)?
                 .earliest()?,
         ))
     } else {
@@ -644,7 +644,7 @@ pub fn parse_datetime_range(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<Da
             .collect();
 
         let separator = match dashes.len() {
-            0 => return NoRangeSeparator.fail(), // no separator
+            0 => return NoRangeSeparatorSnafu.fail(), // no separator
             1 => dashes[0],                      // the only possible separator
             2 => {
                 // there's one West UTC offset (-hhmm) in one part of the range
@@ -668,17 +668,17 @@ pub fn parse_datetime_range(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<Da
                 }
             }
             3 => dashes[1], // maximum valid count of dashes, two West UTC offsets and one separator, it's middle one
-            len => return SeparatorCount { value: len }.fail(),
+            len => return SeparatorCountSnafu { value: len }.fail(),
         };
 
         let (start, end) = buf.split_at(separator);
         let end = &end[1..];
         DateTimeRange::from_start_to_end(
             parse_datetime_partial(start, dt_utc_offset)
-                .context(Parse)?
+                .context(ParseSnafu)?
                 .earliest()?,
             parse_datetime_partial(end, dt_utc_offset)
-                .context(Parse)?
+                .context(ParseSnafu)?
                 .latest()?,
         )
     }

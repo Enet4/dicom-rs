@@ -76,29 +76,29 @@ impl FromStr for TagRange {
             s = &s[1..s.len() - 1];
         }
         let mut parts = s.split(',');
-        let group = parts.next().context(MissingTag)?;
-        let elem = parts.next().context(MissingTagElement)?;
-        ensure!(group.len() == 4, InvalidGroupLength { got: group.len() });
-        ensure!(elem.len() == 4, InvalidElementLength { got: elem.len() });
+        let group = parts.next().context(MissingTagSnafu)?;
+        let elem = parts.next().context(MissingTagElementSnafu)?;
+        ensure!(group.len() == 4, InvalidGroupLengthSnafu { got: group.len() });
+        ensure!(elem.len() == 4, InvalidElementLengthSnafu { got: elem.len() });
 
         match (&group.as_bytes()[2..], &elem.as_bytes()[2..]) {
-            (b"xx", b"xx") => UnsupportedTagRange.fail(),
+            (b"xx", b"xx") => UnsupportedTagRangeSnafu.fail(),
             (b"xx", _) => {
                 // Group100
-                let group = u16::from_str_radix(&group[..2], 16).context(InvalidTagGroup)? << 8;
-                let elem = u16::from_str_radix(elem, 16).context(InvalidTagElement)?;
+                let group = u16::from_str_radix(&group[..2], 16).context(InvalidTagGroupSnafu)? << 8;
+                let elem = u16::from_str_radix(elem, 16).context(InvalidTagElementSnafu)?;
                 Ok(TagRange::Group100(Tag(group, elem)))
             }
             (_, b"xx") => {
                 // Element100
-                let group = u16::from_str_radix(group, 16).context(InvalidTagGroup)?;
-                let elem = u16::from_str_radix(&elem[..2], 16).context(InvalidTagElement)? << 8;
+                let group = u16::from_str_radix(group, 16).context(InvalidTagGroupSnafu)?;
+                let elem = u16::from_str_radix(&elem[..2], 16).context(InvalidTagElementSnafu)? << 8;
                 Ok(TagRange::Element100(Tag(group, elem)))
             }
             (_, _) => {
                 // single element
-                let group = u16::from_str_radix(group, 16).context(InvalidTagGroup)?;
-                let elem = u16::from_str_radix(elem, 16).context(InvalidTagElement)?;
+                let group = u16::from_str_radix(group, 16).context(InvalidTagGroupSnafu)?;
+                let elem = u16::from_str_radix(elem, 16).context(InvalidTagElementSnafu)?;
                 Ok(TagRange::Single(Tag(group, elem)))
             }
         }

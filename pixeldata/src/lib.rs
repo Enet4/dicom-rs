@@ -168,13 +168,13 @@ impl DecodedPixelData<'_> {
                         let frame_start = frame_length * frame as usize;
                         let frame_end = frame_start + frame_length;
                         if frame_end > (*self.data).len() {
-                            FrameOutOfRangeError.fail()?
+                            FrameOutOfRangeSnafu.fail()?
                         }
                         let buffer: Vec<u8> =
                             (&self.data[(frame_start as usize..frame_end as usize)]).to_vec();
                         let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
                             ImageBuffer::from_raw(self.cols, self.rows, buffer)
-                                .context(InvalidImageBuffer)?;
+                                .context(InvalidImageBufferSnafu)?;
                         DynamicImage::ImageLuma8(image_buffer)
                     }
                     16 => {
@@ -185,7 +185,7 @@ impl DecodedPixelData<'_> {
                         let frame_start = frame_length * frame as usize;
                         let frame_end = frame_start + frame_length;
                         if frame_end > (*self.data).len() {
-                            FrameOutOfRangeError.fail()?
+                            FrameOutOfRangeSnafu.fail()?
                         }
                         let mut buffer = vec![0; frame_length / 2];
                         match self.pixel_representation {
@@ -206,14 +206,14 @@ impl DecodedPixelData<'_> {
                                 // Convert buffer to unsigned
                                 buffer = normalize_i16_to_u16(&signed_buffer);
                             }
-                            _ => InvalidPixelRepresentation.fail()?,
+                            _ => InvalidPixelRepresentationSnafu.fail()?,
                         };
                         let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
                             ImageBuffer::from_raw(self.cols, self.rows, buffer)
-                                .context(InvalidImageBuffer)?;
+                                .context(InvalidImageBufferSnafu)?;
                         DynamicImage::ImageLuma16(image_buffer)
                     }
-                    _ => InvalidBitsAllocated.fail()?,
+                    _ => InvalidBitsAllocatedSnafu.fail()?,
                 };
                 // Convert MONOCHROME1 => MONOCHROME2
                 if self.photometric_interpretation == "MONOCHROME1" {
@@ -231,7 +231,7 @@ impl DecodedPixelData<'_> {
                         let frame_start = frame_length * frame as usize;
                         let frame_end = frame_start + frame_length;
                         if frame_end > (*self.data).len() {
-                            FrameOutOfRangeError.fail()?
+                            FrameOutOfRangeSnafu.fail()?
                         }
                         let mut pixel_array: Vec<u8> =
                             (&self.data[(frame_start as usize..frame_end as usize)]).to_vec();
@@ -243,12 +243,12 @@ impl DecodedPixelData<'_> {
                                 convert_colorspace_u8(&mut pixel_array);
                                 pixel_array
                             }
-                            _ => UnsupportedColorSpace.fail()?,
+                            _ => UnsupportedColorSpaceSnafu.fail()?,
                         };
 
                         let image_buffer: ImageBuffer<Rgb<u8>, Vec<u8>> =
                             ImageBuffer::from_raw(self.cols, self.rows, pixel_array)
-                                .context(InvalidImageBuffer)?;
+                                .context(InvalidImageBufferSnafu)?;
                         Ok(DynamicImage::ImageRgb8(image_buffer))
                     }
                     16 => {
@@ -259,7 +259,7 @@ impl DecodedPixelData<'_> {
                         let frame_start = frame_length * frame as usize;
                         let frame_end = frame_start + frame_length;
                         if frame_end > (*self.data).len() {
-                            FrameOutOfRangeError.fail()?
+                            FrameOutOfRangeSnafu.fail()?
                         }
                         let buffer: Vec<u8> =
                             (&self.data[(frame_start as usize..frame_end as usize)]).to_vec();
@@ -273,18 +273,18 @@ impl DecodedPixelData<'_> {
                                 convert_colorspace_u16(&mut pixel_array);
                                 pixel_array
                             }
-                            _ => UnsupportedColorSpace.fail()?,
+                            _ => UnsupportedColorSpaceSnafu.fail()?,
                         };
 
                         let image_buffer: ImageBuffer<Rgb<u16>, Vec<u16>> =
                             ImageBuffer::from_raw(self.cols, self.rows, pixel_array)
-                                .context(InvalidImageBuffer)?;
+                                .context(InvalidImageBufferSnafu)?;
                         Ok(DynamicImage::ImageRgb16(image_buffer))
                     }
-                    _ => InvalidBitsAllocated.fail()?,
+                    _ => InvalidBitsAllocatedSnafu.fail()?,
                 }
             }
-            _ => InvalidPixelRepresentation.fail()?,
+            _ => InvalidPixelRepresentationSnafu.fail()?,
         }
     }
 
@@ -312,8 +312,8 @@ impl DecodedPixelData<'_> {
                     .par_iter()
                     .map(|v| T::from(*v).ok_or(snafu::NoneError))
                     .collect();
-                let converted = converted.context(InvalidDataType)?;
-                let ndarray = Array::from_shape_vec(shape, converted).context(ShapeError)?;
+                let converted = converted.context(InvalidDataTypeSnafu)?;
+                let ndarray = Array::from_shape_vec(shape, converted).context(ShapeSnafu)?;
                 Ok(ndarray)
             }
             16 => match self.pixel_representation {
@@ -326,8 +326,8 @@ impl DecodedPixelData<'_> {
                         .par_iter()
                         .map(|v| T::from(*v).ok_or(snafu::NoneError))
                         .collect();
-                    let converted = converted.context(InvalidDataType)?;
-                    let ndarray = Array::from_shape_vec(shape, converted).context(ShapeError)?;
+                    let converted = converted.context(InvalidDataTypeSnafu)?;
+                    let ndarray = Array::from_shape_vec(shape, converted).context(ShapeSnafu)?;
                     Ok(ndarray)
                 }
                 // Signed 16 bit 2s complement representation
@@ -339,13 +339,13 @@ impl DecodedPixelData<'_> {
                         .par_iter()
                         .map(|v| T::from(*v).ok_or(snafu::NoneError))
                         .collect();
-                    let converted = converted.context(InvalidDataType)?;
-                    let ndarray = Array::from_shape_vec(shape, converted).context(ShapeError)?;
+                    let converted = converted.context(InvalidDataTypeSnafu)?;
+                    let ndarray = Array::from_shape_vec(shape, converted).context(ShapeSnafu)?;
                     Ok(ndarray)
                 }
-                _ => InvalidPixelRepresentation.fail()?,
+                _ => InvalidPixelRepresentationSnafu.fail()?,
             },
-            _ => InvalidBitsAllocated.fail()?,
+            _ => InvalidBitsAllocatedSnafu.fail()?,
         }
     }
 }
@@ -429,7 +429,7 @@ where
                 .ok_or(snafu::NoneError)
         })
         .collect();
-    result.context(InvalidDataType)
+    result.context(InvalidDataTypeSnafu)
 }
 
 pub trait PixelDecoder {
@@ -446,7 +446,7 @@ where
     fn decode_pixel_data(&self) -> Result<DecodedPixelData> {
         let pixel_data = self
             .element(dicom_dictionary_std::tags::PIXEL_DATA)
-            .context(MissingRequiredField)?;
+            .context(MissingRequiredFieldSnafu)?;
         let cols = cols(self)?;
         let rows = rows(self)?;
 
@@ -468,7 +468,7 @@ where
             let mut data: Vec<u8> = Vec::new();
             (*decoder)
                 .decode(self, &mut data)
-                .context(PixelDecodeError)?;
+                .context(PixelDecodeSnafu)?;
 
             return Ok(DecodedPixelData {
                 data: Cow::from(data),
@@ -498,7 +498,7 @@ where
                 // Non-encoded, just return the pixel data for all frames
                 p.to_bytes().to_vec()
             }
-            Value::Sequence { items: _, size: _ } => InvalidPixelData.fail()?,
+            Value::Sequence { items: _, size: _ } => InvalidPixelDataSnafu.fail()?,
         };
 
         Ok(DecodedPixelData {
@@ -521,17 +521,17 @@ where
 /// Get the Columns of the dicom
 fn cols<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::COLUMNS)
-        .context(MissingRequiredField)?
+        .context(MissingRequiredFieldSnafu)?
         .uint16()
-        .context(CastValueError)
+        .context(CastValueSnafu)
 }
 
 /// Get the Rows of the dicom
 fn rows<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::ROWS)
-        .context(MissingRequiredField)?
+        .context(MissingRequiredFieldSnafu)?
         .uint16()
-        .context(CastValueError)
+        .context(CastValueSnafu)
 }
 
 /// Get the PhotoMetricInterpretation of the Dicom
@@ -540,9 +540,9 @@ fn photometric_interpretation<D: DataDictionary + Clone>(
 ) -> Result<String> {
     Ok(obj
         .element(dicom_dictionary_std::tags::PHOTOMETRIC_INTERPRETATION)
-        .context(MissingRequiredField)?
+        .context(MissingRequiredFieldSnafu)?
         .string()
-        .context(CastValueError)?
+        .context(CastValueSnafu)?
         .trim()
         .to_string())
 }
@@ -552,9 +552,9 @@ fn samples_per_pixel<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::SAMPLES_PER_PIXEL)
-        .context(MissingRequiredField)?
+        .context(MissingRequiredFieldSnafu)?
         .uint16()
-        .context(CastValueError)
+        .context(CastValueSnafu)
 }
 
 /// Get the BitsAllocated of the Dicom
@@ -562,9 +562,9 @@ fn bits_allocated<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::BITS_ALLOCATED)
-        .context(MissingRequiredField)?
+        .context(MissingRequiredFieldSnafu)?
         .uint16()
-        .context(CastValueError)
+        .context(CastValueSnafu)
 }
 
 /// Get the BitsStored of the Dicom
@@ -572,17 +572,17 @@ fn bits_stored<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::BITS_STORED)
-        .context(MissingRequiredField)?
+        .context(MissingRequiredFieldSnafu)?
         .uint16()
-        .context(CastValueError)
+        .context(CastValueSnafu)
 }
 
 /// Get the HighBit of the Dicom
 fn high_bit<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::HIGH_BIT)
-        .context(MissingRequiredField)?
+        .context(MissingRequiredFieldSnafu)?
         .uint16()
-        .context(CastValueError)
+        .context(CastValueSnafu)
 }
 
 /// Get the PixelRepresentation of the Dicom
@@ -590,9 +590,9 @@ fn pixel_representation<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::PIXEL_REPRESENTATION)
-        .context(MissingRequiredField)?
+        .context(MissingRequiredFieldSnafu)?
         .uint16()
-        .context(CastValueError)
+        .context(CastValueSnafu)
 }
 
 /// Get the RescaleIntercept of the Dicom or returns 0

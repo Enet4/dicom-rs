@@ -86,7 +86,7 @@ impl<'s> DynStatefulEncoder<'s> {
     ) -> Result<Self> {
         let encoder = ts
             .encoder()
-            .context(UnsupportedTransferSyntax { ts: ts.uid() })?;
+            .context(UnsupportedTransferSyntaxSnafu { ts: ts.uid() })?;
         Ok(StatefulEncoder::new(to, encoder, charset))
     }
 }
@@ -104,7 +104,7 @@ where
         let bytes = self
             .encoder
             .encode_element_header(&mut self.to, de)
-            .context(EncodeData {
+            .context(EncodeDataSnafu {
                 position: self.bytes_written,
             })?;
         self.bytes_written += bytes as u64;
@@ -122,7 +122,7 @@ where
         };
         self.encoder
             .encode_item_header(&mut self.to, len)
-            .context(EncodeData {
+            .context(EncodeDataSnafu {
                 position: self.bytes_written,
             })?;
         self.bytes_written += 8;
@@ -133,7 +133,7 @@ where
     pub fn encode_item_delimiter(&mut self) -> Result<()> {
         self.encoder
             .encode_item_delimiter(&mut self.to)
-            .context(EncodeData {
+            .context(EncodeDataSnafu {
                 position: self.bytes_written,
             })?;
         self.bytes_written += 8;
@@ -144,7 +144,7 @@ where
     pub fn encode_sequence_delimiter(&mut self) -> Result<()> {
         self.encoder
             .encode_sequence_delimiter(&mut self.to)
-            .context(EncodeData {
+            .context(EncodeDataSnafu {
                 position: self.bytes_written,
             })?;
         self.bytes_written += 8;
@@ -157,7 +157,7 @@ where
     /// (unlike [`write_bytes`](StatefulEncoder::write_bytes))
     /// does not perform any additional padding.
     pub fn write_raw_bytes(&mut self, bytes: &[u8]) -> Result<()> {
-        self.to.write_all(bytes).context(WriteValueData {
+        self.to.write_all(bytes).context(WriteValueDataSnafu {
             position: self.bytes_written,
         })?;
         self.bytes_written += bytes.len() as u64;
@@ -172,12 +172,12 @@ where
     /// to ensure that the encoded value has an even number of bytes.
     pub fn write_bytes(&mut self, bytes: &[u8]) -> Result<()> {
         debug_assert!(bytes.len() < u32::max_value() as usize);
-        self.to.write_all(bytes).context(WriteValueData {
+        self.to.write_all(bytes).context(WriteValueDataSnafu {
             position: self.bytes_written,
         })?;
         self.bytes_written += bytes.len() as u64;
         if bytes.len() % 2 != 0 {
-            self.to.write_all(&[0]).context(WriteValueData {
+            self.to.write_all(&[0]).context(WriteValueDataSnafu {
                 position: self.bytes_written,
             })?;
             self.bytes_written += 1;
@@ -194,7 +194,7 @@ where
     pub fn encode_offset_table(&mut self, table: &[u32]) -> Result<()> {
         self.encoder
             .encode_offset_table(&mut self.to, table)
-            .context(EncodeData {
+            .context(EncodeDataSnafu {
                 position: self.bytes_written,
             })?;
 
@@ -235,13 +235,13 @@ where
                 let bytes =
                     self.encoder
                         .encode_primitive(&mut self.to, value)
-                        .context(EncodeData {
+                        .context(EncodeDataSnafu {
                             position: self.bytes_written,
                         })?;
 
                 self.bytes_written += bytes as u64;
                 if bytes % 2 != 0 {
-                    self.to.write_all(&[0]).context(WriteValueData {
+                    self.to.write_all(&[0]).context(WriteValueDataSnafu {
                         position: self.bytes_written,
                     })?;
                     self.bytes_written += 1;
@@ -292,13 +292,13 @@ where
                 let bytes =
                     self.encoder
                         .encode_primitive(&mut self.to, value)
-                        .context(EncodeData {
+                        .context(EncodeDataSnafu {
                             position: self.bytes_written,
                         })?;
 
                 self.bytes_written += bytes as u64;
                 if bytes % 2 != 0 {
-                    self.to.write_all(&[0]).context(WriteValueData {
+                    self.to.write_all(&[0]).context(WriteValueDataSnafu {
                         position: self.bytes_written,
                     })?;
                     self.bytes_written += 1;
@@ -322,7 +322,7 @@ where
         // pad to even length
         if bytes % 2 == 1 {
             let pad = if vr == VR::UI { b"\0" } else { b" " };
-            self.to.write_all(pad).context(WriteValueData {
+            self.to.write_all(pad).context(WriteValueDataSnafu {
                 position: self.bytes_written,
             })?;
             self.bytes_written += 1;
@@ -345,7 +345,7 @@ where
             vr: de.vr,
             len: Length(encoded_value.len() as u32),
         })?;
-        self.to.write_all(&encoded_value).context(WriteValueData {
+        self.to.write_all(&encoded_value).context(WriteValueDataSnafu {
             position: self.bytes_written,
         })?;
         self.bytes_written += encoded_value.len() as u64;
@@ -384,7 +384,7 @@ where
             len: Length(self.buffer.len() as u32),
         })?;
 
-        self.to.write_all(&self.buffer).context(WriteValueData {
+        self.to.write_all(&self.buffer).context(WriteValueDataSnafu {
             position: self.bytes_written,
         })?;
         self.bytes_written += self.buffer.len() as u64;
@@ -408,7 +408,7 @@ where
         for (i, text) in texts.iter().enumerate() {
             acc += self.encode_text_untrailed(text.as_ref(), vr)?;
             if i < texts.len() - 1 {
-                self.to.write_all(b"\\").context(WriteValueData {
+                self.to.write_all(b"\\").context(WriteValueDataSnafu {
                     position: self.bytes_written,
                 })?;
                 acc += 1;
@@ -418,7 +418,7 @@ where
         // pad to even length
         if acc % 2 == 1 {
             let pad = if vr == VR::UI { b"\0" } else { b" " };
-            self.to.write_all(pad).context(WriteValueData {
+            self.to.write_all(pad).context(WriteValueDataSnafu {
                 position: self.bytes_written,
             })?;
             self.bytes_written += 1;
@@ -428,7 +428,7 @@ where
 
     fn encode_text_untrailed(&mut self, text: &str, vr: VR) -> Result<usize> {
         let data = self.convert_text_untrailed(text, vr)?;
-        self.to.write_all(&data).context(WriteValueData {
+        self.to.write_all(&data).context(WriteValueDataSnafu {
             position: self.bytes_written,
         })?;
         self.bytes_written += data.len() as u64;
@@ -439,11 +439,11 @@ where
         match vr {
             VR::AE | VR::AS | VR::CS | VR::DA | VR::DS | VR::DT | VR::IS | VR::TM | VR::UI => {
                 // these VRs always use the default character repertoire
-                DefaultCharacterSetCodec.encode(text).context(EncodeText {
+                DefaultCharacterSetCodec.encode(text).context(EncodeTextSnafu {
                     position: self.bytes_written,
                 })
             }
-            _ => self.text.encode(text).context(EncodeText {
+            _ => self.text.encode(text).context(EncodeTextSnafu {
                 position: self.bytes_written,
             }),
         }

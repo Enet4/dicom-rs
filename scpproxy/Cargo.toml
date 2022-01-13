@@ -14,4 +14,4 @@ readme = "README.md"
 clap = "2.33.0"
 dicom-ul = { path = "../ul/", version = "0.4.0-rc.1" }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.5.0-rc.1" }
-snafu = "0.6.8"
+snafu = "0.7.0"

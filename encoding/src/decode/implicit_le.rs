@@ -75,10 +75,10 @@ where
         S: ?Sized + Read,
     {
         // retrieve tag
-        let tag = self.basic.decode_tag(&mut source).context(ReadHeaderTag)?;
+        let tag = self.basic.decode_tag(&mut source).context(ReadHeaderTagSnafu)?;
 
         let mut buf = [0u8; 4];
-        source.read_exact(&mut buf).context(ReadLength)?;
+        source.read_exact(&mut buf).context(ReadLengthSnafu)?;
         let len = LittleEndian::read_u32(&buf);
 
         // VR resolution is done with the help of the data dictionary.
@@ -104,11 +104,11 @@ where
         let mut buf = [0u8; 4];
 
         // retrieve tag
-        let tag = self.basic.decode_tag(&mut source).context(ReadHeaderTag)?;
+        let tag = self.basic.decode_tag(&mut source).context(ReadHeaderTagSnafu)?;
 
-        source.read_exact(&mut buf).context(ReadLength)?;
+        source.read_exact(&mut buf).context(ReadLengthSnafu)?;
         let len = LittleEndian::read_u32(&buf);
-        SequenceItemHeader::new(tag, Length(len)).context(BadSequenceHeader)
+        SequenceItemHeader::new(tag, Length(len)).context(BadSequenceHeaderSnafu)
     }
 
     #[inline]
@@ -116,7 +116,7 @@ where
     where
         S: ?Sized + Read,
     {
-        self.basic.decode_tag(source).context(ReadTag)
+        self.basic.decode_tag(source).context(ReadTagSnafu)
     }
 }
 

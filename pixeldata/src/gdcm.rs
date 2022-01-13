@@ -13,7 +13,7 @@ where
     fn decode_pixel_data(&self) -> Result<DecodedPixelData> {
         let pixel_data = self
             .element(dicom_dictionary_std::tags::PIXEL_DATA)
-            .context(MissingRequiredField)?;
+            .context(MissingRequiredFieldSnafu)?;
         let cols = cols(self)?;
         let rows = rows(self)?;
 
@@ -27,7 +27,7 @@ where
         let registry =
             TransferSyntaxRegistry
                 .get(&&transfer_syntax)
-                .context(UnsupportedTransferSyntax {
+                .context(UnsupportedTransferSyntaxSnafu {
                     ts: transfer_syntax,
                 })?;
         let ts_type = GDCMTransferSyntax::from_str(&registry.uid()).map_err(|_| {
@@ -52,7 +52,7 @@ where
             } => {
                 if fragments.len() > 1 {
                     // Bundle fragments and decode multi-frame dicoms
-                    UnsupportedMultiFrame.fail()?
+                    UnsupportedMultiFrameSnafu.fail()?
                 }
                 let decoded_frame = decode_single_frame_compressed(
                     &fragments[0],
@@ -79,7 +79,7 @@ where
                     * (bits_allocated as usize / 8);
                 p.to_bytes()[0..total_bytes].to_vec()
             }
-            Value::Sequence { items: _, size: _ } => InvalidPixelData.fail()?,
+            Value::Sequence { items: _, size: _ } => InvalidPixelDataSnafu.fail()?,
         };
 
         Ok(DecodedPixelData {

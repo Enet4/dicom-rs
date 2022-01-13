@@ -222,7 +222,7 @@ impl<'a> ClientAssociationOptions<'a> {
 
         // fail if no abstract syntaxes were provided: they represent intent,
         // should not be omitted by the user
-        ensure!(!abstract_syntax_uids.is_empty(), MissingAbstractSyntax);
+        ensure!(!abstract_syntax_uids.is_empty(), MissingAbstractSyntaxSnafu);
 
         // provide default transfer syntaxes
         if transfer_syntax_uids.is_empty() {
@@ -259,15 +259,15 @@ impl<'a> ClientAssociationOptions<'a> {
             ],
         };
 
-        let mut socket = std::net::TcpStream::connect(address).context(Connect)?;
+        let mut socket = std::net::TcpStream::connect(address).context(ConnectSnafu)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         // send request
 
-        write_pdu(&mut buffer, &msg).context(SendRequest)?;
-        socket.write_all(&buffer).context(WireSend)?;
+        write_pdu(&mut buffer, &msg).context(SendRequestSnafu)?;
+        socket.write_all(&buffer).context(WireSendSnafu)?;
         buffer.clear();
         // receive response
-        let msg = read_pdu(&mut socket, MAXIMUM_PDU_SIZE, true).context(ReceiveResponse)?;
+        let msg = read_pdu(&mut socket, MAXIMUM_PDU_SIZE, true).context(ReceiveResponseSnafu)?;
 
         match msg {
             Pdu::AssociationAC {
@@ -280,7 +280,7 @@ impl<'a> ClientAssociationOptions<'a> {
             } => {
                 ensure!(
                     protocol_version == protocol_version_scp,
-                    ProtocolVersionMismatch {
+                    ProtocolVersionMismatchSnafu {
                         expected: protocol_version,
                         got: protocol_version_scp,
                     }
@@ -315,7 +315,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     );
                     let _ = socket.write_all(&buffer);
                     buffer.clear();
-                    return NoAcceptedPresentationContexts.fail();
+                    return NoAcceptedPresentationContextsSnafu.fail();
                 }
                 Ok(ClientAssociation {
                     presentation_contexts,
@@ -325,7 +325,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     buffer,
                 })
             }
-            Pdu::AssociationRJ { result, source } => Rejected {
+            Pdu::AssociationRJ { result, source } => RejectedSnafu {
                 association_result: result,
                 association_source: source,
             }
@@ -343,7 +343,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     },
                 );
                 let _ = socket.write_all(&buffer);
-                UnexpectedResponse { pdu }.fail()
+                UnexpectedResponseSnafu { pdu }.fail()
             }
             pdu @ Pdu::Unknown { .. } => {
                 // abort connection
@@ -354,7 +354,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     },
                 );
                 let _ = socket.write_all(&buffer);
-                UnknownResponse { pdu }.fail()
+                UnknownResponseSnafu { pdu }.fail()
             }
         }
     }
@@ -413,19 +413,19 @@ impl ClientAssociation {
     /// Send a PDU message to the other intervenient.
     pub fn send(&mut self, msg: &Pdu) -> Result<()> {
         self.buffer.clear();
-        write_pdu(&mut self.buffer, msg).context(Send)?;
+        write_pdu(&mut self.buffer, msg).context(SendSnafu)?;
         if self.buffer.len() > self.acceptor_max_pdu_length as usize {
-            return SendTooLongPdu {
+            return SendTooLongPduSnafu {
                 length: self.buffer.len(),
             }
             .fail();
         }
-        self.socket.write_all(&self.buffer).context(WireSend)
+        self.socket.write_all(&self.buffer).context(WireSendSnafu)
     }
 
     /// Read a PDU message from the other intervenient.
     pub fn receive(&mut self) -> Result<Pdu> {
-        read_pdu(&mut self.socket, self.requestor_max_pdu_length, true).context(Receive)
+        read_pdu(&mut self.socket, self.requestor_max_pdu_length, true).context(ReceiveSnafu)
     }
 
     /// Gracefully terminate the association by exchanging release messages
@@ -482,7 +482,7 @@ impl ClientAssociation {
         let pdu = Pdu::ReleaseRQ;
         self.send(&pdu)?;
         let pdu =
-            read_pdu(&mut self.socket, self.requestor_max_pdu_length, true).context(Receive)?;
+            read_pdu(&mut self.socket, self.requestor_max_pdu_length, true).context(ReceiveSnafu)?;
 
         match pdu {
             Pdu::ReleaseRP => {}
@@ -491,8 +491,8 @@ impl ClientAssociation {
             | pdu @ Pdu::AssociationRJ { .. }
             | pdu @ Pdu::AssociationRQ { .. }
             | pdu @ Pdu::PData { .. }
-            | pdu @ Pdu::ReleaseRQ { .. } => return UnexpectedResponse { pdu }.fail(),
-            pdu @ Pdu::Unknown { .. } => return UnknownResponse { pdu }.fail(),
+            | pdu @ Pdu::ReleaseRQ { .. } => return UnexpectedResponseSnafu { pdu }.fail(),
+            pdu @ Pdu::Unknown { .. } => return UnknownResponseSnafu { pdu }.fail(),
         }
         Ok(())
     }

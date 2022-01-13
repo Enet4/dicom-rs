@@ -251,7 +251,7 @@ impl<S> StatefulDecoder<DynDecoder<S>, S> {
         let basic = ts.basic_decoder();
         let decoder = ts
             .decoder_for::<S>()
-            .context(UnsupportedTransferSyntax { ts: ts.name() })?;
+            .context(UnsupportedTransferSyntaxSnafu { ts: ts.name() })?;
 
         Ok(StatefulDecoder::new_with_position(
             from, decoder, basic, charset, position,
@@ -364,7 +364,7 @@ where
             .length()
             .get()
             .map(|len| len as usize)
-            .context(UndefinedValueLength {
+            .context(UndefinedValueLengthSnafu {
                 position: self.position,
                 tag: header.tag,
             })
@@ -379,7 +379,7 @@ where
             .map(|_| {
                 self.basic
                     .decode_tag(&mut self.from)
-                    .context(ReadValueData {
+                    .context(ReadValueDataSnafu {
                         position: self.position,
                     })
             })
@@ -395,7 +395,7 @@ where
 
         // sequence of 8-bit integers (or arbitrary byte data)
         let mut buf = smallvec![0u8; len];
-        self.from.read_exact(&mut buf).context(ReadValueData {
+        self.from.read_exact(&mut buf).context(ReadValueDataSnafu {
             position: self.position,
         })?;
         self.position += len as u64;
@@ -408,7 +408,7 @@ where
         self.buffer.resize_with(len, Default::default);
         self.from
             .read_exact(&mut self.buffer)
-            .context(ReadValueData {
+            .context(ReadValueDataSnafu {
                 position: self.position,
             })?;
 
@@ -417,7 +417,7 @@ where
                 .buffer
                 .split(|v| *v == b'\\')
                 .map(|slice| {
-                    DefaultCharacterSetCodec.decode(slice).context(DecodeText {
+                    DefaultCharacterSetCodec.decode(slice).context(DecodeTextSnafu {
                         position: self.position,
                     })
                 })
@@ -426,7 +426,7 @@ where
                 .buffer
                 .split(|v| *v == b'\\')
                 .map(|slice| {
-                    self.text.decode(slice).context(DecodeText {
+                    self.text.decode(slice).context(DecodeTextSnafu {
                         position: self.position,
                     })
                 })
@@ -444,12 +444,12 @@ where
         self.buffer.resize_with(len, Default::default);
         self.from
             .read_exact(&mut self.buffer)
-            .context(ReadValueData {
+            .context(ReadValueDataSnafu {
                 position: self.position,
             })?;
         self.position += len as u64;
         Ok(PrimitiveValue::Str(
-            self.text.decode(&self.buffer[..]).context(DecodeText {
+            self.text.decode(&self.buffer[..]).context(DecodeTextSnafu {
                 position: self.position,
             })?,
         ))
@@ -463,7 +463,7 @@ where
         let mut vec = smallvec![0; n];
         self.basic
             .decode_ss_into(&mut self.from, &mut vec[..])
-            .context(ReadValueData {
+            .context(ReadValueDataSnafu {
                 position: self.position,
             })?;
 
@@ -478,7 +478,7 @@ where
         let mut vec = smallvec![0.; n];
         self.basic
             .decode_fl_into(&mut self.from, &mut vec[..])
-            .context(ReadValueData {
+            .context(ReadValueDataSnafu {
                 position: self.position,
             })?;
         self.position += len as u64;
@@ -492,7 +492,7 @@ where
         self.buffer.resize_with(len, Default::default);
         self.from
             .read_exact(&mut self.buffer)
-            .context(ReadValueData {
+            .context(ReadValueDataSnafu {
                 position: self.position,
             })?;
         let buf = trim_trail_empty_bytes(&self.buffer);
@@ -504,7 +504,7 @@ where
             let lossy_str = DefaultCharacterSetCodec
                 .decode(buf)
                 .unwrap_or_else(|_| "[byte stream]".to_string());
-            return InvalidDateValue {
+            return InvalidDateValueSnafu {
                 position: self.position,
                 string: lossy_str,
             }
@@ -515,7 +515,7 @@ where
             .map(|part| {
                 parse_date_partial(part)
                     .map(|t| t.0)
-                    .context(DeserializeValue {
+                    .context(DeserializeValueSnafu {
                         position: self.position,
                     })
             })
@@ -531,7 +531,7 @@ where
         self.buffer.resize_with(len, Default::default);
         self.from
             .read_exact(&mut self.buffer)
-            .context(ReadValueData {
+            .context(ReadValueDataSnafu {
                 position: self.position,
             })?;
         let buf = trim_trail_empty_bytes(&self.buffer);
@@ -543,11 +543,11 @@ where
             .split(|b| *b == b'\\')
             .map(|slice| {
                 let codec = DefaultCharacterSetCodec;
-                let txt = codec.decode(slice).context(DecodeText {
+                let txt = codec.decode(slice).context(DecodeTextSnafu {
                     position: self.position,
                 })?;
                 let txt = txt.trim();
-                txt.parse::<f64>().context(ReadFloat {
+                txt.parse::<f64>().context(ReadFloatSnafu {
                     position: self.position,
                 })
             })
@@ -563,7 +563,7 @@ where
         self.buffer.resize_with(len, Default::default);
         self.from
             .read_exact(&mut self.buffer)
-            .context(ReadValueData {
+            .context(ReadValueDataSnafu {
                 position: self.position,
             })?;
         let buf = trim_trail_empty_bytes(&self.buffer);
@@ -575,7 +575,7 @@ where
             let lossy_str = DefaultCharacterSetCodec
                 .decode(buf)
                 .unwrap_or_else(|_| "[byte stream]".to_string());
-            return InvalidDateTimeValue {
+            return InvalidDateTimeValueSnafu {
                 position: self.position,
                 string: lossy_str,
             }
@@ -584,7 +584,7 @@ where
         let vec: Result<_> = buf
             .split(|b| *b == b'\\')
             .map(|part| {
-                parse_datetime_partial(part, self.dt_utc_offset).context(DeserializeValue {
+                parse_datetime_partial(part, self.dt_utc_offset).context(DeserializeValueSnafu {
                     position: self.position,
                 })
             })
@@ -600,7 +600,7 @@ where
         self.buffer.resize_with(len, Default::default);
         self.from
             .read_exact(&mut self.buffer)
-            .context(ReadValueData {
+            .context(ReadValueDataSnafu {
                 position: self.position,
             })?;
         let buf = trim_trail_empty_bytes(&self.buffer);
@@ -612,11 +612,11 @@ where
             .split(|v| *v == b'\\')
             .map(|slice| {
                 let codec = DefaultCharacterSetCodec;
-                let txt = codec.decode(slice).context(DecodeText {
+                let txt = codec.decode(slice).context(DecodeTextSnafu {
                     position: self.position,
                 })?;
                 let txt = txt.trim();
-                txt.parse::<i32>().context(ReadInt {
+                txt.parse::<i32>().context(ReadIntSnafu {
                     position: self.position,
                 })
             })
@@ -632,7 +632,7 @@ where
         self.buffer.resize_with(len, Default::default);
         self.from
             .read_exact(&mut self.buffer)
-            .context(ReadValueData {
+            .context(ReadValueDataSnafu {
                 position: self.position,
             })?;
         let buf = trim_trail_empty_bytes(&self.buffer);
@@ -644,7 +644,7 @@ where
             let lossy_str = DefaultCharacterSetCodec
                 .decode(buf)
                 .unwrap_or_else(|_| "[byte stream]".to_string());
-            return InvalidTimeValue {
+            return InvalidTimeValueSnafu {
                 position: self.position,
                 string: lossy_str,
             }
@@ -655,7 +655,7 @@ where
             .map(|part| {
                 parse_time_partial(part)
                     .map(|t| t.0)
-                    .context(DeserializeValue {
+                    .context(DeserializeValueSnafu {
                         position: self.position,
                     })
             })
@@ -671,7 +671,7 @@ where
         let mut vec = smallvec![0.; n];
         self.basic
             .decode_fd_into(&mut self.from, &mut vec[..])
-            .context(ReadValueData {
+            .context(ReadValueDataSnafu {
                 position: self.position,
             })?;
         self.position += len as u64;
@@ -686,7 +686,7 @@ where
         let mut vec = smallvec![0u32; n];
         self.basic
             .decode_ul_into(&mut self.from, &mut vec[..])
-            .context(ReadValueData {
+            .context(ReadValueDataSnafu {
                 position: self.position,
             })?;
         self.position += len as u64;
@@ -699,7 +699,7 @@ where
 
         self.basic
             .decode_ul_into(&mut self.from, &mut vec[base..])
-            .context(ReadValueData {
+            .context(ReadValueDataSnafu {
                 position: self.position,
             })?;
         self.position += n as u64 * 4;
@@ -714,7 +714,7 @@ where
         let mut vec = smallvec![0; n];
         self.basic
             .decode_us_into(&mut self.from, &mut vec[..])
-            .context(ReadValueData {
+            .context(ReadValueDataSnafu {
                 position: self.position,
             })?;
 
@@ -730,7 +730,7 @@ where
         let mut vec = smallvec![0; n];
         self.basic
             .decode_uv_into(&mut self.from, &mut vec[..])
-            .context(ReadValueData {
+            .context(ReadValueDataSnafu {
                 position: self.position,
             })?;
         self.position += len as u64;
@@ -745,7 +745,7 @@ where
         let mut vec = smallvec![0; n];
         self.basic
             .decode_sl_into(&mut self.from, &mut vec[..])
-            .context(ReadValueData {
+            .context(ReadValueDataSnafu {
                 position: self.position,
             })?;
         self.position += len as u64;
@@ -760,7 +760,7 @@ where
         let mut vec = smallvec![0; n];
         self.basic
             .decode_sv_into(&mut self.from, &mut vec[..])
-            .context(ReadValueData {
+            .context(ReadValueDataSnafu {
                 position: self.position,
             })?;
         self.position += len as u64;
@@ -879,7 +879,7 @@ where
     fn decode_header(&mut self) -> Result<DataElementHeader> {
         self.decoder
             .decode_header(&mut self.from)
-            .context(DecodeElementHeader {
+            .context(DecodeElementHeaderSnafu {
                 position: self.position,
             })
             .map(|(header, bytes_read)| {
@@ -892,7 +892,7 @@ where
     fn decode_item_header(&mut self) -> Result<SequenceItemHeader> {
         self.decoder
             .decode_item_header(&mut self.from)
-            .context(DecodeItemHeader {
+            .context(DecodeItemHeaderSnafu {
                 position: self.position,
             })
             .map(|header| {
@@ -911,7 +911,7 @@ where
             VR::SQ => {
                 // sequence objects should not head over here, they are
                 // handled at a higher level
-                NonPrimitiveType {
+                NonPrimitiveTypeSnafu {
                     position: self.position,
                 }
                 .fail()
@@ -947,7 +947,7 @@ where
         match header.vr() {
             VR::SQ => {
                 // sequence objects... should not work
-                NonPrimitiveType {
+                NonPrimitiveTypeSnafu {
                     position: self.position,
                 }
                 .fail()
@@ -987,7 +987,7 @@ where
         match header.vr() {
             VR::SQ => {
                 // sequence objects... should not work
-                NonPrimitiveType {
+                NonPrimitiveTypeSnafu {
                     position: self.position,
                 }
                 .fail()
@@ -1014,7 +1014,7 @@ where
         W: std::io::Write,
     {
         let length = u64::from(length);
-        std::io::copy(&mut self.from.by_ref().take(length), &mut out).context(ReadValueData {
+        std::io::copy(&mut self.from.by_ref().take(length), &mut out).context(ReadValueDataSnafu {
             position: self.position,
         })?;
         self.position += length;
@@ -1026,7 +1026,7 @@ where
             &mut self.from.by_ref().take(u64::from(length)),
             &mut std::io::sink(),
         )
-        .context(ReadValueData {
+        .context(ReadValueDataSnafu {
             position: self.position,
         })?;
 
@@ -1040,7 +1040,7 @@ where
     {
         self.from
             .seek(SeekFrom::Start(position))
-            .context(SeekReader {
+            .context(SeekReaderSnafu {
                 position: self.position,
                 new_position: position,
             })

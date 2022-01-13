@@ -314,34 +314,34 @@ where
     /// before the inner object.
     pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let path = path.as_ref();
-        let file = File::create(path).context(WriteFile { filename: path })?;
+        let file = File::create(path).context(WriteFileSnafu { filename: path })?;
         let mut to = BufWriter::new(file);
 
         // write preamble
         to.write_all(&[0_u8; 128][..])
-            .context(WriteFile { filename: path })?;
+            .context(WriteFileSnafu { filename: path })?;
 
         // write magic sequence
         to.write_all(b"DICM")
-            .context(WriteFile { filename: path })?;
+            .context(WriteFileSnafu { filename: path })?;
 
         // write meta group
-        self.meta.write(&mut to).context(PrintMetaDataSet)?;
+        self.meta.write(&mut to).context(PrintMetaDataSetSnafu)?;
 
         // prepare encoder
         let registry = TransferSyntaxRegistry::default();
         let ts = registry.get(&self.meta.transfer_syntax).with_context(|| {
-            UnsupportedTransferSyntax {
+            UnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             }
         })?;
         let cs = SpecificCharacterSet::Default;
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinter)?;
+        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
 
         // write object
         dset_writer
             .write_sequence((&self.obj).into_tokens())
-            .context(PrintDataSet)?;
+            .context(PrintDataSetSnafu)?;
 
         Ok(())
     }
@@ -354,28 +354,28 @@ where
         let mut to = BufWriter::new(to);
 
         // write preamble
-        to.write_all(&[0_u8; 128][..]).context(WritePreamble)?;
+        to.write_all(&[0_u8; 128][..]).context(WritePreambleSnafu)?;
 
         // write magic sequence
-        to.write_all(b"DICM").context(WriteMagicCode)?;
+        to.write_all(b"DICM").context(WriteMagicCodeSnafu)?;
 
         // write meta group
-        self.meta.write(&mut to).context(PrintMetaDataSet)?;
+        self.meta.write(&mut to).context(PrintMetaDataSetSnafu)?;
 
         // prepare encoder
         let registry = TransferSyntaxRegistry::default();
         let ts = registry.get(&self.meta.transfer_syntax).with_context(|| {
-            UnsupportedTransferSyntax {
+            UnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             }
         })?;
         let cs = SpecificCharacterSet::Default;
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinter)?;
+        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
 
         // write object
         dset_writer
             .write_sequence((&self.obj).into_tokens())
-            .context(PrintDataSet)?;
+            .context(PrintDataSetSnafu)?;
 
         Ok(())
     }
@@ -384,7 +384,7 @@ where
     ///
     /// This is equivalent to `self.meta().write(to)`.
     pub fn write_meta<W: Write>(&self, to: W) -> Result<()> {
-        self.meta.write(to).context(PrintMetaDataSet)
+        self.meta.write(to).context(PrintMetaDataSetSnafu)
     }
 
     /// Write the inner data set into the given writer,
@@ -397,17 +397,17 @@ where
         // prepare encoder
         let registry = TransferSyntaxRegistry::default();
         let ts = registry.get(&self.meta.transfer_syntax).with_context(|| {
-            UnsupportedTransferSyntax {
+            UnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             }
         })?;
         let cs = SpecificCharacterSet::Default;
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinter)?;
+        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
 
         // write object
         dset_writer
             .write_sequence((&self.obj).into_tokens())
-            .context(PrintDataSet)?;
+            .context(PrintDataSetSnafu)?;
 
         Ok(())
     }
