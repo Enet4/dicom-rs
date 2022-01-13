@@ -647,7 +647,7 @@ fn value_summary(
         (U8(values), _) => DumpValue::Num(format_value_list(values, max, false)),
         (Tags(values), _) => DumpValue::Str(format_value_list(values, max, false)),
         (Strs(values), VR::DA) => {
-            match value.to_multi_naive_date() {
+            match value.to_multi_date() {
                 Ok(values) => {
                     // print as reformatted date
                     DumpValue::DateTime(format_value_list(values, max, false))
@@ -659,7 +659,7 @@ fn value_summary(
             }
         }
         (Strs(values), VR::TM) => {
-            match value.to_multi_naive_time() {
+            match value.to_multi_time() {
                 Ok(values) => {
                     // print as reformatted date
                     DumpValue::DateTime(format_value_list(values, max, false))
