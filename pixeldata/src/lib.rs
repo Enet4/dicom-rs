@@ -534,12 +534,12 @@ where
         let transfer_syntax = &self.meta().transfer_syntax;
         let ts = TransferSyntaxRegistry
             .get(transfer_syntax)
-            .with_context(|| UnknownTransferSyntax {
+            .with_context(|| UnknownTransferSyntaxSnafu {
                 ts_uid: transfer_syntax,
             })?;
         
         if !ts.fully_supported() {
-            return UnsupportedTransferSyntax {
+            return UnsupportedTransferSyntaxSnafu {
                 ts: transfer_syntax,
             }.fail();
         }
