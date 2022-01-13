@@ -54,12 +54,14 @@ pub struct RawPixelData {
 /// A DICOM object trait to be interpreted as pixel data.
 /// 
 /// This trait extends the concept of DICOM object
-/// as defined in [`dicom_object`](::dicom_object),
+/// as defined in [`dicom_object`],
 /// in order to retrieve important pieces of the object
 /// for pixel data decoding into images or multi-dimensional arrays.
 /// 
 /// It is defined in this crate so that
 /// transfer syntax implementers only have to depend on `dicom_encoding`.
+/// 
+/// [`dicom_object`]: https://docs.rs/dicom_object
 pub trait PixelDataObject {
     /// Return the Rows attribute or None if it is not found
     fn rows(&self) -> Option<u16>;
