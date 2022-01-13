@@ -7,9 +7,19 @@ pub mod rle_lossless;
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum DecodeError {
-    /// A custom error when decoding fails
+    /// A custom error occurred when decoding,
+    /// reported as a dynamic error value
+    #[snafu(display("Error decoding pixel data"))]
+    Custom {
+        source: Box<dyn std::error::Error + Send + 'static>,
+    },
+
+    /// A custom error occurred when decoding,
+    /// reported as a static message
     #[snafu(display("Error decoding pixel data: {}", message))]
-    CustomDecodeError { message: &'static str },
+    CustomMessage {
+        message: &'static str,
+    },
 
     /// Input pixel data is not encapsulated
     NotEncapsulated,

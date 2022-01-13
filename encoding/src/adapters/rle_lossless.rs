@@ -7,12 +7,12 @@
 //!
 //! License: <https://github.com/pydicom/pydicom/blob/master/LICENSE>
 use byteordered::byteorder::{ByteOrder, LittleEndian};
-use snafu::OptionExt;
+use snafu::{OptionExt, ResultExt};
 
 use crate::adapters::{DecodeResult, PixelDataObject, PixelRWAdapter};
 use std::io::{self, Read, Seek};
 
-use super::{CustomDecodeSnafu, MissingAttributeSnafu};
+use super::{CustomSnafu, CustomMessageSnafu, MissingAttributeSnafu};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RLELosslessAdapter;
@@ -31,15 +31,15 @@ impl PixelRWAdapter for RLELosslessAdapter {
         let bits_allocated = src.bits_allocated().context(MissingAttributeSnafu {
             name: "BitsAllocated",
         })?;
+        
         if bits_allocated != 8 && bits_allocated != 16 {
-            CustomDecodeSnafu {
-                message: "BitsAllocated other than 8 or 16 is not supported",
-            }
-            .fail()?
+            return CustomMessageSnafu {
+                message: "BitsAllocated other than 8 or 16 is not supported"
+            }.fail();
         }
         // For RLE the number of fragments = number of frames
         // therefore, we can fetch the fragments one-by-one
-        let nr_frames = src.number_of_fragments().context(CustomDecodeSnafu {
+        let nr_frames = src.number_of_fragments().context(CustomMessageSnafu {
             message: "Invalid pixel data, no fragments found",
         })? as usize;
         let bytes_per_sample = bits_allocated / 8;
@@ -60,9 +60,10 @@ impl PixelRWAdapter for RLELosslessAdapter {
         //    LSB MSB LSB MSB ... LSB MSB | LSB MSB LSB MSB ... LSB MSB | ...
 
         for i in 0..nr_frames {
-            let fragment = &src.fragment(i).context(CustomDecodeSnafu {
-                message: "No pixel data found for frame",
-            })?;
+            let fragment = &src.fragment(i)
+                .context(CustomMessageSnafu {
+                    message: "No pixel data found for frame",
+                })?;
             let mut offsets = read_rle_header(fragment);
             offsets.push(fragment.len() as u32);
 
@@ -75,12 +76,9 @@ impl PixelRWAdapter for RLELosslessAdapter {
                         [offsets[ii as usize] as usize..offsets[(ii + 1) as usize] as usize];
                     let buff = io::Cursor::new(segment);
                     let (_, mut decoder) =
-                        PackBitsReader::new(buff, segment.len()).map_err(|_| {
-                            CustomDecodeSnafu {
-                                message: "Invalid RLE pixel data",
-                            }
-                            .build()
-                        })?;
+                        PackBitsReader::new(buff, segment.len())
+                            .map_err(|e| Box::new(e) as Box<_>)
+                            .context(CustomSnafu)?;
                     let mut decoded_segment: Vec<u8> = vec![0; (rows * cols) as usize];
                     decoder.read_exact(&mut decoded_segment).unwrap();
 

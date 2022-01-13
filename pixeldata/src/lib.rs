@@ -90,7 +90,7 @@ pub enum Error {
     },
 
     #[snafu(display("Could not cast pixel data value"))]
-    CastValueError {
+    CastValue {
         source: dicom_core::value::CastValueError,
         backtrace: Backtrace,
     },
@@ -144,13 +144,8 @@ pub enum Error {
         backtrace: Backtrace,
     },
 
-    #[snafu(display("Pixel data decoding failed"))]
-    ImplementerError {
-        source: Box<dyn std::error::Error + Send + 'static>,
-    },
-
     #[snafu(display("Invalid shape for ndarray"))]
-    ShapeError {
+    InvalidShape {
         source: ndarray::ShapeError,
         backtrace: Backtrace,
     },
@@ -166,12 +161,12 @@ pub enum Error {
     },
 
     #[snafu(display("Could not decode pixel data"))]
-    PixelDecodeError {
+    DecodePixelData {
         source: DecodeError
     },
 
     #[snafu(display("Frame #{} is out of range", frame_number))]
-    FrameOutOfRangeError {
+    FrameOutOfRange {
         frame_number: u32,
         backtrace: Backtrace,
     },
@@ -384,7 +379,7 @@ impl DecodedPixelData<'_> {
                     .map(|v| T::from(*v).ok_or(snafu::NoneError))
                     .collect();
                 let converted = converted.context(InvalidDataTypeSnafu)?;
-                let ndarray = Array::from_shape_vec(shape, converted).context(ShapeSnafu)?;
+                let ndarray = Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)?;
                 Ok(ndarray)
             }
             16 => match self.pixel_representation {
@@ -398,7 +393,7 @@ impl DecodedPixelData<'_> {
                         .map(|v| T::from(*v).ok_or(snafu::NoneError))
                         .collect();
                     let converted = converted.context(InvalidDataTypeSnafu)?;
-                    let ndarray = Array::from_shape_vec(shape, converted).context(ShapeSnafu)?;
+                    let ndarray = Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)?;
                     Ok(ndarray)
                 }
                 // Signed 16 bit 2s complement representation
@@ -411,7 +406,7 @@ impl DecodedPixelData<'_> {
                         .map(|v| T::from(*v).ok_or(snafu::NoneError))
                         .collect();
                     let converted = converted.context(InvalidDataTypeSnafu)?;
-                    let ndarray = Array::from_shape_vec(shape, converted).context(ShapeSnafu)?;
+                    let ndarray = Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)?;
                     Ok(ndarray)
                 }
                 _ => InvalidPixelRepresentationSnafu.fail()?,
@@ -549,7 +544,7 @@ where
             let mut data: Vec<u8> = Vec::new();
             (*decoder)
                 .decode(self, &mut data)
-                .context(PixelDecodeSnafu)?;
+                .context(DecodePixelDataSnafu)?;
 
             return Ok(DecodedPixelData {
                 data: Cow::from(data),
@@ -870,7 +865,7 @@ mod tests {
             .unwrap();
         let result = image.decode_pixel_data().unwrap().to_dynamic_image(1);
         match result {
-            Err(Error::FrameOutOfRangeError { frame_number: 1, .. }) => {}
+            Err(Error::FrameOutOfRange { frame_number: 1, .. }) => {}
             _ => panic!("Unexpected positive outcome for out of range access"),
         }
     }

@@ -2,6 +2,7 @@
 
 use crate::*;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
+use dicom_encoding::adapters::DecodeError;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use gdcm_rs::{decode_single_frame_compressed, GDCMPhotometricInterpretation, GDCMTransferSyntax};
 use std::str::FromStr;
@@ -19,7 +20,7 @@ where
 
         let photometric_interpretation = photometric_interpretation(self)?;
         let pi_type = GDCMPhotometricInterpretation::from_str(&photometric_interpretation)
-            .map_err(|_| UnsupportedPhotometricInterpretation {
+            .map_err(|_| UnsupportedPhotometricInterpretationSnafu {
                 pi: photometric_interpretation.clone(),
             }.build())?;
 
@@ -31,7 +32,7 @@ where
                     ts_uid: transfer_syntax,
                 })?;
         let ts_type = GDCMTransferSyntax::from_str(&registry.uid()).map_err(|_| {
-            UnsupportedTransferSyntax {
+            UnsupportedTransferSyntaxSnafu {
                 ts: transfer_syntax.clone(),
             }.build()
         })?;
@@ -66,8 +67,10 @@ where
                     high_bit,
                     pixel_representation,
                 )
-                .map_err(|source| Error::ImplementerError {
-                    source: Box::new(source),
+                .map_err(|source| Error::DecodePixelData {
+                    source: DecodeError::Custom {
+                        source: Box::new(source) as Box<_>,
+                    }
                 })?;
                 decoded_frame.to_vec()
             }
