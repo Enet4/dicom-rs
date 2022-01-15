@@ -18,6 +18,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 use transfer_syntax::TransferSyntaxIndex;
 use std::collections::HashSet;
+use walkdir::WalkDir;
 
 /// DICOM C-STORE SCU
 #[derive(Debug, StructOpt)]
@@ -73,10 +74,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         fail_first,
     } = App::from_args();
 
+    let mut checked_files: Vec<PathBuf> = vec![];
     let mut dicom_files: Vec<DicomFile> = vec![];
     let mut presentation_contexts = HashSet::new();
 
     for file in files {
+
+        if file.is_dir() {
+            for file in WalkDir::new(file.as_path())
+                                    .into_iter()
+                                    .filter_map(Result::ok)
+                                    .filter(|f| !f.file_type().is_dir()) {
+                                        checked_files.push(file.into_path());
+                                    }
+        }
+        else {
+            checked_files.push(file);
+        }
+    }
+
+    for file in checked_files {
 
         if verbose {
             println!("Opening file '{}'...", file.display());
@@ -127,8 +144,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 file.ts_selected = Some(ts);
             },
             Err(e) => {
+                eprintln!("Could not choose a transfer syntax: {}", e);
                 if fail_first {
-                    eprintln!("Could not choose a transfer syntax: {}", e);
                     let _ = scu.abort();
                     std::process::exit(-2);
                 }
