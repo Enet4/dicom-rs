@@ -19,6 +19,7 @@ use structopt::StructOpt;
 use transfer_syntax::TransferSyntaxIndex;
 use std::collections::HashSet;
 use walkdir::WalkDir;
+use indicatif::{ProgressBar, ProgressStyle};
 
 /// DICOM C-STORE SCU
 #[derive(Debug, StructOpt)]
@@ -153,6 +154,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    let progress_bar;
+    if !verbose { 
+        progress_bar = Some(ProgressBar::new(dicom_files.len() as u64));
+        if let Some(pb) = progress_bar.as_ref() {
+            pb.set_style(ProgressStyle::default_bar()
+              .template("[{elapsed_precise}] {bar:40} {pos}/{len} {msg}")) };
+    } else {
+        progress_bar = None;
+    }
+
     for file in dicom_files {
 
         if let (Some(pc_selected),Some(ts_selected)) = (file.pc_selected, file.ts_selected) {
@@ -238,7 +249,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let storage_sop_instance_uid =
                         file.sop_instance_uid.trim_end_matches(|c: char| c.is_whitespace() || c == '\0');
                     if status == 0 {
-                        println!("Sucessfully stored instance `{}`", storage_sop_instance_uid);
+                        if verbose {
+                            println!("Successfully stored instance `{}`", storage_sop_instance_uid);
+                        }
                     } else {
                         println!(
                             "Failed to store instance `{}` (status code {})",
@@ -263,8 +276,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     std::process::exit(-2);
                 }
             }
-        }   
+        } 
+        if let Some(pb) = progress_bar.as_ref() { pb.inc(1) }; 
     }
+
+    if let Some(pb) = progress_bar { pb.finish_with_message("done") };
 
 scu.release()?;
     Ok(())

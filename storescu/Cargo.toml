@@ -15,3 +15,4 @@ dicom-ul = { path = '../ul', version = "0.4.0-rc.1" }
 dicom = { path = '../parent', version = "0.5.0-rc.1" }
 structopt = "0.3.21"
 walkdir = "2.3.2"
+indicatif = "0.16.2"
