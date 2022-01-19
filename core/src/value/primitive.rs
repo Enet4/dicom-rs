@@ -2106,7 +2106,7 @@ impl PrimitiveValue {
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
                 .into_iter()
-                .map(|s| super::deserialize::parse_date(s))
+                .map(super::deserialize::parse_date)
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
                 .map_err(|err| ConvertValueError {
@@ -2287,8 +2287,10 @@ impl PrimitiveValue {
 
     /// Retrieve a single `chrono::NaiveTime` from this value.
     ///
-    /// If the value is represented as a precise `DicomTime`, it is converted to a `NaiveTime`.
-    /// It fails for imprecise values.
+    /// If the value is represented as a precise `DicomTime`,
+    /// it is converted to a `NaiveTime`.
+    /// It fails for imprecise values,
+    /// as in, those which do not specify up to at least the seconds.
     /// If the value is a string or sequence of strings,
     /// the first string is decoded to obtain a time, potentially failing if the
     /// string does not represent a valid time.
@@ -2517,7 +2519,7 @@ impl PrimitiveValue {
     ///  // second fraction defaults to zeros
     ///  assert_eq!(
     ///     second.to_time()?.to_naive_time()?,
-    ///     NaiveTime::from_hms_micro(10,12,59,0)
+    ///     NaiveTime::from_hms(10,12,59)
     ///  );
     ///
     ///  let fraction6 = PrimitiveValue::Str("101259.123456".into());
@@ -3983,10 +3985,16 @@ mod tests {
             NaiveTime::from_hms_milli(11, 9, 26, 380),
         );
 
-        // absence of a second fraction is considered to be incomplete value
-        assert!(dicom_value!(Str, "110926").to_naive_time().is_err());
-        assert!(PrimitiveValue::from(&"110926"[..]).to_naive_time().is_err(),);
-        assert!(dicom_value!(Strs, ["110926"]).to_naive_time().is_err());
+        // from text without fraction of a second (assumes 0 ms in fraction)
+        assert_eq!(
+            dicom_value!(Str, "110926").to_naive_time().unwrap(),
+            NaiveTime::from_hms(11, 9, 26),
+        );
+
+        // absence of seconds is considered to be an incomplete value
+        assert!(PrimitiveValue::from(&"1109"[..]).to_naive_time().is_err(),);
+        assert!(dicom_value!(Strs, ["1109"]).to_naive_time().is_err());
+        assert!(dicom_value!(Strs, ["11"]).to_naive_time().is_err());
 
         // not a time
         assert!(matches!(
@@ -4112,15 +4120,26 @@ mod tests {
                 .unwrap(),
             this_datetime_frac,
         );
-        // no second fractions fails
+
+        // without fraction of a second
+        let this_datetime = FixedOffset::east(1)
+            .ymd(2012, 12, 21)
+            .and_hms(11, 9, 26);
+        assert_eq!(
+            dicom_value!(Str, "20121221110926").to_chrono_datetime(FixedOffset::east(1)).unwrap(),
+            this_datetime,
+        );
+
+        // without seconds
         assert!(matches!(
-            dicom_value!(Str, "20121221110926").to_chrono_datetime(FixedOffset::east(1)),
+            PrimitiveValue::from("201212211109").to_chrono_datetime(FixedOffset::east(1)),
             Err(ConvertValueError {
                 requested: "DateTime",
                 original: ValueType::Str,
                 ..
             })
         ));
+
         // not a datetime
         assert!(matches!(
             PrimitiveValue::from("Smith^John").to_chrono_datetime(FixedOffset::east(1)),

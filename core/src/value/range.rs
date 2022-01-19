@@ -84,9 +84,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 pub trait AsRange: Precision {
     type Item: PartialEq + PartialOrd;
     type Range;
-    /**
-     * Returns a corresponding `chrono` value, if the partial precision structure has full accuracy.
-     */
+    /// Returns a corresponding `chrono` value, if the partial precision structure has full accuracy.
     fn exact(&self) -> Result<Self::Item> {
         if self.is_precise() {
             Ok(self.earliest()?)
@@ -94,30 +92,21 @@ pub trait AsRange: Precision {
             ImpreciseValueSnafu.fail()
         }
     }
-    /**
-     * Returns the earliest possible `chrono` value from a partial precision structure.
-     * Missing components default to 1 (days, months) or 0 (hours, minutes, ...)
-     * If structure contains invalid combination of `DateComponent`s, it fails.
-     */
+
+    /// Returns the earliest possible `chrono` value from a partial precision structure.
+    /// Missing components default to 1 (days, months) or 0 (hours, minutes, ...)
+    /// If structure contains invalid combination of `DateComponent`s, it fails.
     fn earliest(&self) -> Result<Self::Item>;
 
-    /**
-     * Returns the latest possible `chrono` value from a partial precision structure.
-     * If structure contains invalid combination of `DateComponent`s, it fails.
-     */
+    /// Returns the latest possible `chrono` value from a partial precision structure.
+    /// If structure contains invalid combination of `DateComponent`s, it fails.
     fn latest(&self) -> Result<Self::Item>;
 
-    /**
-     * Returns a tuple of the earliest and latest possible value from a partial precision structure.
-     *
-     */
-    //#[allow(clippy::type_complexity)]
+    /// Returns a tuple of the earliest and latest possible value from a partial precision structure.
     fn range(&self) -> Result<Self::Range>;
 
-    /**
-     * Returns `true`, if partial precision structure has maximum possible accuracy.
-     * For fraction of a second, full 6 digits are required for the value to be precise.
-     */
+    /// Returns `true` if partial precision structure has the maximum possible accuracy.
+    /// For fraction of a second, the full 6 digits are required for the value to be precise.
     fn is_precise(&self) -> bool {
         let e = self.earliest();
         let l = self.latest();
@@ -242,20 +231,19 @@ impl AsRange for DicomDateTime {
 }
 
 impl DicomDate {
-    /**
-     * Retrieves a `chrono::NaiveDate` if value is precise.
-     */
+    /// Retrieves a `chrono::NaiveDate`
+    /// if the value is precise up to the day of the month.
     pub fn to_naive_date(self) -> Result<NaiveDate> {
         self.exact()
     }
 }
 
 impl DicomTime {
-    /**
-     * Retrieves a `chrono::NaiveTime` if value is precise.
-     * This method consideres a `DicomTime` value to be precise, if it contains a second component.
-     * Missing second fraction defaults to zero.
-     */
+    
+    /// Retrieves a `chrono::NaiveTime`
+    /// if the value is precise up to the second.
+    /// 
+    /// Missing second fraction defaults to zero.
     pub fn to_naive_time(self) -> Result<NaiveTime> {
         match self.precision() {
             DateComponent::Second | DateComponent::Fraction => self.earliest(),
@@ -265,9 +253,7 @@ impl DicomTime {
 }
 
 impl DicomDateTime {
-    /**
-     * Retrieves a `chrono::DateTime<FixedOffset>` if value is precise.
-     */
+    /// Retrieves a `chrono::DateTime<FixedOffset>` if value is precise.
     pub fn to_chrono_datetime(self) -> Result<DateTime<FixedOffset>> {
         // tweak here, if full DicomTime precision req. proves impractical
         self.exact()
@@ -336,10 +322,9 @@ pub struct DateTimeRange {
 }
 
 impl DateRange {
-    /**
-     * Constructs a new `DateRange` from two `chrono::NaiveDate` values
-     * monotonically ordered in time.
-     */
+
+    /// Constructs a new `DateRange` from two `chrono::NaiveDate` values
+    /// monotonically ordered in time.
     pub fn from_start_to_end(start: NaiveDate, end: NaiveDate) -> Result<DateRange> {
         if start > end {
             RangeInversionSnafu {
@@ -354,44 +339,39 @@ impl DateRange {
             })
         }
     }
-    /**
-     * Constructs a new `DateRange` beginning with a `chrono::NaiveDate` value
-     * and no upper limit.
-     */
+
+    /// Constructs a new `DateRange` beginning with a `chrono::NaiveDate` value
+    /// and no upper limit.
     pub fn from_start(start: NaiveDate) -> DateRange {
         DateRange {
             start: Some(start),
             end: None,
         }
     }
-    /**
-     * Constructs a new `DateRange` with no lower limit, ending with a `chrono::NaiveDate` value.
-     */
+
+    /// Constructs a new `DateRange` with no lower limit, ending with a `chrono::NaiveDate` value.
     pub fn from_end(end: NaiveDate) -> DateRange {
         DateRange {
             start: None,
             end: Some(end),
         }
     }
-    /**
-     * Returns a reference to lower bound of range.
-     */
+
+    /// Returns a reference to lower bound of range.
     pub fn start(&self) -> Option<&NaiveDate> {
         self.start.as_ref()
     }
-    /**
-     * Returns a reference to upper bound of range.
-     */
+
+    /// Returns a reference to upper bound of range.
     pub fn end(&self) -> Option<&NaiveDate> {
         self.end.as_ref()
     }
 }
 
 impl TimeRange {
-    /**
-     * Constructs a new `TimeRange` from two `chrono::NaiveTime` values
-     * monotonically ordered in time.
-     */
+
+    /// Constructs a new `TimeRange` from two `chrono::NaiveTime` values
+    /// monotonically ordered in time.
     pub fn from_start_to_end(start: NaiveTime, end: NaiveTime) -> Result<TimeRange> {
         if start > end {
             RangeInversionSnafu {
@@ -406,44 +386,39 @@ impl TimeRange {
             })
         }
     }
-    /**
-     * Constructs a new `TimeRange` beginning with a `chrono::NaiveTime` value
-     * and no upper limit.
-     */
+
+    /// Constructs a new `TimeRange` beginning with a `chrono::NaiveTime` value
+    /// and no upper limit.
     pub fn from_start(start: NaiveTime) -> TimeRange {
         TimeRange {
             start: Some(start),
             end: None,
         }
     }
-    /**
-     * Constructs a new `TimeRange` with no lower limit, ending with a `chrono::NaiveTime` value.
-     */
+
+    /// Constructs a new `TimeRange` with no lower limit, ending with a `chrono::NaiveTime` value.
     pub fn from_end(end: NaiveTime) -> TimeRange {
         TimeRange {
             start: None,
             end: Some(end),
         }
     }
-    /**
-     * Returns a reference to lower bound of range.
-     */
+
+    /// Returns a reference to the lower bound of the range.
     pub fn start(&self) -> Option<&NaiveTime> {
         self.start.as_ref()
     }
-    /**
-     * Returns a reference to upper bound of range.
-     */
+
+    /// Returns a reference to the upper bound of the range.
     pub fn end(&self) -> Option<&NaiveTime> {
         self.end.as_ref()
     }
 }
 
 impl DateTimeRange {
-    /**
-     * Constructs a new `DateTimeRange` from two `chrono::DateTime` values
-     * monotonically ordered in time.
-     */
+
+    /// Constructs a new `DateTimeRange` from two `chrono::DateTime` values
+    /// monotonically ordered in time.
     pub fn from_start_to_end(
         start: DateTime<FixedOffset>,
         end: DateTime<FixedOffset>,
@@ -461,40 +436,36 @@ impl DateTimeRange {
             })
         }
     }
-    /**
-     * Constructs a new `DateTimeRange` beginning with a `chrono::DateTime` value
-     * and no upper limit.
-     */
+
+    /// Constructs a new `DateTimeRange` beginning with a `chrono::DateTime` value
+    /// and no upper limit.
     pub fn from_start(start: DateTime<FixedOffset>) -> DateTimeRange {
         DateTimeRange {
             start: Some(start),
             end: None,
         }
     }
-    /**
-     * Constructs a new `DateTimeRange` with no lower limit, ending with a `chrono::DateTime` value.
-     */
+
+    /// Constructs a new `DateTimeRange` with no lower limit, ending with a `chrono::DateTime` value.
     pub fn from_end(end: DateTime<FixedOffset>) -> DateTimeRange {
         DateTimeRange {
             start: None,
             end: Some(end),
         }
     }
-    /**
-     * Returns a reference to lower bound of range.
-     */
+
+    /// Returns a reference to the lower bound of the range.
     pub fn start(&self) -> Option<&DateTime<FixedOffset>> {
         self.start.as_ref()
     }
-    /**
-     * Returns a reference to upper bound of range.
-     */
+
+    /// Returns a reference to the upper bound of the range.
     pub fn end(&self) -> Option<&DateTime<FixedOffset>> {
         self.end.as_ref()
     }
-    /**
-     * For combined datetime range matching, this method constructs a `DateTimeRange` from a `DateRange` and a `TimeRange`.
-     */
+
+    /// For combined datetime range matching,
+    /// this method constructs a `DateTimeRange` from a `DateRange` and a `TimeRange`.
     pub fn from_date_and_time_range(
         dr: DateRange,
         tr: TimeRange,
@@ -570,10 +541,8 @@ pub fn parse_date_range(buf: &[u8]) -> Result<DateRange> {
     }
 }
 
-/**
- *  Looks for a range separator '-'.
- *  Returns a `TimeRange`.
- */
+/// Looks for a range separator '-'.
+///  Returns a `TimeRange`.
 pub fn parse_time_range(buf: &[u8]) -> Result<TimeRange> {
     // minimum length of one valid DicomTime (HH) and one '-' separator
     if buf.len() < 3 {
@@ -600,18 +569,16 @@ pub fn parse_time_range(buf: &[u8]) -> Result<TimeRange> {
     }
 }
 
-/**
- *  Looks for a range separator '-'.
- *  Returns a `DateTimeRange`.
- *  Users are advised, that for very specific inputs, inconsistent behavior can occur.
- *  This behavior can only be produced when all of the following is true:
- *  - two very short date-times in the form of YYYY are presented
- *  - both YYYY values can be exchanged for a valid west UTC offset, meaning year <= 1200
- *  - only one west UTC offset is presented.
- *
- *  In such cases, two '-' characters are present and the parser will favor the first one,
- *  if it produces a valid `DateTimeRange`. Otherwise, it tries the second one.
-**/
+
+/// Looks for a range separator '-'.
+/// Returns a `DateTimeRange`.
+/// Users are advised, that for very specific inputs, inconsistent behavior can occur.
+/// This behavior can only be produced when all of the following is true:
+/// - two very short date-times in the form of YYYY are presented
+/// - both YYYY values can be exchanged for a valid west UTC offset, meaning year <= 1200
+/// - only one west UTC offset is presented.
+/// In such cases, two '-' characters are present and the parser will favor the first one,
+/// if it produces a valid `DateTimeRange`. Otherwise, it tries the second one.
 pub fn parse_datetime_range(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTimeRange> {
     // minimum length of one valid DicomDateTime (YYYY) and one '-' separator
     if buf.len() < 5 {
