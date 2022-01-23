@@ -1,7 +1,7 @@
 use dicom::core::smallvec;
 use dicom::{core::dicom_value, dictionary_std::tags};
 use dicom::{
-    core::{DataElement, PrimitiveValue, VR},
+    core::{DataElement, header::Tag, PrimitiveValue, VR},
     encoding::transfer_syntax,
     object::{mem::InMemDicomObject, open_file, StandardDataDictionary},
     transfer_syntax::TransferSyntaxRegistry,
@@ -14,7 +14,7 @@ use dicom_ul::{
 use smallvec::smallvec;
 use std::ffi::OsStr;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 use transfer_syntax::TransferSyntaxIndex;
 use std::collections::HashSet;
@@ -100,14 +100,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Opening file '{}'...", file.display());
         }
 
-        match check_file(file) {
+        match check_file(&file) {
             Ok(dicom_file) => {
                 presentation_contexts.insert((dicom_file.sop_class_uid.to_string(),dicom_file.file_transfer_syntax.clone()));
                 dicom_files.push(dicom_file);
             },
             Err(e) => {
                 if verbose {
-                    println!("Error: {}", e);
+                    println!("Could not open file {}: {}", file.display(), e);
                 }
             }
         }        
@@ -358,10 +358,12 @@ fn even_len(l: usize) -> u32 {
     ((l + 1) & !1) as u32
 }
 
-fn check_file(file: PathBuf) -> Result<DicomFile, Box<dyn std::error::Error>> {
+fn check_file(file: &Path) -> Result<DicomFile, Box<dyn std::error::Error>> {
     // Ignore DICOMDIR files until better support is added
     let _ = (file.file_name() != Some(OsStr::new("DICOMDIR"))).then(|| false).ok_or("DICOMDIR file not supported")?;
-    let dicom_file = open_file(&file)?;
+    let dicom_file = dicom::object::OpenFileOptions::new()
+                        .read_until(Tag(0x0001,0x000))
+                        .open_file(&file)?;
 
     let meta = dicom_file.meta();
 
@@ -369,7 +371,7 @@ fn check_file(file: PathBuf) -> Result<DicomFile, Box<dyn std::error::Error>> {
     let storage_sop_instance_uid = &meta.media_storage_sop_instance_uid;
     let transfer_syntax_uid = &meta.transfer_syntax.trim_end_matches('\0');
     let ts = TransferSyntaxRegistry.get(transfer_syntax_uid).ok_or("Unsupported file transfer syntax")?;
-    Ok(DicomFile{file, 
+    Ok(DicomFile{file: file.to_path_buf(),
                  sop_class_uid: storage_sop_class_uid.to_string(), 
                  sop_instance_uid: storage_sop_instance_uid.to_string(), 
                  file_transfer_syntax: String::from(ts.uid()), 
