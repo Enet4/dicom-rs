@@ -67,12 +67,8 @@ fn scu_scp_association_test() {
     let association = ClientAssociationOptions::new()
         .calling_ae_title(SCU_AE_TITLE)
         .called_ae_title(SCP_AE_TITLE)
-        .with_abstract_syntax(VERIFICATION_SOP_CLASS)
-        .with_abstract_syntax(DIGITAL_MG_STORAGE_SOP_CLASS)
-        .with_transfer_syntax(IMPLICIT_VR_LE)
-        .with_transfer_syntax(EXPLICIT_VR_LE)
-        // JPEG baseline
-        .with_transfer_syntax(JPEG_BASELINE)
+        .with_presentation_context(VERIFICATION_SOP_CLASS, vec![IMPLICIT_VR_LE, EXPLICIT_VR_LE])
+        .with_presentation_context(DIGITAL_MG_STORAGE_SOP_CLASS, vec![IMPLICIT_VR_LE, EXPLICIT_VR_LE, JPEG_BASELINE])
         .establish(scp_addr)
         .unwrap();
 

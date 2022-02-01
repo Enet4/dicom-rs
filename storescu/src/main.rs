@@ -125,8 +125,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut scu_init = ClientAssociationOptions::new();
     
     for (storage_sop_class_uid,transfer_syntax) in &presentation_contexts {
-        scu_init = scu_init.with_abstract_syntax(storage_sop_class_uid)
-                    .with_transfer_syntax(transfer_syntax);
+        scu_init = scu_init.with_presentation_context(storage_sop_class_uid,vec![transfer_syntax]);
     }
     let mut scu = scu_init.calling_ae_title(calling_ae_title)
                     .called_ae_title(called_ae_title)
