@@ -110,12 +110,21 @@ pub struct EncodeOptions {
     /// and smaller values represent smaller data size
     /// with an increasingly higher error.
     /// It is ignored if the transfer syntax only supports lossless compression.
-    /// If it does support however,
+    /// If it does support lossless compression,
     /// it is expected that a quality of 100 results in a lossless encoding.
     ///
     /// If this option is not specified,
     /// the output quality is decided automatically by the underlying adapter.
     pub quality: Option<u8>,
+
+    /// The amount of effort that the encoder may take to encode the pixel data,
+    /// as a number between 0 and 100.
+    /// If supported, higher values result in better compression,
+    /// at the expense of more processing time.
+    /// Encoders are not required to support this option.
+    /// If this option is not specified,
+    /// the actual effort is decided by the underlying adapter.
+    pub effort: Option<u8>,
 }
 
 impl EncodeOptions {
