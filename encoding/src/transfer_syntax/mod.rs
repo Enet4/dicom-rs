@@ -29,10 +29,17 @@ pub type DynDecoder<S> = Box<dyn DecodeFrom<S>>;
 /// An encoder with its type erased.
 pub type DynEncoder<'w, W> = Box<dyn EncodeTo<W> + 'w>;
 
-/// A DICOM transfer syntax specifier. The data RW adapter `A` specifies
-/// custom codec capabilities when required.
+/// A DICOM transfer syntax specifier.
+/// 
+/// Custom encoding and decoding capabilities
+/// are defined via the parameter types `D` and `P`,
+/// The type parameter `D` specifies
+/// an adator for reading and writing data sets,
+/// whereas `P` specifies the encoder and decoder of encapsulated pixel data.
+/// Usually however, `TransferSyntax` is used with its default parameter types,
+/// as a "type erased" form.
 #[derive(Debug)]
-pub struct TransferSyntax<A = DynDataRWAdapter, B = DynPixelRWAdapter> {
+pub struct TransferSyntax<D = DynDataRWAdapter, P = DynPixelRWAdapter> {
     /// The unique identifier of the transfer syntax.
     uid: &'static str,
     /// The name of the transfer syntax.
@@ -43,24 +50,28 @@ pub struct TransferSyntax<A = DynDataRWAdapter, B = DynPixelRWAdapter> {
     /// or the VR is implicit.
     explicit_vr: bool,
     /// The transfer syntax' requirements and implemented capabilities.
-    codec: Codec<A, B>,
+    codec: Codec<D, P>,
 }
 
 #[cfg(feature = "inventory-registry")]
 // Collect transfer syntax specifiers from other crates.
 inventory::collect!(TransferSyntax);
 
-/// Trait for containers of transfer syntax specifiers.
+/// Trait for a container/repository of transfer syntax specifiers.
 ///
 /// Types implementing this trait are held responsible for populating
 /// themselves with a set of transfer syntaxes, which can be fully supported,
 /// partially supported, or not supported. Usually, only one implementation
-/// of this trait is used for the entire program.
+/// of this trait is used for the entire program,
+/// the most common one being the `TransferSyntaxRegistry` type
+/// from [`transfer-syntax-registry`].
+/// 
+/// [`transfer-syntax-registry`]: https://docs.rs/dicom-transfer-syntax-registry
 pub trait TransferSyntaxIndex {
     /// Obtain a DICOM transfer syntax by its respective UID.
     ///
     /// Implementations of this method should be robust to the possible
-    /// presence of a trailing null characters (`\0`) in `uid`.
+    /// presence of trailing null characters (`\0`) in `uid`.
     fn get(&self, uid: &str) -> Option<&TransferSyntax>;
 }
 
@@ -112,7 +123,7 @@ macro_rules! submit_transfer_syntax {
 /// This is also used as a means to describe whether pixel data is encapsulated
 /// and whether this implementation supports it.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Codec<A, B> {
+pub enum Codec<D, P> {
     /// No codec is given, nor is it required.
     None,
     /// Custom encoding and decoding of the entire data set is required, but
@@ -125,9 +136,9 @@ pub enum Codec<A, B> {
     EncapsulatedPixelData,
     /// A pixel data encapsulation codec is required and provided for reading
     /// and writing pixel data.
-    PixelData(B),
+    PixelData(P),
     /// A full, custom data set codec is required and provided.
-    Dataset(A),
+    Dataset(D),
 }
 
 /// An alias for a transfer syntax specifier with no pixel data encapsulation
@@ -215,19 +226,18 @@ impl<R, W> DataRWAdapter<R, W> for NeverAdapter {
     }
 }
 
-impl<A, B> TransferSyntax<A, B> {
-    /** Create a new transfer syntax descriptor.
-     *
-     * Note that only transfer syntax implementors are expected to construct
-     * TS descriptors from scratch. For a practical usage of transfer syntaxes,
-     * one should look up an existing transfer syntax registry by UID.
-     */
+impl<D, P> TransferSyntax<D, P> {
+    /// Create a new transfer syntax descriptor.
+    ///
+    /// Note that only transfer syntax implementors are expected to construct
+    /// TS descriptors from scratch. For a practical usage of transfer syntaxes,
+    /// one should look up an existing transfer syntax registry by UID.
     pub const fn new(
         uid: &'static str,
         name: &'static str,
         byte_order: Endianness,
         explicit_vr: bool,
-        codec: Codec<A, B>,
+        codec: Codec<D, P>,
     ) -> Self {
         TransferSyntax {
             uid,
@@ -254,7 +264,7 @@ impl<A, B> TransferSyntax<A, B> {
     }
 
     /// Obtain this transfer syntax' codec specification.
-    pub fn codec(&self) -> &Codec<A, B> {
+    pub fn codec(&self) -> &Codec<D, P> {
         &self.codec
     }
 
@@ -359,19 +369,19 @@ impl<A, B> TransferSyntax<A, B> {
     /// Type-erase the pixel data or data set codec.
     pub fn erased(self) -> TransferSyntax
     where
-        A: Send + Sync + 'static,
-        A: DataRWAdapter<
+        D: Send + Sync + 'static,
+        D: DataRWAdapter<
             Box<dyn Read>,
             Box<dyn Write>,
             Reader = Box<dyn Read>,
             Writer = Box<dyn Write>,
         >,
-        B: Send + Sync + 'static,
-        B: PixelRWAdapter,
+        P: Send + Sync + 'static,
+        P: PixelRWAdapter,
     {
         let codec = match self.codec {
-            Codec::Dataset(a) => Codec::Dataset(Box::new(a) as DynDataRWAdapter),
-            Codec::PixelData(b) => Codec::PixelData(Box::new(b) as DynPixelRWAdapter),
+            Codec::Dataset(d) => Codec::Dataset(Box::new(d) as DynDataRWAdapter),
+            Codec::PixelData(p) => Codec::PixelData(Box::new(p) as DynPixelRWAdapter),
             Codec::EncapsulatedPixelData => Codec::EncapsulatedPixelData,
             Codec::Unsupported => Codec::Unsupported,
             Codec::None => Codec::None,
