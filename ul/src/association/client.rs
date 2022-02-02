@@ -193,16 +193,16 @@ impl<'a> ClientAssociationOptions<'a> {
     where
         T: Into<Cow<'a, str>>,
     {
-        let mut transfer_syntaxes: Vec<Cow<'a, str>> = Vec::new();
-        for e in transfer_syntax_uids {
-            transfer_syntaxes.push(e.into());
-        }
+        let transfer_syntaxes: Vec<Cow<'a, str>> = transfer_syntax_uids
+            .into_iter()
+            .map(|t| t.into())
+            .collect();
         self.presentation_contexts.push((abstract_syntax_uid.into(), transfer_syntaxes));
         self
     }
 
     /// Helper to add this abstract syntax
-    /// with default transfer syntaxes
+    /// with the default transfer syntaxes
     /// to the list of proposed presentation contexts.
     pub fn with_abstract_syntax<T>(self, abstract_syntax_uid: T) -> Self
     where
