@@ -99,20 +99,31 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// let association = ClientAssociationOptions::new()
-///    .with_abstract_syntax("1.2.840.10008.1.1")
-///    .with_transfer_syntax("1.2.840.10008.1.2.1")
+///    .with_presentation_context("1.2.840.10008.1.1", vec!["1.2.840.10008.1.2.1", "1.2.840.10008.1.2"])
 ///    .establish("129.168.0.5:104")?;
 /// # Ok(())
 /// # }
 /// ```
 ///
-/// At least one abstract syntax must be specified,
-/// using the method [`with_abstract_syntax`](Self::with_abstract_syntax).
-/// The requester will admit by default the transfer syntaxes
-/// _Implicit VR Little Endian_
-/// and _Explicit VR Little Endian_.
-/// Other transfer syntaxes can be requested in the association
-/// via the method [`with_transfer_syntax`](Self::with_transfer_syntax).
+/// At least one presentation context must be specified,
+/// using the method [`with_presentation_context`](Self::with_presentation_context)
+/// and supplying both an abstract syntax and list of transfer syntaxes.
+///
+/// A helper method [`with_abstract_syntax`](Self::with_abstract_syntax) will
+/// include by default the transfer syntaxes
+/// _Implicit VR Little Endian_ and _Explicit VR Little Endian_
+/// in the resulting presentation context.
+/// # Example
+///
+/// ```no_run
+/// # use dicom_ul::association::client::ClientAssociationOptions;
+/// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// let association = ClientAssociationOptions::new()
+///    .with_abstract_syntax("1.2.840.10008.1.1")
+///    .establish("129.168.0.5:104")?;
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Clone)]
 pub struct ClientAssociationOptions<'a> {
     /// the calling AE title
@@ -121,10 +132,8 @@ pub struct ClientAssociationOptions<'a> {
     called_ae_title: Cow<'a, str>,
     /// the requested application context name
     application_context_name: Cow<'a, str>,
-    /// the list of requested abstract syntaxes
-    abstract_syntax_uids: Vec<Cow<'a, str>>,
-    /// the list of requested transfer syntaxes
-    transfer_syntax_uids: Vec<Cow<'a, str>>,
+    /// the list of requested presentation contexts
+    presentation_contexts: Vec<(Cow<'a, str>, Vec<Cow<'a, str>>)>,
     /// the expected protocol version
     protocol_version: u16,
     /// the maximum PDU length requested for receiving PDUs
@@ -140,10 +149,8 @@ impl<'a> Default for ClientAssociationOptions<'a> {
             called_ae_title: "ANY-SCP".into(),
             /// the requested application context name
             application_context_name: "1.2.840.10008.3.1.1.1".into(),
-            /// the list of requested abstract syntaxes
-            abstract_syntax_uids: Vec::new(),
-            /// the application context name
-            transfer_syntax_uids: Vec::new(),
+            /// the list of requested presentation contexts
+            presentation_contexts: Vec::new(),
             protocol_version: 1,
             max_pdu_length: crate::pdu::reader::DEFAULT_MAX_PDU,
         }
@@ -180,23 +187,33 @@ impl<'a> ClientAssociationOptions<'a> {
         self
     }
 
-    /// Include this abstract syntax
+    /// Include this presentation context
     /// in the list of proposed presentation contexts.
-    pub fn with_abstract_syntax<T>(mut self, abstract_syntax_uid: T) -> Self
+    pub fn with_presentation_context<T>(
+        mut self,
+        abstract_syntax_uid: T,
+        transfer_syntax_uids: Vec<T>,
+    ) -> Self
     where
         T: Into<Cow<'a, str>>,
     {
-        self.abstract_syntax_uids.push(abstract_syntax_uid.into());
+        let transfer_syntaxes: Vec<Cow<'a, str>> =
+            transfer_syntax_uids.into_iter().map(|t| t.into()).collect();
+        self.presentation_contexts
+            .push((abstract_syntax_uid.into(), transfer_syntaxes));
         self
     }
 
-    /// Include this transfer syntax in each proposed presentation context.
-    pub fn with_transfer_syntax<T>(mut self, transfer_syntax_uid: T) -> Self
+    /// Helper to add this abstract syntax
+    /// with the default transfer syntaxes
+    /// to the list of proposed presentation contexts.
+    pub fn with_abstract_syntax<T>(self, abstract_syntax_uid: T) -> Self
     where
         T: Into<Cow<'a, str>>,
     {
-        self.transfer_syntax_uids.push(transfer_syntax_uid.into());
-        self
+        let default_transfer_syntaxes: Vec<Cow<'a, str>> =
+            vec!["1.2.840.10008.1.2.1".into(), "1.2.840.10008.1.2".into()];
+        self.with_presentation_context(abstract_syntax_uid.into(), default_transfer_syntaxes)
     }
 
     /// Override the maximum PDU length
@@ -214,31 +231,26 @@ impl<'a> ClientAssociationOptions<'a> {
             calling_ae_title,
             called_ae_title,
             application_context_name,
-            abstract_syntax_uids,
-            mut transfer_syntax_uids,
+            presentation_contexts,
             protocol_version,
             max_pdu_length,
         } = self;
 
-        // fail if no abstract syntaxes were provided: they represent intent,
+        // fail if no presentation contexts were provided: they represent intent,
         // should not be omitted by the user
-        ensure!(!abstract_syntax_uids.is_empty(), MissingAbstractSyntaxSnafu);
+        ensure!(
+            !presentation_contexts.is_empty(),
+            MissingAbstractSyntaxSnafu
+        );
 
-        // provide default transfer syntaxes
-        if transfer_syntax_uids.is_empty() {
-            // Explicit VR Little Endian
-            transfer_syntax_uids.push("1.2.840.10008.1.2.1".into());
-            // Implicit VR Little Endian
-            transfer_syntax_uids.push("1.2.840.10008.1.2".into());
-        }
-
-        let presentation_contexts: Vec<_> = abstract_syntax_uids
+        let presentation_contexts: Vec<_> = presentation_contexts
             .into_iter()
             .enumerate()
-            .map(|(i, abstract_syntax)| PresentationContextProposed {
+            .map(|(i, presentation_context)| PresentationContextProposed {
                 id: (i + 1) as u8,
-                abstract_syntax: abstract_syntax.to_string(),
-                transfer_syntaxes: transfer_syntax_uids
+                abstract_syntax: presentation_context.0.to_string(),
+                transfer_syntaxes: presentation_context
+                    .1
                     .iter()
                     .map(|uid| uid.to_string())
                     .collect(),
@@ -481,8 +493,8 @@ impl ClientAssociation {
     fn release_impl(&mut self) -> Result<()> {
         let pdu = Pdu::ReleaseRQ;
         self.send(&pdu)?;
-        let pdu =
-            read_pdu(&mut self.socket, self.requestor_max_pdu_length, true).context(ReceiveSnafu)?;
+        let pdu = read_pdu(&mut self.socket, self.requestor_max_pdu_length, true)
+            .context(ReceiveSnafu)?;
 
         match pdu {
             Pdu::ReleaseRP => {}
