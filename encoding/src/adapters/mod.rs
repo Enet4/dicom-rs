@@ -1,3 +1,5 @@
+//! Module for built-in pixel data adapters.
+
 use dicom_core::value::C;
 use snafu::Snafu;
 
