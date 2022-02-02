@@ -108,7 +108,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// At least one presentation context must be specified,
 /// using the method [`with_presentation_context`](Self::with_presentation_context)
 /// and supplying both an abstract syntax and list of transfer syntaxes.
-/// 
+///
 /// A helper method [`with_abstract_syntax`](Self::with_abstract_syntax) will
 /// include by default the transfer syntaxes
 /// _Implicit VR Little Endian_ and _Explicit VR Little Endian_
@@ -189,15 +189,18 @@ impl<'a> ClientAssociationOptions<'a> {
 
     /// Include this presentation context
     /// in the list of proposed presentation contexts.
-    pub fn with_presentation_context<T>(mut self, abstract_syntax_uid: T, transfer_syntax_uids: Vec<T>) -> Self
+    pub fn with_presentation_context<T>(
+        mut self,
+        abstract_syntax_uid: T,
+        transfer_syntax_uids: Vec<T>,
+    ) -> Self
     where
         T: Into<Cow<'a, str>>,
     {
-        let transfer_syntaxes: Vec<Cow<'a, str>> = transfer_syntax_uids
-            .into_iter()
-            .map(|t| t.into())
-            .collect();
-        self.presentation_contexts.push((abstract_syntax_uid.into(), transfer_syntaxes));
+        let transfer_syntaxes: Vec<Cow<'a, str>> =
+            transfer_syntax_uids.into_iter().map(|t| t.into()).collect();
+        self.presentation_contexts
+            .push((abstract_syntax_uid.into(), transfer_syntaxes));
         self
     }
 
@@ -208,7 +211,8 @@ impl<'a> ClientAssociationOptions<'a> {
     where
         T: Into<Cow<'a, str>>,
     {
-        let default_transfer_syntaxes: Vec<Cow<'a, str>> = vec!["1.2.840.10008.1.2.1".into(), "1.2.840.10008.1.2".into()];
+        let default_transfer_syntaxes: Vec<Cow<'a, str>> =
+            vec!["1.2.840.10008.1.2.1".into(), "1.2.840.10008.1.2".into()];
         self.with_presentation_context(abstract_syntax_uid.into(), default_transfer_syntaxes)
     }
 
@@ -234,7 +238,10 @@ impl<'a> ClientAssociationOptions<'a> {
 
         // fail if no presentation contexts were provided: they represent intent,
         // should not be omitted by the user
-        ensure!(!presentation_contexts.is_empty(), MissingAbstractSyntaxSnafu);
+        ensure!(
+            !presentation_contexts.is_empty(),
+            MissingAbstractSyntaxSnafu
+        );
 
         let presentation_contexts: Vec<_> = presentation_contexts
             .into_iter()
@@ -242,7 +249,8 @@ impl<'a> ClientAssociationOptions<'a> {
             .map(|(i, presentation_context)| PresentationContextProposed {
                 id: (i + 1) as u8,
                 abstract_syntax: presentation_context.0.to_string(),
-                transfer_syntaxes: presentation_context.1
+                transfer_syntaxes: presentation_context
+                    .1
                     .iter()
                     .map(|uid| uid.to_string())
                     .collect(),
@@ -485,8 +493,8 @@ impl ClientAssociation {
     fn release_impl(&mut self) -> Result<()> {
         let pdu = Pdu::ReleaseRQ;
         self.send(&pdu)?;
-        let pdu =
-            read_pdu(&mut self.socket, self.requestor_max_pdu_length, true).context(ReceiveSnafu)?;
+        let pdu = read_pdu(&mut self.socket, self.requestor_max_pdu_length, true)
+            .context(ReceiveSnafu)?;
 
         match pdu {
             Pdu::ReleaseRP => {}
