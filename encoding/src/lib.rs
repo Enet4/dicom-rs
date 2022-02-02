@@ -21,7 +21,12 @@ pub mod encode;
 pub mod text;
 pub mod transfer_syntax;
 
+pub use adapters::NeverPixelAdapter;
 pub use decode::Decode;
 pub use encode::Encode;
+pub use byteordered::Endianness;
 pub use transfer_syntax::Codec;
+pub use transfer_syntax::DataRWAdapter;
+pub use transfer_syntax::NeverAdapter;
 pub use transfer_syntax::TransferSyntax;
+pub use transfer_syntax::TransferSyntaxIndex;
