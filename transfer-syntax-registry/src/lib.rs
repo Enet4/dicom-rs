@@ -47,7 +47,7 @@ pub mod entries;
 
 /// Data type for a registry of DICOM.
 pub struct TransferSyntaxRegistryImpl {
-    m: HashMap<&'static str, &'static TransferSyntax>,
+    m: HashMap<&'static str, TransferSyntax>,
 }
 
 impl fmt::Debug for TransferSyntaxRegistryImpl {
@@ -62,11 +62,11 @@ impl fmt::Debug for TransferSyntaxRegistryImpl {
 
 impl TransferSyntaxRegistryImpl {
     /// Obtain a DICOM codec by transfer syntax UID.
-    fn get<U: AsRef<str>>(&self, uid: U) -> Option<&'static TransferSyntax> {
+    fn get<U: AsRef<str>>(&self, uid: U) -> Option<&TransferSyntax> {
         let ts_uid = uid
             .as_ref()
             .trim_end_matches(|c: char| c.is_whitespace() || c == '\0');
-        self.m.get(ts_uid).copied()
+        self.m.get(ts_uid)
     }
 
     /// Register the given transfer syntax (TS) to the system. It can override
@@ -74,7 +74,7 @@ impl TransferSyntaxRegistryImpl {
     /// certain codecs which are not supported by the previously registered
     /// TS. If no such requirements are imposed, this function returns `false`
     /// and no changes are made.
-    fn register(&mut self, ts: &'static TransferSyntax) -> bool {
+    fn register(&mut self, ts: TransferSyntax) -> bool {
         match self.m.entry(ts.uid()) {
             Entry::Occupied(mut e) => {
                 let replace = match (&e.get().codec(), ts.codec()) {
@@ -125,9 +125,14 @@ impl TransferSyntaxIndex for TransferSyntaxRegistry {
 }
 
 lazy_static! {
-    static ref BUILT_IN_TS: [TransferSyntax; 29] = {
+
+    static ref REGISTRY: TransferSyntaxRegistryImpl = {
+        let mut registry = TransferSyntaxRegistryImpl {
+            m: HashMap::with_capacity(32),
+        };
+
         use self::entries::*;
-        [
+        let built_in_ts: [TransferSyntax; 29] = [
             IMPLICIT_VR_LITTLE_ENDIAN.erased(),
             EXPLICIT_VR_LITTLE_ENDIAN.erased(),
             EXPLICIT_VR_BIG_ENDIAN.erased(),
@@ -158,16 +163,10 @@ lazy_static! {
             SMPTE_ST_2110_20_UNCOMPRESSED_PROGRESSIVE.erased(),
             SMPTE_ST_2110_20_UNCOMPRESSED_INTERLACED.erased(),
             SMPTE_ST_2110_30_PCM.erased(),
-        ]
-    };
-
-    static ref REGISTRY: TransferSyntaxRegistryImpl = {
-        let mut registry = TransferSyntaxRegistryImpl {
-            m: HashMap::with_capacity(32),
-        };
+        ];
 
         // add built-in TSes manually
-        for ts in BUILT_IN_TS.iter() {
+        for ts in built_in_ts {
             registry.register(ts);
         }
         // add TSes from inventory, if available
@@ -180,7 +179,10 @@ lazy_static! {
 #[cfg(feature = "inventory-registry")]
 #[inline]
 fn inventory_populate(registry: &mut TransferSyntaxRegistryImpl) {
-    for ts in inventory::iter::<TransferSyntax> {
+    use dicom_encoding::transfer_syntax::TransferSyntaxFactory;
+
+    for TransferSyntaxFactory(tsf) in inventory::iter::<TransferSyntaxFactory> {
+        let ts = tsf();
         registry.register(ts);
     }
 }

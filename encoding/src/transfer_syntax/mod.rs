@@ -5,9 +5,10 @@
 //! This crate does not host specific transfer syntaxes. Instead, they are created in
 //! other crates and registered in the global transfer syntax registry, which implements
 //! [`TransferSyntaxIndex`]. For more
-//! information, please see the `dicom-transfer-syntax-registry` crate.
+//! information, please see the [`dicom-transfer-syntax-registry`] crate.
 //!
 //! [`TransferSyntaxIndex`]: ./trait.TransferSyntaxIndex.html
+//! [`dicom-transfer-syntax-registry`]: https://docs.rs/dicom-transfer-syntax-registry
 
 use crate::adapters::{DynPixelRWAdapter, NeverPixelAdapter, PixelRWAdapter};
 use crate::decode::{
@@ -34,10 +35,16 @@ pub type DynEncoder<'w, W> = Box<dyn EncodeTo<W> + 'w>;
 /// Custom encoding and decoding capabilities
 /// are defined via the parameter types `D` and `P`,
 /// The type parameter `D` specifies
-/// an adator for reading and writing data sets,
+/// an adapter for reading and writing data sets,
 /// whereas `P` specifies the encoder and decoder of encapsulated pixel data.
-/// Usually however, `TransferSyntax` is used with its default parameter types,
-/// as a "type erased" form.
+/// 
+/// This type is usually consumed in its "type erased" form,
+/// with its default parameter types.
+/// On the other hand, implementers of `TransferSyntax` will typically specify
+/// concrete types for `D` and `P`,
+/// which are type-erased before registration.
+/// If the transfer syntax requires no data set codec,
+/// `D` can be assigned to the utility type [`NeverAdapter`].
 #[derive(Debug)]
 pub struct TransferSyntax<D = DynDataRWAdapter, P = DynPixelRWAdapter> {
     /// The unique identifier of the transfer syntax.
@@ -53,9 +60,20 @@ pub struct TransferSyntax<D = DynDataRWAdapter, P = DynPixelRWAdapter> {
     codec: Codec<D, P>,
 }
 
+/// Wrapper type for a provider of transfer syntax descriptors.
+/// 
+/// This is a piece of the plugin interface for
+/// registering and collecting transfer syntaxes.
+/// Implementers and consumers of transfer syntaxes
+/// will usually not interact with it directly.
+/// In order to register a new transfer syntax,
+/// see the macro [`submit_transfer_syntax`].
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct TransferSyntaxFactory(pub fn() -> TransferSyntax);
+
 #[cfg(feature = "inventory-registry")]
 // Collect transfer syntax specifiers from other crates.
-inventory::collect!(TransferSyntax);
+inventory::collect!(TransferSyntaxFactory);
 
 /// Trait for a container/repository of transfer syntax specifiers.
 ///
@@ -91,12 +109,19 @@ where
 /// additional support for a certain transfer syntax using the
 /// main transfer syntax registry.
 ///
-/// This macro does actually "run" anything, so place it outside of a
+/// This macro does not actually "run" anything, so place it outside of a
 /// function body at the root of the crate.
+/// The expression is evaluated before main is called
+/// (more specifically when the transfer syntax registry is populated),
+/// and must resolve to a value of type [`TransferSyntax<D, P>`],
+/// for valid definitions of the parameter types `D` and `P`.
+/// The macro will type-erase these parameters automatically.
+/// 
+/// [`TransferSyntax<D, P>`]: crate::transfer_syntax::TransferSyntax
 macro_rules! submit_transfer_syntax {
     ($ts: expr) => {
         inventory::submit! {
-            ($ts).erased()
+            $crate::transfer_syntax::TransferSyntaxFactory(|| ($ts).erased())
         }
     };
 }
@@ -200,10 +225,13 @@ where
     }
 }
 
-/** An immaterial type representing an adapted which is never required,
- * and as such is never instantiated. Most transfer syntaxes use this,
- * as they do not have to adapt readers and writers for encoding and decoding.
- */
+/// An immaterial type representing a data set adapter which is never required,
+/// and as such is never instantiated.
+/// Most transfer syntaxes use this,
+/// as they do not have to adapt readers and writers
+/// for encoding and decoding data sets.
+/// The main exception is in the family of
+/// _Deflated Explicit VR Little Endian_ transfer syntaxes.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum NeverAdapter {}
 
@@ -229,9 +257,31 @@ impl<R, W> DataRWAdapter<R, W> for NeverAdapter {
 impl<D, P> TransferSyntax<D, P> {
     /// Create a new transfer syntax descriptor.
     ///
-    /// Note that only transfer syntax implementors are expected to construct
-    /// TS descriptors from scratch. For a practical usage of transfer syntaxes,
+    /// Note that only transfer syntax implementers are expected to
+    /// construct TS descriptors from scratch.
+    /// For a practical usage of transfer syntaxes,
     /// one should look up an existing transfer syntax registry by UID.
+    /// 
+    /// # Example
+    ///
+    /// To register a private transfer syntax in your program,
+    /// use [`submit_transfer_syntax`] outside of a function body:
+    ///  
+    /// ```no_run
+    /// # use dicom_encoding::{
+    /// #     submit_transfer_syntax, Codec, Endianness,
+    /// #     NeverAdapter, NeverPixelAdapter, TransferSyntax,
+    /// # };
+    /// submit_transfer_syntax! {
+    ///     TransferSyntax::<NeverAdapter, NeverPixelAdapter>::new(
+    ///         "1.3.46.670589.33.1.4.1",
+    ///         "CT-Private-ELE",
+    ///         Endianness::Little,
+    ///         true,
+    ///         Codec::EncapsulatedPixelData,
+    ///     )
+    /// }
+    /// ```
     pub const fn new(
         uid: &'static str,
         name: &'static str,

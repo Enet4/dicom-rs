@@ -54,6 +54,17 @@ pub const EXPLICIT_VR_BIG_ENDIAN: Ts = Ts::new(
     Codec::None,
 );
 
+// -- transfer syntaxes with pixel data adapters, fully supported --
+
+/// **Fully supported:** RLE Lossless
+pub const RLE_LOSSLESS: TransferSyntax<NeverAdapter, RLELosslessAdapter> = TransferSyntax::new(
+    "1.2.840.10008.1.2.5",
+    "RLE Lossless",
+    Endianness::Little,
+    true,
+    Codec::PixelData(RLELosslessAdapter),
+);
+
 // --- stub transfer syntaxes, known but not supported ---
 
 /// **Stub descriptor:** Deflated Explicit VR Little Endian
@@ -164,14 +175,6 @@ pub const HEVC_H265_MAIN_PROFILE: Ts = create_ts_stub(
 pub const HEVC_H265_MAIN_10_PROFILE: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.108",
     "HEVC/H.265 Main 10 Profile / Level 5.1",
-);
-/// **Stub descriptor:** RLE Lossless
-pub const RLE_LOSSLESS: TransferSyntax<NeverAdapter, RLELosslessAdapter> = TransferSyntax::new(
-    "1.2.840.10008.1.2.5",
-    "RLE Lossless",
-    Endianness::Little,
-    true,
-    Codec::PixelData(RLELosslessAdapter {}),
 );
 /// **Stub descriptor:** SMPTE ST 2110-20 Uncompressed Progressive Active Video
 pub const SMPTE_ST_2110_20_UNCOMPRESSED_PROGRESSIVE: Ts = create_ts_stub(
