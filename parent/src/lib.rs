@@ -10,6 +10,8 @@ pub use dicom_parser as parser;
 pub use dicom_transfer_syntax_registry as transfer_syntax;
 #[cfg(feature = "ul")]
 pub use dicom_ul as ul;
+#[cfg(feature = "pixeldata")]
+pub use dicom_pixeldata as pixeldata;
 
 // re-export dicom_value macro
 pub use dicom_core::dicom_value;

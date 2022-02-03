@@ -41,9 +41,19 @@ In environments which do not support this, the feature can be disabled.
 Please see the documentation of [`dicom-transfer-syntax-registry`]
 for more information.
 
+The following root modules are behind Cargo features enabled by default:
+
+- [`ul`]: the DICOM upper layer protocol library
+- [`pixeldata`]: the pixel data abstraction library
+
+If you do not intend to use these modules,
+you can disable these features accordingly.
+
 [DICOM]: https://dicomstandard.org
 [DICOM-rs]: https://github.com/Enet4/dicom-rs
 [`dicom-transfer-syntax-registry`]: https://docs.rs/dicom-transfer-syntax-registry
 [`dicom-object`]: https://crates.io/crates/dicom-object
 [`dicom-object` documentation]: https://docs.rs/dicom-object
+[`ul`]: https://crates.io/crates/dicom-ul
+[`pixeldata`]: https://crates.io/crates/dicom-pixeldata
 [full library documentation]: https://docs.rs/dicom
