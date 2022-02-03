@@ -1,6 +1,6 @@
 [package]
 name = "dicom-transfer-syntax-registry"
-version = "0.5.0-rc.1"
+version = "0.5.0-rc.2"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A registry of DICOM transfer syntaxes"
 edition = "2018"
@@ -14,8 +14,8 @@ default = []
 inventory-registry = ['dicom-encoding/inventory-registry', 'inventory']
 
 [dependencies]
-dicom-core = { path = "../core", version = "0.5.0-rc.1" }
-dicom-encoding = { path = "../encoding", version = "0.5.0-rc.1" }
+dicom-core = { path = "../core", version = "0.5.0-rc.2" }
+dicom-encoding = { path = "../encoding", version = "0.5.0-rc.2" }
 lazy_static = "1.2.0"
 encoding = "0.2.33"
 byteordered = "0.6"

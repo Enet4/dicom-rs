@@ -1,6 +1,6 @@
 [package]
 name = "dicom-scpproxy"
-version = "0.4.0-rc.1"
+version = "0.4.0-rc.2"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>", "Paul Knopf <pauldotknopf@gmail.com>"]
 description = "A proxy SCP server, for logging and diagnostics"
 edition = "2018"
@@ -12,6 +12,6 @@ readme = "README.md"
 
 [dependencies]
 clap = "2.33.0"
-dicom-ul = { path = "../ul/", version = "0.4.0-rc.1" }
-dicom-dictionary-std = { path = "../dictionary-std/", version = "0.5.0-rc.1" }
+dicom-ul = { path = "../ul/", version = "0.4.0-rc.2" }
+dicom-dictionary-std = { path = "../dictionary-std/", version = "0.5.0-rc.2" }
 snafu = "0.7.0"
