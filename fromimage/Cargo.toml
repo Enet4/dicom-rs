@@ -16,5 +16,5 @@ default = ['dicom/inventory-registry', 'dicom/backtraces']
 [dependencies]
 dicom = { path = "../parent/" }
 image = "0.23.14"
-snafu = "0.6.10"
+snafu = "0.7.0"
 structopt = "0.3.23"
