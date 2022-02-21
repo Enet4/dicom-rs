@@ -6,7 +6,7 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 description = "A high-level API for decoding DICOM objects into images and ndarrays"
 repository = "https://github.com/Enet4/dicom-rs"
-categories = ["images"]
+categories = ["multimedia::images"]
 keywords = ["dicom"]
 readme = "README.md"
 
