@@ -157,18 +157,18 @@ impl Default for SpecificCharacterSet {
 }
 
 impl SpecificCharacterSet {
-    /** Obtain the specific character set identified by the given code string.
-     *
-     * Supported code strings include the possible values
-     * in the respective DICOM element (0008, 0005).
-     *
-     * # Example
-     *
-     * ```
-     * let character_set = SpecificCharacterSet::from_code("ISO_IR 100");
-     * assert_eq!(character_set, Some(SpecificCharacterSet::IsoIr100));
-     * ```
-     */
+    /// Obtain the specific character set identified by the given code string.
+    ///
+    /// Supported code strings include the possible values
+    /// in the respective DICOM element (0008, 0005).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_encoding::text::SpecificCharacterSet;
+    /// let character_set = SpecificCharacterSet::from_code("ISO_IR 100");
+    /// assert_eq!(character_set, Some(SpecificCharacterSet::IsoIr100));
+    /// ```
     pub fn from_code(uid: &str) -> Option<Self> {
         use self::SpecificCharacterSet::*;
         match uid.trim_end() {
