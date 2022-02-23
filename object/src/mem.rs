@@ -104,8 +104,15 @@ impl FileDicomObject<InMemDicomObject<StandardDataDictionary>> {
 }
 
 impl InMemDicomObject<StandardDataDictionary> {
+
     /// Create a new empty DICOM object.
+    #[deprecated(since = "0.5.0", note = "Use `new_empty` instead")]
     pub fn create_empty() -> Self {
+        Self::new_empty()
+    }
+
+    /// Create a new empty DICOM object.
+    pub fn new_empty() -> Self {
         InMemDicomObject {
             entries: BTreeMap::new(),
             dict: StandardDataDictionary,
@@ -484,6 +491,12 @@ where
     /// Insert a data element to the object, replacing (and returning) any
     /// previous element of the same attribute.
     pub fn put(&mut self, elt: InMemElement<D>) -> Option<InMemElement<D>> {
+        self.put_element(elt)
+    }
+
+    /// Insert a data element to the object, replacing (and returning) any
+    /// previous element of the same attribute.
+    pub fn put_element(&mut self, elt: InMemElement<D>) -> Option<InMemElement<D>> {
         self.entries.insert(elt.tag(), elt)
     }
 
@@ -858,8 +871,8 @@ mod tests {
 
     #[test]
     fn inmem_object_compare() {
-        let mut obj1 = InMemDicomObject::create_empty();
-        let mut obj2 = InMemDicomObject::create_empty();
+        let mut obj1 = InMemDicomObject::new_empty();
+        let mut obj2 = InMemDicomObject::new_empty();
         assert_eq!(obj1, obj2);
         let empty_patient_name = DataElement::empty(Tag(0x0010, 0x0010), VR::PN);
         obj1.put(empty_patient_name.clone());
@@ -888,7 +901,7 @@ mod tests {
 
         let obj = InMemDicomObject::read_dataset(parser).unwrap();
 
-        let mut gt = InMemDicomObject::create_empty();
+        let mut gt = InMemDicomObject::new_empty();
 
         let patient_name = DataElement::new(
             Tag(0x0010, 0x0010),
@@ -920,7 +933,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut gt = InMemDicomObject::create_empty();
+        let mut gt = InMemDicomObject::new_empty();
 
         let patient_name = DataElement::new(
             Tag(0x0010, 0x0010),
@@ -966,7 +979,7 @@ mod tests {
 
     #[test]
     fn inmem_object_write_dataset() {
-        let mut obj = InMemDicomObject::create_empty();
+        let mut obj = InMemDicomObject::new_empty();
 
         let patient_name =
             DataElement::new(Tag(0x0010, 0x0010), VR::PN, dicom_value!(Str, "Doe^John"));
@@ -990,7 +1003,7 @@ mod tests {
 
     #[test]
     fn inmem_object_write_dataset_with_ts() {
-        let mut obj = InMemDicomObject::create_empty();
+        let mut obj = InMemDicomObject::new_empty();
 
         let patient_name =
             DataElement::new(Tag(0x0010, 0x0010), VR::PN, dicom_value!(Str, "Doe^John"));
@@ -1015,7 +1028,7 @@ mod tests {
 
     #[test]
     fn inmem_object_write_dataset_with_ts_cs() {
-        let mut obj = InMemDicomObject::create_empty();
+        let mut obj = InMemDicomObject::new_empty();
 
         let patient_name =
             DataElement::new(Tag(0x0010, 0x0010), VR::PN, dicom_value!(Str, "Doe^John"));
@@ -1042,7 +1055,7 @@ mod tests {
     #[test]
     fn inmem_write_to_file_with_meta() {
         let sop_uid = "1.4.645.212121";
-        let mut obj = InMemDicomObject::create_empty();
+        let mut obj = InMemDicomObject::new_empty();
 
         obj.put(DataElement::new(
             Tag(0x0010, 0x0010),
@@ -1087,7 +1100,7 @@ mod tests {
     #[test]
     fn inmem_write_to_file_with_exact_meta() {
         let sop_uid = "1.4.645.212121";
-        let mut obj = InMemDicomObject::create_empty();
+        let mut obj = InMemDicomObject::new_empty();
 
         obj.put(DataElement::new(
             Tag(0x0010, 0x0010),
@@ -1135,7 +1148,7 @@ mod tests {
             VR::PN,
             PrimitiveValue::Str("Doe^John".to_string()),
         );
-        let mut obj = InMemDicomObject::create_empty();
+        let mut obj = InMemDicomObject::new_empty();
         obj.put(another_patient_name.clone());
         let elem1 = (&obj).element(Tag(0x0010, 0x0010)).unwrap();
         assert_eq!(elem1, &another_patient_name);
@@ -1148,7 +1161,7 @@ mod tests {
             VR::PN,
             PrimitiveValue::Str("Doe^John".to_string()),
         );
-        let mut obj = InMemDicomObject::create_empty();
+        let mut obj = InMemDicomObject::new_empty();
         obj.put(another_patient_name.clone());
         let elem1 = (&obj).element_by_name("PatientName").unwrap();
         assert_eq!(elem1, &another_patient_name);
@@ -1161,7 +1174,7 @@ mod tests {
             VR::PN,
             PrimitiveValue::Str("Doe^John".to_string()),
         );
-        let mut obj = InMemDicomObject::create_empty();
+        let mut obj = InMemDicomObject::new_empty();
         obj.put(another_patient_name.clone());
         let elem1 = obj.take_element(Tag(0x0010, 0x0010)).unwrap();
         assert_eq!(elem1, another_patient_name);
@@ -1181,7 +1194,7 @@ mod tests {
             VR::PN,
             PrimitiveValue::Str("Doe^John".to_string()),
         );
-        let mut obj = InMemDicomObject::create_empty();
+        let mut obj = InMemDicomObject::new_empty();
         obj.put(another_patient_name.clone());
         let elem1 = obj.take_element_by_name("PatientName").unwrap();
         assert_eq!(elem1, another_patient_name);
@@ -1196,7 +1209,7 @@ mod tests {
 
     #[test]
     fn inmem_empty_object_into_tokens() {
-        let obj = InMemDicomObject::create_empty();
+        let obj = InMemDicomObject::new_empty();
         let tokens = obj.into_tokens();
         assert_eq!(tokens.count(), 0);
     }
@@ -1255,7 +1268,7 @@ mod tests {
             VR::CS,
             PrimitiveValue::Str("MG".to_string()),
         );
-        let mut obj = InMemDicomObject::create_empty();
+        let mut obj = InMemDicomObject::new_empty();
         obj.put(patient_name);
         obj.put(modality);
 
