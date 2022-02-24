@@ -1,11 +1,17 @@
 //! A CLI tool for overriding a DICOM file's image with another one.
 //! 
 //! This command line tool takes a base DICOM file
-//! and replaces the various DICOM attributes of the image module
-//! (including Rows, Columns, PixelData, and others)
+//! and replaces the various DICOM attributes of the [_Image Pixel_ module][1]
+//! (such as Rows, Columns, PixelData, ...)
 //! with those of another file.
-//! The new DICOM object is saved to a new file
+//! The _Presentation LUT Shape_ attribute is set to `IDENTITY`.
+//! Other attributes are copied as is.
+//! 
+//! The new DICOM object is saved to a new file,
+//! with the same SOP instance UID and SOP class UID as the base file,
 //! encoded in Explicit VR Little Endian.
+//! 
+//! [1]: https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.3.html
 use std::path::PathBuf;
 
 use dicom::{
@@ -117,11 +123,29 @@ fn main() {
         VR::CS,
         PrimitiveValue::from(pi),
     ));
+
+    obj.put(DataElement::new(
+        tags::PRESENTATION_LUT_SHAPE,
+        VR::CS,
+        PrimitiveValue::from("IDENTITY"),
+    ));
+
     obj.put(DataElement::new(
         tags::SAMPLES_PER_PIXEL,
         VR::US,
         PrimitiveValue::from(spp),
     ));
+    
+    if spp > 1 {
+        obj.put(DataElement::new(
+            tags::PLANAR_CONFIGURATION,
+            VR::US,
+            PrimitiveValue::from(0_u16),
+        ));
+    } else {
+        obj.remove_element(tags::PLANAR_CONFIGURATION);
+    }
+
     obj.put(DataElement::new(
         tags::COLUMNS,
         VR::US,
@@ -153,6 +177,26 @@ fn main() {
         VR::US,
         PrimitiveValue::from(0_u16),
     ));
+
+    for tag in [
+        tags::PIXEL_ASPECT_RATIO,
+        tags::SMALLEST_IMAGE_PIXEL_VALUE,
+        tags::LARGEST_IMAGE_PIXEL_VALUE,
+        tags::PIXEL_PADDING_RANGE_LIMIT,
+        tags::RED_PALETTE_COLOR_LOOKUP_TABLE_DATA,
+        tags::RED_PALETTE_COLOR_LOOKUP_TABLE_DESCRIPTOR,
+        tags::GREEN_PALETTE_COLOR_LOOKUP_TABLE_DATA,
+        tags::GREEN_PALETTE_COLOR_LOOKUP_TABLE_DESCRIPTOR,
+        tags::BLUE_PALETTE_COLOR_LOOKUP_TABLE_DATA,
+        tags::BLUE_PALETTE_COLOR_LOOKUP_TABLE_DESCRIPTOR,
+        tags::ICC_PROFILE,
+        tags::COLOR_SPACE,
+        tags::PIXEL_DATA_PROVIDER_URL,
+        tags::EXTENDED_OFFSET_TABLE,
+        tags::EXTENDED_OFFSET_TABLE_LENGTHS,
+    ] {
+        obj.remove_element(tag);
+    }
 
     obj.put(DataElement::new(
         tags::PIXEL_DATA,
