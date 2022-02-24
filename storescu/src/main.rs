@@ -299,7 +299,7 @@ fn store_req_command(
     storage_sop_instance_uid: &str,
     message_id: u16,
 ) -> InMemDicomObject<StandardDataDictionary> {
-    let mut obj = InMemDicomObject::create_empty();
+    let mut obj = InMemDicomObject::new_empty();
 
     // group length
     obj.put(DataElement::new(

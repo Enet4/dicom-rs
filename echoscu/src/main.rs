@@ -114,7 +114,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn create_echo_command(message_id: u16) -> InMemDicomObject<StandardDataDictionary> {
-    let mut obj = InMemDicomObject::create_empty();
+    let mut obj = InMemDicomObject::new_empty();
 
     // group length
     obj.put(DataElement::new(

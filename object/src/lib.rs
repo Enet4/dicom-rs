@@ -21,14 +21,14 @@
 //! # Ok(())
 //! # }
 //! ```
-//! 
+//!
 //! The current default implementation places the full DICOM object in memory.
 //! The pixel data and following elements can be ignored
 //! by using [`OpenFileOptions`]:
-//! 
+//!
 //! ```no_run
 //! use dicom_object::OpenFileOptions;
-//! 
+//!
 //! let obj = OpenFileOptions::new()
 //!     .read_until(dicom_dictionary_std::tags::PIXEL_DATA)
 //!     .open_file("0002.dcm")?;
@@ -90,7 +90,7 @@
 //! # use dicom_core::{DataElement, Tag, VR, dicom_value};
 //! # fn run() -> Result<(), Box<dyn std::error::Error>> {
 //! // build your object
-//! let mut obj = InMemDicomObject::create_empty();
+//! let mut obj = InMemDicomObject::new_empty();
 //! let patient_name = DataElement::new(
 //!     Tag(0x0010, 0x0010),
 //!     VR::PN,
@@ -119,7 +119,7 @@ pub mod tokens;
 
 mod util;
 
-pub use crate::file::{OpenFileOptions, from_reader, open_file};
+pub use crate::file::{from_reader, open_file, OpenFileOptions};
 pub use crate::mem::InMemDicomObject;
 pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
 use dicom_core::DataDictionary;
@@ -574,8 +574,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    use dicom_core::{DataElement, PrimitiveValue, VR};
+
     use crate::meta::FileMetaTableBuilder;
-    use crate::FileDicomObject;
+    use crate::{FileDicomObject, InMemDicomObject, Error};
 
     #[test]
     fn smoke_test() {
@@ -599,5 +601,44 @@ mod tests {
         assert_eq!(obj, obj2);
 
         let _ = std::fs::remove_file(FILE_NAME);
+    }
+
+    /// A FileDicomObject<InMemDicomObject>
+    /// can be used like a DICOM object.
+    #[test]
+    fn file_dicom_object_can_use_inner() {
+        let mut obj = InMemDicomObject::new_empty();
+
+        obj.put(DataElement::new(
+            dicom_dictionary_std::tags::PATIENT_NAME,
+            VR::PN,
+            PrimitiveValue::from("John Doe"),
+        ));
+
+        let mut obj = obj
+            .with_meta(FileMetaTableBuilder::new()
+                .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.7")
+                .media_storage_sop_instance_uid("1.2.23456789")
+                .transfer_syntax("1.2.840.10008.1.2.1"))
+            .unwrap();
+
+        // contains patient name
+        assert_eq!(
+            obj.element(dicom_dictionary_std::tags::PATIENT_NAME)
+                .unwrap()
+                .value()
+                .to_str()
+                .unwrap(),
+            "John Doe",
+        );
+
+        // can be removed with take
+        obj.take_element(dicom_dictionary_std::tags::PATIENT_NAME)
+            .unwrap();
+
+        assert!(matches!(
+            obj.element(dicom_dictionary_std::tags::PATIENT_NAME),
+            Err(Error::NoSuchDataElementTag { .. }),
+        ));
     }
 }
