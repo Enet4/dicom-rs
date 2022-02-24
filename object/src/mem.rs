@@ -500,6 +500,19 @@ where
         self.entries.insert(elt.tag(), elt)
     }
 
+    /// Removes a DICOM element by its tag,
+    /// reporting whether it was present.
+    pub fn remove_element(&mut self, tag: Tag) -> bool {
+        self.entries.remove(&tag).is_some()
+    }
+
+    /// Removes a DICOM element by its keyword,
+    /// reporting whether it was present.
+    pub fn remove_element_by_name(&mut self, name: &str) -> Result<bool> {
+        let tag = self.lookup_name(name)?;
+        Ok(self.entries.remove(&tag).is_some())
+    }
+
     /// Removes and returns a particular DICOM element by its tag.
     pub fn take_element(&mut self, tag: Tag) -> Result<InMemElement<D>> {
         self.entries
@@ -1205,6 +1218,32 @@ mod tests {
                 alias,
                 ..
             }) if alias == "PatientName"));
+    }
+
+    #[test]
+    fn inmem_object_remove_element() {
+        let another_patient_name = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            PrimitiveValue::Str("Doe^John".to_string()),
+        );
+        let mut obj = InMemDicomObject::new_empty();
+        obj.put(another_patient_name.clone());
+        assert!(obj.remove_element(Tag(0x0010, 0x0010)));
+        assert_eq!(obj.remove_element(Tag(0x0010, 0x0010)), false);
+    }
+
+    #[test]
+    fn inmem_object_remove_element_by_name() {
+        let another_patient_name = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            PrimitiveValue::Str("Doe^John".to_string()),
+        );
+        let mut obj = InMemDicomObject::new_empty();
+        obj.put(another_patient_name.clone());
+        assert!(obj.remove_element_by_name("PatientName").unwrap());
+        assert_eq!(obj.remove_element_by_name("PatientName").unwrap(), false);
     }
 
     #[test]
