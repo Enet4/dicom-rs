@@ -62,9 +62,10 @@ fn main() {
         .unwrap_or(120);
 
     let mut options = DumpOptions::new();
-    options.no_text_limit(no_text_limit)
-            .width(width)
-            .color_mode(color);
+    options
+        .no_text_limit(no_text_limit)
+        .width(width)
+        .color_mode(color);
     let fail_first = filenames.len() == 1 || fail_first;
     let mut errors: i32 = 0;
 
@@ -77,7 +78,7 @@ fn main() {
                     std::process::exit(ERROR_READ);
                 }
                 errors += 1;
-            },
+            }
             Ok(obj) => {
                 if let Err(ref e) = options.dump_file(&obj) {
                     if e.kind() == ErrorKind::BrokenPipe {
