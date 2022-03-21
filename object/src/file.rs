@@ -154,7 +154,7 @@ impl<D, T> OpenFileOptions<D, T> {
     }
 }
 
-/// An enumerate of supported options for 
+/// An enumerate of supported options for
 /// whether to read the 128-byte DICOM file preamble.
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
 pub enum ReadPreamble {

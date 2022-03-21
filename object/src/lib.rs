@@ -577,7 +577,7 @@ mod tests {
     use dicom_core::{DataElement, PrimitiveValue, VR};
 
     use crate::meta::FileMetaTableBuilder;
-    use crate::{FileDicomObject, InMemDicomObject, Error};
+    use crate::{Error, FileDicomObject, InMemDicomObject};
 
     #[test]
     fn smoke_test() {
@@ -616,10 +616,12 @@ mod tests {
         ));
 
         let mut obj = obj
-            .with_meta(FileMetaTableBuilder::new()
-                .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.7")
-                .media_storage_sop_instance_uid("1.2.23456789")
-                .transfer_syntax("1.2.840.10008.1.2.1"))
+            .with_meta(
+                FileMetaTableBuilder::new()
+                    .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.7")
+                    .media_storage_sop_instance_uid("1.2.23456789")
+                    .transfer_syntax("1.2.840.10008.1.2.1"),
+            )
             .unwrap();
 
         // contains patient name

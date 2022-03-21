@@ -11,10 +11,11 @@ use std::{collections::BTreeMap, io::Write};
 use crate::file::ReadPreamble;
 use crate::{meta::FileMetaTable, FileMetaTableBuilder};
 use crate::{
-    BuildMetaTableSnafu, CreateParserSnafu, CreatePrinterSnafu, DicomObject, FileDicomObject, MissingElementValueSnafu,
-    NoSuchAttributeNameSnafu, NoSuchDataElementAliasSnafu, NoSuchDataElementTagSnafu, OpenFileSnafu, ParseMetaDataSetSnafu,
-    PrematureEndSnafu, PrepareMetaTableSnafu, PrintDataSetSnafu, ReadFileSnafu, ReadPreambleBytesSnafu, ReadTokenSnafu, Result,
-    UnexpectedTokenSnafu, UnsupportedTransferSyntaxSnafu,
+    BuildMetaTableSnafu, CreateParserSnafu, CreatePrinterSnafu, DicomObject, FileDicomObject,
+    MissingElementValueSnafu, NoSuchAttributeNameSnafu, NoSuchDataElementAliasSnafu,
+    NoSuchDataElementTagSnafu, OpenFileSnafu, ParseMetaDataSetSnafu, PrematureEndSnafu,
+    PrepareMetaTableSnafu, PrintDataSetSnafu, ReadFileSnafu, ReadPreambleBytesSnafu,
+    ReadTokenSnafu, Result, UnexpectedTokenSnafu, UnsupportedTransferSyntaxSnafu,
 };
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::{HasLength, Header};
@@ -73,7 +74,9 @@ where
     type Element = &'s InMemElement<D>;
 
     fn element(&self, tag: Tag) -> Result<Self::Element> {
-        self.entries.get(&tag).context(NoSuchDataElementTagSnafu { tag })
+        self.entries
+            .get(&tag)
+            .context(NoSuchDataElementTagSnafu { tag })
     }
 
     fn element_by_name(&self, name: &str) -> Result<Self::Element> {
@@ -104,7 +107,6 @@ impl FileDicomObject<InMemDicomObject<StandardDataDictionary>> {
 }
 
 impl InMemDicomObject<StandardDataDictionary> {
-
     /// Create a new empty DICOM object.
     #[deprecated(since = "0.5.0", note = "Use `new_empty` instead")]
     pub fn create_empty() -> Self {
@@ -474,7 +476,9 @@ where
 
     /// Retrieve a particular DICOM element by its tag.
     pub fn element(&self, tag: Tag) -> Result<&InMemElement<D>> {
-        self.entries.get(&tag).context(NoSuchDataElementTagSnafu { tag })
+        self.entries
+            .get(&tag)
+            .context(NoSuchDataElementTagSnafu { tag })
     }
 
     /// Retrieve a particular DICOM element by its name.
@@ -984,10 +988,7 @@ mod tests {
 
         let physician_name = obj.element(Tag(0x0008, 0x0090)).unwrap();
         assert_eq!(physician_name.header().len, Length(12));
-        assert_eq!(
-            physician_name.value().to_str().unwrap(),
-            "Simões^João"
-        );
+        assert_eq!(physician_name.value().to_str().unwrap(), "Simões^João");
     }
 
     #[test]

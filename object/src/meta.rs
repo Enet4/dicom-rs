@@ -5,9 +5,9 @@ use dicom_core::header::{DataElement, EmptyObject, HasLength, Header};
 use dicom_core::value::{PrimitiveValue, Value};
 use dicom_core::{Length, Tag, VR};
 use dicom_encoding::decode::{self, DecodeFrom};
+use dicom_encoding::encode::explicit_le::ExplicitVRLittleEndianEncoder;
 use dicom_encoding::encode::EncoderFor;
 use dicom_encoding::text::{self, TextCodec};
-use dicom_encoding::encode::explicit_le::ExplicitVRLittleEndianEncoder;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::io::{Read, Write};
@@ -160,7 +160,8 @@ where
     let mut v = vec![0; len as usize];
     source.read_exact(&mut v).context(ReadValueDataSnafu)?;
     *group_length_remaining -= 8 + len;
-    text.decode(&v).context(DecodeTextSnafu { name: text.name() })
+    text.decode(&v)
+        .context(DecodeTextSnafu { name: text.name() })
 }
 
 impl FileMetaTable {
@@ -183,7 +184,9 @@ impl FileMetaTable {
         let builder = FileMetaTableBuilder::new();
 
         let group_length: u32 = {
-            let (elem, _bytes_read) = decoder.decode_header(&mut file).context(DecodeElementSnafu)?;
+            let (elem, _bytes_read) = decoder
+                .decode_header(&mut file)
+                .context(DecodeElementSnafu)?;
             if elem.tag() != (0x0002, 0x0000) {
                 return UnexpectedTagSnafu { tag: elem.tag() }.fail();
             }
@@ -205,7 +208,9 @@ impl FileMetaTable {
 
         // Fetch optional data elements
         while group_length_remaining > 0 {
-            let (elem, _bytes_read) = decoder.decode_header(&mut file).context(DecodeElementSnafu)?;
+            let (elem, _bytes_read) = decoder
+                .decode_header(&mut file)
+                .context(DecodeElementSnafu)?;
             let elem_len = match elem.length().get() {
                 None => {
                     return UndefinedValueLengthSnafu { tag: elem.tag() }.fail();
@@ -262,7 +267,8 @@ impl FileMetaTable {
                     file.read_exact(&mut v).context(ReadValueDataSnafu)?;
                     group_length_remaining -= 8 + elem_len;
                     builder.implementation_version_name(
-                        text.decode(&v).context(DecodeTextSnafu { name: text.name() })?,
+                        text.decode(&v)
+                            .context(DecodeTextSnafu { name: text.name() })?,
                     )
                 }
                 Tag(0x0002, 0x0016) => {
@@ -271,7 +277,8 @@ impl FileMetaTable {
                     file.read_exact(&mut v).context(ReadValueDataSnafu)?;
                     group_length_remaining -= 8 + elem_len;
                     builder.source_application_entity_title(
-                        text.decode(&v).context(DecodeTextSnafu { name: text.name() })?,
+                        text.decode(&v)
+                            .context(DecodeTextSnafu { name: text.name() })?,
                     )
                 }
                 Tag(0x0002, 0x0017) => {
@@ -280,7 +287,8 @@ impl FileMetaTable {
                     file.read_exact(&mut v).context(ReadValueDataSnafu)?;
                     group_length_remaining -= 8 + elem_len;
                     builder.sending_application_entity_title(
-                        text.decode(&v).context(DecodeTextSnafu { name: text.name() })?,
+                        text.decode(&v)
+                            .context(DecodeTextSnafu { name: text.name() })?,
                     )
                 }
                 Tag(0x0002, 0x0018) => {
@@ -289,7 +297,8 @@ impl FileMetaTable {
                     file.read_exact(&mut v).context(ReadValueDataSnafu)?;
                     group_length_remaining -= 8 + elem_len;
                     builder.receiving_application_entity_title(
-                        text.decode(&v).context(DecodeTextSnafu { name: text.name() })?,
+                        text.decode(&v)
+                            .context(DecodeTextSnafu { name: text.name() })?,
                     )
                 }
                 Tag(0x0002, 0x0100) => {
@@ -298,7 +307,8 @@ impl FileMetaTable {
                     file.read_exact(&mut v).context(ReadValueDataSnafu)?;
                     group_length_remaining -= 8 + elem_len;
                     builder.private_information_creator_uid(
-                        text.decode(&v).context(DecodeTextSnafu { name: text.name() })?,
+                        text.decode(&v)
+                            .context(DecodeTextSnafu { name: text.name() })?,
                     )
                 }
                 Tag(0x0002, 0x0102) => {
@@ -617,9 +627,10 @@ impl FileMetaTableBuilder {
             [0, 1]
         });
         let media_storage_sop_class_uid =
-            self.media_storage_sop_class_uid.context(MissingElementSnafu {
-                alias: "MediaStorageSOPClassUID",
-            })?;
+            self.media_storage_sop_class_uid
+                .context(MissingElementSnafu {
+                    alias: "MediaStorageSOPClassUID",
+                })?;
         let media_storage_sop_instance_uid =
             self.media_storage_sop_instance_uid
                 .context(MissingElementSnafu {
