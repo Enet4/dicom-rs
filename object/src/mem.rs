@@ -20,7 +20,7 @@ use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::{HasLength, Header};
 use dicom_core::value::{Value, C};
 use dicom_core::{DataElement, Length, Tag, VR};
-use dicom_dictionary_std::StandardDataDictionary;
+use dicom_dictionary_std::{tags, StandardDataDictionary};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_encoding::{encode::EncodeTo, text::SpecificCharacterSet, TransferSyntax};
 use dicom_parser::dataset::{DataSetReader, DataToken};
@@ -618,7 +618,7 @@ where
     /// A complete file meta group should still provide
     /// the media storage SOP class UID and transfer syntax.
     pub fn with_meta(self, mut meta: FileMetaTableBuilder) -> Result<FileDicomObject<Self>> {
-        match self.element(Tag(0x0008, 0x0008)) {
+        match self.element(tags::SOP_INSTANCE_UID) {
             Ok(elem) => {
                 meta = meta.media_storage_sop_instance_uid(
                     elem.value().to_str().context(PrepareMetaTableSnafu)?,
@@ -1064,7 +1064,8 @@ mod tests {
         );
     }
 
-    /// Write a file from scratch.
+    /// Writes a file from scratch
+    /// and opens it to check that the data is equivalent.
     #[test]
     fn inmem_write_to_file_with_meta() {
         let sop_uid = "1.4.645.212121";
@@ -1107,6 +1108,39 @@ mod tests {
         // read the file back to validate the outcome
         let saved_object = open_file(file_path).unwrap();
         assert_eq!(file_object, saved_object);
+    }
+
+    /// Creating a file DICOM object from an in-mem DICOM object
+    /// infers the SOP instance UID.
+    #[test]
+    fn inmem_with_meta_infers_sop_instance_uid() {
+        let sop_uid = "1.4.645.252521";
+        let mut obj = InMemDicomObject::new_empty();
+
+        obj.put(DataElement::new(
+            tags::SOP_INSTANCE_UID,
+            VR::UI,
+            PrimitiveValue::from(sop_uid),
+        ));
+
+        let file_object = obj
+            .with_meta(
+                // Media Storage SOP Instance UID deliberately not set
+                FileMetaTableBuilder::default()
+                    // Explicit VR Little Endian
+                    .transfer_syntax("1.2.840.10008.1.2.1")
+                    // Computed Radiography image storage
+                    .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1"),
+            )
+            .unwrap();
+
+        let meta = file_object.meta();
+
+        assert_eq!(
+            meta.media_storage_sop_instance_uid
+                .trim_end_matches(|c| c == '\0'),
+            sop_uid.trim_end_matches(|c| c == '\0'),
+        );
     }
 
     /// Write a file from scratch, with exact file meta table.
