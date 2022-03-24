@@ -7,6 +7,8 @@ A command line utility for inspecting the contents of DICOM files
 by printing them in a human readable format.
 
 A programmatic API for dumping DICOM objects is also available.
+If you intend to use `dicom-dump` exclusively as a library,
+you can disable the `cli` Cargo feature.
 
 This tool is part of the [DICOM-rs](https://github.com/Enet4/dicom-rs) project.
 
