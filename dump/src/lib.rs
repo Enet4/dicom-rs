@@ -222,7 +222,7 @@ impl DumpOptions {
             120
         };
 
-        println!("{:-<65}", "");
+        writeln!(&mut to, "{:-<65}", "")?;
 
         dump(&mut to, obj, width, 0, self.no_text_limit)?;
 
