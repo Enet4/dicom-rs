@@ -246,8 +246,6 @@ impl DumpOptions {
             120
         };
 
-        writeln!(&mut to, "{:-<65}", "")?;
-
         dump(&mut to, obj, width, 0, self.no_text_limit, self.no_limit)?;
 
         Ok(())
@@ -917,6 +915,7 @@ mod tests {
             .split('\n')
             .collect();
         let parts: Vec<&str> = lines[0].split(" ").filter(|p| !p.is_empty()).collect();
+
         assert_eq!(&parts[..3], &["(0008,0018)", "SOPInstanceUID", "UI"]);
     }
 }
