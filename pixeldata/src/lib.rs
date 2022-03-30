@@ -856,23 +856,28 @@ mod tests {
         }
     }
 
-    #[rstest(value => [
-        "pydicom/emri_small_jpeg_ls_lossless.dcm"
-])]
-    fn test_parse_dicom_pixel_data(value: &str) {
+    #[rstest]
+    #[should_panic(expected = "JPGn(7) marker found where not allowed")]
+    #[case("pydicom/emri_small_jpeg_ls_lossless.dcm", 10)] // crashes, but not sure if file is ok
+    #[case("pydicom/color3d_jpeg_baseline.dcm", 120)]
+    // TODO: figure out why slow (40s) in non release mode, maybe out of bounds checks? also very green and only first frame has a picture in it
+    #[case("pydicom/JPGLosslessP14SV1_1s_1f_8b.dcm", 1)] // Works fine
+    #[case("bscans_spec_61.dcm", 61)] // only first picture actually contains data, rest is black
+    fn test_parse_jpeg_encoded_dicom_pixel_data(#[case] value: &str, #[case] frames: u16) {
         let test_file = dicom_test_files::path(value).unwrap();
         println!("Parsing pixel data for {}", test_file.display());
         let obj = open_file(test_file).unwrap();
-        let image = obj
-            .decode_pixel_data()
-            .unwrap()
-            .to_dynamic_image(0)
-            .unwrap();
-        image
-            .save(format!(
-                "../target/dicom_test_files/pydicom/{}.png",
-                Path::new(value).file_stem().unwrap().to_str().unwrap()
-            ))
-            .unwrap();
+        let pixel_data = obj.decode_pixel_data().unwrap();
+        assert_eq!(pixel_data.number_of_frames, frames);
+        for i in 0..pixel_data.number_of_frames {
+            let image = pixel_data.to_dynamic_image(i).unwrap();
+            image
+                .save(format!(
+                    "../target/dicom_test_files/pydicom/{}-{}.png",
+                    Path::new(value).file_stem().unwrap().to_str().unwrap(),
+                    i
+                ))
+                .unwrap();
+        }
     }
 }

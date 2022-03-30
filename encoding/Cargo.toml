@@ -21,3 +21,4 @@ encoding = "0.2.33"
 byteordered = "0.6"
 inventory = { version = "0.2.2", optional = true }
 snafu = "0.7.0"
+jpeg-decoder = "0.2.3"

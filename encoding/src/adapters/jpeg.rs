@@ -1,11 +1,10 @@
 //! Support for JPG image decoding.
-use byteordered::byteorder::{ByteOrder, LittleEndian};
-use snafu::{OptionExt, ResultExt};
+use snafu::OptionExt;
 
+use super::{CustomMessageSnafu, MissingAttributeSnafu};
 use crate::adapters::{DecodeResult, PixelDataObject, PixelRWAdapter};
-use std::io::{self, Read, Seek};
-
-use super::{CustomMessageSnafu, CustomSnafu, MissingAttributeSnafu};
+use jpeg_decoder::Decoder;
+use std::io::Cursor;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct JPEGAdapter;
@@ -31,16 +30,38 @@ impl PixelRWAdapter for JPEGAdapter {
             }
             .fail();
         }
-        // For RLE the number of fragments = number of frames
-        // therefore, we can fetch the fragments one-by-one
-        let nr_frames = src.number_of_fragments().context(CustomMessageSnafu {
+
+        let nr_frames = src.number_of_frames().unwrap_or(1) as usize;
+        let nr_fragments = src.number_of_fragments().context(CustomMessageSnafu {
             message: "Invalid pixel data, no fragments found",
         })? as usize;
+        if nr_frames != nr_fragments {
+            return CustomMessageSnafu {
+                message: "frame count differs from fragment count, Not implemented yet",
+            }
+            .fail();
+        }
         let bytes_per_sample = bits_allocated / 8;
+
         // `stride` it the total number of bytes for each sample plane
-        let stride = bytes_per_sample * cols * rows;
-        dst.resize((samples_per_pixel * stride) as usize * nr_frames, 0);
-        todo!();
+        let stride: usize = (bytes_per_sample as usize * cols as usize * rows as usize).into();
+        dst.resize((samples_per_pixel as usize * stride) * nr_frames, 0);
+
+        for i in 0..nr_frames {
+            let fragment = &src.fragment(i).context(CustomMessageSnafu {
+                message: "No pixel data found for frame",
+            })?;
+            let mut decoder = Decoder::new(Cursor::new(fragment));
+
+            if let Ok(decoded) = decoder.decode() {
+                dst[0..decoded.len()].copy_from_slice(&decoded);
+            } else {
+                return CustomMessageSnafu {
+                    message: "Could not decode jpeg in frame",
+                }
+                .fail();
+            }
+        }
         Ok(())
     }
 }
