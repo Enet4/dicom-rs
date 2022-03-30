@@ -855,4 +855,24 @@ mod tests {
             _ => panic!("Unexpected positive outcome for out of range access"),
         }
     }
+
+    #[rstest(value => [
+        "pydicom/emri_small_jpeg_ls_lossless.dcm"
+])]
+    fn test_parse_dicom_pixel_data(value: &str) {
+        let test_file = dicom_test_files::path(value).unwrap();
+        println!("Parsing pixel data for {}", test_file.display());
+        let obj = open_file(test_file).unwrap();
+        let image = obj
+            .decode_pixel_data()
+            .unwrap()
+            .to_dynamic_image(0)
+            .unwrap();
+        image
+            .save(format!(
+                "../target/dicom_test_files/pydicom/{}.png",
+                Path::new(value).file_stem().unwrap().to_str().unwrap()
+            ))
+            .unwrap();
+    }
 }
