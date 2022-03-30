@@ -679,9 +679,6 @@ mod tests {
     use super::*;
     use dicom_object::open_file;
     use dicom_test_files;
-    use rstest::rstest;
-    use std::fs;
-    use std::path::Path;
 
     #[test]
     fn test_to_ndarray_rgb() {
@@ -727,116 +724,6 @@ mod tests {
         assert_eq!(pixel_data.rescale_slope, 1.);
     }
 
-    #[cfg(not(feature = "gdcm"))]
-    #[test]
-    fn test_native_decoding_pixel_data_rle_8bit_1frame() {
-        let path =
-            dicom_test_files::path("pydicom/SC_rgb_rle.dcm").expect("test DICOM file should exist");
-        let object = open_file(&path).unwrap();
-        let ndarray = object
-            .decode_pixel_data()
-            .unwrap()
-            .to_ndarray::<u8>()
-            .unwrap();
-        // Validated using Numpy
-        // This doesn't reshape the array based on the PlanarConfiguration
-        // So for this scan the pixel layout is [Rlsb..Rmsb, Glsb..Gmsb, Blsb..msb]
-        assert_eq!(ndarray.shape(), &[1, 100, 100, 3]);
-        assert_eq!(ndarray.len(), 30000);
-        assert_eq!(ndarray[[0, 0, 0, 0]], 255);
-        assert_eq!(ndarray[[0, 0, 0, 1]], 255);
-        assert_eq!(ndarray[[0, 0, 0, 2]], 255);
-        assert_eq!(ndarray[[0, 50, 50, 0]], 128);
-        assert_eq!(ndarray[[0, 50, 50, 1]], 128);
-        assert_eq!(ndarray[[0, 50, 50, 2]], 128);
-        assert_eq!(ndarray[[0, 75, 75, 0]], 0);
-        assert_eq!(ndarray[[0, 75, 75, 1]], 0);
-        assert_eq!(ndarray[[0, 75, 75, 2]], 0);
-    }
-
-    #[cfg(not(feature = "gdcm"))]
-    #[test]
-    fn test_native_decoding_pixel_data_rle_8bit_2frame() {
-        let path = dicom_test_files::path("pydicom/SC_rgb_rle_2frame.dcm")
-            .expect("test DICOM file should exist");
-        let object = open_file(&path).unwrap();
-        let ndarray = object
-            .decode_pixel_data()
-            .unwrap()
-            .to_ndarray::<u8>()
-            .unwrap();
-        // Validated using Numpy
-        // This doesn't reshape the array based on the PlanarConfiguration
-        // So for this scan the pixel layout is [Rlsb..Rmsb, Glsb..Gmsb, Blsb..msb]
-        assert_eq!(ndarray.shape(), &[2, 100, 100, 3]);
-        assert_eq!(ndarray.len(), 60000);
-        // The second frame is the inverse of the first frame
-        assert_eq!(ndarray[[1, 0, 0, 0]], 0);
-        assert_eq!(ndarray[[1, 0, 0, 1]], 0);
-        assert_eq!(ndarray[[1, 0, 0, 2]], 0);
-        assert_eq!(ndarray[[1, 50, 50, 0]], 127);
-        assert_eq!(ndarray[[1, 50, 50, 1]], 127);
-        assert_eq!(ndarray[[1, 50, 50, 2]], 127);
-        assert_eq!(ndarray[[1, 75, 75, 0]], 255);
-        assert_eq!(ndarray[[1, 75, 75, 1]], 255);
-        assert_eq!(ndarray[[1, 75, 75, 2]], 255);
-    }
-
-    #[cfg(not(feature = "gdcm"))]
-    #[test]
-    fn test_native_decoding_pixel_data_rle_16bit_1frame() {
-        let path = dicom_test_files::path("pydicom/SC_rgb_rle_16bit.dcm")
-            .expect("test DICOM file should exist");
-        let object = open_file(&path).unwrap();
-        let ndarray = object
-            .decode_pixel_data()
-            .unwrap()
-            .to_ndarray::<u16>()
-            .unwrap();
-        // Validated using Numpy
-        // This doesn't reshape the array based on the PlanarConfiguration
-        // So for this scan the pixel layout is [Rlsb..Rmsb, Glsb..Gmsb, Blsb..msb]
-        assert_eq!(ndarray.shape(), &[1, 100, 100, 3]);
-        assert_eq!(ndarray.len(), 30000);
-        assert_eq!(ndarray[[0, 0, 0, 0]], 65535);
-        assert_eq!(ndarray[[0, 0, 0, 1]], 65535);
-        assert_eq!(ndarray[[0, 0, 0, 2]], 65535);
-        assert_eq!(ndarray[[0, 50, 50, 0]], 32896);
-        assert_eq!(ndarray[[0, 50, 50, 1]], 32896);
-        assert_eq!(ndarray[[0, 50, 50, 2]], 32896);
-        assert_eq!(ndarray[[0, 75, 75, 0]], 0);
-        assert_eq!(ndarray[[0, 75, 75, 1]], 0);
-        assert_eq!(ndarray[[0, 75, 75, 2]], 0);
-    }
-
-    #[cfg(not(feature = "gdcm"))]
-    #[test]
-    fn test_native_decoding_pixel_data_rle_16bit_2frame() {
-        let path = dicom_test_files::path("pydicom/SC_rgb_rle_16bit_2frame.dcm")
-            .expect("test DICOM file should exist");
-        let object = open_file(&path).unwrap();
-        let ndarray = object
-            .decode_pixel_data()
-            .unwrap()
-            .to_ndarray::<u16>()
-            .unwrap();
-        // Validated using Numpy
-        // This doesn't reshape the array based on the PlanarConfiguration
-        // So for this scan the pixel layout is [Rlsb..Rmsb, Glsb..Gmsb, Blsb..msb]
-        assert_eq!(ndarray.shape(), &[2, 100, 100, 3]);
-        assert_eq!(ndarray.len(), 60000);
-        // The second frame is the inverse of the first frame
-        assert_eq!(ndarray[[1, 0, 0, 0]], 0);
-        assert_eq!(ndarray[[1, 0, 0, 1]], 0);
-        assert_eq!(ndarray[[1, 0, 0, 2]], 0);
-        assert_eq!(ndarray[[1, 50, 50, 0]], 32639);
-        assert_eq!(ndarray[[1, 50, 50, 1]], 32639);
-        assert_eq!(ndarray[[1, 50, 50, 2]], 32639);
-        assert_eq!(ndarray[[1, 75, 75, 0]], 65535);
-        assert_eq!(ndarray[[1, 75, 75, 1]], 65535);
-        assert_eq!(ndarray[[1, 75, 75, 2]], 65535);
-    }
-
     #[test]
     fn test_frame_out_of_range() {
         let path =
@@ -856,33 +743,147 @@ mod tests {
             _ => panic!("Unexpected positive outcome for out of range access"),
         }
     }
+    #[cfg(not(feature = "gdcm"))]
+    mod not_gdcm {
+        use super::*;
+        use rstest::rstest;
+        use std::fs;
+        use std::path::Path;
 
-    #[rstest]
-    #[should_panic(expected = "Could not decode jpeg in frame")]
-    #[case("pydicom/emri_small_jpeg_ls_lossless.dcm", 10)] // crashes, but not sure if file is ok
-    #[case("pydicom/color3d_jpeg_baseline.dcm", 120)]
-    // TODO: figure out why slow (40s) in non release mode, maybe out of bounds checks? also very green and only first frame has a picture in it
-    #[case("pydicom/JPGLosslessP14SV1_1s_1f_8b.dcm", 1)] // Works fine
-    #[case("bscans_spec_61.dcm", 61)] // TODO: remove before finished
-    fn test_parse_jpeg_encoded_dicom_pixel_data(#[case] value: &str, #[case] frames: u16) {
-        let test_file = dicom_test_files::path(value).unwrap();
-        println!("Parsing pixel data for {}", test_file.display());
-        let obj = open_file(test_file).unwrap();
-        let pixel_data = obj.decode_pixel_data().unwrap();
-        assert_eq!(pixel_data.number_of_frames, frames);
+        #[test]
+        fn test_native_decoding_pixel_data_rle_8bit_1frame() {
+            let path = dicom_test_files::path("pydicom/SC_rgb_rle.dcm")
+                .expect("test DICOM file should exist");
+            let object = open_file(&path).unwrap();
+            let ndarray = object
+                .decode_pixel_data()
+                .unwrap()
+                .to_ndarray::<u8>()
+                .unwrap();
+            // Validated using Numpy
+            // This doesn't reshape the array based on the PlanarConfiguration
+            // So for this scan the pixel layout is [Rlsb..Rmsb, Glsb..Gmsb, Blsb..msb]
+            assert_eq!(ndarray.shape(), &[1, 100, 100, 3]);
+            assert_eq!(ndarray.len(), 30000);
+            assert_eq!(ndarray[[0, 0, 0, 0]], 255);
+            assert_eq!(ndarray[[0, 0, 0, 1]], 255);
+            assert_eq!(ndarray[[0, 0, 0, 2]], 255);
+            assert_eq!(ndarray[[0, 50, 50, 0]], 128);
+            assert_eq!(ndarray[[0, 50, 50, 1]], 128);
+            assert_eq!(ndarray[[0, 50, 50, 2]], 128);
+            assert_eq!(ndarray[[0, 75, 75, 0]], 0);
+            assert_eq!(ndarray[[0, 75, 75, 1]], 0);
+            assert_eq!(ndarray[[0, 75, 75, 2]], 0);
+        }
 
-        let output_dir =
-            Path::new("../target/dicom_test_files/_out/test_parse_jpeg_encoded_dicom_pixel_data");
-        fs::create_dir_all(output_dir).unwrap();
+        #[test]
+        fn test_native_decoding_pixel_data_rle_8bit_2frame() {
+            let path = dicom_test_files::path("pydicom/SC_rgb_rle_2frame.dcm")
+                .expect("test DICOM file should exist");
+            let object = open_file(&path).unwrap();
+            let ndarray = object
+                .decode_pixel_data()
+                .unwrap()
+                .to_ndarray::<u8>()
+                .unwrap();
+            // Validated using Numpy
+            // This doesn't reshape the array based on the PlanarConfiguration
+            // So for this scan the pixel layout is [Rlsb..Rmsb, Glsb..Gmsb, Blsb..msb]
+            assert_eq!(ndarray.shape(), &[2, 100, 100, 3]);
+            assert_eq!(ndarray.len(), 60000);
+            // The second frame is the inverse of the first frame
+            assert_eq!(ndarray[[1, 0, 0, 0]], 0);
+            assert_eq!(ndarray[[1, 0, 0, 1]], 0);
+            assert_eq!(ndarray[[1, 0, 0, 2]], 0);
+            assert_eq!(ndarray[[1, 50, 50, 0]], 127);
+            assert_eq!(ndarray[[1, 50, 50, 1]], 127);
+            assert_eq!(ndarray[[1, 50, 50, 2]], 127);
+            assert_eq!(ndarray[[1, 75, 75, 0]], 255);
+            assert_eq!(ndarray[[1, 75, 75, 1]], 255);
+            assert_eq!(ndarray[[1, 75, 75, 2]], 255);
+        }
 
-        for i in 0..pixel_data.number_of_frames {
-            let image = pixel_data.to_dynamic_image(i).unwrap();
-            let image_path = output_dir.join(format!(
-                "{}-{}.png",
-                Path::new(value).file_stem().unwrap().to_str().unwrap(),
-                i,
-            ));
-            image.save(image_path).unwrap();
+        #[test]
+        fn test_native_decoding_pixel_data_rle_16bit_1frame() {
+            let path = dicom_test_files::path("pydicom/SC_rgb_rle_16bit.dcm")
+                .expect("test DICOM file should exist");
+            let object = open_file(&path).unwrap();
+            let ndarray = object
+                .decode_pixel_data()
+                .unwrap()
+                .to_ndarray::<u16>()
+                .unwrap();
+            // Validated using Numpy
+            // This doesn't reshape the array based on the PlanarConfiguration
+            // So for this scan the pixel layout is [Rlsb..Rmsb, Glsb..Gmsb, Blsb..msb]
+            assert_eq!(ndarray.shape(), &[1, 100, 100, 3]);
+            assert_eq!(ndarray.len(), 30000);
+            assert_eq!(ndarray[[0, 0, 0, 0]], 65535);
+            assert_eq!(ndarray[[0, 0, 0, 1]], 65535);
+            assert_eq!(ndarray[[0, 0, 0, 2]], 65535);
+            assert_eq!(ndarray[[0, 50, 50, 0]], 32896);
+            assert_eq!(ndarray[[0, 50, 50, 1]], 32896);
+            assert_eq!(ndarray[[0, 50, 50, 2]], 32896);
+            assert_eq!(ndarray[[0, 75, 75, 0]], 0);
+            assert_eq!(ndarray[[0, 75, 75, 1]], 0);
+            assert_eq!(ndarray[[0, 75, 75, 2]], 0);
+        }
+
+        #[test]
+        fn test_native_decoding_pixel_data_rle_16bit_2frame() {
+            let path = dicom_test_files::path("pydicom/SC_rgb_rle_16bit_2frame.dcm")
+                .expect("test DICOM file should exist");
+            let object = open_file(&path).unwrap();
+            let ndarray = object
+                .decode_pixel_data()
+                .unwrap()
+                .to_ndarray::<u16>()
+                .unwrap();
+            // Validated using Numpy
+            // This doesn't reshape the array based on the PlanarConfiguration
+            // So for this scan the pixel layout is [Rlsb..Rmsb, Glsb..Gmsb, Blsb..msb]
+            assert_eq!(ndarray.shape(), &[2, 100, 100, 3]);
+            assert_eq!(ndarray.len(), 60000);
+            // The second frame is the inverse of the first frame
+            assert_eq!(ndarray[[1, 0, 0, 0]], 0);
+            assert_eq!(ndarray[[1, 0, 0, 1]], 0);
+            assert_eq!(ndarray[[1, 0, 0, 2]], 0);
+            assert_eq!(ndarray[[1, 50, 50, 0]], 32639);
+            assert_eq!(ndarray[[1, 50, 50, 1]], 32639);
+            assert_eq!(ndarray[[1, 50, 50, 2]], 32639);
+            assert_eq!(ndarray[[1, 75, 75, 0]], 65535);
+            assert_eq!(ndarray[[1, 75, 75, 1]], 65535);
+            assert_eq!(ndarray[[1, 75, 75, 2]], 65535);
+        }
+
+        #[rstest]
+        #[should_panic(expected = "Could not decode jpeg in frame")]
+        #[case("pydicom/emri_small_jpeg_ls_lossless.dcm", 10)] // crashes, but not sure if file is ok
+        #[case("pydicom/color3d_jpeg_baseline.dcm", 120)]
+        // TODO: figure out why slow (40s) in non release mode, maybe out of bounds checks? also very green and only first frame has a picture in it
+        #[case("pydicom/JPGLosslessP14SV1_1s_1f_8b.dcm", 1)] // Works fine
+        #[case("bscans_spec_61.dcm", 61)] // TODO: remove before finished
+        fn test_parse_jpeg_encoded_dicom_pixel_data(#[case] value: &str, #[case] frames: u16) {
+            let test_file = dicom_test_files::path(value).unwrap();
+            println!("Parsing pixel data for {}", test_file.display());
+            let obj = open_file(test_file).unwrap();
+            let pixel_data = obj.decode_pixel_data().unwrap();
+            assert_eq!(pixel_data.number_of_frames, frames);
+
+            let output_dir = Path::new(
+                "../target/dicom_test_files/_out/test_parse_jpeg_encoded_dicom_pixel_data",
+            );
+            fs::create_dir_all(output_dir).unwrap();
+
+            for i in 0..pixel_data.number_of_frames {
+                let image = pixel_data.to_dynamic_image(i).unwrap();
+                let image_path = output_dir.join(format!(
+                    "{}-{}.png",
+                    Path::new(value).file_stem().unwrap().to_str().unwrap(),
+                    i,
+                ));
+                image.save(image_path).unwrap();
+            }
         }
     }
 }
