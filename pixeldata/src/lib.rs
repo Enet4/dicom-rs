@@ -857,7 +857,7 @@ mod tests {
         }
 
         #[rstest]
-        #[should_panic(expected = "Could not decode jpeg in frame")]
+        #[should_panic(expected = "Format(\"JPGn(7) marker found where not allowed\")")]
         #[case("pydicom/emri_small_jpeg_ls_lossless.dcm", 10)] // crashes, but not sure if file is ok
         #[case("pydicom/color3d_jpeg_baseline.dcm", 120)]
         // TODO: figure out why slow (40s) in non release mode, maybe out of bounds checks? also very green and only first frame has a picture in it

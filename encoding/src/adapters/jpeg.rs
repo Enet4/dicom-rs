@@ -1,7 +1,7 @@
 //! Support for JPG image decoding.
-use snafu::OptionExt;
+use snafu::{OptionExt, ResultExt};
 
-use super::{CustomMessageSnafu, MissingAttributeSnafu};
+use super::{CustomMessageSnafu, CustomSnafu, MissingAttributeSnafu};
 use crate::adapters::{DecodeResult, PixelDataObject, PixelRWAdapter};
 use jpeg_decoder::Decoder;
 use std::io::Cursor;
@@ -54,21 +54,14 @@ impl PixelRWAdapter for JPEGAdapter {
             })?;
             let mut decoder = Decoder::new(Cursor::new(fragment));
 
-            match decoder.decode() {
-                Ok(decoded) => {
-                    let decoded_len = decoded.len();
-                    dst[offset..(offset + decoded_len)].copy_from_slice(&decoded);
-                    offset += decoded_len
-                }
-                Err(_) => {
-                    // TODO: Replace this with a result context error
-                    // println!("{}", e);
-                    return CustomMessageSnafu {
-                        message: "Could not decode jpeg in frame",
-                    }
-                    .fail();
-                }
-            }
+            let decoded = decoder
+                .decode()
+                .map_err(|e| Box::new(e) as Box<_>)
+                .context(CustomSnafu)?;
+
+            let decoded_len = decoded.len();
+            dst[offset..(offset + decoded_len)].copy_from_slice(&decoded);
+            offset += decoded_len
         }
         Ok(())
     }
