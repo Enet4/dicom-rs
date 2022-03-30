@@ -20,6 +20,7 @@
 use crate::create_ts_stub;
 use byteordered::Endianness;
 use dicom_encoding::{
+    adapters::jpeg::JPEGAdapter,
     adapters::rle_lossless::RLELosslessAdapter,
     transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec, NeverAdapter},
     TransferSyntax,
@@ -85,53 +86,70 @@ pub const JPIP_REFERENCED_DEFLATE: Ts = Ts::new(
     Codec::Unsupported,
 );
 
-// --- partially supported transfer syntaxes, pixel data encapsulation not supported ---
+// JPEG encoded pixel data
+/// An alias for a transfer syntax specifier with JPEGPixelAdapter
+pub type JpegTS = TransferSyntax<NeverAdapter, JPEGAdapter>;
+
+/// create a TS with jpeg encapsulation
+const fn create_ts_jpeg(uid: &'static str, name: &'static str) -> JpegTS {
+    TransferSyntax::new(
+        uid,
+        name,
+        Endianness::Little,
+        true,
+        Codec::PixelData(JPEGAdapter),
+    )
+}
 
 /// **Stub descriptor:** JPEG Baseline (Process 1): Default Transfer Syntax for Lossy JPEG 8 Bit Image Compression
-pub const JPEG_BASELINE: Ts = create_ts_stub("1.2.840.10008.1.2.4.50", "JPEG Baseline (Process 1)");
+pub const JPEG_BASELINE: JpegTS =
+    create_ts_jpeg("1.2.840.10008.1.2.4.50", "JPEG Baseline (Process 1)");
 /// **Stub descriptor:** JPEG Extended (Process 2 & 4): Default Transfer Syntax for Lossy JPEG 12 Bit Image Compression (Process 4 only)
-pub const JPEG_EXTENDED: Ts =
-    create_ts_stub("1.2.840.10008.1.2.4.51", "JPEG Extended (Process 2 & 4)");
+pub const JPEG_EXTENDED: JpegTS =
+    create_ts_jpeg("1.2.840.10008.1.2.4.51", "JPEG Extended (Process 2 & 4)");
 /// **Stub descriptor:** JPEG Lossless, Non-Hierarchical (Process 14)
-pub const JPEG_LOSSLESS_NON_HIERARCHICAL: Ts = create_ts_stub(
+pub const JPEG_LOSSLESS_NON_HIERARCHICAL: JpegTS = create_ts_jpeg(
     "1.2.840.10008.1.2.4.57",
     "JPEG Lossless, Non-Hierarchical (Process 14)",
 );
 /// **Stub descriptor:** JPEG Lossless, Non-Hierarchical, First-Order Prediction
 /// (Process 14 [Selection Value 1]):
 /// Default Transfer Syntax for Lossless JPEG Image Compression
-pub const JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION: Ts = create_ts_stub(
+pub const JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION: JpegTS = create_ts_jpeg(
     "1.2.840.10008.1.2.4.70",
     "JPEG Lossless, Non-Hierarchical, First-Order Prediction",
 );
 /// **Stub descriptor:** JPEG-LS Lossless Image Compression
-pub const JPEG_LS_LOSSLESS_IMAGE_COMPRESSION: Ts = create_ts_stub(
+pub const JPEG_LS_LOSSLESS_IMAGE_COMPRESSION: JpegTS = create_ts_jpeg(
     "1.2.840.10008.1.2.4.80",
     "JPEG-LS Lossless Image Compression",
 );
 /// **Stub descriptor:** JPEG-LS Lossy (Near-Lossless) Image Compression
-pub const JPEG_LS_LOSSY_IMAGE_COMPRESSION: Ts = create_ts_stub(
+pub const JPEG_LS_LOSSY_IMAGE_COMPRESSION: JpegTS = create_ts_jpeg(
     "1.2.840.10008.1.2.4.81",
     "JPEG-LS Lossy (Near-Lossless) Image Compression",
 );
 /// **Stub descriptor:** JPEG 2000 Image Compression (Lossless Only)
-pub const JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY: Ts = create_ts_stub(
+pub const JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY: JpegTS = create_ts_jpeg(
     "1.2.840.10008.1.2.4.90",
     "JPEG 2000 Image Compression (Lossless Only)",
 );
 /// **Stub descriptor:** JPEG 2000 Image Compression
-pub const JPEG_2000_IMAGE_COMPRESSION: Ts =
-    create_ts_stub("1.2.840.10008.1.2.4.91", "JPEG 2000 Image Compression");
+pub const JPEG_2000_IMAGE_COMPRESSION: JpegTS =
+    create_ts_jpeg("1.2.840.10008.1.2.4.91", "JPEG 2000 Image Compression");
 /// **Stub descriptor:** JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only)
-pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION_LOSSLESS_ONLY: Ts = create_ts_stub(
+pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION_LOSSLESS_ONLY: JpegTS = create_ts_jpeg(
     "1.2.840.10008.1.2.4.92",
     "JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only)",
 );
 /// **Stub descriptor:** JPEG 2000 Part 2 Multi-component Image Compression
-pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION: Ts = create_ts_stub(
+pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION: JpegTS = create_ts_jpeg(
     "1.2.840.10008.1.2.4.93",
     "JPEG 2000 Part 2 Multi-component Image Compression",
 );
+
+// --- partially supported transfer syntaxes, pixel data encapsulation not supported ---
+
 /// **Stub descriptor:** JPIP Referenced
 pub const JPIP_REFERENCED: Ts = create_ts_stub("1.2.840.10008.1.2.4.94", "JPIP Referenced");
 
