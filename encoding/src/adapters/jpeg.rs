@@ -54,15 +54,20 @@ impl PixelRWAdapter for JPEGAdapter {
             })?;
             let mut decoder = Decoder::new(Cursor::new(fragment));
 
-            if let Ok(decoded) = decoder.decode() {
-                let decoded_len = decoded.len();
-                dst[offset..(offset + decoded_len)].copy_from_slice(&decoded);
-                offset += decoded_len
-            } else {
-                return CustomMessageSnafu {
-                    message: "Could not decode jpeg in frame",
+            match decoder.decode() {
+                Ok(decoded) => {
+                    let decoded_len = decoded.len();
+                    dst[offset..(offset + decoded_len)].copy_from_slice(&decoded);
+                    offset += decoded_len
                 }
-                .fail();
+                Err(_) => {
+                    // TODO: Replace this with a result context error
+                    // println!("{}", e);
+                    return CustomMessageSnafu {
+                        message: "Could not decode jpeg in frame",
+                    }
+                    .fail();
+                }
             }
         }
         Ok(())

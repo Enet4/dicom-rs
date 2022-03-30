@@ -112,6 +112,7 @@ mod tests {
     use dicom_object::open_file;
     use dicom_test_files;
     use rstest::rstest;
+    use std::fs;
     use std::path::Path;
 
     #[rstest(value => [
@@ -151,17 +152,20 @@ mod tests {
         let test_file = dicom_test_files::path(value).unwrap();
         println!("Parsing pixel data for {}", test_file.display());
         let obj = open_file(test_file).unwrap();
-        let image = obj
-            .decode_pixel_data()
-            .unwrap()
-            .to_dynamic_image(0)
-            .unwrap();
-        image
-            .save(format!(
-                "../target/dicom_test_files/pydicom/{}.png",
-                Path::new(value).file_stem().unwrap().to_str().unwrap()
-            ))
-            .unwrap();
+        let pixel_data = obj.decode_pixel_data().unwrap();
+        let output_dir =
+            Path::new("../target/dicom_test_files/_out/test_gdcm_parse_dicom_pixel_data");
+        fs::create_dir_all(output_dir).unwrap();
+
+        for i in 0..pixel_data.number_of_frames {
+            let image = pixel_data.to_dynamic_image(i).unwrap();
+            let image_path = output_dir.join(format!(
+                "{}-{}.png",
+                Path::new(value).file_stem().unwrap().to_str().unwrap(),
+                i,
+            ));
+            image.save(image_path).unwrap();
+        }
     }
 
     #[test]

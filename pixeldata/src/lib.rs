@@ -680,6 +680,7 @@ mod tests {
     use dicom_object::open_file;
     use dicom_test_files;
     use rstest::rstest;
+    use std::fs;
     use std::path::Path;
 
     #[test]
@@ -857,7 +858,7 @@ mod tests {
     }
 
     #[rstest]
-    #[should_panic(expected = "JPGn(7) marker found where not allowed")]
+    #[should_panic(expected = "Could not decode jpeg in frame")]
     #[case("pydicom/emri_small_jpeg_ls_lossless.dcm", 10)] // crashes, but not sure if file is ok
     #[case("pydicom/color3d_jpeg_baseline.dcm", 120)]
     // TODO: figure out why slow (40s) in non release mode, maybe out of bounds checks? also very green and only first frame has a picture in it
@@ -869,15 +870,19 @@ mod tests {
         let obj = open_file(test_file).unwrap();
         let pixel_data = obj.decode_pixel_data().unwrap();
         assert_eq!(pixel_data.number_of_frames, frames);
+
+        let output_dir =
+            Path::new("../target/dicom_test_files/_out/test_parse_jpeg_encoded_dicom_pixel_data");
+        fs::create_dir_all(output_dir).unwrap();
+
         for i in 0..pixel_data.number_of_frames {
             let image = pixel_data.to_dynamic_image(i).unwrap();
-            image
-                .save(format!(
-                    "../target/dicom_test_files/pydicom/{}-{}.png",
-                    Path::new(value).file_stem().unwrap().to_str().unwrap(),
-                    i
-                ))
-                .unwrap();
+            let image_path = output_dir.join(format!(
+                "{}-{}.png",
+                Path::new(value).file_stem().unwrap().to_str().unwrap(),
+                i,
+            ));
+            image.save(image_path).unwrap();
         }
     }
 }
