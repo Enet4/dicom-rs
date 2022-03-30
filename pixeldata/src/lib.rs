@@ -862,7 +862,7 @@ mod tests {
     #[case("pydicom/color3d_jpeg_baseline.dcm", 120)]
     // TODO: figure out why slow (40s) in non release mode, maybe out of bounds checks? also very green and only first frame has a picture in it
     #[case("pydicom/JPGLosslessP14SV1_1s_1f_8b.dcm", 1)] // Works fine
-    #[case("bscans_spec_61.dcm", 61)] // only first picture actually contains data, rest is black
+    #[case("bscans_spec_61.dcm", 61)] // TODO: remove before finished
     fn test_parse_jpeg_encoded_dicom_pixel_data(#[case] value: &str, #[case] frames: u16) {
         let test_file = dicom_test_files::path(value).unwrap();
         println!("Parsing pixel data for {}", test_file.display());

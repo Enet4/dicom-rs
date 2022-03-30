@@ -47,6 +47,7 @@ impl PixelRWAdapter for JPEGAdapter {
         let stride: usize = (bytes_per_sample as usize * cols as usize * rows as usize).into();
         dst.resize((samples_per_pixel as usize * stride) * nr_frames, 0);
 
+        let mut offset = 0;
         for i in 0..nr_frames {
             let fragment = &src.fragment(i).context(CustomMessageSnafu {
                 message: "No pixel data found for frame",
@@ -54,7 +55,9 @@ impl PixelRWAdapter for JPEGAdapter {
             let mut decoder = Decoder::new(Cursor::new(fragment));
 
             if let Ok(decoded) = decoder.decode() {
-                dst[0..decoded.len()].copy_from_slice(&decoded);
+                let decoded_len = decoded.len();
+                dst[offset..(offset + decoded_len)].copy_from_slice(&decoded);
+                offset += decoded_len
             } else {
                 return CustomMessageSnafu {
                     message: "Could not decode jpeg in frame",
