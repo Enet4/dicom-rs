@@ -863,22 +863,23 @@ mod tests {
         #[should_panic(expected = "UnsupportedTransferSyntax { ts: \"1.2.840.10008.1.2.4.90\"")]
         #[case("pydicom/693_J2KR.dcm", 1)]
         //
-        #[case("pydicom/JPEG-LL.dcm", 1)]
-        //
-        #[should_panic(expected = "Could not create fragment to frame mapping")]
+        #[should_panic(expected = "Format(\"JPGn(7) marker found where not allowed\")")]
         #[case("pydicom/emri_small_jpeg_ls_lossless.dcm", 10)]
+        #[should_panic(expected = "Format(\"JPGn(7) marker found where not allowed\")")]
+        #[case("pydicom/MR_small_jpeg_ls_lossless.dcm", 1)]
+        //
+        #[should_panic(expected = "Unsupported(SamplePrecision(12))")]
+        #[case("pydicom/JPEG-lossy.dcm", 1)]
         //
         // works, but output is grennish
         #[case("pydicom/color3d_jpeg_baseline.dcm", 120)]
         //
         // Works fine
+        #[case("pydicom/JPEG-LL.dcm", 1)]
         #[case("pydicom/JPGLosslessP14SV1_1s_1f_8b.dcm", 1)]
         #[case("pydicom/SC_rgb_jpeg_gdcm.dcm", 1)]
         #[case("pydicom/SC_rgb_jpeg_lossy_gdcm.dcm", 1)]
-        #[case("pydicom/MR_small_jpeg_ls_lossless.dcm", 1)]
-        //
-        #[should_panic(expected = "Could not create fragment to frame mapping")]
-        #[case("pydicom/JPEG-lossy.dcm", 1)]
+
         fn test_parse_jpeg_encoded_dicom_pixel_data(#[case] value: &str, #[case] frames: u16) {
             let test_file = dicom_test_files::path(value).unwrap();
             println!("Parsing pixel data for {}", test_file.display());

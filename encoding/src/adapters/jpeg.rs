@@ -45,20 +45,21 @@ impl PixelRWAdapter for JPEGAdapter {
         let mut frame_to_fragments: Vec<Vec<u8>> = vec![Vec::new(); nr_frames];
         {
             let mut current_frame = 0;
-            for fragment in fragments {
-                let mut decoder = Decoder::new(Cursor::new(&fragment));
-                let is_new_frame = decoder.read_info().is_ok();
+            for fragment in &fragments {
+                let mut decoder = Decoder::new(Cursor::new(fragment));
+                let info = decoder.read_info();
+                let is_new_frame = info.is_ok();
                 if is_new_frame {
-                    frame_to_fragments[current_frame].extend_from_slice(&fragment);
+                    frame_to_fragments[current_frame].extend_from_slice(fragment);
                     current_frame += 1;
                 } else if current_frame > 0 {
+                    // Not the start of a new frame
                     // try to append to last known frame if already created
-                    frame_to_fragments[current_frame - 1].extend_from_slice(&fragment);
+                    frame_to_fragments[current_frame - 1].extend_from_slice(fragment);
                 } else {
-                    return CustomMessageSnafu {
-                        message: "Could not create fragment to frame mapping",
-                    }
-                    .fail();
+                    // when reading the initial frame we got an error from the decoder
+                    info.map_err(|e| Box::new(e) as Box<_>)
+                        .context(CustomSnafu)?;
                 }
             }
             if current_frame != nr_frames {
