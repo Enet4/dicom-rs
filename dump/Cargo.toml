@@ -17,9 +17,11 @@ path = "src/lib.rs"
 [[bin]]
 name = "dicom-dump"
 path = "src/main.rs"
+required-features = ["cli"]
 
 [features]
-default = ['dicom/inventory-registry', 'dicom/backtraces']
+default = ["cli", "dicom/inventory-registry", "dicom/backtraces"]
+cli = ["structopt"]
 
 [dependencies]
 dicom = { path = "../parent/", version = "0.5.0-rc.2", default-features = false }
@@ -27,4 +29,5 @@ term_size = "0.3.2"
 itertools = "0.10"
 snafu = "0.7.0"
 colored = "2.0.0"
-structopt = "0.3.21"
+structopt = { version = "0.3.21", optional = true }
+

@@ -28,18 +28,22 @@ struct App {
     /// The DICOM file(s) to read
     #[structopt(required = true)]
     files: Vec<PathBuf>,
-    /// whether text value width limit is disabled
+    /// Print text values to the end
     /// (limited to `width` by default)
     #[structopt(long = "no-text-limit")]
     no_text_limit: bool,
-    /// the width of the display
+    /// Print all values to the end
+    /// (implies `no_text_limit`, limited to `width` by default)
+    #[structopt(long = "no-limit")]
+    no_limit: bool,
+    /// The width of the display
     /// (default is to check automatically)
     #[structopt(short = "w", long = "width")]
     width: Option<u32>,
-    /// color mode
+    /// The color mode
     #[structopt(long = "color", default_value = "auto")]
     color: ColorMode,
-    /// fail if any errors are encountered
+    /// Fail if any errors are encountered
     #[structopt(long = "fail-first")]
     fail_first: bool,
 }
@@ -52,6 +56,7 @@ fn main() {
     let App {
         files: filenames,
         no_text_limit,
+        no_limit,
         width,
         color,
         fail_first,
@@ -64,6 +69,7 @@ fn main() {
     let mut options = DumpOptions::new();
     options
         .no_text_limit(no_text_limit)
+        .no_limit(no_limit)
         .width(width)
         .color_mode(color);
     let fail_first = filenames.len() == 1 || fail_first;
