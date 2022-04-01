@@ -857,12 +857,25 @@ mod tests {
         }
 
         #[rstest]
+        // jpeg2000 encoding not supported
+        #[should_panic(expected = "UnsupportedTransferSyntax { ts: \"1.2.840.10008.1.2.4.91\"")]
+        #[case("pydicom/693_J2KI.dcm", 1)]
+        #[should_panic(expected = "UnsupportedTransferSyntax { ts: \"1.2.840.10008.1.2.4.90\"")]
+        #[case("pydicom/693_J2KR.dcm", 1)]
         #[should_panic(expected = "Format(\"JPGn(7) marker found where not allowed\")")]
-        #[case("pydicom/emri_small_jpeg_ls_lossless.dcm", 10)] // crashes, but not sure if file is ok
+        #[case("pydicom/emri_small_jpeg_ls_lossless.dcm", 10)]
+        //
+        // works, but output is grennish
         #[case("pydicom/color3d_jpeg_baseline.dcm", 120)]
-        // TODO: figure out why slow (40s) in non release mode, maybe out of bounds checks? also very green and only first frame has a picture in it
-        #[case("pydicom/JPGLosslessP14SV1_1s_1f_8b.dcm", 1)] // Works fine
-        #[case("bscans_spec_61.dcm", 61)] // TODO: remove before finished
+        //
+        // Works fine
+        #[case("pydicom/JPGLosslessP14SV1_1s_1f_8b.dcm", 1)]
+        #[case("pydicom/SC_rgb_jpeg_gdcm.dcm", 1)]
+        #[case("pydicom/SC_rgb_jpeg_lossy_gdcm.dcm", 1)]
+        #[case("pydicom/MR_small_jpeg_ls_lossless.dcm", 1)]
+        //
+        #[should_panic(expected = "Unsupported(SamplePrecision(12)")]
+        #[case("pydicom/JPEG-lossy.dcm", 1)]
         fn test_parse_jpeg_encoded_dicom_pixel_data(#[case] value: &str, #[case] frames: u16) {
             let test_file = dicom_test_files::path(value).unwrap();
             println!("Parsing pixel data for {}", test_file.display());

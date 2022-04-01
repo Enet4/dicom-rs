@@ -129,26 +129,27 @@ pub const JPEG_LS_LOSSY_IMAGE_COMPRESSION: JpegTS = create_ts_jpeg(
     "1.2.840.10008.1.2.4.81",
     "JPEG-LS Lossy (Near-Lossless) Image Compression",
 );
+
+// --- partially supported transfer syntaxes, pixel data encapsulation not supported ---
+
 /// **Stub descriptor:** JPEG 2000 Image Compression (Lossless Only)
-pub const JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY: JpegTS = create_ts_jpeg(
+pub const JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.90",
     "JPEG 2000 Image Compression (Lossless Only)",
 );
 /// **Stub descriptor:** JPEG 2000 Image Compression
-pub const JPEG_2000_IMAGE_COMPRESSION: JpegTS =
-    create_ts_jpeg("1.2.840.10008.1.2.4.91", "JPEG 2000 Image Compression");
+pub const JPEG_2000_IMAGE_COMPRESSION: Ts =
+    create_ts_stub("1.2.840.10008.1.2.4.91", "JPEG 2000 Image Compression");
 /// **Stub descriptor:** JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only)
-pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION_LOSSLESS_ONLY: JpegTS = create_ts_jpeg(
+pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION_LOSSLESS_ONLY: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.92",
     "JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only)",
 );
 /// **Stub descriptor:** JPEG 2000 Part 2 Multi-component Image Compression
-pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION: JpegTS = create_ts_jpeg(
+pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.93",
     "JPEG 2000 Part 2 Multi-component Image Compression",
 );
-
-// --- partially supported transfer syntaxes, pixel data encapsulation not supported ---
 
 /// **Stub descriptor:** JPIP Referenced
 pub const JPIP_REFERENCED: Ts = create_ts_stub("1.2.840.10008.1.2.4.94", "JPIP Referenced");
