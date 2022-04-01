@@ -79,7 +79,7 @@ impl PixelRWAdapter for JPEGAdapter {
         let encoded_frames = self.encoded_frames(src)?;
 
         // `stride` it the total number of bytes for each sample plane
-        let stride: usize = (bytes_per_sample as usize * cols as usize * rows as usize).into();
+        let stride: usize = bytes_per_sample as usize * cols as usize * rows as usize;
         dst.resize((samples_per_pixel as usize * stride) * nr_frames, 0);
 
         let mut offset = 0;
