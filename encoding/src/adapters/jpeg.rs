@@ -1,9 +1,9 @@
 //! Support for JPG image decoding.
-use snafu::{OptionExt, ResultExt};
 
 use super::{CustomMessageSnafu, CustomSnafu, MissingAttributeSnafu};
 use crate::adapters::{DecodeResult, PixelDataObject, PixelRWAdapter};
 use jpeg_decoder::Decoder;
+use snafu::{OptionExt, ResultExt};
 use std::io::Cursor;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
