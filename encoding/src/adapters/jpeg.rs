@@ -1,56 +1,13 @@
 //! Support for JPG image decoding.
 use snafu::{OptionExt, ResultExt};
 
-use super::{CustomMessageSnafu, CustomSnafu, DecodeError, MissingAttributeSnafu};
+use super::{CustomMessageSnafu, CustomSnafu, MissingAttributeSnafu};
 use crate::adapters::{DecodeResult, PixelDataObject, PixelRWAdapter};
 use jpeg_decoder::Decoder;
 use std::io::Cursor;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct JPEGAdapter;
-
-impl JPEGAdapter {
-    fn encoded_frames(&self, src: &dyn PixelDataObject) -> Result<Vec<Vec<u8>>, DecodeError> {
-        // Embedded jpegs can span multiple fragments
-        // Create 1:1 mapping between frame and fragment data
-        // https://dicom.nema.org/dicom/2013/output/chtml/part05/sect_8.2.html
-        let nr_frames = src.number_of_frames().unwrap_or(1) as usize;
-        let mut frame_to_fragments: Vec<Vec<u8>> = vec![Vec::new(); nr_frames];
-        let fragments = src
-            .raw_pixel_data()
-            .context(CustomMessageSnafu {
-                message: "Expected to have raw pixel data available",
-            })?
-            .fragments;
-        {
-            let mut current_frame = 0;
-            for fragment in &fragments {
-                let mut decoder = Decoder::new(Cursor::new(fragment));
-                let info = decoder.read_info();
-                let is_new_frame = info.is_ok();
-                if is_new_frame {
-                    frame_to_fragments[current_frame].extend_from_slice(fragment);
-                    current_frame += 1;
-                } else if current_frame > 0 {
-                    // Not the start of a new frame
-                    // try to append to last known frame if already created
-                    frame_to_fragments[current_frame - 1].extend_from_slice(fragment);
-                } else {
-                    // when reading the initial frame we got an error from the decoder
-                    info.map_err(|e| Box::new(e) as Box<_>)
-                        .context(CustomSnafu)?;
-                }
-            }
-            if current_frame != nr_frames {
-                return CustomMessageSnafu {
-                    message: "Could not extract expected number of frames from fragments",
-                }
-                .fail();
-            }
-        }
-        Ok(frame_to_fragments)
-    }
-}
 
 impl PixelRWAdapter for JPEGAdapter {
     /// Decode DICOM image data with jpeg encoding.
@@ -76,25 +33,50 @@ impl PixelRWAdapter for JPEGAdapter {
 
         let nr_frames = src.number_of_frames().unwrap_or(1) as usize;
         let bytes_per_sample = bits_allocated / 8;
-        let encoded_frames = self.encoded_frames(src)?;
 
         // `stride` it the total number of bytes for each sample plane
         let stride: usize = bytes_per_sample as usize * cols as usize * rows as usize;
         dst.resize((samples_per_pixel as usize * stride) * nr_frames, 0);
 
-        let mut offset = 0;
-        for frame in encoded_frames {
-            let mut decoder = Decoder::new(Cursor::new(frame));
+        // Embedded jpegs can span multiple fragments
+        // Hence we collect all fragments into single vector
+        // and then just iterate a cursor for each frame
+        let fragments: Vec<u8> = src
+            .raw_pixel_data()
+            .context(CustomMessageSnafu {
+                message: "Expected to have raw pixel data available",
+            })?
+            .fragments
+            .into_iter()
+            .flatten()
+            .collect();
 
+        let fragments_len = fragments.len() as u64;
+        let mut cursor = Cursor::new(fragments);
+
+        let mut dst_offset = 0;
+
+        loop {
+            // dicom fields always have to have an even length and fill this space with padding
+            // if uneven we have to move one position further to consume this padding
+            if cursor.position() % 2 > 0 {
+                cursor.set_position(cursor.position() + 1);
+            }
+
+            if cursor.position() >= fragments_len {
+                break;
+            }
+            let mut decoder = Decoder::new(&mut cursor);
             let decoded = decoder
                 .decode()
                 .map_err(|e| Box::new(e) as Box<_>)
                 .context(CustomSnafu)?;
 
             let decoded_len = decoded.len();
-            dst[offset..(offset + decoded_len)].copy_from_slice(&decoded);
-            offset += decoded_len
+            dst[dst_offset..(dst_offset + decoded_len)].copy_from_slice(&decoded);
+            dst_offset += decoded_len
         }
+
         Ok(())
     }
 }
