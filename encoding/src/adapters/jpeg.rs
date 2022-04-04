@@ -53,10 +53,19 @@ impl PixelRWAdapter for JPEGAdapter {
 
         let fragments_len = fragments.len() as u64;
         let mut cursor = Cursor::new(fragments);
-
         let mut dst_offset = 0;
 
         loop {
+            let mut decoder = Decoder::new(&mut cursor);
+            let decoded = decoder
+                .decode()
+                .map_err(|e| Box::new(e) as Box<_>)
+                .context(CustomSnafu)?;
+
+            let decoded_len = decoded.len();
+            dst[dst_offset..(dst_offset + decoded_len)].copy_from_slice(&decoded);
+            dst_offset += decoded_len;
+
             // dicom fields always have to have an even length and fill this space with padding
             // if uneven we have to move one position further to consume this padding
             if cursor.position() % 2 > 0 {
@@ -66,15 +75,6 @@ impl PixelRWAdapter for JPEGAdapter {
             if cursor.position() >= fragments_len {
                 break;
             }
-            let mut decoder = Decoder::new(&mut cursor);
-            let decoded = decoder
-                .decode()
-                .map_err(|e| Box::new(e) as Box<_>)
-                .context(CustomSnafu)?;
-
-            let decoded_len = decoded.len();
-            dst[dst_offset..(dst_offset + decoded_len)].copy_from_slice(&decoded);
-            dst_offset += decoded_len
         }
 
         Ok(())
