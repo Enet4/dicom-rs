@@ -11,7 +11,6 @@ pub struct JPEGAdapter;
 
 impl PixelRWAdapter for JPEGAdapter {
     /// Decode DICOM image data with jpeg encoding.
-
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()> {
         let cols = src
             .cols()

@@ -119,18 +119,18 @@ pub const JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION: JpegTS = create
     "1.2.840.10008.1.2.4.70",
     "JPEG Lossless, Non-Hierarchical, First-Order Prediction",
 );
+
+// --- partially supported transfer syntaxes, pixel data encapsulation not supported ---
 /// **Stub descriptor:** JPEG-LS Lossless Image Compression
-pub const JPEG_LS_LOSSLESS_IMAGE_COMPRESSION: JpegTS = create_ts_jpeg(
+pub const JPEG_LS_LOSSLESS_IMAGE_COMPRESSION: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.80",
     "JPEG-LS Lossless Image Compression",
 );
 /// **Stub descriptor:** JPEG-LS Lossy (Near-Lossless) Image Compression
-pub const JPEG_LS_LOSSY_IMAGE_COMPRESSION: JpegTS = create_ts_jpeg(
+pub const JPEG_LS_LOSSY_IMAGE_COMPRESSION: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.81",
     "JPEG-LS Lossy (Near-Lossless) Image Compression",
 );
-
-// --- partially supported transfer syntaxes, pixel data encapsulation not supported ---
 
 /// **Stub descriptor:** JPEG 2000 Image Compression (Lossless Only)
 pub const JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY: Ts = create_ts_stub(

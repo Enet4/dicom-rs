@@ -863,15 +863,17 @@ mod tests {
         #[should_panic(expected = "UnsupportedTransferSyntax { ts: \"1.2.840.10008.1.2.4.90\"")]
         #[case("pydicom/693_J2KR.dcm", 1)]
         //
-        #[should_panic(expected = "Format(\"JPGn(7) marker found where not allowed\")")]
+        // jpeg-ls encoding not supported
+        #[should_panic(expected = "UnsupportedTransferSyntax { ts: \"1.2.840.10008.1.2.4.80\"")]
         #[case("pydicom/emri_small_jpeg_ls_lossless.dcm", 10)]
-        #[should_panic(expected = "Format(\"JPGn(7) marker found where not allowed\")")]
+        #[should_panic(expected = "UnsupportedTransferSyntax { ts: \"1.2.840.10008.1.2.4.80\"")]
         #[case("pydicom/MR_small_jpeg_ls_lossless.dcm", 1)]
         //
+        // sample precicion of 12 not supported
         #[should_panic(expected = "Unsupported(SamplePrecision(12))")]
         #[case("pydicom/JPEG-lossy.dcm", 1)]
         //
-        // works, but output is grennish
+        // works, but output has coloroffset to what is produced by other tools
         #[case("pydicom/color3d_jpeg_baseline.dcm", 120)]
         //
         // Works fine
