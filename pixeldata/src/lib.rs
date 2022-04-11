@@ -528,12 +528,20 @@ where
                 .decode(self, &mut data)
                 .context(DecodePixelDataSnafu)?;
 
+            // pixels are already interpreted,
+            // set new photometric interpretation
+            let new_pi = match samples_per_pixel {
+                1 => "MONOCHROME2".to_owned(),
+                3 => "RGB".to_owned(),
+                _ => photometric_interpretation,
+            };
+
             return Ok(DecodedPixelData {
                 data: Cow::from(data),
                 cols: cols.into(),
                 rows: rows.into(),
                 number_of_frames,
-                photometric_interpretation,
+                photometric_interpretation: new_pi,
                 samples_per_pixel,
                 bits_allocated,
                 bits_stored,
