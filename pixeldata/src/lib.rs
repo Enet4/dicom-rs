@@ -157,6 +157,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// without any LUT transformations applied.
 /// Whether to apply such transformations
 /// can be done through one of the various `to_*` methods.
+#[derive(Debug)]
 pub struct DecodedPixelData<'a> {
     /// the raw bytes of pixel data
     pub data: Cow<'a, [u8]>,
