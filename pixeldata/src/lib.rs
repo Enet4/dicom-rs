@@ -856,6 +856,8 @@ mod tests {
             assert_eq!(ndarray[[1, 75, 75, 2]], 65535);
         }
 
+        const MAX_TEST_FRAMES: u16 = 16;
+
         #[rstest]
         // jpeg2000 encoding not supported
         #[should_panic(expected = "UnsupportedTransferSyntax { ts: \"1.2.840.10008.1.2.4.91\"")]
@@ -894,7 +896,7 @@ mod tests {
             );
             fs::create_dir_all(output_dir).unwrap();
 
-            for i in 0..pixel_data.number_of_frames {
+            for i in 0..pixel_data.number_of_frames.min(MAX_TEST_FRAMES) {
                 let image = pixel_data.to_dynamic_image(i).unwrap();
                 let image_path = output_dir.join(format!(
                     "{}-{}.png",

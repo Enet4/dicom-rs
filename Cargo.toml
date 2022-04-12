@@ -16,3 +16,11 @@ members = [
     "storescu",
     "pixeldata"
 ]
+
+# optimize JPEG decoder to run tests faster
+[profile.dev.package."jpeg-decoder"]
+opt-level = 2
+
+# optimize deflate to run tests faster
+[profile.dev.package."deflate"]
+opt-level = 2
