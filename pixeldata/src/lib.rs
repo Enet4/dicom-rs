@@ -369,7 +369,7 @@ impl DecodedPixelData<'_> {
                                     self.rescale_slope,
                                 )?;
 
-                                let data: Vec<u8> = self.modality_to_target(&data, voi_lut);
+                                let data: Vec<u8> = self.modality_to_target(&data, voi_lut, 255);
                                 let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
                                     ImageBuffer::from_raw(self.cols, self.rows, data)
                                         .context(InvalidImageBufferSnafu)?;
@@ -456,7 +456,7 @@ impl DecodedPixelData<'_> {
                                     _ => InvalidPixelRepresentationSnafu.fail()?,
                                 };
 
-                                let data: Vec<u16> = self.modality_to_target(&data, voi_lut);
+                                let data: Vec<u16> = self.modality_to_target(&data, voi_lut, 65535);
 
                                 let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
                                     ImageBuffer::from_raw(self.cols, self.rows, data)
@@ -629,7 +629,12 @@ impl DecodedPixelData<'_> {
 
     /// Inner function for converting modality-scaled values
     /// into the intended output target.
-    fn modality_to_target<T: 'static>(&self, data: &[f64], voi_lut: &VoiLutOption) -> Vec<T>
+    fn modality_to_target<T: 'static>(
+        &self,
+        data: &[f64],
+        voi_lut: &VoiLutOption,
+        amplitude: u32,
+    ) -> Vec<T>
     where
         f64: AsPrimitive<T>,
         T: Copy,
@@ -668,7 +673,11 @@ impl DecodedPixelData<'_> {
                     .fold(f64::NEG_INFINITY, |a, b| a.max(b));
                 let range = max - min;
                 // normalize
-                narrow_par(data.par_iter().copied().map(|x| ((x - min) / range)))
+                narrow_par(
+                    data.par_iter()
+                        .copied()
+                        .map(|x| ((x - min) * amplitude as f64 / range)),
+                )
             }
             (VoiLutOption::Identity, _) | (VoiLutOption::Default, None) => {
                 narrow(data.iter().copied())
@@ -731,9 +740,7 @@ fn convert_colorspace_u16(i: &mut Vec<u16>) {
 
 /// Convert the i16 vector by shifting it up.
 fn convert_i16_to_u16(i: &[i16]) -> Vec<u16> {
-    i.par_iter()
-        .map(|p| (*p as i32 + 0x8000) as u16)
-        .collect()
+    i.par_iter().map(|p| (*p as i32 + 0x8000) as u16).collect()
 }
 
 // Apply the Modality rescale operation to the input array and return a Vec<f64> containing transformed pixel data.
