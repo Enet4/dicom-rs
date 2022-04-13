@@ -31,13 +31,13 @@ pub type DynDecoder<S> = Box<dyn DecodeFrom<S>>;
 pub type DynEncoder<'w, W> = Box<dyn EncodeTo<W> + 'w>;
 
 /// A DICOM transfer syntax specifier.
-/// 
+///
 /// Custom encoding and decoding capabilities
 /// are defined via the parameter types `D` and `P`,
 /// The type parameter `D` specifies
 /// an adapter for reading and writing data sets,
 /// whereas `P` specifies the encoder and decoder of encapsulated pixel data.
-/// 
+///
 /// This type is usually consumed in its "type erased" form,
 /// with its default parameter types.
 /// On the other hand, implementers of `TransferSyntax` will typically specify
@@ -61,7 +61,7 @@ pub struct TransferSyntax<D = DynDataRWAdapter, P = DynPixelRWAdapter> {
 }
 
 /// Wrapper type for a provider of transfer syntax descriptors.
-/// 
+///
 /// This is a piece of the plugin interface for
 /// registering and collecting transfer syntaxes.
 /// Implementers and consumers of transfer syntaxes
@@ -83,7 +83,7 @@ inventory::collect!(TransferSyntaxFactory);
 /// of this trait is used for the entire program,
 /// the most common one being the `TransferSyntaxRegistry` type
 /// from [`transfer-syntax-registry`].
-/// 
+///
 /// [`transfer-syntax-registry`]: https://docs.rs/dicom-transfer-syntax-registry
 pub trait TransferSyntaxIndex {
     /// Obtain a DICOM transfer syntax by its respective UID.
@@ -116,7 +116,7 @@ where
 /// and must resolve to a value of type [`TransferSyntax<D, P>`],
 /// for valid definitions of the parameter types `D` and `P`.
 /// The macro will type-erase these parameters automatically.
-/// 
+///
 /// [`TransferSyntax<D, P>`]: crate::transfer_syntax::TransferSyntax
 macro_rules! submit_transfer_syntax {
     ($ts: expr) => {
@@ -261,7 +261,7 @@ impl<D, P> TransferSyntax<D, P> {
     /// construct TS descriptors from scratch.
     /// For a practical usage of transfer syntaxes,
     /// one should look up an existing transfer syntax registry by UID.
-    /// 
+    ///
     /// # Example
     ///
     /// To register a private transfer syntax in your program,

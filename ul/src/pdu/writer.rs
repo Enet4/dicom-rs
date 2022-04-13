@@ -63,10 +63,14 @@ where
     F: FnOnce(&mut Vec<u8>) -> Result<()>,
 {
     let mut data = vec![];
-    func(&mut data).map_err(Box::from).context(BuildChunkSnafu)?;
+    func(&mut data)
+        .map_err(Box::from)
+        .context(BuildChunkSnafu)?;
 
     let length = data.len() as u32;
-    writer.write_u32::<BigEndian>(length).context(WriteLengthSnafu)?;
+    writer
+        .write_u32::<BigEndian>(length)
+        .context(WriteLengthSnafu)?;
 
     writer.write_all(&data).context(WriteDataSnafu)?;
 
@@ -78,10 +82,14 @@ where
     F: FnOnce(&mut Vec<u8>) -> Result<()>,
 {
     let mut data = vec![];
-    func(&mut data).map_err(Box::from).context(BuildChunkSnafu)?;
+    func(&mut data)
+        .map_err(Box::from)
+        .context(BuildChunkSnafu)?;
 
     let length = data.len() as u16;
-    writer.write_u16::<BigEndian>(length).context(WriteLengthSnafu)?;
+    writer
+        .write_u16::<BigEndian>(length)
+        .context(WriteLengthSnafu)?;
 
     writer.write_all(&data).context(WriteDataSnafu)?;
 
@@ -138,9 +146,10 @@ where
                 // leading and trailing spaces (20H) being non-significant. The value made of 16
                 // spaces (20H) meaning "no Application Name specified" shall not be used. For a
                 // complete description of the use of this field, see Section 7.1.1.4.
-                let mut ae_title_bytes = codec.encode(called_ae_title).context(EncodeFieldSnafu {
-                    field: "Called-AE-title",
-                })?;
+                let mut ae_title_bytes =
+                    codec.encode(called_ae_title).context(EncodeFieldSnafu {
+                        field: "Called-AE-title",
+                    })?;
                 ae_title_bytes.resize(16, b' ');
                 writer.write_all(&ae_title_bytes).context(WriteFieldSnafu {
                     field: "Called-AE-title",
@@ -151,9 +160,10 @@ where
                 // trailing spaces (20H) being non-significant. The value made of 16 spaces
                 // (20H) meaning "no Application Name specified" shall not be used. For a
                 // complete description of the use of this field, see Section 7.1.1.3.
-                let mut ae_title_bytes = codec.encode(calling_ae_title).context(EncodeFieldSnafu {
-                    field: "Calling-AE-title",
-                })?;
+                let mut ae_title_bytes =
+                    codec.encode(calling_ae_title).context(EncodeFieldSnafu {
+                        field: "Calling-AE-title",
+                    })?;
                 ae_title_bytes.resize(16, b' ');
                 writer.write_all(&ae_title_bytes).context(WriteFieldSnafu {
                     field: "Called-AE-title",
@@ -231,9 +241,10 @@ where
                 // 11-26 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received.
-                let mut ae_title_bytes = codec.encode(called_ae_title).context(EncodeFieldSnafu {
-                    field: "Called-AE-title",
-                })?;
+                let mut ae_title_bytes =
+                    codec.encode(called_ae_title).context(EncodeFieldSnafu {
+                        field: "Called-AE-title",
+                    })?;
                 ae_title_bytes.resize(16, b' ');
                 writer.write_all(&ae_title_bytes).context(WriteFieldSnafu {
                     field: "Called-AE-title",
@@ -241,9 +252,10 @@ where
                 // 27-42 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received.
-                let mut ae_title_bytes = codec.encode(calling_ae_title).context(EncodeFieldSnafu {
-                    field: "Calling-AE-title",
-                })?;
+                let mut ae_title_bytes =
+                    codec.encode(calling_ae_title).context(EncodeFieldSnafu {
+                        field: "Calling-AE-title",
+                    })?;
                 ae_title_bytes.resize(16, b' ');
                 writer.write_all(&ae_title_bytes).context(WriteFieldSnafu {
                     field: "Calling-AE-title",
@@ -438,11 +450,11 @@ where
                         })?;
 
                         // Message fragment
-                        writer
-                            .write_all(&presentation_data_value.data)
-                            .context(WriteFieldSnafu {
+                        writer.write_all(&presentation_data_value.data).context(
+                            WriteFieldSnafu {
                                 field: "Presentation-data-value",
-                            })?;
+                            },
+                        )?;
 
                         Ok(())
                     })

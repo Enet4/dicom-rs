@@ -303,7 +303,10 @@ where
 
     /// Negotiate an association with the given TCP stream.
     pub fn establish(&self, mut socket: TcpStream) -> Result<ServerAssociation> {
-        ensure!(!self.abstract_syntax_uids.is_empty(), MissingAbstractSyntaxSnafu);
+        ensure!(
+            !self.abstract_syntax_uids.is_empty(),
+            MissingAbstractSyntaxSnafu
+        );
 
         let max_pdu_length = self.max_pdu_length;
 

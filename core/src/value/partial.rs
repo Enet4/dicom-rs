@@ -978,10 +978,7 @@ mod tests {
     fn test_dicom_datetime() {
         let default_offset = FixedOffset::east(0);
         assert_eq!(
-            DicomDateTime::from_date(
-                DicomDate::from_ymd(2020, 2, 29).unwrap(),
-                default_offset
-            ),
+            DicomDateTime::from_date(DicomDate::from_ymd(2020, 2, 29).unwrap(), default_offset),
             DicomDateTime {
                 date: DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 time: None,
@@ -1063,11 +1060,8 @@ mod tests {
         );
 
         assert!(matches!(
-            DicomDateTime::from_date(
-                DicomDate::from_ymd(2021, 2, 29).unwrap(),
-                default_offset
-            )
-            .earliest(),
+            DicomDateTime::from_date(DicomDate::from_ymd(2021, 2, 29).unwrap(), default_offset)
+                .earliest(),
             Err(crate::value::range::Error::InvalidDate { .. })
         ));
 

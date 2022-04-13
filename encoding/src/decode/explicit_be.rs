@@ -21,7 +21,10 @@ impl Decode for ExplicitVRBigEndianDecoder {
         S: ?Sized + Read,
     {
         // retrieve tag
-        let Tag(group, element) = self.basic.decode_tag(&mut source).context(ReadHeaderTagSnafu)?;
+        let Tag(group, element) = self
+            .basic
+            .decode_tag(&mut source)
+            .context(ReadHeaderTagSnafu)?;
 
         let mut buf = [0u8; 4];
         if group == 0xFFFE {
@@ -53,7 +56,9 @@ impl Decode for ExplicitVRBigEndianDecoder {
             | VR::UT
             | VR::UN => {
                 // read 2 reserved bytes, then 4 bytes for data length
-                source.read_exact(&mut buf[0..2]).context(ReadReservedSnafu)?;
+                source
+                    .read_exact(&mut buf[0..2])
+                    .context(ReadReservedSnafu)?;
                 source.read_exact(&mut buf).context(ReadLengthSnafu)?;
                 bytes_read = 12;
                 BigEndian::read_u32(&buf)

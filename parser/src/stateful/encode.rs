@@ -232,12 +232,11 @@ where
                     vr: de.vr,
                     len: Length(byte_len as u32),
                 })?;
-                let bytes =
-                    self.encoder
-                        .encode_primitive(&mut self.to, value)
-                        .context(EncodeDataSnafu {
-                            position: self.bytes_written,
-                        })?;
+                let bytes = self.encoder.encode_primitive(&mut self.to, value).context(
+                    EncodeDataSnafu {
+                        position: self.bytes_written,
+                    },
+                )?;
 
                 self.bytes_written += bytes as u64;
                 if bytes % 2 != 0 {
@@ -289,12 +288,11 @@ where
                 Ok(())
             }
             _ => {
-                let bytes =
-                    self.encoder
-                        .encode_primitive(&mut self.to, value)
-                        .context(EncodeDataSnafu {
-                            position: self.bytes_written,
-                        })?;
+                let bytes = self.encoder.encode_primitive(&mut self.to, value).context(
+                    EncodeDataSnafu {
+                        position: self.bytes_written,
+                    },
+                )?;
 
                 self.bytes_written += bytes as u64;
                 if bytes % 2 != 0 {
@@ -345,9 +343,11 @@ where
             vr: de.vr,
             len: Length(encoded_value.len() as u32),
         })?;
-        self.to.write_all(&encoded_value).context(WriteValueDataSnafu {
-            position: self.bytes_written,
-        })?;
+        self.to
+            .write_all(&encoded_value)
+            .context(WriteValueDataSnafu {
+                position: self.bytes_written,
+            })?;
         self.bytes_written += encoded_value.len() as u64;
 
         // if element is Specific Character Set,
@@ -384,9 +384,11 @@ where
             len: Length(self.buffer.len() as u32),
         })?;
 
-        self.to.write_all(&self.buffer).context(WriteValueDataSnafu {
-            position: self.bytes_written,
-        })?;
+        self.to
+            .write_all(&self.buffer)
+            .context(WriteValueDataSnafu {
+                position: self.bytes_written,
+            })?;
         self.bytes_written += self.buffer.len() as u64;
 
         // if element is Specific Character Set,
@@ -439,9 +441,11 @@ where
         match vr {
             VR::AE | VR::AS | VR::CS | VR::DA | VR::DS | VR::DT | VR::IS | VR::TM | VR::UI => {
                 // these VRs always use the default character repertoire
-                DefaultCharacterSetCodec.encode(text).context(EncodeTextSnafu {
-                    position: self.bytes_written,
-                })
+                DefaultCharacterSetCodec
+                    .encode(text)
+                    .context(EncodeTextSnafu {
+                        position: self.bytes_written,
+                    })
             }
             _ => self.text.encode(text).context(EncodeTextSnafu {
                 position: self.bytes_written,

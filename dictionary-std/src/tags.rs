@@ -15389,7 +15389,6 @@ pub const SHIFT_TABLE_TRIPLET: Tag = Tag(0x1000, 0x0015);
 #[rustfmt::skip]
 pub const ZONAL_MAP: Tag = Tag(0x1010, 0x0004);
 
-
 type E = DictionaryEntryRef<'static>;
 
 #[rustfmt::skip]

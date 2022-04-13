@@ -1,7 +1,7 @@
-use dicom_dump::{ColorMode, DumpOptions};
 use dicom::object::open_file;
-use std::io::ErrorKind;
+use dicom_dump::{ColorMode, DumpOptions};
 use snafu::ErrorCompat;
+use std::io::ErrorKind;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -21,7 +21,7 @@ fn os_compatibility() -> Result<(), ()> {
 }
 
 /// Dump the contents of DICOM files
-/// 
+///
 /// WARNING: Deprecated. Please install `dicom-dump` instead.
 #[derive(Debug, StructOpt)]
 struct App {
@@ -36,7 +36,7 @@ struct App {
     #[structopt(short = "w", long = "width")]
     width: Option<u32>,
     /// color mode
-    #[structopt(long="color", default_value = "auto")]
+    #[structopt(long = "color", default_value = "auto")]
     color: ColorMode,
 }
 
@@ -78,7 +78,6 @@ fn main() {
         _ => {} // all good
     }
 }
-
 
 fn report<E: 'static>(err: E)
 where

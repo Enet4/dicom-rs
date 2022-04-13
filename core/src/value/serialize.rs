@@ -12,7 +12,7 @@ where
     // YYYY(MM(DD)?)?
     let len = date.to_encoded().len();
     write!(to, "{}", date.to_encoded())?;
-    Ok(len) 
+    Ok(len)
 }
 
 /** Encode a single time value in accordance to the DICOM Time (TM)
@@ -25,7 +25,7 @@ where
     // HH(MM(SS(.F{1,6})?)?)?
     let len = time.to_encoded().len();
     write!(to, "{}", time.to_encoded())?;
-    Ok(len) 
+    Ok(len)
 }
 
 /** Encode a single date-time value in accordance to the DICOM DateTime (DT)
@@ -37,7 +37,7 @@ where
 {
     let len = dt.to_string().len();
     write!(to, "{}", dt.to_encoded())?;
-    Ok(len) 
+    Ok(len)
 }
 
 #[cfg(test)]

@@ -190,7 +190,10 @@ pub struct DataSetReader<S, D> {
 impl<S> DataSetReader<DynStatefulDecoder<S>, StandardDataDictionary> {
     /// Creates a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
-    #[deprecated(since = "0.5.0", note = "Instead use other `new` methods receiving reader options")]
+    #[deprecated(
+        since = "0.5.0",
+        note = "Instead use other `new` methods receiving reader options"
+    )]
     pub fn new_with(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
     where
         S: Read,
@@ -573,10 +576,10 @@ mod tests {
     use dicom_core::value::PrimitiveValue;
     use dicom_core::{Tag, VR};
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
-    use dicom_encoding::text::SpecificCharacterSet;
     use dicom_encoding::decode::{
         explicit_le::ExplicitVRLittleEndianDecoder, implicit_le::ImplicitVRLittleEndianDecoder,
     };
+    use dicom_encoding::text::SpecificCharacterSet;
 
     fn validate_dataset_reader_implicit_vr<I>(data: &[u8], ground_truth: I)
     where

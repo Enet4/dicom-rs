@@ -255,7 +255,9 @@ where
             }
             LazyDataToken::LazyItemValue { len, mut decoder } => {
                 let mut data = Vec::new();
-                decoder.read_to_vec(len, &mut data).context(ReadItemValueSnafu)?;
+                decoder
+                    .read_to_vec(len, &mut data)
+                    .context(ReadItemValueSnafu)?;
                 Ok(DataToken::ItemValue(data))
             }
         }
@@ -279,9 +281,9 @@ where
                     ValueReadStrategy::Preserved => decoder
                         .read_value_preserved(&header)
                         .context(ReadElementValueSnafu),
-                    ValueReadStrategy::Raw => {
-                        decoder.read_value_bytes(&header).context(ReadElementValueSnafu)
-                    }
+                    ValueReadStrategy::Raw => decoder
+                        .read_value_bytes(&header)
+                        .context(ReadElementValueSnafu),
                 }
             }
             _ => UnexpectedTokenTypeSnafu.fail(),

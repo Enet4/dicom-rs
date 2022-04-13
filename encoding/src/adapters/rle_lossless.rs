@@ -12,7 +12,7 @@ use snafu::{OptionExt, ResultExt};
 use crate::adapters::{DecodeResult, PixelDataObject, PixelRWAdapter};
 use std::io::{self, Read, Seek};
 
-use super::{CustomSnafu, CustomMessageSnafu, MissingAttributeSnafu};
+use super::{CustomMessageSnafu, CustomSnafu, MissingAttributeSnafu};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RLELosslessAdapter;
@@ -23,7 +23,9 @@ impl PixelRWAdapter for RLELosslessAdapter {
     ///
     /// See <http://dicom.nema.org/medical/Dicom/2018d/output/chtml/part05/chapter_G.html>
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()> {
-        let cols = src.cols().context(MissingAttributeSnafu { name: "Columns" })?;
+        let cols = src
+            .cols()
+            .context(MissingAttributeSnafu { name: "Columns" })?;
         let rows = src.rows().context(MissingAttributeSnafu { name: "Rows" })?;
         let samples_per_pixel = src.samples_per_pixel().context(MissingAttributeSnafu {
             name: "SamplesPerPixel",
@@ -31,11 +33,12 @@ impl PixelRWAdapter for RLELosslessAdapter {
         let bits_allocated = src.bits_allocated().context(MissingAttributeSnafu {
             name: "BitsAllocated",
         })?;
-        
+
         if bits_allocated != 8 && bits_allocated != 16 {
             return CustomMessageSnafu {
-                message: "BitsAllocated other than 8 or 16 is not supported"
-            }.fail();
+                message: "BitsAllocated other than 8 or 16 is not supported",
+            }
+            .fail();
         }
         // For RLE the number of fragments = number of frames
         // therefore, we can fetch the fragments one-by-one
@@ -60,10 +63,9 @@ impl PixelRWAdapter for RLELosslessAdapter {
         //    LSB MSB LSB MSB ... LSB MSB | LSB MSB LSB MSB ... LSB MSB | ...
 
         for i in 0..nr_frames {
-            let fragment = &src.fragment(i)
-                .context(CustomMessageSnafu {
-                    message: "No pixel data found for frame",
-                })?;
+            let fragment = &src.fragment(i).context(CustomMessageSnafu {
+                message: "No pixel data found for frame",
+            })?;
             let mut offsets = read_rle_header(fragment);
             offsets.push(fragment.len() as u32);
 
@@ -75,10 +77,9 @@ impl PixelRWAdapter for RLELosslessAdapter {
                     let segment = &fragment
                         [offsets[ii as usize] as usize..offsets[(ii + 1) as usize] as usize];
                     let buff = io::Cursor::new(segment);
-                    let (_, mut decoder) =
-                        PackBitsReader::new(buff, segment.len())
-                            .map_err(|e| Box::new(e) as Box<_>)
-                            .context(CustomSnafu)?;
+                    let (_, mut decoder) = PackBitsReader::new(buff, segment.len())
+                        .map_err(|e| Box::new(e) as Box<_>)
+                        .context(CustomSnafu)?;
                     let mut decoded_segment: Vec<u8> = vec![0; (rows * cols) as usize];
                     decoder.read_exact(&mut decoded_segment).unwrap();
 

@@ -184,9 +184,11 @@ where
             // meaning "no Application Name specified" shall not be used. For a complete
             // description of the use of this field, see Section 7.1.1.4.
             let mut ae_bytes = [0; 16];
-            cursor.read_exact(&mut ae_bytes).context(ReadPduFieldSnafu {
-                field: "Called-AE-title",
-            })?;
+            cursor
+                .read_exact(&mut ae_bytes)
+                .context(ReadPduFieldSnafu {
+                    field: "Called-AE-title",
+                })?;
             let called_ae_title = codec
                 .decode(&ae_bytes)
                 .context(DecodeTextSnafu {
@@ -201,9 +203,11 @@ where
             // meaning "no Application Name specified" shall not be used. For a complete
             // description of the use of this field, see Section 7.1.1.3.
             let mut ae_bytes = [0; 16];
-            cursor.read_exact(&mut ae_bytes).context(ReadPduFieldSnafu {
-                field: "Calling-AE-title",
-            })?;
+            cursor
+                .read_exact(&mut ae_bytes)
+                .context(ReadPduFieldSnafu {
+                    field: "Calling-AE-title",
+                })?;
             let calling_ae_title = codec
                 .decode(&ae_bytes)
                 .context(DecodeTextSnafu {
@@ -275,9 +279,11 @@ where
             // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
             // shall not be tested when received.
             let mut ae_bytes = [0; 16];
-            cursor.read_exact(&mut ae_bytes).context(ReadPduFieldSnafu {
-                field: "Called-AE-title",
-            })?;
+            cursor
+                .read_exact(&mut ae_bytes)
+                .context(ReadPduFieldSnafu {
+                    field: "Called-AE-title",
+                })?;
             let called_ae_title = codec
                 .decode(&ae_bytes)
                 .context(DecodeTextSnafu {
@@ -290,9 +296,11 @@ where
             // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
             // shall not be tested when received.
             let mut ae_bytes = [0; 16];
-            cursor.read_exact(&mut ae_bytes).context(ReadPduFieldSnafu {
-                field: "Calling-AE-title",
-            })?;
+            cursor
+                .read_exact(&mut ae_bytes)
+                .context(ReadPduFieldSnafu {
+                    field: "Calling-AE-title",
+                })?;
             let calling_ae_title = codec
                 .decode(&ae_bytes)
                 .context(DecodeTextSnafu {
@@ -344,14 +352,18 @@ where
 
             // 7 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
-            cursor.read_u8().context(ReadReservedSnafu { bytes: 1_u32 })?;
+            cursor
+                .read_u8()
+                .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
             // 8 - Result - This Result field shall contain an integer value encoded as an unsigned
             // binary number. One of the following values shall be used:
             //   1 - rejected-permanent
             //   2 - rejected-transient
             let result = AssociationRJResult::from(
-                cursor.read_u8().context(ReadPduFieldSnafu { field: "Result" })?,
+                cursor
+                    .read_u8()
+                    .context(ReadPduFieldSnafu { field: "Result" })?,
             )
             .context(InvalidRejectSourceOrReasonSnafu)?;
 
@@ -377,7 +389,9 @@ where
             //     2 - local-limit-exceeded
             //     3-7 - reserved
             let source = AssociationRJSource::from(
-                cursor.read_u8().context(ReadPduFieldSnafu { field: "Source" })?,
+                cursor
+                    .read_u8()
+                    .context(ReadPduFieldSnafu { field: "Source" })?,
                 cursor.read_u8().context(ReadPduFieldSnafu {
                     field: "Reason/Diag.",
                 })?,
@@ -507,7 +521,9 @@ where
             // - 5 - unexpected-PDU parameter
             // - 6 - invalid-PDU-parameter value
             let source = AbortRQSource::from(
-                cursor.read_u8().context(ReadPduFieldSnafu { field: "Source" })?,
+                cursor
+                    .read_u8()
+                    .context(ReadPduFieldSnafu { field: "Source" })?,
                 cursor.read_u8().context(ReadPduFieldSnafu {
                     field: "Reason/Diag",
                 })?,
@@ -543,7 +559,9 @@ where
         .context(ReadPduFieldSnafu { field: "Item-type" })?;
 
     // 2 - Reserved
-    reader.read_u8().context(ReadReservedSnafu { bytes: 1_u32 })?;
+    reader
+        .read_u8()
+        .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
     // 3-4 - Item-length
     let item_length = reader.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
@@ -562,9 +580,11 @@ where
             // 7.1.1.2. Application-context-names are structured as UIDs as defined in PS3.5 (see
             // Annex A for an overview of this concept). DICOM Application-context-names are
             // registered in PS3.7.
-            let val = codec.decode(&cursor.into_inner()).context(DecodeTextSnafu {
-                field: "Application-context-name",
-            })?;
+            let val = codec
+                .decode(&cursor.into_inner())
+                .context(DecodeTextSnafu {
+                    field: "Application-context-name",
+                })?;
             Ok(PduVariableItem::ApplicationContext(val))
         }
         0x20 => {
@@ -582,15 +602,21 @@ where
 
             // 6 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
-            cursor.read_u8().context(ReadReservedSnafu { bytes: 1_u32 })?;
+            cursor
+                .read_u8()
+                .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
             // 7 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
-            cursor.read_u8().context(ReadReservedSnafu { bytes: 1_u32 })?;
+            cursor
+                .read_u8()
+                .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
             // 8 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
-            cursor.read_u8().context(ReadReservedSnafu { bytes: 1_u32 })?;
+            cursor
+                .read_u8()
+                .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
             // 9-xxx - Abstract/Transfer Syntax Sub-Items - This variable field shall contain the
             // following sub-items: one Abstract Syntax and one or more Transfer Syntax(es). For a
@@ -604,7 +630,9 @@ where
 
                 // 2 - Reserved - This reserved field shall be sent with a value 00H but not tested
                 // to this value when received.
-                cursor.read_u8().context(ReadReservedSnafu { bytes: 1_u32 })?;
+                cursor
+                    .read_u8()
+                    .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
                 // 3-4 - Item-length
                 let item_length = cursor.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
@@ -688,7 +716,9 @@ where
 
             // 6 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
-            cursor.read_u8().context(ReadReservedSnafu { bytes: 1_u32 })?;
+            cursor
+                .read_u8()
+                .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
             // 7 - Result/Reason - This Result/Reason field shall contain an integer value encoded
             // as an unsigned binary number. One of the following values shall be used:
@@ -697,15 +727,18 @@ where
             //   2 - no-reason (provider rejection)
             //   3 - abstract-syntax-not-supported (provider rejection)
             //   4 - transfer-syntaxes-not-supported (provider rejection)
-            let reason =
-                PresentationContextResultReason::from(cursor.read_u8().context(ReadPduFieldSnafu {
+            let reason = PresentationContextResultReason::from(cursor.read_u8().context(
+                ReadPduFieldSnafu {
                     field: "Result/Reason",
-                })?)
-                .context(InvalidPresentationContextResultReasonSnafu)?;
+                },
+            )?)
+            .context(InvalidPresentationContextResultReasonSnafu)?;
 
             // 8 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
-            cursor.read_u8().context(ReadReservedSnafu { bytes: 1_u32 })?;
+            cursor
+                .read_u8()
+                .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
             // 9-xxx - Transfer syntax sub-item - This variable field shall contain one Transfer
             // Syntax Sub-Item. When the Result/Reason field has a value other than acceptance (0),
@@ -720,7 +753,9 @@ where
 
                 // 2 - Reserved - This reserved field shall be sent with a value 00H but not tested
                 // to this value when received.
-                cursor.read_u8().context(ReadReservedSnafu { bytes: 1_u32 })?;
+                cursor
+                    .read_u8()
+                    .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
                 // 3-4 - Item-length
                 let item_length = cursor.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
@@ -791,7 +826,9 @@ where
                     .context(ReadPduFieldSnafu { field: "Item-type" })?;
 
                 // 2 - Reserved
-                cursor.read_u8().context(ReadReservedSnafu { bytes: 1_u32 })?;
+                cursor
+                    .read_u8()
+                    .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
                 // 3-4 - Item-length
                 let item_length = cursor.read_u16::<BigEndian>().context(ReadPduFieldSnafu {

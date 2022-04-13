@@ -19,9 +19,7 @@ pub enum DecodeError {
     /// A custom error occurred when decoding,
     /// reported as a static message
     #[snafu(display("Error decoding pixel data: {}", message))]
-    CustomMessage {
-        message: &'static str,
-    },
+    CustomMessage { message: &'static str },
 
     /// Input pixel data is not encapsulated
     NotEncapsulated,
@@ -37,9 +35,7 @@ pub enum DecodeError {
 pub enum EncodeError {
     /// A custom error when encoding fails
     #[snafu(display("Error encoding pixel data {}", message))]
-    CustomEncodeError {
-        message: &'static str,
-    },
+    CustomEncodeError { message: &'static str },
 
     /// Input pixel data is not native
     NotNative,
@@ -64,15 +60,15 @@ pub struct RawPixelData {
 }
 
 /// A DICOM object trait to be interpreted as pixel data.
-/// 
+///
 /// This trait extends the concept of DICOM object
 /// as defined in [`dicom_object`],
 /// in order to retrieve important pieces of the object
 /// for pixel data decoding into images or multi-dimensional arrays.
-/// 
+///
 /// It is defined in this crate so that
 /// transfer syntax implementers only have to depend on `dicom_encoding`.
-/// 
+///
 /// [`dicom_object`]: https://docs.rs/dicom_object
 pub trait PixelDataObject {
     /// Return the Rows attribute or None if it is not found
@@ -137,7 +133,7 @@ impl EncodeOptions {
 
 /// Trait object responsible for decoding and encoding
 /// pixel data based on the Transfersyntax.
-/// 
+///
 /// Every transfer syntax with encapsulated pixel data
 /// should implement these methods.
 ///
@@ -145,32 +141,37 @@ pub trait PixelRWAdapter {
     /// Decode the given DICOM object
     /// containing encapsulated pixel data
     /// into native pixel data as a byte stream.
-    /// 
+    ///
     /// It is a necessary precondition that the object's pixel data
     /// is encoded in accordance to the transfer syntax(es)
     /// supported by this adapter.
     /// A `NotEncapsulated` error is returned otherwise.
-    /// 
+    ///
     /// The output is a sequence of native pixel values
     /// which follow the image properties of the given object.
-    /// 
+    ///
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()>;
 
     /// Encode a DICOM object's image into the format supported by this adapter,
     /// writing a byte stream of pixel data fragment values
     /// into the given destination.
-    /// 
+    ///
     /// It is a necessary precondition that the object's pixel data
     /// is in a _native encoding_.
     /// A `NotNative` error is returned otherwise.
-    /// 
+    ///
     /// It is possible that
     /// image encoding is not actually supported by this adapter,
     /// in which case a `NotImplemented` error is returned.
     /// Implementers leave the default method implementation
     /// for this behavior.
     #[allow(unused_variables)]
-    fn encode(&self, src: &dyn PixelDataObject, options: EncodeOptions, dst: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode(
+        &self,
+        src: &dyn PixelDataObject,
+        options: EncodeOptions,
+        dst: &mut Vec<u8>,
+    ) -> EncodeResult<()> {
         Err(EncodeError::NotImplemented)
     }
 }
@@ -187,7 +188,12 @@ impl PixelRWAdapter for NeverPixelAdapter {
         unreachable!();
     }
 
-    fn encode(&self, _src: &dyn PixelDataObject, _options: EncodeOptions, _dst: &mut Vec<u8>) -> EncodeResult<()> {
+    fn encode(
+        &self,
+        _src: &dyn PixelDataObject,
+        _options: EncodeOptions,
+        _dst: &mut Vec<u8>,
+    ) -> EncodeResult<()> {
         unreachable!();
     }
 }

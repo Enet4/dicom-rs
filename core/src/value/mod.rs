@@ -236,7 +236,6 @@ where
         }
     }
 
-
     /// Convert the full primitive value into a clean string.
     ///
     /// Returns an error if the value is not primitive.

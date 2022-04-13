@@ -417,9 +417,11 @@ where
                 .buffer
                 .split(|v| *v == b'\\')
                 .map(|slice| {
-                    DefaultCharacterSetCodec.decode(slice).context(DecodeTextSnafu {
-                        position: self.position,
-                    })
+                    DefaultCharacterSetCodec
+                        .decode(slice)
+                        .context(DecodeTextSnafu {
+                            position: self.position,
+                        })
                 })
                 .collect(),
             _ => self
@@ -449,9 +451,11 @@ where
             })?;
         self.position += len as u64;
         Ok(PrimitiveValue::Str(
-            self.text.decode(&self.buffer[..]).context(DecodeTextSnafu {
-                position: self.position,
-            })?,
+            self.text
+                .decode(&self.buffer[..])
+                .context(DecodeTextSnafu {
+                    position: self.position,
+                })?,
         ))
     }
 
@@ -1014,9 +1018,11 @@ where
         W: std::io::Write,
     {
         let length = u64::from(length);
-        std::io::copy(&mut self.from.by_ref().take(length), &mut out).context(ReadValueDataSnafu {
-            position: self.position,
-        })?;
+        std::io::copy(&mut self.from.by_ref().take(length), &mut out).context(
+            ReadValueDataSnafu {
+                position: self.position,
+            },
+        )?;
         self.position += length;
         Ok(())
     }

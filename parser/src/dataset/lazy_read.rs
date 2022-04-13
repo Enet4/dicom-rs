@@ -131,7 +131,9 @@ impl<S, D> LazyDataSetReader<DynStatefulDecoder<S>, D> {
     where
         S: ReadSeek,
     {
-        let position = source.seek(SeekFrom::Current(0)).context(GetPositionSnafu)?;
+        let position = source
+            .seek(SeekFrom::Current(0))
+            .context(GetPositionSnafu)?;
         let parser =
             DynStatefulDecoder::new_with(source, ts, cs, position).context(CreateDecoderSnafu)?;
 
@@ -307,7 +309,10 @@ where
         {
             // item value
 
-            let len = match len.get().with_context(|| UndefinedLengthSnafu { bytes_read }) {
+            let len = match len
+                .get()
+                .with_context(|| UndefinedLengthSnafu { bytes_read })
+            {
                 Ok(len) => len,
                 Err(e) => return Some(Err(e)),
             };

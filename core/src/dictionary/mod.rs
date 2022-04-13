@@ -78,21 +78,29 @@ impl FromStr for TagRange {
         let mut parts = s.split(',');
         let group = parts.next().context(MissingTagSnafu)?;
         let elem = parts.next().context(MissingTagElementSnafu)?;
-        ensure!(group.len() == 4, InvalidGroupLengthSnafu { got: group.len() });
-        ensure!(elem.len() == 4, InvalidElementLengthSnafu { got: elem.len() });
+        ensure!(
+            group.len() == 4,
+            InvalidGroupLengthSnafu { got: group.len() }
+        );
+        ensure!(
+            elem.len() == 4,
+            InvalidElementLengthSnafu { got: elem.len() }
+        );
 
         match (&group.as_bytes()[2..], &elem.as_bytes()[2..]) {
             (b"xx", b"xx") => UnsupportedTagRangeSnafu.fail(),
             (b"xx", _) => {
                 // Group100
-                let group = u16::from_str_radix(&group[..2], 16).context(InvalidTagGroupSnafu)? << 8;
+                let group =
+                    u16::from_str_radix(&group[..2], 16).context(InvalidTagGroupSnafu)? << 8;
                 let elem = u16::from_str_radix(elem, 16).context(InvalidTagElementSnafu)?;
                 Ok(TagRange::Group100(Tag(group, elem)))
             }
             (_, b"xx") => {
                 // Element100
                 let group = u16::from_str_radix(group, 16).context(InvalidTagGroupSnafu)?;
-                let elem = u16::from_str_radix(&elem[..2], 16).context(InvalidTagElementSnafu)? << 8;
+                let elem =
+                    u16::from_str_radix(&elem[..2], 16).context(InvalidTagElementSnafu)? << 8;
                 Ok(TagRange::Element100(Tag(group, elem)))
             }
             (_, _) => {

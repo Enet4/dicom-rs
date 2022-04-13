@@ -86,7 +86,7 @@ pub enum Error {
     #[snafu(display("Missing required element"))]
     MissingRequiredField {
         #[snafu(backtrace)]
-        source: dicom_object::Error
+        source: dicom_object::Error,
     },
 
     #[snafu(display("Could not cast pixel data value"))]
@@ -96,31 +96,19 @@ pub enum Error {
     },
 
     #[snafu(display("PixelData attribute is not a primitive value or pixel sequence"))]
-    InvalidPixelData {
-        backtrace: Backtrace,
-    },
+    InvalidPixelData { backtrace: Backtrace },
 
     #[snafu(display("Invalid PixelRepresentation, must be 0 or 1"))]
-    InvalidPixelRepresentation {
-        backtrace: Backtrace,
-    },
+    InvalidPixelRepresentation { backtrace: Backtrace },
 
     #[snafu(display("Invalid BitsAllocated, must be 8 or 16"))]
-    InvalidBitsAllocated {
-        backtrace: Backtrace,
-    },
+    InvalidBitsAllocated { backtrace: Backtrace },
 
     #[snafu(display("Unsupported PhotometricInterpretation {}", pi))]
-    UnsupportedPhotometricInterpretation {
-        pi: String,
-        backtrace: Backtrace,
-    },
+    UnsupportedPhotometricInterpretation { pi: String, backtrace: Backtrace },
 
     #[snafu(display("Unsupported SamplesPerPixel {}", spp))]
-    UnsupportedSamplesPerPixel {
-        spp: u16,
-        backtrace: Backtrace,
-    },
+    UnsupportedSamplesPerPixel { spp: u16, backtrace: Backtrace },
 
     #[snafu(display("Unknown transfer syntax `{}`", ts_uid))]
     UnknownTransferSyntax {
@@ -129,20 +117,13 @@ pub enum Error {
     },
 
     #[snafu(display("Unsupported TransferSyntax {}", ts))]
-    UnsupportedTransferSyntax {
-        ts: String,
-        backtrace: Backtrace,
-    },
+    UnsupportedTransferSyntax { ts: String, backtrace: Backtrace },
 
     #[snafu(display("Multi-frame DICOM images are not supported"))]
-    UnsupportedMultiFrame {
-        backtrace: Backtrace,
-    },
+    UnsupportedMultiFrame { backtrace: Backtrace },
 
     #[snafu(display("Invalid buffer when constructing ImageBuffer"))]
-    InvalidImageBuffer {
-        backtrace: Backtrace,
-    },
+    InvalidImageBuffer { backtrace: Backtrace },
 
     #[snafu(display("Invalid shape for ndarray"))]
     InvalidShape {
@@ -151,19 +132,13 @@ pub enum Error {
     },
 
     #[snafu(display("Invalid data type for ndarray element"))]
-    InvalidDataType {
-        backtrace: Backtrace,
-    },
+    InvalidDataType { backtrace: Backtrace },
 
     #[snafu(display("Unsupported color space"))]
-    UnsupportedColorSpace {
-        backtrace: Backtrace,
-    },
+    UnsupportedColorSpace { backtrace: Backtrace },
 
     #[snafu(display("Could not decode pixel data"))]
-    DecodePixelData {
-        source: DecodeError
-    },
+    DecodePixelData { source: DecodeError },
 
     #[snafu(display("Frame #{} is out of range", frame_number))]
     FrameOutOfRange {
@@ -175,7 +150,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// A blob of decoded pixel data.
-/// 
+///
 /// This is the outcome of decoding a DICOM object's imaging-related attributes,
 /// into a native form.
 /// The decoded data will be stored as raw bytes in native form
@@ -228,7 +203,8 @@ impl DecodedPixelData<'_> {
                         if frame_end > (*self.data).len() {
                             FrameOutOfRangeSnafu {
                                 frame_number: frame,
-                            }.fail()?
+                            }
+                            .fail()?
                         }
                         let buffer: Vec<u8> =
                             (&self.data[(frame_start as usize..frame_end as usize)]).to_vec();
@@ -247,7 +223,8 @@ impl DecodedPixelData<'_> {
                         if frame_end > (*self.data).len() {
                             FrameOutOfRangeSnafu {
                                 frame_number: frame,
-                            }.fail()?
+                            }
+                            .fail()?
                         }
                         let mut buffer = vec![0; frame_length / 2];
                         match self.pixel_representation {
@@ -295,7 +272,8 @@ impl DecodedPixelData<'_> {
                         if frame_end > (*self.data).len() {
                             FrameOutOfRangeSnafu {
                                 frame_number: frame,
-                            }.fail()?
+                            }
+                            .fail()?
                         }
                         let mut pixel_array: Vec<u8> =
                             (&self.data[(frame_start as usize..frame_end as usize)]).to_vec();
@@ -325,7 +303,8 @@ impl DecodedPixelData<'_> {
                         if frame_end > (*self.data).len() {
                             FrameOutOfRangeSnafu {
                                 frame_number: frame,
-                            }.fail()?
+                            }
+                            .fail()?
                         }
                         let buffer: Vec<u8> =
                             (&self.data[(frame_start as usize..frame_end as usize)]).to_vec();
@@ -393,7 +372,8 @@ impl DecodedPixelData<'_> {
                         .map(|v| T::from(*v).ok_or(snafu::NoneError))
                         .collect();
                     let converted = converted.context(InvalidDataTypeSnafu)?;
-                    let ndarray = Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)?;
+                    let ndarray =
+                        Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)?;
                     Ok(ndarray)
                 }
                 // Signed 16 bit 2s complement representation
@@ -406,7 +386,8 @@ impl DecodedPixelData<'_> {
                         .map(|v| T::from(*v).ok_or(snafu::NoneError))
                         .collect();
                     let converted = converted.context(InvalidDataTypeSnafu)?;
-                    let ndarray = Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)?;
+                    let ndarray =
+                        Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)?;
                     Ok(ndarray)
                 }
                 _ => InvalidPixelRepresentationSnafu.fail()?,
@@ -532,11 +513,12 @@ where
             .with_context(|| UnknownTransferSyntaxSnafu {
                 ts_uid: transfer_syntax,
             })?;
-        
+
         if !ts.fully_supported() {
             return UnsupportedTransferSyntaxSnafu {
                 ts: transfer_syntax,
-            }.fail();
+            }
+            .fail();
         }
 
         // Try decoding it using a native Rust decoder
@@ -865,7 +847,9 @@ mod tests {
             .unwrap();
         let result = image.decode_pixel_data().unwrap().to_dynamic_image(1);
         match result {
-            Err(Error::FrameOutOfRange { frame_number: 1, .. }) => {}
+            Err(Error::FrameOutOfRange {
+                frame_number: 1, ..
+            }) => {}
             _ => panic!("Unexpected positive outcome for out of range access"),
         }
     }

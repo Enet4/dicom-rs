@@ -1,8 +1,8 @@
 //! Decode pixel data using GDCM when the default features are enabled.
 
 use crate::*;
-use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_encoding::adapters::DecodeError;
+use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use gdcm_rs::{decode_single_frame_compressed, GDCMPhotometricInterpretation, GDCMTransferSyntax};
 use std::str::FromStr;
@@ -20,9 +20,12 @@ where
 
         let photometric_interpretation = photometric_interpretation(self)?;
         let pi_type = GDCMPhotometricInterpretation::from_str(&photometric_interpretation)
-            .map_err(|_| UnsupportedPhotometricInterpretationSnafu {
-                pi: photometric_interpretation.clone(),
-            }.build())?;
+            .map_err(|_| {
+                UnsupportedPhotometricInterpretationSnafu {
+                    pi: photometric_interpretation.clone(),
+                }
+                .build()
+            })?;
 
         let transfer_syntax = &self.meta().transfer_syntax;
         let registry =
@@ -34,7 +37,8 @@ where
         let ts_type = GDCMTransferSyntax::from_str(&registry.uid()).map_err(|_| {
             UnsupportedTransferSyntaxSnafu {
                 ts: transfer_syntax.clone(),
-            }.build()
+            }
+            .build()
         })?;
 
         let samples_per_pixel = samples_per_pixel(self)?;
@@ -70,7 +74,7 @@ where
                 .map_err(|source| Error::DecodePixelData {
                     source: DecodeError::Custom {
                         source: Box::new(source) as Box<_>,
-                    }
+                    },
                 })?;
                 decoded_frame.to_vec()
             }

@@ -162,14 +162,14 @@ pub trait BasicEncode {
         use PrimitiveValue::*;
         match value {
             Empty => Ok(0), // no-op
-            Date(date) => encode_collection_delimited(&mut to, &*date, |to, date| {
-                encode_date(to, *date)
-            })
-            .context(WriteDateSnafu),
-            Time(time) => encode_collection_delimited(&mut to, &*time, |to, time| {
-                encode_time(to, *time)
-            })
-            .context(WriteTimeSnafu),
+            Date(date) => {
+                encode_collection_delimited(&mut to, &*date, |to, date| encode_date(to, *date))
+                    .context(WriteDateSnafu)
+            }
+            Time(time) => {
+                encode_collection_delimited(&mut to, &*time, |to, time| encode_time(to, *time))
+                    .context(WriteTimeSnafu)
+            }
             DateTime(datetime) => {
                 encode_collection_delimited(&mut to, &*datetime, |to, datetime| {
                     encode_datetime(to, *datetime)
@@ -254,7 +254,8 @@ pub trait BasicEncode {
             Tags(tags) => {
                 for tag in tags {
                     self.encode_us(&mut to, tag.0).context(WriteTagGroupSnafu)?;
-                    self.encode_us(&mut to, tag.1).context(WriteTagElementSnafu)?;
+                    self.encode_us(&mut to, tag.1)
+                        .context(WriteTagElementSnafu)?;
                 }
                 Ok(tags.len() * 4)
             }
@@ -318,7 +319,8 @@ pub trait Encode {
         W: Write,
     {
         self.encode_tag(&mut to, Tag(0xFFFE, 0xE0DD))?;
-        to.write_all(&[0u8; 4]).context(WriteSequenceDelimiterSnafu)?;
+        to.write_all(&[0u8; 4])
+            .context(WriteSequenceDelimiterSnafu)?;
         Ok(())
     }
 

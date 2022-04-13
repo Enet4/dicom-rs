@@ -231,16 +231,28 @@ fn run(
                 }
             }
 
-            scu_stream.shutdown(Shutdown::Read).context(CloseSocketSnafu)?;
-            scu_reader_thread.join().ok().context(ScuReaderPanicSnafu)??;
+            scu_stream
+                .shutdown(Shutdown::Read)
+                .context(CloseSocketSnafu)?;
+            scu_reader_thread
+                .join()
+                .ok()
+                .context(ScuReaderPanicSnafu)??;
 
-            scp_stream.shutdown(Shutdown::Read).context(CloseSocketSnafu)?;
-            scp_reader_thread.join().ok().context(ScpReaderPanicSnafu)??;
+            scp_stream
+                .shutdown(Shutdown::Read)
+                .context(CloseSocketSnafu)?;
+            scp_reader_thread
+                .join()
+                .ok()
+                .context(ScpReaderPanicSnafu)??;
 
             Ok(())
         }
         Err(e) => {
-            scu_stream.shutdown(Shutdown::Both).context(CloseSocketSnafu)?;
+            scu_stream
+                .shutdown(Shutdown::Both)
+                .context(CloseSocketSnafu)?;
             Err(e).context(ConnectSnafu)
         }
     }

@@ -1104,28 +1104,30 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Empty => Ok(Vec::new()),
             PrimitiveValue::Str(s) => {
-                let out = s.trim_end().parse().context(ParseIntegerSnafu).map_err(|err| {
-                    ConvertValueError {
+                let out = s
+                    .trim_end()
+                    .parse()
+                    .context(ParseIntegerSnafu)
+                    .map_err(|err| ConvertValueError {
                         requested: "integer",
                         original: self.value_type(),
                         cause: Some(err),
-                    }
-                })?;
+                    })?;
                 Ok(vec![out])
             }
-            PrimitiveValue::Strs(s) => {
-                s.iter()
-                    .map(|v| {
-                        v.trim_end().parse().context(ParseIntegerSnafu).map_err(|err| {
-                            ConvertValueError {
-                                requested: "integer",
-                                original: self.value_type(),
-                                cause: Some(err),
-                            }
+            PrimitiveValue::Strs(s) => s
+                .iter()
+                .map(|v| {
+                    v.trim_end()
+                        .parse()
+                        .context(ParseIntegerSnafu)
+                        .map_err(|err| ConvertValueError {
+                            requested: "integer",
+                            original: self.value_type(),
+                            cause: Some(err),
                         })
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-            }
+                })
+                .collect::<Result<Vec<_>, _>>(),
             PrimitiveValue::U8(bytes) => bytes
                 .iter()
                 .map(|v| {
@@ -1438,15 +1440,15 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Empty => Ok(Vec::new()),
             PrimitiveValue::Str(s) => {
-                let out =
-                    s.trim_end()
-                        .parse()
-                        .context(ParseFloatSnafu)
-                        .map_err(|err| ConvertValueError {
-                            requested: "float32",
-                            original: self.value_type(),
-                            cause: Some(err),
-                        })?;
+                let out = s
+                    .trim_end()
+                    .parse()
+                    .context(ParseFloatSnafu)
+                    .map_err(|err| ConvertValueError {
+                        requested: "float32",
+                        original: self.value_type(),
+                        cause: Some(err),
+                    })?;
                 Ok(vec![out])
             }
             PrimitiveValue::Strs(s) => s
@@ -1787,15 +1789,15 @@ impl PrimitiveValue {
     pub fn to_multi_float64(&self) -> Result<Vec<f64>, ConvertValueError> {
         match self {
             PrimitiveValue::Str(s) => {
-                let out =
-                    s.trim_end()
-                        .parse()
-                        .context(ParseFloatSnafu)
-                        .map_err(|err| ConvertValueError {
-                            requested: "float64",
-                            original: self.value_type(),
-                            cause: Some(err),
-                        })?;
+                let out = s
+                    .trim_end()
+                    .parse()
+                    .context(ParseFloatSnafu)
+                    .map_err(|err| ConvertValueError {
+                        requested: "float64",
+                        original: self.value_type(),
+                        cause: Some(err),
+                    })?;
                 Ok(vec![out])
             }
             PrimitiveValue::Strs(s) => s
@@ -4037,9 +4039,7 @@ mod tests {
         );
         // from text with fraction of a second + padding
         assert_eq!(
-            PrimitiveValue::from(&"110926.38 "[..])
-                .to_time()
-                .unwrap(),
+            PrimitiveValue::from(&"110926.38 "[..]).to_time().unwrap(),
             DicomTime::from_hmsf(11, 9, 26, 38, 2).unwrap(),
         );
         // from text (Strs)
@@ -4049,23 +4049,17 @@ mod tests {
         );
         // from text (Strs) with fraction of a second
         assert_eq!(
-            dicom_value!(Strs, ["110926.123456"])
-                .to_time()
-                .unwrap(),
+            dicom_value!(Strs, ["110926.123456"]).to_time().unwrap(),
             DicomTime::from_hms_micro(11, 9, 26, 123_456).unwrap(),
         );
         // from bytes with fraction of a second
         assert_eq!(
-            PrimitiveValue::from(&b"110926.987"[..])
-                .to_time()
-                .unwrap(),
+            PrimitiveValue::from(&b"110926.987"[..]).to_time().unwrap(),
             DicomTime::from_hms_milli(11, 9, 26, 987).unwrap(),
         );
         // from bytes with fraction of a second + padding
         assert_eq!(
-            PrimitiveValue::from(&b"110926.38 "[..])
-                .to_time()
-                .unwrap(),
+            PrimitiveValue::from(&b"110926.38 "[..]).to_time().unwrap(),
             DicomTime::from_hmsf(11, 9, 26, 38, 2).unwrap(),
         );
         // not a time
@@ -4122,11 +4116,11 @@ mod tests {
         );
 
         // without fraction of a second
-        let this_datetime = FixedOffset::east(1)
-            .ymd(2012, 12, 21)
-            .and_hms(11, 9, 26);
+        let this_datetime = FixedOffset::east(1).ymd(2012, 12, 21).and_hms(11, 9, 26);
         assert_eq!(
-            dicom_value!(Str, "20121221110926").to_chrono_datetime(FixedOffset::east(1)).unwrap(),
+            dicom_value!(Str, "20121221110926")
+                .to_chrono_datetime(FixedOffset::east(1))
+                .unwrap(),
             this_datetime,
         );
 

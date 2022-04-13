@@ -173,7 +173,8 @@ impl AsRange for DicomTime {
             },
         );
 
-        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), f).context(InvalidTimeSnafu)
+        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), f)
+            .context(InvalidTimeSnafu)
     }
     fn latest(&self) -> Result<NaiveTime> {
         let (h, m, s, f) = (
@@ -187,7 +188,8 @@ impl AsRange for DicomTime {
                 }
             },
         );
-        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), f).context(InvalidTimeSnafu)
+        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), f)
+            .context(InvalidTimeSnafu)
     }
     fn range(&self) -> Result<TimeRange> {
         let start = self.earliest()?;
@@ -239,10 +241,9 @@ impl DicomDate {
 }
 
 impl DicomTime {
-    
     /// Retrieves a `chrono::NaiveTime`
     /// if the value is precise up to the second.
-    /// 
+    ///
     /// Missing second fraction defaults to zero.
     pub fn to_naive_time(self) -> Result<NaiveTime> {
         match self.precision() {
@@ -322,7 +323,6 @@ pub struct DateTimeRange {
 }
 
 impl DateRange {
-
     /// Constructs a new `DateRange` from two `chrono::NaiveDate` values
     /// monotonically ordered in time.
     pub fn from_start_to_end(start: NaiveDate, end: NaiveDate) -> Result<DateRange> {
@@ -369,7 +369,6 @@ impl DateRange {
 }
 
 impl TimeRange {
-
     /// Constructs a new `TimeRange` from two `chrono::NaiveTime` values
     /// monotonically ordered in time.
     pub fn from_start_to_end(start: NaiveTime, end: NaiveTime) -> Result<TimeRange> {
@@ -416,7 +415,6 @@ impl TimeRange {
 }
 
 impl DateTimeRange {
-
     /// Constructs a new `DateTimeRange` from two `chrono::DateTime` values
     /// monotonically ordered in time.
     pub fn from_start_to_end(
@@ -529,10 +527,16 @@ pub fn parse_date_range(buf: &[u8]) -> Result<DateRange> {
                 parse_date_partial(end).context(ParseSnafu)?.0.latest()?,
             )),
             i if i == buf.len() - 1 => Ok(DateRange::from_start(
-                parse_date_partial(start).context(ParseSnafu)?.0.earliest()?,
+                parse_date_partial(start)
+                    .context(ParseSnafu)?
+                    .0
+                    .earliest()?,
             )),
             _ => Ok(DateRange::from_start_to_end(
-                parse_date_partial(start).context(ParseSnafu)?.0.earliest()?,
+                parse_date_partial(start)
+                    .context(ParseSnafu)?
+                    .0
+                    .earliest()?,
                 parse_date_partial(end).context(ParseSnafu)?.0.latest()?,
             )?),
         }
@@ -557,10 +561,16 @@ pub fn parse_time_range(buf: &[u8]) -> Result<TimeRange> {
                 parse_time_partial(end).context(ParseSnafu)?.0.latest()?,
             )),
             i if i == buf.len() - 1 => Ok(TimeRange::from_start(
-                parse_time_partial(start).context(ParseSnafu)?.0.earliest()?,
+                parse_time_partial(start)
+                    .context(ParseSnafu)?
+                    .0
+                    .earliest()?,
             )),
             _ => Ok(TimeRange::from_start_to_end(
-                parse_time_partial(start).context(ParseSnafu)?.0.earliest()?,
+                parse_time_partial(start)
+                    .context(ParseSnafu)?
+                    .0
+                    .earliest()?,
                 parse_time_partial(end).context(ParseSnafu)?.0.latest()?,
             )?),
         }
@@ -568,7 +578,6 @@ pub fn parse_time_range(buf: &[u8]) -> Result<TimeRange> {
         NoRangeSeparatorSnafu.fail()
     }
 }
-
 
 /// Looks for a range separator '-'.
 /// Returns a `DateTimeRange`.
@@ -612,7 +621,7 @@ pub fn parse_datetime_range(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<Da
 
         let separator = match dashes.len() {
             0 => return NoRangeSeparatorSnafu.fail(), // no separator
-            1 => dashes[0],                      // the only possible separator
+            1 => dashes[0],                           // the only possible separator
             2 => {
                 // there's one West UTC offset (-hhmm) in one part of the range
                 let (start1, end1) = buf.split_at(dashes[0]);
