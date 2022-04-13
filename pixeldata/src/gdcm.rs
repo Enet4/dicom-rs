@@ -89,13 +89,22 @@ where
             Value::Sequence { items: _, size: _ } => InvalidPixelDataSnafu.fail()?,
         };
 
+        // pixels are already interpreted,
+        // set new photometric interpretation
+        let new_pi = match samples_per_pixel {
+            1 => "MONOCHROME2".to_owned(),
+            3 => "RGB".to_owned(),
+            _ => photometric_interpretation,
+        };
+
         Ok(DecodedPixelData {
             data: Cow::from(decoded_pixel_data),
             cols: cols.into(),
             rows: rows.into(),
             number_of_frames,
-            photometric_interpretation,
+            photometric_interpretation: new_pi,
             samples_per_pixel,
+            planar_configuration: 0,
             bits_allocated,
             bits_stored,
             high_bit,

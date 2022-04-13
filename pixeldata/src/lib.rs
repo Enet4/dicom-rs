@@ -104,11 +104,18 @@ pub enum Error {
     #[snafu(display("Invalid BitsAllocated, must be 8 or 16"))]
     InvalidBitsAllocated { backtrace: Backtrace },
 
-    #[snafu(display("Unsupported PhotometricInterpretation {}", pi))]
+    #[snafu(display("Unsupported PhotometricInterpretation `{}`", pi))]
     UnsupportedPhotometricInterpretation { pi: String, backtrace: Backtrace },
 
-    #[snafu(display("Unsupported SamplesPerPixel {}", spp))]
+    #[snafu(display("Unsupported SamplesPerPixel `{}`", spp))]
     UnsupportedSamplesPerPixel { spp: u16, backtrace: Backtrace },
+
+    #[snafu(display("Unsupported {} `{}`", property, value))]
+    UnsupportedOther {
+        property: &'static str,
+        value: String,
+        backtrace: Backtrace,
+    },
 
     #[snafu(display("Unknown transfer syntax `{}`", ts_uid))]
     UnknownTransferSyntax {
@@ -116,7 +123,7 @@ pub enum Error {
         backtrace: Backtrace,
     },
 
-    #[snafu(display("Unsupported TransferSyntax {}", ts))]
+    #[snafu(display("Unsupported TransferSyntax `{}`", ts))]
     UnsupportedTransferSyntax { ts: String, backtrace: Backtrace },
 
     #[snafu(display("Multi-frame DICOM images are not supported"))]
@@ -158,6 +165,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Whether to apply such transformations
 /// can be done through one of the various `to_*` methods.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct DecodedPixelData<'a> {
     /// the raw bytes of pixel data
     pub data: Cow<'a, [u8]>,
@@ -171,6 +179,8 @@ pub struct DecodedPixelData<'a> {
     pub photometric_interpretation: String,
     /// the number of samples per pixel
     pub samples_per_pixel: u16,
+    /// the planar configuration: 0 for standard, 1 for channel-contiguous
+    pub planar_configuration: u16,
     /// the number of bits allocated, as a multiple of 8
     pub bits_allocated: u16,
     /// the number of bits stored
@@ -262,6 +272,15 @@ impl DecodedPixelData<'_> {
                 Ok(image)
             }
             3 => {
+                if self.planar_configuration != 0 {
+                    // TODO #129
+                    return UnsupportedOtherSnafu {
+                        property: "PlanarConfiguration",
+                        value: self.planar_configuration.to_string(),
+                    }
+                    .fail();
+                }
+
                 // RGB, YBR_FULL or YBR_FULL_422 colors
                 match self.bits_allocated {
                     8 => {
@@ -342,6 +361,15 @@ impl DecodedPixelData<'_> {
         T: NumCast,
         T: Send,
     {
+        if self.samples_per_pixel > 1 && self.planar_configuration != 0 {
+            // TODO #129
+            return UnsupportedOtherSnafu {
+                property: "PlanarConfiguration",
+                value: self.planar_configuration.to_string(),
+            }
+            .fail();
+        }
+
         // Array size is NumberOfFrames x Rows x Cols x SamplesPerPixel (1 for grayscale, 3 for RGB)
         let shape = IxDyn(&[
             self.number_of_frames as usize,
@@ -500,6 +528,7 @@ where
 
         let photometric_interpretation = photometric_interpretation(self)?;
         let samples_per_pixel = samples_per_pixel(self)?;
+        let planar_configuration = planar_configuration(self);
         let bits_allocated = bits_allocated(self)?;
         let bits_stored = bits_stored(self)?;
         let high_bit = high_bit(self)?;
@@ -544,6 +573,7 @@ where
                 number_of_frames,
                 photometric_interpretation: new_pi,
                 samples_per_pixel,
+                planar_configuration,
                 bits_allocated,
                 bits_stored,
                 high_bit,
@@ -575,6 +605,7 @@ where
             number_of_frames,
             photometric_interpretation,
             samples_per_pixel,
+            planar_configuration,
             bits_allocated,
             bits_stored,
             high_bit,
@@ -585,7 +616,7 @@ where
     }
 }
 
-/// Get the Columns of the dicom
+/// Get the Columns from the DICOM object
 fn cols<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::COLUMNS)
         .context(MissingRequiredFieldSnafu)?
@@ -593,7 +624,7 @@ fn cols<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -
         .context(CastValueSnafu)
 }
 
-/// Get the Rows of the dicom
+/// Get the Rows from the DICOM object
 fn rows<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::ROWS)
         .context(MissingRequiredFieldSnafu)?
@@ -601,7 +632,7 @@ fn rows<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -
         .context(CastValueSnafu)
 }
 
-/// Get the PhotoMetricInterpretation of the Dicom
+/// Get the PhotoMetricInterpretation from the DICOM object
 fn photometric_interpretation<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<String> {
@@ -614,7 +645,7 @@ fn photometric_interpretation<D: DataDictionary + Clone>(
         .to_string())
 }
 
-/// Get the SamplesPerPixel of the Dicom
+/// Get the SamplesPerPixel from the DICOM object
 fn samples_per_pixel<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u16> {
@@ -624,7 +655,16 @@ fn samples_per_pixel<D: DataDictionary + Clone>(
         .context(CastValueSnafu)
 }
 
-/// Get the BitsAllocated of the Dicom
+/// Get the PlanarConfiguration from the DICOM object, returning 0 by default
+fn planar_configuration<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+) -> u16 {
+    obj.element(dicom_dictionary_std::tags::PLANAR_CONFIGURATION)
+        .map_or(Ok(0), |e| e.to_int())
+        .unwrap_or(0)
+}
+
+/// Get the BitsAllocated from the DICOM object
 fn bits_allocated<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u16> {
@@ -634,7 +674,7 @@ fn bits_allocated<D: DataDictionary + Clone>(
         .context(CastValueSnafu)
 }
 
-/// Get the BitsStored of the Dicom
+/// Get the BitsStored from the DICOM object
 fn bits_stored<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u16> {
@@ -644,7 +684,7 @@ fn bits_stored<D: DataDictionary + Clone>(
         .context(CastValueSnafu)
 }
 
-/// Get the HighBit of the Dicom
+/// Get the HighBit from the DICOM object
 fn high_bit<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> Result<u16> {
     obj.element(dicom_dictionary_std::tags::HIGH_BIT)
         .context(MissingRequiredFieldSnafu)?
@@ -652,7 +692,7 @@ fn high_bit<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>
         .context(CastValueSnafu)
 }
 
-/// Get the PixelRepresentation of the Dicom
+/// Get the PixelRepresentation from the DICOM object
 fn pixel_representation<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u16> {
@@ -662,21 +702,21 @@ fn pixel_representation<D: DataDictionary + Clone>(
         .context(CastValueSnafu)
 }
 
-/// Get the RescaleIntercept of the Dicom or returns 0
+/// Get the RescaleIntercept from the DICOM object or returns 0
 fn rescale_intercept<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> i16 {
     obj.element(dicom_dictionary_std::tags::RESCALE_INTERCEPT)
         .map_or(Ok(0), |e| e.to_int())
         .unwrap_or(0)
 }
 
-/// Get the RescaleSlope of the Dicom or returns 1.0
+/// Get the RescaleSlope from the DICOM object or returns 1.0
 fn rescale_slope<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> f32 {
     obj.element(dicom_dictionary_std::tags::RESCALE_SLOPE)
         .map_or(Ok(1.0), |e| e.to_float32())
         .unwrap_or(1.0)
 }
 
-/// Get the NumberOfFrames of the Dicom or returns 1
+/// Get the NumberOfFrames from the DICOM object or returns 1
 fn number_of_frames<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> u16 {
     obj.element(dicom_dictionary_std::tags::NUMBER_OF_FRAMES)
         .map_or(Ok(1), |e| e.to_int())
@@ -884,10 +924,10 @@ mod tests {
         #[should_panic(expected = "Unsupported(SamplePrecision(12))")]
         #[case("pydicom/JPEG-lossy.dcm", 1)]
         //
-        // works, but output has coloroffset to what is produced by other tools
+        // works fine
         #[case("pydicom/color3d_jpeg_baseline.dcm", 120)]
         //
-        // Works fine
+        // wWorks fine
         #[case("pydicom/JPEG-LL.dcm", 1)]
         #[case("pydicom/JPGLosslessP14SV1_1s_1f_8b.dcm", 1)]
         #[case("pydicom/SC_rgb_jpeg_gdcm.dcm", 1)]

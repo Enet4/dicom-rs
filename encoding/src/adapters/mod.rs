@@ -151,10 +151,12 @@ pub trait PixelRWAdapter {
     ///
     /// The output is a sequence of native pixel values
     /// which follow the image properties of the given object
-    /// _save for the photometric interpretation_.
+    /// _save for the photometric interpretation and planar configuration_.
     /// The output of an image with 1 sample per pixel
     /// is expected to be interpreted as `MONOCHROME2`,
-    /// and for a 3-channel images, the output must be in RGB.
+    /// and for 3-channel images,
+    /// the output must be in RGB with each pixel contiguous in memory
+    /// (planar configuration of 0).
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()>;
 
     /// Encode a DICOM object's image into the format supported by this adapter,
