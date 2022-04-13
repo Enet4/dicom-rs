@@ -927,7 +927,7 @@ mod tests {
         // works fine
         #[case("pydicom/color3d_jpeg_baseline.dcm", 120)]
         //
-        // wWorks fine
+        // works fine
         #[case("pydicom/JPEG-LL.dcm", 1)]
         #[case("pydicom/JPGLosslessP14SV1_1s_1f_8b.dcm", 1)]
         #[case("pydicom/SC_rgb_jpeg_gdcm.dcm", 1)]
