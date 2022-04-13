@@ -645,7 +645,7 @@ impl DecodedPixelData<'_> {
             (VoiLutOption::Default, Some(window)) => {
                 // apply VOI LUT function using window levels
                 let processed =
-                    apply_window_level_iter(data.par_iter().copied(), window.center, window.width);
+                    apply_window_level_iter(data.par_iter().copied(), window.center, window.width, amplitude);
 
                 narrow_par(processed)
             }
@@ -660,6 +660,7 @@ impl DecodedPixelData<'_> {
                     data.par_iter().copied(),
                     *window_center,
                     *window_width,
+                    amplitude,
                 );
 
                 narrow_par(processed)
@@ -786,15 +787,25 @@ fn apply_window_level_iter<'a>(
     data: impl ParallelIterator<Item = f64> + 'a,
     window_width: f64,
     window_center: f64,
+    amplitude: u32,
 ) -> impl ParallelIterator<Item = f64> + 'a {
-    data.map(move |v| apply_window_level(v, window_width, window_center))
+    data.map(move |v| apply_window_level(v, window_width, window_center, amplitude))
 }
 
-fn apply_window_level(value: f64, window_width: f64, window_center: f64) -> f64 {
+fn apply_window_level(value: f64, window_width: f64, window_center: f64, amplitude: u32) -> f64 {
     let window_width = window_width as f64;
     let window_center = window_center as f64;
 
-    value - window_center + window_width / 2.
+    let min = window_center - window_width / 2.0;
+    let max = window_center + window_width / 2.0;
+
+    if value < min {
+        0.
+    } else if value > max {
+        amplitude as f64
+    } else {
+        ((value - min) / window_width) * amplitude as f64
+    }
 }
 
 pub trait PixelDecoder {
