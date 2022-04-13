@@ -78,21 +78,17 @@ use std::borrow::Cow;
 pub use image;
 pub use ndarray;
 
+mod attribute;
+
 #[cfg(feature = "gdcm")]
 mod gdcm;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Missing required element"))]
-    MissingRequiredField {
+    #[snafu(display("Failed to get required DICOM attribute"))]
+    GetAttribute {
         #[snafu(backtrace)]
-        source: dicom_object::Error,
-    },
-
-    #[snafu(display("Could not cast pixel data value"))]
-    CastValue {
-        source: dicom_core::value::CastValueError,
-        backtrace: Backtrace,
+        source: attribute::GetAttributeError,
     },
 
     #[snafu(display("PixelData attribute is not a primitive value or pixel sequence"))]
@@ -110,9 +106,9 @@ pub enum Error {
     #[snafu(display("Unsupported SamplesPerPixel `{}`", spp))]
     UnsupportedSamplesPerPixel { spp: u16, backtrace: Backtrace },
 
-    #[snafu(display("Unsupported {} `{}`", property, value))]
+    #[snafu(display("Unsupported {} `{}`", name, value))]
     UnsupportedOther {
-        property: &'static str,
+        name: &'static str,
         value: String,
         backtrace: Backtrace,
     },
@@ -275,7 +271,7 @@ impl DecodedPixelData<'_> {
                 if self.planar_configuration != 0 {
                     // TODO #129
                     return UnsupportedOtherSnafu {
-                        property: "PlanarConfiguration",
+                        name: "PlanarConfiguration",
                         value: self.planar_configuration.to_string(),
                     }
                     .fail();
@@ -364,7 +360,7 @@ impl DecodedPixelData<'_> {
         if self.samples_per_pixel > 1 && self.planar_configuration != 0 {
             // TODO #129
             return UnsupportedOtherSnafu {
-                property: "PlanarConfiguration",
+                name: "PlanarConfiguration",
                 value: self.planar_configuration.to_string(),
             }
             .fail();
@@ -520,19 +516,20 @@ where
     D: DataDictionary + Clone,
 {
     fn decode_pixel_data(&self) -> Result<DecodedPixelData> {
-        let pixel_data = self
-            .element(dicom_dictionary_std::tags::PIXEL_DATA)
-            .context(MissingRequiredFieldSnafu)?;
-        let cols = cols(self)?;
-        let rows = rows(self)?;
+        use attribute::*;
 
-        let photometric_interpretation = photometric_interpretation(self)?;
-        let samples_per_pixel = samples_per_pixel(self)?;
+        let pixel_data = pixel_data(self).context(GetAttributeSnafu)?;
+        let cols = cols(self).context(GetAttributeSnafu)?;
+        let rows = rows(self).context(GetAttributeSnafu)?;
+
+        let photometric_interpretation =
+            photometric_interpretation(self).context(GetAttributeSnafu)?;
+        let samples_per_pixel = samples_per_pixel(self).context(GetAttributeSnafu)?;
         let planar_configuration = planar_configuration(self);
-        let bits_allocated = bits_allocated(self)?;
-        let bits_stored = bits_stored(self)?;
-        let high_bit = high_bit(self)?;
-        let pixel_representation = pixel_representation(self)?;
+        let bits_allocated = bits_allocated(self).context(GetAttributeSnafu)?;
+        let bits_stored = bits_stored(self).context(GetAttributeSnafu)?;
+        let high_bit = high_bit(self).context(GetAttributeSnafu)?;
+        let pixel_representation = pixel_representation(self).context(GetAttributeSnafu)?;
         let rescale_intercept = rescale_intercept(self);
         let rescale_slope = rescale_slope(self);
         let number_of_frames = number_of_frames(self);
@@ -614,113 +611,6 @@ where
             rescale_slope,
         })
     }
-}
-
-/// Get the Columns from the DICOM object
-fn cols<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> Result<u16> {
-    obj.element(dicom_dictionary_std::tags::COLUMNS)
-        .context(MissingRequiredFieldSnafu)?
-        .uint16()
-        .context(CastValueSnafu)
-}
-
-/// Get the Rows from the DICOM object
-fn rows<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> Result<u16> {
-    obj.element(dicom_dictionary_std::tags::ROWS)
-        .context(MissingRequiredFieldSnafu)?
-        .uint16()
-        .context(CastValueSnafu)
-}
-
-/// Get the PhotoMetricInterpretation from the DICOM object
-fn photometric_interpretation<D: DataDictionary + Clone>(
-    obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> Result<String> {
-    Ok(obj
-        .element(dicom_dictionary_std::tags::PHOTOMETRIC_INTERPRETATION)
-        .context(MissingRequiredFieldSnafu)?
-        .string()
-        .context(CastValueSnafu)?
-        .trim()
-        .to_string())
-}
-
-/// Get the SamplesPerPixel from the DICOM object
-fn samples_per_pixel<D: DataDictionary + Clone>(
-    obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> Result<u16> {
-    obj.element(dicom_dictionary_std::tags::SAMPLES_PER_PIXEL)
-        .context(MissingRequiredFieldSnafu)?
-        .uint16()
-        .context(CastValueSnafu)
-}
-
-/// Get the PlanarConfiguration from the DICOM object, returning 0 by default
-fn planar_configuration<D: DataDictionary + Clone>(
-    obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> u16 {
-    obj.element(dicom_dictionary_std::tags::PLANAR_CONFIGURATION)
-        .map_or(Ok(0), |e| e.to_int())
-        .unwrap_or(0)
-}
-
-/// Get the BitsAllocated from the DICOM object
-fn bits_allocated<D: DataDictionary + Clone>(
-    obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> Result<u16> {
-    obj.element(dicom_dictionary_std::tags::BITS_ALLOCATED)
-        .context(MissingRequiredFieldSnafu)?
-        .uint16()
-        .context(CastValueSnafu)
-}
-
-/// Get the BitsStored from the DICOM object
-fn bits_stored<D: DataDictionary + Clone>(
-    obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> Result<u16> {
-    obj.element(dicom_dictionary_std::tags::BITS_STORED)
-        .context(MissingRequiredFieldSnafu)?
-        .uint16()
-        .context(CastValueSnafu)
-}
-
-/// Get the HighBit from the DICOM object
-fn high_bit<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> Result<u16> {
-    obj.element(dicom_dictionary_std::tags::HIGH_BIT)
-        .context(MissingRequiredFieldSnafu)?
-        .uint16()
-        .context(CastValueSnafu)
-}
-
-/// Get the PixelRepresentation from the DICOM object
-fn pixel_representation<D: DataDictionary + Clone>(
-    obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> Result<u16> {
-    obj.element(dicom_dictionary_std::tags::PIXEL_REPRESENTATION)
-        .context(MissingRequiredFieldSnafu)?
-        .uint16()
-        .context(CastValueSnafu)
-}
-
-/// Get the RescaleIntercept from the DICOM object or returns 0
-fn rescale_intercept<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> i16 {
-    obj.element(dicom_dictionary_std::tags::RESCALE_INTERCEPT)
-        .map_or(Ok(0), |e| e.to_int())
-        .unwrap_or(0)
-}
-
-/// Get the RescaleSlope from the DICOM object or returns 1.0
-fn rescale_slope<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> f32 {
-    obj.element(dicom_dictionary_std::tags::RESCALE_SLOPE)
-        .map_or(Ok(1.0), |e| e.to_float32())
-        .unwrap_or(1.0)
-}
-
-/// Get the NumberOfFrames from the DICOM object or returns 1
-fn number_of_frames<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> u16 {
-    obj.element(dicom_dictionary_std::tags::NUMBER_OF_FRAMES)
-        .map_or(Ok(1), |e| e.to_int())
-        .unwrap_or(1)
 }
 
 #[cfg(test)]

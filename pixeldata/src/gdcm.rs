@@ -12,13 +12,13 @@ where
     D: DataDictionary + Clone,
 {
     fn decode_pixel_data(&self) -> Result<DecodedPixelData> {
-        let pixel_data = self
-            .element(dicom_dictionary_std::tags::PIXEL_DATA)
-            .context(MissingRequiredFieldSnafu)?;
-        let cols = cols(self)?;
-        let rows = rows(self)?;
+        use super::attribute::*;
 
-        let photometric_interpretation = photometric_interpretation(self)?;
+        let pixel_data = pixel_data(self).context(GetAttributeSnafu)?;
+        let cols = cols(self).context(GetAttributeSnafu)?;
+        let rows = rows(self).context(GetAttributeSnafu)?;
+
+        let photometric_interpretation = photometric_interpretation(self).context(GetAttributeSnafu)?;
         let pi_type = GDCMPhotometricInterpretation::from_str(&photometric_interpretation)
             .map_err(|_| {
                 UnsupportedPhotometricInterpretationSnafu {
@@ -41,11 +41,11 @@ where
             .build()
         })?;
 
-        let samples_per_pixel = samples_per_pixel(self)?;
-        let bits_allocated = bits_allocated(self)?;
-        let bits_stored = bits_stored(self)?;
-        let high_bit = high_bit(self)?;
-        let pixel_representation = pixel_representation(self)?;
+        let samples_per_pixel = samples_per_pixel(self).context(GetAttributeSnafu)?;
+        let bits_allocated = bits_allocated(self).context(GetAttributeSnafu)?;
+        let bits_stored = bits_stored(self).context(GetAttributeSnafu)?;
+        let high_bit = high_bit(self).context(GetAttributeSnafu)?;
+        let pixel_representation = pixel_representation(self).context(GetAttributeSnafu)?;
         let rescale_intercept = rescale_intercept(self);
         let rescale_slope = rescale_slope(self);
         let number_of_frames = number_of_frames(self);
