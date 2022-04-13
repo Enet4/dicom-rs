@@ -67,7 +67,7 @@ use dicom_object::{FileDicomObject, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use image::{DynamicImage, ImageBuffer, Luma, Rgb};
 use ndarray::{Array, IxDyn};
-use num_traits::NumCast;
+use num_traits::{AsPrimitive, NumCast};
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
@@ -152,6 +152,95 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Option set for turning decoded pixel data
+/// into an image or a multidimensional array.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct Options {
+    modality_lut: ModalityLutOption,
+    voi_lut: VoiLutOption,
+}
+
+impl Options {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn with_modality_lut(mut self, modality_lut: ModalityLutOption) -> Self {
+        self.modality_lut = modality_lut;
+        self
+    }
+
+    pub fn with_voi_lut(mut self, voi_lut: VoiLutOption) -> Self {
+        self.voi_lut = voi_lut;
+        self
+    }
+}
+
+/// Modality LUT function specifier.
+///
+/// See also [`Options`].
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum ModalityLutOption {
+    /// _Default behavior:_
+    /// rescale the pixel data values
+    /// as described in the decoded pixel data.
+    Default,
+    /// Do not rescale the pixel data values.
+    Identity,
+}
+
+impl Default for ModalityLutOption {
+    fn default() -> Self {
+        ModalityLutOption::Default
+    }
+}
+
+impl ModalityLutOption {}
+
+/// VOI LUT function specifier.
+///
+/// See also [`Options`].
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum VoiLutOption {
+    /// _Default behavior:_
+    /// apply the VOI LUT function transformation described in the pixel data
+    /// only when converting to an image;
+    /// no VOI LUT function is performed
+    /// when converting to an ndarray.
+    Default,
+    /// Apply a custom window level.
+    WindowLevel {
+        window_center: f64,
+        window_width: f64,
+    },
+    /// Perform a min-max normalization instead,
+    /// so that the lowest value is 0 and
+    /// the highest value is the maximum value of the target type.
+    Normalize,
+    /// Do not apply any VOI LUT transformation.
+    Identity,
+}
+
+impl Default for VoiLutOption {
+    fn default() -> Self {
+        VoiLutOption::Default
+    }
+}
+
+/// A specific window level.
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct WindowLevel {
+    /// the _Window Width_.
+    ///
+    /// should be greater than 0
+    width: f64,
+    /// the _Window Center_.
+    center: f64,
+}
+
 /// A blob of decoded pixel data.
 ///
 /// This is the outcome of decoding a DICOM object's imaging-related attributes,
@@ -191,13 +280,60 @@ pub struct DecodedPixelData<'a> {
     pub rescale_intercept: i16,
     /// the pixel value rescale slope
     pub rescale_slope: f32,
+    /// the window level specified via width and center
+    pub window: Option<WindowLevel>,
+    // TODO(#232): VOI LUT sequence is currently not supported
 }
 
 impl DecodedPixelData<'_> {
-    /// Convert decoded pixel data for a specific frame into a DynamicImage.
-    /// A new <u8> or <u16> vector is created in memory
-    /// with normalized grayscale values after applying Modality LUT.
+    /// Convert the decoded pixel data of a specific frame into a dynamic image.
+    ///
+    /// The default pixel data process pipeine
+    /// applies the Modality LUT function,
+    /// followed by a normalization of grayscale values.
+    /// To change this behavior,
+    /// see [`to_dynamic_image_with_options`].
     pub fn to_dynamic_image(&self, frame: u16) -> Result<DynamicImage> {
+        self.to_dynamic_image_with_options(frame, &Options::default())
+    }
+
+    /// Convert the decoded pixel data of a specific frame into a dynamic image.
+    ///
+    /// The options are used to specify the pixel data processing pipeline.
+    ///
+    /// The options value allows you to specify
+    /// which transformations should be done to the pixel data
+    /// (primarily Modality LUT function and VOI LUT function).
+    /// By default, both Modality and VOI LUT functions are applied
+    /// according to the attributes of the given object.
+    /// Note that certain options may be ignored
+    /// if they do not apply.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use dicom_pixeldata::{DecodedPixelData, Options, VoiLutOption};
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let data: DecodedPixelData = unimplemented!();
+    /// let options = Options::new()
+    ///     .with_voi_lut(VoiLutOption::WindowLevel {
+    ///         window_center: -300.0,
+    ///         window_width: 600.,
+    ///     });
+    /// let img = data.to_dynamic_image_with_options(0, &options)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn to_dynamic_image_with_options(
+        &self,
+        frame: u16,
+        options: &Options,
+    ) -> Result<DynamicImage> {
+        let Options {
+            modality_lut,
+            voi_lut,
+        } = options;
+
         match self.samples_per_pixel {
             1 => {
                 let mut image = match self.bits_allocated {
@@ -213,12 +349,33 @@ impl DecodedPixelData<'_> {
                             }
                             .fail()?
                         }
-                        let buffer: Vec<u8> =
-                            (&self.data[(frame_start as usize..frame_end as usize)]).to_vec();
-                        let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
-                            ImageBuffer::from_raw(self.cols, self.rows, buffer)
-                                .context(InvalidImageBufferSnafu)?;
-                        DynamicImage::ImageLuma8(image_buffer)
+
+                        let data = &self.data[(frame_start as usize..frame_end as usize)];
+
+                        match modality_lut {
+                            // simplest one, no transformations
+                            ModalityLutOption::Identity => {
+                                let buffer: Vec<u8> = data.to_vec();
+                                let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
+                                    ImageBuffer::from_raw(self.cols, self.rows, buffer)
+                                        .context(InvalidImageBufferSnafu)?;
+                                DynamicImage::ImageLuma8(image_buffer)
+                            }
+                            // rescale
+                            ModalityLutOption::Default => {
+                                let data = apply_modality_lut(
+                                    data,
+                                    self.rescale_intercept,
+                                    self.rescale_slope,
+                                )?;
+
+                                let data: Vec<u8> = self.modality_to_target(&data, voi_lut);
+                                let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
+                                    ImageBuffer::from_raw(self.cols, self.rows, data)
+                                        .context(InvalidImageBufferSnafu)?;
+                                DynamicImage::ImageLuma8(image_buffer)
+                            }
+                        }
                     }
                     16 => {
                         let frame_length = self.rows as usize
@@ -233,31 +390,80 @@ impl DecodedPixelData<'_> {
                             }
                             .fail()?
                         }
-                        let mut buffer = vec![0; frame_length / 2];
-                        match self.pixel_representation {
-                            // Unsigned 16-bit representation
-                            0 => {
-                                NativeEndian::read_u16_into(
-                                    &self.data[frame_start..frame_end],
-                                    &mut buffer,
-                                );
+
+                        match modality_lut {
+                            // only take pixel representation,
+                            // convert to image as is
+                            ModalityLutOption::Identity => {
+                                let buffer = match self.pixel_representation {
+                                    // Unsigned 16-bit representation
+                                    0 => {
+                                        let mut buffer = vec![0; frame_length / 2];
+                                        NativeEndian::read_u16_into(
+                                            &self.data[frame_start..frame_end],
+                                            &mut buffer,
+                                        );
+                                        buffer
+                                    }
+                                    // Signed 16-bit representation
+                                    1 => {
+                                        let mut signed_buffer = vec![0; frame_length / 2];
+                                        NativeEndian::read_i16_into(
+                                            &self.data[frame_start..frame_end],
+                                            &mut signed_buffer,
+                                        );
+                                        // Convert buffer to unsigned
+                                        convert_i16_to_u16(&signed_buffer)
+                                    }
+                                    _ => InvalidPixelRepresentationSnafu.fail()?,
+                                };
+
+                                let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
+                                    ImageBuffer::from_raw(self.cols, self.rows, buffer)
+                                        .context(InvalidImageBufferSnafu)?;
+                                DynamicImage::ImageLuma16(image_buffer)
                             }
-                            // Signed 16-bit representation
-                            1 => {
-                                let mut signed_buffer = vec![0; frame_length / 2];
-                                NativeEndian::read_i16_into(
-                                    &self.data[frame_start..frame_end],
-                                    &mut signed_buffer,
-                                );
-                                // Convert buffer to unsigned
-                                buffer = normalize_i16_to_u16(&signed_buffer);
+
+                            ModalityLutOption::Default => {
+                                // apply modality LUT
+                                let data = match self.pixel_representation {
+                                    // Unsigned 16-bit representation
+                                    0 => {
+                                        let mut buffer = vec![0; frame_length / 2];
+                                        NativeEndian::read_u16_into(
+                                            &self.data[frame_start..frame_end],
+                                            &mut buffer,
+                                        );
+                                        apply_modality_lut(
+                                            &buffer,
+                                            self.rescale_intercept,
+                                            self.rescale_slope,
+                                        )?
+                                    }
+                                    // Signed 16-bit representation
+                                    1 => {
+                                        let mut buffer = vec![0; frame_length / 2];
+                                        NativeEndian::read_i16_into(
+                                            &self.data[frame_start..frame_end],
+                                            &mut buffer,
+                                        );
+                                        apply_modality_lut(
+                                            &buffer,
+                                            self.rescale_intercept,
+                                            self.rescale_slope,
+                                        )?
+                                    }
+                                    _ => InvalidPixelRepresentationSnafu.fail()?,
+                                };
+
+                                let data: Vec<u16> = self.modality_to_target(&data, voi_lut);
+
+                                let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
+                                    ImageBuffer::from_raw(self.cols, self.rows, data)
+                                        .context(InvalidImageBufferSnafu)?;
+                                DynamicImage::ImageLuma16(image_buffer)
                             }
-                            _ => InvalidPixelRepresentationSnafu.fail()?,
-                        };
-                        let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
-                            ImageBuffer::from_raw(self.cols, self.rows, buffer)
-                                .context(InvalidImageBufferSnafu)?;
-                        DynamicImage::ImageLuma16(image_buffer)
+                        }
                     }
                     _ => InvalidBitsAllocatedSnafu.fail()?,
                 };
@@ -420,6 +626,55 @@ impl DecodedPixelData<'_> {
             _ => InvalidBitsAllocatedSnafu.fail()?,
         }
     }
+
+    /// Inner function for converting modality-scaled values
+    /// into the intended output target.
+    fn modality_to_target<T: 'static>(&self, data: &[f64], voi_lut: &VoiLutOption) -> Vec<T>
+    where
+        f64: AsPrimitive<T>,
+        T: Copy,
+        T: Send + Sync,
+        T: NumCast,
+    {
+        match (voi_lut, self.window) {
+            (VoiLutOption::Default, Some(window)) => {
+                // apply VOI LUT function using window levels
+                let processed =
+                    apply_window_level_iter(data.par_iter().copied(), window.center, window.width);
+
+                narrow_par(processed)
+            }
+            (
+                VoiLutOption::WindowLevel {
+                    window_center,
+                    window_width,
+                },
+                _,
+            ) => {
+                let processed = apply_window_level_iter(
+                    data.par_iter().copied(),
+                    *window_center,
+                    *window_width,
+                );
+
+                narrow_par(processed)
+            }
+            (VoiLutOption::Normalize, _) => {
+                // check min and max
+                let min = data.iter().copied().fold(f64::INFINITY, |a, b| a.min(b));
+                let max = data
+                    .iter()
+                    .copied()
+                    .fold(f64::NEG_INFINITY, |a, b| a.max(b));
+                let range = max - min;
+                // normalize
+                narrow_par(data.par_iter().copied().map(|x| ((x - min) / range)))
+            }
+            (VoiLutOption::Identity, _) | (VoiLutOption::Default, None) => {
+                narrow(data.iter().copied())
+            }
+        }
+    }
 }
 
 // Convert u8 pixel array from YBR_FULL or YBR_FULL_422 to RGB
@@ -474,12 +729,10 @@ fn convert_colorspace_u16(i: &mut Vec<u16>) {
     });
 }
 
-// Noramlize i16 vector using min/max normalization
-fn normalize_i16_to_u16(i: &[i16]) -> Vec<u16> {
-    let min = *i.iter().min().unwrap() as f64;
-    let max = *i.iter().max().unwrap() as f64;
+/// Convert the i16 vector by shifting it up.
+fn convert_i16_to_u16(i: &[i16]) -> Vec<u16> {
     i.par_iter()
-        .map(|p| (u16::MAX as f64 * (*p as f64 - min) / (max - min)) as u16)
+        .map(|p| (*p as i32 + 0x8000) as u16)
         .collect()
 }
 
@@ -502,6 +755,39 @@ where
         })
         .collect();
     result.context(InvalidDataTypeSnafu)
+}
+
+fn narrow<T: 'static>(data: impl IntoIterator<Item = f64>) -> Vec<T>
+where
+    T: Copy,
+    f64: AsPrimitive<T>,
+{
+    data.into_iter().map(|e| e.as_()).collect()
+}
+
+fn narrow_par<T: 'static>(data: impl ParallelIterator<Item = f64>) -> Vec<T>
+where
+    T: Copy,
+    T: Send,
+    T: Sync,
+    f64: AsPrimitive<T>,
+{
+    data.map(|e| e.as_()).collect()
+}
+
+fn apply_window_level_iter<'a>(
+    data: impl ParallelIterator<Item = f64> + 'a,
+    window_width: f64,
+    window_center: f64,
+) -> impl ParallelIterator<Item = f64> + 'a {
+    data.map(move |v| apply_window_level(v, window_width, window_center))
+}
+
+fn apply_window_level(value: f64, window_width: f64, window_center: f64) -> f64 {
+    let window_width = window_width as f64;
+    let window_center = window_center as f64;
+
+    value - window_center + window_width / 2.
 }
 
 pub trait PixelDecoder {
@@ -533,6 +819,17 @@ where
         let rescale_intercept = rescale_intercept(self);
         let rescale_slope = rescale_slope(self);
         let number_of_frames = number_of_frames(self);
+
+        let window = if let Some(window_center) = window_center(self).context(GetAttributeSnafu)? {
+            let window_width = window_width(self).context(GetAttributeSnafu)?;
+
+            window_width.map(|width| WindowLevel {
+                center: window_center,
+                width,
+            })
+        } else {
+            None
+        };
 
         let transfer_syntax = &self.meta().transfer_syntax;
         let ts = TransferSyntaxRegistry
@@ -577,6 +874,7 @@ where
                 pixel_representation,
                 rescale_intercept,
                 rescale_slope,
+                window,
             });
         }
 
@@ -609,6 +907,7 @@ where
             pixel_representation,
             rescale_intercept,
             rescale_slope,
+            window,
         })
     }
 }

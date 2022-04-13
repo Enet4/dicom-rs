@@ -98,6 +98,17 @@ where
             _ => photometric_interpretation,
         };
 
+        let window = if let Some(window_center) = window_center(self).context(GetAttributeSnafu)? {
+            let window_width = window_width(self).context(GetAttributeSnafu)?;
+
+            window_width.map(|width| WindowLevel {
+                center: window_center,
+                width,
+            })
+        } else {
+            None
+        };
+
         Ok(DecodedPixelData {
             data: Cow::from(decoded_pixel_data),
             cols: cols.into(),
@@ -112,6 +123,7 @@ where
             pixel_representation,
             rescale_intercept,
             rescale_slope,
+            window,
         })
     }
 }
