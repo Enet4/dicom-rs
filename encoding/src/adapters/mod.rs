@@ -3,6 +3,7 @@
 use dicom_core::value::C;
 use snafu::Snafu;
 
+pub mod jpeg;
 pub mod rle_lossless;
 
 /// Error conditions when decoding pixel data.
