@@ -73,7 +73,8 @@ where
                 )
                 .map_err(|source| Error::DecodePixelData {
                     source: DecodeError::Custom {
-                        source: Box::new(source) as Box<_>,
+                        message: "Could not decode frame via GDCM".to_string(),
+                        source: Some(Box::new(source) as Box<_>),
                     },
                 })?;
                 decoded_frame.to_vec()

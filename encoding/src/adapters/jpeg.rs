@@ -1,9 +1,9 @@
 //! Support for JPG image decoding.
 
-use super::{CustomMessageSnafu, CustomSnafu, MissingAttributeSnafu};
+use super::MissingAttributeSnafu;
 use crate::adapters::{DecodeResult, PixelDataObject, PixelRWAdapter};
 use jpeg_decoder::Decoder;
-use snafu::{OptionExt, ResultExt};
+use snafu::{whatever, OptionExt, ResultExt};
 use std::io::Cursor;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -24,10 +24,7 @@ impl PixelRWAdapter for JPEGAdapter {
         })?;
 
         if bits_allocated != 8 && bits_allocated != 16 {
-            return CustomMessageSnafu {
-                message: "BitsAllocated other than 8 or 16 is not supported",
-            }
-            .fail();
+            whatever!("BitsAllocated other than 8 or 16 is not supported");
         }
 
         let nr_frames = src.number_of_frames().unwrap_or(1) as usize;
@@ -42,9 +39,7 @@ impl PixelRWAdapter for JPEGAdapter {
         // and then just iterate a cursor for each frame
         let fragments: Vec<u8> = src
             .raw_pixel_data()
-            .context(CustomMessageSnafu {
-                message: "Expected to have raw pixel data available",
-            })?
+            .whatever_context("Expected to have raw pixel data available")?
             .fragments
             .into_iter()
             .flatten()
@@ -59,7 +54,7 @@ impl PixelRWAdapter for JPEGAdapter {
             let decoded = decoder
                 .decode()
                 .map_err(|e| Box::new(e) as Box<_>)
-                .context(CustomSnafu)?;
+                .whatever_context("JPEG decoder failure")?;
 
             let decoded_len = decoded.len();
             dst[dst_offset..(dst_offset + decoded_len)].copy_from_slice(&decoded);
