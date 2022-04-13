@@ -573,7 +573,7 @@ where
                 number_of_frames,
                 photometric_interpretation: new_pi,
                 samples_per_pixel,
-                planar_configuration,
+                planar_configuration: 0,
                 bits_allocated,
                 bits_stored,
                 high_bit,
