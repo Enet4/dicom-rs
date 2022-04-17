@@ -58,6 +58,30 @@ pub fn photometric_interpretation<D: DataDictionary + Clone>(
         .to_string())
 }
 
+/// Get the VOILUTFunction from the DICOM object
+pub fn voi_lut_function<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+) -> Result<Option<String>> {
+    let elem = match obj.element(tags::VOILUT_FUNCTION) {
+        Ok(e) => e,
+        Err(dicom_object::Error::NoSuchDataElementTag { .. }) => return Ok(None),
+        Err(e) => {
+            return Err(e).context(MissingRequiredFieldSnafu {
+                name: "VOILUTFunction",
+            })
+        }
+    };
+
+    let value = elem
+        .string()
+        .context(CastValueSnafu {
+            name: "VOILUTFunction",
+        })?
+        .trim()
+        .to_string();
+    Ok(Some(value))
+}
+
 /// Get the SamplesPerPixel from the DICOM object
 pub fn samples_per_pixel<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,

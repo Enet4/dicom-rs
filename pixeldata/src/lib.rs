@@ -66,19 +66,26 @@ use dicom_object::{FileDicomObject, InMemDicomObject};
 #[cfg(not(feature = "gdcm"))]
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use image::{DynamicImage, ImageBuffer, Luma, Rgb};
+use lut::Lut;
 use ndarray::{Array, IxDyn};
-use num_traits::{AsPrimitive, NumCast};
+use num_traits::NumCast;
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
-use snafu::OptionExt;
+use snafu::{ensure, OptionExt};
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::borrow::Cow;
+use std::convert::TryFrom;
 
 pub use image;
 pub use ndarray;
 
 mod attribute;
+pub mod lut;
+
+pub(crate) mod transform;
+
+pub use transform::{Rescale, VoiLutFunction, WindowLevel, WindowLevelTransform};
 
 #[cfg(feature = "gdcm")]
 mod gdcm;
@@ -187,6 +194,9 @@ pub enum ModalityLutOption {
     /// rescale the pixel data values
     /// as described in the decoded pixel data.
     Default,
+    /// Rescale the pixel data values
+    /// according to the given rescale parameters
+    Override(Rescale),
     /// Do not rescale the pixel data values.
     Identity,
 }
@@ -211,11 +221,8 @@ pub enum VoiLutOption {
     /// no VOI LUT function is performed
     /// when converting to an ndarray.
     Default,
-    /// Apply a custom window level.
-    WindowLevel {
-        window_center: f64,
-        window_width: f64,
-    },
+    /// Apply a custom window level instead of the one described in the object.
+    WindowLevel(WindowLevel),
     /// Perform a min-max normalization instead,
     /// so that the lowest value is 0 and
     /// the highest value is the maximum value of the target type.
@@ -228,17 +235,6 @@ impl Default for VoiLutOption {
     fn default() -> Self {
         VoiLutOption::Default
     }
-}
-
-/// A specific window level.
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct WindowLevel {
-    /// the _Window Width_.
-    ///
-    /// should be greater than 0
-    width: f64,
-    /// the _Window Center_.
-    center: f64,
 }
 
 /// A blob of decoded pixel data.
@@ -280,6 +276,8 @@ pub struct DecodedPixelData<'a> {
     pub rescale_intercept: i16,
     /// the pixel value rescale slope
     pub rescale_slope: f32,
+    // the VOI LUT function
+    pub voi_lut_function: Option<VoiLutFunction>,
     /// the window level specified via width and center
     pub window: Option<WindowLevel>,
     // TODO(#232): VOI LUT sequence is currently not supported
@@ -312,14 +310,14 @@ impl DecodedPixelData<'_> {
     /// # Example
     ///
     /// ```no_run
-    /// # use dicom_pixeldata::{DecodedPixelData, Options, VoiLutOption};
+    /// # use dicom_pixeldata::{DecodedPixelData, Options, VoiLutOption, WindowLevel};
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let data: DecodedPixelData = unimplemented!();
     /// let options = Options::new()
-    ///     .with_voi_lut(VoiLutOption::WindowLevel {
-    ///         window_center: -300.0,
-    ///         window_width: 600.,
-    ///     });
+    ///     .with_voi_lut(VoiLutOption::WindowLevel(WindowLevel {
+    ///         center: -300.0,
+    ///         width: 600.,
+    ///     }));
     /// let img = data.to_dynamic_image_with_options(0, &options)?;
     /// # Ok(())
     /// # }
@@ -329,151 +327,11 @@ impl DecodedPixelData<'_> {
         frame: u16,
         options: &Options,
     ) -> Result<DynamicImage> {
-        let Options {
-            modality_lut,
-            voi_lut,
-        } = options;
-
         match self.samples_per_pixel {
-            1 => {
-                let mut image = match self.bits_allocated {
-                    8 => {
-                        let frame_length = self.rows as usize
-                            * self.cols as usize
-                            * self.samples_per_pixel as usize;
-                        let frame_start = frame_length * frame as usize;
-                        let frame_end = frame_start + frame_length;
-                        if frame_end > (*self.data).len() {
-                            FrameOutOfRangeSnafu {
-                                frame_number: frame,
-                            }
-                            .fail()?
-                        }
-
-                        let data = &self.data[(frame_start as usize..frame_end as usize)];
-
-                        match modality_lut {
-                            // simplest one, no transformations
-                            ModalityLutOption::Identity => {
-                                let buffer: Vec<u8> = data.to_vec();
-                                let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
-                                    ImageBuffer::from_raw(self.cols, self.rows, buffer)
-                                        .context(InvalidImageBufferSnafu)?;
-                                DynamicImage::ImageLuma8(image_buffer)
-                            }
-                            // rescale
-                            ModalityLutOption::Default => {
-                                let data = apply_modality_lut(
-                                    data,
-                                    self.rescale_intercept,
-                                    self.rescale_slope,
-                                )?;
-
-                                let data: Vec<u8> = self.modality_to_target(&data, voi_lut, 255);
-                                let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
-                                    ImageBuffer::from_raw(self.cols, self.rows, data)
-                                        .context(InvalidImageBufferSnafu)?;
-                                DynamicImage::ImageLuma8(image_buffer)
-                            }
-                        }
-                    }
-                    16 => {
-                        let frame_length = self.rows as usize
-                            * self.cols as usize
-                            * 2
-                            * self.samples_per_pixel as usize;
-                        let frame_start = frame_length * frame as usize;
-                        let frame_end = frame_start + frame_length;
-                        if frame_end > (*self.data).len() {
-                            FrameOutOfRangeSnafu {
-                                frame_number: frame,
-                            }
-                            .fail()?
-                        }
-
-                        match modality_lut {
-                            // only take pixel representation,
-                            // convert to image as is
-                            ModalityLutOption::Identity => {
-                                let buffer = match self.pixel_representation {
-                                    // Unsigned 16-bit representation
-                                    0 => {
-                                        let mut buffer = vec![0; frame_length / 2];
-                                        NativeEndian::read_u16_into(
-                                            &self.data[frame_start..frame_end],
-                                            &mut buffer,
-                                        );
-                                        buffer
-                                    }
-                                    // Signed 16-bit representation
-                                    1 => {
-                                        let mut signed_buffer = vec![0; frame_length / 2];
-                                        NativeEndian::read_i16_into(
-                                            &self.data[frame_start..frame_end],
-                                            &mut signed_buffer,
-                                        );
-                                        // Convert buffer to unsigned
-                                        convert_i16_to_u16(&signed_buffer)
-                                    }
-                                    _ => InvalidPixelRepresentationSnafu.fail()?,
-                                };
-
-                                let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
-                                    ImageBuffer::from_raw(self.cols, self.rows, buffer)
-                                        .context(InvalidImageBufferSnafu)?;
-                                DynamicImage::ImageLuma16(image_buffer)
-                            }
-
-                            ModalityLutOption::Default => {
-                                // apply modality LUT
-                                let data = match self.pixel_representation {
-                                    // Unsigned 16-bit representation
-                                    0 => {
-                                        let mut buffer = vec![0; frame_length / 2];
-                                        NativeEndian::read_u16_into(
-                                            &self.data[frame_start..frame_end],
-                                            &mut buffer,
-                                        );
-                                        apply_modality_lut(
-                                            &buffer,
-                                            self.rescale_intercept,
-                                            self.rescale_slope,
-                                        )?
-                                    }
-                                    // Signed 16-bit representation
-                                    1 => {
-                                        let mut buffer = vec![0; frame_length / 2];
-                                        NativeEndian::read_i16_into(
-                                            &self.data[frame_start..frame_end],
-                                            &mut buffer,
-                                        );
-                                        apply_modality_lut(
-                                            &buffer,
-                                            self.rescale_intercept,
-                                            self.rescale_slope,
-                                        )?
-                                    }
-                                    _ => InvalidPixelRepresentationSnafu.fail()?,
-                                };
-
-                                let data: Vec<u16> = self.modality_to_target(&data, voi_lut, 65535);
-
-                                let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
-                                    ImageBuffer::from_raw(self.cols, self.rows, data)
-                                        .context(InvalidImageBufferSnafu)?;
-                                DynamicImage::ImageLuma16(image_buffer)
-                            }
-                        }
-                    }
-                    _ => InvalidBitsAllocatedSnafu.fail()?,
-                };
-                // Convert MONOCHROME1 => MONOCHROME2
-                if self.photometric_interpretation == "MONOCHROME1" {
-                    image.invert();
-                }
-                Ok(image)
-            }
+            1 => self.build_monochrome_image(frame, options),
             3 => {
+                // Modality LUT and VOI LUT
+                // are currently ignored in this case
                 if self.planar_configuration != 0 {
                     // TODO #129
                     return UnsupportedOtherSnafu {
@@ -555,6 +413,244 @@ impl DecodedPixelData<'_> {
         }
     }
 
+    fn build_monochrome_image(&self, frame: u16, options: &Options) -> Result<DynamicImage> {
+        let Options {
+            modality_lut,
+            voi_lut,
+        } = options;
+
+        let mut image = match self.bits_allocated {
+            8 => {
+                let frame_length =
+                    self.rows as usize * self.cols as usize * self.samples_per_pixel as usize;
+                let frame_start = frame_length * frame as usize;
+                let frame_end = frame_start + frame_length;
+                if frame_end > (*self.data).len() {
+                    FrameOutOfRangeSnafu {
+                        frame_number: frame,
+                    }
+                    .fail()?
+                }
+
+                let data = &self.data[(frame_start as usize..frame_end as usize)];
+
+                match modality_lut {
+                    // simplest one, no transformations
+                    ModalityLutOption::Identity => {
+                        let buffer: Vec<u8> = data.to_vec();
+                        let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
+                            ImageBuffer::from_raw(self.cols, self.rows, buffer)
+                                .context(InvalidImageBufferSnafu)?;
+                        DynamicImage::ImageLuma8(image_buffer)
+                    }
+                    // other
+                    ModalityLutOption::Default | ModalityLutOption::Override(..) => {
+                        let rescale = if let ModalityLutOption::Override(rescale) = modality_lut {
+                            *rescale
+                        } else {
+                            Rescale::new(self.rescale_slope as f64, self.rescale_intercept as f64)
+                        };
+
+                        let lut: Lut<u8> = match (voi_lut, self.window) {
+                            (VoiLutOption::Identity, _) => Lut::new_rescale(8, false, rescale),
+                            (VoiLutOption::Default, Some(window)) => Lut::new_rescale_and_window(
+                                8,
+                                false,
+                                rescale,
+                                WindowLevelTransform::new(
+                                    self.voi_lut_function.unwrap_or_default(),
+                                    window,
+                                ),
+                            ),
+                            (VoiLutOption::Default, None) => {
+                                // log warning (#49)
+                                eprintln!("Could not find window level for object");
+                                Lut::new_rescale(8, false, rescale)
+                            }
+                            (VoiLutOption::WindowLevel(window), _) => Lut::new_rescale_and_window(
+                                8,
+                                false,
+                                rescale,
+                                WindowLevelTransform::new(
+                                    self.voi_lut_function.unwrap_or_default(),
+                                    *window,
+                                ),
+                            ),
+                            (VoiLutOption::Normalize, _) => {
+                                // get min and max values
+                                let min = data.iter().copied().fold(u8::MAX, |a, b| a.min(b));
+                                let max = data.iter().copied().fold(0, |a, b| a.max(b));
+
+                                // convert to f64 and swap if negative slope
+                                let (min, max) = if self.rescale_slope < 0. {
+                                    (max as f64, min as f64)
+                                } else {
+                                    (min as f64, max as f64)
+                                };
+
+                                Lut::new_rescale_and_normalize(
+                                    8,
+                                    false,
+                                    rescale,
+                                    // monotone function: the min and max in linear space
+                                    // are the min and max in rescaled space
+                                    rescale.apply(min),
+                                    rescale.apply(max),
+                                )
+                            }
+                        };
+
+                        let data: Vec<u8> = lut.map_par_iter(data.par_iter().copied()).collect();
+
+                        let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
+                            ImageBuffer::from_raw(self.cols, self.rows, data)
+                                .context(InvalidImageBufferSnafu)?;
+                        DynamicImage::ImageLuma8(image_buffer)
+                    }
+                }
+            }
+            16 => {
+                let frame_length =
+                    self.rows as usize * self.cols as usize * 2 * self.samples_per_pixel as usize;
+                let frame_start = frame_length * frame as usize;
+                let frame_end = frame_start + frame_length;
+                if frame_end > (*self.data).len() {
+                    FrameOutOfRangeSnafu {
+                        frame_number: frame,
+                    }
+                    .fail()?
+                }
+
+                match modality_lut {
+                    // only take pixel representation,
+                    // convert to image as is
+                    ModalityLutOption::Identity => {
+                        let buffer = match self.pixel_representation {
+                            // Unsigned 16-bit representation
+                            0 => {
+                                let mut buffer = vec![0; frame_length / 2];
+                                NativeEndian::read_u16_into(
+                                    &self.data[frame_start..frame_end],
+                                    &mut buffer,
+                                );
+                                buffer
+                            }
+                            // Signed 16-bit representation
+                            1 => {
+                                let mut signed_buffer = vec![0; frame_length / 2];
+                                NativeEndian::read_i16_into(
+                                    &self.data[frame_start..frame_end],
+                                    &mut signed_buffer,
+                                );
+                                // Convert buffer to unsigned
+                                convert_i16_to_u16(&signed_buffer)
+                            }
+                            _ => InvalidPixelRepresentationSnafu.fail()?,
+                        };
+
+                        let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
+                            ImageBuffer::from_raw(self.cols, self.rows, buffer)
+                                .context(InvalidImageBufferSnafu)?;
+                        DynamicImage::ImageLuma16(image_buffer)
+                    }
+
+                    ModalityLutOption::Default | ModalityLutOption::Override(..) => {
+                        let rescale = if let ModalityLutOption::Override(rescale) = modality_lut {
+                            *rescale
+                        } else {
+                            Rescale::new(self.rescale_slope as f64, self.rescale_intercept as f64)
+                        };
+
+                        // fetch pixel data as a slice of u16 values,
+                        // irrespective of pixel signedness
+                        // (that is handled by the LUT)
+                        ensure!(
+                            self.pixel_representation == 0 || self.pixel_representation == 1,
+                            InvalidPixelRepresentationSnafu
+                        );
+
+                        let signed = self.pixel_representation == 1;
+
+                        let samples = {
+                            let mut buffer = vec![0; frame_length / 2];
+                            NativeEndian::read_u16_into(
+                                &self.data[frame_start..frame_end],
+                                &mut buffer,
+                            );
+                            buffer
+                        };
+
+                        // use 16-bit precision to prevent loss of precision in image
+                        let lut: Lut<u16> = match (voi_lut, self.window) {
+                            (VoiLutOption::Identity, _) => {
+                                Lut::new_rescale(self.bits_stored, signed, rescale)
+                            }
+                            (VoiLutOption::Default, Some(window)) => Lut::new_rescale_and_window(
+                                self.bits_stored,
+                                signed,
+                                rescale,
+                                WindowLevelTransform::new(
+                                    self.voi_lut_function.unwrap_or_default(),
+                                    window,
+                                ),
+                            ),
+                            (VoiLutOption::Default, None) => {
+                                // log warning (#49)
+                                eprintln!("Could not find window level for object");
+                                Lut::new_rescale(self.bits_stored, signed, rescale)
+                            }
+                            (VoiLutOption::WindowLevel(window), _) => Lut::new_rescale_and_window(
+                                self.bits_stored,
+                                signed,
+                                rescale,
+                                WindowLevelTransform::new(
+                                    self.voi_lut_function.unwrap_or_default(),
+                                    *window,
+                                ),
+                            ),
+                            (VoiLutOption::Normalize, _) => {
+                                // get min and max values
+                                let min = samples.iter().copied().fold(u16::MAX, |a, b| a.min(b));
+                                let max = samples.iter().copied().fold(0, |a, b| a.max(b));
+
+                                // convert to f64 and swap if negative slope
+                                let (min, max) = if self.rescale_slope < 0. {
+                                    (max as f64, min as f64)
+                                } else {
+                                    (min as f64, max as f64)
+                                };
+
+                                Lut::new_rescale_and_normalize(
+                                    8,
+                                    false,
+                                    rescale,
+                                    // monotone function: the min and max in linear space
+                                    // are the min and max in rescaled space
+                                    rescale.apply(min),
+                                    rescale.apply(max),
+                                )
+                            }
+                        };
+
+                        let data: Vec<u16> =
+                            lut.map_par_iter(samples.par_iter().copied()).collect();
+
+                        let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
+                            ImageBuffer::from_raw(self.cols, self.rows, data)
+                                .context(InvalidImageBufferSnafu)?;
+                        DynamicImage::ImageLuma16(image_buffer)
+                    }
+                }
+            }
+            _ => InvalidBitsAllocatedSnafu.fail()?,
+        };
+        // Convert MONOCHROME1 => MONOCHROME2
+        if self.photometric_interpretation == "MONOCHROME1" {
+            image.invert();
+        }
+        Ok(image)
+    }
+
     /// Convert decoded pixel data into an ndarray of a given type T.
     /// The pixel data type is extracted from the bits_allocated and
     /// pixel_representation, and automatically converted to the requested type T.
@@ -626,65 +722,6 @@ impl DecodedPixelData<'_> {
             _ => InvalidBitsAllocatedSnafu.fail()?,
         }
     }
-
-    /// Inner function for converting modality-scaled values
-    /// into the intended output target.
-    fn modality_to_target<T: 'static>(
-        &self,
-        data: &[f64],
-        voi_lut: &VoiLutOption,
-        amplitude: u32,
-    ) -> Vec<T>
-    where
-        f64: AsPrimitive<T>,
-        T: Copy,
-        T: Send + Sync,
-        T: NumCast,
-    {
-        match (voi_lut, self.window) {
-            (VoiLutOption::Default, Some(window)) => {
-                // apply VOI LUT function using window levels
-                let processed =
-                    apply_window_level_iter(data.par_iter().copied(), window.center, window.width, amplitude);
-
-                narrow_par(processed)
-            }
-            (
-                VoiLutOption::WindowLevel {
-                    window_center,
-                    window_width,
-                },
-                _,
-            ) => {
-                let processed = apply_window_level_iter(
-                    data.par_iter().copied(),
-                    *window_center,
-                    *window_width,
-                    amplitude,
-                );
-
-                narrow_par(processed)
-            }
-            (VoiLutOption::Normalize, _) => {
-                // check min and max
-                let min = data.iter().copied().fold(f64::INFINITY, |a, b| a.min(b));
-                let max = data
-                    .iter()
-                    .copied()
-                    .fold(f64::NEG_INFINITY, |a, b| a.max(b));
-                let range = max - min;
-                // normalize
-                narrow_par(
-                    data.par_iter()
-                        .copied()
-                        .map(|x| ((x - min) * amplitude as f64 / range)),
-                )
-            }
-            (VoiLutOption::Identity, _) | (VoiLutOption::Default, None) => {
-                narrow(data.iter().copied())
-            }
-        }
-    }
 }
 
 // Convert u8 pixel array from YBR_FULL or YBR_FULL_422 to RGB
@@ -744,70 +781,6 @@ fn convert_i16_to_u16(i: &[i16]) -> Vec<u16> {
     i.par_iter().map(|p| (*p as i32 + 0x8000) as u16).collect()
 }
 
-// Apply the Modality rescale operation to the input array and return a Vec<f64> containing transformed pixel data.
-// An InvalidDataType error is returned when T cannot be represented as f64
-pub fn apply_modality_lut<T>(
-    i: &[T],
-    rescale_intercept: i16,
-    rescale_slope: f32,
-) -> Result<Vec<f64>>
-where
-    T: NumCast + Sync,
-{
-    let result: Result<Vec<f64>, _> = i
-        .par_iter()
-        .map(|e| {
-            (*e).to_f64()
-                .map(|v| v * (rescale_slope as f64) + (rescale_intercept as f64))
-                .ok_or(snafu::NoneError)
-        })
-        .collect();
-    result.context(InvalidDataTypeSnafu)
-}
-
-fn narrow<T: 'static>(data: impl IntoIterator<Item = f64>) -> Vec<T>
-where
-    T: Copy,
-    f64: AsPrimitive<T>,
-{
-    data.into_iter().map(|e| e.as_()).collect()
-}
-
-fn narrow_par<T: 'static>(data: impl ParallelIterator<Item = f64>) -> Vec<T>
-where
-    T: Copy,
-    T: Send,
-    T: Sync,
-    f64: AsPrimitive<T>,
-{
-    data.map(|e| e.as_()).collect()
-}
-
-fn apply_window_level_iter<'a>(
-    data: impl ParallelIterator<Item = f64> + 'a,
-    window_width: f64,
-    window_center: f64,
-    amplitude: u32,
-) -> impl ParallelIterator<Item = f64> + 'a {
-    data.map(move |v| apply_window_level(v, window_width, window_center, amplitude))
-}
-
-fn apply_window_level(value: f64, window_width: f64, window_center: f64, amplitude: u32) -> f64 {
-    let window_width = window_width as f64;
-    let window_center = window_center as f64;
-
-    let min = window_center - window_width / 2.0;
-    let max = window_center + window_width / 2.0;
-
-    if value < min {
-        0.
-    } else if value > max {
-        amplitude as f64
-    } else {
-        ((value - min) / window_width) * amplitude as f64
-    }
-}
-
 pub trait PixelDecoder {
     /// Decode compressed pixel data.
     /// A new buffer (Vec<u8>) is created holding the decoded pixel data.
@@ -837,6 +810,8 @@ where
         let rescale_intercept = rescale_intercept(self);
         let rescale_slope = rescale_slope(self);
         let number_of_frames = number_of_frames(self);
+        let voi_lut_function = voi_lut_function(self).context(GetAttributeSnafu)?;
+        let voi_lut_function = voi_lut_function.and_then(|v| VoiLutFunction::try_from(&*v).ok());
 
         let window = if let Some(window_center) = window_center(self).context(GetAttributeSnafu)? {
             let window_width = window_width(self).context(GetAttributeSnafu)?;
@@ -892,6 +867,7 @@ where
                 pixel_representation,
                 rescale_intercept,
                 rescale_slope,
+                voi_lut_function,
                 window,
             });
         }
@@ -925,6 +901,7 @@ where
             pixel_representation,
             rescale_intercept,
             rescale_slope,
+            voi_lut_function,
             window,
         })
     }
