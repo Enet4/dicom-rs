@@ -4,6 +4,7 @@ use dicom_core::{DataDictionary, Tag};
 use dicom_dictionary_std::tags;
 use dicom_object::{mem::InMemElement, FileDicomObject, InMemDicomObject};
 use snafu::{ensure, Backtrace, ResultExt, Snafu};
+use std::fmt;
 
 #[derive(Debug, Snafu)]
 pub enum GetAttributeError {
@@ -48,23 +49,6 @@ pub fn rows<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>
     retrieve_required_u16(obj, tags::ROWS, "Rows")
 }
 
-/// Get the PhotoMetricInterpretation from the DICOM object
-pub fn photometric_interpretation<D: DataDictionary + Clone>(
-    obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> Result<String> {
-    Ok(obj
-        .element(tags::PHOTOMETRIC_INTERPRETATION)
-        .context(MissingRequiredFieldSnafu {
-            name: "PhotometricInterpretation",
-        })?
-        .string()
-        .context(CastValueSnafu {
-            name: "PhotometricInterpretation",
-        })?
-        .trim()
-        .to_string())
-}
-
 /// Get the VOILUTFunction from the DICOM object
 pub fn voi_lut_function<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
@@ -94,16 +78,6 @@ pub fn samples_per_pixel<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u16> {
     retrieve_required_u16(obj, tags::SAMPLES_PER_PIXEL, "SamplesPerPixel")
-}
-
-/// Get the PlanarConfiguration from the DICOM object, returning 0 by default
-#[cfg(not(feature = "gdcm"))]
-pub fn planar_configuration<D: DataDictionary + Clone>(
-    obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> u16 {
-    obj.element(tags::PLANAR_CONFIGURATION)
-        .map_or(Ok(0), |e| e.to_int())
-        .unwrap_or(0)
 }
 
 /// Get the BitsAllocated from the DICOM object
@@ -230,13 +204,14 @@ where
         .map(Some)
 }
 
-/// An interpreted representation of the DICOM _Pixel Representation_ attribute.
+/// A decoded representation of the DICOM _Pixel Representation_ attribute.
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+#[repr(u16)]
 pub enum PixelRepresentation {
-    /// unsigned pixel data sample values
-    Unsigned,
-    /// signed pixel data sample values
-    Signed,
+    /// 0: unsigned pixel data sample values
+    Unsigned = 0,
+    /// 1: signed pixel data sample values
+    Signed = 1,
 }
 
 /// Get the PixelRepresentation from the DICOM object
@@ -254,4 +229,208 @@ pub fn pixel_representation<D: DataDictionary + Clone>(
         }
         .fail(),
     }
+}
+
+/// A decoded representation of the DICOM _Planar Configuration_ attribute.
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+#[repr(u16)]
+pub enum PlanarConfiguration {
+    /// 0: Standard planar configuration.
+    /// Each pixel is encoded contiguously.
+    Standard = 0,
+    /// 1: Pixel-first planar configuration.
+    /// Each color plane is encoded contiguously.
+    PixelFirst = 1,
+}
+
+impl fmt::Display for PlanarConfiguration {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        (*self as u16).fmt(f)
+    }
+}
+
+/// Get the PlanarConfiguration from the DICOM object,
+/// returning the standard planar configuration by default
+#[cfg(not(feature = "gdcm"))]
+pub fn planar_configuration<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+) -> Result<PlanarConfiguration> {
+    let elem = match obj.element(tags::PLANAR_CONFIGURATION) {
+        Ok(e) => e,
+        Err(dicom_object::Error::NoSuchDataElementTag { .. }) => {
+            return Ok(PlanarConfiguration::Standard)
+        }
+        Err(e) => {
+            return Err(e).context(MissingRequiredFieldSnafu {
+                name: "PlanarConfiguration",
+            })
+        }
+    };
+
+    let p = elem.to_int::<i16>().context(ConvertValueSnafu {
+        name: "PlanarConfiguration",
+    })?;
+
+    match p {
+        0 => Ok(PlanarConfiguration::Standard),
+        1 => Ok(PlanarConfiguration::PixelFirst),
+        _ => InvalidValueSnafu {
+            name: "PlanarConfiguration",
+            value: p.to_string(),
+        }
+        .fail(),
+    }
+}
+
+/// A decoded representation of the
+/// DICOM _Photometric Interpretation_ attribute.
+///
+/// See [section C.7.6.3][1] of the standard
+/// for more details about each photometric interpretation.
+///
+/// In the event that the photometric interpretation is not
+/// any of the specified variants,
+/// the `Other` variant is used.
+/// Note that this enumeration covers the ones which are known,
+/// not necessarily supported in the decoding process.
+///
+/// [1]: https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.3.html#sect_C.7.6.3.1.2
+#[derive(Debug, Clone, PartialEq)]
+pub enum PhotometricInterpretation {
+    /// `MONOCHROME1`:
+    /// Pixel data represent a single monochrome image plane.
+    /// The minimum sample value is intended to be displayed as white.
+    Monochrome1,
+    /// `MONOCHROME2`:
+    /// Pixel data represent a single monochrome image plane.
+    /// The minimum sample value is intended to be displayed as black.
+    Monochrome2,
+    /// `PALETTE COLOR`:
+    /// Pixel data describe a color image with a single sample per pixel
+    /// (single image plane).
+    PaletteColor,
+    /// `RGB`:
+    /// Pixel data represent a color image described by
+    /// red, green, and blue image planes.
+    Rgb,
+    /// `YBR_FULL`:
+    /// Pixel data represent a color image described by
+    /// one luminance (Y) and two chrominance planes (CB and CR)
+    /// and as a result there are half as many CB and CR values as Y values.
+    YbrFull,
+    /// `YBR_FULL_422`:
+    /// The same as YBR_FULL except that the CB and CR values
+    /// are sampled horizontally at half the Y rate.
+    YbrFull422,
+    /// `YBR_PARTIAL_420`:
+    /// Pixel data represent a color image described by
+    /// one luminance (Y) and two chrominance planes (CB and CR).
+    /// The CB and CR values are sampled
+    /// horizontally and vertically at half the Y rate
+    /// and as a result there are four times less CB and CR values than Y values.
+    YbrPartial420,
+    /// `YBR_ICT`:
+    /// Irreversible Color Transformation.
+    /// Pixel data represent a color image described by
+    /// one luminance (Y) and two chrominance planes (CB and CR).
+    YbrIct,
+    /// `YBR_RCT`:
+    /// Rreversible Color Transformation.
+    /// Pixel data represent a color image described by
+    /// one luminance (Y) and two chrominance planes (CB and CR).
+    YbrRct,
+    /// The photometric interpretation is not one of the known variants.
+    Other(String),
+}
+
+impl PhotometricInterpretation {
+    /// Obtain a string representation of the photometric interpretation.
+    pub fn as_str(&self) -> &str {
+        self.as_ref()
+    }
+}
+
+impl AsRef<str> for PhotometricInterpretation {
+    fn as_ref(&self) -> &str {
+        match self {
+            PhotometricInterpretation::Monochrome1 => "MONOCHROME1",
+            PhotometricInterpretation::Monochrome2 => "MONOCHROME2",
+            PhotometricInterpretation::PaletteColor => "PALETTE COLOR",
+            PhotometricInterpretation::Rgb => "RGB",
+            PhotometricInterpretation::YbrFull => "YBR_FULL",
+            PhotometricInterpretation::YbrFull422 => "YBR_FULL_422",
+            PhotometricInterpretation::YbrPartial420 => "YBR_PARTIAL_420",
+            PhotometricInterpretation::YbrIct => "YBR_ICT",
+            PhotometricInterpretation::YbrRct => "YBR_RCT",
+            PhotometricInterpretation::Other(s) => s,
+        }
+    }
+}
+
+impl From<String> for PhotometricInterpretation {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "MONOCHROME1" => PhotometricInterpretation::Monochrome1,
+            "MONOCHROME2" => PhotometricInterpretation::Monochrome2,
+            "PALETTE COLOR" => PhotometricInterpretation::PaletteColor,
+            "RGB" => PhotometricInterpretation::Rgb,
+            "YBR_FULL" => PhotometricInterpretation::YbrFull,
+            "YBR_FULL_422" => PhotometricInterpretation::YbrFull422,
+            "YBR_PARTIAL_420" => PhotometricInterpretation::YbrPartial420,
+            "YBR_ICT" => PhotometricInterpretation::YbrIct,
+            "YBR_RCT" => PhotometricInterpretation::YbrRct,
+            _ => PhotometricInterpretation::Other(s),
+        }
+    }
+}
+
+impl From<&str> for PhotometricInterpretation {
+    fn from(s: &str) -> Self {
+        match s {
+            "MONOCHROME1" => PhotometricInterpretation::Monochrome1,
+            "MONOCHROME2" => PhotometricInterpretation::Monochrome2,
+            "PALETTE COLOR" => PhotometricInterpretation::PaletteColor,
+            "RGB" => PhotometricInterpretation::Rgb,
+            "YBR_FULL" => PhotometricInterpretation::YbrFull,
+            "YBR_FULL_422" => PhotometricInterpretation::YbrFull422,
+            "YBR_PARTIAL_420" => PhotometricInterpretation::YbrPartial420,
+            "YBR_ICT" => PhotometricInterpretation::YbrIct,
+            "YBR_RCT" => PhotometricInterpretation::YbrRct,
+            _ => PhotometricInterpretation::Other(s.to_string()),
+        }
+    }
+}
+
+impl fmt::Display for PhotometricInterpretation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PhotometricInterpretation::Monochrome1 => f.write_str("MONOCHROME1"),
+            PhotometricInterpretation::Monochrome2 => f.write_str("MONOCHROME2"),
+            PhotometricInterpretation::PaletteColor => f.write_str("PALETTE COLOR"),
+            PhotometricInterpretation::Rgb => f.write_str("RGB"),
+            PhotometricInterpretation::YbrFull => f.write_str("YBR_FULL"),
+            PhotometricInterpretation::YbrFull422 => f.write_str("YBR_FULL_422"),
+            PhotometricInterpretation::YbrPartial420 => f.write_str("YBR_PARTIAL_420"),
+            PhotometricInterpretation::YbrIct => f.write_str("YBR_ICT"),
+            PhotometricInterpretation::YbrRct => f.write_str("YBR_RCT"),
+            PhotometricInterpretation::Other(s) => f.write_str(s),
+        }
+    }
+}
+
+/// Get the PhotoMetricInterpretation from the DICOM object
+pub fn photometric_interpretation<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+) -> Result<PhotometricInterpretation> {
+    Ok(obj
+        .element(tags::PHOTOMETRIC_INTERPRETATION)
+        .context(MissingRequiredFieldSnafu {
+            name: "PhotometricInterpretation",
+        })?
+        .string()
+        .context(CastValueSnafu {
+            name: "PhotometricInterpretation",
+        })?
+        .trim()
+        .into())
 }

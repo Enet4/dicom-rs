@@ -84,7 +84,7 @@ pub mod lut;
 pub(crate) mod transform;
 
 // re-exports
-pub use attribute::PixelRepresentation;
+pub use attribute::{PhotometricInterpretation, PixelRepresentation, PlanarConfiguration};
 pub use lut::Lut;
 pub use transform::{Rescale, VoiLutFunction, WindowLevel, WindowLevelTransform};
 
@@ -106,7 +106,10 @@ pub enum Error {
     InvalidBitsAllocated { backtrace: Backtrace },
 
     #[snafu(display("Unsupported PhotometricInterpretation `{}`", pi))]
-    UnsupportedPhotometricInterpretation { pi: String, backtrace: Backtrace },
+    UnsupportedPhotometricInterpretation {
+        pi: PhotometricInterpretation,
+        backtrace: Backtrace,
+    },
 
     #[snafu(display("Unsupported SamplesPerPixel `{}`", spp))]
     UnsupportedSamplesPerPixel { spp: u16, backtrace: Backtrace },
@@ -257,11 +260,11 @@ pub struct DecodedPixelData<'a> {
     /// the number of frames
     number_of_frames: u32,
     /// the photometric interpretation
-    photometric_interpretation: String,
+    photometric_interpretation: PhotometricInterpretation,
     /// the number of samples per pixel
     samples_per_pixel: u16,
     /// the planar configuration: 0 for standard, 1 for channel-contiguous
-    planar_configuration: u16,
+    planar_configuration: PlanarConfiguration,
     /// the number of bits allocated, as a multiple of 8
     bits_allocated: u16,
     /// the number of bits stored
@@ -286,7 +289,7 @@ pub struct DecodedPixelData<'a> {
 impl DecodedPixelData<'_> {
     // getter methods
 
-    /// Retrieve a slice of raw pixel data samples as bytes,
+    /// Retrieve a slice of all raw pixel data samples as bytes,
     /// irrespective of the expected size of each sample.
     pub fn data(&self) -> &[u8] {
         &self.data
@@ -335,6 +338,21 @@ impl DecodedPixelData<'_> {
     #[inline]
     pub fn columns(&self) -> u32 {
         self.cols
+    }
+
+    /// Retrieves the photometric interpretation.
+    #[inline]
+    pub fn photometric_interpretation(&self) -> &PhotometricInterpretation {
+        &self.photometric_interpretation
+    }
+
+    /// Retrieves the planar configuration of the pixel data.
+    ///
+    /// The value returned is only meaningful for
+    /// images with more than 1 sample per pixel.
+    #[inline]
+    pub fn planar_configuration(&self) -> PlanarConfiguration {
+        self.planar_configuration
     }
 
     /// Retrieves the total number of frames
@@ -438,7 +456,7 @@ impl DecodedPixelData<'_> {
             3 => {
                 // Modality LUT and VOI LUT
                 // are currently ignored in this case
-                if self.planar_configuration != 0 {
+                if self.planar_configuration != PlanarConfiguration::Standard {
                     // TODO #129
                     return UnsupportedOtherSnafu {
                         name: "PlanarConfiguration",
@@ -453,13 +471,15 @@ impl DecodedPixelData<'_> {
                         let mut pixel_array = self.frame_data(frame)?.to_vec();
 
                         // Convert YBR_FULL or YBR_FULL_422 to RGB
-                        let pixel_array = match self.photometric_interpretation.as_str() {
-                            "RGB" => pixel_array,
-                            "YBR_FULL" | "YBR_FULL_422" => {
+                        let pixel_array = match &self.photometric_interpretation {
+                            PhotometricInterpretation::Rgb => pixel_array,
+                            PhotometricInterpretation::YbrFull
+                            | PhotometricInterpretation::YbrFull422 => {
                                 convert_colorspace_u8(&mut pixel_array);
                                 pixel_array
                             }
-                            _ => UnsupportedColorSpaceSnafu.fail()?,
+                            pi => UnsupportedPhotometricInterpretationSnafu { pi: pi.clone() }
+                                .fail()?,
                         };
 
                         let image_buffer: ImageBuffer<Rgb<u8>, Vec<u8>> =
@@ -471,13 +491,15 @@ impl DecodedPixelData<'_> {
                         let mut pixel_array: Vec<u16> = self.frame_data_ow(frame)?;
 
                         // Convert YBR_FULL or YBR_FULL_422 to RGB
-                        let pixel_array = match self.photometric_interpretation.as_str() {
-                            "RGB" => pixel_array,
-                            "YBR_FULL" | "YBR_FULL_422" => {
+                        let pixel_array = match &self.photometric_interpretation {
+                            PhotometricInterpretation::Rgb => pixel_array,
+                            PhotometricInterpretation::YbrFull
+                            | PhotometricInterpretation::YbrFull422 => {
                                 convert_colorspace_u16(&mut pixel_array);
                                 pixel_array
                             }
-                            _ => UnsupportedColorSpaceSnafu.fail()?,
+                            pi => UnsupportedPhotometricInterpretationSnafu { pi: pi.clone() }
+                                .fail()?,
                         };
 
                         let image_buffer: ImageBuffer<Rgb<u16>, Vec<u16>> =
@@ -709,7 +731,7 @@ impl DecodedPixelData<'_> {
             _ => InvalidBitsAllocatedSnafu.fail()?,
         };
         // Convert MONOCHROME1 => MONOCHROME2
-        if self.photometric_interpretation == "MONOCHROME1" {
+        if self.photometric_interpretation == PhotometricInterpretation::Monochrome1 {
             image.invert();
         }
         Ok(image)
@@ -723,7 +745,8 @@ impl DecodedPixelData<'_> {
         T: NumCast,
         T: Send,
     {
-        if self.samples_per_pixel > 1 && self.planar_configuration != 0 {
+        if self.samples_per_pixel > 1 && self.planar_configuration != PlanarConfiguration::Standard
+        {
             // TODO #129
             return UnsupportedOtherSnafu {
                 name: "PlanarConfiguration",
@@ -867,7 +890,7 @@ where
         let photometric_interpretation =
             photometric_interpretation(self).context(GetAttributeSnafu)?;
         let samples_per_pixel = samples_per_pixel(self).context(GetAttributeSnafu)?;
-        let planar_configuration = planar_configuration(self);
+        let planar_configuration = planar_configuration(self).context(GetAttributeSnafu)?;
         let bits_allocated = bits_allocated(self).context(GetAttributeSnafu)?;
         let bits_stored = bits_stored(self).context(GetAttributeSnafu)?;
         let high_bit = high_bit(self).context(GetAttributeSnafu)?;
@@ -913,8 +936,8 @@ where
             // pixels are already interpreted,
             // set new photometric interpretation
             let new_pi = match samples_per_pixel {
-                1 => "MONOCHROME2".to_owned(),
-                3 => "RGB".to_owned(),
+                1 => PhotometricInterpretation::Monochrome2,
+                3 => PhotometricInterpretation::Rgb,
                 _ => photometric_interpretation,
             };
 
@@ -925,7 +948,7 @@ where
                 number_of_frames,
                 photometric_interpretation: new_pi,
                 samples_per_pixel,
-                planar_configuration: 0,
+                planar_configuration: PlanarConfiguration::Standard,
                 bits_allocated,
                 bits_stored,
                 high_bit,
@@ -1008,8 +1031,7 @@ mod tests {
         let test_file = dicom_test_files::path("pydicom/CT_small.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
         let pixel_data = obj.decode_pixel_data().unwrap();
-        assert_eq!(pixel_data.rescale_intercept, -1024.);
-        assert_eq!(pixel_data.rescale_slope, 1.0);
+        assert_eq!(pixel_data.rescale(), Rescale::new(1., -1024.));
     }
 
     #[test]
@@ -1018,8 +1040,7 @@ mod tests {
         let test_file = dicom_test_files::path("pydicom/MR_small.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
         let pixel_data = obj.decode_pixel_data().unwrap();
-        assert_eq!(pixel_data.rescale_intercept, 0.);
-        assert_eq!(pixel_data.rescale_slope, 1.);
+        assert_eq!(pixel_data.rescale(), Rescale::new(1., 0.));
     }
 
     #[test]
@@ -1187,14 +1208,14 @@ mod tests {
             println!("Parsing pixel data for {}", test_file.display());
             let obj = open_file(test_file).unwrap();
             let pixel_data = obj.decode_pixel_data().unwrap();
-            assert_eq!(pixel_data.number_of_frames, frames);
+            assert_eq!(pixel_data.number_of_frames(), frames);
 
             let output_dir = Path::new(
                 "../target/dicom_test_files/_out/test_parse_jpeg_encoded_dicom_pixel_data",
             );
             fs::create_dir_all(output_dir).unwrap();
 
-            for i in 0..pixel_data.number_of_frames.min(MAX_TEST_FRAMES) {
+            for i in 0..pixel_data.number_of_frames().min(MAX_TEST_FRAMES) {
                 let image = pixel_data.to_dynamic_image(i).unwrap();
                 let image_path = output_dir.join(format!(
                     "{}-{}.png",

@@ -19,8 +19,9 @@ where
         let cols = cols(self).context(GetAttributeSnafu)?;
         let rows = rows(self).context(GetAttributeSnafu)?;
 
-        let photometric_interpretation = photometric_interpretation(self).context(GetAttributeSnafu)?;
-        let pi_type = GDCMPhotometricInterpretation::from_str(&photometric_interpretation)
+        let photometric_interpretation =
+            photometric_interpretation(self).context(GetAttributeSnafu)?;
+        let pi_type = GDCMPhotometricInterpretation::from_str(photometric_interpretation.as_str())
             .map_err(|_| {
                 UnsupportedPhotometricInterpretationSnafu {
                     pi: photometric_interpretation.clone(),
@@ -72,7 +73,7 @@ where
                     bits_allocated,
                     bits_stored,
                     high_bit,
-                    pixel_representation,
+                    pixel_representation as u16,
                 )
                 .map_err(|source| Error::DecodePixelData {
                     source: DecodeError::Custom {
@@ -96,8 +97,8 @@ where
         // pixels are already interpreted,
         // set new photometric interpretation
         let new_pi = match samples_per_pixel {
-            1 => "MONOCHROME2".to_owned(),
-            3 => "RGB".to_owned(),
+            1 => PhotometricInterpretation::Monochrome2,
+            3 => PhotometricInterpretation::Rgb,
             _ => photometric_interpretation,
         };
 
@@ -119,7 +120,7 @@ where
             number_of_frames,
             photometric_interpretation: new_pi,
             samples_per_pixel,
-            planar_configuration: 0,
+            planar_configuration: PlanarConfiguration::Standard,
             bits_allocated,
             bits_stored,
             high_bit,
