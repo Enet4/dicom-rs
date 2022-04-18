@@ -145,16 +145,16 @@ pub fn pixel_data<D: DataDictionary + Clone>(
 /// Get the RescaleIntercept from the DICOM object or returns 0
 pub fn rescale_intercept<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> i16 {
+) -> f64 {
     obj.element(tags::RESCALE_INTERCEPT)
-        .map_or(Ok(0), |e| e.to_int())
-        .unwrap_or(0)
+        .map_or(Ok(0.), |e| e.to_float64())
+        .unwrap_or(0.)
 }
 
 /// Get the RescaleSlope from the DICOM object or returns 1.0
-pub fn rescale_slope<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> f32 {
+pub fn rescale_slope<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> f64 {
     obj.element(tags::RESCALE_SLOPE)
-        .map_or(Ok(1.0), |e| e.to_float32())
+        .map_or(Ok(1.0), |e| e.to_float64())
         .unwrap_or(1.0)
 }
 

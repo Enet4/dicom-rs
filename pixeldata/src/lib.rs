@@ -277,9 +277,9 @@ pub struct DecodedPixelData<'a> {
     // Enhanced MR Images are not yet supported having
     // a RescaleSlope/RescaleIntercept Per-Frame Functional Group
     /// the pixel value rescale intercept
-    pub rescale_intercept: i16,
+    pub rescale_intercept: f64,
     /// the pixel value rescale slope
-    pub rescale_slope: f32,
+    pub rescale_slope: f64,
     // the VOI LUT function
     pub voi_lut_function: Option<VoiLutFunction>,
     /// the window level specified via width and center
@@ -452,7 +452,7 @@ impl DecodedPixelData<'_> {
                         let rescale = if let ModalityLutOption::Override(rescale) = modality_lut {
                             *rescale
                         } else {
-                            Rescale::new(self.rescale_slope as f64, self.rescale_intercept as f64)
+                            Rescale::new(self.rescale_slope, self.rescale_intercept)
                         };
 
                         let lut: Lut<u8> = match (voi_lut, self.window) {
@@ -564,7 +564,7 @@ impl DecodedPixelData<'_> {
                         let rescale = if let ModalityLutOption::Override(rescale) = modality_lut {
                             *rescale
                         } else {
-                            Rescale::new(self.rescale_slope as f64, self.rescale_intercept as f64)
+                            Rescale::new(self.rescale_slope, self.rescale_intercept)
                         };
 
                         // fetch pixel data as a slice of u16 values,
@@ -817,7 +817,7 @@ where
         let pixel_representation = pixel_representation(self).context(GetAttributeSnafu)?;
         let rescale_intercept = rescale_intercept(self);
         let rescale_slope = rescale_slope(self);
-        let number_of_frames = number_of_frames(self);
+        let number_of_frames = number_of_frames(self).context(GetAttributeSnafu)?;
         let voi_lut_function = voi_lut_function(self).context(GetAttributeSnafu)?;
         let voi_lut_function = voi_lut_function.and_then(|v| VoiLutFunction::try_from(&*v).ok());
 
@@ -951,7 +951,7 @@ mod tests {
         let test_file = dicom_test_files::path("pydicom/CT_small.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
         let pixel_data = obj.decode_pixel_data().unwrap();
-        assert_eq!(pixel_data.rescale_intercept, -1024);
+        assert_eq!(pixel_data.rescale_intercept, -1024.);
         assert_eq!(pixel_data.rescale_slope, 1.0);
     }
 
@@ -961,7 +961,7 @@ mod tests {
         let test_file = dicom_test_files::path("pydicom/MR_small.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
         let pixel_data = obj.decode_pixel_data().unwrap();
-        assert_eq!(pixel_data.rescale_intercept, 0);
+        assert_eq!(pixel_data.rescale_intercept, 0.);
         assert_eq!(pixel_data.rescale_slope, 1.);
     }
 
