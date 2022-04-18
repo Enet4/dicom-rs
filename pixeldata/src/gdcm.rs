@@ -4,9 +4,11 @@ use crate::*;
 use dicom_encoding::adapters::DecodeError;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use gdcm_rs::{decode_single_frame_compressed, GDCMPhotometricInterpretation, GDCMTransferSyntax};
-use std::convert::TryFrom;
-use std::str::FromStr;
+use gdcm_rs::{
+    decode_multi_frame_compressed, decode_single_frame_compressed, Error as GDCMError,
+    GDCMPhotometricInterpretation, GDCMTransferSyntax,
+};
+use std::{convert::TryFrom, str::FromStr};
 
 impl<D> PixelDecoder for FileDicomObject<InMemDicomObject<D>>
 where
@@ -59,29 +61,45 @@ where
                 fragments,
                 offset_table: _,
             } => {
+                let gdcm_error_mapper = |source: GDCMError| DecodeError::Custom {
+                    message: source.to_string(),
+                    source: Some(Box::new(source)),
+                };
                 if fragments.len() > 1 {
                     // Bundle fragments and decode multi-frame dicoms
-                    UnsupportedMultiFrameSnafu.fail()?
+                    let dims = [cols.into(), rows.into(), number_of_frames.into()];
+                    let fragments: Vec<_> = fragments.iter().map(|frag| frag.as_slice()).collect();
+                    decode_multi_frame_compressed(
+                        fragments.as_slice(),
+                        &dims,
+                        pi_type,
+                        ts_type,
+                        samples_per_pixel,
+                        bits_allocated,
+                        bits_stored,
+                        high_bit,
+                        pixel_representation as u16,
+                    )
+                    .map_err(gdcm_error_mapper)
+                    .context(DecodePixelDataSnafu)?
+                    .to_vec()
+                } else {
+                    decode_single_frame_compressed(
+                        &fragments[0],
+                        cols.into(),
+                        rows.into(),
+                        pi_type,
+                        ts_type,
+                        samples_per_pixel,
+                        bits_allocated,
+                        bits_stored,
+                        high_bit,
+                        pixel_representation as u16,
+                    )
+                    .map_err(gdcm_error_mapper)
+                    .context(DecodePixelDataSnafu)?
+                    .to_vec()
                 }
-                let decoded_frame = decode_single_frame_compressed(
-                    &fragments[0],
-                    cols.into(),
-                    rows.into(),
-                    pi_type,
-                    ts_type,
-                    samples_per_pixel,
-                    bits_allocated,
-                    bits_stored,
-                    high_bit,
-                    pixel_representation as u16,
-                )
-                .map_err(|source| InnerError::DecodePixelData {
-                    source: DecodeError::Custom {
-                        message: "Could not decode frame via GDCM".to_string(),
-                        source: Some(Box::new(source) as Box<_>),
-                    },
-                })?;
-                decoded_frame.to_vec()
             }
             Value::Primitive(p) => {
                 // Non-encoded, just return the pixel data of the first frame
@@ -174,6 +192,8 @@ mod tests {
         "pydicom/color-pl.dcm",
         "pydicom/color-px.dcm",
         "pydicom/SC_ybr_full_uncompressed.dcm",
+        "pydicom/color3d_jpeg_baseline.dcm",
+        "pydicom/emri_small_jpeg_ls_lossless.dcm",
 ])]
     fn test_parse_dicom_pixel_data(value: &str) {
         let test_file = dicom_test_files::path(value).unwrap();
@@ -199,8 +219,7 @@ mod tests {
     fn test_to_ndarray_signed_word_no_lut() {
         let test_file = dicom_test_files::path("pydicom/JPEG2000.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
-        let options = ConvertOptions::new()
-            .with_modality_lut(ModalityLutOption::None);
+        let options = ConvertOptions::new().with_modality_lut(ModalityLutOption::None);
         let ndarray = obj
             .decode_pixel_data()
             .unwrap()
