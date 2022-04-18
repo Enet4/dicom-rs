@@ -291,6 +291,7 @@ impl DecodedPixelData<'_> {
 
     /// Retrieve a slice of all raw pixel data samples as bytes,
     /// irrespective of the expected size of each sample.
+    #[inline]
     pub fn data(&self) -> &[u8] {
         &self.data
     }
@@ -402,6 +403,7 @@ impl DecodedPixelData<'_> {
     }
 
     /// Retrieve the VOI LUT function defined by the object, if any.
+    #[inline]
     pub fn voi_lut_function(&self) -> Option<VoiLutFunction> {
         self.voi_lut_function
     }
