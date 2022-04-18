@@ -66,7 +66,6 @@ use dicom_object::{FileDicomObject, InMemDicomObject};
 #[cfg(not(feature = "gdcm"))]
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use image::{DynamicImage, ImageBuffer, Luma, Rgb};
-use lut::Lut;
 use ndarray::{Array, IxDyn};
 use num_traits::NumCast;
 use rayon::iter::{
@@ -85,6 +84,8 @@ pub mod lut;
 
 pub(crate) mod transform;
 
+// re-exports
+pub use lut::Lut;
 pub use transform::{Rescale, VoiLutFunction, WindowLevel, WindowLevelTransform};
 
 #[cfg(feature = "gdcm")]

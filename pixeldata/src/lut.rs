@@ -24,8 +24,7 @@ use crate::{Rescale, WindowLevelTransform};
 ///
 /// ```
 /// # use dicom_pixeldata::{
-/// #     lut::{Lut, Rescale, VoiLutFunction, WindowLevelTransform},
-/// #     WindowLevel
+/// #     Lut, Rescale, VoiLutFunction, WindowLevel, WindowLevelTransform,
 /// # };
 /// let bits_stored = 8;
 /// let lut = Lut::new_rescale_and_window(
@@ -268,7 +267,7 @@ mod tests {
         // around the middle
 
         let val: u16 = lut.get(1024_u16 + 50);
-        let expected_range = 32_500 ..= 33_000;
+        let expected_range = 32_500..=33_000;
         assert!(
             expected_range.contains(&val),
             "outcome was {}, expected to be in {:?}",
