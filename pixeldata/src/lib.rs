@@ -216,13 +216,16 @@ impl ModalityLutOption {}
 #[non_exhaustive]
 pub enum VoiLutOption {
     /// _Default behavior:_
-    /// apply the VOI LUT function transformation described in the pixel data
+    /// apply the first VOI LUT function transformation described in the pixel data
     /// only when converting to an image;
     /// no VOI LUT function is performed
-    /// when converting to an ndarray.
+    /// when converting to an ndarray or to bare pixel values.
     Default,
+    /// Apply the first VOI LUT function transformation
+    /// described in the pixel data.
+    First,
     /// Apply a custom window level instead of the one described in the object.
-    WindowLevel(WindowLevel),
+    Custom(WindowLevel),
     /// Perform a min-max normalization instead,
     /// so that the lowest value is 0 and
     /// the highest value is the maximum value of the target type.
@@ -314,7 +317,7 @@ impl DecodedPixelData<'_> {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let data: DecodedPixelData = unimplemented!();
     /// let options = Options::new()
-    ///     .with_voi_lut(VoiLutOption::WindowLevel(WindowLevel {
+    ///     .with_voi_lut(VoiLutOption::Custom(WindowLevel {
     ///         center: -300.0,
     ///         width: 600.,
     ///     }));
@@ -453,21 +456,23 @@ impl DecodedPixelData<'_> {
 
                         let lut: Lut<u8> = match (voi_lut, self.window) {
                             (VoiLutOption::Identity, _) => Lut::new_rescale(8, false, rescale),
-                            (VoiLutOption::Default, Some(window)) => Lut::new_rescale_and_window(
-                                8,
-                                false,
-                                rescale,
-                                WindowLevelTransform::new(
-                                    self.voi_lut_function.unwrap_or_default(),
-                                    window,
-                                ),
-                            ),
-                            (VoiLutOption::Default, None) => {
+                            (VoiLutOption::Default | VoiLutOption::First, Some(window)) => {
+                                Lut::new_rescale_and_window(
+                                    8,
+                                    false,
+                                    rescale,
+                                    WindowLevelTransform::new(
+                                        self.voi_lut_function.unwrap_or_default(),
+                                        window,
+                                    ),
+                                )
+                            }
+                            (VoiLutOption::Default | VoiLutOption::First, None) => {
                                 // log warning (#49)
                                 eprintln!("Could not find window level for object");
                                 Lut::new_rescale(8, false, rescale)
                             }
-                            (VoiLutOption::WindowLevel(window), _) => Lut::new_rescale_and_window(
+                            (VoiLutOption::Custom(window), _) => Lut::new_rescale_and_window(
                                 8,
                                 false,
                                 rescale,
@@ -585,21 +590,23 @@ impl DecodedPixelData<'_> {
                             (VoiLutOption::Identity, _) => {
                                 Lut::new_rescale(self.bits_stored, signed, rescale)
                             }
-                            (VoiLutOption::Default, Some(window)) => Lut::new_rescale_and_window(
-                                self.bits_stored,
-                                signed,
-                                rescale,
-                                WindowLevelTransform::new(
-                                    self.voi_lut_function.unwrap_or_default(),
-                                    window,
-                                ),
-                            ),
-                            (VoiLutOption::Default, None) => {
+                            (VoiLutOption::Default | VoiLutOption::First, Some(window)) => {
+                                Lut::new_rescale_and_window(
+                                    self.bits_stored,
+                                    signed,
+                                    rescale,
+                                    WindowLevelTransform::new(
+                                        self.voi_lut_function.unwrap_or_default(),
+                                        window,
+                                    ),
+                                )
+                            }
+                            (VoiLutOption::Default | VoiLutOption::First, None) => {
                                 // log warning (#49)
                                 eprintln!("Could not find window level for object");
                                 Lut::new_rescale(self.bits_stored, signed, rescale)
                             }
-                            (VoiLutOption::WindowLevel(window), _) => Lut::new_rescale_and_window(
+                            (VoiLutOption::Custom(window), _) => Lut::new_rescale_and_window(
                                 self.bits_stored,
                                 signed,
                                 rescale,
