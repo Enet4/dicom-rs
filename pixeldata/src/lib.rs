@@ -164,12 +164,12 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// into an image or a multidimensional array.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[non_exhaustive]
-pub struct Options {
+pub struct ConvertOptions {
     modality_lut: ModalityLutOption,
     voi_lut: VoiLutOption,
 }
 
-impl Options {
+impl ConvertOptions {
     pub fn new() -> Self {
         Default::default()
     }
@@ -250,44 +250,143 @@ impl Default for VoiLutOption {
 /// Whether to apply such transformations
 /// can be done through one of the various `to_*` methods.
 #[derive(Debug)]
-#[non_exhaustive]
 pub struct DecodedPixelData<'a> {
     /// the raw bytes of pixel data
-    pub data: Cow<'a, [u8]>,
+    data: Cow<'a, [u8]>,
     /// the number of rows
-    pub rows: u32,
+    rows: u32,
     /// the number of columns
-    pub cols: u32,
+    cols: u32,
     /// the number of frames
-    pub number_of_frames: u32,
+    number_of_frames: u32,
     /// the photometric interpretation
-    pub photometric_interpretation: String,
+    photometric_interpretation: String,
     /// the number of samples per pixel
-    pub samples_per_pixel: u16,
+    samples_per_pixel: u16,
     /// the planar configuration: 0 for standard, 1 for channel-contiguous
-    pub planar_configuration: u16,
+    planar_configuration: u16,
     /// the number of bits allocated, as a multiple of 8
-    pub bits_allocated: u16,
+    bits_allocated: u16,
     /// the number of bits stored
-    pub bits_stored: u16,
+    bits_stored: u16,
     /// the high bit, usually `bits_stored - 1`
-    pub high_bit: u16,
+    high_bit: u16,
     /// the pixel representation: 0 for unsigned, 1 for signed
-    pub pixel_representation: u16,
+    pixel_representation: u16,
     // Enhanced MR Images are not yet supported having
     // a RescaleSlope/RescaleIntercept Per-Frame Functional Group
     /// the pixel value rescale intercept
-    pub rescale_intercept: f64,
+    rescale_intercept: f64,
     /// the pixel value rescale slope
-    pub rescale_slope: f64,
+    rescale_slope: f64,
     // the VOI LUT function
-    pub voi_lut_function: Option<VoiLutFunction>,
+    voi_lut_function: Option<VoiLutFunction>,
     /// the window level specified via width and center
-    pub window: Option<WindowLevel>,
+    window: Option<WindowLevel>,
     // TODO(#232): VOI LUT sequence is currently not supported
 }
 
 impl DecodedPixelData<'_> {
+    // getter methods
+
+    /// Retrieve a slice of raw pixel data samples as bytes,
+    /// irrespective of the expected size of each sample.
+    pub fn data(&self) -> &[u8] {
+        &self.data
+    }
+
+    /// Retrieve a slice of a frame's raw pixel data samples as bytes,
+    /// irrespective of the expected size of each sample.
+    pub fn frame_data(&self, frame: u32) -> Result<&[u8]> {
+        let bytes_per_sample = self.bits_allocated as usize / 8;
+        let frame_length = self.rows as usize
+            * self.cols as usize
+            * self.samples_per_pixel as usize
+            * bytes_per_sample;
+        let frame_start = frame_length * frame as usize;
+        let frame_end = frame_start + frame_length;
+        if frame_end > (*self.data).len() {
+            FrameOutOfRangeSnafu {
+                frame_number: frame,
+            }
+            .fail()?
+        }
+
+        Ok(&self.data[(frame_start as usize..frame_end as usize)])
+    }
+
+    /// Retrieve a copy of a frame's raw pixel data samples
+    /// as unsigned 16-bit integers.
+    ///
+    /// This is useful for retrieving pixel data
+    /// with the _OW_ value representation.
+    pub fn frame_data_ow(&self, frame: u32) -> Result<Vec<u16>> {
+        let data = self.frame_data(frame)?;
+
+        let mut pixel_array: Vec<u16> = vec![0; data.len() / 2];
+        NativeEndian::read_u16_into(data, &mut pixel_array);
+        Ok(pixel_array)
+    }
+
+    /// Retrieves the number of rows of the pixel data.
+    #[inline]
+    pub fn rows(&self) -> u32 {
+        self.rows
+    }
+
+    /// Retrieves the number of columns of the pixel data.
+    #[inline]
+    pub fn columns(&self) -> u32 {
+        self.cols
+    }
+
+    /// Retrieves the total number of frames
+    /// in this piece of decoded pixel data.
+    #[inline]
+    pub fn number_of_frames(&self) -> u32 {
+        self.number_of_frames
+    }
+
+    /// Retrieves the number of samples per pixel.
+    #[inline]
+    pub fn samples_per_pixel(&self) -> u32 {
+        self.cols
+    }
+
+    /// Retrieve the number of bits effectively used for each sample.
+    #[inline]
+    pub fn bits_stored(&self) -> u16 {
+        self.bits_stored
+    }
+
+    /// Retrieve the number of bits allocated for each sample.
+    #[inline]
+    pub fn bits_allocated(&self) -> u16 {
+        self.bits_allocated
+    }
+
+    /// Retrieve the high bit index of each sample.
+    #[inline]
+    pub fn high_bit(&self) -> u16 {
+        self.high_bit
+    }
+
+    /// Retrieve object's rescale parameters.
+    #[inline]
+    pub fn rescale(&self) -> Rescale {
+        Rescale {
+            intercept: self.rescale_intercept,
+            slope: self.rescale_slope,
+        }
+    }
+
+    /// Retrieve the VOI LUT function defined by the object, if any.
+    pub fn voi_lut_function(&self) -> Option<VoiLutFunction> {
+        self.voi_lut_function
+    }
+
+    // converter methods
+
     /// Convert the decoded pixel data of a specific frame into a dynamic image.
     ///
     /// The default pixel data process pipeine
@@ -296,7 +395,7 @@ impl DecodedPixelData<'_> {
     /// To change this behavior,
     /// see [`to_dynamic_image_with_options`].
     pub fn to_dynamic_image(&self, frame: u32) -> Result<DynamicImage> {
-        self.to_dynamic_image_with_options(frame, &Options::default())
+        self.to_dynamic_image_with_options(frame, &ConvertOptions::default())
     }
 
     /// Convert the decoded pixel data of a specific frame into a dynamic image.
@@ -314,10 +413,10 @@ impl DecodedPixelData<'_> {
     /// # Example
     ///
     /// ```no_run
-    /// # use dicom_pixeldata::{DecodedPixelData, Options, VoiLutOption, WindowLevel};
+    /// # use dicom_pixeldata::{ConvertOptions, DecodedPixelData, VoiLutOption, WindowLevel};
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let data: DecodedPixelData = unimplemented!();
-    /// let options = Options::new()
+    /// let options = ConvertOptions::new()
     ///     .with_voi_lut(VoiLutOption::Custom(WindowLevel {
     ///         center: -300.0,
     ///         width: 600.,
@@ -329,7 +428,7 @@ impl DecodedPixelData<'_> {
     pub fn to_dynamic_image_with_options(
         &self,
         frame: u32,
-        options: &Options,
+        options: &ConvertOptions,
     ) -> Result<DynamicImage> {
         match self.samples_per_pixel {
             1 => self.build_monochrome_image(frame, options),
@@ -348,19 +447,7 @@ impl DecodedPixelData<'_> {
                 // RGB, YBR_FULL or YBR_FULL_422 colors
                 match self.bits_allocated {
                     8 => {
-                        let frame_length = self.rows as usize
-                            * self.cols as usize
-                            * self.samples_per_pixel as usize;
-                        let frame_start = frame_length * frame as usize;
-                        let frame_end = frame_start + frame_length;
-                        if frame_end > (*self.data).len() {
-                            FrameOutOfRangeSnafu {
-                                frame_number: frame,
-                            }
-                            .fail()?
-                        }
-                        let mut pixel_array: Vec<u8> =
-                            (&self.data[(frame_start as usize..frame_end as usize)]).to_vec();
+                        let mut pixel_array = self.frame_data(frame)?.to_vec();
 
                         // Convert YBR_FULL or YBR_FULL_422 to RGB
                         let pixel_array = match self.photometric_interpretation.as_str() {
@@ -378,22 +465,7 @@ impl DecodedPixelData<'_> {
                         Ok(DynamicImage::ImageRgb8(image_buffer))
                     }
                     16 => {
-                        let frame_length = self.rows as usize
-                            * self.cols as usize
-                            * 2
-                            * self.samples_per_pixel as usize;
-                        let frame_start = frame_length * frame as usize;
-                        let frame_end = frame_start + frame_length;
-                        if frame_end > (*self.data).len() {
-                            FrameOutOfRangeSnafu {
-                                frame_number: frame,
-                            }
-                            .fail()?
-                        }
-                        let buffer: Vec<u8> =
-                            (&self.data[(frame_start as usize..frame_end as usize)]).to_vec();
-                        let mut pixel_array: Vec<u16> = vec![0; (frame_length / 2) as usize];
-                        NativeEndian::read_u16_into(&buffer, &mut pixel_array);
+                        let mut pixel_array: Vec<u16> = self.frame_data_ow(frame)?;
 
                         // Convert YBR_FULL or YBR_FULL_422 to RGB
                         let pixel_array = match self.photometric_interpretation.as_str() {
@@ -417,26 +489,15 @@ impl DecodedPixelData<'_> {
         }
     }
 
-    fn build_monochrome_image(&self, frame: u32, options: &Options) -> Result<DynamicImage> {
-        let Options {
+    fn build_monochrome_image(&self, frame: u32, options: &ConvertOptions) -> Result<DynamicImage> {
+        let ConvertOptions {
             modality_lut,
             voi_lut,
         } = options;
 
         let mut image = match self.bits_allocated {
             8 => {
-                let frame_length =
-                    self.rows as usize * self.cols as usize * self.samples_per_pixel as usize;
-                let frame_start = frame_length * frame as usize;
-                let frame_end = frame_start + frame_length;
-                if frame_end > (*self.data).len() {
-                    FrameOutOfRangeSnafu {
-                        frame_number: frame,
-                    }
-                    .fail()?
-                }
-
-                let data = &self.data[(frame_start as usize..frame_end as usize)];
+                let data = self.frame_data(frame)?;
 
                 match modality_lut {
                     // simplest one, no transformations
@@ -452,7 +513,7 @@ impl DecodedPixelData<'_> {
                         let rescale = if let ModalityLutOption::Override(rescale) = modality_lut {
                             *rescale
                         } else {
-                            Rescale::new(self.rescale_slope, self.rescale_intercept)
+                            self.rescale()
                         };
 
                         let lut: Lut<u8> = match (voi_lut, self.window) {
@@ -516,21 +577,24 @@ impl DecodedPixelData<'_> {
                 }
             }
             16 => {
-                let frame_length =
-                    self.rows as usize * self.cols as usize * 2 * self.samples_per_pixel as usize;
-                let frame_start = frame_length * frame as usize;
-                let frame_end = frame_start + frame_length;
-                if frame_end > (*self.data).len() {
-                    FrameOutOfRangeSnafu {
-                        frame_number: frame,
-                    }
-                    .fail()?
-                }
-
                 match modality_lut {
                     // only take pixel representation,
-                    // convert to image as is
+                    // convert to image only after shifting values
+                    // to an unsigned scale
                     ModalityLutOption::Identity => {
+                        let frame_length = self.rows as usize
+                            * self.cols as usize
+                            * 2
+                            * self.samples_per_pixel as usize;
+                        let frame_start = frame_length * frame as usize;
+                        let frame_end = frame_start + frame_length;
+                        if frame_end > (*self.data).len() {
+                            FrameOutOfRangeSnafu {
+                                frame_number: frame,
+                            }
+                            .fail()?
+                        }
+
                         let buffer = match self.pixel_representation {
                             // Unsigned 16-bit representation
                             0 => {
@@ -548,7 +612,7 @@ impl DecodedPixelData<'_> {
                                     &self.data[frame_start..frame_end],
                                     &mut signed_buffer,
                                 );
-                                // Convert buffer to unsigned
+                                // Convert buffer to unsigned by shifting
                                 convert_i16_to_u16(&signed_buffer)
                             }
                             _ => InvalidPixelRepresentationSnafu.fail()?,
@@ -576,17 +640,12 @@ impl DecodedPixelData<'_> {
                         );
 
                         let signed = self.pixel_representation == 1;
+                        // Note: samples are not read as `i16` even if signed,
+                        // because the LUT takes care of interpreting them properly.
 
-                        let samples = {
-                            let mut buffer = vec![0; frame_length / 2];
-                            NativeEndian::read_u16_into(
-                                &self.data[frame_start..frame_end],
-                                &mut buffer,
-                            );
-                            buffer
-                        };
+                        let samples = self.frame_data_ow(frame)?;
 
-                        // use 16-bit precision to prevent loss of precision in image
+                        // use 16-bit precision to prevent possible loss of precision in image
                         let lut: Lut<u16> = match (voi_lut, self.window) {
                             (VoiLutOption::Identity, _) => {
                                 Lut::new_rescale(self.bits_stored, signed, rescale)
@@ -734,7 +793,7 @@ impl DecodedPixelData<'_> {
 
 // Convert u8 pixel array from YBR_FULL or YBR_FULL_422 to RGB
 // Every pixel is replaced with an RGB value
-fn convert_colorspace_u8(i: &mut Vec<u8>) {
+fn convert_colorspace_u8(i: &mut [u8]) {
     // Matrix multiplication taken from
     // https://github.com/pydicom/pydicom/blob/f36517e10/pydicom/pixel_data_handlers/util.py#L576
     i.par_iter_mut().chunks(3).for_each(|mut pixel| {
@@ -760,7 +819,7 @@ fn convert_colorspace_u8(i: &mut Vec<u8>) {
 
 // Convert u16 pixel array from YBR_FULL or YBR_FULL_422 to RGB
 // Every pixel is replaced with an RGB value
-fn convert_colorspace_u16(i: &mut Vec<u16>) {
+fn convert_colorspace_u16(i: &mut [u16]) {
     // Matrix multiplication taken from
     // https://github.com/pydicom/pydicom/blob/f36517e10/pydicom/pixel_data_handlers/util.py#L576
     i.par_iter_mut().chunks(3).for_each(|mut pixel| {
@@ -784,7 +843,8 @@ fn convert_colorspace_u16(i: &mut Vec<u16>) {
     });
 }
 
-/// Convert the i16 vector by shifting it up.
+/// Convert the i16 vector by shifting it up,
+/// thus maintaining the order between sample values.
 fn convert_i16_to_u16(i: &[i16]) -> Vec<u16> {
     i.par_iter().map(|p| (*p as i32 + 0x8000) as u16).collect()
 }
