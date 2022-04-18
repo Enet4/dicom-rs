@@ -259,7 +259,7 @@ pub struct DecodedPixelData<'a> {
     /// the number of columns
     pub cols: u32,
     /// the number of frames
-    pub number_of_frames: u16,
+    pub number_of_frames: u32,
     /// the photometric interpretation
     pub photometric_interpretation: String,
     /// the number of samples per pixel
@@ -295,7 +295,7 @@ impl DecodedPixelData<'_> {
     /// followed by a normalization of grayscale values.
     /// To change this behavior,
     /// see [`to_dynamic_image_with_options`].
-    pub fn to_dynamic_image(&self, frame: u16) -> Result<DynamicImage> {
+    pub fn to_dynamic_image(&self, frame: u32) -> Result<DynamicImage> {
         self.to_dynamic_image_with_options(frame, &Options::default())
     }
 
@@ -328,7 +328,7 @@ impl DecodedPixelData<'_> {
     /// ```
     pub fn to_dynamic_image_with_options(
         &self,
-        frame: u16,
+        frame: u32,
         options: &Options,
     ) -> Result<DynamicImage> {
         match self.samples_per_pixel {
@@ -417,7 +417,7 @@ impl DecodedPixelData<'_> {
         }
     }
 
-    fn build_monochrome_image(&self, frame: u16, options: &Options) -> Result<DynamicImage> {
+    fn build_monochrome_image(&self, frame: u32, options: &Options) -> Result<DynamicImage> {
         let Options {
             modality_lut,
             voi_lut,
@@ -1097,7 +1097,7 @@ mod tests {
             assert_eq!(ndarray[[1, 75, 75, 2]], 65535);
         }
 
-        const MAX_TEST_FRAMES: u16 = 16;
+        const MAX_TEST_FRAMES: u32 = 16;
 
         #[rstest]
         // jpeg2000 encoding not supported
@@ -1125,7 +1125,7 @@ mod tests {
         #[case("pydicom/SC_rgb_jpeg_gdcm.dcm", 1)]
         #[case("pydicom/SC_rgb_jpeg_lossy_gdcm.dcm", 1)]
 
-        fn test_parse_jpeg_encoded_dicom_pixel_data(#[case] value: &str, #[case] frames: u16) {
+        fn test_parse_jpeg_encoded_dicom_pixel_data(#[case] value: &str, #[case] frames: u32) {
             let test_file = dicom_test_files::path(value).unwrap();
             println!("Parsing pixel data for {}", test_file.display());
             let obj = open_file(test_file).unwrap();

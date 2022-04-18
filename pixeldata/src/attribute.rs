@@ -3,7 +3,7 @@
 use dicom_core::{DataDictionary, Tag};
 use dicom_dictionary_std::tags;
 use dicom_object::{mem::InMemElement, FileDicomObject, InMemDicomObject};
-use snafu::{Backtrace, ResultExt, Snafu};
+use snafu::{ensure, Backtrace, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
 pub enum GetAttributeError {
@@ -25,6 +25,13 @@ pub enum GetAttributeError {
     ConvertValue {
         name: &'static str,
         source: dicom_core::value::ConvertValueError,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Semantically invalid value `{}` for attribute `{}`", value, name))]
+    InvalidValue {
+        name: &'static str,
+        value: String,
         backtrace: Backtrace,
     },
 }
@@ -151,13 +158,34 @@ pub fn rescale_slope<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicom
         .unwrap_or(1.0)
 }
 
-/// Get the NumberOfFrames from the DICOM object or returns 1
+/// Get the NumberOfFrames from the DICOM object,
+/// returning 1 if it is not present
 pub fn number_of_frames<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> u16 {
-    obj.element(tags::NUMBER_OF_FRAMES)
-        .map_or(Ok(1), |e| e.to_int())
-        .unwrap_or(1)
+) -> Result<u32> {
+    let elem = match obj.element(tags::NUMBER_OF_FRAMES) {
+        Ok(e) => e,
+        Err(dicom_object::Error::NoSuchDataElementTag { .. }) => return Ok(1),
+        Err(e) => {
+            return Err(e).context(MissingRequiredFieldSnafu {
+                name: "NumberOfFrames",
+            })
+        }
+    };
+
+    let integer = elem.to_int::<i32>().context(ConvertValueSnafu {
+        name: "NumberOfFrames",
+    })?;
+
+    ensure!(
+        integer > 0,
+        InvalidValueSnafu {
+            name: "NumberOfFrames",
+            value: integer.to_string(),
+        }
+    );
+
+    Ok(integer as u32)
 }
 
 /// Retrieve the WindowCenter from the DICOM object if it exists.
