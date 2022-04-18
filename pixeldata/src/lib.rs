@@ -50,7 +50,7 @@
 //! let obj = open_file("rgb_dicom.dcm")?;
 //! let pixel_data = obj.decode_pixel_data()?;
 //! let ndarray = pixel_data.to_ndarray::<u16>()?;
-//! let red_values = ndarray.slice(s![.., .., 0]);
+//! let red_values = ndarray.slice(s![.., .., .., 0]);
 //! # Ok(())
 //! # }
 //! ```
@@ -66,7 +66,7 @@ use dicom_object::{FileDicomObject, InMemDicomObject};
 #[cfg(not(feature = "gdcm"))]
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use image::{DynamicImage, ImageBuffer, Luma, Rgb};
-use ndarray::{Array, IxDyn};
+use ndarray::{Array, Ix3, Ix4};
 use num_traits::NumCast;
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
@@ -739,10 +739,35 @@ impl DecodedPixelData<'_> {
         Ok(image)
     }
 
-    /// Convert decoded pixel data into an ndarray of a given type T.
-    /// The pixel data type is extracted from the bits_allocated and
-    /// pixel_representation, and automatically converted to the requested type T.
-    pub fn to_ndarray<T>(&self) -> Result<Array<T, IxDyn>>
+    /// Convert all of the decoded pixel data into a vector of flat pixels
+    /// of a given type `T`.
+    /// The underlying pixel data type is extracted based on
+    /// the bits allocated and pixel representation,
+    /// which is then converted to the requested type.
+    /// Photometric interpretation is ignored.
+    pub fn to_converted_pixels<T>(&self) -> Result<Vec<T>>
+    where
+        T: NumCast,
+        T: Send,
+    {
+        self.convert_pixel_slice(&self.data[..])
+    }
+
+    /// Convert the decoded pixel data of a frame
+    /// into a vector of flat pixels of a given type `T`.
+    /// The underlying pixel data type is extracted based on
+    /// the bits allocated and pixel representation,
+    /// which is then converted to the requested type.
+    /// Photometric interpretation is ignored.
+    pub fn to_converted_pixels_frame<T>(&self, frame: u32) -> Result<Vec<T>>
+    where
+        T: NumCast,
+        T: Send,
+    {
+        self.convert_pixel_slice(self.frame_data(frame)?)
+    }
+
+    fn convert_pixel_slice<T>(&self, data: &[u8]) -> Result<Vec<T>>
     where
         T: NumCast,
         T: Send,
@@ -757,59 +782,101 @@ impl DecodedPixelData<'_> {
             .fail();
         }
 
-        // Array size is NumberOfFrames x Rows x Cols x SamplesPerPixel (1 for grayscale, 3 for RGB)
-        let shape = IxDyn(&[
-            self.number_of_frames as usize,
-            self.rows as usize,
-            self.cols as usize,
-            self.samples_per_pixel as usize,
-        ]);
-
         match self.bits_allocated {
             8 => {
                 // 1-channel Grayscale image
-                let converted: Result<Vec<T>, _> = self
-                    .data
+                let converted: Result<Vec<T>, _> = data
                     .par_iter()
                     .map(|v| T::from(*v).ok_or(snafu::NoneError))
                     .collect();
-                let converted = converted.context(InvalidDataTypeSnafu)?;
-                let ndarray = Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)?;
-                Ok(ndarray)
+                converted.context(InvalidDataTypeSnafu)
             }
             16 => match self.pixel_representation {
                 // Unsigned 16 bit representation
                 PixelRepresentation::Unsigned => {
-                    let mut dest = vec![0; self.data.len() / 2];
-                    NativeEndian::read_u16_into(&self.data, &mut dest);
+                    let mut dest = vec![0; data.len() / 2];
+                    NativeEndian::read_u16_into(data, &mut dest);
 
                     let converted: Result<Vec<T>, _> = dest
                         .par_iter()
                         .map(|v| T::from(*v).ok_or(snafu::NoneError))
                         .collect();
-                    let converted = converted.context(InvalidDataTypeSnafu)?;
-                    let ndarray =
-                        Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)?;
-                    Ok(ndarray)
+                    converted.context(InvalidDataTypeSnafu)
                 }
                 // Signed 16 bit 2s complement representation
                 PixelRepresentation::Signed => {
-                    let mut signed_buffer = vec![0; self.data.len() / 2];
-                    NativeEndian::read_i16_into(&self.data, &mut signed_buffer);
+                    let mut signed_buffer = vec![0; data.len() / 2];
+                    NativeEndian::read_i16_into(data, &mut signed_buffer);
 
                     let converted: Result<Vec<T>, _> = signed_buffer
                         .par_iter()
                         .map(|v| T::from(*v).ok_or(snafu::NoneError))
                         .collect();
-                    let converted = converted.context(InvalidDataTypeSnafu)?;
-                    let ndarray =
-                        Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)?;
-                    Ok(ndarray)
+                    converted.context(InvalidDataTypeSnafu)
                 }
             },
             _ => InvalidBitsAllocatedSnafu.fail()?,
         }
     }
+
+    /// Convert all of the decoded pixel data
+    /// into a four dimensional array of a given type `T`.
+    ///
+    /// The underlying pixel data type is extracted based on
+    /// the bits allocated and pixel representation,
+    /// which is then converted to the requested type.
+    /// Photometric interpretation is ignored.
+    ///
+    /// The shape of the array will be `[N, R, C, S]`,
+    /// where `N` is the number of frames,
+    /// `R` is the number of rows,
+    /// `C` is the number of columns,
+    /// and `S` is the number of samples per pixel.
+    pub fn to_ndarray<T>(&self) -> Result<Array<T, Ix4>>
+    where
+        T: NumCast,
+        T: Send,
+    {
+        // Array shape is NumberOfFrames x Rows x Cols x SamplesPerPixel
+        let shape = [
+            self.number_of_frames as usize,
+            self.rows as usize,
+            self.cols as usize,
+            self.samples_per_pixel as usize,
+        ];
+
+        let converted = self.to_converted_pixels::<T>()?;
+        Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)
+    }
+
+    /// Convert the decoded pixel data of a single frame
+    /// into a three dimensional array of a given type `T`.
+    ///
+    /// The underlying pixel data type is extracted based on
+    /// the bits allocated and pixel representation,
+    /// which is then converted to the requested type.
+    /// Photometric interpretation is ignored.
+    ///
+    /// The shape of the array will be `[R, C, S]`,
+    /// where `R` is the number of rows,
+    /// `C` is the number of columns,
+    /// and `S` is the number of samples per pixel.
+    pub fn to_ndarray_frame<T>(&self, frame: u32) -> Result<Array<T, Ix3>>
+    where
+        T: NumCast,
+        T: Send,
+    {
+        // Array shape is Rows x Cols x SamplesPerPixel
+        let shape = [
+            self.rows as usize,
+            self.cols as usize,
+            self.samples_per_pixel as usize,
+        ];
+
+        let converted = self.to_converted_pixels_frame::<T>(frame)?;
+        Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)
+    }
+
 }
 
 // Convert u8 pixel array from YBR_FULL or YBR_FULL_422 to RGB
