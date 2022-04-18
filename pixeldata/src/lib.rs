@@ -71,7 +71,7 @@ use num_traits::NumCast;
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
-use snafu::{ensure, OptionExt};
+use snafu::OptionExt;
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::borrow::Cow;
 
@@ -84,6 +84,7 @@ pub mod lut;
 pub(crate) mod transform;
 
 // re-exports
+pub use attribute::PixelRepresentation;
 pub use lut::Lut;
 pub use transform::{Rescale, VoiLutFunction, WindowLevel, WindowLevelTransform};
 
@@ -100,9 +101,6 @@ pub enum Error {
 
     #[snafu(display("PixelData attribute is not a primitive value or pixel sequence"))]
     InvalidPixelData { backtrace: Backtrace },
-
-    #[snafu(display("Invalid PixelRepresentation, must be 0 or 1"))]
-    InvalidPixelRepresentation { backtrace: Backtrace },
 
     #[snafu(display("Invalid BitsAllocated, must be 8 or 16"))]
     InvalidBitsAllocated { backtrace: Backtrace },
@@ -271,7 +269,7 @@ pub struct DecodedPixelData<'a> {
     /// the high bit, usually `bits_stored - 1`
     high_bit: u16,
     /// the pixel representation: 0 for unsigned, 1 for signed
-    pixel_representation: u16,
+    pixel_representation: PixelRepresentation,
     // Enhanced MR Images are not yet supported having
     // a RescaleSlope/RescaleIntercept Per-Frame Functional Group
     /// the pixel value rescale intercept
@@ -368,6 +366,12 @@ impl DecodedPixelData<'_> {
     #[inline]
     pub fn high_bit(&self) -> u16 {
         self.high_bit
+    }
+
+    /// Retrieve the pixel representation.
+    #[inline]
+    pub fn pixel_representation(&self) -> PixelRepresentation {
+        self.pixel_representation
     }
 
     /// Retrieve object's rescale parameters.
@@ -484,7 +488,7 @@ impl DecodedPixelData<'_> {
                     _ => InvalidBitsAllocatedSnafu.fail()?,
                 }
             }
-            _ => InvalidPixelRepresentationSnafu.fail()?,
+            spp => UnsupportedSamplesPerPixelSnafu { spp }.fail()?,
         }
     }
 
@@ -596,7 +600,7 @@ impl DecodedPixelData<'_> {
 
                         let buffer = match self.pixel_representation {
                             // Unsigned 16-bit representation
-                            0 => {
+                            PixelRepresentation::Unsigned => {
                                 let mut buffer = vec![0; frame_length / 2];
                                 NativeEndian::read_u16_into(
                                     &self.data[frame_start..frame_end],
@@ -605,7 +609,7 @@ impl DecodedPixelData<'_> {
                                 buffer
                             }
                             // Signed 16-bit representation
-                            1 => {
+                            PixelRepresentation::Signed => {
                                 let mut signed_buffer = vec![0; frame_length / 2];
                                 NativeEndian::read_i16_into(
                                     &self.data[frame_start..frame_end],
@@ -614,7 +618,6 @@ impl DecodedPixelData<'_> {
                                 // Convert buffer to unsigned by shifting
                                 convert_i16_to_u16(&signed_buffer)
                             }
-                            _ => InvalidPixelRepresentationSnafu.fail()?,
                         };
 
                         let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
@@ -633,12 +636,7 @@ impl DecodedPixelData<'_> {
                         // fetch pixel data as a slice of u16 values,
                         // irrespective of pixel signedness
                         // (that is handled by the LUT)
-                        ensure!(
-                            self.pixel_representation == 0 || self.pixel_representation == 1,
-                            InvalidPixelRepresentationSnafu
-                        );
-
-                        let signed = self.pixel_representation == 1;
+                        let signed = self.pixel_representation == PixelRepresentation::Signed;
                         // Note: samples are not read as `i16` even if signed,
                         // because the LUT takes care of interpreting them properly.
 
@@ -756,7 +754,7 @@ impl DecodedPixelData<'_> {
             }
             16 => match self.pixel_representation {
                 // Unsigned 16 bit representation
-                0 => {
+                PixelRepresentation::Unsigned => {
                     let mut dest = vec![0; self.data.len() / 2];
                     NativeEndian::read_u16_into(&self.data, &mut dest);
 
@@ -770,7 +768,7 @@ impl DecodedPixelData<'_> {
                     Ok(ndarray)
                 }
                 // Signed 16 bit 2s complement representation
-                1 => {
+                PixelRepresentation::Signed => {
                     let mut signed_buffer = vec![0; self.data.len() / 2];
                     NativeEndian::read_i16_into(&self.data, &mut signed_buffer);
 
@@ -783,7 +781,6 @@ impl DecodedPixelData<'_> {
                         Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)?;
                     Ok(ndarray)
                 }
-                _ => InvalidPixelRepresentationSnafu.fail()?,
             },
             _ => InvalidBitsAllocatedSnafu.fail()?,
         }

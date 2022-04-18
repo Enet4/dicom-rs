@@ -127,13 +127,6 @@ pub fn high_bit<D: DataDictionary + Clone>(
     retrieve_required_u16(obj, tags::HIGH_BIT, "HighBit")
 }
 
-/// Get the PixelRepresentation from the DICOM object
-pub fn pixel_representation<D: DataDictionary + Clone>(
-    obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> Result<u16> {
-    retrieve_required_u16(obj, tags::PIXEL_REPRESENTATION, "PixelRepresentation")
-}
-
 /// Get the PixelData element from the DICOM object
 pub fn pixel_data<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
@@ -235,4 +228,30 @@ where
     elem.to_float64()
         .context(ConvertValueSnafu { name })
         .map(Some)
+}
+
+/// An interpreted representation of the DICOM _Pixel Representation_ attribute.
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+pub enum PixelRepresentation {
+    /// unsigned pixel data sample values
+    Unsigned,
+    /// signed pixel data sample values
+    Signed,
+}
+
+/// Get the PixelRepresentation from the DICOM object
+pub fn pixel_representation<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+) -> Result<PixelRepresentation> {
+    let p = retrieve_required_u16(obj, tags::PIXEL_REPRESENTATION, "PixelRepresentation")?;
+
+    match p {
+        0 => Ok(PixelRepresentation::Unsigned),
+        1 => Ok(PixelRepresentation::Signed),
+        _ => InvalidValueSnafu {
+            name: "PixelRepresentation",
+            value: p.to_string(),
+        }
+        .fail(),
+    }
 }
