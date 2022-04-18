@@ -5,6 +5,7 @@ use dicom_encoding::adapters::DecodeError;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use gdcm_rs::{decode_single_frame_compressed, GDCMPhotometricInterpretation, GDCMTransferSyntax};
+use std::convert::TryFrom;
 use std::str::FromStr;
 
 impl<D> PixelDecoder for FileDicomObject<InMemDicomObject<D>>
@@ -48,7 +49,9 @@ where
         let pixel_representation = pixel_representation(self).context(GetAttributeSnafu)?;
         let rescale_intercept = rescale_intercept(self);
         let rescale_slope = rescale_slope(self);
-        let number_of_frames = number_of_frames(self);
+        let number_of_frames = number_of_frames(self).context(GetAttributeSnafu)?;
+        let voi_lut_function = voi_lut_function(self).context(GetAttributeSnafu)?;
+        let voi_lut_function = voi_lut_function.and_then(|v| VoiLutFunction::try_from(&*v).ok());
 
         let decoded_pixel_data = match pixel_data.value() {
             Value::PixelSequence {
@@ -123,6 +126,7 @@ where
             pixel_representation,
             rescale_intercept,
             rescale_slope,
+            voi_lut_function,
             window,
         })
     }

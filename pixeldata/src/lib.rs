@@ -74,7 +74,6 @@ use rayon::iter::{
 use snafu::{ensure, OptionExt};
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::borrow::Cow;
-use std::convert::TryFrom;
 
 pub use image;
 pub use ndarray;
@@ -862,6 +861,7 @@ where
 {
     fn decode_pixel_data(&self) -> Result<DecodedPixelData> {
         use attribute::*;
+        use std::convert::TryFrom;
 
         let pixel_data = pixel_data(self).context(GetAttributeSnafu)?;
         let cols = cols(self).context(GetAttributeSnafu)?;
