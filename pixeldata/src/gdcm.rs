@@ -75,7 +75,7 @@ where
                     high_bit,
                     pixel_representation as u16,
                 )
-                .map_err(|source| Error::DecodePixelData {
+                .map_err(|source| InnerError::DecodePixelData {
                     source: DecodeError::Custom {
                         message: "Could not decode frame via GDCM".to_string(),
                         source: Some(Box::new(source) as Box<_>),

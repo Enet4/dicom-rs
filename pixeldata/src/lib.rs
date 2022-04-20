@@ -91,8 +91,13 @@ pub use transform::{Rescale, VoiLutFunction, WindowLevel, WindowLevelTransform};
 #[cfg(feature = "gdcm")]
 mod gdcm;
 
+/// Error type for most pixel data related operations.
 #[derive(Debug, Snafu)]
-pub enum Error {
+pub struct Error(InnerError);
+
+/// Inner error type
+#[derive(Debug, Snafu)]
+pub enum InnerError {
     #[snafu(display("Failed to get required DICOM attribute"))]
     GetAttribute {
         #[snafu(backtrace)]
@@ -464,7 +469,7 @@ impl DecodedPixelData<'_> {
                         name: "PlanarConfiguration",
                         value: self.planar_configuration.to_string(),
                     }
-                    .fail();
+                    .fail()?;
                 }
 
                 // RGB, YBR_FULL or YBR_FULL_422 colors
@@ -779,7 +784,7 @@ impl DecodedPixelData<'_> {
                 name: "PlanarConfiguration",
                 value: self.planar_configuration.to_string(),
             }
-            .fail();
+            .fail()?;
         }
 
         match self.bits_allocated {
@@ -790,6 +795,7 @@ impl DecodedPixelData<'_> {
                     .map(|v| T::from(*v).ok_or(snafu::NoneError))
                     .collect();
                 converted.context(InvalidDataTypeSnafu)
+                    .map_err(Error::from)
             }
             16 => match self.pixel_representation {
                 // Unsigned 16 bit representation
@@ -802,6 +808,7 @@ impl DecodedPixelData<'_> {
                         .map(|v| T::from(*v).ok_or(snafu::NoneError))
                         .collect();
                     converted.context(InvalidDataTypeSnafu)
+                        .map_err(Error::from)
                 }
                 // Signed 16 bit 2s complement representation
                 PixelRepresentation::Signed => {
@@ -813,6 +820,7 @@ impl DecodedPixelData<'_> {
                         .map(|v| T::from(*v).ok_or(snafu::NoneError))
                         .collect();
                     converted.context(InvalidDataTypeSnafu)
+                        .map_err(Error::from)
                 }
             },
             _ => InvalidBitsAllocatedSnafu.fail()?,
@@ -847,6 +855,7 @@ impl DecodedPixelData<'_> {
 
         let converted = self.to_converted_pixels::<T>()?;
         Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)
+            .map_err(Error::from)
     }
 
     /// Convert the decoded pixel data of a single frame
@@ -875,6 +884,7 @@ impl DecodedPixelData<'_> {
 
         let converted = self.to_converted_pixels_frame::<T>(frame)?;
         Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)
+            .map_err(Error::from)
     }
 
 }
@@ -992,7 +1002,7 @@ where
             return UnsupportedTransferSyntaxSnafu {
                 ts: transfer_syntax,
             }
-            .fail();
+            .fail()?;
         }
 
         // Try decoding it using a native Rust decoder
@@ -1090,7 +1100,7 @@ mod tests {
         let obj = open_file(test_file).unwrap();
         assert!(matches!(
             obj.decode_pixel_data().unwrap().to_ndarray::<u8>(),
-            Err(Error::InvalidDataType { .. })
+            Err(Error(InnerError::InvalidDataType { .. }))
         ));
     }
 
@@ -1125,9 +1135,9 @@ mod tests {
             .unwrap();
         let result = image.decode_pixel_data().unwrap().to_dynamic_image(1);
         match result {
-            Err(Error::FrameOutOfRange {
+            Err(Error(InnerError::FrameOutOfRange {
                 frame_number: 1, ..
-            }) => {}
+            })) => {}
             _ => panic!("Unexpected positive outcome for out of range access"),
         }
     }
