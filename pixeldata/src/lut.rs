@@ -8,7 +8,7 @@
 //! The type also provides easy-to-use constructor functions
 //! for common DICOM sample value transformations.
 
-use num_traits::{AsPrimitive, NumCast};
+use num_traits::NumCast;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::{Rescale, WindowLevelTransform};
@@ -56,7 +56,6 @@ where
     T: NumCast,
     T: Copy,
     T: Send + Sync,
-    f64: AsPrimitive<T>,
 {
     /// Create a new LUT with the given characteristics
     /// and populates it with the outputs of the provided function.
@@ -83,7 +82,7 @@ where
                     i as f64
                 };
                 let v = f(x);
-                v.as_()
+                T::from(v).unwrap_or_else(|| T::from(0_f64).unwrap())
             })
             .collect();
         Self { table, signed }
