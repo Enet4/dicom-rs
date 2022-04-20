@@ -340,6 +340,19 @@ pub enum PhotometricInterpretation {
     /// one luminance (Y) and two chrominance planes (CB and CR).
     YbrRct,
     /// The photometric interpretation is not one of the known variants.
+    /// 
+    /// **Note:** this value is assumed to be different from
+    /// any other variant listed above,
+    /// and no checks are made to ensure this assumption.
+    /// The construction of `PhotometricInterpretation::Other`
+    /// when one of the existing variants is applicable
+    /// is considered a bug.
+    /// 
+    /// **Note 2:** subsequent crate versions may introduce new variants,
+    /// and as a consequence break any user depending on the `Other` variant.
+    /// If you need to depend on an unspecified variant,
+    /// you should also double check the photometric interpretations here
+    /// every time the crate is updated.
     Other(String),
 }
 
@@ -347,6 +360,17 @@ impl PhotometricInterpretation {
     /// Obtain a string representation of the photometric interpretation.
     pub fn as_str(&self) -> &str {
         self.as_ref()
+    }
+
+    /// Get whether this photometric interpretation is
+    /// one of the monochrome variants
+    /// (`MONOCHROME1` or `MONOCHROME2`).
+    pub fn is_monochrome(&self) -> bool {
+        match self {
+            PhotometricInterpretation::Monochrome1
+            | PhotometricInterpretation::Monochrome2 => true,
+            _ => false,
+        }
     }
 }
 
