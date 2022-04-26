@@ -85,7 +85,7 @@ pub(crate) mod transform;
 
 // re-exports
 pub use attribute::{PhotometricInterpretation, PixelRepresentation, PlanarConfiguration};
-pub use lut::Lut;
+pub use lut::{CreateLutError, Lut};
 pub use transform::{Rescale, VoiLutFunction, WindowLevel, WindowLevelTransform};
 
 #[cfg(feature = "gdcm")]
@@ -147,6 +147,12 @@ pub enum InnerError {
         backtrace: Backtrace,
     },
 
+    /// Could not create LUT for target data type
+    CreateLut {
+        source: lut::CreateLutError,
+        backtrace: Backtrace,
+    },
+
     #[snafu(display("Invalid data type for ndarray element"))]
     InvalidDataType { backtrace: Backtrace },
 
@@ -165,8 +171,9 @@ pub enum InnerError {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Option set for turning decoded pixel data
-/// into an image or a multidimensional array.
+/// Option set for converting decoded pixel data
+/// into other common data structures,
+/// such as a vector, an image, or a multidimensional array.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct ConvertOptions {
@@ -179,11 +186,13 @@ impl ConvertOptions {
         Default::default()
     }
 
+    /// Set the modality LUT option.
     pub fn with_modality_lut(mut self, modality_lut: ModalityLutOption) -> Self {
         self.modality_lut = modality_lut;
         self
     }
 
+    /// Set the VOI LUT option.
     pub fn with_voi_lut(mut self, voi_lut: VoiLutOption) -> Self {
         self.voi_lut = voi_lut;
         self
@@ -192,7 +201,7 @@ impl ConvertOptions {
 
 /// Modality LUT function specifier.
 ///
-/// See also [`Options`].
+/// See also [`ConvertOptions`].
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ModalityLutOption {
@@ -203,8 +212,14 @@ pub enum ModalityLutOption {
     /// Rescale the pixel data values
     /// according to the given rescale parameters
     Override(Rescale),
-    /// Do not rescale the pixel data values.
-    Identity,
+    /// Do not rescale nor transform the pixel data value samples.
+    ///
+    /// This also overrides any option to apply VOI LUT transformations
+    /// in the decoded pixel data conversion methods.
+    /// To assume the identity function for rescaling
+    /// and apply the VOI LUT transformations as normal,
+    /// use the `Override` variant instead.
+    None,
 }
 
 impl Default for ModalityLutOption {
@@ -217,7 +232,10 @@ impl ModalityLutOption {}
 
 /// VOI LUT function specifier.
 ///
-/// See also [`Options`].
+/// Note that the VOI LUT function is only applied
+/// alongside a modality LUT function.
+///
+/// See also [`ConvertOptions`].
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum VoiLutOption {
@@ -248,12 +266,14 @@ impl Default for VoiLutOption {
 
 /// A blob of decoded pixel data.
 ///
-/// This is the outcome of decoding a DICOM object's imaging-related attributes,
-/// into a native form.
-/// The decoded data will be stored as raw bytes in native form
+/// This is the outcome of collecting a DICOM object's imaging-related attributes
+/// into a decoded form.
+/// The decoded pixel data samples will be stored as raw bytes in native form
 /// without any LUT transformations applied.
 /// Whether to apply such transformations
-/// can be done through one of the various `to_*` methods.
+/// can be specified through one of the various `to_*` methods,
+/// such as [`to_dynamic_image`](Self::to_dynamic_image)
+/// and [`to_vec`](Self::to_vec).
 #[derive(Debug)]
 pub struct DecodedPixelData<'a> {
     /// the raw bytes of pixel data
@@ -417,20 +437,18 @@ impl DecodedPixelData<'_> {
 
     /// Convert the decoded pixel data of a specific frame into a dynamic image.
     ///
-    /// The default pixel data process pipeine
+    /// The default pixel data process pipeline
     /// applies the Modality LUT function,
-    /// followed by a normalization of grayscale values.
+    /// followed by the first VOI LUT transformation found in the object.
     /// To change this behavior,
-    /// see [`to_dynamic_image_with_options`].
+    /// see [`to_dynamic_image_with_options`](Self::to_dynamic_image_with_options).
     pub fn to_dynamic_image(&self, frame: u32) -> Result<DynamicImage> {
         self.to_dynamic_image_with_options(frame, &ConvertOptions::default())
     }
 
     /// Convert the decoded pixel data of a specific frame into a dynamic image.
     ///
-    /// The options are used to specify the pixel data processing pipeline.
-    ///
-    /// The options value allows you to specify
+    /// The `options` value allows you to specify
     /// which transformations should be done to the pixel data
     /// (primarily Modality LUT function and VOI LUT function).
     /// By default, both Modality and VOI LUT functions are applied
@@ -533,7 +551,7 @@ impl DecodedPixelData<'_> {
 
                 match modality_lut {
                     // simplest one, no transformations
-                    ModalityLutOption::Identity => {
+                    ModalityLutOption::None => {
                         let buffer: Vec<u8> = data.to_vec();
                         let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
                             ImageBuffer::from_raw(self.cols, self.rows, buffer)
@@ -548,55 +566,50 @@ impl DecodedPixelData<'_> {
                             self.rescale()
                         };
 
+                        let signed = self.pixel_representation == PixelRepresentation::Signed;
+
                         let lut: Lut<u8> = match (voi_lut, self.window) {
-                            (VoiLutOption::Identity, _) => Lut::new_rescale(8, false, rescale),
+                            (VoiLutOption::Identity, _) => Lut::new_rescale(8, false, rescale)
+                                .map_err(|_| snafu::NoneError)
+                                .context(InvalidDataTypeSnafu)?,
                             (VoiLutOption::Default | VoiLutOption::First, Some(window)) => {
                                 Lut::new_rescale_and_window(
                                     8,
-                                    false,
+                                    signed,
                                     rescale,
                                     WindowLevelTransform::new(
                                         self.voi_lut_function.unwrap_or_default(),
                                         window,
                                     ),
                                 )
+                                .map_err(|_| snafu::NoneError)
+                                .context(InvalidDataTypeSnafu)?
                             }
                             (VoiLutOption::Default | VoiLutOption::First, None) => {
                                 // log warning (#49)
                                 eprintln!("Could not find window level for object");
-                                Lut::new_rescale(8, false, rescale)
+                                Lut::new_rescale(8, signed, rescale)
+                                    .map_err(|_| snafu::NoneError)
+                                    .context(InvalidDataTypeSnafu)?
                             }
                             (VoiLutOption::Custom(window), _) => Lut::new_rescale_and_window(
                                 8,
-                                false,
+                                signed,
                                 rescale,
                                 WindowLevelTransform::new(
                                     self.voi_lut_function.unwrap_or_default(),
                                     *window,
                                 ),
-                            ),
-                            (VoiLutOption::Normalize, _) => {
-                                // get min and max values
-                                let min = data.iter().copied().fold(u8::MAX, |a, b| a.min(b));
-                                let max = data.iter().copied().fold(0, |a, b| a.max(b));
-
-                                // convert to f64 and swap if negative slope
-                                let (min, max) = if self.rescale_slope < 0. {
-                                    (max as f64, min as f64)
-                                } else {
-                                    (min as f64, max as f64)
-                                };
-
-                                Lut::new_rescale_and_normalize(
-                                    8,
-                                    false,
-                                    rescale,
-                                    // monotone function: the min and max in linear space
-                                    // are the min and max in rescaled space
-                                    rescale.apply(min),
-                                    rescale.apply(max),
-                                )
-                            }
+                            )
+                            .map_err(|_| snafu::NoneError)
+                            .context(InvalidDataTypeSnafu)?,
+                            (VoiLutOption::Normalize, _) => Lut::new_rescale_and_normalize(
+                                8,
+                                signed,
+                                rescale,
+                                data.into_iter().copied(),
+                            )
+                            .context(CreateLutSnafu)?,
                         };
 
                         let data: Vec<u8> = lut.map_par_iter(data.par_iter().copied()).collect();
@@ -613,7 +626,7 @@ impl DecodedPixelData<'_> {
                     // only take pixel representation,
                     // convert to image only after shifting values
                     // to an unsigned scale
-                    ModalityLutOption::Identity => {
+                    ModalityLutOption::None => {
                         let frame_length = self.rows as usize
                             * self.cols as usize
                             * 2
@@ -690,7 +703,13 @@ impl DecodedPixelData<'_> {
                             (VoiLutOption::Default | VoiLutOption::First, None) => {
                                 // log warning (#49)
                                 eprintln!("Could not find window level for object");
-                                Lut::new_rescale(self.bits_stored, signed, rescale)
+
+                                Lut::new_rescale_and_normalize(
+                                    self.bits_stored,
+                                    signed,
+                                    rescale,
+                                    samples.iter().copied(),
+                                )
                             }
                             (VoiLutOption::Custom(window), _) => Lut::new_rescale_and_window(
                                 self.bits_stored,
@@ -701,29 +720,14 @@ impl DecodedPixelData<'_> {
                                     *window,
                                 ),
                             ),
-                            (VoiLutOption::Normalize, _) => {
-                                // get min and max values
-                                let min = samples.iter().copied().fold(u16::MAX, |a, b| a.min(b));
-                                let max = samples.iter().copied().fold(0, |a, b| a.max(b));
-
-                                // convert to f64 and swap if negative slope
-                                let (min, max) = if self.rescale_slope < 0. {
-                                    (max as f64, min as f64)
-                                } else {
-                                    (min as f64, max as f64)
-                                };
-
-                                Lut::new_rescale_and_normalize(
-                                    8,
-                                    false,
-                                    rescale,
-                                    // monotone function: the min and max in linear space
-                                    // are the min and max in rescaled space
-                                    rescale.apply(min),
-                                    rescale.apply(max),
-                                )
-                            }
-                        };
+                            (VoiLutOption::Normalize, _) => Lut::new_rescale_and_normalize(
+                                self.bits_stored,
+                                signed,
+                                rescale,
+                                samples.iter().copied(),
+                            ),
+                        }
+                        .context(CreateLutSnafu)?;
 
                         let data: Vec<u16> =
                             lut.map_par_iter(samples.par_iter().copied()).collect();
@@ -746,37 +750,142 @@ impl DecodedPixelData<'_> {
 
     /// Convert all of the decoded pixel data into a vector of flat pixels
     /// of a given type `T`.
+    ///
     /// The underlying pixel data type is extracted based on
     /// the bits allocated and pixel representation,
     /// which is then converted to the requested type.
     /// Photometric interpretation is ignored.
-    pub fn to_converted_pixels<T>(&self) -> Result<Vec<T>>
+    ///
+    /// The default pixel data process pipeline
+    /// applies only the Modality LUT function.
+    /// To change this behavior,
+    /// see [`to_vec_with_options`](Self::to_vec_with_options).
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use dicom_pixeldata::{ConvertOptions, DecodedPixelData, VoiLutOption, WindowLevel};
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let data: DecodedPixelData = unimplemented!();
+    /// // get the pixels of all frames as 32-bit modality values
+    /// let all_pixels: Vec<f32> = data.to_vec()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn to_vec<T: 'static>(&self) -> Result<Vec<T>>
     where
         T: NumCast,
-        T: Send,
+        T: Send + Sync,
+        T: Copy,
     {
-        self.convert_pixel_slice(&self.data[..])
+        self.convert_pixel_slice(&self.data[..], &Default::default())
+    }
+
+    /// Convert all of the decoded pixel data into a vector of flat pixels
+    /// of a given type `T`.
+    ///
+    /// The underlying pixel data type is extracted based on
+    /// the bits allocated and pixel representation,
+    /// which is then converted to the requested type.
+    /// Photometric interpretation is ignored.
+    ///
+    /// The `options` value allows you to specify
+    /// which transformations should be done to the pixel data
+    /// (primarily Modality LUT function and VOI LUT function).
+    /// By default, only the Modality LUT function is applied.
+    pub fn to_vec_with_options<T: 'static>(&self, options: &ConvertOptions) -> Result<Vec<T>>
+    where
+        T: NumCast,
+        T: Send + Sync,
+        T: Copy,
+    {
+        self.convert_pixel_slice(&self.data[..], options)
     }
 
     /// Convert the decoded pixel data of a frame
     /// into a vector of flat pixels of a given type `T`.
+    ///
     /// The underlying pixel data type is extracted based on
     /// the bits allocated and pixel representation,
     /// which is then converted to the requested type.
     /// Photometric interpretation is ignored.
-    pub fn to_converted_pixels_frame<T>(&self, frame: u32) -> Result<Vec<T>>
+    ///
+    /// The default pixel data process pipeline
+    /// applies only the Modality LUT function.
+    /// To change this behavior,
+    /// see [`to_vec_frame_with_options`](Self::to_vec_frame_with_options).
+    pub fn to_vec_frame<T: 'static>(&self, frame: u32) -> Result<Vec<T>>
     where
         T: NumCast,
-        T: Send,
+        T: Send + Sync,
+        T: Copy,
     {
-        self.convert_pixel_slice(self.frame_data(frame)?)
+        self.convert_pixel_slice(self.frame_data(frame)?, &Default::default())
     }
 
-    fn convert_pixel_slice<T>(&self, data: &[u8]) -> Result<Vec<T>>
+    /// Convert the decoded pixel data of a frame
+    /// into a vector of flat pixels of a given type `T`.
+    ///
+    /// The underlying pixel data type is extracted based on
+    /// the bits allocated and pixel representation,
+    /// which is then converted to the requested type.
+    /// Photometric interpretation is considered
+    /// to identify whether rescaling should be applied.
+    /// The pixel values are not inverted
+    /// if photometric interpretation is `MONOCHROME1`.
+    ///
+    /// The `options` value allows you to specify
+    /// which transformations should be done to the pixel data
+    /// (primarily Modality LUT function and VOI LUT function).
+    /// By default, only the Modality LUT function is applied
+    /// according to the attributes of the given object.
+    /// Note that certain options may be ignored
+    /// if they do not apply.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use dicom_pixeldata::{ConvertOptions, DecodedPixelData, VoiLutOption, WindowLevel};
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let data: DecodedPixelData = unimplemented!();
+    /// let options = ConvertOptions::new()
+    ///     .with_voi_lut(VoiLutOption::Custom(WindowLevel {
+    ///         center: -300.0,
+    ///         width: 600.,
+    ///     }));
+    /// // get the pixels of the first frame with 8 bits per channel
+    /// let first_frame_pixels: Vec<u8> = data.to_vec_frame_with_options(0, &options)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn to_vec_frame_with_options<T: 'static>(
+        &self,
+        frame: u32,
+        options: &ConvertOptions,
+    ) -> Result<Vec<T>>
     where
         T: NumCast,
-        T: Send,
+        T: Send + Sync,
+        T: Copy,
     {
+        self.convert_pixel_slice(self.frame_data(frame)?, options)
+    }
+
+    fn convert_pixel_slice<T: 'static>(
+        &self,
+        data: &[u8],
+        options: &ConvertOptions,
+    ) -> Result<Vec<T>>
+    where
+        T: NumCast,
+        T: Send + Sync,
+        T: Copy,
+    {
+        let ConvertOptions {
+            modality_lut,
+            voi_lut,
+        } = options;
+
         if self.samples_per_pixel > 1 && self.planar_configuration != PlanarConfiguration::Standard
         {
             // TODO #129
@@ -789,40 +898,148 @@ impl DecodedPixelData<'_> {
 
         match self.bits_allocated {
             8 => {
-                // 1-channel Grayscale image
-                let converted: Result<Vec<T>, _> = data
-                    .par_iter()
-                    .map(|v| T::from(*v).ok_or(snafu::NoneError))
-                    .collect();
-                converted.context(InvalidDataTypeSnafu)
-                    .map_err(Error::from)
+                match modality_lut {
+                    ModalityLutOption::Default | ModalityLutOption::Override(_)
+                        if self.photometric_interpretation.is_monochrome() =>
+                    {
+                        let rescale = if let ModalityLutOption::Override(rescale) = modality_lut {
+                            *rescale
+                        } else {
+                            self.rescale()
+                        };
+                        let signed = self.pixel_representation == PixelRepresentation::Signed;
+
+                        let lut: Lut<T> = match (voi_lut, self.window) {
+                            (VoiLutOption::Default | VoiLutOption::Identity, _) => {
+                                Lut::new_rescale(8, signed, rescale)
+                            }
+                            (VoiLutOption::First, Some(window)) => Lut::new_rescale_and_window(
+                                8,
+                                signed,
+                                rescale,
+                                WindowLevelTransform::new(
+                                    self.voi_lut_function.unwrap_or_default(),
+                                    window,
+                                ),
+                            ),
+                            (VoiLutOption::First, None) => {
+                                // log warning (#49)
+                                eprintln!("Could not find window level for object");
+                                Lut::new_rescale(8, signed, rescale)
+                            }
+                            (VoiLutOption::Custom(window), _) => Lut::new_rescale_and_window(
+                                8,
+                                signed,
+                                rescale,
+                                WindowLevelTransform::new(
+                                    self.voi_lut_function.unwrap_or_default(),
+                                    *window,
+                                ),
+                            ),
+                            (VoiLutOption::Normalize, _) => Lut::new_rescale_and_normalize(
+                                8,
+                                signed,
+                                rescale,
+                                data.iter().copied(),
+                            ),
+                        }
+                        .context(CreateLutSnafu)?;
+
+                        let data: Vec<T> = lut.map_par_iter(data.par_iter().copied()).collect();
+
+                        Ok(data)
+                    }
+                    _ => {
+                        // 1-channel Grayscale image
+                        let converted: Result<Vec<T>, _> = data
+                            .par_iter()
+                            .map(|v| T::from(*v).ok_or(snafu::NoneError))
+                            .collect();
+                        converted.context(InvalidDataTypeSnafu).map_err(Error::from)
+                    }
+                }
             }
-            16 => match self.pixel_representation {
-                // Unsigned 16 bit representation
-                PixelRepresentation::Unsigned => {
-                    let mut dest = vec![0; data.len() / 2];
-                    NativeEndian::read_u16_into(data, &mut dest);
+            16 => {
+                match modality_lut {
+                    ModalityLutOption::Default | ModalityLutOption::Override(_)
+                        if self.photometric_interpretation.is_monochrome() =>
+                    {
+                        let rescale = if let ModalityLutOption::Override(rescale) = modality_lut {
+                            *rescale
+                        } else {
+                            self.rescale()
+                        };
 
-                    let converted: Result<Vec<T>, _> = dest
-                        .par_iter()
-                        .map(|v| T::from(*v).ok_or(snafu::NoneError))
-                        .collect();
-                    converted.context(InvalidDataTypeSnafu)
-                        .map_err(Error::from)
-                }
-                // Signed 16 bit 2s complement representation
-                PixelRepresentation::Signed => {
-                    let mut signed_buffer = vec![0; data.len() / 2];
-                    NativeEndian::read_i16_into(data, &mut signed_buffer);
+                        let signed = self.pixel_representation == PixelRepresentation::Signed;
 
-                    let converted: Result<Vec<T>, _> = signed_buffer
-                        .par_iter()
-                        .map(|v| T::from(*v).ok_or(snafu::NoneError))
-                        .collect();
-                    converted.context(InvalidDataTypeSnafu)
-                        .map_err(Error::from)
+                        let lut: Lut<T> = match (voi_lut, self.window) {
+                            (VoiLutOption::Default | VoiLutOption::Identity, _) => {
+                                Lut::new_rescale(8, signed, rescale)
+                            }
+                            (VoiLutOption::First, Some(window)) => Lut::new_rescale_and_window(
+                                8,
+                                false,
+                                rescale,
+                                WindowLevelTransform::new(
+                                    self.voi_lut_function.unwrap_or_default(),
+                                    window,
+                                ),
+                            ),
+                            (VoiLutOption::First, None) => {
+                                // log warning (#49)
+                                eprintln!("Could not find window level for object");
+                                Lut::new_rescale(8, signed, rescale)
+                            }
+                            (VoiLutOption::Custom(window), _) => Lut::new_rescale_and_window(
+                                8,
+                                signed,
+                                rescale,
+                                WindowLevelTransform::new(
+                                    self.voi_lut_function.unwrap_or_default(),
+                                    *window,
+                                ),
+                            ),
+                            (VoiLutOption::Normalize, _) => Lut::new_rescale_and_normalize(
+                                8,
+                                signed,
+                                rescale,
+                                data.iter().copied(),
+                            ),
+                        }
+                        .map_err(|_| snafu::NoneError)
+                        .context(InvalidDataTypeSnafu)?;
+
+                        Ok(lut.map_par_iter(data.par_iter().copied()).collect())
+                    }
+                    _ => {
+                        // no transformations
+                        match self.pixel_representation {
+                            // Unsigned 16 bit representation
+                            PixelRepresentation::Unsigned => {
+                                let mut dest = vec![0; data.len() / 2];
+                                NativeEndian::read_u16_into(data, &mut dest);
+
+                                let converted: Result<Vec<T>, _> = dest
+                                    .par_iter()
+                                    .map(|v| T::from(*v).ok_or(snafu::NoneError))
+                                    .collect();
+                                converted.context(InvalidDataTypeSnafu).map_err(Error::from)
+                            }
+                            // Signed 16 bit 2s complement representation
+                            PixelRepresentation::Signed => {
+                                let mut signed_buffer = vec![0; data.len() / 2];
+                                NativeEndian::read_i16_into(data, &mut signed_buffer);
+
+                                let converted: Result<Vec<T>, _> = signed_buffer
+                                    .par_iter()
+                                    .map(|v| T::from(*v).ok_or(snafu::NoneError))
+                                    .collect();
+                                converted.context(InvalidDataTypeSnafu).map_err(Error::from)
+                            }
+                        }
+                    }
                 }
-            },
+            }
             _ => InvalidBitsAllocatedSnafu.fail()?,
         }
     }
@@ -833,17 +1050,57 @@ impl DecodedPixelData<'_> {
     /// The underlying pixel data type is extracted based on
     /// the bits allocated and pixel representation,
     /// which is then converted to the requested type.
-    /// Photometric interpretation is ignored.
+    /// Photometric interpretation is considered
+    /// to identify whether rescaling should be applied.
+    /// The pixel values are not inverted
+    /// if photometric interpretation is `MONOCHROME1`.
     ///
     /// The shape of the array will be `[N, R, C, S]`,
     /// where `N` is the number of frames,
     /// `R` is the number of rows,
     /// `C` is the number of columns,
     /// and `S` is the number of samples per pixel.
-    pub fn to_ndarray<T>(&self) -> Result<Array<T, Ix4>>
+    pub fn to_ndarray<T: 'static>(&self) -> Result<Array<T, Ix4>>
     where
         T: NumCast,
-        T: Send,
+        T: Copy,
+        T: Send + Sync,
+    {
+        self.to_ndarray_with_options(&Default::default())
+    }
+
+    /// Convert all of the decoded pixel data
+    /// into a four dimensional array of a given type `T`.
+    ///
+    /// The underlying pixel data type is extracted based on
+    /// the bits allocated and pixel representation,
+    /// which is then converted to the requested type.
+    /// Photometric interpretation is considered
+    /// to identify whether rescaling should be applied.
+    /// The pixel values are not inverted
+    /// if photometric interpretation is `MONOCHROME1`.
+    ///
+    /// The shape of the array will be `[N, R, C, S]`,
+    /// where `N` is the number of frames,
+    /// `R` is the number of rows,
+    /// `C` is the number of columns,
+    /// and `S` is the number of samples per pixel.
+    ///
+    /// The `options` value allows you to specify
+    /// which transformations should be done to the pixel data
+    /// (primarily Modality LUT function and VOI LUT function).
+    /// By default, both Modality and VOI LUT functions are applied
+    /// according to the attributes of the given object.
+    /// Note that certain options may be ignored
+    /// if they do not apply.
+    pub fn to_ndarray_with_options<T: 'static>(
+        &self,
+        options: &ConvertOptions,
+    ) -> Result<Array<T, Ix4>>
+    where
+        T: NumCast,
+        T: Copy,
+        T: Send + Sync,
     {
         // Array shape is NumberOfFrames x Rows x Cols x SamplesPerPixel
         let shape = [
@@ -853,8 +1110,9 @@ impl DecodedPixelData<'_> {
             self.samples_per_pixel as usize,
         ];
 
-        let converted = self.to_converted_pixels::<T>()?;
-        Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)
+        let converted = self.to_vec_with_options::<T>(options)?;
+        Array::from_shape_vec(shape, converted)
+            .context(InvalidShapeSnafu)
             .map_err(Error::from)
     }
 
@@ -864,16 +1122,48 @@ impl DecodedPixelData<'_> {
     /// The underlying pixel data type is extracted based on
     /// the bits allocated and pixel representation,
     /// which is then converted to the requested type.
-    /// Photometric interpretation is ignored.
+    /// Photometric interpretation is considered
+    /// to identify whether rescaling should be applied.
+    /// The pixel values are not inverted
+    /// if photometric interpretation is `MONOCHROME1`.
     ///
     /// The shape of the array will be `[R, C, S]`,
     /// where `R` is the number of rows,
     /// `C` is the number of columns,
     /// and `S` is the number of samples per pixel.
-    pub fn to_ndarray_frame<T>(&self, frame: u32) -> Result<Array<T, Ix3>>
+    pub fn to_ndarray_frame<T: 'static>(&self, frame: u32) -> Result<Array<T, Ix3>>
     where
         T: NumCast,
-        T: Send,
+        T: Copy,
+        T: Send + Sync,
+    {
+        self.to_ndarray_frame_with_options(frame, &Default::default())
+    }
+
+    /// Convert the decoded pixel data of a single frame
+    /// into a three dimensional array of a given type `T`.
+    ///
+    /// The underlying pixel data type is extracted based on
+    /// the bits allocated and pixel representation,
+    /// which is then converted to the requested type.
+    /// Photometric interpretation is considered
+    /// to identify whether rescaling should be applied.
+    /// The pixel values are not inverted
+    /// if photometric interpretation is `MONOCHROME1`.
+    ///
+    /// The shape of the array will be `[R, C, S]`,
+    /// where `R` is the number of rows,
+    /// `C` is the number of columns,
+    /// and `S` is the number of samples per pixel.
+    pub fn to_ndarray_frame_with_options<T: 'static>(
+        &self,
+        frame: u32,
+        options: &ConvertOptions,
+    ) -> Result<Array<T, Ix3>>
+    where
+        T: NumCast,
+        T: Copy,
+        T: Send + Sync,
     {
         // Array shape is Rows x Cols x SamplesPerPixel
         let shape = [
@@ -882,11 +1172,11 @@ impl DecodedPixelData<'_> {
             self.samples_per_pixel as usize,
         ];
 
-        let converted = self.to_converted_pixels_frame::<T>(frame)?;
-        Array::from_shape_vec(shape, converted).context(InvalidShapeSnafu)
+        let converted = self.to_vec_frame_with_options::<T>(frame, options)?;
+        Array::from_shape_vec(shape, converted)
+            .context(InvalidShapeSnafu)
             .map_err(Error::from)
     }
-
 }
 
 // Convert u8 pixel array from YBR_FULL or YBR_FULL_422 to RGB
@@ -1153,10 +1443,12 @@ mod tests {
             let path = dicom_test_files::path("pydicom/SC_rgb_rle.dcm")
                 .expect("test DICOM file should exist");
             let object = open_file(&path).unwrap();
+
+            let options = ConvertOptions::new().with_modality_lut(ModalityLutOption::None);
             let ndarray = object
                 .decode_pixel_data()
                 .unwrap()
-                .to_ndarray::<u8>()
+                .to_ndarray_with_options::<u8>(&options)
                 .unwrap();
             // Validated using Numpy
             // This doesn't reshape the array based on the PlanarConfiguration
@@ -1179,10 +1471,11 @@ mod tests {
             let path = dicom_test_files::path("pydicom/SC_rgb_rle_2frame.dcm")
                 .expect("test DICOM file should exist");
             let object = open_file(&path).unwrap();
+            let options = ConvertOptions::new().with_modality_lut(ModalityLutOption::None);
             let ndarray = object
                 .decode_pixel_data()
                 .unwrap()
-                .to_ndarray::<u8>()
+                .to_ndarray_with_options::<u8>(&options)
                 .unwrap();
             // Validated using Numpy
             // This doesn't reshape the array based on the PlanarConfiguration
@@ -1206,10 +1499,11 @@ mod tests {
             let path = dicom_test_files::path("pydicom/SC_rgb_rle_16bit.dcm")
                 .expect("test DICOM file should exist");
             let object = open_file(&path).unwrap();
+            let options = ConvertOptions::new().with_modality_lut(ModalityLutOption::None);
             let ndarray = object
                 .decode_pixel_data()
                 .unwrap()
-                .to_ndarray::<u16>()
+                .to_ndarray_with_options::<u16>(&options)
                 .unwrap();
             // Validated using Numpy
             // This doesn't reshape the array based on the PlanarConfiguration
