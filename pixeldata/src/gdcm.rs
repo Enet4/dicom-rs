@@ -196,13 +196,15 @@ mod tests {
     }
 
     #[test]
-    fn test_to_ndarray_signed_word() {
+    fn test_to_ndarray_signed_word_no_lut() {
         let test_file = dicom_test_files::path("pydicom/JPEG2000.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
+        let options = ConvertOptions::new()
+            .with_modality_lut(ModalityLutOption::None);
         let ndarray = obj
             .decode_pixel_data()
             .unwrap()
-            .to_ndarray::<i16>()
+            .to_ndarray_with_options::<i16>(&options)
             .unwrap();
         assert_eq!(ndarray.shape(), &[1, 1024, 256, 1]);
         assert_eq!(ndarray.len(), 262144);
