@@ -103,16 +103,18 @@ fn main() {
     let height = img.height();
     let color = img.color();
 
-    let (pi, spp, bits_stored, pixeldata): (&str, u16, u16, Vec<u8>) = match color {
-        image::ColorType::L8 => ("MONOCHROME2", 1, 8, img.into_bytes()),
-        image::ColorType::L16 => ("MONOCHROME2", 1, 16, img.into_bytes()),
-        image::ColorType::Rgb8 => ("RGB", 3, 8, img.into_bytes()),
-        image::ColorType::Rgb16 => ("RGB", 3, 16, img.into_bytes()),
+    let (pi, spp, bits_stored): (&str, u16, u16) = match color {
+        image::ColorType::L8 => ("MONOCHROME2", 1, 8),
+        image::ColorType::L16 => ("MONOCHROME2", 1, 16),
+        image::ColorType::Rgb8 => ("RGB", 3, 8),
+        image::ColorType::Rgb16 => ("RGB", 3, 16),
         _ => {
             eprintln!("Unsupported image format {:?}", color);
             std::process::exit(-2);
         }
     };
+
+    let pixeldata = img.into_bytes();
 
     if verbose {
         println!("{}x{} {:?} image", width, height, color);
