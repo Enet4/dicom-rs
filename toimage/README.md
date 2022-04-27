@@ -14,6 +14,8 @@ This tool is part of the [DICOM-rs](https://github.com/Enet4/dicom-rs) project.
     dicom-toimage [FLAGS] [OPTIONS] <file>
 
 FLAGS:
+        --16bit      Force output bit depth to 16 bits per sample
+        --8bit       Force output bit depth to 8 bits per sample
     -h, --help       Prints help information
     -V, --version    Prints version information
     -v, --verbose    Print more information about the image and the output file
@@ -23,5 +25,5 @@ OPTIONS:
     -o, --out <output>            Path to the output image (default is to replace input extension with `.png`)
 
 ARGS:
-    <file>    Path to the DICOM file to read
+    <file>    Path to the DICOM file to convert
 ```
