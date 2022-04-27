@@ -486,8 +486,8 @@ impl DecodedPixelData<'_> {
 
     /// Retrieves the number of samples per pixel.
     #[inline]
-    pub fn samples_per_pixel(&self) -> u32 {
-        self.cols
+    pub fn samples_per_pixel(&self) -> u16 {
+        self.samples_per_pixel
     }
 
     /// Retrieve the number of bits effectively used for each sample.
@@ -1626,6 +1626,38 @@ mod tests {
         let obj = open_file(test_file).unwrap();
         let pixel_data = obj.decode_pixel_data().unwrap();
         assert_eq!(pixel_data.rescale(), Rescale::new(1., 0.));
+    }
+
+    #[test]
+    fn test_general_properties_from_16bit() {
+        let test_file = dicom_test_files::path("pydicom/CT_small.dcm").unwrap();
+        let obj = open_file(test_file).unwrap();
+        let pixel_data = obj.decode_pixel_data().unwrap();
+
+        assert_eq!(pixel_data.columns(), 128, "Unexpected Columns");
+        assert_eq!(pixel_data.rows(), 128, "Unexpected Rows");
+        assert_eq!(
+            pixel_data.number_of_frames(),
+            1,
+            "Unexpected Number of Frames"
+        );
+        assert_eq!(
+            pixel_data.photometric_interpretation(),
+            &PhotometricInterpretation::Monochrome2,
+            "Unexpected Photometric Interpretation"
+        );
+        assert_eq!(
+            pixel_data.samples_per_pixel(),
+            1,
+            "Unexpected Samples per Pixel"
+        );
+        assert_eq!(pixel_data.bits_allocated(), 16, "Unexpected Bits Allocated");
+        assert_eq!(pixel_data.bits_stored(), 16, "Unexpected Bits Stored");
+        assert_eq!(pixel_data.high_bit(), 15, "Unexpected High Bit");
+        assert_eq!(
+            pixel_data.pixel_representation(),
+            PixelRepresentation::Signed
+        );
     }
 
     #[test]
