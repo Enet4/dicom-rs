@@ -666,14 +666,10 @@ where
     /// A complete file meta group should still provide
     /// the media storage SOP class UID and transfer syntax.
     pub fn with_meta(self, mut meta: FileMetaTableBuilder) -> Result<FileDicomObject<Self>> {
-        match self.element(tags::SOP_INSTANCE_UID) {
-            Ok(elem) => {
-                meta = meta.media_storage_sop_instance_uid(
-                    elem.value().to_str().context(PrepareMetaTableSnafu)?,
-                );
-            }
-            Err(crate::Error::NoSuchDataElementTag { .. }) => {}
-            Err(err) => return Err(err),
+        if let Some(elem) = self.element_opt(tags::SOP_INSTANCE_UID)? {
+            meta = meta.media_storage_sop_instance_uid(
+                elem.value().to_str().context(PrepareMetaTableSnafu)?,
+            );
         }
         Ok(FileDicomObject {
             meta: meta.build().context(BuildMetaTableSnafu)?,
