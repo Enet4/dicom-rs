@@ -76,6 +76,12 @@ where
 }
 
 fn main() {
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::new(),
+    ).unwrap_or_else(|e| {
+        report(&e);
+    });
+
     let App {
         dcm_file,
         img_file,
