@@ -114,7 +114,9 @@ fn main() {
         }
     };
 
-    let pixeldata = img.into_bytes();
+    // Note: not using into_bytes because it panics on 16-bit greyscale images
+    // (https://github.com/image-rs/image/issues/1705)
+    let pixeldata = img.as_bytes();
 
     if verbose {
         println!("{}x{} {:?} image", width, height, color);
