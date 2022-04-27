@@ -182,6 +182,7 @@ fn main() {
     ));
 
     for tag in [
+        tags::NUMBER_OF_FRAMES,
         tags::PIXEL_ASPECT_RATIO,
         tags::SMALLEST_IMAGE_PIXEL_VALUE,
         tags::LARGEST_IMAGE_PIXEL_VALUE,
