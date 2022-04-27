@@ -475,6 +475,10 @@ where
     }
 
     /// Retrieve a particular DICOM element by its tag.
+    ///
+    /// An error is returned if the element does not exist.
+    /// For an alternative to this behavior,
+    /// see [`element_opt`](InMemDicomObject::element_opt).
     pub fn element(&self, tag: Tag) -> Result<&InMemElement<D>> {
         self.entries
             .get(&tag)
@@ -482,6 +486,16 @@ where
     }
 
     /// Retrieve a particular DICOM element by its name.
+    ///
+    /// This method translates the given attribute name into its tag
+    /// before retrieving the element.
+    /// If the attribute is known in advance,
+    /// using [`element`](InMemDicomObject::element)
+    /// with a tag constant is preferred.
+    ///
+    /// An error is returned if the element does not exist.
+    /// For an alternative to this behavior,
+    /// see [`element_by_name_opt`](InMemDicomObject::element_by_name_opt).
     pub fn element_by_name(&self, name: &str) -> Result<&InMemElement<D>> {
         let tag = self.lookup_name(name)?;
         self.entries
@@ -490,6 +504,36 @@ where
                 tag,
                 alias: name.to_string(),
             })
+    }
+
+    /// Retrieve a particular DICOM element that might not exist by its tag.
+    ///
+    /// If the element does not exist,
+    /// `None` is returned.
+    pub fn element_opt(&self, tag: Tag) -> Result<Option<&InMemElement<D>>> {
+        match self.element(tag) {
+            Ok(e) => Ok(Some(e)),
+            Err(super::Error::NoSuchDataElementTag { .. }) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Retrieve a particular DICOM element that might not exist by its name.
+    ///
+    /// If the element does not exist,
+    /// `None` is returned.
+    ///
+    /// This method translates the given attribute name into its tag
+    /// before retrieving the element.
+    /// If the attribute is known in advance,
+    /// using [`element_opt`](InMemDicomObject::element_opt)
+    /// with a tag constant is preferred.
+    pub fn element_by_name_opt(&self, name: &str) -> Result<Option<&InMemElement<D>>> {
+        match self.element_by_name(name) {
+            Ok(e) => Ok(Some(e)),
+            Err(super::Error::NoSuchDataElementAlias { .. }) => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 
     /// Insert a data element to the object, replacing (and returning) any
@@ -1203,6 +1247,22 @@ mod tests {
     }
 
     #[test]
+    fn inmem_object_get_opt() {
+        let another_patient_name = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            PrimitiveValue::Str("Doe^John".to_string()),
+        );
+        let mut obj = InMemDicomObject::new_empty();
+        obj.put(another_patient_name.clone());
+        let elem1 = obj.element_opt(Tag(0x0010, 0x0010)).unwrap();
+        assert_eq!(elem1, Some(&another_patient_name));
+
+        // try a missing element, should return None
+        assert_eq!(obj.element_opt(Tag(0x0010, 0x0020)).unwrap(), None);
+    }
+
+    #[test]
     fn inmem_object_get_by_name() {
         let another_patient_name = DataElement::new(
             Tag(0x0010, 0x0010),
@@ -1213,6 +1273,22 @@ mod tests {
         obj.put(another_patient_name.clone());
         let elem1 = (&obj).element_by_name("PatientName").unwrap();
         assert_eq!(elem1, &another_patient_name);
+    }
+
+    #[test]
+    fn inmem_object_get_by_name_opt() {
+        let another_patient_name = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            PrimitiveValue::Str("Doe^John".to_string()),
+        );
+        let mut obj = InMemDicomObject::new_empty();
+        obj.put(another_patient_name.clone());
+        let elem1 = obj.element_by_name_opt("PatientName").unwrap();
+        assert_eq!(elem1, Some(&another_patient_name));
+        
+        // try a missing element, should return None
+        assert_eq!(obj.element_by_name_opt("PatientID").unwrap(), None);
     }
 
     #[test]
