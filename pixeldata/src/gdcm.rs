@@ -5,6 +5,7 @@ use dicom_encoding::adapters::DecodeError;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use gdcm_rs::{decode_single_frame_compressed, GDCMPhotometricInterpretation, GDCMTransferSyntax};
+use std::convert::TryFrom;
 use std::str::FromStr;
 
 impl<D> PixelDecoder for FileDicomObject<InMemDicomObject<D>>
@@ -12,14 +13,15 @@ where
     D: DataDictionary + Clone,
 {
     fn decode_pixel_data(&self) -> Result<DecodedPixelData> {
-        let pixel_data = self
-            .element(dicom_dictionary_std::tags::PIXEL_DATA)
-            .context(MissingRequiredFieldSnafu)?;
-        let cols = cols(self)?;
-        let rows = rows(self)?;
+        use super::attribute::*;
 
-        let photometric_interpretation = photometric_interpretation(self)?;
-        let pi_type = GDCMPhotometricInterpretation::from_str(&photometric_interpretation)
+        let pixel_data = pixel_data(self).context(GetAttributeSnafu)?;
+        let cols = cols(self).context(GetAttributeSnafu)?;
+        let rows = rows(self).context(GetAttributeSnafu)?;
+
+        let photometric_interpretation =
+            photometric_interpretation(self).context(GetAttributeSnafu)?;
+        let pi_type = GDCMPhotometricInterpretation::from_str(photometric_interpretation.as_str())
             .map_err(|_| {
                 UnsupportedPhotometricInterpretationSnafu {
                     pi: photometric_interpretation.clone(),
@@ -41,14 +43,16 @@ where
             .build()
         })?;
 
-        let samples_per_pixel = samples_per_pixel(self)?;
-        let bits_allocated = bits_allocated(self)?;
-        let bits_stored = bits_stored(self)?;
-        let high_bit = high_bit(self)?;
-        let pixel_representation = pixel_representation(self)?;
+        let samples_per_pixel = samples_per_pixel(self).context(GetAttributeSnafu)?;
+        let bits_allocated = bits_allocated(self).context(GetAttributeSnafu)?;
+        let bits_stored = bits_stored(self).context(GetAttributeSnafu)?;
+        let high_bit = high_bit(self).context(GetAttributeSnafu)?;
+        let pixel_representation = pixel_representation(self).context(GetAttributeSnafu)?;
         let rescale_intercept = rescale_intercept(self);
         let rescale_slope = rescale_slope(self);
-        let number_of_frames = number_of_frames(self);
+        let number_of_frames = number_of_frames(self).context(GetAttributeSnafu)?;
+        let voi_lut_function = voi_lut_function(self).context(GetAttributeSnafu)?;
+        let voi_lut_function = voi_lut_function.and_then(|v| VoiLutFunction::try_from(&*v).ok());
 
         let decoded_pixel_data = match pixel_data.value() {
             Value::PixelSequence {
@@ -69,11 +73,12 @@ where
                     bits_allocated,
                     bits_stored,
                     high_bit,
-                    pixel_representation,
+                    pixel_representation as u16,
                 )
-                .map_err(|source| Error::DecodePixelData {
+                .map_err(|source| InnerError::DecodePixelData {
                     source: DecodeError::Custom {
-                        source: Box::new(source) as Box<_>,
+                        message: "Could not decode frame via GDCM".to_string(),
+                        source: Some(Box::new(source) as Box<_>),
                     },
                 })?;
                 decoded_frame.to_vec()
@@ -92,9 +97,20 @@ where
         // pixels are already interpreted,
         // set new photometric interpretation
         let new_pi = match samples_per_pixel {
-            1 => "MONOCHROME2".to_owned(),
-            3 => "RGB".to_owned(),
+            1 => PhotometricInterpretation::Monochrome2,
+            3 => PhotometricInterpretation::Rgb,
             _ => photometric_interpretation,
+        };
+
+        let window = if let Some(window_center) = window_center(self).context(GetAttributeSnafu)? {
+            let window_width = window_width(self).context(GetAttributeSnafu)?;
+
+            window_width.map(|width| WindowLevel {
+                center: window_center,
+                width,
+            })
+        } else {
+            None
         };
 
         Ok(DecodedPixelData {
@@ -104,13 +120,15 @@ where
             number_of_frames,
             photometric_interpretation: new_pi,
             samples_per_pixel,
-            planar_configuration: 0,
+            planar_configuration: PlanarConfiguration::Standard,
             bits_allocated,
             bits_stored,
             high_bit,
             pixel_representation,
             rescale_intercept,
             rescale_slope,
+            voi_lut_function,
+            window,
         })
     }
 }
@@ -178,13 +196,15 @@ mod tests {
     }
 
     #[test]
-    fn test_to_ndarray_signed_word() {
+    fn test_to_ndarray_signed_word_no_lut() {
         let test_file = dicom_test_files::path("pydicom/JPEG2000.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
+        let options = ConvertOptions::new()
+            .with_modality_lut(ModalityLutOption::None);
         let ndarray = obj
             .decode_pixel_data()
             .unwrap()
-            .to_ndarray::<i16>()
+            .to_ndarray_with_options::<i16>(&options)
             .unwrap();
         assert_eq!(ndarray.shape(), &[1, 1024, 256, 1]);
         assert_eq!(ndarray.len(), 262144);

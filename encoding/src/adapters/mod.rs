@@ -11,16 +11,16 @@ pub mod rle_lossless;
 #[non_exhaustive]
 pub enum DecodeError {
     /// A custom error occurred when decoding,
-    /// reported as a dynamic error value
-    #[snafu(display("Error decoding pixel data"))]
+    /// reported as a dynamic error value with a message.
+    /// 
+    /// The [`whatever!`](snafu::whatever) macro can be used
+    /// to easily create an error of this kind.
+    #[snafu(whatever, display("Error decoding pixel data: {}", message))]
     Custom {
-        source: Box<dyn std::error::Error + Send + 'static>,
+        message: String,
+        #[snafu(source(from(Box<dyn std::error::Error + Send + 'static>, Some)))]
+        source: Option<Box<dyn std::error::Error + Send + 'static>>,
     },
-
-    /// A custom error occurred when decoding,
-    /// reported as a static message
-    #[snafu(display("Error decoding pixel data: {}", message))]
-    CustomMessage { message: &'static str },
 
     /// Input pixel data is not encapsulated
     NotEncapsulated,
