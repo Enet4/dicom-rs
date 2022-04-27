@@ -17,6 +17,10 @@ default = ['dicom-object/inventory-registry', 'dicom-object/backtraces']
 dicom-core = { path = "../core" }
 dicom-dictionary-std = { path = "../dictionary-std/" }
 dicom-object = { path = "../object/" }
-image = "0.24.2"
 snafu = "0.7.0"
 structopt = "0.3.23"
+
+[dependencies.image]
+version = "0.24.1"
+default-features=false
+features = ["jpeg", "png", "pnm", "tiff", "webp", "bmp", "jpeg_rayon"]
