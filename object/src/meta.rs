@@ -318,16 +318,16 @@ impl FileMetaTable {
                     group_length_remaining -= 12 + elem_len;
                     builder.private_information(v)
                 }
-                Tag(0x0002, _) => {
+                tag @ Tag(0x0002, _) => {
                     // unknown tag, do nothing
-                    // could be an unsupported or non-standard attribute,
-                    // consider logging (#49)
+                    // could be an unsupported or non-standard attribute
+                    tracing::info!("Unknown tag {}", tag);
                     builder
                 }
-                _ => {
+                tag => {
                     // unexpected tag from another group! do nothing for now,
                     // but this could pose an issue up ahead (see #50)
-                    // and should be logged (#49)
+                    tracing::warn!("Unexpected off-group tag {}", tag);
                     builder
                 }
             }

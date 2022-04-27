@@ -801,8 +801,7 @@ where
             // in the future. See #40 for discussion.
             if let Some(charset) = parts.first().map(|x| x.as_ref()).and_then(|name| {
                 SpecificCharacterSet::from_code(name).or_else(|| {
-                    // TODO(#49) log this as a warning
-                    eprintln!("Unsupported character set `{}`, ignoring", name);
+                    tracing::warn!("Unsupported character set `{}`, ignoring", name);
                     None
                 })
             }) {

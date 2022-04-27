@@ -23,6 +23,7 @@ rayon = "1.5.0"
 ndarray = "0.15.1"
 ndarray-stats = "0.5"
 num-traits = "0.2.12"
+tracing = "0.1.34"
 
 [dependencies.image]
 version = "0.24.1"

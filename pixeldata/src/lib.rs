@@ -807,8 +807,7 @@ impl DecodedPixelData<'_> {
                                 .context(InvalidDataTypeSnafu)?
                             }
                             (VoiLutOption::Default | VoiLutOption::First, None) => {
-                                // log warning (#49)
-                                eprintln!("Could not find window level for object");
+                                tracing::warn!("Could not find window level for object");
                                 Lut::new_rescale_and_normalize(
                                     8,
                                     signed,
@@ -920,8 +919,7 @@ impl DecodedPixelData<'_> {
                                 )
                             }
                             (VoiLutOption::Default | VoiLutOption::First, None) => {
-                                // log warning (#49)
-                                eprintln!("Could not find window level for object");
+                                tracing::warn!("Could not find window level for object");
 
                                 Lut::new_rescale_and_normalize(
                                     self.bits_stored,
@@ -1138,8 +1136,7 @@ impl DecodedPixelData<'_> {
                                 ),
                             ),
                             (VoiLutOption::First, None) => {
-                                // log warning (#49)
-                                eprintln!("Could not find window level for object");
+                                tracing::warn!("Could not find window level for object");
                                 Lut::new_rescale(8, signed, rescale)
                             }
                             (VoiLutOption::Custom(window), _) => Lut::new_rescale_and_window(
@@ -1201,8 +1198,7 @@ impl DecodedPixelData<'_> {
                                 ),
                             ),
                             (VoiLutOption::First, None) => {
-                                // log warning (#49)
-                                eprintln!("Could not find window level for object");
+                                tracing::warn!("Could not find window level for object");
                                 Lut::new_rescale(8, signed, rescale)
                             }
                             (VoiLutOption::Custom(window), _) => Lut::new_rescale_and_window(
