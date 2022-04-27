@@ -40,8 +40,10 @@ impl CreateLutError {
 ///
 /// The LUT can be populated with common transformations
 /// via the functions [`new_rescale`](Lut::new_rescale),
-/// [`new_rescale_and_normalize`](Lut::new_rescale_and_normalize),
+/// [`new_window`](Lut::new_window),
 /// and [`new_rescale_and_window`](Lut::new_rescale_and_window).
+/// The function [`new_with_fn`](Lut::new_with_fn)
+/// can be used to create a LUT with a custom function.
 ///
 /// ```
 /// # use dicom_pixeldata::{

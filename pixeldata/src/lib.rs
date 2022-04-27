@@ -1,8 +1,8 @@
 //! This crate contains the DICOM pixel data handlers and is
 //! responsible for decoding various forms of native and compressed pixel data,
 //! such as JPEG lossless,
-//! and convert it into a [`DynamicImage`],
-//! [`Array`] or raw [`DecodedPixelData`].
+//! and convert it into more usable data structures.
+//! 
 //!
 //! `dicom-pixeldata` currently supports a small,
 //! but increasing number of DICOM image encodings in pure Rust.
@@ -12,12 +12,21 @@
 //! This integration is behind the Cargo feature "gdcm",
 //! which requires CMake and a C++ compiler.
 //!
-//! [GDCM bindings]: https://github.com/pevers/gdcm-rs
+//! [GDCM bindings]: https://crates.io/crates/gdcm-rs
 //!
 //! ```toml
 //! dicom-pixeldata = { version = "0.1", features = ["gdcm"] }
 //! ```
 //!
+//! Once the pixel data is decoded,
+//! the decoded data can be converted to:
+//! - a vector of flat pixel data values;
+//! - a [multi-dimensional array](ndarray::Array), using [`ndarray`];
+//! - or a [dynamic image object](image::DynamicImage), using [`image`].
+//! 
+//! This conversion includes
+//! eventual Modality and value of interest (VOI) transformations.
+//! 
 //! # WebAssembly support
 //! This library works in WebAssembly
 //! by ensuring that the "gdcm" feature is disabled.
@@ -54,6 +63,28 @@
 //! # Ok(())
 //! # }
 //! ```
+//! 
+//! In order to parameterize the conversion,
+//! pass a conversion options valueto the `_with_options` variant methods.
+//! 
+//! ```no_run
+//! # use std::error::Error;
+//! use dicom_object::open_file;
+//! use dicom_pixeldata::{ConvertOptions, PixelDecoder, VoiLutOption};
+//! # fn main() -> Result<(), Box<dyn Error>> {
+//! let obj = open_file("dicom.dcm")?;
+//! let image = obj.decode_pixel_data()?;
+//! let options = ConvertOptions::new()
+//!     .with_voi_lut(VoiLutOption::Normalize)
+//!     .force_8bit();
+//! let dynamic_image = image.to_dynamic_image(0)?;
+//! # Ok(())
+//! # }
+//! ```
+//! 
+//! See [`ConvertOptions`] for the options available,
+//! including the default behavior for each method.
+//! 
 
 use byteorder::{ByteOrder, NativeEndian};
 use dicom_core::{value::Value, DataDictionary};
@@ -174,6 +205,20 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Option set for converting decoded pixel data
 /// into other common data structures,
 /// such as a vector, an image, or a multidimensional array.
+/// 
+/// Each option listed affects the transformation in this order:
+/// 1. The Modality LUT function (`modality_lut`)
+///    is applied to the raw pixel data sample values.
+///    This is usually an affine function based on the
+///    _Rescale Slope_ and _Rescale Intercept_ attributes.
+///    If this option is set to [`None`](ModalityLutOption::None),
+///    the VOI LUT function is ignored.
+/// 2. The VOI LUT function (`voi_lut`)
+///    is applied to the rescaled values,
+///    such as a window level.
+/// 3. In the case of converting to an image,
+///    the transformed values are extended or narrowed
+///    to the range of the target bit depth (`bit_depth`).
 #[derive(Debug, Default, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct ConvertOptions {
