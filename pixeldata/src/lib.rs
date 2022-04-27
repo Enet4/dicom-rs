@@ -177,8 +177,12 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Default, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct ConvertOptions {
-    modality_lut: ModalityLutOption,
-    voi_lut: VoiLutOption,
+    /// Modality LUT option
+    pub modality_lut: ModalityLutOption,
+    /// VOI LUT option
+    pub voi_lut: VoiLutOption,
+    /// Output image bit depth
+    pub bit_depth: BitDepthOption,
 }
 
 impl ConvertOptions {
@@ -195,6 +199,28 @@ impl ConvertOptions {
     /// Set the VOI LUT option.
     pub fn with_voi_lut(mut self, voi_lut: VoiLutOption) -> Self {
         self.voi_lut = voi_lut;
+        self
+    }
+
+    /// Set the output bit depth option.
+    pub fn with_bit_depth(mut self, bit_depth: BitDepthOption) -> Self {
+        self.bit_depth = bit_depth;
+        self
+    }
+
+    /// Set the output bit depth option to force 8 bits.
+    /// 
+    /// This is equivalent to `self.with_bit_depth(BitDepthOption::Force8Bit)`.
+    pub fn force_8bit(mut self) -> Self {
+        self.bit_depth = BitDepthOption::Force8Bit;
+        self
+    }
+
+    /// Set the output bit depth option to force 16 bits.
+    /// 
+    /// This is equivalent to `self.with_bit_depth(BitDepthOption::Force16Bit)`.
+    pub fn force_16bit(mut self) -> Self {
+        self.bit_depth = BitDepthOption::Force16Bit;
         self
     }
 }
@@ -228,8 +254,6 @@ impl Default for ModalityLutOption {
     }
 }
 
-impl ModalityLutOption {}
-
 /// VOI LUT function specifier.
 ///
 /// Note that the VOI LUT function is only applied
@@ -261,6 +285,33 @@ pub enum VoiLutOption {
 impl Default for VoiLutOption {
     fn default() -> Self {
         VoiLutOption::Default
+    }
+}
+
+/// Output iamge bit depth specifier.
+///
+/// Note that this is only applied
+/// when converting to an image.
+/// In the other cases,
+/// output narrowing is already done by the caller
+/// when specifying the intended output element type.
+///
+/// See also [`ConvertOptions`].
+#[derive(Debug, Copy, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum BitDepthOption {
+    /// _Default behavior:_
+    /// infer the bit depth based on the input's number of bits per sample.
+    Auto,
+    /// Force the output image to have 8 bits per sample.
+    Force8Bit,
+    /// Force the output image to have 16 bits per sample.
+    Force16Bit,
+}
+
+impl Default for BitDepthOption {
+    fn default() -> Self {
+        BitDepthOption::Auto
     }
 }
 
@@ -507,10 +558,7 @@ impl DecodedPixelData<'_> {
                                 .fail()?,
                         };
 
-                        let image_buffer: ImageBuffer<Rgb<u8>, Vec<u8>> =
-                            ImageBuffer::from_raw(self.cols, self.rows, pixel_array)
-                                .context(InvalidImageBufferSnafu)?;
-                        Ok(DynamicImage::ImageRgb8(image_buffer))
+                        self.rgb_image_with_extend(pixel_array, options.bit_depth)
                     }
                     16 => {
                         let mut pixel_array: Vec<u16> = self.frame_data_ow(frame)?;
@@ -527,10 +575,7 @@ impl DecodedPixelData<'_> {
                                 .fail()?,
                         };
 
-                        let image_buffer: ImageBuffer<Rgb<u16>, Vec<u16>> =
-                            ImageBuffer::from_raw(self.cols, self.rows, pixel_array)
-                                .context(InvalidImageBufferSnafu)?;
-                        Ok(DynamicImage::ImageRgb16(image_buffer))
+                        self.rgb_image_with_narrow(pixel_array, options.bit_depth)
                     }
                     _ => InvalidBitsAllocatedSnafu.fail()?,
                 }
@@ -539,10 +584,146 @@ impl DecodedPixelData<'_> {
         }
     }
 
+    fn mono_image_with_narrow(
+        &self,
+        pixel_values: impl IntoIterator<Item = u16>,
+        bit_depth: BitDepthOption,
+    ) -> Result<DynamicImage> {
+        if bit_depth == BitDepthOption::Force8Bit {
+            // user requested 8 bits, narrow
+            let data: Vec<u8> = pixel_values.into_iter().map(|x| (x >> 8) as u8).collect();
+            let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
+                ImageBuffer::from_raw(self.cols, self.rows, data)
+                    .context(InvalidImageBufferSnafu)?;
+            Ok(DynamicImage::ImageLuma8(image_buffer))
+        } else {
+            let data: Vec<u16> = pixel_values.into_iter().collect();
+            let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
+                ImageBuffer::from_raw(self.cols, self.rows, data)
+                    .context(InvalidImageBufferSnafu)?;
+            Ok(DynamicImage::ImageLuma16(image_buffer))
+        }
+    }
+
+    fn mono_image_with_narrow_par(
+        &self,
+        pixel_values: impl ParallelIterator<Item = u16>,
+        bit_depth: BitDepthOption,
+    ) -> Result<DynamicImage> {
+        if bit_depth == BitDepthOption::Force8Bit {
+            // user requested 8 bits, narrow
+            let data: Vec<u8> = pixel_values.map(|x| (x >> 8) as u8).collect();
+            let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
+                ImageBuffer::from_raw(self.cols, self.rows, data)
+                    .context(InvalidImageBufferSnafu)?;
+            Ok(DynamicImage::ImageLuma8(image_buffer))
+        } else {
+            let data: Vec<u16> = pixel_values.collect();
+            let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
+                ImageBuffer::from_raw(self.cols, self.rows, data)
+                    .context(InvalidImageBufferSnafu)?;
+            Ok(DynamicImage::ImageLuma16(image_buffer))
+        }
+    }
+
+    fn mono_image_with_extend(
+        &self,
+        pixel_values: impl IntoIterator<Item = u8>,
+        bit_depth: BitDepthOption,
+    ) -> Result<DynamicImage> {
+        if bit_depth == BitDepthOption::Force16Bit {
+            // user requested 16 bits, extend
+            let data = pixel_values
+                .into_iter()
+                .map(|x| x as u16)
+                .map(|x| (x << 8) + x)
+                .collect();
+            let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
+                ImageBuffer::from_raw(self.cols, self.rows, data)
+                    .context(InvalidImageBufferSnafu)?;
+            Ok(DynamicImage::ImageLuma16(image_buffer))
+        } else {
+            let data: Vec<u8> = pixel_values.into_iter().collect();
+            let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
+                ImageBuffer::from_raw(self.cols, self.rows, data)
+                    .context(InvalidImageBufferSnafu)?;
+            Ok(DynamicImage::ImageLuma8(image_buffer))
+        }
+    }
+
+    fn mono_image_with_extend_par(
+        &self,
+        pixel_values: impl ParallelIterator<Item = u8>,
+        bit_depth: BitDepthOption,
+    ) -> Result<DynamicImage> {
+        if bit_depth == BitDepthOption::Force16Bit {
+            // user requested 16 bits, extend
+            let data = pixel_values
+                .map(|x| x as u16)
+                .map(|x| (x << 8) + x)
+                .collect();
+            let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
+                ImageBuffer::from_raw(self.cols, self.rows, data)
+                    .context(InvalidImageBufferSnafu)?;
+            Ok(DynamicImage::ImageLuma16(image_buffer))
+        } else {
+            let data: Vec<u8> = pixel_values.collect();
+            let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
+                ImageBuffer::from_raw(self.cols, self.rows, data)
+                    .context(InvalidImageBufferSnafu)?;
+            Ok(DynamicImage::ImageLuma8(image_buffer))
+        }
+    }
+
+    fn rgb_image_with_extend(
+        &self,
+        pixels: Vec<u8>,
+        bit_depth: BitDepthOption,
+    ) -> Result<DynamicImage> {
+        if bit_depth == BitDepthOption::Force16Bit {
+            // user requested 16 bits, extend
+            let data: Vec<u16> = pixels
+                .into_iter()
+                .map(|x| x as u16)
+                .map(|x| (x << 8) + x)
+                .collect();
+            let image_buffer: ImageBuffer<Rgb<u16>, Vec<u16>> =
+                ImageBuffer::from_raw(self.cols, self.rows, data)
+                    .context(InvalidImageBufferSnafu)?;
+            Ok(DynamicImage::ImageRgb16(image_buffer))
+        } else {
+            let image_buffer: ImageBuffer<Rgb<u8>, Vec<u8>> =
+                ImageBuffer::from_raw(self.cols, self.rows, pixels)
+                    .context(InvalidImageBufferSnafu)?;
+            Ok(DynamicImage::ImageRgb8(image_buffer))
+        }
+    }
+
+    fn rgb_image_with_narrow(
+        &self,
+        pixels: Vec<u16>,
+        bit_depth: BitDepthOption,
+    ) -> Result<DynamicImage> {
+        if bit_depth == BitDepthOption::Force8Bit {
+            // user requested 8 bits, narrow
+            let data: Vec<u8> = pixels.into_iter().map(|x| (x >> 8) as u8).collect();
+            let image_buffer: ImageBuffer<Rgb<u8>, Vec<u8>> =
+                ImageBuffer::from_raw(self.cols, self.rows, data)
+                    .context(InvalidImageBufferSnafu)?;
+            Ok(DynamicImage::ImageRgb8(image_buffer))
+        } else {
+            let image_buffer: ImageBuffer<Rgb<u16>, Vec<u16>> =
+                ImageBuffer::from_raw(self.cols, self.rows, pixels)
+                    .context(InvalidImageBufferSnafu)?;
+            Ok(DynamicImage::ImageRgb16(image_buffer))
+        }
+    }
+
     fn build_monochrome_image(&self, frame: u32, options: &ConvertOptions) -> Result<DynamicImage> {
         let ConvertOptions {
             modality_lut,
             voi_lut,
+            bit_depth,
         } = options;
 
         let mut image = match self.bits_allocated {
@@ -552,11 +733,7 @@ impl DecodedPixelData<'_> {
                 match modality_lut {
                     // simplest one, no transformations
                     ModalityLutOption::None => {
-                        let buffer: Vec<u8> = data.to_vec();
-                        let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
-                            ImageBuffer::from_raw(self.cols, self.rows, buffer)
-                                .context(InvalidImageBufferSnafu)?;
-                        DynamicImage::ImageLuma8(image_buffer)
+                        self.mono_image_with_extend(data.iter().copied(), *bit_depth)?
                     }
                     // other
                     ModalityLutOption::Default | ModalityLutOption::Override(..) => {
@@ -588,9 +765,14 @@ impl DecodedPixelData<'_> {
                             (VoiLutOption::Default | VoiLutOption::First, None) => {
                                 // log warning (#49)
                                 eprintln!("Could not find window level for object");
-                                Lut::new_rescale(8, signed, rescale)
-                                    .map_err(|_| snafu::NoneError)
-                                    .context(InvalidDataTypeSnafu)?
+                                Lut::new_rescale_and_normalize(
+                                    8,
+                                    signed,
+                                    rescale,
+                                    data.iter().copied(),
+                                )
+                                .map_err(|_| snafu::NoneError)
+                                .context(InvalidDataTypeSnafu)?
                             }
                             (VoiLutOption::Custom(window), _) => Lut::new_rescale_and_window(
                                 8,
@@ -612,12 +794,8 @@ impl DecodedPixelData<'_> {
                             .context(CreateLutSnafu)?,
                         };
 
-                        let data: Vec<u8> = lut.map_par_iter(data.par_iter().copied()).collect();
-
-                        let image_buffer: ImageBuffer<Luma<u8>, Vec<u8>> =
-                            ImageBuffer::from_raw(self.cols, self.rows, data)
-                                .context(InvalidImageBufferSnafu)?;
-                        DynamicImage::ImageLuma8(image_buffer)
+                        let pixel_values = lut.map_par_iter(data.par_iter().copied());
+                        self.mono_image_with_extend_par(pixel_values, *bit_depth)?
                     }
                 }
             }
@@ -662,10 +840,7 @@ impl DecodedPixelData<'_> {
                             }
                         };
 
-                        let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
-                            ImageBuffer::from_raw(self.cols, self.rows, buffer)
-                                .context(InvalidImageBufferSnafu)?;
-                        DynamicImage::ImageLuma16(image_buffer)
+                        self.mono_image_with_narrow(buffer.into_iter(), *bit_depth)?
                     }
 
                     ModalityLutOption::Default | ModalityLutOption::Override(..) => {
@@ -729,13 +904,8 @@ impl DecodedPixelData<'_> {
                         }
                         .context(CreateLutSnafu)?;
 
-                        let data: Vec<u16> =
-                            lut.map_par_iter(samples.par_iter().copied()).collect();
-
-                        let image_buffer: ImageBuffer<Luma<u16>, Vec<u16>> =
-                            ImageBuffer::from_raw(self.cols, self.rows, data)
-                                .context(InvalidImageBufferSnafu)?;
-                        DynamicImage::ImageLuma16(image_buffer)
+                        let values = lut.map_par_iter(samples.par_iter().copied());
+                        self.mono_image_with_narrow_par(values, *bit_depth)?
                     }
                 }
             }
@@ -884,6 +1054,7 @@ impl DecodedPixelData<'_> {
         let ConvertOptions {
             modality_lut,
             voi_lut,
+            bit_depth: _,
         } = options;
 
         if self.samples_per_pixel > 1 && self.planar_configuration != PlanarConfiguration::Standard
@@ -1413,6 +1584,72 @@ mod tests {
     }
 
     #[test]
+    fn test_force_bit_depth_from_16bit() {
+        let test_file = dicom_test_files::path("pydicom/CT_small.dcm").unwrap();
+        let obj = open_file(test_file).unwrap();
+        let pixel_data = obj.decode_pixel_data().unwrap();
+
+        // original image has 16 bits stored
+        {
+            let image = pixel_data.to_dynamic_image(0)
+                .expect("Failed to convert to image");
+
+            assert!(image.as_luma16().is_some());
+        }
+
+        // force to 16 bits
+        {
+            let options = ConvertOptions::new().force_16bit();
+            let image = pixel_data.to_dynamic_image_with_options(0, &options)
+                .expect("Failed to convert to image");
+
+            assert!(image.as_luma16().is_some());
+        }
+
+        // force to 8 bits
+        {
+            let options = ConvertOptions::new().force_8bit();
+            let image = pixel_data.to_dynamic_image_with_options(0, &options)
+                .expect("Failed to convert to image");
+
+            assert!(image.as_luma8().is_some());
+        }
+    }
+
+    #[test]
+    fn test_force_bit_depth_from_rgb() {
+        let test_file = dicom_test_files::path("pydicom/color-px.dcm").unwrap();
+        let obj = open_file(test_file).unwrap();
+        let pixel_data = obj.decode_pixel_data().unwrap();
+
+        // original image is RGB with 8 bits per sample
+        {
+            let image = pixel_data.to_dynamic_image(0)
+                .expect("Failed to convert to image");
+
+            assert!(image.as_rgb8().is_some());
+        }
+
+        // force to 16 bits
+        {
+            let options = ConvertOptions::new().force_16bit();
+            let image = pixel_data.to_dynamic_image_with_options(0, &options)
+                .expect("Failed to convert to image");
+
+            assert!(image.as_rgb16().is_some());
+        }
+
+        // force to 8 bits
+        {
+            let options = ConvertOptions::new().force_8bit();
+            let image = pixel_data.to_dynamic_image_with_options(0, &options)
+                .expect("Failed to convert to image");
+
+            assert!(image.as_rgb8().is_some());
+        }
+    }
+
+    #[test]
     fn test_frame_out_of_range() {
         let path =
             dicom_test_files::path("pydicom/CT_small.dcm").expect("test DICOM file should exist");
@@ -1431,6 +1668,7 @@ mod tests {
             _ => panic!("Unexpected positive outcome for out of range access"),
         }
     }
+
     #[cfg(not(feature = "gdcm"))]
     mod not_gdcm {
         use super::*;
