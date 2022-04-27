@@ -1,25 +1,22 @@
 //! A CLI tool for overriding a DICOM file's image with another one.
-//! 
+//!
 //! This command line tool takes a base DICOM file
 //! and replaces the various DICOM attributes of the [_Image Pixel_ module][1]
 //! (such as Rows, Columns, PixelData, ...)
 //! with those of another file.
 //! The _Presentation LUT Shape_ attribute is set to `IDENTITY`.
 //! Other attributes are copied as is.
-//! 
+//!
 //! The new DICOM object is saved to a new file,
 //! with the same SOP instance UID and SOP class UID as the base file,
 //! encoded in Explicit VR Little Endian.
-//! 
+//!
 //! [1]: https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.3.html
 use std::path::PathBuf;
 
-use dicom::{
-    core::{value::PrimitiveValue, DataElement, VR},
-    dictionary_std::tags,
-    object::{open_file, FileMetaTableBuilder},
-};
-use image::GenericImageView;
+use dicom_core::{value::PrimitiveValue, DataElement, VR};
+use dicom_dictionary_std::tags;
+use dicom_object::{open_file, FileMetaTableBuilder};
 use snafu::ErrorCompat;
 use structopt::StructOpt;
 
@@ -102,19 +99,23 @@ fn main() {
         std::process::exit(-1);
     });
 
-    let (pi, spp, bits_stored, pixeldata): (&str, u16, u16, Vec<u8>) = match img.color() {
-        image::ColorType::L8 => ("MONOCHROME2", 1, 8, img.to_bytes()),
-        image::ColorType::L16 => ("MONOCHROME2", 1, 16, img.to_bytes()),
-        image::ColorType::Rgb8 => ("RGB", 3, 8, img.to_bytes()),
-        image::ColorType::Bgr8 => ("RGB", 3, 8, img.to_rgb8().into_raw()),
+    let width = img.width();
+    let height = img.height();
+    let color = img.color();
+
+    let (pi, spp, bits_stored, pixeldata): (&str, u16, u16, Vec<u8>) = match color {
+        image::ColorType::L8 => ("MONOCHROME2", 1, 8, img.into_bytes()),
+        image::ColorType::L16 => ("MONOCHROME2", 1, 16, img.into_bytes()),
+        image::ColorType::Rgb8 => ("RGB", 3, 8, img.into_bytes()),
+        image::ColorType::Rgb16 => ("RGB", 3, 16, img.into_bytes()),
         _ => {
-            eprintln!("Unsupported image format {:?}", img.color());
+            eprintln!("Unsupported image format {:?}", color);
             std::process::exit(-2);
         }
     };
 
     if verbose {
-        println!("{}x{} {:?} image", img.width(), img.height(), img.color());
+        println!("{}x{} {:?} image", width, height, color);
     }
 
     // override attributes at DICOM object
@@ -135,7 +136,7 @@ fn main() {
         VR::US,
         PrimitiveValue::from(spp),
     ));
-    
+
     if spp > 1 {
         obj.put(DataElement::new(
             tags::PLANAR_CONFIGURATION,
@@ -149,12 +150,12 @@ fn main() {
     obj.put(DataElement::new(
         tags::COLUMNS,
         VR::US,
-        PrimitiveValue::from(img.width() as u16),
+        PrimitiveValue::from(width as u16),
     ));
     obj.put(DataElement::new(
         tags::ROWS,
         VR::US,
-        PrimitiveValue::from(img.height() as u16),
+        PrimitiveValue::from(height as u16),
     ));
     obj.put(DataElement::new(
         tags::BITS_ALLOCATED,
@@ -206,13 +207,17 @@ fn main() {
 
     let class_uid = obj.meta().media_storage_sop_class_uid.clone();
 
-    let obj = obj.into_inner().with_meta(FileMetaTableBuilder::new()
-            .transfer_syntax("1.2.840.10008.1.2.1")
-            .media_storage_sop_class_uid(class_uid)
-    ).unwrap_or_else(|e| {
-        report_with_backtrace(e);
-        std::process::exit(-3);
-    });
+    let obj = obj
+        .into_inner()
+        .with_meta(
+            FileMetaTableBuilder::new()
+                .transfer_syntax("1.2.840.10008.1.2.1")
+                .media_storage_sop_class_uid(class_uid),
+        )
+        .unwrap_or_else(|e| {
+            report_with_backtrace(e);
+            std::process::exit(-3);
+        });
 
     obj.write_to_file(&output).unwrap_or_else(|e| {
         report_with_backtrace(e);

@@ -11,10 +11,12 @@ keywords = ["cli", "dicom", "image", "image-conversion"]
 readme = "README.md"
 
 [features]
-default = ['dicom/inventory-registry', 'dicom/backtraces']
+default = ['dicom-object/inventory-registry', 'dicom-object/backtraces']
 
 [dependencies]
-dicom = { path = "../parent/" }
-image = "0.23.14"
+dicom-core = { path = "../core" }
+dicom-dictionary-std = { path = "../dictionary-std/" }
+dicom-object = { path = "../object/" }
+image = "0.24.2"
 snafu = "0.7.0"
 structopt = "0.3.23"
