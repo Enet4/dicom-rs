@@ -2,7 +2,6 @@
 //! responsible for decoding various forms of native and compressed pixel data,
 //! such as JPEG lossless,
 //! and convert it into more usable data structures.
-//! 
 //!
 //! `dicom-pixeldata` currently supports a small,
 //! but increasing number of DICOM image encodings in pure Rust.
@@ -23,10 +22,10 @@
 //! - a vector of flat pixel data values;
 //! - a [multi-dimensional array](ndarray::Array), using [`ndarray`];
 //! - or a [dynamic image object](image::DynamicImage), using [`image`].
-//! 
+//!
 //! This conversion includes
 //! eventual Modality and value of interest (VOI) transformations.
-//! 
+//!
 //! # WebAssembly support
 //! This library works in WebAssembly
 //! by ensuring that the "gdcm" feature is disabled.
@@ -63,10 +62,10 @@
 //! # Ok(())
 //! # }
 //! ```
-//! 
+//!
 //! In order to parameterize the conversion,
 //! pass a conversion options valueto the `_with_options` variant methods.
-//! 
+//!
 //! ```no_run
 //! # use std::error::Error;
 //! use dicom_object::open_file;
@@ -81,10 +80,10 @@
 //! # Ok(())
 //! # }
 //! ```
-//! 
+//!
 //! See [`ConvertOptions`] for the options available,
 //! including the default behavior for each method.
-//! 
+//!
 
 use byteorder::{ByteOrder, NativeEndian};
 use dicom_core::{value::Value, DataDictionary};
@@ -205,7 +204,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Option set for converting decoded pixel data
 /// into other common data structures,
 /// such as a vector, an image, or a multidimensional array.
-/// 
+///
 /// Each option listed affects the transformation in this order:
 /// 1. The Modality LUT function (`modality_lut`)
 ///    is applied to the raw pixel data sample values.
@@ -254,7 +253,7 @@ impl ConvertOptions {
     }
 
     /// Set the output bit depth option to force 8 bits.
-    /// 
+    ///
     /// This is equivalent to `self.with_bit_depth(BitDepthOption::Force8Bit)`.
     pub fn force_8bit(mut self) -> Self {
         self.bit_depth = BitDepthOption::Force8Bit;
@@ -262,7 +261,7 @@ impl ConvertOptions {
     }
 
     /// Set the output bit depth option to force 16 bits.
-    /// 
+    ///
     /// This is equivalent to `self.with_bit_depth(BitDepthOption::Force16Bit)`.
     pub fn force_16bit(mut self) -> Self {
         self.bit_depth = BitDepthOption::Force16Bit;
@@ -1600,6 +1599,7 @@ mod tests {
         assert_eq!(ndarray[[0, 50, 80, 1]], 32896);
     }
 
+    /// to_ndarray fails if the target type cannot represent the transformed values
     #[test]
     fn test_to_ndarray_error() {
         let test_file = dicom_test_files::path("pydicom/CT_small.dcm").unwrap();
@@ -1668,7 +1668,8 @@ mod tests {
 
         // original image has 16 bits stored
         {
-            let image = pixel_data.to_dynamic_image(0)
+            let image = pixel_data
+                .to_dynamic_image(0)
                 .expect("Failed to convert to image");
 
             assert!(image.as_luma16().is_some());
@@ -1677,7 +1678,8 @@ mod tests {
         // force to 16 bits
         {
             let options = ConvertOptions::new().force_16bit();
-            let image = pixel_data.to_dynamic_image_with_options(0, &options)
+            let image = pixel_data
+                .to_dynamic_image_with_options(0, &options)
                 .expect("Failed to convert to image");
 
             assert!(image.as_luma16().is_some());
@@ -1686,7 +1688,8 @@ mod tests {
         // force to 8 bits
         {
             let options = ConvertOptions::new().force_8bit();
-            let image = pixel_data.to_dynamic_image_with_options(0, &options)
+            let image = pixel_data
+                .to_dynamic_image_with_options(0, &options)
                 .expect("Failed to convert to image");
 
             assert!(image.as_luma8().is_some());
@@ -1701,7 +1704,8 @@ mod tests {
 
         // original image is RGB with 8 bits per sample
         {
-            let image = pixel_data.to_dynamic_image(0)
+            let image = pixel_data
+                .to_dynamic_image(0)
                 .expect("Failed to convert to image");
 
             assert!(image.as_rgb8().is_some());
@@ -1710,7 +1714,8 @@ mod tests {
         // force to 16 bits
         {
             let options = ConvertOptions::new().force_16bit();
-            let image = pixel_data.to_dynamic_image_with_options(0, &options)
+            let image = pixel_data
+                .to_dynamic_image_with_options(0, &options)
                 .expect("Failed to convert to image");
 
             assert!(image.as_rgb16().is_some());
@@ -1719,7 +1724,8 @@ mod tests {
         // force to 8 bits
         {
             let options = ConvertOptions::new().force_8bit();
-            let image = pixel_data.to_dynamic_image_with_options(0, &options)
+            let image = pixel_data
+                .to_dynamic_image_with_options(0, &options)
                 .expect("Failed to convert to image");
 
             assert!(image.as_rgb8().is_some());
