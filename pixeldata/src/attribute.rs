@@ -15,6 +15,13 @@ pub enum GetAttributeError {
         source: dicom_object::Error,
     },
 
+    #[snafu(display("Could not retrieve attribute `{}`", name))]
+    Retrieve {
+        name: &'static str,
+        #[snafu(backtrace)]
+        source: dicom_object::Error,
+    },
+
     #[snafu(display("Could not get attribute `{}`", name))]
     CastValue {
         name: &'static str,
@@ -53,14 +60,14 @@ pub fn rows<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>
 pub fn voi_lut_function<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<Option<String>> {
-    let elem = match obj.element(tags::VOILUT_FUNCTION) {
-        Ok(e) => e,
-        Err(dicom_object::Error::NoSuchDataElementTag { .. }) => return Ok(None),
-        Err(e) => {
-            return Err(e).context(MissingRequiredFieldSnafu {
+    let elem = if let Some(elem) =
+        obj.element_opt(tags::VOILUT_FUNCTION)
+            .context(RetrieveSnafu {
                 name: "VOILUTFunction",
-            })
-        }
+            })? {
+        elem
+    } else {
+        return Ok(None);
     };
 
     let value = elem
@@ -130,14 +137,14 @@ pub fn rescale_slope<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicom
 pub fn number_of_frames<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u32> {
-    let elem = match obj.element(tags::NUMBER_OF_FRAMES) {
-        Ok(e) => e,
-        Err(dicom_object::Error::NoSuchDataElementTag { .. }) => return Ok(1),
-        Err(e) => {
-            return Err(e).context(MissingRequiredFieldSnafu {
+    let elem = if let Some(elem) =
+        obj.element_opt(tags::NUMBER_OF_FRAMES)
+            .context(RetrieveSnafu {
                 name: "NumberOfFrames",
-            })
-        }
+            })? {
+        elem
+    } else {
+        return Ok(1);
     };
 
     let integer = elem.to_int::<i32>().context(ConvertValueSnafu {
@@ -193,15 +200,10 @@ fn retrieve_optional_to_f64<D>(
 where
     D: DataDictionary + Clone,
 {
-    let elem = match obj.element(tag) {
-        Ok(e) => e,
-        Err(dicom_object::Error::NoSuchDataElementTag { .. }) => return Ok(None),
-        Err(e) => return Err(e).context(MissingRequiredFieldSnafu { name }),
-    };
-
-    elem.to_float64()
-        .context(ConvertValueSnafu { name })
-        .map(Some)
+    match obj.element_opt(tag).context(RetrieveSnafu { name })? {
+        Some(e) => e.to_float64().context(ConvertValueSnafu { name }).map(Some),
+        None => Ok(None),
+    }
 }
 
 /// A decoded representation of the DICOM _Pixel Representation_ attribute.
@@ -255,16 +257,12 @@ impl fmt::Display for PlanarConfiguration {
 pub fn planar_configuration<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<PlanarConfiguration> {
-    let elem = match obj.element(tags::PLANAR_CONFIGURATION) {
-        Ok(e) => e,
-        Err(dicom_object::Error::NoSuchDataElementTag { .. }) => {
-            return Ok(PlanarConfiguration::Standard)
-        }
-        Err(e) => {
-            return Err(e).context(MissingRequiredFieldSnafu {
-                name: "PlanarConfiguration",
-            })
-        }
+
+    let elem = if let Some(elem) = obj.element_opt(tags::PLANAR_CONFIGURATION)
+        .context(RetrieveSnafu { name: "PlanarConfiguration" })? {
+        elem
+    } else {
+        return Ok(PlanarConfiguration::Standard);
     };
 
     let p = elem.to_int::<i16>().context(ConvertValueSnafu {
@@ -340,14 +338,14 @@ pub enum PhotometricInterpretation {
     /// one luminance (Y) and two chrominance planes (CB and CR).
     YbrRct,
     /// The photometric interpretation is not one of the known variants.
-    /// 
+    ///
     /// **Note:** this value is assumed to be different from
     /// any other variant listed above,
     /// and no checks are made to ensure this assumption.
     /// The construction of `PhotometricInterpretation::Other`
     /// when one of the existing variants is applicable
     /// is considered a bug.
-    /// 
+    ///
     /// **Note 2:** subsequent crate versions may introduce new variants,
     /// and as a consequence break any user depending on the `Other` variant.
     /// If you need to depend on an unspecified variant,
@@ -367,8 +365,7 @@ impl PhotometricInterpretation {
     /// (`MONOCHROME1` or `MONOCHROME2`).
     pub fn is_monochrome(&self) -> bool {
         match self {
-            PhotometricInterpretation::Monochrome1
-            | PhotometricInterpretation::Monochrome2 => true,
+            PhotometricInterpretation::Monochrome1 | PhotometricInterpretation::Monochrome2 => true,
             _ => false,
         }
     }
