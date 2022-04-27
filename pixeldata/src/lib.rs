@@ -110,7 +110,7 @@ pub use image;
 pub use ndarray;
 
 mod attribute;
-pub mod lut;
+mod lut;
 
 pub(crate) mod transform;
 
