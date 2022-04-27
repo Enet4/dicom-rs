@@ -91,11 +91,16 @@ where
     ///   whether the input sample values are expected to be signed
     ///   (_Pixel Representation_ = 1)
     /// - `f`: the mapping function
+    /// 
+    /// # Panics
+    /// 
+    /// Panics if `bits_stored` is 0 or too large.
     pub fn new_with_fn(
         bits_stored: u16,
         signed: bool,
         f: impl Fn(f64) -> f64 + Sync,
     ) -> Result<Self, CreateLutError> {
+        assert!(bits_stored != 0 && bits_stored <= 32);
         let size = (1 << bits_stored as u32) as usize;
         debug_assert!(size.is_power_of_two());
 
@@ -130,6 +135,10 @@ where
     ///   whether the input sample values are expected to be signed
     ///   (_Pixel Representation_ = 1)
     /// - `rescale`: the rescale parameters
+    /// 
+    /// # Panics
+    /// 
+    /// Panics if `bits_stored` is 0 or too large.
     pub fn new_rescale(
         bits_stored: u16,
         signed: bool,
@@ -152,6 +161,10 @@ where
     ///   (_Pixel Representation_ = 1)
     /// - `rescale`: the rescale parameters
     /// - `samples`: the raw pixel data samples expected to be fed to the LUT
+    /// 
+    /// # Panics
+    /// 
+    /// Panics if `bits_stored` is 0 or too large.
     pub(crate) fn new_rescale_and_normalize<I>(
         bits_stored: u16,
         signed: bool,
@@ -189,6 +202,12 @@ where
     /// Create a new LUT containing the modality rescale transformation
     /// and the VOI transformation defined by a window level.
     ///
+    /// The amplitude of the output values
+    /// goes from 0 to `2^n - 1`, where `n` is the power of two
+    /// which follows `bits_stored` (or itself if it is a power of two).
+    /// For instance, if `bits_stored` is 12, the output values
+    /// will go from 0 to 65535.
+    ///
     /// - `bits_stored`:
     ///   the number of bits effectively used to represent the sample values
     ///   (the _Bits Stored_ DICOM attribute)
@@ -197,13 +216,18 @@ where
     ///   (_Pixel Representation_ = 1)
     /// - `rescale`: the rescale parameters
     /// - `voi`: the value of interest (VOI) function and parameters
+    /// 
+    /// # Panics
+    /// 
+    /// Panics if `bits_stored` is 0 or too large.
     pub fn new_rescale_and_window(
         bits_stored: u16,
         signed: bool,
         rescale: Rescale,
         voi: WindowLevelTransform,
     ) -> Result<Self, CreateLutError> {
-        let y_max = ((1 << (bits_stored as usize)) - 1) as f64;
+        let bits_allocated = (bits_stored as usize).next_power_of_two();
+        let y_max = ((1 << bits_allocated) - 1) as f64;
         Self::new_with_fn(bits_stored, signed, |v| {
             let x = v as f64;
             let v = rescale.apply(x);
@@ -213,6 +237,12 @@ where
 
     /// Create a new LUT containing
     /// a VOI transformation defined by a window level.
+    /// 
+    /// The amplitude of the output values
+    /// goes from 0 to `2^n - 1`, where `n` is the power of two
+    /// which follows `bits_stored` (or itself if it is a power of two).
+    /// For instance, if `bits_stored` is 12, the output values
+    /// will go from 0 to 65535.
     ///
     /// - `bits_stored`:
     ///   the number of bits effectively used to represent the sample values
@@ -221,12 +251,17 @@ where
     ///   whether the input sample values are expected to be signed
     ///   (_Pixel Representation_ = 1)
     /// - `voi`: the value of interest (VOI) function and parameters
+    /// 
+    /// # Panics
+    /// 
+    /// Panics if `bits_stored` is 0 or too large.
     pub fn new_window(
         bits_stored: u16,
         signed: bool,
         voi: WindowLevelTransform,
     ) -> Result<Self, CreateLutError> {
-        let y_max = ((1 << (bits_stored as usize)) - 1) as f64;
+        let bits_allocated = (bits_stored as usize).next_power_of_two();
+        let y_max = ((1 << bits_allocated) - 1) as f64;
         Self::new_with_fn(bits_stored, signed, |v| voi.apply(v as f64, y_max))
     }
 
