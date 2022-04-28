@@ -158,6 +158,7 @@ mod tests {
 
     const MAX_TEST_FRAMES: u32 = 16;
 
+    #[cfg(feature = "image")]
     #[rstest]
     #[case("pydicom/693_J2KI.dcm")]
     #[case("pydicom/693_J2KR.dcm")]
@@ -212,6 +213,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "ndarray")]
     #[test]
     fn test_to_ndarray_signed_word_no_lut() {
         let test_file = dicom_test_files::path("pydicom/JPEG2000.dcm").unwrap();
