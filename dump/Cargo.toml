@@ -1,6 +1,6 @@
 [package]
 name = "dicom-dump"
-version = "0.5.0-rc.2"
+version = "0.5.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A CLI tool for inspecting DICOM files"
 edition = "2018"
@@ -29,9 +29,9 @@ itertools = "0.10"
 snafu = "0.7.0"
 colored = "2.0.0"
 structopt = { version = "0.3.21", optional = true }
-dicom-core = { path = "../core" }
-dicom-encoding = { path = "../encoding" }
-dicom-object = { path = "../object/" }
-dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/" }
-dicom-dictionary-std = { path = "../dictionary-std/" }
+dicom-core = { path = "../core", version = "0.5.0" }
+dicom-encoding = { path = "../encoding", version = "0.5.0" }
+dicom-object = { path = "../object/", version = "0.5.0" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.5.0" }
+dicom-dictionary-std = { path = "../dictionary-std/", version = "0.5.0" }
 
