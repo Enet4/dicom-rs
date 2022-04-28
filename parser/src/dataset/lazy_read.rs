@@ -16,7 +16,6 @@ use crate::stateful::decode::{DynStatefulDecoder, Error as DecoderError, Statefu
 use crate::util::ReadSeek;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
 use dicom_core::{Tag, VR};
-use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntax;
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
@@ -99,11 +98,9 @@ struct SeqToken {
 /// This iterator produces data tokens without eagerly reading the bytes
 /// of a value.
 #[derive(Debug)]
-pub struct LazyDataSetReader<S, D> {
+pub struct LazyDataSetReader<S> {
     /// the stateful decoder
     parser: S,
-    /// the data attribute dictionary
-    dict: D,
     /// whether the reader is expecting an item next (or a sequence delimiter)
     in_sequence: bool,
     /// whether a check for a sequence or item delimitation is pending
@@ -114,22 +111,19 @@ pub struct LazyDataSetReader<S, D> {
     hard_break: bool,
     /// last decoded header
     last_header: Option<DataElementHeader>,
-    /// Whether to expect a raw value next, and how many bytes long
-    raw_value_length: Option<u32>,
 }
 
-impl<S, D> LazyDataSetReader<DynStatefulDecoder<S>, D> {
+impl<R> LazyDataSetReader<DynStatefulDecoder<R>> {
     /// Create a new lazy data set reader
     /// with the given random access source and element dictionary,
     /// while considering the given transfer syntax and specific character set.
-    pub fn new_with_dictionary(
-        mut source: S,
-        dict: D,
+    pub fn new_with_ts_cs(
+        mut source: R,
         ts: &TransferSyntax,
         cs: SpecificCharacterSet,
     ) -> Result<Self>
     where
-        S: ReadSeek,
+        R: ReadSeek,
     {
         let position = source
             .seek(SeekFrom::Current(0))
@@ -139,48 +133,33 @@ impl<S, D> LazyDataSetReader<DynStatefulDecoder<S>, D> {
 
         Ok(LazyDataSetReader {
             parser,
-            dict,
             seq_delimiters: Vec::new(),
             delimiter_check_pending: false,
             in_sequence: false,
             hard_break: false,
             last_header: None,
-            raw_value_length: None,
         })
     }
 }
 
-impl<S> LazyDataSetReader<DynStatefulDecoder<S>, StandardDataDictionary> {
-    /// Create a new iterator with the given random access source,
-    /// while considering the given transfer syntax and specific character set.
-    pub fn new_with(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
-    where
-        S: ReadSeek,
-    {
-        LazyDataSetReader::new_with_dictionary(source, StandardDataDictionary, ts, cs)
-    }
-}
-
-impl<S> LazyDataSetReader<S, StandardDataDictionary>
+impl<S> LazyDataSetReader<S>
 where
     S: StatefulDecode,
 {
-    /// Create a new iterator with the given parser.
+    /// Create a new iterator with the given stateful decoder.
     pub fn new(parser: S) -> Self {
         LazyDataSetReader {
             parser,
-            dict: StandardDataDictionary,
             seq_delimiters: Vec::new(),
             delimiter_check_pending: false,
             in_sequence: false,
             hard_break: false,
             last_header: None,
-            raw_value_length: None,
         }
     }
 }
 
-impl<S, D> LazyDataSetReader<S, D>
+impl<S> LazyDataSetReader<S>
 where
     S: StatefulDecode,
 {

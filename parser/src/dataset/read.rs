@@ -5,10 +5,8 @@
 //! At this level, headers and values are treated as tokens which can be used
 //! to form a syntax tree of a full data set.
 use crate::stateful::decode::{DynStatefulDecoder, Error as DecoderError, StatefulDecode};
-use dicom_core::dictionary::DataDictionary;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
 use dicom_core::{PrimitiveValue, Tag, VR};
-use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntax;
 use snafu::{Backtrace, ResultExt, Snafu};
@@ -129,22 +127,13 @@ impl Default for ValueReadStrategy {
 }
 
 /// The set of options for the data set reader.
-#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub struct DataSetReaderOptions {
     /// the value reading strategy
     pub value_read: ValueReadStrategy,
     /// the position of the reader as received at building time
     pub base_offset: u64,
-}
-
-impl Default for DataSetReaderOptions {
-    fn default() -> Self {
-        DataSetReaderOptions {
-            value_read: ValueReadStrategy::default(),
-            base_offset: 0,
-        }
-    }
 }
 
 impl DataSetReaderOptions {
@@ -163,11 +152,9 @@ impl DataSetReaderOptions {
 /// A higher-level reader for retrieving structure in a DICOM data set from an
 /// arbitrary data source.
 #[derive(Debug)]
-pub struct DataSetReader<S, D> {
+pub struct DataSetReader<S> {
     /// the stateful decoder
     parser: S,
-    /// the data attribute dictionary
-    dict: D,
     /// the options of this reader
     options: DataSetReaderOptions,
     /// whether the reader is expecting an item header next (or a sequence delimiter)
@@ -183,20 +170,39 @@ pub struct DataSetReader<S, D> {
     hard_break: bool,
     /// last decoded header
     last_header: Option<DataElementHeader>,
-    /// Whether to expect a raw value next, and how many bytes long
-    raw_value_length: Option<u32>,
 }
 
-impl<S> DataSetReader<DynStatefulDecoder<S>, StandardDataDictionary> {
+impl<R> DataSetReader<DynStatefulDecoder<R>> {
     /// Creates a new iterator with the given random access source,
     /// while considering the given transfer syntax and specific character set.
     #[deprecated(
         since = "0.5.0",
-        note = "Instead use other `new` methods receiving reader options"
+        note = "Use `new_with_ts_cs` or `new_with_ts_cs_options` instead"
     )]
-    pub fn new_with(source: S, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
+    pub fn new_with(source: R, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
     where
-        S: Read,
+        R: Read,
+    {
+        Self::new_with_ts_cs(source, ts, cs)
+    }
+
+    #[inline]
+    pub fn new_with_ts_cs(source: R, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
+    where
+        R: Read,
+    {
+        Self::new_with_ts_cs_options(source, ts, cs, Default::default())
+    }
+
+    /// Create a new iterator with the given stateful decoder and options.
+    pub fn new_with_ts_cs_options(
+        source: R,
+        ts: &TransferSyntax,
+        cs: SpecificCharacterSet,
+        options: DataSetReaderOptions,
+    ) -> Result<Self>
+    where
+        R: Read,
     {
         let parser = DynStatefulDecoder::new_with(source, ts, cs, 0).context(CreateDecoderSnafu)?;
 
@@ -204,40 +210,6 @@ impl<S> DataSetReader<DynStatefulDecoder<S>, StandardDataDictionary> {
 
         Ok(DataSetReader {
             parser,
-            dict: StandardDataDictionary,
-            options: Default::default(),
-            seq_delimiters: Vec::new(),
-            delimiter_check_pending: false,
-            offset_table_next: false,
-            in_sequence: false,
-            hard_break: false,
-            last_header: None,
-            raw_value_length: None,
-        })
-    }
-}
-
-impl<S, D> DataSetReader<DynStatefulDecoder<S>, D> {
-    /// Creates a new iterator with the given random access source and data dictionary,
-    /// while considering the given transfer syntax and specific character set.
-    pub fn new_with_dictionary(
-        source: S,
-        dict: D,
-        ts: &TransferSyntax,
-        cs: SpecificCharacterSet,
-        options: DataSetReaderOptions,
-    ) -> Result<Self>
-    where
-        S: Read,
-    {
-        let parser = DynStatefulDecoder::new_with(source, ts, cs, options.base_offset)
-            .context(CreateDecoderSnafu)?;
-
-        is_stateful_decode(&parser);
-
-        Ok(DataSetReader {
-            parser,
-            dict,
             options,
             seq_delimiters: Vec::new(),
             delimiter_check_pending: false,
@@ -245,17 +217,15 @@ impl<S, D> DataSetReader<DynStatefulDecoder<S>, D> {
             in_sequence: false,
             hard_break: false,
             last_header: None,
-            raw_value_length: None,
         })
     }
 }
 
-impl<S> DataSetReader<S, StandardDataDictionary> {
-    /// Create a new iterator with the given parser and options.
+impl<S> DataSetReader<S> {
+    /// Create a new iterator with the given stateful decoder and options.
     pub fn new(decoder: S, options: DataSetReaderOptions) -> Self {
         DataSetReader {
             parser: decoder,
-            dict: StandardDataDictionary,
             options,
             seq_delimiters: Vec::new(),
             delimiter_check_pending: false,
@@ -263,15 +233,13 @@ impl<S> DataSetReader<S, StandardDataDictionary> {
             in_sequence: false,
             hard_break: false,
             last_header: None,
-            raw_value_length: None,
         }
     }
 }
 
-impl<S, D> Iterator for DataSetReader<S, D>
+impl<S> Iterator for DataSetReader<S>
 where
     S: StatefulDecode,
-    D: DataDictionary,
 {
     type Item = Result<DataToken>;
 
@@ -504,7 +472,7 @@ where
     }
 }
 
-impl<S, D> DataSetReader<S, D>
+impl<S> DataSetReader<S>
 where
     S: StatefulDecode,
 {
