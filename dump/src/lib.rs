@@ -11,7 +11,7 @@
 //! (or [`dump_file_to`] to print to an arbitrary writer).
 //!
 //! ```no_run
-//! use dicom::object::open_file;
+//! use dicom_object::open_file;
 //! use dicom_dump::dump_file;
 //!
 //! let obj = open_file("path/to/file.dcm")?;
@@ -22,7 +22,7 @@
 //! See the [`DumpOptions`] builder for additional dumping options.
 //!
 //! ```no_run
-//! use dicom::object::open_file;
+//! use dicom_object::open_file;
 //! use dicom_dump::{DumpOptions, dump_file};
 //!
 //! let obj = open_file("path/to/file2.dcm")?;
@@ -90,7 +90,7 @@ impl Default for DumpFormat {
 /// # Example
 ///
 /// ```no_run
-/// use dicom::object::open_file;
+/// use dicom_object::open_file;
 /// use dicom_dump::{ColorMode, DumpOptions};
 ///
 /// let my_dicom_file = open_file("/path_to_file")?;
