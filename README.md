@@ -10,49 +10,78 @@
 An ecosystem of library and tools for [DICOM](https://dicomstandard.org) compliant systems.
 
 This collection provides a pure Rust implementation of the DICOM standard,
-allowing users to read and write DICOM objects over files and other sources, while
-remaining intrinsically fast and safe to use.
+allowing users to work with DICOM objects
+and interact with DICOM applications,
+while aiming to be fast, safe, and intuitive to use.
 
 ## Components
 
-### Library:
+### Library
 
-- [`core`](core) represents all of the base traits, data structures and functions related to DICOM content.
-- [`encoding`](encoding) contains DICOM data encoding and decoding primitives.
-- [`parser`](parser) provides a middle-level abstraction for the parsing and printing of DICOM data sets.
-- [`object`](object) provides a high-level abstraction of DICOM objects and functions for reading and writing DICOM files.
-- [`pixeldata`](pixeldata) enables the conversion of DICOM objects into images and multidimensional arrays.
-- [`dictionary-std`](dictionary-std) contains a Rust definition of the standard data dictionary.
-- [`transfer-syntax-registry`](transfer-syntax-registry) contains a registry of transfer syntax specifications.
+The following library packages are designed to be used in
+other Rust libraries and applications.
+
+- [`object`](object) provides a high-level abstraction of DICOM objects
+  and functions for reading and writing DICOM files.
+- [`pixeldata`](pixeldata) enables the decoding and conversion of DICOM objects
+  into usable imaging data structures,
+  such as images and multidimensional arrays.
+- [`dump`](dump) provides helpful routines for
+  dumping the contents of DICOM objects.
 - [`ul`](ul) implements the DICOM upper layer protocol.
+- [`dictionary-std`](dictionary-std) contains a Rust definition of
+  the standard data dictionary.
+- [`transfer-syntax-registry`](transfer-syntax-registry) contains a registry of
+  transfer syntax specifications.
+- [`parser`](parser) provides a middle-level abstraction
+  for the parsing and printing of DICOM data sets.
+- [`encoding`](encoding) contains DICOM data encoding and decoding primitives.
+- [`core`](core) represents all of the base traits,
+  data structures and functions related to DICOM content.
 
-### Tools:
+#### Using as a library
 
-- [`dump`](dump) is a command-line application for inspecting DICOM files.
-- [`scpproxy`](scpproxy) implements the Proxy service class provider.
-- [`echoscu`](echoscu) implements a Verification service class user.
-- [`storescu`](storescu) implements a Storage service class user.
+The parent crate [`dicom`](parent) aggregates the key components of the full library,
+so it can be added to a project as an alternative to
+selectively grabbing the components that you need.
 
-### Development tools:
+Generally, most projects would add [`dicom_object`](object),
+which is the most usable crate for reading DICOM objects from a file or a similar source.
+This crate is available in `dicom::object`.
+For working with the imaging data of a DICOM object,
+add [`pixeldata`](pixeldata).
+Network capabilities may be constructed on top of [`ul`](ul).
 
-- [`dictionary-builder`](dictionary-builder) is a Rust application that generates code and
-  other data structures for a DICOM standard dictionary.
-
-## Using as a library
-
-The parent crate [`dicom`](parent) aggregates the key components of the full library.
-[`dicom::object`](object) is currently the most usable crate for reading DICOM objects from a file or a similar source.
-As an alternative, [`dicom_object`](object) can be used directly.
-
-An example of use follows. For more details, please visit the [`dicom-object` documentation](https://docs.rs/dicom-object).
+A simple example of use follows.
+For more details,
+please visit the [`dicom` documentation](https://docs.rs/dicom).
 
 ```rust
 use dicom::object::open_file;
+use dicom::dictionary_std::tags;
 
 let obj = open_file("0001.dcm")?;
-let patient_name = obj.element_by_name("PatientName")?.to_str()?;
-let modality = obj.element_by_name("Modality")?.to_str()?;
+let patient_name = obj.element(tags::PATIENT_NAME)?.to_str()?;
+let modality = obj.element(tags::MODALITY)?.to_str()?;
 ```
+
+### Tools
+
+The project also comprises an assortment of command line tools.
+
+- [`dump`](dump), aside from being a library,
+  is also a command-line application for inspecting DICOM files.
+- [`scpproxy`](scpproxy) implements a Proxy service class provider.
+- [`echoscu`](echoscu) implements a Verification service class user.
+- [`storescu`](storescu) implements a Storage service class user.
+- [`toimage`](toimage) lets you convert a DICOM file into an image file.
+- [`fromimage`](fromimage) lets you replace the imaging data of a DICOM file
+  with one from an image file.
+
+### Development tools
+
+- [`dictionary-builder`](dictionary-builder) is an independent application that
+  generates code and other data structures for a DICOM standard dictionary.
 
 ## Building
 
@@ -74,8 +103,8 @@ See also the [contributor guidelines](CONTRIBUTING.md) and the project's [Code o
 
 Licensed under either of
 
-* Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
 
 at your option.
 
