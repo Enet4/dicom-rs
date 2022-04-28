@@ -265,8 +265,7 @@ where
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let cs = SpecificCharacterSet::Default;
             let mut dataset =
-                DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs, Default::default())
-                    .context(CreateParserSnafu)?;
+                DataSetReader::new_with_ts_cs(file, ts, cs).context(CreateParserSnafu)?;
 
             Ok(FileDicomObject {
                 meta,
@@ -342,8 +341,7 @@ where
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let cs = SpecificCharacterSet::Default;
             let mut dataset =
-                DataSetReader::new_with_dictionary(file, dict.clone(), ts, cs, Default::default())
-                    .context(CreateParserSnafu)?;
+                DataSetReader::new_with_ts_cs(file, ts, cs).context(CreateParserSnafu)?;
             let obj = InMemDicomObject::build_object(
                 &mut dataset,
                 dict,
@@ -456,9 +454,7 @@ where
         D: DataDictionary,
     {
         let from = BufReader::new(from);
-        let mut dataset =
-            DataSetReader::new_with_dictionary(from, dict.clone(), ts, cs, Default::default())
-                .context(CreateParserSnafu)?;
+        let mut dataset = DataSetReader::new_with_ts_cs(from, ts, cs).context(CreateParserSnafu)?;
         InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
     }
 
@@ -1282,7 +1278,7 @@ mod tests {
         obj.put(another_patient_name.clone());
         let elem1 = obj.element_by_name_opt("PatientName").unwrap();
         assert_eq!(elem1, Some(&another_patient_name));
-        
+
         // try a missing element, should return None
         assert_eq!(obj.element_by_name_opt("PatientID").unwrap(), None);
     }
