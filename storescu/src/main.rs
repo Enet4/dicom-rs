@@ -1,11 +1,10 @@
-use dicom::core::smallvec;
-use dicom::{core::dicom_value, dictionary_std::tags};
-use dicom::{
-    core::{header::Tag, DataElement, PrimitiveValue, VR},
-    encoding::transfer_syntax,
-    object::{mem::InMemDicomObject, open_file, StandardDataDictionary},
-    transfer_syntax::TransferSyntaxRegistry,
-};
+use dicom_core::dicom_value;
+use dicom_core::smallvec;
+use dicom_core::{header::Tag, DataElement, PrimitiveValue, VR};
+use dicom_dictionary_std::tags;
+use dicom_encoding::transfer_syntax;
+use dicom_object::{mem::InMemDicomObject, open_file, StandardDataDictionary};
+use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::pdu::Pdu;
 use dicom_ul::{
     association::ClientAssociationOptions,
@@ -13,6 +12,7 @@ use dicom_ul::{
 };
 use indicatif::{ProgressBar, ProgressStyle};
 use smallvec::smallvec;
+use snafu::{prelude::*, ErrorCompat};
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::io::Write;
@@ -63,7 +63,76 @@ struct DicomFile {
     pc_selected: Option<dicom_ul::pdu::PresentationContextResult>,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn report<E: 'static>(err: &E)
+where
+    E: std::error::Error,
+{
+    eprintln!("[ERROR] {}", err);
+    if let Some(source) = err.source() {
+        eprintln!();
+        eprintln!("Caused by:");
+        for (i, e) in std::iter::successors(Some(source), |e| e.source()).enumerate() {
+            eprintln!("   {}: {}", i, e);
+        }
+    }
+}
+
+fn report_backtrace<E: 'static>(err: &E)
+where
+    E: std::error::Error,
+    E: ErrorCompat,
+{
+    let env_backtrace = std::env::var("RUST_BACKTRACE").unwrap_or_default();
+    let env_lib_backtrace = std::env::var("RUST_LIB_BACKTRACE").unwrap_or_default();
+    if env_lib_backtrace == "1" || (env_backtrace == "1" && env_lib_backtrace != "0") {
+        if let Some(backtrace) = ErrorCompat::backtrace(&err) {
+            eprintln!();
+            eprintln!("Backtrace:");
+            eprintln!("{}", backtrace);
+        }
+    }
+}
+
+fn report_with_backtrace<E: 'static>(err: E)
+where
+    E: std::error::Error,
+    E: ErrorCompat,
+{
+    report(&err);
+    report_backtrace(&err);
+}
+
+#[derive(Debug, Snafu)]
+enum Error {
+    /// Could not initialize SCU
+    InitScu {
+        source: dicom_ul::association::client::Error,
+    },
+
+    /// Could not construct DICOM command
+    CreateCommand { source: dicom_object::Error },
+
+    #[snafu(whatever, display("{}", message))]
+    Other {
+        message: String,
+        #[snafu(source(from(Box<dyn std::error::Error + 'static>, Some)))]
+        source: Option<Box<dyn std::error::Error + 'static>>,
+    },
+}
+
+fn main() {
+    run().unwrap_or_else(|e| {
+        report_with_backtrace(e);
+        std::process::exit(-2);
+    });
+}
+
+fn run() -> Result<(), Error> {
+    tracing::subscriber::set_global_default(tracing_subscriber::FmtSubscriber::new())
+        .unwrap_or_else(|e| {
+            report(&e);
+        });
+
     let App {
         addr,
         files,
@@ -132,7 +201,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .calling_ae_title(calling_ae_title)
         .called_ae_title(called_ae_title)
         .max_pdu_length(max_pdu_length)
-        .establish(addr)?;
+        .establish(addr)
+        .context(InitScuSnafu)?;
 
     if verbose {
         println!("Association established");
@@ -140,13 +210,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for mut file in &mut dicom_files {
         // TODO(#106) transfer syntax conversion is currently not supported
-        match check_presentation_contexts(file, scu.presentation_contexts()) {
+        let r: Result<_, Error> = check_presentation_contexts(file, scu.presentation_contexts())
+            .whatever_context::<_, _>("Could not choose a transfer syntax");
+        match r {
             Ok((pc, ts)) => {
                 file.pc_selected = Some(pc);
                 file.ts_selected = Some(ts);
             }
             Err(e) => {
-                eprintln!("Could not choose a transfer syntax: {}", e);
+                report(&e);
                 if fail_first {
                     let _ = scu.abort();
                     std::process::exit(-2);
@@ -175,15 +247,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut cmd_data = Vec::with_capacity(128);
             cmd.write_dataset_with_ts(
                 &mut cmd_data,
-                &dicom::transfer_syntax::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
-            )?;
+                &dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
+            )
+            .context(CreateCommandSnafu)?;
 
             let mut object_data = Vec::with_capacity(2048);
-            let dicom_file = open_file(file.file)?;
+            let dicom_file =
+                open_file(file.file).whatever_context("Could not open listed DICOM file")?;
             let ts_selected = TransferSyntaxRegistry
                 .get(&ts_selected)
-                .ok_or("Unsupported file transfer syntax")?;
-            dicom_file.write_dataset_with_ts(&mut object_data, ts_selected)?;
+                .whatever_context("Unsupported file transfer syntax")?;
+            dicom_file
+                .write_dataset_with_ts(&mut object_data, ts_selected)
+                .whatever_context("Could not write object dataset")?;
 
             let nbytes = cmd_data.len() + object_data.len();
 
@@ -209,7 +285,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ],
                 };
 
-                scu.send(&pdu)?;
+                scu.send(&pdu)
+                    .whatever_context("Failed to send C-STORE-RQ")?;
             } else {
                 let pdu = Pdu::PData {
                     data: vec![PDataValue {
@@ -220,11 +297,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }],
                 };
 
-                scu.send(&pdu)?;
+                scu.send(&pdu)
+                    .whatever_context("Failed to send C-STORE-RQ command")?;
 
                 {
                     let mut pdata = scu.send_pdata(pc_selected.id);
-                    pdata.write_all(&object_data)?;
+                    pdata
+                        .write_all(&object_data)
+                        .whatever_context("Failed to send C-STORE-RQ P-Data")?;
                 }
             }
 
@@ -232,7 +312,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Awaiting response...");
             }
 
-            let rsp_pdu = scu.receive()?;
+            let rsp_pdu = scu
+                .receive()
+                .whatever_context("Failed to receive C-STORE-RSP")?;
 
             match rsp_pdu {
                 Pdu::PData { data } => {
@@ -240,12 +322,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     let cmd_obj = InMemDicomObject::read_dataset_with_ts(
                         &data_value.data[..],
-                        &dicom::transfer_syntax::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
-                    )?;
+                        &dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN
+                            .erased(),
+                    )
+                    .whatever_context("Could not read response from SCP")?;
                     if verbose {
                         println!("Response: {:?}", cmd_obj);
                     }
-                    let status = cmd_obj.element(tags::STATUS)?.to_int::<u16>()?;
+                    let status = cmd_obj
+                        .element(tags::STATUS)
+                        .whatever_context("Could not find status code in response")?
+                        .to_int::<u16>()
+                        .whatever_context("Status code in response is not a valid integer")?;
                     let storage_sop_instance_uid = file
                         .sop_instance_uid
                         .trim_end_matches(|c: char| c.is_whitespace() || c == '\0');
@@ -290,7 +378,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         pb.finish_with_message("done")
     };
 
-    scu.release()?;
+    scu.release()
+        .whatever_context("Failed to release SCU association")?;
     Ok(())
 }
 
@@ -366,14 +455,15 @@ fn even_len(l: usize) -> u32 {
     ((l + 1) & !1) as u32
 }
 
-fn check_file(file: &Path) -> Result<DicomFile, Box<dyn std::error::Error>> {
+fn check_file(file: &Path) -> Result<DicomFile, Error> {
     // Ignore DICOMDIR files until better support is added
     let _ = (file.file_name() != Some(OsStr::new("DICOMDIR")))
         .then(|| false)
-        .ok_or("DICOMDIR file not supported")?;
-    let dicom_file = dicom::object::OpenFileOptions::new()
+        .whatever_context("DICOMDIR file not supported")?;
+    let dicom_file = dicom_object::OpenFileOptions::new()
         .read_until(Tag(0x0001, 0x000))
-        .open_file(&file)?;
+        .open_file(&file)
+        .with_whatever_context(|_| format!("Could not open DICOM file {}", file.display()))?;
 
     let meta = dicom_file.meta();
 
@@ -382,7 +472,7 @@ fn check_file(file: &Path) -> Result<DicomFile, Box<dyn std::error::Error>> {
     let transfer_syntax_uid = &meta.transfer_syntax.trim_end_matches('\0');
     let ts = TransferSyntaxRegistry
         .get(transfer_syntax_uid)
-        .ok_or("Unsupported file transfer syntax")?;
+        .whatever_context("Unsupported file transfer syntax")?;
     Ok(DicomFile {
         file: file.to_path_buf(),
         sop_class_uid: storage_sop_class_uid.to_string(),
@@ -396,10 +486,10 @@ fn check_file(file: &Path) -> Result<DicomFile, Box<dyn std::error::Error>> {
 fn check_presentation_contexts(
     file: &DicomFile,
     pcs: &[dicom_ul::pdu::PresentationContextResult],
-) -> Result<(dicom_ul::pdu::PresentationContextResult, String), Box<dyn std::error::Error>> {
+) -> Result<(dicom_ul::pdu::PresentationContextResult, String), Error> {
     let file_ts = TransferSyntaxRegistry
         .get(&file.file_transfer_syntax)
-        .ok_or("Unsupported file transfer syntax")?;
+        .whatever_context("Unsupported file transfer syntax")?;
     // TODO(#106) transfer syntax conversion is currently not supported
     let pc = pcs
         .iter()
@@ -416,10 +506,10 @@ fn check_presentation_contexts(
                     .map(|_| true)
                     .unwrap_or(false)
         })
-        .ok_or("No presentation context accepted")?;
+        .whatever_context("No presentation context accepted")?;
     let ts = TransferSyntaxRegistry
         .get(&pc.transfer_syntax)
-        .ok_or("Poorly negotiated transfer syntax")?;
+        .whatever_context("Poorly negotiated transfer syntax")?;
 
     Ok((pc.clone(), String::from(ts.uid())))
 }

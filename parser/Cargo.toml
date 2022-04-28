@@ -17,3 +17,4 @@ chrono = "0.4.6"
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.5.0-rc.2" }
 smallvec = "1.6.1"
 snafu = "0.7.0"
+tracing = "0.1.34"

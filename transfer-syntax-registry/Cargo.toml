@@ -20,3 +20,4 @@ lazy_static = "1.2.0"
 encoding = "0.2.33"
 byteordered = "0.6"
 inventory = { version = "0.2.2", optional = true }
+tracing = "0.1.34"

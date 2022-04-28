@@ -310,8 +310,7 @@ where
         if let Some(codec) = SpecificCharacterSet::from_code(name) {
             self.text = codec;
         } else {
-            // TODO(#49) log this as a warning
-            eprintln!("Unsupported character set `{}`, ignoring", name);
+            tracing::warn!("Unsupported character set `{}`, ignoring", name);
         }
     }
 

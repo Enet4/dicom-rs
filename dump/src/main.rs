@@ -1,8 +1,8 @@
 //! A CLI tool for inspecting the contents of a DICOM file
 //! by printing it in a human readable format.
-use dicom::object::open_file;
+use dicom_object::open_file;
 use dicom_dump::{ColorMode, DumpOptions};
-use snafu::ErrorCompat;
+use snafu::{ErrorCompat, Whatever, whatever};
 use std::io::ErrorKind;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -49,9 +49,16 @@ struct App {
 }
 
 fn main() {
-    os_compatibility().unwrap_or_else(|_| {
-        eprintln!("Error setting OS compatibility for colored output");
+    run().unwrap_or_else(|e| {
+        report(e);
+        std::process::exit(-2);
     });
+}
+
+fn run() -> Result<(), Whatever> {
+    if os_compatibility().is_err() {
+        whatever!("Error setting OS compatibility for colored output");
+    }
 
     let App {
         files: filenames,

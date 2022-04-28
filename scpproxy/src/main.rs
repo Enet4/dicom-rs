@@ -2,7 +2,7 @@ use clap::{App, Arg};
 use dicom_ul::pdu::reader::{read_pdu, DEFAULT_MAX_PDU};
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::Pdu;
-use snafu::{Backtrace, ErrorCompat, OptionExt, ResultExt, Snafu};
+use snafu::{Backtrace, ErrorCompat, OptionExt, ResultExt, Snafu, Whatever};
 use std::io::Write;
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::mpsc;
@@ -259,6 +259,10 @@ fn run(
 }
 
 fn main() {
+    tracing::subscriber::set_global_default(tracing_subscriber::FmtSubscriber::new())
+        .whatever_context("Could not set up global tracing subscriber")
+        .unwrap_or_else(|e: snafu::Whatever| report(e));
+
     let default_max = DEFAULT_MAX_PDU.to_string();
     let matches = App::new("scpproxy")
         .arg(
@@ -321,6 +325,7 @@ fn main() {
         println!("listening on: {}", listen_addr);
         println!("forwarding to: {}", destination_addr);
     }
+
     for mut stream in listener.incoming() {
         match stream {
             Ok(ref mut scu_stream) => {
@@ -334,8 +339,11 @@ fn main() {
                     report(e);
                 }
             }
-            Err(e) => {
-                eprintln!("[ERROR] {}", e);
+            r @ Err(_) => {
+                let e: Whatever = r
+                    .whatever_context("Could not obtain TCP stream")
+                    .unwrap_err();
+                report(e);
             }
         }
     }

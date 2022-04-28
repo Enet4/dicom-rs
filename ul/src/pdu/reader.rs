@@ -128,7 +128,7 @@ where
         .read_u32::<BigEndian>()
         .context(ReadPduFieldSnafu { field: "length" })?;
 
-    // Check max_pdu_length. See also (#49)
+    // Check max_pdu_length
     if strict {
         ensure!(
             pdu_length <= max_pdu_length,
@@ -145,8 +145,8 @@ where
                 max_pdu_length: MAXIMUM_PDU_SIZE
             }
         );
-        eprintln!(
-            "[WARNING] Incoming pdu was too large: length {}, maximum is {}",
+        tracing::warn!(
+            "Incoming pdu was too large: length {}, maximum is {}",
             pdu_length, max_pdu_length
         );
     }

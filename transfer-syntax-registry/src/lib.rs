@@ -84,7 +84,7 @@ impl TransferSyntaxRegistryImpl {
                     // requirements, better keep it as a separate match arm for
                     // debugging purposes
                     (Codec::Unsupported, Codec::PixelData(_)) => {
-                        eprintln!("Inconsistent requirements for transfer syntax {}: `Unsupported` cannot be replaced with `PixelData`", ts.uid());
+                        tracing::warn!("Inconsistent requirements for transfer syntax {}: `Unsupported` cannot be replaced with `PixelData`", ts.uid());
                         false
                     }
                     // ignoring TS with less or equal implementation
