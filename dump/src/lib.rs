@@ -32,14 +32,14 @@
 //! # Result::<(), Box<dyn std::error::Error>>::Ok(())
 //! ```
 use colored::*;
-use dicom::core::dictionary::{DataDictionary, DictionaryEntry};
-use dicom::core::header::Header;
-use dicom::core::value::{PrimitiveValue, Value as DicomValue};
-use dicom::core::VR;
-use dicom::encoding::transfer_syntax::TransferSyntaxIndex;
-use dicom::object::mem::{InMemDicomObject, InMemElement};
-use dicom::object::{FileDicomObject, FileMetaTable, StandardDataDictionary};
-use dicom::transfer_syntax::TransferSyntaxRegistry;
+use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
+use dicom_core::header::Header;
+use dicom_core::value::{PrimitiveValue, Value as DicomValue};
+use dicom_core::VR;
+use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
+use dicom_object::mem::{InMemDicomObject, InMemElement};
+use dicom_object::{FileDicomObject, FileMetaTable, StandardDataDictionary};
+use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use std::borrow::Cow;
 use std::fmt::{self, Display, Formatter};
 use std::io::{stdout, Result as IoResult, Write};
@@ -717,7 +717,7 @@ fn value_summary(
             }
         }
         (Strs(values), VR::DT) => {
-            match value.to_multi_datetime(dicom::core::chrono::FixedOffset::east(0)) {
+            match value.to_multi_datetime(dicom_core::chrono::FixedOffset::east(0)) {
                 Ok(values) => {
                     // print as reformatted date
                     DumpValue::DateTime(format_value_list(values, max_characters, false))
@@ -829,13 +829,12 @@ fn determine_width(user_width: Option<u32>) -> u32 {
 #[cfg(test)]
 mod tests {
 
+    use dicom_core::{DataElement, VR, PrimitiveValue};
+    use dicom_dictionary_std::tags;
+    use dicom_object::{InMemDicomObject, FileMetaTableBuilder};
+
     use super::whitespace_or_null;
     use crate::{ColorMode, DumpOptions};
-    use dicom::{
-        core::{DataElement, PrimitiveValue, VR},
-        dictionary_std::tags,
-        object::{FileMetaTableBuilder, InMemDicomObject},
-    };
 
     #[test]
     fn trims_all_whitespace() {
