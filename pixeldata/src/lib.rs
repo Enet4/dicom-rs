@@ -1582,6 +1582,21 @@ mod tests {
     use dicom_test_files;
 
     #[test]
+    fn test_to_vec_rgb() {
+        let test_file = dicom_test_files::path("pydicom/SC_rgb_16bit.dcm").unwrap();
+        let obj = open_file(test_file).unwrap();
+        let decoded = obj.decode_pixel_data().unwrap();
+
+        let rows = decoded.rows();
+
+        let values = decoded.to_vec::<u16>().unwrap();
+        assert_eq!(values.len(), 30000);
+
+        // 50, 80, 1
+        assert_eq!(values[50 * rows as usize * 3 + 80 * 3 + 1], 32896);
+    }
+
+    #[test]
     fn test_to_ndarray_rgb() {
         let test_file = dicom_test_files::path("pydicom/SC_rgb_16bit.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
