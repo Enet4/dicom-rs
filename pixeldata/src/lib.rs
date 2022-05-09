@@ -1271,6 +1271,11 @@ impl DecodedPixelData<'_> {
     /// `R` is the number of rows,
     /// `C` is the number of columns,
     /// and `S` is the number of samples per pixel.
+    ///
+    /// The default pixel data process pipeline
+    /// applies only the Modality LUT function described in the object,
+    /// To change this behavior,
+    /// see [`to_ndarray_with_options`](Self::to_ndarray_with_options).
     pub fn to_ndarray<T: 'static>(&self) -> Result<Array<T, Ix4>>
     where
         T: NumCast,
@@ -1300,8 +1305,8 @@ impl DecodedPixelData<'_> {
     /// The `options` value allows you to specify
     /// which transformations should be done to the pixel data
     /// (primarily Modality LUT function and VOI LUT function).
-    /// By default, both Modality and VOI LUT functions are applied
-    /// according to the attributes of the given object.
+    /// By default,
+    /// only the Modality LUT function described in the object is applied.
     /// Note that certain options may be ignored
     /// if they do not apply.
     pub fn to_ndarray_with_options<T: 'static>(
@@ -1342,6 +1347,11 @@ impl DecodedPixelData<'_> {
     /// where `R` is the number of rows,
     /// `C` is the number of columns,
     /// and `S` is the number of samples per pixel.
+    ///
+    /// The default pixel data process pipeline
+    /// applies only the Modality LUT function described in the object,
+    /// To change this behavior,
+    /// see [`to_ndarray_frame_with_options`](Self::to_ndarray_frame_with_options).
     pub fn to_ndarray_frame<T: 'static>(&self, frame: u32) -> Result<Array<T, Ix3>>
     where
         T: NumCast,
@@ -1366,6 +1376,14 @@ impl DecodedPixelData<'_> {
     /// where `R` is the number of rows,
     /// `C` is the number of columns,
     /// and `S` is the number of samples per pixel.
+    ///
+    /// The `options` value allows you to specify
+    /// which transformations should be done to the pixel data
+    /// (primarily Modality LUT function and VOI LUT function).
+    /// By default,
+    /// only the Modality LUT function described in the object is applied.
+    /// Note that certain options may be ignored
+    /// if they do not apply.
     pub fn to_ndarray_frame_with_options<T: 'static>(
         &self,
         frame: u32,
