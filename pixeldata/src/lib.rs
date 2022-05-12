@@ -99,7 +99,8 @@ use image::{DynamicImage, ImageBuffer, Luma, Rgb};
 use ndarray::{Array, Ix3, Ix4};
 use num_traits::NumCast;
 use rayon::iter::{
-    IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
+    IntoParallelRefMutIterator, ParallelIterator,
 };
 use snafu::OptionExt;
 use snafu::{Backtrace, ResultExt, Snafu};
@@ -416,6 +417,16 @@ impl DecodedPixelData<'_> {
         &self.data
     }
 
+    /// Retrieve a copy of all raw pixel data samples
+    /// as unsigned 16-bit integers.
+    ///
+    /// This is useful for retrieving pixel data
+    /// with the _OW_ value representation.
+    #[inline]
+    pub fn data_ow(&self) -> Vec<u16> {
+        bytes_to_vec_u16(&self.data)
+    }
+
     /// Retrieve a slice of a frame's raw pixel data samples as bytes,
     /// irrespective of the expected size of each sample.
     pub fn frame_data(&self, frame: u32) -> Result<&[u8]> {
@@ -444,9 +455,7 @@ impl DecodedPixelData<'_> {
     pub fn frame_data_ow(&self, frame: u32) -> Result<Vec<u16>> {
         let data = self.frame_data(frame)?;
 
-        let mut pixel_array: Vec<u16> = vec![0; data.len() / 2];
-        NativeEndian::read_u16_into(data, &mut pixel_array);
-        Ok(pixel_array)
+        Ok(bytes_to_vec_u16(data))
     }
 
     /// Retrieves the number of rows of the pixel data.
@@ -790,9 +799,9 @@ impl DecodedPixelData<'_> {
                         let signed = self.pixel_representation == PixelRepresentation::Signed;
 
                         let lut: Lut<u8> = match (voi_lut, self.window) {
-                            (VoiLutOption::Identity, _) => Lut::new_rescale(8, false, rescale)
-                                .map_err(|_| snafu::NoneError)
-                                .context(InvalidDataTypeSnafu)?,
+                            (VoiLutOption::Identity, _) => {
+                                Lut::new_rescale(8, false, rescale).context(CreateLutSnafu)?
+                            }
                             (VoiLutOption::Default | VoiLutOption::First, Some(window)) => {
                                 Lut::new_rescale_and_window(
                                     8,
@@ -803,8 +812,7 @@ impl DecodedPixelData<'_> {
                                         window,
                                     ),
                                 )
-                                .map_err(|_| snafu::NoneError)
-                                .context(InvalidDataTypeSnafu)?
+                                .context(CreateLutSnafu)?
                             }
                             (VoiLutOption::Default | VoiLutOption::First, None) => {
                                 tracing::warn!("Could not find window level for object");
@@ -814,8 +822,7 @@ impl DecodedPixelData<'_> {
                                     rescale,
                                     data.iter().copied(),
                                 )
-                                .map_err(|_| snafu::NoneError)
-                                .context(InvalidDataTypeSnafu)?
+                                .context(CreateLutSnafu)?
                             }
                             (VoiLutOption::Custom(window), _) => Lut::new_rescale_and_window(
                                 8,
@@ -826,8 +833,7 @@ impl DecodedPixelData<'_> {
                                     *window,
                                 ),
                             )
-                            .map_err(|_| snafu::NoneError)
-                            .context(InvalidDataTypeSnafu)?,
+                            .context(CreateLutSnafu)?,
                             (VoiLutOption::Normalize, _) => Lut::new_rescale_and_normalize(
                                 8,
                                 signed,
@@ -864,12 +870,7 @@ impl DecodedPixelData<'_> {
                         let buffer = match self.pixel_representation {
                             // Unsigned 16-bit representation
                             PixelRepresentation::Unsigned => {
-                                let mut buffer = vec![0; frame_length / 2];
-                                NativeEndian::read_u16_into(
-                                    &self.data[frame_start..frame_end],
-                                    &mut buffer,
-                                );
-                                buffer
+                                bytes_to_vec_u16(&self.data[frame_start..frame_end])
                             }
                             // Signed 16-bit representation
                             PixelRepresentation::Signed => {
@@ -1176,6 +1177,8 @@ impl DecodedPixelData<'_> {
                     ModalityLutOption::Default | ModalityLutOption::Override(_)
                         if self.photometric_interpretation.is_monochrome() =>
                     {
+                        let samples = bytes_to_vec_u16(data);
+
                         let rescale = if let ModalityLutOption::Override(rescale) = modality_lut {
                             *rescale
                         } else {
@@ -1186,11 +1189,11 @@ impl DecodedPixelData<'_> {
 
                         let lut: Lut<T> = match (voi_lut, self.window) {
                             (VoiLutOption::Default | VoiLutOption::Identity, _) => {
-                                Lut::new_rescale(8, signed, rescale)
+                                Lut::new_rescale(self.bits_stored, signed, rescale)
                             }
                             (VoiLutOption::First, Some(window)) => Lut::new_rescale_and_window(
-                                8,
-                                false,
+                                self.bits_stored,
+                                signed,
                                 rescale,
                                 WindowLevelTransform::new(
                                     self.voi_lut_function.unwrap_or_default(),
@@ -1199,10 +1202,15 @@ impl DecodedPixelData<'_> {
                             ),
                             (VoiLutOption::First, None) => {
                                 tracing::warn!("Could not find window level for object");
-                                Lut::new_rescale(8, signed, rescale)
+                                Lut::new_rescale_and_normalize(
+                                    self.bits_stored,
+                                    signed,
+                                    rescale,
+                                    samples.iter().copied(),
+                                )
                             }
                             (VoiLutOption::Custom(window), _) => Lut::new_rescale_and_window(
-                                8,
+                                self.bits_stored,
                                 signed,
                                 rescale,
                                 WindowLevelTransform::new(
@@ -1211,24 +1219,22 @@ impl DecodedPixelData<'_> {
                                 ),
                             ),
                             (VoiLutOption::Normalize, _) => Lut::new_rescale_and_normalize(
-                                8,
+                                self.bits_stored,
                                 signed,
                                 rescale,
-                                data.iter().copied(),
+                                samples.iter().copied(),
                             ),
                         }
-                        .map_err(|_| snafu::NoneError)
-                        .context(InvalidDataTypeSnafu)?;
+                        .context(CreateLutSnafu)?;
 
-                        Ok(lut.map_par_iter(data.par_iter().copied()).collect())
+                        Ok(lut.map_par_iter(samples.into_par_iter()).collect())
                     }
                     _ => {
                         // no transformations
                         match self.pixel_representation {
                             // Unsigned 16 bit representation
                             PixelRepresentation::Unsigned => {
-                                let mut dest = vec![0; data.len() / 2];
-                                NativeEndian::read_u16_into(data, &mut dest);
+                                let dest = bytes_to_vec_u16(data);
 
                                 let converted: Result<Vec<T>, _> = dest
                                     .par_iter()
@@ -1271,6 +1277,11 @@ impl DecodedPixelData<'_> {
     /// `R` is the number of rows,
     /// `C` is the number of columns,
     /// and `S` is the number of samples per pixel.
+    ///
+    /// The default pixel data process pipeline
+    /// applies only the Modality LUT function described in the object,
+    /// To change this behavior,
+    /// see [`to_ndarray_with_options`](Self::to_ndarray_with_options).
     pub fn to_ndarray<T: 'static>(&self) -> Result<Array<T, Ix4>>
     where
         T: NumCast,
@@ -1300,8 +1311,8 @@ impl DecodedPixelData<'_> {
     /// The `options` value allows you to specify
     /// which transformations should be done to the pixel data
     /// (primarily Modality LUT function and VOI LUT function).
-    /// By default, both Modality and VOI LUT functions are applied
-    /// according to the attributes of the given object.
+    /// By default,
+    /// only the Modality LUT function described in the object is applied.
     /// Note that certain options may be ignored
     /// if they do not apply.
     pub fn to_ndarray_with_options<T: 'static>(
@@ -1342,6 +1353,11 @@ impl DecodedPixelData<'_> {
     /// where `R` is the number of rows,
     /// `C` is the number of columns,
     /// and `S` is the number of samples per pixel.
+    ///
+    /// The default pixel data process pipeline
+    /// applies only the Modality LUT function described in the object,
+    /// To change this behavior,
+    /// see [`to_ndarray_frame_with_options`](Self::to_ndarray_frame_with_options).
     pub fn to_ndarray_frame<T: 'static>(&self, frame: u32) -> Result<Array<T, Ix3>>
     where
         T: NumCast,
@@ -1366,6 +1382,14 @@ impl DecodedPixelData<'_> {
     /// where `R` is the number of rows,
     /// `C` is the number of columns,
     /// and `S` is the number of samples per pixel.
+    ///
+    /// The `options` value allows you to specify
+    /// which transformations should be done to the pixel data
+    /// (primarily Modality LUT function and VOI LUT function).
+    /// By default,
+    /// only the Modality LUT function described in the object is applied.
+    /// Note that certain options may be ignored
+    /// if they do not apply.
     pub fn to_ndarray_frame_with_options<T: 'static>(
         &self,
         frame: u32,
@@ -1388,6 +1412,13 @@ impl DecodedPixelData<'_> {
             .context(InvalidShapeSnafu)
             .map_err(Error::from)
     }
+}
+
+fn bytes_to_vec_u16(data: &[u8]) -> Vec<u16> {
+    debug_assert!(data.len() % 2 == 0);
+    let mut pixel_array: Vec<u16> = vec![0; data.len() / 2];
+    NativeEndian::read_u16_into(&data, &mut pixel_array);
+    pixel_array
 }
 
 // Convert u8 pixel array from YBR_FULL or YBR_FULL_422 to RGB
@@ -1582,6 +1613,21 @@ mod tests {
     use dicom_test_files;
 
     #[test]
+    fn test_to_vec_rgb() {
+        let test_file = dicom_test_files::path("pydicom/SC_rgb_16bit.dcm").unwrap();
+        let obj = open_file(test_file).unwrap();
+        let decoded = obj.decode_pixel_data().unwrap();
+
+        let rows = decoded.rows();
+
+        let values = decoded.to_vec::<u16>().unwrap();
+        assert_eq!(values.len(), 30000);
+
+        // 50, 80, 1
+        assert_eq!(values[50 * rows as usize * 3 + 80 * 3 + 1], 32896);
+    }
+
+    #[test]
     fn test_to_ndarray_rgb() {
         let test_file = dicom_test_files::path("pydicom/SC_rgb_16bit.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
@@ -1603,7 +1649,49 @@ mod tests {
         assert!(matches!(
             obj.decode_pixel_data().unwrap().to_ndarray::<u8>(),
             Err(Error(InnerError::InvalidDataType { .. }))
+                | Err(Error(InnerError::CreateLut { .. }))
         ));
+    }
+
+    /// conversion to ndarray in 16-bit
+    /// retains the original data of a 16-bit image
+    #[test]
+    fn test_to_ndarray_16bit() {
+        let test_file = dicom_test_files::path("pydicom/CT_small.dcm").unwrap();
+        let obj = open_file(test_file).unwrap();
+
+        let decoded = obj.decode_pixel_data().unwrap();
+        let options = ConvertOptions::new().with_modality_lut(ModalityLutOption::None);
+        let ndarray = decoded.to_ndarray_with_options::<u16>(&options).unwrap();
+
+        assert_eq!(ndarray.shape(), &[1, 128, 128, 1]);
+
+        // sample value retrieved from the original image file
+        assert_eq!(ndarray[[0, 127, 127, 0]], 0x038D);
+    }
+
+    /// conversion of a 16-bit image to a vector of 16-bit processed pixel values
+    /// takes advantage of the output's full spectrum
+    #[test]
+    fn test_to_vec_16bit_to_window() {
+        let test_file = dicom_test_files::path("pydicom/CT_small.dcm").unwrap();
+        let obj = open_file(test_file).unwrap();
+
+        let decoded = obj.decode_pixel_data().unwrap();
+        let options = ConvertOptions::new()
+            .with_modality_lut(ModalityLutOption::Default)
+            .with_voi_lut(VoiLutOption::First);
+        let values = decoded.to_vec_with_options::<u16>(&options).unwrap();
+
+        assert_eq!(values.len(), 128 * 128);
+
+        // values are in the full spectrum
+
+        let max = values.iter().max().unwrap();
+        let min = values.iter().min().unwrap();
+
+        assert_eq!(*max, 0xFFFF, "maximum in window should be 65535");
+        assert_eq!(*min, 0, "minimum in window should be 0");
     }
 
     #[test]

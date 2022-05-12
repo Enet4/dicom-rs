@@ -192,10 +192,13 @@ where
             (min, max)
         };
 
+        let max = max * rescale.slope + rescale.intercept;
+        let min = min * rescale.slope + rescale.intercept;
+
         // create a linear window level transform
         let voi = WindowLevelTransform::linear(crate::WindowLevel {
-            width: max - min,
-            center: min + max / 2.,
+            width: max - min + 1.,
+            center: (min + max) / 2.,
         });
 
         Self::new_rescale_and_window(bits_stored, signed, rescale, voi)
@@ -386,5 +389,26 @@ mod tests {
             val,
             expected_range,
         );
+    }
+
+    #[test]
+    fn lut_rescale_and_normalize_16bit() {
+        let bits_stored = 16;
+        let lut: Lut<u16> = Lut::new_rescale_and_normalize(
+            bits_stored,
+            false,
+            Rescale::new(1., -1024.),
+            [0_u16, 1, 2, 500, 23].iter().copied(),
+        ).unwrap();
+
+        // samples are between 0 and 500
+        assert_eq!(lut.get(0_u16), 0);
+        assert_eq!(lut.get(500_u16), 0xFFFF);
+        
+        let y = lut.get(1_u16);
+        assert!(y > 0 && y < 0xFFFF);
+
+        let y = lut.get(498_u16);
+        assert!(y > 0 && y < 0xFFFF);
     }
 }
