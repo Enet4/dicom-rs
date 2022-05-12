@@ -98,10 +98,7 @@ use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use image::{DynamicImage, ImageBuffer, Luma, Rgb};
 use ndarray::{Array, Ix3, Ix4};
 use num_traits::NumCast;
-use rayon::iter::{
-    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
-    IntoParallelRefMutIterator, ParallelIterator,
-};
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use snafu::OptionExt;
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::borrow::Cow;
@@ -1426,10 +1423,10 @@ fn bytes_to_vec_u16(data: &[u8]) -> Vec<u16> {
 fn convert_colorspace_u8(i: &mut [u8]) {
     // Matrix multiplication taken from
     // https://github.com/pydicom/pydicom/blob/f36517e10/pydicom/pixel_data_handlers/util.py#L576
-    i.par_iter_mut().chunks(3).for_each(|mut pixel| {
-        let y = *pixel[0] as f32;
-        let b: f32 = *pixel[1] as f32;
-        let r: f32 = *pixel[2] as f32;
+    i.chunks_mut(3).for_each(|pixel| {
+        let y = pixel[0] as f32;
+        let b: f32 = pixel[1] as f32;
+        let r: f32 = pixel[2] as f32;
         let b = b - 128.0;
         let r = r - 128.0;
 
@@ -1441,9 +1438,9 @@ fn convert_colorspace_u8(i: &mut [u8]) {
         let cg = cg.floor().clamp(0.0, u8::MAX as f32) as u8;
         let cb = cb.floor().clamp(0.0, u8::MAX as f32) as u8;
 
-        *pixel[0] = cr;
-        *pixel[1] = cg;
-        *pixel[2] = cb;
+        pixel[0] = cr;
+        pixel[1] = cg;
+        pixel[2] = cb;
     });
 }
 
@@ -1452,10 +1449,10 @@ fn convert_colorspace_u8(i: &mut [u8]) {
 fn convert_colorspace_u16(i: &mut [u16]) {
     // Matrix multiplication taken from
     // https://github.com/pydicom/pydicom/blob/f36517e10/pydicom/pixel_data_handlers/util.py#L576
-    i.par_iter_mut().chunks(3).for_each(|mut pixel| {
-        let y = *pixel[0] as f32;
-        let b: f32 = *pixel[1] as f32;
-        let r: f32 = *pixel[2] as f32;
+    i.chunks_mut(3).for_each(|pixel| {
+        let y = pixel[0] as f32;
+        let b: f32 = pixel[1] as f32;
+        let r: f32 = pixel[2] as f32;
         let b = b - 32768.0;
         let r = r - 32768.0;
 
@@ -1467,9 +1464,9 @@ fn convert_colorspace_u16(i: &mut [u16]) {
         let cg = cg.floor().clamp(0.0, u16::MAX as f32) as u16;
         let cb = cb.floor().clamp(0.0, u16::MAX as f32) as u16;
 
-        *pixel[0] = cr;
-        *pixel[1] = cg;
-        *pixel[2] = cb;
+        pixel[0] = cr;
+        pixel[1] = cg;
+        pixel[2] = cb;
     });
 }
 
