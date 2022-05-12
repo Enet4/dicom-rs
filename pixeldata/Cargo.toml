@@ -31,7 +31,7 @@ default-features=false
 features = ["jpeg", "png", "pnm", "tiff", "webp", "bmp", "jpeg_rayon"]
 
 [dev-dependencies]
-rstest = "0.10.0"
+rstest = "0.12.0"
 
 # Patch version fixes shakyness in tests which use DICOM test files,
 # can be updated once https://github.com/robyoung/dicom-test-files/pull/2 is merged
