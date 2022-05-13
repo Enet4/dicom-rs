@@ -117,9 +117,8 @@ use image::{DynamicImage, ImageBuffer, Luma, Rgb};
 #[cfg(feature = "ndarray")]
 use ndarray::{Array, Ix3, Ix4};
 use num_traits::NumCast;
-use rayon::iter::IntoParallelIterator;
 #[cfg(feature = "rayon")]
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 #[cfg(all(feature = "rayon", feature = "image"))]
 use rayon::slice::ParallelSliceMut;
 use snafu::OptionExt;
