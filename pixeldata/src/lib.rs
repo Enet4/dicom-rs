@@ -1753,6 +1753,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "ndarray")]
     fn test_to_ndarray_rgb() {
         let test_file = dicom_test_files::path("pydicom/SC_rgb_16bit.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
@@ -1781,6 +1782,7 @@ mod tests {
 
     /// conversion to ndarray in 16-bit
     /// retains the original data of a 16-bit image
+    #[cfg(feature = "ndarray")]
     #[test]
     fn test_to_ndarray_16bit() {
         let test_file = dicom_test_files::path("pydicom/CT_small.dcm").unwrap();
