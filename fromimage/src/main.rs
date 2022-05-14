@@ -12,15 +12,16 @@
 //! encoded in Explicit VR Little Endian.
 //!
 //! [1]: https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.3.html
+
 use std::path::PathBuf;
 
+use clap::Parser;
 use dicom_core::{value::PrimitiveValue, DataElement, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{open_file, FileMetaTableBuilder};
-use structopt::StructOpt;
 
 /// Convert and replace a DICOM file's image with another image
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct App {
     /// Path to the base DICOM file to read
     dcm_file: PathBuf,
@@ -28,10 +29,10 @@ struct App {
     img_file: PathBuf,
     /// Path to the output image
     /// (default is to replace input extension with `.new.dcm`)
-    #[structopt(short = "o", long = "out")]
+    #[clap(short = 'o', long = "out")]
     output: Option<PathBuf>,
     /// Print more information about the image and the output file
-    #[structopt(short = "v", long = "verbose")]
+    #[clap(short = 'v', long = "verbose")]
     verbose: bool,
 }
 
@@ -46,7 +47,7 @@ fn main() {
         img_file,
         output,
         verbose,
-    } = App::from_args();
+    } = App::parse();
 
     let output = output.unwrap_or_else(|| {
         let mut path = dcm_file.clone();

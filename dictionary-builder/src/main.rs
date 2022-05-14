@@ -9,7 +9,7 @@
 //!
 //! Please use the `--help` flag for the full usage information.
 
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use regex::Regex;
 use serde::Serialize;
 
@@ -38,28 +38,28 @@ enum RetiredOptions {
 }
 
 fn main() {
-    let matches = App::new("DICOM Dictionary Builder")
+    let matches = Command::new("DICOM Dictionary Builder")
         .version("0.1.0")
         .arg(
-            Arg::with_name("FROM")
+            Arg::new("FROM")
                 .default_value(DEFAULT_LOCATION)
                 .help("Where to fetch the dictionary from"),
         )
         .arg(
-            Arg::with_name("no-retired")
+            Arg::new("no-retired")
                 .long("no-retired")
                 .help("Whether to ignore retired tags")
                 .takes_value(false),
         )
         .arg(
-            Arg::with_name("deprecate-retired")
+            Arg::new("deprecate-retired")
                 .long("deprecate-retired")
                 .help("Whether to mark tag constants as deprecated")
                 .takes_value(false),
         )
         .arg(
-            Arg::with_name("OUTPUT")
-                .short("o")
+            Arg::new("OUTPUT")
+                .short('o')
                 .help("The path to the output file")
                 .default_value("tags.rs")
                 .takes_value(true),

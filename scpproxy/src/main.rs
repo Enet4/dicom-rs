@@ -1,4 +1,4 @@
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use dicom_ul::pdu::reader::{read_pdu, DEFAULT_MAX_PDU};
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::Pdu;
@@ -240,46 +240,46 @@ fn main() {
         });
 
     let default_max = DEFAULT_MAX_PDU.to_string();
-    let matches = App::new("scpproxy")
+    let matches = Command::new("scpproxy")
         .arg(
-            Arg::with_name("destination-host")
+            Arg::new("destination-host")
                 .help("The destination host name (SCP)")
                 .required(true)
                 .index(1),
         )
         .arg(
-            Arg::with_name("destination-port")
+            Arg::new("destination-port")
                 .help("The destination host port (SCP)")
                 .required(true)
                 .index(2),
         )
         .arg(
-            Arg::with_name("listen-port")
+            Arg::new("listen-port")
                 .help("The port that we will listen for SCU connections on")
-                .short("-lp")
+                .short('l')
                 .long("--listen-port")
                 .default_value("3333")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("strict")
+            Arg::new("strict")
                 .help("Enforce max PDU length")
-                .short("-s")
+                .short('s')
                 .long("--strict")
                 .required(false)
                 .takes_value(false),
         )
         .arg(
-            Arg::with_name("verbose")
+            Arg::new("verbose")
                 .help("Verbose")
-                .short("-v")
+                .short('v')
                 .long("--verbose")
                 .takes_value(false),
         )
         .arg(
-            Arg::with_name("max-pdu-length")
+            Arg::new("max-pdu-length")
                 .help("Maximum PDU length")
-                .short("-m")
+                .short('m')
                 .long("--max-pdu-length")
                 .default_value(&default_max)
                 .takes_value(true),

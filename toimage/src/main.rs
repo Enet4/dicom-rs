@@ -2,37 +2,37 @@
 //! into a general purpose image file (e.g. PNG).
 use std::path::PathBuf;
 
+use clap::Parser;
 use dicom_object::open_file;
 use dicom_pixeldata::{ConvertOptions, PixelDecoder};
 use snafu::{Report, ResultExt, Whatever};
-use structopt::StructOpt;
 use tracing::{error, Level};
 
 /// Convert a DICOM file into an image
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct App {
     /// Path to the DICOM file to convert
     file: PathBuf,
 
     /// Path to the output image
     /// (default is to replace input extension with `.png`)
-    #[structopt(short = "o", long = "out")]
+    #[clap(short = 'o', long = "out")]
     output: Option<PathBuf>,
 
     /// Frame number (0-indexed)
-    #[structopt(short = "F", long = "frame", default_value = "0")]
+    #[clap(short = 'F', long = "frame", default_value = "0")]
     frame_number: u32,
 
     /// Force output bit depth to 8 bits per sample
-    #[structopt(long = "8bit", conflicts_with = "force_16bit")]
+    #[clap(long = "8bit", conflicts_with = "force_16bit")]
     force_8bit: bool,
 
     /// Force output bit depth to 16 bits per sample
-    #[structopt(long = "16bit", conflicts_with = "force_8bit")]
+    #[clap(long = "16bit", conflicts_with = "force_8bit")]
     force_16bit: bool,
 
     /// Print more information about the image and the output file
-    #[structopt(short = "v", long = "verbose")]
+    #[clap(short = 'v', long = "verbose")]
     verbose: bool,
 }
 
@@ -44,7 +44,7 @@ fn main() {
         verbose,
         force_8bit,
         force_16bit,
-    } = App::from_args();
+    } = App::parse();
 
     tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()
