@@ -76,7 +76,7 @@
 //! let options = ConvertOptions::new()
 //!     .with_voi_lut(VoiLutOption::Normalize)
 //!     .force_8bit();
-//! let dynamic_image = image.to_dynamic_image(0)?;
+//! let dynamic_image = image.to_dynamic_image_with_options(0, &options)?;
 //! # Ok(())
 //! # }
 //! ```
