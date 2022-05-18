@@ -7,30 +7,29 @@
 //!
 //! License: <https://github.com/pydicom/pydicom/blob/master/LICENSE>
 use byteordered::byteorder::{ByteOrder, LittleEndian};
-use snafu::{whatever, OptionExt, ResultExt};
 
-use crate::adapters::{DecodeResult, PixelDataObject, PixelRWAdapter};
+use dicom_encoding::snafu::prelude::*;
+use dicom_encoding::adapters::{DecodeResult, PixelDataObject, PixelRWAdapter, decode_error};
 use std::io::{self, Read, Seek};
 
-use super::MissingAttributeSnafu;
-
+/// Pixel data adapter for the RLE Lossless transfer syntax. 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct RLELosslessAdapter;
+pub struct RleLosslessAdapter;
 
 /// Decode TS: 1.2.840.10008.1.2.5 (RLE Lossless)
-impl PixelRWAdapter for RLELosslessAdapter {
+impl PixelRWAdapter for RleLosslessAdapter {
     /// Decode the DICOM image from RLE Lossless completely.
     ///
     /// See <http://dicom.nema.org/medical/Dicom/2018d/output/chtml/part05/chapter_G.html>
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()> {
         let cols = src
             .cols()
-            .context(MissingAttributeSnafu { name: "Columns" })?;
-        let rows = src.rows().context(MissingAttributeSnafu { name: "Rows" })?;
-        let samples_per_pixel = src.samples_per_pixel().context(MissingAttributeSnafu {
+            .context(decode_error::MissingAttributeSnafu { name: "Columns" })?;
+        let rows = src.rows().context(decode_error::MissingAttributeSnafu { name: "Rows" })?;
+        let samples_per_pixel = src.samples_per_pixel().context(decode_error::MissingAttributeSnafu {
             name: "SamplesPerPixel",
         })?;
-        let bits_allocated = src.bits_allocated().context(MissingAttributeSnafu {
+        let bits_allocated = src.bits_allocated().context(decode_error::MissingAttributeSnafu {
             name: "BitsAllocated",
         })?;
 
@@ -113,7 +112,7 @@ fn read_rle_header(fragment: &[u8]) -> Vec<u32> {
 /// License: <https://github.com/image-rs/image-tiff/blob/master/LICENSE>
 /// From: https://github.com/image-rs/image-tiff/blob/master/src/decoder/stream.rs
 #[derive(Debug)]
-pub struct PackBitsReader {
+struct PackBitsReader {
     buffer: io::Cursor<Vec<u8>>,
 }
 

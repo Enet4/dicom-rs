@@ -1,14 +1,34 @@
-//! Module for built-in pixel data adapters.
+//! Core module for building pixel data adapters.
+//! 
+//! This module contains the core types and traits
+//! for consumers and implementers of
+//! transfer syntaxes with encapsulated pixel data.
+//! 
+//! Complete DICOM object types
+//! (such as `FileDicomObject<InMemDicomObject>`)
+//! implement the [`PixelDataObject`] trait.
+//! Transfer syntaxes need to provide
+//! a suitable implementation of [PixelRWAdapter]
 
 use dicom_core::value::C;
 use snafu::Snafu;
 
-pub mod jpeg;
-pub mod rle_lossless;
-
-/// Error conditions when decoding pixel data.
+/// The possible error conditions when decoding pixel data.
+/// 
+/// Users of this type are free to handle errors based on their variant,
+/// but should not make decisions based on the display message,
+/// since that is not considered part of the API
+/// and may change on any new release.
+/// 
+/// Implementers of transfer syntaxes
+/// are recommended to choose the most fitting error variant
+/// for the tested condition.
+/// When no suitable variant is available,
+/// the [`Custom`](DecodeError::Custom) variant may be used.
+/// See also [`snafu`] for guidance on using context selectors.
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
+#[snafu(visibility(pub), module)]
 pub enum DecodeError {
     /// A custom error occurred when decoding,
     /// reported as a dynamic error value with a message.
@@ -17,7 +37,9 @@ pub enum DecodeError {
     /// to easily create an error of this kind.
     #[snafu(whatever, display("Error decoding pixel data: {}", message))]
     Custom {
+        /// The error message.
         message: String,
+        /// The underlying error cause, if any.
         #[snafu(source(from(Box<dyn std::error::Error + Send + 'static>, Some)))]
         source: Option<Box<dyn std::error::Error + Send + 'static>>,
     },
@@ -26,27 +48,52 @@ pub enum DecodeError {
     NotEncapsulated,
 
     /// A required attribute is missing from the DICOM
-    #[snafu(display("Missing required attribute: {}", name))]
+    #[snafu(display("Missing required attribute `{}`", name))]
     MissingAttribute { name: &'static str },
 }
 
-/// Error conditions when encoding pixel data.
+/// The possible error conditions when encoding pixel data.
+/// 
+/// Users of this type are free to handle errors based on their variant,
+/// but should not make decisions based on the display message,
+/// since that is not considered part of the API
+/// and may change on any new release.
+/// 
+/// Implementers of transfer syntaxes
+/// are recommended to choose the most fitting error variant
+/// for the tested condition.
+/// When no suitable variant is available,
+/// the [`Custom`](EncodeError::Custom) variant may be used.
+/// See also [`snafu`] for guidance on using context selectors.
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
+#[snafu(visibility(pub), module)]
 pub enum EncodeError {
     /// A custom error when encoding fails
-    #[snafu(display("Error encoding pixel data {}", message))]
-    CustomEncodeError { message: &'static str },
+    #[snafu(whatever, display("Error encoding pixel data: {}", message))]
+    Custom {
+        /// The error message.
+        message: String,
+        /// The underlying error cause, if any.
+        #[snafu(source(from(Box<dyn std::error::Error + Send + 'static>, Some)))]
+        source: Option<Box<dyn std::error::Error + Send + 'static>>,
+    },
 
-    /// Input pixel data is not native
+    /// Input pixel data is not native, should be decoded first
     NotNative,
 
     /// Encoding is not implemented
     NotImplemented,
+
+    /// A required attribute is missing from the DICOM
+    #[snafu(display("Missing required attribute `{}`", name))]
+    MissingAttribute { name: &'static str },
 }
 
+/// The result of decoding pixel data
 pub type DecodeResult<T, E = DecodeError> = Result<T, E>;
 
+/// The result of encoding pixel data
 pub type EncodeResult<T, E = EncodeError> = Result<T, E>;
 
 #[derive(Debug)]

@@ -1,11 +1,11 @@
 //! Support for JPG image decoding.
 
-use super::MissingAttributeSnafu;
-use crate::adapters::{DecodeResult, PixelDataObject, PixelRWAdapter};
+use dicom_encoding::snafu::prelude::*;
+use dicom_encoding::adapters::{DecodeResult, PixelDataObject, PixelRWAdapter, decode_error};
 use jpeg_decoder::Decoder;
-use snafu::{whatever, OptionExt, ResultExt};
 use std::io::Cursor;
 
+/// Pixel data adapter for JPEG-based transfer syntaxes.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct JPEGAdapter;
 
@@ -14,12 +14,12 @@ impl PixelRWAdapter for JPEGAdapter {
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()> {
         let cols = src
             .cols()
-            .context(MissingAttributeSnafu { name: "Columns" })?;
-        let rows = src.rows().context(MissingAttributeSnafu { name: "Rows" })?;
-        let samples_per_pixel = src.samples_per_pixel().context(MissingAttributeSnafu {
+            .context(decode_error::MissingAttributeSnafu { name: "Columns" })?;
+        let rows = src.rows().context(decode_error::MissingAttributeSnafu { name: "Rows" })?;
+        let samples_per_pixel = src.samples_per_pixel().context(decode_error::MissingAttributeSnafu {
             name: "SamplesPerPixel",
         })?;
-        let bits_allocated = src.bits_allocated().context(MissingAttributeSnafu {
+        let bits_allocated = src.bits_allocated().context(decode_error::MissingAttributeSnafu {
             name: "BitsAllocated",
         })?;
 
