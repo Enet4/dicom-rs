@@ -781,22 +781,37 @@ where
     I::IntoIter: ExactSizeIterator,
     I::Item: std::fmt::Display,
 {
-    use itertools::Itertools;
     let values = values.into_iter();
     let len = values.len();
-    let mut pieces = values.take(64).map(|piece| {
+    let mut acc_size = 0;
+    let mut pieces = String::new();
+    if len > 1 {
+        pieces.push('[');
+    }
+    for piece in values {
         let mut piece = piece.to_string();
         piece = piece.replace(|c: char| c.is_control(), "�");
-        if quoted {
-            piece = piece.replace("\"", "\\\"");
-            piece.insert(0, '"');
-            piece.push('"');
+        if acc_size > 0 {
+            pieces.push_str(", ");
         }
-        piece
-    });
-    let mut pieces = pieces.join(", ");
+
+        if quoted {
+            piece = piece.replace('\"', "\\\"");
+            pieces.push('"');
+        }
+
+        acc_size += piece.len();
+        pieces.push_str(&piece);
+        if quoted {
+            pieces.push('"');
+        }
+        // stop earlier if applicable
+        if max_characters.filter(|max| (*max as usize) < acc_size).is_some() {
+            break;
+        }
+    }
     if len > 1 {
-        pieces = format!("[{}]", pieces);
+        pieces.push(']');
     }
     if let Some(max_characters) = max_characters {
         cut_str(&pieces, max_characters).into_owned()
