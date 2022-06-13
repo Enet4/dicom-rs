@@ -419,6 +419,15 @@ where
                 Ok(DataElementHeader {
                     tag: Tag(0xFFFE, 0xE00D),
                     ..
+                }) if self.seq_delimiters.is_empty() => {
+                    // ignore delimiter, we are not in a sequence
+                    tracing::warn!("Item delimitation item outside of a sequence in position {}", self.parser.position());
+                    // return a new token by calling the method again
+                    self.next()
+                }
+                Ok(DataElementHeader {
+                    tag: Tag(0xFFFE, 0xE00D),
+                    ..
                 }) => {
                     self.in_sequence = true;
                     // pop item delimiter
@@ -586,10 +595,13 @@ mod tests {
     {
         let mut dset_reader = DataSetReader::new(parser, Default::default());
 
-        let mut iter = Iterator::zip(&mut dset_reader, ground_truth);
+        let iter = (&mut dset_reader).into_iter();
+        let mut ground_truth = ground_truth.into_iter();
 
-        while let Some((res, gt_token)) = iter.next() {
-            let token = res.expect("should parse without an error");
+        while let Some(gt_token) = ground_truth.next() {
+            let token = iter.next()
+                .expect("expecting more tokens from reader")
+                .expect("should fetch the next token without an error");
             eprintln!("Next token: {:2?} ; Expected: {:2?}", token, gt_token);
             assert_eq!(
                 token, gt_token,
@@ -598,10 +610,12 @@ mod tests {
             );
         }
 
+        let extra: Vec<_> = iter.collect();
         assert_eq!(
-            iter.count(), // consume til the end
-            0,            // we have already read all of them
-            "unexpected number of tokens remaining"
+            extra.len(), // we have already read all of them
+            0,
+            "extraneous tokens remaining: {:?}",
+            extra,
         );
         assert_eq!(
             dset_reader.parser.position(),
@@ -745,6 +759,52 @@ mod tests {
             DataToken::PrimitiveValue(PrimitiveValue::Strs(
                 ["IDENTITY".to_owned()].as_ref().into(),
             )),
+        ];
+
+        validate_dataset_reader_explicit_vr(DATA, ground_truth);
+    }
+
+    #[test]
+    fn read_empty_sequence_explicit() {
+        static DATA: &[u8] = &[
+            // SequenceStart: (0008,1032) ProcedureCodeSequence ; len = 0
+            0x08, 0x00, 0x18, 0x22,
+            // VR: SQ
+            b'S', b'Q',
+            // Reserved
+            0x00, 0x00,
+            // Length: 0
+            0x00, 0x00, 0x00, 0x00,
+        ];
+
+        let ground_truth = vec![
+            DataToken::SequenceStart {
+                tag: Tag(0x0008, 0x2218),
+                len: Length(0),
+            },
+            DataToken::SequenceEnd,
+        ];
+
+        validate_dataset_reader_explicit_vr(DATA, ground_truth);
+    }
+
+    /// Gracefully ignore a stray item end tag in the data set.
+    #[test]
+    fn ignore_trailing_item_delimitation_item() {
+        static DATA: &[u8] = &[
+            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4
+            b'T', b'E', b'S', b'T', // value = "TEST"
+            0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
+        ];
+
+        let ground_truth = vec![
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0020, 0x4000),
+                vr: VR::LT,
+                len: Length(4),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
+            // no item end
         ];
 
         validate_dataset_reader_explicit_vr(DATA, ground_truth);
