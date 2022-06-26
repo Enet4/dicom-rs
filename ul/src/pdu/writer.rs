@@ -551,25 +551,21 @@ where
                 // If the Source field has the value (0) "DICOM UL service-user", this reason field
                 // shall not be significant. It shall be sent with a value 00H but not tested to
                 // this value when received.
-                match source {
-                    AbortRQSource::ServiceUser => writer.write_all(&[0x00; 2]),
-                    AbortRQSource::Reserved => writer.write_all(&[0x00; 2]),
+                let source_word = match source {
+                    AbortRQSource::ServiceUser => [0x00; 2],
+                    AbortRQSource::Reserved => [0x00, 0x01],
                     AbortRQSource::ServiceProvider(reason) => match reason {
                         AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu => {
-                            writer.write_u8(0x00)
+                            [0x02, 0x00]
                         }
-                        AbortRQServiceProviderReason::UnexpectedPdu => writer.write_u8(0x02),
-                        AbortRQServiceProviderReason::Reserved => writer.write_u8(0x03),
-                        AbortRQServiceProviderReason::UnrecognizedPduParameter => {
-                            writer.write_u8(0x04)
-                        }
-                        AbortRQServiceProviderReason::UnexpectedPduParameter => {
-                            writer.write_u8(0x05)
-                        }
-                        AbortRQServiceProviderReason::InvalidPduParameter => writer.write_u8(0x06),
+                        AbortRQServiceProviderReason::UnexpectedPdu => [0x02, 0x02],
+                        AbortRQServiceProviderReason::Reserved => [0x02, 0x03],
+                        AbortRQServiceProviderReason::UnrecognizedPduParameter => [0x02, 0x04],
+                        AbortRQServiceProviderReason::UnexpectedPduParameter => [0x02, 0x05],
+                        AbortRQServiceProviderReason::InvalidPduParameter => [0x02, 0x06],
                     },
-                }
-                .context(WriteFieldSnafu {
+                };
+                writer.write_all(&source_word).context(WriteFieldSnafu {
                     field: "AbortRQSource",
                 })?;
 
@@ -1078,5 +1074,60 @@ mod tests {
         assert_eq!(bytes, &[0, 4, 2, 0, 1, 3]);
 
         Ok(())
+    }
+
+    #[test]
+    fn write_abort_rq() {
+        let mut out = vec![];
+
+        // abort by request of SCU
+        let pdu = Pdu::AbortRQ {
+            source: AbortRQSource::ServiceUser,
+        };
+        write_pdu(&mut out, &pdu).unwrap();
+        assert_eq!(
+            &out,
+            &[
+                // code 7 + reserved byte
+                0x07, 0x00, // PDU length: 4 bytes
+                0x00, 0x00, 0x00, 0x04, // reserved 2 bytes + source: service user (0)
+                0x00, 0x00, 0x00, 0x00,
+            ]
+        );
+        out.clear();
+
+        // Reserved
+        let pdu = Pdu::AbortRQ {
+            source: AbortRQSource::Reserved,
+        };
+        write_pdu(&mut out, &pdu).unwrap();
+        assert_eq!(
+            &out,
+            &[
+                // code 7 + reserved byte
+                0x07, 0x00, // PDU length: 4 bytes
+                0x00, 0x00, 0x00, 0x04, // reserved 2 bytes + source: reserved (1)
+                0x00, 0x00, 0x00, 0x01,
+            ]
+        );
+        out.clear();
+
+        // abort by request of SCP
+        let pdu = Pdu::AbortRQ {
+            source: AbortRQSource::ServiceProvider(
+                AbortRQServiceProviderReason::InvalidPduParameter,
+            ),
+        };
+        write_pdu(&mut out, &pdu).unwrap();
+        assert_eq!(
+            &out,
+            &[
+                // code 7 + reserved byte
+                0x07, 0x00, // PDU length: 4 bytes
+                0x00, 0x00, 0x00, 0x04, // reserved 2 bytes
+                0x00, 0x00, // source: service provider (2), invalid parameter value (6)
+                0x02, 0x06,
+            ]
+        );
     }
 }
