@@ -1089,8 +1089,10 @@ mod tests {
             &out,
             &[
                 // code 7 + reserved byte
-                0x07, 0x00, // PDU length: 4 bytes
-                0x00, 0x00, 0x00, 0x04, // reserved 2 bytes + source: service user (0)
+                0x07, 0x00, //
+                // PDU length: 4 bytes
+                0x00, 0x00, 0x00, 0x04, //
+                // reserved 2 bytes + source: service user (0)
                 0x00, 0x00, 0x00, 0x00,
             ]
         );
@@ -1105,8 +1107,10 @@ mod tests {
             &out,
             &[
                 // code 7 + reserved byte
-                0x07, 0x00, // PDU length: 4 bytes
-                0x00, 0x00, 0x00, 0x04, // reserved 2 bytes + source: reserved (1)
+                0x07, 0x00, //
+                // PDU length: 4 bytes
+                0x00, 0x00, 0x00, 0x04, //
+                // reserved 2 bytes + source: reserved (1)
                 0x00, 0x00, 0x00, 0x01,
             ]
         );
@@ -1123,9 +1127,12 @@ mod tests {
             &out,
             &[
                 // code 7 + reserved byte
-                0x07, 0x00, // PDU length: 4 bytes
-                0x00, 0x00, 0x00, 0x04, // reserved 2 bytes
-                0x00, 0x00, // source: service provider (2), invalid parameter value (6)
+                0x07, 0x00, //
+                // PDU length: 4 bytes
+                0x00, 0x00, 0x00, 0x04, //
+                // reserved 2 bytes
+                0x00, 0x00, //
+                // source: service provider (2), invalid parameter value (6)
                 0x02, 0x06,
             ]
         );
