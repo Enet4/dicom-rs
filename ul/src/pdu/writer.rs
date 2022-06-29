@@ -524,15 +524,11 @@ where
             write_chunk_u32(writer, |writer| {
                 // 7 - Reserved - This reserved field shall be sent with a value 00H but not tested
                 // to this value when received.
-                writer
-                    .write_u8(0x00)
-                    .context(WriteReservedSnafu { bytes: 1_u32 })?;
-
                 // 8 - Reserved - This reserved field shall be sent with a value 00H but not tested
                 // to this value when received.
                 writer
-                    .write_u8(0x00)
-                    .context(WriteReservedSnafu { bytes: 1_u32 })?;
+                    .write_all(&[0x00, 0x00])
+                    .context(WriteReservedSnafu { bytes: 2_u32 })?;
 
                 // 9 - Source - This Source field shall contain an integer value encoded as an
                 // unsigned binary number. One of the following values shall be used:
