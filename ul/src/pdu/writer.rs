@@ -553,7 +553,7 @@ where
                 // this value when received.
                 let source_word = match source {
                     AbortRQSource::ServiceUser => [0x00; 2],
-                    AbortRQSource::Reserved => [0x00, 0x01],
+                    AbortRQSource::Reserved => [0x01, 0x00],
                     AbortRQSource::ServiceProvider(reason) => match reason {
                         AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu => {
                             [0x02, 0x00]
@@ -1092,7 +1092,7 @@ mod tests {
                 0x07, 0x00, //
                 // PDU length: 4 bytes
                 0x00, 0x00, 0x00, 0x04, //
-                // reserved 2 bytes + source: service user (0)
+                // reserved 2 bytes + source: service user (0) + reason (0)
                 0x00, 0x00, 0x00, 0x00,
             ]
         );
@@ -1110,8 +1110,8 @@ mod tests {
                 0x07, 0x00, //
                 // PDU length: 4 bytes
                 0x00, 0x00, 0x00, 0x04, //
-                // reserved 2 bytes + source: reserved (1)
-                0x00, 0x00, 0x00, 0x01,
+                // reserved 2 bytes + source: reserved (1) + reason (0)
+                0x00, 0x00, 0x01, 0x00,
             ]
         );
         out.clear();
