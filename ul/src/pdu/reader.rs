@@ -483,7 +483,7 @@ where
             // tested to this value when received.
             cursor
                 .seek(SeekFrom::Current(4))
-                .context(ReadPduFieldSnafu { field: "Reserved" })?;
+                .context(ReadReservedSnafu { bytes: 4_u32 })?;
 
             Ok(Pdu::ReleaseRQ)
         }
@@ -494,7 +494,7 @@ where
             // tested to this value when received.
             cursor
                 .seek(SeekFrom::Current(4))
-                .context(ReadPduFieldSnafu { field: "Reserved" })?;
+                .context(ReadReservedSnafu { bytes: 4_u32 })?;
 
             Ok(Pdu::ReleaseRP)
         }
@@ -503,15 +503,12 @@ where
 
             // 7 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
-            cursor
-                .read_u8()
-                .context(ReadPduFieldSnafu { field: "Reserved" })?;
-
             // 8 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
+            let mut buf = [0u8; 2];
             cursor
-                .read_u8()
-                .context(ReadPduFieldSnafu { field: "Reserved" })?;
+                .read_exact(&mut buf)
+                .context(ReadReservedSnafu { bytes: 2_u32 })?;
 
             // 9 - Source - This Source field shall contain an integer value encoded as an unsigned
             // binary number. One of the following values shall be used:
