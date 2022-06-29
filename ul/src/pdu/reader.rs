@@ -53,6 +53,11 @@ pub enum Error {
         backtrace: Backtrace,
     },
 
+    #[snafu(display("Invalid item length {} (must be >=2)", length))]
+    InvalidItemLength {
+        length: u32,
+    },
+
     #[snafu(display("Could not read {} reserved bytes", bytes))]
     ReadReserved {
         bytes: u32,
@@ -416,6 +421,8 @@ where
                 let item_length = cursor.read_u32::<BigEndian>().context(ReadPduFieldSnafu {
                     field: "Item-Length",
                 })?;
+
+                ensure!(item_length >= 2, InvalidItemLengthSnafu { length: item_length });
 
                 // 5 - Presentation-context-ID - Presentation-context-ID values shall be odd
                 // integers between 1 and 255, encoded as an unsigned binary number. For a complete
