@@ -205,13 +205,20 @@ impl AbortRQSource {
     }
 }
 
+/// An enumeration of supported A-ABORT PDU provider reasons.
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum AbortRQServiceProviderReason {
+    /// Either _Reason Not Specified_ or _Unrecognized PDU_
     ReasonNotSpecifiedUnrecognizedPdu,
+    /// Unexpected PDU
     UnexpectedPdu,
+    /// Reserved
     Reserved,
+    /// Unrecognized PDU parameter
     UnrecognizedPduParameter,
+    /// Unexpected PDU parameter
     UnexpectedPduParameter,
+    /// Invalid PDU parameter
     InvalidPduParameter,
 }
 
