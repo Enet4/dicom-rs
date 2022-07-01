@@ -416,11 +416,7 @@ where
                         // 5 - Presentation-context-ID - Presentation-context-ID values shall be odd
                         // integers between 1 and 255, encoded as an unsigned binary number. For a
                         // complete description of the use of this field see Section 7.1.1.13.
-                        writer
-                            .write_u8(presentation_data_value.presentation_context_id)
-                            .context(WriteFieldSnafu {
-                                field: "Presentation-context-ID",
-                            })?;
+                        writer.push(presentation_data_value.presentation_context_id);
 
                         // 6-xxx - Presentation-data-value - This Presentation-data-value field
                         // shall contain DICOM message information (command and/or data set) with a
@@ -445,16 +441,10 @@ where
                         if presentation_data_value.is_last {
                             message_header |= 0x02;
                         }
-                        writer.write_u8(message_header).context(WriteFieldSnafu {
-                            field: "Presentation-data-value control header",
-                        })?;
+                        writer.push(message_header);
 
                         // Message fragment
-                        writer.write_all(&presentation_data_value.data).context(
-                            WriteFieldSnafu {
-                                field: "Presentation-data-value",
-                            },
-                        )?;
+                        writer.extend(&presentation_data_value.data);
 
                         Ok(())
                     })
@@ -480,9 +470,8 @@ where
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
             write_chunk_u32(writer, |writer| {
-                writer.write_all(&[0u8; 4]).context(WriteFieldSnafu {
-                    field: "ReleaseRQ data",
-                })
+                writer.extend(&[0u8; 4]);
+                Ok(())
             })
             .context(WriteChunkSnafu { name: "ReleaseRQ" })?;
 
@@ -501,9 +490,8 @@ where
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
             write_chunk_u32(writer, |writer| {
-                writer.write_all(&[0u8; 4]).context(WriteFieldSnafu {
-                    field: "ReleaseRP data",
-                })
+                writer.extend(&[0u8; 4]);
+                Ok(())
             })
             .context(WriteChunkSnafu { name: "ReleaseRP" })?;
 
@@ -524,11 +512,10 @@ where
             write_chunk_u32(writer, |writer| {
                 // 7 - Reserved - This reserved field shall be sent with a value 00H but not tested
                 // to this value when received.
+                writer.push(0);
                 // 8 - Reserved - This reserved field shall be sent with a value 00H but not tested
                 // to this value when received.
-                writer
-                    .write_all(&[0x00, 0x00])
-                    .context(WriteReservedSnafu { bytes: 2_u32 })?;
+                writer.push(0);
 
                 // 9 - Source - This Source field shall contain an integer value encoded as an
                 // unsigned binary number. One of the following values shall be used:
@@ -561,9 +548,7 @@ where
                         AbortRQServiceProviderReason::InvalidPduParameter => [0x02, 0x06],
                     },
                 };
-                writer.write_all(&source_word).context(WriteFieldSnafu {
-                    field: "AbortRQSource",
-                })?;
+                writer.extend(&source_word);
 
                 Ok(())
             })
@@ -584,9 +569,8 @@ where
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
             write_chunk_u32(writer, |writer| {
-                writer.write_all(data).context(WriteFieldSnafu {
-                    field: "Unknown data",
-                })
+                writer.extend(data);
+                Ok(())
             })
             .context(WriteChunkSnafu { name: "Unknown" })?;
 
