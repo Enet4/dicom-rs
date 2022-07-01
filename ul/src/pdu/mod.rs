@@ -182,7 +182,7 @@ impl AbortRQSource {
         let result = match (source, reason) {
             (0, _) => AbortRQSource::ServiceUser,
             (1, _) => AbortRQSource::Reserved,
-            (2, 0) => AbortRQSource::ServiceProvider(
+            (2, 0) | (2, 1) => AbortRQSource::ServiceProvider(
                 AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu,
             ),
             (2, 2) => AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::UnexpectedPdu),
