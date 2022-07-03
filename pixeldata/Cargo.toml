@@ -1,6 +1,6 @@
 [package]
 name = "dicom-pixeldata"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>", "Peter Evers <pevers90@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -11,7 +11,7 @@ keywords = ["dicom"]
 readme = "README.md"
 
 [dependencies]
-dicom-object = { path = "../object", version = "0.5.0" }
+dicom-object = { path = "../object", version = "0.5.1" }
 dicom-core = { path = "../core", version = "0.5.0" }
 dicom-encoding = { path = "../encoding", version = "0.5.0" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.5.0" }
