@@ -1,0 +1,28 @@
+[package]
+name = "dicom-ul-fuzz"
+version = "0.0.0"
+authors = ["Automatically generated"]
+publish = false
+edition = "2018"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.dicom-ul]
+path = ".."
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "pdu_roundtrip"
+path = "fuzz_targets/pdu_roundtrip.rs"
+test = false
+doc = false
+
+[profile.release]
+debug = true

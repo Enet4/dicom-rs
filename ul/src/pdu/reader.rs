@@ -53,6 +53,11 @@ pub enum Error {
         backtrace: Backtrace,
     },
 
+    #[snafu(display("Invalid item length {} (must be >=2)", length))]
+    InvalidItemLength {
+        length: u32,
+    },
+
     #[snafu(display("Could not read {} reserved bytes", bytes))]
     ReadReserved {
         bytes: u32,
@@ -417,6 +422,8 @@ where
                     field: "Item-Length",
                 })?;
 
+                ensure!(item_length >= 2, InvalidItemLengthSnafu { length: item_length });
+
                 // 5 - Presentation-context-ID - Presentation-context-ID values shall be odd
                 // integers between 1 and 255, encoded as an unsigned binary number. For a complete
                 // description of the use of this field see Section 7.1.1.13.
@@ -476,7 +483,7 @@ where
             // tested to this value when received.
             cursor
                 .seek(SeekFrom::Current(4))
-                .context(ReadPduFieldSnafu { field: "Reserved" })?;
+                .context(ReadReservedSnafu { bytes: 4_u32 })?;
 
             Ok(Pdu::ReleaseRQ)
         }
@@ -487,7 +494,7 @@ where
             // tested to this value when received.
             cursor
                 .seek(SeekFrom::Current(4))
-                .context(ReadPduFieldSnafu { field: "Reserved" })?;
+                .context(ReadReservedSnafu { bytes: 4_u32 })?;
 
             Ok(Pdu::ReleaseRP)
         }
@@ -496,15 +503,12 @@ where
 
             // 7 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
-            cursor
-                .read_u8()
-                .context(ReadPduFieldSnafu { field: "Reserved" })?;
-
             // 8 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
+            let mut buf = [0u8; 2];
             cursor
-                .read_u8()
-                .context(ReadPduFieldSnafu { field: "Reserved" })?;
+                .read_exact(&mut buf)
+                .context(ReadReservedSnafu { bytes: 2_u32 })?;
 
             // 9 - Source - This Source field shall contain an integer value encoded as an unsigned
             // binary number. One of the following values shall be used:

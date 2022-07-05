@@ -147,19 +147,16 @@ pub struct FileMetaTable {
 }
 
 /// Utility function for reading the body of the DICOM element as a UID.
-fn read_str_body<'s, S: 's, T>(
-    source: &'s mut S,
-    text: &T,
-    group_length_remaining: &mut u32,
-    len: u32,
-) -> Result<String>
+fn read_str_body<'s, S: 's, T>(source: &'s mut S, text: &T, len: u32) -> Result<String>
 where
     S: Read,
     T: TextCodec,
 {
-    let mut v = vec![0; len as usize];
-    source.read_exact(&mut v).context(ReadValueDataSnafu)?;
-    *group_length_remaining -= 8 + len;
+    let mut v = Vec::new();
+    source
+        .take(len as u64)
+        .read_to_end(&mut v)
+        .context(ReadValueDataSnafu)?;
     text.decode(&v)
         .context(DecodeTextSnafu { name: text.name() })
 }
@@ -202,13 +199,12 @@ impl FileMetaTable {
             LittleEndian::read_u32(&buff)
         };
 
-        let mut group_length_remaining = group_length;
-
+        let mut total_bytes_read = 0;
         let mut builder = builder.group_length(group_length);
 
         // Fetch optional data elements
-        while group_length_remaining > 0 {
-            let (elem, _bytes_read) = decoder
+        while total_bytes_read < group_length {
+            let (elem, header_bytes_read) = decoder
                 .decode_header(&mut file)
                 .context(DecodeElementSnafu)?;
             let elem_len = match elem.length().get() {
@@ -229,108 +225,107 @@ impl FileMetaTable {
                     }
                     let mut hbuf = [0u8; 2];
                     file.read_exact(&mut hbuf[..]).context(ReadValueDataSnafu)?;
-                    group_length_remaining -= 14;
 
                     builder.information_version(hbuf)
                 }
                 // Media Storage SOP Class UID
-                Tag(0x0002, 0x0002) => builder.media_storage_sop_class_uid(read_str_body(
-                    &mut file,
-                    &text,
-                    &mut group_length_remaining,
-                    elem_len,
-                )?),
+                Tag(0x0002, 0x0002) => builder.media_storage_sop_class_uid(read_str_body(&mut file, &text, elem_len)?),
                 // Media Storage SOP Instance UID
-                Tag(0x0002, 0x0003) => builder.media_storage_sop_instance_uid(read_str_body(
-                    &mut file,
-                    &text,
-                    &mut group_length_remaining,
-                    elem_len,
-                )?),
+                Tag(0x0002, 0x0003) => builder
+                        .media_storage_sop_instance_uid(read_str_body(&mut file, &text, elem_len)?),
                 // Transfer Syntax
-                Tag(0x0002, 0x0010) => builder.transfer_syntax(read_str_body(
-                    &mut file,
-                    &text,
-                    &mut group_length_remaining,
-                    elem_len,
-                )?),
+                Tag(0x0002, 0x0010) => builder.transfer_syntax(read_str_body(&mut file, &text, elem_len)?),
                 // Implementation Class UID
-                Tag(0x0002, 0x0012) => builder.implementation_class_uid(read_str_body(
-                    &mut file,
-                    &text,
-                    &mut group_length_remaining,
-                    elem_len,
-                )?),
+                Tag(0x0002, 0x0012) => builder.implementation_class_uid(read_str_body(&mut file, &text, elem_len)?),
                 Tag(0x0002, 0x0013) => {
                     // Implementation Version Name
-                    let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v).context(ReadValueDataSnafu)?;
-                    group_length_remaining -= 8 + elem_len;
-                    builder.implementation_version_name(
-                        text.decode(&v)
-                            .context(DecodeTextSnafu { name: text.name() })?,
-                    )
+                    let mut v = Vec::new();
+                    (&mut file)
+                        .take(elem_len as u64)
+                        .read_to_end(&mut v)
+                        .context(ReadValueDataSnafu)?;
+                        builder.implementation_version_name(
+                            text.decode(&v)
+                                .context(DecodeTextSnafu { name: text.name() })?,
+                        )
                 }
                 Tag(0x0002, 0x0016) => {
                     // Source Application Entity Title
-                    let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v).context(ReadValueDataSnafu)?;
-                    group_length_remaining -= 8 + elem_len;
-                    builder.source_application_entity_title(
-                        text.decode(&v)
-                            .context(DecodeTextSnafu { name: text.name() })?,
-                    )
+                    let mut v = Vec::new();
+                    (&mut file)
+                        .take(elem_len as u64)
+                        .read_to_end(&mut v)
+                        .context(ReadValueDataSnafu)?;
+                        builder.source_application_entity_title(
+                            text.decode(&v)
+                                .context(DecodeTextSnafu { name: text.name() })?,
+                        )
                 }
                 Tag(0x0002, 0x0017) => {
                     // Sending Application Entity Title
-                    let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v).context(ReadValueDataSnafu)?;
-                    group_length_remaining -= 8 + elem_len;
-                    builder.sending_application_entity_title(
-                        text.decode(&v)
-                            .context(DecodeTextSnafu { name: text.name() })?,
-                    )
+                    let mut v = Vec::new();
+                    (&mut file)
+                        .take(elem_len as u64)
+                        .read_to_end(&mut v)
+                        .context(ReadValueDataSnafu)?;
+                        builder.sending_application_entity_title(
+                            text.decode(&v)
+                                .context(DecodeTextSnafu { name: text.name() })?,
+                        )
                 }
                 Tag(0x0002, 0x0018) => {
                     // Receiving Application Entity Title
-                    let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v).context(ReadValueDataSnafu)?;
-                    group_length_remaining -= 8 + elem_len;
-                    builder.receiving_application_entity_title(
-                        text.decode(&v)
-                            .context(DecodeTextSnafu { name: text.name() })?,
-                    )
+                    let mut v = Vec::new();
+                    (&mut file)
+                        .take(elem_len as u64)
+                        .read_to_end(&mut v)
+                        .context(ReadValueDataSnafu)?;
+                        builder.receiving_application_entity_title(
+                            text.decode(&v)
+                                .context(DecodeTextSnafu { name: text.name() })?,
+                        )
                 }
                 Tag(0x0002, 0x0100) => {
                     // Private Information Creator UID
-                    let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v).context(ReadValueDataSnafu)?;
-                    group_length_remaining -= 8 + elem_len;
-                    builder.private_information_creator_uid(
-                        text.decode(&v)
-                            .context(DecodeTextSnafu { name: text.name() })?,
-                    )
+                    let mut v = Vec::new();
+                    (&mut file)
+                        .take(elem_len as u64)
+                        .read_to_end(&mut v)
+                        .context(ReadValueDataSnafu)?;
+                        builder.private_information_creator_uid(
+                            text.decode(&v)
+                                .context(DecodeTextSnafu { name: text.name() })?,
+                        )
                 }
                 Tag(0x0002, 0x0102) => {
                     // Private Information
-                    let mut v = vec![0; elem_len as usize];
-                    file.read_exact(&mut v).context(ReadValueDataSnafu)?;
-                    group_length_remaining -= 12 + elem_len;
+                    let mut v = Vec::new();
+                    (&mut file)
+                        .take(elem_len as u64)
+                        .read_to_end(&mut v)
+                        .context(ReadValueDataSnafu)?;
                     builder.private_information(v)
                 }
                 tag @ Tag(0x0002, _) => {
                     // unknown tag, do nothing
                     // could be an unsupported or non-standard attribute
                     tracing::info!("Unknown tag {}", tag);
+                    // consume value without saving it
+                    std::io::copy(&mut (&mut file).take(elem_len as u64), &mut std::io::sink())
+                        .context(ReadValueDataSnafu)?;
                     builder
                 }
                 tag => {
                     // unexpected tag from another group! do nothing for now,
                     // but this could pose an issue up ahead (see #50)
                     tracing::warn!("Unexpected off-group tag {}", tag);
+                    // consume value without saving it
+                    std::io::copy(&mut (&mut file).take(elem_len as u64), &mut std::io::sink())
+                        .context(ReadValueDataSnafu)?;
                     builder
                 }
-            }
+            };
+            total_bytes_read += header_bytes_read as u32 + elem_len;
         }
 
         builder.build()

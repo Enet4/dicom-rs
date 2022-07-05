@@ -416,11 +416,7 @@ where
                         // 5 - Presentation-context-ID - Presentation-context-ID values shall be odd
                         // integers between 1 and 255, encoded as an unsigned binary number. For a
                         // complete description of the use of this field see Section 7.1.1.13.
-                        writer
-                            .write_u8(presentation_data_value.presentation_context_id)
-                            .context(WriteFieldSnafu {
-                                field: "Presentation-context-ID",
-                            })?;
+                        writer.push(presentation_data_value.presentation_context_id);
 
                         // 6-xxx - Presentation-data-value - This Presentation-data-value field
                         // shall contain DICOM message information (command and/or data set) with a
@@ -445,16 +441,10 @@ where
                         if presentation_data_value.is_last {
                             message_header |= 0x02;
                         }
-                        writer.write_u8(message_header).context(WriteFieldSnafu {
-                            field: "Presentation-data-value control header",
-                        })?;
+                        writer.push(message_header);
 
                         // Message fragment
-                        writer.write_all(&presentation_data_value.data).context(
-                            WriteFieldSnafu {
-                                field: "Presentation-data-value",
-                            },
-                        )?;
+                        writer.extend(&presentation_data_value.data);
 
                         Ok(())
                     })
@@ -480,9 +470,8 @@ where
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
             write_chunk_u32(writer, |writer| {
-                writer.write_all(&[0u8; 4]).context(WriteFieldSnafu {
-                    field: "ReleaseRQ data",
-                })
+                writer.extend(&[0u8; 4]);
+                Ok(())
             })
             .context(WriteChunkSnafu { name: "ReleaseRQ" })?;
 
@@ -501,9 +490,8 @@ where
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
             write_chunk_u32(writer, |writer| {
-                writer.write_all(&[0u8; 4]).context(WriteFieldSnafu {
-                    field: "ReleaseRP data",
-                })
+                writer.extend(&[0u8; 4]);
+                Ok(())
             })
             .context(WriteChunkSnafu { name: "ReleaseRP" })?;
 
@@ -524,15 +512,10 @@ where
             write_chunk_u32(writer, |writer| {
                 // 7 - Reserved - This reserved field shall be sent with a value 00H but not tested
                 // to this value when received.
-                writer
-                    .write_u8(0x00)
-                    .context(WriteReservedSnafu { bytes: 1_u32 })?;
-
+                writer.push(0);
                 // 8 - Reserved - This reserved field shall be sent with a value 00H but not tested
                 // to this value when received.
-                writer
-                    .write_u8(0x00)
-                    .context(WriteReservedSnafu { bytes: 1_u32 })?;
+                writer.push(0);
 
                 // 9 - Source - This Source field shall contain an integer value encoded as an
                 // unsigned binary number. One of the following values shall be used:
@@ -551,27 +534,21 @@ where
                 // If the Source field has the value (0) "DICOM UL service-user", this reason field
                 // shall not be significant. It shall be sent with a value 00H but not tested to
                 // this value when received.
-                match source {
-                    AbortRQSource::ServiceUser => writer.write_all(&[0x00; 2]),
-                    AbortRQSource::Reserved => writer.write_all(&[0x00; 2]),
+                let source_word = match source {
+                    AbortRQSource::ServiceUser => [0x00; 2],
+                    AbortRQSource::Reserved => [0x01, 0x00],
                     AbortRQSource::ServiceProvider(reason) => match reason {
                         AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu => {
-                            writer.write_u8(0x00)
+                            [0x02, 0x00]
                         }
-                        AbortRQServiceProviderReason::UnexpectedPdu => writer.write_u8(0x02),
-                        AbortRQServiceProviderReason::Reserved => writer.write_u8(0x03),
-                        AbortRQServiceProviderReason::UnrecognizedPduParameter => {
-                            writer.write_u8(0x04)
-                        }
-                        AbortRQServiceProviderReason::UnexpectedPduParameter => {
-                            writer.write_u8(0x05)
-                        }
-                        AbortRQServiceProviderReason::InvalidPduParameter => writer.write_u8(0x06),
+                        AbortRQServiceProviderReason::UnexpectedPdu => [0x02, 0x02],
+                        AbortRQServiceProviderReason::Reserved => [0x02, 0x03],
+                        AbortRQServiceProviderReason::UnrecognizedPduParameter => [0x02, 0x04],
+                        AbortRQServiceProviderReason::UnexpectedPduParameter => [0x02, 0x05],
+                        AbortRQServiceProviderReason::InvalidPduParameter => [0x02, 0x06],
                     },
-                }
-                .context(WriteFieldSnafu {
-                    field: "AbortRQSource",
-                })?;
+                };
+                writer.extend(&source_word);
 
                 Ok(())
             })
@@ -592,9 +569,8 @@ where
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
             write_chunk_u32(writer, |writer| {
-                writer.write_all(data).context(WriteFieldSnafu {
-                    field: "Unknown data",
-                })
+                writer.extend(data);
+                Ok(())
             })
             .context(WriteChunkSnafu { name: "Unknown" })?;
 
@@ -1078,5 +1054,67 @@ mod tests {
         assert_eq!(bytes, &[0, 4, 2, 0, 1, 3]);
 
         Ok(())
+    }
+
+    #[test]
+    fn write_abort_rq() {
+        let mut out = vec![];
+
+        // abort by request of SCU
+        let pdu = Pdu::AbortRQ {
+            source: AbortRQSource::ServiceUser,
+        };
+        write_pdu(&mut out, &pdu).unwrap();
+        assert_eq!(
+            &out,
+            &[
+                // code 7 + reserved byte
+                0x07, 0x00, //
+                // PDU length: 4 bytes
+                0x00, 0x00, 0x00, 0x04, //
+                // reserved 2 bytes + source: service user (0) + reason (0)
+                0x00, 0x00, 0x00, 0x00,
+            ]
+        );
+        out.clear();
+
+        // Reserved
+        let pdu = Pdu::AbortRQ {
+            source: AbortRQSource::Reserved,
+        };
+        write_pdu(&mut out, &pdu).unwrap();
+        assert_eq!(
+            &out,
+            &[
+                // code 7 + reserved byte
+                0x07, 0x00, //
+                // PDU length: 4 bytes
+                0x00, 0x00, 0x00, 0x04, //
+                // reserved 2 bytes + source: reserved (1) + reason (0)
+                0x00, 0x00, 0x01, 0x00,
+            ]
+        );
+        out.clear();
+
+        // abort by request of SCP
+        let pdu = Pdu::AbortRQ {
+            source: AbortRQSource::ServiceProvider(
+                AbortRQServiceProviderReason::InvalidPduParameter,
+            ),
+        };
+        write_pdu(&mut out, &pdu).unwrap();
+        assert_eq!(
+            &out,
+            &[
+                // code 7 + reserved byte
+                0x07, 0x00, //
+                // PDU length: 4 bytes
+                0x00, 0x00, 0x00, 0x04, //
+                // reserved 2 bytes
+                0x00, 0x00, //
+                // source: service provider (2), invalid parameter value (6)
+                0x02, 0x06,
+            ]
+        );
     }
 }
