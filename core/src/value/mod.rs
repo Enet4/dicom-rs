@@ -7,15 +7,15 @@ use std::{borrow::Cow, str::FromStr};
 
 pub mod deserialize;
 pub mod partial;
+pub mod person_name;
 mod primitive;
 pub mod range;
 pub mod serialize;
-pub mod person_name;
 
 pub use self::deserialize::Error as DeserializeError;
 pub use self::partial::{DicomDate, DicomDateTime, DicomTime};
-pub use self::range::{AsRange, DateRange, DateTimeRange, TimeRange};
 pub use self::person_name::PersonName;
+pub use self::range::{AsRange, DateRange, DateTimeRange, TimeRange};
 
 pub use self::primitive::{
     CastValueError, ConvertValueError, InvalidValueReadError, PrimitiveValue, ValueType,
@@ -565,16 +565,15 @@ where
 
     /// Retrieves the primitive value as a PersonName.
     pub fn as_person_name(&self) -> Result<PersonName<'_>, ConvertValueError> {
-    match self {
-        Value::Primitive(v) => v.to_person_name(),
-        _ => Err(ConvertValueError {
-            requested: "PersonName",
-            original: self.value_type(),
+        match self {
+            Value::Primitive(v) => v.to_person_name(),
+            _ => Err(ConvertValueError {
+                requested: "PersonName",
+                original: self.value_type(),
                 cause: None,
-        }),
+            }),
+        }
     }
-    }
-
 }
 
 /// Macro for implementing getters to single and multi-values,

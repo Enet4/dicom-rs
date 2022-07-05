@@ -14,6 +14,7 @@ use safe_transmute::to_bytes::transmute_to_bytes;
 use smallvec::SmallVec;
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::borrow::Cow;
+use std::convert::TryFrom;
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
@@ -91,10 +92,9 @@ pub enum InvalidValueReadError {
         #[snafu(backtrace)]
         source: crate::value::range::Error,
     },
-    #[snafu(display("Failed to convert to PersonName"))]
-    ParsePersonName {
-        #[snafu(backtrace)]
-        source: crate::value::person_name::Error,
+    #[snafu(display("Failed to convert from PersonName: '{err}'"))]
+    FromPersonName {
+        err: String,
     },
 }
 
@@ -272,7 +272,7 @@ pub enum PrimitiveValue {
 
     /// A sequence of time values with arbitrary precision.
     /// Used for the TM representation.
-    Time(C<DicomTime>),
+    Time(C<DicomTime>)
 }
 
 /// A utility macro for implementing the conversion from a core type into a
@@ -323,6 +323,17 @@ impl From<Vec<u8>> for PrimitiveValue {
 impl From<&[u8]> for PrimitiveValue {
     fn from(value: &[u8]) -> Self {
         PrimitiveValue::U8(C::from(value))
+    }
+}
+
+impl<'a> TryFrom<PersonName<'a>> for PrimitiveValue {
+    type Error = InvalidValueReadError;
+    fn try_from(p: PersonName) -> Result<Self, Self::Error> {
+        match p.to_dicom_string() {
+            Ok(s) => Ok(PrimitiveValue::Str(s)),
+            Err(e) => FromPersonNameSnafu{err: e.to_string()}.fail()
+        }
+        
     }
 }
 
@@ -3298,7 +3309,7 @@ impl PrimitiveValue {
     /// Retrieve a single `PersonName` from this value.
     ///
     /// If the value is a string or sequence of strings,
-    /// the first string is split to obtain a `PersonName`, potentially failing if 
+    /// the first string is split to obtain a `PersonName`, potentially failing if
     /// family or given name is missing.
     ///
     /// # Example
@@ -3308,32 +3319,27 @@ impl PrimitiveValue {
     /// # use std::error::Error;
     /// use dicom_core::value::{PersonName};
     /// # fn main() -> Result<(), Box<dyn Error>> {
-    /// 
+    ///
     /// let value = PrimitiveValue::from("Tooms^Victor^Eugene");
     /// // PersonName contains borrowed values
     /// let pn = value.to_person_name()?;
     ///
     /// assert_eq!(
     ///     pn.given(),
-    ///     "Victor"
+    ///     Some("Victor")
     /// );
     /// assert_eq!(
     ///     pn.middle(),
     ///     Some("Eugene")
     /// );
+    /// assert!(pn.prefix().is_none());
     ///
     /// # Ok(())
     /// # }
     /// ```
     pub fn to_person_name(&self) -> Result<PersonName<'_>, ConvertValueError> {
         match self {
-            PrimitiveValue::Str(s) => PersonName::from_slice(s)
-                .context(ParsePersonNameSnafu)
-                .map_err(|err| ConvertValueError {
-                    requested: "PersonName",
-                    original: self.value_type(),
-                    cause: Some(err),
-                }),
+            PrimitiveValue::Str(s) => Ok(PersonName::from_slice(s)),
             PrimitiveValue::Strs(s) => s.first().map_or_else(
                 || {
                     Err(ConvertValueError {
@@ -3342,15 +3348,7 @@ impl PrimitiveValue {
                         cause: None,
                     })
                 },
-                |s| {
-                    PersonName::from_slice(s)
-                        .context(ParsePersonNameSnafu)
-                        .map_err(|err| ConvertValueError {
-                            requested: "PersonName",
-                            original: self.value_type(),
-                            cause: Some(err),
-                        })
-                },
+                |s| Ok(PersonName::from_slice(s)),
             ),
             _ => Err(ConvertValueError {
                 requested: "PersonName",
