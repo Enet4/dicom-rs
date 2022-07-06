@@ -1,14 +1,13 @@
 //! Handling of DICOM values with the VR PN (person name) as per PS3.5 sect 6.2.
-use snafu::{ResultExt, Snafu};
-use std::fmt::{Display, Formatter, Write};
+use std::fmt::{Display, Formatter};
 
-#[derive(Debug, Snafu)]
+/*#[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Write error: '{source}'"))]
     Write { source: std::fmt::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
+*/
 /// Represents a Dicom `PersonName` (PN).
 /// Stores family, given, middle name, prefix and suffix as borrowed values.
 /// All name components are optional.
@@ -73,8 +72,8 @@ impl<'a> PersonName<'a> {
     }
     /// Convert PersonName into a Dicom formatted string.
     /// Name components are interspersed with a '^' separator.
-    /// Leading empty components produce a separator, while trailing do not.
-    pub fn to_dicom_string(&self) -> Result<String> {
+    /// Leading null components produce a separator, while trailing do not.
+    pub fn to_dicom_string(&self) -> String {
         let mut name = String::new();
 
         let components: &[Option<&str>] = &[
@@ -92,19 +91,19 @@ impl<'a> PersonName<'a> {
             .find(|(_i, opt)| opt.is_some())
             .map(|(i, _opt)| i + 1)
             .unwrap_or(0);
-        
+
         let mut it = components.iter().take(last_non_empty).peekable();
 
-        while let Some(option) = it.next(){
-            if let Some(component) = option{
-                write!(name, "{}", component).context(WriteSnafu)?;
+        while let Some(option) = it.next() {
+            if let Some(component) = option {
+                name.push_str(component);
             }
-            if it.peek().is_some(){
+            if it.peek().is_some() {
                 name.push('^');
             }
         }
 
-        Ok(name)
+        name
     }
     /// Retrieves a PersonName from a Dicom formatted string slice.
     /// The Dicom string representation is split by '^' separator into its respective components.
@@ -196,7 +195,7 @@ mod tests {
             family: Some("Adams"),
             suffix: None,
         };
-        assert_eq!(p.to_dicom_string().ok(), Some("Adams^John".to_string()));
+        assert_eq!(p.to_dicom_string(), "Adams^John".to_string());
 
         let p = PersonName {
             prefix: Some("Rev."),
@@ -205,7 +204,7 @@ mod tests {
             family: None,
             suffix: None,
         };
-        assert_eq!(p.to_dicom_string().ok(), Some("^^^Rev.".to_string()));
+        assert_eq!(p.to_dicom_string(), "^^^Rev.".to_string());
         let p = PersonName {
             prefix: None,
             given: None,
@@ -213,10 +212,7 @@ mod tests {
             family: None,
             suffix: Some("B.A. M.Div."),
         };
-        assert_eq!(
-            p.to_dicom_string().ok(),
-            Some("^^^^B.A. M.Div.".to_string())
-        );
+        assert_eq!(p.to_dicom_string(), "^^^^B.A. M.Div.".to_string());
         let p = PersonName {
             prefix: Some("Rev."),
             given: Some("John"),
@@ -225,8 +221,8 @@ mod tests {
             suffix: Some("B.A. M.Div."),
         };
         assert_eq!(
-            p.to_dicom_string().ok(),
-            Some("Adams^John^Robert^Rev.^B.A. M.Div.".to_string())
+            p.to_dicom_string(),
+            "Adams^John^Robert^Rev.^B.A. M.Div.".to_string()
         );
         let p = PersonName {
             prefix: None,
@@ -236,8 +232,8 @@ mod tests {
             suffix: Some("B.A. M.Div."),
         };
         assert_eq!(
-            p.to_dicom_string().ok(),
-            Some("Adams^John^Robert^^B.A. M.Div.".to_string())
+            p.to_dicom_string(),
+            "Adams^John^Robert^^B.A. M.Div.".to_string()
         );
         let p = PersonName {
             prefix: Some("Rev."),
@@ -246,10 +242,7 @@ mod tests {
             family: Some("Adams"),
             suffix: None,
         };
-        assert_eq!(
-            p.to_dicom_string().ok(),
-            Some("Adams^John^Robert^Rev.".to_string())
-        );
+        assert_eq!(p.to_dicom_string(), "Adams^John^Robert^Rev.".to_string());
         let p = PersonName {
             prefix: None,
             given: Some("John"),
@@ -257,10 +250,7 @@ mod tests {
             family: Some("Adams"),
             suffix: None,
         };
-        assert_eq!(
-            p.to_dicom_string().ok(),
-            Some("Adams^John^Robert".to_string())
-        );
+        assert_eq!(p.to_dicom_string(), "Adams^John^Robert".to_string());
         let p = PersonName {
             prefix: None,
             given: None,
@@ -268,7 +258,7 @@ mod tests {
             family: None,
             suffix: None,
         };
-        assert_eq!(p.to_dicom_string().ok(), Some("^^Robert".to_string()));
+        assert_eq!(p.to_dicom_string(), "^^Robert".to_string());
     }
     #[test]
     fn test_person_name_to_string() {

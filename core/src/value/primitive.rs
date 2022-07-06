@@ -14,7 +14,6 @@ use safe_transmute::to_bytes::transmute_to_bytes;
 use smallvec::SmallVec;
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::borrow::Cow;
-use std::convert::TryFrom;
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
@@ -91,10 +90,6 @@ pub enum InvalidValueReadError {
     ParseDateTimeRange {
         #[snafu(backtrace)]
         source: crate::value::range::Error,
-    },
-    #[snafu(display("Failed to convert from PersonName: '{err}'"))]
-    FromPersonName {
-        err: String,
     },
 }
 
@@ -272,7 +267,7 @@ pub enum PrimitiveValue {
 
     /// A sequence of time values with arbitrary precision.
     /// Used for the TM representation.
-    Time(C<DicomTime>)
+    Time(C<DicomTime>),
 }
 
 /// A utility macro for implementing the conversion from a core type into a
@@ -326,14 +321,9 @@ impl From<&[u8]> for PrimitiveValue {
     }
 }
 
-impl<'a> TryFrom<PersonName<'a>> for PrimitiveValue {
-    type Error = InvalidValueReadError;
-    fn try_from(p: PersonName) -> Result<Self, Self::Error> {
-        match p.to_dicom_string() {
-            Ok(s) => Ok(PrimitiveValue::Str(s)),
-            Err(e) => FromPersonNameSnafu{err: e.to_string()}.fail()
-        }
-        
+impl<'a> From<PersonName<'a>> for PrimitiveValue {
+    fn from(p: PersonName) -> Self {
+        PrimitiveValue::Str(p.to_dicom_string())
     }
 }
 
@@ -3333,6 +3323,10 @@ impl PrimitiveValue {
     ///     Some("Eugene")
     /// );
     /// assert!(pn.prefix().is_none());
+    ///
+    /// let value2 = PrimitiveValue::from(pn);
+    ///
+    /// assert_eq!(value, value2);
     ///
     /// # Ok(())
     /// # }
