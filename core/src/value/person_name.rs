@@ -84,16 +84,11 @@ impl<'a> PersonName<'a> {
             self.suffix,
         ];
 
-        let last_non_empty = components
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|(_i, opt)| opt.is_some())
-            .map(|(i, _opt)| i + 1)
-            .unwrap_or(0);
+        let mut it  = components.iter().rev().peekable();
+        // remove trailing None (null) components 
+        while it.next_if(|component| component.is_none()).is_some(){}
 
-        let mut it = components.iter().take(last_non_empty).peekable();
-
+        let mut it = it.rev().peekable();
         while let Some(option) = it.next() {
             if let Some(component) = option {
                 name.push_str(component);
