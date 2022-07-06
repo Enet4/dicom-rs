@@ -487,7 +487,7 @@ where
     /// Retrieve the items stored in a sequence value.
     ///
     /// Returns `None` if the value is not a sequence.
-    pub fn to_items(&self) -> Option<&[I]> {
+    pub fn items(&self) -> Option<&[I]> {
         self.value().items()
     }
 }
