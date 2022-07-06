@@ -240,7 +240,7 @@ where
     ///
     /// Returns an error if the value is not primitive.
     #[deprecated(
-        note = "`to_clean_str()` is now deprecated in favour of using `to_str()` directly. 
+        note = "`to_clean_str()` is now deprecated in favour of using `to_str()` directly.
         `to_raw_str()` replaces the old functionality of `to_str()` and maintains all trailing whitespace."
     )]
     pub fn to_clean_str(&self) -> Result<Cow<str>, CastValueError> {
