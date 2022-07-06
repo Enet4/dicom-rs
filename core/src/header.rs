@@ -484,10 +484,9 @@ where
         self.value().to_multi_datetime(default_offset)
     }
 
-    /// Retrieve items stored in value
+    /// Retrieve the items stored in a sequence value.
     ///
-    /// If value is not a sequence return None.
-    ///
+    /// Returns `None` if the value is not a sequence.
     pub fn to_items(&self) -> Option<&[I]> {
         self.value().items()
     }
