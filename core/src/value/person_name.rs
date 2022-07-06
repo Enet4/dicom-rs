@@ -1,13 +1,5 @@
 //! Handling of DICOM values with the VR PN (person name) as per PS3.5 sect 6.2.
 use std::fmt::{Display, Formatter};
-
-/*#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("Write error: '{source}'"))]
-    Write { source: std::fmt::Error },
-}
-pub type Result<T, E = Error> = std::result::Result<T, E>;
-*/
 /// Represents a Dicom `PersonName` (PN).
 /// Stores family, given, middle name, prefix and suffix as borrowed values.
 /// All name components are optional.
@@ -85,7 +77,7 @@ impl<'a> PersonName<'a> {
         ];
 
         let mut it  = components.iter().rev().peekable();
-        // remove trailing None (null) components 
+        // consume trailing None (null) components 
         while it.next_if(|component| component.is_none()).is_some(){}
 
         let mut it = it.rev().peekable();
