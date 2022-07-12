@@ -1,7 +1,12 @@
-//! Handling of DICOM values with the VR PN (person name) as per PS3.5 sect 6.2.
+//! Handling of DICOM values with the PN (person name) value representation
+//! as per PS3.5 sect 6.2.
 use std::fmt::{Display, Formatter};
-/// Represents a Dicom `PersonName` (PN).
-/// Stores family, given, middle name, prefix and suffix as borrowed values.
+
+/// A DICOM _Person Name_ (PN value representation).
+///
+/// Values of this type keep
+/// family name, given name, middle name, prefix and suffix
+/// as borrowed values.
 /// All name components are optional.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct PersonName<'a> {
@@ -12,7 +17,7 @@ pub struct PersonName<'a> {
     suffix: Option<&'a str>,
 }
 
-/// A builder to construct a `PersonName` from it's components.
+/// A builder to construct a [`PersonName`] from its components.
 #[derive(Debug, Copy, Clone)]
 pub struct PersonNameBuilder<'a> {
     person_name: PersonName<'a>,
@@ -62,9 +67,11 @@ impl<'a> PersonName<'a> {
     pub fn middle(&self) -> Option<&str> {
         self.middle
     }
-    /// Convert PersonName into a Dicom formatted string.
-    /// Name components are interspersed with a '^' separator.
-    /// Leading null components produce a separator, while trailing do not.
+    /// Convert the person name into a DICOM formatted string.
+    ///
+    /// Name components are interspersed with a `'^'` separator.
+    /// Leading null components produce a separator,
+    /// while trailing components do not.
     pub fn to_dicom_string(&self) -> String {
         let mut name = String::new();
 
@@ -137,28 +144,38 @@ impl<'a> PersonNameBuilder<'a> {
             },
         }
     }
-    /// Insert family name component
-    pub fn with_family(mut self, family_name: &'a str) -> PersonNameBuilder<'a> {
+
+    /// Insert or update the family name component.
+    pub fn with_family(mut self, family_name: &'a str) -> Self {
         self.person_name.family = Some(family_name);
         self
     }
-    pub fn with_middle(mut self, middle_name: &'a str) -> PersonNameBuilder<'a> {
+
+    /// Insert or update the middle name component.
+    pub fn with_middle(mut self, middle_name: &'a str) -> Self {
         self.person_name.middle = Some(middle_name);
         self
     }
-    pub fn with_given(mut self, given_name: &'a str) -> PersonNameBuilder<'a> {
+
+    /// Insert or update the given name component.
+    pub fn with_given(mut self, given_name: &'a str) -> Self {
         self.person_name.given = Some(given_name);
         self
     }
-    pub fn with_prefix(mut self, name_prefix: &'a str) -> PersonNameBuilder<'a> {
+
+    /// Insert or update the prefix component.
+    pub fn with_prefix(mut self, name_prefix: &'a str) -> Self {
         self.person_name.prefix = Some(name_prefix);
         self
     }
-    pub fn with_suffix(mut self, name_suffix: &'a str) -> PersonNameBuilder<'a> {
+
+    /// Insert or update the suffix component.
+    pub fn with_suffix(mut self, name_suffix: &'a str) -> Self {
         self.person_name.suffix = Some(name_suffix);
         self
     }
-    /// Builds a PersonName
+
+    /// Builds the person name with the accumulated components.
     pub fn build(&self) -> PersonName<'a> {
         self.person_name
     }
