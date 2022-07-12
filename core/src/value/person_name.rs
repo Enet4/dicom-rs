@@ -12,12 +12,12 @@ use std::fmt::{Display, Formatter};
 /// # Example
 ///
 /// A value of type `PersonName` can be obtained
-/// either by parsing a DICOM formatted string via [`from_slice`](PersonName::from_slice)
+/// either by parsing a DICOM formatted string via [`from_str`](PersonName::from_str)
 /// or by using the [builder](PersonNameBuilder) API.
 ///
 /// ```
 /// # use dicom_core::value::person_name::PersonName;
-/// let dr_seuss: PersonName = PersonName::from_slice("Geisel^Theodor^Seuss^Dr.");
+/// let dr_seuss: PersonName = PersonName::from_str("Geisel^Theodor^Seuss^Dr.");
 /// assert_eq!(&dr_seuss.to_string(), "Dr. Theodor Seuss Geisel");
 /// assert_eq!(dr_seuss.prefix(), Some("Dr."));
 /// assert_eq!(dr_seuss.given(), Some("Theodor"));
@@ -131,7 +131,7 @@ impl<'a> PersonName<'a> {
     /// into its respective components.
     /// When passing a text value to this function,
     /// ensure that it contains a single DICOM formatted name.
-    pub fn from_slice(slice: &'a str) -> PersonName<'a> {
+    pub fn from_str(slice: &'a str) -> PersonName<'a> {
         let mut parts = slice.split('^');
 
         macro_rules! get_component {
@@ -343,38 +343,38 @@ mod tests {
     #[test]
     fn person_name_from_slice() {
         assert_eq!(
-            PersonName::from_slice("^^Robert"),
+            PersonName::from_str("^^Robert"),
             PersonName::builder().with_middle("Robert").build()
         );
         assert_eq!(
-            PersonName::from_slice("^^^Rev."),
+            PersonName::from_str("^^^Rev."),
             PersonName::builder().with_prefix("Rev.").build()
         );
         assert_eq!(
-            PersonName::from_slice("^^^^B.A. M.Div."),
+            PersonName::from_str("^^^^B.A. M.Div."),
             PersonName::builder().with_suffix("B.A. M.Div.").build()
         );
         assert_eq!(
-            PersonName::from_slice("^^Robert"),
+            PersonName::from_str("^^Robert"),
             PersonName::builder().with_middle("Robert").build()
         );
         assert_eq!(
-            PersonName::from_slice("^John"),
+            PersonName::from_str("^John"),
             PersonName::builder().with_given("John").build()
         );
         assert_eq!(
-            PersonName::from_slice("Adams"),
+            PersonName::from_str("Adams"),
             PersonName::builder().with_family("Adams").build()
         );
         assert_eq!(
-            PersonName::from_slice("Adams^^^^B.A. M.Div."),
+            PersonName::from_str("Adams^^^^B.A. M.Div."),
             PersonName::builder()
                 .with_family("Adams")
                 .with_suffix("B.A. M.Div.")
                 .build()
         );
         assert_eq!(
-            PersonName::from_slice("Adams^^Robert^^B.A. M.Div."),
+            PersonName::from_str("Adams^^Robert^^B.A. M.Div."),
             PersonName {
                 prefix: None,
                 given: None,
@@ -384,7 +384,7 @@ mod tests {
             }
         );
         assert_eq!(
-            PersonName::from_slice("Adams^John^Robert^Rev.^B.A. M.Div."),
+            PersonName::from_str("Adams^John^Robert^Rev.^B.A. M.Div."),
             PersonName {
                 prefix: Some("Rev."),
                 given: Some("John"),

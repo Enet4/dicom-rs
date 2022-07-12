@@ -3333,7 +3333,7 @@ impl PrimitiveValue {
     /// ```
     pub fn to_person_name(&self) -> Result<PersonName<'_>, ConvertValueError> {
         match self {
-            PrimitiveValue::Str(s) => Ok(PersonName::from_slice(s)),
+            PrimitiveValue::Str(s) => Ok(PersonName::from_str(s)),
             PrimitiveValue::Strs(s) => s.first().map_or_else(
                 || {
                     Err(ConvertValueError {
@@ -3342,7 +3342,7 @@ impl PrimitiveValue {
                         cause: None,
                     })
                 },
-                |s| Ok(PersonName::from_slice(s)),
+                |s| Ok(PersonName::from_str(s)),
             ),
             _ => Err(ConvertValueError {
                 requested: "PersonName",
