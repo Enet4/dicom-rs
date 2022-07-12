@@ -564,7 +564,7 @@ where
     }
 
     /// Retrieves the primitive value as a PersonName.
-    pub fn as_person_name(&self) -> Result<PersonName<'_>, ConvertValueError> {
+    pub fn to_person_name(&self) -> Result<PersonName<'_>, ConvertValueError> {
         match self {
             Value::Primitive(v) => v.to_person_name(),
             _ => Err(ConvertValueError {
