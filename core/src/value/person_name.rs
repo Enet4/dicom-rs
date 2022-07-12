@@ -187,6 +187,18 @@ impl<'a> Default for PersonNameBuilder<'a> {
     }
 }
 
+impl<'a> From<PersonNameBuilder<'a>> for PersonName<'a> {
+    fn from(builder: PersonNameBuilder<'a>) -> Self {
+        builder.build()
+    }
+}
+
+impl<'a> From<&mut PersonNameBuilder<'a>> for PersonName<'a> {
+    fn from(builder: &mut PersonNameBuilder<'a>) -> Self {
+        builder.build()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
