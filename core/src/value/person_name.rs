@@ -146,31 +146,31 @@ impl<'a> PersonNameBuilder<'a> {
     }
 
     /// Insert or update the family name component.
-    pub fn with_family(mut self, family_name: &'a str) -> Self {
+    pub fn with_family(&mut self, family_name: &'a str) -> &mut Self {
         self.person_name.family = Some(family_name);
         self
     }
 
     /// Insert or update the middle name component.
-    pub fn with_middle(mut self, middle_name: &'a str) -> Self {
+    pub fn with_middle(&mut self, middle_name: &'a str) -> &mut Self {
         self.person_name.middle = Some(middle_name);
         self
     }
 
     /// Insert or update the given name component.
-    pub fn with_given(mut self, given_name: &'a str) -> Self {
+    pub fn with_given(&mut self, given_name: &'a str) -> &mut Self {
         self.person_name.given = Some(given_name);
         self
     }
 
     /// Insert or update the prefix component.
-    pub fn with_prefix(mut self, name_prefix: &'a str) -> Self {
+    pub fn with_prefix(&mut self, name_prefix: &'a str) -> &mut Self {
         self.person_name.prefix = Some(name_prefix);
         self
     }
 
     /// Insert or update the suffix component.
-    pub fn with_suffix(mut self, name_suffix: &'a str) -> Self {
+    pub fn with_suffix(&mut self, name_suffix: &'a str) -> &mut Self {
         self.person_name.suffix = Some(name_suffix);
         self
     }
