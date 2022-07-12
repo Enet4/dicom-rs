@@ -3296,32 +3296,27 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve a single `PersonName` from this value.
+    /// Retrieve a single [`PersonName`][1] from this value.
     ///
     /// If the value is a string or sequence of strings,
-    /// the first string is split to obtain a `PersonName`, potentially failing if
-    /// family or given name is missing.
+    /// the first string is split to obtain a `PersonName`.
+    ///
+    /// [1]: super::person_name::PersonName
     ///
     /// # Example
     ///
     /// ```
     /// # use dicom_core::value::{C, PrimitiveValue};
     /// # use std::error::Error;
-    /// use dicom_core::value::{PersonName};
+    /// use dicom_core::value::PersonName;
     /// # fn main() -> Result<(), Box<dyn Error>> {
     ///
     /// let value = PrimitiveValue::from("Tooms^Victor^Eugene");
     /// // PersonName contains borrowed values
     /// let pn = value.to_person_name()?;
     ///
-    /// assert_eq!(
-    ///     pn.given(),
-    ///     Some("Victor")
-    /// );
-    /// assert_eq!(
-    ///     pn.middle(),
-    ///     Some("Eugene")
-    /// );
+    /// assert_eq!(pn.given(), Some("Victor"));
+    /// assert_eq!(pn.middle(), Some("Eugene"));
     /// assert!(pn.prefix().is_none());
     ///
     /// let value2 = PrimitiveValue::from(pn);
