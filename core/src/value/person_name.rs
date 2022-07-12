@@ -8,6 +8,20 @@ use std::fmt::{Display, Formatter};
 /// family name, given name, middle name, prefix and suffix
 /// as borrowed values.
 /// All name components are optional.
+///
+/// # Example
+///
+/// A value of type `PersonName` can be obtained
+/// either by parsing a DICOM formatted string via [`from_slice`](PersonName::from_slice)
+/// or by using the [builder](PersonNameBuilder) API.
+///
+/// ```
+/// # use dicom_core::value::person_name::PersonName;
+/// let dr_seuss: PersonName = PersonName::from_slice("Geisel^Theodor^Seuss^Dr.");
+/// assert_eq!(&dr_seuss.to_string(), "Dr. Theodor Seuss Geisel");
+/// assert_eq!(dr_seuss.prefix(), Some("Dr."));
+/// assert_eq!(dr_seuss.given(), Some("Theodor"));
+/// ```
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct PersonName<'a> {
     prefix: Option<&'a str>,
@@ -18,6 +32,17 @@ pub struct PersonName<'a> {
 }
 
 /// A builder to construct a [`PersonName`] from its components.
+///
+/// # Example
+///
+/// ```
+/// # use dicom_core::value::person_name::{PersonName, PersonNameBuilder};
+/// let ivan: PersonName = PersonNameBuilder::new()
+///     .with_given("Ivan")
+///     .with_family("Levanov")
+///     .build();
+/// assert_eq!(&ivan.to_dicom_string(), "Levanov^Ivan");
+/// ```
 #[derive(Debug, Copy, Clone)]
 pub struct PersonNameBuilder<'a> {
     person_name: PersonName<'a>,
@@ -83,9 +108,9 @@ impl<'a> PersonName<'a> {
             self.suffix,
         ];
 
-        let mut it  = components.iter().rev().peekable();
-        // consume trailing None (null) components 
-        while it.next_if(|component| component.is_none()).is_some(){}
+        let mut it = components.iter().rev().peekable();
+        // consume trailing None (null) components
+        while it.next_if(|component| component.is_none()).is_some() {}
 
         let mut it = it.rev().peekable();
         while let Some(option) = it.next() {
@@ -99,8 +124,13 @@ impl<'a> PersonName<'a> {
 
         name
     }
-    /// Retrieves a PersonName from a Dicom formatted string slice.
-    /// The Dicom string representation is split by '^' separator into its respective components.
+
+    /// Obtains a person name by interpreting `slice` as a DICOM formatted string.
+    ///
+    /// The DICOM string representation is split by the `'^'` separator
+    /// into its respective components.
+    /// When passing a text value to this function,
+    /// ensure that it contains a single DICOM formatted name.
     pub fn from_slice(slice: &'a str) -> PersonName<'a> {
         let mut parts = slice.split('^');
 
@@ -126,7 +156,10 @@ impl<'a> PersonName<'a> {
             suffix,
         }
     }
-    /// Retrieve a builder for a PersonName
+
+    /// Retrieve a builder for a person name.
+    ///
+    /// See [`PersonNameBuilder`] for more information.
     pub fn builder() -> PersonNameBuilder<'a> {
         PersonNameBuilder::new()
     }
@@ -204,30 +237,16 @@ mod tests {
     use super::*;
     #[test]
     fn test_person_name_to_dicom_string() {
-        let p = PersonName {
-            prefix: None,
-            given: Some("John"),
-            middle: None,
-            family: Some("Adams"),
-            suffix: None,
-        };
+        let p = PersonNameBuilder::new()
+            .with_given("John")
+            .with_family("Adams")
+            .build();
         assert_eq!(p.to_dicom_string(), "Adams^John".to_string());
 
-        let p = PersonName {
-            prefix: Some("Rev."),
-            given: None,
-            middle: None,
-            family: None,
-            suffix: None,
-        };
+        let p: PersonName = PersonNameBuilder::new().with_prefix("Rev.").into();
         assert_eq!(p.to_dicom_string(), "^^^Rev.".to_string());
-        let p = PersonName {
-            prefix: None,
-            given: None,
-            middle: None,
-            family: None,
-            suffix: Some("B.A. M.Div."),
-        };
+
+        let p = PersonNameBuilder::new().with_suffix("B.A. M.Div.").build();
         assert_eq!(p.to_dicom_string(), "^^^^B.A. M.Div.".to_string());
         let p = PersonName {
             prefix: Some("Rev."),
@@ -267,42 +286,21 @@ mod tests {
             suffix: None,
         };
         assert_eq!(p.to_dicom_string(), "Adams^John^Robert".to_string());
-        let p = PersonName {
-            prefix: None,
-            given: None,
-            middle: Some("Robert"),
-            family: None,
-            suffix: None,
-        };
+        let p = PersonName::builder().with_middle("Robert").build();
         assert_eq!(p.to_dicom_string(), "^^Robert".to_string());
     }
     #[test]
     fn test_person_name_to_string() {
-        let p = PersonName {
-            prefix: None,
-            given: Some("John"),
-            middle: None,
-            family: Some("Adams"),
-            suffix: None,
-        };
+        let p = PersonName::builder()
+            .with_given("John")
+            .with_family("Adams")
+            .build();
         assert_eq!(p.to_string(), "John Adams".to_string());
 
-        let p = PersonName {
-            prefix: Some("Rev."),
-            given: None,
-            middle: None,
-            family: None,
-            suffix: None,
-        };
+        let p = PersonName::builder().with_prefix("Rev.").build();
         assert_eq!(p.to_string(), "Rev.".to_string());
 
-        let p = PersonName {
-            prefix: None,
-            given: None,
-            middle: None,
-            family: None,
-            suffix: Some("B.A. M.Div."),
-        };
+        let p = PersonName::builder().with_suffix("B.A. M.Div.").build();
         assert_eq!(p.to_string(), "B.A. M.Div.".to_string());
         let p = PersonName {
             prefix: Some("Rev."),
@@ -339,86 +337,41 @@ mod tests {
             suffix: None,
         };
         assert_eq!(p.to_string(), "John Robert Adams".to_string());
-        let p = PersonName {
-            prefix: None,
-            given: None,
-            middle: Some("Robert"),
-            family: None,
-            suffix: None,
-        };
+        let p = PersonName::builder().with_middle("Robert").build();
         assert_eq!(p.to_string(), "Robert".to_string());
     }
     #[test]
     fn person_name_from_slice() {
         assert_eq!(
             PersonName::from_slice("^^Robert"),
-            PersonName {
-                prefix: None,
-                given: None,
-                middle: Some("Robert"),
-                family: None,
-                suffix: None,
-            }
+            PersonName::builder().with_middle("Robert").build()
         );
         assert_eq!(
             PersonName::from_slice("^^^Rev."),
-            PersonName {
-                prefix: Some("Rev."),
-                given: None,
-                middle: None,
-                family: None,
-                suffix: None,
-            }
+            PersonName::builder().with_prefix("Rev.").build()
         );
         assert_eq!(
             PersonName::from_slice("^^^^B.A. M.Div."),
-            PersonName {
-                prefix: None,
-                given: None,
-                middle: None,
-                family: None,
-                suffix: Some("B.A. M.Div."),
-            }
+            PersonName::builder().with_suffix("B.A. M.Div.").build()
         );
         assert_eq!(
             PersonName::from_slice("^^Robert"),
-            PersonName {
-                prefix: None,
-                given: None,
-                middle: Some("Robert"),
-                family: None,
-                suffix: None,
-            }
+            PersonName::builder().with_middle("Robert").build()
         );
         assert_eq!(
             PersonName::from_slice("^John"),
-            PersonName {
-                prefix: None,
-                given: Some("John"),
-                middle: None,
-                family: None,
-                suffix: None,
-            }
+            PersonName::builder().with_given("John").build()
         );
         assert_eq!(
             PersonName::from_slice("Adams"),
-            PersonName {
-                prefix: None,
-                given: None,
-                middle: None,
-                family: Some("Adams"),
-                suffix: None,
-            }
+            PersonName::builder().with_family("Adams").build()
         );
         assert_eq!(
             PersonName::from_slice("Adams^^^^B.A. M.Div."),
-            PersonName {
-                prefix: None,
-                given: None,
-                middle: None,
-                family: Some("Adams"),
-                suffix: Some("B.A. M.Div."),
-            }
+            PersonName::builder()
+                .with_family("Adams")
+                .with_suffix("B.A. M.Div.")
+                .build()
         );
         assert_eq!(
             PersonName::from_slice("Adams^^Robert^^B.A. M.Div."),
