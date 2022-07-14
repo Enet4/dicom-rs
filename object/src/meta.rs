@@ -598,10 +598,10 @@ impl FileMetaTableBuilder {
 
     /// Build the table.
     pub fn build(self) -> Result<FileMetaTable> {
-        let information_version = self.information_version.unwrap_or_else(|| {
+        let information_version = self.information_version.unwrap_or(
             // Missing information version, will assume (00H, 01H). See #28
-            [0, 1]
-        });
+            [0, 1],
+        );
         let media_storage_sop_class_uid =
             self.media_storage_sop_class_uid
                 .context(MissingElementSnafu {
