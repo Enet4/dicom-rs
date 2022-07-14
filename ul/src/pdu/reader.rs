@@ -444,22 +444,16 @@ where
                 // following fragment shall contain the last fragment of a Message Data Set or of a
                 // Message Command. If bit 1 is set to 0, the following fragment
                 // does not contain the last fragment of a Message Data Set or of a Message Command.
-                let value_type;
-                let is_last;
                 let header = cursor.read_u8().context(ReadPduFieldSnafu {
                     field: "Message Control Header",
                 })?;
-
-                if header & 0x01 > 0 {
-                    value_type = PDataValueType::Command;
+                
+                let value_type = if header & 0x01 > 0 {
+                    PDataValueType::Command
                 } else {
-                    value_type = PDataValueType::Data;
-                }
-                if header & 0x02 > 0 {
-                    is_last = true;
-                } else {
-                    is_last = false;
-                }
+                    PDataValueType::Data
+                };
+                let is_last = (header & 0x02) > 0;
 
                 let data =
                     read_n(&mut cursor, (item_length - 2) as usize).context(ReadPduFieldSnafu {
