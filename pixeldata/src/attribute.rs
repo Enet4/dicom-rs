@@ -364,10 +364,7 @@ impl PhotometricInterpretation {
     /// one of the monochrome variants
     /// (`MONOCHROME1` or `MONOCHROME2`).
     pub fn is_monochrome(&self) -> bool {
-        match self {
-            PhotometricInterpretation::Monochrome1 | PhotometricInterpretation::Monochrome2 => true,
-            _ => false,
-        }
+        matches!(self, PhotometricInterpretation::Monochrome1 | PhotometricInterpretation::Monochrome2)
     }
 }
 
