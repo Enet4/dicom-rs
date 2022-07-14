@@ -53,7 +53,7 @@ pub struct InMemDicomObject<D = StandardDataDictionary> {
     len: Length,
 }
 
-impl<'s, D> PartialEq for InMemDicomObject<D> {
+impl<D> PartialEq for InMemDicomObject<D> {
     // This implementation ignores the data dictionary.
     fn eq(&self, other: &Self) -> bool {
         self.entries == other.entries
