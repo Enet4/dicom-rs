@@ -54,9 +54,7 @@ pub enum Error {
     },
 
     #[snafu(display("Invalid item length {} (must be >=2)", length))]
-    InvalidItemLength {
-        length: u32,
-    },
+    InvalidItemLength { length: u32 },
 
     #[snafu(display("Could not read {} reserved bytes", bytes))]
     ReadReserved {
@@ -152,7 +150,8 @@ where
         );
         tracing::warn!(
             "Incoming pdu was too large: length {}, maximum is {}",
-            pdu_length, max_pdu_length
+            pdu_length,
+            max_pdu_length
         );
     }
 
@@ -422,7 +421,12 @@ where
                     field: "Item-Length",
                 })?;
 
-                ensure!(item_length >= 2, InvalidItemLengthSnafu { length: item_length });
+                ensure!(
+                    item_length >= 2,
+                    InvalidItemLengthSnafu {
+                        length: item_length
+                    }
+                );
 
                 // 5 - Presentation-context-ID - Presentation-context-ID values shall be odd
                 // integers between 1 and 255, encoded as an unsigned binary number. For a complete
@@ -447,7 +451,7 @@ where
                 let header = cursor.read_u8().context(ReadPduFieldSnafu {
                     field: "Message Control Header",
                 })?;
-                
+
                 let value_type = if header & 0x01 > 0 {
                     PDataValueType::Command
                 } else {

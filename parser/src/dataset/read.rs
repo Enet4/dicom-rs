@@ -421,7 +421,10 @@ where
                     ..
                 }) if self.seq_delimiters.is_empty() => {
                     // ignore delimiter, we are not in a sequence
-                    tracing::warn!("Item delimitation item outside of a sequence in position {}", self.parser.position());
+                    tracing::warn!(
+                        "Item delimitation item outside of a sequence in position {}",
+                        self.parser.position()
+                    );
                     // return a new token by calling the method again
                     self.next()
                 }
@@ -599,7 +602,8 @@ mod tests {
         let mut ground_truth = ground_truth.into_iter();
 
         while let Some(gt_token) = ground_truth.next() {
-            let token = iter.next()
+            let token = iter
+                .next()
                 .expect("expecting more tokens from reader")
                 .expect("should fetch the next token without an error");
             eprintln!("Next token: {:2?} ; Expected: {:2?}", token, gt_token);
@@ -768,12 +772,9 @@ mod tests {
     fn read_empty_sequence_explicit() {
         static DATA: &[u8] = &[
             // SequenceStart: (0008,1032) ProcedureCodeSequence ; len = 0
-            0x08, 0x00, 0x18, 0x22,
-            // VR: SQ
-            b'S', b'Q',
-            // Reserved
-            0x00, 0x00,
-            // Length: 0
+            0x08, 0x00, 0x18, 0x22, // VR: SQ
+            b'S', b'Q', // Reserved
+            0x00, 0x00, // Length: 0
             0x00, 0x00, 0x00, 0x00,
         ];
 
@@ -792,7 +793,8 @@ mod tests {
     #[test]
     fn ignore_trailing_item_delimitation_item() {
         static DATA: &[u8] = &[
-            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4
+            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04,
+            0x00, // (0020,4000) ImageComments, len = 4
             b'T', b'E', b'S', b'T', // value = "TEST"
             0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
         ];

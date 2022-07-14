@@ -199,8 +199,7 @@ mod tests {
     fn test_to_ndarray_signed_word_no_lut() {
         let test_file = dicom_test_files::path("pydicom/JPEG2000.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
-        let options = ConvertOptions::new()
-            .with_modality_lut(ModalityLutOption::None);
+        let options = ConvertOptions::new().with_modality_lut(ModalityLutOption::None);
         let ndarray = obj
             .decode_pixel_data()
             .unwrap()

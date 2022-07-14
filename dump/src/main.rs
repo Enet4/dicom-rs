@@ -1,8 +1,8 @@
 //! A CLI tool for inspecting the contents of a DICOM file
 //! by printing it in a human readable format.
-use dicom_object::open_file;
 use dicom_dump::{ColorMode, DumpOptions};
-use snafu::{ErrorCompat, Whatever, whatever};
+use dicom_object::open_file;
+use snafu::{whatever, ErrorCompat, Whatever};
 use std::io::ErrorKind;
 use std::path::PathBuf;
 use structopt::StructOpt;

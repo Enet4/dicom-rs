@@ -170,12 +170,10 @@ pub trait BasicEncode {
                 encode_collection_delimited(&mut to, time, |to, time| encode_time(to, *time))
                     .context(WriteTimeSnafu)
             }
-            DateTime(datetime) => {
-                encode_collection_delimited(&mut to, datetime, |to, datetime| {
-                    encode_datetime(to, *datetime)
-                })
-                .context(WriteDateTimeSnafu)
-            }
+            DateTime(datetime) => encode_collection_delimited(&mut to, datetime, |to, datetime| {
+                encode_datetime(to, *datetime)
+            })
+            .context(WriteDateTimeSnafu),
             Str(s) => {
                 // Note: this will always print in UTF-8. Consumers should
                 // intercept string primitive values and encode them according

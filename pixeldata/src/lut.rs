@@ -93,9 +93,9 @@ where
     ///   whether the input sample values are expected to be signed
     ///   (_Pixel Representation_ = 1)
     /// - `f`: the mapping function
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if `bits_stored` is 0 or too large.
     pub fn new_with_fn(
         bits_stored: u16,
@@ -137,9 +137,9 @@ where
     ///   whether the input sample values are expected to be signed
     ///   (_Pixel Representation_ = 1)
     /// - `rescale`: the rescale parameters
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if `bits_stored` is 0 or too large.
     pub fn new_rescale(
         bits_stored: u16,
@@ -163,9 +163,9 @@ where
     ///   (_Pixel Representation_ = 1)
     /// - `rescale`: the rescale parameters
     /// - `samples`: the raw pixel data samples expected to be fed to the LUT
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if `bits_stored` is 0 or too large.
     pub(crate) fn new_rescale_and_normalize<I>(
         bits_stored: u16,
@@ -221,9 +221,9 @@ where
     ///   (_Pixel Representation_ = 1)
     /// - `rescale`: the rescale parameters
     /// - `voi`: the value of interest (VOI) function and parameters
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if `bits_stored` is 0 or too large.
     pub fn new_rescale_and_window(
         bits_stored: u16,
@@ -242,7 +242,7 @@ where
 
     /// Create a new LUT containing
     /// a VOI transformation defined by a window level.
-    /// 
+    ///
     /// The amplitude of the output values
     /// goes from 0 to `2^n - 1`, where `n` is the power of two
     /// which follows `bits_stored` (or itself if it is a power of two).
@@ -256,9 +256,9 @@ where
     ///   whether the input sample values are expected to be signed
     ///   (_Pixel Representation_ = 1)
     /// - `voi`: the value of interest (VOI) function and parameters
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if `bits_stored` is 0 or too large.
     pub fn new_window(
         bits_stored: u16,
@@ -399,12 +399,13 @@ mod tests {
             false,
             Rescale::new(1., -1024.),
             [0_u16, 1, 2, 500, 23].iter().copied(),
-        ).unwrap();
+        )
+        .unwrap();
 
         // samples are between 0 and 500
         assert_eq!(lut.get(0_u16), 0);
         assert_eq!(lut.get(500_u16), 0xFFFF);
-        
+
         let y = lut.get(1_u16);
         assert!(y > 0 && y < 0xFFFF);
 

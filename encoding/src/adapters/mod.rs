@@ -12,7 +12,7 @@ pub mod rle_lossless;
 pub enum DecodeError {
     /// A custom error occurred when decoding,
     /// reported as a dynamic error value with a message.
-    /// 
+    ///
     /// The [`whatever!`](snafu::whatever) macro can be used
     /// to easily create an error of this kind.
     #[snafu(whatever, display("Error decoding pixel data: {}", message))]

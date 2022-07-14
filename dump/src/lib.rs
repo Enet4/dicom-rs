@@ -806,7 +806,10 @@ where
             pieces.push('"');
         }
         // stop earlier if applicable
-        if max_characters.filter(|max| (*max as usize) < acc_size).is_some() {
+        if max_characters
+            .filter(|max| (*max as usize) < acc_size)
+            .is_some()
+        {
             break;
         }
     }
@@ -844,9 +847,9 @@ fn determine_width(user_width: Option<u32>) -> u32 {
 #[cfg(test)]
 mod tests {
 
-    use dicom_core::{DataElement, VR, PrimitiveValue};
+    use dicom_core::{DataElement, PrimitiveValue, VR};
     use dicom_dictionary_std::tags;
-    use dicom_object::{InMemDicomObject, FileMetaTableBuilder};
+    use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 
     use super::whitespace_or_null;
     use crate::{ColorMode, DumpOptions};

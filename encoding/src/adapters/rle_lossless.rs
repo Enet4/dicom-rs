@@ -7,7 +7,7 @@
 //!
 //! License: <https://github.com/pydicom/pydicom/blob/master/LICENSE>
 use byteordered::byteorder::{ByteOrder, LittleEndian};
-use snafu::{OptionExt, ResultExt, whatever};
+use snafu::{whatever, OptionExt, ResultExt};
 
 use crate::adapters::{DecodeResult, PixelDataObject, PixelRWAdapter};
 use std::io::{self, Read, Seek};
@@ -39,8 +39,9 @@ impl PixelRWAdapter for RLELosslessAdapter {
         }
         // For RLE the number of fragments = number of frames
         // therefore, we can fetch the fragments one-by-one
-        let nr_frames = src.number_of_fragments()
-            .whatever_context("Invalid pixel data, no fragments found")? as usize;
+        let nr_frames =
+            src.number_of_fragments()
+                .whatever_context("Invalid pixel data, no fragments found")? as usize;
         let bytes_per_sample = bits_allocated / 8;
         // `stride` it the total number of bytes for each sample plane
         let stride = bytes_per_sample * cols * rows;
@@ -59,7 +60,8 @@ impl PixelRWAdapter for RLELosslessAdapter {
         //    LSB MSB LSB MSB ... LSB MSB | LSB MSB LSB MSB ... LSB MSB | ...
 
         for i in 0..nr_frames {
-            let fragment = &src.fragment(i)
+            let fragment = &src
+                .fragment(i)
                 .whatever_context("No pixel data found for frame")?;
             let mut offsets = read_rle_header(fragment);
             offsets.push(fragment.len() as u32);

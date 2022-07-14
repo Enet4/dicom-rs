@@ -257,9 +257,11 @@ impl fmt::Display for PlanarConfiguration {
 pub fn planar_configuration<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<PlanarConfiguration> {
-
-    let elem = if let Some(elem) = obj.element_opt(tags::PLANAR_CONFIGURATION)
-        .context(RetrieveSnafu { name: "PlanarConfiguration" })? {
+    let elem = if let Some(elem) =
+        obj.element_opt(tags::PLANAR_CONFIGURATION)
+            .context(RetrieveSnafu {
+                name: "PlanarConfiguration",
+            })? {
         elem
     } else {
         return Ok(PlanarConfiguration::Standard);
@@ -364,7 +366,10 @@ impl PhotometricInterpretation {
     /// one of the monochrome variants
     /// (`MONOCHROME1` or `MONOCHROME2`).
     pub fn is_monochrome(&self) -> bool {
-        matches!(self, PhotometricInterpretation::Monochrome1 | PhotometricInterpretation::Monochrome2)
+        matches!(
+            self,
+            PhotometricInterpretation::Monochrome1 | PhotometricInterpretation::Monochrome2
+        )
     }
 }
 

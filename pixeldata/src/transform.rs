@@ -103,7 +103,7 @@ impl WindowLevelTransform {
             },
         }
     }
-    
+
     /// Create a new window level transformation
     /// with the `LINEAR` function.
     ///

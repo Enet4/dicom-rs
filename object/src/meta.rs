@@ -238,14 +238,20 @@ impl FileMetaTable {
                     builder.information_version(hbuf)
                 }
                 // Media Storage SOP Class UID
-                Tag(0x0002, 0x0002) => builder.media_storage_sop_class_uid(read_str_body(&mut file, &text, elem_len)?),
+                Tag(0x0002, 0x0002) => {
+                    builder.media_storage_sop_class_uid(read_str_body(&mut file, &text, elem_len)?)
+                }
                 // Media Storage SOP Instance UID
                 Tag(0x0002, 0x0003) => builder
-                        .media_storage_sop_instance_uid(read_str_body(&mut file, &text, elem_len)?),
+                    .media_storage_sop_instance_uid(read_str_body(&mut file, &text, elem_len)?),
                 // Transfer Syntax
-                Tag(0x0002, 0x0010) => builder.transfer_syntax(read_str_body(&mut file, &text, elem_len)?),
+                Tag(0x0002, 0x0010) => {
+                    builder.transfer_syntax(read_str_body(&mut file, &text, elem_len)?)
+                }
                 // Implementation Class UID
-                Tag(0x0002, 0x0012) => builder.implementation_class_uid(read_str_body(&mut file, &text, elem_len)?),
+                Tag(0x0002, 0x0012) => {
+                    builder.implementation_class_uid(read_str_body(&mut file, &text, elem_len)?)
+                }
                 Tag(0x0002, 0x0013) => {
                     // Implementation Version Name
                     let mut v = Vec::new();
