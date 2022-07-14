@@ -835,7 +835,7 @@ impl DecodedPixelData<'_> {
                                 8,
                                 signed,
                                 rescale,
-                                data.into_iter().copied(),
+                                data.iter().copied(),
                             )
                             .context(CreateLutSnafu)?,
                         };
