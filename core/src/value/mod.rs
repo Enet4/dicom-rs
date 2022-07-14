@@ -7,12 +7,14 @@ use std::{borrow::Cow, str::FromStr};
 
 pub mod deserialize;
 pub mod partial;
+pub mod person_name;
 mod primitive;
 pub mod range;
 pub mod serialize;
 
 pub use self::deserialize::Error as DeserializeError;
 pub use self::partial::{DicomDate, DicomDateTime, DicomTime};
+pub use self::person_name::PersonName;
 pub use self::range::{AsRange, DateRange, DateTimeRange, TimeRange};
 
 pub use self::primitive::{
@@ -557,6 +559,20 @@ where
             _ => Err(CastValueError {
                 requested: "tag",
                 got: self.value_type(),
+            }),
+        }
+    }
+
+    /// Retrieves the primitive value as a [`PersonName`][1].
+    /// 
+    /// [1]: super::value::person_name::PersonName
+    pub fn to_person_name(&self) -> Result<PersonName<'_>, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_person_name(),
+            _ => Err(ConvertValueError {
+                requested: "PersonName",
+                original: self.value_type(),
+                cause: None,
             }),
         }
     }

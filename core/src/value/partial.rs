@@ -756,12 +756,12 @@ impl DicomDateTime {
                 "{}{}{}",
                 self.date.to_encoded(),
                 time.to_encoded(),
-                self.offset.to_string().replace(":", "")
+                self.offset.to_string().replace(':', "")
             ),
             None => format!(
                 "{}{}",
                 self.date.to_encoded(),
-                self.offset.to_string().replace(":", "")
+                self.offset.to_string().replace(':', "")
             ),
         }
     }

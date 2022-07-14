@@ -5,6 +5,7 @@
 use super::DicomValueType;
 use crate::header::{HasLength, Length, Tag};
 use crate::value::partial::{DateComponent, DicomDate, DicomDateTime, DicomTime, Precision};
+use crate::value::person_name::PersonName;
 use crate::value::range::{DateRange, DateTimeRange, TimeRange};
 use chrono::FixedOffset;
 use itertools::Itertools;
@@ -317,6 +318,12 @@ impl From<Vec<u8>> for PrimitiveValue {
 impl From<&[u8]> for PrimitiveValue {
     fn from(value: &[u8]) -> Self {
         PrimitiveValue::U8(C::from(value))
+    }
+}
+
+impl<'a> From<PersonName<'a>> for PrimitiveValue {
+    fn from(p: PersonName) -> Self {
+        PrimitiveValue::Str(p.to_dicom_string())
     }
 }
 
@@ -3204,7 +3211,7 @@ impl PrimitiveValue {
 
     /// Retrieve a single `DateTimeRange` from this value.
     ///
-    /// If the value is already represented as a `DicomDateTime`, it is converted into `DateTimeRange` - todo.
+    /// If the value is already represented as a `DicomDateTime`, it is converted into `DateTimeRange`.
     /// If the value is a string or sequence of strings,
     /// the first string is decoded to obtain a `DateTimeRange`, potentially failing if the
     /// string does not represent a valid `DateTimeRange`.
@@ -3283,6 +3290,57 @@ impl PrimitiveValue {
             }
             _ => Err(ConvertValueError {
                 requested: "DateTimeRange",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve a single [`PersonName`][1] from this value.
+    ///
+    /// If the value is a string or sequence of strings,
+    /// the first string is split to obtain a `PersonName`.
+    ///
+    /// [1]: super::person_name::PersonName
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use std::error::Error;
+    /// use dicom_core::value::PersonName;
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    ///
+    /// let value = PrimitiveValue::from("Tooms^Victor^Eugene");
+    /// // PersonName contains borrowed values
+    /// let pn = value.to_person_name()?;
+    ///
+    /// assert_eq!(pn.given(), Some("Victor"));
+    /// assert_eq!(pn.middle(), Some("Eugene"));
+    /// assert!(pn.prefix().is_none());
+    ///
+    /// let value2 = PrimitiveValue::from(pn);
+    ///
+    /// assert_eq!(value, value2);
+    ///
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn to_person_name(&self) -> Result<PersonName<'_>, ConvertValueError> {
+        match self {
+            PrimitiveValue::Str(s) => Ok(PersonName::from_str(s)),
+            PrimitiveValue::Strs(s) => s.first().map_or_else(
+                || {
+                    Err(ConvertValueError {
+                        requested: "PersonName",
+                        original: self.value_type(),
+                        cause: None,
+                    })
+                },
+                |s| Ok(PersonName::from_str(s)),
+            ),
+            _ => Err(ConvertValueError {
+                requested: "PersonName",
                 original: self.value_type(),
                 cause: None,
             }),
