@@ -323,7 +323,7 @@ where
 {
     debug_assert!(!buf.is_empty());
     debug_assert!(buf.len() < 10);
-    (&buf[1..]).iter().fold((buf[0] - b'0').into(), |acc, v| {
+    buf[1..].iter().fold((buf[0] - b'0').into(), |acc, v| {
         acc * T::ten() + (*v - b'0').into()
     })
 }
