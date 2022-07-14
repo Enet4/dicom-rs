@@ -163,15 +163,15 @@ pub trait BasicEncode {
         match value {
             Empty => Ok(0), // no-op
             Date(date) => {
-                encode_collection_delimited(&mut to, &*date, |to, date| encode_date(to, *date))
+                encode_collection_delimited(&mut to, date, |to, date| encode_date(to, *date))
                     .context(WriteDateSnafu)
             }
             Time(time) => {
-                encode_collection_delimited(&mut to, &*time, |to, time| encode_time(to, *time))
+                encode_collection_delimited(&mut to, time, |to, time| encode_time(to, *time))
                     .context(WriteTimeSnafu)
             }
             DateTime(datetime) => {
-                encode_collection_delimited(&mut to, &*datetime, |to, datetime| {
+                encode_collection_delimited(&mut to, datetime, |to, datetime| {
                     encode_datetime(to, *datetime)
                 })
                 .context(WriteDateTimeSnafu)
@@ -183,7 +183,7 @@ pub trait BasicEncode {
                 write!(to, "{}", s).context(WriteStringSnafu)?;
                 Ok(s.len())
             }
-            Strs(s) => encode_collection_delimited(&mut to, &*s, |to, s| {
+            Strs(s) => encode_collection_delimited(&mut to, s, |to, s| {
                 // Note: this will always print in UTF-8. Consumers should
                 // intercept string primitive values and encode them according
                 // to the expected character set.

@@ -464,7 +464,7 @@ impl FileMetaTable {
 }
 
 /// A builder for DICOM meta information tables.
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct FileMetaTableBuilder {
     /// File Meta Information Group Length (UL)
     information_group_length: Option<u32>,
@@ -491,25 +491,6 @@ pub struct FileMetaTableBuilder {
     private_information_creator_uid: Option<String>,
     /// Private Information (OB)
     private_information: Option<Vec<u8>>,
-}
-
-impl Default for FileMetaTableBuilder {
-    fn default() -> FileMetaTableBuilder {
-        FileMetaTableBuilder {
-            information_group_length: None,
-            information_version: None,
-            media_storage_sop_class_uid: None,
-            media_storage_sop_instance_uid: None,
-            transfer_syntax: None,
-            implementation_class_uid: None,
-            implementation_version_name: None,
-            source_application_entity_title: None,
-            sending_application_entity_title: None,
-            receiving_application_entity_title: None,
-            private_information_creator_uid: None,
-            private_information: None,
-        }
-    }
 }
 
 /// Ensure that the string is even lengthed, by adding a trailing character
@@ -652,10 +633,10 @@ impl FileMetaTableBuilder {
 
     /// Build the table.
     pub fn build(self) -> Result<FileMetaTable> {
-        let information_version = self.information_version.unwrap_or_else(|| {
+        let information_version = self.information_version.unwrap_or(
             // Missing information version, will assume (00H, 01H). See #28
-            [0, 1]
-        });
+            [0, 1],
+        );
         let media_storage_sop_class_uid =
             self.media_storage_sop_class_uid
                 .context(MissingElementSnafu {

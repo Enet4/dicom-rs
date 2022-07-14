@@ -835,7 +835,7 @@ impl DecodedPixelData<'_> {
                                 8,
                                 signed,
                                 rescale,
-                                data.into_iter().copied(),
+                                data.iter().copied(),
                             )
                             .context(CreateLutSnafu)?,
                         };
@@ -1414,7 +1414,7 @@ impl DecodedPixelData<'_> {
 fn bytes_to_vec_u16(data: &[u8]) -> Vec<u16> {
     debug_assert!(data.len() % 2 == 0);
     let mut pixel_array: Vec<u16> = vec![0; data.len() / 2];
-    NativeEndian::read_u16_into(&data, &mut pixel_array);
+    NativeEndian::read_u16_into(data, &mut pixel_array);
     pixel_array
 }
 
