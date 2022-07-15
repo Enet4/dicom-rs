@@ -461,6 +461,10 @@ where
     }
 }
 
+/// This implementation creates an iterator
+/// to the elements of the underlying data set,
+/// consuming the whole object.
+/// The attributes in the file meta group are _not_ included.
 impl<O> IntoIterator for FileDicomObject<O>
 where
     O: IntoIterator,
@@ -473,6 +477,9 @@ where
     }
 }
 
+/// This implementation creates an iterator
+/// to the elements of the underlying data set.
+/// The attributes in the file meta group are _not_ included.
 impl<'a, O> IntoIterator for &'a FileDicomObject<O>
 where
     &'a O: IntoIterator,
