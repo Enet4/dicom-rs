@@ -544,27 +544,27 @@ where
         self.entries.insert(elt.tag(), elt)
     }
 
-    /// Removes a DICOM element by its tag,
+    /// Remove a DICOM element by its tag,
     /// reporting whether it was present.
     pub fn remove_element(&mut self, tag: Tag) -> bool {
         self.entries.remove(&tag).is_some()
     }
 
-    /// Removes a DICOM element by its keyword,
+    /// Remove a DICOM element by its keyword,
     /// reporting whether it was present.
     pub fn remove_element_by_name(&mut self, name: &str) -> Result<bool> {
         let tag = self.lookup_name(name)?;
         Ok(self.entries.remove(&tag).is_some())
     }
 
-    /// Removes and returns a particular DICOM element by its tag.
+    /// Remove and return a particular DICOM element by its tag.
     pub fn take_element(&mut self, tag: Tag) -> Result<InMemElement<D>> {
         self.entries
             .remove(&tag)
             .context(NoSuchDataElementTagSnafu { tag })
     }
 
-    /// Removes and returns a particular DICOM element by its name.
+    /// Remove and return a particular DICOM element by its name.
     pub fn take_element_by_name(&mut self, name: &str) -> Result<InMemElement<D>> {
         let tag = self.lookup_name(name)?;
         self.entries
@@ -573,6 +573,15 @@ where
                 tag,
                 alias: name.to_string(),
             })
+    }
+
+    /// Modify the object by
+    /// retaining only the DICOM data elements specified by the predicate.
+    /// 
+    /// The elements are visited in ascending tag order,
+    /// and those for which `f(&element)` returns `false` are removed.
+    pub fn retain(&mut self, mut f: impl FnMut(&InMemElement<D>) -> bool) {
+        self.entries.retain(|_, elem| f(elem));
     }
 
     /// Write this object's data set into the given writer,
