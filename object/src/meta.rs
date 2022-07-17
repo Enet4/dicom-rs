@@ -372,6 +372,12 @@ impl FileMetaTable {
         builder.build()
     }
 
+    /// Create an iterator over the defined data elements
+    /// of the file meta group,
+    /// consuming the file meta table.
+    /// 
+    /// See [`to_element_iter`](FileMetaTable::to_element_iter)
+    /// for a version which copies the element from the table.
     pub fn into_element_iter(self) -> impl Iterator<Item = DataElement<EmptyObject, [u8; 0]>> {
         let mut elems = vec![
             // file information group length
@@ -453,6 +459,14 @@ impl FileMetaTable {
         }
 
         elems.into_iter()
+    }
+
+    /// Create an iterator of data elements copied from the file meta group.
+    /// 
+    /// See [`into_element_iter`](FileMetaTable::into_element_iter)
+    /// for a version which consumes the table.
+    pub fn to_element_iter(&self) -> impl Iterator<Item = DataElement<EmptyObject, [u8; 0]>> + '_ {
+        self.clone().into_element_iter()
     }
 
     pub fn write<W: Write>(&self, writer: W) -> Result<()> {

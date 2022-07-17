@@ -465,6 +465,9 @@ where
 /// to the elements of the underlying data set,
 /// consuming the whole object.
 /// The attributes in the file meta group are _not_ included.
+///
+/// To obtain an iterator over the meta elements,
+/// use [`meta().to_element_iter()`](FileMetaTable::to_element_iter).
 impl<O> IntoIterator for FileDicomObject<O>
 where
     O: IntoIterator,
@@ -480,6 +483,9 @@ where
 /// This implementation creates an iterator
 /// to the elements of the underlying data set.
 /// The attributes in the file meta group are _not_ included.
+///
+/// To obtain an iterator over the meta elements,
+/// use [`meta().to_element_iter()`](FileMetaTable::to_element_iter).
 impl<'a, O> IntoIterator for &'a FileDicomObject<O>
 where
     &'a O: IntoIterator,
