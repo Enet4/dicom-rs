@@ -461,6 +461,13 @@ where
     }
 }
 
+/// This implementation creates an iterator
+/// to the elements of the underlying data set,
+/// consuming the whole object.
+/// The attributes in the file meta group are _not_ included.
+///
+/// To obtain an iterator over the meta elements,
+/// use [`meta().to_element_iter()`](FileMetaTable::to_element_iter).
 impl<O> IntoIterator for FileDicomObject<O>
 where
     O: IntoIterator,
@@ -470,6 +477,24 @@ where
 
     fn into_iter(self) -> Self::IntoIter {
         self.obj.into_iter()
+    }
+}
+
+/// This implementation creates an iterator
+/// to the elements of the underlying data set.
+/// The attributes in the file meta group are _not_ included.
+///
+/// To obtain an iterator over the meta elements,
+/// use [`meta().to_element_iter()`](FileMetaTable::to_element_iter).
+impl<'a, O> IntoIterator for &'a FileDicomObject<O>
+where
+    &'a O: IntoIterator,
+{
+    type Item = <&'a O as IntoIterator>::Item;
+    type IntoIter = <&'a O as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        (&self.obj).into_iter()
     }
 }
 
@@ -642,5 +667,42 @@ mod tests {
             obj.element(dicom_dictionary_std::tags::PATIENT_NAME),
             Err(Error::NoSuchDataElementTag { .. }),
         ));
+    }
+
+    #[test]
+    fn file_dicom_object_can_iterate_over_elements() {
+        let mut obj = InMemDicomObject::new_empty();
+
+        obj.put(DataElement::new(
+            dicom_dictionary_std::tags::PATIENT_NAME,
+            VR::PN,
+            PrimitiveValue::from("John Doe"),
+        ));
+        obj.put(DataElement::new(
+            dicom_dictionary_std::tags::SOP_INSTANCE_UID,
+            VR::PN,
+            PrimitiveValue::from("1.2.987654321"),
+        ));
+            
+        let obj = obj
+            .with_meta(
+                FileMetaTableBuilder::new()
+                    .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.7")
+                    .media_storage_sop_instance_uid("1.2.987654321")
+                    .transfer_syntax("1.2.840.10008.1.2.1"),
+            )
+            .unwrap();
+
+        // iter
+        let mut iter = (&obj).into_iter();
+        assert_eq!(iter.next().unwrap().header().tag, dicom_dictionary_std::tags::SOP_INSTANCE_UID);
+        assert_eq!(iter.next().unwrap().header().tag, dicom_dictionary_std::tags::PATIENT_NAME);
+        assert_eq!(iter.next(), None);
+
+        // into_iter
+        let mut iter = obj.into_iter();
+        assert_eq!(iter.next().unwrap().header().tag, dicom_dictionary_std::tags::SOP_INSTANCE_UID);
+        assert_eq!(iter.next().unwrap().header().tag, dicom_dictionary_std::tags::PATIENT_NAME);
+        assert_eq!(iter.next(), None);
     }
 }

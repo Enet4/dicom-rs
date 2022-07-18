@@ -544,27 +544,27 @@ where
         self.entries.insert(elt.tag(), elt)
     }
 
-    /// Removes a DICOM element by its tag,
+    /// Remove a DICOM element by its tag,
     /// reporting whether it was present.
     pub fn remove_element(&mut self, tag: Tag) -> bool {
         self.entries.remove(&tag).is_some()
     }
 
-    /// Removes a DICOM element by its keyword,
+    /// Remove a DICOM element by its keyword,
     /// reporting whether it was present.
     pub fn remove_element_by_name(&mut self, name: &str) -> Result<bool> {
         let tag = self.lookup_name(name)?;
         Ok(self.entries.remove(&tag).is_some())
     }
 
-    /// Removes and returns a particular DICOM element by its tag.
+    /// Remove and return a particular DICOM element by its tag.
     pub fn take_element(&mut self, tag: Tag) -> Result<InMemElement<D>> {
         self.entries
             .remove(&tag)
             .context(NoSuchDataElementTagSnafu { tag })
     }
 
-    /// Removes and returns a particular DICOM element by its name.
+    /// Remove and return a particular DICOM element by its name.
     pub fn take_element_by_name(&mut self, name: &str) -> Result<InMemElement<D>> {
         let tag = self.lookup_name(name)?;
         self.entries
@@ -573,6 +573,15 @@ where
                 tag,
                 alias: name.to_string(),
             })
+    }
+
+    /// Modify the object by
+    /// retaining only the DICOM data elements specified by the predicate.
+    /// 
+    /// The elements are visited in ascending tag order,
+    /// and those for which `f(&element)` returns `false` are removed.
+    pub fn retain(&mut self, mut f: impl FnMut(&InMemElement<D>) -> bool) {
+        self.entries.retain(|_, elem| f(elem));
     }
 
     /// Write this object's data set into the given writer,
@@ -671,6 +680,16 @@ where
             meta: meta.build().context(BuildMetaTableSnafu)?,
             obj: self,
         })
+    }
+
+    /// Obtain an iterator over the elements of this object.
+    pub fn iter(&self) -> impl Iterator<Item = &InMemElement<D>> + '_ {
+        self.into_iter()
+    }
+
+    /// Obtain an iteartor over the tags of the object's elements.
+    pub fn tags(&self) -> impl Iterator<Item = Tag> + '_ {
+        self.entries.keys().copied()
     }
 
     // private methods
@@ -1347,6 +1366,81 @@ mod tests {
         obj.put(another_patient_name.clone());
         assert!(obj.remove_element_by_name("PatientName").unwrap());
         assert_eq!(obj.remove_element_by_name("PatientName").unwrap(), false);
+    }
+
+    /// Elements are traversed in tag order.
+    #[test]
+    fn inmem_traverse_elements() {
+        let sop_uid = "1.4.645.212121";
+        let mut obj = InMemDicomObject::new_empty();
+
+        obj.put(DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            dicom_value!(Strs, ["Doe^John"]),
+        ));
+        obj.put(DataElement::new(
+            Tag(0x0008, 0x0060),
+            VR::CS,
+            dicom_value!(Strs, ["CR"]),
+        ));
+        obj.put(DataElement::new(
+            Tag(0x0008, 0x0018),
+            VR::UI,
+            dicom_value!(Strs, [sop_uid]),
+        ));
+
+        // .iter()
+        {
+            let mut iter = obj.iter();
+            assert_eq!(
+                *iter.next().unwrap().header(),
+                DataElementHeader::new(Tag(0x0008, 0x0018), VR::UI, Length(sop_uid.len() as u32)),
+            );
+            assert_eq!(
+                *iter.next().unwrap().header(),
+                DataElementHeader::new(Tag(0x0008, 0x0060), VR::CS, Length(2)),
+            );
+            assert_eq!(
+                *iter.next().unwrap().header(),
+                DataElementHeader::new(Tag(0x0010, 0x0010), VR::PN, Length(8)),
+            );
+        }
+
+        // .tags()
+        let tags: Vec<_> = obj.tags().collect();
+        assert_eq!(tags, vec![
+            Tag(0x0008, 0x0018),
+            Tag(0x0008, 0x0060),
+            Tag(0x0010, 0x0010),
+        ]);
+
+        // .into_iter()
+        let mut iter = obj.into_iter();
+        assert_eq!(
+            iter.next(),
+            Some(DataElement::new(
+                Tag(0x0008, 0x0018),
+                VR::UI,
+                dicom_value!(Strs, [sop_uid]),
+            )),
+        );
+        assert_eq!(
+            iter.next(),
+            Some(DataElement::new(
+                Tag(0x0008, 0x0060),
+                VR::CS,
+                dicom_value!(Strs, ["CR"]),
+            )),
+        );
+        assert_eq!(
+            iter.next(),
+            Some(DataElement::new(
+                Tag(0x0010, 0x0010),
+                VR::PN,
+                PrimitiveValue::from("Doe^John"),
+            )),
+        );
     }
 
     #[test]
