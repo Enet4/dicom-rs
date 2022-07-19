@@ -1,6 +1,6 @@
 [package]
 name = "dicom-fromimage"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2018"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A CLI tool for replacing the image content from DICOM files"
@@ -16,7 +16,7 @@ default = ['dicom-object/inventory-registry', 'dicom-object/backtraces']
 [dependencies]
 dicom-core = { path = "../core", version = "0.5.0" }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.5.0" }
-dicom-object = { path = "../object/", version = "0.5.0" }
+dicom-object = { path = "../object/", version = "0.5.2" }
 snafu = "0.7.0"
 structopt = "0.3.23"
 tracing = "0.1.34"
