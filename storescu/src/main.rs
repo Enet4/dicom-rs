@@ -18,6 +18,7 @@ use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
+use tracing::warn;
 use transfer_syntax::TransferSyntaxIndex;
 use walkdir::WalkDir;
 
@@ -337,21 +338,49 @@ fn run() -> Result<(), Error> {
                     let storage_sop_instance_uid = file
                         .sop_instance_uid
                         .trim_end_matches(|c: char| c.is_whitespace() || c == '\0');
-                    if status == 0 {
-                        if verbose {
-                            println!(
-                                "Successfully stored instance `{}`",
-                                storage_sop_instance_uid
+
+                    match status {
+                        // Success
+                        0 => {
+                            if verbose {
+                                println!(
+                                    "Successfully stored instance `{}`",
+                                    storage_sop_instance_uid
+                                );
+                            }
+                        }
+                        // Warning
+                        1 | 0x0107 | 0x0116 | 0xB000..=0xBFFF => {
+                            warn!(
+                                "Possible issue storing instance `{}` (status code {:04X}H)",
+                                storage_sop_instance_uid, status
                             );
                         }
-                    } else {
-                        println!(
-                            "Failed to store instance `{}` (status code {})",
-                            storage_sop_instance_uid, status
-                        );
-                        if fail_first {
-                            let _ = scu.abort();
-                            std::process::exit(-2);
+                        0xFF00 | 0xFF01 => {
+                            warn!(
+                                "Possible issue storing instance `{}`: status is pending (status code {:04X}H)",
+                                storage_sop_instance_uid, status
+                            );
+                        }
+                        0xFE00 => {
+                            eprintln!(
+                                "Could not store instance `{}`: operation cancelled",
+                                storage_sop_instance_uid
+                            );
+                            if fail_first {
+                                let _ = scu.abort();
+                                std::process::exit(-2);
+                            }
+                        }
+                        _ => {
+                            eprintln!(
+                                "Failed to store instance `{}` (status code {:04X}H)",
+                                storage_sop_instance_uid, status
+                            );
+                            if fail_first {
+                                let _ = scu.abort();
+                                std::process::exit(-2);
+                            }
                         }
                     }
                 }
