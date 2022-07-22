@@ -13,7 +13,7 @@ use clap::{App, Arg};
 use regex::Regex;
 use serde::Serialize;
 
-use heck::ShoutySnakeCase;
+use heck::ToShoutySnakeCase;
 use std::borrow::Cow;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
