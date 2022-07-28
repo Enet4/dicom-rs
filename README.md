@@ -4,7 +4,7 @@
 [![continuous integration](https://github.com/Enet4/dicom-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/Enet4/dicom-rs/actions/workflows/rust.yml)
 ![Minimum Rust Version Stable](https://img.shields.io/badge/Minimum%20Rust%20Version-stable-green.svg)
 [![dependency status](https://deps.rs/repo/github/Enet4/dicom-rs/status.svg)](https://deps.rs/repo/github/Enet4/dicom-rs)
-[![Gitter](https://badges.gitter.im/dicom-rs/community.svg)](https://gitter.im/dicom-rs/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+[![DICOM-rs chat](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://dicom-rs.zulipchat.com/)
 [![Documentation](https://docs.rs/dicom/badge.svg)](https://docs.rs/dicom)
 
 An ecosystem of library and tools for [DICOM](https://dicomstandard.org) compliant systems.
