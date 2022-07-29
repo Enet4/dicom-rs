@@ -10,6 +10,7 @@ use dicom_ul::{
 use pdu::PDataValue;
 use snafu::{prelude::*, ErrorCompat, Whatever};
 use structopt::StructOpt;
+use tracing::warn;
 
 /// DICOM C-ECHO SCU
 #[derive(Debug, StructOpt)]
@@ -141,13 +142,36 @@ fn run() -> Result<(), Whatever> {
             let status_elem = obj
                 .element(tags::STATUS)
                 .whatever_context("Missing Status code in response")?;
+
+            let status = status_elem
+                .to_int::<u16>()
+                .whatever_context("Status code in response is not a valid integer")?;
             if verbose {
-                println!(
-                    "Status: {}",
-                    status_elem
-                        .to_int::<u16>()
-                        .whatever_context("Status code in response is not a valid integer")?
-                );
+                println!("Status: {:04X}H", status);
+            }
+            match status {
+                // Success
+                0 => {
+                    if verbose {
+                        println!("C-ECHO successful");
+                    }
+                }
+                // Warning
+                1 | 0x0107 | 0x0116 | 0xB000..=0xBFFF => {
+                    warn!("Possible issue in C-ECHO (status code {:04X}H)", status);
+                }
+                0xFF00 | 0xFF01 => {
+                    warn!(
+                        "Possible issue in C-ECHO: status is pending (status code {:04X}H)",
+                        status
+                    );
+                }
+                0xFE00 => {
+                    warn!("Operation cancelled");
+                }
+                _ => {
+                    eprintln!("C-ECHO failed (status code {:04X}H)", status);
+                }
             }
 
             // msg ID response, should be equal to sent msg ID
@@ -156,14 +180,11 @@ fn run() -> Result<(), Whatever> {
                 .whatever_context("Could not retrieve Message ID from response")?;
 
             if message_id
-                == msg_id_elem
+                != msg_id_elem
                     .to_int()
                     .whatever_context("Message ID is not a valid integer")?
             {
                 whatever!("Message ID mismatch");
-            }
-            if verbose {
-                println!("C-ECHO successful.");
             }
         }
         pdu => whatever!("Unexpected PDU {:?}", pdu),
