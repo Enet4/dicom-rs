@@ -72,14 +72,14 @@ cargo fmt
 ## Discussion and roadmapping
 If you have more long-termed ideas about what DICOM-rs should include next,
 please have a look at the [roadmap] and look into existing issues to provide feedback.
-You can also have a chat at the official [Gitter room].
+You can also talk about the project at the official [DICOM-rs Zulip organization].
 
 If you have any further questions or concerns,
 or would like to be deeper involved in the project,
 please reach out to the project maintainers.
 
 [roadmap]: https://github.com/Enet4/dicom-rs/wiki/Roadmap
-[Gitter room]: https://gitter.im/dicom-rs/community
+[Zulip organization]: https://dicom-rs.zulipchat.com
 
 ## Project team and governance
 DICOM-rs is currently led by Eduardo Pinho ([**@Enet4**](https://github.com/Enet4), <enet4mikeenet@gmail.com>).
