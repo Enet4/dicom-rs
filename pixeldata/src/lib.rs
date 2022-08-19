@@ -163,9 +163,6 @@ pub enum InnerError {
     #[snafu(display("Unsupported TransferSyntax `{}`", ts))]
     UnsupportedTransferSyntax { ts: String, backtrace: Backtrace },
 
-    #[snafu(display("Multi-frame DICOM images are not supported"))]
-    UnsupportedMultiFrame { backtrace: Backtrace },
-
     #[snafu(display("Invalid buffer when constructing ImageBuffer"))]
     InvalidImageBuffer { backtrace: Backtrace },
 
