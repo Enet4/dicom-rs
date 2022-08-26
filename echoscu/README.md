@@ -25,10 +25,18 @@ FLAGS:
     -v, --verbose    verbose mode
 
 OPTIONS:
-        --called-ae-title <called-ae-title>      the called AE title [default: ANY-SCP]
+        --called-ae-title <called-ae-title>
+            the called Application Entity title, overrides AE title in address if present [default: ANY-SCP]
+
         --calling-ae-title <calling-ae-title>    the calling AE title [default: ECHOSCU]
     -m, --message-id <message-id>                the C-ECHO message ID [default: 1]
 
 ARGS:
-    <addr>    socket address to SCP (example: "127.0.0.1:104")
+    <addr>    socket address to SCP, optionally with AE title (example: "QUERY-SCP@127.0.0.1:1045")
+```
+
+Example:
+
+```sh
+dicom-echoscu --verbose MAIN-STORAGE@192.168.1.99:104
 ```
