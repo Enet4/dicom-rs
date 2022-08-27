@@ -26,6 +26,7 @@ use snafu::{ResultExt, Snafu};
 /// let addr: FullAeAddr = "SCP-STORAGE@127.0.0.1:104".parse()?;
 /// assert_eq!(addr.ae_title(), "SCP-STORAGE");
 /// assert_eq!(addr.socket_addr(), SocketAddr::from(([127, 0, 0, 1], 104)));
+/// assert_eq!(&addr.to_string(), "SCP-STORAGE@127.0.0.1:104");
 /// # Ok(())
 /// # }
 /// ```
@@ -93,6 +94,14 @@ impl ToSocketAddrs for FullAeAddr {
     }
 }
 
+impl std::fmt::Display for FullAeAddr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.ae_title)?;
+        f.write_str("@")?;
+        std::fmt::Display::fmt(&self.socket_addr, f)
+    }
+}
+
 /// A specification for an address to the target SCP:
 /// a network socket address
 /// which may also include an application entity title.
@@ -114,6 +123,7 @@ impl ToSocketAddrs for FullAeAddr {
 /// let addr: AeAddr = "SCP-STORAGE@127.0.0.1:104".parse()?;
 /// assert_eq!(addr.ae_title(), Some("SCP-STORAGE"));
 /// assert_eq!(addr.socket_addr(), SocketAddr::from(([127, 0, 0, 1], 104)));
+/// assert_eq!(&addr.to_string(), "127.0.0.1:104");
 ///
 /// // AE title can be missing
 /// let addr: AeAddr = "192.168.1.99:1045".parse()?;
@@ -149,7 +159,7 @@ impl AeAddr {
 
     /// Retrieve the application entity title portion, if present.
     pub fn ae_title(&self) -> Option<&str> {
-        self.ae_title.as_ref().map(String::as_str)
+        self.ae_title.as_deref()
     }
 
     /// Retrieve the socket address portion.
@@ -218,5 +228,16 @@ impl ToSocketAddrs for AeAddr {
 
     fn to_socket_addrs(&self) -> std::io::Result<Self::Iter> {
         self.socket_addr.to_socket_addrs()
+    }
+}
+
+impl std::fmt::Display for AeAddr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(ae_title) = &self.ae_title {
+            f.write_str(ae_title)?;
+            f.write_str("@")?;
+        }
+
+        std::fmt::Display::fmt(&self.socket_addr, f)
     }
 }
