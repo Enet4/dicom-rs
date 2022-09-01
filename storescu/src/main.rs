@@ -28,6 +28,7 @@ struct App {
     /// socket address to STORE SCP (example: "127.0.0.1:104")
     addr: String,
     /// the DICOM file(s) to store
+    #[structopt(required = true)]
     files: Vec<PathBuf>,
     /// verbose mode
     #[structopt(short = "v", long = "verbose")]
