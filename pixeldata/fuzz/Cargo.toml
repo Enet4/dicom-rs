@@ -1,0 +1,44 @@
+[package]
+name = "dicom-pixeldata-fuzz"
+version = "0.0.0"
+authors = ["Automatically generated"]
+publish = false
+edition = "2018"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+byteorder = "1.4.3"
+
+[dependencies.dicom-core]
+path = "../../core"
+
+[dependencies.dicom-dictionary-std]
+path = "../../dictionary-std"
+
+[dependencies.dicom-object]
+path = "../../object"
+
+[dependencies.dicom-pixeldata]
+path = ".."
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "decode_simple_image"
+path = "fuzz_targets/decode_simple_image.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "decode_image_file"
+path = "fuzz_targets/decode_image_file.rs"
+test = false
+doc = false
+
+[profile.release]
+debug = true
