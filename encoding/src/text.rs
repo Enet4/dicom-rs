@@ -71,15 +71,36 @@ pub trait TextCodec {
     /// `TextCodec` is often used as a trait object.
     fn name(&self) -> &'static str;
 
+    /// Decode the given byte buffer as a string,
+    /// appending the contents to the given heap allocated string.
+    /// The resulting text _may_ contain backslash characters ('\')
+    /// to delimit individual values,
+    /// and should be split later on if required.
+    fn decode_to(&self, text: &[u8], to: &mut String) -> DecodeResult<()>;
+
+    /// Encode a text value into a byte vector,
+    /// returning the number of bytes written.
+    /// The input string can feature multiple text values
+    /// by using the backslash character ('\') as the value delimiter.
+    fn encode_to(&self, text: &str, to: &mut Vec<u8>) -> EncodeResult<usize>;
+
     /// Decode the given byte buffer as a single string. The resulting string
     /// _may_ contain backslash characters ('\') to delimit individual values,
     /// and should be split later on if required.
-    fn decode(&self, text: &[u8]) -> DecodeResult<String>;
+    fn decode(&self, text: &[u8]) -> DecodeResult<String> {
+        let mut s = String::new();
+        self.decode_to(text, &mut s)?;
+        Ok(s)
+    }
 
     /// Encode a text value into a byte vector. The input string can
     /// feature multiple text values by using the backslash character ('\')
     /// as the value delimiter.
-    fn encode(&self, text: &str) -> EncodeResult<Vec<u8>>;
+    fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
+        let mut v = Vec::new();
+        self.encode_to(text, &mut v)?;
+        Ok(v)
+    }
 }
 
 impl<T: ?Sized> TextCodec for Box<T>
@@ -90,12 +111,12 @@ where
         self.as_ref().name()
     }
 
-    fn decode(&self, text: &[u8]) -> DecodeResult<String> {
-        self.as_ref().decode(text)
+    fn decode_to(&self, text: &[u8], to: &mut String) -> DecodeResult<()> {
+        self.as_ref().decode_to(text, to)
     }
 
-    fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
-        self.as_ref().encode(text)
+    fn encode_to(&self, text: &str, to: &mut Vec<u8>) -> EncodeResult<usize> {
+        self.as_ref().encode_to(text, to)
     }
 }
 
@@ -107,12 +128,12 @@ where
         (**self).name()
     }
 
-    fn decode(&self, text: &[u8]) -> DecodeResult<String> {
-        (**self).decode(text)
+    fn decode_to(&self, text: &[u8], to: &mut String) -> DecodeResult<()> {
+        (**self).decode_to(text, to)
     }
 
-    fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
-        (**self).encode(text)
+    fn encode_to(&self, text: &str, to: &mut Vec<u8>) -> EncodeResult<usize> {
+        (**self).encode_to(text, to)
     }
 }
 
@@ -214,29 +235,29 @@ impl TextCodec for SpecificCharacterSet {
         }
     }
 
-    fn decode(&self, text: &[u8]) -> DecodeResult<String> {
+    fn decode_to(&self, text: &[u8], to: &mut String) -> DecodeResult<()> {
         match self {
-            SpecificCharacterSet::Default => DefaultCharacterSetCodec.decode(text),
-            SpecificCharacterSet::IsoIr100 => IsoIr100CharacterSetCodec.decode(text),
-            SpecificCharacterSet::IsoIr101 => IsoIr101CharacterSetCodec.decode(text),
-            SpecificCharacterSet::IsoIr109 => IsoIr109CharacterSetCodec.decode(text),
-            SpecificCharacterSet::IsoIr110 => IsoIr110CharacterSetCodec.decode(text),
-            SpecificCharacterSet::IsoIr144 => IsoIr144CharacterSetCodec.decode(text),
-            SpecificCharacterSet::IsoIr192 => Utf8CharacterSetCodec.decode(text),
-            SpecificCharacterSet::Gb18030 => Gb18030CharacterSetCodec.decode(text),
+            SpecificCharacterSet::Default => DefaultCharacterSetCodec.decode_to(text, to),
+            SpecificCharacterSet::IsoIr100 => IsoIr100CharacterSetCodec.decode_to(text, to),
+            SpecificCharacterSet::IsoIr101 => IsoIr101CharacterSetCodec.decode_to(text, to),
+            SpecificCharacterSet::IsoIr109 => IsoIr109CharacterSetCodec.decode_to(text, to),
+            SpecificCharacterSet::IsoIr110 => IsoIr110CharacterSetCodec.decode_to(text, to),
+            SpecificCharacterSet::IsoIr144 => IsoIr144CharacterSetCodec.decode_to(text, to),
+            SpecificCharacterSet::IsoIr192 => Utf8CharacterSetCodec.decode_to(text, to),
+            SpecificCharacterSet::Gb18030 => Gb18030CharacterSetCodec.decode_to(text, to),
         }
     }
 
-    fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
+    fn encode_to(&self, text: &str, to: &mut Vec<u8>) -> EncodeResult<usize> {
         match self {
-            SpecificCharacterSet::Default => DefaultCharacterSetCodec.encode(text),
-            SpecificCharacterSet::IsoIr100 => IsoIr100CharacterSetCodec.encode(text),
-            SpecificCharacterSet::IsoIr101 => IsoIr101CharacterSetCodec.encode(text),
-            SpecificCharacterSet::IsoIr109 => IsoIr109CharacterSetCodec.encode(text),
-            SpecificCharacterSet::IsoIr110 => IsoIr110CharacterSetCodec.encode(text),
-            SpecificCharacterSet::IsoIr144 => IsoIr144CharacterSetCodec.encode(text),
-            SpecificCharacterSet::IsoIr192 => Utf8CharacterSetCodec.encode(text),
-            SpecificCharacterSet::Gb18030 => Gb18030CharacterSetCodec.encode(text),
+            SpecificCharacterSet::Default => DefaultCharacterSetCodec.encode_to(text, to),
+            SpecificCharacterSet::IsoIr100 => IsoIr100CharacterSetCodec.encode_to(text, to),
+            SpecificCharacterSet::IsoIr101 => IsoIr101CharacterSetCodec.encode_to(text, to),
+            SpecificCharacterSet::IsoIr109 => IsoIr109CharacterSetCodec.encode_to(text, to),
+            SpecificCharacterSet::IsoIr110 => IsoIr110CharacterSetCodec.encode_to(text, to),
+            SpecificCharacterSet::IsoIr144 => IsoIr144CharacterSetCodec.encode_to(text, to),
+            SpecificCharacterSet::IsoIr192 => Utf8CharacterSetCodec.encode_to(text, to),
+            SpecificCharacterSet::Gb18030 => Gb18030CharacterSetCodec.encode_to(text, to),
         }
     }
 }
@@ -271,14 +292,16 @@ macro_rules! decl_character_set {
                 $term
             }
 
-            fn decode(&self, text: &[u8]) -> DecodeResult<String> {
-                $val.decode(text, DecoderTrap::Call(decode_text_trap))
+            fn decode_to(&self, text: &[u8], to: &mut String) -> DecodeResult<()> {
+                $val.decode_to(text, DecoderTrap::Call(decode_text_trap), to)
                     .map_err(|message| DecodeCustomSnafu { message }.build())
             }
 
-            fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
-                $val.encode(text, EncoderTrap::Strict)
-                    .map_err(|message| EncodeCustomSnafu { message }.build())
+            fn encode_to(&self, text: &str, to: &mut Vec<u8>) -> EncodeResult<usize> {
+                let prev_len = to.len();
+                $val.encode_to(text, EncoderTrap::Strict, to)
+                    .map_err(|message| EncodeCustomSnafu { message }.build())?;
+                Ok(to.len().saturating_sub(prev_len))
             }
         }
     };
@@ -293,18 +316,20 @@ impl TextCodec for DefaultCharacterSetCodec {
         "ISO_IR 6"
     }
 
-    fn decode(&self, text: &[u8]) -> DecodeResult<String> {
+    fn decode_to(&self, text: &[u8], to: &mut String) -> DecodeResult<()> {
         // Using 8859-1 because it is a superset. Reiterations of this impl
         // should check for invalid character codes (#40).
         ISO_8859_1
-            .decode(text, DecoderTrap::Call(decode_text_trap))
+            .decode_to(text, DecoderTrap::Call(decode_text_trap), to)
             .map_err(|message| DecodeCustomSnafu { message }.build())
     }
 
-    fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
+    fn encode_to(&self, text: &str, to: &mut Vec<u8>) -> EncodeResult<usize> {
+        let prev_len = to.len();
         ISO_8859_1
-            .encode(text, EncoderTrap::Strict)
-            .map_err(|message| EncodeCustomSnafu { message }.build())
+            .encode_to(text, EncoderTrap::Strict, to)
+            .map_err(|message| EncodeCustomSnafu { message }.build())?;
+        Ok(to.len().saturating_sub(prev_len))
     }
 }
 
