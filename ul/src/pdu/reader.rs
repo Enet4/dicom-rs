@@ -279,6 +279,8 @@ where
                 .read_u16::<BigEndian>()
                 .context(ReadReservedSnafu { bytes: 2_u32 })?;
 
+            let mut txt_buf = String::new();
+
             // 11-26 - Reserved - This reserved field shall be sent with a value identical to
             // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
             // shall not be tested when received.
@@ -288,13 +290,12 @@ where
                 .context(ReadPduFieldSnafu {
                     field: "Called-AE-title",
                 })?;
-            let called_ae_title = codec
-                .decode(&ae_bytes)
+            codec
+                .decode_to(&ae_bytes, &mut txt_buf)
                 .context(DecodeTextSnafu {
                     field: "Called-AE-title",
-                })?
-                .trim()
-                .to_string();
+                })?;
+            let called_ae_title = txt_buf.trim().to_string();
 
             // 27-42 - Reserved - This reserved field shall be sent with a value identical to
             // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
@@ -305,13 +306,13 @@ where
                 .context(ReadPduFieldSnafu {
                     field: "Calling-AE-title",
                 })?;
-            let calling_ae_title = codec
-                .decode(&ae_bytes)
+            txt_buf.clear();
+            codec
+                .decode_to(&ae_bytes, &mut txt_buf)
                 .context(DecodeTextSnafu {
                     field: "Calling-AE-title",
-                })?
-                .trim()
-                .to_string();
+                })?;
+            let calling_ae_title = txt_buf.trim().to_string();
 
             // 43-74 - Reserved - This reserved field shall be sent with a value identical to
             // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value

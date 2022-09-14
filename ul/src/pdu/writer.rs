@@ -141,17 +141,18 @@ where
                     .write_u16::<BigEndian>(0x00)
                     .context(WriteReservedSnafu { bytes: 2_u32 })?;
 
+                let mut buf = Vec::with_capacity(16);
+
                 // 11-26 - Called-AE-title - Destination DICOM Application Name. It shall be
                 // encoded as 16 characters as defined by the ISO 646:1990-Basic G0 Set with
                 // leading and trailing spaces (20H) being non-significant. The value made of 16
                 // spaces (20H) meaning "no Application Name specified" shall not be used. For a
                 // complete description of the use of this field, see Section 7.1.1.4.
-                let mut ae_title_bytes =
-                    codec.encode(called_ae_title).context(EncodeFieldSnafu {
-                        field: "Called-AE-title",
-                    })?;
-                ae_title_bytes.resize(16, b' ');
-                writer.write_all(&ae_title_bytes).context(WriteFieldSnafu {
+                codec.encode_to(called_ae_title, &mut buf).context(EncodeFieldSnafu {
+                    field: "Called-AE-title",
+                })?;
+                buf.resize(16, b' ');
+                writer.write_all(&buf).context(WriteFieldSnafu {
                     field: "Called-AE-title",
                 })?;
 
@@ -160,12 +161,12 @@ where
                 // trailing spaces (20H) being non-significant. The value made of 16 spaces
                 // (20H) meaning "no Application Name specified" shall not be used. For a
                 // complete description of the use of this field, see Section 7.1.1.3.
-                let mut ae_title_bytes =
-                    codec.encode(calling_ae_title).context(EncodeFieldSnafu {
-                        field: "Calling-AE-title",
-                    })?;
-                ae_title_bytes.resize(16, b' ');
-                writer.write_all(&ae_title_bytes).context(WriteFieldSnafu {
+                buf.clear();
+                codec.encode_to(calling_ae_title, &mut buf).context(EncodeFieldSnafu {
+                    field: "Calling-AE-title",
+                })?;
+                buf.resize(16, b' ');
+                writer.write_all(&buf).context(WriteFieldSnafu {
                     field: "Called-AE-title",
                 })?;
 
@@ -238,26 +239,27 @@ where
                     .write_u16::<BigEndian>(0x00)
                     .context(WriteReservedSnafu { bytes: 2_u32 })?;
 
+                let mut buf = Vec::with_capacity(16);
+
                 // 11-26 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received.
-                let mut ae_title_bytes =
-                    codec.encode(called_ae_title).context(EncodeFieldSnafu {
-                        field: "Called-AE-title",
-                    })?;
-                ae_title_bytes.resize(16, b' ');
-                writer.write_all(&ae_title_bytes).context(WriteFieldSnafu {
+                codec.encode_to(called_ae_title, &mut buf).context(EncodeFieldSnafu {
+                    field: "Called-AE-title",
+                })?;
+                buf.resize(16, b' ');
+                writer.write_all(&buf).context(WriteFieldSnafu {
                     field: "Called-AE-title",
                 })?;
                 // 27-42 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received.
-                let mut ae_title_bytes =
-                    codec.encode(calling_ae_title).context(EncodeFieldSnafu {
-                        field: "Calling-AE-title",
-                    })?;
-                ae_title_bytes.resize(16, b' ');
-                writer.write_all(&ae_title_bytes).context(WriteFieldSnafu {
+                buf.clear();
+                codec.encode_to(calling_ae_title, &mut buf).context(EncodeFieldSnafu {
+                    field: "Calling-AE-title",
+                })?;
+                buf.resize(16, b' ');
+                writer.write_all(&buf).context(WriteFieldSnafu {
                     field: "Calling-AE-title",
                 })?;
 
@@ -602,17 +604,12 @@ fn write_pdu_variable_application_context_name(
         // field see Section 7.1.1.2. Application-context-names are structured as
         // UIDs as defined in PS3.5 (see Annex A for an overview of this concept).
         // DICOM Application-context-names are registered in PS3.7.
-        writer
-            .write_all(
-                &codec
-                    .encode(application_context_name)
-                    .context(EncodeFieldSnafu {
-                        field: "Application-context-name",
-                    })?,
-            )
-            .context(WriteFieldSnafu {
+        codec
+            .encode_to(application_context_name, writer)
+            .context(EncodeFieldSnafu {
                 field: "Application-context-name",
             })
+            .map(|_| ())
     })
     .context(WriteChunkSnafu {
         name: "Application Context Item",
@@ -697,17 +694,12 @@ fn write_pdu_variable_presentation_context_proposed(
             // UIDs as defined in PS3.5
             // (see Annex B for an overview of this concept).
             // DICOM Abstract-syntax-names are registered in PS3.4.
-            writer
-                .write_all(
-                    &codec
-                        .encode(&presentation_context.abstract_syntax)
-                        .context(EncodeFieldSnafu {
-                            field: "Abstract-syntax-name",
-                        })?,
-                )
-                .context(WriteFieldSnafu {
+            codec
+                .encode_to(&presentation_context.abstract_syntax, writer)
+                .context(EncodeFieldSnafu {
                     field: "Abstract-syntax-name",
                 })
+                .map(|_| ())
         })
         .context(WriteChunkSnafu {
             name: "Abstract Syntax Item",
@@ -735,13 +727,12 @@ fn write_pdu_variable_presentation_context_proposed(
                 // structured as UIDs as defined in PS3.5 (see Annex B for an
                 // overview of this concept). DICOM Transfer-syntax-names are
                 // registered in PS3.5.
-                writer
-                    .write_all(&codec.encode(transfer_syntax).context(EncodeFieldSnafu {
-                        field: "Transfer-syntax-name",
-                    })?)
-                    .context(WriteFieldSnafu {
+                codec
+                    .encode_to(transfer_syntax, writer)
+                    .context(EncodeFieldSnafu {
                         field: "Transfer-syntax-name",
                     })
+                    .map(|_| ())
             })
             .context(WriteChunkSnafu {
                 name: "Transfer Syntax Sub-Item",
@@ -837,15 +828,9 @@ fn write_pdu_variable_presentation_context_result(
             // use of this field see Section 7.1.1.14. Transfer-syntax-names are structured as UIDs
             // as defined in PS3.5 (see Annex B for an overview of this concept). DICOM
             // Transfer-syntax-names are registered in PS3.5.
-            writer
-                .write_all(
-                    &codec
-                        .encode(&presentation_context.transfer_syntax)
-                        .context(EncodeFieldSnafu {
-                            field: "Transfer-syntax-name",
-                        })?,
-                )
-                .context(WriteFieldSnafu {
+            codec
+                .encode_to(&presentation_context.transfer_syntax, writer)
+                .context(EncodeFieldSnafu {
                     field: "Transfer-syntax-name",
                 })?;
 
@@ -937,15 +922,12 @@ fn write_pdu_variable_user_variables(
                         // the Implementation-version-name of the Association-acceptor as defined in
                         // Section D.3.3.2. It shall be encoded as a string of 1 to 16 ISO 646:1990
                         // (basic G0 set) characters.
-                        writer
-                            .write_all(&codec.encode(implementation_version_name).context(
-                                EncodeFieldSnafu {
-                                    field: "Implementation-version-name",
-                                },
-                            )?)
-                            .context(WriteFieldSnafu {
+                        codec
+                            .encode_to(implementation_version_name, writer)
+                            .context(EncodeFieldSnafu {
                                 field: "Implementation-version-name",
                             })
+                            .map(|_| ())
                     })
                     .context(WriteChunkSnafu {
                         name: "Implementation-version-name",
@@ -968,15 +950,12 @@ fn write_pdu_variable_user_variables(
                         // the Implementation-class-uid of the Association-acceptor as defined in
                         // Section D.3.3.2. The Implementation-class-uid field is structured as a
                         // UID as defined in PS3.5.
-                        writer
-                            .write_all(&codec.encode(implementation_class_uid).context(
-                                EncodeFieldSnafu {
-                                    field: "Implementation-class-uid",
-                                },
-                            )?)
-                            .context(WriteFieldSnafu {
+                        codec
+                            .encode_to(implementation_class_uid, writer)
+                            .context(EncodeFieldSnafu {
                                 field: "Implementation-class-uid",
                             })
+                            .map(|_| ())
                     })
                     .context(WriteChunkSnafu {
                         name: "Implementation-class-uid",
