@@ -213,8 +213,11 @@ pub trait StatefulDecode {
 /// according to an object's transfer syntax.
 pub type DynStatefulDecoder<S> = StatefulDecoder<DynDecoder<S>, S>;
 
-/// The initial capacity of the `DicomParser` buffer.
+/// The initial capacity of the `DicomParser` byte buffer.
 const PARSER_BUFFER_CAPACITY: usize = 2048;
+
+/// The initial capacity of the `DicomParser` text buffer.
+const PARSER_TEXT_BUFFER_CAPACITY: usize = 64;
 
 /// A stateful abstraction for the full DICOM content reading process.
 /// This type encapsulates the necessary codecs in order
@@ -232,6 +235,7 @@ pub struct StatefulDecoder<D, S, BD = BasicDecoder, TC = SpecificCharacterSet> {
     text: TC,
     dt_utc_offset: FixedOffset,
     buffer: Vec<u8>,
+    text_buffer: String,
     /// the assumed position of the reader source
     position: u64,
 }
@@ -293,6 +297,7 @@ where
             text: DefaultCharacterSetCodec,
             dt_utc_offset: FixedOffset::east(0),
             buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
+            text_buffer: String::with_capacity(PARSER_TEXT_BUFFER_CAPACITY),
             position: 0,
         }
     }
@@ -324,6 +329,7 @@ where
             text,
             dt_utc_offset: FixedOffset::east(0),
             buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
+            text_buffer: String::with_capacity(PARSER_TEXT_BUFFER_CAPACITY),
             position,
         }
     }
@@ -543,17 +549,21 @@ where
             return Ok(PrimitiveValue::Empty);
         }
 
+        let txt_buf = &mut self.text_buffer;
+        let position = self.position;
+        let codec = DefaultCharacterSetCodec;
+
         let parts: Result<_> = buf
             .split(|b| *b == b'\\')
             .map(|slice| {
-                let codec = DefaultCharacterSetCodec;
-                let txt = codec.decode(slice).context(DecodeTextSnafu {
-                    position: self.position,
-                })?;
-                let txt = txt.trim();
-                txt.parse::<f64>().context(ReadFloatSnafu {
-                    position: self.position,
-                })
+                txt_buf.clear();
+                codec
+                    .decode_to(slice, txt_buf)
+                    .context(DecodeTextSnafu { position })?;
+                txt_buf
+                    .trim()
+                    .parse::<f64>()
+                    .context(ReadFloatSnafu { position })
             })
             .collect();
         self.position += len as u64;
@@ -612,16 +622,19 @@ where
             return Ok(PrimitiveValue::Empty);
         }
 
+        let txt_buf = &mut self.text_buffer;
+        let position = self.position;
+        let codec = DefaultCharacterSetCodec;
+
         let parts: Result<_> = buf
             .split(|v| *v == b'\\')
             .map(|slice| {
-                let codec = DefaultCharacterSetCodec;
-                let txt = codec.decode(slice).context(DecodeTextSnafu {
-                    position: self.position,
+                txt_buf.clear();
+                codec.decode_to(slice, txt_buf).context(DecodeTextSnafu {
+                    position,
                 })?;
-                let txt = txt.trim();
-                txt.parse::<i32>().context(ReadIntSnafu {
-                    position: self.position,
+                txt_buf.trim().parse::<i32>().context(ReadIntSnafu {
+                    position,
                 })
             })
             .collect();

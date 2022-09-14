@@ -329,25 +329,26 @@ where
 
     fn encode_text_element(&mut self, text: &str, de: DataElementHeader) -> Result<()> {
         // encode it in memory first so that we know the real length
-        let mut encoded_value = self.convert_text_untrailed(text, de.vr)?;
+        self.buffer.clear();
+        let bytes_written = self.convert_text_untrailed_to_buffer(text, de.vr)?;
         // pad to even length
-        if encoded_value.len() % 2 == 1 {
+        if bytes_written % 2 == 1 {
             let pad = if de.vr == VR::UI { b'\0' } else { b' ' };
-            encoded_value.push(pad);
+            self.buffer.push(pad);
         }
 
         // now we can write the header with the correct length
         self.encode_element_header(DataElementHeader {
             tag: de.tag,
             vr: de.vr,
-            len: Length(encoded_value.len() as u32),
+            len: Length(bytes_written as u32),
         })?;
         self.to
-            .write_all(&encoded_value)
+            .write_all(&self.buffer)
             .context(WriteValueDataSnafu {
                 position: self.bytes_written,
             })?;
-        self.bytes_written += encoded_value.len() as u64;
+        self.bytes_written += bytes_written as u64;
 
         // if element is Specific Character Set,
         // update the text codec
@@ -364,8 +365,7 @@ where
     {
         self.buffer.clear();
         for (i, t) in texts.iter().enumerate() {
-            self.buffer
-                .extend_from_slice(&self.convert_text_untrailed(t.as_ref(), de.vr)?);
+            self.convert_text_untrailed_to_buffer(t.as_ref(), de.vr)?;
             if i < texts.len() - 1 {
                 self.buffer.push(b'\\');
             }
@@ -427,26 +427,29 @@ where
         Ok(())
     }
 
+    /// Encode text and pushes it into the writer
+    /// without trailing bytes.
     fn encode_text_untrailed(&mut self, text: &str, vr: VR) -> Result<usize> {
-        let data = self.convert_text_untrailed(text, vr)?;
-        self.to.write_all(&data).context(WriteValueDataSnafu {
+        self.buffer.clear();
+        let bytes_written = self.convert_text_untrailed_to_buffer(text, vr)?;
+        self.to.write_all(&self.buffer).context(WriteValueDataSnafu {
             position: self.bytes_written,
         })?;
-        self.bytes_written += data.len() as u64;
-        Ok(data.len())
+        self.bytes_written += bytes_written as u64;
+        Ok(bytes_written)
     }
 
-    fn convert_text_untrailed(&self, text: &str, vr: VR) -> Result<Vec<u8>> {
+    fn convert_text_untrailed_to_buffer(&mut self, text: &str, vr: VR) -> Result<usize> {
         match vr {
             VR::AE | VR::AS | VR::CS | VR::DA | VR::DS | VR::DT | VR::IS | VR::TM | VR::UI => {
                 // these VRs always use the default character repertoire
                 DefaultCharacterSetCodec
-                    .encode(text)
+                    .encode_to(text, &mut self.buffer)
                     .context(EncodeTextSnafu {
                         position: self.bytes_written,
                     })
             }
-            _ => self.text.encode(text).context(EncodeTextSnafu {
+            _ => self.text.encode_to(text, &mut self.buffer).context(EncodeTextSnafu {
                 position: self.bytes_written,
             }),
         }
