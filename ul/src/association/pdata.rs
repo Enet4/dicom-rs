@@ -233,7 +233,7 @@ where
 /// # Ok(())
 /// # }
 #[must_use]
-pub struct PDataReader<R: Read> {
+pub struct PDataReader<R> {
     buffer: VecDeque<u8>,
     stream: R,
     presentation_context_id: Option<u8>,
