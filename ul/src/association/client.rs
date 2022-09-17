@@ -21,7 +21,7 @@ use crate::{
 };
 use snafu::{ensure, ResultExt, Snafu};
 
-use super::pdata::PDataWriter;
+use super::pdata::{PDataWriter, PDataReader};
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -488,6 +488,15 @@ impl ClientAssociation {
             presentation_context_id,
             self.acceptor_max_pdu_length,
         )
+    }
+
+    /// Prepare a P-Data reader for receiving
+    /// one or more data item PDUs.
+    ///
+    /// Returns a reader which automatically
+    /// receives more data PDUs once the bytes collected are consumed.
+    pub fn receive_pdata(&mut self) -> PDataReader<&mut TcpStream> {
+        PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
     }
 
     fn release_impl(&mut self) -> Result<()> {

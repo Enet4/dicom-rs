@@ -1,6 +1,11 @@
-use std::io::Write;
+use std::{
+    collections::VecDeque,
+    io::{Read, Write},
+};
 
-use crate::pdu::reader::PDU_HEADER_SIZE;
+use tracing::warn;
+
+use crate::{pdu::reader::PDU_HEADER_SIZE, read_pdu, Pdu};
 
 /// A P-Data value writer.
 ///
@@ -194,6 +199,114 @@ where
     }
 }
 
+/// A P-Data value reader.
+///
+/// This exposes an API which provides a byte stream of data
+/// by iteratively collecting Data messages from another node.
+/// Using this as a [standard reader](std::io::Read)
+/// will provide all incoming bytes,
+/// even if they reside in separate PDUs,
+/// until the last message is received.
+///
+/// # Example
+///
+/// Use an association's `receive_pdata` method
+/// to create a new P-Data value reader.
+///
+/// ```no_run
+/// # use std::io::Read;
+/// # use dicom_ul::association::{ClientAssociationOptions, PDataReader};
+/// # use dicom_ul::pdu::{Pdu, PDataValue, PDataValueType};
+/// # fn command_data() -> Vec<u8> { unimplemented!() }
+/// # fn dicom_data() -> &'static [u8] { unimplemented!() }
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # let mut association = ClientAssociationOptions::new()
+/// #    .establish("129.168.0.5:104")?;
+///
+/// // expecting a DICOM object which may be split into multiple PDUs,
+/// let mut pdata = association.receive_pdata();
+/// let all_pdata_bytes = {
+///     let mut v = Vec::new();
+///     pdata.read_to_end(&mut v)?;
+///     v
+/// };
+/// # Ok(())
+/// # }
+#[must_use]
+pub struct PDataReader<R> {
+    buffer: VecDeque<u8>,
+    stream: R,
+    presentation_context_id: Option<u8>,
+    max_data_length: u32,
+    last_pdu: bool,
+}
+
+impl<R> PDataReader<R>
+where
+    R: Read,
+{
+    pub fn new(stream: R, max_data_length: u32) -> Self {
+        PDataReader {
+            buffer: VecDeque::with_capacity(max_data_length as usize),
+            stream,
+            presentation_context_id: None,
+            max_data_length,
+            last_pdu: false,
+        }
+    }
+
+    /// Declare no intention to read more PDUs from the remote node.
+    ///
+    /// Attempting to read more bytes
+    /// will only consume the inner buffer and not result in
+    /// more PDUs being received.
+    pub fn stop_receiving(&mut self) -> std::io::Result<()> {
+        self.last_pdu = true;
+        Ok(())
+    }
+}
+
+impl<R> Read for PDataReader<R>
+where
+    R: Read,
+{
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.buffer.is_empty() {
+            if self.last_pdu {
+                // reached the end of PData stream
+                return Ok(0);
+            }
+
+            let pdu = read_pdu(&mut self.stream, self.max_data_length, false)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+            match pdu {
+                Pdu::PData { data } => {
+                    for pdata_value in data {
+                        self.presentation_context_id = match self.presentation_context_id {
+                            None => Some(pdata_value.presentation_context_id),
+                            Some(cid) if cid == pdata_value.presentation_context_id => Some(cid),
+                            Some(cid) => {
+                                warn!("Received PData value of presentation context {}, but should be {}", pdata_value.presentation_context_id, cid);
+                                Some(cid)
+                            }
+                        };
+                        self.buffer.extend(pdata_value.data);
+                        self.last_pdu = pdata_value.is_last;
+                    }
+                }
+                _ => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::UnexpectedEof,
+                        "Unexpected PDU type",
+                    ))
+                }
+            }
+        }
+        Read::read(&mut self.buffer, buf)
+    }
+}
+
 /// Determine the maximum length of actual PDV data
 /// when encapsulated in a PDU with the given length property.
 /// Does not account for the first 2 bytes (type + reserved).
@@ -206,13 +319,15 @@ fn calculate_max_data_len_single(pdu_len: u32) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
+    use std::collections::VecDeque;
+    use std::io::{Read, Write};
 
     use crate::pdu::reader::{read_pdu, MINIMUM_PDU_SIZE, PDU_HEADER_SIZE};
-    use crate::pdu::PDataValueType;
     use crate::pdu::Pdu;
+    use crate::pdu::{PDataValue, PDataValueType};
+    use crate::write_pdu;
 
-    use super::PDataWriter;
+    use super::{PDataReader, PDataWriter};
 
     #[test]
     fn test_write_pdata_and_finish() {
@@ -322,5 +437,44 @@ mod tests {
         }
 
         assert_eq!(cursor.len(), 0);
+    }
+
+    #[test]
+    fn test_read_large_pdata_and_finish() {
+        let presentation_context_id = 32;
+
+        let my_data: Vec<_> = (0..9000).map(|x: u32| x as u8).collect();
+        let pdata_1 = vec![PDataValue {
+            value_type: PDataValueType::Data,
+            data: my_data[0..3000].to_owned(),
+            presentation_context_id,
+            is_last: false,
+        }];
+        let pdata_2 = vec![PDataValue {
+            value_type: PDataValueType::Data,
+            data: my_data[3000..6000].to_owned(),
+            presentation_context_id,
+            is_last: false,
+        }];
+        let pdata_3 = vec![PDataValue {
+            value_type: PDataValueType::Data,
+            data: my_data[6000..].to_owned(),
+            presentation_context_id,
+            is_last: true,
+        }];
+
+        let mut pdu_stream = VecDeque::new();
+
+        // write some PDUs
+        write_pdu(&mut pdu_stream, &Pdu::PData { data: pdata_1 }).unwrap();
+        write_pdu(&mut pdu_stream, &Pdu::PData { data: pdata_2 }).unwrap();
+        write_pdu(&mut pdu_stream, &Pdu::PData { data: pdata_3 }).unwrap();
+
+        let mut buf = Vec::new();
+        {
+            let mut reader = PDataReader::new(&mut pdu_stream, MINIMUM_PDU_SIZE);
+            reader.read_to_end(&mut buf).unwrap();
+        }
+        assert_eq!(buf, my_data);
     }
 }

@@ -21,7 +21,7 @@ use crate::{
     IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
 
-use super::pdata::PDataWriter;
+use super::pdata::{PDataWriter, PDataReader};
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -532,6 +532,15 @@ impl ServerAssociation {
             presentation_context_id,
             self.requestor_max_pdu_length,
         )
+    }
+
+    /// Prepare a P-Data reader for receiving
+    /// one or more data item PDUs.
+    ///
+    /// Returns a reader which automatically
+    /// receives more data PDUs once the bytes collected are consumed.
+    pub fn receive_pdata(&mut self) -> PDataReader<&mut TcpStream> {
+        PDataReader::new(&mut self.socket, self.acceptor_max_pdu_length)
     }
 
     /// Obtain access to the inner TCP stream

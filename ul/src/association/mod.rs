@@ -23,5 +23,5 @@ pub mod server;
 pub(crate) mod pdata;
 
 pub use client::{ClientAssociation, ClientAssociationOptions};
-pub use pdata::PDataWriter;
+pub use pdata::{PDataReader, PDataWriter};
 pub use server::{ServerAssociation, ServerAssociationOptions};
