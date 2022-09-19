@@ -17,8 +17,10 @@ use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use structopt::StructOpt;
-use tracing::warn;
+use tracing::Level;
+use tracing::{debug, error, info, warn};
 use transfer_syntax::TransferSyntaxIndex;
 use walkdir::WalkDir;
 
@@ -28,6 +30,7 @@ struct App {
     /// socket address to STORE SCP (example: "127.0.0.1:104")
     addr: String,
     /// the DICOM file(s) to store
+    #[structopt(required = true)]
     files: Vec<PathBuf>,
     /// verbose mode
     #[structopt(short = "v", long = "verbose")]
@@ -68,7 +71,7 @@ fn report<E: 'static>(err: &E)
 where
     E: std::error::Error,
 {
-    eprintln!("[ERROR] {}", err);
+    error!("[ERROR] {}", err);
     if let Some(source) = err.source() {
         eprintln!();
         eprintln!("Caused by:");
@@ -129,11 +132,6 @@ fn main() {
 }
 
 fn run() -> Result<(), Error> {
-    tracing::subscriber::set_global_default(tracing_subscriber::FmtSubscriber::new())
-        .unwrap_or_else(|e| {
-            report(&e);
-        });
-
     let App {
         addr,
         files,
@@ -144,6 +142,15 @@ fn run() -> Result<(), Error> {
         max_pdu_length,
         fail_first,
     } = App::from_args();
+
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(if verbose { Level::DEBUG } else { Level::INFO })
+            .finish(),
+    )
+    .unwrap_or_else(|e| {
+        report(&e);
+    });
 
     let mut checked_files: Vec<PathBuf> = vec![];
     let mut dicom_files: Vec<DicomFile> = vec![];
@@ -165,7 +172,7 @@ fn run() -> Result<(), Error> {
 
     for file in checked_files {
         if verbose {
-            println!("Opening file '{}'...", file.display());
+            info!("Opening file '{}'...", file.display());
         }
 
         match check_file(&file) {
@@ -176,10 +183,8 @@ fn run() -> Result<(), Error> {
                 ));
                 dicom_files.push(dicom_file);
             }
-            Err(e) => {
-                if verbose {
-                    println!("Could not open file {}: {}", file.display(), e);
-                }
+            Err(_) => {
+                warn!("Could not open file {} as DICOM", file.display());
             }
         }
     }
@@ -190,7 +195,7 @@ fn run() -> Result<(), Error> {
     }
 
     if verbose {
-        println!("Establishing association with '{}'...", &addr);
+        info!("Establishing association with '{}'...", &addr);
     }
 
     let mut scu_init = ClientAssociationOptions::new();
@@ -206,7 +211,7 @@ fn run() -> Result<(), Error> {
         .context(InitScuSnafu)?;
 
     if verbose {
-        println!("Association established");
+        info!("Association established");
     }
 
     for mut file in &mut dicom_files {
@@ -234,15 +239,20 @@ fn run() -> Result<(), Error> {
         if let Some(pb) = progress_bar.as_ref() {
             pb.set_style(
                 ProgressStyle::default_bar()
-                    .template("[{elapsed_precise}] {bar:40} {pos}/{len} {msg}"),
-            )
+                    .template("[{elapsed_precise}] {bar:40} {pos}/{len} {wide_msg}")
+                    .expect("Invalid progress bar template"),
+            );
+            pb.enable_steady_tick(Duration::new(0, 480_000_000));
         };
     } else {
         progress_bar = None;
     }
 
     for file in dicom_files {
-        if let (Some(pc_selected), Some(ts_selected)) = (file.pc_selected, file.ts_selected) {
+        if let (Some(pc_selected), Some(ts_uid_selected)) = (file.pc_selected, file.ts_selected) {
+            if let Some(pb) = &progress_bar {
+                pb.set_message(file.sop_instance_uid.clone());
+            }
             let cmd = store_req_command(&file.sop_class_uid, &file.sop_instance_uid, message_id);
 
             let mut cmd_data = Vec::with_capacity(128);
@@ -254,9 +264,9 @@ fn run() -> Result<(), Error> {
 
             let mut object_data = Vec::with_capacity(2048);
             let dicom_file =
-                open_file(file.file).whatever_context("Could not open listed DICOM file")?;
+                open_file(&file.file).whatever_context("Could not open listed DICOM file")?;
             let ts_selected = TransferSyntaxRegistry
-                .get(&ts_selected)
+                .get(&ts_uid_selected)
                 .whatever_context("Unsupported file transfer syntax")?;
             dicom_file
                 .write_dataset_with_ts(&mut object_data, ts_selected)
@@ -265,7 +275,14 @@ fn run() -> Result<(), Error> {
             let nbytes = cmd_data.len() + object_data.len();
 
             if verbose {
-                println!("Sending payload (~ {} kB)...", nbytes / 1_000);
+                info!(
+                    "Sending file {} (~ {} kB), uid={}, sop={}, ts={}",
+                    file.file.display(),
+                    nbytes / 1_000,
+                    &file.sop_instance_uid,
+                    &file.sop_class_uid,
+                    ts_uid_selected,
+                );
             }
 
             if nbytes < scu.acceptor_max_pdu_length() as usize - 100 {
@@ -310,7 +327,7 @@ fn run() -> Result<(), Error> {
             }
 
             if verbose {
-                println!("Awaiting response...");
+                debug!("Awaiting response...");
             }
 
             let rsp_pdu = scu
@@ -328,7 +345,7 @@ fn run() -> Result<(), Error> {
                     )
                     .whatever_context("Could not read response from SCP")?;
                     if verbose {
-                        println!("Response: {:?}", cmd_obj);
+                        debug!("Full response: {:?}", cmd_obj);
                     }
                     let status = cmd_obj
                         .element(tags::STATUS)
@@ -343,10 +360,7 @@ fn run() -> Result<(), Error> {
                         // Success
                         0 => {
                             if verbose {
-                                println!(
-                                    "Successfully stored instance `{}`",
-                                    storage_sop_instance_uid
-                                );
+                                info!("Successfully stored instance {}", storage_sop_instance_uid);
                             }
                         }
                         // Warning
@@ -363,7 +377,7 @@ fn run() -> Result<(), Error> {
                             );
                         }
                         0xFE00 => {
-                            eprintln!(
+                            error!(
                                 "Could not store instance `{}`: operation cancelled",
                                 storage_sop_instance_uid
                             );
@@ -373,7 +387,7 @@ fn run() -> Result<(), Error> {
                             }
                         }
                         _ => {
-                            eprintln!(
+                            error!(
                                 "Failed to store instance `{}` (status code {:04X}H)",
                                 storage_sop_instance_uid, status
                             );
@@ -392,7 +406,7 @@ fn run() -> Result<(), Error> {
                 | pdu @ Pdu::ReleaseRQ
                 | pdu @ Pdu::ReleaseRP
                 | pdu @ Pdu::AbortRQ { .. } => {
-                    eprintln!("Unexpected SCP response: {:?}", pdu);
+                    error!("Unexpected SCP response: {:?}", pdu);
                     let _ = scu.abort();
                     std::process::exit(-2);
                 }
