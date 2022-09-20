@@ -17,6 +17,7 @@
 use clap::{Parser, Subcommand};
 
 mod tags;
+mod sop;
 
 /// DICOM dictionary builder
 #[derive(Debug, Parser)]
@@ -28,6 +29,7 @@ struct App {
 #[derive(Debug, Subcommand)]
 enum BuilderSubcommand {
     DataElement(tags::DataElementApp),
+    SopClass(sop::SopClassApp),
 }
 
 fn main() {
@@ -35,5 +37,5 @@ fn main() {
         App {
             command: BuilderSubcommand::DataElement(app),
         } => tags::run(app),
-    }
+    }.unwrap()
 }

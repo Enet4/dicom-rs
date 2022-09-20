@@ -2,6 +2,7 @@
 use std::{fs::{create_dir_all, File}, path::Path, io::{BufRead, BufReader, BufWriter, Write}, borrow::Cow};
 
 use clap::Parser;
+use eyre::{Result, Context};
 use heck::ToShoutySnakeCase;
 use regex::Regex;
 use serde::Serialize;
@@ -41,7 +42,7 @@ pub struct DataElementApp {
     deprecate_retired: bool,
 }
 
-pub fn run(args: DataElementApp) {
+pub fn run(args: DataElementApp) -> Result<()> {
 
     let DataElementApp {
         from,
@@ -61,38 +62,39 @@ pub fn run(args: DataElementApp) {
     let src = from;
     let dst = output;
 
-    if src.starts_with("http:") || src.starts_with("https:") {
+    let preamble: String;
+    let entries = if src.starts_with("http:") || src.starts_with("https:") {
         // read from URL
         println!("Downloading DICOM dictionary ...");
-        let resp = ureq::get(&src).call().unwrap();
+        let resp = ureq::get(&src).call()?;
         let mut data = vec![];
-        std::io::copy(&mut resp.into_reader(), &mut data).unwrap();
+        std::io::copy(&mut resp.into_reader(), &mut data)?;
 
-        let preamble = data
+        let notice = data
             .split(|&b| b == b'\n')
             .filter_map(|l| std::str::from_utf8(l).ok())
             .find(|l| l.contains("Copyright"))
             .unwrap_or("");
-        let preamble = format!(
+        preamble = format!(
             "Adapted from the DCMTK project.\nURL: <{}>\nLicense: <{}>\n{}",
-            src, "https://github.com/DCMTK/dcmtk/blob/master/COPYRIGHT", preamble,
+            src, "https://github.com/DCMTK/dcmtk/blob/master/COPYRIGHT", notice,
         );
 
-        let entries = parse_entries(&*data).unwrap();
-        println!("Writing to file ...");
-        to_code_file(dst, entries, retired, &preamble).expect("Failed to write file");
+        parse_entries(&*data)?
     } else {
         // read from File
-        let file = File::open(src).unwrap();
-        let entries = parse_entries(BufReader::new(file)).unwrap();
-        println!("Writing to file ...");
-        to_code_file(dst, entries, retired, "").expect("Failed to write file");
-    }
+        let file = File::open(src)?;
+        preamble = "".to_owned();
+        parse_entries(BufReader::new(file))?
+    };
+
+    println!("Writing to file ...");
+    to_code_file(dst, entries, retired, &preamble).context("Failed to write file")?;
+
+    Ok(())
 }
 
-type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
-
-fn parse_entries<R: BufRead>(source: R) -> DynResult<Vec<Entry>> {
+fn parse_entries<R: BufRead>(source: R) -> Result<Vec<Entry>> {
     let mut result = vec![];
 
     for line in source.lines() {
@@ -222,7 +224,7 @@ fn to_code_file<P>(
     entries: Vec<Entry>,
     retired_options: RetiredOptions,
     preamble: &str,
-) -> DynResult<()>
+) -> Result<()>
 where
     P: AsRef<Path>,
 {
