@@ -7,7 +7,7 @@ members = [
     "transfer-syntax-registry",
     "object",
     "dictionary-std",
-    "dictionary-builder",
+    "devtools/dictionary-builder",
     "dump",
     "ul",
     "scpproxy",

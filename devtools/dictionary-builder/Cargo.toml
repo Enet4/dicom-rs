@@ -2,7 +2,7 @@
 name = "dicom-dictionary-builder"
 version = "0.3.2"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
-description = "A generator of DICOM data dictionaries from standard documentation"
+description = "A generator of DICOM dictionaries from standard documentation"
 edition = "2018"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"

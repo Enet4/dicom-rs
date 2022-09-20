@@ -1,26 +1,11 @@
-//! A simple application that downloads the data element dictionary
-//! and creates code or data to reproduce it in the core library.
-//!
-//! ### How to use
-//!
-//! Simply run the application. It will automatically retrieve the dictionary
-//! from the DCMTK data dictionary and store the result in "tags.rs".
-//! Future versions will enable different kinds of outputs.
-//!
-//! Please use the `--help` flag for the full usage information.
+//! DICOM data element (tag) dictionary builder
+use std::{fs::{create_dir_all, File}, path::Path, io::{BufRead, BufReader, BufWriter, Write}, borrow::Cow};
 
-use clap::{crate_version, Arg, ArgAction, Command};
+use clap::Parser;
+use heck::ToShoutySnakeCase;
 use regex::Regex;
 use serde::Serialize;
 
-use heck::ToShoutySnakeCase;
-use std::borrow::Cow;
-use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
-use std::{
-    fs::{create_dir_all, File},
-    io::BufWriter,
-};
 
 /// url to DCMTK dic file
 const DEFAULT_LOCATION: &str =
@@ -37,56 +22,49 @@ enum RetiredOptions {
     },
 }
 
-fn command() -> Command {
-    Command::new("dicom-dictionary-builder")
-        .version(crate_version!())
-        .arg(
-            Arg::new("FROM")
-                .default_value(DEFAULT_LOCATION)
-                .help("Where to fetch the dictionary from"),
-        )
-        .arg(
-            Arg::new("no-retired")
-                .long("no-retired")
-                .help("Ignore retired tags")
-                .action(ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("deprecate-retired")
-                .long("deprecate-retired")
-                .help("Mark tag constants as deprecated")
-                .conflicts_with("no-retired")
-                .action(ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("OUTPUT")
-                .short('o')
-                .help("The path to the output file")
-                .default_value("tags.rs"),
-        )
+/// Fetch and build a dictionary of DICOM data elements
+/// (tags)
+#[derive(Debug, Parser)]
+#[clap(name = "data-element", alias = "tags")]
+pub struct DataElementApp {
+    /// Where to fetch the data element dictionary from
+    #[clap(default_value(DEFAULT_LOCATION))]
+    from: String,
+    /// The output file
+    #[clap(short('o'), default_value("tags.rs"))]
+    output: String,
+    /// Ignore retired DICOM tags
+    #[clap(long("--ignore_retired"))]
+    ignore_retired: bool,
+    /// Mark retired DICOM tags as deprecated
+    #[clap(long("--deprecate_retired"))]
+    deprecate_retired: bool,
 }
 
-fn main() {
-    let matches = command().get_matches();
+pub fn run(args: DataElementApp) {
 
-    let ignore_retired = matches.get_flag("no-retired");
+    let DataElementApp {
+        from,
+        ignore_retired,
+        deprecate_retired,
+        output,
+    } = args;
 
     let retired = if ignore_retired {
         RetiredOptions::Ignore
     } else {
         RetiredOptions::Include {
-            deprecate: matches.get_flag("deprecate-retired"),
+            deprecate: deprecate_retired,
         }
     };
 
-    let src = matches.get_one::<String>("FROM").unwrap();
-
-    let dst = Path::new(matches.get_one::<String>("OUTPUT").unwrap());
+    let src = from;
+    let dst = output;
 
     if src.starts_with("http:") || src.starts_with("https:") {
         // read from URL
         println!("Downloading DICOM dictionary ...");
-        let resp = ureq::get(src).call().unwrap();
+        let resp = ureq::get(&src).call().unwrap();
         let mut data = vec![];
         std::io::copy(&mut resp.into_reader(), &mut data).unwrap();
 
