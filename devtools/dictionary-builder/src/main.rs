@@ -6,6 +6,7 @@
 //! Run the application with one of the following subcommands:
 //! 
 //! - **`data-elements`** or **`tags`**: DICOM data element dictionary
+//! - **`sop`**: DICOM SOP class dictionary
 //! 
 //! It will automatically retrieve dictionary specifications
 //! from a credible source and output the result as a Rust code file
@@ -29,7 +30,9 @@ struct App {
 
 #[derive(Debug, Subcommand)]
 enum BuilderSubcommand {
+    #[clap(name("data-element"))]
     DataElement(tags::DataElementApp),
+    #[clap(name("sop"))]
     SopClass(sop::SopClassApp),
 }
 
@@ -38,5 +41,8 @@ fn main() {
         App {
             command: BuilderSubcommand::DataElement(app),
         } => tags::run(app),
+        App {
+            command: BuilderSubcommand::SopClass(app),
+        } => sop::run(app),
     }.unwrap()
 }

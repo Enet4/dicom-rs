@@ -23,17 +23,17 @@ const DEFAULT_LOCATION: &str =
 #[derive(Debug, Parser)]
 #[clap(name = "data-element", alias = "tags")]
 pub struct DataElementApp {
-    /// Where to fetch the data element dictionary from
+    /// Path or URL to the data element dictionary
     #[clap(default_value(DEFAULT_LOCATION))]
     from: String,
     /// The output file
     #[clap(short('o'), default_value("tags.rs"))]
     output: String,
     /// Ignore retired DICOM tags
-    #[clap(long("--ignore_retired"))]
+    #[clap(long)]
     ignore_retired: bool,
     /// Mark retired DICOM tags as deprecated
-    #[clap(long("--deprecate_retired"))]
+    #[clap(long)]
     deprecate_retired: bool,
 }
 
