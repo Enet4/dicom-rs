@@ -16,6 +16,7 @@
 
 use clap::{Parser, Subcommand};
 
+mod common;
 mod tags;
 mod sop;
 

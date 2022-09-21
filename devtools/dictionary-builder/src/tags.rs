@@ -1,27 +1,22 @@
 //! DICOM data element (tag) dictionary builder
-use std::{fs::{create_dir_all, File}, path::Path, io::{BufRead, BufReader, BufWriter, Write}, borrow::Cow};
+use std::{
+    borrow::Cow,
+    fs::{create_dir_all, File},
+    io::{BufRead, BufReader, BufWriter, Write},
+    path::Path,
+};
 
 use clap::Parser;
-use eyre::{Result, Context};
+use eyre::{Context, Result};
 use heck::ToShoutySnakeCase;
 use regex::Regex;
 use serde::Serialize;
 
+use crate::common::RetiredOptions;
 
 /// url to DCMTK dic file
 const DEFAULT_LOCATION: &str =
     "https://raw.githubusercontent.com/DCMTK/dcmtk/master/dcmdata/data/dicom.dic";
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-enum RetiredOptions {
-    /// ignore retired data attributes
-    Ignore,
-    /// include retired data attributes
-    Include {
-        /// mark constants as deprecated
-        deprecate: bool,
-    },
-}
 
 /// Fetch and build a dictionary of DICOM data elements
 /// (tags)
@@ -43,7 +38,6 @@ pub struct DataElementApp {
 }
 
 pub fn run(args: DataElementApp) -> Result<()> {
-
     let DataElementApp {
         from,
         ignore_retired,
@@ -51,13 +45,7 @@ pub fn run(args: DataElementApp) -> Result<()> {
         output,
     } = args;
 
-    let retired = if ignore_retired {
-        RetiredOptions::Ignore
-    } else {
-        RetiredOptions::Include {
-            deprecate: deprecate_retired,
-        }
-    };
+    let retired = RetiredOptions::from_flags(ignore_retired, deprecate_retired);
 
     let src = from;
     let dst = output;
