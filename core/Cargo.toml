@@ -10,7 +10,7 @@ keywords = ["dicom"]
 readme = "README.md"
 
 [dependencies]
-chrono = "0.4.6"
+chrono = "0.4.22"
 itertools = "0.10"
 num-traits = "0.2.12"
 safe-transmute = "0.11.0"
