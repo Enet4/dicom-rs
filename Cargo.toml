@@ -17,6 +17,7 @@ members = [
     "fromimage",
     "toimage",
     "storescp",
+    "findscu",
 ]
 
 # optimize JPEG decoder to run tests faster
