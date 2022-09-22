@@ -8,6 +8,7 @@ use dicom_encoding::decode::{self, DecodeFrom};
 use dicom_encoding::encode::explicit_le::ExplicitVRLittleEndianEncoder;
 use dicom_encoding::encode::EncoderFor;
 use dicom_encoding::text::{self, TextCodec};
+use dicom_encoding::TransferSyntax;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::io::{Read, Write};
@@ -103,14 +104,18 @@ type Result<T> = std::result::Result<T, Error>;
 
 /// DICOM File Meta Information Table.
 ///
-/// This data type contains the relevant parts of the file meta information table, as
-/// specified in [part 6, chapter 7][1] of the standard.
+/// This data type contains the relevant parts of the file meta information table,
+/// as specified in [part 6, chapter 7][1] of the standard.
 ///
 /// Creating a new file meta table from scratch
-/// is more easily done using a [`FileMetaTableBuilder`].
+/// is more easily done using a [`FileMetaTableBuilder`][2].
+/// When modifying the struct's public fields,
+/// it is possible to update the information group length
+/// through method [`update_information_group_length`][3].
 ///
 /// [1]: http://dicom.nema.org/medical/dicom/current/output/chtml/part06/chapter_7.html
-/// [`FileMetaTableBuilder`]: crate::meta::FileMetaTableBuilder
+/// [2]: crate::meta::FileMetaTableBuilder
+/// [3]: FileMetaTable::update_information_group_length
 #[derive(Debug, Clone, PartialEq)]
 pub struct FileMetaTable {
     /// File Meta Information Group Length
@@ -171,8 +176,81 @@ where
 }
 
 impl FileMetaTable {
+    /// Construct a file meta group table
+    /// by parsing a DICOM data set from a reader.
     pub fn from_reader<R: Read>(file: R) -> Result<Self> {
         FileMetaTable::read_from(file)
+    }
+
+    /// Set the file meta table's transfer syntax
+    /// according to the given transfer syntax descriptor.
+    ///
+    /// Extra padding to even length is trimmed.
+    ///
+    /// Note that the field `information_group_length` is _not_ updated
+    /// to consider the length of the new transfer syntax.
+    /// Should you wish to keep the field up to date,
+    /// call [`update_information_group_length`][1] afterwards.
+    ///
+    /// [1]: FileMetaTable::update_information_group_length
+    pub fn set_transfer_syntax<D, P>(&mut self, ts: &TransferSyntax<D, P>) {
+        self.transfer_syntax = ts
+            .uid()
+            .trim_end_matches(|c: char| c.is_whitespace() || c == '\0')
+            .to_string();
+    }
+
+    /// Calculate the expected file meta group length
+    /// according to the file meta attributes currently set,
+    /// and assign it to the field `information_group_length`.
+    pub fn update_information_group_length(&mut self) {
+        self.information_group_length = self.calculate_information_group_length();
+    }
+
+    /// Calculate the expected file meta group length,
+    /// ignoring `information_group_length`.
+    fn calculate_information_group_length(&self) -> u32 {
+        // determine the expected meta group size based on the given fields.
+        // attribute FileMetaInformationGroupLength is not included
+        // in the calculations intentionally
+        14 + 8
+            + dicom_len(&self.media_storage_sop_class_uid)
+            + 8
+            + dicom_len(&self.media_storage_sop_instance_uid)
+            + 8
+            + dicom_len(&self.transfer_syntax)
+            + 8
+            + dicom_len(&self.implementation_class_uid)
+            + self
+                .implementation_version_name
+                .as_ref()
+                .map(|s| 8 + s.len() as u32)
+                .unwrap_or(0)
+            + self
+                .source_application_entity_title
+                .as_ref()
+                .map(|s| 8 + s.len() as u32)
+                .unwrap_or(0)
+            + self
+                .sending_application_entity_title
+                .as_ref()
+                .map(|s| 8 + s.len() as u32)
+                .unwrap_or(0)
+            + self
+                .receiving_application_entity_title
+                .as_ref()
+                .map(|s| 8 + s.len() as u32)
+                .unwrap_or(0)
+            + self
+                .private_information_creator_uid
+                .as_ref()
+                .map(|s| 8 + s.len() as u32)
+                .unwrap_or(0)
+            + self
+                .private_information
+                .as_ref()
+                .map(|x| 12 + x.len() as u32)
+                .unwrap_or(0)
     }
 
     fn read_from<S: Read>(mut file: S) -> Result<Self> {
@@ -375,7 +453,7 @@ impl FileMetaTable {
     /// Create an iterator over the defined data elements
     /// of the file meta group,
     /// consuming the file meta table.
-    /// 
+    ///
     /// See [`to_element_iter`](FileMetaTable::to_element_iter)
     /// for a version which copies the element from the table.
     pub fn into_element_iter(self) -> impl Iterator<Item = DataElement<EmptyObject, [u8; 0]>> {
@@ -462,7 +540,7 @@ impl FileMetaTable {
     }
 
     /// Create an iterator of data elements copied from the file meta group.
-    /// 
+    ///
     /// See [`into_element_iter`](FileMetaTable::into_element_iter)
     /// for a version which consumes the table.
     pub fn to_element_iter(&self) -> impl Iterator<Item = DataElement<EmptyObject, [u8; 0]>> + '_ {
@@ -678,63 +756,9 @@ impl FileMetaTableBuilder {
             IMPLEMENTATION_CLASS_UID.to_string()
         });
 
-        fn dicom_len<T: AsRef<str>>(x: T) -> u32 {
-            let o = x.as_ref().len() as u32;
-            if o % 2 == 1 {
-                o + 1
-            } else {
-                o
-            }
-        }
-
-        let information_group_length = match self.information_group_length {
-            Some(e) => e,
-            None => {
-                // determine the expected meta group size based on the given fields.
-                // FileMetaInformationGroupLength is not included here
-
-                14 + 8
-                    + dicom_len(&media_storage_sop_class_uid)
-                    + 8
-                    + dicom_len(&media_storage_sop_instance_uid)
-                    + 8
-                    + dicom_len(&transfer_syntax)
-                    + 8
-                    + dicom_len(&implementation_class_uid)
-                    + implementation_version_name
-                        .as_ref()
-                        .map(|s| 8 + s.len() as u32)
-                        .unwrap_or(0)
-                    + self
-                        .source_application_entity_title
-                        .as_ref()
-                        .map(|s| 8 + s.len() as u32)
-                        .unwrap_or(0)
-                    + self
-                        .sending_application_entity_title
-                        .as_ref()
-                        .map(|s| 8 + s.len() as u32)
-                        .unwrap_or(0)
-                    + self
-                        .receiving_application_entity_title
-                        .as_ref()
-                        .map(|s| 8 + s.len() as u32)
-                        .unwrap_or(0)
-                    + self
-                        .private_information_creator_uid
-                        .as_ref()
-                        .map(|s| 8 + s.len() as u32)
-                        .unwrap_or(0)
-                    + self
-                        .private_information
-                        .as_ref()
-                        .map(|x| 12 + x.len() as u32)
-                        .unwrap_or(0)
-            }
-        };
-
-        Ok(FileMetaTable {
-            information_group_length,
+        let mut table = FileMetaTable {
+            // placeholder value which will be replaced on update
+            information_group_length: 0x00,
             information_version,
             media_storage_sop_class_uid,
             media_storage_sop_instance_uid,
@@ -746,8 +770,15 @@ impl FileMetaTableBuilder {
             receiving_application_entity_title: self.receiving_application_entity_title,
             private_information_creator_uid: self.private_information_creator_uid,
             private_information: self.private_information,
-        })
+        };
+        table.update_information_group_length();
+        debug_assert!(table.information_group_length > 0);
+        Ok(table)
     }
+}
+
+fn dicom_len<T: AsRef<str>>(x: T) -> u32 {
+    (x.as_ref().len() as u32 + 1) & !1
 }
 
 #[cfg(test)]
@@ -924,6 +955,8 @@ mod tests {
             private_information: None,
         };
 
+        assert_eq!(table.calculate_information_group_length(), 200);
+
         let gt = vec![
             // Information Group Length
             DataElement::new(Tag(0x0002, 0x0000), VR::UL, dicom_value!(U32, 200)),
@@ -967,5 +1000,28 @@ mod tests {
 
         let elems: Vec<_> = table.into_element_iter().collect();
         assert_eq!(elems, gt);
+    }
+
+    #[test]
+    fn update_table_with_length() {
+        let mut table = FileMetaTable {
+            information_group_length: 55, // dummy value
+            information_version: [0u8, 1u8],
+            media_storage_sop_class_uid: "1.2.840.10008.5.1.4.1.1.1\0".to_owned(),
+            media_storage_sop_instance_uid:
+                "1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567\0".to_owned(),
+            transfer_syntax: "1.2.840.10008.1.2.1\0".to_owned(),
+            implementation_class_uid: "1.2.345.6.7890.1.234".to_owned(),
+            implementation_version_name: Some("RUSTY_DICOM_269 ".to_owned()),
+            source_application_entity_title: Some("".to_owned()),
+            sending_application_entity_title: None,
+            receiving_application_entity_title: None,
+            private_information_creator_uid: None,
+            private_information: None,
+        };
+
+        table.update_information_group_length();
+
+        assert_eq!(table.information_group_length, 200);
     }
 }
