@@ -298,6 +298,14 @@ impl<O> FileDicomObject<O> {
         &self.meta
     }
 
+    /// Retrieve a mutable reference to the processed meta header table.
+    /// 
+    /// Considerable care should be taken when modifying this table,
+    /// as it may influence object reading and writing operations.
+    pub fn meta_mut(&mut self) -> &mut FileMetaTable {
+        &mut self.meta
+    }
+
     /// Retrieve the inner DICOM object structure, discarding the meta table.
     pub fn into_inner(self) -> O {
         self.obj
