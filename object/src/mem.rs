@@ -466,6 +466,7 @@ where
     ///
     /// At the moment, this is sure to return `None`, because the meta
     /// table is kept in a separate wrapper value.
+    #[deprecated(since = "0.5.3", note = "Always returns None, see `FileDicomObject::meta` instead")]
     pub fn meta(&self) -> Option<&FileMetaTable> {
         None
     }
