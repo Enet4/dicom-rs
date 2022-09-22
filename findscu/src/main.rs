@@ -1,6 +1,8 @@
+use clap::Parser;
 use dicom_core::{dicom_value, smallvec};
 use dicom_core::{DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::tags;
+use dicom_dump::DumpOptions;
 use dicom_encoding::transfer_syntax;
 use dicom_object::{mem::InMemDicomObject, open_file, StandardDataDictionary};
 use dicom_transfer_syntax_registry::{entries, TransferSyntaxRegistry};
@@ -10,56 +12,133 @@ use dicom_ul::{
     pdu::{PDataValue, PDataValueType},
 };
 use smallvec::smallvec;
+use snafu::{prelude::*, ErrorCompat};
+use std::io::{stderr, Read};
 use std::path::PathBuf;
-use structopt::StructOpt;
+use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 
 /// DICOM C-FIND SCU
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct App {
     /// socket address to FIND SCP (example: "127.0.0.1:1045")
     addr: String,
     /// the DICOM file representing the query object
     file: PathBuf,
     /// verbose mode
-    #[structopt(short = "v", long = "verbose")]
+    #[clap(short = 'v', long = "verbose")]
     verbose: bool,
-    /// the C-FIND-RQ message ID
-    #[structopt(short = "m", long = "message-id", default_value = "1")]
-    message_id: u16,
     /// the calling AE title
-    #[structopt(long = "calling-ae-title", default_value = "FIND-SCU")]
+    #[clap(long = "calling-ae-title", default_value = "FIND-SCU")]
     calling_ae_title: String,
     /// the called AE title
-    #[structopt(long = "called-ae-title", default_value = "ANY-SCP")]
+    #[clap(long = "called-ae-title", default_value = "ANY-SCP")]
     called_ae_title: String,
     /// the maximum PDU length
-    #[structopt(long = "max-pdu-length", default_value = "16384")]
+    #[clap(long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn report<E: 'static>(err: &E)
+where
+    E: std::error::Error,
+{
+    error!("{}", err);
+    if let Some(source) = err.source() {
+        eprintln!();
+        eprintln!("Caused by:");
+        for (i, e) in std::iter::successors(Some(source), |e| e.source()).enumerate() {
+            eprintln!("   {}: {}", i, e);
+        }
+    }
+}
+
+fn report_backtrace<E: 'static>(err: &E)
+where
+    E: std::error::Error,
+    E: ErrorCompat,
+{
+    let env_backtrace = std::env::var("RUST_BACKTRACE").unwrap_or_default();
+    let env_lib_backtrace = std::env::var("RUST_LIB_BACKTRACE").unwrap_or_default();
+    if env_lib_backtrace == "1" || (env_backtrace == "1" && env_lib_backtrace != "0") {
+        if let Some(backtrace) = ErrorCompat::backtrace(&err) {
+            eprintln!();
+            eprintln!("Backtrace:");
+            eprintln!("{}", backtrace);
+        }
+    }
+}
+
+fn report_with_backtrace<E: 'static>(err: E)
+where
+    E: std::error::Error,
+    E: ErrorCompat,
+{
+    report(&err);
+    report_backtrace(&err);
+}
+
+fn main() {
+    run().unwrap_or_else(|err| {
+        report_with_backtrace(err);
+        std::process::exit(-2);
+    });
+}
+
+#[derive(Debug, Snafu)]
+enum Error {
+    /// Could not initialize SCU
+    InitScu {
+        source: dicom_ul::association::client::Error,
+    },
+
+    /// Could not construct DICOM command
+    CreateCommand { source: dicom_object::Error },
+
+    /// Could not read DICOM command
+    ReadCommand { source: dicom_object::Error },
+
+    /// Could not dump DICOM output
+    DumpOutput { source: std::io::Error },
+
+    #[snafu(whatever, display("{}", message))]
+    Other {
+        message: String,
+        #[snafu(source(from(Box<dyn std::error::Error + 'static>, Some)))]
+        source: Option<Box<dyn std::error::Error + 'static>>,
+    },
+}
+
+fn run() -> Result<(), Error> {
     let App {
         addr,
         file,
         verbose,
-        message_id,
         calling_ae_title,
         called_ae_title,
         max_pdu_length,
     } = App::from_args();
 
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(if verbose { Level::DEBUG } else { Level::INFO })
+            .finish(),
+    )
+    .unwrap_or_else(|e| {
+        report(&e);
+    });
+
     if verbose {
-        println!("Opening file '{}'...", file.display());
+        info!("Opening file '{}'...", file.display());
     }
 
-    let dicom_file = open_file(file)?;
+    let dicom_file = open_file(file).context(CreateCommandSnafu)?;
 
     // Study Root Query/Retrieve Information Model – FIND
     let abstract_syntax = "1.2.840.10008.5.1.4.1.2.2.1";
 
     if verbose {
-        println!("Establishing association with '{}'...", &addr);
+        info!("Establishing association with '{}'...", &addr);
     }
 
     let mut scu = ClientAssociationOptions::new()
@@ -67,16 +146,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .calling_ae_title(calling_ae_title)
         .called_ae_title(called_ae_title)
         .max_pdu_length(max_pdu_length)
-        .establish(addr)?;
+        .establish(addr)
+        .context(InitScuSnafu)?;
 
     if verbose {
-        println!("Association established");
+        info!("Association established");
     }
 
     let pc_selected = if let Some(pc_selected) = scu.presentation_contexts().first() {
         pc_selected
     } else {
-        eprintln!("Could not choose a presentation context");
+        error!("Could not choose a presentation context");
         let _ = scu.abort();
         std::process::exit(-2);
     };
@@ -85,24 +165,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ts = if let Some(ts) = TransferSyntaxRegistry.get(&pc_selected.transfer_syntax) {
         ts
     } else {
-        eprintln!("Poorly negotiated transfer syntax");
+        error!("Poorly negotiated transfer syntax");
         let _ = scu.abort();
         std::process::exit(-2);
     };
 
     if verbose {
-        println!("Transfer Syntax: {}", ts.name());
+        debug!("Transfer Syntax: {}", ts.name());
     }
 
-    let cmd = find_req_command("1.2.840.10008.5.1.4.1.2.2.1\0", message_id);
+    let cmd = find_req_command("1.2.840.10008.5.1.4.1.2.2.1\0", 1);
 
     let mut cmd_data = Vec::with_capacity(128);
-    cmd.write_dataset_with_ts(&mut cmd_data, &entries::IMPLICIT_VR_LITTLE_ENDIAN.erased())?;
+    cmd.write_dataset_with_ts(&mut cmd_data, &entries::IMPLICIT_VR_LITTLE_ENDIAN.erased())
+        .whatever_context("Failed to write command")?;
 
     let implicit_vr_le = entries::IMPLICIT_VR_LITTLE_ENDIAN.erased();
 
     let mut iod_data = Vec::with_capacity(128);
-    dicom_file.write_dataset_with_ts(&mut iod_data, &implicit_vr_le)?;
+    dicom_file
+        .write_dataset_with_ts(&mut iod_data, &implicit_vr_le)
+        .whatever_context("failed to write identifier dataset")?;
 
     let nbytes = cmd_data.len() + iod_data.len();
 
@@ -118,7 +201,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             data: cmd_data,
         }],
     };
-    scu.send(&pdu)?;
+    scu.send(&pdu).whatever_context("Could not send command")?;
 
     let pdu = Pdu::PData {
         data: vec![PDataValue {
@@ -128,14 +211,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             data: iod_data,
         }],
     };
-    scu.send(&pdu)?;
+    scu.send(&pdu)
+        .whatever_context("Could not send C-Find request")?;
 
     if verbose {
-        println!("Awaiting response...");
+        debug!("Awaiting response...");
     }
 
+    let mut i = 0;
     loop {
-        let rsp_pdu = scu.receive()?;
+        let rsp_pdu = scu
+            .receive()
+            .whatever_context("Failed to receive response from remote node")?;
 
         match rsp_pdu {
             Pdu::PData { data } => {
@@ -144,43 +231,48 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let cmd_obj = InMemDicomObject::read_dataset_with_ts(
                     &data_value.data[..],
                     &entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
-                )?;
+                )
+                .context(ReadCommandSnafu)?;
                 if verbose {
-                    println!("Response: {:?}", cmd_obj);
+                    eprintln!("Match #{} Response command:", i);
+                    DumpOptions::new()
+                        .dump_object_to(stderr(), &cmd_obj)
+                        .context(DumpOutputSnafu)?;
                 }
-                let status = cmd_obj.element(tags::STATUS)?.to_int::<u16>()?;
+                let status = cmd_obj
+                    .element(tags::STATUS)
+                    .whatever_context("status code from response is missing")?
+                    .to_int::<u16>()
+                    .whatever_context("failed to read status code")?;
                 if status == 0 {
                     if verbose {
-                        println!("Matching is complete");
+                        debug!("Matching is complete");
                     }
                     break;
                 } else if status == 0xFF00 || status == 0xFF01 {
                     if verbose {
-                        println!("Operation pending: {:x}", status);
+                        debug!("Operation pending: {:x}", status);
                     }
 
                     // fetch DICOM data
-                    // !!! does not handle last = false
-                    let rsp_iod = scu.receive()?;
-                    match rsp_iod {
-                        Pdu::PData { data } => {
-                            // !!! handle multiple PDataValue's
-                            let data = &data[0];
-                            let dcm = InMemDicomObject::read_dataset_with_ts(
-                                &data.data[..],
-                                &implicit_vr_le,
-                            )?;
 
-                            println!("> {:?}", dcm);
-                        }
-                        _ => {
-                            eprintln!("Unexpected SCP response: {:?}", pdu);
-                            let _ = scu.abort();
-                            std::process::exit(-2);
-                        }
-                    }
+                    let dcm = {
+                        let mut rsp = scu.receive_pdata();
+                        let mut response_data = Vec::new();
+                        rsp.read_to_end(&mut response_data)
+                            .whatever_context("Failed to read response data")?;
+
+                        InMemDicomObject::read_dataset_with_ts(&response_data[..], &implicit_vr_le)
+                            .whatever_context("Could not read response data set")?
+                    };
+
+                    println!("------------ Match #{} ------------", i);
+                    DumpOptions::new()
+                        .dump_object(&dcm)
+                        .context(DumpOutputSnafu)?;
+                    i += 1;
                 } else {
-                    println!("Operation failed (status code {})", status);
+                    warn!("Operation failed (status code {})", status);
                     break;
                 }
             }
@@ -192,13 +284,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             | pdu @ Pdu::ReleaseRQ
             | pdu @ Pdu::ReleaseRP
             | pdu @ Pdu::AbortRQ { .. } => {
-                eprintln!("Unexpected SCP response: {:?}", pdu);
+                error!("Unexpected SCP response: {:?}", pdu);
                 let _ = scu.abort();
                 std::process::exit(-2);
             }
         }
     }
-    scu.release()?;
+    let _ = scu.release();
 
     Ok(())
 }

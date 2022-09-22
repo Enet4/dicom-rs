@@ -17,4 +17,8 @@ dicom-object = { path = '../object', version = "0.5.2" }
 dicom-encoding = { path = "../encoding/", version = "0.5.0" }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.5.0" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.5.0" }
-structopt = "0.3.26"
+dicom-dump = { path = "../dump", default-features = false }
+clap = { version = "3.2.22", features = ["derive"] }
+snafu = "0.7.0"
+tracing = "0.1.36"
+tracing-subscriber = "0.3.15"
