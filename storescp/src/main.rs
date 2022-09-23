@@ -1,6 +1,6 @@
 use std::{
     io::Write,
-    net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream},
+    net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream}, path::PathBuf,
 };
 
 use clap::Parser;
@@ -35,7 +35,9 @@ struct App {
     /// max pdu length
     #[clap(short = 'm', long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
-
+    /// output directory for incoming objects
+    #[clap(short = 'o', default_value = ".")]
+    out_dir: PathBuf,
     /// Which port to listen on
     #[clap(short, default_value = "11111")]
     port: u16,
@@ -43,6 +45,7 @@ struct App {
 
 fn run(
     scu_stream: &mut TcpStream,
+    out_dir: PathBuf,
     strict: bool,
     verbose: bool,
     max_pdu_length: u32,
@@ -151,7 +154,9 @@ fn run(
                             let file_obj = obj.with_exact_meta(file_meta);
 
                             // write the files to the current directory with their SOPInstanceUID as filenames
-                            file_obj.write_to_file(sop_instance_uid.trim_end_matches('\0'))?;
+                            let mut file_path = out_dir.clone();
+                            file_path.push(sop_instance_uid.trim_end_matches('\0'));
+                            file_obj.write_to_file(file_path)?;
 
                             // send C-STORE-RSP object
                             // commands are always in implict VR LE
@@ -268,6 +273,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         strict,
         port,
         max_pdu_length,
+        out_dir,
     } = App::from_args();
 
     tracing::subscriber::set_global_default(
@@ -279,16 +285,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("Could not set up global logger: {}", e);
     });
 
+    std::fs::create_dir_all(&out_dir).unwrap_or_else(|e| {
+        error!("Could not create output directory: {}", e);
+        std::process::exit(-2);
+    });
+
     let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), port);
     let listener = TcpListener::bind(&listen_addr).unwrap();
     if verbose {
-        info!("listening on: tcp://0.0.0.0:{}", listen_addr);
+        info!("listening on: tcp://{}", listen_addr);
     }
 
     for mut stream in listener.incoming() {
         match stream {
             Ok(ref mut scu_stream) => {
-                if let Err(e) = run(scu_stream, strict, verbose, max_pdu_length) {
+                if let Err(e) = run(scu_stream, out_dir.clone(), strict, verbose, max_pdu_length) {
                     error!("[ERROR] {}", e);
                 }
             }
