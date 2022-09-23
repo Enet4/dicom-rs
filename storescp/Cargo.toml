@@ -11,7 +11,7 @@ keywords = ["dicom"]
 readme = "README.md"
 
 [dependencies]
+clap = { version = "3.2.22", features = ["derive"] }
 dicom = { path = '../parent', version = "0.5.0-rc.1" }
-structopt = "0.3.21"
 snafu = "0.6.8"
 smallvec = "1.6.1"

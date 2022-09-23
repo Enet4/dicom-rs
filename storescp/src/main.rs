@@ -1,8 +1,9 @@
 use std::{
     io::Write,
-    net::{TcpListener, TcpStream, SocketAddrV4, Ipv4Addr},
+    net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream},
 };
 
+use clap::Parser;
 use dicom::{
     core::{DataElement, PrimitiveValue, VR},
     dicom_value,
@@ -23,20 +24,20 @@ use dicom::{
 use structopt::StructOpt;
 
 /// DICOM C-STORE SCP
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct App {
     /// verbose mode
-    #[structopt(short = "v", long = "verbose")]
+    #[clap(short = 'v', long = "verbose")]
     verbose: bool,
     /// enforce max pdu length
-    #[structopt(short = "s", long = "strict")]
+    #[clap(short = 's', long = "strict")]
     strict: bool,
     /// max pdu length
-    #[structopt(short = "m", long = "max-pdu-length", default_value = "16384")]
+    #[clap(short = 'm', long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
 
     /// Which port to listen on
-    #[structopt(short, default_value = "11111")]
+    #[clap(short, default_value = "11111")]
     port: u16,
 }
 
