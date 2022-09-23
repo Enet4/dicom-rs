@@ -285,7 +285,7 @@ fn run() -> Result<(), Error> {
                 );
             }
 
-            if nbytes < scu.acceptor_max_pdu_length() as usize - 100 {
+            if nbytes < scu.acceptor_max_pdu_length().saturating_sub(100) as usize {
                 let pdu = Pdu::PData {
                     data: vec![
                         PDataValue {
