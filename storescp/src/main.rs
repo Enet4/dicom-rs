@@ -201,7 +201,7 @@ fn create_cstore_response(
     sop_class_uid: &str,
     sop_instance_uid: &str,
 ) -> InMemDicomObject<StandardDataDictionary> {
-    let mut obj = InMemDicomObject::create_empty();
+    let mut obj = InMemDicomObject::new_empty();
 
     // group length
     obj.put(DataElement::new(
