@@ -1,27 +1,23 @@
 use std::{
     io::Write,
-    net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream}, path::PathBuf,
+    net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream},
+    path::PathBuf,
 };
 
 use clap::Parser;
-use dicom::{
-    core::{DataElement, PrimitiveValue, VR},
-    dicom_value,
-    dictionary_std::tags,
-    encoding::transfer_syntax::TransferSyntaxIndex,
-    object::{FileMetaTableBuilder, InMemDicomObject, StandardDataDictionary},
-};
-use dicom::{
-    transfer_syntax::TransferSyntaxRegistry,
-    ul::{
-        pdu::reader::read_pdu,
-        pdu::{
-            writer::write_pdu, PDataValueType, PresentationContextProposed,
-            PresentationContextResult,
-        },
+use dicom_core::{dicom_value, DataElement, PrimitiveValue, VR};
+use dicom_dictionary_std::tags;
+use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
+use dicom_object::{FileMetaTableBuilder, InMemDicomObject, StandardDataDictionary};
+use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
+use dicom_ul::{
+    pdu::reader::read_pdu,
+    pdu::{
+        writer::write_pdu, PDataValueType, PresentationContextProposed, PresentationContextResult,
     },
+    Pdu,
 };
-use tracing::{debug, error, info, Level};
+use tracing::{debug, error, info, Level, warn};
 
 /// DICOM C-STORE SCP
 #[derive(Debug, Parser)]
@@ -57,6 +53,7 @@ fn run(
     let mut sop_instance_uid = "".to_string();
 
     let mut presentation_context_results: Vec<PresentationContextResult> = vec![];
+    let mut ae: Option<String> = None;
 
     loop {
         match read_pdu(scu_stream, max_pdu_length, strict) {
@@ -65,7 +62,7 @@ fn run(
                     debug!("scu ----> scp: {}", pdu.short_description());
                 }
                 match pdu {
-                    dicom::ul::Pdu::AssociationRQ {
+                    Pdu::AssociationRQ {
                         protocol_version,
                         calling_ae_title,
                         called_ae_title,
@@ -85,35 +82,39 @@ fn run(
                                 PresentationContextResult {
                                     id: *id,
                                     reason:
-                                        dicom::ul::pdu::PresentationContextResultReason::Acceptance,
+                                        dicom_ul::pdu::PresentationContextResultReason::Acceptance,
                                     // accept the first proposed transfer syntax
                                     transfer_syntax: transfer_syntaxes[0].clone(),
                                 }
                             })
                             .collect();
 
+                        ae = Some(calling_ae_title.clone());
+
                         // copying most variables for now, should be set to application specific values
-                        let response = dicom::ul::Pdu::AssociationAC {
+                        let response = Pdu::AssociationAC {
                             protocol_version,
-                            calling_ae_title,
+                            calling_ae_title: calling_ae_title,
                             called_ae_title,
                             application_context_name,
                             user_variables,
                             presentation_contexts: presentation_context_results.clone(),
                         };
-                        write_pdu(&mut buffer, &response).unwrap();
+                        write_pdu(&mut buffer, &response)?;
                         if verbose {
                             debug!("scu <---- scp: {}", response.short_description());
                         }
-                        scu_stream.write_all(&buffer).unwrap();
+                        info!("New association with {}", ae.as_ref().unwrap());
+                        scu_stream.write_all(&buffer)?;
                     }
-                    dicom::ul::Pdu::PData { ref mut data } => {
+                    Pdu::PData { ref mut data } => {
                         if data[0].value_type == PDataValueType::Data && !data[0].is_last {
                             instance_buffer.append(&mut data[0].data);
                         } else if data[0].value_type == PDataValueType::Command && data[0].is_last {
                             // commands are always in implict VR LE
                             let ts =
-                                dicom::transfer_syntax::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased();
+                                dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN
+                                    .erased();
                             let data_value = &data[0];
                             let v = &data_value.data;
 
@@ -155,13 +156,15 @@ fn run(
 
                             // write the files to the current directory with their SOPInstanceUID as filenames
                             let mut file_path = out_dir.clone();
-                            file_path.push(sop_instance_uid.trim_end_matches('\0'));
-                            file_obj.write_to_file(file_path)?;
+                            file_path.push(sop_instance_uid.trim_end_matches('\0').to_string() + ".dcm");
+                            file_obj.write_to_file(&file_path)?;
+                            info!("Stored {}", file_path.display());
 
                             // send C-STORE-RSP object
                             // commands are always in implict VR LE
                             let ts =
-                                dicom::transfer_syntax::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased();
+                                dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN
+                                    .erased();
 
                             let obj =
                                 create_cstore_response(msgid, &sop_class_uid, &sop_instance_uid);
@@ -170,8 +173,8 @@ fn run(
 
                             obj.write_dataset_with_ts(&mut obj_data, &ts)?;
 
-                            let pdu_response = dicom::ul::Pdu::PData {
-                                data: vec![dicom::ul::pdu::PDataValue {
+                            let pdu_response = Pdu::PData {
+                                data: vec![dicom_ul::pdu::PDataValue {
                                     presentation_context_id: data[0].presentation_context_id,
                                     value_type: PDataValueType::Command,
                                     is_last: true,
@@ -179,26 +182,36 @@ fn run(
                                 }],
                             };
                             buffer.clear();
-                            write_pdu(&mut buffer, &pdu_response).unwrap();
-                            scu_stream.write_all(&buffer).unwrap();
+                            write_pdu(&mut buffer, &pdu_response)?;
+                            scu_stream.write_all(&buffer)?;
                         }
                     }
-                    dicom::ul::Pdu::ReleaseRQ => {
+                    Pdu::ReleaseRQ => {
                         buffer.clear();
-                        write_pdu(&mut buffer, &dicom::ul::Pdu::ReleaseRP).unwrap();
-                        scu_stream.write_all(&buffer).unwrap();
+                        write_pdu(&mut buffer, &Pdu::ReleaseRP)?;
+                        scu_stream.write_all(&buffer)?;
+                        match &ae {
+                            Some(ae) => {
+                                info!("Released association with {}", ae)
+                            }
+                            None => {
+                                warn!("Received release before an association was established");
+                            }
+                        }
                     }
                     _ => {}
                 }
             }
-            Err(dicom::ul::pdu::reader::Error::NoPduAvailable { .. }) => {
+            Err(dicom_ul::pdu::reader::Error::NoPduAvailable { .. }) => {
                 break;
             }
-            Err(_err) => {
+            Err(err) => {
+                warn!("Unexpected error: {}", err);
                 break;
             }
         }
     }
+    debug!("Connection dropped");
     Ok(())
 }
 
@@ -291,10 +304,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), port);
-    let listener = TcpListener::bind(&listen_addr).unwrap();
-    if verbose {
-        info!("listening on: tcp://{}", listen_addr);
-    }
+    let listener = TcpListener::bind(&listen_addr)?;
+    info!("listening on: tcp://{}", listen_addr);
 
     for mut stream in listener.incoming() {
         match stream {
