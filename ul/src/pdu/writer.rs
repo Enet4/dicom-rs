@@ -538,9 +538,8 @@ where
                     AbortRQSource::ServiceUser => [0x00; 2],
                     AbortRQSource::Reserved => [0x01, 0x00],
                     AbortRQSource::ServiceProvider(reason) => match reason {
-                        AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu => {
-                            [0x02, 0x00]
-                        }
+                        AbortRQServiceProviderReason::ReasonNotSpecified => [0x02, 0x00],
+                        AbortRQServiceProviderReason::UnrecognizedPdu => [0x02, 0x01],
                         AbortRQServiceProviderReason::UnexpectedPdu => [0x02, 0x02],
                         AbortRQServiceProviderReason::Reserved => [0x02, 0x03],
                         AbortRQServiceProviderReason::UnrecognizedPduParameter => [0x02, 0x04],

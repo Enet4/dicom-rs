@@ -513,7 +513,7 @@ impl ServerAssociation {
     pub fn abort(mut self) -> Result<()> {
         let pdu = Pdu::AbortRQ {
             source: AbortRQSource::ServiceProvider(
-                AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu,
+                AbortRQServiceProviderReason::ReasonNotSpecified,
             ),
         };
         let out = self.send(&pdu);

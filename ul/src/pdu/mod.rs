@@ -182,9 +182,10 @@ impl AbortRQSource {
         let result = match (source, reason) {
             (0, _) => AbortRQSource::ServiceUser,
             (1, _) => AbortRQSource::Reserved,
-            (2, 0) | (2, 1) => AbortRQSource::ServiceProvider(
-                AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu,
-            ),
+            (2, 0) => {
+                AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::ReasonNotSpecified)
+            }
+            (2, 1) => AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::UnrecognizedPdu),
             (2, 2) => AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::UnexpectedPdu),
             (2, 3) => AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::Reserved),
             (2, 4) => AbortRQSource::ServiceProvider(
@@ -208,8 +209,10 @@ impl AbortRQSource {
 /// An enumeration of supported A-ABORT PDU provider reasons.
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum AbortRQServiceProviderReason {
-    /// Either _Reason Not Specified_ or _Unrecognized PDU_
-    ReasonNotSpecifiedUnrecognizedPdu,
+    /// Reason Not Specified
+    ReasonNotSpecified,
+    /// Unrecognized PDU
+    UnrecognizedPdu,
     /// Unexpected PDU
     UnexpectedPdu,
     /// Reserved
