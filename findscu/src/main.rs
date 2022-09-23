@@ -18,6 +18,12 @@ use std::path::PathBuf;
 use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
+struct TermQuery {
+    field: String,
+    match_value: String,
+}
+
 /// DICOM C-FIND SCU
 #[derive(Debug, Parser)]
 struct App {
@@ -37,6 +43,17 @@ struct App {
     /// the maximum PDU length
     #[clap(long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
+
+    /// use patient root information model
+    #[clap(long, conflicts_with = "study")]
+    patient: bool,
+    /// use study root information model (default)
+    #[clap(long, conflicts_with = "patient")]
+    study: bool,
+
+    /// queries
+    #[clap(short('q'))]
+    query: Vec<String>,
 }
 
 fn report<E: 'static>(err: &E)
@@ -117,6 +134,9 @@ fn run() -> Result<(), Error> {
         calling_ae_title,
         called_ae_title,
         max_pdu_length,
+        patient,
+        study,
+        query,
     } = App::from_args();
 
     tracing::subscriber::set_global_default(
@@ -134,8 +154,14 @@ fn run() -> Result<(), Error> {
 
     let dicom_file = open_file(file).context(CreateCommandSnafu)?;
 
-    // Study Root Query/Retrieve Information Model – FIND
-    let abstract_syntax = "1.2.840.10008.5.1.4.1.2.2.1";
+    let abstract_syntax = match (patient, study) {
+        // Patient Root Query/Retrieve Information Model - FIND
+        (true, false) => "1.2.840.10008.5.1.4.1.2.1.1",
+        // Study Root Query/Retrieve Information Model – FIND (default)
+        (false, false) | (false, true) => "1.2.840.10008.5.1.4.1.2.2.1",
+        // Series
+        _ => unreachable!("Unexpected flag combination"),
+    };
 
     if verbose {
         info!("Establishing association with '{}'...", &addr);
@@ -174,7 +200,7 @@ fn run() -> Result<(), Error> {
         debug!("Transfer Syntax: {}", ts.name());
     }
 
-    let cmd = find_req_command("1.2.840.10008.5.1.4.1.2.2.1\0", 1);
+    let cmd = find_req_command(abstract_syntax, 1);
 
     let mut cmd_data = Vec::with_capacity(128);
     cmd.write_dataset_with_ts(&mut cmd_data, &entries::IMPLICIT_VR_LITTLE_ENDIAN.erased())
@@ -190,7 +216,7 @@ fn run() -> Result<(), Error> {
     let nbytes = cmd_data.len() + iod_data.len();
 
     if verbose {
-        println!("Sending query (~ {} Kb)...", nbytes / 1024);
+        debug!("Sending query ({} B)...", nbytes);
     }
 
     let pdu = Pdu::PData {
