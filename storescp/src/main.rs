@@ -1,6 +1,6 @@
 use std::{
     io::Write,
-    net::{TcpListener, TcpStream},
+    net::{TcpListener, TcpStream, SocketAddrV4, Ipv4Addr},
 };
 
 use dicom::{
@@ -269,10 +269,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         max_pdu_length,
     } = App::from_args();
 
-    let listen_addr = format!("0.0.0.0:{}", port);
+    let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), port);
     let listener = TcpListener::bind(&listen_addr).unwrap();
     if verbose {
-        println!("listening on: {}", listen_addr);
+        println!("listening on: tcp://0.0.0.0:{}", listen_addr);
     }
 
     for mut stream in listener.incoming() {
