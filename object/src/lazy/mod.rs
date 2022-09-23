@@ -8,37 +8,27 @@
 
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use smallvec::SmallVec;
+use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::Read;
 use std::path::Path;
-use std::cell::RefCell;
-use std::{collections::BTreeMap, io::Seek, io::SeekFrom};
 
-use crate::DicomObject;
-use crate::lazy::record::{DataSetRecord, DataSetRecordBuilder, DataSetTableBuilder};
+use crate::lazy::record::DataSetTableBuilder;
 use crate::{meta::FileMetaTable, util::ReadSeek, FileDicomObject};
-use dicom_core::header::{HasLength, Header};
-use dicom_core::value::{Value, C};
-use dicom_core::{
-    dictionary::{DataDictionary, DictionaryEntry},
-    DataElementHeader, DicomValue,
-};
-use dicom_core::{DataElement, Length, Tag, VR};
-use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
+use dicom_core::dictionary::DataDictionary;
+use dicom_core::header::HasLength;
+use dicom_core::{Length, Tag};
+use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
+use dicom_parser::DynStatefulDecoder;
 use dicom_parser::{
     dataset::lazy_read::LazyDataSetReader, stateful::decode::Error as StatefulDecodeError,
 };
 use dicom_parser::{dataset::read::Error as ParserError, StatefulDecode};
-use dicom_parser::{
-    dataset::{DataToken, LazyDataToken},
-    DynStatefulDecoder,
-};
-use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
+use snafu::{Backtrace, ResultExt, Snafu};
 
 use self::element::LoadedValue;
-pub use self::element::{MaybeElement, LazyNestedObject, MaybeValue};
+pub use self::element::{LazyNestedObject, MaybeElement, MaybeValue};
 use self::record::{DataSetTable, RecordBuildingDataSetReader};
 
 pub(crate) mod element;
@@ -108,11 +98,11 @@ pub enum Error {
         token: dicom_parser::dataset::LazyDataTokenRepr,
         backtrace: Backtrace,
     },
-    #[snafu(display("Pixel data fragment #{} was expected to be loaded, but was not", index))]
-    UnloadedFragment {
-        index: u32,
-        backtrace: Backtrace,
-    },
+    #[snafu(display(
+        "Pixel data fragment #{} was expected to be loaded, but was not",
+        index
+    ))]
+    UnloadedFragment { index: u32, backtrace: Backtrace },
     /// Premature data set end
     PrematureEnd { backtrace: Backtrace },
     #[snafu(display("No such data element with tag {}", tag))]
@@ -164,7 +154,6 @@ where
     <S as StatefulDecode>::Reader: ReadSeek,
     D: Clone + DataDictionary,
 {
-    
     pub fn to_value(self) -> Result<LoadedValue<D>> {
         self.elem.load(self.source)?;
 
@@ -201,25 +190,24 @@ impl<D> LazyFileDicomObject<File, D> {
         } = options;
 
         let path = path.as_ref();
-        let mut file = File::open(path).with_context(|| OpenFile { filename: path })?;
+        let mut file = File::open(path).with_context(|_| OpenFileSnafu { filename: path })?;
 
         // skip preamble
         {
             let mut buf = [0u8; 128];
             // skip the preamble
             file.read_exact(&mut buf)
-                .with_context(|| ReadFile { filename: path })?;
+                .with_context(|_| ReadFileSnafu { filename: path })?;
         }
 
         // read metadata header
-        let meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSet)?;
+        let meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSetSnafu)?;
 
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let cs = SpecificCharacterSet::Default;
             let dataset =
-                LazyDataSetReader::new_with_dictionary(file, dictionary.clone(), ts, cs)
-                    .context(CreateParser)?;
+                LazyDataSetReader::new_with_ts_cs(file, ts, cs).context(CreateParserSnafu)?;
 
             let mut builder = DataSetTableBuilder::new();
             let mut entries = BTreeMap::new();
@@ -245,7 +233,7 @@ impl<D> LazyFileDicomObject<File, D> {
                 },
             })
         } else {
-            UnsupportedTransferSyntax {
+            UnsupportedTransferSyntaxSnafu {
                 uid: meta.transfer_syntax,
             }
             .fail()
@@ -258,12 +246,10 @@ where
     S: StatefulDecode,
     <S as StatefulDecode>::Reader: ReadSeek,
 {
-
     pub fn read_dataset(reader: LazyDataSetReader<S>) -> Result<Self> {
         Self::read_dataset_with(reader, StandardDataDictionary)
     }
 }
-
 
 impl<S, D> LazyDicomObject<S, D>
 where
@@ -271,8 +257,7 @@ where
     <S as StatefulDecode>::Reader: ReadSeek,
     D: DataDictionary,
 {
-
-    pub fn read_dataset_with(reader: LazyDataSetReader<S, D>, dict: D) -> Result<Self> {
+    pub fn read_dataset_with(reader: LazyDataSetReader<S>, dict: D) -> Result<Self> {
         todo!()
     }
 
@@ -280,22 +265,16 @@ where
         let source = &mut self.source;
         self.entries
             .get_mut(&tag)
-            .ok_or_else(|| NoSuchDataElementTag { tag }.build())
-            .map(move |elem| LazyElement {
-                source,
-                elem,
-            })
+            .ok_or_else(|| NoSuchDataElementTagSnafu { tag }.build())
+            .map(move |elem| LazyElement { source, elem })
     }
 
     pub fn element_mut<'a>(&'a mut self, tag: Tag) -> Result<LazyElement<'a, S, D>> {
         let source = &mut self.source;
         self.entries
             .get_mut(&tag)
-            .ok_or_else(|| NoSuchDataElementTag { tag }.build())
-            .map(move |elem| LazyElement {
-                source,
-                elem,
-            })
+            .ok_or_else(|| NoSuchDataElementTagSnafu { tag }.build())
+            .map(move |elem| LazyElement { source, elem })
     }
 }
 
@@ -305,10 +284,9 @@ where
     <S as StatefulDecode>::Reader: ReadSeek,
     D: DataDictionary,
 {
-
     /// Build an object by consuming a data set parser.
     fn build_object(
-        dataset: &mut RecordBuildingDataSetReader<S, D>,
+        dataset: &mut RecordBuildingDataSetReader<S>,
         entries: &mut BTreeMap<Tag, MaybeElement<D>>,
         dict: D,
         in_item: bool,
@@ -340,14 +318,8 @@ mod tests {
 
     use super::*;
     use byteordered::Endianness;
-    use dicom_core::{
-        dicom_value,
-        header::{DataElementHeader, Length, VR},
-    };
-    use dicom_encoding::{
-        decode::{basic::BasicDecoder, implicit_le::ImplicitVRLittleEndianDecoder},
-        text::DefaultCharacterSetCodec,
-    };
+    use dicom_core::{dicom_value, header::VR, DataElement, DicomValue};
+    use dicom_encoding::decode::{basic::BasicDecoder, implicit_le::ImplicitVRLittleEndianDecoder};
     use dicom_parser::StatefulDecoder;
 
     #[test]
@@ -360,7 +332,7 @@ mod tests {
         ];
 
         let decoder = ImplicitVRLittleEndianDecoder::default();
-        let text = Box::new(DefaultCharacterSetCodec) as Box<_>;
+        let text = SpecificCharacterSet::Default;
         let mut cursor = Cursor::new(&data_in[..]);
         let parser = StatefulDecoder::new(
             &mut cursor,
@@ -378,9 +350,8 @@ mod tests {
             DicomValue::new(dicom_value!(Strs, ["Doe^John"])),
         );
 
-        let lazy_patient_name = obj.element(Tag(0x0010, 0x0010)).expect("Failed to retrieve element");
-
-
+        let lazy_patient_name = obj
+            .element(Tag(0x0010, 0x0010))
+            .expect("Failed to retrieve element");
     }
-
 }

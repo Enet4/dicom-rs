@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::{PositionToValue as PositionToValueSnafu, ReadValue as ReadValueSnafu, ReadFragment as ReadFragmentSnafu, UnloadedFragment as UnloadedFragmentSnafu};
+use super::{PositionToValueSnafu, ReadValueSnafu, ReadFragmentSnafu, UnloadedFragmentSnafu};
 use dicom_core::{DataDictionary, DataElementHeader, DicomValue, Length, Tag, header::HasLength};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_parser::StatefulDecode;
@@ -303,7 +303,7 @@ mod tests {
     use dicom_encoding::decode::basic::BasicDecoder;
     use dicom_encoding::decode::explicit_le::ExplicitVRLittleEndianDecoder;
     use dicom_encoding::decode::implicit_le::ImplicitVRLittleEndianDecoder;
-    use dicom_encoding::text::DefaultCharacterSetCodec;
+    use dicom_encoding::text::SpecificCharacterSet;
     use dicom_parser::StatefulDecode;
     use dicom_parser::StatefulDecoder;
 
@@ -324,7 +324,7 @@ mod tests {
 
         // Create a stateful reader for the data
         let decoder = ImplicitVRLittleEndianDecoder::default();
-        let text = Box::new(DefaultCharacterSetCodec) as Box<_>;
+        let text = SpecificCharacterSet::Default;
         let mut cursor = std::io::Cursor::new(data_in);
         let mut parser = StatefulDecoder::new(
             &mut cursor,
@@ -348,7 +348,7 @@ mod tests {
             MaybeValue::Unloaded => panic!("element should be loaded"),
             MaybeValue::PixelSequence { .. } => unreachable!("element is not a pixel sequence"),
             MaybeValue::Loaded { value, dirty } => {
-                assert_eq!(value.to_clean_str().unwrap(), "Doe^John");
+                assert_eq!(value.to_str().unwrap(), "Doe^John");
                 assert_eq!(dirty, false);
             }
         }
@@ -371,7 +371,7 @@ mod tests {
 
         // Create a stateful reader for the data
         let decoder = ImplicitVRLittleEndianDecoder::default();
-        let text = Box::new(DefaultCharacterSetCodec) as Box<_>;
+        let text = SpecificCharacterSet::Default;
         let mut cursor = std::io::Cursor::new(data_in);
         let mut parser = StatefulDecoder::new(
             &mut cursor,
@@ -398,7 +398,7 @@ mod tests {
             MaybeValue::Unloaded => panic!("element should be loaded"),
             MaybeValue::PixelSequence { .. } => unreachable!("element is not a pixel sequence"),
             MaybeValue::Loaded { value, dirty } => {
-                assert_eq!(value.to_clean_str().unwrap(), "Doe^John");
+                assert_eq!(value.to_str().unwrap(), "Doe^John");
                 assert_eq!(dirty, false);
             }
         }
@@ -433,7 +433,7 @@ mod tests {
 
         // Create a stateful reader for the data
         let decoder = ExplicitVRLittleEndianDecoder::default();
-        let text = Box::new(DefaultCharacterSetCodec) as Box<_>;
+        let text = SpecificCharacterSet::Default;
         let mut cursor = std::io::Cursor::new(DATA_IN);
         let mut parser = StatefulDecoder::new(
             &mut cursor,

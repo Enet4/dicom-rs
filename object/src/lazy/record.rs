@@ -5,13 +5,13 @@
 //! can be obtained from a parser
 //! by creating a [`DataSetTableBuilder`]
 //! and invoking [`update`] on each token.
-//! 
+//!
 //! [`update`]: DataSetTableBuilder::update
 //!
 
 use std::{collections::BTreeMap, iter::FromIterator};
 
-use dicom_core::{value::C, DataDictionary, DataElementHeader, Length, Tag};
+use dicom_core::{value::C, DataElementHeader, Length, Tag};
 use dicom_parser::{
     dataset::{lazy_read::LazyDataSetReader, LazyDataToken},
     StatefulDecode,
@@ -265,7 +265,7 @@ pub struct RecordBuildingDataSetReader<'a, S> {
     reader: LazyDataSetReader<S>,
 }
 
-impl<'a, S, D> RecordBuildingDataSetReader<'a, S>
+impl<'a, S> RecordBuildingDataSetReader<'a, S>
 where
     S: StatefulDecode,
 {
@@ -307,7 +307,7 @@ mod tests {
     use dicom_core::{DataElementHeader, Length, Tag, VR};
     use dicom_encoding::{
         decode::{basic::LittleEndianBasicDecoder, explicit_le::ExplicitVRLittleEndianDecoder},
-        text::DefaultCharacterSetCodec,
+        text::SpecificCharacterSet,
     };
     use dicom_parser::{dataset::lazy_read::LazyDataSetReader, StatefulDecoder};
 
@@ -323,7 +323,7 @@ mod tests {
             source,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder::default(),
-            Box::new(DefaultCharacterSetCodec::default()) as Box<_>,
+            SpecificCharacterSet::Default,
         );
 
         let mut dataset_reader = LazyDataSetReader::new(stateful_decoder);
