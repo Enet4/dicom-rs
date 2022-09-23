@@ -21,7 +21,7 @@ use dicom::{
         },
     },
 };
-use structopt::StructOpt;
+use tracing::{debug, error, info, Level};
 
 /// DICOM C-STORE SCP
 #[derive(Debug, Parser)]
@@ -59,7 +59,7 @@ fn run(
         match read_pdu(scu_stream, max_pdu_length, strict) {
             Ok(mut pdu) => {
                 if verbose {
-                    println!("scu ----> scp: {}", pdu.short_description());
+                    debug!("scu ----> scp: {}", pdu.short_description());
                 }
                 match pdu {
                     dicom::ul::Pdu::AssociationRQ {
@@ -100,7 +100,7 @@ fn run(
                         };
                         write_pdu(&mut buffer, &response).unwrap();
                         if verbose {
-                            println!("scu <---- scp: {}", response.short_description());
+                            debug!("scu <---- scp: {}", response.short_description());
                         }
                         scu_stream.write_all(&buffer).unwrap();
                     }
@@ -270,21 +270,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         max_pdu_length,
     } = App::from_args();
 
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(if verbose { Level::DEBUG } else { Level::INFO })
+            .finish(),
+    )
+    .unwrap_or_else(|e| {
+        eprintln!("Could not set up global logger: {}", e);
+    });
+
     let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), port);
     let listener = TcpListener::bind(&listen_addr).unwrap();
     if verbose {
-        println!("listening on: tcp://0.0.0.0:{}", listen_addr);
+        info!("listening on: tcp://0.0.0.0:{}", listen_addr);
     }
 
     for mut stream in listener.incoming() {
         match stream {
             Ok(ref mut scu_stream) => {
                 if let Err(e) = run(scu_stream, strict, verbose, max_pdu_length) {
-                    eprintln!("[ERROR] {}", e);
+                    error!("[ERROR] {}", e);
                 }
             }
             Err(e) => {
-                eprintln!("[ERROR] {}", e);
+                error!("[ERROR] {}", e);
             }
         }
     }
