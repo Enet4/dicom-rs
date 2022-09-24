@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use dicom_core::dicom_value;
 use dicom_core::{DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::tags;
@@ -15,8 +17,10 @@ use tracing::warn;
 /// DICOM C-ECHO SCU
 #[derive(Debug, StructOpt)]
 struct App {
-    /// socket address to SCP (example: "127.0.0.1:104")
-    addr: String,
+    /// socket address to SCP,
+    /// optionally with AE title
+    /// (example: "QUERY-SCP@127.0.0.1:1045")
+    addr: Address,
     /// verbose mode
     #[structopt(short = "v", long = "verbose")]
     verbose: bool,
@@ -26,9 +30,41 @@ struct App {
     /// the calling AE title
     #[structopt(long = "calling-ae-title", default_value = "ECHOSCU")]
     calling_ae_title: String,
-    /// the called AE title
-    #[structopt(long = "called-ae-title", default_value = "ANY-SCP")]
-    called_ae_title: String,
+    /// the called Application Entity title,
+    /// overrides AE title in address if present [default: ANY-SCP]
+    #[structopt(long = "called-ae-title")]
+    called_ae_title: Option<String>,
+}
+
+/// A specification for an address to the target SCP:
+/// either an application entity title and network socket address,
+/// or only a network socket address.
+#[derive(Debug, Clone, PartialEq)]
+enum Address {
+    AeAndNetwork {
+        called_ae_title: String,
+        network_address: String,
+    },
+    NetworkOnly {
+        network_address: String,
+    },
+}
+
+impl FromStr for Address {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Some((ae_title, address)) = s.split_once('@') {
+            Ok(Address::AeAndNetwork {
+                called_ae_title: ae_title.to_string(),
+                network_address: address.to_string(),
+            })
+        } else {
+            Ok(Address::NetworkOnly {
+                network_address: s.to_string(),
+            })
+        }
+    }
 }
 
 fn report<E: 'static>(err: &E)
@@ -77,6 +113,33 @@ fn run() -> Result<(), Whatever> {
         called_ae_title,
         calling_ae_title,
     } = App::from_args();
+
+    let (called_ae_title, addr) = match (called_ae_title, addr) {
+        (
+            Some(aec),
+            Address::AeAndNetwork {
+                called_ae_title: _,
+                network_address,
+            },
+        ) => {
+            warn!(
+                "Option `called_ae_title` overrides the AE title to `{}`",
+                aec
+            );
+            (aec, network_address)
+        }
+        (
+            None,
+            Address::AeAndNetwork {
+                called_ae_title,
+                network_address,
+            },
+        ) => (called_ae_title, network_address),
+        (aec, Address::NetworkOnly { network_address }) => (
+            aec.unwrap_or_else(|| "ANY-SCP".to_string()),
+            network_address,
+        ),
+    };
 
     let mut association = ClientAssociationOptions::new()
         .with_abstract_syntax("1.2.840.10008.1.1")

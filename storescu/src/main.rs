@@ -18,6 +18,7 @@ use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use std::str::FromStr;
 use structopt::StructOpt;
 use tracing::Level;
 use tracing::{debug, error, info, warn};
@@ -27,8 +28,10 @@ use walkdir::WalkDir;
 /// DICOM C-STORE SCU
 #[derive(Debug, StructOpt)]
 struct App {
-    /// socket address to STORE SCP (example: "127.0.0.1:104")
-    addr: String,
+    /// socket address to Store SCP,
+    /// optionally with AE title
+    /// (example: "STORE-SCP@127.0.0.1:104")
+    addr: Address,
     /// the DICOM file(s) to store
     #[structopt(required = true)]
     files: Vec<PathBuf>,
@@ -38,18 +41,50 @@ struct App {
     /// the C-STORE message ID
     #[structopt(short = "m", long = "message-id", default_value = "1")]
     message_id: u16,
-    /// the calling AE title
+    /// the calling Application Entity title
     #[structopt(long = "calling-ae-title", default_value = "STORE-SCU")]
     calling_ae_title: String,
-    /// the called AE title
-    #[structopt(long = "called-ae-title", default_value = "ANY-SCP")]
-    called_ae_title: String,
+    /// the called Application Entity title,
+    /// overrides AE title in address if present [default: ANY-SCP]
+    #[structopt(long = "called-ae-title")]
+    called_ae_title: Option<String>,
     /// the maximum PDU length accepted by the SCU
     #[structopt(long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
     /// fail if not all DICOM files can be transferred
     #[structopt(long = "fail-first")]
     fail_first: bool,
+}
+
+/// A specification for an address to the target SCP:
+/// either an application entity title and network socket address,
+/// or only a network socket address.
+#[derive(Debug, Clone, PartialEq)]
+enum Address {
+    AeAndNetwork {
+        called_ae_title: String,
+        network_address: String,
+    },
+    NetworkOnly {
+        network_address: String,
+    },
+}
+
+impl FromStr for Address {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Some((ae_title, address)) = s.split_once('@') {
+            Ok(Address::AeAndNetwork {
+                called_ae_title: ae_title.to_string(),
+                network_address: address.to_string(),
+            })
+        } else {
+            Ok(Address::NetworkOnly {
+                network_address: s.to_string(),
+            })
+        }
+    }
 }
 
 struct DicomFile {
@@ -151,6 +186,33 @@ fn run() -> Result<(), Error> {
     .unwrap_or_else(|e| {
         report(&e);
     });
+
+    let (called_ae_title, addr) = match (called_ae_title, addr) {
+        (
+            Some(aec),
+            Address::AeAndNetwork {
+                called_ae_title: _,
+                network_address,
+            },
+        ) => {
+            warn!(
+                "Option `called_ae_title` overrides the AE title to `{}`",
+                aec
+            );
+            (aec, network_address)
+        }
+        (
+            None,
+            Address::AeAndNetwork {
+                called_ae_title,
+                network_address,
+            },
+        ) => (called_ae_title, network_address),
+        (aec, Address::NetworkOnly { network_address }) => (
+            aec.unwrap_or_else(|| "ANY-SCP".to_string()),
+            network_address,
+        ),
+    };
 
     let mut checked_files: Vec<PathBuf> = vec![];
     let mut dicom_files: Vec<DicomFile> = vec![];
