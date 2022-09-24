@@ -1,14 +1,12 @@
-use std::str::FromStr;
-
 use dicom_core::dicom_value;
 use dicom_core::{DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{mem::InMemDicomObject, StandardDataDictionary};
-use dicom_ul::pdu;
 use dicom_ul::{
     association::client::ClientAssociationOptions,
     pdu::{PDataValueType, Pdu},
 };
+use dicom_ul::{pdu, AeAddr};
 use pdu::PDataValue;
 use snafu::{prelude::*, ErrorCompat, Whatever};
 use structopt::StructOpt;
@@ -20,7 +18,7 @@ struct App {
     /// socket address to SCP,
     /// optionally with AE title
     /// (example: "QUERY-SCP@127.0.0.1:1045")
-    addr: Address,
+    addr: AeAddr<String>,
     /// verbose mode
     #[structopt(short = "v", long = "verbose")]
     verbose: bool,
@@ -34,37 +32,6 @@ struct App {
     /// overrides AE title in address if present [default: ANY-SCP]
     #[structopt(long = "called-ae-title")]
     called_ae_title: Option<String>,
-}
-
-/// A specification for an address to the target SCP:
-/// either an application entity title and network socket address,
-/// or only a network socket address.
-#[derive(Debug, Clone, PartialEq)]
-enum Address {
-    AeAndNetwork {
-        called_ae_title: String,
-        network_address: String,
-    },
-    NetworkOnly {
-        network_address: String,
-    },
-}
-
-impl FromStr for Address {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Some((ae_title, address)) = s.split_once('@') {
-            Ok(Address::AeAndNetwork {
-                called_ae_title: ae_title.to_string(),
-                network_address: address.to_string(),
-            })
-        } else {
-            Ok(Address::NetworkOnly {
-                network_address: s.to_string(),
-            })
-        }
-    }
 }
 
 fn report<E: 'static>(err: &E)
@@ -114,31 +81,17 @@ fn run() -> Result<(), Whatever> {
         calling_ae_title,
     } = App::from_args();
 
-    let (called_ae_title, addr) = match (called_ae_title, addr) {
-        (
-            Some(aec),
-            Address::AeAndNetwork {
-                called_ae_title: _,
-                network_address,
-            },
-        ) => {
+    let called_ae_title = match (called_ae_title, addr.ae_title()) {
+        (Some(aec), Some(_)) => {
             warn!(
                 "Option `called_ae_title` overrides the AE title to `{}`",
                 aec
             );
-            (aec, network_address)
+            aec.into()
         }
-        (
-            None,
-            Address::AeAndNetwork {
-                called_ae_title,
-                network_address,
-            },
-        ) => (called_ae_title, network_address),
-        (aec, Address::NetworkOnly { network_address }) => (
-            aec.unwrap_or_else(|| "ANY-SCP".to_string()),
-            network_address,
-        ),
+        (None, Some(aec)) => aec.to_string(),
+        (Some(aec), None) => aec,
+        _ => "ANY-SCP".to_string(),
     };
 
     let mut association = ClientAssociationOptions::new()

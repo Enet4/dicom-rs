@@ -9,6 +9,7 @@ use dicom_ul::pdu::Pdu;
 use dicom_ul::{
     association::ClientAssociationOptions,
     pdu::{PDataValue, PDataValueType},
+    AeAddr,
 };
 use indicatif::{ProgressBar, ProgressStyle};
 use smallvec::smallvec;
@@ -18,7 +19,6 @@ use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use std::str::FromStr;
 use structopt::StructOpt;
 use tracing::Level;
 use tracing::{debug, error, info, warn};
@@ -31,7 +31,7 @@ struct App {
     /// socket address to Store SCP,
     /// optionally with AE title
     /// (example: "STORE-SCP@127.0.0.1:104")
-    addr: Address,
+    addr: AeAddr<String>,
     /// the DICOM file(s) to store
     #[structopt(required = true)]
     files: Vec<PathBuf>,
@@ -54,37 +54,6 @@ struct App {
     /// fail if not all DICOM files can be transferred
     #[structopt(long = "fail-first")]
     fail_first: bool,
-}
-
-/// A specification for an address to the target SCP:
-/// either an application entity title and network socket address,
-/// or only a network socket address.
-#[derive(Debug, Clone, PartialEq)]
-enum Address {
-    AeAndNetwork {
-        called_ae_title: String,
-        network_address: String,
-    },
-    NetworkOnly {
-        network_address: String,
-    },
-}
-
-impl FromStr for Address {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Some((ae_title, address)) = s.split_once('@') {
-            Ok(Address::AeAndNetwork {
-                called_ae_title: ae_title.to_string(),
-                network_address: address.to_string(),
-            })
-        } else {
-            Ok(Address::NetworkOnly {
-                network_address: s.to_string(),
-            })
-        }
-    }
 }
 
 struct DicomFile {
@@ -187,31 +156,17 @@ fn run() -> Result<(), Error> {
         report(&e);
     });
 
-    let (called_ae_title, addr) = match (called_ae_title, addr) {
-        (
-            Some(aec),
-            Address::AeAndNetwork {
-                called_ae_title: _,
-                network_address,
-            },
-        ) => {
+    let called_ae_title = match (called_ae_title, addr.ae_title()) {
+        (Some(aec), Some(_)) => {
             warn!(
                 "Option `called_ae_title` overrides the AE title to `{}`",
                 aec
             );
-            (aec, network_address)
+            aec.into()
         }
-        (
-            None,
-            Address::AeAndNetwork {
-                called_ae_title,
-                network_address,
-            },
-        ) => (called_ae_title, network_address),
-        (aec, Address::NetworkOnly { network_address }) => (
-            aec.unwrap_or_else(|| "ANY-SCP".to_string()),
-            network_address,
-        ),
+        (None, Some(aec)) => aec.to_string(),
+        (Some(aec), None) => aec,
+        _ => "ANY-SCP".to_string(),
     };
 
     let mut checked_files: Vec<PathBuf> = vec![];
