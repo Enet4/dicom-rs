@@ -177,6 +177,14 @@ impl<T> AeAddr<T> {
         }
     }
 
+    /// Create an address with a missing AE title.
+    pub fn new_socket_addr(socket_addr: T) -> Self {
+        AeAddr {
+            ae_title: None,
+            socket_addr,
+        }
+    }
+
     /// Retrieve the application entity title portion, if present.
     pub fn ae_title(&self) -> Option<&str> {
         self.ae_title.as_deref()
