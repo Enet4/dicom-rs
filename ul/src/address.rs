@@ -3,11 +3,12 @@
 //! This module provides the definitions for [`FullAeAddr`] and [`AeAddr`],
 //! which enable consumers to couple a socket address with an expected
 //! application entity (AE) title.
-//! 
+//!
 //! The syntax is `«ae_title»@«network_address»:«port»`,
 //! which works not only with IPv4 and IPv6 addresses,
 //! but also with domain names.
 use std::{
+    convert::TryFrom,
     net::{SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs},
     str::FromStr,
 };
@@ -289,6 +290,14 @@ where
                 socket_addr: s.parse()?,
             })
         }
+    }
+}
+
+impl<'a> TryFrom<&'a str> for AeAddr<String> {
+    type Error = <AeAddr<String> as FromStr>::Err;
+
+    fn try_from(s: &'a str) -> Result<Self, Self::Error> {
+        s.parse()
     }
 }
 
