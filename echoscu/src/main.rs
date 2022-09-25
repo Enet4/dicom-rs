@@ -2,11 +2,11 @@ use dicom_core::dicom_value;
 use dicom_core::{DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{mem::InMemDicomObject, StandardDataDictionary};
+use dicom_ul::pdu;
 use dicom_ul::{
     association::client::ClientAssociationOptions,
     pdu::{PDataValueType, Pdu},
 };
-use dicom_ul::{pdu, AeAddr};
 use pdu::PDataValue;
 use snafu::{prelude::*, ErrorCompat, Whatever};
 use structopt::StructOpt;
@@ -18,7 +18,7 @@ struct App {
     /// socket address to SCP,
     /// optionally with AE title
     /// (example: "QUERY-SCP@127.0.0.1:1045")
-    addr: AeAddr<String>,
+    addr: String,
     /// verbose mode
     #[structopt(short = "v", long = "verbose")]
     verbose: bool,
@@ -81,24 +81,14 @@ fn run() -> Result<(), Whatever> {
         calling_ae_title,
     } = App::from_args();
 
-    let called_ae_title = match (called_ae_title, addr.ae_title()) {
-        (Some(aec), Some(_)) => {
-            warn!(
-                "Option `called_ae_title` overrides the AE title to `{}`",
-                aec
-            );
-            aec.into()
-        }
-        (None, Some(aec)) => aec.to_string(),
-        (Some(aec), None) => aec,
-        _ => "ANY-SCP".to_string(),
-    };
-
-    let mut association = ClientAssociationOptions::new()
+    let mut association_opt = ClientAssociationOptions::new()
         .with_abstract_syntax("1.2.840.10008.1.1")
-        .calling_ae_title(calling_ae_title)
-        .called_ae_title(called_ae_title)
-        .establish(&addr)
+        .calling_ae_title(calling_ae_title);
+    if let Some(called_ae_title) = called_ae_title {
+        association_opt = association_opt.called_ae_title(called_ae_title);
+    }
+    let mut association = association_opt
+        .establish_with(&addr)
         .whatever_context("Could not establish association with SCP")?;
 
     let pc = association

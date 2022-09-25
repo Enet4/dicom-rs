@@ -9,7 +9,6 @@ use dicom_ul::pdu::Pdu;
 use dicom_ul::{
     association::ClientAssociationOptions,
     pdu::{PDataValue, PDataValueType},
-    AeAddr,
 };
 use indicatif::{ProgressBar, ProgressStyle};
 use smallvec::smallvec;
@@ -31,7 +30,7 @@ struct App {
     /// socket address to Store SCP,
     /// optionally with AE title
     /// (example: "STORE-SCP@127.0.0.1:104")
-    addr: AeAddr<String>,
+    addr: String,
     /// the DICOM file(s) to store
     #[structopt(required = true)]
     files: Vec<PathBuf>,
@@ -156,19 +155,6 @@ fn run() -> Result<(), Error> {
         report(&e);
     });
 
-    let called_ae_title = match (called_ae_title, addr.ae_title()) {
-        (Some(aec), Some(_)) => {
-            warn!(
-                "Option `called_ae_title` overrides the AE title to `{}`",
-                aec
-            );
-            aec.into()
-        }
-        (None, Some(aec)) => aec.to_string(),
-        (Some(aec), None) => aec,
-        _ => "ANY-SCP".to_string(),
-    };
-
     let mut checked_files: Vec<PathBuf> = vec![];
     let mut dicom_files: Vec<DicomFile> = vec![];
     let mut presentation_contexts = HashSet::new();
@@ -215,17 +201,19 @@ fn run() -> Result<(), Error> {
         info!("Establishing association with '{}'...", &addr);
     }
 
-    let mut scu_init = ClientAssociationOptions::new();
+    let mut scu_init = ClientAssociationOptions::new()
+        .calling_ae_title(calling_ae_title)
+        .max_pdu_length(max_pdu_length);
 
     for (storage_sop_class_uid, transfer_syntax) in &presentation_contexts {
         scu_init = scu_init.with_presentation_context(storage_sop_class_uid, vec![transfer_syntax]);
     }
-    let mut scu = scu_init
-        .calling_ae_title(calling_ae_title)
-        .called_ae_title(called_ae_title)
-        .max_pdu_length(max_pdu_length)
-        .establish(addr)
-        .context(InitScuSnafu)?;
+
+    if let Some(called_ae_title) = called_ae_title {
+        scu_init = scu_init.called_ae_title(called_ae_title);
+    }
+
+    let mut scu = scu_init.establish_with(&addr).context(InitScuSnafu)?;
 
     if verbose {
         info!("Association established");
