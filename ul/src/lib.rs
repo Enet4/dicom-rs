@@ -16,7 +16,7 @@
 
 pub mod association;
 pub mod pdu;
-mod address;
+pub mod address;
 
 /// The current implementation class UID generically referring to DICOM-rs.
 ///

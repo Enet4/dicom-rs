@@ -1,5 +1,12 @@
 //! Data types for addresses to nodes in DICOM networks.
-
+//!
+//! This module provides the definitions for [`FullAeAddr`] and [`AeAddr`],
+//! which enable consumers to couple a socket address with an expected
+//! application entity (AE) title.
+//! 
+//! The syntax is `«ae_title»@«network_address»:«port»`,
+//! which works not only with IPv4 and IPv6 addresses,
+//! but also with domain names.
 use std::{
     net::{SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs},
     str::FromStr,
@@ -12,7 +19,9 @@ use snafu::{ensure, AsErrorSource, ResultExt, Snafu};
 /// typically a socket address.
 ///
 /// These addresses can be serialized and parsed
-/// with the syntax `{ae_title}@{address}`.
+/// with the syntax `{ae_title}@{address}`,
+/// where the socket address is parsed according to
+/// the expectations of the parameter type `T`.
 ///
 /// For the version of the struct without a mandatory AE title,
 /// see [`AeAddr`].
@@ -134,8 +143,9 @@ where
 /// which may also include an application entity title.
 ///
 /// These addresses can be serialized and parsed
-/// with the syntax `{ae_title}@{socket_address}`,
-/// where the
+/// with the syntax `{ae_title}@{address}`,
+/// where the socket address is parsed according to
+/// the expectations of the parameter type `T`.
 ///
 /// For the version of the struct in which the AE title part is mandatory,
 /// see [`FullAeAddr`].
