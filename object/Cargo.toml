@@ -23,7 +23,7 @@ dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version
 itertools = "0.10"
 byteordered = "0.6"
 smallvec = "1.6.1"
-snafu = "0.7.0"
+snafu = "0.7.2"
 tracing = "0.1.34"
 
 [dev-dependencies]

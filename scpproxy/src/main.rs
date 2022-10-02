@@ -2,7 +2,8 @@ use clap::{App, Arg};
 use dicom_ul::pdu::reader::{read_pdu, DEFAULT_MAX_PDU};
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::Pdu;
-use snafu::{Backtrace, ErrorCompat, OptionExt, ResultExt, Snafu, Whatever};
+use snafu::{Backtrace, OptionExt, Report, ResultExt, Snafu, Whatever};
+use tracing::error;
 use std::io::Write;
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::mpsc;
@@ -44,31 +45,6 @@ enum Error {
     ScpReaderPanic { backtrace: Backtrace },
     #[snafu(display("SCU reader thread panicked"))]
     ScuReaderPanic { backtrace: Backtrace },
-}
-
-fn report<E: 'static>(err: E)
-where
-    E: std::error::Error,
-    E: ErrorCompat,
-{
-    eprintln!("[ERROR] {}", err);
-    if let Some(source) = err.source() {
-        eprintln!();
-        eprintln!("Caused by:");
-        for (i, e) in std::iter::successors(Some(source), |e| e.source()).enumerate() {
-            eprintln!("   {}: {}", i, e);
-        }
-    }
-
-    let env_backtrace = std::env::var("RUST_BACKTRACE").unwrap_or_default();
-    let env_lib_backtrace = std::env::var("RUST_LIB_BACKTRACE").unwrap_or_default();
-    if env_lib_backtrace == "1" || (env_backtrace == "1" && env_lib_backtrace != "0") {
-        if let Some(backtrace) = ErrorCompat::backtrace(&err) {
-            eprintln!();
-            eprintln!("Backtrace:");
-            eprintln!("{}", backtrace);
-        }
-    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -213,13 +189,11 @@ fn run(
                         }
                     },
                     ThreadMessage::ReadErr { from, err } => {
-                        eprintln!("error reading from {:?}:", from);
-                        report(err);
+                        error!("error reading from {:?}: {}", from, Report::from_error(err));
                         break;
                     }
                     ThreadMessage::WriteErr { from, err } => {
-                        eprintln!("error writing to {:?}", from);
-                        report(err);
+                        error!("error writing to {:?}: {}", from, Report::from_error(err));
                         break;
                     }
                     ThreadMessage::Shutdown { initiator } => {
@@ -261,7 +235,9 @@ fn run(
 fn main() {
     tracing::subscriber::set_global_default(tracing_subscriber::FmtSubscriber::new())
         .whatever_context("Could not set up global tracing subscriber")
-        .unwrap_or_else(|e: snafu::Whatever| report(e));
+        .unwrap_or_else(|e: snafu::Whatever| {
+            eprintln!("[ERROR] {}", Report::from_error(e));
+        });
 
     let default_max = DEFAULT_MAX_PDU.to_string();
     let matches = App::new("scpproxy")
@@ -336,14 +312,14 @@ fn main() {
                     verbose,
                     max_pdu_length,
                 ) {
-                    report(e);
+                    error!("{}", Report::from_error(e));
                 }
             }
             r @ Err(_) => {
                 let e: Whatever = r
                     .whatever_context("Could not obtain TCP stream")
                     .unwrap_err();
-                report(e);
+                error!("{}", Report::from_error(e));
             }
         }
     }
