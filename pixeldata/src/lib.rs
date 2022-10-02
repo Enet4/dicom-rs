@@ -132,6 +132,7 @@ pub use ndarray;
 
 mod attribute;
 mod lut;
+mod transcode;
 
 pub mod encapsulation;
 pub(crate) mod transform;
@@ -139,6 +140,7 @@ pub(crate) mod transform;
 // re-exports
 pub use attribute::{PhotometricInterpretation, PixelRepresentation, PlanarConfiguration};
 pub use lut::{CreateLutError, Lut};
+pub use transcode::{Error as TranscodeError, Result as TranscodeResult, Transcode};
 pub use transform::{Rescale, VoiLutFunction, WindowLevel, WindowLevelTransform};
 
 #[cfg(feature = "gdcm")]
