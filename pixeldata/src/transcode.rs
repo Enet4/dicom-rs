@@ -1,5 +1,5 @@
 use dicom_core::{
-    smallvec::smallvec, DataDictionary, DataElement, DicomValue, Length, PrimitiveValue, VR,
+    smallvec::smallvec, DataDictionary, DataElement, DicomValue, Length, PrimitiveValue, Tag, VR,
 };
 use dicom_dictionary_std::tags;
 use dicom_encoding::{adapters::EncodeOptions, Codec, TransferSyntax, TransferSyntaxIndex};
@@ -23,6 +23,9 @@ pub(crate) enum InnerError {
 
     /// Could not decode pixel data of receiving object  
     DecodePixelData { source: crate::Error },
+
+    /// Could not read receiving object
+    ReadObject { source: dicom_object::Error },
 
     /// Could not encode pixel data to target encoding
     EncodePixelData {
@@ -172,6 +175,8 @@ where
                 .encode(&*self, options, &mut pixeldata)
                 .context(EncodePixelDataSnafu)?;
 
+            let total_pixeldata_len = pixeldata.len() as u64;
+
             // put everything in a single fragment
             let pixel_seq = DicomValue::<InMemDicomObject<D>, InMemFragment>::PixelSequence {
                 offset_table: smallvec![],
@@ -184,6 +189,26 @@ where
                 Length::UNDEFINED,
                 pixel_seq,
             ));
+
+            self.put(DataElement::new(
+                tags::NUMBER_OF_FRAMES,
+                VR::IS,
+                PrimitiveValue::from("1"),
+            ));
+
+            // replace Encapsulated Pixel Data Value Total Length
+            // if it is present
+            if self
+                .element_opt(Tag(0x7FE0, 0x0003))
+                .context(ReadObjectSnafu)?
+                .is_some()
+            {
+                self.put(DataElement::new(
+                    Tag(0x7FE0, 0x0003),
+                    VR::UV,
+                    PrimitiveValue::from(total_pixeldata_len),
+                ));
+            }
 
             // change transfer syntax
             self.meta_mut().set_transfer_syntax(ts);
