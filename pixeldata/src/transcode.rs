@@ -217,3 +217,71 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dicom_object::open_file;
+    use dicom_test_files;
+
+    #[test]
+    fn test_transcode_from_jpeg_to_native_rgb() {
+        let test_file = dicom_test_files::path("pydicom/SC_rgb_jpeg_gdcm.dcm").unwrap();
+        let mut obj = open_file(test_file).unwrap();
+
+        // pre-condition check: pixel data conversion is needed here
+        assert_ne!(&obj.meta().transfer_syntax, EXPLICIT_VR_LITTLE_ENDIAN.uid());
+
+        // transcode to explicit VR little endian
+        obj.transcode(&EXPLICIT_VR_LITTLE_ENDIAN.erased())
+            .expect("Should have transcoded successfully");
+
+        // check transfer syntax
+        assert_eq!(&obj.meta().transfer_syntax, EXPLICIT_VR_LITTLE_ENDIAN.uid());
+
+        // check that the pixel data is in its native form
+        // and has the expected size
+        let pixel_data = obj.element(tags::PIXEL_DATA).unwrap();
+        let pixels = pixel_data
+            .to_bytes()
+            .expect("Pixel Data should be in bytes");
+
+        let rows = 100;
+        let cols = 100;
+        let spp = 3;
+
+        assert_eq!(pixels.len(), rows * cols * spp);
+    }
+
+    #[test]
+    // Test ignored until 12-bit JPEG decoding is supported
+    #[ignore]
+    fn test_transcode_from_jpeg_to_native_16bit() {
+        let test_file = dicom_test_files::path("pydicom/JPEG-lossy.dcm").unwrap();
+        let mut obj = open_file(test_file).unwrap();
+
+        // pre-condition check: pixel data conversion is needed here
+        assert_ne!(&obj.meta().transfer_syntax, EXPLICIT_VR_LITTLE_ENDIAN.uid());
+
+        // transcode to explicit VR little endian
+        obj.transcode(&EXPLICIT_VR_LITTLE_ENDIAN.erased())
+            .expect("Should have transcoded successfully");
+
+        // check transfer syntax
+        assert_eq!(&obj.meta().transfer_syntax, EXPLICIT_VR_LITTLE_ENDIAN.uid());
+
+        // check that the pixel data is in its native form
+        // and has the expected size
+        let pixel_data = obj.element(tags::PIXEL_DATA).unwrap();
+        let pixels = pixel_data
+            .to_bytes()
+            .expect("Pixel Data should be in bytes");
+
+        let rows = 1024;
+        let cols = 256;
+        let spp = 3;
+        let bps = 2;
+
+        assert_eq!(pixels.len(), rows * cols * spp * bps);
+    }
+}
