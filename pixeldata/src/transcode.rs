@@ -9,10 +9,10 @@ use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use crate::PixelDecoder;
 
+/// An error occurred during the object transcoding process.
 #[derive(Debug, Snafu)]
 pub struct Error(InnerError);
 
-/// An error occurred during the object transcoding process.
 #[derive(Debug, Snafu)]
 pub(crate) enum InnerError {
     /// Unrecognized transfer syntax of receiving object ({ts})
