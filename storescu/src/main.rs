@@ -563,7 +563,7 @@ fn even_len(l: usize) -> u32 {
 fn check_file(file: &Path) -> Result<DicomFile, Error> {
     // Ignore DICOMDIR files until better support is added
     let _ = (file.file_name() != Some(OsStr::new("DICOMDIR")))
-        .then(|| false)
+        .then_some(false)
         .whatever_context("DICOMDIR file not supported")?;
     let dicom_file = dicom_object::OpenFileOptions::new()
         .read_until(Tag(0x0001, 0x000))
