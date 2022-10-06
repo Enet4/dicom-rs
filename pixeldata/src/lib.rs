@@ -1,3 +1,4 @@
+#![allow(clippy::derive_partial_eq_without_eq)]
 //! This crate contains the DICOM pixel data handlers and is
 //! responsible for decoding various forms of native and compressed pixel data,
 //! such as JPEG lossless,

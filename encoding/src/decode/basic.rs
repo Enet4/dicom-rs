@@ -8,7 +8,7 @@ use std::io::Read;
 type Result<T> = std::io::Result<T>;
 
 /// A basic decoder of DICOM primitive elements in little endian.
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
 pub struct LittleEndianBasicDecoder;
 
 impl BasicDecode for LittleEndianBasicDecoder {
@@ -146,7 +146,7 @@ impl BasicDecode for LittleEndianBasicDecoder {
 }
 
 /// A basic decoder of DICOM primitive elements in big endian.
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
 pub struct BigEndianBasicDecoder;
 
 impl BasicDecode for BigEndianBasicDecoder {

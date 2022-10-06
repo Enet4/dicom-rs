@@ -5,6 +5,7 @@
     unused_qualifications,
     unused_import_braces
 )]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
 //! This is the core library of DICOM-rs containing various concepts,
 //! data structures and traits specific to DICOM content.

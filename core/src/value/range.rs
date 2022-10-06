@@ -273,7 +273,7 @@ impl DicomDateTime {
 /// assert!(dr.start().is_some());
 /// assert!(dr.end().is_none());
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub struct DateRange {
     start: Option<NaiveDate>,
     end: Option<NaiveDate>,
@@ -290,7 +290,7 @@ pub struct DateRange {
 /// assert!(tr.start().is_none());
 /// assert!(tr.end().is_some());
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub struct TimeRange {
     start: Option<NaiveTime>,
     end: Option<NaiveTime>,
@@ -316,7 +316,7 @@ pub struct TimeRange {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub struct DateTimeRange {
     start: Option<DateTime<FixedOffset>>,
     end: Option<DateTime<FixedOffset>>,
