@@ -927,6 +927,7 @@ pub type ElementNumber = u16;
 /// assert_eq!(tag, Tag(0x0010, 0x1005));
 /// Ok(())
 /// # }
+/// ```
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Copy)]
 pub struct Tag(pub GroupNumber, pub ElementNumber);
 
