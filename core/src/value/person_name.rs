@@ -22,7 +22,7 @@ use std::fmt::{Display, Formatter};
 /// assert_eq!(dr_seuss.prefix(), Some("Dr."));
 /// assert_eq!(dr_seuss.given(), Some("Theodor"));
 /// ```
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
 pub struct PersonName<'a> {
     prefix: Option<&'a str>,
     family: Option<&'a str>,

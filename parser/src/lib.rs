@@ -1,3 +1,4 @@
+#![allow(clippy::derive_partial_eq_without_eq)]
 //! This crate works on top of DICOM encoding primitives to provide transfer
 //! syntax resolution and abstraction for parsing DICOM data sets, which
 //! ultimately enables the user to perceive the DICOM object as a sequence of

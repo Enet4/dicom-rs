@@ -1,3 +1,4 @@
+#![allow(clippy::derive_partial_eq_without_eq)]
 //! This crate contains a high-level abstraction for reading and manipulating
 //! DICOM objects.
 //! At this level, objects are comparable to a dictionary of elements,
