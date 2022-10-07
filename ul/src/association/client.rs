@@ -142,6 +142,8 @@ pub struct ClientAssociationOptions<'a> {
     protocol_version: u16,
     /// the maximum PDU length requested for receiving PDUs
     max_pdu_length: u32,
+    /// whether to receive PDUs in strict mode
+    strict: bool,
 }
 
 impl<'a> Default for ClientAssociationOptions<'a> {
@@ -157,6 +159,7 @@ impl<'a> Default for ClientAssociationOptions<'a> {
             presentation_contexts: Vec::new(),
             protocol_version: 1,
             max_pdu_length: crate::pdu::reader::DEFAULT_MAX_PDU,
+            strict: true,
         }
     }
 }
@@ -236,6 +239,14 @@ impl<'a> ClientAssociationOptions<'a> {
         self
     }
 
+    /// Override strict mode:
+    /// whether receiving PDUs must not
+    /// surpass the negotiated maximum PDU length.
+    pub fn strict(mut self, strict: bool) -> Self {
+        self.strict = strict;
+        self
+    }
+
     /// Initiate the TCP connection to the given address
     /// and request a new DICOM association,
     /// negotiating the presentation contexts in the process.
@@ -284,6 +295,7 @@ impl<'a> ClientAssociationOptions<'a> {
             presentation_contexts,
             protocol_version,
             max_pdu_length,
+            strict,
         } = self;
 
         // fail if no presentation contexts were provided: they represent intent,
@@ -399,6 +411,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     acceptor_max_pdu_length,
                     socket,
                     buffer,
+                    strict,
                 })
             }
             Pdu::AssociationRJ { result, source } => RejectedSnafu {
@@ -462,6 +475,8 @@ pub struct ClientAssociation {
     socket: TcpStream,
     /// Buffer to assemble PDU before sending it on wire
     buffer: Vec<u8>,
+    /// whether to receive PDUs in strict mode
+    strict: bool,
 }
 
 impl ClientAssociation {
@@ -566,7 +581,7 @@ impl ClientAssociation {
     fn release_impl(&mut self) -> Result<()> {
         let pdu = Pdu::ReleaseRQ;
         self.send(&pdu)?;
-        let pdu = read_pdu(&mut self.socket, self.requestor_max_pdu_length, true)
+        let pdu = read_pdu(&mut self.socket, self.requestor_max_pdu_length, self.strict)
             .context(ReceiveSnafu)?;
 
         match pdu {
