@@ -6,6 +6,7 @@
 //! for details and examples on how to create an association.
 use std::{
     borrow::Cow,
+    convert::TryInto,
     io::Write,
     net::{TcpStream, ToSocketAddrs},
 };
@@ -17,11 +18,11 @@ use crate::{
         AbortRQSource, AssociationRJResult, AssociationRJSource, Pdu, PresentationContextProposed,
         PresentationContextResult, PresentationContextResultReason, UserVariableItem,
     },
-    IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
+    AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
 use snafu::{ensure, ResultExt, Snafu};
 
-use super::pdata::{PDataWriter, PDataReader};
+use super::pdata::{PDataReader, PDataWriter};
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -119,8 +120,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// let association = ClientAssociationOptions::new()
-///    .with_abstract_syntax("1.2.840.10008.1.1")
-///    .establish("129.168.0.5:104")?;
+///     .with_abstract_syntax("1.2.840.10008.1.1")
+///     .establish("129.168.0.5:104")?;
 /// # Ok(())
 /// # }
 /// ```
@@ -129,7 +130,7 @@ pub struct ClientAssociationOptions<'a> {
     /// the calling AE title
     calling_ae_title: Cow<'a, str>,
     /// the called AE title
-    called_ae_title: Cow<'a, str>,
+    called_ae_title: Option<Cow<'a, str>>,
     /// the requested application context name
     application_context_name: Cow<'a, str>,
     /// the list of requested presentation contexts
@@ -146,7 +147,7 @@ impl<'a> Default for ClientAssociationOptions<'a> {
             /// the calling AE title
             calling_ae_title: "THIS-SCU".into(),
             /// the called AE title
-            called_ae_title: "ANY-SCP".into(),
+            called_ae_title: None,
             /// the requested application context name
             application_context_name: "1.2.840.10008.3.1.1.1".into(),
             /// the list of requested presentation contexts
@@ -179,11 +180,18 @@ impl<'a> ClientAssociationOptions<'a> {
     /// which refers to the target DICOM node.
     ///
     /// The default is `ANY-SCP`.
+    /// Passing an emoty string resets the AE title to the default
+    /// (or to the one passed via [`establish_with`](ClientAssociationOptions::establish_with)).
     pub fn called_ae_title<T>(mut self, called_ae_title: T) -> Self
     where
         T: Into<Cow<'a, str>>,
     {
-        self.called_ae_title = called_ae_title.into();
+        let cae = called_ae_title.into();
+        if cae.is_empty() {
+            self.called_ae_title = None;
+        } else {
+            self.called_ae_title = Some(cae);
+        }
         self
     }
 
@@ -227,6 +235,43 @@ impl<'a> ClientAssociationOptions<'a> {
     /// and request a new DICOM association,
     /// negotiating the presentation contexts in the process.
     pub fn establish<A: ToSocketAddrs>(self, address: A) -> Result<ClientAssociation> {
+        self.establish_impl(AeAddr::new_socket_addr(address))
+    }
+
+    /// Initiate the TCP connection to the given address
+    /// and request a new DICOM association,
+    /// negotiating the presentation contexts in the process.
+    ///
+    /// This method allows you to specify the called AE title
+    /// alongside with the socket address.
+    /// See [AeAddr](`crate::AeAddr`) for more details.
+    /// However, the AE title in this parameter
+    /// is overridden by any `called_ae_title` option
+    /// previously received.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use dicom_ul::association::client::ClientAssociationOptions;
+    /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+    /// let association = ClientAssociationOptions::new()
+    ///     .with_abstract_syntax("1.2.840.10008.1.1")
+    ///     // called AE title in address
+    ///     .establish_with("MY-STORAGE@10.0.0.100:104")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn establish_with(self, ae_address: &str) -> Result<ClientAssociation> {
+        match ae_address.try_into() {
+            Ok(ae_address) => self.establish_impl(ae_address),
+            Err(_) => self.establish_impl(AeAddr::new_socket_addr(ae_address)),
+        }
+    }
+
+    fn establish_impl<T>(self, ae_address: AeAddr<T>) -> Result<ClientAssociation>
+    where
+        T: ToSocketAddrs,
+    {
         let ClientAssociationOptions {
             calling_ae_title,
             called_ae_title,
@@ -242,6 +287,20 @@ impl<'a> ClientAssociationOptions<'a> {
             !presentation_contexts.is_empty(),
             MissingAbstractSyntaxSnafu
         );
+
+        // choose called AE title
+        let called_ae_title: &str = match (&called_ae_title, ae_address.ae_title()) {
+            (Some(aec), Some(_)) => {
+                tracing::warn!(
+                    "Option `called_ae_title` overrides the AE title to `{}`",
+                    aec
+                );
+                aec
+            }
+            (Some(aec), None) => aec,
+            (None, Some(aec)) => aec,
+            (None, None) => "ANY-SCP",
+        };
 
         let presentation_contexts: Vec<_> = presentation_contexts
             .into_iter()
@@ -271,7 +330,7 @@ impl<'a> ClientAssociationOptions<'a> {
             ],
         };
 
-        let mut socket = std::net::TcpStream::connect(address).context(ConnectSnafu)?;
+        let mut socket = std::net::TcpStream::connect(ae_address).context(ConnectSnafu)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         // send request
 

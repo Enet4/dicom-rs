@@ -6,6 +6,9 @@
 //! enabling the creation of concrete service class users (SCUs)
 //! and service class providers (SCPs).
 //!
+//! - The [`address`](crate::address) module
+//! provides an abstraction for working with compound addresses
+//! referring to application entities in a network.
 //! - The [`pdu`](crate::pdu) module
 //! provides data structures representing _protocol data units_,
 //! which are passed around as part of the DICOM network communication support.
@@ -16,6 +19,7 @@
 
 pub mod association;
 pub mod pdu;
+pub mod address;
 
 /// The current implementation class UID generically referring to DICOM-rs.
 ///
@@ -36,3 +40,4 @@ pub use association::server::{ServerAssociation, ServerAssociationOptions};
 pub use pdu::reader::read_pdu;
 pub use pdu::writer::write_pdu;
 pub use pdu::Pdu;
+pub use address::{AeAddr, FullAeAddr};
