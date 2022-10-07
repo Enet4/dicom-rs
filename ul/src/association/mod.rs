@@ -19,6 +19,7 @@
 //! [3]: crate::association::server::ServerAssociationOptions
 pub mod client;
 pub mod server;
+mod uid;
 
 pub(crate) mod pdata;
 

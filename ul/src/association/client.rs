@@ -22,7 +22,10 @@ use crate::{
 };
 use snafu::{ensure, ResultExt, Snafu};
 
-use super::pdata::{PDataReader, PDataWriter};
+use super::{
+    pdata::{PDataReader, PDataWriter},
+    uid::trim_uid,
+};
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -205,10 +208,12 @@ impl<'a> ClientAssociationOptions<'a> {
     where
         T: Into<Cow<'a, str>>,
     {
-        let transfer_syntaxes: Vec<Cow<'a, str>> =
-            transfer_syntax_uids.into_iter().map(|t| t.into()).collect();
+        let transfer_syntaxes: Vec<Cow<'a, str>> = transfer_syntax_uids
+            .into_iter()
+            .map(|t| trim_uid(t.into()))
+            .collect();
         self.presentation_contexts
-            .push((abstract_syntax_uid.into(), transfer_syntaxes));
+            .push((trim_uid(abstract_syntax_uid.into()), transfer_syntaxes));
         self
     }
 

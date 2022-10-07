@@ -21,7 +21,7 @@ use crate::{
     IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
 
-use super::pdata::{PDataWriter, PDataReader};
+use super::{pdata::{PDataWriter, PDataReader}, uid::trim_uid};
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -282,7 +282,7 @@ where
     where
         T: Into<Cow<'a, str>>,
     {
-        self.abstract_syntax_uids.push(abstract_syntax_uid.into());
+        self.abstract_syntax_uids.push(trim_uid(abstract_syntax_uid.into()));
         self
     }
 
@@ -291,7 +291,7 @@ where
     where
         T: Into<Cow<'a, str>>,
     {
-        self.transfer_syntax_uids.push(transfer_syntax_uid.into());
+        self.transfer_syntax_uids.push(trim_uid(transfer_syntax_uid.into()));
         self
     }
 
@@ -388,7 +388,7 @@ where
                     .map(|pc| {
                         if !self
                             .abstract_syntax_uids
-                            .contains(&Cow::from(pc.abstract_syntax))
+                            .contains(&trim_uid(Cow::from(pc.abstract_syntax)))
                         {
                             return PresentationContextResult {
                                 id: pc.id,
