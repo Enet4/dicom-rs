@@ -56,7 +56,7 @@ pub enum Error {
     #[snafu(display("protocol version mismatch: expected {}, got {}", expected, got))]
     ProtocolVersionMismatch { expected: u16, got: u16 },
 
-    /// the association was rejected by the server
+    #[snafu(display("association rejected by the server: {}", association_source))]
     Rejected {
         association_result: AssociationRJResult,
         association_source: AssociationRJSource,
