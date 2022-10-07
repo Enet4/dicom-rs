@@ -785,7 +785,7 @@ fn dicom_len<T: AsRef<str>>(x: T) -> u32 {
 mod tests {
     use crate::{IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME};
 
-    use super::{FileMetaTable, FileMetaTableBuilder};
+    use super::{FileMetaTable, FileMetaTableBuilder, dicom_len};
     use dicom_core::value::Value;
     use dicom_core::{dicom_value, DataElement, Tag, VR};
 
@@ -917,8 +917,8 @@ mod tests {
 
         let gt = FileMetaTable {
             information_group_length: 154
-                + IMPLEMENTATION_CLASS_UID.len() as u32
-                + IMPLEMENTATION_VERSION_NAME.len() as u32,
+                + dicom_len(IMPLEMENTATION_CLASS_UID)
+                + dicom_len(IMPLEMENTATION_VERSION_NAME),
             information_version: [0u8, 1u8],
             media_storage_sop_class_uid: "1.2.840.10008.5.1.4.1.1.1\0".to_owned(),
             media_storage_sop_instance_uid:
