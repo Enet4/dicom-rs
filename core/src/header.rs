@@ -1013,16 +1013,11 @@ impl FromStr for Tag {
         match s.len() {
             11 => {
                 // (gggg,eeee)
-
-                if s.chars().next() != Some('(') {
-                    return Err(ParseTagError::Start);
-                }
+                ensure!(s.starts_with('('), StartSnafu);
 
                 let (num_g, rest) = parse_tag_part(&s[1..])?;
 
-                if rest.chars().next() != Some(',') {
-                    return Err(ParseTagError::Separator);
-                }
+                ensure!(rest.starts_with(','), SeparatorSnafu);
 
                 let (num_e, rest) = parse_tag_part(&rest[1..])?;
 
@@ -1034,9 +1029,7 @@ impl FromStr for Tag {
                 // gggg,eeee
                 let (num_g, rest) = parse_tag_part(s)?;
 
-                if rest.chars().next() != Some(',') {
-                    return Err(ParseTagError::Separator);
-                }
+                ensure!(rest.starts_with(','), SeparatorSnafu);
 
                 let (num_e, _) = parse_tag_part(&rest[1..])?;
 
