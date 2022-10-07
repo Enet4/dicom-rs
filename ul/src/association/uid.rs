@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-pub(crate) fn trim_uid<'a>(uid: Cow<'a, str>) -> Cow<'a, str> {
+pub(crate) fn trim_uid(uid: Cow<str>) -> Cow<str> {
     if uid.ends_with('\0') {
         Cow::Owned(uid.trim_end_matches(|c| c == '\0').to_string())
     } else {
