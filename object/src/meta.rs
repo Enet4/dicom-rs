@@ -182,7 +182,7 @@ impl FileMetaTable {
         FileMetaTable::read_from(file)
     }
 
-    /// Getter for the transfer syntax,
+    /// Getter for the transfer syntax UID,
     /// with trailing characters already excluded.
     pub fn transfer_syntax(&self) -> &str {
         self.transfer_syntax
