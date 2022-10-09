@@ -21,7 +21,10 @@ use crate::create_ts_stub;
 use byteordered::Endianness;
 use dicom_encoding::{
     adapters::jpeg::JPEGAdapter,
-    adapters::rle_lossless::RLELosslessAdapter,
+    adapters::{
+        rle_lossless::RLELosslessAdapter, DecodeError, EncodeError, EncodeOptions, PixelDataObject,
+        PixelRWAdapter,
+    },
     transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec, NeverAdapter},
     TransferSyntax,
 };
@@ -53,6 +56,18 @@ pub const EXPLICIT_VR_BIG_ENDIAN: Ts = Ts::new(
     Endianness::Big,
     true,
     Codec::None,
+);
+
+/// Encapsulated Uncompressed Explicit VR Little Endian
+pub const ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN: TransferSyntax<
+    NeverAdapter,
+    UncompressedPixelAdapter,
+> = TransferSyntax::new(
+    "1.2.840.10008.1.2.1.98",
+    "Encapsulated Uncompressed Explicit VR Little Endian",
+    Endianness::Little,
+    true,
+    Codec::PixelData(UncompressedPixelAdapter),
 );
 
 // -- transfer syntaxes with pixel data adapters, fully supported --
@@ -210,3 +225,45 @@ pub const SMPTE_ST_2110_30_PCM: Ts = create_ts_stub(
     "1.2.840.10008.1.2.7.3",
     "SMPTE ST 2110-30 PCM Digital Audio",
 );
+
+// --
+
+/// Immaterial type representing an adapter for uncompressed pixel data.
+#[derive(Debug)]
+pub struct UncompressedPixelAdapter;
+
+impl PixelRWAdapter for UncompressedPixelAdapter {
+    fn decode(
+        &self,
+        src: &dyn PixelDataObject,
+        dst: &mut Vec<u8>,
+    ) -> dicom_encoding::adapters::DecodeResult<()> {
+        let raw = src
+            .raw_pixel_data()
+            .ok_or(DecodeError::MissingAttribute { name: "PixelData" })?;
+        for fragment in raw.fragments {
+            dst.extend(fragment);
+        }
+        Ok(())
+    }
+
+    fn encode(
+        &self,
+        src: &dyn PixelDataObject,
+        _options: EncodeOptions,
+        dst: &mut Vec<u8>,
+    ) -> dicom_encoding::adapters::EncodeResult<()> {
+        let raw = src.raw_pixel_data().ok_or(EncodeError::CustomEncodeError {
+            message: "Missing PixelData",
+        })?;
+
+        if raw.fragments.len() != 1 {
+            return Err(EncodeError::NotNative);
+        }
+
+        for fragment in raw.fragments {
+            dst.extend(fragment);
+        }
+        Ok(())
+    }
+}
