@@ -21,7 +21,7 @@ use crate::{
     IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
 
-use super::pdata::{PDataWriter, PDataReader};
+use super::{pdata::{PDataWriter, PDataReader}, uid::trim_uid};
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -192,6 +192,8 @@ pub struct ServerAssociationOptions<'a, A> {
     protocol_version: u16,
     /// the maximum PDU length
     max_pdu_length: u32,
+    /// whether to receive PDUs in strict mode
+    strict: bool,
 }
 
 impl<'a> Default for ServerAssociationOptions<'a, AcceptAny> {
@@ -204,6 +206,7 @@ impl<'a> Default for ServerAssociationOptions<'a, AcceptAny> {
             transfer_syntax_uids: Vec::new(),
             protocol_version: 1,
             max_pdu_length: crate::pdu::reader::DEFAULT_MAX_PDU,
+            strict: true,
         }
     }
 }
@@ -251,7 +254,8 @@ where
             transfer_syntax_uids,
             protocol_version,
             max_pdu_length,
-            ..
+            strict,
+            ae_access_control: _,
         } = self;
 
         ServerAssociationOptions {
@@ -262,6 +266,7 @@ where
             transfer_syntax_uids,
             protocol_version,
             max_pdu_length,
+            strict,
         }
     }
 
@@ -282,7 +287,7 @@ where
     where
         T: Into<Cow<'a, str>>,
     {
-        self.abstract_syntax_uids.push(abstract_syntax_uid.into());
+        self.abstract_syntax_uids.push(trim_uid(abstract_syntax_uid.into()));
         self
     }
 
@@ -291,13 +296,21 @@ where
     where
         T: Into<Cow<'a, str>>,
     {
-        self.transfer_syntax_uids.push(transfer_syntax_uid.into());
+        self.transfer_syntax_uids.push(trim_uid(transfer_syntax_uid.into()));
         self
     }
 
     /// Override the maximum expected PDU length.
     pub fn max_pdu_length(mut self, value: u32) -> Self {
         self.max_pdu_length = value;
+        self
+    }
+
+    /// Override strict mode:
+    /// whether receiving PDUs must not
+    /// surpass the negotiated maximum PDU length.
+    pub fn strict(mut self, strict: bool) -> Self {
+        self.strict = strict;
         self
     }
 
@@ -310,7 +323,7 @@ where
 
         let max_pdu_length = self.max_pdu_length;
 
-        let pdu = read_pdu(&mut socket, max_pdu_length, true).context(ReceiveRequestSnafu)?;
+        let pdu = read_pdu(&mut socket, max_pdu_length, self.strict).context(ReceiveRequestSnafu)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         match pdu {
             Pdu::AssociationRQ {
@@ -388,7 +401,7 @@ where
                     .map(|pc| {
                         if !self
                             .abstract_syntax_uids
-                            .contains(&Cow::from(pc.abstract_syntax))
+                            .contains(&trim_uid(Cow::from(pc.abstract_syntax)))
                         {
                             return PresentationContextResult {
                                 id: pc.id,
@@ -419,7 +432,7 @@ where
                         protocol_version: self.protocol_version,
                         application_context_name,
                         presentation_contexts: presentation_contexts.clone(),
-                        calling_ae_title,
+                        calling_ae_title: calling_ae_title.clone(),
                         called_ae_title,
                         user_variables: vec![
                             UserVariableItem::MaxLength(max_pdu_length),
@@ -440,7 +453,9 @@ where
                     requestor_max_pdu_length,
                     acceptor_max_pdu_length: max_pdu_length,
                     socket,
+                    client_ae_title: calling_ae_title,
                     buffer,
+                    strict: self.strict,
                 })
             }
             Pdu::ReleaseRQ => {
@@ -479,14 +494,23 @@ pub struct ServerAssociation {
     acceptor_max_pdu_length: u32,
     /// The TCP stream to the other DICOM node
     socket: TcpStream,
+    /// The application entity title of the other DICOM node
+    client_ae_title: String,
     /// write buffer to send fully assembled PDUs on wire
     buffer: Vec<u8>,
+    /// whether to receive PDUs in strict mode
+    strict: bool,
 }
 
 impl ServerAssociation {
     /// Obtain a view of the negotiated presentation contexts.
     pub fn presentation_contexts(&self) -> &[PresentationContextResult] {
         &self.presentation_contexts
+    }
+
+    /// Obtain the remote DICOM node's application entity title.
+    pub fn client_ae_title(&self) -> &str {
+        &self.client_ae_title
     }
 
     /// Send a PDU message to the other intervenient.
@@ -504,7 +528,7 @@ impl ServerAssociation {
 
     /// Read a PDU message from the other intervenient.
     pub fn receive(&mut self) -> Result<Pdu> {
-        read_pdu(&mut self.socket, self.acceptor_max_pdu_length, true).context(ReceiveSnafu)
+        read_pdu(&mut self.socket, self.acceptor_max_pdu_length, self.strict).context(ReceiveSnafu)
     }
 
     /// Send a provider initiated abort message

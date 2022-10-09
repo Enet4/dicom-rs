@@ -22,7 +22,10 @@ use crate::{
 };
 use snafu::{ensure, ResultExt, Snafu};
 
-use super::pdata::{PDataReader, PDataWriter};
+use super::{
+    pdata::{PDataReader, PDataWriter},
+    uid::trim_uid,
+};
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -56,7 +59,7 @@ pub enum Error {
     #[snafu(display("protocol version mismatch: expected {}, got {}", expected, got))]
     ProtocolVersionMismatch { expected: u16, got: u16 },
 
-    /// the association was rejected by the server
+    #[snafu(display("association rejected by the server: {}", association_source))]
     Rejected {
         association_result: AssociationRJResult,
         association_source: AssociationRJSource,
@@ -139,6 +142,8 @@ pub struct ClientAssociationOptions<'a> {
     protocol_version: u16,
     /// the maximum PDU length requested for receiving PDUs
     max_pdu_length: u32,
+    /// whether to receive PDUs in strict mode
+    strict: bool,
 }
 
 impl<'a> Default for ClientAssociationOptions<'a> {
@@ -154,6 +159,7 @@ impl<'a> Default for ClientAssociationOptions<'a> {
             presentation_contexts: Vec::new(),
             protocol_version: 1,
             max_pdu_length: crate::pdu::reader::DEFAULT_MAX_PDU,
+            strict: true,
         }
     }
 }
@@ -205,10 +211,12 @@ impl<'a> ClientAssociationOptions<'a> {
     where
         T: Into<Cow<'a, str>>,
     {
-        let transfer_syntaxes: Vec<Cow<'a, str>> =
-            transfer_syntax_uids.into_iter().map(|t| t.into()).collect();
+        let transfer_syntaxes: Vec<Cow<'a, str>> = transfer_syntax_uids
+            .into_iter()
+            .map(|t| trim_uid(t.into()))
+            .collect();
         self.presentation_contexts
-            .push((abstract_syntax_uid.into(), transfer_syntaxes));
+            .push((trim_uid(abstract_syntax_uid.into()), transfer_syntaxes));
         self
     }
 
@@ -228,6 +236,14 @@ impl<'a> ClientAssociationOptions<'a> {
     /// that this application entity will admit.
     pub fn max_pdu_length(mut self, value: u32) -> Self {
         self.max_pdu_length = value;
+        self
+    }
+
+    /// Override strict mode:
+    /// whether receiving PDUs must not
+    /// surpass the negotiated maximum PDU length.
+    pub fn strict(mut self, strict: bool) -> Self {
+        self.strict = strict;
         self
     }
 
@@ -279,6 +295,7 @@ impl<'a> ClientAssociationOptions<'a> {
             presentation_contexts,
             protocol_version,
             max_pdu_length,
+            strict,
         } = self;
 
         // fail if no presentation contexts were provided: they represent intent,
@@ -338,7 +355,7 @@ impl<'a> ClientAssociationOptions<'a> {
         socket.write_all(&buffer).context(WireSendSnafu)?;
         buffer.clear();
         // receive response
-        let msg = read_pdu(&mut socket, MAXIMUM_PDU_SIZE, true).context(ReceiveResponseSnafu)?;
+        let msg = read_pdu(&mut socket, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveResponseSnafu)?;
 
         match msg {
             Pdu::AssociationAC {
@@ -394,6 +411,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     acceptor_max_pdu_length,
                     socket,
                     buffer,
+                    strict,
                 })
             }
             Pdu::AssociationRJ { result, source } => RejectedSnafu {
@@ -457,6 +475,8 @@ pub struct ClientAssociation {
     socket: TcpStream,
     /// Buffer to assemble PDU before sending it on wire
     buffer: Vec<u8>,
+    /// whether to receive PDUs in strict mode
+    strict: bool,
 }
 
 impl ClientAssociation {
@@ -496,7 +516,7 @@ impl ClientAssociation {
 
     /// Read a PDU message from the other intervenient.
     pub fn receive(&mut self) -> Result<Pdu> {
-        read_pdu(&mut self.socket, self.requestor_max_pdu_length, true).context(ReceiveSnafu)
+        read_pdu(&mut self.socket, self.requestor_max_pdu_length, self.strict).context(ReceiveSnafu)
     }
 
     /// Gracefully terminate the association by exchanging release messages
@@ -561,7 +581,7 @@ impl ClientAssociation {
     fn release_impl(&mut self) -> Result<()> {
         let pdu = Pdu::ReleaseRQ;
         self.send(&pdu)?;
-        let pdu = read_pdu(&mut self.socket, self.requestor_max_pdu_length, true)
+        let pdu = read_pdu(&mut self.socket, self.requestor_max_pdu_length, self.strict)
             .context(ReceiveSnafu)?;
 
         match pdu {
