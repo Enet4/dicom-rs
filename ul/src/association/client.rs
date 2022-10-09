@@ -355,7 +355,7 @@ impl<'a> ClientAssociationOptions<'a> {
         socket.write_all(&buffer).context(WireSendSnafu)?;
         buffer.clear();
         // receive response
-        let msg = read_pdu(&mut socket, MAXIMUM_PDU_SIZE, true).context(ReceiveResponseSnafu)?;
+        let msg = read_pdu(&mut socket, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveResponseSnafu)?;
 
         match msg {
             Pdu::AssociationAC {
@@ -516,7 +516,7 @@ impl ClientAssociation {
 
     /// Read a PDU message from the other intervenient.
     pub fn receive(&mut self) -> Result<Pdu> {
-        read_pdu(&mut self.socket, self.requestor_max_pdu_length, true).context(ReceiveSnafu)
+        read_pdu(&mut self.socket, self.requestor_max_pdu_length, self.strict).context(ReceiveSnafu)
     }
 
     /// Gracefully terminate the association by exchanging release messages

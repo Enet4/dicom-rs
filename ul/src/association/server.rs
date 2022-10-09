@@ -323,7 +323,7 @@ where
 
         let max_pdu_length = self.max_pdu_length;
 
-        let pdu = read_pdu(&mut socket, max_pdu_length, true).context(ReceiveRequestSnafu)?;
+        let pdu = read_pdu(&mut socket, max_pdu_length, self.strict).context(ReceiveRequestSnafu)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         match pdu {
             Pdu::AssociationRQ {
