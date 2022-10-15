@@ -12,7 +12,7 @@ use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{pdu::PDataValueType, Pdu};
 use tracing::{debug, error, info, warn, Level};
 
-use crate::transfer::{ABSTRACT_SYNTAXES, NATIVE_TRANSFER_SYNTAXES, TRANSFER_SYNTAXES};
+use crate::transfer::ABSTRACT_SYNTAXES;
 
 mod transfer;
 
@@ -65,15 +65,17 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Box<dyn std::error::Erro
         .ae_title(calling_ae_title)
         .strict(*strict);
 
-    let accepted_tss = if *uncompressed_only {
-        NATIVE_TRANSFER_SYNTAXES
+    if *uncompressed_only {
+        options = options
+            .with_transfer_syntax("1.2.840.10008.1.2")
+            .with_transfer_syntax("1.2.840.10008.1.2.1");
     } else {
-        TRANSFER_SYNTAXES
+        for ts in TransferSyntaxRegistry.iter() {
+            if !ts.unsupported() {
+                options = options.with_transfer_syntax(ts.uid());
+            }
+        }
     };
-
-    for uid in accepted_tss {
-        options = options.with_transfer_syntax(*uid);
-    }
 
     for uid in ABSTRACT_SYNTAXES {
         options = options.with_abstract_syntax(*uid);
