@@ -97,6 +97,11 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Box<dyn std::error::Erro
                 }
                 match pdu {
                     Pdu::PData { ref mut data } => {
+                        if data.is_empty() {
+                            debug!("Ignoring empty PData PDU");
+                            continue;
+                        }
+
                         if data[0].value_type == PDataValueType::Data && !data[0].is_last {
                             instance_buffer.append(&mut data[0].data);
                         } else if data[0].value_type == PDataValueType::Command && data[0].is_last {
@@ -124,9 +129,8 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Box<dyn std::error::Erro
                             let presentation_context = association
                                 .presentation_contexts()
                                 .iter()
-                                .filter(|pc| pc.id == data[0].presentation_context_id)
-                                .next()
-                                .unwrap();
+                                .find(|pc| pc.id == data[0].presentation_context_id)
+                                .ok_or("missing presentation context")?;
                             let ts = &presentation_context.transfer_syntax;
 
                             let obj = InMemDicomObject::read_dataset_with_ts(
