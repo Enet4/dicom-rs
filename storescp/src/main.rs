@@ -12,7 +12,7 @@ use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{pdu::PDataValueType, Pdu};
 use tracing::{debug, error, info, warn, Level};
 
-use crate::transfer::{ABSTRACT_SYNTAXES, TRANSFER_SYNTAXES};
+use crate::transfer::{ABSTRACT_SYNTAXES, NATIVE_TRANSFER_SYNTAXES, TRANSFER_SYNTAXES};
 
 mod transfer;
 
@@ -28,6 +28,9 @@ struct App {
     /// enforce max pdu length
     #[clap(short = 's', long = "strict")]
     strict: bool,
+    /// Only accept native/uncompressed transfer syntaxes
+    #[clap(long)]
+    uncompressed_only: bool,
     /// max pdu length
     #[clap(short = 'm', long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
@@ -39,15 +42,19 @@ struct App {
     port: u16,
 }
 
-fn run(
-    scu_stream: TcpStream,
-    out_dir: PathBuf,
-    calling_ae_title: &str,
-    strict: bool,
-    verbose: bool,
-    max_pdu_length: u32,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
+fn run(scu_stream: TcpStream, args: &App) -> Result<(), Box<dyn std::error::Error>> {
+    let App {
+        verbose,
+        calling_ae_title,
+        strict,
+        uncompressed_only,
+        max_pdu_length,
+        out_dir,
+        port: _,
+    } = args;
+    let verbose = *verbose;
+
+    let mut buffer: Vec<u8> = Vec::with_capacity(*max_pdu_length as usize);
     let mut instance_buffer: Vec<u8> = Vec::with_capacity(1024 * 1024);
     let mut msgid = 1;
     let mut sop_class_uid = "".to_string();
@@ -56,20 +63,29 @@ fn run(
     let mut options = dicom_ul::association::ServerAssociationOptions::new()
         .accept_any()
         .ae_title(calling_ae_title)
-        .strict(strict);
+        .strict(*strict);
 
-    for uid in TRANSFER_SYNTAXES {
+    let accepted_tss = if *uncompressed_only {
+        NATIVE_TRANSFER_SYNTAXES
+    } else {
+        TRANSFER_SYNTAXES
+    };
+
+    for uid in accepted_tss {
         options = options.with_transfer_syntax(*uid);
     }
-    
+
     for uid in ABSTRACT_SYNTAXES {
         options = options.with_abstract_syntax(*uid);
     }
-        
+
     let mut association = options.establish(scu_stream)?;
 
     info!("New association from {}", association.client_ae_title());
-    debug!("> Presentation contexts: {:?}", association.presentation_contexts());
+    debug!(
+        "> Presentation contexts: {:?}",
+        association.presentation_contexts()
+    );
 
     loop {
         match association.receive() {
@@ -248,44 +264,37 @@ fn create_cstore_response(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let App {
-        verbose,
-        strict,
-        port,
-        max_pdu_length,
-        out_dir,
-        calling_ae_title,
-    } = App::from_args();
+    let args = App::from_args();
 
     tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()
-            .with_max_level(if verbose { Level::DEBUG } else { Level::INFO })
+            .with_max_level(if args.verbose {
+                Level::DEBUG
+            } else {
+                Level::INFO
+            })
             .finish(),
     )
     .unwrap_or_else(|e| {
         eprintln!("Could not set up global logger: {}", e);
     });
 
-    std::fs::create_dir_all(&out_dir).unwrap_or_else(|e| {
+    std::fs::create_dir_all(&args.out_dir).unwrap_or_else(|e| {
         error!("Could not create output directory: {}", e);
         std::process::exit(-2);
     });
 
-    let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), port);
+    let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), args.port);
     let listener = TcpListener::bind(&listen_addr)?;
-    info!("{} listening on: tcp://{}", &calling_ae_title, listen_addr);
+    info!(
+        "{} listening on: tcp://{}",
+        &args.calling_ae_title, listen_addr
+    );
 
     for stream in listener.incoming() {
         match stream {
             Ok(scu_stream) => {
-                if let Err(e) = run(
-                    scu_stream,
-                    out_dir.clone(),
-                    &calling_ae_title,
-                    strict,
-                    verbose,
-                    max_pdu_length,
-                ) {
+                if let Err(e) = run(scu_stream, &args) {
                     error!("{}", e);
                 }
             }
