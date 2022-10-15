@@ -16,7 +16,7 @@ members = [
     "pixeldata",
     "fromimage",
     "toimage",
-    "storescp"
+    "storescp",
 ]
 
 # optimize JPEG decoder to run tests faster
