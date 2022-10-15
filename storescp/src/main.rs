@@ -1,5 +1,4 @@
 use std::{
-    io::Write,
     net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream},
     path::PathBuf,
 };
@@ -10,14 +9,12 @@ use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject, StandardDataDictionary};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use dicom_ul::{
-    pdu::reader::read_pdu,
-    pdu::{
-        writer::write_pdu, PDataValueType, PresentationContextProposed, PresentationContextResult,
-    },
-    Pdu,
-};
-use tracing::{debug, error, info, Level, warn};
+use dicom_ul::{pdu::PDataValueType, Pdu};
+use tracing::{debug, error, info, warn, Level};
+
+use crate::transfer::{ABSTRACT_SYNTAXES, TRANSFER_SYNTAXES};
+
+mod transfer;
 
 /// DICOM C-STORE SCP
 #[derive(Debug, Parser)]
@@ -25,6 +22,9 @@ struct App {
     /// verbose mode
     #[clap(short = 'v', long = "verbose")]
     verbose: bool,
+    /// the calling Application Entity title
+    #[structopt(long = "calling-ae-title", default_value = "STORE-SCP")]
+    calling_ae_title: String,
     /// enforce max pdu length
     #[clap(short = 's', long = "strict")]
     strict: bool,
@@ -40,8 +40,9 @@ struct App {
 }
 
 fn run(
-    scu_stream: &mut TcpStream,
+    scu_stream: TcpStream,
     out_dir: PathBuf,
+    calling_ae_title: &str,
     strict: bool,
     verbose: bool,
     max_pdu_length: u32,
@@ -52,61 +53,31 @@ fn run(
     let mut sop_class_uid = "".to_string();
     let mut sop_instance_uid = "".to_string();
 
-    let mut presentation_context_results: Vec<PresentationContextResult> = vec![];
-    let mut ae: Option<String> = None;
+    let mut options = dicom_ul::association::ServerAssociationOptions::new()
+        .accept_any()
+        .ae_title(calling_ae_title)
+        .strict(strict);
+
+    for uid in TRANSFER_SYNTAXES {
+        options = options.with_transfer_syntax(*uid);
+    }
+    
+    for uid in ABSTRACT_SYNTAXES {
+        options = options.with_abstract_syntax(*uid);
+    }
+        
+    let mut association = options.establish(scu_stream)?;
+
+    info!("New association from {}", association.client_ae_title());
+    debug!("> Presentation contexts: {:?}", association.presentation_contexts());
 
     loop {
-        match read_pdu(scu_stream, max_pdu_length, strict) {
+        match association.receive() {
             Ok(mut pdu) => {
                 if verbose {
                     debug!("scu ----> scp: {}", pdu.short_description());
                 }
                 match pdu {
-                    Pdu::AssociationRQ {
-                        protocol_version,
-                        calling_ae_title,
-                        called_ae_title,
-                        application_context_name,
-                        presentation_contexts,
-                        user_variables,
-                    } => {
-                        buffer.clear();
-                        presentation_context_results = presentation_contexts
-                            .iter()
-                            .map(|pc| {
-                                let PresentationContextProposed {
-                                    id,
-                                    abstract_syntax: _,
-                                    transfer_syntaxes,
-                                } = &pc;
-                                PresentationContextResult {
-                                    id: *id,
-                                    reason:
-                                        dicom_ul::pdu::PresentationContextResultReason::Acceptance,
-                                    // accept the first proposed transfer syntax
-                                    transfer_syntax: transfer_syntaxes[0].clone(),
-                                }
-                            })
-                            .collect();
-
-                        ae = Some(calling_ae_title.clone());
-
-                        // copying most variables for now, should be set to application specific values
-                        let response = Pdu::AssociationAC {
-                            protocol_version,
-                            calling_ae_title: calling_ae_title,
-                            called_ae_title,
-                            application_context_name,
-                            user_variables,
-                            presentation_contexts: presentation_context_results.clone(),
-                        };
-                        write_pdu(&mut buffer, &response)?;
-                        if verbose {
-                            debug!("scu <---- scp: {}", response.short_description());
-                        }
-                        info!("New association with {}", ae.as_ref().unwrap());
-                        scu_stream.write_all(&buffer)?;
-                    }
                     Pdu::PData { ref mut data } => {
                         if data[0].value_type == PDataValueType::Data && !data[0].is_last {
                             instance_buffer.append(&mut data[0].data);
@@ -132,7 +103,8 @@ fn run(
                         } else if data[0].value_type == PDataValueType::Data && data[0].is_last {
                             instance_buffer.append(&mut data[0].data);
 
-                            let presentation_context = presentation_context_results
+                            let presentation_context = association
+                                .presentation_contexts()
                                 .iter()
                                 .filter(|pc| pc.id == data[0].presentation_context_id)
                                 .next()
@@ -156,7 +128,8 @@ fn run(
 
                             // write the files to the current directory with their SOPInstanceUID as filenames
                             let mut file_path = out_dir.clone();
-                            file_path.push(sop_instance_uid.trim_end_matches('\0').to_string() + ".dcm");
+                            file_path
+                                .push(sop_instance_uid.trim_end_matches('\0').to_string() + ".dcm");
                             file_obj.write_to_file(&file_path)?;
                             info!("Stored {}", file_path.display());
 
@@ -181,28 +154,22 @@ fn run(
                                     data: obj_data,
                                 }],
                             };
-                            buffer.clear();
-                            write_pdu(&mut buffer, &pdu_response)?;
-                            scu_stream.write_all(&buffer)?;
+                            association.send(&pdu_response)?;
                         }
                     }
                     Pdu::ReleaseRQ => {
                         buffer.clear();
-                        write_pdu(&mut buffer, &Pdu::ReleaseRP)?;
-                        scu_stream.write_all(&buffer)?;
-                        match &ae {
-                            Some(ae) => {
-                                info!("Released association with {}", ae)
-                            }
-                            None => {
-                                warn!("Received release before an association was established");
-                            }
-                        }
+                        association.send(&Pdu::ReleaseRP)?;
+                        info!(
+                            "Released association with {}",
+                            association.client_ae_title()
+                        );
                     }
                     _ => {}
                 }
             }
-            Err(dicom_ul::pdu::reader::Error::NoPduAvailable { .. }) => {
+            Err(err @ dicom_ul::association::server::Error::Receive { .. }) => {
+                debug!("{}", err);
                 break;
             }
             Err(err) => {
@@ -211,7 +178,7 @@ fn run(
             }
         }
     }
-    debug!("Connection dropped");
+    info!("Association with {} dropped", association.client_ae_title());
     Ok(())
 }
 
@@ -287,6 +254,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         port,
         max_pdu_length,
         out_dir,
+        calling_ae_title,
     } = App::from_args();
 
     tracing::subscriber::set_global_default(
@@ -305,17 +273,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), port);
     let listener = TcpListener::bind(&listen_addr)?;
-    info!("listening on: tcp://{}", listen_addr);
+    info!("{} listening on: tcp://{}", &calling_ae_title, listen_addr);
 
-    for mut stream in listener.incoming() {
+    for stream in listener.incoming() {
         match stream {
-            Ok(ref mut scu_stream) => {
-                if let Err(e) = run(scu_stream, out_dir.clone(), strict, verbose, max_pdu_length) {
-                    error!("[ERROR] {}", e);
+            Ok(scu_stream) => {
+                if let Err(e) = run(
+                    scu_stream,
+                    out_dir.clone(),
+                    &calling_ae_title,
+                    strict,
+                    verbose,
+                    max_pdu_length,
+                ) {
+                    error!("{}", e);
                 }
             }
             Err(e) => {
-                error!("[ERROR] {}", e);
+                error!("{}", e);
             }
         }
     }
