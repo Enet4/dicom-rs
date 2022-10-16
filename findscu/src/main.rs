@@ -11,6 +11,7 @@ use dicom_ul::{
     association::ClientAssociationOptions,
     pdu::{PDataValue, PDataValueType},
 };
+use query::parse_queries;
 use smallvec::smallvec;
 use snafu::{prelude::*, ErrorCompat};
 use std::io::{stderr, Read};
@@ -18,19 +19,19 @@ use std::path::PathBuf;
 use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 
-#[derive(Debug, Clone, Eq, Hash, PartialEq)]
-struct TermQuery {
-    field: String,
-    match_value: String,
-}
+mod query;
 
 /// DICOM C-FIND SCU
 #[derive(Debug, Parser)]
 struct App {
     /// socket address to FIND SCP (example: "127.0.0.1:1045")
     addr: String,
-    /// the DICOM file representing the query object
-    file: PathBuf,
+    /// a DICOM file representing the query object
+    file: Option<PathBuf>,
+    /// sequence of queries
+    #[clap(short('q'))]
+    query: Vec<String>,
+
     /// verbose mode
     #[clap(short = 'v', long = "verbose")]
     verbose: bool,
@@ -38,8 +39,8 @@ struct App {
     #[clap(long = "calling-ae-title", default_value = "FIND-SCU")]
     calling_ae_title: String,
     /// the called AE title
-    #[clap(long = "called-ae-title", default_value = "ANY-SCP")]
-    called_ae_title: String,
+    #[clap(long = "called-ae-title")]
+    called_ae_title: Option<String>,
     /// the maximum PDU length
     #[clap(long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
@@ -50,10 +51,6 @@ struct App {
     /// use study root information model (default)
     #[clap(long, conflicts_with = "patient")]
     study: bool,
-
-    /// queries
-    #[clap(short('q'))]
-    query: Vec<String>,
 }
 
 fn report<E: 'static>(err: &E)
@@ -126,6 +123,48 @@ enum Error {
     },
 }
 
+fn build_query(
+    file: Option<PathBuf>,
+    q: Vec<String>,
+    patient: bool,
+    study: bool,
+    verbose: bool,
+) -> Result<InMemDicomObject, Error> {
+    match (file, q) {
+        (Some(file), q) => {
+            if !q.is_empty() {
+                whatever!("Conflicted file with query terms");
+            }
+
+            if verbose {
+                info!("Opening file '{}'...", file.display());
+            }
+
+            open_file(file)
+                .context(CreateCommandSnafu)
+                .map(|file| file.into_inner())
+        }
+        (None, q) => {
+            let mut obj =
+                parse_queries(&q).whatever_context("Could not build query object from terms")?;
+
+            // (0008,0052) CS QueryRetrieveLevel
+            let level = match (patient, study) {
+                (true, false) => "PATIENT",
+                (false, true) => "STUDY",
+                _ => unreachable!(),
+            };
+            obj.put(DataElement::new(
+                tags::QUERY_RETRIEVE_LEVEL,
+                VR::CS,
+                PrimitiveValue::from(level),
+            ));
+
+            Ok(obj)
+        }
+    }
+}
+
 fn run() -> Result<(), Error> {
     let App {
         addr,
@@ -148,11 +187,7 @@ fn run() -> Result<(), Error> {
         report(&e);
     });
 
-    if verbose {
-        info!("Opening file '{}'...", file.display());
-    }
-
-    let dicom_file = open_file(file).context(CreateCommandSnafu)?;
+    let dcm_query = build_query(file, query, patient, study, verbose)?;
 
     let abstract_syntax = match (patient, study) {
         // Patient Root Query/Retrieve Information Model - FIND
@@ -167,13 +202,16 @@ fn run() -> Result<(), Error> {
         info!("Establishing association with '{}'...", &addr);
     }
 
-    let mut scu = ClientAssociationOptions::new()
+    let mut scu_opt = ClientAssociationOptions::new()
         .with_abstract_syntax(abstract_syntax)
         .calling_ae_title(calling_ae_title)
-        .called_ae_title(called_ae_title)
-        .max_pdu_length(max_pdu_length)
-        .establish(addr)
-        .context(InitScuSnafu)?;
+        .max_pdu_length(max_pdu_length);
+
+    if let Some(called_ae_title) = called_ae_title {
+        scu_opt = scu_opt.called_ae_title(called_ae_title);
+    }
+
+    let mut scu = scu_opt.establish_with(&addr).context(InitScuSnafu)?;
 
     if verbose {
         info!("Association established");
@@ -209,7 +247,7 @@ fn run() -> Result<(), Error> {
     let implicit_vr_le = entries::IMPLICIT_VR_LITTLE_ENDIAN.erased();
 
     let mut iod_data = Vec::with_capacity(128);
-    dicom_file
+    dcm_query
         .write_dataset_with_ts(&mut iod_data, &implicit_vr_le)
         .whatever_context("failed to write identifier dataset")?;
 
