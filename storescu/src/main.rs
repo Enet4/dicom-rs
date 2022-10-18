@@ -1,28 +1,23 @@
-use dicom_core::dicom_value;
-use dicom_core::smallvec;
-use dicom_core::{header::Tag, DataElement, PrimitiveValue, VR};
+use dicom_core::{dicom_value, header::Tag, smallvec, DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax;
 use dicom_object::{mem::InMemDicomObject, open_file, StandardDataDictionary};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use dicom_ul::pdu::Pdu;
 use dicom_ul::{
     association::ClientAssociationOptions,
-    pdu::{PDataValue, PDataValueType},
+    pdu::{PDataValue, PDataValueType, Pdu},
 };
 use indicatif::{ProgressBar, ProgressStyle};
 use smallvec::smallvec;
-use snafu::Whatever;
 use snafu::prelude::*;
-use snafu::Report;
+use snafu::{Report, Whatever};
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use structopt::StructOpt;
-use tracing::Level;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 use walkdir::WalkDir;
 
