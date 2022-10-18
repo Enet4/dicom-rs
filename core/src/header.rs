@@ -767,9 +767,9 @@ pub enum VR {
     SS,
     /// Short Text
     ST,
-    /// Time
-    SV,
     /// Signed Very Long
+    SV,
+    /// Time
     TM,
     /// Unlimited Characters
     UC,
