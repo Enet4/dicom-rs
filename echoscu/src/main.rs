@@ -1,11 +1,9 @@
-use dicom_core::dicom_value;
-use dicom_core::{DataElement, PrimitiveValue, VR};
+use dicom_core::{dicom_value, DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{mem::InMemDicomObject, StandardDataDictionary};
-use dicom_ul::pdu;
 use dicom_ul::{
     association::client::ClientAssociationOptions,
-    pdu::{PDataValueType, Pdu},
+    pdu::{self, PDataValueType, Pdu},
 };
 use pdu::PDataValue;
 use snafu::{prelude::*, Whatever};
