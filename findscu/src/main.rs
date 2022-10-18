@@ -151,7 +151,8 @@ fn build_query(
             // (0008,0052) CS QueryRetrieveLevel
             let level = match (patient, study) {
                 (true, false) => "PATIENT",
-                (false, true) => "STUDY",
+                (false, true) |
+                (false, false) => "STUDY",
                 _ => unreachable!(),
             };
             obj.put(DataElement::new(
