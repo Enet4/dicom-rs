@@ -313,6 +313,9 @@ fn run() -> Result<(), Error> {
                     if verbose {
                         debug!("Matching is complete");
                     }
+                    if i == 0 {
+                        info!("No results matching query");
+                    }
                     break;
                 } else if status == 0xFF00 || status == 0xFF01 {
                     if verbose {
