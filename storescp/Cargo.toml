@@ -1,6 +1,6 @@
 [package]
 name = "dicom-storescp"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 authors = ["Victor Saase <vsaase@gmail.com>", "Eduardo Pinho <enet4mikeenet@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -12,12 +12,12 @@ readme = "README.md"
 
 [dependencies]
 clap = { version = "=3.2.21", features = ["derive"] }
-dicom-core = { path = '../core', version = "0.5.1" }
-dicom-ul = { path = '../ul', version = "0.4.2" }
-dicom-object = { path = '../object', version = "0.5.2" }
-dicom-encoding = { path = "../encoding/", version = "0.5.1" }
+dicom-core = { path = '../core', version = "0.5.2" }
+dicom-ul = { path = '../ul', version = "0.4.3" }
+dicom-object = { path = '../object', version = "0.5.3" }
+dicom-encoding = { path = "../encoding/", version = "0.5.2" }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.5.0" }
-dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.5.0" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.5.1" }
 smallvec = "1.6.1"
 snafu = "0.7.3"
 tracing = "0.1.36"
