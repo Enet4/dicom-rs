@@ -2,22 +2,22 @@
 name = "dicom-findscu"
 version = "0.1.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
 description = "A DICOM C-FIND command line interface"
 categories = ["command-line-utilities"]
-keywords = ["dicom"]
+keywords = ["dicom", "query", "search"]
 readme = "README.md"
 
 [dependencies]
-dicom-core = { path = '../core', version = "0.5.0" }
+dicom-core = { path = '../core', version = "0.5.1" }
 dicom-ul = { path = '../ul', version = "0.4.2" }
 dicom-object = { path = '../object', version = "0.5.2" }
-dicom-encoding = { path = "../encoding/", version = "0.5.0" }
+dicom-encoding = { path = "../encoding/", version = "0.5.1" }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.5.0" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.5.0" }
-dicom-dump = { path = "../dump", default-features = false }
+dicom-dump = { path = "../dump", default-features = false, version = "0.5.2" }
 clap = { version = "3.2.22", features = ["derive"] }
 snafu = "0.7.3"
 tracing = "0.1.36"
