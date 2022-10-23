@@ -13,7 +13,7 @@ use dicom_ul::{
 };
 use query::parse_queries;
 use smallvec::smallvec;
-use snafu::{prelude::*, ErrorCompat};
+use snafu::prelude::*;
 use std::io::{stderr, Read};
 use std::path::PathBuf;
 use tracing::{debug, error, info, warn, Level};
@@ -53,48 +53,9 @@ struct App {
     study: bool,
 }
 
-fn report<E: 'static>(err: &E)
-where
-    E: std::error::Error,
-{
-    error!("{}", err);
-    if let Some(source) = err.source() {
-        eprintln!();
-        eprintln!("Caused by:");
-        for (i, e) in std::iter::successors(Some(source), |e| e.source()).enumerate() {
-            eprintln!("   {}: {}", i, e);
-        }
-    }
-}
-
-fn report_backtrace<E: 'static>(err: &E)
-where
-    E: std::error::Error,
-    E: ErrorCompat,
-{
-    let env_backtrace = std::env::var("RUST_BACKTRACE").unwrap_or_default();
-    let env_lib_backtrace = std::env::var("RUST_LIB_BACKTRACE").unwrap_or_default();
-    if env_lib_backtrace == "1" || (env_backtrace == "1" && env_lib_backtrace != "0") {
-        if let Some(backtrace) = ErrorCompat::backtrace(&err) {
-            eprintln!();
-            eprintln!("Backtrace:");
-            eprintln!("{}", backtrace);
-        }
-    }
-}
-
-fn report_with_backtrace<E: 'static>(err: E)
-where
-    E: std::error::Error,
-    E: ErrorCompat,
-{
-    report(&err);
-    report_backtrace(&err);
-}
-
 fn main() {
     run().unwrap_or_else(|err| {
-        report_with_backtrace(err);
+        error!("{}", snafu::Report::from_error(err));
         std::process::exit(-2);
     });
 }
@@ -189,7 +150,7 @@ fn run() -> Result<(), Error> {
             .finish(),
     )
     .unwrap_or_else(|e| {
-        report(&e);
+        error!("{}", snafu::Report::from_error(e));
     });
 
     let dcm_query = build_query(file, query, patient, study, verbose)?;
