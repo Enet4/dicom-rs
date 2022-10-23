@@ -46,7 +46,7 @@ use snafu::{ensure, AsErrorSource, ResultExt, Snafu};
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub struct FullAeAddr<T> {
     ae_title: String,
     socket_addr: T,
@@ -133,7 +133,7 @@ where
     T: std::fmt::Display,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.ae_title.replace("@", "\\@"))?;
+        f.write_str(&self.ae_title.replace('@', "\\@"))?;
         f.write_str("@")?;
         std::fmt::Display::fmt(&self.socket_addr, f)
     }
@@ -173,7 +173,7 @@ where
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub struct AeAddr<T> {
     ae_title: Option<String>,
     socket_addr: T,
@@ -319,9 +319,9 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let socket_addr = self.socket_addr.to_string();
         if let Some(ae_title) = &self.ae_title {
-            f.write_str(&ae_title.replace("@", "\\@"))?;
+            f.write_str(&ae_title.replace('@', "\\@"))?;
             f.write_str("@")?;
-        } else if socket_addr.contains("@") {
+        } else if socket_addr.contains('@') {
             // if formatted socket address contains a `@`,
             // we need to start the output with `@`
             // so that the start of the socket address
