@@ -46,10 +46,10 @@ struct App {
     max_pdu_length: u32,
 
     /// use patient root information model
-    #[clap(long, conflicts_with = "study")]
+    #[clap(short = 'P', long, conflicts_with = "study")]
     patient: bool,
     /// use study root information model (default)
-    #[clap(long, conflicts_with = "patient")]
+    #[clap(short = 'S', long, conflicts_with = "patient")]
     study: bool,
 }
 
