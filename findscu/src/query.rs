@@ -19,8 +19,10 @@ struct TermQuery {
     match_value: String,
 }
 
-/// Term queries can be parsed with the syntax `«tag»=«value»`.
-///
+/// Term queries can be parsed with the syntax `«tag»=«value»`,
+/// where `«tag»` is either a DICOM tag group-element pair
+/// or the respective tag keyword, 
+/// and `=«value»` is optional.
 impl FromStr for TermQuery {
     type Err = Whatever;
 
