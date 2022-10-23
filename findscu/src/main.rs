@@ -145,6 +145,10 @@ fn build_query(
                 .map(|file| file.into_inner())
         }
         (None, q) => {
+            if q.is_empty() {
+                whatever!("Query not specified");
+            }
+
             let mut obj =
                 parse_queries(&q).whatever_context("Could not build query object from terms")?;
 
