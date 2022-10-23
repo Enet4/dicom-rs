@@ -61,7 +61,6 @@ impl fmt::Debug for TransferSyntaxRegistryImpl {
 }
 
 impl TransferSyntaxRegistryImpl {
-
     /// Obtain an iterator of all registered transfer syntaxes.
     pub fn iter(&self) -> impl Iterator<Item = &TransferSyntax> {
         self.m.values()
@@ -237,26 +236,29 @@ mod tests {
 
     #[test]
     fn has_mandatory_tss() {
-        let implicit_vr_le = TransferSyntaxRegistry.get("1.2.840.10008.1.2")
+        let implicit_vr_le = TransferSyntaxRegistry
+            .get("1.2.840.10008.1.2")
             .expect("transfer syntax registry should provide Implicit VR Little Endian");
         assert_eq!(implicit_vr_le.uid(), "1.2.840.10008.1.2");
         assert!(implicit_vr_le.fully_supported());
 
         // should also work with trailing null character
-        let implicit_vr_le_2 = TransferSyntaxRegistry.get("1.2.840.10008.1.2\0")
-            .expect("transfer syntax registry should provide Implicit VR Little Endian with padded TS UID");
+        let implicit_vr_le_2 = TransferSyntaxRegistry.get("1.2.840.10008.1.2\0").expect(
+            "transfer syntax registry should provide Implicit VR Little Endian with padded TS UID",
+        );
 
         assert_eq!(implicit_vr_le_2.uid(), implicit_vr_le.uid());
 
-
-        let explicit_vr_le = TransferSyntaxRegistry.get("1.2.840.10008.1.2.1")
+        let explicit_vr_le = TransferSyntaxRegistry
+            .get("1.2.840.10008.1.2.1")
             .expect("transfer syntax registry should provide Explicit VR Little Endian");
         assert_eq!(explicit_vr_le.uid(), "1.2.840.10008.1.2.1");
         assert!(explicit_vr_le.fully_supported());
 
         // should also work with trailing null character
-        let explicit_vr_le_2 = TransferSyntaxRegistry.get("1.2.840.10008.1.2.1\0")
-            .expect("transfer syntax registry should provide Explicit VR Little Endian with padded TS UID");
+        let explicit_vr_le_2 = TransferSyntaxRegistry.get("1.2.840.10008.1.2.1\0").expect(
+            "transfer syntax registry should provide Explicit VR Little Endian with padded TS UID",
+        );
 
         assert_eq!(explicit_vr_le_2.uid(), explicit_vr_le.uid());
     }

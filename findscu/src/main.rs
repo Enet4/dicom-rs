@@ -116,8 +116,7 @@ fn build_query(
             // (0008,0052) CS QueryRetrieveLevel
             let level = match (patient, study) {
                 (true, false) => "PATIENT",
-                (false, true) |
-                (false, false) => "STUDY",
+                (false, true) | (false, false) => "STUDY",
                 _ => unreachable!(),
             };
             obj.put(DataElement::new(
@@ -299,7 +298,10 @@ fn run() -> Result<(), Error> {
                             .whatever_context("Could not read response data set")?
                     };
 
-                    println!("------------------------ Match #{} ------------------------", i);
+                    println!(
+                        "------------------------ Match #{} ------------------------",
+                        i
+                    );
                     DumpOptions::new()
                         .dump_object(&dcm)
                         .context(DumpOutputSnafu)?;

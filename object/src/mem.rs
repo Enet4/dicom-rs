@@ -466,7 +466,10 @@ where
     ///
     /// At the moment, this is sure to return `None`, because the meta
     /// table is kept in a separate wrapper value.
-    #[deprecated(since = "0.5.3", note = "Always returns None, see `FileDicomObject::meta` instead")]
+    #[deprecated(
+        since = "0.5.3",
+        note = "Always returns None, see `FileDicomObject::meta` instead"
+    )]
     pub fn meta(&self) -> Option<&FileMetaTable> {
         None
     }
@@ -578,7 +581,7 @@ where
 
     /// Modify the object by
     /// retaining only the DICOM data elements specified by the predicate.
-    /// 
+    ///
     /// The elements are visited in ascending tag order,
     /// and those for which `f(&element)` returns `false` are removed.
     pub fn retain(&mut self, mut f: impl FnMut(&InMemElement<D>) -> bool) {
@@ -1410,11 +1413,14 @@ mod tests {
 
         // .tags()
         let tags: Vec<_> = obj.tags().collect();
-        assert_eq!(tags, vec![
-            Tag(0x0008, 0x0018),
-            Tag(0x0008, 0x0060),
-            Tag(0x0010, 0x0010),
-        ]);
+        assert_eq!(
+            tags,
+            vec![
+                Tag(0x0008, 0x0018),
+                Tag(0x0008, 0x0060),
+                Tag(0x0010, 0x0010),
+            ]
+        );
 
         // .into_iter()
         let mut iter = obj.into_iter();

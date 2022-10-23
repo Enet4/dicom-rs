@@ -21,7 +21,10 @@ use crate::{
     IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
 
-use super::{pdata::{PDataWriter, PDataReader}, uid::trim_uid};
+use super::{
+    pdata::{PDataReader, PDataWriter},
+    uid::trim_uid,
+};
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -287,7 +290,8 @@ where
     where
         T: Into<Cow<'a, str>>,
     {
-        self.abstract_syntax_uids.push(trim_uid(abstract_syntax_uid.into()));
+        self.abstract_syntax_uids
+            .push(trim_uid(abstract_syntax_uid.into()));
         self
     }
 
@@ -296,7 +300,8 @@ where
     where
         T: Into<Cow<'a, str>>,
     {
-        self.transfer_syntax_uids.push(trim_uid(transfer_syntax_uid.into()));
+        self.transfer_syntax_uids
+            .push(trim_uid(transfer_syntax_uid.into()));
         self
     }
 
@@ -323,7 +328,8 @@ where
 
         let max_pdu_length = self.max_pdu_length;
 
-        let pdu = read_pdu(&mut socket, max_pdu_length, self.strict).context(ReceiveRequestSnafu)?;
+        let pdu =
+            read_pdu(&mut socket, max_pdu_length, self.strict).context(ReceiveRequestSnafu)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         match pdu {
             Pdu::AssociationRQ {

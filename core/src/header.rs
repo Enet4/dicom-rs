@@ -917,9 +917,9 @@ pub type ElementNumber = u16;
 /// found in the DICOM standard
 /// (e.g. `(7FE0,0010)`)
 /// can be parsed using its `FromStr` implementation.
-/// 
+///
 /// # Example
-/// 
+///
 /// ```
 /// # use dicom_core::Tag;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {

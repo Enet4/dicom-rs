@@ -3,13 +3,13 @@ use dicom_ul::pdu::reader::{read_pdu, DEFAULT_MAX_PDU};
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::Pdu;
 use snafu::{Backtrace, OptionExt, Report, ResultExt, Snafu, Whatever};
-use tracing::error;
 use std::io::Write;
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::thread::JoinHandle;
+use tracing::error;
 
 type Result<T> = std::result::Result<T, Error>;
 

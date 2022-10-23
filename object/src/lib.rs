@@ -300,7 +300,7 @@ impl<O> FileDicomObject<O> {
     }
 
     /// Retrieve a mutable reference to the processed meta header table.
-    /// 
+    ///
     /// Considerable care should be taken when modifying this table,
     /// as it may influence object reading and writing operations.
     pub fn meta_mut(&mut self) -> &mut FileMetaTable {
@@ -692,7 +692,7 @@ mod tests {
             VR::PN,
             PrimitiveValue::from("1.2.987654321"),
         ));
-            
+
         let obj = obj
             .with_meta(
                 FileMetaTableBuilder::new()
@@ -704,14 +704,26 @@ mod tests {
 
         // iter
         let mut iter = (&obj).into_iter();
-        assert_eq!(iter.next().unwrap().header().tag, dicom_dictionary_std::tags::SOP_INSTANCE_UID);
-        assert_eq!(iter.next().unwrap().header().tag, dicom_dictionary_std::tags::PATIENT_NAME);
+        assert_eq!(
+            iter.next().unwrap().header().tag,
+            dicom_dictionary_std::tags::SOP_INSTANCE_UID
+        );
+        assert_eq!(
+            iter.next().unwrap().header().tag,
+            dicom_dictionary_std::tags::PATIENT_NAME
+        );
         assert_eq!(iter.next(), None);
 
         // into_iter
         let mut iter = obj.into_iter();
-        assert_eq!(iter.next().unwrap().header().tag, dicom_dictionary_std::tags::SOP_INSTANCE_UID);
-        assert_eq!(iter.next().unwrap().header().tag, dicom_dictionary_std::tags::PATIENT_NAME);
+        assert_eq!(
+            iter.next().unwrap().header().tag,
+            dicom_dictionary_std::tags::SOP_INSTANCE_UID
+        );
+        assert_eq!(
+            iter.next().unwrap().header().tag,
+            dicom_dictionary_std::tags::PATIENT_NAME
+        );
         assert_eq!(iter.next(), None);
     }
 }

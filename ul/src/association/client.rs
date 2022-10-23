@@ -355,7 +355,8 @@ impl<'a> ClientAssociationOptions<'a> {
         socket.write_all(&buffer).context(WireSendSnafu)?;
         buffer.clear();
         // receive response
-        let msg = read_pdu(&mut socket, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveResponseSnafu)?;
+        let msg =
+            read_pdu(&mut socket, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveResponseSnafu)?;
 
         match msg {
             Pdu::AssociationAC {
