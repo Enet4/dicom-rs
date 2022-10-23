@@ -17,7 +17,6 @@ use std::path::PathBuf;
 use dicom_core::{value::PrimitiveValue, DataElement, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{open_file, FileMetaTableBuilder};
-use snafu::ErrorCompat;
 use structopt::StructOpt;
 
 /// Convert and replace a DICOM file's image with another image
@@ -36,49 +35,10 @@ struct App {
     verbose: bool,
 }
 
-fn report<E: 'static>(err: &E)
-where
-    E: std::error::Error,
-{
-    eprintln!("[ERROR] {}", err);
-    if let Some(source) = err.source() {
-        eprintln!();
-        eprintln!("Caused by:");
-        for (i, e) in std::iter::successors(Some(source), |e| e.source()).enumerate() {
-            eprintln!("   {}: {}", i, e);
-        }
-    }
-}
-
-fn report_backtrace<E: 'static>(err: &E)
-where
-    E: std::error::Error,
-    E: ErrorCompat,
-{
-    let env_backtrace = std::env::var("RUST_BACKTRACE").unwrap_or_default();
-    let env_lib_backtrace = std::env::var("RUST_LIB_BACKTRACE").unwrap_or_default();
-    if env_lib_backtrace == "1" || (env_backtrace == "1" && env_lib_backtrace != "0") {
-        if let Some(backtrace) = ErrorCompat::backtrace(&err) {
-            eprintln!();
-            eprintln!("Backtrace:");
-            eprintln!("{}", backtrace);
-        }
-    }
-}
-
-fn report_with_backtrace<E: 'static>(err: E)
-where
-    E: std::error::Error,
-    E: ErrorCompat,
-{
-    report(&err);
-    report_backtrace(&err);
-}
-
 fn main() {
     tracing::subscriber::set_global_default(tracing_subscriber::FmtSubscriber::new())
         .unwrap_or_else(|e| {
-            report(&e);
+            eprintln!("{}", snafu::Report::from_error(e));
         });
 
     let App {
@@ -95,12 +55,12 @@ fn main() {
     });
 
     let mut obj = open_file(&dcm_file).unwrap_or_else(|e| {
-        report_with_backtrace(e);
+        tracing::error!("{}", snafu::Report::from_error(e));
         std::process::exit(-1);
     });
 
     let img = image::open(img_file).unwrap_or_else(|e| {
-        report(&e);
+        tracing::error!("{}", snafu::Report::from_error(e));
         std::process::exit(-1);
     });
 
@@ -225,12 +185,12 @@ fn main() {
                 .media_storage_sop_class_uid(class_uid),
         )
         .unwrap_or_else(|e| {
-            report_with_backtrace(e);
+            tracing::error!("{}", snafu::Report::from_error(e));
             std::process::exit(-3);
         });
 
     obj.write_to_file(&output).unwrap_or_else(|e| {
-        report_with_backtrace(e);
+        tracing::error!("{}", snafu::Report::from_error(e));
         std::process::exit(-4);
     });
 

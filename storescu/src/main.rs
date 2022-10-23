@@ -1,26 +1,23 @@
-use dicom_core::dicom_value;
-use dicom_core::smallvec;
-use dicom_core::{header::Tag, DataElement, PrimitiveValue, VR};
+use dicom_core::{dicom_value, header::Tag, smallvec, DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax;
 use dicom_object::{mem::InMemDicomObject, open_file, StandardDataDictionary};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use dicom_ul::pdu::Pdu;
 use dicom_ul::{
     association::ClientAssociationOptions,
-    pdu::{PDataValue, PDataValueType},
+    pdu::{PDataValue, PDataValueType, Pdu},
 };
 use indicatif::{ProgressBar, ProgressStyle};
 use smallvec::smallvec;
-use snafu::{prelude::*, ErrorCompat};
+use snafu::prelude::*;
+use snafu::{Report, Whatever};
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use structopt::StructOpt;
-use tracing::Level;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 use walkdir::WalkDir;
 
@@ -70,45 +67,6 @@ struct DicomFile {
     pc_selected: Option<dicom_ul::pdu::PresentationContextResult>,
 }
 
-fn report<E: 'static>(err: &E)
-where
-    E: std::error::Error,
-{
-    error!("[ERROR] {}", err);
-    if let Some(source) = err.source() {
-        eprintln!();
-        eprintln!("Caused by:");
-        for (i, e) in std::iter::successors(Some(source), |e| e.source()).enumerate() {
-            eprintln!("   {}: {}", i, e);
-        }
-    }
-}
-
-fn report_backtrace<E: 'static>(err: &E)
-where
-    E: std::error::Error,
-    E: ErrorCompat,
-{
-    let env_backtrace = std::env::var("RUST_BACKTRACE").unwrap_or_default();
-    let env_lib_backtrace = std::env::var("RUST_LIB_BACKTRACE").unwrap_or_default();
-    if env_lib_backtrace == "1" || (env_backtrace == "1" && env_lib_backtrace != "0") {
-        if let Some(backtrace) = ErrorCompat::backtrace(&err) {
-            eprintln!();
-            eprintln!("Backtrace:");
-            eprintln!("{}", backtrace);
-        }
-    }
-}
-
-fn report_with_backtrace<E: 'static>(err: E)
-where
-    E: std::error::Error,
-    E: ErrorCompat,
-{
-    report(&err);
-    report_backtrace(&err);
-}
-
 #[derive(Debug, Snafu)]
 enum Error {
     /// Could not initialize SCU
@@ -129,7 +87,7 @@ enum Error {
 
 fn main() {
     run().unwrap_or_else(|e| {
-        report_with_backtrace(e);
+        error!("{}", Report::from_error(e));
         std::process::exit(-2);
     });
 }
@@ -151,8 +109,9 @@ fn run() -> Result<(), Error> {
             .with_max_level(if verbose { Level::DEBUG } else { Level::INFO })
             .finish(),
     )
-    .unwrap_or_else(|e| {
-        report(&e);
+    .whatever_context("Could not set up global logging subscriber")
+    .unwrap_or_else(|e: Whatever| {
+        eprintln!("[ERROR] {}", Report::from_error(e));
     });
 
     let mut checked_files: Vec<PathBuf> = vec![];
@@ -229,7 +188,7 @@ fn run() -> Result<(), Error> {
                 file.ts_selected = Some(ts);
             }
             Err(e) => {
-                report(&e);
+                error!("{}", Report::from_error(e));
                 if fail_first {
                     let _ = scu.abort();
                     std::process::exit(-2);
