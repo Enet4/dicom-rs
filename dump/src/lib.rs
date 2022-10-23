@@ -366,6 +366,22 @@ where
     DumpOptions::new().dump_file_to(to, obj)
 }
 
+/// Dump the contents of a DICOM object to stdout.
+pub fn dump_object<D>(obj: &InMemDicomObject<D>) -> IoResult<()>
+where
+    D: DataDictionary,
+{
+    DumpOptions::new().dump_object(obj)
+}
+
+/// Dump the contents of a DICOM object to the given writer.
+pub fn dump_object_to<D>(to: impl Write, obj: &InMemDicomObject<D>) -> IoResult<()>
+where
+    D: DataDictionary,
+{
+    DumpOptions::new().dump_object_to(to, obj)
+}
+
 #[inline]
 fn whitespace_or_null(c: char) -> bool {
     c.is_whitespace() || c == '\0'
