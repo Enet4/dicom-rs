@@ -4,7 +4,7 @@
 [![Documentation](https://docs.rs/dicom-findscu/badge.svg)](https://docs.rs/dicom-findscu)
 
 This is an implementation of the DICOM Find SCU (C-Find),
-which can be used for uploading DICOM files to other DICOM devices.
+which can be used to search for study and patient records in a DICOM archive.
 
 This tool is part of the [DICOM-rs](https://github.com/Enet4/dicom-rs) project.
 
@@ -12,25 +12,46 @@ This tool is part of the [DICOM-rs](https://github.com/Enet4/dicom-rs) project.
 
 Note that this tool is not necessarily a drop-in replacement
 for `findscu` tools in other DICOM software projects.
+Run `dicom-findscu --help`  for more details.
 
-```none
-DICOM C-STORE SCU
+There are two exclusive ways to specify a DICOM query:
 
-USAGE:
-    dicom-findscu [FLAGS] [OPTIONS] <addr> [file]
+### Using the multi-value `-q` option
 
-FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
-    -v, --verbose    verbose mode
+Each value is a text of the form `«field_name»=«field_value»`, where:
 
-OPTIONS:
-        --called-ae-title <called-ae-title>      the called AE title [default: ANY-SCP]
-        --calling-ae-title <calling-ae-title>    the calling AE title [default: STORE-SCU]
-        --max-pdu-length <max-pdu-length>        the maximum PDU length [default: 16384]
-    -m, --message-id <message-id>                the C-STORE message ID [default: 1]
+- `field_name` is either a standard DICOM tag
+  (in the form `(gggg,eeee)` or `gggg,eeee`)
+  or a tag keyword name such as `PatientName`.
+- `field_value` is the respective value or pattern to match
+  against the value of the specified DICOM attribute.
+  It can be empty, which in that case the `=` may also be left out.
 
-ARGS:
-    <addr>    socket address to FIND SCP (example: "127.0.0.1:1045")
-    [file]    a bare DICOM file representing a C-FIND-RQ message
+Basic usage includes searching for a study or patient by a certain attribute.
+Only patient level and study level queries are supported.
+
+```sh
+# query application entity STORAGE for a study with the accession number A123
+dicom-findscu STORAGE@pacs.example.com:1045 --study -q AccessionNumber=A123
+
+# query application entity PACS for patients born in 1990-12-25
+dicom-findscu PACS@pacs.example.com:1045 --patient -q PatientBirthDate=19901225
+
+# wild-card query: grab a list of all study instance UIDs
+dicom-findscu PACS@pacs.example.com:1045 -S -q "StudyInstanceUID=*"
+```
+
+### Passing a query object file
+
+As an alternative to term queries,
+you can also provide a DICOM query object
+as a file.
+There are currently no tools in DICOM-rs
+to assist in the process of creating these objects,
+but one can convert DCMTK DICOM data dumps
+into compatible DICOM query objects.
+
+```sh
+# query is defined in file
+dicom-findscu PACS@pacs.example.com:1045 --study query.dcm
 ```
