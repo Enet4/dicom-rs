@@ -1,0 +1,24 @@
+[package]
+name = "dicom-storescp"
+version = "0.1.0-rc.1"
+authors = ["Victor Saase <vsaase@gmail.com>", "Eduardo Pinho <enet4mikeenet@gmail.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Enet4/dicom-rs"
+description = "A server accepting DICOM C-STORE"
+categories = ["command-line-utilities"]
+keywords = ["dicom", "store"]
+readme = "README.md"
+
+[dependencies]
+clap = { version = "3.2.22", features = ["derive"] }
+dicom-core = { path = '../core', version = "0.5.1" }
+dicom-ul = { path = '../ul', version = "0.4.2" }
+dicom-object = { path = '../object', version = "0.5.2" }
+dicom-encoding = { path = "../encoding/", version = "0.5.1" }
+dicom-dictionary-std = { path = "../dictionary-std/", version = "0.5.0" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.5.0" }
+smallvec = "1.6.1"
+snafu = "0.7.3"
+tracing = "0.1.36"
+tracing-subscriber = "0.3.15"
