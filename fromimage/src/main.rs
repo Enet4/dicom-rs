@@ -29,10 +29,10 @@ struct App {
     img_file: PathBuf,
     /// Path to the output image
     /// (default is to replace input extension with `.new.dcm`)
-    #[clap(short = 'o', long = "out")]
+    #[arg(short = 'o', long = "out")]
     output: Option<PathBuf>,
     /// Print more information about the image and the output file
-    #[clap(short = 'v', long = "verbose")]
+    #[arg(short = 'v', long = "verbose")]
     verbose: bool,
 }
 
@@ -195,5 +195,16 @@ fn main() {
 
     if verbose {
         println!("DICOM file saved to {}", output.display());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::App;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        App::command().debug_assert();
     }
 }

@@ -21,25 +21,25 @@ mod transfer;
 #[derive(Debug, Parser)]
 struct App {
     /// verbose mode
-    #[clap(short = 'v', long = "verbose")]
+    #[arg(short = 'v', long = "verbose")]
     verbose: bool,
     /// the calling Application Entity title
-    #[structopt(long = "calling-ae-title", default_value = "STORE-SCP")]
+    #[arg(long = "calling-ae-title", default_value = "STORE-SCP")]
     calling_ae_title: String,
     /// enforce max pdu length
-    #[clap(short = 's', long = "strict")]
+    #[arg(short = 's', long = "strict")]
     strict: bool,
     /// Only accept native/uncompressed transfer syntaxes
-    #[clap(long)]
+    #[arg(long)]
     uncompressed_only: bool,
     /// max pdu length
-    #[clap(short = 'm', long = "max-pdu-length", default_value = "16384")]
+    #[arg(short = 'm', long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
     /// output directory for incoming objects
-    #[clap(short = 'o', default_value = ".")]
+    #[arg(short = 'o', default_value = ".")]
     out_dir: PathBuf,
     /// Which port to listen on
-    #[clap(short, default_value = "11111")]
+    #[arg(short, default_value = "11111")]
     port: u16,
 }
 
@@ -344,4 +344,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::App;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        App::command().debug_assert();
+    }
 }

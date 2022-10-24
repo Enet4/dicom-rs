@@ -28,7 +28,7 @@ term_size = "0.3.2"
 itertools = "0.10"
 snafu = "0.7.3"
 colored = "2.0.0"
-clap = { version  = "3.1.18", features = ["derive"], optional = true }
+clap = { version  = "4.0.18", features = ["derive"], optional = true }
 dicom-core = { path = "../core", version = "0.5.3" }
 dicom-encoding = { path = "../encoding", version = "0.5.3" }
 dicom-object = { path = "../object/", version = "0.5.4" }

@@ -9,7 +9,7 @@
 //!
 //! Please use the `--help` flag for the full usage information.
 
-use clap::{Arg, ArgAction, Command};
+use clap::{crate_version, Arg, ArgAction, Command};
 use regex::Regex;
 use serde::Serialize;
 
@@ -37,9 +37,9 @@ enum RetiredOptions {
     },
 }
 
-fn main() {
-    let matches = Command::new("DICOM Dictionary Builder")
-        .version("0.1.0")
+fn command() -> Command {
+    Command::new("dicom-dictionary-builder")
+        .version(crate_version!())
         .arg(
             Arg::new("FROM")
                 .default_value(DEFAULT_LOCATION)
@@ -48,23 +48,26 @@ fn main() {
         .arg(
             Arg::new("no-retired")
                 .long("no-retired")
-                .help("Whether to ignore retired tags")
+                .help("Ignore retired tags")
                 .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("deprecate-retired")
                 .long("deprecate-retired")
-                .help("Whether to mark tag constants as deprecated")
+                .help("Mark tag constants as deprecated")
+                .conflicts_with("no-retired")
                 .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("OUTPUT")
                 .short('o')
                 .help("The path to the output file")
-                .default_value("tags.rs")
-                .takes_value(true),
+                .default_value("tags.rs"),
         )
-        .get_matches();
+}
+
+fn main() {
+    let matches = command().get_matches();
 
     let ignore_retired = matches.get_flag("no-retired");
 
@@ -340,4 +343,14 @@ where
     f.write_all(b"];\n")?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::command;
+
+    #[test]
+    fn verify_cli() {
+        command().debug_assert();
+    }
 }

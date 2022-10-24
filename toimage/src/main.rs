@@ -16,23 +16,23 @@ struct App {
 
     /// Path to the output image
     /// (default is to replace input extension with `.png`)
-    #[clap(short = 'o', long = "out")]
+    #[arg(short = 'o', long = "out")]
     output: Option<PathBuf>,
 
     /// Frame number (0-indexed)
-    #[clap(short = 'F', long = "frame", default_value = "0")]
+    #[arg(short = 'F', long = "frame", default_value = "0")]
     frame_number: u32,
 
     /// Force output bit depth to 8 bits per sample
-    #[clap(long = "8bit", conflicts_with = "force_16bit")]
+    #[arg(long = "8bit", conflicts_with = "force_16bit")]
     force_8bit: bool,
 
     /// Force output bit depth to 16 bits per sample
-    #[clap(long = "16bit", conflicts_with = "force_8bit")]
+    #[arg(long = "16bit", conflicts_with = "force_8bit")]
     force_16bit: bool,
 
     /// Print more information about the image and the output file
-    #[clap(short = 'v', long = "verbose")]
+    #[arg(short = 'v', long = "verbose")]
     verbose: bool,
 }
 
@@ -104,5 +104,16 @@ fn main() {
 
     if verbose {
         println!("Image saved to {}", output.display());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::App;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        App::command().debug_assert();
     }
 }

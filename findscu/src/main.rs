@@ -29,27 +29,27 @@ struct App {
     /// a DICOM file representing the query object
     file: Option<PathBuf>,
     /// sequence of queries
-    #[clap(short('q'))]
+    #[arg(short('q'))]
     query: Vec<String>,
 
     /// verbose mode
-    #[clap(short = 'v', long = "verbose")]
+    #[arg(short = 'v', long = "verbose")]
     verbose: bool,
     /// the calling AE title
-    #[clap(long = "calling-ae-title", default_value = "FIND-SCU")]
+    #[arg(long = "calling-ae-title", default_value = "FIND-SCU")]
     calling_ae_title: String,
     /// the called AE title
-    #[clap(long = "called-ae-title")]
+    #[arg(long = "called-ae-title")]
     called_ae_title: Option<String>,
     /// the maximum PDU length
-    #[clap(long = "max-pdu-length", default_value = "16384")]
+    #[arg(long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
 
     /// use patient root information model
-    #[clap(short = 'P', long, conflicts_with = "study")]
+    #[arg(short = 'P', long, conflicts_with = "study")]
     patient: bool,
     /// use study root information model (default)
-    #[clap(short = 'S', long, conflicts_with = "patient")]
+    #[arg(short = 'S', long, conflicts_with = "patient")]
     study: bool,
 }
 
@@ -394,6 +394,14 @@ fn even_len(l: usize) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::even_len;
+    use crate::App;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        App::command().debug_assert();
+    }
+
     #[test]
     fn test_even_len() {
         assert_eq!(even_len(0), 0);

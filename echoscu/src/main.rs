@@ -18,17 +18,17 @@ struct App {
     /// (example: "QUERY-SCP@127.0.0.1:1045")
     addr: String,
     /// verbose mode
-    #[clap(short = 'v', long = "verbose")]
+    #[arg(short = 'v', long = "verbose")]
     verbose: bool,
     /// the C-ECHO message ID
-    #[clap(short = 'm', long = "message-id", default_value = "1")]
+    #[arg(short = 'm', long = "message-id", default_value = "1")]
     message_id: u16,
     /// the calling AE title
-    #[clap(long = "calling-ae-title", default_value = "ECHOSCU")]
+    #[arg(long = "calling-ae-title", default_value = "ECHOSCU")]
     calling_ae_title: String,
     /// the called Application Entity title,
     /// overrides AE title in address if present [default: ANY-SCP]
-    #[clap(long = "called-ae-title")]
+    #[arg(long = "called-ae-title")]
     called_ae_title: Option<String>,
 }
 
@@ -212,4 +212,15 @@ fn create_echo_command(message_id: u16) -> InMemDicomObject<StandardDataDictiona
     ));
 
     obj
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::App;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        App::command().debug_assert();
+    }
 }

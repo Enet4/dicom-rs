@@ -110,3 +110,14 @@ fn run() -> Result<(), Whatever> {
 
     std::process::exit(errors);
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::App;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        App::command().debug_assert();
+    }
+}

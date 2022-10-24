@@ -1,5 +1,5 @@
-use clap::{Arg, Command};
-use dicom_ul::pdu::reader::{read_pdu, DEFAULT_MAX_PDU};
+use clap::{crate_version, value_parser, Arg, ArgAction, Command};
+use dicom_ul::pdu::reader::read_pdu;
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::Pdu;
 use snafu::{Backtrace, OptionExt, Report, ResultExt, Snafu, Whatever};
@@ -232,15 +232,9 @@ fn run(
     }
 }
 
-fn main() {
-    tracing::subscriber::set_global_default(tracing_subscriber::FmtSubscriber::new())
-        .whatever_context("Could not set up global tracing subscriber")
-        .unwrap_or_else(|e: snafu::Whatever| {
-            eprintln!("[ERROR] {}", Report::from_error(e));
-        });
-
-    let default_max = DEFAULT_MAX_PDU.to_string();
-    let matches = Command::new("scpproxy")
+fn command() -> Command {
+    Command::new("dicom-scpproxy")
+        .version(crate_version!())
         .arg(
             Arg::new("destination-host")
                 .help("The destination host name (SCP)")
@@ -257,33 +251,42 @@ fn main() {
             Arg::new("listen-port")
                 .help("The port that we will listen for SCU connections on")
                 .short('l')
-                .long("--listen-port")
-                .default_value("3333")
-                .takes_value(true),
+                .long("listen-port")
+                .value_parser(value_parser!(u16).range(1..))
+                .default_value("3333"),
         )
         .arg(
             Arg::new("strict")
                 .help("Enforce max PDU length")
                 .short('s')
-                .long("--strict")
-                .action(clap::ArgAction::SetTrue),
+                .long("strict")
+                .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("verbose")
                 .help("Verbose")
                 .short('v')
-                .long("--verbose")
-                .action(clap::ArgAction::SetTrue),
+                .long("verbose")
+                .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("max-pdu-length")
                 .help("Maximum PDU length")
                 .short('m')
-                .long("--max-pdu-length")
-                .default_value(&default_max)
-                .takes_value(true),
+                .long("max-pdu-length")
+                .value_parser(value_parser!(u32).range(4096..))
+                .default_value("16384"),
         )
-        .get_matches();
+}
+
+fn main() {
+    tracing::subscriber::set_global_default(tracing_subscriber::FmtSubscriber::new())
+        .whatever_context("Could not set up global tracing subscriber")
+        .unwrap_or_else(|e: snafu::Whatever| {
+            eprintln!("[ERROR] {}", Report::from_error(e));
+        });
+
+    let matches = command().get_matches();
 
     let destination_host = matches.get_one::<String>("destination-host").unwrap();
     let destination_port = matches.get_one::<String>("destination-port").unwrap();
@@ -321,5 +324,15 @@ fn main() {
                 error!("{}", Report::from_error(e));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::command;
+
+    #[test]
+    fn verify_cli() {
+        command().debug_assert();
     }
 }

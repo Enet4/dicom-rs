@@ -29,26 +29,26 @@ struct App {
     /// (example: "STORE-SCP@127.0.0.1:104")
     addr: String,
     /// the DICOM file(s) to store
-    #[structopt(required = true)]
+    #[arg(required = true)]
     files: Vec<PathBuf>,
     /// verbose mode
-    #[clap(short = 'v', long = "verbose")]
+    #[arg(short = 'v', long = "verbose")]
     verbose: bool,
     /// the C-STORE message ID
-    #[clap(short = 'm', long = "message-id", default_value = "1")]
+    #[arg(short = 'm', long = "message-id", default_value = "1")]
     message_id: u16,
     /// the calling Application Entity title
-    #[clap(long = "calling-ae-title", default_value = "STORE-SCU")]
+    #[arg(long = "calling-ae-title", default_value = "STORE-SCU")]
     calling_ae_title: String,
     /// the called Application Entity title,
     /// overrides AE title in address if present [default: ANY-SCP]
-    #[clap(long = "called-ae-title")]
+    #[arg(long = "called-ae-title")]
     called_ae_title: Option<String>,
     /// the maximum PDU length accepted by the SCU
-    #[clap(long = "max-pdu-length", default_value = "16384")]
+    #[arg(long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
     /// fail if not all DICOM files can be transferred
-    #[clap(long = "fail-first")]
+    #[arg(long = "fail-first")]
     fail_first: bool,
 }
 
@@ -524,6 +524,14 @@ fn check_presentation_contexts(
 #[cfg(test)]
 mod tests {
     use super::even_len;
+    use crate::App;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        App::command().debug_assert();
+    }
+
     #[test]
     fn test_even_len() {
         assert_eq!(even_len(0), 0);
