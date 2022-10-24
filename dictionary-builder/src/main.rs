@@ -9,7 +9,7 @@
 //!
 //! Please use the `--help` flag for the full usage information.
 
-use clap::{Arg, Command};
+use clap::{Arg, ArgAction, Command};
 use regex::Regex;
 use serde::Serialize;
 
@@ -49,13 +49,13 @@ fn main() {
             Arg::new("no-retired")
                 .long("no-retired")
                 .help("Whether to ignore retired tags")
-                .takes_value(false),
+                .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("deprecate-retired")
                 .long("deprecate-retired")
                 .help("Whether to mark tag constants as deprecated")
-                .takes_value(false),
+                .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("OUTPUT")
@@ -66,19 +66,19 @@ fn main() {
         )
         .get_matches();
 
-    let ignore_retired = matches.is_present("no-retired");
+    let ignore_retired = matches.get_flag("no-retired");
 
     let retired = if ignore_retired {
         RetiredOptions::Ignore
     } else {
         RetiredOptions::Include {
-            deprecate: matches.is_present("deprecate-retired"),
+            deprecate: matches.get_flag("deprecate-retired"),
         }
     };
 
-    let src = matches.value_of("FROM").unwrap();
+    let src = matches.get_one::<String>("FROM").unwrap();
 
-    let dst = Path::new(matches.value_of("OUTPUT").unwrap());
+    let dst = Path::new(matches.get_one::<String>("OUTPUT").unwrap());
 
     if src.starts_with("http:") || src.starts_with("https:") {
         // read from URL

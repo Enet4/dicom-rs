@@ -300,7 +300,7 @@ fn create_cstore_response(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = App::from_args();
+    let args = App::parse();
 
     tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()

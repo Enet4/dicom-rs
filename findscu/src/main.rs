@@ -141,7 +141,7 @@ fn run() -> Result<(), Error> {
         patient,
         study,
         query,
-    } = App::from_args();
+    } = App::parse();
 
     tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()

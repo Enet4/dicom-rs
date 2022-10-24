@@ -266,15 +266,14 @@ fn main() {
                 .help("Enforce max PDU length")
                 .short('s')
                 .long("--strict")
-                .required(false)
-                .takes_value(false),
+                .action(clap::ArgAction::SetTrue),
         )
         .arg(
             Arg::new("verbose")
                 .help("Verbose")
                 .short('v')
                 .long("--verbose")
-                .takes_value(false),
+                .action(clap::ArgAction::SetTrue),
         )
         .arg(
             Arg::new("max-pdu-length")
@@ -286,12 +285,12 @@ fn main() {
         )
         .get_matches();
 
-    let destination_host = matches.value_of("destination-host").unwrap();
-    let destination_port = matches.value_of("destination-port").unwrap();
-    let listen_port = matches.value_of("listen-port").unwrap();
-    let strict: bool = matches.is_present("strict");
-    let verbose = matches.is_present("verbose");
-    let max_pdu_length: u32 = matches.value_of("max-pdu-length").unwrap().parse().unwrap();
+    let destination_host = matches.get_one::<String>("destination-host").unwrap();
+    let destination_port = matches.get_one::<String>("destination-port").unwrap();
+    let listen_port: u16 = *matches.get_one("listen-port").unwrap();
+    let strict: bool = matches.get_flag("strict");
+    let verbose = matches.get_flag("verbose");
+    let max_pdu_length: u32 = *matches.get_one("max-pdu-length").unwrap();
 
     let listen_addr = format!("0.0.0.0:{}", listen_port);
     let destination_addr = format!("{}:{}", destination_host, destination_port);
