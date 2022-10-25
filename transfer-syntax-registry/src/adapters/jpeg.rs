@@ -187,7 +187,11 @@ impl PixelDataWriter for JpegAdapter {
 
         let quality = options.quality.unwrap_or(85);
 
-        let frame_size = (cols * rows * samples_per_pixel * (bits_allocated / 8)) as usize;
+        let frame_size = (
+            cols * rows * samples_per_pixel * (bits_allocated / 8)
+        ) as usize;
+
+        let color_type = jpeg_encoder::ColorType::Luma;
 
         // record dst length before encoding to know full jpeg size
         let len_before = dst.len();
@@ -196,7 +200,7 @@ impl PixelDataWriter for JpegAdapter {
         let frame_uncompressed = src.fragment(frame as usize).unwrap();
         let encoder = jpeg_encoder::Encoder::new(&mut *dst, quality);
         encoder
-            .encode(&frame_uncompressed, cols, rows, jpeg_encoder::ColorType::Luma)
+            .encode(&frame_uncompressed, cols, rows, color_type)
             .unwrap();
 
         let compressed_frame_size = dst.len() - len_before;
