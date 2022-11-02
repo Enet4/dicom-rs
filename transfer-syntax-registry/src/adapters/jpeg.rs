@@ -6,6 +6,7 @@ use dicom_encoding::adapters::{
 };
 use dicom_encoding::snafu::prelude::*;
 use jpeg_decoder::Decoder;
+use jpeg_encoder::ColorType;
 use std::io::Cursor;
 
 /// Pixel data adapter for JPEG-based transfer syntaxes.
@@ -191,7 +192,12 @@ impl PixelDataWriter for JpegAdapter {
             cols * rows * samples_per_pixel * (bits_allocated / 8)
         ) as usize;
 
-        let color_type = jpeg_encoder::ColorType::Luma;
+        let color_type = match samples_per_pixel {
+            1 => ColorType::Luma,
+            3 => ColorType::Rgb,
+            4 => ColorType::Rgba,
+            _ => todo!("Implement error handling for wrong samples per pixel")
+        };
 
         // record dst length before encoding to know full jpeg size
         let len_before = dst.len();
