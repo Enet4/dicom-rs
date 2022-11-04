@@ -17,8 +17,7 @@ use std::borrow::Cow;
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
-/** Triggered when a value reading attempt fails.
- */
+/// Triggered when a value reading attempt fails.
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum InvalidValueReadError {
@@ -90,6 +89,19 @@ pub enum InvalidValueReadError {
     ParseDateTimeRange {
         #[snafu(backtrace)]
         source: crate::value::range::Error,
+    },
+}
+
+/// Error type for a failed attempt to modify an existing DICOM primitive value.
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum ModifyValueError {
+    /// The modification cannot proceed due to the value's current type,
+    /// as that would lead to mixed representations.
+    #[snafu(display("cannot not modify {:?} value as {}", original, expected))]
+    IncompatibleType {
+        expected: &'static str,
+        original: ValueType,
     },
 }
 
@@ -3451,6 +3463,71 @@ impl PrimitiveValue {
     impl_primitive_getters!(uint64, uint64_slice, U64, u64);
     impl_primitive_getters!(float32, float32_slice, F32, f32);
     impl_primitive_getters!(float64, float64_slice, F64, f64);
+
+    /// Extend a textual value by appending
+    /// more strings to an existing text or empty value.
+    ///
+    /// An error is returned if the current value is not textual.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use dicom_core::dicom_value;
+    /// # use dicom_core::value::ModifyValueError;
+    ///
+    /// # fn main() -> Result<(), ModifyValueError> {
+    /// let mut value = dicom_value!(Strs, ["Hello"]);
+    /// value.extend_str(["DICOM"])?;
+    /// assert_eq!(value.to_string(), "Hello\\DICOM");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn extend_str<T>(
+        &mut self,
+        strings: impl IntoIterator<Item = T>,
+    ) -> Result<(), ModifyValueError>
+    where
+        T: Into<String>,
+    {
+        match self {
+            PrimitiveValue::Empty => {
+                *self = PrimitiveValue::Strs(strings.into_iter().map(T::into).collect());
+                Ok(())
+            }
+            PrimitiveValue::Strs(elements) => {
+                elements.extend(strings.into_iter().map(T::into));
+                Ok(())
+            }
+            PrimitiveValue::Str(s) => {
+                // for lack of better ways to move the string out from the mutable borrow,
+                // we create a copy for now
+                let s = s.clone();
+                *self = PrimitiveValue::Strs(
+                    std::iter::once(s)
+                        .chain(strings.into_iter().map(T::into))
+                        .collect(),
+                );
+                Ok(())
+            }
+            PrimitiveValue::Tags(_)
+            | PrimitiveValue::U8(_)
+            | PrimitiveValue::I16(_)
+            | PrimitiveValue::U16(_)
+            | PrimitiveValue::I32(_)
+            | PrimitiveValue::U32(_)
+            | PrimitiveValue::I64(_)
+            | PrimitiveValue::U64(_)
+            | PrimitiveValue::F32(_)
+            | PrimitiveValue::F64(_)
+            | PrimitiveValue::Date(_)
+            | PrimitiveValue::DateTime(_)
+            | PrimitiveValue::Time(_) => Err(IncompatibleTypeSnafu {
+                expected: "string",
+                original: self.value_type(),
+            }
+            .build()),
+        }
+    }
 }
 
 /// The output of this method is equivalent to calling the method `to_str`
