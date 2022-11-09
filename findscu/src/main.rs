@@ -213,7 +213,7 @@ fn run() -> Result<(), Error> {
 
     let mut iod_data = Vec::with_capacity(128);
     dcm_query
-        .write_dataset_with_ts(&mut iod_data, &implicit_vr_le)
+        .write_dataset_with_ts(&mut iod_data, ts)
         .whatever_context("failed to write identifier dataset")?;
 
     let nbytes = cmd_data.len() + iod_data.len();
