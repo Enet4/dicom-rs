@@ -209,11 +209,9 @@ fn run() -> Result<(), Error> {
     cmd.write_dataset_with_ts(&mut cmd_data, &entries::IMPLICIT_VR_LITTLE_ENDIAN.erased())
         .whatever_context("Failed to write command")?;
 
-    let implicit_vr_le = entries::IMPLICIT_VR_LITTLE_ENDIAN.erased();
-
     let mut iod_data = Vec::with_capacity(128);
     dcm_query
-        .write_dataset_with_ts(&mut iod_data, &implicit_vr_le)
+        .write_dataset_with_ts(&mut iod_data, ts)
         .whatever_context("failed to write identifier dataset")?;
 
     let nbytes = cmd_data.len() + iod_data.len();
@@ -294,7 +292,7 @@ fn run() -> Result<(), Error> {
                         rsp.read_to_end(&mut response_data)
                             .whatever_context("Failed to read response data")?;
 
-                        InMemDicomObject::read_dataset_with_ts(&response_data[..], &implicit_vr_le)
+                        InMemDicomObject::read_dataset_with_ts(&response_data[..], ts)
                             .whatever_context("Could not read response data set")?
                     };
 
