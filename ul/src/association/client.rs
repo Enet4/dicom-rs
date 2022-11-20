@@ -522,7 +522,7 @@ impl ClientAssociation {
 
     /// Gracefully terminate the association by exchanging release messages
     /// and then shutting down the TCP connection.
-    pub fn release(mut self) -> Result<()> {
+    pub fn release(&mut self) -> Result<()> {
         let out = self.release_impl();
         let _ = self.socket.shutdown(std::net::Shutdown::Both);
         out
@@ -535,7 +535,7 @@ impl ClientAssociation {
     /// if the exchange fails.
     /// Send an abort message and shut down the TCP connection,
     /// terminating the association.
-    pub fn abort(mut self) -> Result<()> {
+    pub fn abort(&mut self) -> Result<()> {
         let pdu = Pdu::AbortRQ {
             source: AbortRQSource::ServiceUser,
         };

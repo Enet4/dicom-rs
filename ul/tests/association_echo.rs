@@ -64,7 +64,7 @@ fn spawn_scp() -> Result<(JoinHandle<Result<()>>, SocketAddr)> {
 fn scu_scp_association_test() {
     let (scp_handle, scp_addr) = spawn_scp().unwrap();
 
-    let association = ClientAssociationOptions::new()
+    let mut association = ClientAssociationOptions::new()
         .calling_ae_title(SCU_AE_TITLE)
         .called_ae_title(SCP_AE_TITLE)
         .with_presentation_context(VERIFICATION_SOP_CLASS, vec![IMPLICIT_VR_LE, EXPLICIT_VR_LE])
