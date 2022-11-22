@@ -1131,15 +1131,21 @@ mod tests {
     fn inmem_object_write_datetime_odd() {
         let mut obj = InMemDicomObject::new_empty();
 
+        // add a number that will be encoded in text
+        let instance_number =
+            DataElement::new(Tag(0x0020, 0x0013), VR::IS, PrimitiveValue::from(1_i32));
+        obj.put(instance_number);
+
+        // add a date time
         let dt = DicomDateTime::from_date_and_time(
             DicomDate::from_ymd(2022, 11, 22).unwrap(),
             DicomTime::from_hms(18, 09, 35).unwrap(),
             FixedOffset::east_opt(3600).unwrap(),
         )
         .unwrap();
-        let patient_name =
+        let instance_coercion_date_time =
             DataElement::new(Tag(0x0008, 0x0015), VR::DT, dicom_value!(DateTime, dt));
-        obj.put(patient_name);
+        obj.put(instance_coercion_date_time);
 
         // explicit VR Little Endian
         let ts = TransferSyntaxRegistry.get("1.2.840.10008.1.2.1").unwrap();
@@ -1151,6 +1157,7 @@ mod tests {
         assert_eq!(
             out,
             &[
+                // instance coercion date time
                 0x08, 0x00, 0x15, 0x00, // Tag(0x0008, 0x0015)
                 b'D', b'T', // VR: DT
                 0x14, 0x00, // Length: 20 bytes
@@ -1158,6 +1165,11 @@ mod tests {
                 b'1', b'8', b'0', b'9', b'3', b'5', // time
                 b'+', b'0', b'1', b'0', b'0', // offset
                 b' ', // padding to even length
+                // instance number
+                0x20, 0x00, 0x13, 0x00, // Tag(0x0020, 0x0013)
+                b'I', b'S', // VR: IS
+                0x02, 0x00, // Length: 2 bytes
+                b'1', b' ' // 1, with padding
             ][..],
         );
     }
