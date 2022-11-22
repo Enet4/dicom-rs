@@ -924,7 +924,8 @@ mod tests {
     use super::*;
     use crate::{meta::FileMetaTableBuilder, open_file, Error};
     use byteordered::Endianness;
-    use dicom_core::value::PrimitiveValue;
+    use dicom_core::chrono::FixedOffset;
+    use dicom_core::value::{DicomDate, DicomDateTime, DicomTime, PrimitiveValue};
     use dicom_core::{
         dicom_value,
         header::{DataElementHeader, Length, VR},
@@ -1120,6 +1121,43 @@ mod tests {
                 0x10, 0x00, 0x10, 0x00, // Tag(0x0010, 0x0010)
                 0x08, 0x00, 0x00, 0x00, // Length: 8
                 b'D', b'o', b'e', b'^', b'J', b'o', b'h', b'n',
+            ][..],
+        );
+    }
+
+    /// writing a DICOM date time into an object
+    /// should include value padding
+    #[test]
+    fn inmem_object_write_datetime_odd() {
+        let mut obj = InMemDicomObject::new_empty();
+
+        let dt = DicomDateTime::from_date_and_time(
+            DicomDate::from_ymd(2022, 11, 22).unwrap(),
+            DicomTime::from_hms(18, 09, 35).unwrap(),
+            FixedOffset::east_opt(3600).unwrap(),
+        )
+        .unwrap();
+        let patient_name =
+            DataElement::new(Tag(0x0008, 0x0015), VR::DT, dicom_value!(DateTime, dt));
+        obj.put(patient_name);
+
+        // explicit VR Little Endian
+        let ts = TransferSyntaxRegistry.get("1.2.840.10008.1.2.1").unwrap();
+
+        let mut out = Vec::new();
+        obj.write_dataset_with_ts(&mut out, &ts)
+            .expect("should write DICOM data without errors");
+
+        assert_eq!(
+            out,
+            &[
+                0x08, 0x00, 0x15, 0x00, // Tag(0x0008, 0x0015)
+                b'D', b'T', // VR: DT
+                0x14, 0x00, // Length: 20 bytes
+                b'2', b'0', b'2', b'2', b'1', b'1', b'2', b'2', // date
+                b'1', b'8', b'0', b'9', b'3', b'5', // time
+                b'+', b'0', b'1', b'0', b'0', // offset
+                b' ', // padding to even length
             ][..],
         );
     }
