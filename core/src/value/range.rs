@@ -1,7 +1,7 @@
 //! Handling of date, time, date-time ranges. Needed for range matching.
 //! Parsing into ranges happens via partial precision  structures (DicomDate, DicomTime,
 //! DicomDatime) so ranges can handle null components in date, time, date-time values.
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveTime, TimeZone};
+use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 
 use crate::value::deserialize::{
@@ -35,10 +35,28 @@ pub enum Error {
         "Cannot convert from an imprecise value. This value represents a date / time range"
     ))]
     ImpreciseValue { backtrace: Backtrace },
-    #[snafu(display("Date is invalid"))]
-    InvalidDate { backtrace: Backtrace },
-    #[snafu(display("Time is invalid"))]
-    InvalidTime { backtrace: Backtrace },
+    #[snafu(display("Failed to construct Date from '{y}-{m}-{d}'"))]
+    InvalidDate {
+        y: i32,
+        m: u32,
+        d: u32,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("Failed to construct Time from {h}:{m}:{s}"))]
+    InvalidTime {
+        h: u32,
+        m: u32,
+        s: u32,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("Failed to construct Time from {h}:{m}:{s}:{f}"))]
+    InvalidTimeMicro {
+        h: u32,
+        m: u32,
+        s: u32,
+        f: u32,
+        backtrace: Backtrace,
+    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -126,7 +144,7 @@ impl AsRange for DicomDate {
                 *self.day().unwrap_or(&1) as u32,
             )
         };
-        NaiveDate::from_ymd_opt(y, m, d).context(InvalidDateSnafu)
+        NaiveDate::from_ymd_opt(y, m, d).context(InvalidDateSnafu { y, m, d })
     }
 
     fn latest(&self) -> Result<NaiveDate> {
@@ -139,17 +157,39 @@ impl AsRange for DicomDate {
                     let y = self.year();
                     let m = self.month().unwrap_or(&12);
                     if m == &12 {
-                        NaiveDate::from_ymd(*y as i32 + 1, 1, 1)
+                        NaiveDate::from_ymd_opt(*y as i32 + 1, 1, 1).context(InvalidDateSnafu {
+                            y: *y as i32,
+                            m: 1u32,
+                            d: 1u32,
+                        })?
                     } else {
-                        NaiveDate::from_ymd(*y as i32, *m as u32 + 1, 1)
+                        NaiveDate::from_ymd_opt(*y as i32, *m as u32 + 1, 1).context(
+                            InvalidDateSnafu {
+                                y: *y as i32,
+                                m: *m as u32,
+                                d: 1u32,
+                            },
+                        )?
                     }
-                    .signed_duration_since(NaiveDate::from_ymd(*y as i32, *m as u32, 1))
+                    .signed_duration_since(
+                        NaiveDate::from_ymd_opt(*y as i32, *m as u32, 1).context(
+                            InvalidDateSnafu {
+                                y: *y as i32,
+                                m: *m as u32,
+                                d: 1u32,
+                            },
+                        )?,
+                    )
                     .num_days() as u32
                 }
             },
         );
 
-        NaiveDate::from_ymd_opt(*y as i32, *m as u32, d).context(InvalidDateSnafu)
+        NaiveDate::from_ymd_opt(*y as i32, *m as u32, d).context(InvalidDateSnafu {
+            y: *y as i32,
+            m: *m as u32,
+            d,
+        })
     }
 
     fn range(&self) -> Result<DateRange> {
@@ -173,8 +213,14 @@ impl AsRange for DicomTime {
             },
         );
 
-        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), f)
-            .context(InvalidTimeSnafu)
+        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), f).context(
+            InvalidTimeMicroSnafu {
+                h: *h as u32,
+                m: *m as u32,
+                s: *s as u32,
+                f,
+            },
+        )
     }
     fn latest(&self) -> Result<NaiveTime> {
         let (h, m, s, f) = (
@@ -188,8 +234,14 @@ impl AsRange for DicomTime {
                 }
             },
         );
-        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), f)
-            .context(InvalidTimeSnafu)
+        NaiveTime::from_hms_micro_opt((*h).into(), (*m).into(), (*s).into(), f).context(
+            InvalidTimeMicroSnafu {
+                h: *h as u32,
+                m: *m as u32,
+                s: *s as u32,
+                f,
+            },
+        )
     }
     fn range(&self) -> Result<TimeRange> {
         let start = self.earliest()?;
@@ -205,12 +257,16 @@ impl AsRange for DicomDateTime {
         let date = self.date().earliest()?;
         let time = match self.time() {
             Some(time) => time.earliest()?,
-            None => NaiveTime::from_hms(0, 0, 0),
+            None => NaiveTime::from_hms_opt(0, 0, 0).context(InvalidTimeSnafu {
+                h: 0u32,
+                m: 0u32,
+                s: 0u32,
+            })?,
         };
 
         self.offset()
-            .from_utc_date(&date)
-            .and_time(time)
+            .from_local_datetime(&NaiveDateTime::new(date, time))
+            .single()
             .context(InvalidDateTimeSnafu)
     }
 
@@ -218,11 +274,18 @@ impl AsRange for DicomDateTime {
         let date = self.date().latest()?;
         let time = match self.time() {
             Some(time) => time.latest()?,
-            None => NaiveTime::from_hms_micro(23, 59, 59, 999_999),
+            None => NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).context(
+                InvalidTimeMicroSnafu {
+                    h: 23u32,
+                    m: 59u32,
+                    s: 59u32,
+                    f: 999_999u32,
+                },
+            )?,
         };
         self.offset()
-            .from_utc_date(&date)
-            .and_time(time)
+            .from_local_datetime(&NaiveDateTime::new(date, time))
+            .single()
             .context(InvalidDateTimeSnafu)
     }
     fn range(&self) -> Result<DateTimeRange> {
@@ -472,35 +535,48 @@ impl DateTimeRange {
         let start_date = dr.start();
         let end_date = dr.end();
 
-        let start_time = *tr.start().unwrap_or(&NaiveTime::from_hms(0, 0, 0));
-        let end_time = *tr
-            .end()
-            .unwrap_or(&NaiveTime::from_hms_micro(23, 59, 59, 999_999));
+        let start_time = *tr
+            .start()
+            .unwrap_or(&NaiveTime::from_hms_opt(0, 0, 0).context(InvalidTimeSnafu {
+                h: 0u32,
+                m: 0u32,
+                s: 0u32,
+            })?);
+        let end_time =
+            *tr.end()
+                .unwrap_or(&NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).context(
+                    InvalidTimeMicroSnafu {
+                        h: 23u32,
+                        m: 59u32,
+                        s: 59u32,
+                        f: 999_999u32,
+                    },
+                )?);
 
         match start_date {
             Some(sd) => match end_date {
                 Some(ed) => Ok(DateTimeRange::from_start_to_end(
                     offset
-                        .from_utc_date(sd)
-                        .and_time(start_time)
+                        .from_local_datetime(&NaiveDateTime::new(*sd, start_time))
+                        .single()
                         .context(InvalidDateTimeSnafu)?,
                     offset
-                        .from_utc_date(ed)
-                        .and_time(end_time)
+                        .from_local_datetime(&NaiveDateTime::new(*ed, end_time))
+                        .single()
                         .context(InvalidDateTimeSnafu)?,
                 )?),
                 None => Ok(DateTimeRange::from_start(
                     offset
-                        .from_utc_date(sd)
-                        .and_time(start_time)
+                        .from_local_datetime(&NaiveDateTime::new(*sd, start_time))
+                        .single()
                         .context(InvalidDateTimeSnafu)?,
                 )),
             },
             None => match end_date {
                 Some(ed) => Ok(DateTimeRange::from_end(
                     offset
-                        .from_utc_date(ed)
-                        .and_time(end_time)
+                        .from_local_datetime(&NaiveDateTime::new(*ed, end_time))
+                        .single()
                         .context(InvalidDateTimeSnafu)?,
                 )),
                 None => panic!("Impossible combination of two None values for a date range."),
@@ -667,35 +743,35 @@ mod tests {
     #[test]
     fn test_date_range() {
         assert_eq!(
-            DateRange::from_start(NaiveDate::from_ymd(2020, 1, 1)).start(),
-            Some(&NaiveDate::from_ymd(2020, 1, 1))
+            DateRange::from_start(NaiveDate::from_ymd_opt(2020, 1, 1).unwrap()).start(),
+            Some(&NaiveDate::from_ymd_opt(2020, 1, 1).unwrap())
         );
         assert_eq!(
-            DateRange::from_end(NaiveDate::from_ymd(2020, 12, 31)).end(),
-            Some(&NaiveDate::from_ymd(2020, 12, 31))
+            DateRange::from_end(NaiveDate::from_ymd_opt(2020, 12, 31).unwrap()).end(),
+            Some(&NaiveDate::from_ymd_opt(2020, 12, 31).unwrap())
         );
         assert_eq!(
             DateRange::from_start_to_end(
-                NaiveDate::from_ymd(2020, 1, 1),
-                NaiveDate::from_ymd(2020, 12, 31)
+                NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
+                NaiveDate::from_ymd_opt(2020, 12, 31).unwrap()
             )
             .unwrap()
             .start(),
-            Some(&NaiveDate::from_ymd(2020, 1, 1))
+            Some(&NaiveDate::from_ymd_opt(2020, 1, 1).unwrap())
         );
         assert_eq!(
             DateRange::from_start_to_end(
-                NaiveDate::from_ymd(2020, 1, 1),
-                NaiveDate::from_ymd(2020, 12, 31)
+                NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
+                NaiveDate::from_ymd_opt(2020, 12, 31).unwrap()
             )
             .unwrap()
             .end(),
-            Some(&NaiveDate::from_ymd(2020, 12, 31))
+            Some(&NaiveDate::from_ymd_opt(2020, 12, 31).unwrap())
         );
         assert!(matches!(
             DateRange::from_start_to_end(
-                NaiveDate::from_ymd(2020, 12, 1),
-                NaiveDate::from_ymd(2020, 1, 1)
+                NaiveDate::from_ymd_opt(2020, 12, 1).unwrap(),
+                NaiveDate::from_ymd_opt(2020, 1, 1).unwrap()
             ),
             Err(Error::RangeInversion {
                 start, end ,.. }) if start == "2020-12-01" && end == "2020-01-01"
@@ -705,35 +781,35 @@ mod tests {
     #[test]
     fn test_time_range() {
         assert_eq!(
-            TimeRange::from_start(NaiveTime::from_hms(05, 05, 05)).start(),
-            Some(&NaiveTime::from_hms(05, 05, 05))
+            TimeRange::from_start(NaiveTime::from_hms_opt(05, 05, 05).unwrap()).start(),
+            Some(&NaiveTime::from_hms_opt(05, 05, 05).unwrap())
         );
         assert_eq!(
-            TimeRange::from_end(NaiveTime::from_hms(05, 05, 05)).end(),
-            Some(&NaiveTime::from_hms(05, 05, 05))
+            TimeRange::from_end(NaiveTime::from_hms_opt(05, 05, 05).unwrap()).end(),
+            Some(&NaiveTime::from_hms_opt(05, 05, 05).unwrap())
         );
         assert_eq!(
             TimeRange::from_start_to_end(
-                NaiveTime::from_hms(05, 05, 05),
-                NaiveTime::from_hms(05, 05, 06)
+                NaiveTime::from_hms_opt(05, 05, 05).unwrap(),
+                NaiveTime::from_hms_opt(05, 05, 06).unwrap()
             )
             .unwrap()
             .start(),
-            Some(&NaiveTime::from_hms(05, 05, 05))
+            Some(&NaiveTime::from_hms_opt(05, 05, 05).unwrap())
         );
         assert_eq!(
             TimeRange::from_start_to_end(
-                NaiveTime::from_hms(05, 05, 05),
-                NaiveTime::from_hms(05, 05, 06)
+                NaiveTime::from_hms_opt(05, 05, 05).unwrap(),
+                NaiveTime::from_hms_opt(05, 05, 06).unwrap()
             )
             .unwrap()
             .end(),
-            Some(&NaiveTime::from_hms(05, 05, 06))
+            Some(&NaiveTime::from_hms_opt(05, 05, 06).unwrap())
         );
         assert!(matches!(
             TimeRange::from_start_to_end(
-                NaiveTime::from_hms_micro(05, 05, 05, 123_456),
-                NaiveTime::from_hms_micro(05, 05, 05, 123_450)
+                NaiveTime::from_hms_micro_opt(05, 05, 05, 123_456).unwrap(),
+                NaiveTime::from_hms_micro_opt(05, 05, 05, 123_450).unwrap()
             ),
             Err(Error::RangeInversion {
                 start, end ,.. }) if start == "05:05:05.123456" && end == "05:05:05.123450"
@@ -742,39 +818,114 @@ mod tests {
 
     #[test]
     fn test_datetime_range() {
-        let offset = FixedOffset::west(3600);
+        let offset = FixedOffset::west_opt(3600).unwrap();
 
         assert_eq!(
-            DateTimeRange::from_start(offset.ymd(1990, 1, 1).and_hms_micro(1, 1, 1, 1)).start(),
-            Some(&offset.ymd(1990, 1, 1).and_hms_micro(1, 1, 1, 1))
+            DateTimeRange::from_start(
+                offset
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                        NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
+                    ))
+                    .unwrap()
+            )
+            .start(),
+            Some(
+                &offset
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                        NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
+                    ))
+                    .unwrap()
+            )
         );
         assert_eq!(
-            DateTimeRange::from_end(offset.ymd(1990, 1, 1).and_hms_micro(1, 1, 1, 1)).end(),
-            Some(&offset.ymd(1990, 1, 1).and_hms_micro(1, 1, 1, 1))
+            DateTimeRange::from_end(
+                offset
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                        NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
+                    ))
+                    .unwrap()
+            )
+            .end(),
+            Some(
+                &offset
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                        NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
+                    ))
+                    .unwrap()
+            )
         );
         assert_eq!(
             DateTimeRange::from_start_to_end(
-                offset.ymd(1990, 1, 1).and_hms_micro(1, 1, 1, 1),
-                offset.ymd(1990, 1, 1).and_hms_micro(1, 1, 1, 5)
+                offset
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                        NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
+                    ))
+                    .unwrap(),
+                offset
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                        NaiveTime::from_hms_micro_opt(1, 1, 1, 5).unwrap()
+                    ))
+                    .unwrap()
             )
             .unwrap()
             .start(),
-            Some(&offset.ymd(1990, 1, 1).and_hms_micro(1, 1, 1, 1))
+            Some(
+                &offset
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                        NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
+                    ))
+                    .unwrap()
+            )
         );
         assert_eq!(
             DateTimeRange::from_start_to_end(
-                offset.ymd(1990, 1, 1).and_hms_micro(1, 1, 1, 1),
-                offset.ymd(1990, 1, 1).and_hms_micro(1, 1, 1, 5)
+                offset
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                        NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
+                    ))
+                    .unwrap(),
+                offset
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                        NaiveTime::from_hms_micro_opt(1, 1, 1, 5).unwrap()
+                    ))
+                    .unwrap()
             )
             .unwrap()
             .end(),
-            Some(&offset.ymd(1990, 1, 1).and_hms_micro(1, 1, 1, 5))
+            Some(
+                &offset
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                        NaiveTime::from_hms_micro_opt(1, 1, 1, 5).unwrap()
+                    ))
+                    .unwrap()
+            )
         );
         assert!(matches!(
             DateTimeRange::from_start_to_end(
-                offset.ymd(1990, 1, 1).and_hms_micro(1, 1, 1, 5),
-                offset.ymd(1990, 1, 1).and_hms_micro(1, 1, 1, 1)
-            ),
+                offset
+                .from_local_datetime(&NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                    NaiveTime::from_hms_micro_opt(1, 1, 1, 5).unwrap()
+                ))
+                .unwrap(),
+                offset
+                .from_local_datetime(&NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                    NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
+                ))
+                .unwrap()
+            )
+           ,
             Err(Error::RangeInversion {
                 start, end ,.. })
                 if start == "1990-01-01 01:01:01.000005 -01:00" &&
@@ -788,49 +939,49 @@ mod tests {
             parse_date_range(b"-19900201").ok(),
             Some(DateRange {
                 start: None,
-                end: Some(NaiveDate::from_ymd(1990, 2, 1))
+                end: Some(NaiveDate::from_ymd_opt(1990, 2, 1).unwrap())
             })
         );
         assert_eq!(
             parse_date_range(b"-202002").ok(),
             Some(DateRange {
                 start: None,
-                end: Some(NaiveDate::from_ymd(2020, 2, 29))
+                end: Some(NaiveDate::from_ymd_opt(2020, 2, 29).unwrap())
             })
         );
         assert_eq!(
             parse_date_range(b"-0020").ok(),
             Some(DateRange {
                 start: None,
-                end: Some(NaiveDate::from_ymd(20, 12, 31))
+                end: Some(NaiveDate::from_ymd_opt(20, 12, 31).unwrap())
             })
         );
         assert_eq!(
             parse_date_range(b"0002-").ok(),
             Some(DateRange {
-                start: Some(NaiveDate::from_ymd(2, 1, 1)),
+                start: Some(NaiveDate::from_ymd_opt(2, 1, 1).unwrap()),
                 end: None
             })
         );
         assert_eq!(
             parse_date_range(b"000203-").ok(),
             Some(DateRange {
-                start: Some(NaiveDate::from_ymd(2, 3, 1)),
+                start: Some(NaiveDate::from_ymd_opt(2, 3, 1).unwrap()),
                 end: None
             })
         );
         assert_eq!(
             parse_date_range(b"00020307-").ok(),
             Some(DateRange {
-                start: Some(NaiveDate::from_ymd(2, 3, 7)),
+                start: Some(NaiveDate::from_ymd_opt(2, 3, 7).unwrap()),
                 end: None
             })
         );
         assert_eq!(
             parse_date_range(b"0002-202002  ").ok(),
             Some(DateRange {
-                start: Some(NaiveDate::from_ymd(2, 1, 1)),
-                end: Some(NaiveDate::from_ymd(2020, 2, 29))
+                start: Some(NaiveDate::from_ymd_opt(2, 1, 1).unwrap()),
+                end: Some(NaiveDate::from_ymd_opt(2020, 2, 29).unwrap())
             })
         );
         assert!(parse_date_range(b"0002").is_err());
@@ -844,48 +995,48 @@ mod tests {
             parse_time_range(b"-101010.123456789").ok(),
             Some(TimeRange {
                 start: None,
-                end: Some(NaiveTime::from_hms_micro(10, 10, 10, 123_456))
+                end: Some(NaiveTime::from_hms_micro_opt(10, 10, 10, 123_456).unwrap())
             })
         );
         assert_eq!(
             parse_time_range(b"-101010.123 ").ok(),
             Some(TimeRange {
                 start: None,
-                end: Some(NaiveTime::from_hms_micro(10, 10, 10, 123_999))
+                end: Some(NaiveTime::from_hms_micro_opt(10, 10, 10, 123_999).unwrap())
             })
         );
         assert_eq!(
             parse_time_range(b"-01 ").ok(),
             Some(TimeRange {
                 start: None,
-                end: Some(NaiveTime::from_hms_micro(01, 59, 59, 999_999))
+                end: Some(NaiveTime::from_hms_micro_opt(01, 59, 59, 999_999).unwrap())
             })
         );
         assert_eq!(
             parse_time_range(b"101010.123456-").ok(),
             Some(TimeRange {
-                start: Some(NaiveTime::from_hms_micro(10, 10, 10, 123_456)),
+                start: Some(NaiveTime::from_hms_micro_opt(10, 10, 10, 123_456).unwrap()),
                 end: None
             })
         );
         assert_eq!(
             parse_time_range(b"101010.123-").ok(),
             Some(TimeRange {
-                start: Some(NaiveTime::from_hms_micro(10, 10, 10, 123_000)),
+                start: Some(NaiveTime::from_hms_micro_opt(10, 10, 10, 123_000).unwrap()),
                 end: None
             })
         );
         assert_eq!(
             parse_time_range(b"1010-").ok(),
             Some(TimeRange {
-                start: Some(NaiveTime::from_hms(10, 10, 0)),
+                start: Some(NaiveTime::from_hms_opt(10, 10, 0).unwrap()),
                 end: None
             })
         );
         assert_eq!(
             parse_time_range(b"00-").ok(),
             Some(TimeRange {
-                start: Some(NaiveTime::from_hms(0, 0, 0)),
+                start: Some(NaiveTime::from_hms_opt(0, 0, 0).unwrap()),
                 end: None
             })
         );
@@ -893,53 +1044,102 @@ mod tests {
 
     #[test]
     fn test_parse_datetime_range() {
-        let offset = FixedOffset::west(3600);
+        let offset = FixedOffset::west_opt(3600).unwrap();
         assert_eq!(
             parse_datetime_range(b"-20200229153420.123456", offset).ok(),
             Some(DateTimeRange {
                 start: None,
-                end: Some(offset.ymd(2020, 2, 29).and_hms_micro(15, 34, 20, 123_456))
+                end: Some(
+                    offset
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                            NaiveTime::from_hms_micro_opt(15, 34, 20, 123_456).unwrap()
+                        ))
+                        .unwrap()
+                )
             })
         );
         assert_eq!(
             parse_datetime_range(b"-20200229153420.123", offset).ok(),
             Some(DateTimeRange {
                 start: None,
-                end: Some(offset.ymd(2020, 2, 29).and_hms_micro(15, 34, 20, 123_999))
+                end: Some(
+                    offset
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                            NaiveTime::from_hms_micro_opt(15, 34, 20, 123_999).unwrap()
+                        ))
+                        .unwrap()
+                )
             })
         );
         assert_eq!(
             parse_datetime_range(b"-20200229153420", offset).ok(),
             Some(DateTimeRange {
                 start: None,
-                end: Some(offset.ymd(2020, 2, 29).and_hms_micro(15, 34, 20, 999_999))
+                end: Some(
+                    offset
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                            NaiveTime::from_hms_micro_opt(15, 34, 20, 999_999).unwrap()
+                        ))
+                        .unwrap()
+                )
             })
         );
         assert_eq!(
             parse_datetime_range(b"-2020022915", offset).ok(),
             Some(DateTimeRange {
                 start: None,
-                end: Some(offset.ymd(2020, 2, 29).and_hms_micro(15, 59, 59, 999_999))
+                end: Some(
+                    offset
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                            NaiveTime::from_hms_micro_opt(15, 59, 59, 999_999).unwrap()
+                        ))
+                        .unwrap()
+                )
             })
         );
         assert_eq!(
             parse_datetime_range(b"-202002", offset).ok(),
             Some(DateTimeRange {
                 start: None,
-                end: Some(offset.ymd(2020, 2, 29).and_hms_micro(23, 59, 59, 999_999))
+                end: Some(
+                    offset
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                            NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+                        ))
+                        .unwrap()
+                )
             })
         );
         assert_eq!(
             parse_datetime_range(b"0002-", offset).ok(),
             Some(DateTimeRange {
-                start: Some(offset.ymd(2, 1, 1).and_hms_micro(0, 0, 0, 0)),
+                start: Some(
+                    offset
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(2, 1, 1).unwrap(),
+                            NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
+                        ))
+                        .unwrap()
+                ),
                 end: None
             })
         );
         assert_eq!(
             parse_datetime_range(b"00021231-", offset).ok(),
             Some(DateTimeRange {
-                start: Some(offset.ymd(2, 12, 31).and_hms_micro(0, 0, 0, 0)),
+                start: Some(
+                    offset
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(2, 12, 31).unwrap(),
+                            NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
+                        ))
+                        .unwrap()
+                ),
                 end: None
             })
         );
@@ -948,14 +1148,22 @@ mod tests {
             parse_datetime_range(b"19900101+0500-1999+1400", offset).ok(),
             Some(DateTimeRange {
                 start: Some(
-                    FixedOffset::east(5 * 3600)
-                        .ymd(1990, 1, 1)
-                        .and_hms_micro(0, 0, 0, 0)
+                    FixedOffset::east_opt(5 * 3600)
+                        .unwrap()
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                            NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
+                        ))
+                        .unwrap()
                 ),
                 end: Some(
-                    FixedOffset::east(14 * 3600)
-                        .ymd(1999, 12, 31)
-                        .and_hms_micro(23, 59, 59, 999_999)
+                    FixedOffset::east_opt(14 * 3600)
+                        .unwrap()
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(1999, 12, 31).unwrap(),
+                            NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+                        ))
+                        .unwrap()
                 )
             })
         );
@@ -964,14 +1172,22 @@ mod tests {
             parse_datetime_range(b"19900101-0500-1999-1200", offset).ok(),
             Some(DateTimeRange {
                 start: Some(
-                    FixedOffset::west(5 * 3600)
-                        .ymd(1990, 1, 1)
-                        .and_hms_micro(0, 0, 0, 0)
+                    FixedOffset::west_opt(5 * 3600)
+                        .unwrap()
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                            NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
+                        ))
+                        .unwrap()
                 ),
                 end: Some(
-                    FixedOffset::west(12 * 3600)
-                        .ymd(1999, 12, 31)
-                        .and_hms_micro(23, 59, 59, 999_999)
+                    FixedOffset::west_opt(12 * 3600)
+                        .unwrap()
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(1999, 12, 31).unwrap(),
+                            NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+                        ))
+                        .unwrap()
                 )
             })
         );
@@ -980,14 +1196,22 @@ mod tests {
             parse_datetime_range(b"19900101+1400-1999-1200", offset).ok(),
             Some(DateTimeRange {
                 start: Some(
-                    FixedOffset::east(14 * 3600)
-                        .ymd(1990, 1, 1)
-                        .and_hms_micro(0, 0, 0, 0)
+                    FixedOffset::east_opt(14 * 3600)
+                        .unwrap()
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                            NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
+                        ))
+                        .unwrap()
                 ),
                 end: Some(
-                    FixedOffset::west(12 * 3600)
-                        .ymd(1999, 12, 31)
-                        .and_hms_micro(23, 59, 59, 999_999)
+                    FixedOffset::west_opt(12 * 3600)
+                        .unwrap()
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(1999, 12, 31).unwrap(),
+                            NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+                        ))
+                        .unwrap()
                 )
             })
         );
@@ -996,11 +1220,22 @@ mod tests {
             parse_datetime_range(b"19900101-1200-1999", offset).unwrap(),
             DateTimeRange {
                 start: Some(
-                    FixedOffset::west(12 * 3600)
-                        .ymd(1990, 1, 1)
-                        .and_hms_micro(0, 0, 0, 0)
+                    FixedOffset::west_opt(12 * 3600)
+                        .unwrap()
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                            NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
+                        ))
+                        .unwrap()
                 ),
-                end: Some(offset.ymd(1999, 12, 31).and_hms_micro(23, 59, 59, 999_999))
+                end: Some(
+                    offset
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(1999, 12, 31).unwrap(),
+                            NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+                        ))
+                        .unwrap()
+                )
             }
         );
         // '0500' can either be a valid west UTC offset on left side, or a valid datime on the right side
@@ -1008,11 +1243,22 @@ mod tests {
         assert_eq!(
             parse_datetime_range(b"0050-0500-1000", offset).unwrap(),
             DateTimeRange {
-                start: Some(offset.ymd(50, 1, 1).and_hms_micro(0, 0, 0, 0)),
+                start: Some(
+                    offset
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(50, 1, 1).unwrap(),
+                            NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
+                        ))
+                        .unwrap()
+                ),
                 end: Some(
-                    FixedOffset::west(10 * 3600)
-                        .ymd(500, 12, 31)
-                        .and_hms_micro(23, 59, 59, 999_999)
+                    FixedOffset::west_opt(10 * 3600)
+                        .unwrap()
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(500, 12, 31).unwrap(),
+                            NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+                        ))
+                        .unwrap()
                 )
             }
         );
