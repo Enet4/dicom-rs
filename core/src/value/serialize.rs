@@ -77,7 +77,7 @@ mod test {
     fn test_encode_datetime() {
         let mut data = vec![];
         let offset = FixedOffset::east_opt(0).unwrap();
-        encode_datetime(
+        let bytes = encode_datetime(
 
             &mut data,
             DicomDateTime::from_date_and_time(
@@ -94,7 +94,7 @@ mod test {
 
         let mut data = vec![];
         let offset = FixedOffset::east_opt(3600).unwrap();
-        encode_datetime(
+        let bytes = encode_datetime(
 
             &mut data,
             DicomDateTime::from_date_and_time(
