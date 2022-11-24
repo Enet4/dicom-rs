@@ -240,7 +240,11 @@ where
 
                 self.bytes_written += bytes as u64;
                 if bytes % 2 != 0 {
-                    self.to.write_all(&[0]).context(WriteValueDataSnafu {
+                    let padding = match de.vr {
+                        VR::DA | VR::DS | VR::DT | VR::IS | VR::TM => b' ',
+                        _ => 0,
+                    };
+                    self.to.write_all(&[padding]).context(WriteValueDataSnafu {
                         position: self.bytes_written,
                     })?;
                     self.bytes_written += 1;
@@ -461,7 +465,8 @@ fn even_len(l: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use dicom_core::{
-        dicom_value, DataElement, DataElementHeader, DicomValue, Length, PrimitiveValue, Tag, VR,
+        dicom_value, value::DicomTime, DataElement, DataElementHeader, DicomValue, Length,
+        PrimitiveValue, Tag, VR,
     };
     use dicom_encoding::{
         encode::{explicit_le::ExplicitVRLittleEndianEncoder, EncoderFor},
@@ -601,6 +606,42 @@ mod tests {
                 0x0A, 0x00, 0x00, 0x00, // length
                 // ---------- value ----------
                 5, 5, 5, 5, 5, 5, 5, 5, 5, 0,
+            ],
+        )
+    }
+
+    /// Odd lengthed textual values are encoded to even padding with a space
+    #[test]
+    fn encode_odd_length_text() {
+        let mut out: Vec<_> = Vec::new();
+
+        {
+            let mut encoder = StatefulEncoder::new(
+                &mut out,
+                EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
+                SpecificCharacterSet::Default,
+            );
+
+            let tm = DicomTime::from_hms_micro(23, 57, 59, 999_999).unwrap();
+
+            encoder
+                .encode_primitive_element(
+                    &DataElementHeader::new(Tag(0x0008, 0x0030), VR::TM, Length(14)),
+                    &PrimitiveValue::from(tm),
+                )
+                .unwrap();
+        }
+
+        assert_eq!(
+            &out,
+            &[
+                0x08, 0x00, 0x30, 0x00, // tag (0x0008, 0x0030)
+                b'T', b'M', // VR
+                0x0E, 0x00, // length
+                // ---------- value ----------
+                b'2', b'3', b'5', b'7', b'5', b'9', // time
+                b'.', b'9', b'9', b'9', b'9', b'9', b'9', // second fragment
+                b' ', // padding
             ],
         )
     }

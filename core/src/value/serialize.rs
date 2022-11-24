@@ -35,8 +35,9 @@ pub fn encode_datetime<W>(mut to: W, dt: DicomDateTime) -> IoResult<usize>
 where
     W: Write,
 {
-    let len = dt.to_string().len();
-    write!(to, "{}", dt.to_encoded())?;
+    let value = dt.to_encoded();
+    let len = value.len();
+    write!(to, "{}", value)?;
     Ok(len)
 }
 
@@ -77,6 +78,7 @@ mod test {
         let mut data = vec![];
         let offset = FixedOffset::east_opt(0).unwrap();
         encode_datetime(
+
             &mut data,
             DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(1985, 12, 31).unwrap(),
@@ -88,10 +90,12 @@ mod test {
         .unwrap();
         // even zero offset gets encoded into string value
         assert_eq!(from_utf8(&data).unwrap(), "19851231235948.123456+0000");
+        assert_eq!(bytes, 26);
 
         let mut data = vec![];
         let offset = FixedOffset::east_opt(3600).unwrap();
         encode_datetime(
+
             &mut data,
             DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2018, 12, 24).unwrap(),
@@ -102,5 +106,6 @@ mod test {
         )
         .unwrap();
         assert_eq!(from_utf8(&data).unwrap(), "2018122404+0100");
+        assert_eq!(bytes, 15);
     }
 }
