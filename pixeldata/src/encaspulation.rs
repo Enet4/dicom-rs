@@ -8,7 +8,7 @@ use snafu::prelude::*;
 pub enum EncapsulationError {
     TooManyFragments,
 }
-
+/// Encapsulate the pixel data of the frames. If frames > 1 then fragments is ignored and set to 1
 pub fn encapsulate<D>(
     frames: &mut [Vec<u8>],
     fragments: u32,
@@ -19,6 +19,8 @@ where
 {
     let mut processed = C::new();
     let mut bot = C::new();
+    let fragments = if frames.len() > 1 { 1 } else { fragments };
+
     frames
         .iter_mut()
         .map(|data| {
