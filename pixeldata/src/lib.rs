@@ -110,6 +110,7 @@ pub use ndarray;
 mod attribute;
 mod lut;
 
+pub mod encaspulation;
 pub(crate) mod transform;
 
 // re-exports
