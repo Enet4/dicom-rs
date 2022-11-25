@@ -19,11 +19,10 @@ where
 {
     let mut processed = C::new();
     let mut bot = C::new();
-    let mut fragment_size = 0u32;
     frames
         .iter_mut()
         .map(|data| {
-            fragment_size = (data.len() as f32 / fragments as f32).ceil() as u32;
+            let fragment_size = (data.len() as f32 / fragments as f32).ceil() as u32;
             if fragment_size > 2 {
                 // Fragment size has to be even and 4 bytes in size
                 let fragment_size = {
