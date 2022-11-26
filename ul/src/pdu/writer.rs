@@ -982,6 +982,50 @@ fn write_pdu_variable_user_variables(
                         name: "Implementation-class-uid",
                     })?;
                 }
+                UserVariableItem::SopClassExtendedNegotiationSubItem(sop_class_uid, data) => {
+                    // 1 - Item-type - 56H
+                    writer
+                        .write_u8(0x56)
+                        .context(WriteFieldSnafu { field: "Item-type" })?;
+                    // 2 - Reserved - This reserved field shall be sent with a value 00H but not
+                    // tested to this value when received.
+                    writer
+                        .write_u8(0x00)
+                        .context(WriteReservedSnafu { bytes: 1_u32 })?;
+
+                    write_chunk_u16(writer, |writer| {
+                        write_chunk_u16(writer, |writer| {
+                            //  7-xxx - The SOP Class or Meta SOP Class identifier encoded as a UID
+                            //  as defined in Section 9 “Unique Identifiers (UIDs)” in PS3.5.
+                            writer
+                                .write_all(&codec.encode(sop_class_uid).context(
+                                    EncodeFieldSnafu {
+                                        field: "SOP-class-uid",
+                                    },
+                                )?)
+                                .context(WriteFieldSnafu {
+                                    field: "SOP-class-uid",
+                                })
+                        })
+                        .context(WriteChunkSnafu {
+                            name: "SOP-class-uid",
+                        })?;
+
+                        write_chunk_u16(writer, |writer| {
+                            // xxx-xxx Service-class-application-information - This field shall contain
+                            // the application information specific to the Service Class specification 
+                            // identified by the SOP-class-uid. The semantics and value of this field is
+                            // defined in the identified Service Class specification.
+                            writer.write_all(data).context(WriteFieldSnafu {
+                                field: "Service-class-application-information",
+                            })
+                        })
+                        .context(WriteChunkSnafu {
+                            name: "Service-class-application-information",
+                        })
+                    })
+                    .context(WriteChunkSnafu { name: "Sub-item" })?;
+                }
                 UserVariableItem::Unknown(item_type, data) => {
                     writer
                         .write_u8(*item_type)
