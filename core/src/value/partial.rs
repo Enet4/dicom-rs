@@ -74,10 +74,10 @@ pub enum DateComponent {
 /// Represents a Dicom Date value with a partial precision,
 /// where some date components may be missing.
 ///
-/// Unlike Rust's `chrono::NaiveDate`, it does not allow for negative years.
+/// Unlike [chrono::NaiveDate], it does not allow for negative years.
 ///
-/// `DicomDate` implements `AsRange` trait, enabling to retrieve specific
-/// `chrono::NaiveDate` values.
+/// `DicomDate` implements [AsRange] trait, enabling to retrieve specific
+/// [date](NaiveDate) values.
 ///
 /// # Example
 /// ```
@@ -90,11 +90,11 @@ pub enum DateComponent {
 /// let date = DicomDate::from_y(1492)?;
 ///
 /// assert_eq!(
-///     date.latest()?,
-///     NaiveDate::from_ymd(1492,12,31)
+///     Some(date.latest()?),
+///     NaiveDate::from_ymd_opt(1492,12,31)
 /// );
 ///
-/// let date = DicomDate::try_from(&NaiveDate::from_ymd(1900, 5, 3))?;
+/// let date = DicomDate::try_from(&NaiveDate::from_ymd_opt(1900, 5, 3).unwrap())?;
 /// // conversion from chrono value leads to a precise value
 /// assert_eq!(date.is_precise(), true);
 ///
@@ -108,11 +108,11 @@ pub struct DicomDate(DicomDateImpl);
 /// Represents a Dicom Time value with a partial precision,
 /// where some time components may be missing.
 ///
-/// Unlike Ruts's `chrono::NaiveTime`, this implemenation has only 6 digit precision
+/// Unlike [chrono::NaiveTime], this implemenation has only 6 digit precision
 /// for fraction of a second.
 ///
-/// `DicomTime` implements `AsRange` trait, enabling to retrieve specific
-/// `chrono::NaiveTime` values.
+/// `DicomTime` implements [AsRange] trait, enabling to retrieve specific
+/// [time](NaiveTime) values.
 ///
 /// # Example
 /// ```
@@ -125,8 +125,8 @@ pub struct DicomDate(DicomDateImpl);
 /// let time = DicomTime::from_hm(12, 30)?;
 ///
 /// assert_eq!(
-///     time.latest()?,
-///     NaiveTime::from_hms_micro(12, 30, 59, 999_999)
+///     Some(time.latest()?),
+///     NaiveTime::from_hms_micro_opt(12, 30, 59, 999_999)
 /// );
 ///
 /// let milli = DicomTime::from_hms_milli(12, 30, 59, 123)?;
@@ -138,11 +138,11 @@ pub struct DicomDate(DicomDateImpl);
 ///
 /// // for convenience, is precise enough to be retrieved as a NaiveTime
 /// assert_eq!(
-///     milli.to_naive_time()?,
-///     NaiveTime::from_hms_micro(12, 30, 59, 123_000)
+///     Some(milli.to_naive_time()?),
+///     NaiveTime::from_hms_micro_opt(12, 30, 59, 123_000)
 /// );
 ///
-/// let time = DicomTime::try_from(&NaiveTime::from_hms(12, 30, 59))?;
+/// let time = DicomTime::try_from(&NaiveTime::from_hms_opt(12, 30, 59).unwrap())?;
 /// // conversion from chrono value leads to a precise value
 /// assert_eq!(time.is_precise(), true);
 ///
@@ -174,20 +174,22 @@ enum DicomTimeImpl {
 }
 
 /// Represents a Dicom DateTime value with a partial precision,
-/// where some date / time components may be missing.
-/// `DicomDateTime` is always internally represented by a `DicomDate`
-/// and optionally by a `DicomTime`.
-/// It implements `AsRange` trait and also holds a `FixedOffset` value, from which corresponding
-/// `chrono::DateTime` values can be retrieved.
+/// where some date or time components may be missing.
+///
+/// `DicomDateTime` is always internally represented by a [DicomDate]
+/// and optionally by a [DicomTime].
+///
+/// It implements [AsRange] trait and also holds a [FixedOffset] value, from which corresponding
+/// [datetime][DateTime] values can be retrieved.
 /// # Example
 /// ```
 /// # use std::error::Error;
 /// # use std::convert::TryFrom;
-/// use chrono::{DateTime, FixedOffset, TimeZone};
+/// use chrono::{DateTime, FixedOffset, TimeZone, NaiveDateTime, NaiveDate, NaiveTime};
 /// use dicom_core::value::{DicomDate, DicomTime, DicomDateTime, AsRange};
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
-/// let offset = FixedOffset::east(3600);
+/// let offset = FixedOffset::east_opt(3600).unwrap();
 ///
 /// // the least precise date-time value possible is a 'YYYY'
 /// let dt = DicomDateTime::from_date(
@@ -195,20 +197,26 @@ enum DicomTimeImpl {
 ///     offset
 /// );
 /// assert_eq!(
-///     dt.earliest()?,
-///     offset.ymd(2020, 1, 1)
-///     .and_hms(0, 0, 0)
+///     Some(dt.earliest()?),
+///     offset.from_local_datetime(&NaiveDateTime::new(
+///         NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
+///         NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+///     )).single()
 /// );
 /// assert_eq!(
-///     dt.latest()?,
-///     offset.ymd(2020, 12, 31)
-///     .and_hms_micro(23, 59, 59, 999_999)
+///     Some(dt.latest()?),
+///     offset.from_local_datetime(&NaiveDateTime::new(
+///         NaiveDate::from_ymd_opt(2020, 12, 31).unwrap(),
+///         NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+///     )).single()
 /// );
 ///
-/// let dt = DicomDateTime::try_from(&offset
-///     .ymd(2020, 12, 31)
-///     .and_hms(23, 59, 0)
-///     )?;
+/// let chrono_datetime = offset.from_local_datetime(&NaiveDateTime::new(
+///         NaiveDate::from_ymd_opt(2020, 12, 31).unwrap(),
+///         NaiveTime::from_hms_opt(23, 59, 0).unwrap()
+///     )).unwrap();
+///
+/// let dt = DicomDateTime::try_from(&chrono_datetime)?;
 /// // conversion from chrono value leads to a precise value
 /// assert_eq!(dt.is_precise(), true);
 ///

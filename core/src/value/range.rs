@@ -61,10 +61,12 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// The DICOM protocol accepts date / time values with null components.
+/// 
 /// Imprecise values are to be handled as date / time ranges.
+/// 
 /// This trait is implemented by date / time structures with partial precision.
 /// If the date / time structure is not precise, it is up to the user to call one of these
-/// methods to retrieve a suitable  `chrono` value.
+/// methods to retrieve a suitable  [`chrono`] value.
 ///
 /// # Examples
 ///
@@ -79,19 +81,19 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// let dicom_date = DicomDate::from_ym(2010,1)?;
 /// assert_eq!(dicom_date.is_precise(), false);
 /// assert_eq!(
-///     dicom_date.earliest()?,
-///     NaiveDate::from_ymd(2010,1,1)
+///     Some(dicom_date.earliest()?),
+///     NaiveDate::from_ymd_opt(2010,1,1)
 /// );
 /// assert_eq!(
-///     dicom_date.latest()?,
-///     NaiveDate::from_ymd(2010,1,31)
+///     Some(dicom_date.latest()?),
+///     NaiveDate::from_ymd_opt(2010,1,31)
 /// );
 ///
 /// let dicom_time = DicomTime::from_hm(10,0)?;
 /// assert_eq!(
 ///     dicom_time.range()?,
 ///     TimeRange::from_start_to_end(NaiveTime::from_hms(10, 0, 0),
-///         NaiveTime::from_hms_micro(10, 0, 59, 999_999))?
+///         NaiveTime::from_hms_micro_opt(10, 0, 59, 999_999).unwrap())?
 /// );
 /// // only a time with 6 digits second fraction is considered precise
 /// assert!(dicom_time.exact().is_err());
@@ -324,14 +326,14 @@ impl DicomDateTime {
     }
 }
 
-/// Represents a date range as two `Option<chrono::NaiveDate>` values.
-/// `None` means no upper or no lower bound for range is present.
+/// Represents a date range as two [`Option<chrono::NaiveDate>`] values.
+/// [None] means no upper or no lower bound for range is present.
 /// # Example
 /// ```
 /// use chrono::NaiveDate;
 /// use dicom_core::value::DateRange;
 ///
-/// let dr = DateRange::from_start(NaiveDate::from_ymd(2000, 5, 3));
+/// let dr = DateRange::from_start(NaiveDate::from_ymd_opt(2000, 5, 3).unwrap());
 ///
 /// assert!(dr.start().is_some());
 /// assert!(dr.end().is_none());
@@ -341,14 +343,14 @@ pub struct DateRange {
     start: Option<NaiveDate>,
     end: Option<NaiveDate>,
 }
-/// Represents a time range as two `Option<chrono::NaiveTime>` values.
-/// `None` means no upper or no lower bound for range is present.
+/// Represents a time range as two [`Option<chrono::NaiveTime>`] values.
+/// [None] means no upper or no lower bound for range is present.
 /// # Example
 /// ```
 /// use chrono::NaiveTime;
 /// use dicom_core::value::TimeRange;
 ///
-/// let tr = TimeRange::from_end(NaiveTime::from_hms(10, 30, 15));
+/// let tr = TimeRange::from_end(NaiveTime::from_hms_opt(10, 30, 15).unwrap());
 ///
 /// assert!(tr.start().is_none());
 /// assert!(tr.end().is_some());
@@ -358,20 +360,26 @@ pub struct TimeRange {
     start: Option<NaiveTime>,
     end: Option<NaiveTime>,
 }
-/// Represents a date-time range as two `Option<chrono::DateTime<FixedOffset>>` values.
-/// `None` means no upper or no lower bound for range is present.
+/// Represents a date-time range as two [`Option<chrono::DateTime<FixedOffset>>`] values.
+/// [None] means no upper or no lower bound for range is present.
 /// # Example
 /// ```
 /// # use std::error::Error;
 /// # fn main() -> Result<(), Box<dyn Error>> {
-/// use chrono::{DateTime, FixedOffset, TimeZone};
+/// use chrono::{NaiveDate, NaiveTime, NaiveDateTime, DateTime, FixedOffset, TimeZone};
 /// use dicom_core::value::DateTimeRange;
 ///
-/// let offset = FixedOffset::west(3600);
+/// let offset = FixedOffset::west_opt(3600).unwrap();
 ///
 /// let dtr = DateTimeRange::from_start_to_end(
-///     offset.ymd(2000, 5, 6).and_hms(15, 0, 0),
-///     offset.ymd(2000, 5, 6).and_hms(16, 30, 0)
+///     offset.from_local_datetime(&NaiveDateTime::new(
+///         NaiveDate::from_ymd_opt(2000, 5, 6).unwrap(),
+///         NaiveTime::from_hms_opt(15, 0, 0).unwrap()
+///     )).unwrap(),
+///     offset.from_local_datetime(&NaiveDateTime::new(
+///         NaiveDate::from_ymd_opt(2000, 5, 6).unwrap(),
+///         NaiveTime::from_hms_opt(16, 30, 0).unwrap()
+///     )).unwrap()
 /// )?;
 ///
 /// assert!(dtr.start().is_some());
