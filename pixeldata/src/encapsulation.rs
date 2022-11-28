@@ -2,7 +2,6 @@ use dicom_core::value::{Value, C};
 use dicom_core::DataDictionary;
 use dicom_object::mem::InMemFragment;
 use dicom_object::InMemDicomObject;
-use snafu::prelude::*;
 
 #[derive(Debug)]
 pub struct EncapsulatedPixels {
@@ -35,11 +34,12 @@ impl EncapsulatedPixels {
             bot: C::new(),
             current_offset: 0,
             fragments: C::new(),
-            number_of_fragments: number_of_fragments
+            number_of_fragments
         }
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl<D> Into<Value<InMemDicomObject<D>, InMemFragment>> for EncapsulatedPixels
 where
     D: DataDictionary,
@@ -87,6 +87,7 @@ pub fn fragment_frame(data: Vec<u8>, number_of_fragments: u32) -> Vec<Vec<u8>> {
     } else {
         2u32
     };
+    let number_of_fragments = (data.len() as f32 / fragment_size as f32).ceil() as u32;
 
     // Calculate the encapsulated size. If necessary pad the vector with zeroes so all the
     // chunks have the same fragment_size
@@ -103,13 +104,10 @@ pub fn fragment_frame(data: Vec<u8>, number_of_fragments: u32) -> Vec<Vec<u8>> {
 
 /// Encapsulate the pixel data of the frames. If frames > 1 then fragments is ignored and set to 1.
 /// If the calculated fragment size is less than 2 bytes, then it is set to 2 bytes
-pub fn encapsulate<'a, D>(
+pub fn encapsulate(
     frames: Vec<Vec<u8>>,
     number_of_fragments: u32,
-) -> Value<InMemDicomObject<D>, InMemFragment>
-where
-    D: DataDictionary,
-    D: Clone,
+) -> EncapsulatedPixels
 {
     let number_of_fragments = if frames.len() > 1 { 1 } else { number_of_fragments };
     let mut encapsulated_data = EncapsulatedPixels::new(number_of_fragments);
@@ -118,6 +116,78 @@ where
         encapsulated_data.add_frame(frame);
     }
 
-    encapsulated_data.into()
+    encapsulated_data
 }
 
+#[cfg(test)]
+mod tests {
+    use crate::encapsulation::{encapsulate, EncapsulatedPixels, fragment_frame};
+
+    #[test]
+    fn test_add_frame() {
+        let mut enc = EncapsulatedPixels::new(1);
+        assert_eq!(enc.bot.len(), 0);
+        assert_eq!(enc.fragments.len(), 0);
+        assert_eq!(enc.current_offset, 0);
+
+        enc.add_frame(vec![10, 20, 30]);
+        assert_eq!(enc.bot.len(), 1);
+        assert_eq!(enc.fragments.len(), 1);
+        assert_eq!(enc.current_offset, 4);
+
+        enc.add_frame(vec![10, 20, 30, 50]);
+        assert_eq!(enc.bot.len(), 2);
+        assert_eq!(enc.fragments.len(), 2);
+        assert_eq!(enc.current_offset, 8);
+    }
+
+    #[test]
+    fn test_encapsulated_pixels() {
+        let enc = encapsulate(vec![vec![20, 30, 40], vec![50, 60, 70, 80]], 1);
+        assert_eq!(enc.bot.len(), 2);
+        assert_eq!(enc.fragments.len(), 2);
+
+        let enc = encapsulate(vec![vec![20, 30, 40]], 2);
+        assert_eq!(enc.bot.len(), 2);
+        assert_eq!(enc.fragments.len(), 2);
+
+        let enc = encapsulate(vec![vec![20, 30, 40], vec![50, 60, 70, 80]], 2);
+        assert_eq!(enc.bot.len(), 2);
+        assert_eq!(enc.fragments.len(), 2);
+    }
+
+    #[test]
+    fn test_fragment_frame() {
+        let fragment = fragment_frame(vec![150, 164, 200], 1);
+        assert_eq!(fragment.len(), 1, "1 fragment should be present");
+        assert_eq!(fragment[0].len(), 4, "The fragment size should be 4");
+        assert_eq!(fragment[0], vec![150, 164, 200, 0], "The data should be 0 padded");
+
+        let fragment = fragment_frame(vec![150, 164, 200, 222], 1);
+        assert_eq!(fragment.len(), 1, "1 fragment should be present");
+        assert_eq!(fragment[0].len(), 4, "The fragment size should be 4");
+        assert_eq!(fragment[0], vec![150, 164, 200, 222], "The data should be what was sent");
+
+        let fragment = fragment_frame(vec![150, 164, 200, 222], 2);
+        assert_eq!(fragment.len(), 2, "2 fragments should be present");
+        assert_eq!(fragment[0].len(), 2);
+        assert_eq!(fragment[1].len(), 2);
+        assert_eq!(fragment[0], vec![150, 164]);
+        assert_eq!(fragment[1], vec![200, 222]);
+
+        let fragment = fragment_frame(vec![150, 164, 200], 3);
+        assert_eq!(fragment.len(), 2, "2 fragments should be present as fragment_size < 2");
+        assert_eq!(fragment[0].len(), 2);
+        assert_eq!(fragment[0], vec![150, 164]);
+        assert_eq!(fragment[1].len(), 2);
+        assert_eq!(fragment[1], vec![200, 0]);
+
+        let fragment = fragment_frame(vec![150, 164, 200, 222], 3);
+        assert_eq!(fragment.len(), 2, "2 fragments should be present as fragment_size < 2");
+        assert_eq!(fragment[0].len(), 2);
+        assert_eq!(fragment[0], vec![150, 164]);
+        assert_eq!(fragment[1].len(), 2);
+        assert_eq!(fragment[1], vec![200, 222]);
+    }
+
+}
