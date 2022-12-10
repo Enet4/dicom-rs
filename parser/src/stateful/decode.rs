@@ -291,7 +291,7 @@ where
             basic: LittleEndianBasicDecoder::default(),
             decoder: ExplicitVRLittleEndianDecoder::default(),
             text: DefaultCharacterSetCodec,
-            dt_utc_offset: FixedOffset::east(0),
+            dt_utc_offset: FixedOffset::east_opt(0).unwrap(),
             buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
             position: 0,
         }
