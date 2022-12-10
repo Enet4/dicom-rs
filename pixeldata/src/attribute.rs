@@ -457,3 +457,13 @@ pub fn photometric_interpretation<D: DataDictionary + Clone>(
         .trim()
         .into())
 }
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn errors_are_not_too_large() {
+        let size = std::mem::size_of::<super::GetAttributeError>();
+        assert!(size <= 64, "GetAttributeError size is too large ({} > 64)", size);
+    }
+}
