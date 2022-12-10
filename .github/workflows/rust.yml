@@ -50,4 +50,4 @@ jobs:
           cache: true
       - run: cargo clippy
         env:
-          RUSTFLAGS: -A warnings
+          RUSTFLAGS: -W warnings
