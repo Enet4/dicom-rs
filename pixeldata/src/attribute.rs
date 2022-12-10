@@ -51,7 +51,8 @@ pub enum GetAttributeError {
     Retrieve {
         name: AttributeName,
         #[snafu(backtrace)]
-        source: dicom_object::Error,
+        #[snafu(source(from(dicom_object::Error, Box::from)))]
+        source: Box<dicom_object::Error>,
     },
 
     #[snafu(display("Could not get attribute `{}`", name))]
@@ -64,7 +65,8 @@ pub enum GetAttributeError {
     #[snafu(display("Could not convert attribute `{}`", name))]
     ConvertValue {
         name: AttributeName,
-        source: dicom_core::value::ConvertValueError,
+        #[snafu(source(from(dicom_core::value::ConvertValueError, Box::from)))]
+        source: Box<dicom_core::value::ConvertValueError>,
         backtrace: Backtrace,
     },
 
