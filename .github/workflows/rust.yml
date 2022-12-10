@@ -49,3 +49,5 @@ jobs:
           components: clippy
           cache: true
       - run: cargo clippy
+        env:
+          RUSTFLAGS: -A warnings
