@@ -3,7 +3,7 @@
 use dicom_core::{DataDictionary, Tag};
 use dicom_dictionary_std::tags;
 use dicom_object::{mem::InMemElement, FileDicomObject, InMemDicomObject};
-use snafu::{ensure, Backtrace, ResultExt, Snafu};
+use snafu::{ensure, Backtrace, ResultExt, Snafu, OptionExt};
 use std::fmt;
 
 /// An enum for a DICOM attribute which can be retrieved
@@ -42,10 +42,9 @@ impl std::fmt::Display for AttributeName {
 #[derive(Debug, Snafu)]
 pub enum GetAttributeError {
     #[snafu(display("Missing required attribute `{}`", name))]
-    MissingRequiredField {
+    MissingRequired {
         name: AttributeName,
-        #[snafu(backtrace)]
-        source: dicom_object::Error,
+        backtrace: Backtrace,
     },
 
     #[snafu(display("Could not retrieve attribute `{}`", name))]
@@ -145,8 +144,10 @@ pub fn high_bit<D: DataDictionary + Clone>(
 pub fn pixel_data<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<&InMemElement<D>> {
-    obj.element(tags::PIXEL_DATA)
-        .context(MissingRequiredFieldSnafu { name: AttributeName::PixelData })
+    let name = AttributeName::PixelData;
+    obj.element_opt(tags::PIXEL_DATA)
+        .context(RetrieveSnafu { name })?
+        .context(MissingRequiredSnafu { name })
 }
 
 /// Get the RescaleIntercept from the DICOM object or returns 0
@@ -170,24 +171,22 @@ pub fn rescale_slope<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicom
 pub fn number_of_frames<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u32> {
+    let name = AttributeName::NumberOfFrames;
     let elem = if let Some(elem) =
         obj.element_opt(tags::NUMBER_OF_FRAMES)
-            .context(RetrieveSnafu {
-                name: AttributeName::NumberOfFrames,
-            })? {
+            .context(RetrieveSnafu { name })? {
         elem
     } else {
         return Ok(1);
     };
 
-    let integer = elem.to_int::<i32>().context(ConvertValueSnafu {
-        name: AttributeName::NumberOfFrames,
-    })?;
+    let integer = elem.to_int::<i32>()
+        .context(ConvertValueSnafu { name })?;
 
     ensure!(
         integer > 0,
         InvalidValueSnafu {
-            name: AttributeName::NumberOfFrames,
+            name,
             value: integer.to_string(),
         }
     );
@@ -218,8 +217,9 @@ fn retrieve_required_u16<D>(
 where
     D: DataDictionary + Clone,
 {
-    obj.element(tag)
-        .context(MissingRequiredFieldSnafu { name })?
+    obj.element_opt(tag)
+        .context(RetrieveSnafu { name })?
+        .context(MissingRequiredSnafu { name })?
         .uint16()
         .context(CastValueSnafu { name })
 }
@@ -478,15 +478,13 @@ impl fmt::Display for PhotometricInterpretation {
 pub fn photometric_interpretation<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<PhotometricInterpretation> {
+    let name = AttributeName::PhotometricInterpretation;
     Ok(obj
-        .element(tags::PHOTOMETRIC_INTERPRETATION)
-        .context(MissingRequiredFieldSnafu {
-            name: AttributeName::PhotometricInterpretation,
-        })?
+        .element_opt(tags::PHOTOMETRIC_INTERPRETATION)
+        .context(RetrieveSnafu { name })?
+        .context(MissingRequiredSnafu { name })?
         .string()
-        .context(CastValueSnafu {
-            name: AttributeName::PhotometricInterpretation,
-        })?
+        .context(CastValueSnafu { name })?
         .trim()
         .into())
 }
