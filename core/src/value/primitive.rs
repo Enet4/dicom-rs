@@ -96,11 +96,11 @@ pub enum InvalidValueReadError {
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum ModifyValueError {
-    /// The modification cannot proceed due to the value's current type,
+    /// The modification using a string cannot proceed
+    /// due to the value's current type,
     /// as that would lead to mixed representations.
-    #[snafu(display("cannot not modify {:?} value as {}", original, expected))]
-    IncompatibleType {
-        expected: &'static str,
+    #[snafu(display("cannot not modify {:?} value as string values", original))]
+    IncompatibleStringType {
         original: ValueType,
     },
 }
@@ -3521,8 +3521,7 @@ impl PrimitiveValue {
             | PrimitiveValue::F64(_)
             | PrimitiveValue::Date(_)
             | PrimitiveValue::DateTime(_)
-            | PrimitiveValue::Time(_) => Err(IncompatibleTypeSnafu {
-                expected: "string",
+            | PrimitiveValue::Time(_) => Err(IncompatibleStringTypeSnafu {
                 original: self.value_type(),
             }
             .build()),
