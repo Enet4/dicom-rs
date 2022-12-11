@@ -470,7 +470,7 @@ where
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
             write_chunk_u32(writer, |writer| {
-                writer.extend(&[0u8; 4]);
+                writer.extend([0u8; 4]);
                 Ok(())
             })
             .context(WriteChunkSnafu { name: "ReleaseRQ" })?;
@@ -490,7 +490,7 @@ where
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
             write_chunk_u32(writer, |writer| {
-                writer.extend(&[0u8; 4]);
+                writer.extend([0u8; 4]);
                 Ok(())
             })
             .context(WriteChunkSnafu { name: "ReleaseRP" })?;
@@ -548,7 +548,7 @@ where
                         AbortRQServiceProviderReason::InvalidPduParameter => [0x02, 0x06],
                     },
                 };
-                writer.extend(&source_word);
+                writer.extend(source_word);
 
                 Ok(())
             })
