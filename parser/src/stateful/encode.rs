@@ -229,7 +229,7 @@ where
                 // if VR is DS or IS and the value is binary,
                 // write value as a string instead
                 if let VR::DS | VR::IS = de.vr {
-                    return self.encode_element_as_text(value, &de);
+                    return self.encode_element_as_text(value, de);
                 }
 
                 let byte_len = value.calculate_byte_len();

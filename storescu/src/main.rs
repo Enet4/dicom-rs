@@ -469,7 +469,7 @@ fn check_file(file: &Path) -> Result<DicomFile, Error> {
         .whatever_context("DICOMDIR file not supported")?;
     let dicom_file = dicom_object::OpenFileOptions::new()
         .read_until(Tag(0x0001, 0x000))
-        .open_file(&file)
+        .open_file(file)
         .with_whatever_context(|_| format!("Could not open DICOM file {}", file.display()))?;
 
     let meta = dicom_file.meta();
