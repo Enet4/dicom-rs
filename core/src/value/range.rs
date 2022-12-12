@@ -61,9 +61,9 @@ pub enum Error {
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// The DICOM protocol accepts date / time values with null components.
-/// 
+///
 /// Imprecise values are to be handled as date / time ranges.
-/// 
+///
 /// This trait is implemented by date / time structures with partial precision.
 /// If the date / time structure is not precise, it is up to the user to call one of these
 /// methods to retrieve a suitable  [`chrono`] value.

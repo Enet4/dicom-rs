@@ -782,70 +782,80 @@ mod tests {
         let default_offset = FixedOffset::east_opt(0).unwrap();
         assert_eq!(
             parse_datetime(b"20171130101010.204", default_offset).unwrap(),
-            
-            FixedOffset::east_opt(0).unwrap()
+            FixedOffset::east_opt(0)
+                .unwrap()
                 .from_local_datetime(&NaiveDateTime::new(
                     NaiveDate::from_ymd_opt(2017, 11, 30).unwrap(),
-                    NaiveTime::from_hms_micro_opt(10, 10, 10, 204_000).unwrap())
-                ).unwrap()
-
+                    NaiveTime::from_hms_micro_opt(10, 10, 10, 204_000).unwrap()
+                ))
+                .unwrap()
         );
         assert_eq!(
             parse_datetime(b"19440229101010.1", default_offset).unwrap(),
-            FixedOffset::east_opt(0).unwrap()
-            .from_local_datetime(&NaiveDateTime::new(
-                NaiveDate::from_ymd_opt(1944, 2, 29).unwrap(),
-                NaiveTime::from_hms_micro_opt(10, 10, 10, 100_000).unwrap())
-            ).unwrap()
-
+            FixedOffset::east_opt(0)
+                .unwrap()
+                .from_local_datetime(&NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(1944, 2, 29).unwrap(),
+                    NaiveTime::from_hms_micro_opt(10, 10, 10, 100_000).unwrap()
+                ))
+                .unwrap()
         );
         assert_eq!(
             parse_datetime(b"19450228101010.999999", default_offset).unwrap(),
-            FixedOffset::east_opt(0).unwrap()
-            .from_local_datetime(&NaiveDateTime::new(
-                NaiveDate::from_ymd_opt(1945, 2, 28).unwrap(),
-                NaiveTime::from_hms_micro_opt(10, 10, 10, 999_999).unwrap())
-            ).unwrap()
+            FixedOffset::east_opt(0)
+                .unwrap()
+                .from_local_datetime(&NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(1945, 2, 28).unwrap(),
+                    NaiveTime::from_hms_micro_opt(10, 10, 10, 999_999).unwrap()
+                ))
+                .unwrap()
         );
         assert_eq!(
             parse_datetime(b"20171130101010.564204-1001", default_offset).unwrap(),
-            FixedOffset::west_opt(10 * 3600 + 1 * 60).unwrap()
-            .from_local_datetime(&NaiveDateTime::new(
-                NaiveDate::from_ymd_opt(2017, 11, 30).unwrap(),
-                NaiveTime::from_hms_micro_opt(10, 10, 10, 564_204).unwrap())
-            ).unwrap()
-
+            FixedOffset::west_opt(10 * 3600 + 1 * 60)
+                .unwrap()
+                .from_local_datetime(&NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2017, 11, 30).unwrap(),
+                    NaiveTime::from_hms_micro_opt(10, 10, 10, 564_204).unwrap()
+                ))
+                .unwrap()
         );
         assert_eq!(
             parse_datetime(b"20171130101010.564204-1001abcd", default_offset).unwrap(),
-            FixedOffset::west_opt(10 * 3600 + 1 * 60).unwrap()
-            .from_local_datetime(&NaiveDateTime::new(
-                NaiveDate::from_ymd_opt(2017, 11, 30).unwrap(),
-                NaiveTime::from_hms_micro_opt(10, 10, 10, 564_204).unwrap())
-            ).unwrap()
-
+            FixedOffset::west_opt(10 * 3600 + 1 * 60)
+                .unwrap()
+                .from_local_datetime(&NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2017, 11, 30).unwrap(),
+                    NaiveTime::from_hms_micro_opt(10, 10, 10, 564_204).unwrap()
+                ))
+                .unwrap()
         );
         assert_eq!(
             parse_datetime(b"20171130101010.2-1100", default_offset).unwrap(),
-            FixedOffset::west_opt(11 * 3600).unwrap()
-            .from_local_datetime(&NaiveDateTime::new(
-                NaiveDate::from_ymd_opt(2017, 11, 30).unwrap(),
-                NaiveTime::from_hms_micro_opt(10, 10, 10, 200_000).unwrap())
-            ).unwrap()
+            FixedOffset::west_opt(11 * 3600)
+                .unwrap()
+                .from_local_datetime(&NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2017, 11, 30).unwrap(),
+                    NaiveTime::from_hms_micro_opt(10, 10, 10, 200_000).unwrap()
+                ))
+                .unwrap()
         );
         assert_eq!(
             parse_datetime(b"20171130101010.0-1100", default_offset).unwrap(),
-            FixedOffset::west_opt(11 * 3600).unwrap()
-            .from_local_datetime(&NaiveDateTime::new(
-                NaiveDate::from_ymd_opt(2017, 11, 30).unwrap(),
-                NaiveTime::from_hms_micro_opt(10, 10, 10, 0).unwrap())
-            ).unwrap()
-
+            FixedOffset::west_opt(11 * 3600)
+                .unwrap()
+                .from_local_datetime(&NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2017, 11, 30).unwrap(),
+                    NaiveTime::from_hms_micro_opt(10, 10, 10, 0).unwrap()
+                ))
+                .unwrap()
         );
         assert_eq!(
             parse_datetime(b"20180101093059", default_offset).unwrap(),
-            FixedOffset::east_opt(0).unwrap()
-            .with_ymd_and_hms(2018, 1, 1,9,30, 59).unwrap()
+            FixedOffset::east_opt(0)
+                .unwrap()
+                .with_ymd_and_hms(2018, 1, 1, 9, 30, 59)
+                .unwrap()
         );
         assert!(matches!(
             parse_datetime(b"201801010930", default_offset),
@@ -883,11 +893,13 @@ mod tests {
         let dt = parse_datetime(b"20171130101010.204+0100", default_offset).unwrap();
         assert_eq!(
             dt,
-            FixedOffset::east_opt(3600).unwrap()
-            .from_local_datetime(&NaiveDateTime::new(
-                NaiveDate::from_ymd_opt(2017, 11, 30).unwrap(),
-                NaiveTime::from_hms_micro_opt(10, 10, 10, 204_000).unwrap())
-            ).unwrap()
+            FixedOffset::east_opt(3600)
+                .unwrap()
+                .from_local_datetime(&NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2017, 11, 30).unwrap(),
+                    NaiveTime::from_hms_micro_opt(10, 10, 10, 204_000).unwrap()
+                ))
+                .unwrap()
         );
         assert_eq!(
             format!("{:?}", dt),
@@ -897,11 +909,13 @@ mod tests {
         let dt = parse_datetime(b"20171130101010.204+0535", default_offset).unwrap();
         assert_eq!(
             dt,
-            FixedOffset::east_opt(5 * 3600 + 35 * 60).unwrap()
-            .from_local_datetime(&NaiveDateTime::new(
-                NaiveDate::from_ymd_opt(2017, 11, 30).unwrap(),
-                NaiveTime::from_hms_micro_opt(10, 10, 10, 204_000).unwrap())
-            ).unwrap()
+            FixedOffset::east_opt(5 * 3600 + 35 * 60)
+                .unwrap()
+                .from_local_datetime(&NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2017, 11, 30).unwrap(),
+                    NaiveTime::from_hms_micro_opt(10, 10, 10, 204_000).unwrap()
+                ))
+                .unwrap()
         );
         assert_eq!(
             format!("{:?}", dt),
@@ -909,11 +923,13 @@ mod tests {
         );
         assert_eq!(
             parse_datetime(b"20140505120101.204+0535", default_offset).unwrap(),
-            FixedOffset::east_opt(5 * 3600 + 35 * 60).unwrap()
-            .from_local_datetime(&NaiveDateTime::new(
-                NaiveDate::from_ymd_opt(2014, 5, 5).unwrap(),
-                NaiveTime::from_hms_micro_opt(12, 1, 1, 204_000).unwrap())
-            ).unwrap()
+            FixedOffset::east_opt(5 * 3600 + 35 * 60)
+                .unwrap()
+                .from_local_datetime(&NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2014, 5, 5).unwrap(),
+                    NaiveTime::from_hms_micro_opt(12, 1, 1, 204_000).unwrap()
+                ))
+                .unwrap()
         );
 
         assert!(parse_datetime(b"", default_offset).is_err());

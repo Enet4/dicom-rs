@@ -100,17 +100,13 @@ pub enum ModifyValueError {
     /// due to the value's current type,
     /// as that would lead to mixed representations.
     #[snafu(display("cannot not modify {:?} value as string values", original))]
-    IncompatibleStringType {
-        original: ValueType,
-    },
+    IncompatibleStringType { original: ValueType },
 
     /// The modification using numbers cannot proceed
     /// due to the value's current type,
     /// as that would lead to mixed representations.
     #[snafu(display("cannot not modify {:?} value as numeric values", original))]
-    IncompatibleNumberType {
-        original: ValueType,
-    },
+    IncompatibleNumberType { original: ValueType },
 }
 
 /// An error type for an attempt of accessing a value
@@ -3538,10 +3534,10 @@ impl PrimitiveValue {
 
     /// Extend a value of numbers by appending
     /// 32-bit signed integers to an existing value.
-    /// 
+    ///
     /// The value may be empty
     /// or already contain numeric or textual values.
-    /// 
+    ///
     /// If the current value is textual,
     /// the numbers provided are converted to text.
     /// For the case of numeric values,
@@ -3638,13 +3634,12 @@ impl PrimitiveValue {
         }
     }
 
-
     /// Extend a value of numbers by appending
     /// 32-bit unsigned integers to an existing value.
-    /// 
+    ///
     /// The value may be empty
     /// or already contain numeric or textual values.
-    /// 
+    ///
     /// If the current value is textual,
     /// the numbers provided are converted to text.
     /// For the case of numeric values,

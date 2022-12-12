@@ -3,12 +3,12 @@
 use dicom_core::{DataDictionary, Tag};
 use dicom_dictionary_std::tags;
 use dicom_object::{mem::InMemElement, FileDicomObject, InMemDicomObject};
-use snafu::{ensure, Backtrace, ResultExt, Snafu, OptionExt};
+use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::fmt;
 
 /// An enum for a DICOM attribute which can be retrieved
 /// for the purposes of decoding pixel data.
-/// 
+///
 /// Since the set of attributes needed is more constrained,
 /// this is a more compact representation than a tag or a static string.
 #[derive(Debug, Copy, Clone)]
@@ -34,7 +34,7 @@ impl std::fmt::Display for AttributeName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             AttributeName::VoiLutFunction => f.write_str("VOILUTFunction"),
-            _ => std::fmt::Debug::fmt(self, f)
+            _ => std::fmt::Debug::fmt(self, f),
         }
     }
 }
@@ -174,16 +174,16 @@ pub fn number_of_frames<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u32> {
     let name = AttributeName::NumberOfFrames;
-    let elem = if let Some(elem) =
-        obj.element_opt(tags::NUMBER_OF_FRAMES)
-            .context(RetrieveSnafu { name })? {
+    let elem = if let Some(elem) = obj
+        .element_opt(tags::NUMBER_OF_FRAMES)
+        .context(RetrieveSnafu { name })?
+    {
         elem
     } else {
         return Ok(1);
     };
 
-    let integer = elem.to_int::<i32>()
-        .context(ConvertValueSnafu { name })?;
+    let integer = elem.to_int::<i32>().context(ConvertValueSnafu { name })?;
 
     ensure!(
         integer > 0,
@@ -255,7 +255,11 @@ pub enum PixelRepresentation {
 pub fn pixel_representation<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<PixelRepresentation> {
-    let p = retrieve_required_u16(obj, tags::PIXEL_REPRESENTATION, AttributeName::PixelRepresentation)?;
+    let p = retrieve_required_u16(
+        obj,
+        tags::PIXEL_REPRESENTATION,
+        AttributeName::PixelRepresentation,
+    )?;
 
     match p {
         0 => Ok(PixelRepresentation::Unsigned),
@@ -497,6 +501,10 @@ mod tests {
     #[test]
     fn errors_are_not_too_large() {
         let size = std::mem::size_of::<super::GetAttributeError>();
-        assert!(size <= 64, "GetAttributeError size is too large ({} > 64)", size);
+        assert!(
+            size <= 64,
+            "GetAttributeError size is too large ({} > 64)",
+            size
+        );
     }
 }

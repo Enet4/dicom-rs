@@ -78,7 +78,6 @@ mod test {
         let mut data = vec![];
         let offset = FixedOffset::east_opt(0).unwrap();
         let bytes = encode_datetime(
-
             &mut data,
             DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(1985, 12, 31).unwrap(),
@@ -95,7 +94,6 @@ mod test {
         let mut data = vec![];
         let offset = FixedOffset::east_opt(3600).unwrap();
         let bytes = encode_datetime(
-
             &mut data,
             DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2018, 12, 24).unwrap(),

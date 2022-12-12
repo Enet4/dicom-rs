@@ -466,7 +466,11 @@ where
 
     /// edge case method for encoding data elements with IS and VR values
     /// (always as text)
-    fn encode_element_as_text(&mut self, value: &PrimitiveValue, de: &DataElementHeader) -> Result<()> {
+    fn encode_element_as_text(
+        &mut self,
+        value: &PrimitiveValue,
+        de: &DataElementHeader,
+    ) -> Result<()> {
         match value {
             PrimitiveValue::Empty => {
                 self.encode_element_header(DataElementHeader {
@@ -475,7 +479,7 @@ where
                     len: Length(0),
                 })?;
                 Ok(())
-            },
+            }
             PrimitiveValue::U8(_)
             | PrimitiveValue::I16(_)
             | PrimitiveValue::U16(_)
@@ -510,7 +514,7 @@ where
             | PrimitiveValue::DateTime(_)
             | PrimitiveValue::Time(_)
             | PrimitiveValue::Tags(_)
-            | PrimitiveValue::Strs(_) 
+            | PrimitiveValue::Strs(_)
             | PrimitiveValue::Str(_) => unreachable!(),
         }
     }
