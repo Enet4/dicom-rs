@@ -156,6 +156,8 @@ mod tests {
     use std::fs;
     use std::path::Path;
 
+    const MAX_TEST_FRAMES: u32 = 16;
+
     #[rstest(value => [
         "pydicom/693_J2KI.dcm",
         "pydicom/693_J2KR.dcm",
@@ -200,7 +202,7 @@ mod tests {
             Path::new("../target/dicom_test_files/_out/test_gdcm_parse_dicom_pixel_data");
         fs::create_dir_all(output_dir).unwrap();
 
-        for i in 0..pixel_data.number_of_frames {
+        for i in 0..pixel_data.number_of_frames.min(MAX_TEST_FRAMES) {
             let image = pixel_data.to_dynamic_image(i).unwrap();
             let image_path = output_dir.join(format!(
                 "{}-{}.png",
