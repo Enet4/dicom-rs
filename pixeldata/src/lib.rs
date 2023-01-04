@@ -1607,6 +1607,14 @@ mod tests {
     use dicom_object::open_file;
     use dicom_test_files;
 
+
+    fn is_send_and_sync<T>() where T: Send + Sync {}
+
+    #[test]
+    fn error_is_send_and_sync() {
+        is_send_and_sync::<Error>();
+    }
+
     #[test]
     fn test_to_vec_rgb() {
         let test_file = dicom_test_files::path("pydicom/SC_rgb_16bit.dcm").unwrap();
