@@ -40,8 +40,8 @@ pub enum DecodeError {
         /// The error message.
         message: String,
         /// The underlying error cause, if any.
-        #[snafu(source(from(Box<dyn std::error::Error + Send + 'static>, Some)))]
-        source: Option<Box<dyn std::error::Error + Send + 'static>>,
+        #[snafu(source(from(Box<dyn std::error::Error + Send + Sync + 'static>, Some)))]
+        source: Option<Box<dyn std::error::Error + Send + Sync + 'static>>,
     },
 
     /// Input pixel data is not encapsulated
@@ -75,8 +75,8 @@ pub enum EncodeError {
         /// The error message.
         message: String,
         /// The underlying error cause, if any.
-        #[snafu(source(from(Box<dyn std::error::Error + Send + 'static>, Some)))]
-        source: Option<Box<dyn std::error::Error + Send + 'static>>,
+        #[snafu(source(from(Box<dyn std::error::Error + Send + Sync + 'static>, Some)))]
+        source: Option<Box<dyn std::error::Error + Send + Sync + 'static>>,
     },
 
     /// Input pixel data is not native, should be decoded first
