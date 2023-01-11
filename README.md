@@ -74,7 +74,7 @@ The project also comprises an assortment of command line tools.
 - [`scpproxy`](scpproxy) implements a Proxy service class provider.
 - [`echoscu`](echoscu) implements a Verification service class user.
 - [`storescu`](storescu) implements a Storage service class user.
-- [`storescp`](storescp) implements a Storage service class provideer.
+- [`storescp`](storescp) implements a Storage service class provider.
 - [`toimage`](toimage) lets you convert a DICOM file into an image file.
 - [`fromimage`](fromimage) lets you replace the imaging data of a DICOM file
   with one from an image file.
