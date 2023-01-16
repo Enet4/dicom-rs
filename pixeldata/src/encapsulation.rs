@@ -5,7 +5,7 @@ use dicom_object::InMemDicomObject;
 
 #[derive(Debug)]
 pub struct EncapsulatedPixels {
-    bot: C<u32>,
+    offset_table: C<u32>,
     current_offset: u32,
     fragments: C<Vec<u8>>,
     number_of_fragments: u32,
@@ -16,7 +16,7 @@ impl EncapsulatedPixels {
     pub fn add_frame(&mut self, data: Vec<u8>) {
         for fragment in fragment_frame(data, self.number_of_fragments) {
             let size = fragment.len() as u32;
-            self.bot.push(self.current_offset);
+            self.offset_table.push(self.current_offset);
             self.fragments.push((*fragment).to_vec());
             self.current_offset += size;
         }
@@ -31,7 +31,7 @@ impl EncapsulatedPixels {
         };
 
         EncapsulatedPixels {
-            bot: C::new(),
+            offset_table: C::new(),
             current_offset: 0,
             fragments: C::new(),
             number_of_fragments,
@@ -45,7 +45,7 @@ where
 {
     fn from(value: EncapsulatedPixels) -> Self {
         Value::PixelSequence {
-            offset_table: value.bot,
+            offset_table: value.offset_table,
             fragments: value.fragments
         }
     }
@@ -62,7 +62,7 @@ impl From<Vec<Vec<u8>>> for EncapsulatedPixels {
         }
 
         EncapsulatedPixels {
-            bot,
+            offset_table: bot,
             current_offset,
             fragments: fragments.into(),
             number_of_fragments: 1,
@@ -123,17 +123,17 @@ mod tests {
     #[test]
     fn test_add_frame() {
         let mut enc = EncapsulatedPixels::new(1);
-        assert_eq!(enc.bot.len(), 0);
+        assert_eq!(enc.offset_table.len(), 0);
         assert_eq!(enc.fragments.len(), 0);
         assert_eq!(enc.current_offset, 0);
 
         enc.add_frame(vec![10, 20, 30]);
-        assert_eq!(enc.bot.len(), 1);
+        assert_eq!(enc.offset_table.len(), 1);
         assert_eq!(enc.fragments.len(), 1);
         assert_eq!(enc.current_offset, 4);
 
         enc.add_frame(vec![10, 20, 30, 50]);
-        assert_eq!(enc.bot.len(), 2);
+        assert_eq!(enc.offset_table.len(), 2);
         assert_eq!(enc.fragments.len(), 2);
         assert_eq!(enc.current_offset, 8);
     }
@@ -141,15 +141,15 @@ mod tests {
     #[test]
     fn test_encapsulated_pixels() {
         let enc = encapsulate(vec![vec![20, 30, 40], vec![50, 60, 70, 80]], 1);
-        assert_eq!(enc.bot.len(), 2);
+        assert_eq!(enc.offset_table.len(), 2);
         assert_eq!(enc.fragments.len(), 2);
 
         let enc = encapsulate(vec![vec![20, 30, 40]], 2);
-        assert_eq!(enc.bot.len(), 2);
+        assert_eq!(enc.offset_table.len(), 2);
         assert_eq!(enc.fragments.len(), 2);
 
         let enc = encapsulate(vec![vec![20, 30, 40], vec![50, 60, 70, 80]], 2);
-        assert_eq!(enc.bot.len(), 2);
+        assert_eq!(enc.offset_table.len(), 2);
         assert_eq!(enc.fragments.len(), 2);
     }
 
