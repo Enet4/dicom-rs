@@ -31,23 +31,8 @@ impl EncapsulatedPixels {
             fragment_size,
         }
     }
-}
 
-impl<D> From<EncapsulatedPixels> for Value<InMemDicomObject<D>, InMemFragment>
-where
-    D: DataDictionary + Clone
-{
-    fn from(value: EncapsulatedPixels) -> Self {
-        Value::PixelSequence {
-            offset_table: value.offset_table,
-            fragments: value.fragments
-        }
-    }
-}
-
-impl From<Vec<Vec<u8>>> for EncapsulatedPixels {
-    /// Create EncapsulatedPixels from a list of fragments and calculate the bot
-    fn from(fragments: Vec<Vec<u8>>) -> Self {
+    pub fn from_fragments(fragments: Vec<Vec<u8>>) -> Self {
         let mut offset_table = C::with_capacity(fragments.len());
         let mut current_offset = 0u32;
         for fragment in &fragments {
@@ -60,6 +45,18 @@ impl From<Vec<Vec<u8>>> for EncapsulatedPixels {
             current_offset,
             fragments: fragments.into(),
             fragment_size: 0,
+        }
+    }
+}
+
+impl<D> From<EncapsulatedPixels> for Value<InMemDicomObject<D>, InMemFragment>
+where
+    D: DataDictionary + Clone
+{
+    fn from(value: EncapsulatedPixels) -> Self {
+        Value::PixelSequence {
+            offset_table: value.offset_table,
+            fragments: value.fragments
         }
     }
 }
