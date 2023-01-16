@@ -86,7 +86,7 @@ pub fn fragment_frame(data: Vec<u8>, fragment_size: u32) -> Vec<Vec<u8>> {
     }
 
     data.chunks_exact(fragment_size as usize)
-        .map(|fragment| (*fragment).to_vec())
+        .map(|fragment| fragment.to_vec())
         .collect::<Vec<Vec<u8>>>()
 }
 
