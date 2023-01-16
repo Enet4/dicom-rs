@@ -39,16 +39,14 @@ impl EncapsulatedPixels {
     }
 }
 
-#[allow(clippy::from_over_into)]
-impl<D> Into<Value<InMemDicomObject<D>, InMemFragment>> for EncapsulatedPixels
+impl<D> From<EncapsulatedPixels> for Value<InMemDicomObject<D>, InMemFragment>
 where
-    D: DataDictionary,
-    D: Clone,
+    D: DataDictionary + Clone
 {
-    fn into(self) -> Value<InMemDicomObject<D>, InMemFragment> {
+    fn from(value: EncapsulatedPixels) -> Self {
         Value::PixelSequence {
-            offset_table: self.bot,
-            fragments: self.fragments,
+            offset_table: value.bot,
+            fragments: value.fragments
         }
     }
 }
