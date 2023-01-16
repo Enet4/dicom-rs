@@ -226,12 +226,19 @@ where
                 Ok(())
             }
             _ => {
+                // if VR is DS or IS and the value is binary,
+                // write value as a string instead
+                if let VR::DS | VR::IS = de.vr {
+                    return self.encode_element_as_text(value, de);
+                }
+
                 let byte_len = value.calculate_byte_len();
                 self.encode_element_header(DataElementHeader {
                     tag: de.tag,
                     vr: de.vr,
                     len: Length(byte_len as u32),
                 })?;
+
                 let bytes = self.encoder.encode_primitive(&mut self.to, value).context(
                     EncodeDataSnafu {
                         position: self.bytes_written,
@@ -241,7 +248,7 @@ where
                 self.bytes_written += bytes as u64;
                 if bytes % 2 != 0 {
                     let padding = match de.vr {
-                        VR::DA | VR::DS | VR::DT | VR::IS | VR::TM => b' ',
+                        VR::DA | VR::DT | VR::TM => b' ',
                         _ => 0,
                     };
                     self.to.write_all(&[padding]).context(WriteValueDataSnafu {
@@ -249,6 +256,7 @@ where
                     })?;
                     self.bytes_written += 1;
                 }
+
                 Ok(())
             }
         }
@@ -453,6 +461,61 @@ where
             _ => self.text.encode(text).context(EncodeTextSnafu {
                 position: self.bytes_written,
             }),
+        }
+    }
+
+    /// edge case method for encoding data elements with IS and VR values
+    /// (always as text)
+    fn encode_element_as_text(
+        &mut self,
+        value: &PrimitiveValue,
+        de: &DataElementHeader,
+    ) -> Result<()> {
+        match value {
+            PrimitiveValue::Empty => {
+                self.encode_element_header(DataElementHeader {
+                    tag: de.tag,
+                    vr: de.vr,
+                    len: Length(0),
+                })?;
+                Ok(())
+            }
+            PrimitiveValue::U8(_)
+            | PrimitiveValue::I16(_)
+            | PrimitiveValue::U16(_)
+            | PrimitiveValue::I32(_)
+            | PrimitiveValue::U32(_)
+            | PrimitiveValue::I64(_)
+            | PrimitiveValue::U64(_)
+            | PrimitiveValue::F32(_)
+            | PrimitiveValue::F64(_) => {
+                let textual_value = value.to_str();
+                self.encode_element_header(DataElementHeader {
+                    tag: de.tag,
+                    vr: de.vr,
+                    len: Length(even_len(textual_value.len() as u32)),
+                })?;
+
+                write!(self.to, "{}", textual_value).context(WriteValueDataSnafu {
+                    position: self.bytes_written,
+                })?;
+                let len = if textual_value.len() % 2 == 1 {
+                    self.to.write_all(&[b' ']).context(WriteValueDataSnafu {
+                        position: self.bytes_written,
+                    })?;
+                    textual_value.len() as u64 + 1
+                } else {
+                    textual_value.len() as u64
+                };
+                self.bytes_written += len;
+                Ok(())
+            }
+            PrimitiveValue::Date(_)
+            | PrimitiveValue::DateTime(_)
+            | PrimitiveValue::Time(_)
+            | PrimitiveValue::Tags(_)
+            | PrimitiveValue::Strs(_)
+            | PrimitiveValue::Str(_) => unreachable!(),
         }
     }
 }

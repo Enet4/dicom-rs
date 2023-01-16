@@ -18,7 +18,8 @@ pub use self::person_name::PersonName;
 pub use self::range::{AsRange, DateRange, DateTimeRange, TimeRange};
 
 pub use self::primitive::{
-    CastValueError, ConvertValueError, InvalidValueReadError, PrimitiveValue, ValueType,
+    CastValueError, ConvertValueError, InvalidValueReadError, ModifyValueError, PrimitiveValue,
+    ValueType,
 };
 
 /// re-exported from chrono

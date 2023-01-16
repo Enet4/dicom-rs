@@ -324,7 +324,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), args.port);
-    let listener = TcpListener::bind(&listen_addr)?;
+    let listener = TcpListener::bind(listen_addr)?;
     info!(
         "{} listening on: tcp://{}",
         &args.calling_ae_title, listen_addr

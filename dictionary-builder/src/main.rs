@@ -246,7 +246,7 @@ where
     P: AsRef<Path>,
 {
     if let Some(p_dir) = dest_path.as_ref().parent() {
-        create_dir_all(&p_dir)?;
+        create_dir_all(p_dir)?;
     }
     let mut f = BufWriter::new(File::create(&dest_path)?);
 
