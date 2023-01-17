@@ -1,3 +1,6 @@
+//! DICOM Pixel encapsulation
+//!
+//! This module implements encapsulation for pixel data.
 use dicom_core::value::{Value, C};
 use dicom_core::DataDictionary;
 use dicom_object::mem::InMemFragment;
@@ -6,18 +9,77 @@ use snafu::Snafu;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("More than 1 fragment per frame is invalid for multiframe pixel data"))]
+    #[snafu(display("More than 1 fragment per frame is invalid for multi frame pixel data"))]
     FragmentedMultiframe,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// The encapsulated pixel data is composed of the offset table and fragments.
+///
+/// Each element of the offset table are byte offsets to the first byte of the item tag of the first
+/// fragment of each frame.
+///
+/// For single frame, the image can be split into any amount of fragments. For multi frame files, it
+/// has to be 1 fragment per frame.
+///
+/// The simplest way to encapsulate the data would be:
+/// ```
+/// use dicom_core::DataElement;
+/// use dicom_core::VR::OB;
+/// use dicom_dictionary_std::tags::PIXEL_DATA;
+/// use dicom_pixeldata::encapsulation::encapsulate;
+///
+/// let frames: Vec<Vec<u8>> = generate_jpeg_data();
+/// let encapsulated_pixels = encapsulate(frames, 0);
+///
+/// dcm.put(DataElement::new(PIXEL_DATA, OB, encapsulated_pixels));
+/// ```
+///
+/// When dealing with big multi frame images, to save memory each frame can be processed individually:
+/// ```
+/// use dicom_core::DataElement;
+/// use dicom_core::VR::OB;
+/// use dicom_dictionary_std::tags::PIXEL_DATA;
+/// use dicom_pixeldata::encapsulation::EncapsulatedPixels;
+///
+/// let frames: Vec<Vec<u8>> = fetch_pixel_data();
+/// let mut encapsulated_pixels = EncapsulatedPixels::default();
+/// let encapsulated_data = frames
+///     .into_iter()
+///     .map(|frame| encode_to_jpeg(frame))
+///     .for_each(|&mut encoded_frame| encapsulated_pixels.add_frame(encoded_frame, 0));
+///
+/// dcm.put(DataElement::new(PIXEL_DATA, OB, encapsulated_pixels));
+/// ```
+/// Internally all the both ways use `fragment_frame`, it can be used if more control is required,
+/// for example with rayon:
+/// ```
+/// use rayon::prelude::*;
+/// use dicom_core::DataElement;
+/// use dicom_core::VR::OB;
+/// use dicom_dictionary_std::tags::PIXEL_DATA;
+/// use dicom_pixeldata::encapsulation::*;
+///
+/// let frames: Vec<Vec<u8>> = fetch_pixel_data();
+/// let mut encapsulated_pixels = EncapsulatedPixels::default();
+/// let encapsulated_data: Vec<FrameFragments> = frames
+///     .into_par_iter()
+///     .map(|frame| encode_to_jpeg(frame))
+///     .map(|encoded_frame| fragment_frame(encoded_frame, 0))
+///     .collect();
+/// let encapsulated_pixels = EncapsulatedPixels::from_frame_fragments(encapsulated_data)
+///     .expect("For multi frame data only 1 fragment per frame is allowed");
+///
+/// dcm.put(DataElement::new(PIXEL_DATA, OB, encapsulated_pixels));
+/// ```
 #[derive(Debug, Default)]
 pub struct EncapsulatedPixels {
     offset_table: C<u32>,
     fragments: C<Vec<u8>>,
 }
 
+/// This represents a single fragmented frame. It can contain 1 or more fragments.
 #[derive(Debug)]
 pub struct FrameFragments {
     fragments: Vec<Vec<u8>>,
