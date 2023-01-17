@@ -48,7 +48,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// let encapsulated_data = frames
 ///     .into_iter()
 ///     .map(|frame| encode_to_jpeg(frame))
-///     .for_each(|&mut encoded_frame| encapsulated_pixels.add_frame(encoded_frame, 0));
+///     .for_each(|&mut encoded_frame| {
+///         encapsulated_pixels.add_frame(encoded_frame, 0)
+///             .expect("For multi frame data only 1 fragment per frame is allowed");
+///     });
 ///
 /// dcm.put(DataElement::new(PIXEL_DATA, OB, encapsulated_pixels));
 /// ```
@@ -80,22 +83,34 @@ pub struct EncapsulatedPixels {
 }
 
 /// This represents a single fragmented frame. It can contain 1 or more fragments.
+/// Usually it is created by `fragment_frame`
 #[derive(Debug)]
 pub struct FrameFragments {
     fragments: Vec<Vec<u8>>,
 }
 
 impl EncapsulatedPixels {
-    /// Add a single frame to EncapsulatedPixels
-    pub fn add_frame(&mut self, data: Vec<u8>, fragment_size: u32) {
+    /// Add a single frame
+    pub fn add_frame(&mut self, data: Vec<u8>, fragment_size: u32) -> Result<()>{
+        let number_of_fragments = self.fragments.len();
+        if number_of_fragments > 0 {
+            let offsets_size = self.offset_table.len();
+            if number_of_fragments > offsets_size && fragment_size > 1 {
+                return Err(Error::FragmentedMultiframe);
+            }
+        }
+
         let fragments = fragment_frame(data, fragment_size);
         let frame_offset = fragments.len();
         for fragment in fragments.fragments {
             self.fragments.push(fragment.to_vec());
         }
         self.add_offset(frame_offset);
+
+        Ok(())
     }
 
+    /// Create EncapsulatedPixels from a list of FrameFragments
     pub fn from_frame_fragments(frames: Vec<FrameFragments>) -> Result<Self> {
         let mut offset_table = C::with_capacity(frames.len() + 1);
         offset_table.push(0u32);
@@ -122,6 +137,7 @@ impl EncapsulatedPixels {
         })
     }
 
+    /// Add an offset to the offsets table
     fn add_offset(&mut self, offset: u32) {
         let last = match self.offset_table.last() {
             Some(el) => *el,
@@ -206,14 +222,15 @@ pub fn fragment_frame(data: Vec<u8>, fragment_size: u32) -> FrameFragments {
     FrameFragments { fragments }
 }
 
-/// Encapsulate the pixel data of the frames. If frames > 1 then fragments is ignored and set to 1.
-/// If the calculated fragment size is less than 2 bytes, then it is set to 2 bytes
+/// Encapsulate the pixel data of the frames. If fragment_size > 0 it will use 1 fragment per frame.
+/// This parameter is ignored for multi frame data, as 1 fragment per frame is required.
 pub fn encapsulate(frames: Vec<Vec<u8>>, fragment_size: u32) -> EncapsulatedPixels {
     let fragment_size = if frames.len() > 1 { 0 } else { fragment_size };
     let mut encapsulated_data = EncapsulatedPixels::default();
 
     for frame in frames {
-        encapsulated_data.add_frame(frame, fragment_size);
+        encapsulated_data.add_frame(frame, fragment_size)
+            .expect("For multi frame data only 1 fragment per frame is allowed");
     }
 
     encapsulated_data
@@ -229,13 +246,13 @@ mod tests {
         assert_eq!(enc.offset_table.len(), 0);
         assert_eq!(enc.fragments.len(), 0);
 
-        enc.add_frame(vec![10, 20, 30], 0);
+        enc.add_frame(vec![10, 20, 30], 0).unwrap();
         assert_eq!(enc.offset_table.len(), 2);
         assert_eq!(enc.fragments.len(), 1);
         assert_eq!(enc.offset_table[0], 0);
         assert_eq!(enc.offset_table[1], 12);
 
-        enc.add_frame(vec![10, 20, 30, 50], 0);
+        enc.add_frame(vec![10, 20, 30, 50], 0).unwrap();
         assert_eq!(enc.offset_table.len(), 3);
         assert_eq!(enc.fragments.len(), 2);
         assert_eq!(enc.offset_table[2], 24);
