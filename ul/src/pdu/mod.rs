@@ -7,6 +7,8 @@
 pub mod reader;
 pub mod writer;
 
+use std::fmt::Display;
+
 pub use reader::read_pdu;
 pub use writer::write_pdu;
 
@@ -52,6 +54,23 @@ impl PresentationContextResultReason {
         };
 
         Some(result)
+    }
+}
+
+impl Display for PresentationContextResultReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let msg = match self {
+            PresentationContextResultReason::Acceptance => "acceptance",
+            PresentationContextResultReason::UserRejection => "user rejection",
+            PresentationContextResultReason::NoReason => "no reason",
+            PresentationContextResultReason::AbstractSyntaxNotSupported => {
+                "abstract syntax not supported"
+            }
+            PresentationContextResultReason::TransferSyntaxesNotSupported => {
+                "transfer syntaxes not supported"
+            }
+        };
+        f.write_str(msg)
     }
 }
 
@@ -134,6 +153,16 @@ impl AssociationRJSource {
     }
 }
 
+impl Display for AssociationRJSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AssociationRJSource::ServiceUser(r) => Display::fmt(r, f),
+            AssociationRJSource::ServiceProviderASCE(r) => Display::fmt(r, f),
+            AssociationRJSource::ServiceProviderPresentation(r) => Display::fmt(r, f),
+        }
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum AssociationRJServiceUserReason {
     NoReasonGiven,
@@ -143,10 +172,39 @@ pub enum AssociationRJServiceUserReason {
     Reserved(u8),
 }
 
+impl Display for AssociationRJServiceUserReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AssociationRJServiceUserReason::NoReasonGiven => f.write_str("no reason given"),
+            AssociationRJServiceUserReason::ApplicationContextNameNotSupported => {
+                f.write_str("application context name not supported")
+            }
+            AssociationRJServiceUserReason::CallingAETitleNotRecognized => {
+                f.write_str("calling AE title not recognized")
+            }
+            AssociationRJServiceUserReason::CalledAETitleNotRecognized => {
+                f.write_str("called AE title not recognized")
+            }
+            AssociationRJServiceUserReason::Reserved(code) => write!(f, "reserved code {}", code),
+        }
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum AssociationRJServiceProviderASCEReason {
     NoReasonGiven,
     ProtocolVersionNotSupported,
+}
+
+impl Display for AssociationRJServiceProviderASCEReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AssociationRJServiceProviderASCEReason::NoReasonGiven => f.write_str("no reason given"),
+            AssociationRJServiceProviderASCEReason::ProtocolVersionNotSupported => {
+                f.write_str("protocol version not supported")
+            }
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
@@ -154,6 +212,22 @@ pub enum AssociationRJServiceProviderPresentationReason {
     TemporaryCongestion,
     LocalLimitExceeded,
     Reserved(u8),
+}
+
+impl Display for AssociationRJServiceProviderPresentationReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AssociationRJServiceProviderPresentationReason::TemporaryCongestion => {
+                f.write_str("temporary congestion")
+            }
+            AssociationRJServiceProviderPresentationReason::LocalLimitExceeded => {
+                f.write_str("local limit exceeded")
+            }
+            AssociationRJServiceProviderPresentationReason::Reserved(code) => {
+                write!(f, "reserved code {}", code)
+            }
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
@@ -220,6 +294,20 @@ pub enum AbortRQServiceProviderReason {
     UnexpectedPduParameter,
     /// Invalid PDU parameter
     InvalidPduParameter,
+}
+
+impl Display for AbortRQServiceProviderReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let msg = match self {
+            AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu => "reason unclear",
+            AbortRQServiceProviderReason::UnexpectedPdu => "unexpected PDU",
+            AbortRQServiceProviderReason::Reserved => "reserved code",
+            AbortRQServiceProviderReason::UnrecognizedPduParameter => "unrecognized PDU parameter",
+            AbortRQServiceProviderReason::UnexpectedPduParameter => "unexpected PDU parameter",
+            AbortRQServiceProviderReason::InvalidPduParameter => "invalid PDU parameter",
+        };
+        f.write_str(msg)
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]

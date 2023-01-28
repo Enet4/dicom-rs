@@ -4,6 +4,7 @@
     unused_qualifications,
     unused_import_braces
 )]
+#![allow(clippy::derive_partial_eq_without_eq)]
 //! DICOM encoding and decoding primitives.
 //!
 //! This crate provides interfaces and data structures for reading and writing

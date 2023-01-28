@@ -1,6 +1,6 @@
 [package]
 name = "dicom-ul"
-version = "0.4.2"
+version = "0.4.4"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>", "Paul Knopf <pauldotknopf@gmail.com>"]
 description = "Types and methods for interacting with the DICOM Upper Layer Protocol"
 edition = "2018"
@@ -12,9 +12,9 @@ readme = "README.md"
 
 [dependencies]
 byteordered = "0.6"
-dicom-encoding = { path = "../encoding/", version = "0.5.0" }
-dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.5.0" }
-snafu = "0.7.0"
+dicom-encoding = { path = "../encoding/", version = "0.5.3" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.5.1" }
+snafu = "0.7.3"
 tracing = "0.1.34"
 
 [dev-dependencies]

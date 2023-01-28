@@ -1,3 +1,4 @@
+#![allow(clippy::derive_partial_eq_without_eq)]
 //! DICOM data dumping library
 //!
 //! This is a helper library
@@ -365,6 +366,22 @@ where
     DumpOptions::new().dump_file_to(to, obj)
 }
 
+/// Dump the contents of a DICOM object to stdout.
+pub fn dump_object<D>(obj: &InMemDicomObject<D>) -> IoResult<()>
+where
+    D: DataDictionary,
+{
+    DumpOptions::new().dump_object(obj)
+}
+
+/// Dump the contents of a DICOM object to the given writer.
+pub fn dump_object_to<D>(to: impl Write, obj: &InMemDicomObject<D>) -> IoResult<()>
+where
+    D: DataDictionary,
+{
+    DumpOptions::new().dump_object_to(to, obj)
+}
+
 #[inline]
 fn whitespace_or_null(c: char) -> bool {
     c.is_whitespace() || c == '\0'
@@ -717,7 +734,7 @@ fn value_summary(
             }
         }
         (Strs(values), VR::DT) => {
-            match value.to_multi_datetime(dicom_core::chrono::FixedOffset::east(0)) {
+            match value.to_multi_datetime(dicom_core::chrono::FixedOffset::east_opt(0).unwrap()) {
                 Ok(values) => {
                     // print as reformatted date
                     DumpValue::DateTime(format_value_list(values, max_characters, false))

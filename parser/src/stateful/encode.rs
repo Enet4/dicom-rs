@@ -226,12 +226,19 @@ where
                 Ok(())
             }
             _ => {
+                // if VR is DS or IS and the value is binary,
+                // write value as a string instead
+                if let VR::DS | VR::IS = de.vr {
+                    return self.encode_element_as_text(value, de);
+                }
+
                 let byte_len = value.calculate_byte_len();
                 self.encode_element_header(DataElementHeader {
                     tag: de.tag,
                     vr: de.vr,
                     len: Length(byte_len as u32),
                 })?;
+
                 let bytes = self.encoder.encode_primitive(&mut self.to, value).context(
                     EncodeDataSnafu {
                         position: self.bytes_written,
@@ -240,11 +247,16 @@ where
 
                 self.bytes_written += bytes as u64;
                 if bytes % 2 != 0 {
-                    self.to.write_all(&[0]).context(WriteValueDataSnafu {
+                    let padding = match de.vr {
+                        VR::DA | VR::DT | VR::TM => b' ',
+                        _ => 0,
+                    };
+                    self.to.write_all(&[padding]).context(WriteValueDataSnafu {
                         position: self.bytes_written,
                     })?;
                     self.bytes_written += 1;
                 }
+
                 Ok(())
             }
         }
@@ -451,6 +463,61 @@ where
             }),
         }
     }
+
+    /// edge case method for encoding data elements with IS and VR values
+    /// (always as text)
+    fn encode_element_as_text(
+        &mut self,
+        value: &PrimitiveValue,
+        de: &DataElementHeader,
+    ) -> Result<()> {
+        match value {
+            PrimitiveValue::Empty => {
+                self.encode_element_header(DataElementHeader {
+                    tag: de.tag,
+                    vr: de.vr,
+                    len: Length(0),
+                })?;
+                Ok(())
+            }
+            PrimitiveValue::U8(_)
+            | PrimitiveValue::I16(_)
+            | PrimitiveValue::U16(_)
+            | PrimitiveValue::I32(_)
+            | PrimitiveValue::U32(_)
+            | PrimitiveValue::I64(_)
+            | PrimitiveValue::U64(_)
+            | PrimitiveValue::F32(_)
+            | PrimitiveValue::F64(_) => {
+                let textual_value = value.to_str();
+                self.encode_element_header(DataElementHeader {
+                    tag: de.tag,
+                    vr: de.vr,
+                    len: Length(even_len(textual_value.len() as u32)),
+                })?;
+
+                write!(self.to, "{}", textual_value).context(WriteValueDataSnafu {
+                    position: self.bytes_written,
+                })?;
+                let len = if textual_value.len() % 2 == 1 {
+                    self.to.write_all(&[b' ']).context(WriteValueDataSnafu {
+                        position: self.bytes_written,
+                    })?;
+                    textual_value.len() as u64 + 1
+                } else {
+                    textual_value.len() as u64
+                };
+                self.bytes_written += len;
+                Ok(())
+            }
+            PrimitiveValue::Date(_)
+            | PrimitiveValue::DateTime(_)
+            | PrimitiveValue::Time(_)
+            | PrimitiveValue::Tags(_)
+            | PrimitiveValue::Strs(_)
+            | PrimitiveValue::Str(_) => unreachable!(),
+        }
+    }
 }
 
 #[inline]
@@ -461,7 +528,8 @@ fn even_len(l: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use dicom_core::{
-        dicom_value, DataElement, DataElementHeader, DicomValue, Length, PrimitiveValue, Tag, VR,
+        dicom_value, value::DicomTime, DataElement, DataElementHeader, DicomValue, Length,
+        PrimitiveValue, Tag, VR,
     };
     use dicom_encoding::{
         encode::{explicit_le::ExplicitVRLittleEndianEncoder, EncoderFor},
@@ -601,6 +669,42 @@ mod tests {
                 0x0A, 0x00, 0x00, 0x00, // length
                 // ---------- value ----------
                 5, 5, 5, 5, 5, 5, 5, 5, 5, 0,
+            ],
+        )
+    }
+
+    /// Odd lengthed textual values are encoded to even padding with a space
+    #[test]
+    fn encode_odd_length_text() {
+        let mut out: Vec<_> = Vec::new();
+
+        {
+            let mut encoder = StatefulEncoder::new(
+                &mut out,
+                EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
+                SpecificCharacterSet::Default,
+            );
+
+            let tm = DicomTime::from_hms_micro(23, 57, 59, 999_999).unwrap();
+
+            encoder
+                .encode_primitive_element(
+                    &DataElementHeader::new(Tag(0x0008, 0x0030), VR::TM, Length(14)),
+                    &PrimitiveValue::from(tm),
+                )
+                .unwrap();
+        }
+
+        assert_eq!(
+            &out,
+            &[
+                0x08, 0x00, 0x30, 0x00, // tag (0x0008, 0x0030)
+                b'T', b'M', // VR
+                0x0E, 0x00, // length
+                // ---------- value ----------
+                b'2', b'3', b'5', b'7', b'5', b'9', // time
+                b'.', b'9', b'9', b'9', b'9', b'9', b'9', // second fragment
+                b' ', // padding
             ],
         )
     }

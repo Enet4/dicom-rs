@@ -1,27 +1,23 @@
-use dicom_core::dicom_value;
-use dicom_core::smallvec;
-use dicom_core::{header::Tag, DataElement, PrimitiveValue, VR};
+use dicom_core::{dicom_value, header::Tag, smallvec, DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax;
 use dicom_object::{mem::InMemDicomObject, open_file, StandardDataDictionary};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use dicom_ul::pdu::Pdu;
 use dicom_ul::{
     association::ClientAssociationOptions,
-    pdu::{PDataValue, PDataValueType},
+    pdu::{PDataValue, PDataValueType, Pdu},
 };
 use indicatif::{ProgressBar, ProgressStyle};
 use smallvec::smallvec;
-use snafu::{prelude::*, ErrorCompat};
+use snafu::prelude::*;
+use snafu::{Report, Whatever};
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use std::str::FromStr;
 use structopt::StructOpt;
-use tracing::Level;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 use walkdir::WalkDir;
 
@@ -31,7 +27,7 @@ struct App {
     /// socket address to Store SCP,
     /// optionally with AE title
     /// (example: "STORE-SCP@127.0.0.1:104")
-    addr: Address,
+    addr: String,
     /// the DICOM file(s) to store
     #[structopt(required = true)]
     files: Vec<PathBuf>,
@@ -56,37 +52,6 @@ struct App {
     fail_first: bool,
 }
 
-/// A specification for an address to the target SCP:
-/// either an application entity title and network socket address,
-/// or only a network socket address.
-#[derive(Debug, Clone, PartialEq)]
-enum Address {
-    AeAndNetwork {
-        called_ae_title: String,
-        network_address: String,
-    },
-    NetworkOnly {
-        network_address: String,
-    },
-}
-
-impl FromStr for Address {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Some((ae_title, address)) = s.split_once('@') {
-            Ok(Address::AeAndNetwork {
-                called_ae_title: ae_title.to_string(),
-                network_address: address.to_string(),
-            })
-        } else {
-            Ok(Address::NetworkOnly {
-                network_address: s.to_string(),
-            })
-        }
-    }
-}
-
 struct DicomFile {
     /// File path
     file: PathBuf,
@@ -100,45 +65,6 @@ struct DicomFile {
     ts_selected: Option<String>,
     /// Presentation Context selected
     pc_selected: Option<dicom_ul::pdu::PresentationContextResult>,
-}
-
-fn report<E: 'static>(err: &E)
-where
-    E: std::error::Error,
-{
-    error!("[ERROR] {}", err);
-    if let Some(source) = err.source() {
-        eprintln!();
-        eprintln!("Caused by:");
-        for (i, e) in std::iter::successors(Some(source), |e| e.source()).enumerate() {
-            eprintln!("   {}: {}", i, e);
-        }
-    }
-}
-
-fn report_backtrace<E: 'static>(err: &E)
-where
-    E: std::error::Error,
-    E: ErrorCompat,
-{
-    let env_backtrace = std::env::var("RUST_BACKTRACE").unwrap_or_default();
-    let env_lib_backtrace = std::env::var("RUST_LIB_BACKTRACE").unwrap_or_default();
-    if env_lib_backtrace == "1" || (env_backtrace == "1" && env_lib_backtrace != "0") {
-        if let Some(backtrace) = ErrorCompat::backtrace(&err) {
-            eprintln!();
-            eprintln!("Backtrace:");
-            eprintln!("{}", backtrace);
-        }
-    }
-}
-
-fn report_with_backtrace<E: 'static>(err: E)
-where
-    E: std::error::Error,
-    E: ErrorCompat,
-{
-    report(&err);
-    report_backtrace(&err);
 }
 
 #[derive(Debug, Snafu)]
@@ -161,7 +87,7 @@ enum Error {
 
 fn main() {
     run().unwrap_or_else(|e| {
-        report_with_backtrace(e);
+        error!("{}", Report::from_error(e));
         std::process::exit(-2);
     });
 }
@@ -183,36 +109,10 @@ fn run() -> Result<(), Error> {
             .with_max_level(if verbose { Level::DEBUG } else { Level::INFO })
             .finish(),
     )
-    .unwrap_or_else(|e| {
-        report(&e);
+    .whatever_context("Could not set up global logging subscriber")
+    .unwrap_or_else(|e: Whatever| {
+        eprintln!("[ERROR] {}", Report::from_error(e));
     });
-
-    let (called_ae_title, addr) = match (called_ae_title, addr) {
-        (
-            Some(aec),
-            Address::AeAndNetwork {
-                called_ae_title: _,
-                network_address,
-            },
-        ) => {
-            warn!(
-                "Option `called_ae_title` overrides the AE title to `{}`",
-                aec
-            );
-            (aec, network_address)
-        }
-        (
-            None,
-            Address::AeAndNetwork {
-                called_ae_title,
-                network_address,
-            },
-        ) => (called_ae_title, network_address),
-        (aec, Address::NetworkOnly { network_address }) => (
-            aec.unwrap_or_else(|| "ANY-SCP".to_string()),
-            network_address,
-        ),
-    };
 
     let mut checked_files: Vec<PathBuf> = vec![];
     let mut dicom_files: Vec<DicomFile> = vec![];
@@ -260,17 +160,19 @@ fn run() -> Result<(), Error> {
         info!("Establishing association with '{}'...", &addr);
     }
 
-    let mut scu_init = ClientAssociationOptions::new();
+    let mut scu_init = ClientAssociationOptions::new()
+        .calling_ae_title(calling_ae_title)
+        .max_pdu_length(max_pdu_length);
 
     for (storage_sop_class_uid, transfer_syntax) in &presentation_contexts {
         scu_init = scu_init.with_presentation_context(storage_sop_class_uid, vec![transfer_syntax]);
     }
-    let mut scu = scu_init
-        .calling_ae_title(calling_ae_title)
-        .called_ae_title(called_ae_title)
-        .max_pdu_length(max_pdu_length)
-        .establish(addr)
-        .context(InitScuSnafu)?;
+
+    if let Some(called_ae_title) = called_ae_title {
+        scu_init = scu_init.called_ae_title(called_ae_title);
+    }
+
+    let mut scu = scu_init.establish_with(&addr).context(InitScuSnafu)?;
 
     if verbose {
         info!("Association established");
@@ -286,7 +188,7 @@ fn run() -> Result<(), Error> {
                 file.ts_selected = Some(ts);
             }
             Err(e) => {
-                report(&e);
+                error!("{}", Report::from_error(e));
                 if fail_first {
                     let _ = scu.abort();
                     std::process::exit(-2);
@@ -563,11 +465,11 @@ fn even_len(l: usize) -> u32 {
 fn check_file(file: &Path) -> Result<DicomFile, Error> {
     // Ignore DICOMDIR files until better support is added
     let _ = (file.file_name() != Some(OsStr::new("DICOMDIR")))
-        .then(|| false)
+        .then_some(false)
         .whatever_context("DICOMDIR file not supported")?;
     let dicom_file = dicom_object::OpenFileOptions::new()
         .read_until(Tag(0x0001, 0x000))
-        .open_file(&file)
+        .open_file(file)
         .with_whatever_context(|_| format!("Could not open DICOM file {}", file.display()))?;
 
     let meta = dicom_file.meta();

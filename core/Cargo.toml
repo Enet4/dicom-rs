@@ -1,6 +1,6 @@
 [package]
 name = "dicom-core"
-version = "0.5.1"
+version = "0.5.3"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "Efficient and practical core library for DICOM compliant systems"
 edition = "2018"
@@ -15,4 +15,4 @@ itertools = "0.10"
 num-traits = "0.2.12"
 safe-transmute = "0.11.0"
 smallvec = "1.6.1"
-snafu = "0.7.0"
+snafu = "0.7.3"

@@ -1,18 +1,14 @@
-use std::str::FromStr;
-
-use dicom_core::dicom_value;
-use dicom_core::{DataElement, PrimitiveValue, VR};
+use dicom_core::{dicom_value, DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{mem::InMemDicomObject, StandardDataDictionary};
-use dicom_ul::pdu;
 use dicom_ul::{
     association::client::ClientAssociationOptions,
-    pdu::{PDataValueType, Pdu},
+    pdu::{self, PDataValueType, Pdu},
 };
 use pdu::PDataValue;
-use snafu::{prelude::*, ErrorCompat, Whatever};
+use snafu::{prelude::*, Whatever};
 use structopt::StructOpt;
-use tracing::warn;
+use tracing::{warn, Level};
 
 /// DICOM C-ECHO SCU
 #[derive(Debug, StructOpt)]
@@ -20,7 +16,7 @@ struct App {
     /// socket address to SCP,
     /// optionally with AE title
     /// (example: "QUERY-SCP@127.0.0.1:1045")
-    addr: Address,
+    addr: String,
     /// verbose mode
     #[structopt(short = "v", long = "verbose")]
     verbose: bool,
@@ -36,76 +32,14 @@ struct App {
     called_ae_title: Option<String>,
 }
 
-/// A specification for an address to the target SCP:
-/// either an application entity title and network socket address,
-/// or only a network socket address.
-#[derive(Debug, Clone, PartialEq)]
-enum Address {
-    AeAndNetwork {
-        called_ae_title: String,
-        network_address: String,
-    },
-    NetworkOnly {
-        network_address: String,
-    },
-}
-
-impl FromStr for Address {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Some((ae_title, address)) = s.split_once('@') {
-            Ok(Address::AeAndNetwork {
-                called_ae_title: ae_title.to_string(),
-                network_address: address.to_string(),
-            })
-        } else {
-            Ok(Address::NetworkOnly {
-                network_address: s.to_string(),
-            })
-        }
-    }
-}
-
-fn report<E: 'static>(err: &E)
-where
-    E: std::error::Error,
-    E: ErrorCompat,
-{
-    eprintln!("[ERROR] {}", err);
-    if let Some(source) = err.source() {
-        eprintln!();
-        eprintln!("Caused by:");
-        for (i, e) in std::iter::successors(Some(source), |e| e.source()).enumerate() {
-            eprintln!("   {}: {}", i, e);
-        }
-    }
-
-    let env_backtrace = std::env::var("RUST_BACKTRACE").unwrap_or_default();
-    let env_lib_backtrace = std::env::var("RUST_LIB_BACKTRACE").unwrap_or_default();
-    if env_lib_backtrace == "1" || (env_backtrace == "1" && env_lib_backtrace != "0") {
-        if let Some(backtrace) = ErrorCompat::backtrace(err) {
-            eprintln!();
-            eprintln!("Backtrace:");
-            eprintln!("{}", backtrace);
-        }
-    }
-}
-
 fn main() {
     run().unwrap_or_else(|e| {
-        report(&e);
+        tracing::error!("{}", snafu::Report::from_error(e));
         std::process::exit(-2);
     })
 }
 
 fn run() -> Result<(), Whatever> {
-    tracing::subscriber::set_global_default(tracing_subscriber::FmtSubscriber::new())
-        .whatever_context("Could not set up global logging subscriber")
-        .unwrap_or_else(|e: Whatever| {
-            report(&e);
-        });
-
     let App {
         addr,
         verbose,
@@ -114,38 +48,24 @@ fn run() -> Result<(), Whatever> {
         calling_ae_title,
     } = App::from_args();
 
-    let (called_ae_title, addr) = match (called_ae_title, addr) {
-        (
-            Some(aec),
-            Address::AeAndNetwork {
-                called_ae_title: _,
-                network_address,
-            },
-        ) => {
-            warn!(
-                "Option `called_ae_title` overrides the AE title to `{}`",
-                aec
-            );
-            (aec, network_address)
-        }
-        (
-            None,
-            Address::AeAndNetwork {
-                called_ae_title,
-                network_address,
-            },
-        ) => (called_ae_title, network_address),
-        (aec, Address::NetworkOnly { network_address }) => (
-            aec.unwrap_or_else(|| "ANY-SCP".to_string()),
-            network_address,
-        ),
-    };
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(if verbose { Level::DEBUG } else { Level::INFO })
+            .finish(),
+    )
+    .whatever_context("Could not set up global logging subscriber")
+    .unwrap_or_else(|e: Whatever| {
+        eprintln!("[ERROR] {}", snafu::Report::from_error(e));
+    });
 
-    let mut association = ClientAssociationOptions::new()
+    let mut association_opt = ClientAssociationOptions::new()
         .with_abstract_syntax("1.2.840.10008.1.1")
-        .calling_ae_title(calling_ae_title)
-        .called_ae_title(called_ae_title)
-        .establish(&addr)
+        .calling_ae_title(calling_ae_title);
+    if let Some(called_ae_title) = called_ae_title {
+        association_opt = association_opt.called_ae_title(called_ae_title);
+    }
+    let mut association = association_opt
+        .establish_with(&addr)
         .whatever_context("Could not establish association with SCP")?;
 
     let pc = association
@@ -262,7 +182,7 @@ fn create_echo_command(message_id: u16) -> InMemDicomObject<StandardDataDictiona
     // group length
     obj.put(DataElement::new(
         tags::COMMAND_GROUP_LENGTH,
-        VR::UI,
+        VR::UL,
         PrimitiveValue::from(8 + 18 + 8 + 2 + 8 + 2 + 8 + 2),
     ));
 

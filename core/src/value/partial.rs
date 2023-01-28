@@ -74,10 +74,10 @@ pub enum DateComponent {
 /// Represents a Dicom Date value with a partial precision,
 /// where some date components may be missing.
 ///
-/// Unlike Rust's `chrono::NaiveDate`, it does not allow for negative years.
+/// Unlike [chrono::NaiveDate], it does not allow for negative years.
 ///
-/// `DicomDate` implements `AsRange` trait, enabling to retrieve specific
-/// `chrono::NaiveDate` values.
+/// `DicomDate` implements [AsRange] trait, enabling to retrieve specific
+/// [date](NaiveDate) values.
 ///
 /// # Example
 /// ```
@@ -90,11 +90,11 @@ pub enum DateComponent {
 /// let date = DicomDate::from_y(1492)?;
 ///
 /// assert_eq!(
-///     date.latest()?,
-///     NaiveDate::from_ymd(1492,12,31)
+///     Some(date.latest()?),
+///     NaiveDate::from_ymd_opt(1492,12,31)
 /// );
 ///
-/// let date = DicomDate::try_from(&NaiveDate::from_ymd(1900, 5, 3))?;
+/// let date = DicomDate::try_from(&NaiveDate::from_ymd_opt(1900, 5, 3).unwrap())?;
 /// // conversion from chrono value leads to a precise value
 /// assert_eq!(date.is_precise(), true);
 ///
@@ -108,11 +108,11 @@ pub struct DicomDate(DicomDateImpl);
 /// Represents a Dicom Time value with a partial precision,
 /// where some time components may be missing.
 ///
-/// Unlike Ruts's `chrono::NaiveTime`, this implemenation has only 6 digit precision
+/// Unlike [chrono::NaiveTime], this implemenation has only 6 digit precision
 /// for fraction of a second.
 ///
-/// `DicomTime` implements `AsRange` trait, enabling to retrieve specific
-/// `chrono::NaiveTime` values.
+/// `DicomTime` implements [AsRange] trait, enabling to retrieve specific
+/// [time](NaiveTime) values.
 ///
 /// # Example
 /// ```
@@ -125,8 +125,8 @@ pub struct DicomDate(DicomDateImpl);
 /// let time = DicomTime::from_hm(12, 30)?;
 ///
 /// assert_eq!(
-///     time.latest()?,
-///     NaiveTime::from_hms_micro(12, 30, 59, 999_999)
+///     Some(time.latest()?),
+///     NaiveTime::from_hms_micro_opt(12, 30, 59, 999_999)
 /// );
 ///
 /// let milli = DicomTime::from_hms_milli(12, 30, 59, 123)?;
@@ -138,11 +138,11 @@ pub struct DicomDate(DicomDateImpl);
 ///
 /// // for convenience, is precise enough to be retrieved as a NaiveTime
 /// assert_eq!(
-///     milli.to_naive_time()?,
-///     NaiveTime::from_hms_micro(12, 30, 59, 123_000)
+///     Some(milli.to_naive_time()?),
+///     NaiveTime::from_hms_micro_opt(12, 30, 59, 123_000)
 /// );
 ///
-/// let time = DicomTime::try_from(&NaiveTime::from_hms(12, 30, 59))?;
+/// let time = DicomTime::try_from(&NaiveTime::from_hms_opt(12, 30, 59).unwrap())?;
 /// // conversion from chrono value leads to a precise value
 /// assert_eq!(time.is_precise(), true);
 ///
@@ -174,20 +174,22 @@ enum DicomTimeImpl {
 }
 
 /// Represents a Dicom DateTime value with a partial precision,
-/// where some date / time components may be missing.
-/// `DicomDateTime` is always internally represented by a `DicomDate`
-/// and optionally by a `DicomTime`.
-/// It implements `AsRange` trait and also holds a `FixedOffset` value, from which corresponding
-/// `chrono::DateTime` values can be retrieved.
+/// where some date or time components may be missing.
+///
+/// `DicomDateTime` is always internally represented by a [DicomDate]
+/// and optionally by a [DicomTime].
+///
+/// It implements [AsRange] trait and also holds a [FixedOffset] value, from which corresponding
+/// [datetime][DateTime] values can be retrieved.
 /// # Example
 /// ```
 /// # use std::error::Error;
 /// # use std::convert::TryFrom;
-/// use chrono::{DateTime, FixedOffset, TimeZone};
+/// use chrono::{DateTime, FixedOffset, TimeZone, NaiveDateTime, NaiveDate, NaiveTime};
 /// use dicom_core::value::{DicomDate, DicomTime, DicomDateTime, AsRange};
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
-/// let offset = FixedOffset::east(3600);
+/// let offset = FixedOffset::east_opt(3600).unwrap();
 ///
 /// // the least precise date-time value possible is a 'YYYY'
 /// let dt = DicomDateTime::from_date(
@@ -195,20 +197,26 @@ enum DicomTimeImpl {
 ///     offset
 /// );
 /// assert_eq!(
-///     dt.earliest()?,
-///     offset.ymd(2020, 1, 1)
-///     .and_hms(0, 0, 0)
+///     Some(dt.earliest()?),
+///     offset.from_local_datetime(&NaiveDateTime::new(
+///         NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
+///         NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+///     )).single()
 /// );
 /// assert_eq!(
-///     dt.latest()?,
-///     offset.ymd(2020, 12, 31)
-///     .and_hms_micro(23, 59, 59, 999_999)
+///     Some(dt.latest()?),
+///     offset.from_local_datetime(&NaiveDateTime::new(
+///         NaiveDate::from_ymd_opt(2020, 12, 31).unwrap(),
+///         NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+///     )).single()
 /// );
 ///
-/// let dt = DicomDateTime::try_from(&offset
-///     .ymd(2020, 12, 31)
-///     .and_hms(23, 59, 0)
-///     )?;
+/// let chrono_datetime = offset.from_local_datetime(&NaiveDateTime::new(
+///         NaiveDate::from_ymd_opt(2020, 12, 31).unwrap(),
+///         NaiveTime::from_hms_opt(23, 59, 0).unwrap()
+///     )).unwrap();
+///
+/// let dt = DicomDateTime::try_from(&chrono_datetime)?;
 /// // conversion from chrono value leads to a precise value
 /// assert_eq!(dt.is_precise(), true);
 ///
@@ -770,7 +778,7 @@ impl DicomDateTime {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
+    use chrono::{NaiveDateTime, TimeZone};
 
     #[test]
     fn test_dicom_date() {
@@ -795,39 +803,39 @@ mod tests {
                 .unwrap()
                 .earliest()
                 .unwrap(),
-            NaiveDate::from_ymd(1944, 2, 29)
+            NaiveDate::from_ymd_opt(1944, 2, 29).unwrap()
         );
         assert_eq!(
             DicomDate::from_ymd(1944, 2, 29).unwrap().latest().unwrap(),
-            NaiveDate::from_ymd(1944, 2, 29)
+            NaiveDate::from_ymd_opt(1944, 2, 29).unwrap()
         );
 
         assert_eq!(
             DicomDate::from_y(1944).unwrap().earliest().unwrap(),
-            NaiveDate::from_ymd(1944, 1, 1)
+            NaiveDate::from_ymd_opt(1944, 1, 1).unwrap()
         );
         // detects leap year
         assert_eq!(
             DicomDate::from_ym(1944, 2).unwrap().latest().unwrap(),
-            NaiveDate::from_ymd(1944, 2, 29)
+            NaiveDate::from_ymd_opt(1944, 2, 29).unwrap()
         );
         assert_eq!(
             DicomDate::from_ym(1945, 2).unwrap().latest().unwrap(),
-            NaiveDate::from_ymd(1945, 2, 28)
+            NaiveDate::from_ymd_opt(1945, 2, 28).unwrap()
         );
 
         assert_eq!(
-            DicomDate::try_from(&NaiveDate::from_ymd(1945, 2, 28)).unwrap(),
+            DicomDate::try_from(&NaiveDate::from_ymd_opt(1945, 2, 28).unwrap()).unwrap(),
             DicomDate(DicomDateImpl::Day(1945, 2, 28))
         );
 
         assert!(matches!(
-            DicomDate::try_from(&NaiveDate::from_ymd(-2000, 2, 28)),
+            DicomDate::try_from(&NaiveDate::from_ymd_opt(-2000, 2, 28).unwrap()),
             Err(Error::Conversion { .. })
         ));
 
         assert!(matches!(
-            DicomDate::try_from(&NaiveDate::from_ymd(10_000, 2, 28)),
+            DicomDate::try_from(&NaiveDate::from_ymd_opt(10_000, 2, 28).unwrap()),
             Err(Error::InvalidComponent {
                 component: DateComponent::Year,
                 ..
@@ -863,14 +871,14 @@ mod tests {
                 .unwrap()
                 .earliest()
                 .unwrap(),
-            NaiveTime::from_hms_micro(9, 1, 1, 123_000)
+            NaiveTime::from_hms_micro_opt(9, 1, 1, 123_000).unwrap()
         );
         assert_eq!(
             DicomTime::from_hms_milli(9, 1, 1, 123)
                 .unwrap()
                 .latest()
                 .unwrap(),
-            NaiveTime::from_hms_micro(9, 1, 1, 123_999)
+            NaiveTime::from_hms_micro_opt(9, 1, 1, 123_999).unwrap()
         );
 
         assert_eq!(
@@ -878,14 +886,14 @@ mod tests {
                 .unwrap()
                 .earliest()
                 .unwrap(),
-            NaiveTime::from_hms_micro(9, 1, 1, 002000)
+            NaiveTime::from_hms_micro_opt(9, 1, 1, 002000).unwrap()
         );
         assert_eq!(
             DicomTime::from_hms_milli(9, 1, 1, 2)
                 .unwrap()
                 .latest()
                 .unwrap(),
-            NaiveTime::from_hms_micro(9, 1, 1, 002999)
+            NaiveTime::from_hms_micro_opt(9, 1, 1, 002999).unwrap()
         );
 
         assert_eq!(
@@ -901,22 +909,22 @@ mod tests {
         );
 
         assert_eq!(
-            DicomTime::try_from(&NaiveTime::from_hms_milli(16, 31, 28, 123)).unwrap(),
+            DicomTime::try_from(&NaiveTime::from_hms_milli_opt(16, 31, 28, 123).unwrap()).unwrap(),
             DicomTime(DicomTimeImpl::Fraction(16, 31, 28, 123_000, 6))
         );
 
         assert_eq!(
-            DicomTime::try_from(&NaiveTime::from_hms_micro(16, 31, 28, 123)).unwrap(),
+            DicomTime::try_from(&NaiveTime::from_hms_micro_opt(16, 31, 28, 123).unwrap()).unwrap(),
             DicomTime(DicomTimeImpl::Fraction(16, 31, 28, 000123, 6))
         );
 
         assert_eq!(
-            DicomTime::try_from(&NaiveTime::from_hms_micro(16, 31, 28, 1234)).unwrap(),
+            DicomTime::try_from(&NaiveTime::from_hms_micro_opt(16, 31, 28, 1234).unwrap()).unwrap(),
             DicomTime(DicomTimeImpl::Fraction(16, 31, 28, 001234, 6))
         );
 
         assert_eq!(
-            DicomTime::try_from(&NaiveTime::from_hms_micro(16, 31, 28, 0)).unwrap(),
+            DicomTime::try_from(&NaiveTime::from_hms_micro_opt(16, 31, 28, 0).unwrap()).unwrap(),
             DicomTime(DicomTimeImpl::Fraction(16, 31, 28, 0, 6))
         );
 
@@ -961,7 +969,7 @@ mod tests {
         ));
 
         assert!(matches!(
-            DicomTime::try_from(&NaiveTime::from_hms_micro(16, 31, 28, 1_000_000)),
+            DicomTime::try_from(&NaiveTime::from_hms_micro_opt(16, 31, 28, 1_000_000).unwrap()),
             Err(Error::InvalidComponent {
                 component: DateComponent::Fraction,
                 ..
@@ -976,7 +984,7 @@ mod tests {
 
     #[test]
     fn test_dicom_datetime() {
-        let default_offset = FixedOffset::east(0);
+        let default_offset = FixedOffset::east_opt(0).unwrap();
         assert_eq!(
             DicomDateTime::from_date(DicomDate::from_ymd(2020, 2, 29).unwrap(), default_offset),
             DicomDateTime {
@@ -990,18 +998,26 @@ mod tests {
             DicomDateTime::from_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
                 .earliest()
                 .unwrap(),
-            FixedOffset::east(0)
-                .ymd(2020, 2, 1)
-                .and_hms_micro(0, 0, 0, 0)
+            FixedOffset::east_opt(0)
+                .unwrap()
+                .from_local_datetime(&NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2020, 2, 1).unwrap(),
+                    NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
+                ))
+                .unwrap()
         );
 
         assert_eq!(
             DicomDateTime::from_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
                 .latest()
                 .unwrap(),
-            FixedOffset::east(0)
-                .ymd(2020, 2, 29)
-                .and_hms_micro(23, 59, 59, 999_999)
+            FixedOffset::east_opt(0)
+                .unwrap()
+                .from_local_datetime(&NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                    NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+                ))
+                .unwrap()
         );
 
         assert_eq!(
@@ -1013,9 +1029,13 @@ mod tests {
             .unwrap()
             .earliest()
             .unwrap(),
-            FixedOffset::east(0)
-                .ymd(2020, 2, 29)
-                .and_hms_micro(23, 59, 59, 100_000)
+            FixedOffset::east_opt(0)
+                .unwrap()
+                .from_local_datetime(&NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                    NaiveTime::from_hms_micro_opt(23, 59, 59, 100_000).unwrap()
+                ))
+                .unwrap()
         );
         assert_eq!(
             DicomDateTime::from_date_and_time(
@@ -1026,16 +1046,24 @@ mod tests {
             .unwrap()
             .latest()
             .unwrap(),
-            FixedOffset::east(0)
-                .ymd(2020, 2, 29)
-                .and_hms_micro(23, 59, 59, 109_999)
+            FixedOffset::east_opt(0)
+                .unwrap()
+                .from_local_datetime(&NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                    NaiveTime::from_hms_micro_opt(23, 59, 59, 109_999).unwrap()
+                ))
+                .unwrap()
         );
 
         assert_eq!(
             DicomDateTime::try_from(
-                &FixedOffset::east(0)
-                    .ymd(2020, 2, 29)
-                    .and_hms_micro(23, 59, 59, 999_999)
+                &FixedOffset::east_opt(0)
+                    .unwrap()
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                        NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+                    ))
+                    .unwrap()
             )
             .unwrap(),
             DicomDateTime {
@@ -1047,9 +1075,13 @@ mod tests {
 
         assert_eq!(
             DicomDateTime::try_from(
-                &FixedOffset::east(0)
-                    .ymd(2020, 2, 29)
-                    .and_hms_micro(23, 59, 59, 0)
+                &FixedOffset::east_opt(0)
+                    .unwrap()
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                        NaiveTime::from_hms_micro_opt(23, 59, 59, 0).unwrap()
+                    ))
+                    .unwrap()
             )
             .unwrap(),
             DicomDateTime {

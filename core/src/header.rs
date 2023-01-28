@@ -7,7 +7,7 @@ use crate::value::{
 };
 use chrono::FixedOffset;
 use num_traits::NumCast;
-use snafu::{Backtrace, Snafu};
+use snafu::{ensure, Backtrace, Snafu};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
@@ -767,9 +767,9 @@ pub enum VR {
     SS,
     /// Short Text
     ST,
-    /// Time
-    SV,
     /// Signed Very Long
+    SV,
+    /// Time
     TM,
     /// Unlimited Characters
     UC,
@@ -912,6 +912,22 @@ pub type ElementNumber = u16;
 /// a (group, element) pair. For this purpose, `Tag` also provides a method
 /// for converting it to a tuple. Both `(u16, u16)` and `[u16; 2]` can be
 /// efficiently converted to this type as well.
+///
+/// Moreover, strings following the conventional text format
+/// found in the DICOM standard
+/// (e.g. `(7FE0,0010)`)
+/// can be parsed using its `FromStr` implementation.
+///
+/// # Example
+///
+/// ```
+/// # use dicom_core::Tag;
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let tag: Tag = "(0010,1005)".parse()?;
+/// assert_eq!(tag, Tag(0x0010, 0x1005));
+/// Ok(())
+/// # }
+/// ```
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Copy)]
 pub struct Tag(pub GroupNumber, pub ElementNumber);
 
@@ -965,6 +981,79 @@ impl From<[u16; 2]> for Tag {
     fn from(value: [u16; 2]) -> Tag {
         Tag(value[0], value[1])
     }
+}
+
+/// Could not parse DICOM tag
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq, Snafu)]
+pub enum ParseTagError {
+    /// expected tag start '('
+    Start,
+    /// expected tag part separator ','
+    Separator,
+    /// expected tag end ')'
+    End,
+    /// unexpected length
+    Length,
+    /// Illegal character for hexadecimal number
+    Number,
+}
+
+/// This parser implementation for tags
+/// accepts strictly one of the following formats:
+/// - `(gggg,eeee)`
+/// - or `gggg,eeee`
+///
+/// where `gggg` and `eeee` are the characters representing
+/// the group part an the element part in hexadecimal,
+/// with four characters each.
+/// Lowercase and uppercase characters are allowed.
+impl FromStr for Tag {
+    type Err = ParseTagError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.len() {
+            11 => {
+                // (gggg,eeee)
+                ensure!(s.starts_with('('), StartSnafu);
+
+                let (num_g, rest) = parse_tag_part(&s[1..])?;
+
+                ensure!(rest.starts_with(','), SeparatorSnafu);
+
+                let (num_e, rest) = parse_tag_part(&rest[1..])?;
+
+                ensure!(rest == ")", EndSnafu);
+
+                Ok(Tag(num_g, num_e))
+            }
+            9 => {
+                // gggg,eeee
+                let (num_g, rest) = parse_tag_part(s)?;
+
+                ensure!(rest.starts_with(','), SeparatorSnafu);
+
+                let (num_e, _) = parse_tag_part(&rest[1..])?;
+
+                Ok(Tag(num_g, num_e))
+            }
+            _ => Err(ParseTagError::Length),
+        }
+    }
+}
+
+fn parse_tag_part(s: &str) -> Result<(u16, &str), ParseTagError> {
+    ensure!(s.is_char_boundary(4), NumberSnafu);
+
+    let (num, rest) = s.split_at(4);
+    ensure!(
+        num.chars().all(|c| ('0'..='9').contains(&c)
+            || ('A'..='F').contains(&c)
+            || ('a'..='f').contains(&c)),
+        NumberSnafu
+    );
+
+    let num = u16::from_str_radix(num, 16).expect("failed to parse tag part");
+    Ok((num, rest))
 }
 
 /// A type for representing data set content length, in bytes.
@@ -1245,5 +1334,49 @@ mod tests {
         );
 
         assert_eq!(data_element.uint16_slice().unwrap(), &[256, 0, 16]);
+    }
+
+    #[test]
+    fn parse_tag() {
+        // with parens, lowercase
+        let tag: Tag = "(7fe0,0010)".parse().unwrap();
+        assert_eq!(tag, Tag(0x7FE0, 0x0010));
+        let tag: Tag = "(003a,001a)".parse().unwrap();
+        assert_eq!(tag, Tag(0x003A, 0x001A));
+
+        // with parens, uppercase
+        let tag: Tag = "(7FE0,0010)".parse().unwrap();
+        assert_eq!(tag, Tag(0x7FE0, 0x0010));
+        let tag: Tag = "(003A,001A)".parse().unwrap();
+        assert_eq!(tag, Tag(0x003A, 0x001A));
+
+        // with parens, mixed case
+        let tag: Tag = "(003a,001A)".parse().unwrap();
+        assert_eq!(tag, Tag(0x003A, 0x001A));
+
+        // without parens
+        let tag: Tag = "7fe0,0010".parse().unwrap();
+        assert_eq!(tag, Tag(0x7FE0, 0x0010));
+        let tag: Tag = "003a,001a".parse().unwrap();
+        assert_eq!(tag, Tag(0x003A, 0x001A));
+
+        // error case: unsupported number forms
+        let r: Result<Tag, _> = "+03a,0001".parse();
+        assert_eq!(r, Err(ParseTagError::Number));
+        // error case: bad start
+        let r: Result<Tag, _> = "[baad,0123)".parse();
+        assert_eq!(r, Err(ParseTagError::Start));
+        // error case: bad end
+        let r: Result<Tag, _> = "(baad,0123]".parse();
+        assert_eq!(r, Err(ParseTagError::End));
+        // error case: not enough characters
+        let r: Result<Tag, _> = "(3a,1a)".parse();
+        assert_eq!(r, Err(ParseTagError::Length));
+        // error case: bad characters
+        let r: Result<Tag, _> = "g00d,baad".parse();
+        assert_eq!(r, Err(ParseTagError::Number));
+        // error case: missing comma
+        let r: Result<Tag, _> = "(baad&0123)".parse();
+        assert_eq!(r, Err(ParseTagError::Separator));
     }
 }

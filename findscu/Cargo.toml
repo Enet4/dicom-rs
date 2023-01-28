@@ -1,13 +1,13 @@
 [package]
-name = "dicom-storescu"
-version = "0.2.3"
+name = "dicom-findscu"
+version = "0.1.1"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
-description = "A DICOM C-ECHO command line interface"
+description = "A DICOM C-FIND command line interface"
 categories = ["command-line-utilities"]
-keywords = ["dicom"]
+keywords = ["dicom", "query", "search"]
 readme = "README.md"
 
 [dependencies]
@@ -17,9 +17,8 @@ dicom-object = { path = '../object', version = "0.5.4" }
 dicom-encoding = { path = "../encoding/", version = "0.5.3" }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.5.0" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.5.1" }
-structopt = "0.3.21"
-walkdir = "2.3.2"
-indicatif = "0.17.0"
-tracing = "0.1.34"
-tracing-subscriber = "0.3.11"
+dicom-dump = { path = "../dump", default-features = false, version = "0.5.4" }
+clap = { version = "=3.2.21", features = ["derive"] }
 snafu = "0.7.3"
+tracing = "0.1.36"
+tracing-subscriber = "0.3.15"

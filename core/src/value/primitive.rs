@@ -17,8 +17,7 @@ use std::borrow::Cow;
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
-/** Triggered when a value reading attempt fails.
- */
+/// Triggered when a value reading attempt fails.
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum InvalidValueReadError {
@@ -91,6 +90,23 @@ pub enum InvalidValueReadError {
         #[snafu(backtrace)]
         source: crate::value::range::Error,
     },
+}
+
+/// Error type for a failed attempt to modify an existing DICOM primitive value.
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum ModifyValueError {
+    /// The modification using strings cannot proceed
+    /// due to the value's current type,
+    /// as that would lead to mixed representations.
+    #[snafu(display("cannot not modify {:?} value as string values", original))]
+    IncompatibleStringType { original: ValueType },
+
+    /// The modification using numbers cannot proceed
+    /// due to the value's current type,
+    /// as that would lead to mixed representations.
+    #[snafu(display("cannot not modify {:?} value as numeric values", original))]
+    IncompatibleNumberType { original: ValueType },
 }
 
 /// An error type for an attempt of accessing a value
@@ -3451,6 +3467,274 @@ impl PrimitiveValue {
     impl_primitive_getters!(uint64, uint64_slice, U64, u64);
     impl_primitive_getters!(float32, float32_slice, F32, f32);
     impl_primitive_getters!(float64, float64_slice, F64, f64);
+
+    /// Extend a textual value by appending
+    /// more strings to an existing text or empty value.
+    ///
+    /// An error is returned if the current value is not textual.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use dicom_core::dicom_value;
+    /// # use dicom_core::value::ModifyValueError;
+    ///
+    /// # fn main() -> Result<(), ModifyValueError> {
+    /// let mut value = dicom_value!(Strs, ["Hello"]);
+    /// value.extend_str(["DICOM"])?;
+    /// assert_eq!(value.to_string(), "Hello\\DICOM");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn extend_str<T>(
+        &mut self,
+        strings: impl IntoIterator<Item = T>,
+    ) -> Result<(), ModifyValueError>
+    where
+        T: Into<String>,
+    {
+        match self {
+            PrimitiveValue::Empty => {
+                *self = PrimitiveValue::Strs(strings.into_iter().map(T::into).collect());
+                Ok(())
+            }
+            PrimitiveValue::Strs(elements) => {
+                elements.extend(strings.into_iter().map(T::into));
+                Ok(())
+            }
+            PrimitiveValue::Str(s) => {
+                // for lack of better ways to move the string out from the mutable borrow,
+                // we create a copy for now
+                let s = s.clone();
+                *self = PrimitiveValue::Strs(
+                    std::iter::once(s)
+                        .chain(strings.into_iter().map(T::into))
+                        .collect(),
+                );
+                Ok(())
+            }
+            PrimitiveValue::Tags(_)
+            | PrimitiveValue::U8(_)
+            | PrimitiveValue::I16(_)
+            | PrimitiveValue::U16(_)
+            | PrimitiveValue::I32(_)
+            | PrimitiveValue::U32(_)
+            | PrimitiveValue::I64(_)
+            | PrimitiveValue::U64(_)
+            | PrimitiveValue::F32(_)
+            | PrimitiveValue::F64(_)
+            | PrimitiveValue::Date(_)
+            | PrimitiveValue::DateTime(_)
+            | PrimitiveValue::Time(_) => Err(IncompatibleStringTypeSnafu {
+                original: self.value_type(),
+            }
+            .build()),
+        }
+    }
+
+    /// Extend a value of numbers by appending
+    /// 32-bit signed integers to an existing value.
+    ///
+    /// The value may be empty
+    /// or already contain numeric or textual values.
+    ///
+    /// If the current value is textual,
+    /// the numbers provided are converted to text.
+    /// For the case of numeric values,
+    /// the given numbers are converted to the current number type
+    /// through casting.
+    ///
+    /// An error is returned
+    /// if the current value is not compatible with the insertion of integers,
+    /// such as `Tag` or `Date`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use dicom_core::dicom_value;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut value = dicom_value!(I32, [1, 2]);
+    /// value.extend_i32([5])?;
+    /// assert_eq!(value.to_multi_int::<i32>()?, vec![1, 2, 5]);
+    ///
+    /// let mut value = dicom_value!(Strs, ["City"]);
+    /// value.extend_i32([17])?;
+    /// assert_eq!(value.to_string(), "City\\17");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn extend_i32(
+        &mut self,
+        numbers: impl IntoIterator<Item = i32>,
+    ) -> Result<(), ModifyValueError> {
+        match self {
+            PrimitiveValue::Empty => {
+                *self = PrimitiveValue::I32(numbers.into_iter().collect());
+                Ok(())
+            }
+            PrimitiveValue::Strs(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n.to_string()));
+                Ok(())
+            }
+            PrimitiveValue::Str(s) => {
+                // for lack of better ways to move the string out from the mutable borrow,
+                // we create a copy for now
+                let s = s.clone();
+                *self = PrimitiveValue::Strs(
+                    std::iter::once(s)
+                        .chain(numbers.into_iter().map(|n| n.to_string()))
+                        .collect(),
+                );
+                Ok(())
+            }
+            PrimitiveValue::I32(elements) => {
+                elements.extend(numbers);
+                Ok(())
+            }
+            PrimitiveValue::U8(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u8));
+                Ok(())
+            }
+            PrimitiveValue::I16(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i16));
+                Ok(())
+            }
+            PrimitiveValue::U16(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u16));
+                Ok(())
+            }
+            PrimitiveValue::U32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u32));
+                Ok(())
+            }
+            PrimitiveValue::I64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i64));
+                Ok(())
+            }
+            PrimitiveValue::U64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u64));
+                Ok(())
+            }
+            PrimitiveValue::F32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as f32));
+                Ok(())
+            }
+            PrimitiveValue::F64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as f64));
+                Ok(())
+            }
+            PrimitiveValue::Tags(_)
+            | PrimitiveValue::Date(_)
+            | PrimitiveValue::DateTime(_)
+            | PrimitiveValue::Time(_) => Err(IncompatibleNumberTypeSnafu {
+                original: self.value_type(),
+            }
+            .build()),
+        }
+    }
+
+    /// Extend a value of numbers by appending
+    /// 32-bit unsigned integers to an existing value.
+    ///
+    /// The value may be empty
+    /// or already contain numeric or textual values.
+    ///
+    /// If the current value is textual,
+    /// the numbers provided are converted to text.
+    /// For the case of numeric values,
+    /// the given numbers are converted to the current number type
+    /// through casting.
+    ///
+    /// An error is returned
+    /// if the current value is not compatible with the insertion of integers,
+    /// such as `Tag` or `Date`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use dicom_core::dicom_value;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut value = dicom_value!(U32, [1, 2]);
+    /// value.extend_u32([5])?;
+    /// assert_eq!(value.to_multi_int::<u32>()?, vec![1, 2, 5]);
+    ///
+    /// let mut value = dicom_value!(Strs, ["City"]);
+    /// value.extend_u32([17])?;
+    /// assert_eq!(value.to_string(), "City\\17");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn extend_u32(
+        &mut self,
+        numbers: impl IntoIterator<Item = u32>,
+    ) -> Result<(), ModifyValueError> {
+        match self {
+            PrimitiveValue::Empty => {
+                *self = PrimitiveValue::U32(numbers.into_iter().collect());
+                Ok(())
+            }
+            PrimitiveValue::Strs(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n.to_string()));
+                Ok(())
+            }
+            PrimitiveValue::Str(s) => {
+                // for lack of better ways to move the string out from the mutable borrow,
+                // we create a copy for now
+                let s = s.clone();
+                *self = PrimitiveValue::Strs(
+                    std::iter::once(s)
+                        .chain(numbers.into_iter().map(|n| n.to_string()))
+                        .collect(),
+                );
+                Ok(())
+            }
+            PrimitiveValue::U32(elements) => {
+                elements.extend(numbers);
+                Ok(())
+            }
+            PrimitiveValue::U8(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u8));
+                Ok(())
+            }
+            PrimitiveValue::I16(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i16));
+                Ok(())
+            }
+            PrimitiveValue::U16(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u16));
+                Ok(())
+            }
+            PrimitiveValue::I32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i32));
+                Ok(())
+            }
+            PrimitiveValue::I64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i64));
+                Ok(())
+            }
+            PrimitiveValue::U64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u64));
+                Ok(())
+            }
+            PrimitiveValue::F32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as f32));
+                Ok(())
+            }
+            PrimitiveValue::F64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as f64));
+                Ok(())
+            }
+            PrimitiveValue::Tags(_)
+            | PrimitiveValue::Date(_)
+            | PrimitiveValue::DateTime(_)
+            | PrimitiveValue::Time(_) => Err(IncompatibleNumberTypeSnafu {
+                original: self.value_type(),
+            }
+            .build()),
+        }
+    }
 }
 
 /// The output of this method is equivalent to calling the method `to_str`
@@ -3683,7 +3967,7 @@ mod tests {
     use crate::value::partial::{DicomDate, DicomDateTime, DicomTime};
     use crate::value::range::{DateRange, DateTimeRange, TimeRange};
     use crate::value::{PrimitiveValue, ValueType};
-    use chrono::{FixedOffset, NaiveDate, NaiveTime, TimeZone};
+    use chrono::{FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
     use smallvec::smallvec;
 
     #[test]
@@ -3948,22 +4232,22 @@ mod tests {
             PrimitiveValue::Date(smallvec![DicomDate::from_ymd(2014, 10, 12).unwrap()])
                 .to_naive_date()
                 .unwrap(),
-            NaiveDate::from_ymd(2014, 10, 12),
+            NaiveDate::from_ymd_opt(2014, 10, 12).unwrap(),
         );
         // from text (Str)
         assert_eq!(
             dicom_value!(Str, "20141012").to_naive_date().unwrap(),
-            NaiveDate::from_ymd(2014, 10, 12),
+            NaiveDate::from_ymd_opt(2014, 10, 12).unwrap(),
         );
         // from text (Strs)
         assert_eq!(
             dicom_value!(Strs, ["20141012"]).to_naive_date().unwrap(),
-            NaiveDate::from_ymd(2014, 10, 12),
+            NaiveDate::from_ymd_opt(2014, 10, 12).unwrap(),
         );
         // from bytes
         assert_eq!(
             PrimitiveValue::from(b"20200229").to_naive_date().unwrap(),
-            NaiveDate::from_ymd(2020, 2, 29),
+            NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
         );
         // not a date
         assert!(matches!(
@@ -4025,30 +4309,30 @@ mod tests {
             PrimitiveValue::from(DicomTime::from_hms(11, 9, 26).unwrap())
                 .to_naive_time()
                 .unwrap(),
-            NaiveTime::from_hms(11, 9, 26),
+            NaiveTime::from_hms_opt(11, 9, 26).unwrap(),
         );
         // from text (Str)
         assert_eq!(
             dicom_value!(Str, "110926.3").to_naive_time().unwrap(),
-            NaiveTime::from_hms_milli(11, 9, 26, 300),
+            NaiveTime::from_hms_milli_opt(11, 9, 26, 300).unwrap(),
         );
         // from text with fraction of a second + padding
         assert_eq!(
             PrimitiveValue::from(&"110926.38 "[..])
                 .to_naive_time()
                 .unwrap(),
-            NaiveTime::from_hms_milli(11, 9, 26, 380),
+            NaiveTime::from_hms_milli_opt(11, 9, 26, 380).unwrap(),
         );
         // from text (Strs)
         assert_eq!(
             dicom_value!(Strs, ["110926.38"]).to_naive_time().unwrap(),
-            NaiveTime::from_hms_milli(11, 9, 26, 380),
+            NaiveTime::from_hms_milli_opt(11, 9, 26, 380).unwrap(),
         );
 
         // from text without fraction of a second (assumes 0 ms in fraction)
         assert_eq!(
             dicom_value!(Str, "110926").to_naive_time().unwrap(),
-            NaiveTime::from_hms(11, 9, 26),
+            NaiveTime::from_hms_opt(11, 9, 26).unwrap(),
         );
 
         // absence of seconds is considered to be an incomplete value
@@ -4133,58 +4417,70 @@ mod tests {
 
     #[test]
     fn primitive_value_to_chrono_datetime() {
-        let this_datetime = FixedOffset::east(1).ymd(2012, 12, 21).and_hms(11, 9, 26);
-        let this_datetime_frac = FixedOffset::east(1)
-            .ymd(2012, 12, 21)
-            .and_hms_milli(11, 9, 26, 380);
+        let this_datetime = FixedOffset::east_opt(1)
+            .unwrap()
+            .with_ymd_and_hms(2012, 12, 21, 11, 9, 26)
+            .unwrap();
+        let this_datetime_frac = FixedOffset::east_opt(1)
+            .unwrap()
+            .from_local_datetime(&NaiveDateTime::new(
+                NaiveDate::from_ymd_opt(2012, 12, 21).unwrap(),
+                NaiveTime::from_hms_micro_opt(11, 9, 26, 380_000).unwrap(),
+            ))
+            .unwrap();
+
         // from text (Str) - fraction is mandatory even if zero
         assert_eq!(
             dicom_value!(Str, "20121221110926.0")
-                .to_chrono_datetime(FixedOffset::east(1))
+                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
                 .unwrap(),
             this_datetime,
         );
         // from text with fraction of a second + padding
         assert_eq!(
             PrimitiveValue::from("20121221110926.38 ")
-                .to_chrono_datetime(FixedOffset::east(1))
+                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
                 .unwrap(),
             this_datetime_frac,
         );
         // from text (Strs) - fraction is mandatory even if zero
         assert_eq!(
             dicom_value!(Strs, ["20121221110926.0"])
-                .to_chrono_datetime(FixedOffset::east(1))
+                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
                 .unwrap(),
             this_datetime,
         );
         // from text (Strs) with fraction of a second + padding
         assert_eq!(
             dicom_value!(Strs, ["20121221110926.38 "])
-                .to_chrono_datetime(FixedOffset::east(1))
+                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
                 .unwrap(),
             this_datetime_frac,
         );
         // from bytes with fraction of a second + padding
         assert_eq!(
             PrimitiveValue::from(&b"20121221110926.38 "[..])
-                .to_chrono_datetime(FixedOffset::east(1))
+                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
                 .unwrap(),
             this_datetime_frac,
         );
 
         // without fraction of a second
-        let this_datetime = FixedOffset::east(1).ymd(2012, 12, 21).and_hms(11, 9, 26);
+        let this_datetime = FixedOffset::east_opt(1)
+            .unwrap()
+            .with_ymd_and_hms(2012, 12, 21, 11, 9, 26)
+            .unwrap();
         assert_eq!(
             dicom_value!(Str, "20121221110926")
-                .to_chrono_datetime(FixedOffset::east(1))
+                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
                 .unwrap(),
             this_datetime,
         );
 
         // without seconds
         assert!(matches!(
-            PrimitiveValue::from("201212211109").to_chrono_datetime(FixedOffset::east(1)),
+            PrimitiveValue::from("201212211109")
+                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap()),
             Err(ConvertValueError {
                 requested: "DateTime",
                 original: ValueType::Str,
@@ -4194,7 +4490,8 @@ mod tests {
 
         // not a datetime
         assert!(matches!(
-            PrimitiveValue::from("Smith^John").to_chrono_datetime(FixedOffset::east(1)),
+            PrimitiveValue::from("Smith^John")
+                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap()),
             Err(ConvertValueError {
                 requested: "DateTime",
                 original: ValueType::Str,
@@ -4205,7 +4502,7 @@ mod tests {
 
     #[test]
     fn primitive_value_to_dicom_datetime() {
-        let offset = FixedOffset::east(1);
+        let offset = FixedOffset::east_opt(1).unwrap();
 
         // try from chrono::DateTime
         assert_eq!(
@@ -4268,7 +4565,7 @@ mod tests {
 
     #[test]
     fn primitive_value_to_multi_dicom_datetime() {
-        let offset = FixedOffset::east(1);
+        let offset = FixedOffset::east_opt(1).unwrap();
         // from text (Strs)
         assert_eq!(
             dicom_value!(
@@ -4287,11 +4584,11 @@ mod tests {
                 DicomDateTime::from_date(DicomDate::from_y(1992).unwrap(), offset),
                 DicomDateTime::from_date(
                     DicomDate::from_ymd(1990, 10, 10).unwrap(),
-                    FixedOffset::west(5 * 3600)
+                    FixedOffset::west_opt(5 * 3600).unwrap()
                 ),
                 DicomDateTime::from_date(
                     DicomDate::from_y(1990).unwrap(),
-                    FixedOffset::east(5 * 3600 + 60)
+                    FixedOffset::east_opt(5 * 3600 + 60).unwrap()
                 )
             )
         );
@@ -4304,7 +4601,7 @@ mod tests {
             dicom_value!(Strs, ["20121221-", "1992-", "1990-1992", "1990+0501"])
                 .to_date_range()
                 .unwrap(),
-            DateRange::from_start(NaiveDate::from_ymd(2012, 12, 21))
+            DateRange::from_start(NaiveDate::from_ymd_opt(2012, 12, 21).unwrap())
         );
     }
 
@@ -4312,25 +4609,30 @@ mod tests {
     fn primitive_value_to_time_range() {
         assert_eq!(
             dicom_value!(Str, "-153012.123").to_time_range().unwrap(),
-            TimeRange::from_end(NaiveTime::from_hms_micro(15, 30, 12, 123_999))
+            TimeRange::from_end(NaiveTime::from_hms_micro_opt(15, 30, 12, 123_999).unwrap())
         );
         assert_eq!(
             PrimitiveValue::from(&b"1015-"[..]).to_time_range().unwrap(),
-            TimeRange::from_start(NaiveTime::from_hms(10, 15, 0))
+            TimeRange::from_start(NaiveTime::from_hms_opt(10, 15, 0).unwrap())
         );
     }
 
     #[test]
     fn primitive_value_to_datetime_range() {
-        let offset = FixedOffset::west(3600);
+        let offset = FixedOffset::west_opt(3600).unwrap();
 
         assert_eq!(
             dicom_value!(Str, "202002-20210228153012.123")
                 .to_datetime_range(offset)
                 .unwrap(),
             DateTimeRange::from_start_to_end(
-                offset.ymd(2020, 2, 1).and_hms(0, 0, 0),
-                offset.ymd(2021, 2, 28).and_hms_micro(15, 30, 12, 123_999)
+                offset.with_ymd_and_hms(2020, 2, 1, 0, 0, 0).unwrap(),
+                offset
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(2021, 2, 28).unwrap(),
+                        NaiveTime::from_hms_micro_opt(15, 30, 12, 123_999).unwrap()
+                    ))
+                    .unwrap()
             )
             .unwrap()
         );
@@ -4340,10 +4642,14 @@ mod tests {
                 .to_datetime_range(offset)
                 .unwrap(),
             DateTimeRange::from_start_to_end(
-                offset.ymd(2020, 1, 1).and_hms(0, 0, 0),
-                FixedOffset::east(8 * 3600)
-                    .ymd(2030, 12, 31)
-                    .and_hms_micro(23, 59, 59, 999_999)
+                offset.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap(),
+                FixedOffset::east_opt(8 * 3600)
+                    .unwrap()
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(2030, 12, 31).unwrap(),
+                        NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+                    ))
+                    .unwrap()
             )
             .unwrap()
         );
@@ -4407,7 +4713,7 @@ mod tests {
 
         // single date-time with time zone, no second fragment
         // b"20121221093001+0100 "
-        let offset = FixedOffset::east(1 * 3600);
+        let offset = FixedOffset::east_opt(1 * 3600).unwrap();
         let val = PrimitiveValue::from(
             DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2012, 12, 21).unwrap(),

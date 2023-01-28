@@ -2,7 +2,7 @@
 //! by printing it in a human readable format.
 use dicom_dump::{ColorMode, DumpOptions};
 use dicom_object::open_file;
-use snafu::{whatever, ErrorCompat, Whatever};
+use snafu::{whatever, Report, Whatever};
 use std::io::ErrorKind;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -50,7 +50,7 @@ struct App {
 
 fn main() {
     run().unwrap_or_else(|e| {
-        report(e);
+        eprintln!("{}", Report::from_error(e));
         std::process::exit(-2);
     });
 }
@@ -86,7 +86,7 @@ fn run() -> Result<(), Whatever> {
         println!("{}: ", filename.display());
         match open_file(filename) {
             Err(e) => {
-                report(e);
+                eprintln!("{}", Report::from_error(e));
                 if fail_first {
                     std::process::exit(ERROR_READ);
                 }
@@ -97,7 +97,7 @@ fn run() -> Result<(), Whatever> {
                     if e.kind() == ErrorKind::BrokenPipe {
                         // handle broken pipe separately with a no-op
                     } else {
-                        eprintln!("[ERROR] {}", e);
+                        eprintln!("[ERROR] {}", Report::from_error(e));
                         if fail_first {
                             std::process::exit(ERROR_PRINT);
                         }
@@ -109,29 +109,4 @@ fn run() -> Result<(), Whatever> {
     }
 
     std::process::exit(errors);
-}
-
-fn report<E: 'static>(err: E)
-where
-    E: std::error::Error,
-    E: ErrorCompat,
-{
-    eprintln!("[ERROR] {}", err);
-    if let Some(source) = err.source() {
-        eprintln!();
-        eprintln!("Caused by:");
-        for (i, e) in std::iter::successors(Some(source), |e| e.source()).enumerate() {
-            eprintln!("   {}: {}", i, e);
-        }
-    }
-
-    let env_backtrace = std::env::var("RUST_BACKTRACE").unwrap_or_default();
-    let env_lib_backtrace = std::env::var("RUST_LIB_BACKTRACE").unwrap_or_default();
-    if env_lib_backtrace == "1" || (env_backtrace == "1" && env_lib_backtrace != "0") {
-        if let Some(backtrace) = ErrorCompat::backtrace(&err) {
-            eprintln!();
-            eprintln!("Backtrace:");
-            eprintln!("{}", backtrace);
-        }
-    }
 }

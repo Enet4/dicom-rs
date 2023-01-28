@@ -22,7 +22,7 @@ use std::fmt::{Display, Formatter};
 /// assert_eq!(dr_seuss.prefix(), Some("Dr."));
 /// assert_eq!(dr_seuss.given(), Some("Theodor"));
 /// ```
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
 pub struct PersonName<'a> {
     prefix: Option<&'a str>,
     family: Option<&'a str>,
@@ -132,7 +132,7 @@ impl<'a> PersonName<'a> {
     /// When passing a text value to this function,
     /// ensure that it contains a single DICOM formatted name.
     pub fn from_str(slice: &'a str) -> PersonName<'a> {
-        let mut parts = slice.split('^');
+        let mut parts = slice.trim().split('^');
 
         macro_rules! get_component {
             () => {
@@ -391,6 +391,16 @@ mod tests {
                 middle: Some("Robert"),
                 family: Some("Adams"),
                 suffix: Some("B.A. M.Div."),
+            }
+        );
+        assert_eq!(
+            PersonName::from_str("Adams^ "),
+            PersonName {
+                prefix: None,
+                given: None,
+                middle: None,
+                family: Some("Adams"),
+                suffix: None,
             }
         );
     }

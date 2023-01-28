@@ -6,6 +6,7 @@
 //! for details and examples on how to create an association.
 use std::{
     borrow::Cow,
+    convert::TryInto,
     io::Write,
     net::{TcpStream, ToSocketAddrs},
 };
@@ -17,11 +18,14 @@ use crate::{
         AbortRQSource, AssociationRJResult, AssociationRJSource, Pdu, PresentationContextProposed,
         PresentationContextResult, PresentationContextResultReason, UserVariableItem,
     },
-    IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
+    AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
 use snafu::{ensure, ResultExt, Snafu};
 
-use super::pdata::{PDataWriter, PDataReader};
+use super::{
+    pdata::{PDataReader, PDataWriter},
+    uid::trim_uid,
+};
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -55,7 +59,7 @@ pub enum Error {
     #[snafu(display("protocol version mismatch: expected {}, got {}", expected, got))]
     ProtocolVersionMismatch { expected: u16, got: u16 },
 
-    /// the association was rejected by the server
+    #[snafu(display("association rejected by the server: {}", association_source))]
     Rejected {
         association_result: AssociationRJResult,
         association_source: AssociationRJSource,
@@ -119,8 +123,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// let association = ClientAssociationOptions::new()
-///    .with_abstract_syntax("1.2.840.10008.1.1")
-///    .establish("129.168.0.5:104")?;
+///     .with_abstract_syntax("1.2.840.10008.1.1")
+///     .establish("129.168.0.5:104")?;
 /// # Ok(())
 /// # }
 /// ```
@@ -129,7 +133,7 @@ pub struct ClientAssociationOptions<'a> {
     /// the calling AE title
     calling_ae_title: Cow<'a, str>,
     /// the called AE title
-    called_ae_title: Cow<'a, str>,
+    called_ae_title: Option<Cow<'a, str>>,
     /// the requested application context name
     application_context_name: Cow<'a, str>,
     /// the list of requested presentation contexts
@@ -138,6 +142,8 @@ pub struct ClientAssociationOptions<'a> {
     protocol_version: u16,
     /// the maximum PDU length requested for receiving PDUs
     max_pdu_length: u32,
+    /// whether to receive PDUs in strict mode
+    strict: bool,
 }
 
 impl<'a> Default for ClientAssociationOptions<'a> {
@@ -146,13 +152,14 @@ impl<'a> Default for ClientAssociationOptions<'a> {
             /// the calling AE title
             calling_ae_title: "THIS-SCU".into(),
             /// the called AE title
-            called_ae_title: "ANY-SCP".into(),
+            called_ae_title: None,
             /// the requested application context name
             application_context_name: "1.2.840.10008.3.1.1.1".into(),
             /// the list of requested presentation contexts
             presentation_contexts: Vec::new(),
             protocol_version: 1,
             max_pdu_length: crate::pdu::reader::DEFAULT_MAX_PDU,
+            strict: true,
         }
     }
 }
@@ -179,11 +186,18 @@ impl<'a> ClientAssociationOptions<'a> {
     /// which refers to the target DICOM node.
     ///
     /// The default is `ANY-SCP`.
+    /// Passing an emoty string resets the AE title to the default
+    /// (or to the one passed via [`establish_with`](ClientAssociationOptions::establish_with)).
     pub fn called_ae_title<T>(mut self, called_ae_title: T) -> Self
     where
         T: Into<Cow<'a, str>>,
     {
-        self.called_ae_title = called_ae_title.into();
+        let cae = called_ae_title.into();
+        if cae.is_empty() {
+            self.called_ae_title = None;
+        } else {
+            self.called_ae_title = Some(cae);
+        }
         self
     }
 
@@ -197,10 +211,12 @@ impl<'a> ClientAssociationOptions<'a> {
     where
         T: Into<Cow<'a, str>>,
     {
-        let transfer_syntaxes: Vec<Cow<'a, str>> =
-            transfer_syntax_uids.into_iter().map(|t| t.into()).collect();
+        let transfer_syntaxes: Vec<Cow<'a, str>> = transfer_syntax_uids
+            .into_iter()
+            .map(|t| trim_uid(t.into()))
+            .collect();
         self.presentation_contexts
-            .push((abstract_syntax_uid.into(), transfer_syntaxes));
+            .push((trim_uid(abstract_syntax_uid.into()), transfer_syntaxes));
         self
     }
 
@@ -223,10 +239,55 @@ impl<'a> ClientAssociationOptions<'a> {
         self
     }
 
+    /// Override strict mode:
+    /// whether receiving PDUs must not
+    /// surpass the negotiated maximum PDU length.
+    pub fn strict(mut self, strict: bool) -> Self {
+        self.strict = strict;
+        self
+    }
+
     /// Initiate the TCP connection to the given address
     /// and request a new DICOM association,
     /// negotiating the presentation contexts in the process.
     pub fn establish<A: ToSocketAddrs>(self, address: A) -> Result<ClientAssociation> {
+        self.establish_impl(AeAddr::new_socket_addr(address))
+    }
+
+    /// Initiate the TCP connection to the given address
+    /// and request a new DICOM association,
+    /// negotiating the presentation contexts in the process.
+    ///
+    /// This method allows you to specify the called AE title
+    /// alongside with the socket address.
+    /// See [AeAddr](`crate::AeAddr`) for more details.
+    /// However, the AE title in this parameter
+    /// is overridden by any `called_ae_title` option
+    /// previously received.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use dicom_ul::association::client::ClientAssociationOptions;
+    /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+    /// let association = ClientAssociationOptions::new()
+    ///     .with_abstract_syntax("1.2.840.10008.1.1")
+    ///     // called AE title in address
+    ///     .establish_with("MY-STORAGE@10.0.0.100:104")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn establish_with(self, ae_address: &str) -> Result<ClientAssociation> {
+        match ae_address.try_into() {
+            Ok(ae_address) => self.establish_impl(ae_address),
+            Err(_) => self.establish_impl(AeAddr::new_socket_addr(ae_address)),
+        }
+    }
+
+    fn establish_impl<T>(self, ae_address: AeAddr<T>) -> Result<ClientAssociation>
+    where
+        T: ToSocketAddrs,
+    {
         let ClientAssociationOptions {
             calling_ae_title,
             called_ae_title,
@@ -234,6 +295,7 @@ impl<'a> ClientAssociationOptions<'a> {
             presentation_contexts,
             protocol_version,
             max_pdu_length,
+            strict,
         } = self;
 
         // fail if no presentation contexts were provided: they represent intent,
@@ -242,6 +304,20 @@ impl<'a> ClientAssociationOptions<'a> {
             !presentation_contexts.is_empty(),
             MissingAbstractSyntaxSnafu
         );
+
+        // choose called AE title
+        let called_ae_title: &str = match (&called_ae_title, ae_address.ae_title()) {
+            (Some(aec), Some(_)) => {
+                tracing::warn!(
+                    "Option `called_ae_title` overrides the AE title to `{}`",
+                    aec
+                );
+                aec
+            }
+            (Some(aec), None) => aec,
+            (None, Some(aec)) => aec,
+            (None, None) => "ANY-SCP",
+        };
 
         let presentation_contexts: Vec<_> = presentation_contexts
             .into_iter()
@@ -271,7 +347,7 @@ impl<'a> ClientAssociationOptions<'a> {
             ],
         };
 
-        let mut socket = std::net::TcpStream::connect(address).context(ConnectSnafu)?;
+        let mut socket = std::net::TcpStream::connect(ae_address).context(ConnectSnafu)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         // send request
 
@@ -279,7 +355,8 @@ impl<'a> ClientAssociationOptions<'a> {
         socket.write_all(&buffer).context(WireSendSnafu)?;
         buffer.clear();
         // receive response
-        let msg = read_pdu(&mut socket, MAXIMUM_PDU_SIZE, true).context(ReceiveResponseSnafu)?;
+        let msg =
+            read_pdu(&mut socket, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveResponseSnafu)?;
 
         match msg {
             Pdu::AssociationAC {
@@ -335,6 +412,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     acceptor_max_pdu_length,
                     socket,
                     buffer,
+                    strict,
                 })
             }
             Pdu::AssociationRJ { result, source } => RejectedSnafu {
@@ -398,6 +476,8 @@ pub struct ClientAssociation {
     socket: TcpStream,
     /// Buffer to assemble PDU before sending it on wire
     buffer: Vec<u8>,
+    /// whether to receive PDUs in strict mode
+    strict: bool,
 }
 
 impl ClientAssociation {
@@ -437,7 +517,7 @@ impl ClientAssociation {
 
     /// Read a PDU message from the other intervenient.
     pub fn receive(&mut self) -> Result<Pdu> {
-        read_pdu(&mut self.socket, self.requestor_max_pdu_length, true).context(ReceiveSnafu)
+        read_pdu(&mut self.socket, self.requestor_max_pdu_length, self.strict).context(ReceiveSnafu)
     }
 
     /// Gracefully terminate the association by exchanging release messages
@@ -502,7 +582,7 @@ impl ClientAssociation {
     fn release_impl(&mut self) -> Result<()> {
         let pdu = Pdu::ReleaseRQ;
         self.send(&pdu)?;
-        let pdu = read_pdu(&mut self.socket, self.requestor_max_pdu_length, true)
+        let pdu = read_pdu(&mut self.socket, self.requestor_max_pdu_length, self.strict)
             .context(ReceiveSnafu)?;
 
         match pdu {

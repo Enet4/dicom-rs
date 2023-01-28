@@ -61,6 +61,11 @@ impl fmt::Debug for TransferSyntaxRegistryImpl {
 }
 
 impl TransferSyntaxRegistryImpl {
+    /// Obtain an iterator of all registered transfer syntaxes.
+    pub fn iter(&self) -> impl Iterator<Item = &TransferSyntax> {
+        self.m.values()
+    }
+
     /// Obtain a DICOM codec by transfer syntax UID.
     fn get<U: AsRef<str>>(&self, uid: U) -> Option<&TransferSyntax> {
         let ts_uid = uid
@@ -110,6 +115,14 @@ impl TransferSyntaxIndex for TransferSyntaxRegistryImpl {
     #[inline]
     fn get(&self, uid: &str) -> Option<&TransferSyntax> {
         Self::get(self, uid)
+    }
+}
+
+impl TransferSyntaxRegistry {
+    /// Obtain an iterator of all registered transfer syntaxes.
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = &TransferSyntax> {
+        get_registry().iter()
     }
 }
 
@@ -213,4 +226,51 @@ pub(crate) const fn create_ts_stub(uid: &'static str, name: &'static str) -> Ts 
 /// Retrieve the default transfer syntax.
 pub fn default() -> Ts {
     entries::IMPLICIT_VR_LITTLE_ENDIAN
+}
+
+#[cfg(test)]
+mod tests {
+    use dicom_encoding::TransferSyntaxIndex;
+
+    use crate::TransferSyntaxRegistry;
+
+    #[test]
+    fn has_mandatory_tss() {
+        let implicit_vr_le = TransferSyntaxRegistry
+            .get("1.2.840.10008.1.2")
+            .expect("transfer syntax registry should provide Implicit VR Little Endian");
+        assert_eq!(implicit_vr_le.uid(), "1.2.840.10008.1.2");
+        assert!(implicit_vr_le.fully_supported());
+
+        // should also work with trailing null character
+        let implicit_vr_le_2 = TransferSyntaxRegistry.get("1.2.840.10008.1.2\0").expect(
+            "transfer syntax registry should provide Implicit VR Little Endian with padded TS UID",
+        );
+
+        assert_eq!(implicit_vr_le_2.uid(), implicit_vr_le.uid());
+
+        let explicit_vr_le = TransferSyntaxRegistry
+            .get("1.2.840.10008.1.2.1")
+            .expect("transfer syntax registry should provide Explicit VR Little Endian");
+        assert_eq!(explicit_vr_le.uid(), "1.2.840.10008.1.2.1");
+        assert!(explicit_vr_le.fully_supported());
+
+        // should also work with trailing null character
+        let explicit_vr_le_2 = TransferSyntaxRegistry.get("1.2.840.10008.1.2.1\0").expect(
+            "transfer syntax registry should provide Explicit VR Little Endian with padded TS UID",
+        );
+
+        assert_eq!(explicit_vr_le_2.uid(), explicit_vr_le.uid());
+    }
+
+    #[test]
+    fn provides_iter() {
+        let all_tss: Vec<_> = TransferSyntaxRegistry.iter().collect();
+
+        assert!(all_tss.len() >= 2);
+
+        // contains at least Implicit VR Little Endian and Explicit VR Little Endian
+        assert!(all_tss.iter().any(|ts| ts.uid() == "1.2.840.10008.1.2"));
+        assert!(all_tss.iter().any(|ts| ts.uid() == "1.2.840.10008.1.2.1"));
+    }
 }

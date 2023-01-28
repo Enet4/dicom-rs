@@ -3,42 +3,76 @@
 use dicom_core::{DataDictionary, Tag};
 use dicom_dictionary_std::tags;
 use dicom_object::{mem::InMemElement, FileDicomObject, InMemDicomObject};
-use snafu::{ensure, Backtrace, ResultExt, Snafu};
+use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::fmt;
+
+/// An enum for a DICOM attribute which can be retrieved
+/// for the purposes of decoding pixel data.
+///
+/// Since the set of attributes needed is more constrained,
+/// this is a more compact representation than a tag or a static string.
+#[derive(Debug, Copy, Clone)]
+#[non_exhaustive]
+pub enum AttributeName {
+    Columns,
+    Rows,
+    BitsAllocated,
+    BitsStored,
+    HighBit,
+    NumberOfFrames,
+    PhotometricInterpretation,
+    PixelData,
+    PixelRepresentation,
+    PlanarConfiguration,
+    SamplesPerPixel,
+    VoiLutFunction,
+    WindowCenter,
+    WindowWidth,
+}
+
+impl std::fmt::Display for AttributeName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AttributeName::VoiLutFunction => f.write_str("VOILUTFunction"),
+            _ => std::fmt::Debug::fmt(self, f),
+        }
+    }
+}
 
 #[derive(Debug, Snafu)]
 pub enum GetAttributeError {
     #[snafu(display("Missing required attribute `{}`", name))]
-    MissingRequiredField {
-        name: &'static str,
-        #[snafu(backtrace)]
-        source: dicom_object::Error,
+    MissingRequired {
+        name: AttributeName,
+        backtrace: Backtrace,
     },
 
     #[snafu(display("Could not retrieve attribute `{}`", name))]
     Retrieve {
-        name: &'static str,
+        name: AttributeName,
         #[snafu(backtrace)]
-        source: dicom_object::Error,
+        #[snafu(source(from(dicom_object::Error, Box::from)))]
+        source: Box<dicom_object::Error>,
     },
 
     #[snafu(display("Could not get attribute `{}`", name))]
     CastValue {
-        name: &'static str,
+        name: AttributeName,
         source: dicom_core::value::CastValueError,
         backtrace: Backtrace,
     },
 
     #[snafu(display("Could not convert attribute `{}`", name))]
     ConvertValue {
-        name: &'static str,
-        source: dicom_core::value::ConvertValueError,
+        name: AttributeName,
+        #[snafu(source(from(dicom_core::value::ConvertValueError, Box::from)))]
+        source: Box<dicom_core::value::ConvertValueError>,
         backtrace: Backtrace,
     },
 
     #[snafu(display("Semantically invalid value `{}` for attribute `{}`", value, name))]
     InvalidValue {
-        name: &'static str,
+        name: AttributeName,
         value: String,
         backtrace: Backtrace,
     },
@@ -48,12 +82,12 @@ pub type Result<T, E = GetAttributeError> = std::result::Result<T, E>;
 
 /// Get the Columns from the DICOM object
 pub fn cols<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> Result<u16> {
-    retrieve_required_u16(obj, tags::COLUMNS, "Columns")
+    retrieve_required_u16(obj, tags::COLUMNS, AttributeName::Columns)
 }
 
 /// Get the Rows from the DICOM object
 pub fn rows<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> Result<u16> {
-    retrieve_required_u16(obj, tags::ROWS, "Rows")
+    retrieve_required_u16(obj, tags::ROWS, AttributeName::Rows)
 }
 
 /// Get the VOILUTFunction from the DICOM object
@@ -63,7 +97,7 @@ pub fn voi_lut_function<D: DataDictionary + Clone>(
     let elem = if let Some(elem) =
         obj.element_opt(tags::VOILUT_FUNCTION)
             .context(RetrieveSnafu {
-                name: "VOILUTFunction",
+                name: AttributeName::VoiLutFunction,
             })? {
         elem
     } else {
@@ -73,7 +107,7 @@ pub fn voi_lut_function<D: DataDictionary + Clone>(
     let value = elem
         .string()
         .context(CastValueSnafu {
-            name: "VOILUTFunction",
+            name: AttributeName::VoiLutFunction,
         })?
         .trim()
         .to_string();
@@ -84,36 +118,38 @@ pub fn voi_lut_function<D: DataDictionary + Clone>(
 pub fn samples_per_pixel<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u16> {
-    retrieve_required_u16(obj, tags::SAMPLES_PER_PIXEL, "SamplesPerPixel")
+    retrieve_required_u16(obj, tags::SAMPLES_PER_PIXEL, AttributeName::SamplesPerPixel)
 }
 
 /// Get the BitsAllocated from the DICOM object
 pub fn bits_allocated<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u16> {
-    retrieve_required_u16(obj, tags::BITS_ALLOCATED, "BitsAllocated")
+    retrieve_required_u16(obj, tags::BITS_ALLOCATED, AttributeName::BitsAllocated)
 }
 
 /// Get the BitsStored from the DICOM object
 pub fn bits_stored<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u16> {
-    retrieve_required_u16(obj, tags::BITS_STORED, "BitsStored")
+    retrieve_required_u16(obj, tags::BITS_STORED, AttributeName::BitsStored)
 }
 
 /// Get the HighBit from the DICOM object
 pub fn high_bit<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u16> {
-    retrieve_required_u16(obj, tags::HIGH_BIT, "HighBit")
+    retrieve_required_u16(obj, tags::HIGH_BIT, AttributeName::HighBit)
 }
 
 /// Get the PixelData element from the DICOM object
 pub fn pixel_data<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<&InMemElement<D>> {
-    obj.element(tags::PIXEL_DATA)
-        .context(MissingRequiredFieldSnafu { name: "PixelData" })
+    let name = AttributeName::PixelData;
+    obj.element_opt(tags::PIXEL_DATA)
+        .context(RetrieveSnafu { name })?
+        .context(MissingRequiredSnafu { name })
 }
 
 /// Get the RescaleIntercept from the DICOM object or returns 0
@@ -137,24 +173,22 @@ pub fn rescale_slope<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicom
 pub fn number_of_frames<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u32> {
-    let elem = if let Some(elem) =
-        obj.element_opt(tags::NUMBER_OF_FRAMES)
-            .context(RetrieveSnafu {
-                name: "NumberOfFrames",
-            })? {
+    let name = AttributeName::NumberOfFrames;
+    let elem = if let Some(elem) = obj
+        .element_opt(tags::NUMBER_OF_FRAMES)
+        .context(RetrieveSnafu { name })?
+    {
         elem
     } else {
         return Ok(1);
     };
 
-    let integer = elem.to_int::<i32>().context(ConvertValueSnafu {
-        name: "NumberOfFrames",
-    })?;
+    let integer = elem.to_int::<i32>().context(ConvertValueSnafu { name })?;
 
     ensure!(
         integer > 0,
         InvalidValueSnafu {
-            name: "NumberOfFrames",
+            name,
             value: integer.to_string(),
         }
     );
@@ -166,27 +200,28 @@ pub fn number_of_frames<D: DataDictionary + Clone>(
 pub fn window_center<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<Option<f64>> {
-    retrieve_optional_to_f64(obj, tags::WINDOW_CENTER, "WindowCenter")
+    retrieve_optional_to_f64(obj, tags::WINDOW_CENTER, AttributeName::WindowCenter)
 }
 
 /// Retrieve the WindowWidth from the DICOM object if it exists.
 pub fn window_width<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<Option<f64>> {
-    retrieve_optional_to_f64(obj, tags::WINDOW_WIDTH, "WindowWidth")
+    retrieve_optional_to_f64(obj, tags::WINDOW_WIDTH, AttributeName::WindowWidth)
 }
 
 #[inline]
 fn retrieve_required_u16<D>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
     tag: Tag,
-    name: &'static str,
+    name: AttributeName,
 ) -> Result<u16>
 where
     D: DataDictionary + Clone,
 {
-    obj.element(tag)
-        .context(MissingRequiredFieldSnafu { name })?
+    obj.element_opt(tag)
+        .context(RetrieveSnafu { name })?
+        .context(MissingRequiredSnafu { name })?
         .uint16()
         .context(CastValueSnafu { name })
 }
@@ -195,7 +230,7 @@ where
 fn retrieve_optional_to_f64<D>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
     tag: Tag,
-    name: &'static str,
+    name: AttributeName,
 ) -> Result<Option<f64>>
 where
     D: DataDictionary + Clone,
@@ -220,13 +255,17 @@ pub enum PixelRepresentation {
 pub fn pixel_representation<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<PixelRepresentation> {
-    let p = retrieve_required_u16(obj, tags::PIXEL_REPRESENTATION, "PixelRepresentation")?;
+    let p = retrieve_required_u16(
+        obj,
+        tags::PIXEL_REPRESENTATION,
+        AttributeName::PixelRepresentation,
+    )?;
 
     match p {
         0 => Ok(PixelRepresentation::Unsigned),
         1 => Ok(PixelRepresentation::Signed),
         _ => InvalidValueSnafu {
-            name: "PixelRepresentation",
+            name: AttributeName::PixelRepresentation,
             value: p.to_string(),
         }
         .fail(),
@@ -260,7 +299,7 @@ pub fn planar_configuration<D: DataDictionary + Clone>(
     let elem = if let Some(elem) =
         obj.element_opt(tags::PLANAR_CONFIGURATION)
             .context(RetrieveSnafu {
-                name: "PlanarConfiguration",
+                name: AttributeName::PlanarConfiguration,
             })? {
         elem
     } else {
@@ -268,14 +307,14 @@ pub fn planar_configuration<D: DataDictionary + Clone>(
     };
 
     let p = elem.to_int::<i16>().context(ConvertValueSnafu {
-        name: "PlanarConfiguration",
+        name: AttributeName::PlanarConfiguration,
     })?;
 
     match p {
         0 => Ok(PlanarConfiguration::Standard),
         1 => Ok(PlanarConfiguration::PixelFirst),
         _ => InvalidValueSnafu {
-            name: "PlanarConfiguration",
+            name: AttributeName::PlanarConfiguration,
             value: p.to_string(),
         }
         .fail(),
@@ -445,15 +484,27 @@ impl fmt::Display for PhotometricInterpretation {
 pub fn photometric_interpretation<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<PhotometricInterpretation> {
+    let name = AttributeName::PhotometricInterpretation;
     Ok(obj
-        .element(tags::PHOTOMETRIC_INTERPRETATION)
-        .context(MissingRequiredFieldSnafu {
-            name: "PhotometricInterpretation",
-        })?
+        .element_opt(tags::PHOTOMETRIC_INTERPRETATION)
+        .context(RetrieveSnafu { name })?
+        .context(MissingRequiredSnafu { name })?
         .string()
-        .context(CastValueSnafu {
-            name: "PhotometricInterpretation",
-        })?
+        .context(CastValueSnafu { name })?
         .trim()
         .into())
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn errors_are_not_too_large() {
+        let size = std::mem::size_of::<super::GetAttributeError>();
+        assert!(
+            size <= 64,
+            "GetAttributeError size is too large ({} > 64)",
+            size
+        );
+    }
 }

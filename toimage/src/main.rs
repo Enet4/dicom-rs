@@ -4,8 +4,9 @@ use std::path::PathBuf;
 
 use dicom_object::open_file;
 use dicom_pixeldata::{ConvertOptions, PixelDecoder};
-use snafu::ErrorCompat;
+use snafu::{Report, ResultExt, Whatever};
 use structopt::StructOpt;
+use tracing::{error, Level};
 
 /// Convert a DICOM file into an image
 #[derive(Debug, StructOpt)]
@@ -35,51 +36,7 @@ struct App {
     verbose: bool,
 }
 
-fn report<E: 'static>(err: &E)
-where
-    E: std::error::Error,
-{
-    eprintln!("[ERROR] {}", err);
-    if let Some(source) = err.source() {
-        eprintln!();
-        eprintln!("Caused by:");
-        for (i, e) in std::iter::successors(Some(source), |e| e.source()).enumerate() {
-            eprintln!("   {}: {}", i, e);
-        }
-    }
-}
-
-fn report_backtrace<E: 'static>(err: &E)
-where
-    E: std::error::Error,
-    E: ErrorCompat,
-{
-    let env_backtrace = std::env::var("RUST_BACKTRACE").unwrap_or_default();
-    let env_lib_backtrace = std::env::var("RUST_LIB_BACKTRACE").unwrap_or_default();
-    if env_lib_backtrace == "1" || (env_backtrace == "1" && env_lib_backtrace != "0") {
-        if let Some(backtrace) = ErrorCompat::backtrace(&err) {
-            eprintln!();
-            eprintln!("Backtrace:");
-            eprintln!("{}", backtrace);
-        }
-    }
-}
-
-fn report_with_backtrace<E: 'static>(err: E)
-where
-    E: std::error::Error,
-    E: ErrorCompat,
-{
-    report(&err);
-    report_backtrace(&err);
-}
-
 fn main() {
-    tracing::subscriber::set_global_default(tracing_subscriber::FmtSubscriber::new())
-        .unwrap_or_else(|e| {
-            report(&e);
-        });
-
     let App {
         file,
         output,
@@ -89,6 +46,16 @@ fn main() {
         force_16bit,
     } = App::from_args();
 
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(if verbose { Level::DEBUG } else { Level::INFO })
+            .finish(),
+    )
+    .whatever_context("Could not set up global logging subscriber")
+    .unwrap_or_else(|e: Whatever| {
+        eprintln!("[ERROR] {}", Report::from_error(e));
+    });
+
     let output = output.unwrap_or_else(|| {
         let mut path = file.clone();
         path.set_extension("png");
@@ -96,12 +63,12 @@ fn main() {
     });
 
     let obj = open_file(&file).unwrap_or_else(|e| {
-        report_with_backtrace(e);
+        error!("{}", Report::from_error(e));
         std::process::exit(-1);
     });
 
     let pixel = obj.decode_pixel_data().unwrap_or_else(|e| {
-        report_with_backtrace(e);
+        error!("{}", Report::from_error(e));
         std::process::exit(-2);
     });
 
@@ -126,12 +93,12 @@ fn main() {
     let image = pixel
         .to_dynamic_image_with_options(frame_number, &options)
         .unwrap_or_else(|e| {
-            report_with_backtrace(e);
+            error!("{}", Report::from_error(e));
             std::process::exit(-3);
         });
 
     image.save(&output).unwrap_or_else(|e| {
-        report(&e);
+        error!("{}", Report::from_error(e));
         std::process::exit(-4);
     });
 

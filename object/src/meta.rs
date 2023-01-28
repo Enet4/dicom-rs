@@ -182,6 +182,42 @@ impl FileMetaTable {
         FileMetaTable::read_from(file)
     }
 
+    /// Getter for the transfer syntax UID,
+    /// with trailing characters already excluded.
+    pub fn transfer_syntax(&self) -> &str {
+        self.transfer_syntax
+            .trim_end_matches(|c: char| c.is_whitespace() || c == '\0')
+    }
+
+    /// Getter for the media storage SOP instance UID,
+    /// with trailing characters already excluded.
+    pub fn media_storage_sop_instance_uid(&self) -> &str {
+        self.media_storage_sop_instance_uid
+            .trim_end_matches(|c: char| c.is_whitespace() || c == '\0')
+    }
+
+    /// Getter for the media storage SOP class UID,
+    /// with trailing characters already excluded.
+    pub fn media_storage_sop_class_uid(&self) -> &str {
+        self.media_storage_sop_class_uid
+            .trim_end_matches(|c: char| c.is_whitespace() || c == '\0')
+    }
+
+    /// Getter for the implementation class UID,
+    /// with trailing characters already excluded.
+    pub fn implementation_class_uid(&self) -> &str {
+        self.implementation_class_uid
+            .trim_end_matches(|c: char| c.is_whitespace() || c == '\0')
+    }
+
+    /// Getter for the private information creator UID,
+    /// with trailing characters already excluded.
+    pub fn private_information_creator_uid(&self) -> Option<&str> {
+        self.private_information_creator_uid
+            .as_ref()
+            .map(|s| s.trim_end_matches(|c: char| c.is_whitespace() || c == '\0'))
+    }
+
     /// Set the file meta table's transfer syntax
     /// according to the given transfer syntax descriptor.
     ///
@@ -785,7 +821,7 @@ fn dicom_len<T: AsRef<str>>(x: T) -> u32 {
 mod tests {
     use crate::{IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME};
 
-    use super::{FileMetaTable, FileMetaTableBuilder};
+    use super::{dicom_len, FileMetaTable, FileMetaTableBuilder};
     use dicom_core::value::Value;
     use dicom_core::{dicom_value, DataElement, Tag, VR};
 
@@ -917,8 +953,8 @@ mod tests {
 
         let gt = FileMetaTable {
             information_group_length: 154
-                + IMPLEMENTATION_CLASS_UID.len() as u32
-                + IMPLEMENTATION_VERSION_NAME.len() as u32,
+                + dicom_len(IMPLEMENTATION_CLASS_UID)
+                + dicom_len(IMPLEMENTATION_VERSION_NAME),
             information_version: [0u8, 1u8],
             media_storage_sop_class_uid: "1.2.840.10008.5.1.4.1.1.1\0".to_owned(),
             media_storage_sop_instance_uid:

@@ -1,3 +1,4 @@
+#![allow(clippy::derive_partial_eq_without_eq)]
 //! This crate contains a high-level abstraction for reading and manipulating
 //! DICOM objects.
 //! At this level, objects are comparable to a dictionary of elements,
@@ -145,12 +146,12 @@ use std::path::Path;
 /// Automatically generated as per the standard, part 5, section B.2.
 ///
 /// This UID is subject to changes in future versions.
-pub const IMPLEMENTATION_CLASS_UID: &str = "2.25.137038125948464847900039011591283709926";
+pub const IMPLEMENTATION_CLASS_UID: &str = "2.25.319987060362599024807367105075404354293";
 
 /// The current implementation version name generically referring to DICOM-rs.
 ///
 /// This names is subject to changes in future versions.
-pub const IMPLEMENTATION_VERSION_NAME: &str = "DICOM-rs 0.3";
+pub const IMPLEMENTATION_VERSION_NAME: &str = "DICOM-rs 0.5";
 
 /// Trait type for a DICOM object.
 /// This is a high-level abstraction where an object is accessed and
@@ -299,7 +300,7 @@ impl<O> FileDicomObject<O> {
     }
 
     /// Retrieve a mutable reference to the processed meta header table.
-    /// 
+    ///
     /// Considerable care should be taken when modifying this table,
     /// as it may influence object reading and writing operations.
     pub fn meta_mut(&mut self) -> &mut FileMetaTable {
@@ -691,7 +692,7 @@ mod tests {
             VR::PN,
             PrimitiveValue::from("1.2.987654321"),
         ));
-            
+
         let obj = obj
             .with_meta(
                 FileMetaTableBuilder::new()
@@ -703,14 +704,26 @@ mod tests {
 
         // iter
         let mut iter = (&obj).into_iter();
-        assert_eq!(iter.next().unwrap().header().tag, dicom_dictionary_std::tags::SOP_INSTANCE_UID);
-        assert_eq!(iter.next().unwrap().header().tag, dicom_dictionary_std::tags::PATIENT_NAME);
+        assert_eq!(
+            iter.next().unwrap().header().tag,
+            dicom_dictionary_std::tags::SOP_INSTANCE_UID
+        );
+        assert_eq!(
+            iter.next().unwrap().header().tag,
+            dicom_dictionary_std::tags::PATIENT_NAME
+        );
         assert_eq!(iter.next(), None);
 
         // into_iter
         let mut iter = obj.into_iter();
-        assert_eq!(iter.next().unwrap().header().tag, dicom_dictionary_std::tags::SOP_INSTANCE_UID);
-        assert_eq!(iter.next().unwrap().header().tag, dicom_dictionary_std::tags::PATIENT_NAME);
+        assert_eq!(
+            iter.next().unwrap().header().tag,
+            dicom_dictionary_std::tags::SOP_INSTANCE_UID
+        );
+        assert_eq!(
+            iter.next().unwrap().header().tag,
+            dicom_dictionary_std::tags::PATIENT_NAME
+        );
         assert_eq!(iter.next(), None);
     }
 }

@@ -15,13 +15,15 @@ members = [
     "storescu",
     "pixeldata",
     "fromimage",
-    "toimage"
+    "toimage",
+    "storescp",
+    "findscu",
 ]
 
 # optimize JPEG decoder to run tests faster
 [profile.dev.package."jpeg-decoder"]
 opt-level = 2
 
-# optimize deflate to run tests faster
-[profile.dev.package."deflate"]
+# optimize flate2 to run tests faster
+[profile.dev.package."flate2"]
 opt-level = 2
