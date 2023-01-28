@@ -3662,7 +3662,7 @@ impl PrimitiveValue {
     /// use dicom_core::dicom_value;
     ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut value = dicom_value!(U16, [1, 2]);
+    /// let mut value = dicom_value!(I16, [1, 2]);
     /// value.extend_i16([-5])?;
     /// assert_eq!(value.to_multi_int::<i16>()?, vec![1, 2, -5]);
     ///
@@ -3978,7 +3978,7 @@ impl PrimitiveValue {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut value = dicom_value!(F32, [1., 2.]);
     /// value.extend_f32([5.])?;
-    /// assert_eq!(value.to_float32()?, vec![1., 2., 5.]);
+    /// assert_eq!(value.to_multi_float32()?, vec![1., 2., 5.]);
     ///
     /// let mut value = dicom_value!(Strs, ["1.25"]);
     /// value.extend_f32([0.5])?;
@@ -4083,7 +4083,7 @@ impl PrimitiveValue {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut value = dicom_value!(F64, [1., 2.]);
     /// value.extend_f64([5.])?;
-    /// assert_eq!(value.to_float64()?, vec![1., 2., 5.]);
+    /// assert_eq!(value.to_multi_float64()?, vec![1., 2., 5.]);
     ///
     /// let mut value = dicom_value!(Strs, ["1.25"]);
     /// value.extend_f64([0.5])?;
