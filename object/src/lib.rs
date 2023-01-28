@@ -111,6 +111,8 @@
 pub mod file;
 pub mod mem;
 pub mod meta;
+pub mod ops;
+
 #[deprecated(
     since = "0.5.0",
     note = "This is a stub, use the `dicom-pixeldata` crate instead"
