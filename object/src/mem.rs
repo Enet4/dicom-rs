@@ -1,14 +1,17 @@
 //! This module contains the implementation for an in-memory DICOM object.
 
+use dicom_encoding::ops::{AttributeAction, AttributeOp, ApplyOp};
 use itertools::Itertools;
 use smallvec::SmallVec;
 use snafu::{OptionExt, ResultExt};
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
 use std::{collections::BTreeMap, io::Write};
 
 use crate::file::ReadPreamble;
+use crate::ops::{ApplyResult, IncompatibleTypesSnafu, ModifySnafu, UnsupportedActionSnafu, ApplyError};
 use crate::{meta::FileMetaTable, FileMetaTableBuilder};
 use crate::{
     BuildMetaTableSnafu, CreateParserSnafu, CreatePrinterSnafu, DicomObject, FileDicomObject,
@@ -19,8 +22,8 @@ use crate::{
 };
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::{HasLength, Header};
-use dicom_core::value::{Value, C};
-use dicom_core::{DataElement, Length, Tag, VR};
+use dicom_core::value::{Value, ValueType, C};
+use dicom_core::{DataElement, Length, PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::{tags, StandardDataDictionary};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_encoding::{encode::EncodeTo, text::SpecificCharacterSet, TransferSyntax};
@@ -518,6 +521,14 @@ where
         }
     }
 
+    /// Get a particular DICOM attribute from this object by tag.
+    ///
+    /// If the element does not exist,
+    /// `None` is returned.
+    pub fn get(&self, tag: Tag) -> Option<&InMemElement<D>> {
+        self.entries.get(&tag)
+    }
+
     /// Retrieve a particular DICOM element that might not exist by its name.
     ///
     /// If the element does not exist,
@@ -568,6 +579,13 @@ where
             .context(NoSuchDataElementTagSnafu { tag })
     }
 
+    /// Remove and return a particular DICOM element by its tag,
+    /// if it is present,
+    /// returns `None` otherwise.
+    pub fn take(&mut self, tag: Tag) -> Option<InMemElement<D>> {
+        self.entries.remove(&tag)
+    }
+
     /// Remove and return a particular DICOM element by its name.
     pub fn take_element_by_name(&mut self, name: &str) -> Result<InMemElement<D>> {
         let tag = self.lookup_name(name)?;
@@ -586,6 +604,335 @@ where
     /// and those for which `f(&element)` returns `false` are removed.
     pub fn retain(&mut self, mut f: impl FnMut(&InMemElement<D>) -> bool) {
         self.entries.retain(|_, elem| f(elem));
+    }
+
+    /// Apply the given attribute operation on this object.
+    ///
+    /// See the [`dicom_encoding::ops`] module
+    /// for more information.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use dicom_core::header::{DataElement, VR};
+    /// # use dicom_core::value::PrimitiveValue;
+    /// # use dicom_dictionary_std::tags;
+    /// # use dicom_object::mem::*;
+    /// # use dicom_object::ops::ApplyResult;
+    /// use dicom_encoding::ops::{ApplyOp, AttributeAction, AttributeOp};
+    /// # fn run() -> ApplyResult {
+    /// // given an in-memory DICOM object
+    /// let mut obj = InMemDicomObject::from_element_iter([
+    ///     DataElement::new(
+    ///         tags::PATIENT_NAME,
+    ///         VR::PN,
+    ///         PrimitiveValue::from("Rosling^Hans")
+    ///     ),
+    /// ]);
+    ///
+    /// // apply patient name change
+    /// obj.apply(AttributeOp {
+    ///   tag: tags::PATIENT_NAME,
+    ///   action: AttributeAction::ReplaceStr("Patient^Anonymous".into())
+    /// })?;
+    ///
+    /// assert_eq!(
+    ///     obj.get(tags::PATIENT_NAME).unwrap().value().to_str().unwrap(),
+    ///     "Patient^Anonymous",
+    /// );
+    /// # Ok(())
+    /// # }
+    /// # run().unwrap()
+    /// ```
+    fn apply(&mut self, op: AttributeOp) -> ApplyResult {
+        let AttributeOp { tag, action } = op;
+        match action {
+            AttributeAction::Remove => {
+                self.remove_element(tag);
+                Ok(())
+            }
+            AttributeAction::Empty => {
+                if let Some(e) = self.entries.get_mut(&tag) {
+                    let vr = e.vr();
+                    // replace element
+                    *e = DataElement::empty(tag, vr);
+                }
+                Ok(())
+            }
+            AttributeAction::SetVr(new_vr) => {
+                if let Some(e) = self.entries.remove(&tag) {
+                    let (header, value) = e.into_parts();
+                    let e = DataElement::new(header.tag, new_vr, value);
+                    self.put(e);
+                } else {
+                    self.put(DataElement::empty(tag, new_vr));
+                }
+                Ok(())
+            }
+            AttributeAction::Replace(new_value) => {
+                self.apply_change_value_impl(tag, new_value);
+                Ok(())
+            }
+            AttributeAction::ReplaceStr(string) => {
+                let new_value = PrimitiveValue::from(&*string);
+                self.apply_change_value_impl(tag, new_value);
+                Ok(())
+            }
+            AttributeAction::PushStr(string) => self.apply_push_str_impl(tag, string),
+            AttributeAction::PushI32(integer) => self.apply_push_i32_impl(tag, integer),
+            AttributeAction::PushU32(integer) => self.apply_push_u32_impl(tag, integer),
+            AttributeAction::PushI16(integer) => self.apply_push_i16_impl(tag, integer),
+            AttributeAction::PushU16(integer) => self.apply_push_u16_impl(tag, integer),
+            AttributeAction::PushF32(number) => self.apply_push_f32_impl(tag, number),
+            AttributeAction::PushF64(number) => self.apply_push_f64_impl(tag, number),
+            _ => UnsupportedActionSnafu.fail(),
+        }
+    }
+
+    fn apply_change_value_impl(&mut self, tag: Tag, new_value: PrimitiveValue) {
+        if let Some(e) = self.entries.get_mut(&tag) {
+            let vr = e.vr();
+            *e = DataElement::new(tag, vr, new_value);
+        } else {
+            // infer VR from tag
+            let vr = dicom_dictionary_std::StandardDataDictionary
+                .by_tag(tag)
+                .map(|entry| entry.vr())
+                .unwrap_or(VR::UN);
+            // insert element
+            self.put(DataElement::new(tag, vr, new_value));
+        }
+    }
+
+    fn apply_push_str_impl(&mut self, tag: Tag, string: Cow<'static, str>) -> ApplyResult {
+        if let Some(e) = self.entries.remove(&tag) {
+            let (header, value) = e.into_parts();
+            match value {
+                Value::Primitive(mut v) => {
+                    // extend value
+                    v.extend_str([string]).context(ModifySnafu)?;
+                    // reinsert element
+                    self.put(DataElement::new(tag, header.vr, v));
+                    Ok(())
+                }
+
+                Value::PixelSequence { .. } => IncompatibleTypesSnafu {
+                    kind: ValueType::PixelSequence,
+                }
+                .fail(),
+                Value::Sequence { .. } => IncompatibleTypesSnafu {
+                    kind: ValueType::Item,
+                }
+                .fail(),
+            }
+        } else {
+            // infer VR from tag
+            let vr = dicom_dictionary_std::StandardDataDictionary
+                .by_tag(tag)
+                .map(|entry| entry.vr())
+                .unwrap_or(VR::UN);
+            // insert element
+            self.put(DataElement::new(tag, vr, PrimitiveValue::from(&*string)));
+            Ok(())
+        }
+    }
+
+    fn apply_push_i32_impl(&mut self, tag: Tag, integer: i32) -> ApplyResult {
+        if let Some(e) = self.entries.remove(&tag) {
+            let (header, value) = e.into_parts();
+            match value {
+                Value::Primitive(mut v) => {
+                    // extend value
+                    v.extend_i32([integer]).context(ModifySnafu)?;
+                    // reinsert element
+                    self.put(DataElement::new(tag, header.vr, v));
+                    Ok(())
+                }
+
+                Value::PixelSequence { .. } => IncompatibleTypesSnafu {
+                    kind: ValueType::PixelSequence,
+                }
+                .fail(),
+                Value::Sequence { .. } => IncompatibleTypesSnafu {
+                    kind: ValueType::Item,
+                }
+                .fail(),
+            }
+        } else {
+            // infer VR from tag
+            let vr = dicom_dictionary_std::StandardDataDictionary
+                .by_tag(tag)
+                .map(|entry| entry.vr())
+                .unwrap_or(VR::SL);
+            // insert element
+            self.put(DataElement::new(tag, vr, PrimitiveValue::from(integer)));
+            Ok(())
+        }
+    }
+
+    fn apply_push_u32_impl(&mut self, tag: Tag, integer: u32) -> ApplyResult {
+        if let Some(e) = self.entries.remove(&tag) {
+            let (header, value) = e.into_parts();
+            match value {
+                Value::Primitive(mut v) => {
+                    // extend value
+                    v.extend_u32([integer]).context(ModifySnafu)?;
+                    // reinsert element
+                    self.put(DataElement::new(tag, header.vr, v));
+                    Ok(())
+                }
+
+                Value::PixelSequence { .. } => IncompatibleTypesSnafu {
+                    kind: ValueType::PixelSequence,
+                }
+                .fail(),
+                Value::Sequence { .. } => IncompatibleTypesSnafu {
+                    kind: ValueType::Item,
+                }
+                .fail(),
+            }
+        } else {
+            // infer VR from tag
+            let vr = dicom_dictionary_std::StandardDataDictionary
+                .by_tag(tag)
+                .map(|entry| entry.vr())
+                .unwrap_or(VR::UL);
+            // insert element
+            self.put(DataElement::new(tag, vr, PrimitiveValue::from(integer)));
+            Ok(())
+        }
+    }
+
+    fn apply_push_i16_impl(&mut self, tag: Tag, integer: i16) -> ApplyResult {
+        if let Some(e) = self.entries.remove(&tag) {
+            let (header, value) = e.into_parts();
+            match value {
+                Value::Primitive(mut v) => {
+                    // extend value
+                    v.extend_i16([integer]).context(ModifySnafu)?;
+                    // reinsert element
+                    self.put(DataElement::new(tag, header.vr, v));
+                    Ok(())
+                }
+
+                Value::PixelSequence { .. } => IncompatibleTypesSnafu {
+                    kind: ValueType::PixelSequence,
+                }
+                .fail(),
+                Value::Sequence { .. } => IncompatibleTypesSnafu {
+                    kind: ValueType::Item,
+                }
+                .fail(),
+            }
+        } else {
+            // infer VR from tag
+            let vr = dicom_dictionary_std::StandardDataDictionary
+                .by_tag(tag)
+                .map(|entry| entry.vr())
+                .unwrap_or(VR::SS);
+            // insert element
+            self.put(DataElement::new(tag, vr, PrimitiveValue::from(integer)));
+            Ok(())
+        }
+    }
+
+    fn apply_push_u16_impl(&mut self, tag: Tag, integer: u16) -> ApplyResult {
+        if let Some(e) = self.entries.remove(&tag) {
+            let (header, value) = e.into_parts();
+            match value {
+                Value::Primitive(mut v) => {
+                    // extend value
+                    v.extend_u16([integer]).context(ModifySnafu)?;
+                    // reinsert element
+                    self.put(DataElement::new(tag, header.vr, v));
+                    Ok(())
+                }
+
+                Value::PixelSequence { .. } => IncompatibleTypesSnafu {
+                    kind: ValueType::PixelSequence,
+                }
+                .fail(),
+                Value::Sequence { .. } => IncompatibleTypesSnafu {
+                    kind: ValueType::Item,
+                }
+                .fail(),
+            }
+        } else {
+            // infer VR from tag
+            let vr = dicom_dictionary_std::StandardDataDictionary
+                .by_tag(tag)
+                .map(|entry| entry.vr())
+                .unwrap_or(VR::US);
+            // insert element
+            self.put(DataElement::new(tag, vr, PrimitiveValue::from(integer)));
+            Ok(())
+        }
+    }
+
+    fn apply_push_f32_impl(&mut self, tag: Tag, number: f32) -> ApplyResult {
+        if let Some(e) = self.entries.remove(&tag) {
+            let (header, value) = e.into_parts();
+            match value {
+                Value::Primitive(mut v) => {
+                    // extend value
+                    v.extend_f32([number]).context(ModifySnafu)?;
+                    // reinsert element
+                    self.put(DataElement::new(tag, header.vr, v));
+                    Ok(())
+                }
+
+                Value::PixelSequence { .. } => IncompatibleTypesSnafu {
+                    kind: ValueType::PixelSequence,
+                }
+                .fail(),
+                Value::Sequence { .. } => IncompatibleTypesSnafu {
+                    kind: ValueType::Item,
+                }
+                .fail(),
+            }
+        } else {
+            // infer VR from tag
+            let vr = dicom_dictionary_std::StandardDataDictionary
+                .by_tag(tag)
+                .map(|entry| entry.vr())
+                .unwrap_or(VR::FL);
+            // insert element
+            self.put(DataElement::new(tag, vr, PrimitiveValue::from(number)));
+            Ok(())
+        }
+    }
+
+    fn apply_push_f64_impl(&mut self, tag: Tag, number: f64) -> ApplyResult {
+        if let Some(e) = self.entries.remove(&tag) {
+            let (header, value) = e.into_parts();
+            match value {
+                Value::Primitive(mut v) => {
+                    // extend value
+                    v.extend_f64([number]).context(ModifySnafu)?;
+                    // reinsert element
+                    self.put(DataElement::new(tag, header.vr, v));
+                    Ok(())
+                }
+
+                Value::PixelSequence { .. } => IncompatibleTypesSnafu {
+                    kind: ValueType::PixelSequence,
+                }
+                .fail(),
+                Value::Sequence { .. } => IncompatibleTypesSnafu {
+                    kind: ValueType::Item,
+                }
+                .fail(),
+            }
+        } else {
+            // infer VR from tag
+            let vr = dicom_dictionary_std::StandardDataDictionary
+                .by_tag(tag)
+                .map(|entry| entry.vr())
+                .unwrap_or(VR::FD);
+            // insert element
+            self.put(DataElement::new(tag, vr, PrimitiveValue::from(number)));
+            Ok(())
+        }
     }
 
     /// Write this object's data set into the given writer,
@@ -867,6 +1214,18 @@ where
     }
 }
 
+impl<D> ApplyOp for InMemDicomObject<D>
+where
+    D: DataDictionary,
+    D: Clone,
+{
+    type Err = ApplyError;
+
+    fn apply(&mut self, op: AttributeOp) -> ApplyResult {
+        self.apply(op)
+    }
+}
+
 impl<'a, D> IntoIterator for &'a InMemDicomObject<D> {
     type Item = &'a InMemElement<D>;
     type IntoIter = ::std::collections::btree_map::Values<'a, Tag, InMemElement<D>>;
@@ -930,6 +1289,7 @@ mod tests {
         dicom_value,
         header::{DataElementHeader, Length, VR},
     };
+    use dicom_encoding::ops::{AttributeAction, AttributeOp};
     use dicom_encoding::{
         decode::{basic::BasicDecoder, implicit_le::ImplicitVRLittleEndianDecoder},
         encode::{implicit_le::ImplicitVRLittleEndianEncoder, EncoderFor},
@@ -1444,7 +1804,6 @@ mod tests {
             dicom_value!(Strs, [sop_uid]),
         ));
 
-        // .iter()
         {
             let mut iter = obj.iter();
             assert_eq!(
@@ -1800,5 +2159,107 @@ mod tests {
                 DataToken::SequenceEnd,
             ]
         );
+    }
+
+    /// Test attribute operations on in-memory DICOM objects.
+    #[test]
+    fn inmem_ops() {
+        // create a base DICOM object
+        let base_obj = InMemDicomObject::from_element_iter([
+            DataElement::new(
+                tags::SERIES_INSTANCE_UID,
+                VR::UI,
+                PrimitiveValue::from("2.25.137041794342168732369025909031346220736.1"),
+            ),
+            DataElement::new(
+                tags::SERIES_INSTANCE_UID,
+                VR::UI,
+                PrimitiveValue::from("2.25.137041794342168732369025909031346220736.1"),
+            ),
+            DataElement::new(
+                tags::SOP_INSTANCE_UID,
+                VR::UI,
+                PrimitiveValue::from("2.25.137041794342168732369025909031346220736.1.1"),
+            ),
+            DataElement::new(
+                tags::STUDY_DESCRIPTION,
+                VR::LO,
+                PrimitiveValue::from("Test study"),
+            ),
+            DataElement::new(
+                tags::INSTITUTION_NAME,
+                VR::LO,
+                PrimitiveValue::from("Test Hospital"),
+            ),
+            DataElement::new(tags::ROWS, VR::US, PrimitiveValue::from(768_u16)),
+            DataElement::new(tags::COLUMNS, VR::US, PrimitiveValue::from(1024_u16)),
+            DataElement::new(
+                tags::LOSSY_IMAGE_COMPRESSION,
+                VR::CS,
+                PrimitiveValue::from("01"),
+            ),
+            DataElement::new(
+                tags::LOSSY_IMAGE_COMPRESSION_RATIO,
+                VR::DS,
+                PrimitiveValue::from("5"),
+            ),
+            DataElement::new(
+                tags::LOSSY_IMAGE_COMPRESSION_METHOD,
+                VR::DS,
+                PrimitiveValue::from("ISO_10918_1"),
+            ),
+        ]);
+
+        {
+            // remove
+            let mut obj = base_obj.clone();
+            let op = AttributeOp {
+                tag: tags::STUDY_DESCRIPTION,
+                action: AttributeAction::Remove,
+            };
+
+            obj.apply(op).unwrap();
+
+            assert_eq!(obj.get(tags::STUDY_DESCRIPTION), None);
+        }
+        {
+            // replace string
+            let mut obj = base_obj.clone();
+            let op = AttributeOp {
+                tag: tags::INSTITUTION_NAME,
+                action: AttributeAction::ReplaceStr("REMOVED".into()),
+            };
+
+            obj.apply(op).unwrap();
+
+            assert_eq!(
+                obj.get(tags::INSTITUTION_NAME),
+                Some(&DataElement::new(
+                    tags::INSTITUTION_NAME,
+                    VR::LO,
+                    PrimitiveValue::from("REMOVED")
+                ))
+            );
+        }
+
+        {
+            // extend with number
+            let mut obj = base_obj.clone();
+            let op = AttributeOp {
+                tag: tags::LOSSY_IMAGE_COMPRESSION_RATIO,
+                action: AttributeAction::PushF64(1.25),
+            };
+
+            obj.apply(op).unwrap();
+
+            assert_eq!(
+                obj.get(tags::LOSSY_IMAGE_COMPRESSION_RATIO),
+                Some(&DataElement::new(
+                    tags::LOSSY_IMAGE_COMPRESSION_RATIO,
+                    VR::DS,
+                    dicom_value!(Strs, ["5", "1.25"]),
+                ))
+            );
+        }
     }
 }
