@@ -76,3 +76,16 @@ pub enum AttributeAction {
     /// creating the element if it does not exist yet.
     PushF64(f64),
 }
+
+
+/// Trait for applying DICOM attribute operations.
+/// 
+/// This is typically implemented by DICOM objects and other data set types
+/// to serve as a common API for attribute manipulation.
+pub trait ApplyOp {
+    /// The operation error type
+    type Err: std::error::Error + 'static;
+
+    /// Apply the given attribute operation on the receiving object.
+    fn apply(&mut self, op: AttributeOp) -> Result<(), Self::Err>;
+}
