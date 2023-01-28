@@ -29,6 +29,7 @@
 
 pub mod dictionary;
 pub mod header;
+pub mod ops;
 pub mod value;
 
 pub use dictionary::DataDictionary;

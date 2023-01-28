@@ -1,6 +1,6 @@
 //! This module contains the implementation for an in-memory DICOM object.
 
-use dicom_encoding::ops::{AttributeAction, AttributeOp, ApplyOp};
+use dicom_core::ops::{ApplyOp, AttributeAction, AttributeOp};
 use itertools::Itertools;
 use smallvec::SmallVec;
 use snafu::{OptionExt, ResultExt};
@@ -11,7 +11,9 @@ use std::path::Path;
 use std::{collections::BTreeMap, io::Write};
 
 use crate::file::ReadPreamble;
-use crate::ops::{ApplyResult, IncompatibleTypesSnafu, ModifySnafu, UnsupportedActionSnafu, ApplyError};
+use crate::ops::{
+    ApplyError, ApplyResult, IncompatibleTypesSnafu, ModifySnafu, UnsupportedActionSnafu,
+};
 use crate::{meta::FileMetaTable, FileMetaTableBuilder};
 use crate::{
     BuildMetaTableSnafu, CreateParserSnafu, CreatePrinterSnafu, DicomObject, FileDicomObject,
@@ -1288,8 +1290,8 @@ mod tests {
     use dicom_core::{
         dicom_value,
         header::{DataElementHeader, Length, VR},
+        ops::{AttributeAction, AttributeOp},
     };
-    use dicom_encoding::ops::{AttributeAction, AttributeOp};
     use dicom_encoding::{
         decode::{basic::BasicDecoder, implicit_le::ImplicitVRLittleEndianDecoder},
         encode::{implicit_le::ImplicitVRLittleEndianEncoder, EncoderFor},

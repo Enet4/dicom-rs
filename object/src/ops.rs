@@ -3,8 +3,8 @@
 //! See the [`dicom_encoding::ops`] module
 //! for more information.
 
+use dicom_core::ops::{ApplyOp, AttributeOp};
 use dicom_core::value::{ModifyValueError, ValueType};
-use dicom_encoding::ops::{ApplyOp, AttributeOp};
 use snafu::Snafu;
 
 use crate::FileDicomObject;
@@ -59,8 +59,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use dicom_core::ops::{ApplyOp, AttributeAction, AttributeOp};
     use dicom_core::{DataElement, PrimitiveValue, VR};
-    use dicom_encoding::ops::{AttributeAction, AttributeOp, ApplyOp};
 
     use crate::{FileMetaTableBuilder, InMemDicomObject};
 

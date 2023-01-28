@@ -19,7 +19,6 @@
 pub mod adapters;
 pub mod decode;
 pub mod encode;
-pub mod ops;
 pub mod text;
 pub mod transfer_syntax;
 

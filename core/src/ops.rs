@@ -11,7 +11,7 @@
 //! and the operation to apply ([`AttributeAction`]).
 use std::borrow::Cow;
 
-use dicom_core::{Tag, PrimitiveValue, VR};
+use crate::{Tag, PrimitiveValue, VR};
 
 /// Descriptor for a single operation
 /// to apply over a DICOM data set.
