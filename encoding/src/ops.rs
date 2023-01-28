@@ -42,10 +42,12 @@ pub enum AttributeAction {
     /// Clear the attribute,
     /// leaving it empty if it exists already.
     Empty,
-    /// Set an attribute's value representation,
-    /// creating an empty value element if it does not exist yet.
-    /// 
+    /// Set or provide a hint about an attribute's value representation,
+    /// if it exists.
+    ///
     /// The underlying value is not modified.
+    /// Implementations are free to ignore this request
+    /// if it cannot be done or does not make sense for the given tag.
     SetVr(VR),
     /// Fully replace the value with the given DICOM value,
     /// creating the element if it does not exist yet.
