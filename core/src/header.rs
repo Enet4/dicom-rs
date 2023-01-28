@@ -228,6 +228,13 @@ impl<I, P> DataElement<I, P> {
     pub fn into_value(self) -> Value<I, P> {
         self.value
     }
+
+    /// Split the constituent parts of this element into a tuple.
+    /// If the value is a sequence,
+    /// its lifetime may still be bound to the original source.
+    pub fn into_parts(self) -> (DataElementHeader, Value<I, P>) {
+        (self.header, self.value)
+    }
 }
 
 impl<I, P> DataElement<I, P>
