@@ -621,8 +621,8 @@ where
     /// # use dicom_dictionary_std::tags;
     /// # use dicom_object::mem::*;
     /// # use dicom_object::ops::ApplyResult;
-    /// use dicom_encoding::ops::{ApplyOp, AttributeAction, AttributeOp};
-    /// # fn run() -> ApplyResult {
+    /// use dicom_core::ops::{ApplyOp, AttributeAction, AttributeOp};
+    /// # fn main() -> ApplyResult {
     /// // given an in-memory DICOM object
     /// let mut obj = InMemDicomObject::from_element_iter([
     ///     DataElement::new(
@@ -644,7 +644,6 @@ where
     /// );
     /// # Ok(())
     /// # }
-    /// # run().unwrap()
     /// ```
     fn apply(&mut self, op: AttributeOp) -> ApplyResult {
         let AttributeOp { tag, action } = op;
