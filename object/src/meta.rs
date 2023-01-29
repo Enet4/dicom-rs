@@ -340,9 +340,9 @@ impl FileMetaTable {
                 Ok(())
             }
             AttributeAction::Empty => {
-                target_attribute.as_mut().map(|s| {
+                if let Some(s) = target_attribute.as_mut() {
                     s.clear();
-                });
+                }
                 Ok(())
             }
             AttributeAction::SetVr(_) => {
