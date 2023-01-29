@@ -31,7 +31,7 @@
 //! are only listed as _stubs_ to be replaced by separate libraries.
 //! The full list is available in the [`entries`](entries) module.
 //!
-//! [inventory]: https://docs.rs/inventory/0.1.4/inventory
+//! [inventory]: https://docs.rs/inventory/0.3.2/inventory
 
 use byteordered::Endianness;
 use dicom_encoding::transfer_syntax::{
