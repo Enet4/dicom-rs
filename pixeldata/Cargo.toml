@@ -30,7 +30,7 @@ default-features=false
 features = ["jpeg", "png", "pnm", "tiff", "webp", "bmp", "jpeg_rayon"]
 
 [dev-dependencies]
-rstest = "0.15"
+rstest = "0.16"
 dicom-test-files = "0.2.1"
 
 [features]
