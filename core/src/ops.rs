@@ -1,4 +1,4 @@
-//! Module for attribute operation descriptors.
+//! Module for the attribute operations API.
 //! 
 //! This allows consumers to specify and implement
 //! operations on DICOM objects
@@ -10,6 +10,35 @@
 //! and the operation to apply ([`AttributeAction`]).
 //! All DICOM object types supporting this API
 //! implement the [`ApplyOp`] trait.
+//! 
+//! # Example
+//! 
+//! Given a DICOM object
+//! (opened using [`dicom_object`](https://docs.rs/dicom-object)),
+//! construct an [`AttributeOp`]
+//! and apply it using [`apply`](ApplyOp::apply).
+//! 
+//! ```no_run
+//! use dicom_core::ops::*;
+//!
+//! # struct DicomObj;
+//! # impl ApplyOp for DicomObj {
+//! #     type Err = snafu::Whatever;
+//! #     fn apply(&mut self, _: AttributeOp) -> Result<(), Self::Err> {
+//! #         panic!("this is just a stub");
+//! #     }
+//! # }
+//! # fn open_file(_: &str) -> Result<DicomObj, Box<dyn std::error::Error>> { Ok(DicomObj) }
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let mut obj = open_file("1/2/0003.dcm")?;
+//! // hide patient name
+//! obj.apply(AttributeOp {
+//!     tag: (0x0010, 0x0010).into(),
+//!     action: AttributeAction::ReplaceStr("Patient^Anonymous".into()),
+//! })?;
+//! # Ok(())
+//! # }
+//! ```
 use std::borrow::Cow;
 
 use crate::{Tag, PrimitiveValue, VR};
