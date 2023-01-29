@@ -20,6 +20,9 @@
 //! 
 //! ```no_run
 //! use dicom_core::ops::*;
+//! # /* do not really import this
+//! use dicom_object::open_file;
+//! # */
 //!
 //! # struct DicomObj;
 //! # impl ApplyOp for DicomObj {
@@ -90,7 +93,7 @@ pub enum AttributeAction {
     /// creating the attribute if it does not exist yet.
     ///
     /// New value items are recorded as separate text values,
-    /// meaning that they are delimited by a backslash (`\\`) at encoding time,
+    /// meaning that they are delimited by a backslash (`\`) at encoding time,
     /// regardless of the value representation.
     PushStr(Cow<'static, str>),
     /// Append a 32-bit signed integer as an additional numeric value,
