@@ -149,13 +149,16 @@ where
 
 #[cfg(test)]
 mod tests {
+    #[cfg(any(feature = "ndarray", feature = "image"))]
     use super::*;
+    #[cfg(any(feature = "ndarray", feature = "image"))]
     use dicom_object::open_file;
-    use dicom_test_files;
+    #[cfg(feature = "image")]
     use rstest::rstest;
-    use std::fs;
+    #[cfg(feature = "image")]
     use std::path::Path;
 
+    #[cfg(feature = "image")]
     const MAX_TEST_FRAMES: u32 = 16;
 
     #[cfg(feature = "image")]
@@ -200,7 +203,7 @@ mod tests {
         let pixel_data = obj.decode_pixel_data().unwrap();
         let output_dir =
             Path::new("../target/dicom_test_files/_out/test_gdcm_parse_dicom_pixel_data");
-        fs::create_dir_all(output_dir).unwrap();
+        std::fs::create_dir_all(output_dir).unwrap();
 
         for i in 0..pixel_data.number_of_frames.min(MAX_TEST_FRAMES) {
             let image = pixel_data.to_dynamic_image(i).unwrap();
