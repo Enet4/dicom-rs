@@ -45,6 +45,8 @@ use std::fmt;
 pub use dicom_encoding::TransferSyntax;
 pub mod entries;
 
+mod adapters;
+
 /// Data type for a registry of DICOM.
 pub struct TransferSyntaxRegistryImpl {
     m: HashMap<&'static str, TransferSyntax>,

@@ -3,28 +3,35 @@
 //! The constants exported here refer to the library's built-in support
 //! for DICOM transfer syntaxes.
 //!
-//! **Fully implemented** means that the default transfer syntax registry
-//! provides built-in support for reading and writing data sets,
-//! as well as for encoding and decoding encapsulated pixel data,
-//! if applicable.
-//! **Stub descriptors** serve to provide information about
-//! the transfer syntax,
-//! and may provide partial support.
-//! In most cases it will be possible to read and write data sets,
-//! but not encode or decode encapsulated pixel data.
+//! - **Fully implemented** means that the default transfer syntax registry
+//!   provides built-in support for reading and writing data sets,
+//!   as well as for encoding and decoding encapsulated pixel data,
+//!   if applicable.
+//! - When specified as **Implemented**,
+//!   the transfer syntax is supported to some extent
+//!   (usually decoding is supported but not encoding).
+//! - **Stub descriptors** serve to provide information about
+//!   the transfer syntax,
+//!   and may provide partial support.
+//!   In most cases it will be possible to read and write data sets,
+//!   but not encode or decode encapsulated pixel data.
 //!
-//! Other crates may be developed to replace stubs,
+//! With the `inventory-registry` feature,
+//! stubs can be replaced by independently developed crates,
 //! hence expanding support for those transfer syntaxes
 //! to the registry.
 
 use crate::create_ts_stub;
 use byteordered::Endianness;
 use dicom_encoding::{
-    adapters::jpeg::JPEGAdapter,
-    adapters::rle_lossless::RLELosslessAdapter,
     transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec, NeverAdapter},
     TransferSyntax,
 };
+
+#[cfg(feature = "jpeg")]
+use crate::adapters::jpeg::JPEGAdapter;
+#[cfg(feature = "rle")]
+use crate::adapters::rle_lossless::RleLosslessAdapter;
 
 // -- the three base transfer syntaxes, fully supported --
 
@@ -57,13 +64,81 @@ pub const EXPLICIT_VR_BIG_ENDIAN: Ts = Ts::new(
 
 // -- transfer syntaxes with pixel data adapters, fully supported --
 
-/// **Fully supported:** RLE Lossless
-pub const RLE_LOSSLESS: TransferSyntax<NeverAdapter, RLELosslessAdapter> = TransferSyntax::new(
+/// **Implemented:** RLE Lossless
+#[cfg(feature = "rle")]
+pub const RLE_LOSSLESS: TransferSyntax<NeverAdapter, RleLosslessAdapter> = TransferSyntax::new(
     "1.2.840.10008.1.2.5",
     "RLE Lossless",
     Endianness::Little,
     true,
-    Codec::PixelData(RLELosslessAdapter),
+    Codec::PixelData(RleLosslessAdapter),
+);
+/// **Stub:** RLE Lossless
+#[cfg(not(feature = "rle"))]
+pub const RLE_LOSSLESS: Ts = create_ts_stub("1.2.840.10008.1.2.5", "RLE Lossless");
+
+// JPEG encoded pixel data
+/// An alias for a transfer syntax specifier with JPEGPixelAdapter
+#[cfg(feature = "jpeg")]
+type JpegTS = TransferSyntax<NeverAdapter, JPEGAdapter>;
+
+/// create a TS with jpeg encapsulation
+#[cfg(feature = "jpeg")]
+const fn create_ts_jpeg(uid: &'static str, name: &'static str) -> JpegTS {
+    TransferSyntax::new(
+        uid,
+        name,
+        Endianness::Little,
+        true,
+        Codec::PixelData(JPEGAdapter),
+    )
+}
+
+/// **Implemented:** JPEG Baseline (Process 1): Default Transfer Syntax for Lossy JPEG 8 Bit Image Compression
+#[cfg(feature = "jpeg")]
+pub const JPEG_BASELINE: JpegTS =
+    create_ts_jpeg("1.2.840.10008.1.2.4.50", "JPEG Baseline (Process 1)");
+/// **Implemented:** JPEG Baseline (Process 1): Default Transfer Syntax for Lossy JPEG 8 Bit Image Compression
+#[cfg(not(feature = "jpeg"))]
+pub const JPEG_BASELINE: Ts = create_ts_stub("1.2.840.10008.1.2.4.50", "JPEG Baseline (Process 1)");
+
+/// **Implemented:** JPEG Extended (Process 2 & 4): Default Transfer Syntax for Lossy JPEG 12 Bit Image Compression (Process 4 only)
+#[cfg(feature = "jpeg")]
+pub const JPEG_EXTENDED: JpegTS =
+    create_ts_jpeg("1.2.840.10008.1.2.4.51", "JPEG Extended (Process 2 & 4)");
+/// **Stub descriptor:** JPEG Extended (Process 2 & 4): Default Transfer Syntax for Lossy JPEG 12 Bit Image Compression (Process 4 only)
+#[cfg(not(feature = "jpeg"))]
+pub const JPEG_EXTENDED: Ts =
+    create_ts_stub("1.2.840.10008.1.2.4.51", "JPEG Extended (Process 2 & 4)");
+
+/// **Implemented:** JPEG Lossless, Non-Hierarchical (Process 14)
+#[cfg(feature = "jpeg")]
+pub const JPEG_LOSSLESS_NON_HIERARCHICAL: JpegTS = create_ts_jpeg(
+    "1.2.840.10008.1.2.4.57",
+    "JPEG Lossless, Non-Hierarchical (Process 14)",
+);
+/// **Stub descriptor:** JPEG Lossless, Non-Hierarchical (Process 14)
+#[cfg(not(feature = "jpeg"))]
+pub const JPEG_LOSSLESS_NON_HIERARCHICAL: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.57",
+    "JPEG Lossless, Non-Hierarchical (Process 14)",
+);
+
+/// **Implemented:** JPEG Lossless, Non-Hierarchical, First-Order Prediction
+/// (Process 14 [Selection Value 1]):
+/// Default Transfer Syntax for Lossless JPEG Image Compression
+#[cfg(feature = "jpeg")]
+pub const JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION: JpegTS = create_ts_jpeg(
+    "1.2.840.10008.1.2.4.70",
+    "JPEG Lossless, Non-Hierarchical, First-Order Prediction",
+);
+/// **Stub descriptor:** JPEG Lossless, Non-Hierarchical, First-Order Prediction
+/// (Process 14 [Selection Value 1]):
+/// Default Transfer Syntax for Lossless JPEG Image Compression
+#[cfg(not(feature = "jpeg"))]
+pub const JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.70",
+    "JPEG Lossless, Non-Hierarchical, First-Order Prediction",
 );
 
 // --- stub transfer syntaxes, known but not supported ---
@@ -86,41 +161,8 @@ pub const JPIP_REFERENCED_DEFLATE: Ts = Ts::new(
     Codec::Unsupported,
 );
 
-// JPEG encoded pixel data
-/// An alias for a transfer syntax specifier with JPEGPixelAdapter
-pub type JpegTS = TransferSyntax<NeverAdapter, JPEGAdapter>;
-
-/// create a TS with jpeg encapsulation
-const fn create_ts_jpeg(uid: &'static str, name: &'static str) -> JpegTS {
-    TransferSyntax::new(
-        uid,
-        name,
-        Endianness::Little,
-        true,
-        Codec::PixelData(JPEGAdapter),
-    )
-}
-
-/// **Stub descriptor:** JPEG Baseline (Process 1): Default Transfer Syntax for Lossy JPEG 8 Bit Image Compression
-pub const JPEG_BASELINE: JpegTS =
-    create_ts_jpeg("1.2.840.10008.1.2.4.50", "JPEG Baseline (Process 1)");
-/// **Stub descriptor:** JPEG Extended (Process 2 & 4): Default Transfer Syntax for Lossy JPEG 12 Bit Image Compression (Process 4 only)
-pub const JPEG_EXTENDED: JpegTS =
-    create_ts_jpeg("1.2.840.10008.1.2.4.51", "JPEG Extended (Process 2 & 4)");
-/// **Stub descriptor:** JPEG Lossless, Non-Hierarchical (Process 14)
-pub const JPEG_LOSSLESS_NON_HIERARCHICAL: JpegTS = create_ts_jpeg(
-    "1.2.840.10008.1.2.4.57",
-    "JPEG Lossless, Non-Hierarchical (Process 14)",
-);
-/// **Stub descriptor:** JPEG Lossless, Non-Hierarchical, First-Order Prediction
-/// (Process 14 [Selection Value 1]):
-/// Default Transfer Syntax for Lossless JPEG Image Compression
-pub const JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION: JpegTS = create_ts_jpeg(
-    "1.2.840.10008.1.2.4.70",
-    "JPEG Lossless, Non-Hierarchical, First-Order Prediction",
-);
-
 // --- partially supported transfer syntaxes, pixel data encapsulation not supported ---
+
 /// **Stub descriptor:** JPEG-LS Lossless Image Compression
 pub const JPEG_LS_LOSSLESS_IMAGE_COMPRESSION: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.80",
