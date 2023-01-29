@@ -1,6 +1,6 @@
 //! Baseline attribute operation implementations.
 //!
-//! See the [`dicom_encoding::ops`] module
+//! See the [`dicom_core::ops`] module
 //! for more information.
 
 use dicom_core::ops::{ApplyOp, AttributeOp};
