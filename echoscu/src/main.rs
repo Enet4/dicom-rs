@@ -1,3 +1,4 @@
+use clap::Parser;
 use dicom_core::{dicom_value, DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{mem::InMemDicomObject, StandardDataDictionary};
@@ -7,28 +8,28 @@ use dicom_ul::{
 };
 use pdu::PDataValue;
 use snafu::{prelude::*, Whatever};
-use structopt::StructOpt;
 use tracing::{warn, Level};
 
 /// DICOM C-ECHO SCU
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
+#[command(version)]
 struct App {
     /// socket address to SCP,
     /// optionally with AE title
     /// (example: "QUERY-SCP@127.0.0.1:1045")
     addr: String,
     /// verbose mode
-    #[structopt(short = "v", long = "verbose")]
+    #[arg(short = 'v', long = "verbose")]
     verbose: bool,
     /// the C-ECHO message ID
-    #[structopt(short = "m", long = "message-id", default_value = "1")]
+    #[arg(short = 'm', long = "message-id", default_value = "1")]
     message_id: u16,
     /// the calling AE title
-    #[structopt(long = "calling-ae-title", default_value = "ECHOSCU")]
+    #[arg(long = "calling-ae-title", default_value = "ECHOSCU")]
     calling_ae_title: String,
     /// the called Application Entity title,
     /// overrides AE title in address if present [default: ANY-SCP]
-    #[structopt(long = "called-ae-title")]
+    #[arg(long = "called-ae-title")]
     called_ae_title: Option<String>,
 }
 
@@ -46,7 +47,7 @@ fn run() -> Result<(), Whatever> {
         message_id,
         called_ae_title,
         calling_ae_title,
-    } = App::from_args();
+    } = App::parse();
 
     tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()
@@ -212,4 +213,15 @@ fn create_echo_command(message_id: u16) -> InMemDicomObject<StandardDataDictiona
     ));
 
     obj
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::App;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        App::command().debug_assert();
+    }
 }

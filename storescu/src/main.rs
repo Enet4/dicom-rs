@@ -1,3 +1,4 @@
+use clap::Parser;
 use dicom_core::{dicom_value, header::Tag, smallvec, DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax;
@@ -16,39 +17,39 @@ use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use structopt::StructOpt;
 use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 use walkdir::WalkDir;
 
 /// DICOM C-STORE SCU
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
+#[command(version)]
 struct App {
     /// socket address to Store SCP,
     /// optionally with AE title
     /// (example: "STORE-SCP@127.0.0.1:104")
     addr: String,
     /// the DICOM file(s) to store
-    #[structopt(required = true)]
+    #[arg(required = true)]
     files: Vec<PathBuf>,
     /// verbose mode
-    #[structopt(short = "v", long = "verbose")]
+    #[arg(short = 'v', long = "verbose")]
     verbose: bool,
     /// the C-STORE message ID
-    #[structopt(short = "m", long = "message-id", default_value = "1")]
+    #[arg(short = 'm', long = "message-id", default_value = "1")]
     message_id: u16,
     /// the calling Application Entity title
-    #[structopt(long = "calling-ae-title", default_value = "STORE-SCU")]
+    #[arg(long = "calling-ae-title", default_value = "STORE-SCU")]
     calling_ae_title: String,
     /// the called Application Entity title,
     /// overrides AE title in address if present [default: ANY-SCP]
-    #[structopt(long = "called-ae-title")]
+    #[arg(long = "called-ae-title")]
     called_ae_title: Option<String>,
     /// the maximum PDU length accepted by the SCU
-    #[structopt(long = "max-pdu-length", default_value = "16384")]
+    #[arg(long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
     /// fail if not all DICOM files can be transferred
-    #[structopt(long = "fail-first")]
+    #[arg(long = "fail-first")]
     fail_first: bool,
 }
 
@@ -102,7 +103,7 @@ fn run() -> Result<(), Error> {
         called_ae_title,
         max_pdu_length,
         fail_first,
-    } = App::from_args();
+    } = App::parse();
 
     tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()
@@ -524,6 +525,14 @@ fn check_presentation_contexts(
 #[cfg(test)]
 mod tests {
     use super::even_len;
+    use crate::App;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        App::command().debug_assert();
+    }
+
     #[test]
     fn test_even_len() {
         assert_eq!(even_len(0), 0);

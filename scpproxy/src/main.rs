@@ -1,5 +1,5 @@
-use clap::{App, Arg};
-use dicom_ul::pdu::reader::{read_pdu, DEFAULT_MAX_PDU};
+use clap::{crate_version, value_parser, Arg, ArgAction, Command};
+use dicom_ul::pdu::reader::read_pdu;
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::Pdu;
 use snafu::{Backtrace, OptionExt, Report, ResultExt, Snafu, Whatever};
@@ -232,6 +232,53 @@ fn run(
     }
 }
 
+fn command() -> Command {
+    Command::new("dicom-scpproxy")
+        .version(crate_version!())
+        .arg(
+            Arg::new("destination-host")
+                .help("The destination host name (SCP)")
+                .required(true)
+                .index(1),
+        )
+        .arg(
+            Arg::new("destination-port")
+                .help("The destination host port (SCP)")
+                .required(true)
+                .index(2),
+        )
+        .arg(
+            Arg::new("listen-port")
+                .help("The port that we will listen for SCU connections on")
+                .short('l')
+                .long("listen-port")
+                .value_parser(value_parser!(u16).range(1..))
+                .default_value("3333"),
+        )
+        .arg(
+            Arg::new("strict")
+                .help("Enforce max PDU length")
+                .short('s')
+                .long("strict")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("verbose")
+                .help("Verbose")
+                .short('v')
+                .long("verbose")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("max-pdu-length")
+                .help("Maximum PDU length")
+                .short('m')
+                .long("max-pdu-length")
+                .value_parser(value_parser!(u32).range(4096..))
+                .default_value("16384"),
+        )
+}
+
 fn main() {
     tracing::subscriber::set_global_default(tracing_subscriber::FmtSubscriber::new())
         .whatever_context("Could not set up global tracing subscriber")
@@ -239,59 +286,14 @@ fn main() {
             eprintln!("[ERROR] {}", Report::from_error(e));
         });
 
-    let default_max = DEFAULT_MAX_PDU.to_string();
-    let matches = App::new("scpproxy")
-        .arg(
-            Arg::with_name("destination-host")
-                .help("The destination host name (SCP)")
-                .required(true)
-                .index(1),
-        )
-        .arg(
-            Arg::with_name("destination-port")
-                .help("The destination host port (SCP)")
-                .required(true)
-                .index(2),
-        )
-        .arg(
-            Arg::with_name("listen-port")
-                .help("The port that we will listen for SCU connections on")
-                .short("-lp")
-                .long("--listen-port")
-                .default_value("3333")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("strict")
-                .help("Enforce max PDU length")
-                .short("-s")
-                .long("--strict")
-                .required(false)
-                .takes_value(false),
-        )
-        .arg(
-            Arg::with_name("verbose")
-                .help("Verbose")
-                .short("-v")
-                .long("--verbose")
-                .takes_value(false),
-        )
-        .arg(
-            Arg::with_name("max-pdu-length")
-                .help("Maximum PDU length")
-                .short("-m")
-                .long("--max-pdu-length")
-                .default_value(&default_max)
-                .takes_value(true),
-        )
-        .get_matches();
+    let matches = command().get_matches();
 
-    let destination_host = matches.value_of("destination-host").unwrap();
-    let destination_port = matches.value_of("destination-port").unwrap();
-    let listen_port = matches.value_of("listen-port").unwrap();
-    let strict: bool = matches.is_present("strict");
-    let verbose = matches.is_present("verbose");
-    let max_pdu_length: u32 = matches.value_of("max-pdu-length").unwrap().parse().unwrap();
+    let destination_host = matches.get_one::<String>("destination-host").unwrap();
+    let destination_port = matches.get_one::<String>("destination-port").unwrap();
+    let listen_port: u16 = *matches.get_one("listen-port").unwrap();
+    let strict: bool = matches.get_flag("strict");
+    let verbose = matches.get_flag("verbose");
+    let max_pdu_length: u32 = *matches.get_one("max-pdu-length").unwrap();
 
     let listen_addr = format!("0.0.0.0:{}", listen_port);
     let destination_addr = format!("{}:{}", destination_host, destination_port);
@@ -322,5 +324,15 @@ fn main() {
                 error!("{}", Report::from_error(e));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::command;
+
+    #[test]
+    fn verify_cli() {
+        command().debug_assert();
     }
 }
