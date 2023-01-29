@@ -19,6 +19,7 @@ mod transfer;
 
 /// DICOM C-STORE SCP
 #[derive(Debug, Parser)]
+#[command(version)]
 struct App {
     /// verbose mode
     #[arg(short = 'v', long = "verbose")]

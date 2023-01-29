@@ -8,8 +8,9 @@ use dicom_pixeldata::{ConvertOptions, PixelDecoder};
 use snafu::{Report, ResultExt, Whatever};
 use tracing::{error, Level};
 
-/// Convert a DICOM file into an image
+/// Convert a DICOM file into an image file
 #[derive(Debug, Parser)]
+#[command(version)]
 struct App {
     /// Path to the DICOM file to convert
     file: PathBuf,

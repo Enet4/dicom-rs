@@ -23,6 +23,7 @@ mod query;
 
 /// DICOM C-FIND SCU
 #[derive(Debug, Parser)]
+#[command(version)]
 struct App {
     /// socket address to FIND SCP (example: "127.0.0.1:1045")
     addr: String,

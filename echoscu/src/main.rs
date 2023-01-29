@@ -12,6 +12,7 @@ use tracing::{warn, Level};
 
 /// DICOM C-ECHO SCU
 #[derive(Debug, Parser)]
+#[command(version)]
 struct App {
     /// socket address to SCP,
     /// optionally with AE title

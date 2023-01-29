@@ -23,6 +23,7 @@ use walkdir::WalkDir;
 
 /// DICOM C-STORE SCU
 #[derive(Debug, Parser)]
+#[command(version)]
 struct App {
     /// socket address to Store SCP,
     /// optionally with AE title

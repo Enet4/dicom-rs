@@ -22,6 +22,7 @@ use dicom_object::{open_file, FileMetaTableBuilder};
 
 /// Convert and replace a DICOM file's image with another image
 #[derive(Debug, Parser)]
+#[command(version)]
 struct App {
     /// Path to the base DICOM file to read
     dcm_file: PathBuf,

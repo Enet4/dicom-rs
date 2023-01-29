@@ -24,6 +24,7 @@ fn os_compatibility() -> Result<(), ()> {
 
 /// Dump the contents of DICOM files
 #[derive(Debug, Parser)]
+#[command(version)]
 struct App {
     /// The DICOM file(s) to read
     #[clap(required = true)]
