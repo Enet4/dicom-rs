@@ -6,9 +6,10 @@
 //! such as anonymization or transcoding.
 //! 
 //! The most important type here is [`AttributeOp`],
-//! which is a full operation descriptor,
-//! indicating the attribute to select by its DICOM tag
+//! which indicates which attribute is affected,
 //! and the operation to apply ([`AttributeAction`]).
+//! All DICOM object types supporting this API
+//! implement the [`ApplyOp`] trait.
 use std::borrow::Cow;
 
 use crate::{Tag, PrimitiveValue, VR};
@@ -18,7 +19,8 @@ use crate::{Tag, PrimitiveValue, VR};
 ///
 /// This type is purely descriptive.
 /// It outlines a non-exhaustive set of possible changes around an attribute,
-/// as well as set some expectations  .
+/// as well as set some expectations regarding the outcome of certain actions
+/// against the attribute's previous state.
 ///
 /// The operations themselves are provided
 /// alongside DICOM objec or DICOM data set implementations.
@@ -37,46 +39,50 @@ pub struct AttributeOp {
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum AttributeAction {
-    /// Remove the attribute
+    /// Remove the attribute if it exists.
     Remove,
-    /// Clear the attribute,
-    /// leaving it empty if it exists already.
+    /// If the attribute exists, clear its value to zero bytes.
     Empty,
-    /// Set or provide a hint about an attribute's value representation,
-    /// if it exists.
+    /// If the attribute exists,
+    /// set or provide a hint about the attribute's value representation.
     ///
     /// The underlying value is not modified.
-    /// Implementations are free to ignore this request
-    /// if it cannot be done or does not make sense for the given tag.
+    /// Implementations are free to ignore this request if
+    /// it cannot be done or it does not make sense
+    /// for the given implementation.
     SetVr(VR),
     /// Fully replace the value with the given DICOM value,
-    /// creating the element if it does not exist yet.
+    /// creating the attribute if it does not exist yet.
     Replace(PrimitiveValue),
-    /// Fully replace a textual value with the given string
+    /// Fully replace a textual value with the given string,
+    /// creating the attribute if it does not exist yet.
     ReplaceStr(Cow<'static, str>),
     /// Append a string as an additional textual value,
-    /// creating the element if it does not exist yet.
+    /// creating the attribute if it does not exist yet.
+    ///
+    /// New value items are recorded as separate text values,
+    /// meaning that they are delimited by a backslash (`\\`) at encoding time,
+    /// regardless of the value representation.
     PushStr(Cow<'static, str>),
     /// Append a 32-bit signed integer as an additional numeric value,
-    /// creating the element if it does not exist yet.
+    /// creating the attribute if it does not exist yet.
     PushI32(i32),
     /// Append a 32-bit unsigned integer as an additional numeric value,
-    /// creating the element if it does not exist yet.
+    /// creating the attribute if it does not exist yet.
     PushU32(u32),
     /// Append a 16-bit signed integer as an additional numeric value,
-    /// creating the element if it does not exist yet.
+    /// creating the attribute if it does not exist yet.
     PushI16(i16),
     /// Append a 16-bit unsigned integer as an additional numeric value,
-    /// creating the element if it does not exist yet.
+    /// creating the attribute if it does not exist yet.
     PushU16(u16),
     /// Append a 32-bit floating point number as an additional numeric value,
-    /// creating the element if it does not exist yet.
+    /// creating the attribute if it does not exist yet.
     PushF32(f32),
     /// Append a 64-bit floating point number as an additional numeric value,
-    /// creating the element if it does not exist yet.
+    /// creating the attribute if it does not exist yet.
     PushF64(f64),
 }
-
 
 /// Trait for applying DICOM attribute operations.
 /// 
@@ -87,5 +93,13 @@ pub trait ApplyOp {
     type Err: std::error::Error + 'static;
 
     /// Apply the given attribute operation on the receiving object.
+    /// 
+    /// Effects may slightly differ between implementations,
+    /// but should always be compliant with
+    /// the expectations defined in [`AttributeAction`] variants.
+    /// 
+    /// If the action to apply is unsupported,
+    /// or not possible for other reasons,
+    /// an error is returned and no changes to the receiver are made.
     fn apply(&mut self, op: AttributeOp) -> Result<(), Self::Err>;
 }
