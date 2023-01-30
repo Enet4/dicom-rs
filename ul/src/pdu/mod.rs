@@ -302,7 +302,8 @@ pub enum AbortRQServiceProviderReason {
 impl Display for AbortRQServiceProviderReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg = match self {
-            AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu => "reason unclear",
+            AbortRQServiceProviderReason::ReasonNotSpecified => "reason not specified",
+            AbortRQServiceProviderReason::UnrecognizedPdu => "unrecognized PDU",
             AbortRQServiceProviderReason::UnexpectedPdu => "unexpected PDU",
             AbortRQServiceProviderReason::Reserved => "reserved code",
             AbortRQServiceProviderReason::UnrecognizedPduParameter => "unrecognized PDU parameter",
