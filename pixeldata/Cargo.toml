@@ -38,7 +38,7 @@ dicom-test-files = "0.2.1"
 default = ["rayon"]
 gdcm = ["gdcm-rs"]
 ndarray = ["dep:ndarray"]
-rayon = ["dep:rayon", "image?/jpeg_rayon", "dicom-encoding/rayon"]
+rayon = ["dep:rayon", "image?/jpeg_rayon", "dicom-transfer-syntax-registry/rayon"]
 
 [package.metadata.docs.rs]
 features = ["image", "ndarray"]

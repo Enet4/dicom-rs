@@ -10,7 +10,7 @@ keywords = ["dicom"]
 readme = "README.md"
 
 [features]
-default = ["native"]
+default = ["native", "rayon"]
 
 # inventory for compile time plugin-based transfer syntax registration
 inventory-registry = ['dicom-encoding/inventory-registry', 'inventory']
@@ -21,6 +21,7 @@ native = ["jpeg", "rle"]
 jpeg = ["jpeg-decoder"]
 # native RLE lossless support
 rle = []
+rayon = ["jpeg-decoder?/rayon"]
 
 [dependencies]
 dicom-core = { path = "../core", version = "0.5.2" }
