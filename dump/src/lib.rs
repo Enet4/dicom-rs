@@ -32,7 +32,6 @@
 //! options.width(100).dump_file(&obj)?;
 //! # Result::<(), Box<dyn std::error::Error>>::Ok(())
 //! ```
-use colored::*;
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::Header;
 use dicom_core::value::{PrimitiveValue, Value as DicomValue};
@@ -41,6 +40,7 @@ use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::mem::{InMemDicomObject, InMemElement};
 use dicom_object::{FileDicomObject, FileMetaTable, StandardDataDictionary};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
+use owo_colors::*;
 use std::borrow::Cow;
 use std::fmt::{self, Display, Formatter};
 use std::io::{stdout, Result as IoResult, Write};
@@ -189,9 +189,9 @@ impl DumpOptions {
         D: DataDictionary,
     {
         match self.color {
-            ColorMode::Never => colored::control::set_override(false),
-            ColorMode::Always => colored::control::set_override(true),
-            ColorMode::Auto => colored::control::unset_override(),
+            ColorMode::Never => owo_colors::set_override(false),
+            ColorMode::Always => owo_colors::set_override(true),
+            ColorMode::Auto => owo_colors::unset_override(),
         }
 
         let meta = obj.meta();
@@ -326,22 +326,46 @@ where
 
 impl<T> fmt::Display for DumpValue<T>
 where
-    T: ToString,
+    T: fmt::Display,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let value = match self {
-            DumpValue::TagNum(v) => v.to_string().dimmed(),
-            DumpValue::Alias(v) => v.to_string().bold(),
-            DumpValue::Num(v) => v.to_string().cyan(),
-            DumpValue::Str(v) => v.to_string().yellow(),
-            DumpValue::DateTime(v) => v.to_string().green(),
-            DumpValue::Invalid(v) => v.to_string().red(),
-            DumpValue::Nothing => "(no value)".italic(),
-        };
-        if let Some(width) = f.width() {
-            write!(f, "{:width$}", value, width = width)
-        } else {
-            write!(f, "{}", value)
+        fn write_value_with_width(value: impl fmt::Display, f: &mut fmt::Formatter) -> fmt::Result {
+            if let Some(width) = f.width() {
+                write!(f, "{:width$}", value, width = width)
+            } else {
+                write!(f, "{}", value)
+            }
+        }
+
+        match self {
+            DumpValue::TagNum(v) => {
+                let value = v.if_supports_color(Stream::Stdout, |v| v.dimmed());
+                write_value_with_width(value, f)
+            }
+            DumpValue::Alias(v) => {
+                let value = v.if_supports_color(Stream::Stdout, |v| v.bold());
+                write_value_with_width(value, f)
+            }
+            DumpValue::Num(v) => {
+                let value = v.if_supports_color(Stream::Stdout, |v| v.cyan());
+                write_value_with_width(value, f)
+            }
+            DumpValue::Str(v) => {
+                let value = v.if_supports_color(Stream::Stdout, |v| v.yellow());
+                write_value_with_width(value, f)
+            }
+            DumpValue::DateTime(v) => {
+                let value = v.if_supports_color(Stream::Stdout, |v| v.green());
+                write_value_with_width(value, f)
+            }
+            DumpValue::Invalid(v) => {
+                let value = v.if_supports_color(Stream::Stdout, |v| v.red());
+                write_value_with_width(value, f)
+            }
+            DumpValue::Nothing => {
+                let value = "(no value)".if_supports_color(Stream::Stdout, |v| v.italic());
+                write_value_with_width(value, f)
+            }
         }
     }
 }
@@ -394,14 +418,14 @@ where
     writeln!(
         to,
         "{}: {}",
-        "Media Storage SOP Class UID".bold(),
+        "Media Storage SOP Class UID".if_supports_color(Stream::Stdout, |v| v.bold()),
         meta.media_storage_sop_class_uid
             .trim_end_matches(whitespace_or_null),
     )?;
     writeln!(
         to,
         "{}: {}",
-        "Media Storage SOP Instance UID".bold(),
+        "Media Storage SOP Instance UID".if_supports_color(Stream::Stdout, |v| v.bold()),
         meta.media_storage_sop_instance_uid
             .trim_end_matches(whitespace_or_null),
     )?;
@@ -409,7 +433,7 @@ where
         writeln!(
             to,
             "{}: {} ({})",
-            "Transfer Syntax".bold(),
+            "Transfer Syntax".if_supports_color(Stream::Stdout, |v| v.bold()),
             ts.uid(),
             ts.name()
         )?;
@@ -417,14 +441,14 @@ where
         writeln!(
             to,
             "{}: {} («UNKNOWN»)",
-            "Transfer Syntax".bold(),
+            "Transfer Syntax".if_supports_color(Stream::Stdout, |v| v.bold()),
             meta.transfer_syntax.trim_end_matches(whitespace_or_null)
         )?;
     }
     writeln!(
         to,
         "{}: {}",
-        "Implementation Class UID".bold(),
+        "Implementation Class UID".if_supports_color(Stream::Stdout, |v| v.bold()),
         meta.implementation_class_uid
             .trim_end_matches(whitespace_or_null),
     )?;
@@ -433,7 +457,7 @@ where
         writeln!(
             to,
             "{}: {}",
-            "Implementation version name".bold(),
+            "Implementation version name".if_supports_color(Stream::Stdout, |v| v.bold()),
             v.trim_end()
         )?;
     }
@@ -442,7 +466,7 @@ where
         writeln!(
             to,
             "{}: {}",
-            "Source Application Entity Title".bold(),
+            "Source Application Entity Title".if_supports_color(Stream::Stdout, |v| v.bold()),
             v.trim_end()
         )?;
     }
@@ -451,7 +475,7 @@ where
         writeln!(
             to,
             "{}: {}",
-            "Sending Application Entity Title".bold(),
+            "Sending Application Entity Title".if_supports_color(Stream::Stdout, |v| v.bold()),
             v.trim_end()
         )?;
     }
@@ -460,7 +484,7 @@ where
         writeln!(
             to,
             "{}: {}",
-            "Receiving Application Entity Title".bold(),
+            "Receiving Application Entity Title".if_supports_color(Stream::Stdout, |v| v.bold()),
             v.trim_end()
         )?;
     }
@@ -469,7 +493,7 @@ where
         writeln!(
             to,
             "{}: {}",
-            "Private Information Creator UID".bold(),
+            "Private Information Creator UID".if_supports_color(Stream::Stdout, |v| v.bold()),
             v.trim_end_matches(whitespace_or_null)
         )?;
     }
@@ -478,7 +502,7 @@ where
         writeln!(
             to,
             "{}: {}",
-            "Private Information".bold(),
+            "Private Information".if_supports_color(Stream::Stdout, |v| v.bold()),
             format_value_list(v.iter().map(|n| format!("{:02X}", n)), Some(width), false)
         )?;
     }

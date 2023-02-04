@@ -3,7 +3,7 @@
 use clap::Parser;
 use dicom_dump::{ColorMode, DumpOptions};
 use dicom_object::open_file;
-use snafu::{whatever, Report, Whatever};
+use snafu::{Report, Whatever};
 use std::io::ErrorKind;
 use std::path::PathBuf;
 
@@ -11,16 +11,6 @@ use std::path::PathBuf;
 const ERROR_READ: i32 = -2;
 /// Exit code for when an error emerged while dumping the file.
 const ERROR_PRINT: i32 = -3;
-
-#[cfg(windows)]
-fn os_compatibility() -> Result<(), ()> {
-    colored::control::set_virtual_terminal(true)
-}
-
-#[cfg(not(windows))]
-fn os_compatibility() -> Result<(), ()> {
-    Ok(())
-}
 
 /// Dump the contents of DICOM files
 #[derive(Debug, Parser)]
@@ -57,10 +47,6 @@ fn main() {
 }
 
 fn run() -> Result<(), Whatever> {
-    if os_compatibility().is_err() {
-        whatever!("Error setting OS compatibility for colored output");
-    }
-
     let App {
         files: filenames,
         no_text_limit,
