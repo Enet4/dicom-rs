@@ -29,6 +29,10 @@ fn can_read_write_associate_rq() -> Result<(), Box<dyn std::error::Error>> {
             UserVariableItem::ImplementationClassUID("class uid".to_string()),
             UserVariableItem::ImplementationVersionName("version name".to_string()),
             UserVariableItem::MaxLength(23),
+            UserVariableItem::SopClassExtendedNegotiationSubItem(
+                "abstract 1".to_string(),
+                vec![1, 1, 0, 1, 1, 0, 1],
+            ),
         ],
     };
 
@@ -62,16 +66,21 @@ fn can_read_write_associate_rq() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(presentation_contexts[1].transfer_syntaxes.len(), 2);
         assert_eq!(presentation_contexts[1].transfer_syntaxes[0], "transfer 3");
         assert_eq!(presentation_contexts[1].transfer_syntaxes[1], "transfer 4");
-        assert_eq!(user_variables.len(), 3);
-        matches!(
-            user_variables[0],
-            UserVariableItem::ImplementationClassUID(_)
-        );
-        matches!(
-            user_variables[1],
-            UserVariableItem::ImplementationVersionName(_)
-        );
-        matches!(user_variables[2], UserVariableItem::MaxLength(_));
+        assert_eq!(user_variables.len(), 4);
+        assert!(matches!(
+            &user_variables[0],
+            UserVariableItem::ImplementationClassUID(u) if u == "class uid"
+        ));
+        assert!(matches!(
+            &user_variables[1],
+            UserVariableItem::ImplementationVersionName(v) if v == "version name"
+        ));
+        assert!(matches!(user_variables[2], UserVariableItem::MaxLength(l) if l == 23));
+        assert!(matches!(&user_variables[3],
+            UserVariableItem::SopClassExtendedNegotiationSubItem(sop_class_uid, data)
+            if sop_class_uid ==  "abstract 1" &&
+            data.as_slice() == [1,1,0,1,1,0,1]
+        ));
     } else {
         panic!("invalid pdu type");
     }

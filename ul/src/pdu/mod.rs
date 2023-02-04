@@ -329,6 +329,7 @@ pub enum UserVariableItem {
     MaxLength(u32),
     ImplementationClassUID(String),
     ImplementationVersionName(String),
+    SopClassExtendedNegotiationSubItem(String, Vec<u8>)
 }
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
