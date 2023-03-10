@@ -39,8 +39,6 @@ pub use value::{PrimitiveValue, Value as DicomValue};
 pub use chrono;
 pub use smallvec;
 
-mod util;
-
 /// Helper macro for constructing a DICOM primitive value,
 /// of an arbitrary variant and multiplicity.
 ///
