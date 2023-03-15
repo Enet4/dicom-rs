@@ -439,7 +439,7 @@ impl DecodedPixelData<'_> {
             .fail()?
         }
 
-        Ok(&self.data[(frame_start as usize..frame_end as usize)])
+        Ok(&self.data[frame_start as usize..frame_end as usize])
     }
 
     /// Retrieve a copy of a frame's raw pixel data samples
