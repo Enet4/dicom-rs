@@ -4049,10 +4049,10 @@ impl PrimitiveValue {
             PrimitiveValue::Tags(_)
             | PrimitiveValue::Date(_)
             | PrimitiveValue::DateTime(_)
-            | PrimitiveValue::Time(_) => Err(IncompatibleNumberTypeSnafu {
+            | PrimitiveValue::Time(_) => IncompatibleNumberTypeSnafu {
                 original: self.value_type(),
             }
-            .build()),
+            .fail(),
         }
     }
 
