@@ -965,6 +965,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Str(s) => {
                 s.trim_end()
+                    .trim_start()
                     .parse()
                     .context(ParseIntegerSnafu)
                     .map_err(|err| ConvertValueError {
@@ -975,6 +976,7 @@ impl PrimitiveValue {
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
                 .trim_end()
+                .trim_start()
                 .parse()
                 .context(ParseIntegerSnafu)
                 .map_err(|err| ConvertValueError {
@@ -1129,6 +1131,7 @@ impl PrimitiveValue {
             PrimitiveValue::Str(s) => {
                 let out = s
                     .trim_end()
+                    .trim_start()
                     .parse()
                     .context(ParseIntegerSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1142,6 +1145,7 @@ impl PrimitiveValue {
                 .iter()
                 .map(|v| {
                     v.trim_end()
+                        .trim_start()
                         .parse()
                         .context(ParseIntegerSnafu)
                         .map_err(|err| ConvertValueError {
@@ -1302,6 +1306,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Str(s) => {
                 s.trim_end()
+                    .trim_start()
                     .parse()
                     .context(ParseFloatSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1312,6 +1317,7 @@ impl PrimitiveValue {
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
                 .trim_end()
+                .trim_start()
                 .parse()
                 .context(ParseFloatSnafu)
                 .map_err(|err| ConvertValueError {
@@ -1652,6 +1658,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Str(s) => {
                 s.trim_end()
+                    .trim_start()
                     .parse()
                     .context(ParseFloatSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1662,6 +1669,7 @@ impl PrimitiveValue {
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
                 .trim_end()
+                .trim_start()
                 .parse()
                 .context(ParseFloatSnafu)
                 .map_err(|err| ConvertValueError {
@@ -4080,6 +4088,22 @@ mod tests {
     }
 
     #[test]
+    fn primitive_value_to_float() {
+        // DS conversion to f32
+        assert_eq!(dicom_value!(Str, "-73.4 ").to_float32().ok(), Some(-73.4));
+
+        // DS conversion with leading whitespaces
+        assert_eq!(dicom_value!(Str, " -73.4 ").to_float32().ok(), Some(-73.4));
+
+
+        // DS conversion with leading whitespaces
+        assert_eq!(dicom_value!(Str, " -73.4 ").to_float64().ok(), Some(-73.4));
+
+        // DS conversion with exponential
+        assert_eq!(dicom_value!(Str, "1e1").to_float32().ok(), Some(10.0));
+    }
+
+    #[test]
     fn primitive_value_to_int() {
         assert!(PrimitiveValue::Empty.to_int::<i32>().is_err());
 
@@ -4107,6 +4131,9 @@ mod tests {
 
         // admits an integer as text
         assert_eq!(dicom_value!(Strs, ["-73", "2"]).to_int().ok(), Some(-73),);
+
+        // admits an integer as text with leading spaces
+        assert_eq!(dicom_value!(Strs, [" -73", " 2"]).to_int().ok(), Some(-73),);
 
         // does not admit destructive conversions
         assert!(PrimitiveValue::from(-1).to_int::<u32>().is_err());
