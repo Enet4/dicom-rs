@@ -1128,8 +1128,7 @@ impl PrimitiveValue {
             PrimitiveValue::Empty => Ok(Vec::new()),
             PrimitiveValue::Str(s) => {
                 let out = s
-                    .trim_end()
-                    .trim_start()
+                    .trim()
                     .parse()
                     .context(ParseIntegerSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1142,8 +1141,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => s
                 .iter()
                 .map(|v| {
-                    v.trim_end()
-                        .trim_start()
+                    v.trim()
                         .parse()
                         .context(ParseIntegerSnafu)
                         .map_err(|err| ConvertValueError {
@@ -1466,7 +1464,7 @@ impl PrimitiveValue {
             PrimitiveValue::Empty => Ok(Vec::new()),
             PrimitiveValue::Str(s) => {
                 let out = s
-                    .trim_end()
+                    .trim()
                     .parse()
                     .context(ParseFloatSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1479,7 +1477,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => s
                 .iter()
                 .map(|v| {
-                    v.trim_end()
+                    v.trim()
                         .parse()
                         .context(ParseFloatSnafu)
                         .map_err(|err| ConvertValueError {
@@ -1815,7 +1813,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Str(s) => {
                 let out = s
-                    .trim_end()
+                    .trim()
                     .parse()
                     .context(ParseFloatSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1828,7 +1826,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => s
                 .iter()
                 .map(|v| {
-                    v.trim_end()
+                    v.trim()
                         .parse()
                         .context(ParseFloatSnafu)
                         .map_err(|err| ConvertValueError {
