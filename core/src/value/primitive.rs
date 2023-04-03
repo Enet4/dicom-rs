@@ -923,7 +923,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the first string is parsed to obtain an integer,
     /// potentially failing if the string does not represent a valid integer.
-    /// The string is stripped of trailing whitespace before parsing,
+    /// The string is stripped of leading/trailing whitespace before parsing,
     /// in order to account for the possible padding to even length.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
@@ -1083,7 +1083,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// each string is parsed to obtain an integer,
     /// potentially failing if the string does not represent a valid integer.
-    /// The string is stripped of trailing whitespace before parsing,
+    /// The string is stripped of leading/trailing whitespace before parsing,
     /// in order to account for the possible padding to even length.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
@@ -1273,7 +1273,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the first string is parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
-    /// The string is stripped of trailing whitespace before parsing,
+    /// The string is stripped of leading/trailing whitespace before parsing,
     /// in order to account for the possible padding to even length.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
@@ -1434,7 +1434,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the strings are parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
-    /// The string is stripped of trailing whitespace before parsing,
+    /// The string is stripped of leading/trailing whitespace before parsing,
     /// in order to account for the possible padding to even length.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
@@ -1625,6 +1625,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the first string is parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
+    /// The string is stripped of leading/trailing whitespace before parsing.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
@@ -1784,7 +1785,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the strings are parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
-    /// The string is stripped of trailing whitespace before parsing,
+    /// The string is stripped of leading/trailing whitespace before parsing,
     /// in order to account for the possible padding to even length.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
