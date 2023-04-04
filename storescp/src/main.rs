@@ -118,6 +118,33 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
 
                             let obj = InMemDicomObject::read_dataset_with_ts(v.as_slice(), &ts)
                                 .whatever_context("failed to read incoming DICOM command")?;
+                            let command_field = obj
+                            .element(tags::COMMAND_FIELD)
+                            .whatever_context("Missing Command Field")?
+                            .uint16()
+                            .whatever_context("Command Field is not an integer")?;
+
+                        if command_field == 0x0030 {
+                            // Handle C-ECHO-RQ
+                            let cecho_response = create_cecho_response(msgid);
+                            let mut cecho_data = Vec::new();
+
+                            cecho_response
+                                .write_dataset_with_ts(&mut cecho_data, &ts)
+                                .whatever_context("could not write C-ECHO response object")?;
+
+                            let pdu_response = Pdu::PData {
+                                data: vec![dicom_ul::pdu::PDataValue {
+                                    presentation_context_id: data[0].presentation_context_id,
+                                    value_type: PDataValueType::Command,
+                                    is_last: true,
+                                    data: cecho_data,
+                                }],
+                            };
+                            association.send(&pdu_response).whatever_context(
+                                "failed to send C-ECHO response object to SCU",
+                            )?;
+                        } else {
                             msgid = obj
                                 .element(tags::MESSAGE_ID)
                                 .whatever_context("Missing Message ID")?
@@ -135,6 +162,7 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
                                 .to_str()
                                 .whatever_context("could not retrieve Affected SOP Instance UID")?
                                 .to_string();
+                        }
                             instance_buffer.clear();
                         } else if data[0].value_type == PDataValueType::Data && data[0].is_last {
                             instance_buffer.append(&mut data[0].data);
@@ -295,6 +323,47 @@ fn create_cstore_response(
         tags::AFFECTED_SOP_INSTANCE_UID,
         VR::UI,
         dicom_value!(Str, sop_instance_uid),
+    ));
+
+    obj
+}
+
+fn create_cecho_response(message_id: u16) -> InMemDicomObject<StandardDataDictionary> {
+    let mut obj = InMemDicomObject::new_empty();
+
+    // group length
+    obj.put(DataElement::new(
+        tags::COMMAND_GROUP_LENGTH,
+        VR::UL,
+        PrimitiveValue::from(8 + 8 + 2 + 8 + 2 + 8 + 2),
+    ));
+
+    // command field
+    obj.put(DataElement::new(
+        tags::COMMAND_FIELD,
+        VR::US,
+        dicom_value!(U16, [0x8030]),
+    ));
+
+    // message ID being responded to
+    obj.put(DataElement::new(
+        tags::MESSAGE_ID_BEING_RESPONDED_TO,
+        VR::US,
+        dicom_value!(U16, [message_id]),
+    ));
+
+    // data set type
+    obj.put(DataElement::new(
+        tags::COMMAND_DATA_SET_TYPE,
+        VR::US,
+        dicom_value!(U16, [0x0101]),
+    ));
+
+    // status
+    obj.put(DataElement::new(
+        tags::STATUS,
+        VR::US,
+        dicom_value!(U16, [0x0000]),
     ));
 
     obj
