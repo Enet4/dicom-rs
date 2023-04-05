@@ -923,8 +923,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the first string is parsed to obtain an integer,
     /// potentially failing if the string does not represent a valid integer.
-    /// The string is stripped of trailing whitespace before parsing,
-    /// in order to account for the possible padding to even length.
+    /// The string is stripped of leading/trailing whitespace before parsing.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
@@ -964,7 +963,7 @@ impl PrimitiveValue {
     {
         match self {
             PrimitiveValue::Str(s) => {
-                s.trim_end()
+                s.trim()
                     .parse()
                     .context(ParseIntegerSnafu)
                     .map_err(|err| ConvertValueError {
@@ -974,7 +973,7 @@ impl PrimitiveValue {
                     })
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
-                .trim_end()
+                .trim()
                 .parse()
                 .context(ParseIntegerSnafu)
                 .map_err(|err| ConvertValueError {
@@ -1083,8 +1082,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// each string is parsed to obtain an integer,
     /// potentially failing if the string does not represent a valid integer.
-    /// The string is stripped of trailing whitespace before parsing,
-    /// in order to account for the possible padding to even length.
+    /// The string is stripped of leading/trailing whitespace before parsing.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
@@ -1128,7 +1126,7 @@ impl PrimitiveValue {
             PrimitiveValue::Empty => Ok(Vec::new()),
             PrimitiveValue::Str(s) => {
                 let out = s
-                    .trim_end()
+                    .trim()
                     .parse()
                     .context(ParseIntegerSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1141,7 +1139,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => s
                 .iter()
                 .map(|v| {
-                    v.trim_end()
+                    v.trim()
                         .parse()
                         .context(ParseIntegerSnafu)
                         .map_err(|err| ConvertValueError {
@@ -1273,8 +1271,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the first string is parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
-    /// The string is stripped of trailing whitespace before parsing,
-    /// in order to account for the possible padding to even length.
+    /// The string is stripped of leading/trailing whitespace before parsing.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
@@ -1301,7 +1298,7 @@ impl PrimitiveValue {
     pub fn to_float32(&self) -> Result<f32, ConvertValueError> {
         match self {
             PrimitiveValue::Str(s) => {
-                s.trim_end()
+                s.trim()
                     .parse()
                     .context(ParseFloatSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1311,7 +1308,7 @@ impl PrimitiveValue {
                     })
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
-                .trim_end()
+                .trim()
                 .parse()
                 .context(ParseFloatSnafu)
                 .map_err(|err| ConvertValueError {
@@ -1434,8 +1431,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the strings are parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
-    /// The string is stripped of trailing whitespace before parsing,
-    /// in order to account for the possible padding to even length.
+    /// The string is stripped of leading/trailing whitespace before parsing.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
@@ -1464,7 +1460,7 @@ impl PrimitiveValue {
             PrimitiveValue::Empty => Ok(Vec::new()),
             PrimitiveValue::Str(s) => {
                 let out = s
-                    .trim_end()
+                    .trim()
                     .parse()
                     .context(ParseFloatSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1477,7 +1473,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => s
                 .iter()
                 .map(|v| {
-                    v.trim_end()
+                    v.trim()
                         .parse()
                         .context(ParseFloatSnafu)
                         .map_err(|err| ConvertValueError {
@@ -1625,6 +1621,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the first string is parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
+    /// The string is stripped of leading/trailing whitespace before parsing.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
@@ -1651,7 +1648,7 @@ impl PrimitiveValue {
     pub fn to_float64(&self) -> Result<f64, ConvertValueError> {
         match self {
             PrimitiveValue::Str(s) => {
-                s.trim_end()
+                s.trim()
                     .parse()
                     .context(ParseFloatSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1661,7 +1658,7 @@ impl PrimitiveValue {
                     })
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
-                .trim_end()
+                .trim()
                 .parse()
                 .context(ParseFloatSnafu)
                 .map_err(|err| ConvertValueError {
@@ -1784,8 +1781,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the strings are parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
-    /// The string is stripped of trailing whitespace before parsing,
-    /// in order to account for the possible padding to even length.
+    /// The string is stripped of leading/trailing whitespace before parsing.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
@@ -1813,7 +1809,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Str(s) => {
                 let out = s
-                    .trim_end()
+                    .trim()
                     .parse()
                     .context(ParseFloatSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1826,7 +1822,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => s
                 .iter()
                 .map(|v| {
-                    v.trim_end()
+                    v.trim()
                         .parse()
                         .context(ParseFloatSnafu)
                         .map_err(|err| ConvertValueError {
@@ -4080,6 +4076,22 @@ mod tests {
     }
 
     #[test]
+    fn primitive_value_to_float() {
+        // DS conversion to f32
+        assert_eq!(dicom_value!(Str, "-73.4 ").to_float32().ok(), Some(-73.4));
+
+        // DS conversion with leading whitespaces
+        assert_eq!(dicom_value!(Str, " -73.4 ").to_float32().ok(), Some(-73.4));
+
+
+        // DS conversion with leading whitespaces
+        assert_eq!(dicom_value!(Str, " -73.4 ").to_float64().ok(), Some(-73.4));
+
+        // DS conversion with exponential
+        assert_eq!(dicom_value!(Str, "1e1").to_float32().ok(), Some(10.0));
+    }
+
+    #[test]
     fn primitive_value_to_int() {
         assert!(PrimitiveValue::Empty.to_int::<i32>().is_err());
 
@@ -4107,6 +4119,9 @@ mod tests {
 
         // admits an integer as text
         assert_eq!(dicom_value!(Strs, ["-73", "2"]).to_int().ok(), Some(-73),);
+
+        // admits an integer as text with leading spaces
+        assert_eq!(dicom_value!(Strs, [" -73", " 2"]).to_int().ok(), Some(-73),);
 
         // does not admit destructive conversions
         assert!(PrimitiveValue::from(-1).to_int::<u32>().is_err());
