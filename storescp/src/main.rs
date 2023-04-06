@@ -315,7 +315,7 @@ fn create_cstore_response(
 }
 
 fn create_cecho_response(message_id: u16) -> InMemDicomObject<StandardDataDictionary> {
-    let elements = [
+    InMemDicomObject::from_element_iter([
         DataElement::new(
             tags::COMMAND_GROUP_LENGTH,
             VR::UL,
@@ -333,9 +333,7 @@ fn create_cecho_response(message_id: u16) -> InMemDicomObject<StandardDataDictio
             dicom_value!(U16, [0x0101]),
         ),
         DataElement::new(tags::STATUS, VR::US, dicom_value!(U16, [0x0000])),
-    ];
-
-    InMemDicomObject::from_element_iter(elements.iter().cloned())
+    ])
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
