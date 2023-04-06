@@ -270,7 +270,7 @@ fn create_cstore_response(
     sop_class_uid: &str,
     sop_instance_uid: &str,
 ) -> InMemDicomObject<StandardDataDictionary> {
-    let elements = [
+    InMemDicomObject::from_element_iter([
         DataElement::new(
             tags::COMMAND_GROUP_LENGTH,
             VR::UL,
@@ -309,9 +309,7 @@ fn create_cstore_response(
             VR::UI,
             dicom_value!(Str, sop_instance_uid),
         ),
-    ];
-
-    InMemDicomObject::from_element_iter(elements.iter().cloned())
+    ])
 }
 
 fn create_cecho_response(message_id: u16) -> InMemDicomObject<StandardDataDictionary> {
