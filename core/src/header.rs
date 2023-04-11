@@ -486,10 +486,25 @@ where
 
     /// Retrieve the items stored in a sequence value.
     ///
-    /// Returns `None` if the value is not a sequence.
+    /// Returns `None` if the value is not a data set sequence.
     pub fn items(&self) -> Option<&[I]> {
         self.value().items()
     }
+
+    /// Retrieve the fragments stored in a pixel data sequence value.
+    ///
+    /// Returns `None` if the value is not a pixel data sequence.
+    pub fn fragments(&self) -> Option<&[P]> {
+        self.value().fragments()
+    }
+
+    /// Obtain a reference to the encapsulated pixel data's basic offset table.
+    ///
+    /// Returns `None` if the value is not a pixel data sequence.
+    pub fn offset_table(&self) -> Option<&[u32]> {
+        self.value().offset_table()
+    }
+
 }
 
 impl<'v, I, P> DataElementRef<'v, I, P>
