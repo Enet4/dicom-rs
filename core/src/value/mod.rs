@@ -136,10 +136,22 @@ impl<I, P> Value<I, P> {
         }
     }
 
-    /// Gets a reference to the items.
+    /// Gets a reference to the items of a sequence.
+    /// 
+    /// Returns `None` if the value is not a data set sequence.
     pub fn items(&self) -> Option<&[I]> {
         match *self {
             Value::Sequence { ref items, .. } => Some(items),
+            _ => None,
+        }
+    }
+
+    /// Gets a reference to the fragments of a pixel data sequence.
+    /// 
+    /// Returns `None` if the value is not a pixel data sequence.
+    pub fn fragments(&self) -> Option<&[P]> {
+        match self {
+            Value::PixelSequence { fragments, .. } => Some(fragments),
             _ => None,
         }
     }
@@ -160,7 +172,17 @@ impl<I, P> Value<I, P> {
         }
     }
 
+    /// Retrieves the pixel data fragments.
+    pub fn into_fragments(self) -> Option<C<P>> {
+        match self {
+            Value::PixelSequence { fragments, .. } => Some(fragments),
+            _ => None,
+        }
+    }
+
     /// Gets a reference to the encapsulated pixel data's offset table.
+    /// 
+    /// Returns `None` if the value is not a pixel data sequence.
     pub fn offset_table(&self) -> Option<&[u32]> {
         match self {
             Value::PixelSequence { offset_table, .. } => Some(offset_table),
