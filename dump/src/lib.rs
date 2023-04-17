@@ -593,7 +593,7 @@ where
             )?;
 
             // write offset table
-            let byte_len = offset_table.len();
+            let byte_len = offset_table.len() * 4;
             let summary = offset_table_summary(
                 offset_table,
                 Some(width)
@@ -602,8 +602,9 @@ where
             );
             writeln!(
                 to,
-                "  {} offset table ({:>3} bytes, 1 Item): {:48}",
+                "  {} offset table ({:>2}, {:>2} bytes): {}",
                 DumpValue::TagNum("(FFFE,E000)"),
+                offset_table.len(),
                 byte_len,
                 summary,
             )?;
@@ -619,7 +620,7 @@ where
                 );
                 writeln!(
                     to,
-                    "  {} pi ({:>3} bytes, 1 Item): {:48}",
+                    "  {} pi ({:>3} bytes): {}",
                     DumpValue::TagNum("(FFFE,E000)"),
                     byte_len,
                     summary
@@ -809,7 +810,7 @@ fn offset_table_summary(data: &[u32], max_characters: Option<u32>) -> String {
         format!("{}", "(empty)".italic())
     } else {
         format_value_list(
-            data.iter().map(|n| format!("{:02X}", n)),
+            data.iter().map(|n| format!("{:04X}", n)),
             max_characters,
             false,
         )
