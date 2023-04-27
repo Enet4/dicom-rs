@@ -1972,6 +1972,7 @@ mod tests {
         #[cfg(feature = "image")]
         use rstest::rstest;
 
+        #[cfg(feature = "transfer-syntax-registry/rle")]
         #[test]
         fn test_native_decoding_pixel_data_rle_8bit_1frame_vec() {
             let path = dicom_test_files::path("pydicom/SC_rgb_rle.dcm")
