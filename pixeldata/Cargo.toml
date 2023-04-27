@@ -35,7 +35,7 @@ rstest = "0.16"
 dicom-test-files = "0.2.1"
 
 [features]
-default = ["rayon"]
+default = ["rayon", "dicom-transfer-syntax-registry/native"]
 gdcm = ["gdcm-rs"]
 ndarray = ["dep:ndarray"]
 rayon = ["dep:rayon", "image?/jpeg_rayon", "dicom-transfer-syntax-registry/rayon"]
