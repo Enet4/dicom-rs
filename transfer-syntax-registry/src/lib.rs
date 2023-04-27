@@ -181,7 +181,7 @@ lazy_static! {
         };
 
         use self::entries::*;
-        let built_in_ts: [TransferSyntax; 29] = [
+        let built_in_ts: [TransferSyntax; 36] = [
             IMPLICIT_VR_LITTLE_ENDIAN.erased(),
             EXPLICIT_VR_LITTLE_ENDIAN.erased(),
             EXPLICIT_VR_BIG_ENDIAN.erased(),
@@ -200,12 +200,19 @@ lazy_static! {
             JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION.erased(),
             JPIP_REFERENCED.erased(),
             MPEG2_MAIN_PROFILE_MAIN_LEVEL.erased(),
+            FRAGMENTABLE_MPEG2_MAIN_PROFILE_MAIN_LEVEL.erased(),
             MPEG2_MAIN_PROFILE_HIGH_LEVEL.erased(),
+            FRAGMENTABLE_MPEG2_MAIN_PROFILE_HIGH_LEVEL.erased(),
             MPEG4_AVC_H264_HIGH_PROFILE.erased(),
+            FRAGMENTABLE_MPEG4_AVC_H264_HIGH_PROFILE.erased(),
             MPEG4_AVC_H264_BD_COMPATIBLE_HIGH_PROFILE.erased(),
+            FRAGMENTABLE_MPEG4_AVC_H264_BD_COMPATIBLE_HIGH_PROFILE.erased(),
             MPEG4_AVC_H264_HIGH_PROFILE_FOR_2D_VIDEO.erased(),
+            FRAGMENTABLE_MPEG4_AVC_H264_HIGH_PROFILE_FOR_2D_VIDEO.erased(),
             MPEG4_AVC_H264_HIGH_PROFILE_FOR_3D_VIDEO.erased(),
+            FRAGMENTABLE_MPEG4_AVC_H264_HIGH_PROFILE_FOR_3D_VIDEO.erased(),
             MPEG4_AVC_H264_STEREO_HIGH_PROFILE.erased(),
+            FRAGMENTABLE_MPEG4_AVC_H264_STEREO_HIGH_PROFILE.erased(),
             HEVC_H265_MAIN_PROFILE.erased(),
             HEVC_H265_MAIN_10_PROFILE.erased(),
             RLE_LOSSLESS.erased(),
