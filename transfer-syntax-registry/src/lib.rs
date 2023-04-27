@@ -6,30 +6,62 @@
     unused_import_braces
 )]
 //! This crate contains the DICOM transfer syntax registry.
-//! The transfer syntax registry maps a DICOM UID of a transfer syntax into the
-//! respective transfer syntax specifier. In the default implementation, the
-//! container of transfer syntaxes is populated before-main through the
-//! [inventory] pattern, then making all registerd TSes readily available
+//!
+//! The transfer syntax registry maps a DICOM UID of a transfer syntax (TS)
+//! into the respective transfer syntax specifier.
+//! This specifier defines:
+//!
+//! 1. how to read and write DICOM data sets;
+//! 2. how to decode and encode pixel data.
+//!
+//! Support may be partial, in which case the data set can be retrieved
+//! but the pixel data may not be decoded through the DICOM-rs ecosystem.
+//! By default, adapters for encapsulated pixel data are not included.
+//! To include native support for some transfer syntaxes with encapsulated pixel data,
+//! add the **`native`** Cargo feature
+//! or one of the other transfer syntax features available.
+//!
+//! By default, a fixed known set of transfer syntaxes are provided as built in.
+//! Moreover, support for more TSes can be extended by other crates
+//! through the [inventory] pattern,
+//! in which the registry is automatically populated before main.
+//! This is done by enabling the Cargo feature **`inventory-registry`**.
+//! The feature can be left disabled
+//! for environments which do not support `inventory`,
+//! with the downside of only providing the built-in transfer syntaxes.
+//!
+//! All registered TSes will be readily available
 //! through the [`TransferSyntaxRegistry`] type.
 //!
-//! The default Cargo feature `inventory-registry` can be deactivated for
-//! environments which do not support `inventory`, with the downside of only
-//! providing the built-in transfer syntaxes.
-//!
-//! This registry should not have to be used directly, except when developing
-//! higher level APIs, which should learn to negotiate and resolve the expected
+//! This registry is intended to be used in the development of higher level APIs,
+//! which should learn to negotiate and resolve the expected
 //! transfer syntax automatically.
 //!
-//! ## Transfer Syntax descriptors
+//! ## Transfer Syntaxes
 //!
-//! This crate encompasses the basic DICOM level of conformance:
+//! This crate encompasses basic DICOM level of conformance,
+//! plus support for some transfer syntaxes with compressed pixel data.
 //! _Implicit VR Little Endian_,
 //! _Explicit VR Little Endian_,
-//! and _Explicit VR Big Endian_ are built-in.
+//! and _Explicit VR Big Endian_
+//! are fully supported.
+//! Support may vary for transfer syntaxes which rely on encapsulated pixel data.
+//!
+//! | transfer syntax               | decoding support     | encoding support |
+//! |-------------------------------|----------------------|------------------|
+//! | JPEG Baseline (Process 1)     | Cargo feature `jpeg` | x |
+//! | JPEG Extended (Process 2 & 4) | Cargo feature `jpeg` | x |
+//! | JPEG Lossless, Non-Hierarchical (Process 14) | Cargo feature `jpeg` | x |
+//! | JPEG Lossless, Non-Hierarchical, First-Order Prediction (Process 14 [Selection Value 1]) | Cargo feature `jpeg` | x |
+//! | RLE Lossless                  | Cargo feature `rle` | x |
+//!
 //! Transfer syntaxes which are not supported,
-//! or which rely on encapsulated pixel data,
-//! are only listed as _stubs_ to be replaced by separate libraries.
+//! either due to being unable to read the data set
+//! or decode encapsulated pixel data,
+//! are listed as _stubs_ for partial support.
 //! The full list is available in the [`entries`](entries) module.
+//! These stubs may also be replaced by separate libraries
+//! if using the inventory-based registry.
 //!
 //! [inventory]: https://docs.rs/inventory/0.3.2/inventory
 
@@ -47,7 +79,9 @@ pub mod entries;
 
 mod adapters;
 
-/// Data type for a registry of DICOM.
+/// Main implementation of a registry of DICOM transfer syntaxes.
+///
+/// Consumers would generally use [`TransferSyntaxRegistry`] instead.
 pub struct TransferSyntaxRegistryImpl {
     m: HashMap<&'static str, TransferSyntax>,
 }
