@@ -1968,6 +1968,7 @@ mod tests {
 
     #[cfg(not(feature = "gdcm"))]
     mod not_gdcm {
+        #[cfg(any(feature = "transfer-syntax-registry/rle", feature = "image"))]
         use super::*;
         #[cfg(feature = "image")]
         use rstest::rstest;
