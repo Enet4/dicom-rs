@@ -74,6 +74,9 @@ pub const RLE_LOSSLESS: TransferSyntax<NeverAdapter, RleLosslessAdapter> = Trans
     Codec::PixelData(RleLosslessAdapter),
 );
 /// **Stub:** RLE Lossless
+///
+/// A native implementation is available
+/// by enabling the `rle` Cargo feature.
 #[cfg(not(feature = "rle"))]
 pub const RLE_LOSSLESS: Ts = create_ts_stub("1.2.840.10008.1.2.5", "RLE Lossless");
 
@@ -99,6 +102,9 @@ const fn create_ts_jpeg(uid: &'static str, name: &'static str) -> JpegTS {
 pub const JPEG_BASELINE: JpegTS =
     create_ts_jpeg("1.2.840.10008.1.2.4.50", "JPEG Baseline (Process 1)");
 /// **Implemented:** JPEG Baseline (Process 1): Default Transfer Syntax for Lossy JPEG 8 Bit Image Compression
+///
+/// A native implementation is available
+/// by enabling the `jpeg` Cargo feature.
 #[cfg(not(feature = "jpeg"))]
 pub const JPEG_BASELINE: Ts = create_ts_stub("1.2.840.10008.1.2.4.50", "JPEG Baseline (Process 1)");
 
@@ -107,6 +113,9 @@ pub const JPEG_BASELINE: Ts = create_ts_stub("1.2.840.10008.1.2.4.50", "JPEG Bas
 pub const JPEG_EXTENDED: JpegTS =
     create_ts_jpeg("1.2.840.10008.1.2.4.51", "JPEG Extended (Process 2 & 4)");
 /// **Stub descriptor:** JPEG Extended (Process 2 & 4): Default Transfer Syntax for Lossy JPEG 12 Bit Image Compression (Process 4 only)
+///
+/// A native implementation is available
+/// by enabling the `jpeg` Cargo feature.
 #[cfg(not(feature = "jpeg"))]
 pub const JPEG_EXTENDED: Ts =
     create_ts_stub("1.2.840.10008.1.2.4.51", "JPEG Extended (Process 2 & 4)");
@@ -118,6 +127,9 @@ pub const JPEG_LOSSLESS_NON_HIERARCHICAL: JpegTS = create_ts_jpeg(
     "JPEG Lossless, Non-Hierarchical (Process 14)",
 );
 /// **Stub descriptor:** JPEG Lossless, Non-Hierarchical (Process 14)
+///
+/// A native implementation is available
+/// by enabling the `jpeg` Cargo feature.
 #[cfg(not(feature = "jpeg"))]
 pub const JPEG_LOSSLESS_NON_HIERARCHICAL: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.57",
@@ -135,6 +147,9 @@ pub const JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION: JpegTS = create
 /// **Stub descriptor:** JPEG Lossless, Non-Hierarchical, First-Order Prediction
 /// (Process 14 [Selection Value 1]):
 /// Default Transfer Syntax for Lossless JPEG Image Compression
+///
+/// A native implementation is available
+/// by enabling the `jpeg` Cargo feature.
 #[cfg(not(feature = "jpeg"))]
 pub const JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.70",
