@@ -23,10 +23,10 @@
 
 use crate::create_ts_stub;
 use byteordered::Endianness;
-use dicom_encoding::{
-    transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec, NeverAdapter},
-    TransferSyntax,
-};
+use dicom_encoding::transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec};
+
+#[cfg(any(feature = "jpeg", feature = "rle"))]
+use dicom_encoding::transfer_syntax::{NeverAdapter, TransferSyntax};
 
 #[cfg(feature = "jpeg")]
 use crate::adapters::jpeg::JPEGAdapter;
@@ -74,6 +74,9 @@ pub const RLE_LOSSLESS: TransferSyntax<NeverAdapter, RleLosslessAdapter> = Trans
     Codec::PixelData(RleLosslessAdapter),
 );
 /// **Stub:** RLE Lossless
+///
+/// A native implementation is available
+/// by enabling the `rle` Cargo feature.
 #[cfg(not(feature = "rle"))]
 pub const RLE_LOSSLESS: Ts = create_ts_stub("1.2.840.10008.1.2.5", "RLE Lossless");
 
@@ -99,6 +102,9 @@ const fn create_ts_jpeg(uid: &'static str, name: &'static str) -> JpegTS {
 pub const JPEG_BASELINE: JpegTS =
     create_ts_jpeg("1.2.840.10008.1.2.4.50", "JPEG Baseline (Process 1)");
 /// **Implemented:** JPEG Baseline (Process 1): Default Transfer Syntax for Lossy JPEG 8 Bit Image Compression
+///
+/// A native implementation is available
+/// by enabling the `jpeg` Cargo feature.
 #[cfg(not(feature = "jpeg"))]
 pub const JPEG_BASELINE: Ts = create_ts_stub("1.2.840.10008.1.2.4.50", "JPEG Baseline (Process 1)");
 
@@ -107,6 +113,9 @@ pub const JPEG_BASELINE: Ts = create_ts_stub("1.2.840.10008.1.2.4.50", "JPEG Bas
 pub const JPEG_EXTENDED: JpegTS =
     create_ts_jpeg("1.2.840.10008.1.2.4.51", "JPEG Extended (Process 2 & 4)");
 /// **Stub descriptor:** JPEG Extended (Process 2 & 4): Default Transfer Syntax for Lossy JPEG 12 Bit Image Compression (Process 4 only)
+///
+/// A native implementation is available
+/// by enabling the `jpeg` Cargo feature.
 #[cfg(not(feature = "jpeg"))]
 pub const JPEG_EXTENDED: Ts =
     create_ts_stub("1.2.840.10008.1.2.4.51", "JPEG Extended (Process 2 & 4)");
@@ -118,6 +127,9 @@ pub const JPEG_LOSSLESS_NON_HIERARCHICAL: JpegTS = create_ts_jpeg(
     "JPEG Lossless, Non-Hierarchical (Process 14)",
 );
 /// **Stub descriptor:** JPEG Lossless, Non-Hierarchical (Process 14)
+///
+/// A native implementation is available
+/// by enabling the `jpeg` Cargo feature.
 #[cfg(not(feature = "jpeg"))]
 pub const JPEG_LOSSLESS_NON_HIERARCHICAL: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.57",
@@ -135,6 +147,9 @@ pub const JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION: JpegTS = create
 /// **Stub descriptor:** JPEG Lossless, Non-Hierarchical, First-Order Prediction
 /// (Process 14 [Selection Value 1]):
 /// Default Transfer Syntax for Lossless JPEG Image Compression
+///
+/// A native implementation is available
+/// by enabling the `jpeg` Cargo feature.
 #[cfg(not(feature = "jpeg"))]
 pub const JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.70",
@@ -199,33 +214,68 @@ pub const JPIP_REFERENCED: Ts = create_ts_stub("1.2.840.10008.1.2.4.94", "JPIP R
 /// **Stub descriptor:** MPEG2 Main Profile / Main Level
 pub const MPEG2_MAIN_PROFILE_MAIN_LEVEL: Ts =
     create_ts_stub("1.2.840.10008.1.2.4.100", "MPEG2 Main Profile / Main Level");
+/// **Stub descriptor:** Fragmentable MPEG2 Main Profile / Main Level
+pub const FRAGMENTABLE_MPEG2_MAIN_PROFILE_MAIN_LEVEL: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.100.1",
+    "Fragmentable MPEG2 Main Profile / Main Level",
+);
 /// **Stub descriptor:** MPEG2 Main Profile / High Level
 pub const MPEG2_MAIN_PROFILE_HIGH_LEVEL: Ts =
     create_ts_stub("1.2.840.10008.1.2.4.101", "MPEG2 Main Profile / High Level");
+/// **Stub descriptor:** Fragmentable MPEG2 Main Profile / High Level
+pub const FRAGMENTABLE_MPEG2_MAIN_PROFILE_HIGH_LEVEL: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.101.1",
+    "Fragmentable MPEG2 Main Profile / High Level",
+);
 /// **Stub descriptor:** MPEG-4 AVC/H.264 High Profile / Level 4.1
 pub const MPEG4_AVC_H264_HIGH_PROFILE: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.102",
     "MPEG-4 AVC/H.264 High Profile / Level 4.1",
+);
+/// **Stub descriptor:** Fragmentable MPEG-4 AVC/H.264 High Profile / Level 4.1
+pub const FRAGMENTABLE_MPEG4_AVC_H264_HIGH_PROFILE: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.102.1",
+    "Fragmentable MPEG-4 AVC/H.264 High Profile / Level 4.1",
 );
 /// **Stub descriptor:** MPEG-4 AVC/H.264 BD-Compatible High Profile / Level 4.1
 pub const MPEG4_AVC_H264_BD_COMPATIBLE_HIGH_PROFILE: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.103",
     "MPEG-4 AVC/H.264 BD-Compatible High Profile / Level 4.1",
 );
+/// **Stub descriptor:** Fragmentable MPEG-4 AVC/H.264 BD-Compatible High Profile / Level 4.1
+pub const FRAGMENTABLE_MPEG4_AVC_H264_BD_COMPATIBLE_HIGH_PROFILE: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.103.1",
+    "Fragmentable MPEG-4 AVC/H.264 BD-Compatible High Profile / Level 4.1",
+);
 /// **Stub descriptor:** MPEG-4 AVC/H.264 High Profile / Level 4.2 For 2D Video
 pub const MPEG4_AVC_H264_HIGH_PROFILE_FOR_2D_VIDEO: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.104",
     "MPEG-4 AVC/H.264 High Profile / Level 4.2 For 2D Video",
+);
+/// **Stub descriptor:** Fragmentable MPEG-4 AVC/H.264 High Profile / Level 4.2 For 2D Video
+pub const FRAGMENTABLE_MPEG4_AVC_H264_HIGH_PROFILE_FOR_2D_VIDEO: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.104.1",
+    "Fragmentable MPEG-4 AVC/H.264 High Profile / Level 4.2 For 2D Video",
 );
 /// **Stub descriptor:** MPEG-4 AVC/H.264 High Profile / Level 4.2 For 3D Video
 pub const MPEG4_AVC_H264_HIGH_PROFILE_FOR_3D_VIDEO: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.105",
     "MPEG-4 AVC/H.264 High Profile / Level 4.2 For 3D Video",
 );
+/// **Stub descriptor:** Fragmentable MPEG-4 AVC/H.264 High Profile / Level 4.2 For 3D Video
+pub const FRAGMENTABLE_MPEG4_AVC_H264_HIGH_PROFILE_FOR_3D_VIDEO: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.105.1",
+    "Fragmentable MPEG-4 AVC/H.264 High Profile / Level 4.2 For 3D Video",
+);
 /// **Stub descriptor:** MPEG-4 AVC/H.264 High Profile / Level 4.2
 pub const MPEG4_AVC_H264_STEREO_HIGH_PROFILE: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.106",
     "MPEG-4 AVC/H.264 Stereo High Profile / Level 4.2",
+);
+/// **Stub descriptor:** Fragmentable MPEG-4 AVC/H.264 Stereo High Profile / Level 4.2
+pub const FRAGMENTABLE_MPEG4_AVC_H264_STEREO_HIGH_PROFILE: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.106.1",
+    "Fragmentable MPEG-4 AVC/H.264 Stereo High Profile / Level 4.2",
 );
 /// **Stub descriptor:** HEVC/H.265 Main Profile / Level 5.1
 pub const HEVC_H265_MAIN_PROFILE: Ts = create_ts_stub(
