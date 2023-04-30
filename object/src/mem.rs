@@ -543,6 +543,16 @@ where
     D: DataDictionary,
     D: Clone,
 {
+
+    pub(crate) fn new(entries: BTreeMap<Tag, InMemElement<D>>, dict: D, len: Length) -> Self {
+        InMemDicomObject {
+            entries,
+            dict,
+            len,
+            charset_changed: false,
+        }
+    }
+
     /// Create a new empty object, using the given dictionary for name lookup.
     pub fn new_empty_with_dict(dict: D) -> Self {
         InMemDicomObject {
@@ -1976,10 +1986,6 @@ where
         // continue fetching tokens to retrieve:
         // - the offset table
         // - the various compressed fragments
-        //
-        // Note: as there is still no standard way to represent this in memory,
-        // this code will currently flatten all compressed fragments into a
-        // single vector.
 
         let mut offset_table = None;
 

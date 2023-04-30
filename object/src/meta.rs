@@ -183,6 +183,9 @@ where
 impl FileMetaTable {
     /// Construct a file meta group table
     /// by parsing a DICOM data set from a reader.
+    /// 
+    /// This method fails if the first four bytes
+    /// are not the DICOM magic code `DICM`.
     pub fn from_reader<R: Read>(file: R) -> Result<Self> {
         FileMetaTable::read_from(file)
     }
@@ -476,6 +479,8 @@ impl FileMetaTable {
                 .unwrap_or(0)
     }
 
+    /// Read the DICOM magic code (`b"DICM"`)
+    /// and the whole file meta group from the given reader.
     fn read_from<S: Read>(mut file: S) -> Result<Self> {
         let mut buff: [u8; 4] = [0; 4];
         {

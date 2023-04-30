@@ -1294,7 +1294,7 @@ mod tests {
     }
 
     #[test]
-    fn peek_data_elements_implicit() {
+    fn peek_data_elements() {
         #[rustfmt::skip]
         static DATA: &[u8] = &[
             0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
