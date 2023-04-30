@@ -153,7 +153,6 @@ impl DataToken {
 /// The parameter type `D` represents
 /// the original type of the stateful decoder,
 /// and through which the values can be retrieved.
-#[derive(Debug)]
 #[non_exhaustive]
 pub enum LazyDataToken<D> {
     /// A data header of a primitive value.
@@ -184,6 +183,33 @@ pub enum LazyDataToken<D> {
     },
 }
 
+impl<D> fmt::Debug for LazyDataToken<D> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LazyDataToken::ElementHeader(header) => {
+                f.debug_tuple("ElementHeader").field(header).finish()
+            }
+            LazyDataToken::SequenceStart { tag, len } => f
+                .debug_struct("SequenceStart")
+                .field("tag", tag)
+                .field("len", len)
+                .finish(),
+            LazyDataToken::PixelSequenceStart => f.write_str("PixelSequenceStart"),
+            LazyDataToken::SequenceEnd => f.write_str("SequenceEnd"),
+            LazyDataToken::ItemStart { len } => {
+                f.debug_struct("ItemStart").field("len", len).finish()
+            }
+            LazyDataToken::ItemEnd => f.write_str("ItemEnd"),
+            LazyDataToken::LazyValue { header, decoder: _ } => {
+                f.debug_struct("LazyValue").field("header", header).finish()
+            }
+            LazyDataToken::LazyItemValue { len, decoder: _ } => {
+                f.debug_struct("LazyItemValue").field("len", len).finish()
+            }
+        }
+    }
+}
+
 impl<D> LazyDataToken<D> {
     /// Check whether this token represents the start of a sequence
     /// of nested data sets.
@@ -202,6 +228,14 @@ impl<D> LazyDataToken<D>
 where
     D: decode::StatefulDecode,
 {
+    /// Skip the value data referred by this token.
+    ///
+    /// This must be called when receiving a token
+    /// of variant [`LazyValue`](LazyDataToken::LazyValue)
+    /// or [`LazyItemValue`](LazyDataToken::LazyItemValue),
+    /// otherwise the data set reader may fail to read subsequent items.
+    ///
+    /// Does nothing for tokens of other variants.
     pub fn skip(self) -> crate::stateful::decode::Result<()> {
         match self {
             LazyDataToken::LazyValue {
@@ -541,8 +575,12 @@ where
                                 // return a header token instead and continue
                                 // as if it were a primitive value
                                 if len.is_defined() {
-                                    tracing::warn!("Unexpected primitive value after header {} with VR SQ", tag);
-                                    let adapted_elem =  DataElement::new_with_len(tag, VR::SQ, len, v);
+                                    tracing::warn!(
+                                        "Unexpected primitive value after header {} with VR SQ",
+                                        tag
+                                    );
+                                    let adapted_elem =
+                                        DataElement::new_with_len(tag, VR::SQ, len, v);
                                     (
                                         Some(DataToken::ElementHeader(*adapted_elem.header())),
                                         DataElementTokens::Header(Some(adapted_elem)),
@@ -553,7 +591,7 @@ where
                                     tracing::warn!("Unexpected primitive value after header {} with VR SQ, ignoring", tag);
                                     (None, DataElementTokens::End)
                                 }
-                            },
+                            }
                             Value::PixelSequence { .. } => {
                                 // this is also invalid because
                                 // this is a data element sequence start,
@@ -561,7 +599,7 @@ where
                                 // stop here and return nothing
                                 tracing::warn!("Unexpected pixel data fragments after header {} with VR SQ, ignored", tag);
                                 (None, DataElementTokens::End)
-                            },
+                            }
                             Value::Sequence(seq) => {
                                 let seq = if options.force_invalidate_sq_length {
                                     seq.into_items().into_vec().into()
@@ -1007,7 +1045,8 @@ where
 #[cfg(test)]
 mod tests {
     use dicom_core::{
-        dicom_value, header::HasLength, value::PixelFragmentSequence, DataElement, DataElementHeader, DicomValue, Length, PrimitiveValue, Tag, VR
+        dicom_value, header::HasLength, value::PixelFragmentSequence, DataElement,
+        DataElementHeader, DicomValue, Length, PrimitiveValue, Tag, VR,
     };
 
     use super::{DataToken, IntoTokens, IntoTokensOptions, LazyDataToken};
@@ -1327,7 +1366,7 @@ mod tests {
             VR::SQ, // wrong VR
             PixelFragmentSequence::new_fragments(vec![
                 // one fragment
-                vec![0x55; 128]
+                vec![0x55; 128],
             ]),
         );
 
