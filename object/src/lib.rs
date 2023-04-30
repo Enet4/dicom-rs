@@ -13,6 +13,8 @@
 //!
 //! # Examples
 //!
+//! ### Reading DICOM
+//!
 //! Read an object and fetch some attributes:
 //!
 //! ```no_run
@@ -62,6 +64,8 @@
 //! # Ok(())
 //! # }
 //! ```
+//! 
+//! ### Writing DICOM
 //!
 //! **Note:** if you need to decode the pixel data first,
 //! see the [dicom-pixeldata] crate.
@@ -137,6 +141,7 @@ pub mod file;
 pub mod mem;
 pub mod meta;
 pub mod ops;
+pub mod collector;
 pub mod tokens;
 
 pub use crate::file::{from_reader, open_file, OpenFileOptions};
