@@ -170,6 +170,8 @@ pub struct DataSetReader<S> {
     hard_break: bool,
     /// last decoded header
     last_header: Option<DataElementHeader>,
+    /// if a peek was taken, this holds the token peeked
+    peek: Option<DataToken>,
 }
 
 impl<R> DataSetReader<DynStatefulDecoder<R>> {
@@ -217,6 +219,7 @@ impl<R> DataSetReader<DynStatefulDecoder<R>> {
             in_sequence: false,
             hard_break: false,
             last_header: None,
+            peek: None,
         })
     }
 }
@@ -233,6 +236,7 @@ impl<S> DataSetReader<S> {
             in_sequence: false,
             hard_break: false,
             last_header: None,
+            peek: None,
         }
     }
 }
@@ -246,6 +250,10 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         if self.hard_break {
             return None;
+        }
+        // if there was a peek, consume peeked token
+        if let Some(token) = self.peek.take() {
+            return Some(Ok(token));
         }
 
         // item or sequence delimitation logic for explicit lengths
@@ -488,6 +496,25 @@ impl<S> DataSetReader<S>
 where
     S: StatefulDecode,
 {
+    /// Peek the next token from the source by
+    /// reading a new token in the first call.
+    /// Subsequent calls to `peek` will return the same token
+    /// until another consumer method (such as `Iterator::next`)
+    /// is called.
+    pub fn peek(&mut self) -> Result<Option<&DataToken>> {
+        if self.peek.is_none() {
+            // try to read the next token
+            match self.next() {
+                None => return Ok(None),
+                Some(Err(e)) => return Err(e),
+                Some(Ok(token)) => {
+                    self.peek = Some(token);
+                }
+            }
+        }
+        Ok(self.peek.as_ref())
+    }
+
     fn update_seq_delimiters(&mut self) -> Result<Option<DataToken>> {
         if let Some(sd) = self.seq_delimiters.last() {
             if let Some(len) = sd.len.get() {
@@ -1118,5 +1145,83 @@ mod tests {
         ];
 
         validate_dataset_reader_implicit_vr(DATA, ground_truth);
+    }
+
+    #[test]
+    fn peek_data_elements_implicit() {
+        #[rustfmt::skip]
+        static DATA: &[u8] = &[
+            0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
+            b'S', b'Q', // VR
+            0x00, 0x00, // reserved
+            0xff, 0xff, 0xff, 0xff, // length: undefined
+            // -- 12 --
+            0xfe, 0xff, 0xdd, 0xe0, 0x00, 0x00, 0x00, 0x00, // sequence end
+            // -- 82 --
+            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4
+            b'T', b'E', b'S', b'T', // value = "TEST"
+        ];
+
+        let ground_truth = vec![
+            DataToken::SequenceStart {
+                tag: Tag(0x0018, 0x6011),
+                len: Length::UNDEFINED,
+            },
+            DataToken::SequenceEnd,
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0020, 0x4000),
+                vr: VR::LT,
+                len: Length(4),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
+        ];
+
+        let mut cursor = DATA;
+        let parser = StatefulDecoder::new(
+            &mut cursor,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder::default(),
+            SpecificCharacterSet::Default,
+        );
+        let mut dset_reader = DataSetReader::new(parser, Default::default());
+
+        let iter = (&mut dset_reader).into_iter();
+
+        // peek at first token
+        let token = iter.peek().expect("should peek first token OK");
+        assert_eq!(token, Some(&ground_truth[0]));
+
+        // peeking multiple times gives the same result
+        let token = iter.peek().expect("should peek first token again OK");
+        assert_eq!(token, Some(&ground_truth[0]));
+
+        // Using `next` give us the same token
+        let token = iter
+            .next()
+            .expect("expected token")
+            .expect("should read token peeked OK");
+        assert_eq!(&token, &ground_truth[0]);
+
+        // read some more tokens
+
+        // sequence end
+        let token = iter.next().unwrap().unwrap();
+        assert_eq!(&token, &ground_truth[1]);
+        // data element header
+        let token = iter.next().unwrap().unwrap();
+        assert_eq!(&token, &ground_truth[2]);
+
+        // peek string value
+        let token = iter.peek().unwrap();
+        assert_eq!(token, Some(&ground_truth[3]));
+        // peek it again
+        let token = iter.peek().unwrap();
+        assert_eq!(token, Some(&ground_truth[3]));
+        // then read it
+        let token = iter.next().unwrap().unwrap();
+        assert_eq!(&token, &ground_truth[3]);
+
+        // finished reading, peek should return None
+        assert!(iter.peek().unwrap().is_none());
     }
 }
