@@ -3521,10 +3521,220 @@ impl PrimitiveValue {
             | PrimitiveValue::F64(_)
             | PrimitiveValue::Date(_)
             | PrimitiveValue::DateTime(_)
-            | PrimitiveValue::Time(_) => Err(IncompatibleStringTypeSnafu {
+            | PrimitiveValue::Time(_) => IncompatibleStringTypeSnafu {
                 original: self.value_type(),
             }
-            .build()),
+            .fail(),
+        }
+    }
+
+    /// Extend a value of numbers by appending
+    /// 16-bit unsigned integers to an existing value.
+    ///
+    /// The value may be empty
+    /// or already contain numeric or textual values.
+    ///
+    /// If the current value is textual,
+    /// the numbers provided are converted to text.
+    /// For the case of numeric values,
+    /// the given numbers are _converted to the current number type
+    /// through casting_,
+    /// meaning that loss of precision may occur.
+    /// If this is undesirable,
+    /// read the current value and replace it manually.
+    ///
+    /// An error is returned
+    /// if the current value is not compatible with the insertion of integers,
+    /// such as `Tag` or `Date`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use dicom_core::dicom_value;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut value = dicom_value!(U16, [1, 2]);
+    /// value.extend_u16([5])?;
+    /// assert_eq!(value.to_multi_int::<u16>()?, vec![1, 2, 5]);
+    ///
+    /// let mut value = dicom_value!(Strs, ["City"]);
+    /// value.extend_u16([17])?;
+    /// assert_eq!(value.to_string(), "City\\17");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn extend_u16(
+        &mut self,
+        numbers: impl IntoIterator<Item = u16>,
+    ) -> Result<(), ModifyValueError> {
+        match self {
+            PrimitiveValue::Empty => {
+                *self = PrimitiveValue::U16(numbers.into_iter().collect());
+                Ok(())
+            }
+            PrimitiveValue::Strs(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n.to_string()));
+                Ok(())
+            }
+            PrimitiveValue::Str(s) => {
+                // for lack of better ways to move the string out from the mutable borrow,
+                // we create a copy for now
+                let s = s.clone();
+                *self = PrimitiveValue::Strs(
+                    std::iter::once(s)
+                        .chain(numbers.into_iter().map(|n| n.to_string()))
+                        .collect(),
+                );
+                Ok(())
+            }
+            PrimitiveValue::U16(elements) => {
+                elements.extend(numbers);
+                Ok(())
+            }
+            PrimitiveValue::U8(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u8));
+                Ok(())
+            }
+            PrimitiveValue::I16(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i16));
+                Ok(())
+            }
+            PrimitiveValue::U32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u32));
+                Ok(())
+            }
+            PrimitiveValue::I32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i32));
+                Ok(())
+            }
+            PrimitiveValue::I64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i64));
+                Ok(())
+            }
+            PrimitiveValue::U64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u64));
+                Ok(())
+            }
+            PrimitiveValue::F32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as f32));
+                Ok(())
+            }
+            PrimitiveValue::F64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as f64));
+                Ok(())
+            }
+            PrimitiveValue::Tags(_)
+            | PrimitiveValue::Date(_)
+            | PrimitiveValue::DateTime(_)
+            | PrimitiveValue::Time(_) => IncompatibleNumberTypeSnafu {
+                original: self.value_type(),
+            }
+            .fail(),
+        }
+    }
+
+    /// Extend a value of numbers by appending
+    /// 16-bit signed integers to an existing value.
+    ///
+    /// The value may be empty
+    /// or already contain numeric or textual values.
+    ///
+    /// If the current value is textual,
+    /// the numbers provided are converted to text.
+    /// For the case of numeric values,
+    /// the given numbers are _converted to the current number type
+    /// through casting_,
+    /// meaning that loss of precision may occur.
+    /// If this is undesirable,
+    /// read the current value and replace it manually.
+    ///
+    /// An error is returned
+    /// if the current value is not compatible with the insertion of integers,
+    /// such as `Tag` or `Date`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use dicom_core::dicom_value;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut value = dicom_value!(I16, [1, 2]);
+    /// value.extend_i16([-5])?;
+    /// assert_eq!(value.to_multi_int::<i16>()?, vec![1, 2, -5]);
+    ///
+    /// let mut value = dicom_value!(Strs, ["City"]);
+    /// value.extend_i16([17])?;
+    /// assert_eq!(value.to_string(), "City\\17");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn extend_i16(
+        &mut self,
+        numbers: impl IntoIterator<Item = i16>,
+    ) -> Result<(), ModifyValueError> {
+        match self {
+            PrimitiveValue::Empty => {
+                *self = PrimitiveValue::I16(numbers.into_iter().collect());
+                Ok(())
+            }
+            PrimitiveValue::Strs(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n.to_string()));
+                Ok(())
+            }
+            PrimitiveValue::Str(s) => {
+                // for lack of better ways to move the string out from the mutable borrow,
+                // we create a copy for now
+                let s = s.clone();
+                *self = PrimitiveValue::Strs(
+                    std::iter::once(s)
+                        .chain(numbers.into_iter().map(|n| n.to_string()))
+                        .collect(),
+                );
+                Ok(())
+            }
+            PrimitiveValue::I16(elements) => {
+                elements.extend(numbers);
+                Ok(())
+            }
+            PrimitiveValue::U8(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u8));
+                Ok(())
+            }
+            PrimitiveValue::U16(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u16));
+                Ok(())
+            }
+            PrimitiveValue::U32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u32));
+                Ok(())
+            }
+            PrimitiveValue::I32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i32));
+                Ok(())
+            }
+            PrimitiveValue::I64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i64));
+                Ok(())
+            }
+            PrimitiveValue::U64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u64));
+                Ok(())
+            }
+            PrimitiveValue::F32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as f32));
+                Ok(())
+            }
+            PrimitiveValue::F64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as f64));
+                Ok(())
+            }
+            PrimitiveValue::Tags(_)
+            | PrimitiveValue::Date(_)
+            | PrimitiveValue::DateTime(_)
+            | PrimitiveValue::Time(_) => IncompatibleNumberTypeSnafu {
+                original: self.value_type(),
+            }
+            .fail(),
         }
     }
 
@@ -3537,8 +3747,11 @@ impl PrimitiveValue {
     /// If the current value is textual,
     /// the numbers provided are converted to text.
     /// For the case of numeric values,
-    /// the given numbers are converted to the current number type
-    /// through casting.
+    /// the given numbers are _converted to the current number type
+    /// through casting_,
+    /// meaning that loss of precision may occur.
+    /// If this is undesirable,
+    /// read the current value and replace it manually.
     ///
     /// An error is returned
     /// if the current value is not compatible with the insertion of integers,
@@ -3623,10 +3836,10 @@ impl PrimitiveValue {
             PrimitiveValue::Tags(_)
             | PrimitiveValue::Date(_)
             | PrimitiveValue::DateTime(_)
-            | PrimitiveValue::Time(_) => Err(IncompatibleNumberTypeSnafu {
+            | PrimitiveValue::Time(_) => IncompatibleNumberTypeSnafu {
                 original: self.value_type(),
             }
-            .build()),
+            .fail(),
         }
     }
 
@@ -3639,8 +3852,11 @@ impl PrimitiveValue {
     /// If the current value is textual,
     /// the numbers provided are converted to text.
     /// For the case of numeric values,
-    /// the given numbers are converted to the current number type
-    /// through casting.
+    /// the given numbers are _converted to the current number type
+    /// through casting_,
+    /// meaning that loss of precision may occur.
+    /// If this is undesirable,
+    /// read the current value and replace it manually.
     ///
     /// An error is returned
     /// if the current value is not compatible with the insertion of integers,
@@ -3720,6 +3936,215 @@ impl PrimitiveValue {
             }
             PrimitiveValue::F64(elements) => {
                 elements.extend(numbers.into_iter().map(|n| n as f64));
+                Ok(())
+            }
+            PrimitiveValue::Tags(_)
+            | PrimitiveValue::Date(_)
+            | PrimitiveValue::DateTime(_)
+            | PrimitiveValue::Time(_) => IncompatibleNumberTypeSnafu {
+                original: self.value_type(),
+            }.fail(),
+        }
+    }
+
+    /// Extend a value of numbers by appending
+    /// 32-bit floating point numbers to an existing value.
+    ///
+    /// The value may be empty
+    /// or already contain numeric or textual values.
+    ///
+    /// If the current value is textual,
+    /// the numbers provided are converted to text.
+    /// For the case of numeric values,
+    /// the given numbers are _converted to the current number type
+    /// through casting_,
+    /// meaning that loss of precision may occur.
+    /// If this is undesirable,
+    /// read the current value and replace it manually.
+    ///
+    /// An error is returned
+    /// if the current value is not compatible with the insertion of integers,
+    /// such as `Tag` or `Date`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use dicom_core::dicom_value;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut value = dicom_value!(F32, [1., 2.]);
+    /// value.extend_f32([5.])?;
+    /// assert_eq!(value.to_multi_float32()?, vec![1., 2., 5.]);
+    ///
+    /// let mut value = dicom_value!(Strs, ["1.25"]);
+    /// value.extend_f32([0.5])?;
+    /// assert_eq!(value.to_string(), "1.25\\0.5");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn extend_f32(
+        &mut self,
+        numbers: impl IntoIterator<Item = f32>,
+    ) -> Result<(), ModifyValueError> {
+        match self {
+            PrimitiveValue::Empty => {
+                *self = PrimitiveValue::F32(numbers.into_iter().collect());
+                Ok(())
+            }
+            PrimitiveValue::Strs(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n.to_string()));
+                Ok(())
+            }
+            PrimitiveValue::Str(s) => {
+                // for lack of better ways to move the string out from the mutable borrow,
+                // we create a copy for now
+                let s = s.clone();
+                *self = PrimitiveValue::Strs(
+                    std::iter::once(s)
+                        .chain(numbers.into_iter().map(|n| n.to_string()))
+                        .collect(),
+                );
+                Ok(())
+            }
+            PrimitiveValue::F32(elements) => {
+                elements.extend(numbers);
+                Ok(())
+            }
+            PrimitiveValue::U8(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u8));
+                Ok(())
+            }
+            PrimitiveValue::I16(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i16));
+                Ok(())
+            }
+            PrimitiveValue::U16(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u16));
+                Ok(())
+            }
+            PrimitiveValue::I32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i32));
+                Ok(())
+            }
+            PrimitiveValue::I64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i64));
+                Ok(())
+            }
+            PrimitiveValue::U32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u32));
+                Ok(())
+            }
+            PrimitiveValue::U64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u64));
+                Ok(())
+            }
+            PrimitiveValue::F64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as f64));
+                Ok(())
+            }
+            PrimitiveValue::Tags(_)
+            | PrimitiveValue::Date(_)
+            | PrimitiveValue::DateTime(_)
+            | PrimitiveValue::Time(_) => IncompatibleNumberTypeSnafu {
+                original: self.value_type(),
+            }
+            .fail(),
+        }
+    }
+
+    /// Extend a value of numbers by appending
+    /// 64-bit floating point numbers to an existing value.
+    ///
+    /// The value may be empty
+    /// or already contain numeric or textual values.
+    ///
+    /// If the current value is textual,
+    /// the numbers provided are converted to text.
+    /// For the case of numeric values,
+    /// the given numbers are _converted to the current number type
+    /// through casting_,
+    /// meaning that loss of precision may occur.
+    /// If this is undesirable,
+    /// read the current value and replace it manually.
+    ///
+    /// An error is returned
+    /// if the current value is not compatible with the insertion of integers,
+    /// such as `Tag` or `Date`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use dicom_core::dicom_value;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut value = dicom_value!(F64, [1., 2.]);
+    /// value.extend_f64([5.])?;
+    /// assert_eq!(value.to_multi_float64()?, vec![1., 2., 5.]);
+    ///
+    /// let mut value = dicom_value!(Strs, ["1.25"]);
+    /// value.extend_f64([0.5])?;
+    /// assert_eq!(value.to_string(), "1.25\\0.5");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn extend_f64(
+        &mut self,
+        numbers: impl IntoIterator<Item = f64>,
+    ) -> Result<(), ModifyValueError> {
+        match self {
+            PrimitiveValue::Empty => {
+                *self = PrimitiveValue::F64(numbers.into_iter().collect());
+                Ok(())
+            }
+            PrimitiveValue::Strs(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n.to_string()));
+                Ok(())
+            }
+            PrimitiveValue::Str(s) => {
+                // for lack of better ways to move the string out from the mutable borrow,
+                // we create a copy for now
+                let s = s.clone();
+                *self = PrimitiveValue::Strs(
+                    std::iter::once(s)
+                        .chain(numbers.into_iter().map(|n| n.to_string()))
+                        .collect(),
+                );
+                Ok(())
+            }
+            PrimitiveValue::F64(elements) => {
+                elements.extend(numbers);
+                Ok(())
+            }
+            PrimitiveValue::U8(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u8));
+                Ok(())
+            }
+            PrimitiveValue::I16(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i16));
+                Ok(())
+            }
+            PrimitiveValue::U16(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u16));
+                Ok(())
+            }
+            PrimitiveValue::I32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i32));
+                Ok(())
+            }
+            PrimitiveValue::I64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i64));
+                Ok(())
+            }
+            PrimitiveValue::U32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u32));
+                Ok(())
+            }
+            PrimitiveValue::U64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u64));
+                Ok(())
+            }
+            PrimitiveValue::F32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as f32));
                 Ok(())
             }
             PrimitiveValue::Tags(_)

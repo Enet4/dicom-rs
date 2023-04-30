@@ -17,18 +17,17 @@
 //! - [`dictionary`] describes common behavior of DICOM data dictionaries,
 //!   which translate attribute names and/or tags to a dictionary entry
 //!   containing relevant information about the attribute.
+//! - [`ops`] provides constructs for defining
+//!   operations on DICOM attributes,
+//!   to be applied on types resembling DICOM objects or data sets.
 //! - [`value`] holds definitions for values in standard DICOM elements,
 //!   with the awareness of multiplicity, representation,
 //!   and the possible presence of sequences.
-//! - [`error`] contains crate-level error and result types.
 //!
-//! [`dictionary`]: ./dictionary/index.html
-//! [`error`]: ./error/index.html
-//! [`header`]: ./header/index.html
-//! [`value`]: ./value/index.html
 
 pub mod dictionary;
 pub mod header;
+pub mod ops;
 pub mod value;
 
 pub use dictionary::DataDictionary;

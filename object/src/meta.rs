@@ -2,8 +2,10 @@
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 use dicom_core::dicom_value;
 use dicom_core::header::{DataElement, EmptyObject, HasLength, Header};
-use dicom_core::value::{PrimitiveValue, Value};
+use dicom_core::ops::{ApplyOp, AttributeAction, AttributeOp};
+use dicom_core::value::{PrimitiveValue, Value, ValueType};
 use dicom_core::{Length, Tag, VR};
+use dicom_dictionary_std::tags;
 use dicom_encoding::decode::{self, DecodeFrom};
 use dicom_encoding::encode::explicit_le::ExplicitVRLittleEndianEncoder;
 use dicom_encoding::encode::EncoderFor;
@@ -13,6 +15,10 @@ use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::io::{Read, Write};
 
+use crate::ops::{
+    ApplyError, ApplyResult, IllegalExtendSnafu, IncompatibleTypesSnafu, MandatorySnafu,
+    UnsupportedActionSnafu, UnsupportedAttributeSnafu,
+};
 use crate::{IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME};
 
 const DICM_MAGIC_CODE: [u8; 4] = [b'D', b'I', b'C', b'M'];
@@ -241,6 +247,136 @@ impl FileMetaTable {
     /// and assign it to the field `information_group_length`.
     pub fn update_information_group_length(&mut self) {
         self.information_group_length = self.calculate_information_group_length();
+    }
+
+    /// Apply the given attribute operation on this file meta information table.
+    ///
+    /// See the [`dicom_encoding::ops`] module
+    /// for more information.
+    fn apply(&mut self, op: AttributeOp) -> ApplyResult {
+        match op.tag {
+            tags::TRANSFER_SYNTAX_UID => Self::apply_required_string(op, &mut self.transfer_syntax),
+            tags::MEDIA_STORAGE_SOP_CLASS_UID => {
+                Self::apply_required_string(op, &mut self.media_storage_sop_class_uid)
+            }
+            tags::MEDIA_STORAGE_SOP_INSTANCE_UID => {
+                Self::apply_required_string(op, &mut self.media_storage_sop_instance_uid)
+            }
+            tags::IMPLEMENTATION_CLASS_UID => {
+                Self::apply_required_string(op, &mut self.implementation_class_uid)
+            }
+            tags::IMPLEMENTATION_VERSION_NAME => {
+                Self::apply_optional_string(op, &mut self.implementation_version_name)
+            }
+            tags::SOURCE_APPLICATION_ENTITY_TITLE => {
+                Self::apply_optional_string(op, &mut self.source_application_entity_title)
+            }
+            tags::SENDING_APPLICATION_ENTITY_TITLE => {
+                Self::apply_optional_string(op, &mut self.sending_application_entity_title)
+            }
+            tags::RECEIVING_APPLICATION_ENTITY_TITLE => {
+                Self::apply_optional_string(op, &mut self.receiving_application_entity_title)
+            }
+            tags::PRIVATE_INFORMATION_CREATOR_UID => {
+                Self::apply_optional_string(op, &mut self.private_information_creator_uid)
+            }
+            _ if matches!(op.action, AttributeAction::Remove | AttributeAction::Empty) => {
+                // any other attribute is not supported
+                // (ignore Remove and Empty)
+                Ok(())
+            }
+            _ => UnsupportedAttributeSnafu.fail(),
+        }?;
+
+        self.update_information_group_length();
+
+        Ok(())
+    }
+
+    fn apply_required_string(op: AttributeOp, target_attribute: &mut String) -> ApplyResult {
+        match op.action {
+            AttributeAction::Remove | AttributeAction::Empty => MandatorySnafu.fail(),
+            AttributeAction::SetVr(_) => {
+                // ignore
+                Ok(())
+            }
+            AttributeAction::Replace(value) => {
+                // require value to be textual
+                if let Ok(value) = value.string() {
+                    *target_attribute = value.to_string();
+                    Ok(())
+                } else {
+                    IncompatibleTypesSnafu {
+                        kind: ValueType::Str,
+                    }
+                    .fail()
+                }
+            }
+            AttributeAction::ReplaceStr(string) => {
+                *target_attribute = string.to_string();
+                Ok(())
+            }
+            AttributeAction::PushStr(_) => IllegalExtendSnafu.fail(),
+            AttributeAction::PushI32(_)
+            | AttributeAction::PushU32(_)
+            | AttributeAction::PushI16(_)
+            | AttributeAction::PushU16(_)
+            | AttributeAction::PushF32(_)
+            | AttributeAction::PushF64(_) => IncompatibleTypesSnafu {
+                kind: ValueType::Str,
+            }
+            .fail(),
+            _ => UnsupportedActionSnafu.fail(),
+        }
+    }
+
+    fn apply_optional_string(
+        op: AttributeOp,
+        target_attribute: &mut Option<String>,
+    ) -> ApplyResult {
+        match op.action {
+            AttributeAction::Remove => {
+                target_attribute.take();
+                Ok(())
+            }
+            AttributeAction::Empty => {
+                if let Some(s) = target_attribute.as_mut() {
+                    s.clear();
+                }
+                Ok(())
+            }
+            AttributeAction::SetVr(_) => {
+                // ignore
+                Ok(())
+            }
+            AttributeAction::Replace(value) => {
+                // require value to be textual
+                if let Ok(value) = value.string() {
+                    *target_attribute = Some(value.to_string());
+                    Ok(())
+                } else {
+                    IncompatibleTypesSnafu {
+                        kind: ValueType::Str,
+                    }
+                    .fail()
+                }
+            }
+            AttributeAction::ReplaceStr(value) => {
+                *target_attribute = Some(value.to_string());
+                Ok(())
+            }
+            AttributeAction::PushStr(_) => IllegalExtendSnafu.fail(),
+            AttributeAction::PushI32(_)
+            | AttributeAction::PushU32(_)
+            | AttributeAction::PushI16(_)
+            | AttributeAction::PushU16(_)
+            | AttributeAction::PushF32(_)
+            | AttributeAction::PushF64(_) => IncompatibleTypesSnafu {
+                kind: ValueType::Str,
+            }
+            .fail(),
+            _ => UnsupportedActionSnafu.fail(),
+        }
     }
 
     /// Calculate the expected file meta group length,
@@ -594,6 +730,18 @@ impl FileMetaTable {
                 .flat_map(IntoTokens::into_tokens),
         )
         .context(WriteSetSnafu)
+    }
+}
+
+impl ApplyOp for FileMetaTable {
+    type Err = ApplyError;
+
+    /// Apply the given attribute operation on this file meta information table.
+    ///
+    /// See the [`dicom_encoding::ops`] module
+    /// for more information.
+    fn apply(&mut self, op: AttributeOp) -> ApplyResult {
+        self.apply(op)
     }
 }
 

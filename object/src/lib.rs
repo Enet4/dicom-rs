@@ -111,6 +111,7 @@
 pub mod file;
 pub mod mem;
 pub mod meta;
+pub mod ops;
 pub mod tokens;
 
 mod util;
