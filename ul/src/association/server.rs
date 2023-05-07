@@ -8,7 +8,7 @@ use std::{borrow::Cow, io::Write, net::TcpStream};
 
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use snafu::{ensure, ResultExt, Snafu};
+use snafu::{ensure, Backtrace, ResultExt, Snafu};
 
 use crate::{
     pdu::{
@@ -30,49 +30,64 @@ use super::{
 #[non_exhaustive]
 pub enum Error {
     /// missing at least one abstract syntax to accept negotiations
-    MissingAbstractSyntax,
+    MissingAbstractSyntax { backtrace: Backtrace },
 
     /// failed to receive association request
-    ReceiveRequest { source: crate::pdu::reader::Error },
+    ReceiveRequest {
+        #[snafu(backtrace)]
+        source: crate::pdu::reader::Error,
+    },
 
     /// failed to send association response
-    SendResponse { source: crate::pdu::writer::Error },
+    SendResponse {
+        #[snafu(backtrace)]
+        source: crate::pdu::writer::Error,
+    },
 
     /// failed to prepare PDU
-    Send { source: crate::pdu::writer::Error },
+    Send {
+        #[snafu(backtrace)]
+        source: crate::pdu::writer::Error,
+    },
 
     /// failed to send PDU over the wire
-    WireSend { source: std::io::Error },
+    WireSend {
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
 
     /// failed to receive PDU
-    Receive { source: crate::pdu::reader::Error },
+    Receive {
+        #[snafu(backtrace)]
+        source: crate::pdu::reader::Error,
+    },
 
     #[snafu(display("unexpected request from SCU `{:?}`", pdu))]
     #[non_exhaustive]
     UnexpectedRequest {
         /// the PDU obtained from the server
-        pdu: Pdu,
+        pdu: Box<Pdu>,
     },
 
     #[snafu(display("unknown request from SCU `{:?}`", pdu))]
     #[non_exhaustive]
     UnknownRequest {
         /// the PDU obtained from the server, of variant Unknown
-        pdu: Pdu,
+        pdu: Box<Pdu>,
     },
 
     /// association rejected
-    Rejected,
+    Rejected { backtrace: Backtrace },
 
     /// association aborted
-    Aborted,
+    Aborted { backtrace: Backtrace },
 
     #[snafu(display(
         "PDU is too large ({} bytes) to be sent to the remote application entity",
         length
     ))]
     #[non_exhaustive]
-    SendTooLongPdu { length: usize },
+    SendTooLongPdu { length: usize, backtrace: Backtrace },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

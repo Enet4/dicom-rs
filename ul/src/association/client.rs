@@ -15,13 +15,13 @@ use crate::{
     pdu::{
         reader::{read_pdu, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE},
         writer::write_pdu,
-        AbortRQSource, AssociationAC, AssociationRJ, AssociationRJResult, AssociationRJSource,
-        AssociationRQ, Pdu, PresentationContextProposed, PresentationContextResult,
-        PresentationContextResultReason, UserVariableItem,
+        AbortRQSource, AssociationAC, AssociationRJ, AssociationRQ, Pdu,
+        PresentationContextProposed, PresentationContextResult, PresentationContextResultReason,
+        UserVariableItem,
     },
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
-use snafu::{ensure, ResultExt, Snafu};
+use snafu::{ensure, Backtrace, ResultExt, Snafu};
 
 use super::{
     pdata::{PDataReader, PDataWriter},
@@ -32,61 +32,83 @@ use super::{
 #[non_exhaustive]
 pub enum Error {
     /// missing abstract syntax to begin negotiation
-    MissingAbstractSyntax,
+    MissingAbstractSyntax { backtrace: Backtrace },
 
     /// could not connect to server
-    Connect { source: std::io::Error },
+    Connect {
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
 
     /// failed to send association request
-    SendRequest { source: crate::pdu::writer::Error },
+    SendRequest {
+        #[snafu(backtrace)]
+        source: crate::pdu::writer::Error,
+    },
 
     /// failed to receive association response
-    ReceiveResponse { source: crate::pdu::reader::Error },
+    ReceiveResponse {
+        #[snafu(backtrace)]
+        source: crate::pdu::reader::Error,
+    },
 
     #[snafu(display("unexpected response from server `{:?}`", pdu))]
     #[non_exhaustive]
     UnexpectedResponse {
         /// the PDU obtained from the server
-        pdu: Pdu,
+        pdu: Box<Pdu>,
     },
 
     #[snafu(display("unknown response from server `{:?}`", pdu))]
     #[non_exhaustive]
     UnknownResponse {
         /// the PDU obtained from the server, of variant Unknown
-        pdu: Pdu,
+        pdu: Box<Pdu>,
     },
 
     #[snafu(display("protocol version mismatch: expected {}, got {}", expected, got))]
-    ProtocolVersionMismatch { expected: u16, got: u16 },
+    ProtocolVersionMismatch {
+        expected: u16,
+        got: u16,
+        backtrace: Backtrace,
+    },
 
-    #[snafu(display("association rejected by the server: {}", association_source))]
+    #[snafu(display("association rejected by the server: {}", association_rj.source))]
     Rejected {
-        association_result: AssociationRJResult,
-        association_source: AssociationRJSource,
+        association_rj: AssociationRJ,
+        backtrace: Backtrace,
     },
 
     /// no presentation contexts accepted by the server
-    NoAcceptedPresentationContexts,
+    NoAcceptedPresentationContexts { backtrace: Backtrace },
 
     /// failed to send PDU message
     #[non_exhaustive]
-    Send { source: crate::pdu::writer::Error },
+    Send {
+        #[snafu(backtrace)]
+        source: crate::pdu::writer::Error,
+    },
 
     /// failed to send PDU message on wire
     #[non_exhaustive]
-    WireSend { source: std::io::Error },
+    WireSend {
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
 
     #[snafu(display(
         "PDU is too large ({} bytes) to be sent to the remote application entity",
         length
     ))]
     #[non_exhaustive]
-    SendTooLongPdu { length: usize },
+    SendTooLongPdu { length: usize, backtrace: Backtrace },
 
     /// failed to receive PDU message
     #[non_exhaustive]
-    Receive { source: crate::pdu::reader::Error },
+    Receive {
+        #[snafu(backtrace)]
+        source: crate::pdu::reader::Error,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -416,11 +438,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     strict,
                 })
             }
-            Pdu::AssociationRJ(AssociationRJ { result, source }) => RejectedSnafu {
-                association_result: result,
-                association_source: source,
-            }
-            .fail(),
+            Pdu::AssociationRJ(association_rj) => RejectedSnafu { association_rj }.fail(),
             pdu @ Pdu::AbortRQ { .. }
             | pdu @ Pdu::ReleaseRQ { .. }
             | pdu @ Pdu::AssociationRQ { .. }
