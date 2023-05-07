@@ -275,11 +275,6 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// A root DICOM object contains additional meta information about the object
-/// in a separate table.
-#[deprecated(since = "0.4.0", note = "use `FileDicomObject` instead")]
-pub type RootDicomObject<O> = FileDicomObject<O>;
-
 /// A root DICOM object retrieved from a standard DICOM file,
 /// containing additional information from the file meta group
 /// in a separate table value.
