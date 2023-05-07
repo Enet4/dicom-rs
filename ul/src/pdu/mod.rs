@@ -332,32 +332,16 @@ pub enum UserVariableItem {
     SopClassExtendedNegotiationSubItem(String, Vec<u8>)
 }
 
-#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+/// An in-memory representation of a full Protocol Data Unit (PDU)
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Hash)]
 pub enum Pdu {
     Unknown {
         pdu_type: u8,
         data: Vec<u8>,
     },
-    AssociationRQ {
-        protocol_version: u16,
-        calling_ae_title: String,
-        called_ae_title: String,
-        application_context_name: String,
-        presentation_contexts: Vec<PresentationContextProposed>,
-        user_variables: Vec<UserVariableItem>,
-    },
-    AssociationAC {
-        protocol_version: u16,
-        calling_ae_title: String,
-        called_ae_title: String,
-        application_context_name: String,
-        presentation_contexts: Vec<PresentationContextResult>,
-        user_variables: Vec<UserVariableItem>,
-    },
-    AssociationRJ {
-        result: AssociationRJResult,
-        source: AssociationRJSource,
-    },
+    AssociationRQ(AssociationRQ),
+    AssociationAC(AssociationAC),
+    AssociationRJ(AssociationRJ),
     PData {
         data: Vec<PDataValue>,
     },
@@ -384,26 +368,50 @@ impl Pdu {
         }
     }
 }
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-struct AssociationRQ {
-    protocol_version: u16,
-    calling_ae_title: String,
-    called_ae_title: String,
-    application_context_name: String,
-    presentation_contexts: Vec<PresentationContextProposed>,
-    user_variables: Vec<UserVariableItem>,
+
+/// An in-memory representation of an association request
+#[derive(Debug, Clone, Eq, Hash, PartialEq, PartialOrd)]
+pub struct AssociationRQ {
+    pub protocol_version: u16,
+    pub calling_ae_title: String,
+    pub called_ae_title: String,
+    pub application_context_name: String,
+    pub presentation_contexts: Vec<PresentationContextProposed>,
+    pub user_variables: Vec<UserVariableItem>,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-struct AssociationAC {
-    protocol_version: u16,
-    application_context_name: String,
-    presentation_contexts: Vec<PresentationContextResult>,
-    user_variables: Vec<UserVariableItem>,
+impl From<AssociationRQ> for Pdu {
+    fn from(value: AssociationRQ) -> Self {
+        Pdu::AssociationRQ(value)
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-struct AssociationRJ {
-    result: AssociationRJResult,
-    source: AssociationRJSource,
+/// An in-memory representation of an association acknowledgement
+#[derive(Debug, Clone, Eq, Hash, PartialEq, PartialOrd)]
+pub struct AssociationAC {
+    pub protocol_version: u16,
+    pub calling_ae_title: String,
+    pub called_ae_title: String,
+    pub application_context_name: String,
+    pub presentation_contexts: Vec<PresentationContextResult>,
+    pub user_variables: Vec<UserVariableItem>,
+}
+
+impl From<AssociationAC> for Pdu {
+    fn from(value: AssociationAC) -> Self {
+        Pdu::AssociationAC(value)
+    }
+}
+
+/// An in-memory representation of an association rejection.
+#[derive(Debug, Clone, Eq, Hash, PartialEq, PartialOrd)]
+pub struct AssociationRJ {
+    pub result: AssociationRJResult,
+    pub source: AssociationRJSource,
+}
+
+impl From<AssociationRJ> for Pdu {
+    fn from(value: AssociationRJ) -> Self {
+        Pdu::AssociationRJ(value)
+    }
 }

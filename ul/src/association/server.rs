@@ -14,9 +14,9 @@ use crate::{
     pdu::{
         reader::{read_pdu, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE},
         writer::write_pdu,
-        AbortRQServiceProviderReason, AbortRQSource, AssociationRJResult,
-        AssociationRJServiceUserReason, AssociationRJSource, Pdu, PresentationContextResult,
-        PresentationContextResultReason, UserVariableItem,
+        AbortRQServiceProviderReason, AbortRQSource, AssociationAC, AssociationRJ,
+        AssociationRJResult, AssociationRJServiceUserReason, AssociationRJSource, AssociationRQ,
+        Pdu, PresentationContextResult, PresentationContextResultReason, UserVariableItem,
     },
     IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
@@ -332,23 +332,23 @@ where
             read_pdu(&mut socket, max_pdu_length, self.strict).context(ReceiveRequestSnafu)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         match pdu {
-            Pdu::AssociationRQ {
+            Pdu::AssociationRQ(AssociationRQ {
                 protocol_version,
                 calling_ae_title,
                 called_ae_title,
                 application_context_name,
                 presentation_contexts,
                 user_variables,
-            } => {
+            }) => {
                 if protocol_version != self.protocol_version {
                     write_pdu(
                         &mut buffer,
-                        &Pdu::AssociationRJ {
+                        &Pdu::AssociationRJ(AssociationRJ {
                             result: AssociationRJResult::Permanent,
                             source: AssociationRJSource::ServiceUser(
                                 AssociationRJServiceUserReason::NoReasonGiven,
                             ),
-                        },
+                        }),
                     )
                     .context(SendResponseSnafu)?;
                     socket.write_all(&buffer).context(WireSendSnafu)?;
@@ -358,12 +358,12 @@ where
                 if application_context_name != self.application_context_name {
                     write_pdu(
                         &mut buffer,
-                        &Pdu::AssociationRJ {
+                        &Pdu::AssociationRJ(AssociationRJ {
                             result: AssociationRJResult::Permanent,
                             source: AssociationRJSource::ServiceUser(
                                 AssociationRJServiceUserReason::ApplicationContextNameNotSupported,
                             ),
-                        },
+                        }),
                     )
                     .context(SendResponseSnafu)?;
                     socket.write_all(&buffer).context(WireSendSnafu)?;
@@ -376,10 +376,10 @@ where
                     .unwrap_or_else(|reason| {
                         write_pdu(
                             &mut buffer,
-                            &Pdu::AssociationRJ {
+                            &Pdu::AssociationRJ(AssociationRJ {
                                 result: AssociationRJResult::Permanent,
                                 source: AssociationRJSource::ServiceUser(reason),
-                            },
+                            }),
                         )
                         .context(SendResponseSnafu)?;
                         socket.write_all(&buffer).context(WireSendSnafu)?;
@@ -434,7 +434,7 @@ where
 
                 write_pdu(
                     &mut buffer,
-                    &Pdu::AssociationAC {
+                    &Pdu::AssociationAC(AssociationAC {
                         protocol_version: self.protocol_version,
                         application_context_name,
                         presentation_contexts: presentation_contexts.clone(),
@@ -449,7 +449,7 @@ where
                                 IMPLEMENTATION_VERSION_NAME.to_string(),
                             ),
                         ],
-                    },
+                    }),
                 )
                 .context(SendResponseSnafu)?;
                 socket.write_all(&buffer).context(WireSendSnafu)?;

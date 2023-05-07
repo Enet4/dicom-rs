@@ -15,8 +15,9 @@ use crate::{
     pdu::{
         reader::{read_pdu, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE},
         writer::write_pdu,
-        AbortRQSource, AssociationRJResult, AssociationRJSource, Pdu, PresentationContextProposed,
-        PresentationContextResult, PresentationContextResultReason, UserVariableItem,
+        AbortRQSource, AssociationAC, AssociationRJ, AssociationRJResult, AssociationRJSource,
+        AssociationRQ, Pdu, PresentationContextProposed, PresentationContextResult,
+        PresentationContextResultReason, UserVariableItem,
     },
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
@@ -332,7 +333,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     .collect(),
             })
             .collect();
-        let msg = Pdu::AssociationRQ {
+        let msg = Pdu::AssociationRQ(AssociationRQ {
             protocol_version,
             calling_ae_title: calling_ae_title.to_string(),
             called_ae_title: called_ae_title.to_string(),
@@ -345,7 +346,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     IMPLEMENTATION_VERSION_NAME.to_string(),
                 ),
             ],
-        };
+        });
 
         let mut socket = std::net::TcpStream::connect(ae_address).context(ConnectSnafu)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
@@ -359,14 +360,14 @@ impl<'a> ClientAssociationOptions<'a> {
             read_pdu(&mut socket, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveResponseSnafu)?;
 
         match msg {
-            Pdu::AssociationAC {
+            Pdu::AssociationAC(AssociationAC {
                 protocol_version: protocol_version_scp,
                 application_context_name: _,
                 presentation_contexts: presentation_contexts_scp,
                 calling_ae_title: _,
                 called_ae_title: _,
                 user_variables,
-            } => {
+            }) => {
                 ensure!(
                     protocol_version == protocol_version_scp,
                     ProtocolVersionMismatchSnafu {
@@ -415,7 +416,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     strict,
                 })
             }
-            Pdu::AssociationRJ { result, source } => RejectedSnafu {
+            Pdu::AssociationRJ(AssociationRJ { result, source }) => RejectedSnafu {
                 association_result: result,
                 association_source: source,
             }
