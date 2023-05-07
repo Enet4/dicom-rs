@@ -19,8 +19,8 @@ use crate::{
     BuildMetaTableSnafu, CreateParserSnafu, CreatePrinterSnafu, DicomObject, FileDicomObject,
     MissingElementValueSnafu, NoSuchAttributeNameSnafu, NoSuchDataElementAliasSnafu,
     NoSuchDataElementTagSnafu, OpenFileSnafu, ParseMetaDataSetSnafu, PrematureEndSnafu,
-    PrepareMetaTableSnafu, PrintDataSetSnafu, ReadFileSnafu, ReadPreambleBytesSnafu,
-    ReadTokenSnafu, Result, UnexpectedTokenSnafu, UnsupportedTransferSyntaxSnafu,
+    PrepareMetaTableSnafu, PrintDataSetSnafu, ReadError, ReadFileSnafu, ReadPreambleBytesSnafu,
+    ReadTokenSnafu, ReadUnsupportedTransferSyntaxSnafu, UnexpectedTokenSnafu, WriteError, AccessError, WithMetaError, AccessByNameError,
 };
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::{HasLength, Header};
@@ -41,6 +41,8 @@ pub type InMemElement<D = StandardDataDictionary> = DataElement<InMemDicomObject
 
 /// The type of a pixel data fragment.
 pub type InMemFragment = dicom_core::value::InMemFragment;
+
+type Result<T, E = AccessError> = std::result::Result<T, E>;
 
 type ParserResult<T> = std::result::Result<T, ParserError>;
 
@@ -84,9 +86,10 @@ where
             .context(NoSuchDataElementTagSnafu { tag })
     }
 
-    fn element_by_name(&self, name: &str) -> Result<Self::Element> {
+    fn element_by_name(&self, name: &str) -> Result<Self::Element, AccessByNameError> {
         let tag = self.lookup_name(name)?;
         self.element(tag)
+            .map_err(|e| e.into_access_by_name(name))
     }
 }
 
@@ -98,7 +101,7 @@ impl FileDicomObject<InMemDicomObject<StandardDataDictionary>> {
     /// skipping it if found.
     /// Then it reads the file meta group,
     /// followed by the rest of the data set.
-    pub fn open_file<P: AsRef<Path>>(path: P) -> Result<Self> {
+    pub fn open_file<P: AsRef<Path>>(path: P) -> Result<Self, ReadError> {
         Self::open_file_with_dict(path, StandardDataDictionary)
     }
 
@@ -109,7 +112,7 @@ impl FileDicomObject<InMemDicomObject<StandardDataDictionary>> {
     /// skipping it if found.
     /// Then it reads the file meta group,
     /// followed by the rest of the data set.
-    pub fn from_reader<S>(src: S) -> Result<Self>
+    pub fn from_reader<S>(src: S) -> Result<Self, ReadError>
     where
         S: Read,
     {
@@ -159,7 +162,7 @@ impl InMemDicomObject<StandardDataDictionary> {
     /// [`read_dataset_with_ts`]: #method.read_dataset_with_ts
     /// [`read_dataset_with_ts_cs`]: #method.read_dataset_with_ts_cs
     #[inline]
-    pub fn read_dataset<S>(decoder: S) -> Result<Self>
+    pub fn read_dataset<S>(decoder: S) -> Result<Self, ReadError>
     where
         S: StatefulDecode,
     {
@@ -176,7 +179,7 @@ impl InMemDicomObject<StandardDataDictionary> {
         from: S,
         ts: &TransferSyntax,
         cs: SpecificCharacterSet,
-    ) -> Result<Self>
+    ) -> Result<Self, ReadError>
     where
         S: Read,
     {
@@ -190,7 +193,7 @@ impl InMemDicomObject<StandardDataDictionary> {
     /// until _Specific Character Set_ is found in the encoded data,
     /// after which the text decoder will be overriden accordingly.
     #[inline]
-    pub fn read_dataset_with_ts<S>(from: S, ts: &TransferSyntax) -> Result<Self>
+    pub fn read_dataset_with_ts<S>(from: S, ts: &TransferSyntax) -> Result<Self, ReadError>
     where
         S: Read,
     {
@@ -228,7 +231,7 @@ where
     /// skipping it when found.
     /// Then it reads the file meta group,
     /// followed by the rest of the data set.
-    pub fn open_file_with_dict<P: AsRef<Path>>(path: P, dict: D) -> Result<Self> {
+    pub fn open_file_with_dict<P: AsRef<Path>>(path: P, dict: D) -> Result<Self, ReadError> {
         Self::open_file_with(path, dict, TransferSyntaxRegistry)
     }
 
@@ -245,7 +248,11 @@ where
     /// is insufficient. Otherwise, please use [`open_file_with_dict`] instead.
     ///
     /// [`open_file_with_dict`]: #method.open_file_with_dict
-    pub fn open_file_with<P: AsRef<Path>, R>(path: P, dict: D, ts_index: R) -> Result<Self>
+    pub fn open_file_with<P: AsRef<Path>, R>(
+        path: P,
+        dict: D,
+        ts_index: R,
+    ) -> Result<Self, ReadError>
     where
         P: AsRef<Path>,
         R: TransferSyntaxIndex,
@@ -279,7 +286,7 @@ where
         ts_index: R,
         read_until: Option<Tag>,
         mut read_preamble: ReadPreamble,
-    ) -> Result<Self>
+    ) -> Result<Self, ReadError>
     where
         P: AsRef<Path>,
         R: TransferSyntaxIndex,
@@ -320,7 +327,7 @@ where
                 )?,
             })
         } else {
-            UnsupportedTransferSyntaxSnafu {
+            ReadUnsupportedTransferSyntaxSnafu {
                 uid: meta.transfer_syntax,
             }
             .fail()
@@ -334,7 +341,7 @@ where
     /// skipping it when found.
     /// Then it reads the file meta group,
     /// followed by the rest of the data set.
-    pub fn from_reader_with_dict<S>(src: S, dict: D) -> Result<Self>
+    pub fn from_reader_with_dict<S>(src: S, dict: D) -> Result<Self, ReadError>
     where
         S: Read,
     {
@@ -354,7 +361,7 @@ where
     /// is insufficient. Otherwise, please use [`from_reader_with_dict`] instead.
     ///
     /// [`from_reader_with_dict`]: #method.from_reader_with_dict
-    pub fn from_reader_with<'s, S: 's, R>(src: S, dict: D, ts_index: R) -> Result<Self>
+    pub fn from_reader_with<'s, S: 's, R>(src: S, dict: D, ts_index: R) -> Result<Self, ReadError>
     where
         S: Read,
         R: TransferSyntaxIndex,
@@ -368,7 +375,7 @@ where
         ts_index: R,
         read_until: Option<Tag>,
         mut read_preamble: ReadPreamble,
-    ) -> Result<Self>
+    ) -> Result<Self, ReadError>
     where
         S: Read,
         R: TransferSyntaxIndex,
@@ -403,7 +410,7 @@ where
             )?;
             Ok(FileDicomObject { meta, obj })
         } else {
-            UnsupportedTransferSyntaxSnafu {
+            ReadUnsupportedTransferSyntaxSnafu {
                 uid: meta.transfer_syntax,
             }
             .fail()
@@ -468,7 +475,7 @@ where
     /// Read an object from a source,
     /// using the given decoder
     /// and the given dictionary for name lookup.
-    pub fn read_dataset_with_dict<S>(decoder: S, dict: D) -> Result<Self>
+    pub fn read_dataset_with_dict<S>(decoder: S, dict: D) -> Result<Self, ReadError>
     where
         S: StatefulDecode,
         D: DataDictionary,
@@ -480,7 +487,11 @@ where
     /// Read an object from a source,
     /// using the given data dictionary and transfer syntax.
     #[inline]
-    pub fn read_dataset_with_dict_ts<S>(from: S, dict: D, ts: &TransferSyntax) -> Result<Self>
+    pub fn read_dataset_with_dict_ts<S>(
+        from: S,
+        dict: D,
+        ts: &TransferSyntax,
+    ) -> Result<Self, ReadError>
     where
         S: Read,
         D: DataDictionary,
@@ -500,7 +511,7 @@ where
         dict: D,
         ts: &TransferSyntax,
         cs: SpecificCharacterSet,
-    ) -> Result<Self>
+    ) -> Result<Self, ReadError>
     where
         S: Read,
         D: DataDictionary,
@@ -548,7 +559,7 @@ where
     /// An error is returned if the element does not exist.
     /// For an alternative to this behavior,
     /// see [`element_by_name_opt`](InMemDicomObject::element_by_name_opt).
-    pub fn element_by_name(&self, name: &str) -> Result<&InMemElement<D>> {
+    pub fn element_by_name(&self, name: &str) -> Result<&InMemElement<D>, AccessByNameError> {
         let tag = self.lookup_name(name)?;
         self.entries
             .get(&tag)
@@ -562,11 +573,10 @@ where
     ///
     /// If the element does not exist,
     /// `None` is returned.
-    pub fn element_opt(&self, tag: Tag) -> Result<Option<&InMemElement<D>>> {
+    pub fn element_opt(&self, tag: Tag) -> Result<Option<&InMemElement<D>>, AccessError> {
         match self.element(tag) {
             Ok(e) => Ok(Some(e)),
-            Err(super::Error::NoSuchDataElementTag { .. }) => Ok(None),
-            Err(e) => Err(e),
+            Err(super::AccessError::NoSuchDataElementTag { .. }) => Ok(None),
         }
     }
 
@@ -588,10 +598,10 @@ where
     /// If the attribute is known in advance,
     /// using [`element_opt`](InMemDicomObject::element_opt)
     /// with a tag constant is preferred.
-    pub fn element_by_name_opt(&self, name: &str) -> Result<Option<&InMemElement<D>>> {
+    pub fn element_by_name_opt(&self, name: &str) -> Result<Option<&InMemElement<D>>, AccessByNameError> {
         match self.element_by_name(name) {
             Ok(e) => Ok(Some(e)),
-            Err(super::Error::NoSuchDataElementAlias { .. }) => Ok(None),
+            Err(AccessByNameError::NoSuchDataElementAlias { .. }) => Ok(None),
             Err(e) => Err(e),
         }
     }
@@ -616,7 +626,7 @@ where
 
     /// Remove a DICOM element by its keyword,
     /// reporting whether it was present.
-    pub fn remove_element_by_name(&mut self, name: &str) -> Result<bool> {
+    pub fn remove_element_by_name(&mut self, name: &str) -> Result<bool, AccessByNameError> {
         let tag = self.lookup_name(name)?;
         Ok(self.entries.remove(&tag).is_some())
     }
@@ -636,7 +646,7 @@ where
     }
 
     /// Remove and return a particular DICOM element by its name.
-    pub fn take_element_by_name(&mut self, name: &str) -> Result<InMemElement<D>> {
+    pub fn take_element_by_name(&mut self, name: &str) -> Result<InMemElement<D>, AccessByNameError> {
         let tag = self.lookup_name(name)?;
         self.entries
             .remove(&tag)
@@ -996,7 +1006,7 @@ where
     ///
     /// [`write_dataset_with_ts`]: #method.write_dataset_with_ts
     /// [`write_dataset_with_ts_cs`]: #method.write_dataset_with_ts_cs
-    pub fn write_dataset<W, E>(&self, to: W, encoder: E) -> Result<()>
+    pub fn write_dataset<W, E>(&self, to: W, encoder: E) -> Result<(), WriteError>
     where
         W: Write,
         E: EncodeTo<W>,
@@ -1023,7 +1033,7 @@ where
         to: W,
         ts: &TransferSyntax,
         cs: SpecificCharacterSet,
-    ) -> Result<()>
+    ) -> Result<(), WriteError>
     where
         W: Write,
     {
@@ -1045,7 +1055,7 @@ where
     /// The default character set is assumed
     /// until the _Specific Character Set_ is found in the data set,
     /// after which the text encoder is overridden accordingly.
-    pub fn write_dataset_with_ts<W>(&self, to: W, ts: &TransferSyntax) -> Result<()>
+    pub fn write_dataset_with_ts<W>(&self, to: W, ts: &TransferSyntax) -> Result<(), WriteError>
     where
         W: Write,
     {
@@ -1068,9 +1078,9 @@ where
     /// will be filled in with the contents of the object,
     /// if the attribute _SOP Instance UID_  is present.
     /// A complete file meta group should still provide
-    /// the media storage SOP class UID and transfer syntax.
-    pub fn with_meta(self, mut meta: FileMetaTableBuilder) -> Result<FileDicomObject<Self>> {
-        if let Some(elem) = self.element_opt(tags::SOP_INSTANCE_UID)? {
+    /// the media storage SOP class UID and transfer syntax.0
+    pub fn with_meta(self, mut meta: FileMetaTableBuilder) -> Result<FileDicomObject<Self>, WithMetaError> {
+        if let Some(elem) = self.get(tags::SOP_INSTANCE_UID) {
             meta = meta.media_storage_sop_instance_uid(
                 elem.value().to_str().context(PrepareMetaTableSnafu)?,
             );
@@ -1100,7 +1110,7 @@ where
         in_item: bool,
         len: Length,
         read_until: Option<Tag>,
-    ) -> Result<Self>
+    ) -> Result<Self, ReadError>
     where
         I: Iterator<Item = ParserResult<DataToken>>,
     {
@@ -1168,7 +1178,9 @@ where
 
     /// Build an encapsulated pixel data by collecting all fragments into an
     /// in-memory DICOM value.
-    fn build_encapsulated_data<I>(dataset: I) -> Result<Value<InMemDicomObject<D>, InMemFragment>>
+    fn build_encapsulated_data<I>(
+        dataset: I,
+    ) -> Result<Value<InMemDicomObject<D>, InMemFragment>, ReadError>
     where
         I: Iterator<Item = ParserResult<DataToken>>,
     {
@@ -1227,7 +1239,7 @@ where
         _len: Length,
         dataset: &mut I,
         dict: &D,
-    ) -> Result<C<InMemDicomObject<D>>>
+    ) -> Result<C<InMemDicomObject<D>>, ReadError>
     where
         I: Iterator<Item = ParserResult<DataToken>>,
     {
@@ -1254,7 +1266,7 @@ where
         PrematureEndSnafu.fail()
     }
 
-    fn lookup_name(&self, name: &str) -> Result<Tag> {
+    fn lookup_name(&self, name: &str) -> Result<Tag, AccessByNameError> {
         self.dict
             .by_name(name)
             .context(NoSuchAttributeNameSnafu { name })
@@ -1329,7 +1341,7 @@ impl<D> Extend<InMemElement<D>> for InMemDicomObject<D> {
 mod tests {
 
     use super::*;
-    use crate::{meta::FileMetaTableBuilder, open_file, Error};
+    use crate::{meta::FileMetaTableBuilder, open_file};
     use byteordered::Endianness;
     use dicom_core::chrono::FixedOffset;
     use dicom_core::value::{DicomDate, DicomDateTime, DicomTime, PrimitiveValue};
@@ -1777,7 +1789,7 @@ mod tests {
         assert_eq!(elem1, another_patient_name);
         assert!(matches!(
             obj.take_element(Tag(0x0010, 0x0010)),
-            Err(Error::NoSuchDataElementTag {
+            Err(AccessError::NoSuchDataElementTag {
                 tag: Tag(0x0010, 0x0010),
                 ..
             })
@@ -1797,7 +1809,7 @@ mod tests {
         assert_eq!(elem1, another_patient_name);
         assert!(matches!(
             obj.take_element_by_name("PatientName"),
-            Err(Error::NoSuchDataElementAlias {
+            Err(AccessByNameError::NoSuchDataElementAlias {
                 tag: Tag(0x0010, 0x0010),
                 alias,
                 ..

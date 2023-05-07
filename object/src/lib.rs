@@ -33,7 +33,7 @@
 //! let obj = OpenFileOptions::new()
 //!     .read_until(dicom_dictionary_std::tags::PIXEL_DATA)
 //!     .open_file("0002.dcm")?;
-//! # Result::<(), dicom_object::Error>::Ok(())
+//! # Result::<(), dicom_object::ReadError>::Ok(())
 //! ```
 //!
 //! Elements can also be fetched by tag.
@@ -159,10 +159,10 @@ pub trait DicomObject {
     type Element: Header;
 
     /// Retrieve a particular DICOM element by its tag.
-    fn element(&self, tag: Tag) -> Result<Self::Element>;
+    fn element(&self, tag: Tag) -> Result<Self::Element, AccessError>;
 
     /// Retrieve a particular DICOM element by its name.
-    fn element_by_name(&self, name: &str) -> Result<Self::Element>;
+    fn element_by_name(&self, name: &str) -> Result<Self::Element, AccessByNameError>;
 
     /// Retrieve the processed meta information table, if available.
     ///
@@ -174,9 +174,10 @@ pub trait DicomObject {
     }
 }
 
+/// An error which may occur when loading a DICOM object
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
-pub enum Error {
+pub enum ReadError {
     #[snafu(display("Could not open file '{}'", filename.display()))]
     OpenFile {
         filename: std::path::PathBuf,
@@ -209,6 +210,23 @@ pub enum Error {
         #[snafu(backtrace)]
         source: dicom_parser::dataset::read::Error,
     },
+    #[snafu(display("Missing element value after header token"))]
+    MissingElementValue { backtrace: Backtrace },
+    #[snafu(display("Unsupported transfer syntax `{}`", uid))]
+    ReadUnsupportedTransferSyntax { uid: String, backtrace: Backtrace },
+    #[snafu(display("Unexpected token {:?}", token))]
+    UnexpectedToken {
+        token: Box<dicom_parser::dataset::DataToken>,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("Premature data set end"))]
+    PrematureEnd { backtrace: Backtrace },
+}
+
+/// An error which may occur when writing a DICOM object
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum WriteError {
     #[snafu(display("Could not write to file '{}'", filename.display()))]
     WriteFile {
         filename: std::path::PathBuf,
@@ -241,26 +259,53 @@ pub enum Error {
         source: dicom_parser::dataset::write::Error,
     },
     #[snafu(display("Unsupported transfer syntax `{}`", uid))]
-    UnsupportedTransferSyntax { uid: String, backtrace: Backtrace },
+    WriteUnsupportedTransferSyntax { uid: String, backtrace: Backtrace },
+}
+
+/// An error which may occur when looking up a DICOM object's attributes.
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum AccessError {
     #[snafu(display("No such data element with tag {}", tag))]
     NoSuchDataElementTag { tag: Tag, backtrace: Backtrace },
+}
+
+impl AccessError {
+    pub fn into_access_by_name(self, alias: impl Into<String>) -> AccessByNameError {
+        match self {
+            AccessError::NoSuchDataElementTag { tag, backtrace } => {
+                AccessByNameError::NoSuchDataElementAlias {
+                    tag,
+                    alias: alias.into(),
+                    backtrace,
+                }
+            }
+        }
+    }
+}
+
+/// An error which may occur when looking up a DICOM object's attributes
+/// by a keyword (or alias) instead of by tag.
+/// 
+/// These accesses incur a look-up at the data element dictionary,
+/// which may fail if no such entry exists.
+#[derive(Debug, Snafu)]
+pub enum AccessByNameError {
     #[snafu(display("No such data element {} (with tag {})", alias, tag))]
     NoSuchDataElementAlias {
         tag: Tag,
         alias: String,
         backtrace: Backtrace,
     },
+
+    /// Could not resolve attribute name from the data dictionary
     #[snafu(display("Unknown data attribute named `{}`", name))]
     NoSuchAttributeName { name: String, backtrace: Backtrace },
-    #[snafu(display("Missing element value"))]
-    MissingElementValue { backtrace: Backtrace },
-    #[snafu(display("Unexpected token {:?}", token))]
-    UnexpectedToken {
-        token: dicom_parser::dataset::DataToken,
-        backtrace: Backtrace,
-    },
-    #[snafu(display("Premature data set end"))]
-    PrematureEnd { backtrace: Backtrace },
+}
+
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum WithMetaError {
     /// Could not build file meta table
     BuildMetaTable {
         #[snafu(backtrace)]
@@ -272,8 +317,6 @@ pub enum Error {
         backtrace: Backtrace,
     },
 }
-
-pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// A root DICOM object retrieved from a standard DICOM file,
 /// containing additional information from the file meta group
@@ -312,7 +355,7 @@ where
     /// into the given file path.
     /// Preamble, magic code, and file meta group will be included
     /// before the inner object.
-    pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+    pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), WriteError> {
         let path = path.as_ref();
         let file = File::create(path).context(WriteFileSnafu { filename: path })?;
         let mut to = BufWriter::new(file);
@@ -331,7 +374,7 @@ where
         // prepare encoder
         let registry = TransferSyntaxRegistry::default();
         let ts = registry.get(&self.meta.transfer_syntax).with_context(|| {
-            UnsupportedTransferSyntaxSnafu {
+            WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             }
         })?;
@@ -350,7 +393,7 @@ where
     /// into the given writer.
     /// Preamble, magic code, and file meta group will be included
     /// before the inner object.
-    pub fn write_all<W: Write>(&self, to: W) -> Result<()> {
+    pub fn write_all<W: Write>(&self, to: W) -> Result<(), WriteError> {
         let mut to = BufWriter::new(to);
 
         // write preamble
@@ -365,7 +408,7 @@ where
         // prepare encoder
         let registry = TransferSyntaxRegistry::default();
         let ts = registry.get(&self.meta.transfer_syntax).with_context(|| {
-            UnsupportedTransferSyntaxSnafu {
+            WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             }
         })?;
@@ -383,7 +426,7 @@ where
     /// Write the file meta group set into the given writer.
     ///
     /// This is equivalent to `self.meta().write(to)`.
-    pub fn write_meta<W: Write>(&self, to: W) -> Result<()> {
+    pub fn write_meta<W: Write>(&self, to: W) -> Result<(), WriteError> {
         self.meta.write(to).context(PrintMetaDataSetSnafu)
     }
 
@@ -391,13 +434,13 @@ where
     /// without preamble, magic code, nor file meta group.
     ///
     /// The transfer syntax is selected from the file meta table.
-    pub fn write_dataset<W: Write>(&self, to: W) -> Result<()> {
+    pub fn write_dataset<W: Write>(&self, to: W) -> Result<(), WriteError> {
         let to = BufWriter::new(to);
 
         // prepare encoder
         let registry = TransferSyntaxRegistry::default();
         let ts = registry.get(&self.meta.transfer_syntax).with_context(|| {
-            UnsupportedTransferSyntaxSnafu {
+            WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             }
         })?;
@@ -433,11 +476,11 @@ where
 {
     type Element = <O as DicomObject>::Element;
 
-    fn element(&self, tag: Tag) -> Result<Self::Element> {
+    fn element(&self, tag: Tag) -> Result<Self::Element, AccessError> {
         self.obj.element(tag)
     }
 
-    fn element_by_name(&self, name: &str) -> Result<Self::Element> {
+    fn element_by_name(&self, name: &str) -> Result<Self::Element, AccessByNameError> {
         self.obj.element_by_name(name)
     }
 
@@ -452,11 +495,11 @@ where
 {
     type Element = <O as DicomObject>::Element;
 
-    fn element(&self, tag: Tag) -> Result<Self::Element> {
+    fn element(&self, tag: Tag) -> Result<Self::Element, AccessError> {
         self.obj.element(tag)
     }
 
-    fn element_by_name(&self, name: &str) -> Result<Self::Element> {
+    fn element_by_name(&self, name: &str) -> Result<Self::Element, AccessByNameError> {
         self.obj.element_by_name(name)
     }
 }
@@ -600,7 +643,24 @@ mod tests {
     use dicom_core::{DataElement, PrimitiveValue, VR};
 
     use crate::meta::FileMetaTableBuilder;
-    use crate::{Error, FileDicomObject, InMemDicomObject};
+    use crate::{AccessError, FileDicomObject, InMemDicomObject};
+
+    fn assert_type_not_too_large<T>(max_size: usize) {
+        let size = std::mem::size_of::<T>();
+        if size > max_size {
+            panic!(
+                "Type {} of byte size {} exceeds acceptable size {}",
+                std::any::type_name::<T>(),
+                size,
+                max_size
+            );
+        }
+    }
+
+    #[test]
+    fn errors_not_too_large() {
+        assert_type_not_too_large::<AccessError>(48);
+    }
 
     #[test]
     fn smoke_test() {
@@ -663,7 +723,7 @@ mod tests {
 
         assert!(matches!(
             obj.element(dicom_dictionary_std::tags::PATIENT_NAME),
-            Err(Error::NoSuchDataElementTag { .. }),
+            Err(AccessError::NoSuchDataElementTag { .. }),
         ));
     }
 
