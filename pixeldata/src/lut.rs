@@ -358,6 +358,51 @@ mod tests {
         assert_eq!(lut.get(-1_i16 as u16), -1026);
         assert_eq!(lut.get(-2_i16 as u16), -1028);
         assert_eq!(lut.get(500 as u16), -24);
+
+        // input is truncated to fit
+        // (bit #10 won't fit in a 10-bit LUT)
+        assert_eq!(lut.get(1024 + 500_u16), -24);
+    }
+
+    #[test]
+    fn lut_unsigned_numbers() {
+        // 12-bit precision input, unsigned 16 bit output
+        let lut: Lut<u16> = Lut::new_rescale_and_window(
+            12, false, Rescale::new(1., -1024.),
+            WindowLevelTransform::linear(
+                WindowLevel {
+                    width: 300.,
+                    center: 50.,
+                },
+            ),
+        ).unwrap();
+
+        // < 0
+        let val: u16 = lut.get(824_u16);
+        assert_eq!(val, 0);
+
+        // > 200
+        let val: u16 = lut.get(1224_u16);
+        assert_eq!(val, 65_535);
+
+        // around the middle
+        let mid_i = 1024_u16 + 50;
+        let mid_val: u16 = lut.get(mid_i);
+        let expected_range = 32_600..=32_950;
+        assert!(
+            expected_range.contains(&mid_val),
+            "outcome was {}, expected to be in {:?}",
+            mid_val,
+            expected_range,
+        );
+
+        // input is truncated to fit
+        // (bits #12 and up won't fit in a 12-bit LUT)
+        assert_eq!(lut.get(0x1000 | mid_i), mid_val);
+        assert_eq!(lut.get(0x2000 | mid_i), mid_val);
+        assert_eq!(lut.get(0x4000 | mid_i), mid_val);
+        assert_eq!(lut.get(0x8000 | mid_i), mid_val);
+        assert_eq!(lut.get(0xFFFF_u16), 65_535);
     }
 
     #[test]
