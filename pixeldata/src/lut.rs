@@ -35,7 +35,14 @@ impl CreateLutError {
     }
 }
 
-/// A look up table for pixel data sample value transformations.
+/// A look up table (LUT) for pixel data sample value transformations.
+///
+/// All LUTs are guaranteed to have a size of a power of 2,
+/// as defined by the constructor parameter `bits_stored`.
+/// The type parameter `T` is the numeric type of the outputs produced.
+/// Although the bit depths of the inputs may vary,
+/// it is a run-time error to construct a `Lut<T>`
+/// where `T` has less bits than `bits_stored`.
 ///
 /// # Example
 ///
@@ -73,8 +80,8 @@ pub struct Lut<T> {
     /// the table which maps an index to a transformed value,
     /// of size 2 to the power of `bits_stored`
     table: Vec<T>,
-    /// whether the input sample values are signed (Pixel Representation = 1)
-    signed: bool,
+    /// the mask to apply on all sample inputs
+    sample_mask: u32,
 }
 
 impl<T: 'static> Lut<T>
@@ -127,10 +134,10 @@ where
                 })
             })
             .collect();
-        Ok(Self {
-            table: table?,
-            signed,
-        })
+
+        let table = table?;
+        let sample_mask = table.len() as u32 - 1;
+        Ok(Self { table, sample_mask })
     }
 
     /// Create a new LUT containing only the modality rescale transformation.
@@ -281,25 +288,15 @@ where
     /// this method works for signed sample values as well,
     /// with the bits reinterpreted as their unsigned counterpart.
     ///
-    /// # Panics
-    ///
-    /// Panics if `sample_value` is larger or equal to `2^bits_stored`.
+    /// The highest bits from the sample after `bits_stored` bits are discarded,
+    /// thus silently ignoring them.
     pub fn get<I: 'static>(&self, sample_value: I) -> T
     where
         I: Copy,
         I: Into<u32>,
     {
-        let val = sample_value.into();
-        let index = if self.signed {
-            // adjust for signedness by masking out the extra sign bits
-            let mask = self.table.len() - 1;
-            val as usize & mask
-        } else {
-            val as usize
-        };
-        assert!((index as usize) < self.table.len());
-
-        self.table[index as usize]
+        let val = sample_value.into() & self.sample_mask;
+        self.table[val as usize]
     }
 
     /// Adapts an iterator of pixel data sample values
@@ -368,14 +365,15 @@ mod tests {
     fn lut_unsigned_numbers() {
         // 12-bit precision input, unsigned 16 bit output
         let lut: Lut<u16> = Lut::new_rescale_and_window(
-            12, false, Rescale::new(1., -1024.),
-            WindowLevelTransform::linear(
-                WindowLevel {
-                    width: 300.,
-                    center: 50.,
-                },
-            ),
-        ).unwrap();
+            12,
+            false,
+            Rescale::new(1., -1024.),
+            WindowLevelTransform::linear(WindowLevel {
+                width: 300.,
+                center: 50.,
+            }),
+        )
+        .unwrap();
 
         // < 0
         let val: u16 = lut.get(824_u16);
