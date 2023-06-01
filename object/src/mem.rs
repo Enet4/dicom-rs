@@ -383,6 +383,20 @@ where
     D: DataDictionary,
     D: Clone,
 {
+    /// Create an in-memory DICOM object from its constituent parts.
+    ///
+    /// This is currently crate-only because
+    /// it is useful for converting between DICOM object implementations,
+    /// but can produce inconsistent objects
+    /// if used with incoherent parameters.
+    pub(crate) fn from_parts(entries: BTreeMap<Tag, InMemElement<D>>, dict: D, len: Length) -> Self {
+        InMemDicomObject {
+            entries,
+            dict,
+            len,
+        }
+    }
+
     /// Create a new empty object, using the given dictionary for name lookup.
     pub fn new_empty_with_dict(dict: D) -> Self {
         InMemDicomObject {
@@ -393,11 +407,11 @@ where
     }
 
     /// Construct a DICOM object from an iterator of structured elements.
-    pub fn from_element_source_with_dict<I>(iter: I, dict: D) -> Result<Self>
+    pub fn from_element_source_with_dict<I, E>(iter: I, dict: D) -> Result<Self, E>
     where
-        I: IntoIterator<Item = Result<InMemElement<D>>>,
+        I: IntoIterator<Item = Result<InMemElement<D>, E>>,
     {
-        let entries: Result<_> = iter.into_iter().map_ok(|e| (e.tag(), e)).collect();
+        let entries: Result<_, E> = iter.into_iter().map_ok(|e| (e.tag(), e)).collect();
         Ok(InMemDicomObject {
             entries: entries?,
             dict,

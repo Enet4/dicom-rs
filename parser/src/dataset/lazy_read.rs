@@ -914,14 +914,21 @@ mod tests {
             0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
             0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
             0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
-            // -- 60 -- End of pixel data
+            // -- 64 -- Second fragment of pixel data
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0x10, 0x00, 0x00, 0x00, // item length: 16
+            // -- 72 -- Compressed Fragment
+            0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb,
+            0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb,
+            // -- 88 -- End of pixel data
             0xfe, 0xff, 0xdd, 0xe0, // sequence end tag
             0x00, 0x00, 0x00, 0x00,
-            // -- 68 -- padding
+            // -- 96 -- padding
             0xfc, 0xff, 0xfc, 0xff, // (fffc,fffc) DataSetTrailingPadding
             b'O', b'B', // VR
             0x00, 0x00, // reserved
             0x08, 0x00, 0x00, 0x00, // length: 8
+            // -- 108 --
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
 
@@ -932,6 +939,9 @@ mod tests {
             DataToken::ItemEnd,
             DataToken::ItemStart { len: Length(32) },
             DataToken::ItemValue(vec![0x99; 32]),
+            DataToken::ItemEnd,
+            DataToken::ItemStart { len: Length(16) },
+            DataToken::ItemValue(vec![0xbb; 16]),
             DataToken::ItemEnd,
             DataToken::SequenceEnd,
             DataToken::ElementHeader(DataElementHeader::new(
