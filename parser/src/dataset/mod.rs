@@ -502,19 +502,20 @@ where
                         // retrieve sequence value, begin item sequence
                         match elem.into_value() {
                             Value::Primitive(_) | Value::PixelSequence { .. } => unreachable!(),
-                            Value::Sequence { items, size: _ } => {
-                                let items: dicom_core::value::C<_> =
-                                    items.into_iter().map(|o| AsItem(o.length(), o)).collect();
+                            Value::Sequence(seq) => {
+                                let items: dicom_core::value::C<_> = seq
+                                    .into_items()
+                                    .into_iter()
+                                    .map(|o| AsItem(o.length(), o))
+                                    .collect();
                                 (Some(token), DataElementTokens::Items(items.into_tokens()))
                             }
                         }
                     }
                     DataToken::PixelSequenceStart => {
                         match elem.into_value() {
-                            Value::PixelSequence {
-                                fragments,
-                                offset_table,
-                            } => {
+                            Value::PixelSequence(seq) => {
+                                let (offset_table, fragments) = seq.into_parts();
                                 (
                                     // begin pixel sequence
                                     Some(DataToken::PixelSequenceStart),

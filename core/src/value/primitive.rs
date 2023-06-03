@@ -4249,14 +4249,15 @@ impl PartialEq<&str> for PrimitiveValue {
 
 /// An enum representing an abstraction of a DICOM element's data value type.
 /// This should be the equivalent of `PrimitiveValue` without the content,
-/// plus the `Item` and `PixelSequence` entries.
+/// plus the `DataSetSequence` and `PixelSequence` entries.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ValueType {
     /// No data. Used for any value of length 0.
     Empty,
 
-    /// An item. Used for elements in a SQ, regardless of content.
-    Item,
+    /// A data set sequence.
+    /// Used for values with the SQ representation when not empty.
+    DataSetSequence,
 
     /// An item. Used for the values of encapsulated pixel data.
     PixelSequence,

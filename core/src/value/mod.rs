@@ -56,49 +56,50 @@ pub enum Value<I = EmptyObject, P = [u8; 0]> {
     /// Primitive value.
     Primitive(PrimitiveValue),
     /// A complex sequence of items.
-    Sequence {
-        /// Item collection.
-        items: C<I>,
-        /// The size in bytes (length).
-        size: Length,
-    },
-    /// An encapsulated pixel data sequence.
-    PixelSequence {
-        /// The value contents of the offset table.
-        offset_table: C<u32>,
-        /// The sequence of compressed fragments.
-        fragments: C<P>,
-    },
+    Sequence(DataSetSequence<I>),
+    /// A sequence of encapsulated pixel data fragments.
+    PixelSequence(PixelFragmentSequence<P>),
 }
 
 impl<P> Value<EmptyObject, P> {
-    /// Construct a DICOM pixel sequence sequence value
-    /// from an offset rable and a list of fragments.
+    /// Construct an isolated DICOM pixel sequence sequence value
+    /// from a basic offset table and a list of fragments.
     ///
-    /// Note: This function does not validate the offset table
+    /// This function will define the data set sequence item type `I`
+    /// to an empty object ([`EmptyObject`]),
+    /// so that it can be used more easily in isolation.
+    /// As a consequence, it cannot be directly combined with
+    /// DICOM objects that may contain sequence values.
+    /// To let the type parameter `I` be inferred from its context,
+    /// create a [`PixelFragmentSequence`] and use `Value::from` instead.
+    ///
+    /// **Note:** This function does not validate the offset table
     /// against the fragments.
     pub fn new_pixel_sequence<T>(offset_table: C<u32>, fragments: T) -> Self
     where
         T: Into<C<P>>,
     {
-        Value::PixelSequence {
-            offset_table,
-            fragments: fragments.into(),
-        }
+        Value::from(PixelFragmentSequence::new(offset_table, fragments))
     }
 }
+
 impl<I> Value<I, [u8; 0]> {
-    /// Construct a full DICOM data set sequence value
+    /// Construct an isolated DICOM data set sequence value
     /// from a list of items and length.
+    ///
+    /// This function will define the pixel data fragment type parameter `P`
+    /// to an empty byte array (`[u8; 0]`),
+    /// so that it can be used more easily in isolation.
+    /// As a consequence, it cannot be directly combined with
+    /// DICOM objects that may contain encapsulate pixel data.
+    /// To let the type parameter `P` be inferred from its context,
+    /// create a [`DataSetSequence`] and use `Value::from` instead.
     #[inline]
     pub fn new_sequence<T>(items: T, length: Length) -> Self
     where
         T: Into<C<I>>,
     {
-        Value::Sequence {
-            items: items.into(),
-            size: length,
-        }
+        Self::from(DataSetSequence::new(items, length))
     }
 }
 
@@ -121,37 +122,37 @@ impl<I, P> Value<I, P> {
     /// In a pixel sequence, this is currently set to 1
     /// regardless of the number of compressed fragments or frames.
     pub fn multiplicity(&self) -> u32 {
-        match *self {
-            Value::Primitive(ref v) => v.multiplicity(),
-            Value::Sequence { ref items, .. } => items.len() as u32,
-            Value::PixelSequence { .. } => 1,
+        match self {
+            Value::Primitive(v) => v.multiplicity(),
+            Value::Sequence(v) => v.multiplicity(),
+            Value::PixelSequence(..) => 1,
         }
     }
 
     /// Gets a reference to the primitive value.
     pub fn primitive(&self) -> Option<&PrimitiveValue> {
-        match *self {
-            Value::Primitive(ref v) => Some(v),
+        match self {
+            Value::Primitive(v) => Some(v),
             _ => None,
         }
     }
 
     /// Gets a reference to the items of a sequence.
-    /// 
+    ///
     /// Returns `None` if the value is not a data set sequence.
     pub fn items(&self) -> Option<&[I]> {
-        match *self {
-            Value::Sequence { ref items, .. } => Some(items),
+        match self {
+            Value::Sequence(v) => Some(v.items()),
             _ => None,
         }
     }
 
     /// Gets a reference to the fragments of a pixel data sequence.
-    /// 
+    ///
     /// Returns `None` if the value is not a pixel data sequence.
     pub fn fragments(&self) -> Option<&[P]> {
         match self {
-            Value::PixelSequence { fragments, .. } => Some(fragments),
+            Value::PixelSequence(v) => Some(v.fragments()),
             _ => None,
         }
     }
@@ -164,28 +165,32 @@ impl<I, P> Value<I, P> {
         }
     }
 
-    /// Retrieves the items.
+    /// Retrieves the data set items,
+    /// discarding the recorded length information.
+    ///
+    /// Returns `None` if the value is not a data set sequence.
     pub fn into_items(self) -> Option<C<I>> {
         match self {
-            Value::Sequence { items, .. } => Some(items),
+            Value::Sequence(v) => Some(v.into_items()),
             _ => None,
         }
     }
 
-    /// Retrieves the pixel data fragments.
+    /// Retrieves the pixel data fragments,
+    /// discarding the rest of the information.
     pub fn into_fragments(self) -> Option<C<P>> {
         match self {
-            Value::PixelSequence { fragments, .. } => Some(fragments),
+            Value::PixelSequence(v) => Some(v.into_fragments()),
             _ => None,
         }
     }
 
     /// Gets a reference to the encapsulated pixel data's offset table.
-    /// 
+    ///
     /// Returns `None` if the value is not a pixel data sequence.
     pub fn offset_table(&self) -> Option<&[u32]> {
         match self {
-            Value::PixelSequence { offset_table, .. } => Some(offset_table),
+            Value::PixelSequence(v) => Some(v.offset_table()),
             _ => None,
         }
     }
@@ -195,8 +200,8 @@ impl<I, P> HasLength for Value<I, P> {
     fn length(&self) -> Length {
         match self {
             Value::Primitive(v) => v.length(),
-            Value::Sequence { size, .. } => *size,
-            Value::PixelSequence { .. } => Length::UNDEFINED,
+            Value::Sequence(v) => v.length(),
+            Value::PixelSequence(v) => v.length(),
         }
     }
 }
@@ -205,15 +210,15 @@ impl<I, P> DicomValueType for Value<I, P> {
     fn value_type(&self) -> ValueType {
         match self {
             Value::Primitive(v) => v.value_type(),
-            Value::Sequence { .. } => ValueType::Item,
-            Value::PixelSequence { .. } => ValueType::PixelSequence,
+            Value::Sequence(..) => ValueType::DataSetSequence,
+            Value::PixelSequence(..) => ValueType::PixelSequence,
         }
     }
 
     fn cardinality(&self) -> usize {
         match self {
             Value::Primitive(v) => v.cardinality(),
-            Value::Sequence { items, .. } => items.len(),
+            Value::Sequence(DataSetSequence { items, .. }) => items.len(),
             Value::PixelSequence { .. } => 1,
         }
     }
@@ -699,6 +704,216 @@ impl<I, P> From<PrimitiveValue> for Value<I, P> {
     }
 }
 
+/// A sequence of complex data set items.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DataSetSequence<I> {
+    /// Item collection.
+    items: C<I>,
+    /// The sequence length in bytes.
+    ///
+    /// The value may be [`UNDEFINED`](Length::UNDEFINED)
+    /// if the length is implicitly defined,
+    /// otherwise it should match the full byte length of all items.
+    length: Length,
+}
+
+impl<I> DataSetSequence<I> {
+    /// Construct a DICOM data sequence
+    /// using a sequence of items and a length.
+    ///
+    /// **Note:** This function does not validate the `length`
+    /// against the items.
+    /// When not sure,
+    /// `length` can be set to [`UNDEFINED`](Length::UNDEFINED)
+    /// to leave it as implicitly defined.
+    #[inline]
+    pub fn new(items: impl Into<C<I>>, length: Length) -> Self {
+        DataSetSequence {
+            items: items.into(),
+            length,
+        }
+    }
+
+    /// Gets a reference to the items of a sequence.
+    #[inline]
+    pub fn items(&self) -> &[I] {
+        &self.items
+    }
+
+    /// Obtain the number of items in the sequence.
+    #[inline]
+    pub fn multiplicity(&self) -> u32 {
+        self.items.len() as u32
+    }
+
+    /// Retrieve the sequence of items,
+    /// discarding the recorded length information.
+    #[inline]
+    pub fn into_items(self) -> C<I> {
+        self.items
+    }
+
+    /// Get the value data's length
+    /// as specified by the sequence's data element,
+    /// in bytes.
+    ///
+    /// This is equivalent to [`HasLength::length`].
+    #[inline]
+    pub fn length(&self) -> Length {
+        HasLength::length(self)
+    }
+}
+
+impl<I> HasLength for DataSetSequence<I> {
+    #[inline]
+    fn length(&self) -> Length {
+        self.length
+    }
+}
+
+impl<I> DicomValueType for DataSetSequence<I> {
+    #[inline]
+    fn value_type(&self) -> ValueType {
+        ValueType::DataSetSequence
+    }
+
+    #[inline]
+    fn cardinality(&self) -> usize {
+        self.items.len()
+    }
+}
+
+impl<I, P> From<DataSetSequence<I>> for Value<I, P> {
+    #[inline]
+    fn from(value: DataSetSequence<I>) -> Self {
+        Value::Sequence(value)
+    }
+}
+
+/// A sequence of pixel data fragments.
+///
+/// Each fragment (of data type `P`) is
+/// an even-lengthed sequence of bytes
+/// representing the encoded pixel data.
+/// The first item of the sequence is interpreted as a basic offset table,
+/// which is defined separately.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PixelFragmentSequence<P> {
+    /// The value contents of the basic offset table.
+    offset_table: C<u32>,
+    /// The sequence of pixel data fragments.
+    fragments: C<P>,
+}
+
+impl<P> PixelFragmentSequence<P> {
+    /// Construct a DICOM pixel sequence sequence value
+    /// from a basic offset table and a list of fragments.
+    ///
+    /// **Note:** This function does not validate the offset table
+    /// against the given fragments.
+    ///
+    /// _and_ not validate the `length` against the other fields.
+    /// When not sure,
+    /// `length` can be set to [`UNDEFINED`](Length::UNDEFINED)
+    /// to leave it as implicitly defined.
+    #[inline]
+    pub fn new(offset_table: impl Into<C<u32>>, fragments: impl Into<C<P>>) -> Self {
+        PixelFragmentSequence {
+            offset_table: offset_table.into(),
+            fragments: fragments.into(),
+        }
+    }
+
+    /// Construct a DICOM pixel sequence sequence value
+    /// from a list of fragments,
+    /// with an empty basic offset table.
+    ///
+    /// **Note:** This function does not validate the offset table
+    /// against the given fragments.
+    ///
+    /// _and_ not validate the `length` against the other fields.
+    /// When not sure,
+    /// `length` can be set to [`UNDEFINED`](Length::UNDEFINED)
+    /// to leave it as implicitly defined.
+    #[inline]
+    pub fn new_fragments(fragments: impl Into<C<P>>) -> Self {
+        PixelFragmentSequence {
+            offset_table: Default::default(),
+            fragments: fragments.into(),
+        }
+    }
+
+
+    /// Gets a reference to the pixel data fragments.
+    ///
+    /// This sequence does not include the offset table.
+    #[inline]
+    pub fn fragments(&self) -> &[P] {
+        &self.fragments
+    }
+
+    /// Retrieve the pixel data fragments,
+    /// discarding the rest of the information.
+    ///
+    /// This sequence does not include the offset table.
+    #[inline]
+    pub fn into_fragments(self) -> C<P> {
+        self.fragments
+    }
+
+    /// Decompose the sequencce into its constituent parts:
+    /// the basic offset table and the pixel data fragments.
+    pub fn into_parts(self) -> (C<u32>, C<P>) {
+        (self.offset_table, self.fragments)
+    }
+
+    /// Gets a reference to the encapsulated pixel data's offset table.
+    ///
+    /// Returns `None` if the value is not a pixel data sequence.
+    pub fn offset_table(&self) -> &[u32] {
+        &self.offset_table
+    }
+
+    /// Get the value data's length
+    /// as specified by the sequence's data element,
+    /// in bytes.
+    ///
+    /// This is equivalent to [`HasLength::length`].
+    #[inline]
+    pub fn length(&self) -> Length {
+        HasLength::length(self)
+    }
+}
+
+impl<I, P> From<PixelFragmentSequence<P>> for Value<I, P> {
+    #[inline]
+    fn from(value: PixelFragmentSequence<P>) -> Self {
+        Value::PixelSequence(value)
+    }
+}
+
+impl<P> HasLength for PixelFragmentSequence<P> {
+    /// In standard DICOM,
+    /// encapsulated pixel data is always defined by
+    /// a pixel data element with an undefined length.
+    #[inline]
+    fn length(&self) -> Length {
+        Length::UNDEFINED
+    }
+}
+
+impl<P> DicomValueType for PixelFragmentSequence<P> {
+    #[inline]
+    fn value_type(&self) -> ValueType {
+        ValueType::PixelSequence
+    }
+
+    #[inline]
+    fn cardinality(&self) -> usize {
+        1
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -726,7 +941,7 @@ mod tests {
             value.to_int::<u32>(),
             Err(ConvertValueError {
                 requested: "integer",
-                original: ValueType::Item,
+                original: ValueType::DataSetSequence,
                 ..
             })
         ));
@@ -748,7 +963,7 @@ mod tests {
             value.to_float32(),
             Err(ConvertValueError {
                 requested: "float32",
-                original: ValueType::Item,
+                original: ValueType::DataSetSequence,
                 ..
             })
         ));
