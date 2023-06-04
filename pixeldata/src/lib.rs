@@ -292,12 +292,13 @@ impl ConvertOptions {
 /// Modality LUT function specifier.
 ///
 /// See also [`ConvertOptions`].
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ModalityLutOption {
     /// _Default behavior:_
     /// rescale the pixel data values
     /// as described in the decoded pixel data.
+    #[default]
     Default,
     /// Rescale the pixel data values
     /// according to the given rescale parameters
@@ -312,19 +313,13 @@ pub enum ModalityLutOption {
     None,
 }
 
-impl Default for ModalityLutOption {
-    fn default() -> Self {
-        ModalityLutOption::Default
-    }
-}
-
 /// VOI LUT function specifier.
 ///
 /// Note that the VOI LUT function is only applied
 /// alongside a modality LUT function.
 ///
 /// See also [`ConvertOptions`].
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum VoiLutOption {
     /// _Default behavior:_
@@ -332,6 +327,7 @@ pub enum VoiLutOption {
     /// only when converting to an image;
     /// no VOI LUT function is performed
     /// when converting to an ndarray or to bare pixel values.
+    #[default]
     Default,
     /// Apply the first VOI LUT function transformation
     /// described in the pixel data.
@@ -346,12 +342,6 @@ pub enum VoiLutOption {
     Identity,
 }
 
-impl Default for VoiLutOption {
-    fn default() -> Self {
-        VoiLutOption::Default
-    }
-}
-
 /// Output iamge bit depth specifier.
 ///
 /// Note that this is only applied
@@ -361,22 +351,17 @@ impl Default for VoiLutOption {
 /// when specifying the intended output element type.
 ///
 /// See also [`ConvertOptions`].
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum BitDepthOption {
     /// _Default behavior:_
     /// infer the bit depth based on the input's number of bits per sample.
+    #[default]
     Auto,
     /// Force the output image to have 8 bits per sample.
     Force8Bit,
     /// Force the output image to have 16 bits per sample.
     Force16Bit,
-}
-
-impl Default for BitDepthOption {
-    fn default() -> Self {
-        BitDepthOption::Auto
-    }
 }
 
 /// A blob of decoded pixel data.
@@ -463,7 +448,7 @@ impl DecodedPixelData<'_> {
             .fail()?
         }
 
-        Ok(&self.data[frame_start as usize..frame_end as usize])
+        Ok(&self.data[frame_start..frame_end])
     }
 
     /// Retrieve a copy of a frame's raw pixel data samples

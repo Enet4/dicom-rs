@@ -569,7 +569,7 @@ where
             dicom_core::DicomValue::PixelSequence {
                 offset_table: _,
                 fragments,
-            } => Some(fragments[fragment as usize].clone()),
+            } => Some(fragments[fragment].clone()),
             _ => None,
         }
     }

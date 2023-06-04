@@ -162,7 +162,7 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(DicomTime, &[u8])> {
                                 if buf.len() > 1 && buf[0] == b'.' {
                                     let buf = &buf[1..];
                                     let no_digits_index =
-                                        buf.iter().position(|b| !(b'0'..=b'9').contains(b));
+                                        buf.iter().position(|b| !b.is_ascii_digit());
                                     let max = no_digits_index.unwrap_or(buf.len());
                                     let n = usize::min(6, max);
                                     let fraction: u32 = read_number(&buf[0..n])?;
@@ -231,7 +231,7 @@ pub fn parse_time(buf: &[u8]) -> Result<(NaiveTime, &[u8])> {
                 FractionDelimiterSnafu { value: buf[0] }.fail()
             } else {
                 let buf = &buf[1..];
-                let no_digits_index = buf.iter().position(|b| !(b'0'..=b'9').contains(b));
+                let no_digits_index = buf.iter().position(|b| !b.is_ascii_digit());
                 let max = no_digits_index.unwrap_or(buf.len());
                 let n = usize::min(6, max);
                 let mut fraction: u32 = read_number(&buf[0..n])?;
@@ -308,7 +308,7 @@ where
     if text.is_empty() || text.len() > 9 {
         return InvalidNumberLengthSnafu { len: text.len() }.fail();
     }
-    if let Some(c) = text.iter().cloned().find(|b| !(b'0'..=b'9').contains(b)) {
+    if let Some(c) = text.iter().cloned().find(|b| !b.is_ascii_digit()) {
         return InvalidNumberTokenSnafu { value: c }.fail();
     }
 

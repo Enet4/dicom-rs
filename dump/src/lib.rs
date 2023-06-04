@@ -254,7 +254,7 @@ impl DumpOptions {
 }
 
 /// Enumeration of output coloring modes.
-#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
 pub enum ColorMode {
     /// Produce colored output if supported by the destination
     /// (namely, if the destination is a terminal).
@@ -263,17 +263,12 @@ pub enum ColorMode {
     /// the output will not be colored.
     ///
     /// This is the default behavior.
+    #[default]
     Auto,
     /// Never produce colored output.
     Never,
     /// Always produce colored output.
     Always,
-}
-
-impl Default for ColorMode {
-    fn default() -> Self {
-        ColorMode::Auto
-    }
 }
 
 impl std::fmt::Display for ColorMode {

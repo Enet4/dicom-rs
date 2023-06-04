@@ -124,10 +124,11 @@ where
 pub type DynamicTextCodec = Box<dyn TextCodec>;
 
 /// An enum type for all currently supported character sets.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum SpecificCharacterSet {
     /// **ISO-IR 6**: the default character set.
+    #[default]
     Default,
     /// **ISO-IR 100** (ISO-8859-1): Right-hand part of the Latin alphabet no. 1,
     /// the Western Europe character set.
@@ -148,12 +149,6 @@ pub enum SpecificCharacterSet {
     /// **GB18030**: The Simplified Chinese character set.
     Gb18030,
     // Support for more text encodings is tracked in issue #40.
-}
-
-impl Default for SpecificCharacterSet {
-    fn default() -> Self {
-        SpecificCharacterSet::Default
-    }
 }
 
 impl SpecificCharacterSet {
@@ -342,7 +337,7 @@ pub fn validate_iso_8859(text: &[u8]) -> TextValidationOutcome {
 /// Check whether the given byte slice contains only valid characters for a
 /// Date value representation.
 pub fn validate_da(text: &[u8]) -> TextValidationOutcome {
-    if text.iter().cloned().all(|c| (b'0'..=b'9').contains(&c)) {
+    if text.iter().cloned().all(|c| c.is_ascii_digit()) {
         TextValidationOutcome::Ok
     } else {
         TextValidationOutcome::NotOk
@@ -354,7 +349,7 @@ pub fn validate_da(text: &[u8]) -> TextValidationOutcome {
 pub fn validate_tm(text: &[u8]) -> TextValidationOutcome {
     if text.iter().cloned().all(|c| match c {
         b'\\' | b'.' | b'-' | b' ' => true,
-        c => (b'0'..=b'9').contains(&c),
+        c => c.is_ascii_digit(),
     }) {
         TextValidationOutcome::Ok
     } else {
@@ -367,7 +362,7 @@ pub fn validate_tm(text: &[u8]) -> TextValidationOutcome {
 pub fn validate_dt(text: &[u8]) -> TextValidationOutcome {
     if text.iter().cloned().all(|c| match c {
         b'.' | b'-' | b'+' | b' ' | b'\\' => true,
-        c => (b'0'..=b'9').contains(&c),
+        c => c.is_ascii_digit(),
     }) {
         TextValidationOutcome::Ok
     } else {
@@ -380,7 +375,7 @@ pub fn validate_dt(text: &[u8]) -> TextValidationOutcome {
 pub fn validate_cs(text: &[u8]) -> TextValidationOutcome {
     if text.iter().cloned().all(|c| match c {
         b' ' | b'_' => true,
-        c => (b'0'..=b'9').contains(&c) || (b'A'..=b'Z').contains(&c),
+        c => c.is_ascii_digit() || c.is_ascii_uppercase(),
     }) {
         TextValidationOutcome::Ok
     } else {

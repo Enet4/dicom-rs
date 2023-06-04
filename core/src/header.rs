@@ -1068,9 +1068,7 @@ fn parse_tag_part(s: &str) -> Result<(u16, &str), ParseTagError> {
 
     let (num, rest) = s.split_at(4);
     ensure!(
-        num.chars().all(|c| ('0'..='9').contains(&c)
-            || ('A'..='F').contains(&c)
-            || ('a'..='f').contains(&c)),
+        num.chars().all(|c| c.is_ascii_hexdigit()),
         NumberSnafu
     );
 

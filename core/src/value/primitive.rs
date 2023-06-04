@@ -2126,7 +2126,6 @@ impl PrimitiveValue {
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
-                .into_iter()
                 .map(super::deserialize::parse_date)
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
@@ -2289,7 +2288,6 @@ impl PrimitiveValue {
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
-                .into_iter()
                 .map(|s| super::deserialize::parse_date_partial(s).map(|(date, _rest)| date))
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
@@ -2472,7 +2470,6 @@ impl PrimitiveValue {
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
-                .into_iter()
                 .map(|s| super::deserialize::parse_time(s).map(|(date, _rest)| date))
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
@@ -2670,7 +2667,6 @@ impl PrimitiveValue {
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
-                .into_iter()
                 .map(|s| super::deserialize::parse_time_partial(s).map(|(date, _rest)| date))
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
@@ -2893,7 +2889,6 @@ impl PrimitiveValue {
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
-                .into_iter()
                 .map(|s| super::deserialize::parse_datetime(s, default_offset))
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
@@ -3058,7 +3053,6 @@ impl PrimitiveValue {
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
-                .into_iter()
                 .map(|s| super::deserialize::parse_datetime_partial(s, default_offset))
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
@@ -3340,7 +3334,7 @@ impl PrimitiveValue {
     /// ```
     pub fn to_person_name(&self) -> Result<PersonName<'_>, ConvertValueError> {
         match self {
-            PrimitiveValue::Str(s) => Ok(PersonName::from_str(s)),
+            PrimitiveValue::Str(s) => Ok(PersonName::from_text(s)),
             PrimitiveValue::Strs(s) => s.first().map_or_else(
                 || {
                     Err(ConvertValueError {
@@ -3349,7 +3343,7 @@ impl PrimitiveValue {
                         cause: None,
                     })
                 },
-                |s| Ok(PersonName::from_str(s)),
+                |s| Ok(PersonName::from_text(s)),
             ),
             _ => Err(ConvertValueError {
                 requested: "PersonName",

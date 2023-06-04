@@ -27,9 +27,10 @@ impl Rescale {
 }
 
 /// A known DICOM Value of Interest (VOI) LUT function descriptor.
-#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
 pub enum VoiLutFunction {
     /// LINEAR
+    #[default]
     Linear,
     /// LINEAR_EXACT
     LinearExact,
@@ -53,12 +54,6 @@ impl std::convert::TryFrom<&str> for VoiLutFunction {
             "SIGMOID" => Ok(Self::Sigmoid),
             _ => Err(FromVoiLutFunctionError { _private: () }),
         }
-    }
-}
-
-impl Default for VoiLutFunction {
-    fn default() -> Self {
-        VoiLutFunction::Linear
     }
 }
 
@@ -141,14 +136,14 @@ impl WindowLevelTransform {
 }
 
 fn window_level_linear(value: f64, window_width: f64, window_center: f64, y_max: f64) -> f64 {
-    let width = window_width as f64;
-    let center = window_center as f64;
-    debug_assert!(width >= 1.);
+    let ww = window_width;
+    let wc = window_center;
+    debug_assert!(ww >= 1.);
 
     // C.11.2.1.2.1
 
-    let min = center - (width - 1.) / 2.;
-    let max = center - 0.5 + (width - 1.) / 2.;
+    let min = wc - (ww - 1.) / 2.;
+    let max = wc - 0.5 + (ww - 1.) / 2.;
 
     if value <= min {
         // if (x <= c - (w-1) / 2), then y = ymin
@@ -158,19 +153,19 @@ fn window_level_linear(value: f64, window_width: f64, window_center: f64, y_max:
         y_max
     } else {
         // else y = ((x - (c - 0.5)) / (w-1) + 0.5) * (ymax- ymin) + ymin
-        ((value - (center - 0.5)) / (width - 1.) + 0.5) * y_max
+        ((value - (wc - 0.5)) / (ww - 1.) + 0.5) * y_max
     }
 }
 
 fn window_level_linear_exact(value: f64, window_width: f64, window_center: f64, y_max: f64) -> f64 {
-    let width = window_width as f64;
-    let center = window_center as f64;
-    debug_assert!(width >= 0.);
+    let ww = window_width;
+    let wc = window_center;
+    debug_assert!(ww >= 0.);
 
     // C.11.2.1.3.2
 
-    let min = center - width / 2.;
-    let max = center + width / 2.;
+    let min = wc - ww / 2.;
+    let max = wc + ww / 2.;
 
     if value <= min {
         // if (x <= c - w/2), then y = ymin
@@ -180,18 +175,18 @@ fn window_level_linear_exact(value: f64, window_width: f64, window_center: f64, 
         y_max
     } else {
         // else y = ((x - c) / w + 0.5) * (ymax - ymin) + ymin
-        ((value - center) / width + 0.5) * y_max
+        ((value - wc) / ww + 0.5) * y_max
     }
 }
 
 fn window_level_sigmoid(value: f64, window_width: f64, window_center: f64, y_max: f64) -> f64 {
-    let width = window_width as f64;
-    let center = window_center as f64;
-    assert!(width >= 1.);
+    let ww = window_width;
+    let wc = window_center;
+    assert!(ww >= 1.);
 
     // C.11.2.1.3.1
 
-    y_max / (1. + f64::exp(-4. * (value - center) / width))
+    y_max / (1. + f64::exp(-4. * (value - wc) / ww))
 }
 
 #[cfg(test)]

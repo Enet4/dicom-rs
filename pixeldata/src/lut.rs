@@ -246,8 +246,7 @@ where
         let bits_allocated = (bits_stored as usize).next_power_of_two();
         let y_max = ((1 << bits_allocated) - 1) as f64;
         Self::new_with_fn(bits_stored, signed, |v| {
-            let x = v as f64;
-            let v = rescale.apply(x);
+            let v = rescale.apply(v);
             voi.apply(v, y_max)
         })
     }
@@ -279,7 +278,7 @@ where
     ) -> Result<Self, CreateLutError> {
         let bits_allocated = (bits_stored as usize).next_power_of_two();
         let y_max = ((1 << bits_allocated) - 1) as f64;
-        Self::new_with_fn(bits_stored, signed, |v| voi.apply(v as f64, y_max))
+        Self::new_with_fn(bits_stored, signed, |v| voi.apply(v, y_max))
     }
 
     /// Apply the transformation to a single pixel sample value.

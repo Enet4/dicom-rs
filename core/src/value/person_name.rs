@@ -12,12 +12,12 @@ use std::fmt::{Display, Formatter};
 /// # Example
 ///
 /// A value of type `PersonName` can be obtained
-/// either by parsing a DICOM formatted string via [`from_str`](PersonName::from_str)
+/// either by parsing a DICOM formatted string via [`from_text`](PersonName::from_text)
 /// or by using the [builder](PersonNameBuilder) API.
 ///
 /// ```
 /// # use dicom_core::value::person_name::PersonName;
-/// let dr_seuss: PersonName = PersonName::from_str("Geisel^Theodor^Seuss^Dr.");
+/// let dr_seuss: PersonName = PersonName::from_text("Geisel^Theodor^Seuss^Dr.");
 /// assert_eq!(&dr_seuss.to_string(), "Dr. Theodor Seuss Geisel");
 /// assert_eq!(dr_seuss.prefix(), Some("Dr."));
 /// assert_eq!(dr_seuss.given(), Some("Theodor"));
@@ -124,6 +124,16 @@ impl<'a> PersonName<'a> {
 
         name
     }
+    /// Obtains a person name by interpreting `slice` as a DICOM formatted string.
+    ///
+    /// The DICOM string representation is split by the `'^'` separator
+    /// into its respective components.
+    /// When passing a text value to this function,
+    /// ensure that it contains a single DICOM formatted name.
+    #[deprecated(since = "0.6.0", note = "Use `from_text` instead")]
+    pub fn from_str(slice: &'a str) -> PersonName<'a> {
+        Self::from_text(slice)
+    }
 
     /// Obtains a person name by interpreting `slice` as a DICOM formatted string.
     ///
@@ -131,7 +141,7 @@ impl<'a> PersonName<'a> {
     /// into its respective components.
     /// When passing a text value to this function,
     /// ensure that it contains a single DICOM formatted name.
-    pub fn from_str(slice: &'a str) -> PersonName<'a> {
+    pub fn from_text(slice: &'a str) -> PersonName<'a> {
         let mut parts = slice.trim().split('^');
 
         macro_rules! get_component {
@@ -343,38 +353,38 @@ mod tests {
     #[test]
     fn person_name_from_slice() {
         assert_eq!(
-            PersonName::from_str("^^Robert"),
+            PersonName::from_text("^^Robert"),
             PersonName::builder().with_middle("Robert").build()
         );
         assert_eq!(
-            PersonName::from_str("^^^Rev."),
+            PersonName::from_text("^^^Rev."),
             PersonName::builder().with_prefix("Rev.").build()
         );
         assert_eq!(
-            PersonName::from_str("^^^^B.A. M.Div."),
+            PersonName::from_text("^^^^B.A. M.Div."),
             PersonName::builder().with_suffix("B.A. M.Div.").build()
         );
         assert_eq!(
-            PersonName::from_str("^^Robert"),
+            PersonName::from_text("^^Robert"),
             PersonName::builder().with_middle("Robert").build()
         );
         assert_eq!(
-            PersonName::from_str("^John"),
+            PersonName::from_text("^John"),
             PersonName::builder().with_given("John").build()
         );
         assert_eq!(
-            PersonName::from_str("Adams"),
+            PersonName::from_text("Adams"),
             PersonName::builder().with_family("Adams").build()
         );
         assert_eq!(
-            PersonName::from_str("Adams^^^^B.A. M.Div."),
+            PersonName::from_text("Adams^^^^B.A. M.Div."),
             PersonName::builder()
                 .with_family("Adams")
                 .with_suffix("B.A. M.Div.")
                 .build()
         );
         assert_eq!(
-            PersonName::from_str("Adams^^Robert^^B.A. M.Div."),
+            PersonName::from_text("Adams^^Robert^^B.A. M.Div."),
             PersonName {
                 prefix: None,
                 given: None,
@@ -384,7 +394,7 @@ mod tests {
             }
         );
         assert_eq!(
-            PersonName::from_str("Adams^John^Robert^Rev.^B.A. M.Div."),
+            PersonName::from_text("Adams^John^Robert^Rev.^B.A. M.Div."),
             PersonName {
                 prefix: Some("Rev."),
                 given: Some("John"),
@@ -394,7 +404,7 @@ mod tests {
             }
         );
         assert_eq!(
-            PersonName::from_str("Adams^ "),
+            PersonName::from_text("Adams^ "),
             PersonName {
                 prefix: None,
                 given: None,
