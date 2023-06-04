@@ -179,7 +179,7 @@ fn run() -> Result<(), Error> {
         info!("Association established");
     }
 
-    for mut file in &mut dicom_files {
+    for file in &mut dicom_files {
         // TODO(#106) transfer syntax conversion is currently not supported
         let r: Result<_, Error> = check_presentation_contexts(file, scu.presentation_contexts())
             .whatever_context::<_, _>("Could not choose a transfer syntax");
