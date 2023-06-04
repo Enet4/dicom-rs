@@ -254,12 +254,13 @@ where
     /// into an owned string.
     ///
     /// Returns an error if the value is not primitive.
-    pub fn to_str(&self) -> Result<Cow<str>, CastValueError> {
+    pub fn to_str(&self) -> Result<Cow<str>, ConvertValueError> {
         match self {
             Value::Primitive(prim) => Ok(prim.to_str()),
-            _ => Err(CastValueError {
+            _ => Err(ConvertValueError {
                 requested: "string",
-                got: self.value_type(),
+                original: self.value_type(),
+                cause: None,
             }),
         }
     }
@@ -272,25 +273,15 @@ where
     /// into an owned string.
     ///
     /// Returns an error if the value is not primitive.
-    pub fn to_raw_str(&self) -> Result<Cow<str>, CastValueError> {
+    pub fn to_raw_str(&self) -> Result<Cow<str>, ConvertValueError> {
         match self {
             Value::Primitive(prim) => Ok(prim.to_raw_str()),
-            _ => Err(CastValueError {
+            _ => Err(ConvertValueError {
                 requested: "string",
-                got: self.value_type(),
+                original: self.value_type(),
+                cause: None,
             }),
         }
-    }
-
-    /// Convert the full primitive value into a clean string.
-    ///
-    /// Returns an error if the value is not primitive.
-    #[deprecated(
-        note = "`to_clean_str()` is now deprecated in favour of using `to_str()` directly.
-        `to_raw_str()` replaces the old functionality of `to_str()` and maintains all trailing whitespace."
-    )]
-    pub fn to_clean_str(&self) -> Result<Cow<str>, CastValueError> {
-        self.to_str()
     }
 
     /// Convert the full primitive value into a sequence of strings.
@@ -317,12 +308,13 @@ where
     /// are provided in UTF-8.
     ///
     /// Returns an error if the value is not primitive.
-    pub fn to_bytes(&self) -> Result<Cow<[u8]>, CastValueError> {
+    pub fn to_bytes(&self) -> Result<Cow<[u8]>, ConvertValueError> {
         match self {
             Value::Primitive(prim) => Ok(prim.to_bytes()),
-            _ => Err(CastValueError {
+            _ => Err(ConvertValueError {
                 requested: "bytes",
-                got: self.value_type(),
+                original: self.value_type(),
+                cause: None,
             }),
         }
     }
@@ -999,6 +991,52 @@ mod tests {
     }
 
     #[test]
+    fn to_date() {
+        let expected_dates = [
+            DicomDate::from_ymd(2021, 2, 3).unwrap(),
+            DicomDate::from_ymd(2022, 3, 4).unwrap(),
+            DicomDate::from_ymd(2023, 4, 5).unwrap(),
+        ];
+
+        let value = Value::new(dicom_value!(Strs, ["20210203", "20220304", "20230405"]));
+        assert_eq!(value.to_date().unwrap(), expected_dates[0],);
+        assert_eq!(value.to_multi_date().unwrap(), &expected_dates[..]);
+
+        let value_pair = Value::new(dicom_value!(
+            Date,
+            [
+                DicomDate::from_ymd(2021, 2, 3).unwrap(),
+                DicomDate::from_ymd(2022, 3, 4).unwrap(),
+            ]
+        ));
+
+        assert_eq!(value_pair.to_date().unwrap(), expected_dates[0]);
+        assert_eq!(value_pair.to_multi_date().unwrap(), &expected_dates[0..2]);
+
+        // cannot turn to integers
+        assert!(matches!(
+            value_pair.to_multi_int::<i64>(),
+            Err(ConvertValueError {
+                requested: "integer",
+                original: ValueType::Date,
+                ..
+            })
+        ));
+
+        let range_value = Value::new(dicom_value!(Str, "20210203-20220304"));
+
+        // can turn to range
+        assert_eq!(
+            range_value.to_date_range().unwrap(),
+            DateRange::from_start_to_end(
+                expected_dates[0].to_naive_date().unwrap(),
+                expected_dates[1].to_naive_date().unwrap()
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
     fn getters() {
         assert_eq!(
             Value::new(dicom_value!(Strs, ["Smith^John"]))
@@ -1074,6 +1112,15 @@ mod tests {
         ));
     }
 
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    struct DummyItem(u32);
+
+    impl HasLength for DummyItem {
+        fn length(&self) -> Length {
+            Length::defined(8)
+        }
+    }
+
     #[test]
     fn value_eq() {
         // the following declarations are equivalent
@@ -1085,15 +1132,125 @@ mod tests {
         assert_eq!(v1, v2);
         assert_eq!(v2, v1);
 
+        // redeclare with different type parameters
+        let v1 = Value::<DummyItem, _>::from(PixelFragmentSequence::new(
+            smallvec![],
+            smallvec![vec![1, 2, 5]],
+        ));
+
         // declarations are equivalent
         let v3 = Value::from(PrimitiveValue::from("Something"));
         let v4 = Value::new(dicom_value!(Str, "Something"));
         assert_eq!(v3, v4);
 
+        // redeclare with different type parameters
+        let v3: Value<DummyItem, _> = PrimitiveValue::from("Something").into();
+
+        let v5 = Value::from(DataSetSequence::new(
+            vec![DummyItem(0), DummyItem(1), DummyItem(2)],
+            Length::defined(1000),
+        ));
+        let v6 = Value::from(DataSetSequence::new(
+            vec![DummyItem(0), DummyItem(1), DummyItem(2)],
+            Length::UNDEFINED,
+        ));
+        assert_eq!(v5, v6);
+
         assert_ne!(v1, v3);
         assert_ne!(v3, v1);
-        assert_ne!(v4, v2);
-        assert_ne!(v2, v3);
-        assert_ne!(v2, v4);
+        assert_ne!(v1, v6);
+        assert_ne!(v6, v1);
+        assert_ne!(v3, v6);
+        assert_ne!(v6, v3);
+    }
+
+    #[test]
+    fn data_set_sequences() {
+        let v = DataSetSequence::new(
+            vec![DummyItem(1), DummyItem(2), DummyItem(5)],
+            Length::defined(24),
+        );
+
+        assert_eq!(v.cardinality(), 3);
+        assert_eq!(v.value_type(), ValueType::DataSetSequence);
+        assert_eq!(v.items(), &[DummyItem(1), DummyItem(2), DummyItem(5)]);
+        assert_eq!(v.length(), Length(24));
+
+        let v = Value::<_, [u8; 0]>::from(v);
+        assert_eq!(v.value_type(), ValueType::DataSetSequence);
+        assert_eq!(v.cardinality(), 3);
+        assert_eq!(
+            v.items(),
+            Some(&[DummyItem(1), DummyItem(2), DummyItem(5)][..])
+        );
+        assert_eq!(v.primitive(), None);
+        assert_eq!(v.fragments(), None);
+        assert_eq!(v.offset_table(), None);
+        assert_eq!(v.length(), Length(24));
+
+        // can't turn sequence to string
+        assert!(matches!(
+            v.to_str(),
+            Err(ConvertValueError {
+                original: ValueType::DataSetSequence,
+                ..
+            })
+        ));
+        // can't turn sequence to bytes
+        assert!(matches!(
+            v.to_bytes(),
+            Err(ConvertValueError {
+                requested: "bytes",
+                original: ValueType::DataSetSequence,
+                ..
+            })
+        ));
+
+        // can turn into items
+        let items = v.into_items().unwrap();
+        assert_eq!(&items[..], &[DummyItem(1), DummyItem(2), DummyItem(5)][..]);
+    }
+
+    #[test]
+    fn pixel_fragment_sequences() {
+        let v = PixelFragmentSequence::new(vec![], vec![vec![0x55; 128]]);
+
+        assert_eq!(v.cardinality(), 1);
+        assert_eq!(v.value_type(), ValueType::PixelSequence);
+        assert_eq!(v.fragments(), &[vec![0x55; 128]]);
+        assert!(HasLength::length(&v).is_undefined());
+
+        let v = Value::<EmptyObject, _>::from(v);
+        assert_eq!(v.cardinality(), 1);
+        assert_eq!(v.value_type(), ValueType::PixelSequence);
+        assert_eq!(v.items(), None);
+        assert_eq!(v.primitive(), None);
+        assert_eq!(v.fragments(), Some(&[vec![0x55; 128]][..]));
+        assert_eq!(v.offset_table(), Some(&[][..]));
+        assert!(HasLength::length(&v).is_undefined());
+
+        // can't turn sequence to string
+        assert!(matches!(
+            v.to_str(),
+            Err(ConvertValueError {
+                requested: "string",
+                original: ValueType::PixelSequence,
+                ..
+            })
+        ));
+
+        // can't turn sequence to bytes
+        assert!(matches!(
+            v.to_bytes(),
+            Err(ConvertValueError {
+                requested: "bytes",
+                original: ValueType::PixelSequence,
+                ..
+            })
+        ));
+
+        // can turn into fragments
+        let fragments = v.into_fragments().unwrap();
+        assert_eq!(&fragments[..], &[vec![0x55; 128]]);
     }
 }

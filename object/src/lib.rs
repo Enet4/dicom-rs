@@ -268,7 +268,7 @@ pub enum Error {
     },
     /// Could not prepare file meta table
     PrepareMetaTable {
-        source: dicom_core::value::CastValueError,
+        source: dicom_core::value::ConvertValueError,
         backtrace: Backtrace,
     },
 }
