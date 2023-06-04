@@ -89,7 +89,7 @@ struct SeqToken {
 /// The value reading strategy for the data set reader.
 ///
 /// It defines how the `PrimitiveValue`s in value tokens are constructed.
-#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
 pub enum ValueReadStrategy {
     /// Textual values will be decoded according to their value representation.
     ///
@@ -110,6 +110,9 @@ pub enum ValueReadStrategy {
     /// All text is still decoded into Rust string values,
     /// in accordance to the standard,
     /// unless its value representation is unknown to the decoder.
+    /// 
+    /// This is the default strategy.
+    #[default]
     Preserved,
     /// All primitive values are fetched as raw byte buffers,
     /// without any form of decoding or interpretation.
@@ -118,12 +121,6 @@ pub enum ValueReadStrategy {
     /// This strategy is not recommended,
     /// as it makes the retrieval of important textual data more difficult.
     Raw,
-}
-
-impl Default for ValueReadStrategy {
-    fn default() -> Self {
-        ValueReadStrategy::Preserved
-    }
 }
 
 /// The set of options for the data set reader.

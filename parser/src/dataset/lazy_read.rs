@@ -19,7 +19,7 @@ use dicom_core::{Tag, VR};
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntax;
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
-use std::{cmp::Ordering, io::SeekFrom};
+use std::cmp::Ordering;
 
 use super::{LazyDataToken, SeqTokenType};
 
@@ -126,7 +126,7 @@ impl<R> LazyDataSetReader<DynStatefulDecoder<R>> {
         R: ReadSeek,
     {
         let position = source
-            .seek(SeekFrom::Current(0))
+            .stream_position()
             .context(GetPositionSnafu)?;
         let parser =
             DynStatefulDecoder::new_with(source, ts, cs, position).context(CreateDecoderSnafu)?;
@@ -163,7 +163,7 @@ impl<S> LazyDataSetReader<S>
 where
     S: StatefulDecode,
 {
-    fn update_seq_delimiters<'a, 'b>(&'a mut self) -> Result<Option<LazyDataToken<&'b mut S>>> {
+    fn update_seq_delimiters<'b>(&mut self) -> Result<Option<LazyDataToken<&'b mut S>>> {
         if let Some(sd) = self.seq_delimiters.last() {
             if let Some(len) = sd.len.get() {
                 let end_of_sequence = sd.base_offset + len as u64;
