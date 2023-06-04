@@ -374,9 +374,9 @@ impl<D, P> TransferSyntax<D, P> {
         S: ?Sized + Read,
     {
         match (self.byte_order, self.explicit_vr) {
-            (Endianness::Little, false) => Some(Box::new(ImplicitVRLittleEndianDecoder::default())),
-            (Endianness::Little, true) => Some(Box::new(ExplicitVRLittleEndianDecoder::default())),
-            (Endianness::Big, true) => Some(Box::new(ExplicitVRBigEndianDecoder::default())),
+            (Endianness::Little, false) => Some(Box::<ImplicitVRLittleEndianDecoder<_>>::default()),
+            (Endianness::Little, true) => Some(Box::<ExplicitVRLittleEndianDecoder>::default()),
+            (Endianness::Big, true) => Some(Box::<ExplicitVRBigEndianDecoder>::default()),
             _ => None,
         }
     }
