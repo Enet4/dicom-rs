@@ -6,7 +6,7 @@ use smallvec::SmallVec;
 use snafu::{OptionExt, ResultExt};
 use std::borrow::Cow;
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::{collections::BTreeMap, io::Write};
 
@@ -93,16 +93,22 @@ where
 impl FileDicomObject<InMemDicomObject<StandardDataDictionary>> {
     /// Create a DICOM object by reading from a file.
     ///
-    /// This function assumes the standard file encoding structure: 128-byte
-    /// preamble, file meta group, and the rest of the data set.
+    /// This function assumes the standard file encoding structure:
+    /// first it automatically detects whether the 128-byte preamble is present,
+    /// skipping it if found.
+    /// Then it reads the file meta group,
+    /// followed by the rest of the data set.
     pub fn open_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         Self::open_file_with_dict(path, StandardDataDictionary)
     }
 
     /// Create a DICOM object by reading from a byte source.
     ///
-    /// This function assumes the standard file encoding structure without the
-    /// preamble: file meta group, followed by the rest of the data set.
+    /// This function assumes the standard file encoding structure:
+    /// first it automatically detects whether the 128-byte preamble is present,
+    /// skipping it if found.
+    /// Then it reads the file meta group,
+    /// followed by the rest of the data set.
     pub fn from_reader<S>(src: S) -> Result<Self>
     where
         S: Read,
@@ -217,16 +223,22 @@ where
 
     /// Create a DICOM object by reading from a file.
     ///
-    /// This function assumes the standard file encoding structure: 128-byte
-    /// preamble, file meta group, and the rest of the data set.
+    /// This function assumes the standard file encoding structure:
+    /// first it automatically detects whether the 128-byte preamble is present,
+    /// skipping it when found.
+    /// Then it reads the file meta group,
+    /// followed by the rest of the data set.
     pub fn open_file_with_dict<P: AsRef<Path>>(path: P, dict: D) -> Result<Self> {
         Self::open_file_with(path, dict, TransferSyntaxRegistry)
     }
 
     /// Create a DICOM object by reading from a file.
     ///
-    /// This function assumes the standard file encoding structure: 128-byte
-    /// preamble, file meta group, and the rest of the data set.
+    /// This function assumes the standard file encoding structure:
+    /// first it automatically detects whether the 128-byte preamble is present,
+    /// skipping it when found.
+    /// Then it reads the file meta group,
+    /// followed by the rest of the data set.
     ///
     /// This function allows you to choose a different transfer syntax index,
     /// but its use is only advised when the built-in transfer syntax registry
@@ -241,12 +253,32 @@ where
         Self::open_file_with_all_options(path, dict, ts_index, None, ReadPreamble::Auto)
     }
 
+    // detect the presence of a preamble
+    // and provide a better `ReadPreamble` option accordingly
+    fn detect_preamble<S>(reader: &mut BufReader<S>) -> std::io::Result<ReadPreamble>
+    where
+        S: Read,
+    {
+        let buf = reader.fill_buf()?;
+
+        if buf.len() >= 132 && &buf[128..132] == b"DICM" {
+            return Ok(ReadPreamble::Always);
+        }
+
+        if &buf[0..4] == b"DICM" {
+            return Ok(ReadPreamble::Never);
+        }
+
+        // could not detect
+        Ok(ReadPreamble::Auto)
+    }
+
     pub(crate) fn open_file_with_all_options<P: AsRef<Path>, R>(
         path: P,
         dict: D,
         ts_index: R,
         read_until: Option<Tag>,
-        read_preamble: ReadPreamble,
+        mut read_preamble: ReadPreamble,
     ) -> Result<Self>
     where
         P: AsRef<Path>,
@@ -255,6 +287,11 @@ where
         let path = path.as_ref();
         let mut file =
             BufReader::new(File::open(path).with_context(|_| OpenFileSnafu { filename: path })?);
+
+        if read_preamble == ReadPreamble::Auto {
+            read_preamble = Self::detect_preamble(&mut file)
+                .with_context(|_| ReadFileSnafu { filename: path })?;
+        }
 
         if read_preamble == ReadPreamble::Auto || read_preamble == ReadPreamble::Always {
             let mut buf = [0u8; 128];
@@ -292,8 +329,11 @@ where
 
     /// Create a DICOM object by reading from a byte source.
     ///
-    /// This function assumes the standard file encoding structure without the
-    /// preamble: file meta group, followed by the rest of the data set.
+    /// This function assumes the standard file encoding structure:
+    /// first it automatically detects whether the 128-byte preamble is present,
+    /// skipping it when found.
+    /// Then it reads the file meta group,
+    /// followed by the rest of the data set.
     pub fn from_reader_with_dict<S>(src: S, dict: D) -> Result<Self>
     where
         S: Read,
@@ -303,8 +343,11 @@ where
 
     /// Create a DICOM object by reading from a byte source.
     ///
-    /// This function assumes the standard file encoding structure without the
-    /// preamble: file meta group, followed by the rest of the data set.
+    /// This function assumes the standard file encoding structure:
+    /// first it automatically detects whether the preamble is present,
+    /// skipping it when found.
+    /// Then it reads the file meta group,
+    /// followed by the rest of the data set.
     ///
     /// This function allows you to choose a different transfer syntax index,
     /// but its use is only advised when the built-in transfer syntax registry
@@ -324,13 +367,17 @@ where
         dict: D,
         ts_index: R,
         read_until: Option<Tag>,
-        read_preamble: ReadPreamble,
+        mut read_preamble: ReadPreamble,
     ) -> Result<Self>
     where
         S: Read,
         R: TransferSyntaxIndex,
     {
         let mut file = BufReader::new(src);
+
+        if read_preamble == ReadPreamble::Auto {
+            read_preamble = Self::detect_preamble(&mut file).context(ReadPreambleBytesSnafu)?;
+        }
 
         if read_preamble == ReadPreamble::Always {
             // skip preamble
