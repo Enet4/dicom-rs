@@ -40,7 +40,7 @@ use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 pub type InMemElement<D = StandardDataDictionary> = DataElement<InMemDicomObject<D>, InMemFragment>;
 
 /// The type of a pixel data fragment.
-pub type InMemFragment = Vec<u8>;
+pub type InMemFragment = dicom_core::value::InMemFragment;
 
 type ParserResult<T> = std::result::Result<T, ParserError>;
 

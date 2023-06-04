@@ -28,6 +28,9 @@ use chrono::FixedOffset;
 /// An aggregation of one or more elements in a value.
 pub type C<T> = SmallVec<[T; 2]>;
 
+/// Type alias for the in-memory pixel data fragment data.
+pub type InMemFragment = Vec<u8>;
+
 /// A trait for a value that maps to a DICOM element data value.
 pub trait DicomValueType: HasLength {
     /// Retrieve the specific type of this value.
@@ -47,12 +50,10 @@ pub trait DicomValueType: HasLength {
 ///
 /// `I` is the complex type for nest data set items, which should usually
 /// implement [`HasLength`].
-/// `P` is the encapsulated pixel data provider, which should usually
-/// implement `AsRef<[u8]>`.
-///
-/// [`HasLength`]: ../header/trait.HasLength.html
+/// `P` is the encapsulated pixel data provider,
+/// which should usually implement `AsRef<[u8]>`.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value<I = EmptyObject, P = [u8; 0]> {
+pub enum Value<I = EmptyObject, P = InMemFragment> {
     /// Primitive value.
     Primitive(PrimitiveValue),
     /// A complex sequence of items.
@@ -83,17 +84,16 @@ impl<P> Value<EmptyObject, P> {
     }
 }
 
-impl<I> Value<I, [u8; 0]> {
+impl<I> Value<I> {
     /// Construct an isolated DICOM data set sequence value
     /// from a list of items and length.
     ///
     /// This function will define the pixel data fragment type parameter `P`
-    /// to an empty byte array (`[u8; 0]`),
-    /// so that it can be used more easily in isolation.
-    /// As a consequence, it cannot be directly combined with
-    /// DICOM objects that may contain encapsulate pixel data.
-    /// To let the type parameter `P` be inferred from its context,
-    /// create a [`DataSetSequence`] and use `Value::from` instead.
+    /// to the `Value` type's default ([`InMemFragment`]),
+    /// so that it can be used more easily.
+    /// If necessary,
+    /// it is possible to let this type parameter be inferred from its context
+    /// by creating a [`DataSetSequence`] and using `Value::from` instead.
     #[inline]
     pub fn new_sequence<T>(items: T, length: Length) -> Self
     where
@@ -103,12 +103,28 @@ impl<I> Value<I, [u8; 0]> {
     }
 }
 
-impl Value<EmptyObject, [u8; 0]> {
+impl Value {
     /// Construct a DICOM value from a primitive value.
     ///
     /// This is equivalent to `Value::from` in behavior,
     /// except that suitable type parameters are specified
     /// instead of inferred.
+    ///
+    /// This function will automatically define
+    /// the sequence item parameter `I`
+    /// to [`EmptyObject`]
+    /// and the pixel data fragment type parameter `P`
+    /// to the default fragment data type ([`InMemFragment`]),
+    /// so that it can be used more easily in isolation.
+    /// As a consequence, it cannot be directly combined with
+    /// DICOM objects that may contain
+    /// nested data sets or encapsulated pixel data.
+    /// To let the type parameters `I` and `P` be inferred from their context,
+    /// create a value of one of the types and use `Value::from` instead.
+    ///
+    /// - [`PrimitiveValue`]
+    /// - [`PixelFragmentSequence`]
+    /// - [`DataSetSequence`]
     #[inline]
     pub fn new(value: PrimitiveValue) -> Self {
         Self::from(value)
@@ -704,10 +720,10 @@ impl<I, P> From<PrimitiveValue> for Value<I, P> {
     }
 }
 
-/// A sequence of complex data set items.
-#[derive(Debug, Clone, PartialEq)]
+/// A sequence of complex data set items of type `I`.
+#[derive(Debug, Clone)]
 pub struct DataSetSequence<I> {
-    /// Item collection.
+    /// The item sequence.
     items: C<I>,
     /// The sequence length in bytes.
     ///
@@ -790,6 +806,20 @@ impl<I, P> From<DataSetSequence<I>> for Value<I, P> {
     }
 }
 
+impl<I> PartialEq<DataSetSequence<I>> for DataSetSequence<I>
+where
+    I: PartialEq,
+{
+    /// This method tests for `self` and `other` values to be equal,
+    /// and is used by `==`.
+    ///
+    /// This implementation only checks for item equality,
+    /// disregarding the byte length.
+    fn eq(&self, other: &DataSetSequence<I>) -> bool {
+        self.items() == other.items()
+    }
+}
+
 /// A sequence of pixel data fragments.
 ///
 /// Each fragment (of data type `P`) is
@@ -842,7 +872,6 @@ impl<P> PixelFragmentSequence<P> {
             fragments: fragments.into(),
         }
     }
-
 
     /// Gets a reference to the pixel data fragments.
     ///
@@ -1043,5 +1072,28 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn value_eq() {
+        // the following declarations are equivalent
+        let v1 = Value::<_, _>::from(PixelFragmentSequence::new(
+            smallvec![],
+            smallvec![vec![1, 2, 5]],
+        ));
+        let v2 = Value::new_pixel_sequence(smallvec![], smallvec![vec![1, 2, 5]]);
+        assert_eq!(v1, v2);
+        assert_eq!(v2, v1);
+
+        // declarations are equivalent
+        let v3 = Value::from(PrimitiveValue::from("Something"));
+        let v4 = Value::new(dicom_value!(Str, "Something"));
+        assert_eq!(v3, v4);
+
+        assert_ne!(v1, v3);
+        assert_ne!(v3, v1);
+        assert_ne!(v4, v2);
+        assert_ne!(v2, v3);
+        assert_ne!(v2, v4);
     }
 }
