@@ -38,7 +38,9 @@ where
 ///
 /// Create a `OpenFileOptions`,
 /// call adaptor methods in a chain,
-/// and finish the operation with [`.open_file()`](OpenFileOptions::open_file).
+/// and finish the operation with
+/// either [`open_file()`](OpenFileOptions::open_file)
+/// or [`from_reader()`](OpenFileOptions::from_reader).
 ///
 /// ```no_run
 /// # use dicom_object::OpenFileOptions;
@@ -156,10 +158,13 @@ impl<D, T> OpenFileOptions<D, T> {
 
 /// An enumerate of supported options for
 /// whether to read the 128-byte DICOM file preamble.
-#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
 pub enum ReadPreamble {
-    /// Read the preamble only when opening a file by path,
-    /// and do not read the preamble when reading from a byte source.
+    /// Try to detect the presence of the preamble automatically.
+    /// If detection fails, it will revert to always reading the preamble
+    /// when opening a file by path,
+    /// and not reading it when reading from a byte source.
+    #[default]
     Auto,
     /// Never read the preamble,
     /// thus assuming that the original source does not have it.
@@ -167,10 +172,4 @@ pub enum ReadPreamble {
     /// Always read the preamble first,
     /// thus assuming that the original source always has it.
     Always,
-}
-
-impl Default for ReadPreamble {
-    fn default() -> Self {
-        ReadPreamble::Auto
-    }
 }
