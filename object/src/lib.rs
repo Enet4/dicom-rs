@@ -268,7 +268,7 @@ pub enum Error {
     },
     /// Could not prepare file meta table
     PrepareMetaTable {
-        source: dicom_core::value::CastValueError,
+        source: dicom_core::value::ConvertValueError,
         backtrace: Backtrace,
     },
 }
@@ -553,23 +553,21 @@ where
         let pixel_data = self.element(dicom_dictionary_std::tags::PIXEL_DATA).ok()?;
         match pixel_data.value() {
             dicom_core::DicomValue::Primitive(_p) => Some(1),
-            dicom_core::DicomValue::PixelSequence {
-                offset_table: _,
-                fragments,
-            } => Some(fragments.len() as u32),
-            dicom_core::DicomValue::Sequence { items: _, size: _ } => None,
+            dicom_core::DicomValue::PixelSequence(v) => Some(v.fragments().len() as u32),
+            dicom_core::DicomValue::Sequence(..) => None,
         }
     }
 
     /// Return a specific encoded pixel fragment by index as Vec<u8>
     /// or None if no pixel data is found
+    /// 
+    /// Panics if `fragment` is out of bounds for the encapsulated pixel data fragments.
     fn fragment(&self, fragment: usize) -> Option<Vec<u8>> {
         let pixel_data = self.element(dicom_dictionary_std::tags::PIXEL_DATA).ok()?;
         match pixel_data.value() {
-            dicom_core::DicomValue::PixelSequence {
-                offset_table: _,
-                fragments,
-            } => Some(fragments[fragment].clone()),
+            dicom_core::DicomValue::PixelSequence(v) => {
+                Some(v.fragments()[fragment].clone())
+            }
             _ => None,
         }
     }
@@ -590,14 +588,14 @@ where
                     offset_table: SmallVec::new(),
                 })
             }
-            dicom_core::DicomValue::PixelSequence {
-                offset_table,
-                fragments,
-            } => Some(RawPixelData {
-                fragments: fragments.clone(),
-                offset_table: offset_table.clone(),
-            }),
-            dicom_core::DicomValue::Sequence { items: _, size: _ } => None,
+            dicom_core::DicomValue::PixelSequence(v) => {
+                let (offset_table, fragments) = v.clone().into_parts();
+                Some(RawPixelData {
+                    fragments,
+                    offset_table,
+                })
+            },
+            dicom_core::DicomValue::Sequence(..) => None,
         }
     }
 }

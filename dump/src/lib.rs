@@ -549,7 +549,7 @@ where
     };
 
     match elem.value() {
-        DicomValue::Sequence { items, .. } => {
+        DicomValue::Sequence(seq) => {
             writeln!(
                 to,
                 "{} {:28} {} ({} Item{})",
@@ -559,7 +559,7 @@ where
                 vm,
                 if vm == 1 { "" } else { "s" },
             )?;
-            for item in items {
+            for item in seq.items() {
                 dump_item(&mut *to, item, width, depth + 2, no_text_limit, no_limit)?;
             }
             to.write_all(&indent)?;
@@ -570,13 +570,10 @@ where
                 DumpValue::Alias("SequenceDelimitationItem"),
             )?;
         }
-        DicomValue::PixelSequence {
-            fragments,
-            offset_table,
-        } => {
+        DicomValue::PixelSequence(seq) => {
             // write pixel sequence start line
             let vr = elem.vr();
-            let num_items = 1 + fragments.len();
+            let num_items = 1 + seq.fragments().len();
             writeln!(
                 to,
                 "{} {:28} {} (PixelSequence, {} Item{})",
@@ -588,6 +585,7 @@ where
             )?;
 
             // write offset table
+            let offset_table = seq.offset_table();
             let byte_len = offset_table.len() * 4;
             let summary = offset_table_summary(
                 offset_table,
@@ -605,7 +603,7 @@ where
             )?;
 
             // write compressed fragments
-            for fragment in fragments {
+            for fragment in seq.fragments() {
                 let byte_len = fragment.len();
                 let summary = item_value_summary(
                     fragment,

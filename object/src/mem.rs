@@ -24,7 +24,7 @@ use crate::{
 };
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::{HasLength, Header};
-use dicom_core::value::{Value, ValueType, C};
+use dicom_core::value::{DataSetSequence, PixelFragmentSequence, Value, ValueType, C};
 use dicom_core::{DataElement, Length, PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::{tags, StandardDataDictionary};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
@@ -40,7 +40,7 @@ use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 pub type InMemElement<D = StandardDataDictionary> = DataElement<InMemDicomObject<D>, InMemFragment>;
 
 /// The type of a pixel data fragment.
-pub type InMemFragment = Vec<u8>;
+pub type InMemFragment = dicom_core::value::InMemFragment;
 
 type ParserResult<T> = std::result::Result<T, ParserError>;
 
@@ -717,12 +717,12 @@ where
                     Ok(())
                 }
 
-                Value::PixelSequence { .. } => IncompatibleTypesSnafu {
+                Value::PixelSequence(..) => IncompatibleTypesSnafu {
                     kind: ValueType::PixelSequence,
                 }
                 .fail(),
-                Value::Sequence { .. } => IncompatibleTypesSnafu {
-                    kind: ValueType::Item,
+                Value::Sequence(..) => IncompatibleTypesSnafu {
+                    kind: ValueType::DataSetSequence,
                 }
                 .fail(),
             }
@@ -750,12 +750,12 @@ where
                     Ok(())
                 }
 
-                Value::PixelSequence { .. } => IncompatibleTypesSnafu {
+                Value::PixelSequence(..) => IncompatibleTypesSnafu {
                     kind: ValueType::PixelSequence,
                 }
                 .fail(),
-                Value::Sequence { .. } => IncompatibleTypesSnafu {
-                    kind: ValueType::Item,
+                Value::Sequence(..) => IncompatibleTypesSnafu {
+                    kind: ValueType::DataSetSequence,
                 }
                 .fail(),
             }
@@ -783,12 +783,12 @@ where
                     Ok(())
                 }
 
-                Value::PixelSequence { .. } => IncompatibleTypesSnafu {
+                Value::PixelSequence(..) => IncompatibleTypesSnafu {
                     kind: ValueType::PixelSequence,
                 }
                 .fail(),
-                Value::Sequence { .. } => IncompatibleTypesSnafu {
-                    kind: ValueType::Item,
+                Value::Sequence(..) => IncompatibleTypesSnafu {
+                    kind: ValueType::DataSetSequence,
                 }
                 .fail(),
             }
@@ -816,12 +816,12 @@ where
                     Ok(())
                 }
 
-                Value::PixelSequence { .. } => IncompatibleTypesSnafu {
+                Value::PixelSequence(..) => IncompatibleTypesSnafu {
                     kind: ValueType::PixelSequence,
                 }
                 .fail(),
-                Value::Sequence { .. } => IncompatibleTypesSnafu {
-                    kind: ValueType::Item,
+                Value::Sequence(..) => IncompatibleTypesSnafu {
+                    kind: ValueType::DataSetSequence,
                 }
                 .fail(),
             }
@@ -849,12 +849,12 @@ where
                     Ok(())
                 }
 
-                Value::PixelSequence { .. } => IncompatibleTypesSnafu {
+                Value::PixelSequence(..) => IncompatibleTypesSnafu {
                     kind: ValueType::PixelSequence,
                 }
                 .fail(),
-                Value::Sequence { .. } => IncompatibleTypesSnafu {
-                    kind: ValueType::Item,
+                Value::Sequence(..) => IncompatibleTypesSnafu {
+                    kind: ValueType::DataSetSequence,
                 }
                 .fail(),
             }
@@ -882,12 +882,12 @@ where
                     Ok(())
                 }
 
-                Value::PixelSequence { .. } => IncompatibleTypesSnafu {
+                Value::PixelSequence(..) => IncompatibleTypesSnafu {
                     kind: ValueType::PixelSequence,
                 }
                 .fail(),
-                Value::Sequence { .. } => IncompatibleTypesSnafu {
-                    kind: ValueType::Item,
+                Value::Sequence(..) => IncompatibleTypesSnafu {
+                    kind: ValueType::DataSetSequence,
                 }
                 .fail(),
             }
@@ -915,12 +915,12 @@ where
                     Ok(())
                 }
 
-                Value::PixelSequence { .. } => IncompatibleTypesSnafu {
+                Value::PixelSequence(..) => IncompatibleTypesSnafu {
                     kind: ValueType::PixelSequence,
                 }
                 .fail(),
-                Value::Sequence { .. } => IncompatibleTypesSnafu {
-                    kind: ValueType::Item,
+                Value::Sequence(..) => IncompatibleTypesSnafu {
+                    kind: ValueType::DataSetSequence,
                 }
                 .fail(),
             }
@@ -1104,7 +1104,7 @@ where
                         tag,
                         VR::SQ,
                         len,
-                        Value::Sequence { items, size: len },
+                        Value::Sequence(DataSetSequence::new(items, len)),
                     )
                 }
                 DataToken::ItemEnd if in_item => {
@@ -1168,10 +1168,10 @@ where
             }
         }
 
-        Ok(Value::PixelSequence {
+        Ok(Value::PixelSequence(PixelFragmentSequence::new(
+            offset_table.unwrap_or_default(),
             fragments,
-            offset_table: offset_table.unwrap_or_default().into(),
-        })
+        )))
     }
 
     /// Build a DICOM sequence by consuming a data set parser.
@@ -1965,10 +1965,10 @@ mod tests {
             DataElement::new(
                 Tag(0x0018, 0x6011),
                 VR::SQ,
-                Value::Sequence {
-                    items: smallvec![obj_1, obj_2],
-                    size: Length::UNDEFINED,
-                },
+                Value::from(DataSetSequence::new(
+                    smallvec![obj_1, obj_2],
+                    Length::UNDEFINED,
+                )),
             ),
             DataElement::new(Tag(0x0020, 0x4000), VR::LT, Value::Primitive("TEST".into())),
         ]);
@@ -2044,10 +2044,10 @@ mod tests {
             DataElement::new(
                 Tag(0x0018, 0x6011),
                 VR::SQ,
-                Value::Sequence {
-                    items: smallvec![obj_1, obj_2],
-                    size: Length::UNDEFINED,
-                },
+                Value::from(DataSetSequence::new(
+                    smallvec![obj_1, obj_2],
+                    Length::UNDEFINED,
+                )),
             ),
             DataElement::new(Tag(0x0020, 0x4000), VR::LT, Value::Primitive("TEST".into())),
         ]);
@@ -2105,10 +2105,10 @@ mod tests {
         let gt_obj = InMemDicomObject::from_element_iter(vec![DataElement::new(
             Tag(0x7fe0, 0x0010),
             VR::OB,
-            Value::PixelSequence {
-                fragments: smallvec![vec![0x33; 32]],
-                offset_table: Default::default(),
-            },
+            Value::from(PixelFragmentSequence::new_fragments(smallvec![vec![
+                0x33;
+                32
+            ]])),
         )]);
 
         let tokens: Vec<_> = vec![
@@ -2140,10 +2140,10 @@ mod tests {
         let main_obj = InMemDicomObject::from_element_iter(vec![DataElement::new(
             Tag(0x7fe0, 0x0010),
             VR::OB,
-            Value::PixelSequence {
-                fragments: smallvec![vec![0x33; 32]],
-                offset_table: Default::default(),
-            },
+            Value::from(PixelFragmentSequence::new_fragments(smallvec![vec![
+                0x33;
+                32
+            ]])),
         )]);
 
         let tokens: Vec<_> = main_obj.into_tokens().collect();

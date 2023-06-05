@@ -81,9 +81,11 @@ pub trait Header: HasLength {
 
 /// Stub type representing a non-existing DICOM object.
 ///
-/// This type implements `HasLength`, but cannot be instantiated.
-/// This makes it so that `Value<EmptyObject>` is sure to be either a primitive
-/// value or a sequence with no items.
+/// This type implements [`HasLength`], but cannot be instantiated.
+/// This makes it so that [`Value<EmptyObject>`] is sure to be either
+/// a primitive value,
+/// a pixel data fragment sequence,
+/// or a sequence with no items.
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq, Ord, PartialOrd)]
 pub enum EmptyObject {}
 
@@ -290,7 +292,7 @@ where
     /// with no trailing whitespace.
     ///
     /// Returns an error if the value is not primitive.
-    pub fn to_str(&self) -> Result<Cow<str>, CastValueError> {
+    pub fn to_str(&self) -> Result<Cow<str>, ConvertValueError> {
         self.value.to_str()
     }
 
@@ -298,17 +300,8 @@ where
     /// with trailing whitespace kept.
     ///
     /// Returns an error if the value is not primitive.
-    pub fn to_raw_str(&self) -> Result<Cow<str>, CastValueError> {
+    pub fn to_raw_str(&self) -> Result<Cow<str>, ConvertValueError> {
         self.value.to_raw_str()
-    }
-
-    /// Retrieves the element's value as a clean string
-    #[deprecated(
-        note = "`to_clean_str()` is now deprecated in favour of using `to_str()` directly.
-        `to_raw_str()` replaces the old functionality of `to_str()` and maintains all trailing whitespace."
-    )]
-    pub fn to_clean_str(&self) -> Result<Cow<str>, CastValueError> {
-        self.value.to_str()
     }
 
     /// Convert the full primitive value into raw bytes.
@@ -317,8 +310,8 @@ where
     /// are provided in UTF-8.
     ///
     /// Returns an error if the value is not primitive.
-    pub fn to_bytes(&self) -> Result<Cow<[u8]>, CastValueError> {
-        self.value().to_bytes()
+    pub fn to_bytes(&self) -> Result<Cow<[u8]>, ConvertValueError> {
+        self.value.to_bytes()
     }
 
     /// Convert the full value of the data element into a sequence of strings.

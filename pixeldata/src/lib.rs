@@ -1672,18 +1672,15 @@ where
         }
 
         let decoded_pixel_data = match pixel_data.value() {
-            Value::PixelSequence {
-                fragments,
-                offset_table: _,
-            } => {
+            Value::PixelSequence(v) => {
                 // Return all fragments concatenated
-                fragments.into_iter().flatten().copied().collect()
+                v.fragments().into_iter().flatten().copied().collect()
             }
             Value::Primitive(p) => {
                 // Non-encoded, just return the pixel data for all frames
                 p.to_bytes().to_vec()
             }
-            Value::Sequence { items: _, size: _ } => InvalidPixelDataSnafu.fail()?,
+            Value::Sequence(..) => InvalidPixelDataSnafu.fail()?,
         };
 
         Ok(DecodedPixelData {

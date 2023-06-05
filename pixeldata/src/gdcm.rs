@@ -57,10 +57,8 @@ where
         let voi_lut_function = voi_lut_function.and_then(|v| VoiLutFunction::try_from(&*v).ok());
 
         let decoded_pixel_data = match pixel_data.value() {
-            Value::PixelSequence {
-                fragments,
-                offset_table: _,
-            } => {
+            Value::PixelSequence(v) => {
+                let fragments = v.fragments();
                 let gdcm_error_mapper = |source: GDCMError| DecodeError::Custom {
                     message: source.to_string(),
                     source: Some(Box::new(source)),
@@ -105,7 +103,7 @@ where
                 // Non-encoded, just return the pixel data of the first frame
                 p.to_bytes().to_vec()
             }
-            Value::Sequence { items: _, size: _ } => InvalidPixelDataSnafu.fail()?,
+            Value::Sequence(_) => InvalidPixelDataSnafu.fail()?,
         };
 
         // pixels are already interpreted,
