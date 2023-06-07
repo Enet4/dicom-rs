@@ -122,13 +122,11 @@ where
 ///
 /// This macro does not actually "run" anything, so place it outside of a
 /// function body at the root of the crate.
-/// The expression is evaluated before main is called
-/// (more specifically when the transfer syntax registry is populated),
+/// The expression is evaluated when the transfer syntax registry is populated
+/// upon the first request,
 /// and must resolve to a value of type [`TransferSyntax<D, P>`],
 /// for valid definitions of the parameter types `D` and `P`.
 /// The macro will type-erase these parameters automatically.
-///
-/// [`TransferSyntax<D, P>`]: crate::transfer_syntax::TransferSyntax
 ///
 /// # Example
 ///
@@ -141,9 +139,9 @@ where
 ///
 /// ```
 /// use dicom_encoding::{
-///     submit_transfer_syntax, AdapterFreeTransferSyntax, Codec, Endianness, TransferSyntaxIndex,
+///     submit_transfer_syntax, AdapterFreeTransferSyntax, Codec, Endianness,
 /// };
-/// 
+///
 /// submit_transfer_syntax!(AdapterFreeTransferSyntax::new(
 ///     // Transfer Syntax UID
 ///     "1.3.46.670589.33.1.4.1",
@@ -156,7 +154,7 @@ where
 ///     Codec::EncapsulatedPixelData,  // pixel data codec
 /// ));
 /// ```
-/// 
+///
 /// With [`Codec::EncapsulatedPixelData`],
 /// we are indicating that it relies on encapsulated pixel data,
 /// albeit without the means to decode or encode it.
@@ -186,6 +184,87 @@ macro_rules! submit_transfer_syntax {
         // ignore request
     };
 }
+
+#[cfg(feature = "inventory-registry")]
+#[macro_export]
+/// Submit an explicit VR little endian transfer syntax specifier
+/// to be supported by the program's runtime.
+///
+/// This macro is equivalent in behavior as [`submit_transfer_syntax`],
+/// but it is easier to use when
+/// writing support for compressed pixel data formats,
+/// which are usually in explicit VR little endian.
+///
+/// This macro does not actually "run" anything, so place it outside of a
+/// function body at the root of the crate.
+/// The expression is evaluated when the transfer syntax registry is populated
+/// upon the first request,
+/// and must resolve to a value of type [`Codec<D, P>`],
+/// for valid definitions of the parameter types `D` and `P`.
+/// The macro will type-erase these parameters automatically.
+///
+/// # Example
+///
+/// One common use case is wanting to read data sets
+/// of DICOM objects in a private transfer syntax,
+/// even when a decoder for that pixel data is not available.
+/// By writing a simple stub at your project's root,
+/// the rest of the ecosystem will know
+/// how to read and write data sets in that transfer syntax.
+///
+/// ```
+/// use dicom_encoding::{submit_ele_transfer_syntax, Codec};
+///
+/// submit_ele_transfer_syntax!(
+///     // Transfer Syntax UID
+///     "1.3.46.670589.33.1.4.1",
+///     // Name/alias
+///     "CT Private ELE",
+///     // pixel data codec
+///     Codec::EncapsulatedPixelData
+/// );
+/// ```
+///
+/// With [`Codec::EncapsulatedPixelData`],
+/// we are indicating that it relies on encapsulated pixel data,
+/// albeit without the means to decode or encode it.
+/// See the [`adapters`](crate::adapters) module
+/// to know how to write pixel data encoders and decoders.
+macro_rules! submit_ele_transfer_syntax {
+    ($uid: literal, $name: literal, $codec: expr) => {
+        $crate::inventory::submit! {
+            $crate::transfer_syntax::TransferSyntaxFactory(||
+                $crate::AdapterFreeTransferSyntax::new(
+                    $uid,
+                    $name,
+                    $crate::Endianness::Little,
+                    true,
+                    $codec
+                ).erased())
+        }
+    };
+}
+
+#[cfg(not(feature = "inventory-registry"))]
+#[macro_export]
+/// Submit an explicit VR little endian transfer syntax specifier
+/// to be supported by the program's runtime.
+///
+/// This macro is equivalent in behavior as [`submit_transfer_syntax`],
+/// but it is easier to use when
+/// writing support for compressed pixel data formats,
+/// which are usually in explicit VR little endian.
+///
+/// This macro does actually "run" anything, so place it outside of a
+/// function body at the root of the crate.
+///
+/// Without the `inventory-registry` feature, this request is ignored.
+macro_rules! submit_ele_transfer_syntax {
+    ($uid: literal, $name: literal, $codec: expr) => {
+        // ignore request
+    };
+}
+
 
 /// A description and possible implementation regarding
 /// the encoding and decoding requirements of a transfer syntax.
