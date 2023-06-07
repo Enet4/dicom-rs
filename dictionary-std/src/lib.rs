@@ -28,9 +28,9 @@ pub fn registry() -> &'static StandardDictionaryRegistry {
 /// The data struct containing the standard dictionary.
 #[derive(Debug)]
 pub struct StandardDictionaryRegistry {
-    /// mapping: name → tag
+    /// mapping: name → entry
     by_name: HashMap<&'static str, &'static DictionaryEntryRef<'static>>,
-    /// mapping: tag → name
+    /// mapping: tag → entry
     by_tag: HashMap<Tag, &'static DictionaryEntryRef<'static>>,
     /// repeating elements of the form (ggxx, eeee). The `xx` portion is zeroed.
     repeating_ggxx: HashSet<Tag>,
@@ -195,4 +195,60 @@ mod tests {
         assert_eq!(PIXEL_DATA, Tag(0x7FE0, 0x0010));
         assert_eq!(STATUS, Tag(0x0000, 0x0900));
     }
+
+    #[test]
+    fn can_parse_tags() {
+        let dict = StandardDataDictionary;
+
+        assert_eq!(dict.parse_tag("(7FE0,0010)"), Some(crate::tags::PIXEL_DATA));
+        assert_eq!(dict.parse_tag("0010,21C0"), Some(Tag(0x0010, 0x21C0)));
+        assert_eq!(
+            dict.parse_tag("OperatorsName"),
+            Some(crate::tags::OPERATORS_NAME)
+        );
+
+        // can't parse these
+        assert_eq!(dict.parse_tag(""), None);
+        assert_eq!(dict.parse_tag("1111,2222,3333"), None);
+        assert_eq!(dict.parse_tag("OperatorNickname"), None);
+    }
+
+
+    #[test]
+    fn can_query_by_expression() {
+        let dict = StandardDataDictionary;
+
+        assert_eq!(
+            dict.by_expr("(0010,0010)"),
+            Some(&DictionaryEntryRef {
+                tag: Single(crate::tags::PATIENT_NAME),
+                alias: "PatientName",
+                vr: VR::PN,
+            })
+        );
+
+        assert_eq!(
+            dict.by_expr("0008,0060"),
+            Some(&DictionaryEntryRef {
+                tag: Single(crate::tags::MODALITY),
+                alias: "Modality",
+                vr: VR::CS,
+            })
+        );
+
+        assert_eq!(
+            dict.by_expr("OperatorsName"),
+            Some(&DictionaryEntryRef {
+                tag: Single(crate::tags::OPERATORS_NAME),
+                alias: "OperatorsName",
+                vr: VR::PN,
+            })
+        );
+
+        // can't handle these
+        assert_eq!(dict.parse_tag("0080 0010"), None);
+        assert_eq!(dict.parse_tag("(0000.0600)"), None);
+        assert_eq!(dict.parse_tag("OPERATORSNAME"), None);
+    }
+
 }

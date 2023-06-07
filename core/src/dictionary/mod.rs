@@ -125,11 +125,73 @@ pub trait DataDictionary: Debug {
     type Entry: DictionaryEntry;
 
     /// Fetch an entry by its usual alias (e.g. "PatientName" or "SOPInstanceUID").
-    /// Aliases are usually case sensitive and not separated by spaces.
+    /// Aliases (or keyword)
+    /// are usually in UpperCamelCase,
+    /// not separated by spaces,
+    /// and are case sensitive.
+    /// 
+    /// If the parameter provided is a string literal
+    /// (e.g. `"StudyInstanceUID"`),
+    /// note that it may be more efficient to use [`by_tag()`][1]
+    /// with a known tag constant
+    /// (such as [`tags::STUDY_INSTANCE_UID`][2]
+    /// from the [`dicom-dictionary-std`][3] crate).
+    /// 
+    /// [1]: DataDictionary::by_tag
+    /// [2]: https://docs.rs/dicom-dictionary-std/0.5.0/dicom_dictionary_std/tags/constant.STUDY_INSTANCE_UID.html
+    /// [3]: https://docs.rs/dicom-dictionary-std/0.5.0
     fn by_name(&self, name: &str) -> Option<&Self::Entry>;
 
     /// Fetch an entry by its tag.
     fn by_tag(&self, tag: Tag) -> Option<&Self::Entry>;
+
+    /// Fetch an entry by its alias or by DICOM tag expression.
+    ///
+    /// This method accepts a tag descriptor in any of the following formats:
+    ///
+    /// - `(gggg,eeee)`:
+    ///   a 4-digit hexadecimal group part
+    ///   and a 4-digit hexadecimal element part
+    ///   surrounded by parentheses
+    /// - `gggg,eeee`:
+    ///   a 4-digit hexadecimal group part
+    ///   and a 4-digit hexadecimal element part
+    ///   not surrounded by parentheses
+    /// - _`KeywordName`_:
+    ///   an exact match (case sensitive) by DICOM tag keyword
+    ///
+    /// When failing to identify the intended syntax or the tag keyword,
+    /// `None` is returned.
+    fn by_expr(&self, tag: &str) -> Option<&Self::Entry> {
+        match tag.parse() {
+            Ok(tag) => self.by_tag(tag),
+            Err(_) => self.by_name(tag),
+        }
+    }
+
+    /// Use this data element dictionary to interpret a DICOM tag.
+    ///
+    /// This method accepts a tag descriptor in any of the following formats:
+    ///
+    /// - `(gggg,eeee)`:
+    ///   a 4-digit hexadecimal group part
+    ///   and a 4-digit hexadecimal element part
+    ///   surrounded by parentheses
+    /// - `gggg,eeee`:
+    ///   a 4-digit hexadecimal group part
+    ///   and a 4-digit hexadecimal element part
+    ///   not surrounded by parentheses
+    /// - _`KeywordName`_:
+    ///   an exact match (case sensitive) by DICOM tag keyword
+    ///
+    /// When failing to identify the intended syntax or the tag keyword,
+    /// `None` is returned.
+    fn parse_tag(&self, tag: &str) -> Option<Tag> {
+        tag.parse().ok().or_else(|| {
+            // look for tag in standard data dictionary
+            self.by_name(tag).map(|e| e.tag())
+        })
+    }
 }
 
 /// The dictionary entry data type, representing a DICOM attribute.
