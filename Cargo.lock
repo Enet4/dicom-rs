@@ -581,7 +581,6 @@ dependencies = [
  "byteordered",
  "dicom-core",
  "dicom-encoding",
- "inventory",
  "jpeg-decoder",
  "lazy_static",
  "tracing",
