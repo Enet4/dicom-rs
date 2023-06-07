@@ -120,7 +120,7 @@ where
 /// [`TransferSyntax<D, P>`]: crate::transfer_syntax::TransferSyntax
 macro_rules! submit_transfer_syntax {
     ($ts: expr) => {
-        inventory::submit! {
+        $crate::inventory::submit! {
             $crate::transfer_syntax::TransferSyntaxFactory(|| ($ts).erased())
         }
     };
