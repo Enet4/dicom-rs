@@ -125,7 +125,21 @@ pub trait DataDictionary: Debug {
     type Entry: DictionaryEntry;
 
     /// Fetch an entry by its usual alias (e.g. "PatientName" or "SOPInstanceUID").
-    /// Aliases are usually case sensitive and not separated by spaces.
+    /// Aliases (or keyword)
+    /// are usually in UpperCamelCase,
+    /// not separated by spaces,
+    /// and are case sensitive.
+    /// 
+    /// If the parameter provided is a string literal
+    /// (e.g. `"StudyInstanceUID"`),
+    /// note that it may be more efficient to use [`by_tag()`][1]
+    /// with a known tag constant
+    /// (such as [`tags::STUDY_INSTANCE_UID`][2]
+    /// from the [`dicom-dictionary-std`][3] crate).
+    /// 
+    /// [1]: DataDictionary::by_tag
+    /// [2]: https://docs.rs/dicom-dictionary-std/0.5.0/dicom_dictionary_std/tags/constant.STUDY_INSTANCE_UID.html
+    /// [3]: https://docs.rs/dicom-dictionary-std/0.5.0
     fn by_name(&self, name: &str) -> Option<&Self::Entry>;
 
     /// Fetch an entry by its tag.
