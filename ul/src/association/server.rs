@@ -8,15 +8,15 @@ use std::{borrow::Cow, io::Write, net::TcpStream};
 
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use snafu::{ensure, ResultExt, Snafu};
+use snafu::{ensure, Backtrace, ResultExt, Snafu};
 
 use crate::{
     pdu::{
         reader::{read_pdu, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE},
         writer::write_pdu,
-        AbortRQServiceProviderReason, AbortRQSource, AssociationRJResult,
-        AssociationRJServiceUserReason, AssociationRJSource, Pdu, PresentationContextResult,
-        PresentationContextResultReason, UserVariableItem,
+        AbortRQServiceProviderReason, AbortRQSource, AssociationAC, AssociationRJ,
+        AssociationRJResult, AssociationRJServiceUserReason, AssociationRJSource, AssociationRQ,
+        Pdu, PresentationContextResult, PresentationContextResultReason, UserVariableItem,
     },
     IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
@@ -30,49 +30,64 @@ use super::{
 #[non_exhaustive]
 pub enum Error {
     /// missing at least one abstract syntax to accept negotiations
-    MissingAbstractSyntax,
+    MissingAbstractSyntax { backtrace: Backtrace },
 
     /// failed to receive association request
-    ReceiveRequest { source: crate::pdu::reader::Error },
+    ReceiveRequest {
+        #[snafu(backtrace)]
+        source: crate::pdu::reader::Error,
+    },
 
     /// failed to send association response
-    SendResponse { source: crate::pdu::writer::Error },
+    SendResponse {
+        #[snafu(backtrace)]
+        source: crate::pdu::writer::Error,
+    },
 
     /// failed to prepare PDU
-    Send { source: crate::pdu::writer::Error },
+    Send {
+        #[snafu(backtrace)]
+        source: crate::pdu::writer::Error,
+    },
 
     /// failed to send PDU over the wire
-    WireSend { source: std::io::Error },
+    WireSend {
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
 
     /// failed to receive PDU
-    Receive { source: crate::pdu::reader::Error },
+    Receive {
+        #[snafu(backtrace)]
+        source: crate::pdu::reader::Error,
+    },
 
     #[snafu(display("unexpected request from SCU `{:?}`", pdu))]
     #[non_exhaustive]
     UnexpectedRequest {
         /// the PDU obtained from the server
-        pdu: Pdu,
+        pdu: Box<Pdu>,
     },
 
     #[snafu(display("unknown request from SCU `{:?}`", pdu))]
     #[non_exhaustive]
     UnknownRequest {
         /// the PDU obtained from the server, of variant Unknown
-        pdu: Pdu,
+        pdu: Box<Pdu>,
     },
 
     /// association rejected
-    Rejected,
+    Rejected { backtrace: Backtrace },
 
     /// association aborted
-    Aborted,
+    Aborted { backtrace: Backtrace },
 
     #[snafu(display(
         "PDU is too large ({} bytes) to be sent to the remote application entity",
         length
     ))]
     #[non_exhaustive]
-    SendTooLongPdu { length: usize },
+    SendTooLongPdu { length: usize, backtrace: Backtrace },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -332,23 +347,23 @@ where
             read_pdu(&mut socket, max_pdu_length, self.strict).context(ReceiveRequestSnafu)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         match pdu {
-            Pdu::AssociationRQ {
+            Pdu::AssociationRQ(AssociationRQ {
                 protocol_version,
                 calling_ae_title,
                 called_ae_title,
                 application_context_name,
                 presentation_contexts,
                 user_variables,
-            } => {
+            }) => {
                 if protocol_version != self.protocol_version {
                     write_pdu(
                         &mut buffer,
-                        &Pdu::AssociationRJ {
+                        &Pdu::AssociationRJ(AssociationRJ {
                             result: AssociationRJResult::Permanent,
                             source: AssociationRJSource::ServiceUser(
                                 AssociationRJServiceUserReason::NoReasonGiven,
                             ),
-                        },
+                        }),
                     )
                     .context(SendResponseSnafu)?;
                     socket.write_all(&buffer).context(WireSendSnafu)?;
@@ -358,12 +373,12 @@ where
                 if application_context_name != self.application_context_name {
                     write_pdu(
                         &mut buffer,
-                        &Pdu::AssociationRJ {
+                        &Pdu::AssociationRJ(AssociationRJ {
                             result: AssociationRJResult::Permanent,
                             source: AssociationRJSource::ServiceUser(
                                 AssociationRJServiceUserReason::ApplicationContextNameNotSupported,
                             ),
-                        },
+                        }),
                     )
                     .context(SendResponseSnafu)?;
                     socket.write_all(&buffer).context(WireSendSnafu)?;
@@ -376,10 +391,10 @@ where
                     .unwrap_or_else(|reason| {
                         write_pdu(
                             &mut buffer,
-                            &Pdu::AssociationRJ {
+                            &Pdu::AssociationRJ(AssociationRJ {
                                 result: AssociationRJResult::Permanent,
                                 source: AssociationRJSource::ServiceUser(reason),
-                            },
+                            }),
                         )
                         .context(SendResponseSnafu)?;
                         socket.write_all(&buffer).context(WireSendSnafu)?;
@@ -434,7 +449,7 @@ where
 
                 write_pdu(
                     &mut buffer,
-                    &Pdu::AssociationAC {
+                    &Pdu::AssociationAC(AssociationAC {
                         protocol_version: self.protocol_version,
                         application_context_name,
                         presentation_contexts: presentation_contexts.clone(),
@@ -449,7 +464,7 @@ where
                                 IMPLEMENTATION_VERSION_NAME.to_string(),
                             ),
                         ],
-                    },
+                    }),
                 )
                 .context(SendResponseSnafu)?;
                 socket.write_all(&buffer).context(WireSendSnafu)?;

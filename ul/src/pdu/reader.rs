@@ -247,7 +247,7 @@ where
                 }
             }
 
-            Ok(Pdu::AssociationRQ {
+            Ok(Pdu::AssociationRQ(AssociationRQ {
                 protocol_version,
                 application_context_name: application_context_name
                     .context(MissingApplicationContextNameSnafu)?,
@@ -255,7 +255,7 @@ where
                 calling_ae_title,
                 presentation_contexts,
                 user_variables,
-            })
+            }))
         }
         0x02 => {
             // A-ASSOCIATE-AC PDU Structure
@@ -341,7 +341,7 @@ where
                 }
             }
 
-            Ok(Pdu::AssociationAC {
+            Ok(Pdu::AssociationAC(AssociationAC {
                 protocol_version,
                 application_context_name: application_context_name
                     .context(MissingApplicationContextNameSnafu)?,
@@ -349,7 +349,7 @@ where
                 calling_ae_title,
                 presentation_contexts,
                 user_variables,
-            })
+            }))
         }
         0x03 => {
             // A-ASSOCIATE-RJ PDU Structure
@@ -402,7 +402,7 @@ where
             )
             .context(InvalidRejectSourceOrReasonSnafu)?;
 
-            Ok(Pdu::AssociationRJ { result, source })
+            Ok(Pdu::AssociationRJ(AssociationRJ { result, source }))
         }
         0x04 => {
             // P-DATA-TF PDU Structure

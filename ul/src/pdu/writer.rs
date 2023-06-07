@@ -102,14 +102,14 @@ where
 {
     let codec = dicom_encoding::text::DefaultCharacterSetCodec;
     match pdu {
-        Pdu::AssociationRQ {
+        Pdu::AssociationRQ(AssociationRQ {
             protocol_version,
             calling_ae_title,
             called_ae_title,
             application_context_name,
             presentation_contexts,
             user_variables,
-        } => {
+        }) => {
             // A-ASSOCIATE-RQ PDU Structure
 
             // 1 - PDU-type - 01H
@@ -199,14 +199,14 @@ where
 
             Ok(())
         }
-        Pdu::AssociationAC {
+        Pdu::AssociationAC(AssociationAC {
             protocol_version,
             application_context_name,
             called_ae_title,
             calling_ae_title,
             presentation_contexts,
             user_variables,
-        } => {
+        }) => {
             // A-ASSOCIATE-AC PDU Structure
 
             // 1 - PDU-type - 02H
@@ -294,7 +294,7 @@ where
                 name: "A-ASSOCIATE-AC",
             })
         }
-        Pdu::AssociationRJ { result, source } => {
+        Pdu::AssociationRJ(AssociationRJ { result, source }) => {
             // 1 - PDU-type - 03H
             writer
                 .write_u8(0x03)
@@ -1012,7 +1012,7 @@ fn write_pdu_variable_user_variables(
 
                         write_chunk_u16(writer, |writer| {
                             // xxx-xxx Service-class-application-information - This field shall contain
-                            // the application information specific to the Service Class specification 
+                            // the application information specific to the Service Class specification
                             // identified by the SOP-class-uid. The semantics and value of this field is
                             // defined in the identified Service Class specification.
                             writer.write_all(data).context(WriteFieldSnafu {
