@@ -195,4 +195,21 @@ mod tests {
         assert_eq!(PIXEL_DATA, Tag(0x7FE0, 0x0010));
         assert_eq!(STATUS, Tag(0x0000, 0x0900));
     }
+
+    #[test]
+    fn can_parse_tags() {
+        let dict = StandardDataDictionary;
+
+        assert_eq!(dict.parse_tag("(7FE0,0010)"), Some(crate::tags::PIXEL_DATA));
+        assert_eq!(dict.parse_tag("0010,21C0"), Some(Tag(0x0010, 0x21C0)));
+        assert_eq!(
+            dict.parse_tag("OperatorsName"),
+            Some(crate::tags::OPERATORS_NAME)
+        );
+
+        // can't parse these
+        assert_eq!(dict.parse_tag(""), None,);
+        assert_eq!(dict.parse_tag("1111,2222,3333"), None,);
+        assert_eq!(dict.parse_tag("OperatorNickname"), None,);
+    }
 }
