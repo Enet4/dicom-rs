@@ -69,10 +69,10 @@ enum Error {
     },
 
     /// Could not construct DICOM command
-    CreateCommand { source: dicom_object::Error },
+    CreateCommand { source: dicom_object::ReadError },
 
     /// Could not read DICOM command
-    ReadCommand { source: dicom_object::Error },
+    ReadCommand { source: dicom_object::ReadError },
 
     /// Could not dump DICOM output
     DumpOutput { source: std::io::Error },

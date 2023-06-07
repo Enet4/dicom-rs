@@ -54,7 +54,7 @@ fn test_read_until_pixel_data() {
     // but does not contain pixel data
     assert!(matches!(
         object.element(tags::PIXEL_DATA),
-        Err(dicom_object::Error::NoSuchDataElementTag { .. })
+        Err(dicom_object::AccessError::NoSuchDataElementTag { .. })
     ));
 }
 

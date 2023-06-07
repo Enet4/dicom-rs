@@ -76,7 +76,7 @@ enum Error {
     },
 
     /// Could not construct DICOM command
-    CreateCommand { source: dicom_object::Error },
+    CreateCommand { source: dicom_object::WriteError },
 
     #[snafu(whatever, display("{}", message))]
     Other {

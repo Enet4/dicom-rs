@@ -3,9 +3,11 @@ use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
-use crate::{DefaultDicomObject, Result};
+use crate::{DefaultDicomObject, ReadError};
 use std::io::Read;
 use std::path::Path;
+
+pub type Result<T, E = ReadError> = std::result::Result<T, E>;
 
 /// Create a DICOM object by reading from a byte source.
 ///
