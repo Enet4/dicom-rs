@@ -131,9 +131,9 @@ pub trait DataDictionary: Debug {
     /// Fetch an entry by its tag.
     fn by_tag(&self, tag: Tag) -> Option<&Self::Entry>;
 
-    /// Use this data element dictionary to interpret a DICOM tag.
+    /// Fetch an entry by its alias or by DICOM tag expression.
     ///
-    /// This method accepts tags in any of the following formats:
+    /// This method accepts a tag descriptor in any of the following formats:
     ///
     /// - `(gggg,eeee)`:
     ///   a 4-digit hexadecimal group part
@@ -145,7 +145,31 @@ pub trait DataDictionary: Debug {
     ///   not surrounded by parentheses
     /// - _`KeywordName`_:
     ///   an exact match (case sensitive) by DICOM tag keyword
-    /// 
+    ///
+    /// When failing to identify the intended syntax or the tag keyword,
+    /// `None` is returned.
+    fn by_expr(&self, tag: &str) -> Option<&Self::Entry> {
+        match tag.parse() {
+            Ok(tag) => self.by_tag(tag),
+            Err(_) => self.by_name(tag),
+        }
+    }
+
+    /// Use this data element dictionary to interpret a DICOM tag.
+    ///
+    /// This method accepts a tag descriptor in any of the following formats:
+    ///
+    /// - `(gggg,eeee)`:
+    ///   a 4-digit hexadecimal group part
+    ///   and a 4-digit hexadecimal element part
+    ///   surrounded by parentheses
+    /// - `gggg,eeee`:
+    ///   a 4-digit hexadecimal group part
+    ///   and a 4-digit hexadecimal element part
+    ///   not surrounded by parentheses
+    /// - _`KeywordName`_:
+    ///   an exact match (case sensitive) by DICOM tag keyword
+    ///
     /// When failing to identify the intended syntax or the tag keyword,
     /// `None` is returned.
     fn parse_tag(&self, tag: &str) -> Option<Tag> {

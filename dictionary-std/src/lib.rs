@@ -208,8 +208,47 @@ mod tests {
         );
 
         // can't parse these
-        assert_eq!(dict.parse_tag(""), None,);
-        assert_eq!(dict.parse_tag("1111,2222,3333"), None,);
-        assert_eq!(dict.parse_tag("OperatorNickname"), None,);
+        assert_eq!(dict.parse_tag(""), None);
+        assert_eq!(dict.parse_tag("1111,2222,3333"), None);
+        assert_eq!(dict.parse_tag("OperatorNickname"), None);
     }
+
+
+    #[test]
+    fn can_query_by_expression() {
+        let dict = StandardDataDictionary;
+
+        assert_eq!(
+            dict.by_expr("(0010,0010)"),
+            Some(&DictionaryEntryRef {
+                tag: Single(crate::tags::PATIENT_NAME),
+                alias: "PatientName",
+                vr: VR::PN,
+            })
+        );
+
+        assert_eq!(
+            dict.by_expr("0008,0060"),
+            Some(&DictionaryEntryRef {
+                tag: Single(crate::tags::MODALITY),
+                alias: "Modality",
+                vr: VR::CS,
+            })
+        );
+
+        assert_eq!(
+            dict.by_expr("OperatorsName"),
+            Some(&DictionaryEntryRef {
+                tag: Single(crate::tags::OPERATORS_NAME),
+                alias: "OperatorsName",
+                vr: VR::PN,
+            })
+        );
+
+        // can't handle these
+        assert_eq!(dict.parse_tag("0080 0010"), None);
+        assert_eq!(dict.parse_tag("(0000.0600)"), None);
+        assert_eq!(dict.parse_tag("OPERATORSNAME"), None);
+    }
+
 }
