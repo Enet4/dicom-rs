@@ -28,9 +28,9 @@ pub fn registry() -> &'static StandardDictionaryRegistry {
 /// The data struct containing the standard dictionary.
 #[derive(Debug)]
 pub struct StandardDictionaryRegistry {
-    /// mapping: name → tag
+    /// mapping: name → entry
     by_name: HashMap<&'static str, &'static DictionaryEntryRef<'static>>,
-    /// mapping: tag → name
+    /// mapping: tag → entry
     by_tag: HashMap<Tag, &'static DictionaryEntryRef<'static>>,
     /// repeating elements of the form (ggxx, eeee). The `xx` portion is zeroed.
     repeating_ggxx: HashSet<Tag>,
