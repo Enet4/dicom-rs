@@ -692,7 +692,7 @@ where
     /// // apply patient name change
     /// obj.apply(AttributeOp {
     ///   tag: tags::PATIENT_NAME,
-    ///   action: AttributeAction::ReplaceStr("Patient^Anonymous".into())
+    ///   action: AttributeAction::SetStr("Patient^Anonymous".into())
     /// })?;
     ///
     /// assert_eq!(
@@ -734,6 +734,19 @@ where
             AttributeAction::SetStr(string) => {
                 let new_value = PrimitiveValue::from(&*string);
                 self.apply_change_value_impl(tag, new_value);
+                Ok(())
+            }
+            AttributeAction::Replace(new_value) => {
+                if self.get(op.tag).is_some() {
+                    self.apply_change_value_impl(tag, new_value);
+                }
+                Ok(())
+            }
+            AttributeAction::ReplaceStr(string) => {
+                if self.get(op.tag).is_some() {
+                    let new_value = PrimitiveValue::from(&*string);
+                    self.apply_change_value_impl(tag, new_value);
+                }
                 Ok(())
             }
             AttributeAction::PushStr(string) => self.apply_push_str_impl(tag, string),
@@ -2287,7 +2300,7 @@ mod tests {
             let mut obj = base_obj.clone();
             let op = AttributeOp {
                 tag: tags::INSTITUTION_NAME,
-                action: AttributeAction::SetStr("REMOVED".into()),
+                action: AttributeAction::ReplaceStr("REMOVED".into()),
             };
 
             obj.apply(op).unwrap();
@@ -2298,6 +2311,36 @@ mod tests {
                     tags::INSTITUTION_NAME,
                     VR::LO,
                     PrimitiveValue::from("REMOVED")
+                ))
+            );
+
+            // replacing a non-existing attribute
+            // does nothing
+            let op = AttributeOp {
+                tag: tags::REQUESTING_PHYSICIAN,
+                action: AttributeAction::ReplaceStr("Doctor^Anonymous".into()),
+            };
+
+            obj.apply(op).unwrap();
+
+            assert_eq!(obj.get(tags::REQUESTING_PHYSICIAN), None);
+        }
+        {
+            // reset string
+            let mut obj = base_obj.clone();
+            let op = AttributeOp {
+                tag: tags::REQUESTING_PHYSICIAN,
+                action: AttributeAction::SetStr("Doctor^Anonymous".into()),
+            };
+
+            obj.apply(op).unwrap();
+
+            assert_eq!(
+                obj.get(tags::REQUESTING_PHYSICIAN),
+                Some(&DataElement::new(
+                    tags::REQUESTING_PHYSICIAN,
+                    VR::PN,
+                    PrimitiveValue::from("Doctor^Anonymous")
                 ))
             );
         }

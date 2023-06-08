@@ -365,6 +365,28 @@ impl FileMetaTable {
                 *target_attribute = Some(value.to_string());
                 Ok(())
             }
+            AttributeAction::Replace(value) => {
+                if target_attribute.is_none() {
+                    return Ok(());
+                }
+
+                // require value to be textual
+                if let Ok(value) = value.string() {
+                    *target_attribute = Some(value.to_string());
+                    Ok(())
+                } else {
+                    IncompatibleTypesSnafu {
+                        kind: ValueType::Str,
+                    }
+                    .fail()
+                }
+            }
+            AttributeAction::ReplaceStr(value) => {
+                if target_attribute.is_some() {
+                    *target_attribute = Some(value.to_string());
+                }
+                Ok(())
+            }
             AttributeAction::PushStr(_) => IllegalExtendSnafu.fail(),
             AttributeAction::PushI32(_)
             | AttributeAction::PushU32(_)

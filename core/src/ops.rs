@@ -37,7 +37,7 @@
 //! // hide patient name
 //! obj.apply(AttributeOp {
 //!     tag: (0x0010, 0x0010).into(),
-//!     action: AttributeAction::ReplaceStr("Patient^Anonymous".into()),
+//!     action: AttributeAction::SetStr("Patient^Anonymous".into()),
 //! })?;
 //! # Ok(())
 //! # }
@@ -83,12 +83,18 @@ pub enum AttributeAction {
     /// it cannot be done or it does not make sense
     /// for the given implementation.
     SetVr(VR),
-    /// Fully replace the value with the given DICOM value,
+    /// Fully reset the value with the given DICOM value,
     /// creating the attribute if it does not exist yet.
     Set(PrimitiveValue),
-    /// Fully replace a textual value with the given string,
+    /// Fully reset a textual value with the given string,
     /// creating the attribute if it does not exist yet.
     SetStr(Cow<'static, str>),
+    /// Fully replace the value with the given DICOM value,
+    /// but only if the attribute already exists.
+    Replace(PrimitiveValue),
+    /// Fully replace a textual value with the given string,
+    /// but only if the attribute already exists.
+    ReplaceStr(Cow<'static, str>),
     /// Append a string as an additional textual value,
     /// creating the attribute if it does not exist yet.
     ///
