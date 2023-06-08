@@ -85,10 +85,10 @@ pub enum AttributeAction {
     SetVr(VR),
     /// Fully replace the value with the given DICOM value,
     /// creating the attribute if it does not exist yet.
-    Replace(PrimitiveValue),
+    Set(PrimitiveValue),
     /// Fully replace a textual value with the given string,
     /// creating the attribute if it does not exist yet.
-    ReplaceStr(Cow<'static, str>),
+    SetStr(Cow<'static, str>),
     /// Append a string as an additional textual value,
     /// creating the attribute if it does not exist yet.
     ///

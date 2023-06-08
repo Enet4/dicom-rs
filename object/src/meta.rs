@@ -300,7 +300,7 @@ impl FileMetaTable {
                 // ignore
                 Ok(())
             }
-            AttributeAction::Replace(value) => {
+            AttributeAction::Set(value) => {
                 // require value to be textual
                 if let Ok(value) = value.string() {
                     *target_attribute = value.to_string();
@@ -312,7 +312,7 @@ impl FileMetaTable {
                     .fail()
                 }
             }
-            AttributeAction::ReplaceStr(string) => {
+            AttributeAction::SetStr(string) => {
                 *target_attribute = string.to_string();
                 Ok(())
             }
@@ -349,7 +349,7 @@ impl FileMetaTable {
                 // ignore
                 Ok(())
             }
-            AttributeAction::Replace(value) => {
+            AttributeAction::Set(value) => {
                 // require value to be textual
                 if let Ok(value) = value.string() {
                     *target_attribute = Some(value.to_string());
@@ -361,7 +361,7 @@ impl FileMetaTable {
                     .fail()
                 }
             }
-            AttributeAction::ReplaceStr(value) => {
+            AttributeAction::SetStr(value) => {
                 *target_attribute = Some(value.to_string());
                 Ok(())
             }

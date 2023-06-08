@@ -87,7 +87,7 @@ mod tests {
         // apply operation on main data set
         obj.apply(AttributeOp {
             tag: dicom_dictionary_std::tags::PATIENT_NAME,
-            action: AttributeAction::ReplaceStr("Patient^Anonymous".into()),
+            action: AttributeAction::SetStr("Patient^Anonymous".into()),
         })
         .unwrap();
 
@@ -104,7 +104,7 @@ mod tests {
         // apply operation on file meta information
         obj.apply(AttributeOp {
             tag: dicom_dictionary_std::tags::MEDIA_STORAGE_SOP_INSTANCE_UID,
-            action: AttributeAction::ReplaceStr(
+            action: AttributeAction::SetStr(
                 "2.25.153241429675951194530939969687300037165".into(),
             ),
         })

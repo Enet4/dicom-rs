@@ -727,11 +727,11 @@ where
                 }
                 Ok(())
             }
-            AttributeAction::Replace(new_value) => {
+            AttributeAction::Set(new_value) => {
                 self.apply_change_value_impl(tag, new_value);
                 Ok(())
             }
-            AttributeAction::ReplaceStr(string) => {
+            AttributeAction::SetStr(string) => {
                 let new_value = PrimitiveValue::from(&*string);
                 self.apply_change_value_impl(tag, new_value);
                 Ok(())
@@ -2287,7 +2287,7 @@ mod tests {
             let mut obj = base_obj.clone();
             let op = AttributeOp {
                 tag: tags::INSTITUTION_NAME,
-                action: AttributeAction::ReplaceStr("REMOVED".into()),
+                action: AttributeAction::SetStr("REMOVED".into()),
             };
 
             obj.apply(op).unwrap();
