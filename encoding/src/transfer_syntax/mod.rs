@@ -231,16 +231,15 @@ macro_rules! submit_transfer_syntax {
 /// See the [`adapters`](crate::adapters) module
 /// to know how to write pixel data encoders and decoders.
 macro_rules! submit_ele_transfer_syntax {
-    ($uid: literal, $name: literal, $codec: expr) => {
-        $crate::inventory::submit! {
-            $crate::transfer_syntax::TransferSyntaxFactory(||
-                $crate::AdapterFreeTransferSyntax::new(
-                    $uid,
-                    $name,
-                    $crate::Endianness::Little,
-                    true,
-                    $codec
-                ).erased())
+    ($uid: expr, $name: expr, $codec: expr) => {
+        $crate::submit_transfer_syntax! {
+            $crate::AdapterFreeTransferSyntax::new(
+                $uid,
+                $name,
+                $crate::Endianness::Little,
+                true,
+                $codec
+            )
         }
     };
 }
