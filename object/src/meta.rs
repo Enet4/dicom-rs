@@ -992,8 +992,10 @@ mod tests {
     use crate::{IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME};
 
     use super::{dicom_len, FileMetaTable, FileMetaTableBuilder};
+    use dicom_core::ops::{AttributeAction, AttributeOp};
     use dicom_core::value::Value;
-    use dicom_core::{dicom_value, DataElement, Tag, VR};
+    use dicom_core::{dicom_value, DataElement, PrimitiveValue, Tag, VR};
+    use dicom_dictionary_std::tags;
 
     const TEST_META_1: &'static [u8] = &[
         // magic code
@@ -1229,5 +1231,60 @@ mod tests {
         table.update_information_group_length();
 
         assert_eq!(table.information_group_length, 200);
+    }
+
+    #[test]
+    fn table_ops() {
+        let mut table = FileMetaTable {
+            information_group_length: 200,
+            information_version: [0u8, 1u8],
+            media_storage_sop_class_uid: "1.2.840.10008.5.1.4.1.1.1\0".to_owned(),
+            media_storage_sop_instance_uid:
+                "1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567\0".to_owned(),
+            transfer_syntax: "1.2.840.10008.1.2.1\0".to_owned(),
+            implementation_class_uid: "1.2.345.6.7890.1.234".to_owned(),
+            implementation_version_name: None,
+            source_application_entity_title: None,
+            sending_application_entity_title: None,
+            receiving_application_entity_title: None,
+            private_information_creator_uid: None,
+            private_information: None,
+        };
+
+        // replace does not set missing attributes
+        table
+            .apply(AttributeOp {
+                tag: tags::IMPLEMENTATION_VERSION_NAME,
+                action: AttributeAction::ReplaceStr("MY_DICOM_1.1".into()),
+            })
+            .unwrap();
+
+        assert_eq!(table.implementation_version_name, None);
+
+        // but set does
+        table
+            .apply(AttributeOp {
+                tag: tags::IMPLEMENTATION_VERSION_NAME,
+                action: AttributeAction::SetStr("MY_DICOM_1.1".into()),
+            })
+            .unwrap();
+
+        assert_eq!(
+            table.implementation_version_name.as_deref(),
+            Some("MY_DICOM_1.1"),
+        );
+
+        // but set does
+        table
+            .apply(AttributeOp {
+                tag: tags::SOURCE_APPLICATION_ENTITY_TITLE,
+                action: AttributeAction::Set(PrimitiveValue::Str("RICOOGLE-STORAGE".into())),
+            })
+            .unwrap();
+
+        assert_eq!(
+            table.source_application_entity_title.as_deref(),
+            Some("RICOOGLE-STORAGE"),
+        );
     }
 }
