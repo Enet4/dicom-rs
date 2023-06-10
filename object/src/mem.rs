@@ -16,11 +16,12 @@ use crate::ops::{
 };
 use crate::{meta::FileMetaTable, FileMetaTableBuilder};
 use crate::{
-    BuildMetaTableSnafu, CreateParserSnafu, CreatePrinterSnafu, DicomObject, FileDicomObject,
-    MissingElementValueSnafu, NoSuchAttributeNameSnafu, NoSuchDataElementAliasSnafu,
-    NoSuchDataElementTagSnafu, OpenFileSnafu, ParseMetaDataSetSnafu, PrematureEndSnafu,
-    PrepareMetaTableSnafu, PrintDataSetSnafu, ReadError, ReadFileSnafu, ReadPreambleBytesSnafu,
-    ReadTokenSnafu, ReadUnsupportedTransferSyntaxSnafu, UnexpectedTokenSnafu, WriteError, AccessError, WithMetaError, AccessByNameError,
+    AccessByNameError, AccessError, BuildMetaTableSnafu, CreateParserSnafu, CreatePrinterSnafu,
+    DicomObject, FileDicomObject, MissingElementValueSnafu, NoSuchAttributeNameSnafu,
+    NoSuchDataElementAliasSnafu, NoSuchDataElementTagSnafu, OpenFileSnafu, ParseMetaDataSetSnafu,
+    PrematureEndSnafu, PrepareMetaTableSnafu, PrintDataSetSnafu, ReadError, ReadFileSnafu,
+    ReadPreambleBytesSnafu, ReadTokenSnafu, ReadUnsupportedTransferSyntaxSnafu,
+    UnexpectedTokenSnafu, WithMetaError, WriteError,
 };
 use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
 use dicom_core::header::{HasLength, Header};
@@ -88,8 +89,7 @@ where
 
     fn element_by_name(&self, name: &str) -> Result<Self::Element, AccessByNameError> {
         let tag = self.lookup_name(name)?;
-        self.element(tag)
-            .map_err(|e| e.into_access_by_name(name))
+        self.element(tag).map_err(|e| e.into_access_by_name(name))
     }
 }
 
@@ -598,7 +598,10 @@ where
     /// If the attribute is known in advance,
     /// using [`element_opt`](InMemDicomObject::element_opt)
     /// with a tag constant is preferred.
-    pub fn element_by_name_opt(&self, name: &str) -> Result<Option<&InMemElement<D>>, AccessByNameError> {
+    pub fn element_by_name_opt(
+        &self,
+        name: &str,
+    ) -> Result<Option<&InMemElement<D>>, AccessByNameError> {
         match self.element_by_name(name) {
             Ok(e) => Ok(Some(e)),
             Err(AccessByNameError::NoSuchDataElementAlias { .. }) => Ok(None),
@@ -646,7 +649,10 @@ where
     }
 
     /// Remove and return a particular DICOM element by its name.
-    pub fn take_element_by_name(&mut self, name: &str) -> Result<InMemElement<D>, AccessByNameError> {
+    pub fn take_element_by_name(
+        &mut self,
+        name: &str,
+    ) -> Result<InMemElement<D>, AccessByNameError> {
         let tag = self.lookup_name(name)?;
         self.entries
             .remove(&tag)
@@ -734,6 +740,19 @@ where
             AttributeAction::SetStr(string) => {
                 let new_value = PrimitiveValue::from(&*string);
                 self.apply_change_value_impl(tag, new_value);
+                Ok(())
+            }
+            AttributeAction::SetIfMissing(new_value) => {
+                if self.get(tag).is_none() {
+                    self.apply_change_value_impl(tag, new_value);
+                }
+                Ok(())
+            }
+            AttributeAction::SetStrIfMissing(string) => {
+                if self.get(tag).is_none() {
+                    let new_value = PrimitiveValue::from(&*string);
+                    self.apply_change_value_impl(tag, new_value);
+                }
                 Ok(())
             }
             AttributeAction::Replace(new_value) => {
@@ -1092,7 +1111,10 @@ where
     /// if the attribute _SOP Instance UID_  is present.
     /// A complete file meta group should still provide
     /// the media storage SOP class UID and transfer syntax.0
-    pub fn with_meta(self, mut meta: FileMetaTableBuilder) -> Result<FileDicomObject<Self>, WithMetaError> {
+    pub fn with_meta(
+        self,
+        mut meta: FileMetaTableBuilder,
+    ) -> Result<FileDicomObject<Self>, WithMetaError> {
         if let Some(elem) = self.get(tags::SOP_INSTANCE_UID) {
             meta = meta.media_storage_sop_instance_uid(
                 elem.value().to_str().context(PrepareMetaTableSnafu)?,
@@ -2296,8 +2318,27 @@ mod tests {
             assert_eq!(obj.get(tags::STUDY_DESCRIPTION), None);
         }
         {
-            // replace string
             let mut obj = base_obj.clone();
+
+            // set if missing does nothing
+            // on an existing string
+            let op = AttributeOp {
+                tag: tags::INSTITUTION_NAME,
+                action: AttributeAction::SetIfMissing("Nope Hospital".into()),
+            };
+
+            obj.apply(op).unwrap();
+
+            assert_eq!(
+                obj.get(tags::INSTITUTION_NAME),
+                Some(&DataElement::new(
+                    tags::INSTITUTION_NAME,
+                    VR::LO,
+                    PrimitiveValue::from("Test Hospital")
+                ))
+            );
+
+            // replace string
             let op = AttributeOp {
                 tag: tags::INSTITUTION_NAME,
                 action: AttributeAction::ReplaceStr("REMOVED".into()),
@@ -2324,6 +2365,23 @@ mod tests {
             obj.apply(op).unwrap();
 
             assert_eq!(obj.get(tags::REQUESTING_PHYSICIAN), None);
+
+            // but DetIfMissing works
+            let op = AttributeOp {
+                tag: tags::REQUESTING_PHYSICIAN,
+                action: AttributeAction::SetStrIfMissing("Doctor^Anonymous".into()),
+            };
+
+            obj.apply(op).unwrap();
+
+            assert_eq!(
+                obj.get(tags::REQUESTING_PHYSICIAN),
+                Some(&DataElement::new(
+                    tags::REQUESTING_PHYSICIAN,
+                    VR::PN,
+                    PrimitiveValue::from("Doctor^Anonymous")
+                ))
+            );
         }
         {
             // reset string

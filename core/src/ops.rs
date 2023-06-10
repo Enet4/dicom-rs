@@ -83,12 +83,18 @@ pub enum AttributeAction {
     /// it cannot be done or it does not make sense
     /// for the given implementation.
     SetVr(VR),
-    /// Fully reset the value with the given DICOM value,
-    /// creating the attribute if it does not exist yet.
+    /// Fully reset the attribute with the given DICOM value,
+    /// creating it if it does not exist yet.
     Set(PrimitiveValue),
-    /// Fully reset a textual value with the given string,
-    /// creating the attribute if it does not exist yet.
+    /// Fully reset a textual attribute with the given string,
+    /// creating it if it does not exist yet.
     SetStr(Cow<'static, str>),
+    /// Provide the attribute with the given DICOM value,
+    /// if it does not exist yet.
+    SetIfMissing(PrimitiveValue),
+    /// Provide the textual attribute with the given string,
+    /// creating it if it does not exist yet.
+    SetStrIfMissing(Cow<'static, str>),
     /// Fully replace the value with the given DICOM value,
     /// but only if the attribute already exists.
     Replace(PrimitiveValue),

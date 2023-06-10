@@ -300,7 +300,7 @@ impl FileMetaTable {
                 // ignore
                 Ok(())
             }
-            AttributeAction::Set(value) => {
+            AttributeAction::Set(value) | AttributeAction::Replace(value) => {
                 // require value to be textual
                 if let Ok(value) = value.string() {
                     *target_attribute = value.to_string();
@@ -312,8 +312,12 @@ impl FileMetaTable {
                     .fail()
                 }
             }
-            AttributeAction::SetStr(string) => {
+            AttributeAction::SetStr(string) | AttributeAction::ReplaceStr(string) => {
                 *target_attribute = string.to_string();
+                Ok(())
+            }
+            AttributeAction::SetIfMissing(_) | AttributeAction::SetStrIfMissing(_) => {
+                // no-op
                 Ok(())
             }
             AttributeAction::PushStr(_) => IllegalExtendSnafu.fail(),
@@ -363,6 +367,28 @@ impl FileMetaTable {
             }
             AttributeAction::SetStr(value) => {
                 *target_attribute = Some(value.to_string());
+                Ok(())
+            }
+            AttributeAction::SetIfMissing(value) => {
+                if target_attribute.is_some() {
+                    return Ok(());
+                }
+
+                // require value to be textual
+                if let Ok(value) = value.string() {
+                    *target_attribute = Some(value.to_string());
+                    Ok(())
+                } else {
+                    IncompatibleTypesSnafu {
+                        kind: ValueType::Str,
+                    }
+                    .fail()
+                }
+            }
+            AttributeAction::SetStrIfMissing(value) => {
+                if target_attribute.is_none() {
+                    *target_attribute = Some(value.to_string());
+                }
                 Ok(())
             }
             AttributeAction::Replace(value) => {
@@ -1261,7 +1287,7 @@ mod tests {
 
         assert_eq!(table.implementation_version_name, None);
 
-        // but set does
+        // but SetStr does
         table
             .apply(AttributeOp {
                 tag: tags::IMPLEMENTATION_VERSION_NAME,
@@ -1274,7 +1300,7 @@ mod tests {
             Some("MY_DICOM_1.1"),
         );
 
-        // but set does
+        // Set (primitive) also works
         table
             .apply(AttributeOp {
                 tag: tags::SOURCE_APPLICATION_ENTITY_TITLE,
@@ -1285,6 +1311,46 @@ mod tests {
         assert_eq!(
             table.source_application_entity_title.as_deref(),
             Some("RICOOGLE-STORAGE"),
+        );
+
+        // set if missing works only if value isn't set yet
+        table
+            .apply(AttributeOp {
+                tag: tags::SOURCE_APPLICATION_ENTITY_TITLE,
+                action: AttributeAction::SetStrIfMissing("STORE-SCU".into()),
+            })
+            .unwrap();
+
+        assert_eq!(
+            table.source_application_entity_title.as_deref(),
+            Some("RICOOGLE-STORAGE"),
+        );
+
+        table
+            .apply(AttributeOp {
+                tag: tags::SENDING_APPLICATION_ENTITY_TITLE,
+                action: AttributeAction::SetStrIfMissing("STORE-SCU".into()),
+            })
+            .unwrap();
+
+        assert_eq!(
+            table.sending_application_entity_title.as_deref(),
+            Some("STORE-SCU"),
+        );
+
+        // replacing mandatory field
+        table
+            .apply(AttributeOp {
+                tag: tags::MEDIA_STORAGE_SOP_CLASS_UID,
+                action: AttributeAction::Replace(PrimitiveValue::Str(
+                    "1.2.840.10008.5.1.4.1.1.7".into(),
+                )),
+            })
+            .unwrap();
+
+        assert_eq!(
+            table.media_storage_sop_class_uid(),
+            "1.2.840.10008.5.1.4.1.1.7",
         );
     }
 }
