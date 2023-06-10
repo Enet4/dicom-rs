@@ -16,7 +16,7 @@ where
     }
     assert_eq!(ts.uid(), uid);
     assert_eq!(ts.name(), name);
-    assert!(ts.fully_supported());
+    assert!(ts.is_fully_supported());
 }
 
 #[test]

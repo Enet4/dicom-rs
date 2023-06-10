@@ -21,6 +21,9 @@ fn registry_has_stub_ts_by_default() {
     assert_eq!(ts.name(), "JPIP Referenced Deflate");
     assert!(matches!(
         ts.codec(),
-        Codec::Unsupported | Codec::EncapsulatedPixelData
+        Codec::Dataset(None) | Codec::EncapsulatedPixelData(None, None)
     ));
+
+    assert_eq!(ts.can_decode_dataset(), false);
+    assert_eq!(ts.can_decode_all(), false);
 }

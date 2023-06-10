@@ -19,7 +19,9 @@
 //! [1]: TransferSyntaxIndex
 //! [`dicom-transfer-syntax-registry`]: https://docs.rs/dicom-transfer-syntax-registry
 
-use crate::adapters::{DynPixelRWAdapter, NeverPixelAdapter, PixelRWAdapter};
+use crate::adapters::{
+    DynPixelDataReader, DynPixelDataWriter, NeverPixelAdapter, PixelDataReader, PixelDataWriter,
+};
 use crate::decode::{
     basic::BasicDecoder, explicit_be::ExplicitVRBigEndianDecoder,
     explicit_le::ExplicitVRLittleEndianDecoder, implicit_le::ImplicitVRLittleEndianDecoder,
@@ -57,7 +59,7 @@ pub type DynEncoder<'w, W> = Box<dyn EncodeTo<W> + 'w>;
 /// If pixel data encoding/decoding is not needed or not supported,
 /// you can assign `P` to [`NeverPixelAdapter`].
 #[derive(Debug)]
-pub struct TransferSyntax<D = DynDataRWAdapter, P = DynPixelRWAdapter> {
+pub struct TransferSyntax<D = DynDataRWAdapter, R = DynPixelDataReader, W = DynPixelDataWriter> {
     /// The unique identifier of the transfer syntax.
     uid: &'static str,
     /// The name of the transfer syntax.
@@ -68,7 +70,7 @@ pub struct TransferSyntax<D = DynDataRWAdapter, P = DynPixelRWAdapter> {
     /// or the VR is implicit.
     explicit_vr: bool,
     /// The transfer syntax' requirements and implemented capabilities.
-    codec: Codec<D, P>,
+    codec: Codec<D, R, W>,
 }
 
 /// Wrapper type for a provider of transfer syntax descriptors.
@@ -151,15 +153,17 @@ where
 ///     Endianness::Little,
 ///     // Explicit VR (true) or Implicit VR (false)
 ///     true,
-///     Codec::EncapsulatedPixelData,  // pixel data codec
+///     Codec::EncapsulatedPixelData(None, None),  // pixel data codec
 /// ));
 /// ```
 ///
-/// With [`Codec::EncapsulatedPixelData`],
-/// we are indicating that it relies on encapsulated pixel data,
+/// With [`Codec::EncapsulatedPixelData(None, None)`][1],
+/// we are indicating that the transfer syntax uses encapsulated pixel data.
 /// albeit without the means to decode or encode it.
 /// See the [`adapters`](crate::adapters) module
 /// to know how to write pixel data encoders and decoders.
+/// 
+/// [1]: Codec::EncapsulatedPixelData
 macro_rules! submit_transfer_syntax {
     ($ts: expr) => {
         $crate::inventory::submit! {
@@ -199,8 +203,8 @@ macro_rules! submit_transfer_syntax {
 /// function body at the root of the crate.
 /// The expression is evaluated when the transfer syntax registry is populated
 /// upon the first request,
-/// and must resolve to a value of type [`Codec<D, P>`],
-/// for valid definitions of the parameter types `D` and `P`.
+/// and must resolve to a value of type [`Codec<D, R, W>`],
+/// for valid definitions of the parameter types `D`, `R`, and `W`.
 /// The macro will type-erase these parameters automatically.
 ///
 /// # Example
@@ -221,15 +225,17 @@ macro_rules! submit_transfer_syntax {
 ///     // Name/alias
 ///     "CT Private ELE",
 ///     // pixel data codec
-///     Codec::EncapsulatedPixelData
+///     Codec::EncapsulatedPixelData(None, None)
 /// );
 /// ```
 ///
-/// With [`Codec::EncapsulatedPixelData`],
-/// we are indicating that it relies on encapsulated pixel data,
+/// With [`Codec::EncapsulatedPixelData(None, None)`][1],
+/// we are indicating that the transfer syntax uses encapsulated pixel data.
 /// albeit without the means to decode or encode it.
 /// See the [`adapters`](crate::adapters) module
 /// to know how to write pixel data encoders and decoders.
+/// 
+/// [1]: Codec::EncapsulatedPixelData
 macro_rules! submit_ele_transfer_syntax {
     ($uid: expr, $name: expr, $codec: expr) => {
         $crate::submit_transfer_syntax! {
@@ -268,29 +274,51 @@ macro_rules! submit_ele_transfer_syntax {
 /// A description and possible implementation regarding
 /// the encoding and decoding requirements of a transfer syntax.
 /// This is also used as a means to describe whether pixel data is encapsulated
-/// and whether this implementation supports it.
+/// and whether this implementation supports decoding and/or encoding it.
+///
+/// ### Type parameters
+///
+/// - `D` should implement [`DataRWAdapter`]
+///   and defines how one should read and write DICOM data sets,
+///   such as in the case for deflated data.
+///   When no special considerations for data set reading and writing
+///   are necessary, this can be set to [`NeverAdapter`].
+/// - `R` should implement [`PixelDataReader`],
+///   and enables programs to convert encapsulated pixel data fragments
+///   into native pixel data.
+/// - `W` should implement [`PixelDataWriter`],
+///   and enables programs to convert native pixel data
+///   into encapsulated pixel data.
+///
 #[derive(Debug, Clone, PartialEq)]
-pub enum Codec<D, P> {
-    /// No codec is given, nor is it required.
+pub enum Codec<D, R, W> {
+    /// No codec is required for this transfer syntax.
+    ///
+    /// Pixel data, if any, should be in its native, unencapsulated form.
     None,
-    /// Custom encoding and decoding of the entire data set is required, but
-    /// not supported. This could be used by a stub of
+    /// Pixel data for this transfer syntax is encapsulated.
+    /// The first part of the tuple struct contains the pixel data decoder,
+    /// whereas the second item is for the pixel data encoder.
+    ///
+    /// Decoding of the pixel data is not supported
+    /// if the decoder is `None`.
+    /// In this case, the program should still be able to
+    /// parse DICOM data sets
+    /// and fetch the pixel data in its encapsulated form.
+    EncapsulatedPixelData(Option<R>, Option<W>),
+    /// A custom data set codec is required for reading and writing data sets.
+    ///
+    /// If the item in the tuple struct is `None`,
+    /// then no reading and writing whatsoever is supported.
+    /// This could be used by a stub of
     /// _Deflated Explicit VR Little Endian_, for example.
-    Unsupported,
-    /// Custom encoding and decoding of the pixel data set is required, but
-    /// not supported. The program should still be able to parse DICOM
-    /// data sets and fetch the pixel data in its encapsulated form.
-    EncapsulatedPixelData,
-    /// A pixel data encapsulation codec is required and provided for reading
-    /// and writing pixel data.
-    PixelData(P),
-    /// A full, custom data set codec is required and provided.
-    Dataset(D),
+    Dataset(Option<D>),
 }
 
 /// An alias for a transfer syntax specifier with no pixel data encapsulation
 /// nor data set deflating.
-pub type AdapterFreeTransferSyntax = TransferSyntax<NeverAdapter, NeverPixelAdapter>;
+pub type AdapterFreeTransferSyntax =
+    TransferSyntax<NeverAdapter, NeverPixelAdapter, NeverPixelAdapter>;
 
 /// An adapter of byte read and write streams.
 pub trait DataRWAdapter<R, W> {
@@ -376,7 +404,7 @@ impl<R, W> DataRWAdapter<R, W> for NeverAdapter {
     }
 }
 
-impl<D, P> TransferSyntax<D, P> {
+impl<D, R, W> TransferSyntax<D, R, W> {
     /// Create a new transfer syntax descriptor.
     ///
     /// Note that only transfer syntax implementers are expected to
@@ -395,12 +423,12 @@ impl<D, P> TransferSyntax<D, P> {
     /// #     NeverAdapter, NeverPixelAdapter, TransferSyntax,
     /// # };
     /// submit_transfer_syntax! {
-    ///     TransferSyntax::<NeverAdapter, NeverPixelAdapter>::new(
+    ///     TransferSyntax::<NeverAdapter, NeverPixelAdapter, NeverPixelAdapter>::new(
     ///         "1.3.46.670589.33.1.4.1",
     ///         "CT-Private-ELE",
     ///         Endianness::Little,
     ///         true,
-    ///         Codec::EncapsulatedPixelData,
+    ///         Codec::EncapsulatedPixelData(None, None),
     ///     )
     /// }
     /// ```
@@ -409,7 +437,7 @@ impl<D, P> TransferSyntax<D, P> {
         name: &'static str,
         byte_order: Endianness,
         explicit_vr: bool,
-        codec: Codec<D, P>,
+        codec: Codec<D, R, W>,
     ) -> Self {
         TransferSyntax {
             uid,
@@ -436,16 +464,17 @@ impl<D, P> TransferSyntax<D, P> {
     }
 
     /// Obtain this transfer syntax' codec specification.
-    pub fn codec(&self) -> &Codec<D, P> {
+    pub fn codec(&self) -> &Codec<D, R, W> {
         &self.codec
     }
 
     /// Check whether this transfer syntax specifier provides a complete
-    /// implementation.
-    pub fn fully_supported(&self) -> bool {
+    /// implementation,
+    /// meaning that it can both decode and encode in this transfer syntax.
+    pub fn is_fully_supported(&self) -> bool {
         matches!(
             self.codec,
-            Codec::None | Codec::Dataset(_) | Codec::PixelData(_),
+            Codec::None | Codec::Dataset(Some(_)) | Codec::EncapsulatedPixelData(Some(_), Some(_)),
         )
     }
 
@@ -456,20 +485,37 @@ impl<D, P> TransferSyntax<D, P> {
         matches!(self.codec, Codec::None)
     }
 
-    /// Check whether reading and writing of data sets is unsupported.
+    /// Check whether neither reading nor writing of data sets is supported.
     /// If this is `true`, encoding and decoding will not be available.
-    pub fn unsupported(&self) -> bool {
-        matches!(self.codec, Codec::Unsupported)
+    pub fn is_unsupported(&self) -> bool {
+        matches!(self.codec, Codec::Dataset(None))
     }
 
     /// Check whether reading and writing the pixel data is unsupported.
     /// If this is `true`, encoding and decoding of the data set may still
     /// be possible, but the pixel data will only be available in its
     /// encapsulated form.
-    pub fn unsupported_pixel_encapsulation(&self) -> bool {
+    pub fn is_unsupported_pixel_encapsulation(&self) -> bool {
         matches!(
             self.codec,
-            Codec::Unsupported | Codec::EncapsulatedPixelData
+            Codec::Dataset(None) | Codec::EncapsulatedPixelData(None, None)
+        )
+    }
+
+    /// Check whether this codec can fully decode
+    /// both data sets and pixel data.
+    pub fn can_decode_all(&self) -> bool {
+        matches!(
+            self.codec,
+            Codec::None | Codec::Dataset(Some(_)) | Codec::EncapsulatedPixelData(Some(_), _)
+        )
+    }
+
+    /// Check whether this codec can decode the data set.
+    pub fn can_decode_dataset(&self) -> bool {
+        matches!(
+            self.codec,
+            Codec::None | Codec::Dataset(Some(_))
         )
     }
 
@@ -514,10 +560,10 @@ impl<D, P> TransferSyntax<D, P> {
     /// and the given writer type (this method is not object safe).
     /// Can yield none if encoding is not supported. The resulting encoder does not
     /// consider pixel data encapsulation or data set compression rules.
-    pub fn encoder_for<'w, W: 'w>(&self) -> Option<DynEncoder<'w, W>>
+    pub fn encoder_for<'w, T: 'w>(&self) -> Option<DynEncoder<'w, T>>
     where
         Self: Sized,
-        W: ?Sized + Write,
+        T: ?Sized + Write,
     {
         match (self.byte_order, self.explicit_vr) {
             (Endianness::Little, false) => Some(Box::new(EncoderFor::new(
@@ -548,14 +594,16 @@ impl<D, P> TransferSyntax<D, P> {
             Reader = Box<dyn Read>,
             Writer = Box<dyn Write>,
         >,
-        P: Send + Sync + 'static,
-        P: PixelRWAdapter,
+        R: Send + Sync + 'static,
+        R: PixelDataReader,
+        W: Send + Sync + 'static,
+        W: PixelDataWriter,
     {
         let codec = match self.codec {
-            Codec::Dataset(d) => Codec::Dataset(Box::new(d) as DynDataRWAdapter),
-            Codec::PixelData(p) => Codec::PixelData(Box::new(p) as DynPixelRWAdapter),
-            Codec::EncapsulatedPixelData => Codec::EncapsulatedPixelData,
-            Codec::Unsupported => Codec::Unsupported,
+            Codec::Dataset(d) => Codec::Dataset(d.map(|d| Box::new(d) as _)),
+            Codec::EncapsulatedPixelData(r, w) => {
+                Codec::EncapsulatedPixelData(r.map(|r| Box::new(r) as _), w.map(|w| Box::new(w) as _))
+            }
             Codec::None => Codec::None,
         };
 

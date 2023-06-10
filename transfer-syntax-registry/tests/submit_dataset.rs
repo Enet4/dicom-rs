@@ -41,7 +41,7 @@ submit_transfer_syntax! {
         "Dummy Explicit VR Little Endian",
         Endianness::Little,
         true,
-        Codec::Dataset::<_, NeverPixelAdapter>(DummyCodecAdapter)
+        Codec::Dataset::<_, NeverPixelAdapter, NeverPixelAdapter>(Some(DummyCodecAdapter))
     )
 }
 
@@ -53,5 +53,7 @@ fn contains_dummy_ts() {
     let ts = ts.unwrap();
     assert_eq!(ts.uid(), "1.2.840.10008.9999.9999.1");
     assert_eq!(ts.name(), "Dummy Explicit VR Little Endian");
-    assert!(ts.fully_supported());
+    assert!(ts.is_fully_supported());
+    assert!(ts.can_decode_dataset());
+    assert!(ts.can_decode_all());
 }

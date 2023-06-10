@@ -158,6 +158,7 @@ use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use smallvec::SmallVec;
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -626,11 +627,11 @@ where
     /// or None if no pixel data is found
     /// 
     /// Panics if `fragment` is out of bounds for the encapsulated pixel data fragments.
-    fn fragment(&self, fragment: usize) -> Option<Vec<u8>> {
+    fn fragment(&self, fragment: usize) -> Option<Cow<[u8]>> {
         let pixel_data = self.element(dicom_dictionary_std::tags::PIXEL_DATA).ok()?;
         match pixel_data.value() {
             dicom_core::DicomValue::PixelSequence(v) => {
-                Some(v.fragments()[fragment].clone())
+                Some(Cow::Borrowed(v.fragments()[fragment].as_ref()))
             }
             _ => None,
         }

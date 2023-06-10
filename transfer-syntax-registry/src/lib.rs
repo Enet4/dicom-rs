@@ -122,13 +122,30 @@ impl TransferSyntaxRegistryImpl {
         match self.m.entry(ts.uid()) {
             Entry::Occupied(mut e) => {
                 let replace = match (&e.get().codec(), ts.codec()) {
-                    (Codec::Unsupported, Codec::Dataset(_))
-                    | (Codec::EncapsulatedPixelData, Codec::PixelData(_)) => true,
+                    (Codec::Dataset(None), Codec::Dataset(Some(_)))
+                    | (
+                        Codec::EncapsulatedPixelData(None, None),
+                        Codec::EncapsulatedPixelData(..),
+                    )
+                    | (
+                        Codec::EncapsulatedPixelData(Some(_), None),
+                        Codec::EncapsulatedPixelData(Some(_), Some(_)),
+                    )
+                    | (
+                        Codec::EncapsulatedPixelData(None, Some(_)),
+                        Codec::EncapsulatedPixelData(Some(_), Some(_)),
+                    ) => true,
                     // weird one ahead: the two specifiers do not agree on
                     // requirements, better keep it as a separate match arm for
                     // debugging purposes
-                    (Codec::Unsupported, Codec::PixelData(_)) => {
-                        tracing::warn!("Inconsistent requirements for transfer syntax {}: `Unsupported` cannot be replaced with `PixelData`", ts.uid());
+                    (Codec::Dataset(None), Codec::EncapsulatedPixelData(_, _)) => {
+                        tracing::warn!("Inconsistent requirements for transfer syntax {}: `Dataset` cannot be replaced by `EncapsulatedPixelData`", ts.uid());
+                        false
+                    }
+                    // another weird one:
+                    // the two codecs do not agree on requirements
+                    (Codec::EncapsulatedPixelData(_, _), Codec::Dataset(None)) => {
+                        tracing::warn!("Inconsistent requirements for transfer syntax {}: `EncapsulatedPixelData` cannot be replaced by `Dataset`", ts.uid());
                         false
                     }
                     // ignoring TS with less or equal implementation
@@ -265,7 +282,7 @@ pub(crate) const fn create_ts_stub(uid: &'static str, name: &'static str) -> Ts 
         name,
         Endianness::Little,
         true,
-        Codec::EncapsulatedPixelData,
+        Codec::EncapsulatedPixelData(None, None),
     )
 }
 
@@ -286,7 +303,7 @@ mod tests {
             .get("1.2.840.10008.1.2")
             .expect("transfer syntax registry should provide Implicit VR Little Endian");
         assert_eq!(implicit_vr_le.uid(), "1.2.840.10008.1.2");
-        assert!(implicit_vr_le.fully_supported());
+        assert!(implicit_vr_le.is_fully_supported());
 
         // should also work with trailing null character
         let implicit_vr_le_2 = TransferSyntaxRegistry.get("1.2.840.10008.1.2\0").expect(
@@ -299,7 +316,7 @@ mod tests {
             .get("1.2.840.10008.1.2.1")
             .expect("transfer syntax registry should provide Explicit VR Little Endian");
         assert_eq!(explicit_vr_le.uid(), "1.2.840.10008.1.2.1");
-        assert!(explicit_vr_le.fully_supported());
+        assert!(explicit_vr_le.is_fully_supported());
 
         // should also work with trailing null character
         let explicit_vr_le_2 = TransferSyntaxRegistry.get("1.2.840.10008.1.2.1\0").expect(

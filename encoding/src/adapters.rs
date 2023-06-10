@@ -1,25 +1,26 @@
 //! Core module for building pixel data adapters.
-//! 
+//!
 //! This module contains the core types and traits
 //! for consumers and implementers of
 //! transfer syntaxes with encapsulated pixel data.
-//! 
+//!
 //! Complete DICOM object types
 //! (such as `FileDicomObject<InMemDicomObject>`)
 //! implement the [`PixelDataObject`] trait.
 //! Transfer syntaxes need to provide
 //! a suitable implementation of [PixelRWAdapter]
 
-use dicom_core::value::C;
+use dicom_core::{ops::AttributeOp, value::C};
 use snafu::Snafu;
+use std::borrow::Cow;
 
 /// The possible error conditions when decoding pixel data.
-/// 
+///
 /// Users of this type are free to handle errors based on their variant,
 /// but should not make decisions based on the display message,
 /// since that is not considered part of the API
 /// and may change on any new release.
-/// 
+///
 /// Implementers of transfer syntaxes
 /// are recommended to choose the most fitting error variant
 /// for the tested condition.
@@ -47,18 +48,21 @@ pub enum DecodeError {
     /// Input pixel data is not encapsulated
     NotEncapsulated,
 
+    /// Frame range out of bounds
+    FrameRangeOutOfBounds,
+
     /// A required attribute is missing from the DICOM
     #[snafu(display("Missing required attribute `{}`", name))]
     MissingAttribute { name: &'static str },
 }
 
 /// The possible error conditions when encoding pixel data.
-/// 
+///
 /// Users of this type are free to handle errors based on their variant,
 /// but should not make decisions based on the display message,
 /// since that is not considered part of the API
 /// and may change on any new release.
-/// 
+///
 /// Implementers of transfer syntaxes
 /// are recommended to choose the most fitting error variant
 /// for the tested condition.
@@ -82,8 +86,8 @@ pub enum EncodeError {
     /// Input pixel data is not native, should be decoded first
     NotNative,
 
-    /// Encoding is not implemented
-    NotImplemented,
+    /// Frame range out of bounds
+    FrameRangeOutOfBounds,
 
     /// A required attribute is missing from the DICOM
     #[snafu(display("Missing required attribute `{}`", name))]
@@ -137,9 +141,13 @@ pub trait PixelDataObject {
     /// Returns the number of fragments or None for native pixel data
     fn number_of_fragments(&self) -> Option<u32>;
 
-    /// Return a specific encoded pixel fragment by index as Vec<u8>
-    /// or None if no pixel data is found
-    fn fragment(&self, fragment: usize) -> Option<Vec<u8>>;
+    /// Return a specific encoded pixel fragment by index
+    /// (where 0 is the first fragment after the basic offset table)
+    /// as a [`Cow<[u8]>`][1],
+    /// or `None` if no such fragment is available.
+    ///
+    /// [1]: std::borrow::Cow
+    fn fragment(&self, fragment: usize) -> Option<Cow<[u8]>>;
 
     /// Should return either a byte slice/vector if native pixel data
     /// or byte fragments if encapsulated.
@@ -179,17 +187,16 @@ impl EncodeOptions {
     }
 }
 
-/// Trait object responsible for decoding and encoding
-/// pixel data based on the Transfersyntax.
+/// Trait object responsible for decoding
+/// pixel data based on the transfer syntax.
 ///
-/// Every transfer syntax with encapsulated pixel data
-/// should implement these methods.
-///
-pub trait PixelRWAdapter {
+/// A transfer syntax with support for decoding encapsulated pixel data
+/// would implement these methods.
+pub trait PixelDataReader {
     /// Decode the given DICOM object
     /// containing encapsulated pixel data
     /// into native pixel data as a byte stream in little endian,
-    /// resizing the given vector `dst` to contain exactly these bytes.
+    /// appending these bytes to the given vector `dst`.
     ///
     /// It is a necessary precondition that the object's pixel data
     /// is encoded in accordance to the transfer syntax(es)
@@ -206,7 +213,61 @@ pub trait PixelRWAdapter {
     /// (planar configuration of 0).
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()>;
 
+    /// Decode the given DICOM object
+    /// containing encapsulated pixel data
+    /// into native pixel data of a single frame
+    /// as a byte stream in little endian,
+    /// appending these bytes to the given vector `dst`.
+    ///
+    /// It is a necessary precondition that the object's pixel data
+    /// is encoded in accordance to the transfer syntax(es)
+    /// supported by this adapter.
+    /// A `NotEncapsulated` error is returned otherwise.
+    ///
+    /// The output is a sequence of native pixel values of a frame
+    /// which follow the image properties of the given object
+    /// _save for the photometric interpretation and planar configuration_.
+    /// The output of an image with 1 sample per pixel
+    /// is expected to be interpreted as `MONOCHROME2`,
+    /// and for 3-channel images,
+    /// the output must be in RGB with each pixel contiguous in memory
+    /// (planar configuration of 0).
+    fn decode_frame(
+        &self,
+        src: &dyn PixelDataObject,
+        frame: u32,
+        dst: &mut Vec<u8>,
+    ) -> DecodeResult<()>;
+}
+
+/// Trait object responsible for decoding
+/// pixel data based on the transfer syntax.
+///
+/// A transfer syntax with support for decoding encapsulated pixel data
+/// would implement these methods.
+pub trait PixelDataWriter {
     /// Encode a DICOM object's image into the format supported by this adapter,
+    /// writing a byte stream of pixel data fragment values
+    /// to the given vector `dst`.
+    ///
+    /// It is a necessary precondition that the object's pixel data
+    /// is in a _native encoding_.
+    /// A `NotNative` error is returned otherwise.
+    ///
+    /// When the operation is successful,
+    /// a listing of attribute changes is returned,
+    /// comprising the sequence of operations that the DICOM object
+    /// should consider upon assuming the new encoding.
+    #[allow(unused_variables)]
+    fn encode(
+        &self,
+        src: &dyn PixelDataObject,
+        options: EncodeOptions,
+        dst: &mut Vec<u8>,
+    ) -> EncodeResult<Vec<AttributeOp>>;
+
+    /// Encode a single frame of a DICOM object's image
+    /// into the format supported by this adapter,
     /// writing a byte stream of pixel data fragment values
     /// into the given destination.
     ///
@@ -214,40 +275,61 @@ pub trait PixelRWAdapter {
     /// is in a _native encoding_.
     /// A `NotNative` error is returned otherwise.
     ///
-    /// It is possible that
-    /// image encoding is not actually supported by this adapter,
-    /// in which case a `NotImplemented` error is returned.
-    /// Implementers leave the default method implementation
-    /// for this behavior.
-    #[allow(unused_variables)]
-    fn encode(
+    /// When the operation is successful,
+    /// a listing of attribute changes is returned,
+    /// comprising the sequence of operations that the DICOM object
+    /// should consider upon assuming the new encoding.
+    fn encode_frame(
         &self,
         src: &dyn PixelDataObject,
+        frame: u32,
         options: EncodeOptions,
         dst: &mut Vec<u8>,
-    ) -> EncodeResult<()> {
-        Err(EncodeError::NotImplemented)
-    }
+    ) -> EncodeResult<Vec<AttributeOp>>;
 }
 
-/// Alias type for a dynamically dispatched data adapter.
-pub type DynPixelRWAdapter = Box<dyn PixelRWAdapter + Send + Sync>;
+/// Alias type for a dynamically dispatched pixel data decoder.
+pub type DynPixelDataReader = Box<dyn PixelDataReader + Send + Sync + 'static>;
+
+/// Alias type for a dynamically dispatched pixel data encoder.
+pub type DynPixelDataWriter = Box<dyn PixelDataWriter + Send + Sync + 'static>;
 
 /// An immaterial type representing an adapter which is never required.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum NeverPixelAdapter {}
 
-impl PixelRWAdapter for NeverPixelAdapter {
+impl PixelDataReader for NeverPixelAdapter {
     fn decode(&self, _src: &dyn PixelDataObject, _dst: &mut Vec<u8>) -> DecodeResult<()> {
-        unreachable!();
+        unreachable!()
     }
 
+    fn decode_frame(
+        &self,
+        _src: &dyn PixelDataObject,
+        _frame: u32,
+        _dst: &mut Vec<u8>,
+    ) -> DecodeResult<()> {
+        unreachable!()
+    }
+}
+
+impl PixelDataWriter for NeverPixelAdapter {
     fn encode(
         &self,
         _src: &dyn PixelDataObject,
         _options: EncodeOptions,
         _dst: &mut Vec<u8>,
-    ) -> EncodeResult<()> {
-        unreachable!();
+    ) -> EncodeResult<Vec<AttributeOp>> {
+        unreachable!()
+    }
+
+    fn encode_frame(
+        &self,
+        _src: &dyn PixelDataObject,
+        _frame: u32,
+        _options: EncodeOptions,
+        _dst: &mut Vec<u8>,
+    ) -> EncodeResult<Vec<AttributeOp>> {
+        unreachable!()
     }
 }
