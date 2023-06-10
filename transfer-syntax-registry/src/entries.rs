@@ -23,10 +23,13 @@
 
 use crate::create_ts_stub;
 use byteordered::Endianness;
-use dicom_encoding::{transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec}, NeverPixelAdapter};
+use dicom_encoding::transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec};
 
 #[cfg(any(feature = "jpeg", feature = "rle"))]
-use dicom_encoding::transfer_syntax::{NeverAdapter, TransferSyntax};
+use dicom_encoding::{
+    transfer_syntax::{NeverAdapter, TransferSyntax},
+    NeverPixelAdapter,
+};
 
 #[cfg(feature = "jpeg")]
 use crate::adapters::jpeg::JpegAdapter;
@@ -66,13 +69,14 @@ pub const EXPLICIT_VR_BIG_ENDIAN: Ts = Ts::new(
 
 /// **Implemented:** RLE Lossless
 #[cfg(feature = "rle")]
-pub const RLE_LOSSLESS: TransferSyntax<NeverAdapter, RleLosslessAdapter, NeverPixelAdapter> = TransferSyntax::new(
-    "1.2.840.10008.1.2.5",
-    "RLE Lossless",
-    Endianness::Little,
-    true,
-    Codec::EncapsulatedPixelData(Some(RleLosslessAdapter), None),
-);
+pub const RLE_LOSSLESS: TransferSyntax<NeverAdapter, RleLosslessAdapter, NeverPixelAdapter> =
+    TransferSyntax::new(
+        "1.2.840.10008.1.2.5",
+        "RLE Lossless",
+        Endianness::Little,
+        true,
+        Codec::EncapsulatedPixelData(Some(RleLosslessAdapter), None),
+    );
 /// **Stub:** RLE Lossless
 ///
 /// A native implementation is available
