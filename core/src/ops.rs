@@ -37,7 +37,7 @@
 //! // hide patient name
 //! obj.apply(AttributeOp {
 //!     tag: (0x0010, 0x0010).into(),
-//!     action: AttributeAction::ReplaceStr("Patient^Anonymous".into()),
+//!     action: AttributeAction::SetStr("Patient^Anonymous".into()),
 //! })?;
 //! # Ok(())
 //! # }
@@ -55,10 +55,13 @@ use crate::{Tag, PrimitiveValue, VR};
 /// against the attribute's previous state.
 ///
 /// The operations themselves are provided
-/// alongside DICOM objec or DICOM data set implementations.
+/// alongside DICOM object or DICOM data set implementations,
+/// such as the `InMemDicomObject` from the [`dicom_object`] crate.
 /// 
 /// Attribute operations can only select shallow attributes,
 /// but the operation may be implemented when applied against nested data sets.
+/// 
+/// [`dicom_object`]: https://docs.rs/dicom_object
 #[derive(Debug, Clone, PartialEq)]
 pub struct AttributeOp {
     /// the tag of the attribute to apply
@@ -83,11 +86,23 @@ pub enum AttributeAction {
     /// it cannot be done or it does not make sense
     /// for the given implementation.
     SetVr(VR),
+    /// Fully reset the attribute with the given DICOM value,
+    /// creating it if it does not exist yet.
+    Set(PrimitiveValue),
+    /// Fully reset a textual attribute with the given string,
+    /// creating it if it does not exist yet.
+    SetStr(Cow<'static, str>),
+    /// Provide the attribute with the given DICOM value,
+    /// if it does not exist yet.
+    SetIfMissing(PrimitiveValue),
+    /// Provide the textual attribute with the given string,
+    /// creating it if it does not exist yet.
+    SetStrIfMissing(Cow<'static, str>),
     /// Fully replace the value with the given DICOM value,
-    /// creating the attribute if it does not exist yet.
+    /// but only if the attribute already exists.
     Replace(PrimitiveValue),
     /// Fully replace a textual value with the given string,
-    /// creating the attribute if it does not exist yet.
+    /// but only if the attribute already exists.
     ReplaceStr(Cow<'static, str>),
     /// Append a string as an additional textual value,
     /// creating the attribute if it does not exist yet.
