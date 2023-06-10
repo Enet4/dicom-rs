@@ -556,7 +556,7 @@ impl<D, R, W> TransferSyntax<D, R, W> {
     pub fn can_decode_dataset(&self) -> bool {
         matches!(
             self.codec,
-            Codec::None | Codec::Dataset(Some(_))
+            Codec::None | Codec::Dataset(Some(_)) | Codec::EncapsulatedPixelData(..)
         )
     }
 
