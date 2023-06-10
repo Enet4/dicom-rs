@@ -55,10 +55,13 @@ use crate::{Tag, PrimitiveValue, VR};
 /// against the attribute's previous state.
 ///
 /// The operations themselves are provided
-/// alongside DICOM objec or DICOM data set implementations.
+/// alongside DICOM object or DICOM data set implementations,
+/// such as the `InMemDicomObject` from the [`dicom_object`] crate.
 /// 
 /// Attribute operations can only select shallow attributes,
 /// but the operation may be implemented when applied against nested data sets.
+/// 
+/// [`dicom_object`]: https://docs.rs/dicom_object
 #[derive(Debug, Clone, PartialEq)]
 pub struct AttributeOp {
     /// the tag of the attribute to apply
