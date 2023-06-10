@@ -63,7 +63,7 @@
 //! These stubs may also be replaced by separate libraries
 //! if using the inventory-based registry.
 //!
-//! [inventory]: https://docs.rs/inventory/0.3.2/inventory
+//! [inventory]: https://docs.rs/inventory/0.3.6/inventory
 
 use byteordered::Endianness;
 use dicom_encoding::transfer_syntax::{
@@ -78,6 +78,9 @@ pub use dicom_encoding::TransferSyntax;
 pub mod entries;
 
 mod adapters;
+
+#[cfg(feature = "inventory-registry")]
+pub use dicom_encoding::inventory;
 
 /// Main implementation of a registry of DICOM transfer syntaxes.
 ///
