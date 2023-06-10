@@ -48,11 +48,9 @@ pub const IMPLICIT_VR_LITTLE_ENDIAN: Ts = Ts::new(
 );
 
 /// **Fully implemented:** Explicit VR Little Endian
-pub const EXPLICIT_VR_LITTLE_ENDIAN: Ts = Ts::new(
+pub const EXPLICIT_VR_LITTLE_ENDIAN: Ts = Ts::new_ele(
     "1.2.840.10008.1.2.1",
     "Explicit VR Little Endian",
-    Endianness::Little,
-    true,
     Codec::None,
 );
 
@@ -70,11 +68,9 @@ pub const EXPLICIT_VR_BIG_ENDIAN: Ts = Ts::new(
 /// **Implemented:** RLE Lossless
 #[cfg(feature = "rle")]
 pub const RLE_LOSSLESS: TransferSyntax<NeverAdapter, RleLosslessAdapter, NeverPixelAdapter> =
-    TransferSyntax::new(
+    TransferSyntax::new_ele(
         "1.2.840.10008.1.2.5",
         "RLE Lossless",
-        Endianness::Little,
-        true,
         Codec::EncapsulatedPixelData(Some(RleLosslessAdapter), None),
     );
 /// **Stub:** RLE Lossless
@@ -94,11 +90,9 @@ type JpegTs<R = JpegAdapter, W = NeverPixelAdapter> = TransferSyntax<NeverAdapte
 /// Create a transfer syntax with JPEG encapsulated pixel data
 #[cfg(feature = "jpeg")]
 const fn create_ts_jpeg(uid: &'static str, name: &'static str) -> JpegTs {
-    TransferSyntax::new(
+    TransferSyntax::new_ele(
         uid,
         name,
-        Endianness::Little,
-        true,
         Codec::EncapsulatedPixelData(Some(JpegAdapter), None),
     )
 }
@@ -165,20 +159,16 @@ pub const JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION: Ts = create_ts_
 // --- stub transfer syntaxes, known but not supported ---
 
 /// **Stub descriptor:** Deflated Explicit VR Little Endian
-pub const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN: Ts = Ts::new(
+pub const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN: Ts = Ts::new_ele(
     "1.2.840.10008.1.2.1.99",
     "Deflated Explicit VR Little Endian",
-    Endianness::Little,
-    true,
     Codec::Dataset(None),
 );
 
 /// **Stub descriptor:** JPIP Referenced Deflate
-pub const JPIP_REFERENCED_DEFLATE: Ts = Ts::new(
+pub const JPIP_REFERENCED_DEFLATE: Ts = Ts::new_ele(
     "1.2.840.10008.1.2.4.95",
     "JPIP Referenced Deflate",
-    Endianness::Little,
-    true,
     Codec::Dataset(None),
 );
 

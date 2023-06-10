@@ -6,10 +6,10 @@
 
 use dicom_encoding::{
     adapters::{
-        DecodeResult, EncodeOptions, EncodeResult, PixelDataReader, PixelDataWriter,
-        PixelDataObject,
+        DecodeResult, EncodeOptions, EncodeResult, PixelDataObject, PixelDataReader,
+        PixelDataWriter,
     },
-    submit_transfer_syntax, Codec, Endianness, NeverAdapter, TransferSyntax, TransferSyntaxIndex,
+    submit_transfer_syntax, Codec, NeverAdapter, TransferSyntax, TransferSyntaxIndex,
 };
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
@@ -55,11 +55,9 @@ impl PixelDataWriter for DummyPixelAdapter {
 
 // install this dummy as a private transfer syntax
 submit_transfer_syntax! {
-    TransferSyntax::<NeverAdapter, _, _>::new(
+    TransferSyntax::<NeverAdapter, _, _>::new_ele(
         "1.2.840.10008.9999.9999.2",
         "Dummy Lossless",
-        Endianness::Little,
-        true,
         Codec::EncapsulatedPixelData(Some(DummyPixelAdapter), Some(DummyPixelAdapter))
     )
 }
@@ -72,5 +70,8 @@ fn contains_dummy_ts() {
     let ts = ts.unwrap();
     assert_eq!(ts.uid(), "1.2.840.10008.9999.9999.2");
     assert_eq!(ts.name(), "Dummy Lossless");
+    assert!(!ts.is_codec_free());
     assert!(ts.is_fully_supported());
+    assert!(ts.can_decode_dataset());
+    assert!(ts.can_decode_all());
 }

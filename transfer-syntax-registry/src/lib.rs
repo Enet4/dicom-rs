@@ -65,7 +65,6 @@
 //!
 //! [inventory]: https://docs.rs/inventory/0.3.6/inventory
 
-use byteordered::Endianness;
 use dicom_encoding::transfer_syntax::{
     AdapterFreeTransferSyntax as Ts, Codec, TransferSyntaxIndex,
 };
@@ -277,11 +276,9 @@ pub(crate) fn get_registry() -> &'static TransferSyntaxRegistryImpl {
 
 /// create a TS with an unsupported pixel encapsulation
 pub(crate) const fn create_ts_stub(uid: &'static str, name: &'static str) -> Ts {
-    TransferSyntax::new(
+    TransferSyntax::new_ele(
         uid,
         name,
-        Endianness::Little,
-        true,
         Codec::EncapsulatedPixelData(None, None),
     )
 }

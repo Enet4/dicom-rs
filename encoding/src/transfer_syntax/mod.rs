@@ -3,14 +3,15 @@
 //! algorithms for decoding and encoding DICOM data in a certain transfer syntax.
 //!
 //! This crate does not host specific transfer syntaxes. Instead, they are created in
-//! other crates and registered in the global transfer syntax registry, which implements
-//! [`TransferSyntaxIndex`][1].
+//! other crates and registered in the global transfer syntax registry,
+//! which implements [`TransferSyntaxIndex`][1].
 //! For more information, please see the [`dicom-transfer-syntax-registry`] crate,
 //! which provides built-in implementations.
 //!
 //! This module allows you to register your own transfer syntaxes.
 //! With the `inventory-registry` Cargo feature,
 //! you can use the macro [`submit_transfer_syntax`]
+//! or [`submit_ele_transfer_syntax`]
 //! to instruct the compiler to include your implementation in the registry.
 //! Without the `inventory`-based registry
 //! (in case your environment does not support it),
@@ -239,11 +240,9 @@ macro_rules! submit_transfer_syntax {
 macro_rules! submit_ele_transfer_syntax {
     ($uid: expr, $name: expr, $codec: expr) => {
         $crate::submit_transfer_syntax! {
-            $crate::AdapterFreeTransferSyntax::new(
+            $crate::AdapterFreeTransferSyntax::new_ele(
                 $uid,
                 $name,
-                $crate::Endianness::Little,
-                true,
                 $codec
             )
         }
@@ -444,6 +443,48 @@ impl<D, R, W> TransferSyntax<D, R, W> {
             name,
             byte_order,
             explicit_vr,
+            codec,
+        }
+    }
+
+    /// Create a new descriptor
+    /// for a transfer syntax in explicit VR little endian.
+    ///
+    /// Note that only transfer syntax implementers are expected to
+    /// construct TS descriptors from scratch.
+    /// For a practical usage of transfer syntaxes,
+    /// one should look up an existing transfer syntax registry by UID.
+    ///
+    /// # Example
+    ///
+    /// To register a private transfer syntax in your program,
+    /// use [`submit_transfer_syntax`] outside of a function body:
+    ///  
+    /// ```no_run
+    /// # use dicom_encoding::{
+    /// #     submit_transfer_syntax, Codec,
+    /// #     NeverAdapter, NeverPixelAdapter, TransferSyntax,
+    /// # };
+    /// submit_transfer_syntax! {
+    ///     TransferSyntax::<NeverAdapter, NeverPixelAdapter, NeverPixelAdapter>::new_ele(
+    ///         "1.3.46.670589.33.1.4.1",
+    ///         "CT-Private-ELE",
+    ///         Codec::EncapsulatedPixelData(None, None),
+    ///     )
+    /// }
+    /// ```
+    /// 
+    /// See [`submit_ele_transfer_syntax`] for an alternative.
+    pub const fn new_ele(
+        uid: &'static str,
+        name: &'static str,
+        codec: Codec<D, R, W>,
+    ) -> Self {
+        TransferSyntax {
+            uid,
+            name,
+            byte_order: Endianness::Little,
+            explicit_vr: true,
             codec,
         }
     }
