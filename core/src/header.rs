@@ -1013,14 +1013,18 @@ pub enum ParseTagError {
     Number,
 }
 
-/// This parser implementation for tags
+/// This parser implementation for DICOM tags
 /// accepts strictly one of the following formats:
-/// - `(gggg,eeee)`
+/// - `ggggeeee`
 /// - or `gggg,eeee`
+/// - or `(gggg,eeee)`
 ///
 /// where `gggg` and `eeee` are the characters representing
 /// the group part an the element part in hexadecimal,
 /// with four characters each.
+/// Whitespace is not excluded automatically,
+/// and may need to be removed before-parse
+/// depending on the context.
 /// Lowercase and uppercase characters are allowed.
 impl FromStr for Tag {
     type Err = ParseTagError;
@@ -1051,6 +1055,14 @@ impl FromStr for Tag {
 
                 Ok(Tag(num_g, num_e))
             }
+            8 => {
+                // ggggeeee
+                let (g, e) = s.split_at(4);
+                let (num_g, _) = parse_tag_part(g)?;
+                let (num_e, _) = parse_tag_part(e)?;
+
+                Ok(Tag(num_g, num_e))
+            }
             _ => Err(ParseTagError::Length),
         }
     }
@@ -1060,10 +1072,7 @@ fn parse_tag_part(s: &str) -> Result<(u16, &str), ParseTagError> {
     ensure!(s.is_char_boundary(4), NumberSnafu);
 
     let (num, rest) = s.split_at(4);
-    ensure!(
-        num.chars().all(|c| c.is_ascii_hexdigit()),
-        NumberSnafu
-    );
+    ensure!(num.chars().all(|c| c.is_ascii_hexdigit()), NumberSnafu);
 
     let num = u16::from_str_radix(num, 16).expect("failed to parse tag part");
     Ok((num, rest))
@@ -1351,6 +1360,16 @@ mod tests {
 
     #[test]
     fn parse_tag() {
+        // without parens nor comma separator
+        let tag: Tag = "00280004".parse().unwrap();
+        assert_eq!(tag, Tag(0x0028, 0x0004));
+        // lowercase
+        let tag: Tag = "7fe00001".parse().unwrap();
+        assert_eq!(tag, Tag(0x7FE0, 0x0001));
+        // uppercase
+        let tag: Tag = "7FE00001".parse().unwrap();
+        assert_eq!(tag, Tag(0x7FE0, 0x0001));
+
         // with parens, lowercase
         let tag: Tag = "(7fe0,0010)".parse().unwrap();
         assert_eq!(tag, Tag(0x7FE0, 0x0010));
@@ -1391,5 +1410,14 @@ mod tests {
         // error case: missing comma
         let r: Result<Tag, _> = "(baad&0123)".parse();
         assert_eq!(r, Err(ParseTagError::Separator));
+        // error case: comma in the wrong place
+        let r: Result<Tag, _> = "123,45678".parse();
+        assert_eq!(r, Err(ParseTagError::Number));
+        // error case: comma in the wrong place
+        let r: Result<Tag, _> = "abcde,f01".parse();
+        assert_eq!(r, Err(ParseTagError::Separator));
+        // error case: comma instead of hex digit
+        let r: Result<Tag, _> = "1234567,".parse();
+        assert_eq!(r, Err(ParseTagError::Number));
     }
 }
