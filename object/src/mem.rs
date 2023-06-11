@@ -612,18 +612,21 @@ where
     /// Insert a data element to the object, replacing (and returning) any
     /// previous element of the same attribute.
     pub fn put(&mut self, elt: InMemElement<D>) -> Option<InMemElement<D>> {
+        self.len = Length::UNDEFINED;
         self.put_element(elt)
     }
 
     /// Insert a data element to the object, replacing (and returning) any
     /// previous element of the same attribute.
     pub fn put_element(&mut self, elt: InMemElement<D>) -> Option<InMemElement<D>> {
+        self.len = Length::UNDEFINED;
         self.entries.insert(elt.tag(), elt)
     }
 
     /// Remove a DICOM element by its tag,
     /// reporting whether it was present.
     pub fn remove_element(&mut self, tag: Tag) -> bool {
+        self.len = Length::UNDEFINED;
         self.entries.remove(&tag).is_some()
     }
 
@@ -631,11 +634,13 @@ where
     /// reporting whether it was present.
     pub fn remove_element_by_name(&mut self, name: &str) -> Result<bool, AccessByNameError> {
         let tag = self.lookup_name(name)?;
+        self.len = Length::UNDEFINED;
         Ok(self.entries.remove(&tag).is_some())
     }
 
     /// Remove and return a particular DICOM element by its tag.
     pub fn take_element(&mut self, tag: Tag) -> Result<InMemElement<D>> {
+        self.len = Length::UNDEFINED;
         self.entries
             .remove(&tag)
             .context(NoSuchDataElementTagSnafu { tag })
@@ -645,6 +650,7 @@ where
     /// if it is present,
     /// returns `None` otherwise.
     pub fn take(&mut self, tag: Tag) -> Option<InMemElement<D>> {
+        self.len = Length::UNDEFINED;
         self.entries.remove(&tag)
     }
 
@@ -654,6 +660,7 @@ where
         name: &str,
     ) -> Result<InMemElement<D>, AccessByNameError> {
         let tag = self.lookup_name(name)?;
+        self.len = Length::UNDEFINED;
         self.entries
             .remove(&tag)
             .with_context(|| NoSuchDataElementAliasSnafu {
@@ -669,6 +676,7 @@ where
     /// and those for which `f(&element)` returns `false` are removed.
     pub fn retain(&mut self, mut f: impl FnMut(&InMemElement<D>) -> bool) {
         self.entries.retain(|_, elem| f(elem));
+        self.len = Length::UNDEFINED;
     }
 
     /// Apply the given attribute operation on this object.
@@ -721,6 +729,7 @@ where
                     // replace element
                     *e = DataElement::empty(tag, vr);
                 }
+                self.len = Length::UNDEFINED;
                 Ok(())
             }
             AttributeAction::SetVr(new_vr) => {
@@ -1368,6 +1377,7 @@ impl<D> Extend<InMemElement<D>> for InMemDicomObject<D> {
     where
         I: IntoIterator<Item = InMemElement<D>>,
     {
+        self.len = Length::UNDEFINED;
         self.entries.extend(iter.into_iter().map(|e| (e.tag(), e)))
     }
 }
