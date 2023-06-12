@@ -626,23 +626,34 @@ where
     /// Remove a DICOM element by its tag,
     /// reporting whether it was present.
     pub fn remove_element(&mut self, tag: Tag) -> bool {
-        self.len = Length::UNDEFINED;
-        self.entries.remove(&tag).is_some()
+        if self.entries.remove(&tag).is_some() {
+            self.len = Length::UNDEFINED;
+            true
+        } else {
+            false
+        }
     }
 
     /// Remove a DICOM element by its keyword,
     /// reporting whether it was present.
     pub fn remove_element_by_name(&mut self, name: &str) -> Result<bool, AccessByNameError> {
         let tag = self.lookup_name(name)?;
-        self.len = Length::UNDEFINED;
-        Ok(self.entries.remove(&tag).is_some())
+        Ok(self.entries.remove(&tag).is_some()).map(|removed| {
+            if removed {
+                self.len = Length::UNDEFINED;
+            }
+            removed
+        })
     }
 
     /// Remove and return a particular DICOM element by its tag.
     pub fn take_element(&mut self, tag: Tag) -> Result<InMemElement<D>> {
-        self.len = Length::UNDEFINED;
         self.entries
             .remove(&tag)
+            .map(|e| {
+                self.len = Length::UNDEFINED;
+                e
+            })
             .context(NoSuchDataElementTagSnafu { tag })
     }
 
@@ -650,8 +661,10 @@ where
     /// if it is present,
     /// returns `None` otherwise.
     pub fn take(&mut self, tag: Tag) -> Option<InMemElement<D>> {
-        self.len = Length::UNDEFINED;
-        self.entries.remove(&tag)
+        self.entries.remove(&tag).map(|e| {
+            self.len = Length::UNDEFINED;
+            e
+        })
     }
 
     /// Remove and return a particular DICOM element by its name.
@@ -663,6 +676,10 @@ where
         self.len = Length::UNDEFINED;
         self.entries
             .remove(&tag)
+            .map(|e| {
+                self.len = Length::UNDEFINED;
+                e
+            })
             .with_context(|| NoSuchDataElementAliasSnafu {
                 tag,
                 alias: name.to_string(),
@@ -728,8 +745,8 @@ where
                     let vr = e.vr();
                     // replace element
                     *e = DataElement::empty(tag, vr);
+                    self.len = Length::UNDEFINED;
                 }
-                self.len = Length::UNDEFINED;
                 Ok(())
             }
             AttributeAction::SetVr(new_vr) => {
