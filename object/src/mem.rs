@@ -612,7 +612,6 @@ where
     /// Insert a data element to the object, replacing (and returning) any
     /// previous element of the same attribute.
     pub fn put(&mut self, elt: InMemElement<D>) -> Option<InMemElement<D>> {
-        self.len = Length::UNDEFINED;
         self.put_element(elt)
     }
 
@@ -620,7 +619,10 @@ where
     /// previous element of the same attribute.
     pub fn put_element(&mut self, elt: InMemElement<D>) -> Option<InMemElement<D>> {
         self.len = Length::UNDEFINED;
-        self.entries.insert(elt.tag(), elt)
+        self.entries.insert(elt.tag(), elt).map(|e| {
+            self.len = Length::UNDEFINED;
+            e
+        })
     }
 
     /// Remove a DICOM element by its tag,
@@ -673,7 +675,6 @@ where
         name: &str,
     ) -> Result<InMemElement<D>, AccessByNameError> {
         let tag = self.lookup_name(name)?;
-        self.len = Length::UNDEFINED;
         self.entries
             .remove(&tag)
             .map(|e| {
@@ -809,6 +810,7 @@ where
         if let Some(e) = self.entries.get_mut(&tag) {
             let vr = e.vr();
             *e = DataElement::new(tag, vr, new_value);
+            self.len = Length::UNDEFINED;
         } else {
             // infer VR from tag
             let vr = dicom_dictionary_std::StandardDataDictionary
