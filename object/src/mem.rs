@@ -2772,4 +2772,14 @@ mod tests {
             Some(126)
         );
     }
+
+    #[test]
+    fn test_even_len() {
+        assert_eq!(even_len(0), 0);
+        assert_eq!(even_len(1), 2);
+        assert_eq!(even_len(2), 2);
+        assert_eq!(even_len(3), 4);
+        assert_eq!(even_len(4), 4);
+        assert_eq!(even_len(5), 6);
+    }
 }
