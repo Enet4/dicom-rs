@@ -1,5 +1,5 @@
 use clap::Parser;
-use dicom_core::{dicom_value, header::Tag, smallvec, DataElement, PrimitiveValue, VR};
+use dicom_core::{dicom_value, header::Tag, DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax;
 use dicom_object::{mem::InMemDicomObject, open_file, StandardDataDictionary};
@@ -9,7 +9,6 @@ use dicom_ul::{
     pdu::{PDataValue, PDataValueType, Pdu},
 };
 use indicatif::{ProgressBar, ProgressStyle};
-use smallvec::smallvec;
 use snafu::prelude::*;
 use snafu::{Report, Whatever};
 use std::collections::HashSet;
