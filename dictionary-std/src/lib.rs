@@ -12,21 +12,28 @@ use crate::tags::ENTRIES;
 use dicom_core::VR;
 use dicom_core::dictionary::{DataDictionary, DictionaryEntryRef, TagRange::*};
 use dicom_core::header::Tag;
-use lazy_static::lazy_static;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use once_cell::sync::Lazy;
 
-lazy_static! {
-    static ref DICT: StandardDictionaryRegistry = init_dictionary();
-}
+static DICT: Lazy<StandardDictionaryRegistry> = Lazy::new(init_dictionary);
 
 /// Retrieve a singleton instance of the standard dictionary registry.
+///
+/// Note that one does not generally have to call this
+/// unless when retrieving the underlying registry is important.
+/// The unit type [`StandardDataDictionary`]
+/// already provides a lazy loaded singleton implementing the necessary traits.
+#[inline]
 pub fn registry() -> &'static StandardDictionaryRegistry {
     &DICT
 }
 
-/// The data struct containing the standard dictionary.
+/// The data struct actually containing the standard dictionary.
+/// 
+/// This structure is made opaque via the unit type [`StandardDataDictionary`],
+/// which provides a lazy loaded singleton.
 #[derive(Debug)]
 pub struct StandardDictionaryRegistry {
     /// mapping: name → entry
@@ -73,7 +80,14 @@ static GROUP_LENGTH_ENTRY: DictionaryEntryRef<'static> = DictionaryEntryRef {
     vr: VR::UL,
 };
 
-/// A data dictionary which consults the library's global DICOM attribute registry.
+/// A data element dictionary which consults
+/// the library's global DICOM attribute registry.
+/// 
+/// This is the type which would generally be used
+/// whenever a data element dictionary is needed,
+/// such as when reading DICOM objects.
+/// 
+/// The dictionary index is automatically initialized upon the first use.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct StandardDataDictionary;
 

@@ -374,7 +374,7 @@ name = "dicom-dictionary-std"
 version = "0.5.0"
 dependencies = [
  "dicom-core",
- "lazy_static",
+ "once_cell",
 ]
 
 [[package]]
