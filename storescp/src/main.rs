@@ -4,7 +4,7 @@ use std::{
 };
 
 use clap::Parser;
-use dicom_core::{dicom_value, DataElement, PrimitiveValue, VR};
+use dicom_core::{dicom_value, DataElement, VR};
 use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject, StandardDataDictionary};
@@ -270,23 +270,7 @@ fn create_cstore_response(
     sop_class_uid: &str,
     sop_instance_uid: &str,
 ) -> InMemDicomObject<StandardDataDictionary> {
-    InMemDicomObject::from_element_iter([
-        DataElement::new(
-            tags::COMMAND_GROUP_LENGTH,
-            VR::UL,
-            PrimitiveValue::from(
-                8 + sop_class_uid.len() as i32
-                    + 8
-                    + 2
-                    + 8
-                    + 2
-                    + 8
-                    + 2
-                    + 8
-                    + 2
-                    + sop_instance_uid.len() as i32,
-            ),
-        ),
+    InMemDicomObject::command_from_element_iter([
         DataElement::new(
             tags::AFFECTED_SOP_CLASS_UID,
             VR::UI,
@@ -313,12 +297,7 @@ fn create_cstore_response(
 }
 
 fn create_cecho_response(message_id: u16) -> InMemDicomObject<StandardDataDictionary> {
-    InMemDicomObject::from_element_iter([
-        DataElement::new(
-            tags::COMMAND_GROUP_LENGTH,
-            VR::UL,
-            PrimitiveValue::from(8 + 8 + 2 + 8 + 2 + 8 + 2),
-        ),
+    InMemDicomObject::command_from_element_iter([
         DataElement::new(tags::COMMAND_FIELD, VR::US, dicom_value!(U16, [0x8030])),
         DataElement::new(
             tags::MESSAGE_ID_BEING_RESPONDED_TO,
