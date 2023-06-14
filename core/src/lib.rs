@@ -120,28 +120,16 @@ macro_rules! dicom_value {
     () => { $crate::value::PrimitiveValue::Empty };
     // Multiple strings
     (Strs, [ $($elem: expr),+ , ]) => {
-        {
-            use smallvec::smallvec; // import smallvec macro
-            $crate::value::PrimitiveValue :: Strs (smallvec![$($elem.to_owned(),)*])
-        }
+        $crate::value::PrimitiveValue :: Strs ($crate::smallvec::smallvec![$($elem.to_owned(),)*])
     };
     (Strs, [ $($elem: expr),+ ]) => {
-        {
-            use smallvec::smallvec; // import smallvec macro
-            $crate::value::PrimitiveValue :: Strs (smallvec![$($elem.to_owned(),)*])
-        }
+        $crate::value::PrimitiveValue :: Strs ($crate::smallvec::smallvec![$($elem.to_owned(),)*])
     };
     ($typ: ident, [ $($elem: expr),+ , ]) => {
-        {
-            use smallvec::smallvec; // import smallvec macro
-            $crate::value::PrimitiveValue :: $typ (smallvec![$($elem,)*])
-        }
+        $crate::value::PrimitiveValue :: $typ ($crate::smallvec::smallvec![$($elem,)*])
     };
     ($typ: ident, [ $($elem: expr),+ ]) => {
-        {
-            use smallvec::smallvec; // import smallvec macro
-            $crate::value::PrimitiveValue :: $typ (smallvec![$($elem,)*])
-        }
+        $crate::value::PrimitiveValue :: $typ ($crate::smallvec::smallvec![$($elem,)*])
     };
     (Str, $elem: expr) => {
         $crate::value::PrimitiveValue :: Str (String::from($elem))
