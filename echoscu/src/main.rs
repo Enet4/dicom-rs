@@ -1,5 +1,5 @@
 use clap::Parser;
-use dicom_core::{dicom_value, DataElement, PrimitiveValue, VR};
+use dicom_core::{dicom_value, DataElement, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{mem::InMemDicomObject, StandardDataDictionary};
 use dicom_ul::{
@@ -178,41 +178,24 @@ fn run() -> Result<(), Whatever> {
 }
 
 fn create_echo_command(message_id: u16) -> InMemDicomObject<StandardDataDictionary> {
-    let mut obj = InMemDicomObject::new_empty();
-
-    // group length
-    obj.put(DataElement::new(
-        tags::COMMAND_GROUP_LENGTH,
-        VR::UL,
-        PrimitiveValue::from(8 + 18 + 8 + 2 + 8 + 2 + 8 + 2),
-    ));
-
-    // service
-    obj.put(DataElement::new(
-        tags::AFFECTED_SOP_CLASS_UID,
-        VR::UI,
-        dicom_value!(Str, "1.2.840.10008.1.1\0"),
-    ));
-    // command
-    obj.put(DataElement::new(
-        tags::COMMAND_FIELD,
-        VR::US,
-        dicom_value!(U16, [0x0030]),
-    ));
-    // message ID
-    obj.put(DataElement::new(
-        tags::MESSAGE_ID,
-        VR::US,
-        dicom_value!(U16, [message_id]),
-    ));
-    // data set type
-    obj.put(DataElement::new(
-        tags::COMMAND_DATA_SET_TYPE,
-        VR::US,
-        dicom_value!(U16, [0x0101]),
-    ));
-
-    obj
+    InMemDicomObject::command_from_element_iter([
+        // service
+        DataElement::new(
+            tags::AFFECTED_SOP_CLASS_UID,
+            VR::UI,
+            dicom_value!(Str, "1.2.840.10008.1.1\0"),
+        ),
+        // command
+        DataElement::new(tags::COMMAND_FIELD, VR::US, dicom_value!(U16, [0x0030])),
+        // message ID
+        DataElement::new(tags::MESSAGE_ID, VR::US, dicom_value!(U16, [message_id])),
+        // data set type
+        DataElement::new(
+            tags::COMMAND_DATA_SET_TYPE,
+            VR::US,
+            dicom_value!(U16, [0x0101]),
+        ),
+    ])
 }
 
 #[cfg(test)]
