@@ -618,26 +618,41 @@ where
     /// Insert a data element to the object, replacing (and returning) any
     /// previous element of the same attribute.
     pub fn put_element(&mut self, elt: InMemElement<D>) -> Option<InMemElement<D>> {
+        self.len = Length::UNDEFINED;
         self.entries.insert(elt.tag(), elt)
     }
 
     /// Remove a DICOM element by its tag,
     /// reporting whether it was present.
     pub fn remove_element(&mut self, tag: Tag) -> bool {
-        self.entries.remove(&tag).is_some()
+        if self.entries.remove(&tag).is_some() {
+            self.len = Length::UNDEFINED;
+            true
+        } else {
+            false
+        }
     }
 
     /// Remove a DICOM element by its keyword,
     /// reporting whether it was present.
     pub fn remove_element_by_name(&mut self, name: &str) -> Result<bool, AccessByNameError> {
         let tag = self.lookup_name(name)?;
-        Ok(self.entries.remove(&tag).is_some())
+        Ok(self.entries.remove(&tag).is_some()).map(|removed| {
+            if removed {
+                self.len = Length::UNDEFINED;
+            }
+            removed
+        })
     }
 
     /// Remove and return a particular DICOM element by its tag.
     pub fn take_element(&mut self, tag: Tag) -> Result<InMemElement<D>> {
         self.entries
             .remove(&tag)
+            .map(|e| {
+                self.len = Length::UNDEFINED;
+                e
+            })
             .context(NoSuchDataElementTagSnafu { tag })
     }
 
@@ -645,7 +660,10 @@ where
     /// if it is present,
     /// returns `None` otherwise.
     pub fn take(&mut self, tag: Tag) -> Option<InMemElement<D>> {
-        self.entries.remove(&tag)
+        self.entries.remove(&tag).map(|e| {
+            self.len = Length::UNDEFINED;
+            e
+        })
     }
 
     /// Remove and return a particular DICOM element by its name.
@@ -656,6 +674,10 @@ where
         let tag = self.lookup_name(name)?;
         self.entries
             .remove(&tag)
+            .map(|e| {
+                self.len = Length::UNDEFINED;
+                e
+            })
             .with_context(|| NoSuchDataElementAliasSnafu {
                 tag,
                 alias: name.to_string(),
@@ -669,6 +691,7 @@ where
     /// and those for which `f(&element)` returns `false` are removed.
     pub fn retain(&mut self, mut f: impl FnMut(&InMemElement<D>) -> bool) {
         self.entries.retain(|_, elem| f(elem));
+        self.len = Length::UNDEFINED;
     }
 
     /// Apply the given attribute operation on this object.
@@ -720,6 +743,7 @@ where
                     let vr = e.vr();
                     // replace element
                     *e = DataElement::empty(tag, vr);
+                    self.len = Length::UNDEFINED;
                 }
                 Ok(())
             }
@@ -783,6 +807,7 @@ where
         if let Some(e) = self.entries.get_mut(&tag) {
             let vr = e.vr();
             *e = DataElement::new(tag, vr, new_value);
+            self.len = Length::UNDEFINED;
         } else {
             // infer VR from tag
             let vr = dicom_dictionary_std::StandardDataDictionary
@@ -1368,6 +1393,7 @@ impl<D> Extend<InMemElement<D>> for InMemDicomObject<D> {
     where
         I: IntoIterator<Item = InMemElement<D>>,
     {
+        self.len = Length::UNDEFINED;
         self.entries.extend(iter.into_iter().map(|e| (e.tag(), e)))
     }
 }
@@ -2422,5 +2448,183 @@ mod tests {
                 ))
             );
         }
+    }
+
+    #[test]
+    fn inmem_obj_reset_defined_length() {
+        let mut entries: BTreeMap<Tag, InMemElement<StandardDataDictionary>> = BTreeMap::new();
+
+        let patient_name =
+            DataElement::new(tags::PATIENT_NAME, VR::CS, PrimitiveValue::from("Doe^John"));
+
+        let study_description = DataElement::new(
+            tags::STUDY_DESCRIPTION,
+            VR::LO,
+            PrimitiveValue::from("Test study"),
+        );
+
+        entries.insert(tags::PATIENT_NAME, patient_name.clone());
+
+        // create object and force an arbitrary defined Length value
+        let obj = InMemDicomObject::<StandardDataDictionary> {
+            entries,
+            dict: StandardDataDictionary,
+            len: Length(1),
+        };
+
+        assert!(obj.length().is_defined());
+
+        let mut o = obj.clone();
+        o.put_element(study_description);
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.remove_element(tags::PATIENT_NAME);
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.remove_element_by_name("PatientName").unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.take_element(tags::PATIENT_NAME).unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.take_element_by_name("PatientName").unwrap();
+        assert!(o.length().is_undefined());
+
+        // resets Length even when retain does not make any changes
+        let mut o = obj.clone();
+        o.retain(|e| e.tag() == tags::PATIENT_NAME);
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp {
+            tag: tags::PATIENT_NAME,
+            action: AttributeAction::Remove,
+        })
+        .unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp {
+            tag: tags::PATIENT_NAME,
+            action: AttributeAction::Empty,
+        })
+        .unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp {
+            tag: tags::PATIENT_NAME,
+            action: AttributeAction::SetVr(VR::IS),
+        })
+        .unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp {
+            tag: tags::PATIENT_NAME,
+            action: AttributeAction::Set(dicom_value!(Str, "Unknown")),
+        })
+        .unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp {
+            tag: tags::PATIENT_NAME,
+            action: AttributeAction::SetStr("Patient^Anonymous".into()),
+        })
+        .unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp {
+            tag: tags::PATIENT_AGE,
+            action: AttributeAction::SetIfMissing(dicom_value!(75)),
+        })
+        .unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp {
+            tag: tags::PATIENT_ADDRESS,
+            action: AttributeAction::SetStrIfMissing("Chicago".into()),
+        })
+        .unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp {
+            tag: tags::PATIENT_NAME,
+            action: AttributeAction::Replace(dicom_value!(Str, "Unknown")),
+        })
+        .unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp {
+            tag: tags::PATIENT_NAME,
+            action: AttributeAction::ReplaceStr("Unknown".into()),
+        })
+        .unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp {
+            tag: tags::PATIENT_NAME,
+            action: AttributeAction::PushStr("^Prof".into()),
+        })
+        .unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp {
+            tag: tags::PATIENT_NAME,
+            action: AttributeAction::PushI32(-16),
+        })
+        .unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp {
+            tag: tags::PATIENT_NAME,
+            action: AttributeAction::PushU32(16),
+        })
+        .unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp {
+            tag: tags::PATIENT_NAME,
+            action: AttributeAction::PushI16(-16),
+        })
+        .unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp {
+            tag: tags::PATIENT_NAME,
+            action: AttributeAction::PushU16(16),
+        })
+        .unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp {
+            tag: tags::PATIENT_NAME,
+            action: AttributeAction::PushF32(16.16),
+        })
+        .unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp {
+            tag: tags::PATIENT_NAME,
+            action: AttributeAction::PushF64(16.1616),
+        })
+        .unwrap();
+        assert!(o.length().is_undefined());
     }
 }
