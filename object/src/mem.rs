@@ -618,7 +618,6 @@ where
     /// Insert a data element to the object, replacing (and returning) any
     /// previous element of the same attribute.
     pub fn put_element(&mut self, elt: InMemElement<D>) -> Option<InMemElement<D>> {
-        self.len = Length::UNDEFINED;
         self.entries.insert(elt.tag(), elt).map(|e| {
             self.len = Length::UNDEFINED;
             e
