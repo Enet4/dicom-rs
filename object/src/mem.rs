@@ -154,6 +154,20 @@ impl InMemDicomObject<StandardDataDictionary> {
         Self::from_iter_with_dict(iter, StandardDataDictionary)
     }
 
+    /// Construct a DICOM object representing a command set,
+    /// from a non-fallible iterator of structured elements.
+    ///
+    /// This method will automatically insert
+    /// a _Command Group Length_ (0000,0000) element
+    /// based on the command elements found in the sequence.
+    #[inline]
+    pub fn command_from_element_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = InMemElement<StandardDataDictionary>>,
+    {
+        Self::command_from_iter_with_dict(iter, StandardDataDictionary)
+    }
+
     /// Read an object from a source using the given decoder.
     ///
     /// Note: [`read_dataset_with_ts`] and [`read_dataset_with_ts_cs`]
@@ -465,6 +479,42 @@ where
         I: IntoIterator<Item = InMemElement<D>>,
     {
         let entries = iter.into_iter().map(|e| (e.tag(), e)).collect();
+        InMemDicomObject {
+            entries,
+            dict,
+            len: Length::UNDEFINED,
+        }
+    }
+
+    /// Construct a DICOM object representing a command set,
+    /// from a non-fallible iterator of structured elements.
+    ///
+    /// This method will automatically insert
+    /// a _Command Group Length_ (0000,0000) element
+    /// based on the command elements found in the sequence.
+    pub fn command_from_iter_with_dict<I>(iter: I, dict: D) -> Self
+    where
+        I: IntoIterator<Item = InMemElement<D>>,
+    {
+        let mut calculated_length: u32 = 0;
+        let mut entries: BTreeMap<_, _> = iter
+            .into_iter()
+            .map(|e| {
+                // count the length of command set elements
+                if e.tag().0 == 0x0000 && e.tag().1 != 0x0000 {
+                    let l = e.value().length();
+                    calculated_length += if l.is_defined() { even_len(l.0) } else { 0 } + 8;
+                }
+
+                (e.tag(), e)
+            })
+            .collect();
+
+        entries.insert(
+            Tag(0, 0),
+            InMemElement::new(Tag(0, 0), VR::UL, PrimitiveValue::from(calculated_length)),
+        );
+
         InMemDicomObject {
             entries,
             dict,
@@ -1396,6 +1446,10 @@ impl<D> Extend<InMemElement<D>> for InMemDicomObject<D> {
         self.len = Length::UNDEFINED;
         self.entries.extend(iter.into_iter().map(|e| (e.tag(), e)))
     }
+}
+
+fn even_len(l: u32) -> u32 {
+    (l + 1) & !1
 }
 
 #[cfg(test)]
@@ -2626,5 +2680,96 @@ mod tests {
         })
         .unwrap();
         assert!(o.length().is_undefined());
+    }
+
+    #[test]
+    fn create_commands() {
+        // empty
+        let obj = InMemDicomObject::command_from_element_iter([]);
+        assert_eq!(
+            obj.get(tags::COMMAND_GROUP_LENGTH)
+                .map(|e| e.value().to_int::<u32>().unwrap()),
+            Some(0)
+        );
+
+        // C-FIND-RQ
+        let obj = InMemDicomObject::command_from_element_iter([
+            // affected SOP class UID: 8 + 28 = 36
+            DataElement::new(
+                tags::AFFECTED_SOP_CLASS_UID,
+                VR::UI,
+                PrimitiveValue::from("1.2.840.10008.5.1.4.1.2.1.1"),
+            ),
+            // command field: 36 + 8 + 2 = 46
+            DataElement::new(
+                tags::COMMAND_FIELD,
+                VR::US,
+                // 0020H: C-FIND-RQ message
+                dicom_value!(U16, [0x0020]),
+            ),
+            // message ID: 46 + 8 + 2 = 56
+            DataElement::new(tags::MESSAGE_ID, VR::US, dicom_value!(U16, [0])),
+            //priority: 56 + 8 + 2 = 66
+            DataElement::new(
+                tags::PRIORITY,
+                VR::US,
+                // medium
+                dicom_value!(U16, [0x0000]),
+            ),
+            // data set type: 66 + 8 + 2 = 76
+            DataElement::new(
+                tags::COMMAND_DATA_SET_TYPE,
+                VR::US,
+                dicom_value!(U16, [0x0001]),
+            ),
+        ]);
+        assert_eq!(
+            obj.get(tags::COMMAND_GROUP_LENGTH)
+                .map(|e| e.value().to_int::<u32>().unwrap()),
+            Some(76)
+        );
+
+        let storage_sop_class_uid = "1.2.840.10008.5.1.4.1.1.4";
+        let storage_sop_instance_uid = "2.25.221314879990624101283043547144116927116";
+
+        // C-STORE-RQ
+        let obj = InMemDicomObject::command_from_element_iter([
+            // group length (should be ignored in calculations and overridden)
+            DataElement::new(
+                tags::COMMAND_GROUP_LENGTH,
+                VR::UL,
+                PrimitiveValue::from(9999_u32),
+            ),
+            // SOP Class UID: 8 + 26 = 34
+            DataElement::new(
+                tags::AFFECTED_SOP_CLASS_UID,
+                VR::UI,
+                dicom_value!(Str, storage_sop_class_uid),
+            ),
+            // command field: 34 + 8 + 2 = 44
+            DataElement::new(tags::COMMAND_FIELD, VR::US, dicom_value!(U16, [0x0001])),
+            // message ID: 44 + 8 + 2 = 54
+            DataElement::new(tags::MESSAGE_ID, VR::US, dicom_value!(U16, [1])),
+            //priority: 54 + 8 + 2 = 64
+            DataElement::new(tags::PRIORITY, VR::US, dicom_value!(U16, [0x0000])),
+            // data set type: 64 + 8 + 2 = 74
+            DataElement::new(
+                tags::COMMAND_DATA_SET_TYPE,
+                VR::US,
+                dicom_value!(U16, [0x0000]),
+            ),
+            // affected SOP Instance UID: 74 + 8 + 44 = 126
+            DataElement::new(
+                tags::AFFECTED_SOP_INSTANCE_UID,
+                VR::UI,
+                dicom_value!(Str, storage_sop_instance_uid),
+            ),
+        ]);
+
+        assert_eq!(
+            obj.get(tags::COMMAND_GROUP_LENGTH)
+                .map(|e| e.value().to_int::<u32>().unwrap()),
+            Some(126)
+        );
     }
 }
