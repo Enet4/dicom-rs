@@ -1,5 +1,5 @@
 use clap::Parser;
-use dicom_core::{dicom_value, smallvec};
+use dicom_core::dicom_value;
 use dicom_core::{DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::tags;
 use dicom_dump::DumpOptions;
@@ -12,7 +12,6 @@ use dicom_ul::{
     pdu::{PDataValue, PDataValueType},
 };
 use query::parse_queries;
-use smallvec::smallvec;
 use snafu::prelude::*;
 use std::io::{stderr, Read};
 use std::path::PathBuf;
