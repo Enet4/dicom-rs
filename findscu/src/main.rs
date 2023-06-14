@@ -332,83 +332,45 @@ fn find_req_command(
     sop_class_uid: &str,
     message_id: u16,
 ) -> InMemDicomObject<StandardDataDictionary> {
-    let mut obj = InMemDicomObject::new_empty();
-
-    // group length
-    obj.put(DataElement::new(
-        tags::COMMAND_GROUP_LENGTH,
-        VR::UL,
-        PrimitiveValue::from(
-            8 + even_len(sop_class_uid.len())   // SOP Class UID
-            + 8 + 2 // command field
-            + 8 + 2 // message ID
-            + 8 + 2 // priority
-            + 8 + 2, // data set type
+    InMemDicomObject::command_from_element_iter([
+        // SOP Class UID
+        DataElement::new(
+            tags::AFFECTED_SOP_CLASS_UID,
+            VR::UI,
+            PrimitiveValue::from(sop_class_uid),
         ),
-    ));
-
-    // SOP Class UID
-    obj.put(DataElement::new(
-        tags::AFFECTED_SOP_CLASS_UID,
-        VR::UI,
-        PrimitiveValue::from(sop_class_uid),
-    ));
-
-    // command field
-    obj.put(DataElement::new(
-        tags::COMMAND_FIELD,
-        VR::US,
-        // 0020H: C-FIND-RQ message
-        dicom_value!(U16, [0x0020]),
-    ));
-
-    // message ID
-    obj.put(DataElement::new(
-        tags::MESSAGE_ID,
-        VR::US,
-        dicom_value!(U16, [message_id]),
-    ));
-
-    //priority
-    obj.put(DataElement::new(
-        tags::PRIORITY,
-        VR::US,
-        // medium
-        dicom_value!(U16, [0x0000]),
-    ));
-
-    // data set type
-    obj.put(DataElement::new(
-        tags::COMMAND_DATA_SET_TYPE,
-        VR::US,
-        dicom_value!(U16, [0x0001]),
-    ));
-
-    obj
-}
-
-fn even_len(l: usize) -> u32 {
-    ((l + 1) & !1) as u32
+        // command field
+        DataElement::new(
+            tags::COMMAND_FIELD,
+            VR::US,
+            // 0020H: C-FIND-RQ message
+            dicom_value!(U16, [0x0020]),
+        ),
+        // message ID
+        DataElement::new(tags::MESSAGE_ID, VR::US, dicom_value!(U16, [message_id])),
+        //priority
+        DataElement::new(
+            tags::PRIORITY,
+            VR::US,
+            // medium
+            dicom_value!(U16, [0x0000]),
+        ),
+        // data set type
+        DataElement::new(
+            tags::COMMAND_DATA_SET_TYPE,
+            VR::US,
+            dicom_value!(U16, [0x0001]),
+        ),
+    ])
 }
 
 #[cfg(test)]
 mod tests {
-    use super::even_len;
     use crate::App;
     use clap::CommandFactory;
 
     #[test]
     fn verify_cli() {
         App::command().debug_assert();
-    }
-
-    #[test]
-    fn test_even_len() {
-        assert_eq!(even_len(0), 0);
-        assert_eq!(even_len(1), 2);
-        assert_eq!(even_len(2), 2);
-        assert_eq!(even_len(3), 4);
-        assert_eq!(even_len(4), 4);
-        assert_eq!(even_len(5), 6);
     }
 }
