@@ -10,9 +10,14 @@ use std::fmt::Debug;
 use std::str::FromStr;
 
 /// Specification of a range of tags pertaining to an attribute.
-/// Very often, the dictionary of attributes indicates a unique `(group,elem)`
-/// for a specific attribute, but occasionally a range of groups or elements
-/// is indicated instead (e.g. _Pixel Data_ is associated with ).
+/// Very often, the dictionary of attributes indicates a unique
+/// group part and element part `(group,elem)`,
+/// but occasionally an attribute may cover
+/// a range of groups or elements instead.
+/// For example,
+/// _Overlay Data_ (60xx,3000) has more than one possible tag,
+/// since it is part of a repeating group.
+/// Moreover, a unique variant is defined for group length tags.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TagRange {
     /// Only a specific tag
@@ -23,7 +28,8 @@ pub enum TagRange {
     /// The two rightmost digits of the _element_ portion are open:
     /// `(GGGG,EExx)`
     Element100(Tag),
-    /// Generic group length tag, does not refer to any specific attribute.
+    /// Generic group length tag,
+    /// refers to any attribute of the form `(GGGG,0000)`
     GroupLength,
 }
 
@@ -31,7 +37,9 @@ impl TagRange {
     /// Retrieve the inner tag representation of this range.
     ///
     /// Open components are zeroed out.
-    /// Returns a zeroed out tag (CommandGroupLength) if it is a `GroupLength`.
+    /// Returns a zeroed out tag
+    /// (equivalent to _Command Group Length_)
+    /// if it is a group length tag.
     pub fn inner(self) -> Tag {
         match self {
             TagRange::Single(tag) => tag,
