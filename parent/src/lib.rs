@@ -4,6 +4,7 @@
 //! the [`object`](crate::object) module.
 pub use dicom_core as core;
 pub use dicom_dictionary_std as dictionary_std;
+pub use dicom_dump as dump;
 pub use dicom_encoding as encoding;
 pub use dicom_object as object;
 pub use dicom_parser as parser;
