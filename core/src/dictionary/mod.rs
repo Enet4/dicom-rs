@@ -29,7 +29,12 @@ pub enum TagRange {
     /// `(GGGG,EExx)`
     Element100(Tag),
     /// Generic group length tag,
-    /// refers to any attribute of the form `(GGGG,0000)`
+    /// refers to any attribute of the form `(GGGG,0000)`,
+    /// _save for the following exceptions_
+    /// which have their own single tag record:
+    /// 
+    /// - _Command Group Length_ (0000,0000)
+    /// - _File Meta Information Group Length_ (0002,0000)
     GroupLength,
 }
 
