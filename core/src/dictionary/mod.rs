@@ -139,7 +139,7 @@ impl FromStr for TagRange {
  * The methods herein have no generic parameters, so as to enable being
  * used as a trait object.
  */
-pub trait DataDictionary: Debug {
+ pub trait DataDictionary {
     /// The type of the dictionary entry.
     type Entry: DictionaryEntry;
 
