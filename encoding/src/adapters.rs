@@ -132,6 +132,9 @@ pub struct RawPixelData {
 ///
 /// [`dicom_object`]: https://docs.rs/dicom_object
 pub trait PixelDataObject {
+    /// Return the object's transfer syntax UID.
+    fn transfer_syntax_uid(&self) -> &str;
+
     /// Return the Rows attribute or None if it is not found
     fn rows(&self) -> Option<u16>;
 
@@ -158,6 +161,10 @@ pub trait PixelDataObject {
     /// [1]: std::borrow::Cow
     fn fragment(&self, fragment: usize) -> Option<Cow<[u8]>>;
 
+    /// Return the object's offset table,
+    /// or `None` if no offset table is available.
+    fn offset_table(&self) -> Option<Cow<[u32]>>;
+
     /// Should return either a byte slice/vector if native pixel data
     /// or byte fragments if encapsulated.
     /// Returns None if no pixel data is found
@@ -174,7 +181,8 @@ pub struct EncodeOptions {
     /// with an increasingly higher error.
     /// It is ignored if the transfer syntax only supports lossless compression.
     /// If it does support lossless compression,
-    /// it is expected that a quality of 100 results in a lossless encoding.
+    /// it is expected that a quality of 100 results in
+    /// a mathematically lossless encoding.
     ///
     /// If this option is not specified,
     /// the output quality is decided automatically by the underlying adapter.

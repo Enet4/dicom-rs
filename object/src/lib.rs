@@ -573,6 +573,10 @@ impl<D> PixelDataObject for FileDicomObject<InMemDicomObject<D>>
 where
     D: DataDictionary + Clone,
 {
+    fn transfer_syntax_uid(&self) -> &str {
+        self.meta.transfer_syntax()
+    }
+
     /// Return the Rows attribute or None if it is not found
     fn rows(&self) -> Option<u16> {
         self.element(dicom_dictionary_std::tags::ROWS)
@@ -637,6 +641,15 @@ where
         }
     }
 
+    fn offset_table(&self) -> Option<Cow<[u32]>> {
+        let pixel_data = self.get(dicom_dictionary_std::tags::PIXEL_DATA)?;
+        match pixel_data.value() {
+            dicom_core::DicomValue::Primitive(_) => None,
+            dicom_core::DicomValue::Sequence(_) => None,
+            dicom_core::DicomValue::PixelSequence(seq) => Some(Cow::from(seq.offset_table())),
+        }
+    }
+
     /// Should return either a byte slice/vector if native pixel data
     /// or byte fragments if encapsulated.
     /// Returns None if no pixel data is found
@@ -659,7 +672,7 @@ where
                     fragments,
                     offset_table,
                 })
-            },
+            }
             dicom_core::DicomValue::Sequence(..) => None,
         }
     }
