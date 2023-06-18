@@ -17,7 +17,8 @@ use std::str::FromStr;
 /// For example,
 /// _Overlay Data_ (60xx,3000) has more than one possible tag,
 /// since it is part of a repeating group.
-/// Moreover, a unique variant is defined for group length tags.
+/// Moreover, a unique variant is defined for group length tags
+/// and another one for private creator tags.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TagRange {
     /// Only a specific tag
@@ -36,6 +37,10 @@ pub enum TagRange {
     /// - _Command Group Length_ (0000,0000)
     /// - _File Meta Information Group Length_ (0002,0000)
     GroupLength,
+    /// Generic private creator tag,
+    /// refers to any tag from (GGGG,0010) to (GGGG,00FF),
+    /// where `GGGG` is an odd number.
+    PrivateCreator,
 }
 
 impl TagRange {
@@ -45,12 +50,15 @@ impl TagRange {
     /// Returns a zeroed out tag
     /// (equivalent to _Command Group Length_)
     /// if it is a group length tag.
+    /// If it is a private creator tag,
+    /// this method returns `Tag(0x0009, 0x0010)`.
     pub fn inner(self) -> Tag {
         match self {
             TagRange::Single(tag) => tag,
             TagRange::Group100(tag) => tag,
             TagRange::Element100(tag) => tag,
             TagRange::GroupLength => Tag(0x0000, 0x0000),
+            TagRange::PrivateCreator => Tag(0x0009, 0x0010),
         }
     }
 }
@@ -139,7 +147,7 @@ impl FromStr for TagRange {
  * The methods herein have no generic parameters, so as to enable being
  * used as a trait object.
  */
-pub trait DataDictionary: Debug {
+pub trait DataDictionary {
     /// The type of the dictionary entry.
     type Entry: DictionaryEntry;
 
