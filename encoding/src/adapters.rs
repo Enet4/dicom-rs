@@ -296,13 +296,19 @@ pub trait PixelDataWriter {
     ) -> EncodeResult<Vec<AttributeOp>>;
 }
 
-/// Alias type for a dynamically dispatched pixel data decoder.
+/// Alias type for a dynamically dispatched pixel data reader.
 pub type DynPixelDataReader = Box<dyn PixelDataReader + Send + Sync + 'static>;
 
-/// Alias type for a dynamically dispatched pixel data encoder.
+/// Alias type for a dynamically dispatched pixel data writer.
 pub type DynPixelDataWriter = Box<dyn PixelDataWriter + Send + Sync + 'static>;
 
-/// An immaterial type representing an adapter which is never required.
+/// An immaterial type representing an adapter which is never provided.
+/// 
+/// This type may be used as the type parameters `R` and `W`
+/// of [`TransferSyntax`](crate::transfer_syntax::TransferSyntax)
+/// when representing a transfer syntax which
+/// either does not support reading and writing imaging data,
+/// or when such support is not needed in the first place.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum NeverPixelAdapter {}
 
@@ -322,6 +328,42 @@ impl PixelDataReader for NeverPixelAdapter {
 }
 
 impl PixelDataWriter for NeverPixelAdapter {
+    fn encode(
+        &self,
+        _src: &dyn PixelDataObject,
+        _options: EncodeOptions,
+        _dst: &mut Vec<u8>,
+    ) -> EncodeResult<Vec<AttributeOp>> {
+        unreachable!()
+    }
+
+    fn encode_frame(
+        &self,
+        _src: &dyn PixelDataObject,
+        _frame: u32,
+        _options: EncodeOptions,
+        _dst: &mut Vec<u8>,
+    ) -> EncodeResult<Vec<AttributeOp>> {
+        unreachable!()
+    }
+}
+
+impl PixelDataReader for crate::transfer_syntax::NeverAdapter {
+    fn decode(&self, _src: &dyn PixelDataObject, _dst: &mut Vec<u8>) -> DecodeResult<()> {
+        unreachable!()
+    }
+
+    fn decode_frame(
+        &self,
+        _src: &dyn PixelDataObject,
+        _frame: u32,
+        _dst: &mut Vec<u8>,
+    ) -> DecodeResult<()> {
+        unreachable!()
+    }
+}
+
+impl PixelDataWriter for crate::transfer_syntax::NeverAdapter {
     fn encode(
         &self,
         _src: &dyn PixelDataObject,
