@@ -145,7 +145,7 @@ pub trait PixelDataObject {
     fn bits_allocated(&self) -> Option<u16>;
 
     /// Return the NumberOfFrames attribute or None if it is not set
-    fn number_of_frames(&self) -> Option<u16>;
+    fn number_of_frames(&self) -> Option<u32>;
 
     /// Returns the number of fragments or None for native pixel data
     fn number_of_fragments(&self) -> Option<u32>;

@@ -606,7 +606,7 @@ where
     }
 
     /// Return the NumberOfFrames attribute or None if it is not set
-    fn number_of_frames(&self) -> Option<u16> {
+    fn number_of_frames(&self) -> Option<u32> {
         self.element(dicom_dictionary_std::tags::NUMBER_OF_FRAMES)
             .ok()?
             .to_int()
