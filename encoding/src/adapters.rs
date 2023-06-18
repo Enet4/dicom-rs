@@ -295,12 +295,25 @@ pub trait PixelDataWriter {
         options: EncodeOptions,
         dst: &mut Vec<Vec<u8>>,
         offset_table: &mut Vec<u32>,
-    ) -> EncodeResult<Vec<AttributeOp>>;
+    ) -> EncodeResult<Vec<AttributeOp>> {
+        let frames = src.number_of_frames()
+            .context(encode_error::MissingAttributeSnafu { name: "NumberOfFrames" })?;
+        let mut out = Vec::new();
+        for frame in 0..frames {
+            let mut frame_data = Vec::new();
+            out = self.encode_frame(src, frame, options.clone(), &mut frame_data)?;
+            offset_table.push(frame_data.len() as u32 + 8 * (frame + 1));
+            dst.push(frame_data);
+        }
+        Ok(out)
+    }
 
     /// Encode a single frame of a DICOM object's image
     /// into the format supported by this adapter,
-    /// writing a byte stream of pixel data fragment values
+    /// by writing a byte stream of pixel data values
     /// into the given destination.
+    /// The bytes written comprise a single pixel data fragment
+    /// in its entirety.
     ///
     /// New data is appended to `dst`,
     /// keeping all bytes previously present before writing.
