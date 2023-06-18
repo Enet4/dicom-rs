@@ -251,7 +251,7 @@ impl FileMetaTable {
 
     /// Apply the given attribute operation on this file meta information table.
     ///
-    /// See the [`dicom_encoding::ops`] module
+    /// See the [`dicom_core::ops`] module
     /// for more information.
     fn apply(&mut self, op: AttributeOp) -> ApplyResult {
         let AttributeSelectorStep::Tag(tag) = op.selector.first_step() else {
@@ -790,7 +790,7 @@ impl ApplyOp for FileMetaTable {
 
     /// Apply the given attribute operation on this file meta information table.
     ///
-    /// See the [`dicom_encoding::ops`] module
+    /// See the [`dicom_core::ops`] module
     /// for more information.
     fn apply(&mut self, op: AttributeOp) -> ApplyResult {
         self.apply(op)
