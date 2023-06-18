@@ -13,7 +13,7 @@
 //! to be able to decode and encode imaging data, respectively.
 
 use dicom_core::{ops::AttributeOp, value::C};
-use snafu::Snafu;
+use snafu::{Snafu, OptionExt};
 use std::borrow::Cow;
 
 /// The possible error conditions when decoding (reading) pixel data.
@@ -220,7 +220,14 @@ pub trait PixelDataReader {
     /// and for 3-channel images,
     /// the output must be in RGB with each pixel contiguous in memory
     /// (planar configuration of 0).
-    fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()>;
+    fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()> {
+        let frames = src.number_of_frames()
+            .context(decode_error::MissingAttributeSnafu { name: "NumberOfFrames" })?;
+        for frame in 0..frames {
+            self.decode_frame(src, frame, dst)?;
+        }
+        Ok(())
+    }
 
     /// Decode the given DICOM object
     /// containing encapsulated pixel data
