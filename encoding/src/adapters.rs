@@ -264,19 +264,26 @@ pub trait PixelDataReader {
     ) -> DecodeResult<()>;
 }
 
-/// Trait object responsible for decoding
-/// pixel data based on the transfer syntax.
+/// Trait object responsible for encoding
+/// pixel data based on a certain transfer syntax.
 ///
-/// A transfer syntax with support for decoding encapsulated pixel data
+/// A transfer syntax with support for creating compressed pixel data
 /// would implement these methods.
 pub trait PixelDataWriter {
     /// Encode a DICOM object's image into the format supported by this adapter,
     /// writing a byte stream of pixel data fragment values
-    /// to the given vector `dst`.
+    /// to the given vector `dst`
+    /// and the offsets to each decoded frame into `offset_table`.
     ///
-    /// It is a necessary precondition that the object's pixel data
-    /// is in a _native encoding_.
-    /// A `NotNative` error is returned otherwise.
+    /// New data is appended to `dst` and `offset_table`,
+    /// which are not cleared before writing.
+    ///
+    /// All implementations are required to support
+    /// writing the object's pixel data when it is in a _native encoding_.
+    /// If the given pixel data object is not in a native encoding,
+    /// and this writer does not support transcoding
+    /// from that encoding to the target transfer syntax,
+    /// a `NotNative` error is returned instead.
     ///
     /// When the operation is successful,
     /// a listing of attribute changes is returned,
@@ -286,7 +293,8 @@ pub trait PixelDataWriter {
         &self,
         src: &dyn PixelDataObject,
         options: EncodeOptions,
-        dst: &mut Vec<u8>,
+        dst: &mut Vec<Vec<u8>>,
+        offset_table: &mut Vec<u32>,
     ) -> EncodeResult<Vec<AttributeOp>>;
 
     /// Encode a single frame of a DICOM object's image
@@ -294,9 +302,15 @@ pub trait PixelDataWriter {
     /// writing a byte stream of pixel data fragment values
     /// into the given destination.
     ///
-    /// It is a necessary precondition that the object's pixel data
-    /// is in a _native encoding_.
-    /// A `NotNative` error is returned otherwise.
+    /// New data is appended to `dst`,
+    /// keeping all bytes previously present before writing.
+    ///
+    /// All implementations are required to support
+    /// writing the object's pixel data when it is in a _native encoding_.
+    /// If the given pixel data object is not in a native encoding,
+    /// and this writer does not support transcoding
+    /// from that encoding to the target transfer syntax,
+    /// a `NotNative` error is returned instead.
     ///
     /// When the operation is successful,
     /// a listing of attribute changes is returned,
@@ -347,7 +361,8 @@ impl PixelDataWriter for NeverPixelAdapter {
         &self,
         _src: &dyn PixelDataObject,
         _options: EncodeOptions,
-        _dst: &mut Vec<u8>,
+        _dst: &mut Vec<Vec<u8>>,
+        _offset_table: &mut Vec<u32>,
     ) -> EncodeResult<Vec<AttributeOp>> {
         unreachable!()
     }
@@ -383,7 +398,8 @@ impl PixelDataWriter for crate::transfer_syntax::NeverAdapter {
         &self,
         _src: &dyn PixelDataObject,
         _options: EncodeOptions,
-        _dst: &mut Vec<u8>,
+        _dst: &mut Vec<Vec<u8>>,
+        _offset_table: &mut Vec<u32>,
     ) -> EncodeResult<Vec<AttributeOp>> {
         unreachable!()
     }
