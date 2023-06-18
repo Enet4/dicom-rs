@@ -52,7 +52,7 @@
 //!   see the [`ul`] module for PDU reading/writing
 //!   and a DICOM association API.
 //! - If you are writing or declaring your own transfer syntax,
-//!   you will need to take [`encoding`] module
+//!   you will need to take the [`encoding`] module
 //!   and build your own [`TransferSyntax`](encoding::TransferSyntax) implementation.
 //! - [`parser`] contains the mid-level abstractions for
 //!   reading and writing DICOM data sets.
