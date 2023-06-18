@@ -18,7 +18,7 @@ use std::str::FromStr;
 /// _Overlay Data_ (60xx,3000) has more than one possible tag,
 /// since it is part of a repeating group.
 /// Moreover, a unique variant is defined for group length tags
-/// and for private creator tags.
+/// and another one for private creator tags.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TagRange {
     /// Only a specific tag
@@ -147,7 +147,7 @@ impl FromStr for TagRange {
  * The methods herein have no generic parameters, so as to enable being
  * used as a trait object.
  */
- pub trait DataDictionary {
+pub trait DataDictionary {
     /// The type of the dictionary entry.
     type Entry: DictionaryEntry;
 
