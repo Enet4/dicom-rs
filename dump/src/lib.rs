@@ -770,15 +770,22 @@ fn value_summary(
             max_characters,
             true,
         )),
-        (Date(values), _) => DumpValue::DateTime(format_value_list(values, max_characters, true)),
-        (Time(values), _) => DumpValue::DateTime(format_value_list(values, max_characters, true)),
+        (Date(values), _) => DumpValue::DateTime(format_value_list(values, max_characters, false)),
+        (Time(values), _) => DumpValue::DateTime(format_value_list(values, max_characters, false)),
         (DateTime(values), _) => {
-            DumpValue::DateTime(format_value_list(values, max_characters, true))
+            DumpValue::DateTime(format_value_list(values, max_characters, false))
         }
         (Str(value), _) => {
             let txt = format!(
                 "\"{}\"",
-                value.to_string().trim_end_matches(whitespace_or_null)
+                value
+                    .to_string()
+                    .trim_end_matches(whitespace_or_null)
+                    // sanitize input
+                    .replace('\n', "␊")
+                    .replace('\r', "␍")
+                    .replace('\0', "␀")
+                    .replace(|c: char| c.is_control(), "�")
             );
             if let Some(max) = max_characters {
                 DumpValue::Str(cut_str(&txt, max).to_string())
@@ -825,7 +832,13 @@ where
     }
     for piece in values {
         let mut piece = piece.to_string();
-        piece = piece.replace(|c: char| c.is_control(), "�");
+        // sanitize value piece
+        piece = piece
+            .replace('\n', "␊")
+            .replace('\r', "␍")
+            .replace('\0', "␀")
+            .replace(|c: char| c.is_control(), "�");
+
         if acc_size > 0 {
             pieces.push_str(", ");
         }
@@ -882,7 +895,7 @@ fn determine_width(user_width: Option<u32>) -> u32 {
 #[cfg(test)]
 mod tests {
 
-    use dicom_core::{DataElement, PrimitiveValue, VR};
+    use dicom_core::{value::DicomDate, DataElement, PrimitiveValue, VR};
     use dicom_dictionary_std::tags;
     use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 
@@ -950,11 +963,31 @@ mod tests {
     #[test]
     fn dump_object_to_covers_properties() {
         // create object
-        let obj = InMemDicomObject::from_element_iter(vec![DataElement::new(
-            tags::SOP_INSTANCE_UID,
-            VR::UI,
-            PrimitiveValue::from("1.2.888.123"),
-        )]);
+        let obj = InMemDicomObject::from_element_iter([
+            DataElement::new(
+                tags::SOP_INSTANCE_UID,
+                VR::UI,
+                PrimitiveValue::from("1.2.888.123"),
+            ),
+            DataElement::new(
+                tags::STUDY_DATE,
+                VR::DA,
+                PrimitiveValue::from(DicomDate::from_ymd(2017, 1, 1).unwrap()),
+            ),
+            DataElement::new(tags::CONTENT_DATE, VR::DA, PrimitiveValue::Empty),
+            DataElement::new(tags::MODALITY, VR::CS, PrimitiveValue::from("OT")),
+            DataElement::new(
+                tags::INSTITUTION_NAME,
+                VR::LO,
+                PrimitiveValue::from("Hospital"),
+            ),
+            DataElement::new(
+                tags::INSTITUTION_ADDRESS,
+                VR::ST,
+                PrimitiveValue::from("Country Roads 1\nWest Virginia"),
+            ),
+            DataElement::new(tags::SAMPLES_PER_PIXEL, VR::US, PrimitiveValue::from(3_u16)),
+        ]);
 
         let mut out = Vec::new();
         DumpOptions::new()
@@ -966,8 +999,34 @@ mod tests {
             .expect("output is not valid UTF-8")
             .split('\n')
             .collect();
-        let parts: Vec<&str> = lines[0].split(" ").filter(|p| !p.is_empty()).collect();
 
-        assert_eq!(&parts[..3], &["(0008,0018)", "SOPInstanceUID", "UI"]);
+        check_line(
+            lines[0],
+            ("(0008,0018)", "SOPInstanceUID", "UI", "\"1.2.888.123\""),
+        );
+        check_line(lines[1], ("(0008,0020)", "StudyDate", "DA", "2017-01-01"));
+        check_line(lines[2], ("(0008,0023)", "ContentDate", "DA", "(no value)"));
+        check_line(lines[3], ("(0008,0060)", "Modality", "CS", "\"OT\""));
+        check_line(
+            lines[4],
+            ("(0008,0080)", "InstitutionName", "LO", "\"Hospital\""),
+        );
+        check_line(
+            lines[5],
+            (
+                "(0008,0081)",
+                "InstitutionAddress",
+                "ST",
+                "\"Country Roads 1␊West Virginia\"",
+            ),
+        );
+        check_line(lines[6], ("(0028,0002)", "SamplesPerPixel", "US", "3"));
+
+        fn check_line(line: &str, expected: (&str, &str, &str, &str)) {
+            let parts: Vec<&str> = line.split(" ").filter(|p| !p.is_empty()).collect();
+            let value = line.split(':').nth(1).unwrap().trim();
+            assert_eq!(&parts[..3], &[expected.0, expected.1, expected.2]);
+            assert_eq!(value, expected.3);
+        }
     }
 }
