@@ -37,7 +37,8 @@ impl PixelDataWriter for DummyPixelAdapter {
         &self,
         _src: &dyn PixelDataObject,
         _options: EncodeOptions,
-        _dst: &mut Vec<u8>,
+        _dst: &mut Vec<Vec<u8>>,
+        _offset_table: &mut Vec<u32>,
     ) -> EncodeResult<Vec<dicom_core::ops::AttributeOp>> {
         panic!("Stub, not supposed to be called")
     }
