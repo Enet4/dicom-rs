@@ -337,6 +337,7 @@ version = "0.5.4"
 dependencies = [
  "dicom-core",
  "dicom-dictionary-std",
+ "dicom-dump",
  "dicom-encoding",
  "dicom-object",
  "dicom-parser",
