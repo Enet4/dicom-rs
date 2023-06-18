@@ -7,14 +7,16 @@
 //! Complete DICOM object types
 //! (such as `FileDicomObject<InMemDicomObject>`)
 //! implement the [`PixelDataObject`] trait.
-//! Transfer syntaxes need to provide
-//! a suitable implementation of [PixelRWAdapter]
+//! Transfer syntaxes which define an encapsulated pixel data encoding
+//! need to provide suitable implementations of
+//! [`PixelDataReader`] and [`PixelDataWriter`]
+//! to be able to decode and encode imaging data, respectively.
 
 use dicom_core::{ops::AttributeOp, value::C};
 use snafu::Snafu;
 use std::borrow::Cow;
 
-/// The possible error conditions when decoding pixel data.
+/// The possible error conditions when decoding (reading) pixel data.
 ///
 /// Users of this type are free to handle errors based on their variant,
 /// but should not make decisions based on the display message,
@@ -36,7 +38,7 @@ pub enum DecodeError {
     ///
     /// The [`whatever!`](snafu::whatever) macro can be used
     /// to easily create an error of this kind.
-    #[snafu(whatever, display("Error decoding pixel data: {}", message))]
+    #[snafu(whatever, display("{}", message))]
     Custom {
         /// The error message.
         message: String,
@@ -45,18 +47,22 @@ pub enum DecodeError {
         source: Option<Box<dyn std::error::Error + Send + Sync + 'static>>,
     },
 
-    /// Input pixel data is not encapsulated
+    /// The input pixel data is not encapsulated.
+    /// 
+    /// Either the image needs no decoding
+    /// or the compressed imaging data was in a flat pixel data element by mistake.
     NotEncapsulated,
 
-    /// Frame range out of bounds
+    /// The requested frame range is outside the given object's frame range.
     FrameRangeOutOfBounds,
 
-    /// A required attribute is missing from the DICOM
+    /// A required attribute is missing
+    /// from the DICOM object representing the image.
     #[snafu(display("Missing required attribute `{}`", name))]
     MissingAttribute { name: &'static str },
 }
 
-/// The possible error conditions when encoding pixel data.
+/// The possible error conditions when encoding (writing) pixel data.
 ///
 /// Users of this type are free to handle errors based on their variant,
 /// but should not make decisions based on the display message,
@@ -73,8 +79,10 @@ pub enum DecodeError {
 #[non_exhaustive]
 #[snafu(visibility(pub), module)]
 pub enum EncodeError {
-    /// A custom error when encoding fails
-    #[snafu(whatever, display("Error encoding pixel data: {}", message))]
+    /// A custom error when encoding fails.
+    /// Read the `message` and the underlying `source`
+    /// for more details. 
+    #[snafu(whatever, display("{}", message))]
     Custom {
         /// The error message.
         message: String,
@@ -83,21 +91,22 @@ pub enum EncodeError {
         source: Option<Box<dyn std::error::Error + Send + Sync + 'static>>,
     },
 
-    /// Input pixel data is not native, should be decoded first
+    /// Input pixel data is not native, should be decoded first.
     NotNative,
 
-    /// Frame range out of bounds
+    /// The requested frame range is outside the given object's frame range.
     FrameRangeOutOfBounds,
 
-    /// A required attribute is missing from the DICOM
+    /// A required attribute is missing
+    /// from the DICOM object representing the image.
     #[snafu(display("Missing required attribute `{}`", name))]
     MissingAttribute { name: &'static str },
 }
 
-/// The result of decoding pixel data
+/// The result of decoding (reading) pixel data
 pub type DecodeResult<T, E = DecodeError> = Result<T, E>;
 
-/// The result of encoding pixel data
+/// The result of encoding (writing) pixel data
 pub type EncodeResult<T, E = EncodeError> = Result<T, E>;
 
 #[derive(Debug)]
@@ -258,7 +267,6 @@ pub trait PixelDataWriter {
     /// a listing of attribute changes is returned,
     /// comprising the sequence of operations that the DICOM object
     /// should consider upon assuming the new encoding.
-    #[allow(unused_variables)]
     fn encode(
         &self,
         src: &dyn PixelDataObject,
