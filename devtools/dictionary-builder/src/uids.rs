@@ -1,9 +1,14 @@
-//! Service-Object-Pair (SOP) class UID dictionary builder
+//! Dictionary builder for unique identifier (UID) entries.
+//!
+//! Currently includes all UIDs found in [PS3.6 table A-1][1].
+//! 
+//! [1]: https://dicom.nema.org/medical/dicom/current/output/chtml/part06/chapter_A.html#table_A-1
 
 use std::{
     fs::{create_dir_all, File},
     io::{BufWriter, Write},
     path::Path,
+    str::FromStr,
 };
 
 use clap::Parser;
@@ -18,29 +23,29 @@ use crate::common::RetiredOptions;
 const DEFAULT_LOCATION: &str =
     "https://dicom.nema.org/medical/dicom/current/source/docbook/part06/part06.xml";
 
-/// Fetch and build a dictionary of DICOM SOP classes
+/// Fetch and build a dictionary of DICOM unique identifiers
 #[derive(Debug, Parser)]
-#[clap(name = "sop", alias = "sop-class")]
-pub struct SopClassApp {
+#[clap(name = "uids")]
+pub struct UidApp {
     /// Path or URL to the SOP class dictionary
     #[clap(default_value(DEFAULT_LOCATION))]
     from: String,
 
     /// The output file
-    #[clap(short('o'), default_value("sop.rs"))]
+    #[clap(short('o'), default_value("uids.rs"))]
     output: String,
 
-    /// Ignore retired SOP classes
+    /// Ignore retired UIDs
     #[clap(long)]
     ignore_retired: bool,
 
-    /// Mark retired SOP classes as deprecated
+    /// Mark retired UIDs as deprecated
     #[clap(long)]
     deprecate_retired: bool,
 }
 
-pub fn run(app: SopClassApp) -> Result<()> {
-    let SopClassApp {
+pub fn run(app: UidApp) -> Result<()> {
+    let UidApp {
         from,
         output,
         ignore_retired,
@@ -63,22 +68,84 @@ pub fn run(app: SopClassApp) -> Result<()> {
         std::fs::read_to_string(src)?
     };
 
-    let sop_classes = retrieve_sop_classes(&xml_data)?;
+    // SOP classes
+
+    let sop_classes = retrieve_uid_values(&xml_data)?;
 
     to_code_file(dst, sop_classes, retired_options)?;
 
     Ok(())
 }
 
-/// An SOP class descriptor
-struct SopClass {
+/// A DICOM unique identifier descriptor.
+struct UidEntry {
     uid: String,
     name: String,
     keyword: String,
+    r#type: UidType,
     retired: bool,
 }
 
-fn retrieve_sop_classes<'a>(xml_data: &'a str) -> Result<Vec<SopClass>> {
+#[derive(Debug)]
+enum UidType {
+    SopClass,
+    MetaSopClass,
+    TransferSyntax,
+    WellKnownSopInstance,
+    DicomUidsAsCodingScheme,
+    CodingScheme,
+    ApplicationContextName,
+    ServiceClass,
+    ApplicationHostingModel,
+    MappingResource,
+    LdapOid,
+    SynchronizationFrameOfReference,
+}
+
+impl FromStr for UidType {
+    type Err = ();
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.trim() {
+            "SOP Class" => Ok(UidType::SopClass),
+            "Meta SOP Class" => Ok(UidType::MetaSopClass),
+            "Transfer Syntax" => Ok(UidType::TransferSyntax),
+            "Well-known SOP Instance" => Ok(UidType::WellKnownSopInstance),
+            "DICOM UIDs as a Coding Scheme" => Ok(UidType::DicomUidsAsCodingScheme),
+            "Coding Scheme" => Ok(UidType::CodingScheme),
+            "Application Context Name" => Ok(UidType::ApplicationContextName),
+            "Service Class" => Ok(UidType::ServiceClass),
+            "Application Hosting Model" => Ok(UidType::ApplicationHostingModel),
+            "Mapping Resource" => Ok(UidType::MappingResource),
+            "LDAP OID" => Ok(UidType::LdapOid),
+            "Synchronization Frame of Reference" => Ok(UidType::SynchronizationFrameOfReference),
+            _ => Err(()),
+        }
+    }
+}
+
+impl std::fmt::Display for UidType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
+            UidType::SopClass => "SOP Class",
+            UidType::MetaSopClass => "Meta SOP Class",
+            UidType::TransferSyntax => "Transfer Syntax",
+            UidType::WellKnownSopInstance => "Well-known SOP Instance",
+            UidType::DicomUidsAsCodingScheme => "DICOM UIDs as a Coding Scheme",
+            UidType::CodingScheme => "Coding Scheme",
+            UidType::ApplicationContextName => "Application Context Name",
+            UidType::ServiceClass => "Service Class",
+            UidType::ApplicationHostingModel => "Application Hosting Modle",
+            UidType::MappingResource => "Mapping Resource",
+            UidType::LdapOid => "LDAP OID",
+            UidType::SynchronizationFrameOfReference => "Synchronization Frame of Reference",
+        };
+        f.write_str(str)
+    }
+}
+
+/// Collects UID values from PS3.6 table A-1
+fn retrieve_uid_values<'a>(xml_data: &'a str) -> Result<Vec<UidEntry>> {
     let xml = parser::parse(xml_data)?;
     let doc = xml.as_document();
 
@@ -141,7 +208,7 @@ fn retrieve_sop_classes<'a>(xml_data: &'a str) -> Result<Vec<SopClass>> {
         eyre::bail!("No UID table found");
     }
 
-    let mut sop_classes = vec![];
+    let mut uids = vec![];
 
     for node in nodeset {
         let elem = if let Some(elem) = node.element() {
@@ -165,9 +232,10 @@ fn retrieve_sop_classes<'a>(xml_data: &'a str) -> Result<Vec<SopClass>> {
             uid_type
         };
 
-        if uid_type.trim() != "SOP Class" {
+        let Ok(uid_type) = UidType::from_str(&uid_type) else {
+            eprintln!("Unsupported UID type `{uid_type}`");
             continue;
-        }
+        };
 
         // get UID
         let uid_xpath = if !retired {
@@ -187,7 +255,7 @@ fn retrieve_sop_classes<'a>(xml_data: &'a str) -> Result<Vec<SopClass>> {
             &name_xpath_retired
         };
         let name = name_xpath.evaluate(&context, elem)?.into_string();
-        let name = name.trim().to_owned();
+        let name = name.trim().replace('\u{200b}', "");
 
         if name.is_empty() {
             continue;
@@ -206,25 +274,26 @@ fn retrieve_sop_classes<'a>(xml_data: &'a str) -> Result<Vec<SopClass>> {
             continue;
         }
 
-        sop_classes.push(SopClass {
+        uids.push(UidEntry {
             uid,
             name,
             keyword,
+            r#type: uid_type,
             retired,
         });
     }
 
-    sop_classes.sort_by(|a, b| a.uid.cmp(&b.uid));
+    uids.sort_by(|a, b| a.uid.cmp(&b.uid));
 
-    println!("Retrieved {} SOP classes", sop_classes.len());
+    println!("Retrieved {} UIDs", uids.len());
 
-    Ok(sop_classes)
+    Ok(uids)
 }
 
 /// Write the tag dictionary as Rust code.
 fn to_code_file<P>(
     dest_path: P,
-    entries: Vec<SopClass>,
+    entries: Vec<UidEntry>,
     retired_options: RetiredOptions,
 ) -> Result<()>
 where
@@ -235,7 +304,9 @@ where
     }
     let mut f = BufWriter::new(File::create(&dest_path)?);
 
-    f.write_all(b"//! Automatically generated. Edit at your own risk.\n")?;
+    f.write_all(b"//! Automatically generated. Edit at your own risk.\n\n")?;
+
+    f.write_all(b"use dicom_core::dictionary::{UidEntryRef, UidType::*};\n")?;
 
     if matches!(retired_options, RetiredOptions::Include { deprecate: true }) {
         f.write_all(b"#![allow(deprecated)]\n")?;
@@ -248,7 +319,8 @@ where
 
         writeln!(
             f,
-            "/// {}{}",
+            "/// {}: {}{}",
+            e.r#type,
             e.name,
             if e.retired { " (RETIRED)" } else { "" }
         )?;
@@ -261,7 +333,7 @@ where
                 }
             )
         {
-            writeln!(f, "#[deprecated(note = \"Retired DICOM SOP Class\")]")?;
+            writeln!(f, "#[deprecated(note = \"DICOM UID is retired\")]")?;
         }
         writeln!(
             f,
@@ -272,8 +344,8 @@ where
     }
 
     f.write_all(
-        b"\n\n\
-    type E = SopEntryRef<'static>;\n\n\
+        b"\n\
+    type E = UidEntryRef<'static>;\n\n\
     #[rustfmt::skip]\n\
     pub(crate) const ENTRIES: &[E] = &[\n",
     )?;
@@ -286,8 +358,8 @@ where
 
         writeln!(
             f,
-            "    E {{ uid: \"{}\", name: \"{}\", keyword: \"{}\" }},{}",
-            uid, name, keyword, end,
+            "    E::new(\"{}\", \"{}\", \"{}\", {:?}),{}",
+            uid, name, keyword, e.r#type, end
         )?;
     }
 

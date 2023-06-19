@@ -18,8 +18,8 @@
 use clap::{Parser, Subcommand};
 
 mod common;
+mod uids;
 mod tags;
-mod sop;
 
 /// DICOM dictionary builder
 #[derive(Debug, Parser)]
@@ -32,8 +32,8 @@ struct App {
 enum BuilderSubcommand {
     #[clap(name("data-element"))]
     DataElement(tags::DataElementApp),
-    #[clap(name("sop"))]
-    SopClass(sop::SopClassApp),
+    #[clap(name("uid"))]
+    Uid(uids::UidApp),
 }
 
 fn main() {
@@ -42,7 +42,19 @@ fn main() {
             command: BuilderSubcommand::DataElement(app),
         } => tags::run(app),
         App {
-            command: BuilderSubcommand::SopClass(app),
-        } => sop::run(app),
-    }.unwrap()
+            command: BuilderSubcommand::Uid(app),
+        } => uids::run(app),
+    }
+    .unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::App;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        App::command().debug_assert();
+    }
 }
