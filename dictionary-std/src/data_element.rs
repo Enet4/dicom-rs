@@ -1,3 +1,5 @@
+//! Data element dictionary implementation
+
 use crate::tags::ENTRIES;
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntryRef, TagRange::*};
 use dicom_core::header::Tag;
