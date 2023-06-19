@@ -470,6 +470,7 @@ dependencies = [
  "dicom-core",
  "dicom-dictionary-std",
  "dicom-object",
+ "dicom-test-files",
  "num-traits",
  "serde",
  "serde_json",

@@ -32,4 +32,6 @@
 
 mod ser;
 
-pub use crate::ser::{serialize_to_string, serialize_to_value};
+pub use crate::ser::{
+    serialize_file_to_string, serialize_file_to_value, serialize_to_string, serialize_to_value,
+};
