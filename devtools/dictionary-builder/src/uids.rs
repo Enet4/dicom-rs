@@ -27,7 +27,7 @@ const DEFAULT_LOCATION: &str =
 #[derive(Debug, Parser)]
 #[clap(name = "uids", alias = "uid")]
 pub struct UidApp {
-    /// Path or URL to the SOP class dictionary
+    /// Path or URL to the XML file containing the UID values tables
     #[clap(default_value(DEFAULT_LOCATION))]
     from: String,
 
