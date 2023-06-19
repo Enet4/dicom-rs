@@ -221,11 +221,12 @@ where
     }
     let mut f = BufWriter::new(File::create(&dest_path)?);
 
-    f.write_all(b"//! Automatically generated. Edit at your own risk.\n")?;
+    f.write_all(b"//! Data element tag declarations\n//!\n")?;
 
     for line in preamble.split('\n') {
-        writeln!(f, "//! {}", line)?;
+        writeln!(f, "//! {}\\", line)?;
     }
+    f.write_all(b"// Automatically generated. Edit at your own risk.\n")?;
 
     if matches!(retired_options, RetiredOptions::Include { deprecate: true }) {
         f.write_all(b"#![allow(deprecated)]\n")?;
@@ -278,8 +279,7 @@ where
     }
 
     f.write_all(
-        b"\n\n\
-    type E = DictionaryEntryRef<'static>;\n\n\
+        b"\ntype E = DataDictionaryEntryRef<'static>;\n\n\
     #[rustfmt::skip]\n\
     pub(crate) const ENTRIES: &[E] = &[\n",
     )?;

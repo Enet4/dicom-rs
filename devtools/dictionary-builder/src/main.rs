@@ -4,10 +4,10 @@
 //! ### How to use
 //!
 //! Run the application with one of the following subcommands:
-//! 
-//! - **`data-elements`** or **`tags`**: DICOM data element dictionary
-//! - **`sop`**: DICOM SOP class dictionary
-//! 
+//!
+//! - **`data-element`** or **`tags`**: DICOM data element dictionary
+//! - **`uid`** or **`uids`**: DICOM unique identifers dictionary
+//!
 //! It will automatically retrieve dictionary specifications
 //! from a credible source and output the result as a Rust code file
 //! or some other supported format.
@@ -32,7 +32,7 @@ struct App {
 enum BuilderSubcommand {
     #[clap(name("data-element"))]
     DataElement(tags::DataElementApp),
-    #[clap(name("uid"))]
+    #[clap(name("uids"))]
     Uid(uids::UidApp),
 }
 

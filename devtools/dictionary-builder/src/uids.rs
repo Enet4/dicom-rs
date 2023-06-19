@@ -1,7 +1,7 @@
 //! Dictionary builder for unique identifier (UID) entries.
 //!
 //! Currently includes all UIDs found in [PS3.6 table A-1][1].
-//! 
+//!
 //! [1]: https://dicom.nema.org/medical/dicom/current/output/chtml/part06/chapter_A.html#table_A-1
 
 use std::{
@@ -25,7 +25,7 @@ const DEFAULT_LOCATION: &str =
 
 /// Fetch and build a dictionary of DICOM unique identifiers
 #[derive(Debug, Parser)]
-#[clap(name = "uids")]
+#[clap(name = "uids", alias = "uid")]
 pub struct UidApp {
     /// Path or URL to the SOP class dictionary
     #[clap(default_value(DEFAULT_LOCATION))]
@@ -42,6 +42,10 @@ pub struct UidApp {
     /// Mark retired UIDs as deprecated
     #[clap(long)]
     deprecate_retired: bool,
+
+    /// Whether to gate different UID types on Cargo features
+    #[clap(long)]
+    feature_gate: bool,
 }
 
 pub fn run(app: UidApp) -> Result<()> {
@@ -50,6 +54,7 @@ pub fn run(app: UidApp) -> Result<()> {
         output,
         ignore_retired,
         deprecate_retired,
+        feature_gate,
     } = app;
 
     let src = from;
@@ -68,11 +73,11 @@ pub fn run(app: UidApp) -> Result<()> {
         std::fs::read_to_string(src)?
     };
 
-    // SOP classes
+    // collect all UID values
 
-    let sop_classes = retrieve_uid_values(&xml_data)?;
+    let entries = retrieve_uid_values(&xml_data)?;
 
-    to_code_file(dst, sop_classes, retired_options)?;
+    to_code_file(dst, entries, retired_options, feature_gate)?;
 
     Ok(())
 }
@@ -86,7 +91,7 @@ struct UidEntry {
     retired: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum UidType {
     SopClass,
     MetaSopClass,
@@ -295,6 +300,7 @@ fn to_code_file<P>(
     dest_path: P,
     entries: Vec<UidEntry>,
     retired_options: RetiredOptions,
+    feature_gate: bool,
 ) -> Result<()>
 where
     P: AsRef<Path>,
@@ -304,9 +310,10 @@ where
     }
     let mut f = BufWriter::new(File::create(&dest_path)?);
 
-    f.write_all(b"//! Automatically generated. Edit at your own risk.\n\n")?;
+    f.write_all(b"//! UID declarations\n")?;
+    f.write_all(b"// Automatically generated. Edit at your own risk.\n\n")?;
 
-    f.write_all(b"use dicom_core::dictionary::{UidEntryRef, UidType::*};\n")?;
+    f.write_all(b"use dicom_core::dictionary::{UidDictionaryEntryRef, UidType::*};\n")?;
 
     if matches!(retired_options, RetiredOptions::Include { deprecate: true }) {
         f.write_all(b"#![allow(deprecated)]\n")?;
@@ -345,21 +352,65 @@ where
 
     f.write_all(
         b"\n\
-    type E = UidEntryRef<'static>;\n\n\
-    #[rustfmt::skip]\n\
-    pub(crate) const ENTRIES: &[E] = &[\n",
+    type E = UidDictionaryEntryRef<'static>;\n",
     )?;
+
+    // define an array for each kind of UID
+    let listings = [
+        (UidType::SopClass, "SOP_CLASSES", "sop-class"),
+        (UidType::TransferSyntax, "TRANSFER_SYNTAXES", "transfer-syntax"),
+        (UidType::MetaSopClass, "META_SOP_CLASSES", "meta-sop-class"),
+        (UidType::WellKnownSopInstance, "WELL_KNOWN_SOP_INSTANCES", "well-known-sop-instance"),
+        (UidType::DicomUidsAsCodingScheme, "DICOM_UIDS_AS_CODING_SCHEMES", "dicom-uid-as-coding-scheme"),
+        (UidType::CodingScheme, "CODING_SCHEMES", "coding-scheme"),
+        (UidType::ApplicationContextName, "APPLICATION_CONTEXT_NAMES", "application-context-name"),
+        (UidType::ServiceClass, "SERVICE_CLASSES", "service-class"),
+        (UidType::ApplicationHostingModel, "APPLICATION_HOSTING_MODELS", "application-hosting-model"),
+        (UidType::MappingResource, "MAPPING_RESOURCES", "mapping-resource"),
+        (UidType::LdapOid, "LDAP_OIDS", "ldap-oid"),
+        (UidType::SynchronizationFrameOfReference, "SYNCHRONIZATION_FRAME_OF_REFERENCES", "synchronization-frame-of-reference"),
+    ];
+
+    for (typ, entries_name, feature_name) in listings {
+        write_entries(
+            &mut f,
+            entries_name,
+            if feature_gate {
+                Some(feature_name)
+            } else {
+                None
+            },
+            entries.iter().filter(|e| e.r#type == typ),
+        )?;
+    }
+
+    Ok(())
+}
+
+fn write_entries<'a>(
+    f: &mut BufWriter<impl Write>,
+    entries_name: &'static str,
+    feature_name: Option<&'static str>,
+    entries: impl IntoIterator<Item = &'a UidEntry>,
+) -> Result<()> {
+    f.write_all(
+        b"\n#[rustfmt::skip]\n",
+    )?;
+    if let Some(feature) = feature_name {
+        // conditionall include based on feature
+        writeln!(f, "#[cfg(feature = \"{feature}\")]")?;
+    }
+    writeln!(f, "pub(crate) const {entries_name}: &[E] = &[")?;
 
     for e in entries {
         let uid = e.uid.replace('"', "\\\"");
         let name = e.name.replace('"', "\\\"");
         let keyword = e.keyword.replace('"', "\\\"");
-        let end = if e.retired { " // RETIRED" } else { "" };
 
         writeln!(
             f,
-            "    E::new(\"{}\", \"{}\", \"{}\", {:?}),{}",
-            uid, name, keyword, e.r#type, end
+            "    E::new(\"{}\", \"{}\", \"{}\", {:?}, {}),",
+            uid, name, keyword, e.r#type, e.retired
         )?;
     }
 
