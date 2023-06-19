@@ -243,7 +243,7 @@ impl<I, P> DataElement<I, P>
 where
     I: HasLength,
 {
-    /// Create a primitive data element from the given parts,
+    /// Create a data element from the given parts,
     /// where the length is inferred from the value's byte length.
     ///
     /// If the value is textual,
