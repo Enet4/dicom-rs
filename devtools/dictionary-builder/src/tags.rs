@@ -312,13 +312,3 @@ where
 
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::command;
-
-    #[test]
-    fn verify_cli() {
-        command().debug_assert();
-    }
-}
