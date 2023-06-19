@@ -312,8 +312,7 @@ where
 
     f.write_all(b"//! UID declarations\n")?;
     f.write_all(b"// Automatically generated. Edit at your own risk.\n\n")?;
-
-    f.write_all(b"use dicom_core::dictionary::{UidDictionaryEntryRef, UidType::*};\n")?;
+    f.write_all(b"use dicom_core::dictionary::UidDictionaryEntryRef;\n")?;
 
     if matches!(retired_options, RetiredOptions::Include { deprecate: true }) {
         f.write_all(b"#![allow(deprecated)]\n")?;
@@ -352,6 +351,9 @@ where
 
     f.write_all(
         b"\n\
+    #[allow(dead_code)]\n
+    use dicom_core::dictionary::UidType::*;\n
+    #[allow(dead_code)]\n
     type E = UidDictionaryEntryRef<'static>;\n",
     )?;
 
