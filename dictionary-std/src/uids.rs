@@ -1329,13 +1329,10 @@ pub const ABSTRACT_MULTI_DIMENSIONAL_IMAGE_MODEL: &str = "1.2.840.10008.7.1.2";
 #[rustfmt::skip]
 pub const DICOM_CONTENT_MAPPING_RESOURCE: &str = "1.2.840.10008.8.1.1";
 
+#[allow(unused_imports)]
+use dicom_core::dictionary::UidType::*;
 #[allow(dead_code)]
-
-    use dicom_core::dictionary::UidType::*;
-
-    #[allow(dead_code)]
-
-    type E = UidDictionaryEntryRef<'static>;
+type E = UidDictionaryEntryRef<'static>;
 
 #[rustfmt::skip]
 #[cfg(feature = "sop-class")]

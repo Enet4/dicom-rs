@@ -349,13 +349,8 @@ where
         )?;
     }
 
-    f.write_all(
-        b"\n\
-    #[allow(dead_code)]\n
-    use dicom_core::dictionary::UidType::*;\n
-    #[allow(dead_code)]\n
-    type E = UidDictionaryEntryRef<'static>;\n",
-    )?;
+    f.write_all(b"\n#[allow(unused_imports)]\nuse dicom_core::dictionary::UidType::*;\n")?;
+    f.write_all(b"#[allow(dead_code)]\ntype E = UidDictionaryEntryRef<'static>;\n")?;
 
     // define an array for each kind of UID
     let listings = [
