@@ -313,7 +313,8 @@ pub enum WithMetaError {
     },
     /// Could not prepare file meta table
     PrepareMetaTable {
-        source: dicom_core::value::ConvertValueError,
+        #[snafu(source(from(dicom_core::value::ConvertValueError, Box::from)))]
+        source: Box<dicom_core::value::ConvertValueError>,
         backtrace: Backtrace,
     },
 }
