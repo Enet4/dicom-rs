@@ -23,7 +23,7 @@ use crate::{
     ReadPreambleBytesSnafu, ReadTokenSnafu, ReadUnsupportedTransferSyntaxSnafu,
     UnexpectedTokenSnafu, WithMetaError, WriteError,
 };
-use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
+use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
 use dicom_core::header::{HasLength, Header};
 use dicom_core::value::{DataSetSequence, PixelFragmentSequence, Value, ValueType, C};
 use dicom_core::{DataElement, Length, PrimitiveValue, Tag, VR};

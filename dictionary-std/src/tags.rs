@@ -5,7 +5,7 @@
 //! #  Copyright (C) 1994-2023, OFFIS e.V.
 #![allow(deprecated)]
 
-use dicom_core::dictionary::{DictionaryEntryRef, TagRange, TagRange::*};
+use dicom_core::dictionary::{DataDictionaryEntryRef, TagRange, TagRange::*};
 use dicom_core::Tag;
 use dicom_core::VR::*;
 
@@ -15849,7 +15849,7 @@ pub const SHIFT_TABLE_TRIPLET: Tag = Tag(0x1000, 0x0015);
 pub const ZONAL_MAP: Tag = Tag(0x1010, 0x0004);
 
 
-type E = DictionaryEntryRef<'static>;
+type E = DataDictionaryEntryRef<'static>;
 
 #[rustfmt::skip]
 pub(crate) const ENTRIES: &[E] = &[

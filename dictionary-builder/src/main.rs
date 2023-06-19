@@ -1,5 +1,5 @@
-//! A simple application that downloads the data dictionary and creates code or
-//! data to reproduce it in the core library.
+//! A simple application that downloads the data element dictionary
+//! and creates code or data to reproduce it in the core library.
 //!
 //! ### How to use
 //!
@@ -265,7 +265,7 @@ where
 
     f.write_all(
         b"\n\
-    use dicom_core::dictionary::{DictionaryEntryRef, TagRange, TagRange::*};\n\
+    use dicom_core::dictionary::{DataDictionaryEntryRef, TagRange, TagRange::*};\n\
     use dicom_core::Tag;\n\
     use dicom_core::VR::*;\n\n",
     )?;

@@ -1,6 +1,6 @@
 //! This module contains the concept of a DICOM data dictionary.
 //!
-//! The standard data dictionary is available in the `dicom-std-dict` crate.
+//! The standard data dictionary is available in the [`dicom-dictionary-std`] crate.
 
 pub mod stub;
 
@@ -149,7 +149,7 @@ impl FromStr for TagRange {
  */
 pub trait DataDictionary {
     /// The type of the dictionary entry.
-    type Entry: DictionaryEntry;
+    type Entry: DataDictionaryEntry;
 
     /// Fetch an entry by its usual alias (e.g. "PatientName" or "SOPInstanceUID").
     /// Aliases (or keyword)
@@ -221,8 +221,9 @@ pub trait DataDictionary {
     }
 }
 
-/// The dictionary entry data type, representing a DICOM attribute.
-pub trait DictionaryEntry {
+/// The data element dictionary entry type,
+/// representing a DICOM attribute.
+pub trait DataDictionaryEntry {
     /// The full possible tag range of the atribute,
     /// which this dictionary entry can represent.
     fn tag_range(&self) -> TagRange;
@@ -244,7 +245,7 @@ pub trait DictionaryEntry {
 
 /// A data type for a dictionary entry with full ownership.
 #[derive(Debug, PartialEq, Clone)]
-pub struct DictionaryEntryBuf {
+pub struct DataDictionaryEntryBuf {
     /// The attribute tag range
     pub tag: TagRange,
     /// The alias of the attribute, with no spaces, usually InCapitalizedCamelCase
@@ -253,7 +254,7 @@ pub struct DictionaryEntryBuf {
     pub vr: VR,
 }
 
-impl DictionaryEntry for DictionaryEntryBuf {
+impl DataDictionaryEntry for DataDictionaryEntryBuf {
     fn tag_range(&self) -> TagRange {
         self.tag
     }
@@ -267,7 +268,7 @@ impl DictionaryEntry for DictionaryEntryBuf {
 
 /// A data type for a dictionary entry with a string slice for its alias.
 #[derive(Debug, PartialEq, Clone)]
-pub struct DictionaryEntryRef<'a> {
+pub struct DataDictionaryEntryRef<'a> {
     /// The attribute tag or tag range
     pub tag: TagRange,
     /// The alias of the attribute, with no spaces, usually InCapitalizedCamelCase
@@ -276,7 +277,7 @@ pub struct DictionaryEntryRef<'a> {
     pub vr: VR,
 }
 
-impl<'a> DictionaryEntry for DictionaryEntryRef<'a> {
+impl<'a> DataDictionaryEntry for DataDictionaryEntryRef<'a> {
     fn tag_range(&self) -> TagRange {
         self.tag
     }

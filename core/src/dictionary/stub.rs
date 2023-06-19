@@ -1,6 +1,6 @@
 //! This module contains a stub dictionary.
 
-use super::{DataDictionary, DictionaryEntryRef};
+use super::{DataDictionary, DataDictionaryEntryRef};
 use crate::header::Tag;
 
 /// An empty attribute dictionary.
@@ -8,34 +8,34 @@ use crate::header::Tag;
 pub struct StubDataDictionary;
 
 impl DataDictionary for StubDataDictionary {
-    type Entry = DictionaryEntryRef<'static>;
-    fn by_name(&self, _: &str) -> Option<&DictionaryEntryRef<'static>> {
+    type Entry = DataDictionaryEntryRef<'static>;
+    fn by_name(&self, _: &str) -> Option<&DataDictionaryEntryRef<'static>> {
         None
     }
 
-    fn by_tag(&self, _: Tag) -> Option<&DictionaryEntryRef<'static>> {
+    fn by_tag(&self, _: Tag) -> Option<&DataDictionaryEntryRef<'static>> {
         None
     }
 }
 
 impl<'a> DataDictionary for &'a StubDataDictionary {
-    type Entry = DictionaryEntryRef<'static>;
-    fn by_name(&self, _: &str) -> Option<&DictionaryEntryRef<'static>> {
+    type Entry = DataDictionaryEntryRef<'static>;
+    fn by_name(&self, _: &str) -> Option<&DataDictionaryEntryRef<'static>> {
         None
     }
 
-    fn by_tag(&self, _: Tag) -> Option<&DictionaryEntryRef<'static>> {
+    fn by_tag(&self, _: Tag) -> Option<&DataDictionaryEntryRef<'static>> {
         None
     }
 }
 
 impl DataDictionary for Box<StubDataDictionary> {
-    type Entry = DictionaryEntryRef<'static>;
-    fn by_name(&self, _: &str) -> Option<&DictionaryEntryRef<'static>> {
+    type Entry = DataDictionaryEntryRef<'static>;
+    fn by_name(&self, _: &str) -> Option<&DataDictionaryEntryRef<'static>> {
         None
     }
 
-    fn by_tag(&self, _: Tag) -> Option<&DictionaryEntryRef<'static>> {
+    fn by_tag(&self, _: Tag) -> Option<&DataDictionaryEntryRef<'static>> {
         None
     }
 }

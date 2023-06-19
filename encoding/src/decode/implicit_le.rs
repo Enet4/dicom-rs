@@ -3,7 +3,7 @@
 use crate::decode::basic::LittleEndianBasicDecoder;
 use crate::decode::*;
 use byteordered::byteorder::{ByteOrder, LittleEndian};
-use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
+use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
 use dicom_core::header::{DataElementHeader, Length, SequenceItemHeader};
 use dicom_core::{Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;

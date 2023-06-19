@@ -32,7 +32,7 @@
 //! options.width(100).dump_file(&obj)?;
 //! # Result::<(), Box<dyn std::error::Error>>::Ok(())
 //! ```
-use dicom_core::dictionary::{DataDictionary, DictionaryEntry};
+use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
 use dicom_core::header::Header;
 use dicom_core::value::{PrimitiveValue, Value as DicomValue};
 use dicom_core::VR;
@@ -540,7 +540,7 @@ where
     let indent = vec![b' '; (depth * 2) as usize];
     let tag_alias = StandardDataDictionary
         .by_tag(elem.tag())
-        .map(DictionaryEntry::alias)
+        .map(DataDictionaryEntry::alias)
         .unwrap_or("«Unknown Attribute»");
     to.write_all(&indent)?;
     let vm = match elem.vr() {
