@@ -333,7 +333,7 @@ where
                 }
             )
         {
-            writeln!(f, "#[deprecated(note = \"DICOM UID is retired\")]")?;
+            writeln!(f, "#[deprecated(note = \"Retired DICOM UID\")]")?;
         }
         writeln!(
             f,
