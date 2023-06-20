@@ -1,8 +1,8 @@
 //! UID declarations
 // Automatically generated. Edit at your own risk.
+#![allow(deprecated)]
 
 use dicom_core::dictionary::UidDictionaryEntryRef;
-#![allow(deprecated)]
 /// SOP Class: Verification SOP Class
 #[rustfmt::skip]
 pub const VERIFICATION: &str = "1.2.840.10008.1.1";

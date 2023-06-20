@@ -311,12 +311,13 @@ where
     let mut f = BufWriter::new(File::create(&dest_path)?);
 
     f.write_all(b"//! UID declarations\n")?;
-    f.write_all(b"// Automatically generated. Edit at your own risk.\n\n")?;
-    f.write_all(b"use dicom_core::dictionary::UidDictionaryEntryRef;\n")?;
+    f.write_all(b"// Automatically generated. Edit at your own risk.\n")?;
 
     if matches!(retired_options, RetiredOptions::Include { deprecate: true }) {
         f.write_all(b"#![allow(deprecated)]\n")?;
     }
+
+    f.write_all(b"\nuse dicom_core::dictionary::UidDictionaryEntryRef;\n")?;
 
     for e in &entries {
         if e.retired && retired_options == RetiredOptions::Ignore {
