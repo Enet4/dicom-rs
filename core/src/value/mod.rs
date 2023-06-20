@@ -6,6 +6,7 @@ use smallvec::SmallVec;
 use std::{borrow::Cow, str::FromStr};
 
 pub mod deserialize;
+pub mod fragments;
 pub mod partial;
 pub mod person_name;
 mod primitive;
