@@ -2,6 +2,7 @@
 // Automatically generated. Edit at your own risk.
 
 use dicom_core::dictionary::UidDictionaryEntryRef;
+#![allow(deprecated)]
 /// SOP Class: Verification SOP Class
 #[rustfmt::skip]
 pub const VERIFICATION: &str = "1.2.840.10008.1.1";
@@ -17,7 +18,8 @@ pub const ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN: &str = "1.2.840.1
 /// Transfer Syntax: Deflated Explicit VR Little Endian
 #[rustfmt::skip]
 pub const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN: &str = "1.2.840.10008.1.2.1.99";
-/// Transfer Syntax: Explicit VR Big Endian (Retired) (RETIRED)
+/// Transfer Syntax: Explicit VR Big Endian (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const EXPLICIT_VR_BIG_ENDIAN: &str = "1.2.840.10008.1.2.2";
 /// Transfer Syntax: MPEG2 Main Profile / Main Level
@@ -74,49 +76,63 @@ pub const JPEG_BASELINE8_BIT: &str = "1.2.840.10008.1.2.4.50";
 /// Transfer Syntax: JPEG Extended (Process 2
 #[rustfmt::skip]
 pub const JPEG_EXTENDED12_BIT: &str = "1.2.840.10008.1.2.4.51";
-/// Transfer Syntax: JPEG Extended (Process 3 (RETIRED)
+/// Transfer Syntax: JPEG Extended (Process 3
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const JPEG_EXTENDED35: &str = "1.2.840.10008.1.2.4.52";
-/// Transfer Syntax: JPEG Spectral Selection, Non-Hierarchical (Process 6 (RETIRED)
+/// Transfer Syntax: JPEG Spectral Selection, Non-Hierarchical (Process 6
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const JPEG_SPECTRAL_SELECTION_NON_HIERARCHICAL68: &str = "1.2.840.10008.1.2.4.53";
-/// Transfer Syntax: JPEG Spectral Selection, Non-Hierarchical (Process 7 (RETIRED)
+/// Transfer Syntax: JPEG Spectral Selection, Non-Hierarchical (Process 7
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const JPEG_SPECTRAL_SELECTION_NON_HIERARCHICAL79: &str = "1.2.840.10008.1.2.4.54";
-/// Transfer Syntax: JPEG Full Progression, Non-Hierarchical (Process 10 (RETIRED)
+/// Transfer Syntax: JPEG Full Progression, Non-Hierarchical (Process 10
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const JPEG_FULL_PROGRESSION_NON_HIERARCHICAL1012: &str = "1.2.840.10008.1.2.4.55";
-/// Transfer Syntax: JPEG Full Progression, Non-Hierarchical (Process 11 (RETIRED)
+/// Transfer Syntax: JPEG Full Progression, Non-Hierarchical (Process 11
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const JPEG_FULL_PROGRESSION_NON_HIERARCHICAL1113: &str = "1.2.840.10008.1.2.4.56";
 /// Transfer Syntax: JPEG Lossless, Non-Hierarchical (Process 14)
 #[rustfmt::skip]
 pub const JPEG_LOSSLESS: &str = "1.2.840.10008.1.2.4.57";
-/// Transfer Syntax: JPEG Lossless, Non-Hierarchical (Process 15) (Retired) (RETIRED)
+/// Transfer Syntax: JPEG Lossless, Non-Hierarchical (Process 15) (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const JPEG_LOSSLESS_NON_HIERARCHICAL15: &str = "1.2.840.10008.1.2.4.58";
-/// Transfer Syntax: JPEG Extended, Hierarchical (Process 16 (RETIRED)
+/// Transfer Syntax: JPEG Extended, Hierarchical (Process 16
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const JPEG_EXTENDED_HIERARCHICAL1618: &str = "1.2.840.10008.1.2.4.59";
-/// Transfer Syntax: JPEG Extended, Hierarchical (Process 17 (RETIRED)
+/// Transfer Syntax: JPEG Extended, Hierarchical (Process 17
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const JPEG_EXTENDED_HIERARCHICAL1719: &str = "1.2.840.10008.1.2.4.60";
-/// Transfer Syntax: JPEG Spectral Selection, Hierarchical (Process 20 (RETIRED)
+/// Transfer Syntax: JPEG Spectral Selection, Hierarchical (Process 20
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const JPEG_SPECTRAL_SELECTION_HIERARCHICAL2022: &str = "1.2.840.10008.1.2.4.61";
-/// Transfer Syntax: JPEG Spectral Selection, Hierarchical (Process 21 (RETIRED)
+/// Transfer Syntax: JPEG Spectral Selection, Hierarchical (Process 21
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const JPEG_SPECTRAL_SELECTION_HIERARCHICAL2123: &str = "1.2.840.10008.1.2.4.62";
-/// Transfer Syntax: JPEG Full Progression, Hierarchical (Process 24 (RETIRED)
+/// Transfer Syntax: JPEG Full Progression, Hierarchical (Process 24
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const JPEG_FULL_PROGRESSION_HIERARCHICAL2426: &str = "1.2.840.10008.1.2.4.63";
-/// Transfer Syntax: JPEG Full Progression, Hierarchical (Process 25 (RETIRED)
+/// Transfer Syntax: JPEG Full Progression, Hierarchical (Process 25
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const JPEG_FULL_PROGRESSION_HIERARCHICAL2527: &str = "1.2.840.10008.1.2.4.64";
-/// Transfer Syntax: JPEG Lossless, Hierarchical (Process 28) (Retired) (RETIRED)
+/// Transfer Syntax: JPEG Lossless, Hierarchical (Process 28) (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const JPEG_LOSSLESS_HIERARCHICAL28: &str = "1.2.840.10008.1.2.4.65";
-/// Transfer Syntax: JPEG Lossless, Hierarchical (Process 29) (Retired) (RETIRED)
+/// Transfer Syntax: JPEG Lossless, Hierarchical (Process 29) (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const JPEG_LOSSLESS_HIERARCHICAL29: &str = "1.2.840.10008.1.2.4.66";
 /// Transfer Syntax: JPEG Lossless, Non-Hierarchical, First-Order Prediction (Process 14 [Selection Value 1]): Default Transfer Syntax for Lossless JPEG Image Compression
@@ -149,10 +165,12 @@ pub const JPIP_REFERENCED_DEFLATE: &str = "1.2.840.10008.1.2.4.95";
 /// Transfer Syntax: RLE Lossless
 #[rustfmt::skip]
 pub const RLE_LOSSLESS: &str = "1.2.840.10008.1.2.5";
-/// Transfer Syntax: RFC 2557 MIME encapsulation (Retired) (RETIRED)
+/// Transfer Syntax: RFC 2557 MIME encapsulation (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const RFC2557MIME_ENCAPSULATION: &str = "1.2.840.10008.1.2.6.1";
-/// Transfer Syntax: XML Encoding (Retired) (RETIRED)
+/// Transfer Syntax: XML Encoding (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const XML_ENCODING: &str = "1.2.840.10008.1.2.6.2";
 /// Transfer Syntax: SMPTE ST 2110-20 Uncompressed Progressive Active Video
@@ -164,7 +182,8 @@ pub const SMPTEST211020_UNCOMPRESSED_INTERLACED_ACTIVE_VIDEO: &str = "1.2.840.10
 /// Transfer Syntax: SMPTE ST 2110-30 PCM Digital Audio
 #[rustfmt::skip]
 pub const SMPTEST211030PCM_DIGITAL_AUDIO: &str = "1.2.840.10008.1.2.7.3";
-/// Transfer Syntax: Papyrus 3 Implicit VR Little Endian (Retired) (RETIRED)
+/// Transfer Syntax: Papyrus 3 Implicit VR Little Endian (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const PAPYRUS3_IMPLICIT_VR_LITTLE_ENDIAN: &str = "1.2.840.10008.1.20";
 /// SOP Class: Storage Commitment Push Model SOP Class
@@ -173,10 +192,12 @@ pub const STORAGE_COMMITMENT_PUSH_MODEL: &str = "1.2.840.10008.1.20.1";
 /// Well-known SOP Instance: Storage Commitment Push Model SOP Instance
 #[rustfmt::skip]
 pub const STORAGE_COMMITMENT_PUSH_MODEL_INSTANCE: &str = "1.2.840.10008.1.20.1.1";
-/// SOP Class: Storage Commitment Pull Model SOP Class (Retired) (RETIRED)
+/// SOP Class: Storage Commitment Pull Model SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const STORAGE_COMMITMENT_PULL_MODEL: &str = "1.2.840.10008.1.20.2";
-/// Well-known SOP Instance: Storage Commitment Pull Model SOP Instance (Retired) (RETIRED)
+/// Well-known SOP Instance: Storage Commitment Pull Model SOP Instance (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const STORAGE_COMMITMENT_PULL_MODEL_INSTANCE: &str = "1.2.840.10008.1.20.2.1";
 /// SOP Class: Media Storage Directory Storage
@@ -218,7 +239,8 @@ pub const FALL_PALETTE: &str = "1.2.840.10008.1.5.7";
 /// Well-known SOP Instance: Winter Color Palette SOP Instance
 #[rustfmt::skip]
 pub const WINTER_PALETTE: &str = "1.2.840.10008.1.5.8";
-/// SOP Class: Basic Study Content Notification SOP Class (Retired) (RETIRED)
+/// SOP Class: Basic Study Content Notification SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const BASIC_STUDY_CONTENT_NOTIFICATION: &str = "1.2.840.10008.1.9";
 /// SOP Class: Video Endoscopic Image Real-Time Communication
@@ -404,19 +426,24 @@ pub const DCMUID: &str = "1.2.840.10008.2.6.1";
 /// Application Context Name: DICOM Application Context Name
 #[rustfmt::skip]
 pub const DICOM_APPLICATION_CONTEXT: &str = "1.2.840.10008.3.1.1.1";
-/// SOP Class: Detached Patient Management SOP Class (Retired) (RETIRED)
+/// SOP Class: Detached Patient Management SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const DETACHED_PATIENT_MANAGEMENT: &str = "1.2.840.10008.3.1.2.1.1";
-/// Meta SOP Class: Detached Patient Management Meta SOP Class (Retired) (RETIRED)
+/// Meta SOP Class: Detached Patient Management Meta SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const DETACHED_PATIENT_MANAGEMENT_META: &str = "1.2.840.10008.3.1.2.1.4";
-/// SOP Class: Detached Visit Management SOP Class (Retired) (RETIRED)
+/// SOP Class: Detached Visit Management SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const DETACHED_VISIT_MANAGEMENT: &str = "1.2.840.10008.3.1.2.2.1";
-/// SOP Class: Detached Study Management SOP Class (Retired) (RETIRED)
+/// SOP Class: Detached Study Management SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const DETACHED_STUDY_MANAGEMENT: &str = "1.2.840.10008.3.1.2.3.1";
-/// SOP Class: Study Component Management SOP Class (Retired) (RETIRED)
+/// SOP Class: Study Component Management SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const STUDY_COMPONENT_MANAGEMENT: &str = "1.2.840.10008.3.1.2.3.2";
 /// SOP Class: Modality Performed Procedure Step SOP Class
@@ -428,16 +455,20 @@ pub const MODALITY_PERFORMED_PROCEDURE_STEP_RETRIEVE: &str = "1.2.840.10008.3.1.
 /// SOP Class: Modality Performed Procedure Step Notification SOP Class
 #[rustfmt::skip]
 pub const MODALITY_PERFORMED_PROCEDURE_STEP_NOTIFICATION: &str = "1.2.840.10008.3.1.2.3.5";
-/// SOP Class: Detached Results Management SOP Class (Retired) (RETIRED)
+/// SOP Class: Detached Results Management SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const DETACHED_RESULTS_MANAGEMENT: &str = "1.2.840.10008.3.1.2.5.1";
-/// Meta SOP Class: Detached Results Management Meta SOP Class (Retired) (RETIRED)
+/// Meta SOP Class: Detached Results Management Meta SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const DETACHED_RESULTS_MANAGEMENT_META: &str = "1.2.840.10008.3.1.2.5.4";
-/// Meta SOP Class: Detached Study Management Meta SOP Class (Retired) (RETIRED)
+/// Meta SOP Class: Detached Study Management Meta SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const DETACHED_STUDY_MANAGEMENT_META: &str = "1.2.840.10008.3.1.2.5.5";
-/// SOP Class: Detached Interpretation Management SOP Class (Retired) (RETIRED)
+/// SOP Class: Detached Interpretation Management SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const DETACHED_INTERPRETATION_MANAGEMENT: &str = "1.2.840.10008.3.1.2.6.1";
 /// Service Class: Storage Service Class
@@ -467,7 +498,8 @@ pub const PRINTER_CONFIGURATION_RETRIEVAL_INSTANCE: &str = "1.2.840.10008.5.1.1.
 /// Meta SOP Class: Basic Color Print Management Meta SOP Class
 #[rustfmt::skip]
 pub const BASIC_COLOR_PRINT_MANAGEMENT_META: &str = "1.2.840.10008.5.1.1.18";
-/// Meta SOP Class: Referenced Color Print Management Meta SOP Class (Retired) (RETIRED)
+/// Meta SOP Class: Referenced Color Print Management Meta SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const REFERENCED_COLOR_PRINT_MANAGEMENT_META: &str = "1.2.840.10008.5.1.1.18.1";
 /// SOP Class: Basic Film Box SOP Class
@@ -479,31 +511,40 @@ pub const VOILUT_BOX: &str = "1.2.840.10008.5.1.1.22";
 /// SOP Class: Presentation LUT SOP Class
 #[rustfmt::skip]
 pub const PRESENTATION_LUT: &str = "1.2.840.10008.5.1.1.23";
-/// SOP Class: Image Overlay Box SOP Class (Retired) (RETIRED)
+/// SOP Class: Image Overlay Box SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const IMAGE_OVERLAY_BOX: &str = "1.2.840.10008.5.1.1.24";
-/// SOP Class: Basic Print Image Overlay Box SOP Class (Retired) (RETIRED)
+/// SOP Class: Basic Print Image Overlay Box SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const BASIC_PRINT_IMAGE_OVERLAY_BOX: &str = "1.2.840.10008.5.1.1.24.1";
-/// Well-known SOP Instance: Print Queue SOP Instance (Retired) (RETIRED)
+/// Well-known SOP Instance: Print Queue SOP Instance (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const PRINT_QUEUE_INSTANCE: &str = "1.2.840.10008.5.1.1.25";
-/// SOP Class: Print Queue Management SOP Class (Retired) (RETIRED)
+/// SOP Class: Print Queue Management SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const PRINT_QUEUE_MANAGEMENT: &str = "1.2.840.10008.5.1.1.26";
-/// SOP Class: Stored Print Storage SOP Class (Retired) (RETIRED)
+/// SOP Class: Stored Print Storage SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const STORED_PRINT_STORAGE: &str = "1.2.840.10008.5.1.1.27";
-/// SOP Class: Hardcopy Grayscale Image Storage SOP Class (Retired) (RETIRED)
+/// SOP Class: Hardcopy Grayscale Image Storage SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const HARDCOPY_GRAYSCALE_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.1.29";
-/// SOP Class: Hardcopy Color Image Storage SOP Class (Retired) (RETIRED)
+/// SOP Class: Hardcopy Color Image Storage SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const HARDCOPY_COLOR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.1.30";
-/// SOP Class: Pull Print Request SOP Class (Retired) (RETIRED)
+/// SOP Class: Pull Print Request SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const PULL_PRINT_REQUEST: &str = "1.2.840.10008.5.1.1.31";
-/// Meta SOP Class: Pull Stored Print Management Meta SOP Class (Retired) (RETIRED)
+/// Meta SOP Class: Pull Stored Print Management Meta SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const PULL_STORED_PRINT_MANAGEMENT_META: &str = "1.2.840.10008.5.1.1.32";
 /// SOP Class: Media Creation Management SOP Class UID
@@ -515,7 +556,8 @@ pub const BASIC_GRAYSCALE_IMAGE_BOX: &str = "1.2.840.10008.5.1.1.4";
 /// SOP Class: Basic Color Image Box SOP Class
 #[rustfmt::skip]
 pub const BASIC_COLOR_IMAGE_BOX: &str = "1.2.840.10008.5.1.1.4.1";
-/// SOP Class: Referenced Image Box SOP Class (Retired) (RETIRED)
+/// SOP Class: Referenced Image Box SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const REFERENCED_IMAGE_BOX: &str = "1.2.840.10008.5.1.1.4.2";
 /// SOP Class: Display System SOP Class
@@ -527,7 +569,8 @@ pub const DISPLAY_SYSTEM_INSTANCE: &str = "1.2.840.10008.5.1.1.40.1";
 /// Meta SOP Class: Basic Grayscale Print Management Meta SOP Class
 #[rustfmt::skip]
 pub const BASIC_GRAYSCALE_PRINT_MANAGEMENT_META: &str = "1.2.840.10008.5.1.1.9";
-/// Meta SOP Class: Referenced Grayscale Print Management Meta SOP Class (Retired) (RETIRED)
+/// Meta SOP Class: Referenced Grayscale Print Management Meta SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const REFERENCED_GRAYSCALE_PRINT_MANAGEMENT_META: &str = "1.2.840.10008.5.1.1.9.1";
 /// SOP Class: Computed Radiography Image Storage
@@ -551,7 +594,8 @@ pub const DIGITAL_INTRA_ORAL_X_RAY_IMAGE_STORAGE_FOR_PRESENTATION: &str = "1.2.8
 /// SOP Class: Digital Intra-Oral X-Ray Image Storage - For Processing
 #[rustfmt::skip]
 pub const DIGITAL_INTRA_ORAL_X_RAY_IMAGE_STORAGE_FOR_PROCESSING: &str = "1.2.840.10008.5.1.4.1.1.1.3.1";
-/// SOP Class: Standalone Modality LUT Storage (Retired) (RETIRED)
+/// SOP Class: Standalone Modality LUT Storage (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const STANDALONE_MODALITY_LUT_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.10";
 /// SOP Class: Encapsulated PDF Storage
@@ -569,7 +613,8 @@ pub const ENCAPSULATED_OBJ_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.104.4";
 /// SOP Class: Encapsulated MTL Storage
 #[rustfmt::skip]
 pub const ENCAPSULATED_MTL_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.104.5";
-/// SOP Class: Standalone VOI LUT Storage (Retired) (RETIRED)
+/// SOP Class: Standalone VOI LUT Storage (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const STANDALONE_VOILUT_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.11";
 /// SOP Class: Grayscale Softcopy Presentation State Storage
@@ -620,7 +665,8 @@ pub const X_RAY_RADIOFLUOROSCOPIC_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1
 /// SOP Class: Enhanced XRF Image Storage
 #[rustfmt::skip]
 pub const ENHANCED_XRF_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.12.2.1";
-/// SOP Class: X-Ray Angiographic Bi-Plane Image Storage (Retired) (RETIRED)
+/// SOP Class: X-Ray Angiographic Bi-Plane Image Storage (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const X_RAY_ANGIOGRAPHIC_BI_PLANE_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.12.3";
 /// SOP Class: Positron Emission Tomography Image Storage
@@ -629,7 +675,8 @@ pub const POSITRON_EMISSION_TOMOGRAPHY_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.
 /// SOP Class: Legacy Converted Enhanced PET Image Storage
 #[rustfmt::skip]
 pub const LEGACY_CONVERTED_ENHANCED_PET_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.128.1";
-/// SOP Class: Standalone PET Curve Storage (Retired) (RETIRED)
+/// SOP Class: Standalone PET Curve Storage (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const STANDALONE_PET_CURVE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.129";
 /// SOP Class: X-Ray 3D Angiographic Image Storage
@@ -716,7 +763,8 @@ pub const INVENTORY_CREATION: &str = "1.2.840.10008.5.1.4.1.1.201.5";
 /// SOP Class: Repository Query
 #[rustfmt::skip]
 pub const REPOSITORY_QUERY: &str = "1.2.840.10008.5.1.4.1.1.201.6";
-/// SOP Class: Ultrasound Multi-frame Image Storage (Retired) (RETIRED)
+/// SOP Class: Ultrasound Multi-frame Image Storage (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const ULTRASOUND_MULTI_FRAME_IMAGE_STORAGE_RETIRED: &str = "1.2.840.10008.5.1.4.1.1.3";
 /// SOP Class: Ultrasound Multi-frame Image Storage
@@ -815,7 +863,8 @@ pub const RT_ION_PLAN_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.481.8";
 /// SOP Class: RT Ion Beams Treatment Record Storage
 #[rustfmt::skip]
 pub const RT_ION_BEAMS_TREATMENT_RECORD_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.481.9";
-/// SOP Class: Nuclear Medicine Image Storage (Retired) (RETIRED)
+/// SOP Class: Nuclear Medicine Image Storage (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const NUCLEAR_MEDICINE_IMAGE_STORAGE_RETIRED: &str = "1.2.840.10008.5.1.4.1.1.5";
 /// SOP Class: DICOS CT Image Storage
@@ -839,7 +888,8 @@ pub const DICOS3DAIT_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.501.5";
 /// SOP Class: DICOS Quadrupole Resonance (QR) Storage
 #[rustfmt::skip]
 pub const DICOS_QUADRUPOLE_RESONANCE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.501.6";
-/// SOP Class: Ultrasound Image Storage (Retired) (RETIRED)
+/// SOP Class: Ultrasound Image Storage (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const ULTRASOUND_IMAGE_STORAGE_RETIRED: &str = "1.2.840.10008.5.1.4.1.1.6";
 /// SOP Class: Ultrasound Image Storage
@@ -899,7 +949,8 @@ pub const MULTI_FRAME_GRAYSCALE_WORD_SECONDARY_CAPTURE_IMAGE_STORAGE: &str = "1.
 /// SOP Class: Multi-frame True Color Secondary Capture Image Storage
 #[rustfmt::skip]
 pub const MULTI_FRAME_TRUE_COLOR_SECONDARY_CAPTURE_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.7.4";
-/// SOP Class: VL Image Storage - Trial (Retired) (RETIRED)
+/// SOP Class: VL Image Storage - Trial (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const VL_IMAGE_STORAGE_TRIAL: &str = "1.2.840.10008.5.1.4.1.1.77.1";
 /// SOP Class: VL Endoscopic Image Storage
@@ -953,7 +1004,8 @@ pub const VL_WHOLE_SLIDE_MICROSCOPY_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1
 /// SOP Class: Dermoscopic Photography Image Storage
 #[rustfmt::skip]
 pub const DERMOSCOPIC_PHOTOGRAPHY_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.77.1.7";
-/// SOP Class: VL Multi-frame Image Storage - Trial (Retired) (RETIRED)
+/// SOP Class: VL Multi-frame Image Storage - Trial (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const VL_MULTI_FRAME_IMAGE_STORAGE_TRIAL: &str = "1.2.840.10008.5.1.4.1.1.77.2";
 /// SOP Class: Lensometry Measurements Storage
@@ -983,7 +1035,8 @@ pub const INTRAOCULAR_LENS_CALCULATIONS_STORAGE: &str = "1.2.840.10008.5.1.4.1.1
 /// SOP Class: Macular Grid Thickness and Volume Report Storage
 #[rustfmt::skip]
 pub const MACULAR_GRID_THICKNESS_AND_VOLUME_REPORT_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.79.1";
-/// SOP Class: Standalone Overlay Storage (Retired) (RETIRED)
+/// SOP Class: Standalone Overlay Storage (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const STANDALONE_OVERLAY_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.8";
 /// SOP Class: Ophthalmic Visual Field Static Perimetry Measurements Storage
@@ -995,19 +1048,22 @@ pub const OPHTHALMIC_THICKNESS_MAP_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.81.1
 /// SOP Class: Corneal Topography Map Storage
 #[rustfmt::skip]
 pub const CORNEAL_TOPOGRAPHY_MAP_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.82.1";
-/// SOP Class: Text SR Storage - Trial (Retired) (RETIRED)
+/// SOP Class: Text SR Storage - Trial (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const TEXT_SR_STORAGE_TRIAL: &str = "1.2.840.10008.5.1.4.1.1.88.1";
 /// SOP Class: Basic Text SR Storage
 #[rustfmt::skip]
 pub const BASIC_TEXT_SR_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.88.11";
-/// SOP Class: Audio SR Storage - Trial (Retired) (RETIRED)
+/// SOP Class: Audio SR Storage - Trial (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const AUDIO_SR_STORAGE_TRIAL: &str = "1.2.840.10008.5.1.4.1.1.88.2";
 /// SOP Class: Enhanced SR Storage
 #[rustfmt::skip]
 pub const ENHANCED_SR_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.88.22";
-/// SOP Class: Detail SR Storage - Trial (Retired) (RETIRED)
+/// SOP Class: Detail SR Storage - Trial (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const DETAIL_SR_STORAGE_TRIAL: &str = "1.2.840.10008.5.1.4.1.1.88.3";
 /// SOP Class: Comprehensive SR Storage
@@ -1019,7 +1075,8 @@ pub const COMPREHENSIVE3_DSR_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.88.34";
 /// SOP Class: Extensible SR Storage
 #[rustfmt::skip]
 pub const EXTENSIBLE_SR_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.88.35";
-/// SOP Class: Comprehensive SR Storage - Trial (Retired) (RETIRED)
+/// SOP Class: Comprehensive SR Storage - Trial (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const COMPREHENSIVE_SR_STORAGE_TRIAL: &str = "1.2.840.10008.5.1.4.1.1.88.4";
 /// SOP Class: Procedure Log Storage
@@ -1064,10 +1121,12 @@ pub const PERFORMED_IMAGING_AGENT_ADMINISTRATION_SR_STORAGE: &str = "1.2.840.100
 /// SOP Class: Enhanced X-Ray Radiation Dose SR Storage
 #[rustfmt::skip]
 pub const ENHANCED_X_RAY_RADIATION_DOSE_SR_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.88.76";
-/// SOP Class: Standalone Curve Storage (Retired) (RETIRED)
+/// SOP Class: Standalone Curve Storage (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const STANDALONE_CURVE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.9";
-/// SOP Class: Waveform Storage - Trial (Retired) (RETIRED)
+/// SOP Class: Waveform Storage - Trial (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const WAVEFORM_STORAGE_TRIAL: &str = "1.2.840.10008.5.1.4.1.1.9.1";
 /// SOP Class: 12-lead ECG Waveform Storage
@@ -1139,13 +1198,16 @@ pub const STUDY_ROOT_QUERY_RETRIEVE_INFORMATION_MODEL_MOVE: &str = "1.2.840.1000
 /// SOP Class: Study Root Query/Retrieve Information Model - GET
 #[rustfmt::skip]
 pub const STUDY_ROOT_QUERY_RETRIEVE_INFORMATION_MODEL_GET: &str = "1.2.840.10008.5.1.4.1.2.2.3";
-/// SOP Class: Patient/Study Only Query/Retrieve Information Model - FIND (Retired) (RETIRED)
+/// SOP Class: Patient/Study Only Query/Retrieve Information Model - FIND (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const PATIENT_STUDY_ONLY_QUERY_RETRIEVE_INFORMATION_MODEL_FIND: &str = "1.2.840.10008.5.1.4.1.2.3.1";
-/// SOP Class: Patient/Study Only Query/Retrieve Information Model - MOVE (Retired) (RETIRED)
+/// SOP Class: Patient/Study Only Query/Retrieve Information Model - MOVE (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const PATIENT_STUDY_ONLY_QUERY_RETRIEVE_INFORMATION_MODEL_MOVE: &str = "1.2.840.10008.5.1.4.1.2.3.2";
-/// SOP Class: Patient/Study Only Query/Retrieve Information Model - GET (Retired) (RETIRED)
+/// SOP Class: Patient/Study Only Query/Retrieve Information Model - GET (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const PATIENT_STUDY_ONLY_QUERY_RETRIEVE_INFORMATION_MODEL_GET: &str = "1.2.840.10008.5.1.4.1.2.3.3";
 /// SOP Class: Composite Instance Root Retrieve - MOVE
@@ -1169,46 +1231,58 @@ pub const DEFINED_PROCEDURE_PROTOCOL_INFORMATION_MODEL_GET: &str = "1.2.840.1000
 /// SOP Class: Modality Worklist Information Model - FIND
 #[rustfmt::skip]
 pub const MODALITY_WORKLIST_INFORMATION_MODEL_FIND: &str = "1.2.840.10008.5.1.4.31";
-/// Meta SOP Class: General Purpose Worklist Management Meta SOP Class (Retired) (RETIRED)
+/// Meta SOP Class: General Purpose Worklist Management Meta SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const GENERAL_PURPOSE_WORKLIST_MANAGEMENT_META: &str = "1.2.840.10008.5.1.4.32";
-/// SOP Class: General Purpose Worklist Information Model - FIND (Retired) (RETIRED)
+/// SOP Class: General Purpose Worklist Information Model - FIND (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const GENERAL_PURPOSE_WORKLIST_INFORMATION_MODEL_FIND: &str = "1.2.840.10008.5.1.4.32.1";
-/// SOP Class: General Purpose Scheduled Procedure Step SOP Class (Retired) (RETIRED)
+/// SOP Class: General Purpose Scheduled Procedure Step SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const GENERAL_PURPOSE_SCHEDULED_PROCEDURE_STEP: &str = "1.2.840.10008.5.1.4.32.2";
-/// SOP Class: General Purpose Performed Procedure Step SOP Class (Retired) (RETIRED)
+/// SOP Class: General Purpose Performed Procedure Step SOP Class (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const GENERAL_PURPOSE_PERFORMED_PROCEDURE_STEP: &str = "1.2.840.10008.5.1.4.32.3";
 /// SOP Class: Instance Availability Notification SOP Class
 #[rustfmt::skip]
 pub const INSTANCE_AVAILABILITY_NOTIFICATION: &str = "1.2.840.10008.5.1.4.33";
-/// SOP Class: RT Beams Delivery Instruction Storage - Trial (Retired) (RETIRED)
+/// SOP Class: RT Beams Delivery Instruction Storage - Trial (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const RT_BEAMS_DELIVERY_INSTRUCTION_STORAGE_TRIAL: &str = "1.2.840.10008.5.1.4.34.1";
 /// SOP Class: RT Brachy Application Setup Delivery Instruction Storage
 #[rustfmt::skip]
 pub const RT_BRACHY_APPLICATION_SETUP_DELIVERY_INSTRUCTION_STORAGE: &str = "1.2.840.10008.5.1.4.34.10";
-/// SOP Class: RT Conventional Machine Verification - Trial (Retired) (RETIRED)
+/// SOP Class: RT Conventional Machine Verification - Trial (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const RT_CONVENTIONAL_MACHINE_VERIFICATION_TRIAL: &str = "1.2.840.10008.5.1.4.34.2";
-/// SOP Class: RT Ion Machine Verification - Trial (Retired) (RETIRED)
+/// SOP Class: RT Ion Machine Verification - Trial (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const RT_ION_MACHINE_VERIFICATION_TRIAL: &str = "1.2.840.10008.5.1.4.34.3";
-/// Service Class: Unified Worklist and Procedure Step Service Class - Trial (Retired) (RETIRED)
+/// Service Class: Unified Worklist and Procedure Step Service Class - Trial (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const UNIFIED_WORKLIST_AND_PROCEDURE_STEP_TRIAL: &str = "1.2.840.10008.5.1.4.34.4";
-/// SOP Class: Unified Procedure Step - Push SOP Class - Trial (Retired) (RETIRED)
+/// SOP Class: Unified Procedure Step - Push SOP Class - Trial (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const UNIFIED_PROCEDURE_STEP_PUSH_TRIAL: &str = "1.2.840.10008.5.1.4.34.4.1";
-/// SOP Class: Unified Procedure Step - Watch SOP Class - Trial (Retired) (RETIRED)
+/// SOP Class: Unified Procedure Step - Watch SOP Class - Trial (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const UNIFIED_PROCEDURE_STEP_WATCH_TRIAL: &str = "1.2.840.10008.5.1.4.34.4.2";
-/// SOP Class: Unified Procedure Step - Pull SOP Class - Trial (Retired) (RETIRED)
+/// SOP Class: Unified Procedure Step - Pull SOP Class - Trial (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const UNIFIED_PROCEDURE_STEP_PULL_TRIAL: &str = "1.2.840.10008.5.1.4.34.4.3";
-/// SOP Class: Unified Procedure Step - Event SOP Class - Trial (Retired) (RETIRED)
+/// SOP Class: Unified Procedure Step - Event SOP Class - Trial (Retired)
+#[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
 pub const UNIFIED_PROCEDURE_STEP_EVENT_TRIAL: &str = "1.2.840.10008.5.1.4.34.4.4";
 /// Well-known SOP Instance: UPS Global Subscription SOP Instance
