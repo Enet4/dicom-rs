@@ -323,13 +323,7 @@ where
             continue;
         }
 
-        writeln!(
-            f,
-            "/// {}: {}{}",
-            e.r#type,
-            e.name,
-            if e.retired { " (RETIRED)" } else { "" }
-        )?;
+        writeln!(f, "/// {}: {}", e.r#type, e.name,)?;
         if e.retired
             && matches!(
                 retired_options,
@@ -355,17 +349,45 @@ where
     // define an array for each kind of UID
     let listings = [
         (UidType::SopClass, "SOP_CLASSES", "sop-class"),
-        (UidType::TransferSyntax, "TRANSFER_SYNTAXES", "transfer-syntax"),
+        (
+            UidType::TransferSyntax,
+            "TRANSFER_SYNTAXES",
+            "transfer-syntax",
+        ),
         (UidType::MetaSopClass, "META_SOP_CLASSES", "meta-sop-class"),
-        (UidType::WellKnownSopInstance, "WELL_KNOWN_SOP_INSTANCES", "well-known-sop-instance"),
-        (UidType::DicomUidsAsCodingScheme, "DICOM_UIDS_AS_CODING_SCHEMES", "dicom-uid-as-coding-scheme"),
+        (
+            UidType::WellKnownSopInstance,
+            "WELL_KNOWN_SOP_INSTANCES",
+            "well-known-sop-instance",
+        ),
+        (
+            UidType::DicomUidsAsCodingScheme,
+            "DICOM_UIDS_AS_CODING_SCHEMES",
+            "dicom-uid-as-coding-scheme",
+        ),
         (UidType::CodingScheme, "CODING_SCHEMES", "coding-scheme"),
-        (UidType::ApplicationContextName, "APPLICATION_CONTEXT_NAMES", "application-context-name"),
+        (
+            UidType::ApplicationContextName,
+            "APPLICATION_CONTEXT_NAMES",
+            "application-context-name",
+        ),
         (UidType::ServiceClass, "SERVICE_CLASSES", "service-class"),
-        (UidType::ApplicationHostingModel, "APPLICATION_HOSTING_MODELS", "application-hosting-model"),
-        (UidType::MappingResource, "MAPPING_RESOURCES", "mapping-resource"),
+        (
+            UidType::ApplicationHostingModel,
+            "APPLICATION_HOSTING_MODELS",
+            "application-hosting-model",
+        ),
+        (
+            UidType::MappingResource,
+            "MAPPING_RESOURCES",
+            "mapping-resource",
+        ),
         (UidType::LdapOid, "LDAP_OIDS", "ldap-oid"),
-        (UidType::SynchronizationFrameOfReference, "SYNCHRONIZATION_FRAME_OF_REFERENCES", "synchronization-frame-of-reference"),
+        (
+            UidType::SynchronizationFrameOfReference,
+            "SYNCHRONIZATION_FRAME_OF_REFERENCES",
+            "synchronization-frame-of-reference",
+        ),
     ];
 
     for (typ, entries_name, feature_name) in listings {
@@ -390,9 +412,7 @@ fn write_entries<'a>(
     feature_name: Option<&'static str>,
     entries: impl IntoIterator<Item = &'a UidEntry>,
 ) -> Result<()> {
-    f.write_all(
-        b"\n#[rustfmt::skip]\n",
-    )?;
+    f.write_all(b"\n#[rustfmt::skip]\n")?;
     if let Some(feature) = feature_name {
         // conditionall include based on feature
         writeln!(f, "#[cfg(feature = \"{feature}\")]")?;
