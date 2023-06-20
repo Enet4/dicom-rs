@@ -12,7 +12,7 @@ where
     S: Seek,
 {
     fn skip(&mut self, n: u64) -> io::Result<u64> {
-        let curr_pos = self.seek(SeekFrom::Current(0))?;
+        let curr_pos = self.stream_position()?;
         let new_pos = self.seek(SeekFrom::Current(n as i64))?;
         Ok(new_pos - curr_pos)
     }

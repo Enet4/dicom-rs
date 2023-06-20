@@ -9,7 +9,7 @@
 //!
 //! Please use the `--help` flag for the full usage information.
 
-use clap::{App, Arg};
+use clap::{crate_version, Arg, ArgAction, Command};
 use regex::Regex;
 use serde::Serialize;
 
@@ -37,48 +37,51 @@ enum RetiredOptions {
     },
 }
 
-fn main() {
-    let matches = App::new("DICOM Dictionary Builder")
-        .version("0.1.0")
+fn command() -> Command {
+    Command::new("dicom-dictionary-builder")
+        .version(crate_version!())
         .arg(
-            Arg::with_name("FROM")
+            Arg::new("FROM")
                 .default_value(DEFAULT_LOCATION)
                 .help("Where to fetch the dictionary from"),
         )
         .arg(
-            Arg::with_name("no-retired")
+            Arg::new("no-retired")
                 .long("no-retired")
-                .help("Whether to ignore retired tags")
-                .takes_value(false),
+                .help("Ignore retired tags")
+                .action(ArgAction::SetTrue),
         )
         .arg(
-            Arg::with_name("deprecate-retired")
+            Arg::new("deprecate-retired")
                 .long("deprecate-retired")
-                .help("Whether to mark tag constants as deprecated")
-                .takes_value(false),
+                .help("Mark tag constants as deprecated")
+                .conflicts_with("no-retired")
+                .action(ArgAction::SetTrue),
         )
         .arg(
-            Arg::with_name("OUTPUT")
-                .short("o")
+            Arg::new("OUTPUT")
+                .short('o')
                 .help("The path to the output file")
-                .default_value("tags.rs")
-                .takes_value(true),
+                .default_value("tags.rs"),
         )
-        .get_matches();
+}
 
-    let ignore_retired = matches.is_present("no-retired");
+fn main() {
+    let matches = command().get_matches();
+
+    let ignore_retired = matches.get_flag("no-retired");
 
     let retired = if ignore_retired {
         RetiredOptions::Ignore
     } else {
         RetiredOptions::Include {
-            deprecate: matches.is_present("deprecate-retired"),
+            deprecate: matches.get_flag("deprecate-retired"),
         }
     };
 
-    let src = matches.value_of("FROM").unwrap();
+    let src = matches.get_one::<String>("FROM").unwrap();
 
-    let dst = Path::new(matches.value_of("OUTPUT").unwrap());
+    let dst = Path::new(matches.get_one::<String>("OUTPUT").unwrap());
 
     if src.starts_with("http:") || src.starts_with("https:") {
         // read from URL
@@ -340,4 +343,14 @@ where
     f.write_all(b"];\n")?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::command;
+
+    #[test]
+    fn verify_cli() {
+        command().debug_assert();
+    }
 }

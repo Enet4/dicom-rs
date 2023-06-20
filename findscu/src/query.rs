@@ -32,13 +32,9 @@ impl FromStr for TermQuery {
         let tag_part = parts.next().whatever_context("empty query")?;
         let value_part = parts.next().unwrap_or_default();
 
-        let field: Tag = tag_part.parse().or_else(|_| {
-            // look for tag in standard data dictionary
-            let data_entry = StandardDataDictionary
-                .by_name(tag_part)
-                .whatever_context("could not resolve query field name")?;
-            Ok(data_entry.tag.inner())
-        })?;
+        let field: Tag = StandardDataDictionary
+            .parse_tag(tag_part)
+            .whatever_context("could not resolve query field name")?;
 
         Ok(TermQuery {
             field,

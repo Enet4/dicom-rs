@@ -102,14 +102,14 @@ where
 {
     let codec = dicom_encoding::text::DefaultCharacterSetCodec;
     match pdu {
-        Pdu::AssociationRQ {
+        Pdu::AssociationRQ(AssociationRQ {
             protocol_version,
             calling_ae_title,
             called_ae_title,
             application_context_name,
             presentation_contexts,
             user_variables,
-        } => {
+        }) => {
             // A-ASSOCIATE-RQ PDU Structure
 
             // 1 - PDU-type - 01H
@@ -199,14 +199,14 @@ where
 
             Ok(())
         }
-        Pdu::AssociationAC {
+        Pdu::AssociationAC(AssociationAC {
             protocol_version,
             application_context_name,
             called_ae_title,
             calling_ae_title,
             presentation_contexts,
             user_variables,
-        } => {
+        }) => {
             // A-ASSOCIATE-AC PDU Structure
 
             // 1 - PDU-type - 02H
@@ -294,7 +294,7 @@ where
                 name: "A-ASSOCIATE-AC",
             })
         }
-        Pdu::AssociationRJ { result, source } => {
+        Pdu::AssociationRJ(AssociationRJ { result, source }) => {
             // 1 - PDU-type - 03H
             writer
                 .write_u8(0x03)
@@ -538,9 +538,8 @@ where
                     AbortRQSource::ServiceUser => [0x00; 2],
                     AbortRQSource::Reserved => [0x01, 0x00],
                     AbortRQSource::ServiceProvider(reason) => match reason {
-                        AbortRQServiceProviderReason::ReasonNotSpecifiedUnrecognizedPdu => {
-                            [0x02, 0x00]
-                        }
+                        AbortRQServiceProviderReason::ReasonNotSpecified => [0x02, 0x00],
+                        AbortRQServiceProviderReason::UnrecognizedPdu => [0x02, 0x01],
                         AbortRQServiceProviderReason::UnexpectedPdu => [0x02, 0x02],
                         AbortRQServiceProviderReason::Reserved => [0x02, 0x03],
                         AbortRQServiceProviderReason::UnrecognizedPduParameter => [0x02, 0x04],
@@ -981,6 +980,50 @@ fn write_pdu_variable_user_variables(
                     .context(WriteChunkSnafu {
                         name: "Implementation-class-uid",
                     })?;
+                }
+                UserVariableItem::SopClassExtendedNegotiationSubItem(sop_class_uid, data) => {
+                    // 1 - Item-type - 56H
+                    writer
+                        .write_u8(0x56)
+                        .context(WriteFieldSnafu { field: "Item-type" })?;
+                    // 2 - Reserved - This reserved field shall be sent with a value 00H but not
+                    // tested to this value when received.
+                    writer
+                        .write_u8(0x00)
+                        .context(WriteReservedSnafu { bytes: 1_u32 })?;
+
+                    write_chunk_u16(writer, |writer| {
+                        write_chunk_u16(writer, |writer| {
+                            //  7-xxx - The SOP Class or Meta SOP Class identifier encoded as a UID
+                            //  as defined in Section 9 “Unique Identifiers (UIDs)” in PS3.5.
+                            writer
+                                .write_all(&codec.encode(sop_class_uid).context(
+                                    EncodeFieldSnafu {
+                                        field: "SOP-class-uid",
+                                    },
+                                )?)
+                                .context(WriteFieldSnafu {
+                                    field: "SOP-class-uid",
+                                })
+                        })
+                        .context(WriteChunkSnafu {
+                            name: "SOP-class-uid",
+                        })?;
+
+                        write_chunk_u16(writer, |writer| {
+                            // xxx-xxx Service-class-application-information - This field shall contain
+                            // the application information specific to the Service Class specification
+                            // identified by the SOP-class-uid. The semantics and value of this field is
+                            // defined in the identified Service Class specification.
+                            writer.write_all(data).context(WriteFieldSnafu {
+                                field: "Service-class-application-information",
+                            })
+                        })
+                        .context(WriteChunkSnafu {
+                            name: "Service-class-application-information",
+                        })
+                    })
+                    .context(WriteChunkSnafu { name: "Sub-item" })?;
                 }
                 UserVariableItem::Unknown(item_type, data) => {
                     writer

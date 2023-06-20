@@ -10,9 +10,15 @@ use std::fmt::Debug;
 use std::str::FromStr;
 
 /// Specification of a range of tags pertaining to an attribute.
-/// Very often, the dictionary of attributes indicates a unique `(group,elem)`
-/// for a specific attribute, but occasionally a range of groups or elements
-/// is indicated instead (e.g. _Pixel Data_ is associated with ).
+/// Very often, the dictionary of attributes indicates a unique
+/// group part and element part `(group,elem)`,
+/// but occasionally an attribute may cover
+/// a range of groups or elements instead.
+/// For example,
+/// _Overlay Data_ (60xx,3000) has more than one possible tag,
+/// since it is part of a repeating group.
+/// Moreover, a unique variant is defined for group length tags
+/// and another one for private creator tags.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TagRange {
     /// Only a specific tag
@@ -23,15 +29,36 @@ pub enum TagRange {
     /// The two rightmost digits of the _element_ portion are open:
     /// `(GGGG,EExx)`
     Element100(Tag),
+    /// Generic group length tag,
+    /// refers to any attribute of the form `(GGGG,0000)`,
+    /// _save for the following exceptions_
+    /// which have their own single tag record:
+    /// 
+    /// - _Command Group Length_ (0000,0000)
+    /// - _File Meta Information Group Length_ (0002,0000)
+    GroupLength,
+    /// Generic private creator tag,
+    /// refers to any tag from (GGGG,0010) to (GGGG,00FF),
+    /// where `GGGG` is an odd number.
+    PrivateCreator,
 }
 
 impl TagRange {
     /// Retrieve the inner tag representation of this range.
+    ///
+    /// Open components are zeroed out.
+    /// Returns a zeroed out tag
+    /// (equivalent to _Command Group Length_)
+    /// if it is a group length tag.
+    /// If it is a private creator tag,
+    /// this method returns `Tag(0x0009, 0x0010)`.
     pub fn inner(self) -> Tag {
         match self {
             TagRange::Single(tag) => tag,
             TagRange::Group100(tag) => tag,
             TagRange::Element100(tag) => tag,
+            TagRange::GroupLength => Tag(0x0000, 0x0000),
+            TagRange::PrivateCreator => Tag(0x0009, 0x0010),
         }
     }
 }
@@ -120,32 +147,96 @@ impl FromStr for TagRange {
  * The methods herein have no generic parameters, so as to enable being
  * used as a trait object.
  */
-pub trait DataDictionary: Debug {
+pub trait DataDictionary {
     /// The type of the dictionary entry.
     type Entry: DictionaryEntry;
 
     /// Fetch an entry by its usual alias (e.g. "PatientName" or "SOPInstanceUID").
-    /// Aliases are usually case sensitive and not separated by spaces.
+    /// Aliases (or keyword)
+    /// are usually in UpperCamelCase,
+    /// not separated by spaces,
+    /// and are case sensitive.
+    /// 
+    /// If the parameter provided is a string literal
+    /// (e.g. `"StudyInstanceUID"`),
+    /// note that it may be more efficient to use [`by_tag()`][1]
+    /// with a known tag constant
+    /// (such as [`tags::STUDY_INSTANCE_UID`][2]
+    /// from the [`dicom-dictionary-std`][3] crate).
+    /// 
+    /// [1]: DataDictionary::by_tag
+    /// [2]: https://docs.rs/dicom-dictionary-std/0.5.0/dicom_dictionary_std/tags/constant.STUDY_INSTANCE_UID.html
+    /// [3]: https://docs.rs/dicom-dictionary-std/0.5.0
     fn by_name(&self, name: &str) -> Option<&Self::Entry>;
 
     /// Fetch an entry by its tag.
     fn by_tag(&self, tag: Tag) -> Option<&Self::Entry>;
+
+    /// Fetch an entry by its alias or by DICOM tag expression.
+    ///
+    /// This method accepts a tag descriptor in any of the following formats:
+    ///
+    /// - `(gggg,eeee)`:
+    ///   a 4-digit hexadecimal group part
+    ///   and a 4-digit hexadecimal element part
+    ///   surrounded by parentheses
+    /// - `gggg,eeee`:
+    ///   a 4-digit hexadecimal group part
+    ///   and a 4-digit hexadecimal element part
+    ///   not surrounded by parentheses
+    /// - _`KeywordName`_:
+    ///   an exact match (case sensitive) by DICOM tag keyword
+    ///
+    /// When failing to identify the intended syntax or the tag keyword,
+    /// `None` is returned.
+    fn by_expr(&self, tag: &str) -> Option<&Self::Entry> {
+        match tag.parse() {
+            Ok(tag) => self.by_tag(tag),
+            Err(_) => self.by_name(tag),
+        }
+    }
+
+    /// Use this data element dictionary to interpret a DICOM tag.
+    ///
+    /// This method accepts a tag descriptor in any of the following formats:
+    ///
+    /// - `(gggg,eeee)`:
+    ///   a 4-digit hexadecimal group part
+    ///   and a 4-digit hexadecimal element part
+    ///   surrounded by parentheses
+    /// - `gggg,eeee`:
+    ///   a 4-digit hexadecimal group part
+    ///   and a 4-digit hexadecimal element part
+    ///   not surrounded by parentheses
+    /// - _`KeywordName`_:
+    ///   an exact match (case sensitive) by DICOM tag keyword
+    ///
+    /// When failing to identify the intended syntax or the tag keyword,
+    /// `None` is returned.
+    fn parse_tag(&self, tag: &str) -> Option<Tag> {
+        tag.parse().ok().or_else(|| {
+            // look for tag in standard data dictionary
+            self.by_name(tag).map(|e| e.tag())
+        })
+    }
 }
 
 /// The dictionary entry data type, representing a DICOM attribute.
 pub trait DictionaryEntry {
-    /// The full possible tag range of this attribute.
+    /// The full possible tag range of the atribute,
+    /// which this dictionary entry can represent.
     fn tag_range(&self) -> TagRange;
-    /// The attribute single tag.
+    
+    /// Fetch a single tag applicable to this attribute.
+    ///
+    /// Note that this is not necessarily
+    /// the original tag used as key for this entry.
     fn tag(&self) -> Tag {
-        match self.tag_range() {
-            TagRange::Single(tag) => tag,
-            TagRange::Group100(tag) => tag,
-            TagRange::Element100(tag) => tag,
-        }
+        self.tag_range().inner()
     }
     /// The alias of the attribute, with no spaces, usually in UpperCamelCase.
     fn alias(&self) -> &str;
+
     /// The _typical_ value representation of the attribute.
     /// In some edge cases, an element might not have this VR.
     fn vr(&self) -> VR;

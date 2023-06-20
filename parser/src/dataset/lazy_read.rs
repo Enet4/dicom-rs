@@ -19,7 +19,7 @@ use dicom_core::{Tag, VR};
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::TransferSyntax;
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
-use std::{cmp::Ordering, io::SeekFrom};
+use std::cmp::Ordering;
 
 use super::{LazyDataToken, SeqTokenType};
 
@@ -126,7 +126,7 @@ impl<R> LazyDataSetReader<DynStatefulDecoder<R>> {
         R: ReadSeek,
     {
         let position = source
-            .seek(SeekFrom::Current(0))
+            .stream_position()
             .context(GetPositionSnafu)?;
         let parser =
             DynStatefulDecoder::new_with(source, ts, cs, position).context(CreateDecoderSnafu)?;
@@ -163,7 +163,7 @@ impl<S> LazyDataSetReader<S>
 where
     S: StatefulDecode,
 {
-    fn update_seq_delimiters<'a, 'b>(&'a mut self) -> Result<Option<LazyDataToken<&'b mut S>>> {
+    fn update_seq_delimiters<'b>(&mut self) -> Result<Option<LazyDataToken<&'b mut S>>> {
         if let Some(sd) = self.seq_delimiters.last() {
             if let Some(len) = sd.len.get() {
                 let end_of_sequence = sd.base_offset + len as u64;
@@ -210,13 +210,17 @@ where
         })
     }
 
-    /** Advance and retrieve the next DICOM data token.
-     *
-     * **Note:** For the data set to be successfully parsed,
-     * the resulting data tokens needs to be consumed
-     * if they are of a value type.
-     */
-    pub fn next(&mut self) -> Option<Result<LazyDataToken<&mut S>>> {
+    /// Retrieve the inner stateful decoder from this data set reader.
+    pub fn into_decoder(self) -> S {
+        self.parser
+    }
+
+    /// Advance and retrieve the next DICOM data token.
+    ///
+    /// **Note:** For the data set to be successfully parsed,
+    /// the resulting data tokens needs to be consumed
+    /// if they are of a value type.
+    pub fn advance(&mut self) -> Option<Result<LazyDataToken<&mut S>>> {
         if self.hard_break {
             return None;
         }
@@ -478,7 +482,7 @@ mod tests {
         let mut dset_reader = LazyDataSetReader::new(parser);
 
         let mut gt_iter = ground_truth.into_iter();
-        while let Some(res) = dset_reader.next() {
+        while let Some(res) = dset_reader.advance() {
             let gt_token = gt_iter.next().expect("ground truth is shorter");
             let token = res.expect("should parse without an error");
             let token = token.into_owned().unwrap();
@@ -1025,7 +1029,7 @@ mod tests {
         let mut dset_reader = LazyDataSetReader::new(parser);
 
         let mut gt_iter = ground_truth.into_iter();
-        while let Some(res) = dset_reader.next() {
+        while let Some(res) = dset_reader.advance() {
             let token = res.expect("should parse without an error");
             let gt_token = gt_iter.next().expect("ground truth is shorter");
             match token {
@@ -1078,7 +1082,7 @@ mod tests {
         let mut dset_reader = LazyDataSetReader::new(parser);
 
         let token = dset_reader
-            .next()
+            .advance()
             .expect("Expected token 1")
             .expect("Failed to read token 1");
 
@@ -1090,7 +1094,7 @@ mod tests {
         };
 
         let token = dset_reader
-            .next()
+            .advance()
             .expect("Expected token 2")
             .expect("Failed to read token 2");
 
@@ -1110,7 +1114,7 @@ mod tests {
         );
 
         let token = dset_reader
-            .next()
+            .advance()
             .expect("Expected token 3")
             .expect("Failed to read token 3");
 
@@ -1122,7 +1126,7 @@ mod tests {
         };
 
         let token = dset_reader
-            .next()
+            .advance()
             .expect("Expected token 4")
             .expect("Failed to read token 4");
 
@@ -1142,7 +1146,7 @@ mod tests {
         );
 
         assert!(
-            dset_reader.next().is_none(),
+            dset_reader.advance().is_none(),
             "unexpected number of tokens remaining"
         );
     }

@@ -200,14 +200,14 @@ impl<D> LazyDataToken<D>
 where
     D: decode::StatefulDecode,
 {
-    pub fn skip(self) -> Result<()> {
+    pub fn skip(self) -> crate::stateful::decode::Result<()> {
         match self {
             LazyDataToken::LazyValue {
                 header,
                 mut decoder,
-            } => decoder.skip_bytes(header.len.0).context(SkipValueSnafu),
+            } => decoder.skip_bytes(header.len.0),
             LazyDataToken::LazyItemValue { len, mut decoder } => {
-                decoder.skip_bytes(len).context(SkipValueSnafu)
+                decoder.skip_bytes(len)
             }
             _ => Ok(()), // do nothing
         }
@@ -502,19 +502,20 @@ where
                         // retrieve sequence value, begin item sequence
                         match elem.into_value() {
                             Value::Primitive(_) | Value::PixelSequence { .. } => unreachable!(),
-                            Value::Sequence { items, size: _ } => {
-                                let items: dicom_core::value::C<_> =
-                                    items.into_iter().map(|o| AsItem(o.length(), o)).collect();
+                            Value::Sequence(seq) => {
+                                let items: dicom_core::value::C<_> = seq
+                                    .into_items()
+                                    .into_iter()
+                                    .map(|o| AsItem(o.length(), o))
+                                    .collect();
                                 (Some(token), DataElementTokens::Items(items.into_tokens()))
                             }
                         }
                     }
                     DataToken::PixelSequenceStart => {
                         match elem.into_value() {
-                            Value::PixelSequence {
-                                fragments,
-                                offset_table,
-                            } => {
+                            Value::PixelSequence(seq) => {
+                                let (offset_table, fragments) = seq.into_parts();
                                 (
                                     // begin pixel sequence
                                     Some(DataToken::PixelSequenceStart),

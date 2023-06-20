@@ -57,10 +57,8 @@ where
         let voi_lut_function = voi_lut_function.and_then(|v| VoiLutFunction::try_from(&*v).ok());
 
         let decoded_pixel_data = match pixel_data.value() {
-            Value::PixelSequence {
-                fragments,
-                offset_table: _,
-            } => {
+            Value::PixelSequence(v) => {
+                let fragments = v.fragments();
                 let gdcm_error_mapper = |source: GDCMError| DecodeError::Custom {
                     message: source.to_string(),
                     source: Some(Box::new(source)),
@@ -105,7 +103,7 @@ where
                 // Non-encoded, just return the pixel data of the first frame
                 p.to_bytes().to_vec()
             }
-            Value::Sequence { items: _, size: _ } => InvalidPixelDataSnafu.fail()?,
+            Value::Sequence(_) => InvalidPixelDataSnafu.fail()?,
         };
 
         // pixels are already interpreted,
@@ -149,58 +147,61 @@ where
 
 #[cfg(test)]
 mod tests {
+    #[cfg(any(feature = "ndarray", feature = "image"))]
     use super::*;
+    #[cfg(any(feature = "ndarray", feature = "image"))]
     use dicom_object::open_file;
-    use dicom_test_files;
+    #[cfg(feature = "image")]
     use rstest::rstest;
-    use std::fs;
+    #[cfg(feature = "image")]
     use std::path::Path;
 
+    #[cfg(feature = "image")]
     const MAX_TEST_FRAMES: u32 = 16;
 
-    #[rstest(value => [
-        "pydicom/693_J2KI.dcm",
-        "pydicom/693_J2KR.dcm",
-        "pydicom/693_UNCI.dcm",
-        "pydicom/693_UNCR.dcm",
-        "pydicom/CT_small.dcm",
-        "pydicom/JPEG-lossy.dcm",
-        "pydicom/JPEG2000.dcm",
-        "pydicom/JPEG2000_UNC.dcm",
-        "pydicom/JPGLosslessP14SV1_1s_1f_8b.dcm",
-        "pydicom/MR_small.dcm",
-        "pydicom/MR_small_RLE.dcm",
-        "pydicom/MR_small_implicit.dcm",
-        "pydicom/MR_small_jp2klossless.dcm",
-        "pydicom/MR_small_jpeg_ls_lossless.dcm",
-        "pydicom/explicit_VR-UN.dcm",
-        "pydicom/MR_small_bigendian.dcm",
-        "pydicom/MR_small_expb.dcm",
-        "pydicom/SC_rgb.dcm",
-        "pydicom/SC_rgb_16bit.dcm",
-        "pydicom/SC_rgb_dcmtk_+eb+cr.dcm",
-        "pydicom/SC_rgb_expb.dcm",
-        "pydicom/SC_rgb_expb_16bit.dcm",
-        "pydicom/SC_rgb_gdcm2k_uncompressed.dcm",
-        "pydicom/SC_rgb_gdcm_KY.dcm",
-        "pydicom/SC_rgb_jpeg_gdcm.dcm",
-        "pydicom/SC_rgb_jpeg_lossy_gdcm.dcm",
-        "pydicom/SC_rgb_rle.dcm",
-        "pydicom/SC_rgb_rle_16bit.dcm",
-        "pydicom/color-pl.dcm",
-        "pydicom/color-px.dcm",
-        "pydicom/SC_ybr_full_uncompressed.dcm",
-        "pydicom/color3d_jpeg_baseline.dcm",
-        "pydicom/emri_small_jpeg_ls_lossless.dcm",
-])]
-    fn test_parse_dicom_pixel_data(value: &str) {
+    #[cfg(feature = "image")]
+    #[rstest]
+    #[case("pydicom/693_J2KI.dcm")]
+    #[case("pydicom/693_J2KR.dcm")]
+    #[case("pydicom/693_UNCI.dcm")]
+    #[case("pydicom/693_UNCR.dcm")]
+    #[case("pydicom/CT_small.dcm")]
+    #[case("pydicom/JPEG-lossy.dcm")]
+    #[case("pydicom/JPEG2000.dcm")]
+    #[case("pydicom/JPEG2000_UNC.dcm")]
+    #[case("pydicom/JPGLosslessP14SV1_1s_1f_8b.dcm")]
+    #[case("pydicom/MR_small.dcm")]
+    #[case("pydicom/MR_small_RLE.dcm")]
+    #[case("pydicom/MR_small_implicit.dcm")]
+    #[case("pydicom/MR_small_jp2klossless.dcm")]
+    #[case("pydicom/MR_small_jpeg_ls_lossless.dcm")]
+    #[case("pydicom/explicit_VR-UN.dcm")]
+    #[case("pydicom/MR_small_bigendian.dcm")]
+    #[case("pydicom/MR_small_expb.dcm")]
+    #[case("pydicom/SC_rgb.dcm")]
+    #[case("pydicom/SC_rgb_16bit.dcm")]
+    #[case("pydicom/SC_rgb_dcmtk_+eb+cr.dcm")]
+    #[case("pydicom/SC_rgb_expb.dcm")]
+    #[case("pydicom/SC_rgb_expb_16bit.dcm")]
+    #[case("pydicom/SC_rgb_gdcm2k_uncompressed.dcm")]
+    #[case("pydicom/SC_rgb_gdcm_KY.dcm")]
+    #[case("pydicom/SC_rgb_jpeg_gdcm.dcm")]
+    #[case("pydicom/SC_rgb_jpeg_lossy_gdcm.dcm")]
+    #[case("pydicom/SC_rgb_rle.dcm")]
+    #[case("pydicom/SC_rgb_rle_16bit.dcm")]
+    #[case("pydicom/color-pl.dcm")]
+    #[case("pydicom/color-px.dcm")]
+    #[case("pydicom/SC_ybr_full_uncompressed.dcm")]
+    #[case("pydicom/color3d_jpeg_baseline.dcm")]
+    #[case("pydicom/emri_small_jpeg_ls_lossless.dcm")]
+    fn test_parse_dicom_pixel_data(#[case] value: &str) {
         let test_file = dicom_test_files::path(value).unwrap();
         println!("Parsing pixel data for {}", test_file.display());
         let obj = open_file(test_file).unwrap();
         let pixel_data = obj.decode_pixel_data().unwrap();
         let output_dir =
             Path::new("../target/dicom_test_files/_out/test_gdcm_parse_dicom_pixel_data");
-        fs::create_dir_all(output_dir).unwrap();
+        std::fs::create_dir_all(output_dir).unwrap();
 
         for i in 0..pixel_data.number_of_frames.min(MAX_TEST_FRAMES) {
             let image = pixel_data.to_dynamic_image(i).unwrap();
@@ -213,6 +214,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "ndarray")]
     #[test]
     fn test_to_ndarray_signed_word_no_lut() {
         let test_file = dicom_test_files::path("pydicom/JPEG2000.dcm").unwrap();

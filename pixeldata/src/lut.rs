@@ -9,6 +9,7 @@
 //! for common DICOM sample value transformations.
 
 use num_traits::{NumCast, ToPrimitive};
+#[cfg(feature = "rayon")]
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use snafu::{OptionExt, Snafu};
 
@@ -34,7 +35,14 @@ impl CreateLutError {
     }
 }
 
-/// A look up table for pixel data sample value transformations.
+/// A look up table (LUT) for pixel data sample value transformations.
+///
+/// All LUTs are guaranteed to have a size of a power of 2,
+/// as defined by the constructor parameter `bits_stored`.
+/// The type parameter `T` is the numeric type of the outputs produced.
+/// Although the bit depths of the inputs may vary,
+/// it is a run-time error to construct a `Lut<T>`
+/// where `T` has less bits than `bits_stored`.
 ///
 /// # Example
 ///
@@ -72,8 +80,8 @@ pub struct Lut<T> {
     /// the table which maps an index to a transformed value,
     /// of size 2 to the power of `bits_stored`
     table: Vec<T>,
-    /// whether the input sample values are signed (Pixel Representation = 1)
-    signed: bool,
+    /// the mask to apply on all sample inputs
+    sample_mask: u32,
 }
 
 impl<T: 'static> Lut<T>
@@ -106,8 +114,12 @@ where
         let size = (1 << bits_stored as u32) as usize;
         debug_assert!(size.is_power_of_two());
 
-        let table: Result<Vec<_>, _> = (0..size)
-            .into_par_iter()
+        #[cfg(feature = "rayon")]
+        let iter = (0..size).into_par_iter();
+        #[cfg(not(feature = "rayon"))]
+        let iter = (0..size).into_iter();
+
+        let table: Result<Vec<_>, _> = iter
             .map(|i| {
                 // account for signedness to determine input pixel value
                 let x = if signed && i >= size / 2 {
@@ -122,10 +134,10 @@ where
                 })
             })
             .collect();
-        Ok(Self {
-            table: table?,
-            signed,
-        })
+
+        let table = table?;
+        let sample_mask = table.len() as u32 - 1;
+        Ok(Self { table, sample_mask })
     }
 
     /// Create a new LUT containing only the modality rescale transformation.
@@ -234,8 +246,7 @@ where
         let bits_allocated = (bits_stored as usize).next_power_of_two();
         let y_max = ((1 << bits_allocated) - 1) as f64;
         Self::new_with_fn(bits_stored, signed, |v| {
-            let x = v as f64;
-            let v = rescale.apply(x);
+            let v = rescale.apply(v);
             voi.apply(v, y_max)
         })
     }
@@ -267,7 +278,7 @@ where
     ) -> Result<Self, CreateLutError> {
         let bits_allocated = (bits_stored as usize).next_power_of_two();
         let y_max = ((1 << bits_allocated) - 1) as f64;
-        Self::new_with_fn(bits_stored, signed, |v| voi.apply(v as f64, y_max))
+        Self::new_with_fn(bits_stored, signed, |v| voi.apply(v, y_max))
     }
 
     /// Apply the transformation to a single pixel sample value.
@@ -276,25 +287,15 @@ where
     /// this method works for signed sample values as well,
     /// with the bits reinterpreted as their unsigned counterpart.
     ///
-    /// # Panics
-    ///
-    /// Panics if `sample_value` is larger or equal to `2^bits_stored`.
+    /// The highest bits from the sample after `bits_stored` bits are discarded,
+    /// thus silently ignoring them.
     pub fn get<I: 'static>(&self, sample_value: I) -> T
     where
         I: Copy,
         I: Into<u32>,
     {
-        let val = sample_value.into();
-        let index = if self.signed {
-            // adjust for signedness by masking out the extra sign bits
-            let mask = self.table.len() - 1;
-            val as usize & mask
-        } else {
-            val as usize
-        };
-        assert!((index as usize) < self.table.len());
-
-        self.table[index as usize]
+        let val = sample_value.into() & self.sample_mask;
+        self.table[val as usize]
     }
 
     /// Adapts an iterator of pixel data sample values
@@ -312,6 +313,7 @@ where
 
     /// Adapts a parallel iterator of pixel data sample values
     /// to a parallel iterator of transformed values.
+    #[cfg(feature = "rayon")]
     pub fn map_par_iter<'a, I: 'static>(
         &'a self,
         iter: impl ParallelIterator<Item = I> + 'a,
@@ -352,6 +354,52 @@ mod tests {
         assert_eq!(lut.get(-1_i16 as u16), -1026);
         assert_eq!(lut.get(-2_i16 as u16), -1028);
         assert_eq!(lut.get(500 as u16), -24);
+
+        // input is truncated to fit
+        // (bit #10 won't fit in a 10-bit LUT)
+        assert_eq!(lut.get(1024 + 500_u16), -24);
+    }
+
+    #[test]
+    fn lut_unsigned_numbers() {
+        // 12-bit precision input, unsigned 16 bit output
+        let lut: Lut<u16> = Lut::new_rescale_and_window(
+            12,
+            false,
+            Rescale::new(1., -1024.),
+            WindowLevelTransform::linear(WindowLevel {
+                width: 300.,
+                center: 50.,
+            }),
+        )
+        .unwrap();
+
+        // < 0
+        let val: u16 = lut.get(824_u16);
+        assert_eq!(val, 0);
+
+        // > 200
+        let val: u16 = lut.get(1224_u16);
+        assert_eq!(val, 65_535);
+
+        // around the middle
+        let mid_i = 1024_u16 + 50;
+        let mid_val: u16 = lut.get(mid_i);
+        let expected_range = 32_600..=32_950;
+        assert!(
+            expected_range.contains(&mid_val),
+            "outcome was {}, expected to be in {:?}",
+            mid_val,
+            expected_range,
+        );
+
+        // input is truncated to fit
+        // (bits #12 and up won't fit in a 12-bit LUT)
+        assert_eq!(lut.get(0x1000 | mid_i), mid_val);
+        assert_eq!(lut.get(0x2000 | mid_i), mid_val);
+        assert_eq!(lut.get(0x4000 | mid_i), mid_val);
+        assert_eq!(lut.get(0x8000 | mid_i), mid_val);
+        assert_eq!(lut.get(0xFFFF_u16), 65_535);
     }
 
     #[test]

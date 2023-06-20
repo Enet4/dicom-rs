@@ -1,50 +1,41 @@
 //! A CLI tool for inspecting the contents of a DICOM file
 //! by printing it in a human readable format.
+use clap::Parser;
 use dicom_dump::{ColorMode, DumpOptions};
 use dicom_object::open_file;
-use snafu::{whatever, Report, Whatever};
+use snafu::{Report, Whatever};
 use std::io::ErrorKind;
 use std::path::PathBuf;
-use structopt::StructOpt;
 
 /// Exit code for when an error emerged while reading the DICOM file.
 const ERROR_READ: i32 = -2;
 /// Exit code for when an error emerged while dumping the file.
 const ERROR_PRINT: i32 = -3;
 
-#[cfg(windows)]
-fn os_compatibility() -> Result<(), ()> {
-    colored::control::set_virtual_terminal(true)
-}
-
-#[cfg(not(windows))]
-fn os_compatibility() -> Result<(), ()> {
-    Ok(())
-}
-
 /// Dump the contents of DICOM files
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
+#[command(version)]
 struct App {
     /// The DICOM file(s) to read
-    #[structopt(required = true)]
+    #[clap(required = true)]
     files: Vec<PathBuf>,
     /// Print text values to the end
     /// (limited to `width` by default)
-    #[structopt(long = "no-text-limit")]
+    #[clap(long = "no-text-limit")]
     no_text_limit: bool,
     /// Print all values to the end
     /// (implies `no_text_limit`, limited to `width` by default)
-    #[structopt(long = "no-limit")]
+    #[clap(long = "no-limit")]
     no_limit: bool,
     /// The width of the display
     /// (default is to check automatically)
-    #[structopt(short = "w", long = "width")]
+    #[clap(short = 'w', long = "width")]
     width: Option<u32>,
     /// The color mode
-    #[structopt(long = "color", default_value = "auto")]
+    #[clap(long = "color", default_value = "auto")]
     color: ColorMode,
     /// Fail if any errors are encountered
-    #[structopt(long = "fail-first")]
+    #[clap(long = "fail-first")]
     fail_first: bool,
 }
 
@@ -56,10 +47,6 @@ fn main() {
 }
 
 fn run() -> Result<(), Whatever> {
-    if os_compatibility().is_err() {
-        whatever!("Error setting OS compatibility for colored output");
-    }
-
     let App {
         files: filenames,
         no_text_limit,
@@ -67,7 +54,7 @@ fn run() -> Result<(), Whatever> {
         width,
         color,
         fail_first,
-    } = App::from_args();
+    } = App::parse();
 
     let width = width
         .or_else(|| term_size::dimensions().map(|(width, _)| width as u32))
@@ -109,4 +96,15 @@ fn run() -> Result<(), Whatever> {
     }
 
     std::process::exit(errors);
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::App;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        App::command().debug_assert();
+    }
 }

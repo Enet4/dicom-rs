@@ -22,10 +22,12 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
           cache: true
-      # test base functionality
-      - run: cargo test
-      # test GDCM support in dicom-pixeldata
-      - run: cargo test --package dicom-pixeldata --features gdcm
+      # test project with default + useful features
+      - run: cargo test --features image,ndarray
+      # test dicom-pixeldata with gdcm-rs
+      - run: cargo test -p dicom-pixeldata --features gdcm
+      # test dicom-pixeldata without default features
+      - run: cargo test -p dicom-pixeldata --no-default-features
 
   check_windows:
     name: Check (Windows)

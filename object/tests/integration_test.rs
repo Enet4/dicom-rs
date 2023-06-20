@@ -21,12 +21,10 @@ fn test_ob_value_with_unknown_length() {
     let element = object.element_by_name("PixelData").unwrap();
 
     match element.value() {
-        Value::PixelSequence {
-            fragments,
-            offset_table,
-        } => {
+        Value::PixelSequence(seq) => {
+            let fragments = seq.fragments();
             // check offset table
-            assert_eq!(offset_table.len(), 0);
+            assert_eq!(seq.offset_table().len(), 0);
 
             // check if the leading and trailing bytes look right
             assert_eq!(fragments.len(), 1);
@@ -56,7 +54,7 @@ fn test_read_until_pixel_data() {
     // but does not contain pixel data
     assert!(matches!(
         object.element(tags::PIXEL_DATA),
-        Err(dicom_object::Error::NoSuchDataElementTag { .. })
+        Err(dicom_object::AccessError::NoSuchDataElementTag { .. })
     ));
 }
 
@@ -77,6 +75,21 @@ fn test_read_data_with_preamble() {
 }
 
 #[test]
+fn test_read_data_with_preamble_auto() {
+    let path = dicom_test_files::path("pydicom/liver.dcm").expect("test DICOM file should exist");
+    let source = BufReader::new(File::open(path).unwrap());
+
+    // should read preamble even though it's from a reader
+    let object = OpenFileOptions::new()
+        .from_reader(source)
+        .expect("Should read from source successfully");
+
+    // contains elements such as study date
+    let element = object.element(tags::STUDY_DATE).unwrap();
+    assert_eq!(element.value().to_str().unwrap(), "20030417");
+}
+
+#[test]
 fn test_read_data_without_preamble() {
     let path = dicom_test_files::path("pydicom/liver.dcm").expect("test DICOM file should exist");
     let mut source = BufReader::new(File::open(path).unwrap());
@@ -86,8 +99,29 @@ fn test_read_data_without_preamble() {
 
     source.read_exact(&mut preamble).unwrap();
 
+    // explicitly do not read preamble
     let object = OpenFileOptions::new()
         .read_preamble(ReadPreamble::Never)
+        .from_reader(source)
+        .expect("Should read from source successfully");
+
+    // contains elements such as study date
+    let element = object.element(tags::STUDY_DATE).unwrap();
+    assert_eq!(element.value().to_str().unwrap(), "20030417");
+}
+
+#[test]
+fn test_read_data_without_preamble_auto() {
+    let path = dicom_test_files::path("pydicom/liver.dcm").expect("test DICOM file should exist");
+    let mut source = BufReader::new(File::open(path).unwrap());
+
+    // skip preamble
+    let mut preamble = [0; 128];
+
+    source.read_exact(&mut preamble).unwrap();
+
+    // detect lack of preamble automatically
+    let object = OpenFileOptions::new()
         .from_reader(source)
         .expect("Should read from source successfully");
 

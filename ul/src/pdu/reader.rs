@@ -247,7 +247,7 @@ where
                 }
             }
 
-            Ok(Pdu::AssociationRQ {
+            Ok(Pdu::AssociationRQ(AssociationRQ {
                 protocol_version,
                 application_context_name: application_context_name
                     .context(MissingApplicationContextNameSnafu)?,
@@ -255,7 +255,7 @@ where
                 calling_ae_title,
                 presentation_contexts,
                 user_variables,
-            })
+            }))
         }
         0x02 => {
             // A-ASSOCIATE-AC PDU Structure
@@ -341,7 +341,7 @@ where
                 }
             }
 
-            Ok(Pdu::AssociationAC {
+            Ok(Pdu::AssociationAC(AssociationAC {
                 protocol_version,
                 application_context_name: application_context_name
                     .context(MissingApplicationContextNameSnafu)?,
@@ -349,7 +349,7 @@ where
                 calling_ae_title,
                 presentation_contexts,
                 user_variables,
-            })
+            }))
         }
         0x03 => {
             // A-ASSOCIATE-RJ PDU Structure
@@ -402,7 +402,7 @@ where
             )
             .context(InvalidRejectSourceOrReasonSnafu)?;
 
-            Ok(Pdu::AssociationRJ { result, source })
+            Ok(Pdu::AssociationRJ(AssociationRJ { result, source }))
         }
         0x04 => {
             // P-DATA-TF PDU Structure
@@ -898,6 +898,51 @@ where
                             .to_string();
                         user_variables.push(UserVariableItem::ImplementationVersionName(
                             implementation_version_name,
+                        ));
+                    }
+                    0x56 => {
+                        // SOP Class Extended Negotiation Sub-Item
+
+                        // 5-6 - SOP-class-uid-length - The SOP-class-uid-length shall be the number
+                        // of bytes from the first byte of the following field to the last byte of the
+                        // SOP-class-uid field. It shall be encoded as an unsigned binary number.
+                        let sop_class_uid_length =
+                            cursor.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
+                                field: "SOP-class-uid-length",
+                            })?;
+
+                        // 7 - xxx - SOP-class-uid - The SOP Class or Meta SOP Class identifier
+                        // encoded as a UID as defined in Section 9 “Unique Identifiers (UIDs)” in PS3.5.
+                        let sop_class_uid = codec
+                            .decode(&read_n(&mut cursor, sop_class_uid_length as usize).context(
+                                ReadPduFieldSnafu {
+                                    field: "SOP-class-uid",
+                                },
+                            )?)
+                            .context(DecodeTextSnafu {
+                                field: "SOP-class-uid",
+                            })?
+                            .trim()
+                            .to_string();
+
+                        let data_length =
+                            cursor.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
+                                field: "Service-class-application-information-length",
+                            })?;
+
+                        // xxx-xxx - Service-class-application-information -This field shall contain
+                        // the application information specific to the Service Class specification
+                        // identified by the SOP-class-uid. The semantics and value of this field
+                        // is defined in the identified Service Class specification.
+                        let data = read_n(&mut cursor, data_length as usize).context(
+                            ReadPduFieldSnafu {
+                                field: "Service-class-application-information",
+                            },
+                        )?;
+
+                        user_variables.push(UserVariableItem::SopClassExtendedNegotiationSubItem(
+                            sop_class_uid,
+                            data,
                         ));
                     }
                     _ => {

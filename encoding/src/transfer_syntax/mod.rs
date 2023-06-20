@@ -4,10 +4,19 @@
 //!
 //! This crate does not host specific transfer syntaxes. Instead, they are created in
 //! other crates and registered in the global transfer syntax registry, which implements
-//! [`TransferSyntaxIndex`]. For more
-//! information, please see the [`dicom-transfer-syntax-registry`] crate.
+//! [`TransferSyntaxIndex`][1].
+//! For more information, please see the [`dicom-transfer-syntax-registry`] crate,
+//! which provides built-in implementations.
 //!
-//! [`TransferSyntaxIndex`]: ./trait.TransferSyntaxIndex.html
+//! This module allows you to register your own transfer syntaxes.
+//! With the `inventory-registry` Cargo feature,
+//! you can use the macro [`submit_transfer_syntax`]
+//! to instruct the compiler to include your implementation in the registry.
+//! Without the `inventory`-based registry
+//! (in case your environment does not support it),
+//! you can still roll your own [transfer syntax index][1].
+//!
+//! [1]: TransferSyntaxIndex
 //! [`dicom-transfer-syntax-registry`]: https://docs.rs/dicom-transfer-syntax-registry
 
 use crate::adapters::{DynPixelRWAdapter, NeverPixelAdapter, PixelRWAdapter};
@@ -45,6 +54,8 @@ pub type DynEncoder<'w, W> = Box<dyn EncodeTo<W> + 'w>;
 /// which are type-erased before registration.
 /// If the transfer syntax requires no data set codec,
 /// `D` can be assigned to the utility type [`NeverAdapter`].
+/// If pixel data encoding/decoding is not needed or not supported,
+/// you can assign `P` to [`NeverPixelAdapter`].
 #[derive(Debug)]
 pub struct TransferSyntax<D = DynDataRWAdapter, P = DynPixelRWAdapter> {
     /// The unique identifier of the transfer syntax.
@@ -111,16 +122,47 @@ where
 ///
 /// This macro does not actually "run" anything, so place it outside of a
 /// function body at the root of the crate.
-/// The expression is evaluated before main is called
-/// (more specifically when the transfer syntax registry is populated),
+/// The expression is evaluated when the transfer syntax registry is populated
+/// upon the first request,
 /// and must resolve to a value of type [`TransferSyntax<D, P>`],
 /// for valid definitions of the parameter types `D` and `P`.
 /// The macro will type-erase these parameters automatically.
 ///
-/// [`TransferSyntax<D, P>`]: crate::transfer_syntax::TransferSyntax
+/// # Example
+///
+/// One common use case is wanting to read data sets
+/// of DICOM objects in a private transfer syntax,
+/// even when a decoder for that pixel data is not available.
+/// By writing a simple stub at your project's root,
+/// the rest of the ecosystem will know
+/// how to read and write data sets in that transfer syntax.
+///
+/// ```
+/// use dicom_encoding::{
+///     submit_transfer_syntax, AdapterFreeTransferSyntax, Codec, Endianness,
+/// };
+///
+/// submit_transfer_syntax!(AdapterFreeTransferSyntax::new(
+///     // Transfer Syntax UID
+///     "1.3.46.670589.33.1.4.1",
+///     // Name/alias
+///     "CT Private ELE",
+///     // Data set byte order
+///     Endianness::Little,
+///     // Explicit VR (true) or Implicit VR (false)
+///     true,
+///     Codec::EncapsulatedPixelData,  // pixel data codec
+/// ));
+/// ```
+///
+/// With [`Codec::EncapsulatedPixelData`],
+/// we are indicating that it relies on encapsulated pixel data,
+/// albeit without the means to decode or encode it.
+/// See the [`adapters`](crate::adapters) module
+/// to know how to write pixel data encoders and decoders.
 macro_rules! submit_transfer_syntax {
     ($ts: expr) => {
-        inventory::submit! {
+        $crate::inventory::submit! {
             $crate::transfer_syntax::TransferSyntaxFactory(|| ($ts).erased())
         }
     };
@@ -142,6 +184,86 @@ macro_rules! submit_transfer_syntax {
         // ignore request
     };
 }
+
+#[cfg(feature = "inventory-registry")]
+#[macro_export]
+/// Submit an explicit VR little endian transfer syntax specifier
+/// to be supported by the program's runtime.
+///
+/// This macro is equivalent in behavior as [`submit_transfer_syntax`],
+/// but it is easier to use when
+/// writing support for compressed pixel data formats,
+/// which are usually in explicit VR little endian.
+///
+/// This macro does not actually "run" anything, so place it outside of a
+/// function body at the root of the crate.
+/// The expression is evaluated when the transfer syntax registry is populated
+/// upon the first request,
+/// and must resolve to a value of type [`Codec<D, P>`],
+/// for valid definitions of the parameter types `D` and `P`.
+/// The macro will type-erase these parameters automatically.
+///
+/// # Example
+///
+/// One common use case is wanting to read data sets
+/// of DICOM objects in a private transfer syntax,
+/// even when a decoder for that pixel data is not available.
+/// By writing a simple stub at your project's root,
+/// the rest of the ecosystem will know
+/// how to read and write data sets in that transfer syntax.
+///
+/// ```
+/// use dicom_encoding::{submit_ele_transfer_syntax, Codec};
+///
+/// submit_ele_transfer_syntax!(
+///     // Transfer Syntax UID
+///     "1.3.46.670589.33.1.4.1",
+///     // Name/alias
+///     "CT Private ELE",
+///     // pixel data codec
+///     Codec::EncapsulatedPixelData
+/// );
+/// ```
+///
+/// With [`Codec::EncapsulatedPixelData`],
+/// we are indicating that it relies on encapsulated pixel data,
+/// albeit without the means to decode or encode it.
+/// See the [`adapters`](crate::adapters) module
+/// to know how to write pixel data encoders and decoders.
+macro_rules! submit_ele_transfer_syntax {
+    ($uid: expr, $name: expr, $codec: expr) => {
+        $crate::submit_transfer_syntax! {
+            $crate::AdapterFreeTransferSyntax::new(
+                $uid,
+                $name,
+                $crate::Endianness::Little,
+                true,
+                $codec
+            )
+        }
+    };
+}
+
+#[cfg(not(feature = "inventory-registry"))]
+#[macro_export]
+/// Submit an explicit VR little endian transfer syntax specifier
+/// to be supported by the program's runtime.
+///
+/// This macro is equivalent in behavior as [`submit_transfer_syntax`],
+/// but it is easier to use when
+/// writing support for compressed pixel data formats,
+/// which are usually in explicit VR little endian.
+///
+/// This macro does actually "run" anything, so place it outside of a
+/// function body at the root of the crate.
+///
+/// Without the `inventory-registry` feature, this request is ignored.
+macro_rules! submit_ele_transfer_syntax {
+    ($uid: literal, $name: literal, $codec: expr) => {
+        // ignore request
+    };
+}
+
 
 /// A description and possible implementation regarding
 /// the encoding and decoding requirements of a transfer syntax.
@@ -341,7 +463,7 @@ impl<D, P> TransferSyntax<D, P> {
     }
 
     /// Check whether reading and writing the pixel data is unsupported.
-    /// If this is `true`, encoding and decoding of the data set will still
+    /// If this is `true`, encoding and decoding of the data set may still
     /// be possible, but the pixel data will only be available in its
     /// encapsulated form.
     pub fn unsupported_pixel_encapsulation(&self) -> bool {
@@ -374,9 +496,9 @@ impl<D, P> TransferSyntax<D, P> {
         S: ?Sized + Read,
     {
         match (self.byte_order, self.explicit_vr) {
-            (Endianness::Little, false) => Some(Box::new(ImplicitVRLittleEndianDecoder::default())),
-            (Endianness::Little, true) => Some(Box::new(ExplicitVRLittleEndianDecoder::default())),
-            (Endianness::Big, true) => Some(Box::new(ExplicitVRBigEndianDecoder::default())),
+            (Endianness::Little, false) => Some(Box::<ImplicitVRLittleEndianDecoder<_>>::default()),
+            (Endianness::Little, true) => Some(Box::<ExplicitVRLittleEndianDecoder>::default()),
+            (Endianness::Big, true) => Some(Box::<ExplicitVRBigEndianDecoder>::default()),
             _ => None,
         }
     }

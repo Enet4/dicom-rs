@@ -26,8 +26,16 @@ pub use adapters::NeverPixelAdapter;
 pub use byteordered::Endianness;
 pub use decode::Decode;
 pub use encode::Encode;
+pub use transfer_syntax::AdapterFreeTransferSyntax;
 pub use transfer_syntax::Codec;
 pub use transfer_syntax::DataRWAdapter;
 pub use transfer_syntax::NeverAdapter;
 pub use transfer_syntax::TransferSyntax;
 pub use transfer_syntax::TransferSyntaxIndex;
+
+// public dependency re-export
+pub use snafu;
+
+// public dependency re-export
+#[cfg(feature = "inventory-registry")]
+pub use inventory;

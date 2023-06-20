@@ -343,7 +343,7 @@ where
         basic: BD,
         text: TC,
     ) -> Result<Self, std::io::Error> {
-        let position = from.seek(SeekFrom::Current(0))?;
+        let position = from.stream_position()?;
         Ok(Self::new_with_position(
             from, decoder, basic, text, position,
         ))

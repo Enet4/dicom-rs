@@ -17,18 +17,17 @@
 //! - [`dictionary`] describes common behavior of DICOM data dictionaries,
 //!   which translate attribute names and/or tags to a dictionary entry
 //!   containing relevant information about the attribute.
+//! - [`ops`] provides constructs for defining
+//!   operations on DICOM attributes,
+//!   to be applied on types resembling DICOM objects or data sets.
 //! - [`value`] holds definitions for values in standard DICOM elements,
 //!   with the awareness of multiplicity, representation,
 //!   and the possible presence of sequences.
-//! - [`error`] contains crate-level error and result types.
 //!
-//! [`dictionary`]: ./dictionary/index.html
-//! [`error`]: ./error/index.html
-//! [`header`]: ./header/index.html
-//! [`value`]: ./value/index.html
 
 pub mod dictionary;
 pub mod header;
+pub mod ops;
 pub mod value;
 
 pub use dictionary::DataDictionary;
@@ -38,8 +37,6 @@ pub use value::{PrimitiveValue, Value as DicomValue};
 // re-export crates that are part of the public API
 pub use chrono;
 pub use smallvec;
-
-mod util;
 
 /// Helper macro for constructing a DICOM primitive value,
 /// of an arbitrary variant and multiplicity.
@@ -123,28 +120,16 @@ macro_rules! dicom_value {
     () => { $crate::value::PrimitiveValue::Empty };
     // Multiple strings
     (Strs, [ $($elem: expr),+ , ]) => {
-        {
-            use smallvec::smallvec; // import smallvec macro
-            $crate::value::PrimitiveValue :: Strs (smallvec![$($elem.to_owned(),)*])
-        }
+        $crate::value::PrimitiveValue :: Strs ($crate::smallvec::smallvec![$($elem.to_owned(),)*])
     };
     (Strs, [ $($elem: expr),+ ]) => {
-        {
-            use smallvec::smallvec; // import smallvec macro
-            $crate::value::PrimitiveValue :: Strs (smallvec![$($elem.to_owned(),)*])
-        }
+        $crate::value::PrimitiveValue :: Strs ($crate::smallvec::smallvec![$($elem.to_owned(),)*])
     };
     ($typ: ident, [ $($elem: expr),+ , ]) => {
-        {
-            use smallvec::smallvec; // import smallvec macro
-            $crate::value::PrimitiveValue :: $typ (smallvec![$($elem,)*])
-        }
+        $crate::value::PrimitiveValue :: $typ ($crate::smallvec::smallvec![$($elem,)*])
     };
     ($typ: ident, [ $($elem: expr),+ ]) => {
-        {
-            use smallvec::smallvec; // import smallvec macro
-            $crate::value::PrimitiveValue :: $typ (smallvec![$($elem,)*])
-        }
+        $crate::value::PrimitiveValue :: $typ ($crate::smallvec::smallvec![$($elem,)*])
     };
     (Str, $elem: expr) => {
         $crate::value::PrimitiveValue :: Str (String::from($elem))

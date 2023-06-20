@@ -522,7 +522,7 @@ where
 
 #[inline]
 fn even_len(l: u32) -> u32 {
-    ((l + 1) & !1) as u32
+    (l + 1) & !1
 }
 
 #[cfg(test)]

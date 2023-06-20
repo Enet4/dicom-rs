@@ -4,7 +4,7 @@ use std::{
 };
 
 use clap::Parser;
-use dicom_core::{dicom_value, DataElement, PrimitiveValue, VR};
+use dicom_core::{dicom_value, DataElement, VR};
 use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject, StandardDataDictionary};
@@ -19,27 +19,28 @@ mod transfer;
 
 /// DICOM C-STORE SCP
 #[derive(Debug, Parser)]
+#[command(version)]
 struct App {
     /// verbose mode
-    #[clap(short = 'v', long = "verbose")]
+    #[arg(short = 'v', long = "verbose")]
     verbose: bool,
     /// the calling Application Entity title
-    #[structopt(long = "calling-ae-title", default_value = "STORE-SCP")]
+    #[arg(long = "calling-ae-title", default_value = "STORE-SCP")]
     calling_ae_title: String,
     /// enforce max pdu length
-    #[clap(short = 's', long = "strict")]
+    #[arg(short = 's', long = "strict")]
     strict: bool,
     /// Only accept native/uncompressed transfer syntaxes
-    #[clap(long)]
+    #[arg(long)]
     uncompressed_only: bool,
     /// max pdu length
-    #[clap(short = 'm', long = "max-pdu-length", default_value = "16384")]
+    #[arg(short = 'm', long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
     /// output directory for incoming objects
-    #[clap(short = 'o', default_value = ".")]
+    #[arg(short = 'o', default_value = ".")]
     out_dir: PathBuf,
     /// Which port to listen on
-    #[clap(short, default_value = "11111")]
+    #[arg(short, default_value = "11111")]
     port: u16,
 }
 
@@ -117,23 +118,53 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
 
                             let obj = InMemDicomObject::read_dataset_with_ts(v.as_slice(), &ts)
                                 .whatever_context("failed to read incoming DICOM command")?;
-                            msgid = obj
-                                .element(tags::MESSAGE_ID)
-                                .whatever_context("Missing Message ID")?
-                                .to_int()
-                                .whatever_context("Message ID is not an integer")?;
-                            sop_class_uid = obj
-                                .element(tags::AFFECTED_SOP_CLASS_UID)
-                                .whatever_context("missing Affected SOP Class UID")?
-                                .to_str()
-                                .whatever_context("could not retrieve Affected SOP Class UID")?
-                                .to_string();
-                            sop_instance_uid = obj
-                                .element(tags::AFFECTED_SOP_INSTANCE_UID)
-                                .whatever_context("missing Affected SOP Instance UID")?
-                                .to_str()
-                                .whatever_context("could not retrieve Affected SOP Instance UID")?
-                                .to_string();
+                            let command_field = obj
+                                .element(tags::COMMAND_FIELD)
+                                .whatever_context("Missing Command Field")?
+                                .uint16()
+                                .whatever_context("Command Field is not an integer")?;
+
+                            if command_field == 0x0030 {
+                                // Handle C-ECHO-RQ
+                                let cecho_response = create_cecho_response(msgid);
+                                let mut cecho_data = Vec::new();
+
+                                cecho_response
+                                    .write_dataset_with_ts(&mut cecho_data, &ts)
+                                    .whatever_context("could not write C-ECHO response object")?;
+
+                                let pdu_response = Pdu::PData {
+                                    data: vec![dicom_ul::pdu::PDataValue {
+                                        presentation_context_id: data[0].presentation_context_id,
+                                        value_type: PDataValueType::Command,
+                                        is_last: true,
+                                        data: cecho_data,
+                                    }],
+                                };
+                                association.send(&pdu_response).whatever_context(
+                                    "failed to send C-ECHO response object to SCU",
+                                )?;
+                            } else {
+                                msgid = obj
+                                    .element(tags::MESSAGE_ID)
+                                    .whatever_context("Missing Message ID")?
+                                    .to_int()
+                                    .whatever_context("Message ID is not an integer")?;
+                                sop_class_uid = obj
+                                    .element(tags::AFFECTED_SOP_CLASS_UID)
+                                    .whatever_context("missing Affected SOP Class UID")?
+                                    .to_str()
+                                    .whatever_context("could not retrieve Affected SOP Class UID")?
+                                    .to_string();
+                                sop_instance_uid = obj
+                                    .element(tags::AFFECTED_SOP_INSTANCE_UID)
+                                    .whatever_context("missing Affected SOP Instance UID")?
+                                    .to_str()
+                                    .whatever_context(
+                                        "could not retrieve Affected SOP Instance UID",
+                                    )?
+                                    .to_string();
+                            }
                             instance_buffer.clear();
                         } else if data[0].value_type == PDataValueType::Data && data[0].is_last {
                             instance_buffer.append(&mut data[0].data);
@@ -239,68 +270,51 @@ fn create_cstore_response(
     sop_class_uid: &str,
     sop_instance_uid: &str,
 ) -> InMemDicomObject<StandardDataDictionary> {
-    let mut obj = InMemDicomObject::new_empty();
-
-    // group length
-    obj.put(DataElement::new(
-        tags::COMMAND_GROUP_LENGTH,
-        VR::UL,
-        PrimitiveValue::from(
-            8 + sop_class_uid.len() as i32
-                + 8
-                + 2
-                + 8
-                + 2
-                + 8
-                + 2
-                + 8
-                + 2
-                + sop_instance_uid.len() as i32,
+    InMemDicomObject::command_from_element_iter([
+        DataElement::new(
+            tags::AFFECTED_SOP_CLASS_UID,
+            VR::UI,
+            dicom_value!(Str, sop_class_uid),
         ),
-    ));
+        DataElement::new(tags::COMMAND_FIELD, VR::US, dicom_value!(U16, [0x8001])),
+        DataElement::new(
+            tags::MESSAGE_ID_BEING_RESPONDED_TO,
+            VR::US,
+            dicom_value!(U16, [message_id]),
+        ),
+        DataElement::new(
+            tags::COMMAND_DATA_SET_TYPE,
+            VR::US,
+            dicom_value!(U16, [0x0101]),
+        ),
+        DataElement::new(tags::STATUS, VR::US, dicom_value!(U16, [0x0000])),
+        DataElement::new(
+            tags::AFFECTED_SOP_INSTANCE_UID,
+            VR::UI,
+            dicom_value!(Str, sop_instance_uid),
+        ),
+    ])
+}
 
-    // service
-    obj.put(DataElement::new(
-        tags::AFFECTED_SOP_CLASS_UID,
-        VR::UI,
-        dicom_value!(Str, sop_class_uid),
-    ));
-    // command
-    obj.put(DataElement::new(
-        tags::COMMAND_FIELD,
-        VR::US,
-        dicom_value!(U16, [0x8001]),
-    ));
-    // message ID being responded to
-    obj.put(DataElement::new(
-        tags::MESSAGE_ID_BEING_RESPONDED_TO,
-        VR::US,
-        dicom_value!(U16, [message_id]),
-    ));
-    // data set type
-    obj.put(DataElement::new(
-        tags::COMMAND_DATA_SET_TYPE,
-        VR::US,
-        dicom_value!(U16, [0x0101]),
-    ));
-    // status https://dicom.nema.org/dicom/2013/output/chtml/part07/chapter_C.html
-    obj.put(DataElement::new(
-        tags::STATUS,
-        VR::US,
-        dicom_value!(U16, [0x0000]),
-    ));
-    // SOPInstanceUID
-    obj.put(DataElement::new(
-        tags::AFFECTED_SOP_INSTANCE_UID,
-        VR::UI,
-        dicom_value!(Str, sop_instance_uid),
-    ));
-
-    obj
+fn create_cecho_response(message_id: u16) -> InMemDicomObject<StandardDataDictionary> {
+    InMemDicomObject::command_from_element_iter([
+        DataElement::new(tags::COMMAND_FIELD, VR::US, dicom_value!(U16, [0x8030])),
+        DataElement::new(
+            tags::MESSAGE_ID_BEING_RESPONDED_TO,
+            VR::US,
+            dicom_value!(U16, [message_id]),
+        ),
+        DataElement::new(
+            tags::COMMAND_DATA_SET_TYPE,
+            VR::US,
+            dicom_value!(U16, [0x0101]),
+        ),
+        DataElement::new(tags::STATUS, VR::US, dicom_value!(U16, [0x0000])),
+    ])
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = App::from_args();
+    let args = App::parse();
 
     tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()
@@ -344,4 +358,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::App;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        App::command().debug_assert();
+    }
 }

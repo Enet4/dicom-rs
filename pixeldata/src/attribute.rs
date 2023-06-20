@@ -51,8 +51,8 @@ pub enum GetAttributeError {
     Retrieve {
         name: AttributeName,
         #[snafu(backtrace)]
-        #[snafu(source(from(dicom_object::Error, Box::from)))]
-        source: Box<dicom_object::Error>,
+        #[snafu(source(from(dicom_object::AccessError, Box::from)))]
+        source: Box<dicom_object::AccessError>,
     },
 
     #[snafu(display("Could not get attribute `{}`", name))]

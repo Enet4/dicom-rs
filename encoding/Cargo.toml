@@ -10,15 +10,14 @@ categories = ["encoding"]
 keywords = ["dicom"]
 readme = "README.md"
 
-[features]
-default = []
-inventory-registry = ['inventory']
-
 [dependencies]
 dicom-core = { path = "../core", version = "0.5.3" }
 dicom-dictionary-std = { path = "../dictionary-std", version = "0.5.0" }
 encoding = "0.2.33"
 byteordered = "0.6"
-inventory = { version = "0.2.2", optional = true }
+inventory = { version = "0.3.2", optional = true }
 snafu = "0.7.3"
-jpeg-decoder = "0.3.0"
+
+[features]
+default = []
+inventory-registry = ['inventory']

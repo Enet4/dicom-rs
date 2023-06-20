@@ -1,4 +1,5 @@
-use dicom_core::{dicom_value, header::Tag, smallvec, DataElement, PrimitiveValue, VR};
+use clap::Parser;
+use dicom_core::{dicom_value, header::Tag, DataElement, VR};
 use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax;
 use dicom_object::{mem::InMemDicomObject, open_file, StandardDataDictionary};
@@ -8,7 +9,6 @@ use dicom_ul::{
     pdu::{PDataValue, PDataValueType, Pdu},
 };
 use indicatif::{ProgressBar, ProgressStyle};
-use smallvec::smallvec;
 use snafu::prelude::*;
 use snafu::{Report, Whatever};
 use std::collections::HashSet;
@@ -16,39 +16,39 @@ use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use structopt::StructOpt;
 use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 use walkdir::WalkDir;
 
 /// DICOM C-STORE SCU
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
+#[command(version)]
 struct App {
     /// socket address to Store SCP,
     /// optionally with AE title
     /// (example: "STORE-SCP@127.0.0.1:104")
     addr: String,
     /// the DICOM file(s) to store
-    #[structopt(required = true)]
+    #[arg(required = true)]
     files: Vec<PathBuf>,
     /// verbose mode
-    #[structopt(short = "v", long = "verbose")]
+    #[arg(short = 'v', long = "verbose")]
     verbose: bool,
     /// the C-STORE message ID
-    #[structopt(short = "m", long = "message-id", default_value = "1")]
+    #[arg(short = 'm', long = "message-id", default_value = "1")]
     message_id: u16,
     /// the calling Application Entity title
-    #[structopt(long = "calling-ae-title", default_value = "STORE-SCU")]
+    #[arg(long = "calling-ae-title", default_value = "STORE-SCU")]
     calling_ae_title: String,
     /// the called Application Entity title,
     /// overrides AE title in address if present [default: ANY-SCP]
-    #[structopt(long = "called-ae-title")]
+    #[arg(long = "called-ae-title")]
     called_ae_title: Option<String>,
     /// the maximum PDU length accepted by the SCU
-    #[structopt(long = "max-pdu-length", default_value = "16384")]
+    #[arg(long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
     /// fail if not all DICOM files can be transferred
-    #[structopt(long = "fail-first")]
+    #[arg(long = "fail-first")]
     fail_first: bool,
 }
 
@@ -75,7 +75,7 @@ enum Error {
     },
 
     /// Could not construct DICOM command
-    CreateCommand { source: dicom_object::Error },
+    CreateCommand { source: dicom_object::WriteError },
 
     #[snafu(whatever, display("{}", message))]
     Other {
@@ -102,7 +102,7 @@ fn run() -> Result<(), Error> {
         called_ae_title,
         max_pdu_length,
         fail_first,
-    } = App::from_args();
+    } = App::parse();
 
     tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()
@@ -178,7 +178,7 @@ fn run() -> Result<(), Error> {
         info!("Association established");
     }
 
-    for mut file in &mut dicom_files {
+    for file in &mut dicom_files {
         // TODO(#106) transfer syntax conversion is currently not supported
         let r: Result<_, Error> = check_presentation_contexts(file, scu.presentation_contexts())
             .whatever_context::<_, _>("Could not choose a transfer syntax");
@@ -395,71 +395,49 @@ fn store_req_command(
     storage_sop_instance_uid: &str,
     message_id: u16,
 ) -> InMemDicomObject<StandardDataDictionary> {
-    let mut obj = InMemDicomObject::new_empty();
-
-    // group length
-    obj.put(DataElement::new(
-        tags::COMMAND_GROUP_LENGTH,
-        VR::UL,
-        PrimitiveValue::from(
-            12 + 8
-                + even_len(storage_sop_class_uid.len())
-                + 10
-                + 10
-                + 10
-                + 10
-                + 8
-                + even_len(storage_sop_instance_uid.len()),
+    InMemDicomObject::command_from_element_iter([
+        // SOP Class UID
+        DataElement::new(
+            tags::AFFECTED_SOP_CLASS_UID,
+            VR::UI,
+            dicom_value!(Str, storage_sop_class_uid),
         ),
-    ));
 
-    // SOP Class UID
-    obj.put(DataElement::new(
-        tags::AFFECTED_SOP_CLASS_UID,
-        VR::UI,
-        dicom_value!(Str, storage_sop_class_uid),
-    ));
+        // command field
+        DataElement::new(
+            tags::COMMAND_FIELD,
+            VR::US,
+            dicom_value!(U16, [0x0001]),
+        ),
 
-    // command field
-    obj.put(DataElement::new(
-        tags::COMMAND_FIELD,
-        VR::US,
-        dicom_value!(U16, [0x0001]),
-    ));
+        // message ID
+        DataElement::new(
+            tags::MESSAGE_ID,
+            VR::US,
+            dicom_value!(U16, [message_id]),
+        ),
 
-    // message ID
-    obj.put(DataElement::new(
-        tags::MESSAGE_ID,
-        VR::US,
-        dicom_value!(U16, [message_id]),
-    ));
+        //priority
+        DataElement::new(
+            tags::PRIORITY,
+            VR::US,
+            dicom_value!(U16, [0x0000]),
+        ),
 
-    //priority
-    obj.put(DataElement::new(
-        tags::PRIORITY,
-        VR::US,
-        dicom_value!(U16, [0x0000]),
-    ));
+        // data set type
+        DataElement::new(
+            tags::COMMAND_DATA_SET_TYPE,
+            VR::US,
+            dicom_value!(U16, [0x0000]),
+        ),
 
-    // data set type
-    obj.put(DataElement::new(
-        tags::COMMAND_DATA_SET_TYPE,
-        VR::US,
-        dicom_value!(U16, [0x0000]),
-    ));
-
-    // affected SOP Instance UID
-    obj.put(DataElement::new(
-        tags::AFFECTED_SOP_INSTANCE_UID,
-        VR::UI,
-        dicom_value!(Str, storage_sop_instance_uid),
-    ));
-
-    obj
-}
-
-fn even_len(l: usize) -> u32 {
-    ((l + 1) & !1) as u32
+        // affected SOP Instance UID
+        DataElement::new(
+            tags::AFFECTED_SOP_INSTANCE_UID,
+            VR::UI,
+            dicom_value!(Str, storage_sop_instance_uid),
+        ),
+    ])
 }
 
 fn check_file(file: &Path) -> Result<DicomFile, Error> {
@@ -523,14 +501,11 @@ fn check_presentation_contexts(
 
 #[cfg(test)]
 mod tests {
-    use super::even_len;
+    use crate::App;
+    use clap::CommandFactory;
+
     #[test]
-    fn test_even_len() {
-        assert_eq!(even_len(0), 0);
-        assert_eq!(even_len(1), 2);
-        assert_eq!(even_len(2), 2);
-        assert_eq!(even_len(3), 4);
-        assert_eq!(even_len(4), 4);
-        assert_eq!(even_len(5), 6);
+    fn verify_cli() {
+        App::command().debug_assert();
     }
 }

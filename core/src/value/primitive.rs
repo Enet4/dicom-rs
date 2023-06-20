@@ -752,68 +752,6 @@ impl PrimitiveValue {
         }
     }
 
-    /// Convert the primitive value into a clean string representation,
-    /// removing unwanted whitespaces.
-    ///
-    /// Leading whitespaces are preserved and are only removed at the end of a string
-    ///
-    /// String values already encoded with the `Str` and `Strs` variants
-    /// are provided as is without the unwanted whitespaces.
-    /// In the case of `Strs`, the strings are first cleaned from whitespaces
-    /// and then joined together with a backslash (`'\\'`).
-    /// All other type variants are first converted to a clean string,
-    /// then joined together with a backslash.
-    ///
-    /// **Note:**
-    /// As the process of reading a DICOM value
-    /// may not always preserve its original nature,
-    /// it is not guaranteed that `to_clean_str()` returns a string with
-    /// the exact same byte sequence as the one originally found
-    /// at the source of the value,
-    /// even for the string variants.
-    /// Therefore, this method is not reliable
-    /// for compliant DICOM serialization.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use dicom_core::dicom_value;
-    /// # use dicom_core::value::{C, PrimitiveValue, DicomDate};
-    /// # use smallvec::smallvec;
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// assert_eq!(
-    ///     dicom_value!(Str, "Smith^John ").to_clean_str(),
-    ///     "Smith^John",
-    /// );
-    /// assert_eq!(
-    ///     dicom_value!(Str, " Smith^John").to_clean_str(),
-    ///     " Smith^John",
-    /// );
-    /// assert_eq!(
-    ///     dicom_value!(Date, DicomDate::from_ymd(2014, 10, 12)?).to_clean_str(),
-    ///     "2014-10-12",
-    /// );
-    /// assert_eq!(
-    ///     dicom_value!(Strs, [
-    ///         "DERIVED\0",
-    ///         "PRIMARY",
-    ///         " WHOLE BODY",
-    ///         "EMISSION",
-    ///     ])
-    ///     .to_clean_str(),
-    ///     "DERIVED\\PRIMARY\\ WHOLE BODY\\EMISSION",
-    /// );
-    /// Ok(())
-    /// }
-    /// ```
-    #[deprecated(
-        note = "`to_clean_str()` is now deprecated in favour of using `to_str()` directly. 
-        `to_raw_str()` replaces the old functionality of `to_str()` and maintains all trailing whitespace."
-    )]
-    pub fn to_clean_str(&self) -> Cow<str> {
-        self.to_str()
-    }
-
     /// Retrieve this DICOM value as raw bytes.
     ///
     /// Binary numeric values are returned with a reinterpretation
@@ -923,8 +861,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the first string is parsed to obtain an integer,
     /// potentially failing if the string does not represent a valid integer.
-    /// The string is stripped of trailing whitespace before parsing,
-    /// in order to account for the possible padding to even length.
+    /// The string is stripped of leading/trailing whitespace before parsing.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
@@ -964,7 +901,7 @@ impl PrimitiveValue {
     {
         match self {
             PrimitiveValue::Str(s) => {
-                s.trim_end()
+                s.trim()
                     .parse()
                     .context(ParseIntegerSnafu)
                     .map_err(|err| ConvertValueError {
@@ -974,7 +911,7 @@ impl PrimitiveValue {
                     })
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
-                .trim_end()
+                .trim()
                 .parse()
                 .context(ParseIntegerSnafu)
                 .map_err(|err| ConvertValueError {
@@ -1083,8 +1020,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// each string is parsed to obtain an integer,
     /// potentially failing if the string does not represent a valid integer.
-    /// The string is stripped of trailing whitespace before parsing,
-    /// in order to account for the possible padding to even length.
+    /// The string is stripped of leading/trailing whitespace before parsing.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
@@ -1128,7 +1064,7 @@ impl PrimitiveValue {
             PrimitiveValue::Empty => Ok(Vec::new()),
             PrimitiveValue::Str(s) => {
                 let out = s
-                    .trim_end()
+                    .trim()
                     .parse()
                     .context(ParseIntegerSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1141,7 +1077,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => s
                 .iter()
                 .map(|v| {
-                    v.trim_end()
+                    v.trim()
                         .parse()
                         .context(ParseIntegerSnafu)
                         .map_err(|err| ConvertValueError {
@@ -1273,8 +1209,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the first string is parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
-    /// The string is stripped of trailing whitespace before parsing,
-    /// in order to account for the possible padding to even length.
+    /// The string is stripped of leading/trailing whitespace before parsing.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
@@ -1301,7 +1236,7 @@ impl PrimitiveValue {
     pub fn to_float32(&self) -> Result<f32, ConvertValueError> {
         match self {
             PrimitiveValue::Str(s) => {
-                s.trim_end()
+                s.trim()
                     .parse()
                     .context(ParseFloatSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1311,7 +1246,7 @@ impl PrimitiveValue {
                     })
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
-                .trim_end()
+                .trim()
                 .parse()
                 .context(ParseFloatSnafu)
                 .map_err(|err| ConvertValueError {
@@ -1434,8 +1369,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the strings are parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
-    /// The string is stripped of trailing whitespace before parsing,
-    /// in order to account for the possible padding to even length.
+    /// The string is stripped of leading/trailing whitespace before parsing.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
@@ -1464,7 +1398,7 @@ impl PrimitiveValue {
             PrimitiveValue::Empty => Ok(Vec::new()),
             PrimitiveValue::Str(s) => {
                 let out = s
-                    .trim_end()
+                    .trim()
                     .parse()
                     .context(ParseFloatSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1477,7 +1411,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => s
                 .iter()
                 .map(|v| {
-                    v.trim_end()
+                    v.trim()
                         .parse()
                         .context(ParseFloatSnafu)
                         .map_err(|err| ConvertValueError {
@@ -1625,6 +1559,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the first string is parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
+    /// The string is stripped of leading/trailing whitespace before parsing.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
@@ -1651,7 +1586,7 @@ impl PrimitiveValue {
     pub fn to_float64(&self) -> Result<f64, ConvertValueError> {
         match self {
             PrimitiveValue::Str(s) => {
-                s.trim_end()
+                s.trim()
                     .parse()
                     .context(ParseFloatSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1661,7 +1596,7 @@ impl PrimitiveValue {
                     })
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
-                .trim_end()
+                .trim()
                 .parse()
                 .context(ParseFloatSnafu)
                 .map_err(|err| ConvertValueError {
@@ -1784,8 +1719,7 @@ impl PrimitiveValue {
     /// If the value is a string or sequence of strings,
     /// the strings are parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
-    /// The string is stripped of trailing whitespace before parsing,
-    /// in order to account for the possible padding to even length.
+    /// The string is stripped of leading/trailing whitespace before parsing.
     /// If the value is a sequence of U8 bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
@@ -1813,7 +1747,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Str(s) => {
                 let out = s
-                    .trim_end()
+                    .trim()
                     .parse()
                     .context(ParseFloatSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1826,7 +1760,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => s
                 .iter()
                 .map(|v| {
-                    v.trim_end()
+                    v.trim()
                         .parse()
                         .context(ParseFloatSnafu)
                         .map_err(|err| ConvertValueError {
@@ -2130,7 +2064,6 @@ impl PrimitiveValue {
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
-                .into_iter()
                 .map(super::deserialize::parse_date)
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
@@ -2293,7 +2226,6 @@ impl PrimitiveValue {
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
-                .into_iter()
                 .map(|s| super::deserialize::parse_date_partial(s).map(|(date, _rest)| date))
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
@@ -2476,7 +2408,6 @@ impl PrimitiveValue {
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
-                .into_iter()
                 .map(|s| super::deserialize::parse_time(s).map(|(date, _rest)| date))
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
@@ -2674,7 +2605,6 @@ impl PrimitiveValue {
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
-                .into_iter()
                 .map(|s| super::deserialize::parse_time_partial(s).map(|(date, _rest)| date))
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
@@ -2897,7 +2827,6 @@ impl PrimitiveValue {
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
-                .into_iter()
                 .map(|s| super::deserialize::parse_datetime(s, default_offset))
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
@@ -3062,7 +2991,6 @@ impl PrimitiveValue {
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
-                .into_iter()
                 .map(|s| super::deserialize::parse_datetime_partial(s, default_offset))
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
@@ -3344,7 +3272,7 @@ impl PrimitiveValue {
     /// ```
     pub fn to_person_name(&self) -> Result<PersonName<'_>, ConvertValueError> {
         match self {
-            PrimitiveValue::Str(s) => Ok(PersonName::from_str(s)),
+            PrimitiveValue::Str(s) => Ok(PersonName::from_text(s)),
             PrimitiveValue::Strs(s) => s.first().map_or_else(
                 || {
                     Err(ConvertValueError {
@@ -3353,7 +3281,7 @@ impl PrimitiveValue {
                         cause: None,
                     })
                 },
-                |s| Ok(PersonName::from_str(s)),
+                |s| Ok(PersonName::from_text(s)),
             ),
             _ => Err(ConvertValueError {
                 requested: "PersonName",
@@ -3525,10 +3453,220 @@ impl PrimitiveValue {
             | PrimitiveValue::F64(_)
             | PrimitiveValue::Date(_)
             | PrimitiveValue::DateTime(_)
-            | PrimitiveValue::Time(_) => Err(IncompatibleStringTypeSnafu {
+            | PrimitiveValue::Time(_) => IncompatibleStringTypeSnafu {
                 original: self.value_type(),
             }
-            .build()),
+            .fail(),
+        }
+    }
+
+    /// Extend a value of numbers by appending
+    /// 16-bit unsigned integers to an existing value.
+    ///
+    /// The value may be empty
+    /// or already contain numeric or textual values.
+    ///
+    /// If the current value is textual,
+    /// the numbers provided are converted to text.
+    /// For the case of numeric values,
+    /// the given numbers are _converted to the current number type
+    /// through casting_,
+    /// meaning that loss of precision may occur.
+    /// If this is undesirable,
+    /// read the current value and replace it manually.
+    ///
+    /// An error is returned
+    /// if the current value is not compatible with the insertion of integers,
+    /// such as `Tag` or `Date`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use dicom_core::dicom_value;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut value = dicom_value!(U16, [1, 2]);
+    /// value.extend_u16([5])?;
+    /// assert_eq!(value.to_multi_int::<u16>()?, vec![1, 2, 5]);
+    ///
+    /// let mut value = dicom_value!(Strs, ["City"]);
+    /// value.extend_u16([17])?;
+    /// assert_eq!(value.to_string(), "City\\17");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn extend_u16(
+        &mut self,
+        numbers: impl IntoIterator<Item = u16>,
+    ) -> Result<(), ModifyValueError> {
+        match self {
+            PrimitiveValue::Empty => {
+                *self = PrimitiveValue::U16(numbers.into_iter().collect());
+                Ok(())
+            }
+            PrimitiveValue::Strs(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n.to_string()));
+                Ok(())
+            }
+            PrimitiveValue::Str(s) => {
+                // for lack of better ways to move the string out from the mutable borrow,
+                // we create a copy for now
+                let s = s.clone();
+                *self = PrimitiveValue::Strs(
+                    std::iter::once(s)
+                        .chain(numbers.into_iter().map(|n| n.to_string()))
+                        .collect(),
+                );
+                Ok(())
+            }
+            PrimitiveValue::U16(elements) => {
+                elements.extend(numbers);
+                Ok(())
+            }
+            PrimitiveValue::U8(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u8));
+                Ok(())
+            }
+            PrimitiveValue::I16(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i16));
+                Ok(())
+            }
+            PrimitiveValue::U32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u32));
+                Ok(())
+            }
+            PrimitiveValue::I32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i32));
+                Ok(())
+            }
+            PrimitiveValue::I64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i64));
+                Ok(())
+            }
+            PrimitiveValue::U64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u64));
+                Ok(())
+            }
+            PrimitiveValue::F32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as f32));
+                Ok(())
+            }
+            PrimitiveValue::F64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as f64));
+                Ok(())
+            }
+            PrimitiveValue::Tags(_)
+            | PrimitiveValue::Date(_)
+            | PrimitiveValue::DateTime(_)
+            | PrimitiveValue::Time(_) => IncompatibleNumberTypeSnafu {
+                original: self.value_type(),
+            }
+            .fail(),
+        }
+    }
+
+    /// Extend a value of numbers by appending
+    /// 16-bit signed integers to an existing value.
+    ///
+    /// The value may be empty
+    /// or already contain numeric or textual values.
+    ///
+    /// If the current value is textual,
+    /// the numbers provided are converted to text.
+    /// For the case of numeric values,
+    /// the given numbers are _converted to the current number type
+    /// through casting_,
+    /// meaning that loss of precision may occur.
+    /// If this is undesirable,
+    /// read the current value and replace it manually.
+    ///
+    /// An error is returned
+    /// if the current value is not compatible with the insertion of integers,
+    /// such as `Tag` or `Date`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use dicom_core::dicom_value;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut value = dicom_value!(I16, [1, 2]);
+    /// value.extend_i16([-5])?;
+    /// assert_eq!(value.to_multi_int::<i16>()?, vec![1, 2, -5]);
+    ///
+    /// let mut value = dicom_value!(Strs, ["City"]);
+    /// value.extend_i16([17])?;
+    /// assert_eq!(value.to_string(), "City\\17");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn extend_i16(
+        &mut self,
+        numbers: impl IntoIterator<Item = i16>,
+    ) -> Result<(), ModifyValueError> {
+        match self {
+            PrimitiveValue::Empty => {
+                *self = PrimitiveValue::I16(numbers.into_iter().collect());
+                Ok(())
+            }
+            PrimitiveValue::Strs(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n.to_string()));
+                Ok(())
+            }
+            PrimitiveValue::Str(s) => {
+                // for lack of better ways to move the string out from the mutable borrow,
+                // we create a copy for now
+                let s = s.clone();
+                *self = PrimitiveValue::Strs(
+                    std::iter::once(s)
+                        .chain(numbers.into_iter().map(|n| n.to_string()))
+                        .collect(),
+                );
+                Ok(())
+            }
+            PrimitiveValue::I16(elements) => {
+                elements.extend(numbers);
+                Ok(())
+            }
+            PrimitiveValue::U8(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u8));
+                Ok(())
+            }
+            PrimitiveValue::U16(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u16));
+                Ok(())
+            }
+            PrimitiveValue::U32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u32));
+                Ok(())
+            }
+            PrimitiveValue::I32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i32));
+                Ok(())
+            }
+            PrimitiveValue::I64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i64));
+                Ok(())
+            }
+            PrimitiveValue::U64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u64));
+                Ok(())
+            }
+            PrimitiveValue::F32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as f32));
+                Ok(())
+            }
+            PrimitiveValue::F64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as f64));
+                Ok(())
+            }
+            PrimitiveValue::Tags(_)
+            | PrimitiveValue::Date(_)
+            | PrimitiveValue::DateTime(_)
+            | PrimitiveValue::Time(_) => IncompatibleNumberTypeSnafu {
+                original: self.value_type(),
+            }
+            .fail(),
         }
     }
 
@@ -3541,8 +3679,11 @@ impl PrimitiveValue {
     /// If the current value is textual,
     /// the numbers provided are converted to text.
     /// For the case of numeric values,
-    /// the given numbers are converted to the current number type
-    /// through casting.
+    /// the given numbers are _converted to the current number type
+    /// through casting_,
+    /// meaning that loss of precision may occur.
+    /// If this is undesirable,
+    /// read the current value and replace it manually.
     ///
     /// An error is returned
     /// if the current value is not compatible with the insertion of integers,
@@ -3627,10 +3768,10 @@ impl PrimitiveValue {
             PrimitiveValue::Tags(_)
             | PrimitiveValue::Date(_)
             | PrimitiveValue::DateTime(_)
-            | PrimitiveValue::Time(_) => Err(IncompatibleNumberTypeSnafu {
+            | PrimitiveValue::Time(_) => IncompatibleNumberTypeSnafu {
                 original: self.value_type(),
             }
-            .build()),
+            .fail(),
         }
     }
 
@@ -3643,8 +3784,11 @@ impl PrimitiveValue {
     /// If the current value is textual,
     /// the numbers provided are converted to text.
     /// For the case of numeric values,
-    /// the given numbers are converted to the current number type
-    /// through casting.
+    /// the given numbers are _converted to the current number type
+    /// through casting_,
+    /// meaning that loss of precision may occur.
+    /// If this is undesirable,
+    /// read the current value and replace it manually.
     ///
     /// An error is returned
     /// if the current value is not compatible with the insertion of integers,
@@ -3724,6 +3868,215 @@ impl PrimitiveValue {
             }
             PrimitiveValue::F64(elements) => {
                 elements.extend(numbers.into_iter().map(|n| n as f64));
+                Ok(())
+            }
+            PrimitiveValue::Tags(_)
+            | PrimitiveValue::Date(_)
+            | PrimitiveValue::DateTime(_)
+            | PrimitiveValue::Time(_) => IncompatibleNumberTypeSnafu {
+                original: self.value_type(),
+            }.fail(),
+        }
+    }
+
+    /// Extend a value of numbers by appending
+    /// 32-bit floating point numbers to an existing value.
+    ///
+    /// The value may be empty
+    /// or already contain numeric or textual values.
+    ///
+    /// If the current value is textual,
+    /// the numbers provided are converted to text.
+    /// For the case of numeric values,
+    /// the given numbers are _converted to the current number type
+    /// through casting_,
+    /// meaning that loss of precision may occur.
+    /// If this is undesirable,
+    /// read the current value and replace it manually.
+    ///
+    /// An error is returned
+    /// if the current value is not compatible with the insertion of integers,
+    /// such as `Tag` or `Date`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use dicom_core::dicom_value;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut value = dicom_value!(F32, [1., 2.]);
+    /// value.extend_f32([5.])?;
+    /// assert_eq!(value.to_multi_float32()?, vec![1., 2., 5.]);
+    ///
+    /// let mut value = dicom_value!(Strs, ["1.25"]);
+    /// value.extend_f32([0.5])?;
+    /// assert_eq!(value.to_string(), "1.25\\0.5");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn extend_f32(
+        &mut self,
+        numbers: impl IntoIterator<Item = f32>,
+    ) -> Result<(), ModifyValueError> {
+        match self {
+            PrimitiveValue::Empty => {
+                *self = PrimitiveValue::F32(numbers.into_iter().collect());
+                Ok(())
+            }
+            PrimitiveValue::Strs(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n.to_string()));
+                Ok(())
+            }
+            PrimitiveValue::Str(s) => {
+                // for lack of better ways to move the string out from the mutable borrow,
+                // we create a copy for now
+                let s = s.clone();
+                *self = PrimitiveValue::Strs(
+                    std::iter::once(s)
+                        .chain(numbers.into_iter().map(|n| n.to_string()))
+                        .collect(),
+                );
+                Ok(())
+            }
+            PrimitiveValue::F32(elements) => {
+                elements.extend(numbers);
+                Ok(())
+            }
+            PrimitiveValue::U8(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u8));
+                Ok(())
+            }
+            PrimitiveValue::I16(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i16));
+                Ok(())
+            }
+            PrimitiveValue::U16(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u16));
+                Ok(())
+            }
+            PrimitiveValue::I32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i32));
+                Ok(())
+            }
+            PrimitiveValue::I64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i64));
+                Ok(())
+            }
+            PrimitiveValue::U32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u32));
+                Ok(())
+            }
+            PrimitiveValue::U64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u64));
+                Ok(())
+            }
+            PrimitiveValue::F64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as f64));
+                Ok(())
+            }
+            PrimitiveValue::Tags(_)
+            | PrimitiveValue::Date(_)
+            | PrimitiveValue::DateTime(_)
+            | PrimitiveValue::Time(_) => IncompatibleNumberTypeSnafu {
+                original: self.value_type(),
+            }
+            .fail(),
+        }
+    }
+
+    /// Extend a value of numbers by appending
+    /// 64-bit floating point numbers to an existing value.
+    ///
+    /// The value may be empty
+    /// or already contain numeric or textual values.
+    ///
+    /// If the current value is textual,
+    /// the numbers provided are converted to text.
+    /// For the case of numeric values,
+    /// the given numbers are _converted to the current number type
+    /// through casting_,
+    /// meaning that loss of precision may occur.
+    /// If this is undesirable,
+    /// read the current value and replace it manually.
+    ///
+    /// An error is returned
+    /// if the current value is not compatible with the insertion of integers,
+    /// such as `Tag` or `Date`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use dicom_core::dicom_value;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut value = dicom_value!(F64, [1., 2.]);
+    /// value.extend_f64([5.])?;
+    /// assert_eq!(value.to_multi_float64()?, vec![1., 2., 5.]);
+    ///
+    /// let mut value = dicom_value!(Strs, ["1.25"]);
+    /// value.extend_f64([0.5])?;
+    /// assert_eq!(value.to_string(), "1.25\\0.5");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn extend_f64(
+        &mut self,
+        numbers: impl IntoIterator<Item = f64>,
+    ) -> Result<(), ModifyValueError> {
+        match self {
+            PrimitiveValue::Empty => {
+                *self = PrimitiveValue::F64(numbers.into_iter().collect());
+                Ok(())
+            }
+            PrimitiveValue::Strs(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n.to_string()));
+                Ok(())
+            }
+            PrimitiveValue::Str(s) => {
+                // for lack of better ways to move the string out from the mutable borrow,
+                // we create a copy for now
+                let s = s.clone();
+                *self = PrimitiveValue::Strs(
+                    std::iter::once(s)
+                        .chain(numbers.into_iter().map(|n| n.to_string()))
+                        .collect(),
+                );
+                Ok(())
+            }
+            PrimitiveValue::F64(elements) => {
+                elements.extend(numbers);
+                Ok(())
+            }
+            PrimitiveValue::U8(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u8));
+                Ok(())
+            }
+            PrimitiveValue::I16(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i16));
+                Ok(())
+            }
+            PrimitiveValue::U16(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u16));
+                Ok(())
+            }
+            PrimitiveValue::I32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i32));
+                Ok(())
+            }
+            PrimitiveValue::I64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as i64));
+                Ok(())
+            }
+            PrimitiveValue::U32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u32));
+                Ok(())
+            }
+            PrimitiveValue::U64(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as u64));
+                Ok(())
+            }
+            PrimitiveValue::F32(elements) => {
+                elements.extend(numbers.into_iter().map(|n| n as f32));
                 Ok(())
             }
             PrimitiveValue::Tags(_)
@@ -3834,14 +4187,15 @@ impl PartialEq<&str> for PrimitiveValue {
 
 /// An enum representing an abstraction of a DICOM element's data value type.
 /// This should be the equivalent of `PrimitiveValue` without the content,
-/// plus the `Item` and `PixelSequence` entries.
+/// plus the `DataSetSequence` and `PixelSequence` entries.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ValueType {
     /// No data. Used for any value of length 0.
     Empty,
 
-    /// An item. Used for elements in a SQ, regardless of content.
-    Item,
+    /// A data set sequence.
+    /// Used for values with the SQ representation when not empty.
+    DataSetSequence,
 
     /// An item. Used for the values of encapsulated pixel data.
     PixelSequence,
@@ -4080,6 +4434,22 @@ mod tests {
     }
 
     #[test]
+    fn primitive_value_to_float() {
+        // DS conversion to f32
+        assert_eq!(dicom_value!(Str, "-73.4 ").to_float32().ok(), Some(-73.4));
+
+        // DS conversion with leading whitespaces
+        assert_eq!(dicom_value!(Str, " -73.4 ").to_float32().ok(), Some(-73.4));
+
+
+        // DS conversion with leading whitespaces
+        assert_eq!(dicom_value!(Str, " -73.4 ").to_float64().ok(), Some(-73.4));
+
+        // DS conversion with exponential
+        assert_eq!(dicom_value!(Str, "1e1").to_float32().ok(), Some(10.0));
+    }
+
+    #[test]
     fn primitive_value_to_int() {
         assert!(PrimitiveValue::Empty.to_int::<i32>().is_err());
 
@@ -4107,6 +4477,9 @@ mod tests {
 
         // admits an integer as text
         assert_eq!(dicom_value!(Strs, ["-73", "2"]).to_int().ok(), Some(-73),);
+
+        // admits an integer as text with leading spaces
+        assert_eq!(dicom_value!(Strs, [" -73", " 2"]).to_int().ok(), Some(-73),);
 
         // does not admit destructive conversions
         assert!(PrimitiveValue::from(-1).to_int::<u32>().is_err());

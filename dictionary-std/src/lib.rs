@@ -11,26 +11,34 @@ pub mod tags;
 use crate::tags::ENTRIES;
 use dicom_core::dictionary::{DataDictionary, DictionaryEntryRef, TagRange::*};
 use dicom_core::header::Tag;
-use lazy_static::lazy_static;
+use dicom_core::VR;
+use once_cell::sync::Lazy;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fmt::{Display, Formatter};
 
-lazy_static! {
-    static ref DICT: StandardDictionaryRegistry = init_dictionary();
-}
+static DICT: Lazy<StandardDictionaryRegistry> = Lazy::new(init_dictionary);
 
 /// Retrieve a singleton instance of the standard dictionary registry.
+///
+/// Note that one does not generally have to call this
+/// unless when retrieving the underlying registry is important.
+/// The unit type [`StandardDataDictionary`]
+/// already provides a lazy loaded singleton implementing the necessary traits.
+#[inline]
 pub fn registry() -> &'static StandardDictionaryRegistry {
     &DICT
 }
 
-/// The data struct containing the standard dictionary.
+/// The data struct actually containing the standard dictionary.
+///
+/// This structure is made opaque via the unit type [`StandardDataDictionary`],
+/// which provides a lazy loaded singleton.
 #[derive(Debug)]
 pub struct StandardDictionaryRegistry {
-    /// mapping: name → tag
+    /// mapping: name → entry
     by_name: HashMap<&'static str, &'static DictionaryEntryRef<'static>>,
-    /// mapping: tag → name
+    /// mapping: tag → entry
     by_tag: HashMap<Tag, &'static DictionaryEntryRef<'static>>,
     /// repeating elements of the form (ggxx, eeee). The `xx` portion is zeroed.
     repeating_ggxx: HashSet<Tag>,
@@ -65,7 +73,28 @@ impl StandardDictionaryRegistry {
     }
 }
 
-/// A data dictionary which consults the library's global DICOM attribute registry.
+/// Generic Group Length dictionary entry.
+static GROUP_LENGTH_ENTRY: DictionaryEntryRef<'static> = DictionaryEntryRef {
+    tag: GroupLength,
+    alias: "GenericGroupLength",
+    vr: VR::UL,
+};
+
+/// Generic Private Creator dictionary entry.
+static PRIVATE_CREATOR_ENTRY: DictionaryEntryRef<'static> = DictionaryEntryRef {
+    tag: PrivateCreator,
+    alias: "PrivateCreator",
+    vr: VR::LO,
+};
+
+/// A data element dictionary which consults
+/// the library's global DICOM attribute registry.
+///
+/// This is the type which would generally be used
+/// whenever a data element dictionary is needed,
+/// such as when reading DICOM objects.
+///
+/// The dictionary index is automatically initialized upon the first use.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct StandardDataDictionary;
 
@@ -76,20 +105,32 @@ impl StandardDataDictionary {
         r.by_tag
             .get(&tag)
             .or_else(|| {
+                // check tags repeating in different groups
                 let group_trimmed = Tag(tag.0 & 0xFF00, tag.1);
-
                 if r.repeating_ggxx.contains(&group_trimmed) {
-                    r.by_tag.get(&group_trimmed)
-                } else {
-                    let elem_trimmed = Tag(tag.0, tag.1 & 0xFF00);
-                    if r.repeating_eexx.contains(&elem_trimmed) {
-                        r.by_tag.get(&elem_trimmed)
-                    } else {
-                        None
-                    }
+                    return r.by_tag.get(&group_trimmed);
                 }
+                // check tags repeating in different elements
+                let elem_trimmed = Tag(tag.0, tag.1 & 0xFF00);
+                if r.repeating_eexx.contains(&elem_trimmed) {
+                    return r.by_tag.get(&elem_trimmed);
+                }
+
+                None
             })
             .cloned()
+            .or_else(|| {
+                // check for private creator
+                if tag.0 & 1 == 1 && (0x0010..=0x00FF).contains(&tag.1) {
+                    return Some(&PRIVATE_CREATOR_ENTRY);
+                }
+                // check for group length
+                if tag.element() == 0x0000 {
+                    return Some(&GROUP_LENGTH_ENTRY);
+                }
+
+                None
+            })
     }
 }
 
@@ -128,6 +169,9 @@ fn init_dictionary() -> StandardDictionaryRegistry {
     for entry in ENTRIES {
         d.index(entry);
     }
+    // generic group length is not a generated entry,
+    // inserting it manually
+    d.by_name.insert("GenericGroupLength", &GROUP_LENGTH_ENTRY);
     d
 }
 
@@ -194,5 +238,122 @@ mod tests {
         assert_eq!(MODALITY, Tag(0x0008, 0x0060));
         assert_eq!(PIXEL_DATA, Tag(0x7FE0, 0x0010));
         assert_eq!(STATUS, Tag(0x0000, 0x0900));
+    }
+
+    #[test]
+    fn can_parse_tags() {
+        let dict = StandardDataDictionary;
+
+        assert_eq!(dict.parse_tag("(7FE0,0010)"), Some(crate::tags::PIXEL_DATA));
+        assert_eq!(dict.parse_tag("0010,21C0"), Some(Tag(0x0010, 0x21C0)));
+        assert_eq!(
+            dict.parse_tag("OperatorsName"),
+            Some(crate::tags::OPERATORS_NAME)
+        );
+
+        // can't parse these
+        assert_eq!(dict.parse_tag(""), None);
+        assert_eq!(dict.parse_tag("1111,2222,3333"), None);
+        assert_eq!(dict.parse_tag("OperatorNickname"), None);
+    }
+
+    #[test]
+    fn can_query_by_expression() {
+        let dict = StandardDataDictionary;
+
+        assert_eq!(
+            dict.by_expr("(0010,0010)"),
+            Some(&DictionaryEntryRef {
+                tag: Single(crate::tags::PATIENT_NAME),
+                alias: "PatientName",
+                vr: VR::PN,
+            })
+        );
+
+        assert_eq!(
+            dict.by_expr("0008,0060"),
+            Some(&DictionaryEntryRef {
+                tag: Single(crate::tags::MODALITY),
+                alias: "Modality",
+                vr: VR::CS,
+            })
+        );
+
+        assert_eq!(
+            dict.by_expr("OperatorsName"),
+            Some(&DictionaryEntryRef {
+                tag: Single(crate::tags::OPERATORS_NAME),
+                alias: "OperatorsName",
+                vr: VR::PN,
+            })
+        );
+
+        // can't handle these
+        assert_eq!(dict.parse_tag("0080 0010"), None);
+        assert_eq!(dict.parse_tag("(0000.0600)"), None);
+        assert_eq!(dict.parse_tag("OPERATORSNAME"), None);
+    }
+
+    #[test]
+    fn has_group_length_tags() {
+        use crate::tags::*;
+        assert_eq!(COMMAND_GROUP_LENGTH, Tag(0x0000, 0x0000));
+        assert_eq!(FILE_META_INFORMATION_GROUP_LENGTH, Tag(0x0002, 0x0000));
+
+        let dict = StandardDataDictionary::default();
+
+        assert_eq!(
+            dict.by_tag(FILE_META_INFORMATION_GROUP_LENGTH),
+            Some(&DictionaryEntryRef {
+                tag: Single(FILE_META_INFORMATION_GROUP_LENGTH),
+                alias: "FileMetaInformationGroupLength",
+                vr: VR::UL,
+            }),
+        );
+
+        assert_eq!(
+            dict.by_tag(COMMAND_GROUP_LENGTH),
+            Some(&DictionaryEntryRef {
+                tag: Single(COMMAND_GROUP_LENGTH),
+                alias: "CommandGroupLength",
+                vr: VR::UL,
+            }),
+        );
+
+        // generic group length
+
+        assert_eq!(
+            dict.by_tag(Tag(0x7FE0, 0x0000)),
+            Some(&DictionaryEntryRef {
+                tag: GroupLength,
+                alias: "GenericGroupLength",
+                vr: VR::UL,
+            }),
+        );
+
+        assert_eq!(
+            dict.by_name("GenericGroupLength"),
+            Some(&DictionaryEntryRef {
+                tag: GroupLength,
+                alias: "GenericGroupLength",
+                vr: VR::UL,
+            }),
+        );
+    }
+
+    #[test]
+    fn has_private_creator() {
+        let dict = StandardDataDictionary::default();
+
+        let private_creator = DictionaryEntryRef {
+            tag: PrivateCreator,
+            alias: "PrivateCreator",
+            vr: VR::LO,
+        };
+
+        assert_eq!(dict.by_tag(Tag(0x0009, 0x0010)), Some(&private_creator));
+        assert_eq!(dict.by_tag(Tag(0x0009, 0x0011)), Some(&private_creator));
+        assert_eq!(dict.by_tag(Tag(0x000B, 0x0010)), Some(&private_creator));
+        assert_eq!(dict.by_tag(Tag(0x00ED, 0x00FF)), Some(&private_creator));
     }
 }
