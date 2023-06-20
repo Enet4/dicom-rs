@@ -833,11 +833,6 @@ impl<P> PixelFragmentSequence<P> {
     ///
     /// **Note:** This function does not validate the offset table
     /// against the given fragments.
-    ///
-    /// _and_ not validate the `length` against the other fields.
-    /// When not sure,
-    /// `length` can be set to [`UNDEFINED`](Length::UNDEFINED)
-    /// to leave it as implicitly defined.
     #[inline]
     pub fn new(offset_table: impl Into<C<u32>>, fragments: impl Into<C<P>>) -> Self {
         PixelFragmentSequence {
@@ -852,11 +847,6 @@ impl<P> PixelFragmentSequence<P> {
     ///
     /// **Note:** This function does not validate the offset table
     /// against the given fragments.
-    ///
-    /// _and_ not validate the `length` against the other fields.
-    /// When not sure,
-    /// `length` can be set to [`UNDEFINED`](Length::UNDEFINED)
-    /// to leave it as implicitly defined.
     #[inline]
     pub fn new_fragments(fragments: impl Into<C<P>>) -> Self {
         PixelFragmentSequence {
@@ -882,7 +872,7 @@ impl<P> PixelFragmentSequence<P> {
         self.fragments
     }
 
-    /// Decompose the sequencce into its constituent parts:
+    /// Decompose the sequence into its constituent parts:
     /// the basic offset table and the pixel data fragments.
     pub fn into_parts(self) -> (C<u32>, C<P>) {
         (self.offset_table, self.fragments)
