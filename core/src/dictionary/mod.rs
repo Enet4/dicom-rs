@@ -11,4 +11,4 @@ pub use data_element::{
     TagRange,
 };
 
-pub use uid::{UidDictionaryEntry, UidDictionaryEntryRef, UidType};
+pub use uid::{UidDictionary, UidDictionaryEntry, UidDictionaryEntryRef, UidType};

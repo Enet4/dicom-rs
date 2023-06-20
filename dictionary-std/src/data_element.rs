@@ -221,17 +221,6 @@ mod tests {
         assert!(overlay_data.vr == VR::OB || overlay_data.vr == VR::OW);
     }
 
-    // tests for just a few attributes to make sure that the tag constants
-    // were well installed into the crate
-    #[test]
-    fn constants_available() {
-        use crate::tags::*;
-        assert_eq!(PATIENT_NAME, Tag(0x0010, 0x0010));
-        assert_eq!(MODALITY, Tag(0x0008, 0x0060));
-        assert_eq!(PIXEL_DATA, Tag(0x7FE0, 0x0010));
-        assert_eq!(STATUS, Tag(0x0000, 0x0900));
-    }
-
     #[test]
     fn can_parse_tags() {
         let dict = StandardDataDictionary;

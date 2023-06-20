@@ -2,6 +2,28 @@
 
 use std::str::FromStr;
 
+/// Type trait for a dictionary of known DICOM unique identifiers (UIDs).
+/// 
+/// UID dictionaries provide the means to
+/// look up information at run-time about a certain UID.
+///
+/// The methods herein have no generic parameters,
+/// so as to enable being used as a trait object.
+pub trait UidDictionary {
+    /// The type of the dictionary entry.
+    type Entry: UidDictionaryEntry;
+
+    /// Fetch an entry by its usual keyword (e.g. CTImageStorage).
+    /// Aliases (or keywords)
+    /// are usually in UpperCamelCase,
+    /// not separated by spaces,
+    /// and are case sensitive.
+    fn by_keyword(&self, keyword: &str) -> Option<&Self::Entry>;
+
+    /// Fetch an entry by its UID.
+    fn by_uid(&self, uid: &str) -> Option<&Self::Entry>;
+}
+
 /// UID dictionary entry type
 pub trait UidDictionaryEntry {
     /// Get the UID proper.
@@ -31,7 +53,7 @@ pub struct UidDictionaryEntryRef<'a> {
     pub alias: &'a str,
     /// The type of UID
     pub r#type: UidType,
-    /// The _typical_  value representation of the attribute
+    /// Whether this SOP class is retired
     pub retired: bool,
 }
 
@@ -71,7 +93,7 @@ impl<'a> UidDictionaryEntry for UidDictionaryEntryRef<'a> {
     }
 }
 
-/// Enum for all recognized UID types.
+/// Enum for all UID types recognized by the standard.
 #[non_exhaustive]
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
 pub enum UidType {
