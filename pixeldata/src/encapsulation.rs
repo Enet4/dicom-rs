@@ -1,7 +1,7 @@
 //! DICOM Pixel encapsulation
 //!
 //! This module implements encapsulation for pixel data.
-use dicom_core::value::{Value, C};
+use dicom_core::value::{PixelFragmentSequence, Value, C};
 use dicom_core::DataDictionary;
 use dicom_object::mem::InMemFragment;
 use dicom_object::InMemDicomObject;
@@ -101,7 +101,7 @@ pub struct FrameFragments {
 
 impl EncapsulatedPixels {
     /// Add a single frame
-    pub fn add_frame(&mut self, data: Vec<u8>, fragment_size: u32) -> Result<()>{
+    pub fn add_frame(&mut self, data: Vec<u8>, fragment_size: u32) -> Result<()> {
         let number_of_fragments = self.fragments.len();
         if number_of_fragments > 0 {
             let offsets_size = self.offset_table.len();
@@ -177,10 +177,7 @@ where
             value.offset_table
         };
 
-        Value::PixelSequence {
-            offset_table,
-            fragments: value.fragments,
-        }
+        Value::PixelSequence(PixelFragmentSequence::new(offset_table, value.fragments))
     }
 }
 
@@ -239,7 +236,8 @@ pub fn encapsulate(frames: Vec<Vec<u8>>, fragment_size: u32) -> EncapsulatedPixe
     let mut encapsulated_data = EncapsulatedPixels::default();
 
     for frame in frames {
-        encapsulated_data.add_frame(frame, fragment_size)
+        encapsulated_data
+            .add_frame(frame, fragment_size)
             .expect("For multi frame data only 1 fragment per frame is allowed");
     }
 
