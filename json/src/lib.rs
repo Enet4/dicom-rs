@@ -20,7 +20,7 @@
 //!     InMemElement::new(tags::INSTANCE_NUMBER, VR::IS, PrimitiveValue::from("5")),
 //! ]);
 //!
-//! let json = dicom_json::serialize_to_string(&obj)?;
+//! let json = dicom_json::to_string(&obj)?;
 //!
 //! assert_eq!(
 //!     json,
@@ -33,5 +33,5 @@
 mod ser;
 
 pub use crate::ser::{
-    serialize_file_to_string, serialize_file_to_value, serialize_to_string, serialize_to_value,
+    DicomJson, to_string, to_value,
 };

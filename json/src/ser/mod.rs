@@ -1,61 +1,84 @@
 //! DICOM JSON serialization module
 #![warn(missing_docs)]
 
-use std::marker::PhantomData;
-
-use dicom_core::{DicomValue, PrimitiveValue, VR, header::Header};
+use dicom_core::{header::Header, DicomValue, PrimitiveValue, VR};
 use dicom_dictionary_std::StandardDataDictionary;
-use dicom_object::{InMemDicomObject, mem::InMemElement, DefaultDicomObject};
-use serde::{Serializer, Serialize, ser::SerializeMap};
+use dicom_object::{mem::InMemElement, DefaultDicomObject, InMemDicomObject};
+use serde::{ser::SerializeMap, Serialize, Serializer};
 
-use self::value::{AsPersonNames, AsStrings, AsNumbers, InlineBinary};
+use self::value::{AsNumbers, AsPersonNames, AsStrings, InlineBinary};
 mod value;
 
-/// Serialize an in-memory DICOM file to a JSON string
-pub fn serialize_file_to_string<'a, D>(data: &'a DefaultDicomObject<D>) -> Result<String, serde_json::Error>
+/// A wrapper type for DICOM JSON serialization using [Serde](serde).
+///
+/// Serializing this type will yield JSON data according to the standard.
+/// 
+/// # Example
+/// 
+/// Convert a reference to a DICOM object or element using [`From`] or [`Into`],
+/// then use [`serde_json`] to serialize it to the intended type.
+/// 
+/// ```
+/// # use dicom_core::{DataElement, PrimitiveValue, Tag, VR};
+/// # use dicom_object::InMemDicomObject;
+/// use dicom_json::DicomJson;
+///
+/// // creating a DICOM object with a single attribute
+/// let obj = InMemDicomObject::from_element_iter([
+///     DataElement::new(
+///         Tag(0x0010, 0x0020),
+///         VR::LO,
+///         PrimitiveValue::from("ID0001"),
+///     )
+/// ]);
+/// // wrap it with DicomJson
+/// let json_obj = DicomJson::from(&obj);
+/// // serializing it to a JSON Value
+/// let serialized = serde_json::to_value(&json_obj)?;
+/// assert_eq!(
+///   serialized,
+///   serde_json::json!({
+///       "00100020": {
+///           "vr": "LO",
+///           "Value": [ "ID0001" ]
+///       }
+///   })
+/// );
+/// # Result::<_, serde_json::Error>::Ok(())
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+pub struct DicomJson<T>(T);
+
+/// Serialize a piece of DICOM data to a JSON string
+pub fn to_string<T>(data: T) -> Result<String, serde_json::Error>
 where
-    D: 'a,
+    DicomJson<T>: From<T> + Serialize,
 {
-    serde_json::to_string(&FileDef::from(data))
+    serde_json::to_string(&DicomJson::from(data))
 }
 
-/// Serialize an in-memory DICOM file to a JSON value
-pub fn serialize_file_to_value<'a, D>(data: &'a DefaultDicomObject<D>) -> Result<serde_json::Value, serde_json::Error>
+/// Serialize a piece of DICOM data to a serde JSON value
+pub fn to_value<T>(data: T) -> Result<serde_json::Value, serde_json::Error>
 where
-    D: 'a,
+    DicomJson<T>: From<T> + Serialize,
 {
-    serde_json::to_value(&FileDef::from(data))
+    serde_json::to_value(&DicomJson::from(data))
 }
 
-
-/// Serialize an in-memory DICOM object to a JSON string
-pub fn serialize_to_string(data: &InMemDicomObject) -> Result<String, serde_json::Error> {
-    serde_json::to_string(&DatasetDef::from(data))
-}
-
-/// Serialize an in-memory DICOM object to a JSON value
-pub fn serialize_to_value(data: &InMemDicomObject) -> Result<serde_json::Value, serde_json::Error> {
-    serde_json::to_value(&DatasetDef::from(data))
-}
-
-#[derive(Debug, Clone)]
-pub struct FileDef<'a, D>(&'a DefaultDicomObject<D>);
-
-impl<'a, D> From<&'a DefaultDicomObject<D>> for FileDef<'a, D> {
+impl<'a, D> From<&'a DefaultDicomObject<D>> for DicomJson<&'a DefaultDicomObject<D>> {
     fn from(value: &'a DefaultDicomObject<D>) -> Self {
-        FileDef(value)
+        Self(value)
     }
 }
 
-
-impl<'a, D> Serialize for FileDef<'a, D>
+impl<'a, D> Serialize for DicomJson<&'a DefaultDicomObject<D>>
 where
     D: 'a,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: Serializer {
-
+        S: Serializer,
+    {
         let mut ser = serializer.serialize_map(None)?;
 
         for e in self.0.meta().to_element_iter() {
@@ -65,34 +88,29 @@ where
                 continue;
             };
             let e = InMemElement::<StandardDataDictionary>::new(e.tag(), e.vr(), value.clone());
-            ser.serialize_entry(&tag, &DataElementDef(&e))?;
+            ser.serialize_entry(&tag, &DicomJson(&e))?;
         }
 
         let inner: &InMemDicomObject<_> = &**self.0;
         for e in inner {
             let tag = e.tag();
             let tag = format!("{:04X}{:04X}", tag.0, tag.1);
-            ser.serialize_entry(&tag, &DataElementDef(&e))?;
+            ser.serialize_entry(&tag, &DicomJson(e))?;
         }
 
         ser.end()
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct DatasetDef<'a, I>(I, PhantomData<&'a I>);
-
-impl<'a, D> From<&'a InMemDicomObject<D>> for DatasetDef<'a, &'a InMemDicomObject<D>> {
+impl<'a, D> From<&'a InMemDicomObject<D>> for DicomJson<&'a InMemDicomObject<D>> {
     fn from(value: &'a InMemDicomObject<D>) -> Self {
-        DatasetDef(value, PhantomData)
+        Self(value)
     }
 }
 
-impl<'a, I, D> Serialize for DatasetDef<'a, I>
+impl<'a, D> Serialize for DicomJson<&'a InMemDicomObject<D>>
 where
     D: 'a,
-    I: Copy,
-    I: IntoIterator<Item = &'a InMemElement<D>>,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -101,39 +119,33 @@ where
         serializer.collect_map(self.0.into_iter().map(|e| {
             let tag = e.tag();
             let tag = format!("{:04X}{:04X}", tag.0, tag.1);
-            (tag, DataElementDef(e))
+            (tag, DicomJson(e))
         }))
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ItemsDef<'a, D>(&'a [InMemDicomObject<D>]);
-
-impl<'a, D> From<&'a [InMemDicomObject<D>]> for ItemsDef<'a, D> {
+impl<'a, D> From<&'a [InMemDicomObject<D>]> for DicomJson<&'a [InMemDicomObject<D>]> {
     fn from(value: &'a [InMemDicomObject<D>]) -> Self {
-        ItemsDef(value)
+        Self(value)
     }
 }
 
-impl<D> Serialize for ItemsDef<'_, D> {
+impl<'a, D> Serialize for DicomJson<&'a [InMemDicomObject<D>]> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        serializer.collect_seq(self.0.into_iter().map(DatasetDef::from))
+        serializer.collect_seq(self.0.into_iter().map(DicomJson::from))
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct DataElementDef<'a, D>(&'a InMemElement<D>);
-
-impl<'a, D> From<&'a InMemElement<D>> for DataElementDef<'a, D> {
+impl<'a, D> From<&'a InMemElement<D>> for DicomJson<&'a InMemElement<D>> {
     fn from(value: &'a InMemElement<D>) -> Self {
-        DataElementDef(value)
+        Self(value)
     }
 }
 
-impl<D> Serialize for DataElementDef<'_, D> {
+impl<D> Serialize for DicomJson<&'_ InMemElement<D>> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -144,7 +156,7 @@ impl<D> Serialize for DataElementDef<'_, D> {
 
         match self.0.value() {
             DicomValue::Sequence(seq) => {
-                serializer.serialize_entry("Value", &ItemsDef(seq.items()))?;
+                serializer.serialize_entry("Value", &DicomJson(seq.items()))?;
             }
             DicomValue::PixelSequence(_seq) => {
                 // TODO encode basic offset table and fragments
@@ -244,7 +256,7 @@ mod tests {
         let obj = InMemDicomObject::from_element_iter(all_data);
 
         assert_eq!(
-            serialize_to_value(&obj).unwrap(),
+            to_value(&obj).unwrap(),
             json!({
                 "00080005": {
                     "vr": "CS",
@@ -289,8 +301,8 @@ mod tests {
             .read_until(Tag(0x0010, 0))
             .open_file(sc_rgb_rle)
             .expect("Failed to open test file");
-        
-        let value = serialize_file_to_value(&obj).unwrap();
+
+        let value = to_value(&obj).unwrap();
 
         assert_eq!(
             value,
