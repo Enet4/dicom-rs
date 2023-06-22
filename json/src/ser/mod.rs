@@ -15,8 +15,11 @@ mod value;
 /// 
 /// # Example
 /// 
-/// Convert a reference to a DICOM object or element using [`From`] or [`Into`],
+/// Convert a DICOM data type such as a file, object, or data element
+/// using [`From`] or [`Into`],
 /// then use [`serde_json`] to serialize it to the intended type.
+/// A reference may be used as well,
+/// so as to not consume the DICOM data.
 /// 
 /// ```
 /// # use dicom_core::{DataElement, PrimitiveValue, Tag, VR};
@@ -33,7 +36,7 @@ mod value;
 /// ]);
 /// // wrap it with DicomJson
 /// let json_obj = DicomJson::from(&obj);
-/// // serializing it to a JSON Value
+/// // serialize it to a JSON Value
 /// let serialized = serde_json::to_value(&json_obj)?;
 /// assert_eq!(
 ///   serialized,
@@ -48,6 +51,14 @@ mod value;
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct DicomJson<T>(T);
+
+impl<T> DicomJson<T> {
+    /// Unwrap the DICOM JSON wrapper,
+    /// returning the underlying value.
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
 
 /// Serialize a piece of DICOM data to a JSON string
 pub fn to_string<T>(data: T) -> Result<String, serde_json::Error>
@@ -102,6 +113,21 @@ where
     }
 }
 
+impl<'a, D> From<DefaultDicomObject<D>> for DicomJson<DefaultDicomObject<D>> {
+    fn from(value: DefaultDicomObject<D>) -> Self {
+        Self(value)
+    }
+}
+
+impl<D> Serialize for DicomJson<DefaultDicomObject<D>> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        DicomJson(&self.0).serialize(serializer)
+    }
+}
+
 impl<'a, D> From<&'a InMemDicomObject<D>> for DicomJson<&'a InMemDicomObject<D>> {
     fn from(value: &'a InMemDicomObject<D>) -> Self {
         Self(value)
@@ -121,6 +147,21 @@ where
             let tag = format!("{:04X}{:04X}", tag.0, tag.1);
             (tag, DicomJson(e))
         }))
+    }
+}
+
+impl<D> From<InMemDicomObject<D>> for DicomJson<InMemDicomObject<D>> {
+    fn from(value: InMemDicomObject<D>) -> Self {
+        Self(value)
+    }
+}
+
+impl<D> Serialize for DicomJson<InMemDicomObject<D>> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        DicomJson(&self.0).serialize(serializer)
     }
 }
 
@@ -206,6 +247,21 @@ impl<D> Serialize for DicomJson<&'_ InMemElement<D>> {
         }
 
         serializer.end()
+    }
+}
+
+impl<D> From<InMemElement<D>> for DicomJson<InMemElement<D>> {
+    fn from(value: InMemElement<D>) -> Self {
+        Self(value)
+    }
+}
+
+impl<D> Serialize for DicomJson<InMemElement<D>> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer
+    {
+        DicomJson(&self.0).serialize(serializer)
     }
 }
 
@@ -302,7 +358,7 @@ mod tests {
             .open_file(sc_rgb_rle)
             .expect("Failed to open test file");
 
-        let value = to_value(&obj).unwrap();
+        let value = serde_json::to_value(DicomJson::from(obj)).unwrap();
 
         assert_eq!(
             value,
