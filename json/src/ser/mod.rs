@@ -12,15 +12,15 @@ mod value;
 /// A wrapper type for DICOM JSON serialization using [Serde](serde).
 ///
 /// Serializing this type will yield JSON data according to the standard.
-/// 
+///
 /// # Example
-/// 
+///
 /// Convert a DICOM data type such as a file, object, or data element
 /// using [`From`] or [`Into`],
 /// then use [`serde_json`] to serialize it to the intended type.
 /// A reference may be used as well,
 /// so as to not consume the DICOM data.
-/// 
+///
 /// ```
 /// # use dicom_core::{DataElement, PrimitiveValue, Tag, VR};
 /// # use dicom_object::InMemDicomObject;
@@ -259,7 +259,7 @@ impl<D> From<InMemElement<D>> for DicomJson<InMemElement<D>> {
 impl<D> Serialize for DicomJson<InMemElement<D>> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: Serializer
+        S: Serializer,
     {
         DicomJson(&self.0).serialize(serializer)
     }
@@ -267,9 +267,12 @@ impl<D> Serialize for DicomJson<InMemElement<D>> {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
 
-    use dicom_core::VR;
+    use dicom_core::value::DataSetSequence;
     use dicom_core::{dicom_value, value::DicomDate, Tag};
+    use dicom_core::{Length, VR};
+    use dicom_dictionary_std::tags;
     use serde_json::json;
 
     use super::*;
@@ -302,11 +305,7 @@ mod tests {
                 VR::UN,
                 dicom_value!(U8, [0xcf, 0x4c, 0x7d, 0x73, 0xcb, 0xfb]),
             ),
-            InMemElement::new(
-                dicom_dictionary_std::tags::PATIENT_AGE,
-                VR::AS,
-                PrimitiveValue::from("30Y"),
-            ),
+            InMemElement::new(tags::PATIENT_AGE, VR::AS, PrimitiveValue::from("30Y")),
         ];
 
         let obj = InMemDicomObject::from_element_iter(all_data);
@@ -344,7 +343,107 @@ mod tests {
                 "00101010": {
                     "vr": "AS",
                     "Value": [ "30Y" ]
-                },
+                }
+            }),
+        );
+    }
+
+    #[test]
+    fn serialize_sequence_elements() {
+        let obj = InMemDicomObject::from_element_iter([
+            InMemElement::new(
+                tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
+                VR::SQ,
+                DataSetSequence::new(
+                    vec![
+                        // Item 0
+                        InMemDicomObject::from_element_iter([InMemElement::new(
+                        tags::CT_ACQUISITION_TYPE_SEQUENCE,
+                        VR::SQ,
+                        DataSetSequence::new(vec![
+                            // Item 0
+                            InMemDicomObject::from_element_iter([
+                                InMemElement::new(tags::ACQUISITION_TYPE, VR::CS, PrimitiveValue::from("SEQUENCED")),
+                                InMemElement::new(tags::CONSTANT_VOLUME_FLAG, VR::CS, PrimitiveValue::from("NO")),
+                                InMemElement::new(tags::FLUOROSCOPY_FLAG, VR::CS, PrimitiveValue::from("NO")),
+                            ])
+                        ], Length::UNDEFINED))]),
+                        
+                        // Item 1
+                        InMemDicomObject::from_element_iter([InMemElement::new(
+                            tags::CT_ACQUISITION_DETAILS_SEQUENCE,
+                            VR::SQ,
+                            DataSetSequence::new(vec![
+                                InMemDicomObject::from_element_iter([
+                                    InMemElement::new(tags::DATA_COLLECTION_DIAMETER, VR::DS, PrimitiveValue::from("500.08")),
+                                    InMemElement::new(tags::GANTRY_DETECTOR_TILT, VR::DS, PrimitiveValue::from("0.00")),
+                                    InMemElement::new(tags::TABLE_HEIGHT, VR::DS, PrimitiveValue::from("160.000")),
+                                    InMemElement::new(tags::ROTATION_DIRECTION, VR::CS, PrimitiveValue::from("CW")),
+                                ]),
+                            ], Length::UNDEFINED))]),
+                    ],
+                    Length::UNDEFINED,
+                ),
+            ),
+        ]);
+
+        assert_eq!(
+            to_value(obj).unwrap(),
+            json!({
+                // shared functional groups
+                "52009229": {
+                    "vr": "SQ",
+                    "Value": [
+                        // CT acquisition type
+                        {
+                            "00189301": {
+                                "vr": "SQ",
+                                "Value": [
+                                    {
+                                        "00189302": {
+                                            "vr": "CS",
+                                            "Value": ["SEQUENCED"]
+                                        },
+                                        "00189333": {
+                                            "vr": "CS",
+                                            "Value": ["NO"]
+                                        },
+                                        "00189334": {
+                                            "vr": "CS",
+                                            "Value": ["NO"]
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        // CT acquisition details
+                        {
+                            "00189304": {
+                                "vr": "SQ",
+                                "Value": [
+                                    {
+                                        "00180090": {
+                                            "vr": "DS",
+                                            "Value": ["500.08"]
+                                        },
+                                        "00181120": {
+                                            "vr": "DS",
+                                            "Value": ["0.00"]
+                                        },
+                                        "00181130": {
+                                            "vr": "DS",
+                                            "Value": ["160.000"]
+                                        },
+                                        "00181140": {
+                                            "vr": "CS",
+                                            "Value": ["CW"]
+                                        },
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
             }),
         );
     }
