@@ -7,6 +7,11 @@
 //!
 //! [1]: https://dicom.nema.org/medical/dicom/current/output/chtml/part18/chapter_F.html
 //!
+//! The easiest path to serialization is in
+//! using the functions readily available [`to_string`] and [`to_value`].
+//! Alternatively, DICOM data can be enclosed by a [`DicomJson`] value,
+//! which implements serialization via [Serde](serde).
+//! 
 //! # Example
 //!
 //! To serialize an object to standard DICOM JSON:
