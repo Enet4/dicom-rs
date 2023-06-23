@@ -80,7 +80,7 @@ impl Fragments {
     }
 }
 
-impl From<Vec<Fragments>> for PixelFragmentSequence<Vec<u8>> {
+impl From<Vec<Fragments>> for PixelFragmentSequence<InMemFragment> {
     fn from(value: Vec<Fragments>) -> Self {
         let mut offset_table = C::with_capacity(value.len() + 1);
         offset_table.push(0u32);
@@ -105,5 +105,68 @@ impl From<Vec<Fragments>> for PixelFragmentSequence<Vec<u8>> {
             offset_table,
             fragments: C::from_vec(fragments),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::value::fragments::Fragments;
+
+    #[test]
+    fn test_fragment_frame() {
+        let fragment = Fragments::new(vec![150, 164, 200], 0);
+        assert_eq!(fragment.fragments.len(), 1, "1 fragment should be present");
+        assert_eq!(
+            fragment.fragments[0].len(),
+            4,
+            "The fragment size should be 4"
+        );
+        assert_eq!(
+            fragment.fragments[0],
+            vec![150, 164, 200, 0],
+            "The data should be 0 padded"
+        );
+
+        let fragment = Fragments::new(vec![150, 164, 200, 222], 4);
+        assert_eq!(fragment.fragments.len(), 1, "1 fragment should be present");
+        assert_eq!(
+            fragment.fragments[0].len(),
+            4,
+            "The fragment size should be 4"
+        );
+        assert_eq!(
+            fragment.fragments[0],
+            vec![150, 164, 200, 222],
+            "The data should be what was sent"
+        );
+
+        let fragment = Fragments::new(vec![150, 164, 200, 222], 2);
+        assert_eq!(fragment.fragments.len(), 2, "2 fragments should be present");
+        assert_eq!(fragment.fragments[0].len(), 2);
+        assert_eq!(fragment.fragments[1].len(), 2);
+        assert_eq!(fragment.fragments[0], vec![150, 164]);
+        assert_eq!(fragment.fragments[1], vec![200, 222]);
+
+        let fragment = Fragments::new(vec![150, 164, 200], 1);
+        assert_eq!(
+            fragment.fragments.len(),
+            2,
+            "2 fragments should be present as fragment_size < 2"
+        );
+        assert_eq!(fragment.fragments[0].len(), 2);
+        assert_eq!(fragment.fragments[0], vec![150, 164]);
+        assert_eq!(fragment.fragments[1].len(), 2);
+        assert_eq!(fragment.fragments[1], vec![200, 0]);
+
+        let fragment = Fragments::new(vec![150, 164, 200, 222], 1);
+        assert_eq!(
+            fragment.fragments.len(),
+            2,
+            "2 fragments should be present as fragment_size < 2"
+        );
+        assert_eq!(fragment.fragments[0].len(), 2);
+        assert_eq!(fragment.fragments[0], vec![150, 164]);
+        assert_eq!(fragment.fragments[1].len(), 2);
+        assert_eq!(fragment.fragments[1], vec![200, 222]);
     }
 }
