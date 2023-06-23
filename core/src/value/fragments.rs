@@ -8,7 +8,6 @@ use crate::value::{InMemFragment, PixelFragmentSequence, C};
 ///
 /// # Example
 /// ```
-/// // Frames are represented as Vec<Vec<u8>>
 /// use dicom_core::{DataElement, Tag};
 /// use dicom_core::header::EmptyObject;
 /// use dicom_core::value::Value::PixelSequence;
@@ -16,6 +15,7 @@ use crate::value::{InMemFragment, PixelFragmentSequence, C};
 /// use dicom_core::value::InMemFragment;
 /// use dicom_core::VR::OB;
 ///
+/// // Frames are represented as Vec<Vec<u8>>
 /// // Single 512x512 frame
 /// let frames = vec![vec![0; 262144]];
 /// let fragments = frames
