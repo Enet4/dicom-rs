@@ -947,6 +947,22 @@ impl<P> PixelFragmentSequence<P> {
     }
 }
 
+impl<T, F, P> From<(T, F)> for PixelFragmentSequence<P>
+where
+    T: Into<C<u32>>,
+    F: Into<C<P>>,
+{
+    /// Construct a pixel data fragment sequence,
+    /// interpreting the first tuple element as a basic offset table
+    /// and the second element as the vector of fragments.
+    ///
+    /// **Note:** This function does not validate the offset table
+    /// against the given fragments.
+    fn from((offset_table, fragments): (T, F)) -> Self {
+        PixelFragmentSequence::new(offset_table, fragments)
+    }
+}
+
 impl<I, P> From<PixelFragmentSequence<P>> for Value<I, P> {
     #[inline]
     fn from(value: PixelFragmentSequence<P>) -> Self {
