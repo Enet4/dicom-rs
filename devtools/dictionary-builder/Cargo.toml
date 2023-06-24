@@ -2,12 +2,12 @@
 name = "dicom-dictionary-builder"
 version = "0.3.2"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
-description = "A generator of DICOM data dictionaries from standard documentation"
+description = "A generator of DICOM dictionaries from standard documentation and other sources"
 edition = "2018"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
 categories = ["command-line-utilities"]
-keywords = ["dicom"]
+keywords = ["dicom", "generator", "dictionary"]
 readme = "README.md"
 
 [[bin]]
@@ -20,6 +20,9 @@ serde = { version = "1.0.55", features = ["derive"] }
 serde_json = "1.0.17"
 heck = "0.4.0"
 ureq = "2.4.0"
+sxd-document = "0.3.2"
+eyre = "0.6.8"
+sxd-xpath = "0.4.2"
 
 [dependencies.regex]
 version = "1.6.0"

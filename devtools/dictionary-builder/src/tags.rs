@@ -1,120 +1,88 @@
-//! A simple application that downloads the data dictionary and creates code or
-//! data to reproduce it in the core library.
-//!
-//! ### How to use
-//!
-//! Simply run the application. It will automatically retrieve the dictionary
-//! from the DCMTK data dictionary and store the result in "tags.rs".
-//! Future versions will enable different kinds of outputs.
-//!
-//! Please use the `--help` flag for the full usage information.
+//! DICOM data element (tag) dictionary builder
+use std::{
+    borrow::Cow,
+    fs::{create_dir_all, File},
+    io::{BufRead, BufReader, BufWriter, Write},
+    path::Path,
+};
 
-use clap::{crate_version, Arg, ArgAction, Command};
+use clap::Parser;
+use eyre::{Context, Result};
+use heck::ToShoutySnakeCase;
 use regex::Regex;
 use serde::Serialize;
 
-use heck::ToShoutySnakeCase;
-use std::borrow::Cow;
-use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
-use std::{
-    fs::{create_dir_all, File},
-    io::BufWriter,
-};
+use crate::common::RetiredOptions;
 
 /// url to DCMTK dic file
 const DEFAULT_LOCATION: &str =
     "https://raw.githubusercontent.com/DCMTK/dcmtk/master/dcmdata/data/dicom.dic";
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-enum RetiredOptions {
-    /// ignore retired data attributes
-    Ignore,
-    /// include retired data attributes
-    Include {
-        /// mark constants as deprecated
-        deprecate: bool,
-    },
+/// Fetch and build a dictionary of DICOM data elements
+/// (tags)
+#[derive(Debug, Parser)]
+#[clap(name = "data-element", alias = "tags")]
+pub struct DataElementApp {
+    /// Path or URL to the data element dictionary
+    #[clap(default_value(DEFAULT_LOCATION))]
+    from: String,
+    /// The output file
+    #[clap(short('o'), default_value("tags.rs"))]
+    output: String,
+    /// Ignore retired DICOM tags
+    #[clap(long)]
+    ignore_retired: bool,
+    /// Mark retired DICOM tags as deprecated
+    #[clap(long)]
+    deprecate_retired: bool,
 }
 
-fn command() -> Command {
-    Command::new("dicom-dictionary-builder")
-        .version(crate_version!())
-        .arg(
-            Arg::new("FROM")
-                .default_value(DEFAULT_LOCATION)
-                .help("Where to fetch the dictionary from"),
-        )
-        .arg(
-            Arg::new("no-retired")
-                .long("no-retired")
-                .help("Ignore retired tags")
-                .action(ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("deprecate-retired")
-                .long("deprecate-retired")
-                .help("Mark tag constants as deprecated")
-                .conflicts_with("no-retired")
-                .action(ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("OUTPUT")
-                .short('o')
-                .help("The path to the output file")
-                .default_value("tags.rs"),
-        )
-}
+pub fn run(args: DataElementApp) -> Result<()> {
+    let DataElementApp {
+        from,
+        ignore_retired,
+        deprecate_retired,
+        output,
+    } = args;
 
-fn main() {
-    let matches = command().get_matches();
+    let retired = RetiredOptions::from_flags(ignore_retired, deprecate_retired);
 
-    let ignore_retired = matches.get_flag("no-retired");
+    let src = from;
+    let dst = output;
 
-    let retired = if ignore_retired {
-        RetiredOptions::Ignore
-    } else {
-        RetiredOptions::Include {
-            deprecate: matches.get_flag("deprecate-retired"),
-        }
-    };
-
-    let src = matches.get_one::<String>("FROM").unwrap();
-
-    let dst = Path::new(matches.get_one::<String>("OUTPUT").unwrap());
-
-    if src.starts_with("http:") || src.starts_with("https:") {
+    let preamble: String;
+    let entries = if src.starts_with("http:") || src.starts_with("https:") {
         // read from URL
         println!("Downloading DICOM dictionary ...");
-        let resp = ureq::get(src).call().unwrap();
+        let resp = ureq::get(&src).call()?;
         let mut data = vec![];
-        std::io::copy(&mut resp.into_reader(), &mut data).unwrap();
+        std::io::copy(&mut resp.into_reader(), &mut data)?;
 
-        let preamble = data
+        let notice = data
             .split(|&b| b == b'\n')
             .filter_map(|l| std::str::from_utf8(l).ok())
             .find(|l| l.contains("Copyright"))
             .unwrap_or("");
-        let preamble = format!(
+        preamble = format!(
             "Adapted from the DCMTK project.\nURL: <{}>\nLicense: <{}>\n{}",
-            src, "https://github.com/DCMTK/dcmtk/blob/master/COPYRIGHT", preamble,
+            src, "https://github.com/DCMTK/dcmtk/blob/master/COPYRIGHT", notice,
         );
 
-        let entries = parse_entries(&*data).unwrap();
-        println!("Writing to file ...");
-        to_code_file(dst, entries, retired, &preamble).expect("Failed to write file");
+        parse_entries(&*data)?
     } else {
         // read from File
-        let file = File::open(src).unwrap();
-        let entries = parse_entries(BufReader::new(file)).unwrap();
-        println!("Writing to file ...");
-        to_code_file(dst, entries, retired, "").expect("Failed to write file");
-    }
+        let file = File::open(src)?;
+        preamble = "".to_owned();
+        parse_entries(BufReader::new(file))?
+    };
+
+    println!("Writing to file ...");
+    to_code_file(dst, entries, retired, &preamble).context("Failed to write file")?;
+
+    Ok(())
 }
 
-type DynResult<T> = Result<T, Box<dyn std::error::Error>>;
-
-fn parse_entries<R: BufRead>(source: R) -> DynResult<Vec<Entry>> {
+fn parse_entries<R: BufRead>(source: R) -> Result<Vec<Entry>> {
     let mut result = vec![];
 
     for line in source.lines() {
@@ -244,7 +212,7 @@ fn to_code_file<P>(
     entries: Vec<Entry>,
     retired_options: RetiredOptions,
     preamble: &str,
-) -> DynResult<()>
+) -> Result<()>
 where
     P: AsRef<Path>,
 {
@@ -253,11 +221,12 @@ where
     }
     let mut f = BufWriter::new(File::create(&dest_path)?);
 
-    f.write_all(b"//! Automatically generated. Edit at your own risk.\n")?;
+    f.write_all(b"//! Data element tag declarations\n//!\n")?;
 
     for line in preamble.split('\n') {
-        writeln!(f, "//! {}", line)?;
+        writeln!(f, "//! {}\\", line)?;
     }
+    f.write_all(b"// Automatically generated. Edit at your own risk.\n")?;
 
     if matches!(retired_options, RetiredOptions::Include { deprecate: true }) {
         f.write_all(b"#![allow(deprecated)]\n")?;
@@ -265,7 +234,7 @@ where
 
     f.write_all(
         b"\n\
-    use dicom_core::dictionary::{DictionaryEntryRef, TagRange, TagRange::*};\n\
+    use dicom_core::dictionary::{DataDictionaryEntryRef, TagRange, TagRange::*};\n\
     use dicom_core::Tag;\n\
     use dicom_core::VR::*;\n\n",
     )?;
@@ -310,8 +279,7 @@ where
     }
 
     f.write_all(
-        b"\n\n\
-    type E = DictionaryEntryRef<'static>;\n\n\
+        b"\ntype E = DataDictionaryEntryRef<'static>;\n\n\
     #[rustfmt::skip]\n\
     pub(crate) const ENTRIES: &[E] = &[\n",
     )?;
@@ -343,14 +311,4 @@ where
     f.write_all(b"];\n")?;
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::command;
-
-    #[test]
-    fn verify_cli() {
-        command().debug_assert();
-    }
 }

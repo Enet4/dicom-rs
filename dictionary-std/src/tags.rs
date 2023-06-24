@@ -1,11 +1,13 @@
-//! Automatically generated. Edit at your own risk.
-//! Adapted from the DCMTK project.
-//! URL: <https://raw.githubusercontent.com/DCMTK/dcmtk/master/dcmdata/data/dicom.dic>
-//! License: <https://github.com/DCMTK/dcmtk/blob/master/COPYRIGHT>
-//! #  Copyright (C) 1994-2023, OFFIS e.V.
+//! Data element tag declarations
+//!
+//! Adapted from the DCMTK project.\
+//! URL: <https://raw.githubusercontent.com/DCMTK/dcmtk/master/dcmdata/data/dicom.dic>\
+//! License: <https://github.com/DCMTK/dcmtk/blob/master/COPYRIGHT>\
+//! #  Copyright (C) 1994-2023, OFFIS e.V.\
+// Automatically generated. Edit at your own risk.
 #![allow(deprecated)]
 
-use dicom_core::dictionary::{DictionaryEntryRef, TagRange, TagRange::*};
+use dicom_core::dictionary::{DataDictionaryEntryRef, TagRange, TagRange::*};
 use dicom_core::Tag;
 use dicom_core::VR::*;
 
@@ -5991,6 +5993,9 @@ pub const LOSSY_IMAGE_COMPRESSION_METHOD: Tag = Tag(0x0028, 0x2114);
 /// ModalityLUTSequence (0028,3000) SQ 1 DICOM
 #[rustfmt::skip]
 pub const MODALITY_LUT_SEQUENCE: Tag = Tag(0x0028, 0x3000);
+/// VariableModalityLUTSequence (0028,3001) SQ 1 DICOM
+#[rustfmt::skip]
+pub const VARIABLE_MODALITY_LUT_SEQUENCE: Tag = Tag(0x0028, 0x3001);
 /// LUTDescriptor (0028,3002) US 3 DICOM
 #[rustfmt::skip]
 pub const LUT_DESCRIPTOR: Tag = Tag(0x0028, 0x3002);
@@ -10866,9 +10871,6 @@ pub const TREATMENT_CONTROL_POINT_TIME: Tag = Tag(0x3008, 0x0025);
 /// TreatmentTerminationStatus (3008,002A) CS 1 DICOM
 #[rustfmt::skip]
 pub const TREATMENT_TERMINATION_STATUS: Tag = Tag(0x3008, 0x002A);
-/// TreatmentTerminationCode (3008,002B) SH 1 DICOM
-#[rustfmt::skip]
-pub const TREATMENT_TERMINATION_CODE: Tag = Tag(0x3008, 0x002B);
 /// TreatmentVerificationStatus (3008,002C) CS 1 DICOM
 #[rustfmt::skip]
 pub const TREATMENT_VERIFICATION_STATUS: Tag = Tag(0x3008, 0x002C);
@@ -13509,9 +13511,6 @@ pub const DELIVERY_TIME_STRUCTURE_CODE_SEQUENCE: Tag = Tag(0x3010, 0x0088);
 /// TreatmentSiteModifierCodeSequence (3010,0089) SQ 1 DICOM
 #[rustfmt::skip]
 pub const TREATMENT_SITE_MODIFIER_CODE_SEQUENCE: Tag = Tag(0x3010, 0x0089);
-/// RoboticBaseLocationIndicator (3010,0090) CS 1 DICOM
-#[rustfmt::skip]
-pub const ROBOTIC_BASE_LOCATION_INDICATOR: Tag = Tag(0x3010, 0x0090);
 /// RoboticPathNodeSetCodeSequence (3010,0091) SQ 1 DICOM
 #[rustfmt::skip]
 pub const ROBOTIC_PATH_NODE_SET_CODE_SEQUENCE: Tag = Tag(0x3010, 0x0091);
@@ -15403,6 +15402,10 @@ pub const RELATED_FRAME_OF_REFERENCE_UID: Tag = Tag(0x3006, 0x00C2);
 #[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const FRAME_OF_REFERENCE_TRANSFORMATION_TYPE: Tag = Tag(0x3006, 0x00C4);
+/// TreatmentTerminationCode (3008,002B) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
+#[rustfmt::skip]
+pub const TREATMENT_TERMINATION_CODE: Tag = Tag(0x3008, 0x002B);
 /// TreatmentSites (300A,000B) LO 1-n DICOM/retired
 #[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
@@ -15431,6 +15434,10 @@ pub const REFERENCED_RT_PATIENT_SETUP_SEQUENCE: Tag = Tag(0x300A, 0x0632);
 #[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const PATIENT_SETUP_UID: Tag = Tag(0x300A, 0x0650);
+/// RoboticBaseLocationIndicator (3010,0090) CS 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
+#[rustfmt::skip]
+pub const ROBOTIC_BASE_LOCATION_INDICATOR: Tag = Tag(0x3010, 0x0090);
 /// Arbitrary (4000,0010) LT 1 DICOM/retired
 #[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
@@ -15848,8 +15855,7 @@ pub const SHIFT_TABLE_TRIPLET: Tag = Tag(0x1000, 0x0015);
 #[rustfmt::skip]
 pub const ZONAL_MAP: Tag = Tag(0x1010, 0x0004);
 
-
-type E = DictionaryEntryRef<'static>;
+type E = DataDictionaryEntryRef<'static>;
 
 #[rustfmt::skip]
 pub(crate) const ENTRIES: &[E] = &[
@@ -17847,6 +17853,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(LOSSY_IMAGE_COMPRESSION_RATIO), alias: "LossyImageCompressionRatio", vr: DS }, // DICOM
     E { tag: Single(LOSSY_IMAGE_COMPRESSION_METHOD), alias: "LossyImageCompressionMethod", vr: CS }, // DICOM
     E { tag: Single(MODALITY_LUT_SEQUENCE), alias: "ModalityLUTSequence", vr: SQ }, // DICOM
+    E { tag: Single(VARIABLE_MODALITY_LUT_SEQUENCE), alias: "VariableModalityLUTSequence", vr: SQ }, // DICOM
     E { tag: Single(LUT_DESCRIPTOR), alias: "LUTDescriptor", vr: US }, // DICOM
     E { tag: Single(LUT_EXPLANATION), alias: "LUTExplanation", vr: LO }, // DICOM
     E { tag: Single(MODALITY_LUT_TYPE), alias: "ModalityLUTType", vr: LO }, // DICOM
@@ -19472,7 +19479,6 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(TREATMENT_CONTROL_POINT_DATE), alias: "TreatmentControlPointDate", vr: DA }, // DICOM
     E { tag: Single(TREATMENT_CONTROL_POINT_TIME), alias: "TreatmentControlPointTime", vr: TM }, // DICOM
     E { tag: Single(TREATMENT_TERMINATION_STATUS), alias: "TreatmentTerminationStatus", vr: CS }, // DICOM
-    E { tag: Single(TREATMENT_TERMINATION_CODE), alias: "TreatmentTerminationCode", vr: SH }, // DICOM
     E { tag: Single(TREATMENT_VERIFICATION_STATUS), alias: "TreatmentVerificationStatus", vr: CS }, // DICOM
     E { tag: Single(REFERENCED_TREATMENT_RECORD_SEQUENCE), alias: "ReferencedTreatmentRecordSequence", vr: SQ }, // DICOM
     E { tag: Single(SPECIFIED_PRIMARY_METERSET), alias: "SpecifiedPrimaryMeterset", vr: DS }, // DICOM
@@ -20353,7 +20359,6 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(WEEKDAY_FRACTION_PATTERN_SEQUENCE), alias: "WeekdayFractionPatternSequence", vr: SQ }, // DICOM
     E { tag: Single(DELIVERY_TIME_STRUCTURE_CODE_SEQUENCE), alias: "DeliveryTimeStructureCodeSequence", vr: SQ }, // DICOM
     E { tag: Single(TREATMENT_SITE_MODIFIER_CODE_SEQUENCE), alias: "TreatmentSiteModifierCodeSequence", vr: SQ }, // DICOM
-    E { tag: Single(ROBOTIC_BASE_LOCATION_INDICATOR), alias: "RoboticBaseLocationIndicator", vr: CS }, // DICOM
     E { tag: Single(ROBOTIC_PATH_NODE_SET_CODE_SEQUENCE), alias: "RoboticPathNodeSetCodeSequence", vr: SQ }, // DICOM
     E { tag: Single(ROBOTIC_NODE_IDENTIFIER), alias: "RoboticNodeIdentifier", vr: UL }, // DICOM
     E { tag: Single(RT_TREATMENT_SOURCE_COORDINATES), alias: "RTTreatmentSourceCoordinates", vr: FD }, // DICOM
@@ -20860,6 +20865,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(FRAME_OF_REFERENCE_RELATIONSHIP_SEQUENCE), alias: "FrameOfReferenceRelationshipSequence", vr: SQ }, // DICOM/retired
     E { tag: Single(RELATED_FRAME_OF_REFERENCE_UID), alias: "RelatedFrameOfReferenceUID", vr: UI }, // DICOM/retired
     E { tag: Single(FRAME_OF_REFERENCE_TRANSFORMATION_TYPE), alias: "FrameOfReferenceTransformationType", vr: CS }, // DICOM/retired
+    E { tag: Single(TREATMENT_TERMINATION_CODE), alias: "TreatmentTerminationCode", vr: SH }, // DICOM/retired
     E { tag: Single(TREATMENT_SITES), alias: "TreatmentSites", vr: LO }, // DICOM/retired
     E { tag: Single(BEAM_DOSE_SPECIFICATION_POINT), alias: "BeamDoseSpecificationPoint", vr: DS }, // DICOM/retired
     E { tag: Single(AVERAGE_BEAM_DOSE_POINT_DEPTH), alias: "AverageBeamDosePointDepth", vr: FL }, // DICOM/retired
@@ -20867,6 +20873,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(AVERAGE_BEAM_DOSE_POINT_SSD), alias: "AverageBeamDosePointSSD", vr: FL }, // DICOM/retired
     E { tag: Single(REFERENCED_RT_PATIENT_SETUP_SEQUENCE), alias: "ReferencedRTPatientSetupSequence", vr: SQ }, // DICOM/retired
     E { tag: Single(PATIENT_SETUP_UID), alias: "PatientSetupUID", vr: UI }, // DICOM/retired
+    E { tag: Single(ROBOTIC_BASE_LOCATION_INDICATOR), alias: "RoboticBaseLocationIndicator", vr: CS }, // DICOM/retired
     E { tag: Single(ARBITRARY), alias: "Arbitrary", vr: LT }, // DICOM/retired
     E { tag: Single(TEXT_COMMENTS), alias: "TextComments", vr: LT }, // DICOM/retired
     E { tag: Single(RESULTS_ID), alias: "ResultsID", vr: SH }, // DICOM/retired
