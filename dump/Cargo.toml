@@ -20,7 +20,8 @@ path = "src/main.rs"
 required-features = ["cli"]
 
 [features]
-default = ["cli"]
+default = ["cli", "sop-class"]
+sop-class = ["dicom-dictionary-std/sop-class"]
 cli = ["clap", "dicom-transfer-syntax-registry/inventory-registry", "dicom-object/backtraces"]
 
 [dependencies]

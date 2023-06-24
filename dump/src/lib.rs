@@ -33,9 +33,13 @@
 //! # Result::<(), Box<dyn std::error::Error>>::Ok(())
 //! ```
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
+#[cfg(feature = "sop-class")]
+use dicom_core::dictionary::UidDictionary;
 use dicom_core::header::Header;
 use dicom_core::value::{PrimitiveValue, Value as DicomValue};
 use dicom_core::VR;
+#[cfg(feature = "sop-class")]
+use dicom_dictionary_std::StandardSopClassDictionary;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::mem::{InMemDicomObject, InMemElement};
 use dicom_object::{FileDicomObject, FileMetaTable, StandardDataDictionary};
@@ -410,13 +414,37 @@ fn meta_dump<W>(to: &mut W, meta: &FileMetaTable, width: u32) -> IoResult<()>
 where
     W: ?Sized + Write,
 {
-    writeln!(
-        to,
-        "{}: {}",
-        "Media Storage SOP Class UID".if_supports_color(Stream::Stdout, |v| v.bold()),
-        meta.media_storage_sop_class_uid
-            .trim_end_matches(whitespace_or_null),
-    )?;
+    let sop_class_uid = meta
+        .media_storage_sop_class_uid
+        .trim_end_matches(whitespace_or_null);
+
+    #[cfg(feature = "sop-class")]
+    #[inline]
+    fn translate_sop_class(uid: &str) -> Option<&'static str> {
+        StandardSopClassDictionary.by_uid(uid).map(|e| e.name)
+    }
+    #[cfg(not(feature = "sop-class"))]
+    #[inline]
+    fn translate_sop_class(_uid: &str) -> Option<&'static str> {
+        None
+    }
+
+    if let Some(name) = translate_sop_class(sop_class_uid) {
+        writeln!(
+            to,
+            "{}: {} ({})",
+            "Media Storage SOP Class UID".if_supports_color(Stream::Stdout, |v| v.bold()),
+            sop_class_uid,
+            name,
+        )?;
+    } else {
+        writeln!(
+            to,
+            "{}: {}",
+            "Media Storage SOP Class UID".if_supports_color(Stream::Stdout, |v| v.bold()),
+            sop_class_uid,
+        )?;
+    }
     writeln!(
         to,
         "{}: {}",
@@ -939,10 +967,17 @@ mod tests {
             .expect("output is not valid UTF-8")
             .split('\n')
             .collect();
-        assert_eq!(
-            lines[0],
-            "Media Storage SOP Class UID: 1.2.840.10008.5.1.4.1.1.1"
-        );
+        if cfg!(feature = "sop-class") {
+            assert_eq!(
+                lines[0],
+                "Media Storage SOP Class UID: 1.2.840.10008.5.1.4.1.1.1 (Computed Radiography Image Storage)"
+            );
+        } else {
+            assert_eq!(
+                lines[0],
+                "Media Storage SOP Class UID: 1.2.840.10008.5.1.4.1.1.1"
+            );
+        }
         assert_eq!(lines[1], "Media Storage SOP Instance UID: 1.2.888.123");
         assert_eq!(
             lines[2],
