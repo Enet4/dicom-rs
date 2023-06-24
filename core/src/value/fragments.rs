@@ -1,8 +1,10 @@
-//! Handle pixel encapsulation into fragments
+//! Helper module for handling pixel encapsulation into fragments
 use crate::value::{InMemFragment, PixelFragmentSequence, C};
 
-/// Represents the fragments of a single frame. [PixelFragmentSequence] can be generated from a list
-/// of [Fragments]. In case of multi frame a list of frames composed by 1 fragment is expected.
+/// Represents the fragments of a single frame.
+///
+/// A [`PixelFragmentSequence`] can be generated from a list of [`Fragments`].
+/// In case of multi-frame, a list of frames composed by 1 fragment is expected.
 ///
 /// The frames can be independently processed, so parallel execution is possible.
 ///
@@ -23,11 +25,15 @@ use crate::value::{InMemFragment, PixelFragmentSequence, C};
 ///     .map(|frame| Fragments::new(frame, 0))
 ///     .collect::<Vec<Fragments>>();
 ///
-/// let element = DataElement::new(Tag(0x7FE0, 0x0008), OB, PixelSequence::<EmptyObject, InMemFragment>(fragments.into()));
+/// let element = DataElement::new(
+///     Tag(0x7FE0, 0x0008),
+///     OB,
+///     PixelSequence::<EmptyObject, InMemFragment>(fragments.into())
+/// );
 /// ```
 ///
 /// From this last example, it is possible to extend it to implement a pipeline, and even use rayon
-/// process the frames.
+/// for parallel processing of the frames.
 #[derive(Debug)]
 pub struct Fragments {
     fragments: Vec<InMemFragment>,
