@@ -672,6 +672,17 @@ where
         self.entries.insert(elt.tag(), elt)
     }
 
+    /// Insert a new element with a string value to the object,
+    /// replacing (and returning) any previous element of the same attribute.
+    pub fn put_str(
+        &mut self,
+        tag: Tag,
+        vr: VR,
+        string: impl Into<String>,
+    ) -> Option<InMemElement<D>> {
+        self.put_element(DataElement::new(tag, vr, string.into()))
+    }
+
     /// Remove a DICOM element by its tag,
     /// reporting whether it was present.
     pub fn remove_element(&mut self, tag: Tag) -> bool {
