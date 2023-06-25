@@ -243,14 +243,14 @@ impl<I, P> DataElement<I, P> {
     ///
     /// Once updated, the header is automatically updated
     /// based on this set of rules:
-    /// 
+    ///
     /// - if the value is a data set sequence,
     ///   the VR is set to `SQ` and the length is reset to undefined;
     /// - if the value is a pixel data fragment sequence,
     ///   the VR is set to `OB` and the lenght is reset to undefined;
     /// - if the value is primitive,
     ///   the length is recalculated, leaving the VR as is.
-    /// 
+    ///
     /// If these rules do not result in a valid element,
     /// consider reconstructing the data element instead.
     pub fn update_value(&mut self, mut f: impl FnMut(&mut Value<I, P>)) {
@@ -259,15 +259,15 @@ impl<I, P> DataElement<I, P> {
             Value::Primitive(v) => {
                 let byte_len = v.calculate_byte_len();
                 self.header.len = Length(byte_len as u32);
-            },
+            }
             Value::Sequence(_) => {
                 self.header.vr = VR::SQ;
                 self.header.len = Length::UNDEFINED;
-            },
+            }
             Value::PixelSequence(_) => {
                 self.header.vr = VR::OB;
                 self.header.len = Length::UNDEFINED;
-            },
+            }
         }
     }
 }
@@ -1460,14 +1460,11 @@ mod tests {
     #[test]
     fn test_update_value() {
         // can update a string value
-        let mut e: DataElement<EmptyObject, InMemFragment> = DataElement::new(
-            Tag(0x0010, 0x0010),
-            VR::PN,
-            PrimitiveValue::from("Doe^John"),
-        );
+        let mut e: DataElement<EmptyObject, InMemFragment> =
+            DataElement::new(Tag(0x0010, 0x0010), VR::PN, "Doe^John");
         assert_eq!(e.length(), Length(8));
         e.update_value(|e| {
-            *e = PrimitiveValue::from("Smith^John").into();
+            *e = "Smith^John".into();
         });
         assert_eq!(e.length(), Length(10));
 

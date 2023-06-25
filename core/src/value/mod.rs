@@ -250,6 +250,20 @@ impl<I, P> Value<I, P> {
     }
 }
 
+impl<I, P> From<&str> for Value<I, P> {
+    /// Converts a string into a primitive textual value.
+    fn from(value: &str) -> Self {
+        Value::Primitive(PrimitiveValue::from(value))
+    }
+}
+
+impl<I, P> From<String> for Value<I, P> {
+    /// Converts a string into a primitive textual value.
+    fn from(value: String) -> Self {
+        Value::Primitive(PrimitiveValue::from(value))
+    }
+}
+
 impl<I, P> HasLength for Value<I, P> {
     fn length(&self) -> Length {
         match self {
@@ -1250,7 +1264,9 @@ mod tests {
         // declarations are equivalent
         let v3 = Value::from(PrimitiveValue::from("Something"));
         let v4 = Value::new(dicom_value!(Str, "Something"));
+        let v3_2: Value = "Something".into();
         assert_eq!(v3, v4);
+        assert_eq!(v3, v3_2);
 
         // redeclare with different type parameters
         let v3: Value<DummyItem, _> = PrimitiveValue::from("Something").into();
