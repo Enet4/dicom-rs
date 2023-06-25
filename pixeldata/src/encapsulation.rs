@@ -9,7 +9,7 @@ use std::vec;
 ///
 /// Check [Fragments] in case more control over the processing is required.
 ///
-/// #Example
+/// # Example
 /// ```
 /// use dicom_core::DataElement;
 /// use dicom_core::VR::OB;
@@ -35,7 +35,7 @@ pub fn encapsulate(frames: Vec<Vec<u8>>) -> Value {
 /// Encapsulate the pixel data of a single frame. If `fragment_size` is zero then `frame.len()` will
 /// be used instead.
 ///
-/// #Example
+/// # Example
 /// ```
 /// use dicom_core::DataElement;
 /// use dicom_core::VR::OB;
