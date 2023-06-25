@@ -153,6 +153,14 @@ impl<I, P> Value<I, P> {
         }
     }
 
+    /// Gets a mutable reference to the primitive value.
+    pub fn primitive_mut(&mut self) -> Option<&mut PrimitiveValue> {
+        match self {
+            Value::Primitive(v) => Some(v),
+            _ => None,
+        }
+    }
+
     /// Gets a reference to the items of a sequence.
     ///
     /// Returns `None` if the value is not a data set sequence.
@@ -163,12 +171,32 @@ impl<I, P> Value<I, P> {
         }
     }
 
+    /// Gets a mutable reference to the items of a sequence.
+    ///
+    /// Returns `None` if the value is not a data set sequence.
+    pub fn items_mut(&mut self) -> Option<&mut C<I>> {
+        match self {
+            Value::Sequence(v) => Some(v.items_mut()),
+            _ => None,
+        }
+    }
+
     /// Gets a reference to the fragments of a pixel data sequence.
     ///
     /// Returns `None` if the value is not a pixel data sequence.
     pub fn fragments(&self) -> Option<&[P]> {
         match self {
             Value::PixelSequence(v) => Some(v.fragments()),
+            _ => None,
+        }
+    }
+
+    /// Gets a mutable reference to the fragments of a pixel data sequence.
+    ///
+    /// Returns `None` if the value is not a pixel data sequence.
+    pub fn fragments_mut(&mut self) -> Option<&mut C<P>> {
+        match self {
+            Value::PixelSequence(v) => Some(v.fragments_mut()),
             _ => None,
         }
     }
@@ -207,6 +235,16 @@ impl<I, P> Value<I, P> {
     pub fn offset_table(&self) -> Option<&[u32]> {
         match self {
             Value::PixelSequence(v) => Some(v.offset_table()),
+            _ => None,
+        }
+    }
+
+    /// Gets a mutable reference to the encapsulated pixel data's offset table.
+    ///
+    /// Returns `None` if the value is not a pixel data sequence.
+    pub fn offset_table_mut(&mut self) -> Option<&mut C<u32>> {
+        match self {
+            Value::PixelSequence(v) => Some(v.offset_table_mut()),
             _ => None,
         }
     }
@@ -758,6 +796,12 @@ impl<I> DataSetSequence<I> {
         &self.items
     }
 
+    /// Gets a mutable reference to the items of a sequence.
+    #[inline]
+    pub fn items_mut(&mut self) -> &mut C<I> {
+        &mut self.items
+    }
+
     /// Obtain the number of items in the sequence.
     #[inline]
     pub fn multiplicity(&self) -> u32 {
@@ -895,9 +939,6 @@ impl<P> PixelFragmentSequence<P> {
     /// Construct a DICOM pixel sequence sequence value
     /// from a list of fragments,
     /// with an empty basic offset table.
-    ///
-    /// **Note:** This function does not validate the offset table
-    /// against the given fragments.
     #[inline]
     pub fn new_fragments(fragments: impl Into<C<P>>) -> Self {
         PixelFragmentSequence {
@@ -912,6 +953,14 @@ impl<P> PixelFragmentSequence<P> {
     #[inline]
     pub fn fragments(&self) -> &[P] {
         &self.fragments
+    }
+
+    /// Gets a mutable reference to the pixel data fragments.
+    ///
+    /// This sequence does not include the offset table.
+    #[inline]
+    pub fn fragments_mut(&mut self) -> &mut C<P> {
+        &mut self.fragments
     }
 
     /// Retrieve the pixel data fragments,
@@ -930,10 +979,13 @@ impl<P> PixelFragmentSequence<P> {
     }
 
     /// Gets a reference to the encapsulated pixel data's offset table.
-    ///
-    /// Returns `None` if the value is not a pixel data sequence.
     pub fn offset_table(&self) -> &[u32] {
         &self.offset_table
+    }
+
+    /// Gets a mutable reference to the encapsulated pixel data's offset table.
+    pub fn offset_table_mut(&mut self) -> &mut C<u32> {
+        &mut self.offset_table
     }
 
     /// Get the value data's length

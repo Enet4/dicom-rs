@@ -237,6 +237,39 @@ impl<I, P> DataElement<I, P> {
     pub fn into_parts(self) -> (DataElementHeader, Value<I, P>) {
         (self.header, self.value)
     }
+
+    /// Obtain a temporary mutable reference to the value,
+    /// so that mutations can be applied within.
+    ///
+    /// Once updated, the header is automatically updated
+    /// based on this set of rules:
+    /// 
+    /// - if the value is a data set sequence,
+    ///   the VR is set to `SQ` and the length is reset to undefined;
+    /// - if the value is a pixel data fragment sequence,
+    ///   the VR is set to `OB` and the lenght is reset to undefined;
+    /// - if the value is primitive,
+    ///   the length is recalculated, leaving the VR as is.
+    /// 
+    /// If these rules do not result in a valid element,
+    /// consider reconstructing the data element instead.
+    pub fn update_value(&mut self, mut f: impl FnMut(&mut Value<I, P>)) {
+        f(&mut self.value);
+        match &mut self.value {
+            Value::Primitive(v) => {
+                let byte_len = v.calculate_byte_len();
+                self.header.len = Length(byte_len as u32);
+            },
+            Value::Sequence(_) => {
+                self.header.vr = VR::SQ;
+                self.header.len = Length::UNDEFINED;
+            },
+            Value::PixelSequence(_) => {
+                self.header.vr = VR::OB;
+                self.header.len = Length::UNDEFINED;
+            },
+        }
+    }
 }
 
 impl<I, P> DataElement<I, P>
@@ -504,7 +537,6 @@ where
     pub fn offset_table(&self) -> Option<&[u32]> {
         self.value().offset_table()
     }
-
 }
 
 impl<'v, I, P> DataElementRef<'v, I, P>
@@ -1309,7 +1341,11 @@ impl fmt::Display for Length {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{dicom_value, DicomValue};
+    use crate::{
+        dicom_value,
+        value::{InMemFragment, PixelFragmentSequence},
+        DicomValue,
+    };
 
     #[test]
     fn to_clean_string() {
@@ -1419,5 +1455,39 @@ mod tests {
         // error case: comma instead of hex digit
         let r: Result<Tag, _> = "1234567,".parse();
         assert_eq!(r, Err(ParseTagError::Number));
+    }
+
+    #[test]
+    fn test_update_value() {
+        // can update a string value
+        let mut e: DataElement<EmptyObject, InMemFragment> = DataElement::new(
+            Tag(0x0010, 0x0010),
+            VR::PN,
+            PrimitiveValue::from("Doe^John"),
+        );
+        assert_eq!(e.length(), Length(8));
+        e.update_value(|e| {
+            *e = PrimitiveValue::from("Smith^John").into();
+        });
+        assert_eq!(e.length(), Length(10));
+
+        // can update a pixel sequence
+        let mut e: DataElement<EmptyObject, InMemFragment> = DataElement::new_with_len(
+            Tag(0x7FE0, 0x0010),
+            VR::OB,
+            Length(0),
+            PixelFragmentSequence::new_fragments(vec![]),
+        );
+        assert_eq!(e.length(), Length(0));
+
+        e.update_value(|v| {
+            let fragments = v.fragments_mut().unwrap();
+            fragments.push(vec![0x00; 256]);
+            fragments.push(vec![0x55; 256]);
+            fragments.push(vec![0xCC; 256]);
+        });
+
+        assert!(e.length().is_undefined());
+        assert_eq!(e.fragments().map(|f| f.len()), Some(3));
     }
 }
