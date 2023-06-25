@@ -744,6 +744,47 @@ where
         self.len = Length::UNDEFINED;
     }
 
+    /// Obtain a temporary mutable reference to a DICOM value,
+    /// so that mutations can be applied within.
+    ///
+    /// If found, this method resets all related lengths recorded
+    /// and returns `true`.
+    /// Returns `false` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::{DataElement, VR, dicom_value};
+    /// # use dicom_dictionary_std::tags;
+    /// # use dicom_object::InMemDicomObject;
+    /// let mut obj = InMemDicomObject::from_element_iter([
+    ///     DataElement::new(tags::LOSSY_IMAGE_COMPRESSION_RATIO, VR::DS, dicom_value!(Strs, ["25"])),
+    /// ]);
+    ///
+    /// // update lossy image compression ratio
+    /// obj.update_value(tags::LOSSY_IMAGE_COMPRESSION_RATIO, |e| {
+    ///     e.primitive_mut().unwrap().extend_str(["2.56"]);
+    /// });
+    ///
+    /// assert_eq!(
+    ///     obj.get(tags::LOSSY_IMAGE_COMPRESSION_RATIO).unwrap().value().to_str().unwrap(),
+    ///     "25\\2.56"
+    /// );
+    /// ```
+    pub fn update_value(
+        &mut self,
+        tag: Tag,
+        f: impl FnMut(&mut Value<InMemDicomObject<D>, InMemFragment>),
+    ) -> bool {
+        if let Some(e) = self.entries.get_mut(&tag) {
+            e.update_value(f);
+            self.len = Length::UNDEFINED;
+            true
+        } else {
+            false
+        }
+    }
+
     /// Apply the given attribute operation on this object.
     ///
     /// See the [`dicom_encoding::ops`] module
@@ -2781,5 +2822,42 @@ mod tests {
         assert_eq!(even_len(3), 4);
         assert_eq!(even_len(4), 4);
         assert_eq!(even_len(5), 6);
+    }
+
+    #[test]
+    fn can_update_value() {
+        let mut obj = InMemDicomObject::from_element_iter([DataElement::new(
+            tags::ANATOMIC_REGION_SEQUENCE,
+            VR::SQ,
+            DataSetSequence::empty(),
+        )]);
+        assert_eq!(
+            obj.get(tags::ANATOMIC_REGION_SEQUENCE).map(|e| e.length()),
+            Some(Length(0)),
+        );
+
+        assert_eq!(
+            obj.update_value(tags::BURNED_IN_ANNOTATION, |_value| {
+                panic!("should not be called")
+            }),
+            false,
+        );
+
+        let o = obj.update_value(tags::ANATOMIC_REGION_SEQUENCE, |value| {
+            // add an item
+            let items = value.items_mut().unwrap();
+            items.push(InMemDicomObject::from_element_iter([DataElement::new(
+                tags::INSTANCE_NUMBER,
+                VR::IS,
+                PrimitiveValue::from(1),
+            )]));
+        });
+        assert_eq!(o, true);
+
+        assert!(obj
+            .get(tags::ANATOMIC_REGION_SEQUENCE)
+            .unwrap()
+            .length()
+            .is_undefined());
     }
 }
