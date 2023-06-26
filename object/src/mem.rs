@@ -1,5 +1,41 @@
 //! This module contains the implementation for an in-memory DICOM object.
-
+//!
+//! Use [`InMemDicomObject`] for your DICOM data set construction needs.
+//! Values of this type support infallible insertion, removal, and retrieval
+//! of elements by DICOM tag,
+//! or name (keyword) with a data element dictionary look-up.
+//! 
+//! If you wish to build a complete DICOM file,
+//! you can start from an `InMemDicomObject`
+//! and complement it with a [file meta group table](crate::meta)
+//! (see [`with_meta`](InMemDicomObject::with_meta)
+//! and [`with_exact_meta`](InMemDicomObject::with_exact_meta)).
+//! 
+//! # Example
+//! 
+//! A new DICOM data set can be built by providing a sequence of data elements.
+//! Insertion and removal methods are also available.
+//! 
+//! ```
+//! # use dicom_core::{DataElement, VR, dicom_value};
+//! # use dicom_dictionary_std::tags;
+//! # use dicom_dictionary_std::uids;
+//! # use dicom_object::InMemDicomObject;
+//! let mut obj = InMemDicomObject::from_element_iter([
+//!     DataElement::new(tags::SOP_CLASS_UID, VR::UI, uids::COMPUTED_RADIOGRAPHY_IMAGE_STORAGE),
+//!     DataElement::new(tags::SOP_INSTANCE_UID, VR::UI, "2.25.60156688944589400766024286894543900794"),
+//!     // ...
+//! ]);
+//! 
+//! // continue adding elements
+//! obj.put(DataElement::new(tags::MODALITY, VR::CS, "CR"));
+//! ```
+//! 
+//! In-memory DICOM objects may have a byte length recorded,
+//! if it was part of a data set sequence with explicit length.
+//! If necessary, this number can be obtained via the [`HasLength`] trait.
+//! However, any modifications made to the object will reset this length
+//! to [_undefined_](dicom_core::Length::UNDEFINED).
 use dicom_core::ops::{ApplyOp, AttributeAction, AttributeOp};
 use itertools::Itertools;
 use smallvec::SmallVec;
@@ -47,8 +83,10 @@ type Result<T, E = AccessError> = std::result::Result<T, E>;
 
 type ParserResult<T> = std::result::Result<T, ParserError>;
 
-/** A DICOM object that is fully contained in memory.
- */
+/// A DICOM object that is fully contained in memory.
+///
+/// See the [module-level documentation](self)
+/// for more details.
 #[derive(Debug, Clone)]
 pub struct InMemDicomObject<D = StandardDataDictionary> {
     /// the element map
@@ -173,8 +211,8 @@ impl InMemDicomObject<StandardDataDictionary> {
     /// Note: [`read_dataset_with_ts`] and [`read_dataset_with_ts_cs`]
     /// may be easier to use.
     ///
-    /// [`read_dataset_with_ts`]: #method.read_dataset_with_ts
-    /// [`read_dataset_with_ts_cs`]: #method.read_dataset_with_ts_cs
+    /// [`read_dataset_with_ts`]: InMemDicomObject::read_dataset_with_ts
+    /// [`read_dataset_with_ts_cs`]: InMemDicomObject::read_dataset_with_ts_cs
     #[inline]
     pub fn read_dataset<S>(decoder: S) -> Result<Self, ReadError>
     where
@@ -1233,17 +1271,46 @@ where
     /// Encapsulate this object to contain a file meta group,
     /// created through the given file meta table builder.
     ///
-    /// The attribute _Media Storage SOP Instance UID_
-    /// will be filled in with the contents of the object,
-    /// if the attribute _SOP Instance UID_  is present.
-    /// A complete file meta group should still provide
-    /// the media storage SOP class UID and transfer syntax.0
+    /// A complete file meta group should provide
+    /// the _Transfer Syntax UID_,
+    /// the _Media Storage SOP Instance UID_,
+    /// and the _Media Storage SOP Class UID_.
+    /// The last two will be filled with the values of
+    /// _SOP Instance UID_ and _SOP Class UID_
+    /// if they are present in this object.
+    /// 
+    /// # Example
+    /// 
+    /// ```no_run
+    /// # use dicom_core::{DataElement, VR};
+    /// # use dicom_dictionary_std::tags;
+    /// # use dicom_dictionary_std::uids;
+    /// use dicom_object::{InMemDicomObject, meta::FileMetaTableBuilder};
+    /// 
+    /// let obj = InMemDicomObject::from_element_iter([
+    ///     DataElement::new(tags::SOP_CLASS_UID, VR::UI, uids::COMPUTED_RADIOGRAPHY_IMAGE_STORAGE),
+    ///     DataElement::new(tags::SOP_INSTANCE_UID, VR::UI, "2.25.60156688944589400766024286894543900794"),
+    ///     // ...
+    /// ]);
+    /// 
+    /// let obj = obj.with_meta(FileMetaTableBuilder::new()
+    ///     .transfer_syntax(uids::EXPLICIT_VR_LITTLE_ENDIAN))?;
+    /// 
+    /// // can now save everything to a file
+    /// let meta = obj.write_to_file("out.dcm")?;
+    /// # Result::<_, Box<dyn std::error::Error>>::Ok(())
+    /// ```
     pub fn with_meta(
         self,
         mut meta: FileMetaTableBuilder,
     ) -> Result<FileDicomObject<Self>, WithMetaError> {
         if let Some(elem) = self.get(tags::SOP_INSTANCE_UID) {
             meta = meta.media_storage_sop_instance_uid(
+                elem.value().to_str().context(PrepareMetaTableSnafu)?,
+            );
+        }
+        if let Some(elem) = self.get(tags::SOP_CLASS_UID) {
+            meta = meta.media_storage_sop_class_uid(
                 elem.value().to_str().context(PrepareMetaTableSnafu)?,
             );
         }

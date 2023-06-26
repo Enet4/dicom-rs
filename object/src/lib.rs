@@ -6,24 +6,36 @@
 //! The end user should prefer using this abstraction when dealing with DICOM
 //! objects.
 //!
-//! Loading a DICOM file can be done with easily via the function [`open_file`].
+//! Loading a DICOM file can be done with ease via the function [`open_file`].
 //! For additional file reading options, use [`OpenFileOptions`].
+//! New DICOM instances can be built from scratch using [`InMemDicomObject`]
+//! (see the [`mem`] module for more details).
 //!
 //! # Examples
 //!
-//! Read an object and fetch some attributes by their standard alias:
+//! Read an object and fetch some attributes:
 //!
 //! ```no_run
+//! use dicom_dictionary_std::tags;
 //! use dicom_object::open_file;
 //! # fn foo() -> Result<(), Box<dyn std::error::Error>> {
 //! let obj = open_file("0001.dcm")?;
-//! let patient_name = obj.element_by_name("PatientName")?.to_str()?;
+//!
+//! let patient_name = obj.element(tags::PATIENT_NAME)?.to_str()?;
 //! let modality = obj.element_by_name("Modality")?.to_str()?;
 //! # Ok(())
 //! # }
 //! ```
 //!
-//! The current default implementation places the full DICOM object in memory.
+//! Elements can be fetched by tag,
+//! either by creating a [`Tag`](dicom_core::Tag)
+//! or by using one of the [readily available constants][const]
+//! from the [`dicom-dictionary-std`][dictionary-std] crate.
+//! 
+//! [const]: dicom_dictionary_std::tags
+//! [dictionary-std]: https://docs.rs/dicom-dictionary-std
+//!
+//! By default, the entire data set is fully loaded into memory.
 //! The pixel data and following elements can be ignored
 //! by using [`OpenFileOptions`]:
 //!
@@ -36,18 +48,25 @@
 //! # Result::<(), dicom_object::ReadError>::Ok(())
 //! ```
 //!
-//! Elements can also be fetched by tag.
+//! Once a data set element is looked up,
+//! one will typically wish to inspect the value within.
 //! Methods are available for converting the element's DICOM value
 //! into something more usable in Rust.
 //!
 //! ```
+//! # use dicom_dictionary_std::tags;
 //! # use dicom_object::{DefaultDicomObject, Tag};
 //! # fn something(obj: DefaultDicomObject) -> Result<(), Box<dyn std::error::Error>> {
-//! let patient_date = obj.element(Tag(0x0010, 0x0030))?.to_date()?;
-//! let pixel_data_bytes = obj.element(Tag(0x7FE0, 0x0010))?.to_bytes()?;
+//! let patient_date = obj.element(tags::PATIENT_BIRTH_DATE)?.to_date()?;
+//! let pixel_data_bytes = obj.element(tags::PIXEL_DATA)?.to_bytes()?;
 //! # Ok(())
 //! # }
 //! ```
+//! 
+//! **Note:** if you need to decode the pixel data first,
+//! see the [dicom-pixeldata] crate.
+//! 
+//! [dicom-pixeldata]: https://docs.rs/dicom-pixeldata
 //!
 //! Finally, DICOM objects can be serialized back into DICOM encoded bytes.
 //! A method is provided for writing a file DICOM object into a new DICOM file.
@@ -63,18 +82,22 @@
 //! This method requires you to write a [file meta table] first.
 //! When creating a new DICOM object from scratch,
 //! use a [`FileMetaTableBuilder`] to construct the file meta group,
-//! then use `with_meta` or `with_exact_meta`:
+//! then use [`with_meta`] or [`with_exact_meta`]:
 //!
 //! [file meta table]: crate::meta::FileMetaTable
 //! [`FileMetaTableBuilder`]: crate::meta::FileMetaTableBuilder
-//!
+//! [`with_meta`]: crate::InMemDicomObject::with_meta
+//! [`with_exact_meta`]: crate::InMemDicomObject::with_exact_meta
+//! 
 //! ```no_run
 //! # use dicom_object::{InMemDicomObject, FileMetaTableBuilder};
 //! # fn something(obj: InMemDicomObject) -> Result<(), Box<dyn std::error::Error>> {
+//! use dicom_dictionary_std::uids;
+//!
 //! let file_obj = obj.with_meta(
 //!     FileMetaTableBuilder::new()
 //!         // Implicit VR Little Endian
-//!         .transfer_syntax("1.2.840.10008.1.2")
+//!         .transfer_syntax(uids::IMPLICIT_VR_LITTLE_ENDIAN)
 //!         // Computed Radiography image storage
 //!         .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1")
 //! )?;
@@ -84,18 +107,20 @@
 //! ```
 //!
 //! In order to write a plain DICOM data set,
-//! use one of the various `write_dataset` methods.
+//! use one of the various data set writing methods
+//! such as [`write_dataset_with_ts`]:
 //!
+//! [`write_dataset_with_ts`]: crate::InMemDicomObject::write_dataset_with_ts
 //! ```
 //! # use dicom_object::InMemDicomObject;
-//! # use dicom_core::{DataElement, Tag, VR, dicom_value};
+//! # use dicom_core::{DataElement, Tag, VR};
 //! # fn run() -> Result<(), Box<dyn std::error::Error>> {
 //! // build your object
 //! let mut obj = InMemDicomObject::new_empty();
 //! let patient_name = DataElement::new(
 //!     Tag(0x0010, 0x0010),
 //!     VR::PN,
-//!     dicom_value!(Str, "Doe^John"),
+//!     "Doe^John",
 //! );
 //! obj.put(patient_name);
 //!
