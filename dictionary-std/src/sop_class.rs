@@ -13,17 +13,14 @@ static DICT: Lazy<StandardUidRegistry> = Lazy::new(init_dictionary);
 ///
 /// Note that one does not generally have to call this
 /// unless when retrieving the underlying registry is important.
-/// The unit type [`StandardDataDictionary`]
+/// The unit type [`StandardSopClassDictionary`]
 /// already provides a lazy loaded singleton implementing the necessary traits.
 #[inline]
 pub fn registry() -> &'static StandardUidRegistry {
     &DICT
 }
 
-/// The data struct actually containing the standard UID dictionary.
-///
-/// This structure is made opaque via the unit type [`StandardUidDictionary`],
-/// which provides a lazy loaded singleton.
+/// Base data struct for a standard UID dictionary.
 #[derive(Debug)]
 pub struct StandardUidRegistry {
     /// mapping: keyword → entry
