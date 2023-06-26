@@ -6,13 +6,12 @@
 //! which can be queried during a program's lifetime:
 //!  
 //! - [`data_element`]: Contains all information about the
-//!   DICOM attributes specified in the standard according to ,
+//!   DICOM attributes specified in the standard,
 //!   and it will be used by default in most other abstractions available.
 //!   When not using private tags, this dictionary should suffice.
 //! - `sop_class` (requires Cargo feature **sop-class**):
 //!   Contains information about DICOM Service-Object Pair (SOP) classes
-//!   and their respective unique identifiers,
-//!   according to [DICOM PS3.6].
+//!   and their respective unique identifiers.
 //!
 //! The records in these dictionaries are typically collected
 //! from [DICOM PS3.6] directly,
