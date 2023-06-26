@@ -34,6 +34,36 @@
 //!
 //! Ok::<(), serde_json::Error>(())
 //! ```
+//! 
+//! Use [`DicomJson`] for greater control on how to serialize it:
+//! 
+//! ```rust
+//! # use dicom_core::{PrimitiveValue, VR};
+//! # use dicom_object::mem::{InMemDicomObject, InMemElement};
+//! # use dicom_dictionary_std::tags;
+//! # let obj = InMemDicomObject::from_element_iter([
+//! #     InMemElement::new(tags::SERIES_DATE, VR::DA, PrimitiveValue::from("20230610")),
+//! #     InMemElement::new(tags::INSTANCE_NUMBER, VR::IS, PrimitiveValue::from("5")),
+//! # ]);
+//! let dicom_obj = dicom_json::DicomJson::from(&obj);
+//! let serialized = serde_json::to_value(dicom_obj)?;
+//! 
+//! assert_eq!(
+//!     serialized,
+//!     serde_json::json!({
+//!         "00080021": {
+//!             "vr": "DA",
+//!             "Value": [ "20230610" ]
+//!         },
+//!         "00200013": {
+//!             "vr": "IS",
+//!             "Value": [ "5" ]
+//!         }
+//!     }),
+//! );
+//!
+//! Ok::<(), serde_json::Error>(())
+//! ```
 
 mod ser;
 

@@ -13,13 +13,26 @@ mod value;
 ///
 /// Serializing this type will yield JSON data according to the standard.
 ///
-/// # Example
-///
 /// Convert a DICOM data type such as a file, object, or data element
 /// using [`From`] or [`Into`],
-/// then use [`serde_json`] to serialize it to the intended type.
+/// then use a JSON serializer such as the one in [`serde_json`]
+/// to serialize it to the intended type.
 /// A reference may be used as well,
 /// so as to not consume the DICOM data.
+///
+/// `DicomJson` can serialize:
+/// 
+/// - [`InMemDicomObject`][1] as a standard DICOM JSON data set;
+/// - [`InMemElement`][2] by writing the VR and value in a single object;
+/// - `&[InMemDicomObject]` by writing an an array of DICOM JSON data sets;
+/// - [`DefaultDicomObject`][3] by including the attributes from the file meta group
+///   (note however that this is non-standard)
+/// 
+/// [1]: dicom_object::mem::InMemDicomObject
+/// [2]: dicom_object::mem::InMemElement
+/// [3]: dicom_object::DefaultDicomObject
+///
+/// # Example
 ///
 /// ```
 /// # use dicom_core::{DataElement, PrimitiveValue, Tag, VR};
@@ -200,8 +213,7 @@ impl<D> Serialize for DicomJson<&'_ InMemElement<D>> {
                 serializer.serialize_entry("Value", &DicomJson(seq.items()))?;
             }
             DicomValue::PixelSequence(_seq) => {
-                // TODO encode basic offset table and fragments
-                todo!("encapsulated pixel data")
+                panic!("serialization of encapsulated pixel data is not supported")
             }
             DicomValue::Primitive(PrimitiveValue::Empty) => {
                 // no-op
