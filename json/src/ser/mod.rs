@@ -1,7 +1,7 @@
 //! DICOM JSON serialization module
 #![warn(missing_docs)]
 
-use dicom_core::{header::Header, DicomValue, PrimitiveValue, VR};
+use dicom_core::{header::Header, DicomValue, PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_object::{mem::InMemElement, DefaultDicomObject, InMemDicomObject};
 use serde::{ser::SerializeMap, Serialize, Serializer};
@@ -23,18 +23,24 @@ mod value;
 /// `DicomJson` can serialize:
 ///
 /// - [`InMemDicomObject`][1] as a standard DICOM JSON data set;
-/// - [`InMemElement`][2] by writing the VR and value in a single object;
+/// - [`InMemElement`][2] by writing the VR and value in a single object
+///   (note that the tag will not be serialized);
 /// - `&[InMemDicomObject]` and `Vec<InMemDicomObject>`
 ///   will be serialized as an array of DICOM JSON data sets;
 /// - [`DefaultDicomObject`][3] will include the attributes from the file meta group.
 ///   Note however, that this is not conforming to the standard.
 ///   Obtain the inner data set through [`Deref`][4] (`&*obj`)
 ///   if you do not wish to include file meta group data.
+/// - [`Tag`][5] values are written as a single string
+///   in the expected DICOM JSON format `"GGGGEEEE"`
+///   where `GGGG` and `EEEE` are the group/element parts
+///   in uppercase hexadecimal.
 ///
 /// [1]: dicom_object::InMemDicomObject
 /// [2]: dicom_object::mem::InMemElement
 /// [3]: dicom_object::DefaultDicomObject
 /// [4]: std::ops::Deref
+/// [5]: dicom_core::Tag
 ///
 /// # Example
 ///
@@ -82,7 +88,7 @@ impl<T> DicomJson<T> {
     }
 }
 
-/// Serialize a piece of DICOM data to a JSON string
+/// Serialize a piece of DICOM data to a string of JSON.
 pub fn to_string<T>(data: T) -> Result<String, serde_json::Error>
 where
     DicomJson<T>: From<T> + Serialize,
@@ -90,7 +96,7 @@ where
     serde_json::to_string(&DicomJson::from(data))
 }
 
-/// Serialize a piece of DICOM data to a serde JSON value
+/// Serialize a piece of DICOM data to a serde JSON value.
 pub fn to_value<T>(data: T) -> Result<serde_json::Value, serde_json::Error>
 where
     DicomJson<T>: From<T> + Serialize,
@@ -108,6 +114,13 @@ impl<'a, D> Serialize for DicomJson<&'a DefaultDicomObject<D>>
 where
     D: 'a,
 {
+    /// Serializes the DICOM file as a JSON map
+    /// containing one entry per data element (indexed by tag),
+    /// _plus_ the data elements described by its file meta table.
+    ///
+    /// To exclude the file meta group data instead,
+    /// dereference the value into the underlying DICOM object first
+    /// (e.g. via `&*obj`).
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -116,19 +129,17 @@ where
 
         for e in self.0.meta().to_element_iter() {
             let tag = e.tag();
-            let tag = format!("{:04X}{:04X}", tag.0, tag.1);
             let DicomValue::Primitive(value) = e.value() else {
                 continue;
             };
             let e = InMemElement::<StandardDataDictionary>::new(e.tag(), e.vr(), value.clone());
-            ser.serialize_entry(&tag, &DicomJson(&e))?;
+            ser.serialize_entry(&DicomJson(tag), &DicomJson(&e))?;
         }
 
         let inner: &InMemDicomObject<_> = &**self.0;
         for e in inner {
             let tag = e.tag();
-            let tag = format!("{:04X}{:04X}", tag.0, tag.1);
-            ser.serialize_entry(&tag, &DicomJson(e))?;
+            ser.serialize_entry(&DicomJson(tag), &DicomJson(e))?;
         }
 
         ser.end()
@@ -142,6 +153,13 @@ impl<D> From<DefaultDicomObject<D>> for DicomJson<DefaultDicomObject<D>> {
 }
 
 impl<D> Serialize for DicomJson<DefaultDicomObject<D>> {
+    /// Serializes the DICOM file as a JSON map
+    /// containing one entry per data element (indexed by tag),
+    /// _plus_ the data elements described by its file meta table.
+    ///
+    /// To exclude the file meta group data instead,
+    /// dereference the value into the underlying DICOM object first
+    /// (e.g. via `&*obj`).
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -160,14 +178,16 @@ impl<'a, D> Serialize for DicomJson<&'a InMemDicomObject<D>>
 where
     D: 'a,
 {
+    /// Serializes the DICOM object as a JSON map
+    /// containing one entry per data element,
+    /// indexed by tag.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         serializer.collect_map(self.0.into_iter().map(|e| {
             let tag = e.tag();
-            let tag = format!("{:04X}{:04X}", tag.0, tag.1);
-            (tag, DicomJson(e))
+            (DicomJson(tag), DicomJson(e))
         }))
     }
 }
@@ -194,6 +214,7 @@ impl<'a, D> From<&'a [InMemDicomObject<D>]> for DicomJson<&'a [InMemDicomObject<
 }
 
 impl<'a, D> Serialize for DicomJson<&'a [InMemDicomObject<D>]> {
+    /// Serializes the sequence of DICOM objects into a JSON array.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -209,6 +230,7 @@ impl<'a, D> From<Vec<InMemDicomObject<D>>> for DicomJson<Vec<InMemDicomObject<D>
 }
 
 impl<'a, D> Serialize for DicomJson<Vec<InMemDicomObject<D>>> {
+    /// Serializes the sequence of DICOM objects into a JSON array.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -224,6 +246,16 @@ impl<'a, D> From<&'a InMemElement<D>> for DicomJson<&'a InMemElement<D>> {
 }
 
 impl<D> Serialize for DicomJson<&'_ InMemElement<D>> {
+    /// Serializes the data element as a single JSON map.
+    /// 
+    /// The fields present will be:
+    /// - `"vr"`, containing the value representation;
+    /// - Either `"Value"` (as an array of values)
+    ///   or `"InlineBinary"` (binary data in base64),
+    ///   if the value is not empty.
+    /// 
+    /// The DICOM tag is not encoded,
+    /// as it is typically serialized as the entry key within a data set.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -298,6 +330,24 @@ impl<D> Serialize for DicomJson<InMemElement<D>> {
         S: Serializer,
     {
         DicomJson(&self.0).serialize(serializer)
+    }
+}
+
+impl From<Tag> for DicomJson<Tag> {
+    fn from(value: Tag) -> Self {
+        Self(value)
+    }
+}
+
+impl Serialize for DicomJson<Tag> {
+    /// Serializes the DICOM tag as a single string in uppercase hexadecimal,
+    /// with no separators or delimiters (`"GGGGEEEE"`).
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let Tag(g, e) = self.0;
+        serializer.serialize_str(&format!("{:04X}{:04X}", g, e))
     }
 }
 
