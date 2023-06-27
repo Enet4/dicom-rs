@@ -21,16 +21,20 @@ mod value;
 /// so as to not consume the DICOM data.
 ///
 /// `DicomJson` can serialize:
-/// 
+///
 /// - [`InMemDicomObject`][1] as a standard DICOM JSON data set;
 /// - [`InMemElement`][2] by writing the VR and value in a single object;
-/// - `&[InMemDicomObject]` by writing an an array of DICOM JSON data sets;
-/// - [`DefaultDicomObject`][3] by including the attributes from the file meta group
-///   (note however that this is non-standard)
-/// 
-/// [1]: dicom_object::mem::InMemDicomObject
+/// - `&[InMemDicomObject]` and `Vec<InMemDicomObject>`
+///   will be serialized as an array of DICOM JSON data sets;
+/// - [`DefaultDicomObject`][3] will include the attributes from the file meta group.
+///   Note however, that this is not conforming to the standard.
+///   Obtain the inner data set through [`Deref`][4] (`&*obj`)
+///   if you do not wish to include file meta group data.
+///
+/// [1]: dicom_object::InMemDicomObject
 /// [2]: dicom_object::mem::InMemElement
 /// [3]: dicom_object::DefaultDicomObject
+/// [4]: std::ops::Deref
 ///
 /// # Example
 ///
@@ -195,6 +199,21 @@ impl<'a, D> Serialize for DicomJson<&'a [InMemDicomObject<D>]> {
         S: Serializer,
     {
         serializer.collect_seq(self.0.iter().map(DicomJson::from))
+    }
+}
+
+impl<'a, D> From<Vec<InMemDicomObject<D>>> for DicomJson<Vec<InMemDicomObject<D>>> {
+    fn from(value: Vec<InMemDicomObject<D>>) -> Self {
+        Self(value)
+    }
+}
+
+impl<'a, D> Serialize for DicomJson<Vec<InMemDicomObject<D>>> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        DicomJson(self.0.as_slice()).serialize(serializer)
     }
 }
 
@@ -367,42 +386,73 @@ mod tests {
 
     #[test]
     fn serialize_sequence_elements() {
-        let obj = InMemDicomObject::from_element_iter([
-            InMemElement::new(
-                tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
-                VR::SQ,
-                DataSetSequence::new(
-                    vec![
-                        // Item 0
-                        InMemDicomObject::from_element_iter([InMemElement::new(
+        let obj = InMemDicomObject::from_element_iter([InMemElement::new(
+            tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
+            VR::SQ,
+            DataSetSequence::new(
+                vec![
+                    // Item 0
+                    InMemDicomObject::from_element_iter([InMemElement::new(
                         tags::CT_ACQUISITION_TYPE_SEQUENCE,
                         VR::SQ,
-                        DataSetSequence::new(vec![
-                            // Item 0
-                            InMemDicomObject::from_element_iter([
-                                InMemElement::new(tags::ACQUISITION_TYPE, VR::CS, PrimitiveValue::from("SEQUENCED")),
-                                InMemElement::new(tags::CONSTANT_VOLUME_FLAG, VR::CS, PrimitiveValue::from("NO")),
-                                InMemElement::new(tags::FLUOROSCOPY_FLAG, VR::CS, PrimitiveValue::from("NO")),
-                            ])
-                        ], Length::UNDEFINED))]),
-                        
-                        // Item 1
-                        InMemDicomObject::from_element_iter([InMemElement::new(
-                            tags::CT_ACQUISITION_DETAILS_SEQUENCE,
-                            VR::SQ,
-                            DataSetSequence::new(vec![
+                        DataSetSequence::new(
+                            vec![
+                                // Item 0
                                 InMemDicomObject::from_element_iter([
-                                    InMemElement::new(tags::DATA_COLLECTION_DIAMETER, VR::DS, PrimitiveValue::from("500.08")),
-                                    InMemElement::new(tags::GANTRY_DETECTOR_TILT, VR::DS, PrimitiveValue::from("0.00")),
-                                    InMemElement::new(tags::TABLE_HEIGHT, VR::DS, PrimitiveValue::from("160.000")),
-                                    InMemElement::new(tags::ROTATION_DIRECTION, VR::CS, PrimitiveValue::from("CW")),
+                                    InMemElement::new(
+                                        tags::ACQUISITION_TYPE,
+                                        VR::CS,
+                                        PrimitiveValue::from("SEQUENCED"),
+                                    ),
+                                    InMemElement::new(
+                                        tags::CONSTANT_VOLUME_FLAG,
+                                        VR::CS,
+                                        PrimitiveValue::from("NO"),
+                                    ),
+                                    InMemElement::new(
+                                        tags::FLUOROSCOPY_FLAG,
+                                        VR::CS,
+                                        PrimitiveValue::from("NO"),
+                                    ),
                                 ]),
-                            ], Length::UNDEFINED))]),
-                    ],
-                    Length::UNDEFINED,
-                ),
+                            ],
+                            Length::UNDEFINED,
+                        ),
+                    )]),
+                    // Item 1
+                    InMemDicomObject::from_element_iter([InMemElement::new(
+                        tags::CT_ACQUISITION_DETAILS_SEQUENCE,
+                        VR::SQ,
+                        DataSetSequence::new(
+                            vec![InMemDicomObject::from_element_iter([
+                                InMemElement::new(
+                                    tags::DATA_COLLECTION_DIAMETER,
+                                    VR::DS,
+                                    PrimitiveValue::from("500.08"),
+                                ),
+                                InMemElement::new(
+                                    tags::GANTRY_DETECTOR_TILT,
+                                    VR::DS,
+                                    PrimitiveValue::from("0.00"),
+                                ),
+                                InMemElement::new(
+                                    tags::TABLE_HEIGHT,
+                                    VR::DS,
+                                    PrimitiveValue::from("160.000"),
+                                ),
+                                InMemElement::new(
+                                    tags::ROTATION_DIRECTION,
+                                    VR::CS,
+                                    PrimitiveValue::from("CW"),
+                                ),
+                            ])],
+                            Length::UNDEFINED,
+                        ),
+                    )]),
+                ],
+                Length::UNDEFINED,
             ),
-        ]);
+        )]);
 
         assert_eq!(
             to_value(obj).unwrap(),
