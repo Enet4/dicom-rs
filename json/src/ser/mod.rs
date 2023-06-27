@@ -71,6 +71,11 @@ impl<T> DicomJson<T> {
     pub fn into_inner(self) -> T {
         self.0
     }
+
+    /// Obtain a reference to the underlying value.
+    pub fn inner(&self) -> &T {
+        &self.0
+    }
 }
 
 /// Serialize a piece of DICOM data to a JSON string
