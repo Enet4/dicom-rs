@@ -131,7 +131,7 @@ where
     }
 }
 
-impl<'a, D> From<DefaultDicomObject<D>> for DicomJson<DefaultDicomObject<D>> {
+impl<D> From<DefaultDicomObject<D>> for DicomJson<DefaultDicomObject<D>> {
     fn from(value: DefaultDicomObject<D>) -> Self {
         Self(value)
     }
@@ -194,7 +194,7 @@ impl<'a, D> Serialize for DicomJson<&'a [InMemDicomObject<D>]> {
     where
         S: Serializer,
     {
-        serializer.collect_seq(self.0.into_iter().map(DicomJson::from))
+        serializer.collect_seq(self.0.iter().map(DicomJson::from))
     }
 }
 

@@ -170,7 +170,7 @@ impl<'a> Serialize for AsPersonNames<'a> {
         S: serde::Serializer,
     {
         let strings = self.0.to_multi_str();
-        serializer.collect_seq(strings.into_iter().map(|p| PersonNameDef::from(p.as_str())))
+        serializer.collect_seq(strings.iter().map(|p| PersonNameDef::from(p.as_str())))
     }
 }
 
