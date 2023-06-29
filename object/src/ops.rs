@@ -3,7 +3,8 @@
 //! See the [`dicom_core::ops`] module
 //! for more information.
 
-use dicom_core::ops::{ApplyOp, AttributeOp};
+use dicom_core::Tag;
+use dicom_core::ops::{ApplyOp, AttributeOp, AttributeSelector, AttributeSelectorStep};
 use dicom_core::value::{ModifyValueError, ValueType};
 use snafu::Snafu;
 
@@ -14,6 +15,16 @@ use crate::FileDicomObject;
 #[non_exhaustive]
 #[snafu(visibility(pub(crate)))]
 pub enum ApplyError {
+    /// Missing itermediate sequence for {selector} at step {step_index}
+    MissingSequence {
+        selector: AttributeSelector,
+        step_index: u32,
+    },
+    /// Step {step_index} for {selector} is not a data set sequence 
+    NotASequence {
+        selector: AttributeSelector,
+        step_index: u32,
+    },
     /// Incompatible source element type {kind:?} for extension
     IncompatibleTypes {
         /// the source element value type
@@ -43,13 +54,13 @@ where
     /// Apply the given attribute operation on this object.
     ///
     /// The operation is delegated to the file meta table
-    /// if the selector tag is in group `0002`,
+    /// if the selector root tag is in group `0002`,
     /// and to the underlying object otherwise.
     ///
-    /// See the [`dicom_encoding::ops`] module
+    /// See the [`dicom_core::ops`] module
     /// for more information.
     fn apply(&mut self, op: AttributeOp) -> ApplyResult {
-        if op.tag.0 == 0x0002 {
+        if let AttributeSelectorStep::Tag(Tag(0x0002, _)) = op.selector.first_step() {
             self.meta.apply(op)
         } else {
             self.obj.apply(op)
@@ -86,7 +97,7 @@ mod tests {
 
         // apply operation on main data set
         obj.apply(AttributeOp {
-            tag: dicom_dictionary_std::tags::PATIENT_NAME,
+            selector: dicom_dictionary_std::tags::PATIENT_NAME.into(),
             action: AttributeAction::SetStr("Patient^Anonymous".into()),
         })
         .unwrap();
@@ -103,7 +114,7 @@ mod tests {
 
         // apply operation on file meta information
         obj.apply(AttributeOp {
-            tag: dicom_dictionary_std::tags::MEDIA_STORAGE_SOP_INSTANCE_UID,
+            selector: dicom_dictionary_std::tags::MEDIA_STORAGE_SOP_INSTANCE_UID.into(),
             action: AttributeAction::SetStr(
                 "2.25.153241429675951194530939969687300037165".into(),
             ),
