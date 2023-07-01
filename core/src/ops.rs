@@ -164,8 +164,7 @@ impl std::fmt::Display for AttributeSelectorStep {
 ///
 /// For working with nested data sets,
 /// `From` also supports converting
-/// an interleaved sequence of [`AttributeSelectorStep`] and item indices,
-/// as a tuple.
+/// an interleaved sequence of tags and item indices in a tuple.
 /// For instance,
 /// this is how we can select the second frame's acquisition date time
 /// from the per-frame functional groups sequence.
@@ -184,9 +183,11 @@ impl std::fmt::Display for AttributeSelectorStep {
 /// ```
 ///
 /// For a more dynamic construction,
-/// the [`new`] function supports an iterator of selection steps.
+/// the [`new`] function supports an iterator of attribute selector steps
+/// (of type [`AttributeSelectorStep`]).
 /// Note that the function fails
-/// if the last element refers to a sequence item.
+/// if the last step refers to a sequence item
+/// or any of the other steps are not item selectors.
 ///
 /// [`new`]: AttributeSelector::new
 ///
@@ -239,14 +240,18 @@ impl AttributeSelector {
     /// Construct an attribute selector
     /// from an arbitrary sequence of selector steps.
     ///
-    /// Returns `None` if the sequence is empty
-    /// or the last item is not a tag selector step.
+    /// Returns `None` if the sequence is empty,
+    /// the intermediate items do not represent item selector steps,
+    /// or the last step is not a tag selector step.
     pub fn new(steps: impl IntoIterator<Item = AttributeSelectorStep>) -> Option<Self> {
         let steps: SmallVec<_> = steps.into_iter().collect();
-        if matches!(
-            steps.last(),
-            None | Some(AttributeSelectorStep::Nested { .. })
-        ) {
+        let Some((last, rest)) = steps.split_last() else {
+            return None;
+        };
+        if matches!(last, AttributeSelectorStep::Nested { .. }) {
+            return None;
+        }
+        if rest.iter().any(|step| matches!(step, AttributeSelectorStep::Tag(_))) {
             return None;
         }
         Some(AttributeSelector(steps))
