@@ -77,7 +77,8 @@ impl AttributeOp {
     /// Construct an attribute operation.
     ///
     /// This constructor function may be easier to use
-    /// due to its automatic selector conversion.
+    /// than writing a public struct expression directly,
+    /// due to its automatic conversion of `selector`.
     ///
     /// # Example
     ///
@@ -152,7 +153,7 @@ impl std::fmt::Display for AttributeSelectorStep {
 ///
 /// In most cases, you might only wish to select an attribute
 /// that is sitting at the root of the data set.
-/// Conversion is possible via [`From<Tag>`]:
+/// Conversion from a DICOM tag is possible via [`From<Tag>`]:
 ///
 /// ```
 /// # use dicom_core::Tag;
@@ -183,11 +184,11 @@ impl std::fmt::Display for AttributeSelectorStep {
 /// ```
 ///
 /// For a more dynamic construction,
-/// the [`new`][new] function supports an iterator of selection steps.
-/// Note that it fails to be created
+/// the [`new`] function supports an iterator of selection steps.
+/// Note that the function fails
 /// if the last element refers to a sequence item.
 ///
-/// [new]: AttributeSelector::new
+/// [`new`]: AttributeSelector::new
 ///
 /// ```
 /// # use dicom_core::Tag;
@@ -203,6 +204,11 @@ impl std::fmt::Display for AttributeSelectorStep {
 ///     AttributeSelectorStep::Tag(Tag(0x0018, 0x9074)),
 /// ]);
 /// ```
+///
+/// A data dictionary's [`parse_selector`][parse] method
+/// can be used if you want to describe these selectors in text.
+///
+/// [parse]: crate::dictionary::DataDictionary::parse_selector
 ///
 /// Selectors can be decomposed back into its parts
 /// by using it as an iterator:
@@ -346,10 +352,10 @@ impl From<(Tag, u32, Tag, u32, Tag, u32, Tag)> for AttributeSelector {
 
 impl std::fmt::Display for AttributeSelector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut start = true;
+        let mut started = false;
         for step in &self.0 {
-            if !start {
-                start = false;
+            if !started {
+                started = true;
             } else {
                 // separate each step by a dot
                 f.write_char('.')?;
@@ -472,4 +478,21 @@ pub trait ApplyOp {
     /// See the respective documentation of the implementing type
     /// for more details.
     fn apply(&mut self, op: AttributeOp) -> Result<(), Self::Err>;
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{ops::AttributeSelector, Tag};
+
+    #[test]
+    fn display_selectors() {
+        let selector: AttributeSelector = Tag(0x0014, 0x5100).into();
+        assert_eq!(selector.to_string(), "(0014,5100)",);
+
+        let selector: AttributeSelector = (Tag(0x0018, 0x6011), 2, Tag(0x0018, 0x6012)).into();
+        assert_eq!(selector.to_string(), "(0018,6011)[2].(0018,6012)",);
+
+        let selector = AttributeSelector::from((Tag(0x0040, 0xA730), 1, Tag(0x0040, 0xA730)));
+        assert_eq!(selector.to_string(), "(0040,A730)[1].(0040,A730)",);
+    }
 }

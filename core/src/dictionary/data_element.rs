@@ -4,7 +4,10 @@ use std::str::FromStr;
 
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 
-use crate::{Tag, VR};
+use crate::{
+    ops::{AttributeSelector, AttributeSelectorStep},
+    Tag, VR,
+};
 
 /// Specification of a range of tags pertaining to an attribute.
 /// Very often, the dictionary of attributes indicates a unique
@@ -137,38 +140,77 @@ impl FromStr for TagRange {
     }
 }
 
+#[derive(Debug, Snafu)]
+pub struct ParseSelectorError(ParseSelectorErrorInner);
+
+#[derive(Debug, Snafu)]
+enum ParseSelectorErrorInner {
+    /// missing item index delimiter `[`
+    MissingItemDelimiter,
+    /// invalid tag or unrecognized keyword
+    ParseKey,
+    /// invalid item index, should be an unsigned integer
+    ParseItemIndex,
+    /// intermediate selector step should select a sequence item
+    ParseItem,
+    /// last selector step should select a plain tag
+    ParseLeaf,
+}
+
 /// Type trait for a dictionary of DICOM attributes.
-/// 
-/// Attribute dictionaries provide the means to
-/// convert a tag to an alias and vice versa,
-/// as well as a form of retrieving additional information about the attribute.
 ///
-/// The methods herein have no generic parameters,
-/// so as to enable being used as a trait object.
+/// The main purpose of an attribute dictionary is
+/// to retrieve a record containing additional information about a data element,
+/// in one of the following ways:
+///
+/// - By DICOM tag, via [`by_tag`][1];
+/// - By its keyword (also known as alias) via [`by_name`][2];
+/// - By an expression which may either be a keyword
+///   or a tag printed in one of its standard forms,
+///   using [`by_expr`][3].
+///
+/// These methods will return `None`
+/// when the tag or name is not recognized by the dictionary.
+///
+/// In addition,
+/// the data element dictionary provides
+/// built-in DICOM tag and selector (path) parsers for convenience.
+/// [`parse_tag`][4] converts an arbitrary expression to a tag,
+/// whereas [`parse_selector`][5] produces an [attribute selector][6].
+///
+/// [1]: DataDictionary::by_tag
+/// [2]: DataDictionary::by_name
+/// [3]: DataDictionary::by_expr
+/// [4]: DataDictionary::parse_tag
+/// [5]: DataDictionary::parse_selector
+/// [6]: crate::ops::AttributeSelector
 pub trait DataDictionary {
     /// The type of the dictionary entry.
     type Entry: DataDictionaryEntry;
 
-    /// Fetch an entry by its usual alias (e.g. "PatientName" or "SOPInstanceUID").
+    /// Fetch a data element entry by its tag.
+    fn by_tag(&self, tag: Tag) -> Option<&Self::Entry>;
+
+    /// Fetch an entry by its usual alias
+    /// (e.g. "PatientName" or "SOPInstanceUID").
     /// Aliases (or keyword)
     /// are usually in UpperCamelCase,
     /// not separated by spaces,
     /// and are case sensitive.
-    /// 
+    ///
+    /// Querying the dictionary by name is usually
+    /// slightly more expensive than by DICOM tag.
     /// If the parameter provided is a string literal
     /// (e.g. `"StudyInstanceUID"`),
-    /// note that it may be more efficient to use [`by_tag()`][1]
+    /// then it may be better to use [`by_tag`][1]
     /// with a known tag constant
     /// (such as [`tags::STUDY_INSTANCE_UID`][2]
     /// from the [`dicom-dictionary-std`][3] crate).
-    /// 
+    ///
     /// [1]: DataDictionary::by_tag
     /// [2]: https://docs.rs/dicom-dictionary-std/0.5.0/dicom_dictionary_std/tags/constant.STUDY_INSTANCE_UID.html
     /// [3]: https://docs.rs/dicom-dictionary-std/0.5.0
     fn by_name(&self, name: &str) -> Option<&Self::Entry>;
-
-    /// Fetch an entry by its tag.
-    fn by_tag(&self, tag: Tag) -> Option<&Self::Entry>;
 
     /// Fetch an entry by its alias or by DICOM tag expression.
     ///
@@ -217,6 +259,64 @@ pub trait DataDictionary {
             self.by_name(tag).map(|e| e.tag())
         })
     }
+
+    /// Parse a string as an [attribute selector][1].
+    ///
+    /// Attribute selectors are defined by the syntax
+    /// `( «key»[«item»] . )* «key» `
+    /// where:
+    ///
+    /// - _`«key»`_ is either a DICOM tag or keyword
+    ///   as accepted by the method [`parse_tag`](DataDictionary::parse_tag);
+    /// - _`«item»`_ is an unsigned integer representing the item index;
+    /// - _`[`_, _`]`_, and _`.`_ are literally their own characters
+    ///   as part of the string.
+    ///
+    /// The first part in parentheses may appear zero or more times.
+    /// Whitespace is not admitted in any position.
+    ///
+    /// Returns an error if the string does not follow the given syntax,
+    /// or one of the key components could not be resolved.
+    ///
+    /// [1]: crate::ops::AttributeSelector
+    ///
+    /// ## Examples of valid input:
+    ///
+    /// - `(0002,00010)`:
+    ///   _Transfer Syntax UID_
+    /// - `00101010`:
+    ///   _Patient Age_
+    /// - `0040A168[0].CodeValue`:
+    ///   _Code Value_ in first item of _Concept Code Sequence_
+    /// - `0040,A730[1].ContentSequence`:
+    ///   _Content Sequence_ in second item of _Content Sequence_
+    /// - `SequenceOfUltrasoundRegions[0].RegionSpatialFormat`:
+    ///   _Region Spatial Format_ in first item of _Sequence of Ultrasound Regions_
+    fn parse_selector(&self, selector_text: &str) -> Result<AttributeSelector, ParseSelectorError> {
+        let mut steps = crate::value::C::new();
+        let mut parts = selector_text.split('.');
+        while let Some(part) = parts.next() {
+            // detect if intermediate
+            if part.ends_with(']') {
+                let split_i = part.find('[').context(MissingItemDelimiterSnafu)?;
+                let tag_part = &part[0..split_i];
+                let item_index_part = &part[split_i + 1..part.len() - 1];
+
+                let tag: Tag = self.parse_tag(tag_part).context(ParseKeySnafu)?;
+                let item: u32 = item_index_part.parse().ok().context(ParseItemIndexSnafu)?;
+                steps.push(AttributeSelectorStep::Nested { tag, item });
+            } else {
+                // treat it as the leaf tag step and stop parsing
+                let tag: Tag = self.parse_tag(part).context(ParseKeySnafu)?;
+                steps.push(AttributeSelectorStep::Tag(tag));
+                break;
+            }
+        }
+
+        snafu::ensure!(parts.next().is_none(), ParseItemSnafu);
+
+        Ok(AttributeSelector::new(steps).context(ParseLeafSnafu)?)
+    }
 }
 
 /// The data element dictionary entry type,
@@ -225,7 +325,7 @@ pub trait DataDictionaryEntry {
     /// The full possible tag range of the atribute,
     /// which this dictionary entry can represent.
     fn tag_range(&self) -> TagRange;
-    
+
     /// Fetch a single tag applicable to this attribute.
     ///
     /// Note that this is not necessarily
