@@ -404,6 +404,7 @@ dependencies = [
  "clap",
  "dicom-core",
  "dicom-dictionary-std",
+ "dicom-dump",
  "dicom-object",
  "dicom-transfer-syntax-registry",
  "dicom-ul",
