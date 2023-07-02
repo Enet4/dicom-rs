@@ -1,6 +1,8 @@
 //! DICOM JSON serialization module
-#![warn(missing_docs)]
 
+use std::io::Write;
+
+use crate::DicomJson;
 use dicom_core::{header::Header, DicomValue, PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_object::{mem::InMemElement, DefaultDicomObject, InMemDicomObject};
@@ -9,86 +11,7 @@ use serde::{ser::SerializeMap, Serialize, Serializer};
 use self::value::{AsNumbers, AsPersonNames, AsStrings, InlineBinary};
 mod value;
 
-/// A wrapper type for DICOM JSON serialization using [Serde](serde).
-///
-/// Serializing this type will yield JSON data according to the standard.
-///
-/// Convert a DICOM data type such as a file, object, or data element
-/// using [`From`] or [`Into`],
-/// then use a JSON serializer such as the one in [`serde_json`]
-/// to serialize it to the intended type.
-/// A reference may be used as well,
-/// so as to not consume the DICOM data.
-///
-/// `DicomJson` can serialize:
-///
-/// - [`InMemDicomObject`][1] as a standard DICOM JSON data set;
-/// - [`InMemElement`][2] by writing the VR and value in a single object
-///   (note that the tag will not be serialized);
-/// - `&[InMemDicomObject]` and `Vec<InMemDicomObject>`
-///   will be serialized as an array of DICOM JSON data sets;
-/// - [`DefaultDicomObject`][3] will include the attributes from the file meta group.
-///   Note however, that this is not conforming to the standard.
-///   Obtain the inner data set through [`Deref`][4] (`&*obj`)
-///   if you do not wish to include file meta group data.
-/// - [`Tag`][5] values are written as a single string
-///   in the expected DICOM JSON format `"GGGGEEEE"`
-///   where `GGGG` and `EEEE` are the group/element parts
-///   in uppercase hexadecimal.
-///
-/// [1]: dicom_object::InMemDicomObject
-/// [2]: dicom_object::mem::InMemElement
-/// [3]: dicom_object::DefaultDicomObject
-/// [4]: std::ops::Deref
-/// [5]: dicom_core::Tag
-///
-/// # Example
-///
-/// ```
-/// # use dicom_core::{DataElement, PrimitiveValue, Tag, VR};
-/// # use dicom_object::InMemDicomObject;
-/// use dicom_json::DicomJson;
-///
-/// // creating a DICOM object with a single attribute
-/// let obj = InMemDicomObject::from_element_iter([
-///     DataElement::new(
-///         Tag(0x0010, 0x0020),
-///         VR::LO,
-///         PrimitiveValue::from("ID0001"),
-///     )
-/// ]);
-/// // wrap it with DicomJson
-/// let json_obj = DicomJson::from(&obj);
-/// // serialize it to a JSON Value
-/// let serialized = serde_json::to_value(&json_obj)?;
-/// assert_eq!(
-///   serialized,
-///   serde_json::json!({
-///       "00100020": {
-///           "vr": "LO",
-///           "Value": [ "ID0001" ]
-///       }
-///   })
-/// );
-/// # Result::<_, serde_json::Error>::Ok(())
-/// ```
-#[derive(Debug, Clone, PartialEq)]
-pub struct DicomJson<T>(T);
-
-impl<T> DicomJson<T> {
-    /// Unwrap the DICOM JSON wrapper,
-    /// returning the underlying value.
-    pub fn into_inner(self) -> T {
-        self.0
-    }
-
-    /// Obtain a reference to the underlying value.
-    pub fn inner(&self) -> &T {
-        &self.0
-    }
-}
-
-/// Serialize a piece of DICOM data to a string of JSON.
+/// Serialize a piece of DICOM data as a string of JSON.
 pub fn to_string<T>(data: T) -> Result<String, serde_json::Error>
 where
     DicomJson<T>: From<T> + Serialize,
@@ -96,12 +19,37 @@ where
     serde_json::to_string(&DicomJson::from(data))
 }
 
-/// Serialize a piece of DICOM data to a serde JSON value.
+/// Serialize a piece of DICOM data as a pretty-printed string of JSON.
+pub fn to_string_pretty<T>(data: T) -> Result<String, serde_json::Error>
+where
+    DicomJson<T>: From<T> + Serialize,
+{
+    serde_json::to_string_pretty(&DicomJson::from(data))
+}
+
+/// Serialize a piece of DICOM data as a serde JSON value.
 pub fn to_value<T>(data: T) -> Result<serde_json::Value, serde_json::Error>
 where
     DicomJson<T>: From<T> + Serialize,
 {
     serde_json::to_value(&DicomJson::from(data))
+}
+
+/// Serialize a piece of DICOM data to a vector of bytes.
+pub fn to_vec<T>(data: T) -> Result<Vec<u8>, serde_json::Error>
+where
+    DicomJson<T>: From<T> + Serialize,
+{
+    serde_json::to_vec(&DicomJson::from(data))
+}
+
+/// Serialize a piece of DICOM data to a byte writer.
+pub fn to_writer<W, T>(writer: W, data: T) -> Result<(), serde_json::Error>
+where
+    DicomJson<T>: From<T> + Serialize,
+    W: Write,
+{
+    serde_json::to_writer(writer, &DicomJson::from(data))
 }
 
 impl<'a, D> From<&'a DefaultDicomObject<D>> for DicomJson<&'a DefaultDicomObject<D>> {
