@@ -36,10 +36,10 @@
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let mut obj = open_file("1/2/0003.dcm")?;
 //! // hide patient name
-//! obj.apply(AttributeOp {
-//!     selector: Tag(0x0010, 0x0010).into(),
-//!     action: AttributeAction::SetStr("Patient^Anonymous".into()),
-//! })?;
+//! obj.apply(AttributeOp::new(
+//!     Tag(0x0010, 0x0010),
+//!     AttributeAction::SetStr("Patient^Anonymous".into()),
+//! ))?;
 //! # Ok(())
 //! # }
 //! ```
