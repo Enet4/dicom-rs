@@ -1,6 +1,6 @@
 use clap::Parser;
 use dicom_core::{dicom_value, DataElement, VR};
-use dicom_dictionary_std::tags;
+use dicom_dictionary_std::{tags, uids};
 use dicom_object::{mem::InMemDicomObject, StandardDataDictionary};
 use dicom_ul::{
     association::client::ClientAssociationOptions,
@@ -8,7 +8,7 @@ use dicom_ul::{
 };
 use pdu::PDataValue;
 use snafu::{prelude::*, Whatever};
-use tracing::{warn, Level};
+use tracing::{debug, error, info, warn, Level};
 
 /// DICOM C-ECHO SCU
 #[derive(Debug, Parser)]
@@ -35,7 +35,7 @@ struct App {
 
 fn main() {
     run().unwrap_or_else(|e| {
-        tracing::error!("{}", snafu::Report::from_error(e));
+        error!("{}", snafu::Report::from_error(e));
         std::process::exit(-2);
     })
 }
@@ -76,7 +76,7 @@ fn run() -> Result<(), Whatever> {
         .clone();
 
     if verbose {
-        println!("Association with {} successful", addr);
+        debug!("Association with {} successful", addr);
     }
 
     // commands are always in implict VR LE
@@ -101,7 +101,7 @@ fn run() -> Result<(), Whatever> {
         .whatever_context("Failed to send C-ECHO request")?;
 
     if verbose {
-        println!(
+        debug!(
             "Echo message sent (msg id {}), awaiting reply...",
             message_id
         );
@@ -119,25 +119,24 @@ fn run() -> Result<(), Whatever> {
             let obj = InMemDicomObject::read_dataset_with_ts(v.as_slice(), &ts)
                 .whatever_context("Failed to read response dataset from SCP")?;
             if verbose {
-                println!("{:?}", obj);
+                dicom_dump::dump_object(&obj)
+                    .whatever_context("Failed to output DICOM response")?;
             }
 
             // check status
-            let status_elem = obj
+            let status = obj
                 .element(tags::STATUS)
-                .whatever_context("Missing Status code in response")?;
-
-            let status = status_elem
+                .whatever_context("Missing Status code in response")?
                 .to_int::<u16>()
                 .whatever_context("Status code in response is not a valid integer")?;
             if verbose {
-                println!("Status: {:04X}H", status);
+                debug!("Status: {:04X}H", status);
             }
             match status {
                 // Success
                 0 => {
                     if verbose {
-                        println!("C-ECHO successful");
+                        info!("✓ C-ECHO successful");
                     }
                 }
                 // Warning
@@ -154,7 +153,7 @@ fn run() -> Result<(), Whatever> {
                     warn!("Operation cancelled");
                 }
                 _ => {
-                    eprintln!("C-ECHO failed (status code {:04X}H)", status);
+                    error!("C-ECHO failed (status code {:04X}H)", status);
                 }
             }
 
@@ -180,11 +179,7 @@ fn run() -> Result<(), Whatever> {
 fn create_echo_command(message_id: u16) -> InMemDicomObject<StandardDataDictionary> {
     InMemDicomObject::command_from_element_iter([
         // service
-        DataElement::new(
-            tags::AFFECTED_SOP_CLASS_UID,
-            VR::UI,
-            dicom_value!(Str, "1.2.840.10008.1.1\0"),
-        ),
+        DataElement::new(tags::AFFECTED_SOP_CLASS_UID, VR::UI, uids::VERIFICATION),
         // command
         DataElement::new(tags::COMMAND_FIELD, VR::US, dicom_value!(U16, [0x0030])),
         // message ID
