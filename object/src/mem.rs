@@ -884,7 +884,7 @@ where
                 AttributeSelectorStep::Nested { tag, item } => {
                     let e =
                         obj.entries
-                            .get_mut(&tag)
+                            .get_mut(tag)
                             .ok_or_else(|| ApplyError::MissingSequence {
                                 selector: selector.clone(),
                                 step_index: i as u32,
