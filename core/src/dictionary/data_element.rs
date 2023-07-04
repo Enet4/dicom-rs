@@ -295,7 +295,7 @@ pub trait DataDictionary {
     fn parse_selector(&self, selector_text: &str) -> Result<AttributeSelector, ParseSelectorError> {
         let mut steps = crate::value::C::new();
         let mut parts = selector_text.split('.');
-        while let Some(part) = parts.next() {
+        for part in parts.by_ref() {
             // detect if intermediate
             if part.ends_with(']') {
                 let split_i = part.find('[').context(MissingItemDelimiterSnafu)?;
