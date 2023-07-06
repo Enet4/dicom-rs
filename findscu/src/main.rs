@@ -113,17 +113,20 @@ fn build_query(
             let mut obj =
                 parse_queries(&q).whatever_context("Could not build query object from terms")?;
 
-            // (0008,0052) CS QueryRetrieveLevel
-            let level = match (patient, study) {
-                (true, false) => "PATIENT",
-                (false, true) | (false, false) => "STUDY",
-                _ => unreachable!(),
-            };
-            obj.put(DataElement::new(
-                tags::QUERY_RETRIEVE_LEVEL,
-                VR::CS,
-                PrimitiveValue::from(level),
-            ));
+            // try to infer query retrieve level if not defined by the user
+            if obj.get(tags::QUERY_RETRIEVE_LEVEL).is_none() {
+                // (0008,0052) CS QueryRetrieveLevel
+                let level = match (patient, study) {
+                    (true, false) => "PATIENT",
+                    (false, true) | (false, false) => "STUDY",
+                    _ => unreachable!(),
+                };
+                obj.put(DataElement::new(
+                    tags::QUERY_RETRIEVE_LEVEL,
+                    VR::CS,
+                    PrimitiveValue::from(level),
+                ));
+            }
 
             Ok(obj)
         }
