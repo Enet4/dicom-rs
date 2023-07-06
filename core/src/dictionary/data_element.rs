@@ -264,23 +264,18 @@ pub trait DataDictionary {
     ///
     /// Attribute selectors are defined by the syntax
     /// `( «key»[«item»] . )* «key» `
-    /// where:
-    ///
-    /// - _`«key»`_ is either a DICOM tag or keyword
-    ///   as accepted by the method [`parse_tag`](DataDictionary::parse_tag);
-    /// - _`«item»`_ is an unsigned integer representing the item index;
-    /// - _`[`_, _`]`_, and _`.`_ are literally their own characters
-    ///   as part of the string.
-    ///
-    /// The first part in parentheses may appear zero or more times.
-    /// Whitespace is not admitted in any position.
+    /// where_`«key»`_ is either a DICOM tag or keyword
+    /// as accepted by this dictionary
+    /// when calling the method [`parse_tag`](DataDictionary::parse_tag).
+    /// More details about the syntax can be found
+    /// in the documentation of [`AttributeSelector`][1].
     ///
     /// Returns an error if the string does not follow the given syntax,
     /// or one of the key components could not be resolved.
     ///
     /// [1]: crate::ops::AttributeSelector
     ///
-    /// ## Examples of valid input:
+    /// ### Examples of valid input:
     ///
     /// - `(0002,00010)`:
     ///   _Transfer Syntax UID_
@@ -288,8 +283,6 @@ pub trait DataDictionary {
     ///   _Patient Age_
     /// - `0040A168[0].CodeValue`:
     ///   _Code Value_ in first item of _Concept Code Sequence_
-    /// - `0040,A730[1].ContentSequence`:
-    ///   _Content Sequence_ in second item of _Content Sequence_
     /// - `SequenceOfUltrasoundRegions[0].RegionSpatialFormat`:
     ///   _Region Spatial Format_ in first item of _Sequence of Ultrasound Regions_
     fn parse_selector(&self, selector_text: &str) -> Result<AttributeSelector, ParseSelectorError> {

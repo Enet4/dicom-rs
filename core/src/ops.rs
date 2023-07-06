@@ -146,14 +146,57 @@ impl std::fmt::Display for AttributeSelectorStep {
 
 /// An attribute selector.
 ///
-/// This type defines a unique element in a DICOM data set,
+/// This type defines the path to an element in a DICOM data set,
 /// even at an arbitrary depth of nested data sets.
+/// A selector may be perceived as a series of navigation steps
+/// to reach a certain data element,
+/// where all steps but the last one refer to data set sequences.
+///
+/// Attribute selectors can be created through
+/// one of the various [`From`] conversions,
+/// the dynamic constructor function [`new`],
+/// or through parsing.
+/// 
+/// # Syntax
+/// 
+/// A syntax is defined for the unambiguous conversion
+/// between a string and an `AttributeSelector` value,
+/// in both directions.
+/// Attribute selectors are defined by the syntax
+/// `( «key»[«item»] . )* «key» `
+/// where:
+///
+/// - _`«key»`_ is either a DICOM tag in a supported textual form,
+///   or a tag keyword as accepted by the [data dictionary][dict] in use;
+/// - _`«item»`_ is an unsigned integer representing the item index;
+/// - _`[`_, _`]`_, and _`.`_ are literally their own characters
+///   as part of the string.
+///
+/// [dict]: crate::dictionary::DataDictionary
+///
+/// The first part in parentheses may appear zero or more times.
+/// Whitespace is not admitted in any position.
+/// Displaying a selector through the [`Display`](std::fmt::Display) trait
+/// produces a string that is compliant with this syntax.
+///
+/// ### Examples of attribute selectors in text:
+///
+/// - `(0002,00010)`:
+///   selects _Transfer Syntax UID_
+/// - `00101010`:
+///   selects _Patient Age_
+/// - `0040A168[0].CodeValue`:
+///   selects _Code Value_ from the first item of _Concept Code Sequence_
+/// - `0040,A730[1].ContentSequence`:
+///   selects _Content Sequence_ in second item of _Content Sequence_
+/// - `SequenceOfUltrasoundRegions[0].RegionSpatialFormat`:
+///   _Region Spatial Format_ in first item of _Sequence of Ultrasound Regions_
 ///
 /// # Example
 ///
 /// In most cases, you might only wish to select an attribute
 /// that is sitting at the root of the data set.
-/// Conversion from a DICOM tag is possible via [`From<Tag>`]:
+/// This can be done by converting a [DICOM tag](crate::Tag) via [`From<Tag>`]:
 ///
 /// ```
 /// # use dicom_core::Tag;
@@ -208,11 +251,37 @@ impl std::fmt::Display for AttributeSelectorStep {
 ///
 /// A data dictionary's [`parse_selector`][parse] method
 /// can be used if you want to describe these selectors in text.
+/// 
+/// ```no_run
+/// # // compile only: we don't have the std dict here
+/// # use dicom_core::{Tag, ops::AttributeSelector};
+/// use dicom_core::dictionary::DataDictionary;
+/// # use dicom_core::dictionary::stub::StubDataDictionary;
+/// # /* faking an import
+/// use dicom_dictionary_std::StandardDataDictionary;
+/// # */
+/// 
+/// # let StandardDataDictionary = StubDataDictionary;
+/// assert_eq!(
+///     StandardDataDictionary.parse_selector(
+///         "PerFrameFunctionalGroupsSequence[1].(0018,9074)"
+///     )?,
+///     AttributeSelector::from((
+///         // Per-frame functional groups sequence
+///         Tag(0x5200, 0x9230),
+///         // item #1
+///         1,
+///         // Frame Acquisition Date Time (DT)
+///         Tag(0x0018, 0x9074)
+///     )),
+/// );
+/// # Result::<_, Box<dyn std::error::Error>>::Ok(())
+/// ```
 ///
 /// [parse]: crate::dictionary::DataDictionary::parse_selector
 ///
-/// Selectors can be decomposed back into its parts
-/// by using it as an iterator:
+/// Selectors can be decomposed back into its constituent steps
+/// by turning it into an iterator:
 ///
 /// ```
 /// # use dicom_core::Tag;
