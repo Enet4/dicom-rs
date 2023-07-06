@@ -370,10 +370,10 @@ mod tests {
             AttributeSelector::from((tags::CONTENT_SEQUENCE, 1, tags::CONTENT_SEQUENCE,)),
         );
 
-        // - `SequenceOfUltrasoundRegions[0].RegionSpatialFormat`:
+        // - `SequenceOfUltrasoundRegions.RegionSpatialFormat`:
         //   _Region Spatial Format_ in first item of _Sequence of Ultrasound Regions_
         let selector: AttributeSelector = dict
-            .parse_selector("SequenceOfUltrasoundRegions[0].RegionSpatialFormat")
+            .parse_selector("SequenceOfUltrasoundRegions.RegionSpatialFormat")
             .unwrap();
         assert_eq!(
             selector,

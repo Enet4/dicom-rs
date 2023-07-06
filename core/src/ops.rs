@@ -156,25 +156,28 @@ impl std::fmt::Display for AttributeSelectorStep {
 /// one of the various [`From`] conversions,
 /// the dynamic constructor function [`new`],
 /// or through parsing.
-/// 
+///
 /// # Syntax
-/// 
+///
 /// A syntax is defined for the unambiguous conversion
 /// between a string and an `AttributeSelector` value,
 /// in both directions.
 /// Attribute selectors are defined by the syntax
-/// `( «key»[«item»] . )* «key» `
+/// `( «key»([«item»])? . )* «key» `
 /// where:
 ///
 /// - _`«key»`_ is either a DICOM tag in a supported textual form,
 ///   or a tag keyword as accepted by the [data dictionary][dict] in use;
-/// - _`«item»`_ is an unsigned integer representing the item index;
+/// - _`«item»`_ is an unsigned integer representing the item index,
+///   which is always surrounded by square brackets in the input;
 /// - _`[`_, _`]`_, and _`.`_ are literally their own characters
-///   as part of the string.
+///   as part of the input.
 ///
 /// [dict]: crate::dictionary::DataDictionary
 ///
 /// The first part in parentheses may appear zero or more times.
+/// The `[«item»]` part can be omitted,
+/// in which case it is assumed that the first item is selected.
 /// Whitespace is not admitted in any position.
 /// Displaying a selector through the [`Display`](std::fmt::Display) trait
 /// produces a string that is compliant with this syntax.
@@ -186,10 +189,10 @@ impl std::fmt::Display for AttributeSelectorStep {
 /// - `00101010`:
 ///   selects _Patient Age_
 /// - `0040A168[0].CodeValue`:
-///   selects _Code Value_ from the first item of _Concept Code Sequence_
+///   selects _Code Value_ within the first item of _Concept Code Sequence_
 /// - `0040,A730[1].ContentSequence`:
 ///   selects _Content Sequence_ in second item of _Content Sequence_
-/// - `SequenceOfUltrasoundRegions[0].RegionSpatialFormat`:
+/// - `SequenceOfUltrasoundRegions.RegionSpatialFormat`:
 ///   _Region Spatial Format_ in first item of _Sequence of Ultrasound Regions_
 ///
 /// # Example
@@ -229,8 +232,7 @@ impl std::fmt::Display for AttributeSelectorStep {
 /// the [`new`] function supports an iterator of attribute selector steps
 /// (of type [`AttributeSelectorStep`]).
 /// Note that the function fails
-/// if the last step refers to a sequence item
-/// or any of the other steps are not item selectors.
+/// if the last step refers to a sequence item.
 ///
 /// [`new`]: AttributeSelector::new
 ///
@@ -246,12 +248,14 @@ impl std::fmt::Display for AttributeSelectorStep {
 ///     },
 ///     // Frame Acquisition Date Time
 ///     AttributeSelectorStep::Tag(Tag(0x0018, 0x9074)),
-/// ]);
+/// ]).ok_or_else(|| "should be a valid sequence")?;
+/// # let selector: AttributeSelector = selector;
+/// # Result::<_, &'static str>::Ok(())
 /// ```
 ///
 /// A data dictionary's [`parse_selector`][parse] method
 /// can be used if you want to describe these selectors in text.
-/// 
+///
 /// ```no_run
 /// # // compile only: we don't have the std dict here
 /// # use dicom_core::{Tag, ops::AttributeSelector};
@@ -260,7 +264,7 @@ impl std::fmt::Display for AttributeSelectorStep {
 /// # /* faking an import
 /// use dicom_dictionary_std::StandardDataDictionary;
 /// # */
-/// 
+///
 /// # let StandardDataDictionary = StubDataDictionary;
 /// assert_eq!(
 ///     StandardDataDictionary.parse_selector(
@@ -309,29 +313,39 @@ impl AttributeSelector {
     /// Construct an attribute selector
     /// from an arbitrary sequence of selector steps.
     ///
-    /// Returns `None` if the sequence is empty,
-    /// the intermediate items do not represent item selector steps,
+    /// Intermediate steps of variant [`Tag`][1]
+    /// (which do not specify an item index)
+    /// are automatically reinterpreted as item selectors for item index 0.
+    ///
+    /// Returns `None` if the sequence is empty
     /// or the last step is not a tag selector step.
+    ///
+    /// [1]: AttributeSelectorStep::Tag
     pub fn new(steps: impl IntoIterator<Item = AttributeSelectorStep>) -> Option<Self> {
-        let steps: SmallVec<_> = steps.into_iter().collect();
-        let Some((last, rest)) = steps.split_last() else {
+        let mut steps: SmallVec<_> = steps.into_iter().collect();
+        let Some((last, rest)) = steps.split_last_mut() else {
             return None;
         };
         if matches!(last, AttributeSelectorStep::Nested { .. }) {
             return None;
         }
-        if rest.iter().any(|step| matches!(step, AttributeSelectorStep::Tag(_))) {
-            return None;
+        // transform intermediate `Tag` steps into the `Nested` variant
+        for step in rest {
+            if let AttributeSelectorStep::Tag(tag) = step {
+                *step = AttributeSelectorStep::Nested { tag: *tag, item: 0 };
+            }
         }
         Some(AttributeSelector(steps))
     }
 
     /// Return a non-empty iterator over the steps of attribute selection.
     ///
-    /// The iterator is guaranteed to produce at least one item,
-    /// and the last one is guaranteed to be a [tag][1].
+    /// The iterator is guaranteed to produce a series
+    /// starting with zero or more steps of the variant [`Nested`][1],
+    /// and terminated by one item guaranteed to be a [tag][2].
     ///
-    /// [1]: AttributeSelectorStep::Tag
+    /// [1]: AttributeSelectorStep::Nested
+    /// [2]: AttributeSelectorStep::Tag
     pub fn iter(&self) -> impl Iterator<Item = &AttributeSelectorStep> {
         self.into_iter()
     }
@@ -349,10 +363,12 @@ impl IntoIterator for AttributeSelector {
 
     /// Returns a non-empty iterator over the steps of attribute selection.
     ///
-    /// The iterator is guaranteed to produce at least one item,
-    /// and the last one is guaranteed to be a [tag][1].
+    /// The iterator is guaranteed to produce a series
+    /// starting with zero or more steps of the variant [`Nested`][1],
+    /// and terminated by one item guaranteed to be a [tag][2].
     ///
-    /// [1]: AttributeSelectorStep::Tag
+    /// [1]: AttributeSelectorStep::Nested
+    /// [2]: AttributeSelectorStep::Tag
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
@@ -364,16 +380,18 @@ impl<'a> IntoIterator for &'a AttributeSelector {
 
     /// Returns a non-empty iterator over the steps of attribute selection.
     ///
-    /// The iterator is guaranteed to produce at least one item,
-    /// and the last one is guaranteed to be a [tag][1].
+    /// The iterator is guaranteed to produce a series
+    /// starting with zero or more steps of the variant [`Nested`][1],
+    /// and terminated by one item guaranteed to be a [tag][2].
     ///
-    /// [1]: AttributeSelectorStep::Tag
+    /// [1]: AttributeSelectorStep::Nested
+    /// [2]: AttributeSelectorStep::Tag
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
     }
 }
 
-/// Creates an attibute selector for `tag`
+/// Creates an attribute selector for just a [`tag`](AttributeSelectorStep::Tag).
 impl From<Tag> for AttributeSelector {
     /// Creates a simple attribute selector
     /// by selecting the element at the data set root with the given DICOM tag.
@@ -382,7 +400,7 @@ impl From<Tag> for AttributeSelector {
     }
 }
 
-/// Creates an attibute selector for `tag[item].tag`
+/// Creates an attribute selector for `tag[item].tag`
 impl From<(Tag, u32, Tag)> for AttributeSelector {
     /// Creates an attribute selector
     /// which navigates to the data set item at index `item`
@@ -393,7 +411,20 @@ impl From<(Tag, u32, Tag)> for AttributeSelector {
     }
 }
 
-/// Creates an attibute selector for `tag[item].tag[item].tag`
+/// Creates an attribute selector for `tag.tag`
+/// (where the first)
+impl From<(Tag, Tag)> for AttributeSelector {
+    /// Creates an attribute selector
+    /// which navigates to the first data set item
+    /// in the sequence at the first DICOM tag (`tag0`),
+    /// then selects the element with the second DICOM tag (`tag1`).
+    #[inline]
+    fn from((tag0, tag1): (Tag, Tag)) -> Self {
+        AttributeSelector(smallvec![(tag0, 0).into(), tag1.into()])
+    }
+}
+
+/// Creates an attribute selector for `tag[item].tag[item].tag`
 impl From<(Tag, u32, Tag, u32, Tag)> for AttributeSelector {
     /// Creates an attribute selector
     /// which navigates to data set item #`item0`
@@ -409,7 +440,51 @@ impl From<(Tag, u32, Tag, u32, Tag)> for AttributeSelector {
     }
 }
 
-/// Creates an attibute selector for `tag[item].tag[item].tag[item].tag`
+/// Creates an attribute selector for `tag.tag[item].tag`
+impl From<(Tag, Tag, u32, Tag)> for AttributeSelector {
+    /// Creates an attribute selector
+    /// which navigates to the first data set item
+    /// in the sequence at `tag0`,
+    /// navigates further down to item #`item1` in the sequence at `tag1`,
+    /// then selects the element at `tag2`.
+    fn from((tag0, tag1, item1, tag2): (Tag, Tag, u32, Tag)) -> Self {
+        AttributeSelector(smallvec![
+            (tag0, 0).into(),
+            (tag1, item1).into(),
+            tag2.into()
+        ])
+    }
+}
+
+/// Creates an attribute selector for `tag[item].tag.tag`
+impl From<(Tag, u32, Tag, Tag)> for AttributeSelector {
+    /// Creates an attribute selector
+    /// which navigates to the data set item #`item0`
+    /// in the sequence at `tag0`,
+    /// navigates further down to the first item in the sequence at `tag1`,
+    /// then selects the element at `tag2`.
+    fn from((tag0, item0, tag1, tag2): (Tag, u32, Tag, Tag)) -> Self {
+        AttributeSelector(smallvec![
+            (tag0, item0).into(),
+            (tag1, 0).into(),
+            tag2.into()
+        ])
+    }
+}
+
+/// Creates an attribute selector for `tag.tag.tag`
+impl From<(Tag, Tag, Tag)> for AttributeSelector {
+    /// Creates an attribute selector
+    /// which navigates to the first data set item
+    /// in the sequence at `tag0`,
+    /// navigates further down to the first item in the sequence at `tag1`,
+    /// then selects the element at `tag2`.
+    fn from((tag0, tag1, tag2): (Tag, Tag, Tag)) -> Self {
+        AttributeSelector(smallvec![(tag0, 0).into(), (tag1, 0).into(), tag2.into()])
+    }
+}
+
+/// Creates an attribute selector for `tag[item].tag[item].tag[item].tag`
 impl From<(Tag, u32, Tag, u32, Tag, u32, Tag)> for AttributeSelector {
     // you should get the gist at this point
     fn from(

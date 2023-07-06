@@ -263,7 +263,7 @@ pub trait DataDictionary {
     /// Parse a string as an [attribute selector][1].
     ///
     /// Attribute selectors are defined by the syntax
-    /// `( «key»[«item»] . )* «key» `
+    /// `( «key»([«item»])? . )* «key» `
     /// where_`«key»`_ is either a DICOM tag or keyword
     /// as accepted by this dictionary
     /// when calling the method [`parse_tag`](DataDictionary::parse_tag).
@@ -283,12 +283,11 @@ pub trait DataDictionary {
     ///   _Patient Age_
     /// - `0040A168[0].CodeValue`:
     ///   _Code Value_ in first item of _Concept Code Sequence_
-    /// - `SequenceOfUltrasoundRegions[0].RegionSpatialFormat`:
+    /// - `SequenceOfUltrasoundRegions.RegionSpatialFormat`:
     ///   _Region Spatial Format_ in first item of _Sequence of Ultrasound Regions_
     fn parse_selector(&self, selector_text: &str) -> Result<AttributeSelector, ParseSelectorError> {
         let mut steps = crate::value::C::new();
-        let mut parts = selector_text.split('.');
-        for part in parts.by_ref() {
+        for part in selector_text.split('.') {
             // detect if intermediate
             if part.ends_with(']') {
                 let split_i = part.find('[').context(MissingItemDelimiterSnafu)?;
@@ -299,14 +298,11 @@ pub trait DataDictionary {
                 let item: u32 = item_index_part.parse().ok().context(ParseItemIndexSnafu)?;
                 steps.push(AttributeSelectorStep::Nested { tag, item });
             } else {
-                // treat it as the leaf tag step and stop parsing
+                // treat it as a tag step
                 let tag: Tag = self.parse_tag(part).context(ParseKeySnafu)?;
                 steps.push(AttributeSelectorStep::Tag(tag));
-                break;
             }
         }
-
-        snafu::ensure!(parts.next().is_none(), ParseItemSnafu);
 
         Ok(AttributeSelector::new(steps).context(ParseLeafSnafu)?)
     }
