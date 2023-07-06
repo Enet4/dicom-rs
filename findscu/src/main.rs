@@ -1,7 +1,7 @@
 use clap::Parser;
 use dicom_core::dicom_value;
 use dicom_core::{DataElement, PrimitiveValue, VR};
-use dicom_dictionary_std::tags;
+use dicom_dictionary_std::{tags, uids};
 use dicom_dump::DumpOptions;
 use dicom_encoding::transfer_syntax;
 use dicom_object::{mem::InMemDicomObject, open_file, StandardDataDictionary};
@@ -46,11 +46,14 @@ struct App {
     max_pdu_length: u32,
 
     /// use patient root information model
-    #[arg(short = 'P', long, conflicts_with = "study")]
+    #[arg(short = 'P', long, conflicts_with = "study", conflicts_with = "mwl")]
     patient: bool,
     /// use study root information model (default)
-    #[arg(short = 'S', long, conflicts_with = "patient")]
+    #[arg(short = 'S', long, conflicts_with = "patient", conflicts_with = "mwl")]
     study: bool,
+    /// use modality worklist information model
+    #[arg(short = 'W', long, conflicts_with = "study", conflicts_with = "patient")]
+    mwl: bool,
 }
 
 fn main() {
@@ -143,6 +146,7 @@ fn run() -> Result<(), Error> {
         max_pdu_length,
         patient,
         study,
+        mwl,
         query,
     } = App::parse();
 
@@ -157,11 +161,13 @@ fn run() -> Result<(), Error> {
 
     let dcm_query = build_query(file, query, patient, study, verbose)?;
 
-    let abstract_syntax = match (patient, study) {
+    let abstract_syntax = match (patient, study, mwl) {
         // Patient Root Query/Retrieve Information Model - FIND
-        (true, false) => "1.2.840.10008.5.1.4.1.2.1.1",
+        (true, false, false) => uids::PATIENT_ROOT_QUERY_RETRIEVE_INFORMATION_MODEL_FIND,
+        // Modality Worklist Information Model – FIND
+        (false, false, true) => uids::MODALITY_WORKLIST_INFORMATION_MODEL_FIND,
         // Study Root Query/Retrieve Information Model – FIND (default)
-        (false, false) | (false, true) => "1.2.840.10008.5.1.4.1.2.2.1",
+        (false, false, false) | (false, true, false) => uids::STUDY_ROOT_QUERY_RETRIEVE_INFORMATION_MODEL_FIND,
         // Series
         _ => unreachable!("Unexpected flag combination"),
     };
