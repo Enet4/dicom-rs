@@ -353,7 +353,25 @@ impl AttributeSelector {
     /// Obtain a reference to the first attribute selection step.
     pub fn first_step(&self) -> &AttributeSelectorStep {
         // guaranteed not to be empty
-        &self.0[0]
+        self.0
+            .first()
+            .expect("invariant broken: attribute selector should have at least one step")
+    }
+
+    /// Obtain a reference to the last attribute selection step.
+    pub fn last_step(&self) -> &AttributeSelectorStep {
+        // guaranteed not to be empty
+        self.0
+            .last()
+            .expect("invariant broken: attribute selector should have at least one step")
+    }
+
+    /// Obtain the tag of the last attribute selection step.
+    pub fn last_tag(&self) -> Tag {
+        match self.last_step() {
+            AttributeSelectorStep::Tag(tag) => *tag,
+            _ => unreachable!("invariant broken: last attribute selector step should be Tag"),
+        }
     }
 }
 
@@ -538,7 +556,7 @@ pub enum AttributeAction {
     SetVr(VR),
     /// Fully reset the attribute with the given DICOM value,
     /// creating it if it does not exist yet.
-    /// 
+    ///
     /// For objects supporting nested data sets,
     /// passing [`PrimitiveValue::Empty`] will create
     /// an empty data set sequence.
@@ -548,7 +566,7 @@ pub enum AttributeAction {
     SetStr(Cow<'static, str>),
     /// Provide the attribute with the given DICOM value,
     /// if it does not exist yet.
-    /// 
+    ///
     /// For objects supporting nested data sets,
     /// passing [`PrimitiveValue::Empty`] will create
     /// an empty data set sequence.
@@ -558,7 +576,7 @@ pub enum AttributeAction {
     SetStrIfMissing(Cow<'static, str>),
     /// Fully replace the value with the given DICOM value,
     /// but only if the attribute already exists.
-    /// 
+    ///
     /// For objects supporting nested data sets,
     /// passing [`PrimitiveValue::Empty`] will clear the items
     /// of an existing data set sequence.
