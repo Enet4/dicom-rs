@@ -4,7 +4,7 @@
 
 use crate::value::{
     CastValueError, ConvertValueError, DicomDate, DicomDateTime, DicomTime, PrimitiveValue, Value,
-    C,
+    C, DataSetSequence,
 };
 use chrono::FixedOffset;
 use num_traits::NumCast;
@@ -205,7 +205,11 @@ impl<I, P> DataElement<I, P> {
                 vr,
                 len: Length(0),
             },
-            value: PrimitiveValue::Empty.into(),
+            value: if vr == VR::SQ {
+                DataSetSequence::empty().into()
+            } else {
+                PrimitiveValue::Empty.into()
+            },
         }
     }
 
