@@ -538,18 +538,30 @@ pub enum AttributeAction {
     SetVr(VR),
     /// Fully reset the attribute with the given DICOM value,
     /// creating it if it does not exist yet.
+    /// 
+    /// For objects supporting nested data sets,
+    /// passing [`PrimitiveValue::Empty`] will create
+    /// an empty data set sequence.
     Set(PrimitiveValue),
     /// Fully reset a textual attribute with the given string,
     /// creating it if it does not exist yet.
     SetStr(Cow<'static, str>),
     /// Provide the attribute with the given DICOM value,
     /// if it does not exist yet.
+    /// 
+    /// For objects supporting nested data sets,
+    /// passing [`PrimitiveValue::Empty`] will create
+    /// an empty data set sequence.
     SetIfMissing(PrimitiveValue),
     /// Provide the textual attribute with the given string,
     /// creating it if it does not exist yet.
     SetStrIfMissing(Cow<'static, str>),
     /// Fully replace the value with the given DICOM value,
     /// but only if the attribute already exists.
+    /// 
+    /// For objects supporting nested data sets,
+    /// passing [`PrimitiveValue::Empty`] will clear the items
+    /// of an existing data set sequence.
     Replace(PrimitiveValue),
     /// Fully replace a textual value with the given string,
     /// but only if the attribute already exists.
