@@ -4,18 +4,18 @@
 //! Values of this type support infallible insertion, removal, and retrieval
 //! of elements by DICOM tag,
 //! or name (keyword) with a data element dictionary look-up.
-//! 
+//!
 //! If you wish to build a complete DICOM file,
 //! you can start from an `InMemDicomObject`
 //! and complement it with a [file meta group table](crate::meta)
 //! (see [`with_meta`](InMemDicomObject::with_meta)
 //! and [`with_exact_meta`](InMemDicomObject::with_exact_meta)).
-//! 
+//!
 //! # Example
-//! 
+//!
 //! A new DICOM data set can be built by providing a sequence of data elements.
 //! Insertion and removal methods are also available.
-//! 
+//!
 //! ```
 //! # use dicom_core::{DataElement, VR, dicom_value};
 //! # use dicom_dictionary_std::tags;
@@ -26,11 +26,11 @@
 //!     DataElement::new(tags::SOP_INSTANCE_UID, VR::UI, "2.25.60156688944589400766024286894543900794"),
 //!     // ...
 //! ]);
-//! 
+//!
 //! // continue adding elements
 //! obj.put(DataElement::new(tags::MODALITY, VR::CS, "CR"));
 //! ```
-//! 
+//!
 //! In-memory DICOM objects may have a byte length recorded,
 //! if it was part of a data set sequence with explicit length.
 //! If necessary, this number can be obtained via the [`HasLength`] trait.
@@ -988,6 +988,13 @@ where
     fn apply_change_value_impl(&mut self, tag: Tag, new_value: PrimitiveValue) {
         if let Some(e) = self.entries.get_mut(&tag) {
             let vr = e.vr();
+            // handle edge case: if VR is SQ and suggested value is empty,
+            // then create an empty data set sequence
+            let new_value = if vr == VR::SQ && new_value.is_empty() {
+                DataSetSequence::empty().into()
+            } else {
+                Value::from(new_value)
+            };
             *e = DataElement::new(tag, vr, new_value);
             self.len = Length::UNDEFINED;
         } else {
@@ -997,6 +1004,15 @@ where
                 .map(|entry| entry.vr())
                 .unwrap_or(VR::UN);
             // insert element
+            
+            // handle edge case: if VR is SQ and suggested value is empty,
+            // then create an empty data set sequence
+            let new_value = if vr == VR::SQ && new_value.is_empty() {
+                DataSetSequence::empty().into()
+            } else {
+                Value::from(new_value)
+            };
+
             self.put(DataElement::new(tag, vr, new_value));
         }
     }
@@ -1320,24 +1336,24 @@ where
     /// The last two will be filled with the values of
     /// _SOP Instance UID_ and _SOP Class UID_
     /// if they are present in this object.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```no_run
     /// # use dicom_core::{DataElement, VR};
     /// # use dicom_dictionary_std::tags;
     /// # use dicom_dictionary_std::uids;
     /// use dicom_object::{InMemDicomObject, meta::FileMetaTableBuilder};
-    /// 
+    ///
     /// let obj = InMemDicomObject::from_element_iter([
     ///     DataElement::new(tags::SOP_CLASS_UID, VR::UI, uids::COMPUTED_RADIOGRAPHY_IMAGE_STORAGE),
     ///     DataElement::new(tags::SOP_INSTANCE_UID, VR::UI, "2.25.60156688944589400766024286894543900794"),
     ///     // ...
     /// ]);
-    /// 
+    ///
     /// let obj = obj.with_meta(FileMetaTableBuilder::new()
     ///     .transfer_syntax(uids::EXPLICIT_VR_LITTLE_ENDIAN))?;
-    /// 
+    ///
     /// // can now save everything to a file
     /// let meta = obj.write_to_file("out.dcm")?;
     /// # Result::<_, Box<dyn std::error::Error>>::Ok(())
@@ -1352,9 +1368,8 @@ where
             );
         }
         if let Some(elem) = self.get(tags::SOP_CLASS_UID) {
-            meta = meta.media_storage_sop_class_uid(
-                elem.value().to_str().context(PrepareMetaTableSnafu)?,
-            );
+            meta = meta
+                .media_storage_sop_class_uid(elem.value().to_str().context(PrepareMetaTableSnafu)?);
         }
         Ok(FileDicomObject {
             meta: meta.build().context(BuildMetaTableSnafu)?,
@@ -1552,6 +1567,7 @@ where
 {
     type Err = ApplyError;
 
+    #[inline]
     fn apply(&mut self, op: AttributeOp) -> ApplyResult {
         self.apply(op)
     }
@@ -2728,6 +2744,7 @@ mod tests {
         );
     }
 
+    /// Test that constructive operations create items if necessary.
     #[test]
     fn constructive_op() {
         let mut obj = InMemDicomObject::from_element_iter([DataElement::new(
@@ -2769,6 +2786,50 @@ mod tests {
                 PrimitiveValue::from(5_u16)
             )]),
         );
+    }
+
+    /// Test that operations on in-memory DICOM objects
+    /// can create sequences from scratch.
+    #[test]
+    fn inmem_ops_can_create_seq() {
+        let mut obj = InMemDicomObject::new_empty();
+
+        obj.apply(AttributeOp::new(
+            tags::SEQUENCE_OF_ULTRASOUND_REGIONS,
+            AttributeAction::SetIfMissing(PrimitiveValue::Empty),
+        ))
+        .unwrap();
+
+        {
+            // should create an empty sequence
+            let sequence_ultrasound = obj
+                .get(tags::SEQUENCE_OF_ULTRASOUND_REGIONS)
+                .expect("should have sequence element");
+
+            assert_eq!(sequence_ultrasound.vr(), VR::SQ);
+
+            assert_eq!(sequence_ultrasound.items().as_deref(), Some(&[][..]),);
+        }
+
+        obj.apply(AttributeOp::new(
+            (
+                tags::SEQUENCE_OF_ULTRASOUND_REGIONS,
+                tags::REGION_SPATIAL_FORMAT,
+            ),
+            AttributeAction::Set(1_u16.into()),
+        ))
+        .unwrap();
+
+        {
+            // sequence should now have an item
+            assert_eq!(
+                obj.get(tags::SEQUENCE_OF_ULTRASOUND_REGIONS)
+                    .unwrap()
+                    .items()
+                    .map(|items| items.len()),
+                Some(1),
+            );
+        }
     }
 
     #[test]
