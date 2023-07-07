@@ -343,6 +343,14 @@ impl<'a> From<PersonName<'a>> for PrimitiveValue {
     }
 }
 
+impl From<()> for PrimitiveValue {
+    /// constructs an empty DICOM value
+    #[inline]
+    fn from(_value: ()) -> Self {
+        PrimitiveValue::Empty
+    }
+}
+
 macro_rules! impl_from_array_for_primitive {
     ($typ: ty, $variant: ident) => {
         impl From<$typ> for PrimitiveValue {

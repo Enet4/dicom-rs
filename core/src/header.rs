@@ -4,6 +4,7 @@
 
 use crate::value::{
     CastValueError, ConvertValueError, DicomDate, DicomDateTime, DicomTime, PrimitiveValue, Value,
+    C, DataSetSequence,
 };
 use chrono::FixedOffset;
 use num_traits::NumCast;
@@ -204,7 +205,11 @@ impl<I, P> DataElement<I, P> {
                 vr,
                 len: Length(0),
             },
-            value: PrimitiveValue::Empty.into(),
+            value: if vr == VR::SQ {
+                DataSetSequence::empty().into()
+            } else {
+                PrimitiveValue::Empty.into()
+            },
         }
     }
 
@@ -519,9 +524,20 @@ where
 
     /// Retrieve the items stored in a sequence value.
     ///
-    /// Returns `None` if the value is not a data set sequence.
+    /// Returns `None` if the underlying value is not a data set sequence.
     pub fn items(&self) -> Option<&[I]> {
         self.value().items()
+    }
+
+    /// Gets a mutable reference to the items of a sequence value.
+    ///
+    /// The header's recorded length is automatically reset to undefined,
+    /// in order to prevent inconsistencies.
+    ///
+    /// Returns `None` if the underlying value is not a data set sequence.
+    pub fn items_mut(&mut self) -> Option<&mut C<I>> {
+        self.header.len = Length::UNDEFINED;
+        self.value.items_mut()
     }
 
     /// Retrieve the fragments stored in a pixel data sequence value.
@@ -531,9 +547,21 @@ where
         self.value().fragments()
     }
 
-    /// Obtain a reference to the encapsulated pixel data's basic offset table.
+    /// Obtain a mutable reference to the fragments
+    /// stored in a pixel data sequence value.
+    ///
+    /// The header's recorded length is automatically reset to undefined,
+    /// in order to prevent inconsistencies.
     ///
     /// Returns `None` if the value is not a pixel data sequence.
+    pub fn fragments_mut(&mut self) -> Option<&mut C<P>> {
+        self.header.len = Length::UNDEFINED;
+        self.value.fragments_mut()
+    }
+
+    /// Obtain a reference to the encapsulated pixel data's basic offset table.
+    ///
+    /// Returns `None` if the underlying value is not a pixel data sequence.
     pub fn offset_table(&self) -> Option<&[u32]> {
         self.value().offset_table()
     }

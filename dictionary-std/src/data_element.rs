@@ -169,9 +169,12 @@ fn init_dictionary() -> StandardDataDictionaryRegistry {
 
 #[cfg(test)]
 mod tests {
+    use crate::tags;
+
     use super::StandardDataDictionary;
     use dicom_core::dictionary::{DataDictionary, DataDictionaryEntryRef, TagRange::*};
     use dicom_core::header::{Tag, VR};
+    use dicom_core::ops::AttributeSelector;
 
     // tests for just a few attributes to make sure that the entries
     // were well installed into the crate
@@ -336,5 +339,72 @@ mod tests {
         assert_eq!(dict.by_tag(Tag(0x0009, 0x0011)), Some(&private_creator));
         assert_eq!(dict.by_tag(Tag(0x000B, 0x0010)), Some(&private_creator));
         assert_eq!(dict.by_tag(Tag(0x00ED, 0x00FF)), Some(&private_creator));
+    }
+
+    #[test]
+    fn can_parse_selectors() {
+        let dict = StandardDataDictionary;
+        // - `(0002,0010)`:
+        //   _Transfer Syntax UID_
+        let selector: AttributeSelector = dict.parse_selector("(0002,0010)").unwrap();
+        assert_eq!(selector, AttributeSelector::from(tags::TRANSFER_SYNTAX_UID));
+
+        // - `00101010`:
+        //   _Patient Age_
+        let selector: AttributeSelector = dict.parse_selector("00101010").unwrap();
+        assert_eq!(selector, AttributeSelector::from(tags::PATIENT_AGE));
+
+        // - `0040A168[0].CodeValue`:
+        //   _Code Value_ in first item of _Concept Code Sequence_
+        let selector: AttributeSelector = dict.parse_selector("0040A168[0].CodeValue").unwrap();
+        assert_eq!(
+            selector,
+            AttributeSelector::from((tags::CONCEPT_CODE_SEQUENCE, 0, tags::CODE_VALUE)),
+        );
+        // - `0040,A730[1].ContentSequence`:
+        //   _Content Sequence_ in second item of _Content Sequence_
+        let selector: AttributeSelector =
+            dict.parse_selector("0040,A730[1].ContentSequence").unwrap();
+        assert_eq!(
+            selector,
+            AttributeSelector::from((tags::CONTENT_SEQUENCE, 1, tags::CONTENT_SEQUENCE,)),
+        );
+
+        // - `SequenceOfUltrasoundRegions.RegionSpatialFormat`:
+        //   _Region Spatial Format_ in first item of _Sequence of Ultrasound Regions_
+        let selector: AttributeSelector = dict
+            .parse_selector("SequenceOfUltrasoundRegions.RegionSpatialFormat")
+            .unwrap();
+        assert_eq!(
+            selector,
+            AttributeSelector::from((
+                tags::SEQUENCE_OF_ULTRASOUND_REGIONS,
+                0,
+                tags::REGION_SPATIAL_FORMAT
+            )),
+        );
+    }
+
+    /// Can go to is text form and back without losing info
+    #[test]
+    fn print_and_parse_selectors() {
+        let selectors = [
+            AttributeSelector::from((tags::CONTENT_SEQUENCE, 1, tags::CONTENT_SEQUENCE)),
+            AttributeSelector::new([
+                (tags::CONTENT_SEQUENCE, 1).into(),
+                (tags::CONTENT_SEQUENCE, 3).into(),
+                (tags::CONTENT_SEQUENCE, 5).into(),
+                (tags::CONCEPT_NAME_CODE_SEQUENCE, 0).into(),
+                tags::CODE_VALUE.into(),
+            ])
+            .unwrap(),
+        ];
+
+        for selector in selectors {
+            let selector2: AttributeSelector = StandardDataDictionary
+                .parse_selector(&selector.to_string())
+                .unwrap();
+            assert_eq!(selector, selector2);
+        }
     }
 }

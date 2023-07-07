@@ -4,18 +4,18 @@
 //! Values of this type support infallible insertion, removal, and retrieval
 //! of elements by DICOM tag,
 //! or name (keyword) with a data element dictionary look-up.
-//! 
+//!
 //! If you wish to build a complete DICOM file,
 //! you can start from an `InMemDicomObject`
 //! and complement it with a [file meta group table](crate::meta)
 //! (see [`with_meta`](InMemDicomObject::with_meta)
 //! and [`with_exact_meta`](InMemDicomObject::with_exact_meta)).
-//! 
+//!
 //! # Example
-//! 
+//!
 //! A new DICOM data set can be built by providing a sequence of data elements.
 //! Insertion and removal methods are also available.
-//! 
+//!
 //! ```
 //! # use dicom_core::{DataElement, VR, dicom_value};
 //! # use dicom_dictionary_std::tags;
@@ -26,17 +26,17 @@
 //!     DataElement::new(tags::SOP_INSTANCE_UID, VR::UI, "2.25.60156688944589400766024286894543900794"),
 //!     // ...
 //! ]);
-//! 
+//!
 //! // continue adding elements
 //! obj.put(DataElement::new(tags::MODALITY, VR::CS, "CR"));
 //! ```
-//! 
+//!
 //! In-memory DICOM objects may have a byte length recorded,
 //! if it was part of a data set sequence with explicit length.
 //! If necessary, this number can be obtained via the [`HasLength`] trait.
 //! However, any modifications made to the object will reset this length
 //! to [_undefined_](dicom_core::Length::UNDEFINED).
-use dicom_core::ops::{ApplyOp, AttributeAction, AttributeOp};
+use dicom_core::ops::{ApplyOp, AttributeAction, AttributeOp, AttributeSelectorStep};
 use itertools::Itertools;
 use smallvec::SmallVec;
 use snafu::{OptionExt, ResultExt};
@@ -836,7 +836,7 @@ where
 
     /// Apply the given attribute operation on this object.
     ///
-    /// See the [`dicom_encoding::ops`] module
+    /// See the [`dicom_core::ops`] module
     /// for more information.
     ///
     /// # Examples
@@ -848,7 +848,7 @@ where
     /// # use dicom_object::mem::*;
     /// # use dicom_object::ops::ApplyResult;
     /// use dicom_core::ops::{ApplyOp, AttributeAction, AttributeOp};
-    /// # fn main() -> ApplyResult {
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// // given an in-memory DICOM object
     /// let mut obj = InMemDicomObject::from_element_iter([
     ///     DataElement::new(
@@ -859,20 +859,62 @@ where
     /// ]);
     ///
     /// // apply patient name change
-    /// obj.apply(AttributeOp {
-    ///   tag: tags::PATIENT_NAME,
-    ///   action: AttributeAction::SetStr("Patient^Anonymous".into())
-    /// })?;
+    /// obj.apply(AttributeOp::new(
+    ///   tags::PATIENT_NAME,
+    ///   AttributeAction::SetStr("Patient^Anonymous".into()),
+    /// ))?;
     ///
     /// assert_eq!(
-    ///     obj.get(tags::PATIENT_NAME).unwrap().value().to_str().unwrap(),
+    ///     obj.element(tags::PATIENT_NAME)?.to_str()?,
     ///     "Patient^Anonymous",
     /// );
     /// # Ok(())
     /// # }
     /// ```
     fn apply(&mut self, op: AttributeOp) -> ApplyResult {
-        let AttributeOp { tag, action } = op;
+        let AttributeOp { selector, action } = op;
+        let dict = self.dict.clone();
+
+        let mut obj = self;
+        for (i, step) in selector.iter().enumerate() {
+            match step {
+                // reached the leaf
+                AttributeSelectorStep::Tag(tag) => return obj.apply_leaf(*tag, action),
+                // navigate further down
+                AttributeSelectorStep::Nested { tag, item } => {
+                    let e =
+                        obj.entries
+                            .get_mut(tag)
+                            .ok_or_else(|| ApplyError::MissingSequence {
+                                selector: selector.clone(),
+                                step_index: i as u32,
+                            })?;
+
+                    // get items
+                    let items = e.items_mut().ok_or_else(|| ApplyError::NotASequence {
+                        selector: selector.clone(),
+                        step_index: i as u32,
+                    })?;
+
+                    // if item.length == i and action is a constructive action, append new item
+                    obj = if items.len() == *item as usize && action.is_constructive() {
+                        items.push(InMemDicomObject::new_empty_with_dict(dict.clone()));
+                        items.last_mut().unwrap()
+                    } else {
+                        items.get_mut(*item as usize).ok_or_else(|| {
+                            ApplyError::MissingSequence {
+                                selector: selector.clone(),
+                                step_index: i as u32,
+                            }
+                        })?
+                    }
+                }
+            }
+        }
+        unreachable!()
+    }
+
+    fn apply_leaf(&mut self, tag: Tag, action: AttributeAction) -> ApplyResult {
         match action {
             AttributeAction::Remove => {
                 self.remove_element(tag);
@@ -920,13 +962,13 @@ where
                 Ok(())
             }
             AttributeAction::Replace(new_value) => {
-                if self.get(op.tag).is_some() {
+                if self.get(tag).is_some() {
                     self.apply_change_value_impl(tag, new_value);
                 }
                 Ok(())
             }
             AttributeAction::ReplaceStr(string) => {
-                if self.get(op.tag).is_some() {
+                if self.get(tag).is_some() {
                     let new_value = PrimitiveValue::from(&*string);
                     self.apply_change_value_impl(tag, new_value);
                 }
@@ -946,6 +988,13 @@ where
     fn apply_change_value_impl(&mut self, tag: Tag, new_value: PrimitiveValue) {
         if let Some(e) = self.entries.get_mut(&tag) {
             let vr = e.vr();
+            // handle edge case: if VR is SQ and suggested value is empty,
+            // then create an empty data set sequence
+            let new_value = if vr == VR::SQ && new_value.is_empty() {
+                DataSetSequence::empty().into()
+            } else {
+                Value::from(new_value)
+            };
             *e = DataElement::new(tag, vr, new_value);
             self.len = Length::UNDEFINED;
         } else {
@@ -955,6 +1004,15 @@ where
                 .map(|entry| entry.vr())
                 .unwrap_or(VR::UN);
             // insert element
+            
+            // handle edge case: if VR is SQ and suggested value is empty,
+            // then create an empty data set sequence
+            let new_value = if vr == VR::SQ && new_value.is_empty() {
+                DataSetSequence::empty().into()
+            } else {
+                Value::from(new_value)
+            };
+
             self.put(DataElement::new(tag, vr, new_value));
         }
     }
@@ -1278,24 +1336,24 @@ where
     /// The last two will be filled with the values of
     /// _SOP Instance UID_ and _SOP Class UID_
     /// if they are present in this object.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```no_run
     /// # use dicom_core::{DataElement, VR};
     /// # use dicom_dictionary_std::tags;
     /// # use dicom_dictionary_std::uids;
     /// use dicom_object::{InMemDicomObject, meta::FileMetaTableBuilder};
-    /// 
+    ///
     /// let obj = InMemDicomObject::from_element_iter([
     ///     DataElement::new(tags::SOP_CLASS_UID, VR::UI, uids::COMPUTED_RADIOGRAPHY_IMAGE_STORAGE),
     ///     DataElement::new(tags::SOP_INSTANCE_UID, VR::UI, "2.25.60156688944589400766024286894543900794"),
     ///     // ...
     /// ]);
-    /// 
+    ///
     /// let obj = obj.with_meta(FileMetaTableBuilder::new()
     ///     .transfer_syntax(uids::EXPLICIT_VR_LITTLE_ENDIAN))?;
-    /// 
+    ///
     /// // can now save everything to a file
     /// let meta = obj.write_to_file("out.dcm")?;
     /// # Result::<_, Box<dyn std::error::Error>>::Ok(())
@@ -1310,9 +1368,8 @@ where
             );
         }
         if let Some(elem) = self.get(tags::SOP_CLASS_UID) {
-            meta = meta.media_storage_sop_class_uid(
-                elem.value().to_str().context(PrepareMetaTableSnafu)?,
-            );
+            meta = meta
+                .media_storage_sop_class_uid(elem.value().to_str().context(PrepareMetaTableSnafu)?);
         }
         Ok(FileDicomObject {
             meta: meta.build().context(BuildMetaTableSnafu)?,
@@ -1510,6 +1567,7 @@ where
 {
     type Err = ApplyError;
 
+    #[inline]
     fn apply(&mut self, op: AttributeOp) -> ApplyResult {
         self.apply(op)
     }
@@ -1578,6 +1636,7 @@ mod tests {
     use crate::{meta::FileMetaTableBuilder, open_file};
     use byteordered::Endianness;
     use dicom_core::chrono::FixedOffset;
+    use dicom_core::ops::AttributeSelector;
     use dicom_core::value::{DicomDate, DicomDateTime, DicomTime, PrimitiveValue};
     use dicom_core::{
         dicom_value,
@@ -2508,7 +2567,7 @@ mod tests {
             // remove
             let mut obj = base_obj.clone();
             let op = AttributeOp {
-                tag: tags::STUDY_DESCRIPTION,
+                selector: AttributeSelector::from(tags::STUDY_DESCRIPTION),
                 action: AttributeAction::Remove,
             };
 
@@ -2522,7 +2581,7 @@ mod tests {
             // set if missing does nothing
             // on an existing string
             let op = AttributeOp {
-                tag: tags::INSTITUTION_NAME,
+                selector: tags::INSTITUTION_NAME.into(),
                 action: AttributeAction::SetIfMissing("Nope Hospital".into()),
             };
 
@@ -2538,10 +2597,10 @@ mod tests {
             );
 
             // replace string
-            let op = AttributeOp {
-                tag: tags::INSTITUTION_NAME,
-                action: AttributeAction::ReplaceStr("REMOVED".into()),
-            };
+            let op = AttributeOp::new(
+                tags::INSTITUTION_NAME,
+                AttributeAction::ReplaceStr("REMOVED".into()),
+            );
 
             obj.apply(op).unwrap();
 
@@ -2556,20 +2615,20 @@ mod tests {
 
             // replacing a non-existing attribute
             // does nothing
-            let op = AttributeOp {
-                tag: tags::REQUESTING_PHYSICIAN,
-                action: AttributeAction::ReplaceStr("Doctor^Anonymous".into()),
-            };
+            let op = AttributeOp::new(
+                tags::REQUESTING_PHYSICIAN,
+                AttributeAction::ReplaceStr("Doctor^Anonymous".into()),
+            );
 
             obj.apply(op).unwrap();
 
             assert_eq!(obj.get(tags::REQUESTING_PHYSICIAN), None);
 
             // but DetIfMissing works
-            let op = AttributeOp {
-                tag: tags::REQUESTING_PHYSICIAN,
-                action: AttributeAction::SetStrIfMissing("Doctor^Anonymous".into()),
-            };
+            let op = AttributeOp::new(
+                tags::REQUESTING_PHYSICIAN,
+                AttributeAction::SetStrIfMissing("Doctor^Anonymous".into()),
+            );
 
             obj.apply(op).unwrap();
 
@@ -2585,10 +2644,10 @@ mod tests {
         {
             // reset string
             let mut obj = base_obj.clone();
-            let op = AttributeOp {
-                tag: tags::REQUESTING_PHYSICIAN,
-                action: AttributeAction::SetStr("Doctor^Anonymous".into()),
-            };
+            let op = AttributeOp::new(
+                tags::REQUESTING_PHYSICIAN,
+                AttributeAction::SetStr("Doctor^Anonymous".into()),
+            );
 
             obj.apply(op).unwrap();
 
@@ -2605,10 +2664,10 @@ mod tests {
         {
             // extend with number
             let mut obj = base_obj.clone();
-            let op = AttributeOp {
-                tag: tags::LOSSY_IMAGE_COMPRESSION_RATIO,
-                action: AttributeAction::PushF64(1.25),
-            };
+            let op = AttributeOp::new(
+                tags::LOSSY_IMAGE_COMPRESSION_RATIO,
+                AttributeAction::PushF64(1.25),
+            );
 
             obj.apply(op).unwrap();
 
@@ -2619,6 +2678,156 @@ mod tests {
                     VR::DS,
                     dicom_value!(Strs, ["5", "1.25"]),
                 ))
+            );
+        }
+    }
+
+    /// Test attribute operations on nested data sets.
+    #[test]
+    fn nested_inmem_ops() {
+        let obj_1 = InMemDicomObject::from_element_iter([
+            DataElement::new(Tag(0x0018, 0x6012), VR::US, PrimitiveValue::from(1_u16)),
+            DataElement::new(Tag(0x0018, 0x6014), VR::US, PrimitiveValue::from(2_u16)),
+        ]);
+
+        let obj_2 = InMemDicomObject::from_element_iter([DataElement::new(
+            Tag(0x0018, 0x6012),
+            VR::US,
+            PrimitiveValue::from(4_u16),
+        )]);
+
+        let mut main_obj = InMemDicomObject::from_element_iter(vec![
+            DataElement::new(
+                tags::SEQUENCE_OF_ULTRASOUND_REGIONS,
+                VR::SQ,
+                DataSetSequence::from(vec![obj_1, obj_2]),
+            ),
+            DataElement::new(Tag(0x0020, 0x4000), VR::LT, Value::Primitive("TEST".into())),
+        ]);
+
+        let selector: AttributeSelector =
+            (tags::SEQUENCE_OF_ULTRASOUND_REGIONS, 0, Tag(0x0018, 0x6014)).into();
+
+        main_obj
+            .apply(AttributeOp::new(selector, AttributeAction::Set(3.into())))
+            .unwrap();
+
+        assert_eq!(
+            main_obj
+                .get(tags::SEQUENCE_OF_ULTRASOUND_REGIONS)
+                .unwrap()
+                .items()
+                .unwrap()[0]
+                .get(Tag(0x0018, 0x6014))
+                .unwrap()
+                .value(),
+            &PrimitiveValue::from(3).into(),
+        );
+
+        let selector: AttributeSelector =
+            (tags::SEQUENCE_OF_ULTRASOUND_REGIONS, 1, Tag(0x0018, 0x6012)).into();
+
+        main_obj
+            .apply(AttributeOp::new(selector, AttributeAction::Remove))
+            .unwrap();
+
+        // item should be empty
+        assert_eq!(
+            main_obj
+                .get(tags::SEQUENCE_OF_ULTRASOUND_REGIONS)
+                .unwrap()
+                .items()
+                .unwrap()[1]
+                .tags()
+                .collect::<Vec<_>>(),
+            Vec::<Tag>::new(),
+        );
+    }
+
+    /// Test that constructive operations create items if necessary.
+    #[test]
+    fn constructive_op() {
+        let mut obj = InMemDicomObject::from_element_iter([DataElement::new(
+            tags::SEQUENCE_OF_ULTRASOUND_REGIONS,
+            VR::SQ,
+            DataSetSequence::empty(),
+        )]);
+
+        let op = AttributeOp::new(
+            (
+                tags::SEQUENCE_OF_ULTRASOUND_REGIONS,
+                0,
+                tags::REGION_SPATIAL_FORMAT,
+            ),
+            AttributeAction::Set(5_u16.into()),
+        );
+
+        obj.apply(op).unwrap();
+
+        // should have an item
+        assert_eq!(
+            obj.get(tags::SEQUENCE_OF_ULTRASOUND_REGIONS)
+                .unwrap()
+                .items()
+                .unwrap()
+                .len(),
+            1,
+        );
+
+        // item should have 1 element
+        assert_eq!(
+            &obj.get(tags::SEQUENCE_OF_ULTRASOUND_REGIONS)
+                .unwrap()
+                .items()
+                .unwrap()[0],
+            &InMemDicomObject::from_element_iter([DataElement::new(
+                tags::REGION_SPATIAL_FORMAT,
+                VR::US,
+                PrimitiveValue::from(5_u16)
+            )]),
+        );
+    }
+
+    /// Test that operations on in-memory DICOM objects
+    /// can create sequences from scratch.
+    #[test]
+    fn inmem_ops_can_create_seq() {
+        let mut obj = InMemDicomObject::new_empty();
+
+        obj.apply(AttributeOp::new(
+            tags::SEQUENCE_OF_ULTRASOUND_REGIONS,
+            AttributeAction::SetIfMissing(PrimitiveValue::Empty),
+        ))
+        .unwrap();
+
+        {
+            // should create an empty sequence
+            let sequence_ultrasound = obj
+                .get(tags::SEQUENCE_OF_ULTRASOUND_REGIONS)
+                .expect("should have sequence element");
+
+            assert_eq!(sequence_ultrasound.vr(), VR::SQ);
+
+            assert_eq!(sequence_ultrasound.items().as_deref(), Some(&[][..]),);
+        }
+
+        obj.apply(AttributeOp::new(
+            (
+                tags::SEQUENCE_OF_ULTRASOUND_REGIONS,
+                tags::REGION_SPATIAL_FORMAT,
+            ),
+            AttributeAction::Set(1_u16.into()),
+        ))
+        .unwrap();
+
+        {
+            // sequence should now have an item
+            assert_eq!(
+                obj.get(tags::SEQUENCE_OF_ULTRASOUND_REGIONS)
+                    .unwrap()
+                    .items()
+                    .map(|items| items.len()),
+                Some(1),
             );
         }
     }
@@ -2673,130 +2882,127 @@ mod tests {
         assert!(o.length().is_undefined());
 
         let mut o = obj.clone();
-        o.apply(AttributeOp {
-            tag: tags::PATIENT_NAME,
-            action: AttributeAction::Remove,
-        })
+        o.apply(AttributeOp::new(
+            tags::PATIENT_NAME,
+            AttributeAction::Remove,
+        ))
         .unwrap();
         assert!(o.length().is_undefined());
 
         let mut o = obj.clone();
-        o.apply(AttributeOp {
-            tag: tags::PATIENT_NAME,
-            action: AttributeAction::Empty,
-        })
+        o.apply(AttributeOp::new(tags::PATIENT_NAME, AttributeAction::Empty))
+            .unwrap();
+        assert!(o.length().is_undefined());
+
+        let mut o = obj.clone();
+        o.apply(AttributeOp::new(
+            tags::PATIENT_NAME,
+            AttributeAction::SetVr(VR::IS),
+        ))
         .unwrap();
         assert!(o.length().is_undefined());
 
         let mut o = obj.clone();
-        o.apply(AttributeOp {
-            tag: tags::PATIENT_NAME,
-            action: AttributeAction::SetVr(VR::IS),
-        })
+        o.apply(AttributeOp::new(
+            tags::PATIENT_NAME,
+            AttributeAction::Set(dicom_value!(Str, "Unknown")),
+        ))
         .unwrap();
         assert!(o.length().is_undefined());
 
         let mut o = obj.clone();
-        o.apply(AttributeOp {
-            tag: tags::PATIENT_NAME,
-            action: AttributeAction::Set(dicom_value!(Str, "Unknown")),
-        })
+        o.apply(AttributeOp::new(
+            tags::PATIENT_NAME,
+            AttributeAction::SetStr("Patient^Anonymous".into()),
+        ))
         .unwrap();
         assert!(o.length().is_undefined());
 
         let mut o = obj.clone();
-        o.apply(AttributeOp {
-            tag: tags::PATIENT_NAME,
-            action: AttributeAction::SetStr("Patient^Anonymous".into()),
-        })
+        o.apply(AttributeOp::new(
+            tags::PATIENT_AGE,
+            AttributeAction::SetIfMissing(dicom_value!(75)),
+        ))
         .unwrap();
         assert!(o.length().is_undefined());
 
         let mut o = obj.clone();
-        o.apply(AttributeOp {
-            tag: tags::PATIENT_AGE,
-            action: AttributeAction::SetIfMissing(dicom_value!(75)),
-        })
+        o.apply(AttributeOp::new(
+            tags::PATIENT_ADDRESS,
+            AttributeAction::SetStrIfMissing("Chicago".into()),
+        ))
         .unwrap();
         assert!(o.length().is_undefined());
 
         let mut o = obj.clone();
-        o.apply(AttributeOp {
-            tag: tags::PATIENT_ADDRESS,
-            action: AttributeAction::SetStrIfMissing("Chicago".into()),
-        })
+        o.apply(AttributeOp::new(
+            tags::PATIENT_NAME,
+            AttributeAction::Replace(dicom_value!(Str, "Unknown")),
+        ))
         .unwrap();
         assert!(o.length().is_undefined());
 
         let mut o = obj.clone();
-        o.apply(AttributeOp {
-            tag: tags::PATIENT_NAME,
-            action: AttributeAction::Replace(dicom_value!(Str, "Unknown")),
-        })
+        o.apply(AttributeOp::new(
+            tags::PATIENT_NAME,
+            AttributeAction::ReplaceStr("Unknown".into()),
+        ))
         .unwrap();
         assert!(o.length().is_undefined());
 
         let mut o = obj.clone();
-        o.apply(AttributeOp {
-            tag: tags::PATIENT_NAME,
-            action: AttributeAction::ReplaceStr("Unknown".into()),
-        })
+        o.apply(AttributeOp::new(
+            tags::PATIENT_NAME,
+            AttributeAction::PushStr("^Prof".into()),
+        ))
         .unwrap();
         assert!(o.length().is_undefined());
 
         let mut o = obj.clone();
-        o.apply(AttributeOp {
-            tag: tags::PATIENT_NAME,
-            action: AttributeAction::PushStr("^Prof".into()),
-        })
+        o.apply(AttributeOp::new(
+            tags::PATIENT_NAME,
+            AttributeAction::PushI32(-16),
+        ))
         .unwrap();
         assert!(o.length().is_undefined());
 
         let mut o = obj.clone();
-        o.apply(AttributeOp {
-            tag: tags::PATIENT_NAME,
-            action: AttributeAction::PushI32(-16),
-        })
+        o.apply(AttributeOp::new(
+            tags::PATIENT_NAME,
+            AttributeAction::PushU32(16),
+        ))
         .unwrap();
         assert!(o.length().is_undefined());
 
         let mut o = obj.clone();
-        o.apply(AttributeOp {
-            tag: tags::PATIENT_NAME,
-            action: AttributeAction::PushU32(16),
-        })
+        o.apply(AttributeOp::new(
+            tags::PATIENT_NAME,
+            AttributeAction::PushI16(-16),
+        ))
         .unwrap();
         assert!(o.length().is_undefined());
 
         let mut o = obj.clone();
-        o.apply(AttributeOp {
-            tag: tags::PATIENT_NAME,
-            action: AttributeAction::PushI16(-16),
-        })
+        o.apply(AttributeOp::new(
+            tags::PATIENT_NAME,
+            AttributeAction::PushU16(16),
+        ))
         .unwrap();
         assert!(o.length().is_undefined());
 
         let mut o = obj.clone();
-        o.apply(AttributeOp {
-            tag: tags::PATIENT_NAME,
-            action: AttributeAction::PushU16(16),
-        })
+        o.apply(AttributeOp::new(
+            tags::PATIENT_NAME,
+            AttributeAction::PushF32(16.16),
+        ))
         .unwrap();
         assert!(o.length().is_undefined());
 
         let mut o = obj.clone();
-        o.apply(AttributeOp {
-            tag: tags::PATIENT_NAME,
-            action: AttributeAction::PushF32(16.16),
-        })
-        .unwrap();
-        assert!(o.length().is_undefined());
-
-        let mut o = obj.clone();
-        o.apply(AttributeOp {
-            tag: tags::PATIENT_NAME,
-            action: AttributeAction::PushF64(16.1616),
-        })
+        o.apply(AttributeOp::new(
+            tags::PATIENT_NAME,
+            AttributeAction::PushF64(16.1616),
+        ))
         .unwrap();
         assert!(o.length().is_undefined());
     }
