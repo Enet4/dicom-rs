@@ -140,6 +140,7 @@ impl FromStr for TagRange {
     }
 }
 
+/// An error during attribute selector parsing
 #[derive(Debug, Snafu)]
 pub struct ParseSelectorError(ParseSelectorErrorInner);
 
