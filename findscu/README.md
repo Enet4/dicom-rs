@@ -30,7 +30,7 @@ Only patient level and study level queries are supported.
 
 #### Selector syntax
 
-Simple attribue selectors comprise a single data element key,
+Simple attribute selectors comprise a single data element key,
 specified by a standard DICOM tag
 (in one of the forms `(gggg,eeee)`, `gggg,eeee`, or `ggggeeee`)
 or a tag keyword name such as `PatientName`.
