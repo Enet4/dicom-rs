@@ -2,9 +2,8 @@
 
 use std::str::FromStr;
 
-use dicom_core::header::HasLength;
+use dicom_core::ops::{ApplyOp, AttributeAction, AttributeOp, AttributeSelector};
 use dicom_core::DataDictionary;
-use dicom_core::DataElement;
 use dicom_core::PrimitiveValue;
 use dicom_core::Tag;
 use dicom_core::VR;
@@ -15,7 +14,7 @@ use snafu::{OptionExt, ResultExt, Whatever};
 
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
 struct TermQuery {
-    field: Tag,
+    selector: AttributeSelector,
     match_value: String,
 }
 
@@ -29,15 +28,15 @@ impl FromStr for TermQuery {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut parts = s.split('=');
 
-        let tag_part = parts.next().whatever_context("empty query")?;
+        let selector_part = parts.next().whatever_context("empty query")?;
         let value_part = parts.next().unwrap_or_default();
 
-        let field: Tag = StandardDataDictionary
-            .parse_tag(tag_part)
-            .whatever_context("could not resolve query field name")?;
+        let selector: AttributeSelector = StandardDataDictionary
+            .parse_selector(selector_part)
+            .whatever_context("could not resolve query field path")?;
 
         Ok(TermQuery {
-            field,
+            selector,
             match_value: value_part.to_owned(),
         })
     }
@@ -51,15 +50,23 @@ where
 
     for q in qs {
         let term_query: TermQuery = q.as_ref().parse()?;
-        obj.put(term_to_element(term_query.field, &term_query.match_value)?);
+        let v = term_to_value(term_query.selector.last_tag(), &term_query.match_value)?;
+        obj.apply(AttributeOp::new(
+            term_query.selector.clone(),
+            AttributeAction::Set(v),
+        ))
+        .with_whatever_context(|_| {
+            format!("could not set query attribute {}", &term_query.selector)
+        })?;
     }
     Ok(obj)
 }
 
-fn term_to_element<I, O>(tag: Tag, txt_value: &str) -> Result<DataElement<I, O>, Whatever>
-where
-    I: HasLength,
-{
+fn term_to_value(tag: Tag, txt_value: &str) -> Result<PrimitiveValue, Whatever> {
+    if txt_value.is_empty() {
+        return Ok(PrimitiveValue::Empty);
+    }
+
     let vr = {
         StandardDataDictionary
             .by_tag(tag)
@@ -92,7 +99,7 @@ where
         VR::OV => whatever!("Unsupported VR OV"),
         VR::OW => whatever!("Unsupported VR OW"),
         VR::UN => whatever!("Unsupported VR UN"),
-        VR::SQ => whatever!("Unsuppoted sequence-based query"),
+        VR::SQ => whatever!("Unsupported sequence-based query"),
         VR::SS => {
             let ss: i16 = txt_value
                 .parse()
@@ -142,5 +149,5 @@ where
             PrimitiveValue::from(fd)
         }
     };
-    Ok(DataElement::new(tag, vr, value))
+    Ok(value)
 }
