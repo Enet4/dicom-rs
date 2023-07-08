@@ -82,24 +82,28 @@ pub const RLE_LOSSLESS: Ts = create_ts_stub("1.2.840.10008.1.2.5", "RLE Lossless
 // JPEG encoded pixel data
 
 /// An alias for a transfer syntax specifier with [`JpegAdapter`]
-/// (supports decoding and encoding).
+/// (supports decoding and encoding to JPEG baseline,
+/// support for JPEG extended and JPEG lossless may vary).
 #[cfg(feature = "jpeg")]
 type JpegTs<R = JpegAdapter, W = JpegAdapter> = TransferSyntax<NeverAdapter, R, W>;
 
 /// Create a transfer syntax with JPEG encapsulated pixel data
 #[cfg(feature = "jpeg")]
-const fn create_ts_jpeg(uid: &'static str, name: &'static str) -> JpegTs {
+const fn create_ts_jpeg(uid: &'static str, name: &'static str, encoder: bool) -> JpegTs {
     TransferSyntax::new_ele(
         uid,
         name,
-        Codec::EncapsulatedPixelData(Some(JpegAdapter), Some(JpegAdapter)),
+        Codec::EncapsulatedPixelData(
+            Some(JpegAdapter),
+            if encoder { Some(JpegAdapter) } else { None },
+        ),
     )
 }
 
 /// **Implemented:** JPEG Baseline (Process 1): Default Transfer Syntax for Lossy JPEG 8 Bit Image Compression
 #[cfg(feature = "jpeg")]
 pub const JPEG_BASELINE: JpegTs =
-    create_ts_jpeg("1.2.840.10008.1.2.4.50", "JPEG Baseline (Process 1)");
+    create_ts_jpeg("1.2.840.10008.1.2.4.50", "JPEG Baseline (Process 1)", true);
 /// **Implemented:** JPEG Baseline (Process 1): Default Transfer Syntax for Lossy JPEG 8 Bit Image Compression
 ///
 /// A native implementation is available
@@ -109,8 +113,11 @@ pub const JPEG_BASELINE: Ts = create_ts_stub("1.2.840.10008.1.2.4.50", "JPEG Bas
 
 /// **Implemented:** JPEG Extended (Process 2 & 4): Default Transfer Syntax for Lossy JPEG 12 Bit Image Compression (Process 4 only)
 #[cfg(feature = "jpeg")]
-pub const JPEG_EXTENDED: JpegTs =
-    create_ts_jpeg("1.2.840.10008.1.2.4.51", "JPEG Extended (Process 2 & 4)");
+pub const JPEG_EXTENDED: JpegTs = create_ts_jpeg(
+    "1.2.840.10008.1.2.4.51",
+    "JPEG Extended (Process 2 & 4)",
+    false,
+);
 /// **Stub descriptor:** JPEG Extended (Process 2 & 4): Default Transfer Syntax for Lossy JPEG 12 Bit Image Compression (Process 4 only)
 ///
 /// A native implementation is available
@@ -124,6 +131,7 @@ pub const JPEG_EXTENDED: Ts =
 pub const JPEG_LOSSLESS_NON_HIERARCHICAL: JpegTs = create_ts_jpeg(
     "1.2.840.10008.1.2.4.57",
     "JPEG Lossless, Non-Hierarchical (Process 14)",
+    false,
 );
 /// **Stub descriptor:** JPEG Lossless, Non-Hierarchical (Process 14)
 ///
@@ -142,6 +150,7 @@ pub const JPEG_LOSSLESS_NON_HIERARCHICAL: Ts = create_ts_stub(
 pub const JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION: JpegTs = create_ts_jpeg(
     "1.2.840.10008.1.2.4.70",
     "JPEG Lossless, Non-Hierarchical, First-Order Prediction",
+    false,
 );
 /// **Stub descriptor:** JPEG Lossless, Non-Hierarchical, First-Order Prediction
 /// (Process 14 [Selection Value 1]):
