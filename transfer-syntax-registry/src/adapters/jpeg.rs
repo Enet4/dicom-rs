@@ -1,8 +1,10 @@
 //! Support for JPG image decoding.
 
+use dicom_core::ops::{AttributeAction, AttributeOp};
+use dicom_core::Tag;
 use dicom_encoding::adapters::{
-    decode_error, DecodeResult, EncodeOptions, EncodeResult, PixelDataObject, PixelDataReader,
-    PixelDataWriter,
+    decode_error, encode_error, DecodeResult, EncodeOptions, EncodeResult, PixelDataObject,
+    PixelDataReader, PixelDataWriter,
 };
 use dicom_encoding::snafu::prelude::*;
 use jpeg_decoder::Decoder;
@@ -112,9 +114,10 @@ impl PixelDataReader for JpegAdapter {
                 name: "BitsAllocated",
             })?;
 
-        if bits_allocated != 8 && bits_allocated != 16 {
-            whatever!("BitsAllocated other than 8 or 16 is not supported");
-        }
+        ensure_whatever!(
+            bits_allocated == 8 || bits_allocated == 16,
+            "BitsAllocated other than 8 or 16 is not supported"
+        );
 
         let nr_frames = src.number_of_frames().unwrap_or(1) as usize;
 
@@ -178,40 +181,77 @@ impl PixelDataWriter for JpegAdapter {
         frame: u32,
         options: EncodeOptions,
         dst: &mut Vec<u8>,
-    ) -> EncodeResult<Vec<dicom_core::ops::AttributeOp>> {
-        let cols = src.cols().unwrap();
-        let rows = src.rows().unwrap();
-        let samples_per_pixel = src.samples_per_pixel().unwrap();
-        let bits_allocated = src.bits_allocated().unwrap();
+    ) -> EncodeResult<Vec<AttributeOp>> {
+        let cols = src
+            .cols()
+            .context(encode_error::MissingAttributeSnafu { name: "Columns" })?;
+        let rows = src
+            .rows()
+            .context(encode_error::MissingAttributeSnafu { name: "Rows" })?;
+        let samples_per_pixel =
+            src.samples_per_pixel()
+                .context(encode_error::MissingAttributeSnafu {
+                    name: "SamplesPerPixel",
+                })?;
+        let bits_allocated = src
+            .bits_allocated()
+            .context(encode_error::MissingAttributeSnafu {
+                name: "BitsAllocated",
+            })?;
 
-        let nr_frames = src.number_of_frames().unwrap_or(1) as usize;
+        ensure_whatever!(
+            bits_allocated == 8 || bits_allocated == 16,
+            "BitsAllocated other than 8 or 16 is not supported"
+        );
 
         let quality = options.quality.unwrap_or(85);
 
-        let frame_size = (
-            cols * rows * samples_per_pixel * (bits_allocated / 8)
-        ) as usize;
+        let frame_size = (cols * rows * samples_per_pixel * (bits_allocated / 8)) as usize;
 
         let color_type = match samples_per_pixel {
             1 => ColorType::Luma,
             3 => ColorType::Rgb,
-            4 => ColorType::Rgba,
-            _ => todo!("Implement error handling for wrong samples per pixel")
+            _ => whatever!("Unsupported samples per pixel: {}", samples_per_pixel),
+        };
+
+        let photometric_interpretation = match samples_per_pixel {
+            1 => "MONOCHROME2",
+            3 => "RGB",
+            _ => unreachable!(),
         };
 
         // record dst length before encoding to know full jpeg size
         let len_before = dst.len();
 
         // Encode the data
-        let frame_uncompressed = src.fragment(frame as usize).unwrap();
-        let encoder = jpeg_encoder::Encoder::new(&mut *dst, quality);
+        let frame_uncompressed = src
+            .fragment(frame as usize)
+            .context(encode_error::FrameRangeOutOfBoundsSnafu)?;
+        let mut encoder = jpeg_encoder::Encoder::new(&mut *dst, quality);
+        encoder.set_progressive(false);
         encoder
             .encode(&frame_uncompressed, cols, rows, color_type)
-            .unwrap();
+            .whatever_context("JPEG encoding failed")?;
 
         let compressed_frame_size = dst.len() - len_before;
-        
-        // TODO
-        Ok(vec![])
+
+        let compression_ratio = frame_size as f64 / compressed_frame_size as f64;
+        let compression_ratio = format!("{:.6}", compression_ratio);
+
+        // provide attribute changes
+        Ok(vec![
+            // lossy iamge compression
+            AttributeOp::new(Tag(0x0028, 0x2110), AttributeAction::SetStr("01".into())),
+            // lossy image compression ratio
+            AttributeOp::new(
+                Tag(0x0028, 0x2112),
+                AttributeAction::PushStr(compression_ratio.into()),
+            ),
+            // Photometric interpretation
+            AttributeOp::new(
+                Tag(0x0028, 0x0004),
+                AttributeAction::SetStr(photometric_interpretation.into()),
+            ),
+        ])
     }
 }

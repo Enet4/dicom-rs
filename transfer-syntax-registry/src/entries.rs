@@ -81,10 +81,10 @@ pub const RLE_LOSSLESS: Ts = create_ts_stub("1.2.840.10008.1.2.5", "RLE Lossless
 
 // JPEG encoded pixel data
 
-/// An alias for a transfer syntax specifier with `JpegPixelAdapter`
-/// (note that only decoding is supported at the moment).
+/// An alias for a transfer syntax specifier with [`JpegAdapter`]
+/// (supports decoding and encoding).
 #[cfg(feature = "jpeg")]
-type JpegTs<R = JpegAdapter, W = NeverPixelAdapter> = TransferSyntax<NeverAdapter, R, W>;
+type JpegTs<R = JpegAdapter, W = JpegAdapter> = TransferSyntax<NeverAdapter, R, W>;
 
 /// Create a transfer syntax with JPEG encapsulated pixel data
 #[cfg(feature = "jpeg")]
@@ -92,7 +92,7 @@ const fn create_ts_jpeg(uid: &'static str, name: &'static str) -> JpegTs {
     TransferSyntax::new_ele(
         uid,
         name,
-        Codec::EncapsulatedPixelData(Some(JpegAdapter), None),
+        Codec::EncapsulatedPixelData(Some(JpegAdapter), Some(JpegAdapter)),
     )
 }
 
