@@ -42,11 +42,11 @@ impl FromStr for TermQuery {
     }
 }
 
-pub fn parse_queries<T>(qs: &[T]) -> Result<InMemDicomObject, Whatever>
+pub fn parse_queries<T>(base: InMemDicomObject, qs: &[T]) -> Result<InMemDicomObject, Whatever>
 where
     T: AsRef<str>,
 {
-    let mut obj = InMemDicomObject::new_empty();
+    let mut obj = base;
 
     for q in qs {
         let term_query: TermQuery = q.as_ref().parse()?;
