@@ -52,7 +52,12 @@ struct App {
     #[arg(short = 'S', long, conflicts_with = "patient", conflicts_with = "mwl")]
     study: bool,
     /// use modality worklist information model
-    #[arg(short = 'W', long, conflicts_with = "study", conflicts_with = "patient")]
+    #[arg(
+        short = 'W',
+        long,
+        conflicts_with = "study",
+        conflicts_with = "patient"
+    )]
     mwl: bool,
 }
 
@@ -94,46 +99,45 @@ fn build_query(
     study: bool,
     verbose: bool,
 ) -> Result<InMemDicomObject, Error> {
-    match (file, q) {
-        (Some(file), q) => {
-            if !q.is_empty() {
-                whatever!("Conflicted file with query terms");
-            }
-
-            if verbose {
-                info!("Opening file '{}'...", file.display());
-            }
-
-            open_file(file)
-                .context(CreateCommandSnafu)
-                .map(|file| file.into_inner())
+    // read query file if provided
+    let (base_query_obj, has_base) = if let Some(file) = file {
+        if verbose {
+            info!("Opening file '{}'...", file.display());
         }
-        (None, q) => {
-            if q.is_empty() {
-                whatever!("Query not specified");
-            }
 
-            let mut obj =
-                parse_queries(&q).whatever_context("Could not build query object from terms")?;
+        (
+            open_file(file).context(CreateCommandSnafu)?.into_inner(),
+            true,
+        )
+    } else {
+        (InMemDicomObject::new_empty(), false)
+    };
 
-            // try to infer query retrieve level if not defined by the user
-            if obj.get(tags::QUERY_RETRIEVE_LEVEL).is_none() {
-                // (0008,0052) CS QueryRetrieveLevel
-                let level = match (patient, study) {
-                    (true, false) => "PATIENT",
-                    (false, true) | (false, false) => "STUDY",
-                    _ => unreachable!(),
-                };
-                obj.put(DataElement::new(
-                    tags::QUERY_RETRIEVE_LEVEL,
-                    VR::CS,
-                    PrimitiveValue::from(level),
-                ));
-            }
+    // read query options
 
-            Ok(obj)
-        }
+    if q.is_empty() && !has_base {
+        whatever!("Query not specified");
     }
+
+    let mut obj = parse_queries(base_query_obj, &q)
+        .whatever_context("Could not build query object from terms")?;
+
+    // try to infer query retrieve level if not defined by the user
+    if obj.get(tags::QUERY_RETRIEVE_LEVEL).is_none() {
+        // (0008,0052) CS QueryRetrieveLevel
+        let level = match (patient, study) {
+            (true, false) => "PATIENT",
+            (false, true) | (false, false) => "STUDY",
+            _ => unreachable!(),
+        };
+        obj.put(DataElement::new(
+            tags::QUERY_RETRIEVE_LEVEL,
+            VR::CS,
+            PrimitiveValue::from(level),
+        ));
+    }
+
+    Ok(obj)
 }
 
 fn run() -> Result<(), Error> {
@@ -167,7 +171,9 @@ fn run() -> Result<(), Error> {
         // Modality Worklist Information Model – FIND
         (false, false, true) => uids::MODALITY_WORKLIST_INFORMATION_MODEL_FIND,
         // Study Root Query/Retrieve Information Model – FIND (default)
-        (false, false, false) | (false, true, false) => uids::STUDY_ROOT_QUERY_RETRIEVE_INFORMATION_MODEL_FIND,
+        (false, false, false) | (false, true, false) => {
+            uids::STUDY_ROOT_QUERY_RETRIEVE_INFORMATION_MODEL_FIND
+        }
         // Series
         _ => unreachable!("Unexpected flag combination"),
     };
