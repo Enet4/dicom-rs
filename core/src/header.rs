@@ -3,8 +3,8 @@
 //! element header, and element composite types.
 
 use crate::value::{
-    CastValueError, ConvertValueError, DicomDate, DicomDateTime, DicomTime, PrimitiveValue, Value,
-    C, DataSetSequence,
+    CastValueError, ConvertValueError, DataSetSequence, DicomDate, DicomDateTime, DicomTime,
+    InMemFragment, PrimitiveValue, Value, C,
 };
 use chrono::FixedOffset;
 use num_traits::NumCast;
@@ -100,10 +100,12 @@ impl HasLength for EmptyObject {
 ///
 /// This type is capable of representing any data element fully in memory,
 /// whether it be a primitive value,
-/// a nested data set (where each item contains an object of type `I`),
+/// a nested data set (where `I` is the object type for data set items),
 /// or an encapsulated pixel data sequence (each item of type `P`).
+/// The type parameter `I` should usually implement [`HasLength`],
+/// whereas `P` should usually implement `AsRef<[u8]>`.
 #[derive(Debug, PartialEq, Clone)]
-pub struct DataElement<I = EmptyObject, P = [u8; 0]> {
+pub struct DataElement<I = EmptyObject, P = InMemFragment> {
     header: DataElementHeader,
     value: Value<I, P>,
 }
@@ -986,7 +988,7 @@ pub type ElementNumber = u16;
 /// Tags are composed by a (group, element) pair of 16-bit unsigned integers.
 /// Aside from writing a struct expression,
 /// a `Tag` may also be built by converting a `(u16, u16)` or a `[u16; 2]`.
-/// 
+///
 /// In its text form,
 /// DICOM tags are printed by [`Display`][display] in the form `(GGGG,EEEE)`,
 /// where the group and element parts are in uppercase hexadecimal.
@@ -1393,17 +1395,44 @@ mod tests {
     /// Ensure good order between tags
     #[test]
     fn tag_ord() {
-        assert_eq!(Tag(0x0010, 0x0020).cmp(&Tag(0x0010, 0x0020)), Ordering::Equal);
+        assert_eq!(
+            Tag(0x0010, 0x0020).cmp(&Tag(0x0010, 0x0020)),
+            Ordering::Equal
+        );
 
-        assert_eq!(Tag(0x0010, 0x0020).cmp(&Tag(0x0010, 0x0024)), Ordering::Less);
-        assert_eq!(Tag(0x0010, 0x0020).cmp(&Tag(0x0020, 0x0010)), Ordering::Less);
-        assert_eq!(Tag(0x0010, 0x0020).cmp(&Tag(0x0020, 0x0024)), Ordering::Less);
-        assert_eq!(Tag(0x0010, 0x0000).cmp(&Tag(0x0320, 0x0010)), Ordering::Less);
+        assert_eq!(
+            Tag(0x0010, 0x0020).cmp(&Tag(0x0010, 0x0024)),
+            Ordering::Less
+        );
+        assert_eq!(
+            Tag(0x0010, 0x0020).cmp(&Tag(0x0020, 0x0010)),
+            Ordering::Less
+        );
+        assert_eq!(
+            Tag(0x0010, 0x0020).cmp(&Tag(0x0020, 0x0024)),
+            Ordering::Less
+        );
+        assert_eq!(
+            Tag(0x0010, 0x0000).cmp(&Tag(0x0320, 0x0010)),
+            Ordering::Less
+        );
 
-        assert_eq!(Tag(0x0010, 0x0020).cmp(&Tag(0x0010, 0x0010)), Ordering::Greater);
-        assert_eq!(Tag(0x0012, 0x0020).cmp(&Tag(0x0010, 0x0024)), Ordering::Greater);
-        assert_eq!(Tag(0x0012, 0x0020).cmp(&Tag(0x0010, 0x0010)), Ordering::Greater);
-        assert_eq!(Tag(0x0012, 0x0020).cmp(&Tag(0x0012, 0x0010)), Ordering::Greater);
+        assert_eq!(
+            Tag(0x0010, 0x0020).cmp(&Tag(0x0010, 0x0010)),
+            Ordering::Greater
+        );
+        assert_eq!(
+            Tag(0x0012, 0x0020).cmp(&Tag(0x0010, 0x0024)),
+            Ordering::Greater
+        );
+        assert_eq!(
+            Tag(0x0012, 0x0020).cmp(&Tag(0x0010, 0x0010)),
+            Ordering::Greater
+        );
+        assert_eq!(
+            Tag(0x0012, 0x0020).cmp(&Tag(0x0012, 0x0010)),
+            Ordering::Greater
+        );
     }
 
     #[test]
