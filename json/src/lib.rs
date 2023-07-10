@@ -17,13 +17,13 @@
 //!
 //! To serialize an object to standard DICOM JSON:
 //!
-//! ```rust
+//! ```
 //! # use dicom_core::{PrimitiveValue, VR};
 //! # use dicom_object::mem::{InMemDicomObject, InMemElement};
 //! # use dicom_dictionary_std::tags;
 //! let obj = InMemDicomObject::from_element_iter([
-//!     InMemElement::new(tags::SERIES_DATE, VR::DA, PrimitiveValue::from("20230610")),
-//!     InMemElement::new(tags::INSTANCE_NUMBER, VR::IS, PrimitiveValue::from("5")),
+//!     InMemElement::new(tags::SERIES_DATE, VR::DA, "20230610"),
+//!     InMemElement::new(tags::INSTANCE_NUMBER, VR::IS, "5"),
 //! ]);
 //!
 //! let json = dicom_json::to_string(&obj)?;
@@ -32,19 +32,31 @@
 //!     json,
 //!     r#"{"00080021":{"vr":"DA","Value":["20230610"]},"00200013":{"vr":"IS","Value":["5"]}}"#
 //! );
-//!
-//! Ok::<(), serde_json::Error>(())
+//! # Ok::<(), serde_json::Error>(())
+//! ```
+//! 
+//! To turn DICOM JSON back into an in-memory object:
+//! 
+//! ```
+//! # use dicom_object::mem::InMemDicomObject;
+//! let json = r#"{
+//!     "00080021": { "vr": "DA", "Value":["20230610"] },
+//!     "00200013": { "vr": "IS", "Value":["5"] }
+//! }"#;
+//! let obj: InMemDicomObject = dicom_json::from_str(&json)?;
+//! # Ok::<(), serde_json::Error>(())
 //! ```
 //!
-//! Use [`DicomJson`] for greater control on how to serialize it:
+//! Use the [`DicomJson`] wrapper type
+//! for greater control on how to serialize or deserialize data:
 //!
 //! ```rust
 //! # use dicom_core::{PrimitiveValue, VR};
 //! # use dicom_object::mem::{InMemDicomObject, InMemElement};
 //! # use dicom_dictionary_std::tags;
 //! # let obj = InMemDicomObject::from_element_iter([
-//! #     InMemElement::new(tags::SERIES_DATE, VR::DA, PrimitiveValue::from("20230610")),
-//! #     InMemElement::new(tags::INSTANCE_NUMBER, VR::IS, PrimitiveValue::from("5")),
+//! #     InMemElement::new(tags::SERIES_DATE, VR::DA, "20230610"),
+//! #     InMemElement::new(tags::INSTANCE_NUMBER, VR::IS, "5"),
 //! # ]);
 //! let dicom_obj = dicom_json::DicomJson::from(&obj);
 //! let serialized = serde_json::to_value(dicom_obj)?;
@@ -62,8 +74,7 @@
 //!         }
 //!     }),
 //! );
-//!
-//! Ok::<(), serde_json::Error>(())
+//! # Ok::<(), serde_json::Error>(())
 //! ```
 
 mod de;
@@ -81,7 +92,7 @@ pub use crate::ser::{to_string, to_string_pretty, to_value, to_vec, to_writer};
 /// # Serialization
 ///
 /// Convert a DICOM data type such as a file, object, or data element
-/// using [`From`] or [`Into`],
+/// into a `DicomJson` value using [`From`] or [`Into`],
 /// then use a JSON serializer such as the one in [`serde_json`]
 /// to serialize it to the intended type.
 /// A reference may be used as well,
@@ -92,13 +103,14 @@ pub use crate::ser::{to_string, to_string_pretty, to_value, to_vec, to_writer};
 /// - [`InMemDicomObject`][1] as a standard DICOM JSON data set;
 /// - [`InMemElement`][2] by writing the VR and value in a single object
 ///   (note that the tag will not be serialized);
-/// - `&[InMemDicomObject]` and `Vec<InMemDicomObject>`
-///   will be serialized as an array of DICOM JSON data sets;
-/// - [`DefaultDicomObject`][3] will include the attributes from the file meta group.
+/// - `&[InMemDicomObject]` and `Vec<InMemDicomObject>`,
+///   resulting in a JSON array of DICOM JSON data sets;
+/// - [`DefaultDicomObject`][3],
+///   which will also include the attributes from the file meta group.
 ///   Note however, that this is not conforming to the standard.
 ///   Obtain the inner data set through [`Deref`][4] (`&*obj`)
 ///   if you do not wish to include file meta group data.
-/// - [`Tag`][5] values are written as a single string
+/// - [`Tag`][5]: values are written as a single string
 ///   in the expected DICOM JSON format `"GGGGEEEE"`
 ///   where `GGGG` and `EEEE` are the group/element parts
 ///   in uppercase hexadecimal.
@@ -148,11 +160,11 @@ pub use crate::ser::{to_string, to_string_pretty, to_value, to_vec, to_writer};
 /// 
 /// `DicomJson` can deserialize:
 /// 
+/// - [`InMemDicomObject`][1], expecting a JSON object indexed by tags;
 /// - [`Tag`][5], a string formatted as a DICOM tag;
 /// - [`VR`][6], a 2-character string with one of the supported
-///   value representation identifiers;
-/// - [`InMemDicomObject`][1], expecting a JSON object indexed by tags.
-/// 
+///   value representation identifiers.
+///
 /// [6]: dicom_core::VR
 /// 
 /// ## Example
@@ -178,10 +190,8 @@ pub use crate::ser::{to_string, to_string_pretty, to_value, to_vec, to_writer};
 ///       DataElement::new(Tag(0x0010, 0x0020), VR::LO, "ID0001"),
 ///   ]),
 /// );
-/// # Result::<_, serde_json::Error>::Ok(())
+/// # Ok::<(), serde_json::Error>(())
 /// ```
-///
-/// TODO
 #[derive(Debug, Clone, PartialEq)]
 pub struct DicomJson<T>(T);
 
