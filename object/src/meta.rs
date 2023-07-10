@@ -495,7 +495,7 @@ impl FileMetaTable {
             let (elem, _bytes_read) = decoder
                 .decode_header(&mut file)
                 .context(DecodeElementSnafu)?;
-            if elem.tag() != (0x0002, 0x0000) {
+            if elem.tag() != Tag(0x0002, 0x0000) {
                 return UnexpectedTagSnafu { tag: elem.tag() }.fail();
             }
             if elem.length() != Length(4) {
