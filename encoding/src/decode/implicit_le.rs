@@ -151,6 +151,7 @@ where
 mod tests {
     use super::ImplicitVRLittleEndianDecoder;
     use crate::decode::Decode;
+    use dicom_core::Tag;
     use dicom_core::dictionary::stub::StubDataDictionary;
     use dicom_core::header::{HasLength, Header, Length, VR};
     use std::io::{Cursor, Read, Seek, SeekFrom};
@@ -183,7 +184,7 @@ mod tests {
             let (elem, bytes_read) = reader
                 .decode_header(&mut cursor)
                 .expect("should find an element");
-            assert_eq!(elem.tag(), (0x0002, 0x0002));
+            assert_eq!(elem.tag(), Tag(0x0002, 0x0002));
             assert_eq!(elem.vr(), VR::UN);
             assert_eq!(elem.length(), Length(26));
             assert_eq!(bytes_read, 8);
@@ -204,7 +205,7 @@ mod tests {
             let (elem, _bytes_read) = reader
                 .decode_header(&mut cursor)
                 .expect("should find an element");
-            assert_eq!(elem.tag(), (0x0002, 0x0010));
+            assert_eq!(elem.tag(), Tag(0x0002, 0x0010));
             assert_eq!(elem.vr(), VR::UN);
             assert_eq!(elem.length(), Length(20));
             // read all data
@@ -226,7 +227,7 @@ mod tests {
             let (elem, _bytes_read) = reader
                 .decode_header(&mut cursor)
                 .expect("should find an element");
-            assert_eq!(elem.tag(), (2, 2));
+            assert_eq!(elem.tag(), Tag(2, 2));
             assert_eq!(elem.vr(), VR::UI);
             assert_eq!(elem.length(), Length(26));
             // cursor should be @ #8
@@ -245,7 +246,7 @@ mod tests {
             let (elem, _bytes_read) = reader
                 .decode_header(&mut cursor)
                 .expect("should find an element");
-            assert_eq!(elem.tag(), (2, 16));
+            assert_eq!(elem.tag(), Tag(2, 16));
             assert_eq!(elem.vr(), VR::UI);
             assert_eq!(elem.length(), Length(20));
             // read all data
@@ -288,7 +289,7 @@ mod tests {
             let (elem, bytes_read) = dec
                 .decode_header(&mut cursor)
                 .expect("should find an element header");
-            assert_eq!(elem.tag(), (8, 0x103F));
+            assert_eq!(elem.tag(), Tag(8, 0x103F));
             assert_eq!(elem.vr(), VR::SQ);
             assert!(elem.length().is_undefined());
             assert_eq!(bytes_read, 8);
@@ -300,7 +301,7 @@ mod tests {
                 .decode_item_header(&mut cursor)
                 .expect("should find an item header");
             assert!(elem.is_item());
-            assert_eq!(elem.tag(), (0xFFFE, 0xE000));
+            assert_eq!(elem.tag(), Tag(0xFFFE, 0xE000));
             assert!(elem.length().is_undefined());
         }
         // cursor should now be @ #16
@@ -310,7 +311,7 @@ mod tests {
                 .decode_item_header(&mut cursor)
                 .expect("should find an item header");
             assert!(elem.is_item_delimiter());
-            assert_eq!(elem.tag(), (0xFFFE, 0xE00D));
+            assert_eq!(elem.tag(), Tag(0xFFFE, 0xE00D));
             assert_eq!(elem.length(), Length(0));
         }
         // cursor should now be @ #24
@@ -320,7 +321,7 @@ mod tests {
                 .decode_item_header(&mut cursor)
                 .expect("should find an item header");
             assert!(elem.is_sequence_delimiter());
-            assert_eq!(elem.tag(), (0xFFFE, 0xE0DD));
+            assert_eq!(elem.tag(), Tag(0xFFFE, 0xE0DD));
             assert_eq!(elem.length(), Length(0));
         }
     }

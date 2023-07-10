@@ -983,25 +983,30 @@ pub type ElementNumber = u16;
 
 /// The data type for DICOM data element tags.
 ///
-/// Since  types will not have a monomorphized tag, and so will only support
-/// a (group, element) pair. For this purpose, `Tag` also provides a method
-/// for converting it to a tuple. Both `(u16, u16)` and `[u16; 2]` can be
-/// efficiently converted to this type as well.
+/// Tags are composed by a (group, element) pair of 16-bit unsigned integers.
+/// Aside from writing a struct expression,
+/// a `Tag` may also be built by converting a `(u16, u16)` or a `[u16; 2]`.
+/// 
+/// In its text form,
+/// DICOM tags are printed by [`Display`][display] in the form `(GGGG,EEEE)`,
+/// where the group and element parts are in uppercase hexadecimal.
+/// Moreover, its [`FromStr`][fromstr] implementation
+/// support converting strings in the following text formats into DICOM tags:
 ///
-/// Moreover, strings following the conventional text format
-/// found in the DICOM standard
-/// (e.g. `(7FE0,0010)`)
-/// can be parsed using its `FromStr` implementation.
+/// - `(GGGG,EEEE)`
+/// - `GGGG,EEEE`
+/// - `GGGGEEEE`
+///
+/// [display]: std::fmt::Display
+/// [fromstr]: std::str::FromStr
 ///
 /// # Example
 ///
 /// ```
 /// # use dicom_core::Tag;
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let tag: Tag = "(0010,1005)".parse()?;
 /// assert_eq!(tag, Tag(0x0010, 0x1005));
-/// Ok(())
-/// # }
+/// # Ok::<_, dicom_core::header::ParseTagError>(())
 /// ```
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Copy)]
 pub struct Tag(pub GroupNumber, pub ElementNumber);
@@ -1029,18 +1034,6 @@ impl fmt::Debug for Tag {
 impl fmt::Display for Tag {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({:04X},{:04X})", self.0, self.1)
-    }
-}
-
-impl PartialEq<(u16, u16)> for Tag {
-    fn eq(&self, other: &(u16, u16)) -> bool {
-        self.0 == other.0 && self.1 == other.1
-    }
-}
-
-impl PartialEq<[u16; 2]> for Tag {
-    fn eq(&self, other: &[u16; 2]) -> bool {
-        self.0 == other[0] && self.1 == other[1]
     }
 }
 
@@ -1395,6 +1388,22 @@ mod tests {
         let t = Tag::from([0x0010u16, 0x0020u16]);
         assert_eq!(0x0010u16, t.group());
         assert_eq!(0x0020u16, t.element());
+    }
+
+    /// Ensure good order between tags
+    #[test]
+    fn tag_ord() {
+        assert_eq!(Tag(0x0010, 0x0020).cmp(&Tag(0x0010, 0x0020)), Ordering::Equal);
+
+        assert_eq!(Tag(0x0010, 0x0020).cmp(&Tag(0x0010, 0x0024)), Ordering::Less);
+        assert_eq!(Tag(0x0010, 0x0020).cmp(&Tag(0x0020, 0x0010)), Ordering::Less);
+        assert_eq!(Tag(0x0010, 0x0020).cmp(&Tag(0x0020, 0x0024)), Ordering::Less);
+        assert_eq!(Tag(0x0010, 0x0000).cmp(&Tag(0x0320, 0x0010)), Ordering::Less);
+
+        assert_eq!(Tag(0x0010, 0x0020).cmp(&Tag(0x0010, 0x0010)), Ordering::Greater);
+        assert_eq!(Tag(0x0012, 0x0020).cmp(&Tag(0x0010, 0x0024)), Ordering::Greater);
+        assert_eq!(Tag(0x0012, 0x0020).cmp(&Tag(0x0010, 0x0010)), Ordering::Greater);
+        assert_eq!(Tag(0x0012, 0x0020).cmp(&Tag(0x0012, 0x0010)), Ordering::Greater);
     }
 
     #[test]
