@@ -32,9 +32,9 @@
 //! options.width(100).dump_file(&obj)?;
 //! # Result::<(), Box<dyn std::error::Error>>::Ok(())
 //! ```
-use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
 #[cfg(feature = "sop-class")]
 use dicom_core::dictionary::UidDictionary;
+use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
 use dicom_core::header::Header;
 use dicom_core::value::{PrimitiveValue, Value as DicomValue};
 use dicom_core::VR;
@@ -140,6 +140,10 @@ impl DumpOptions {
     }
 
     /// Set the maximum output width in number of characters.
+    ///
+    /// The methods [`dump_file_to`] and [`dump_object_to`],
+    /// will print everything to the end,
+    /// regardless of this option.
     pub fn width(&mut self, width: u32) -> &mut Self {
         self.width = Some(width);
         self
@@ -151,6 +155,10 @@ impl DumpOptions {
     /// This is the default behavior.
     /// If a terminal width could not be determined,
     /// the default width of 120 characters is used.
+    ///
+    /// The methods [`dump_file_to`] and [`dump_object_to`],
+    /// will print everything to the end,
+    /// regardless of this option.
     pub fn width_auto(&mut self) -> &mut Self {
         self.width = None;
         self
@@ -180,14 +188,26 @@ impl DumpOptions {
     where
         D: DataDictionary,
     {
-        self.dump_file_to(stdout(), obj)
+        self.dump_file_impl(stdout(), obj, true)
     }
 
     /// Dump the contents of an open DICOM file to the given writer.
     pub fn dump_file_to<D>(
         &self,
+        to: impl Write,
+        obj: &FileDicomObject<InMemDicomObject<D>>,
+    ) -> IoResult<()>
+    where
+        D: DataDictionary,
+    {
+        self.dump_file_impl(to, obj, false)
+    }
+
+    fn dump_file_impl<D>(
+        &self,
         mut to: impl Write,
         obj: &FileDicomObject<InMemDicomObject<D>>,
+        to_stdout: bool,
     ) -> IoResult<()>
     where
         D: DataDictionary,
@@ -202,11 +222,17 @@ impl DumpOptions {
 
         let width = determine_width(self.width);
 
-        meta_dump(&mut to, meta, if self.no_limit { u32::MAX } else { width })?;
+        let (no_text_limit, no_limit) = if to_stdout {
+            (self.no_text_limit, self.no_limit)
+        } else {
+            (true, true)
+        };
+
+        meta_dump(&mut to, meta, if no_limit { u32::MAX } else { width })?;
 
         writeln!(to, "{:-<58}", "")?;
 
-        dump(&mut to, obj, width, 0, self.no_text_limit, self.no_limit)?;
+        dump(&mut to, obj, width, 0, no_text_limit, no_limit)?;
 
         Ok(())
     }
@@ -245,13 +271,15 @@ impl DumpOptions {
             (ColorMode::Auto, true) => colored::control::unset_override(),
         }
 
-        let width = if let Some((width, _)) = term_size::dimensions() {
-            width as u32
+        let width = determine_width(self.width);
+
+        let (no_text_limit, no_limit) = if to_stdout {
+            (self.no_text_limit, self.no_limit)
         } else {
-            120
+            (true, true)
         };
 
-        dump(&mut to, obj, width, 0, self.no_text_limit, self.no_limit)?;
+        dump(&mut to, obj, width, 0, no_text_limit, no_limit)?;
 
         Ok(())
     }
