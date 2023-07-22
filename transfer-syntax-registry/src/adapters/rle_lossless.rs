@@ -49,15 +49,12 @@ impl PixelDataReader for RleLosslessAdapter {
                 .whatever_context("Invalid pixel data, no fragments found")? as usize;
         let bytes_per_sample = (bits_allocated / 8) as usize;
         let samples_per_pixel = samples_per_pixel as usize;
-        // `stride` it the total number of bytes for each sample plane
-        let stride = bytes_per_sample * cols * rows;
+        // `stride` is the total number of bytes for each sample plane
+        let stride = bytes_per_sample * cols as usize * rows as usize;
         let frame_size = stride * samples_per_pixel;
         // extend `dst` to make room for decoded pixel data
         let base_offset = dst.len();
-        dst.resize(
-            base_offset + (samples_per_pixel * stride) as usize * nr_frames,
-            0,
-        );
+        dst.resize(base_offset + frame_size * nr_frames, 0);
 
         // RLE encoded data is ordered like this (for 16-bit, 3 sample):
         //  Segment: 0     | 1     | 2     | 3     | 4     | 5
@@ -150,12 +147,16 @@ impl PixelDataReader for RleLosslessAdapter {
         let nr_frames =
             src.number_of_fragments()
                 .whatever_context("Invalid pixel data, no fragments found")? as usize;
-        ensure!(nr_frames > frame as usize, decode_error::FrameRangeOutOfBoundsSnafu);
+        ensure!(
+            nr_frames > frame as usize,
+            decode_error::FrameRangeOutOfBoundsSnafu
+        );
 
         let bytes_per_sample = (bits_allocated / 8) as usize;
-        // `stride` it the total number of bytes for each sample plane
+        let samples_per_pixel = samples_per_pixel as usize;
+        // `stride` is the total number of bytes for each sample plane
         let stride = bytes_per_sample * cols as usize * rows as usize;
-        let frame_size = stride * samples_per_pixel as usize;
+        let frame_size = stride * samples_per_pixel;
         // extend `dst` to make room for decoded pixel data
         let base_offset = dst.len();
         dst.resize(base_offset + frame_size, 0);
@@ -178,15 +179,14 @@ impl PixelDataReader for RleLosslessAdapter {
         let mut offsets = read_rle_header(fragment);
         offsets.push(fragment.len() as u32);
 
-        for sample_number in 0..samples_per_pixel as usize {
+        for sample_number in 0..samples_per_pixel {
             for byte_offset in (0..bytes_per_sample).rev() {
                 // ii is 1, 0, 3, 2, 5, 4 for the example above
                 // This is where the segment order correction occurs
                 let ii = sample_number * bytes_per_sample + byte_offset;
-                let segment =
-                    &fragment[offsets[ii] as usize..offsets[ii + 1] as usize];
+                let segment = &fragment[offsets[ii] as usize..offsets[ii + 1] as usize];
                 let buff = io::Cursor::new(segment);
-                let (_, mut decoder) = PackBitsReader::new(buff, segment.len())
+                let (_, decoder) = PackBitsReader::new(buff, segment.len())
                     .map_err(|e| Box::new(e) as Box<_>)
                     .whatever_context("Failed to read RLE segments")?;
                 let mut decoded_segment = Vec::with_capacity(rows as usize * cols as usize);
@@ -196,15 +196,6 @@ impl PixelDataReader for RleLosslessAdapter {
                     .unwrap();
 
                 // Interleave pixels as described in the example above.
-                let byte_offset = bytes_per_sample - byte_offset - 1;
-                let start = byte_offset as usize + (sample_number * stride) as usize;
-                let end = start + stride as usize;
-                for (decoded_index, dst_index) in (start..end)
-                    .step_by(bytes_per_sample as usize).enumerate()
-                {
-                    dst[base_offset + dst_index] = decoded_segment[decoded_index];
-                }
-
                 let start = sample_number * bytes_per_sample + byte_offset;
                 let end = frame_size;
                 for (decoded_index, dst_index) in (start..end)
@@ -213,7 +204,6 @@ impl PixelDataReader for RleLosslessAdapter {
                 {
                     dst[base_offset + dst_index] = decoded_segment[decoded_index];
                 }
-
             }
         }
         Ok(())
