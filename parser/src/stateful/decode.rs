@@ -288,7 +288,7 @@ where
     pub fn file_header_parser(from: S) -> Self {
         Self {
             from,
-            basic: LittleEndianBasicDecoder::default(),
+            basic: LittleEndianBasicDecoder,
             decoder: ExplicitVRLittleEndianDecoder::default(),
             text: DefaultCharacterSetCodec,
             dt_utc_offset: FixedOffset::east_opt(0).unwrap(),
