@@ -240,7 +240,7 @@ impl PixelDataWriter for JpegAdapter {
 
         // provide attribute changes
         Ok(vec![
-            // lossy iamge compression
+            // lossy image compression
             AttributeOp::new(Tag(0x0028, 0x2110), AttributeAction::SetStr("01".into())),
             // lossy image compression ratio
             AttributeOp::new(
