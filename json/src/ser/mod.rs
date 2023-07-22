@@ -171,13 +171,13 @@ impl<'a, D> Serialize for DicomJson<&'a [InMemDicomObject<D>]> {
     }
 }
 
-impl<'a, D> From<Vec<InMemDicomObject<D>>> for DicomJson<Vec<InMemDicomObject<D>>> {
+impl<D> From<Vec<InMemDicomObject<D>>> for DicomJson<Vec<InMemDicomObject<D>>> {
     fn from(value: Vec<InMemDicomObject<D>>) -> Self {
         Self(value)
     }
 }
 
-impl<'a, D> Serialize for DicomJson<Vec<InMemDicomObject<D>>> {
+impl<D> Serialize for DicomJson<Vec<InMemDicomObject<D>>> {
     /// Serializes the sequence of DICOM objects into a JSON array.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
