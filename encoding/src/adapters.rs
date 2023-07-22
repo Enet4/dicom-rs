@@ -135,22 +135,25 @@ pub trait PixelDataObject {
     /// Return the object's transfer syntax UID.
     fn transfer_syntax_uid(&self) -> &str;
 
-    /// Return the Rows attribute or None if it is not found
+    /// Return the _Rows_, or `None` if it is not found
     fn rows(&self) -> Option<u16>;
 
-    /// Return the Columns attribute or None if it is not found
+    /// Return the _Columns_, or `None` if it is not found
     fn cols(&self) -> Option<u16>;
 
-    /// Return the SamplesPerPixel attribute or None if it is not found
+    /// Return the _Samples Per Pixel_, or `None` if it is not found
     fn samples_per_pixel(&self) -> Option<u16>;
 
-    /// Return the BitsAllocated attribute or None if it is not set
+    /// Return the _Bits Allocated_, or `None` if it is not defined
     fn bits_allocated(&self) -> Option<u16>;
 
-    /// Return the NumberOfFrames attribute or None if it is not set
+    /// Return the _Bits Stored_, or `None` if it is not defined
+    fn bits_stored(&self) -> Option<u16>;
+
+    /// Return the _Number Of Frames_, or `None` if it is not defined
     fn number_of_frames(&self) -> Option<u32>;
 
-    /// Returns the number of fragments or None for native pixel data
+    /// Returns the _Number of Fragments_, or `None` for native pixel data
     fn number_of_fragments(&self) -> Option<u32>;
 
     /// Return a specific encoded pixel fragment by index
@@ -169,9 +172,10 @@ pub trait PixelDataObject {
     /// or `None` if no offset table is available.
     fn offset_table(&self) -> Option<Cow<[u32]>>;
 
-    /// Should return either a byte slice/vector if native pixel data
-    /// or byte fragments if encapsulated.
-    /// Returns None if no pixel data is found
+    /// Should return either a byte slice/vector if the pixel data is native
+    /// or the list of byte fragments and offset table if encapsulated.
+    ///
+    /// Returns `None` if no pixel data is found.
     fn raw_pixel_data(&self) -> Option<RawPixelData>;
 }
 

@@ -579,47 +579,49 @@ where
 
     /// Return the Rows attribute or None if it is not found
     fn rows(&self) -> Option<u16> {
-        self.element(dicom_dictionary_std::tags::ROWS)
-            .ok()?
+        self.get(dicom_dictionary_std::tags::ROWS)?
             .uint16()
             .ok()
     }
 
     /// Return the Columns attribute or None if it is not found
     fn cols(&self) -> Option<u16> {
-        self.element(dicom_dictionary_std::tags::COLUMNS)
-            .ok()?
+        self.get(dicom_dictionary_std::tags::COLUMNS)?
             .uint16()
             .ok()
     }
 
     /// Return the SamplesPerPixel attribute or None if it is not found
     fn samples_per_pixel(&self) -> Option<u16> {
-        self.element(dicom_dictionary_std::tags::SAMPLES_PER_PIXEL)
-            .ok()?
+        self.get(dicom_dictionary_std::tags::SAMPLES_PER_PIXEL)?
             .uint16()
             .ok()
     }
 
     /// Return the BitsAllocated attribute or None if it is not set
     fn bits_allocated(&self) -> Option<u16> {
-        self.element(dicom_dictionary_std::tags::BITS_ALLOCATED)
-            .ok()?
+        self.get(dicom_dictionary_std::tags::BITS_ALLOCATED)?
+            .uint16()
+            .ok()
+    }
+
+    /// Return the BitsStored attribute or None if it is not set
+    fn bits_stored(&self) -> Option<u16> {
+        self.get(dicom_dictionary_std::tags::BITS_STORED)?
             .uint16()
             .ok()
     }
 
     /// Return the NumberOfFrames attribute or None if it is not set
     fn number_of_frames(&self) -> Option<u32> {
-        self.element(dicom_dictionary_std::tags::NUMBER_OF_FRAMES)
-            .ok()?
+        self.get(dicom_dictionary_std::tags::NUMBER_OF_FRAMES)?
             .to_int()
             .ok()
     }
 
     /// Returns the number of fragments or None for native pixel data
     fn number_of_fragments(&self) -> Option<u32> {
-        let pixel_data = self.element(dicom_dictionary_std::tags::PIXEL_DATA).ok()?;
+        let pixel_data = self.get(dicom_dictionary_std::tags::PIXEL_DATA)?;
         match pixel_data.value() {
             dicom_core::DicomValue::Primitive(_p) => Some(1),
             dicom_core::DicomValue::PixelSequence(v) => Some(v.fragments().len() as u32),
@@ -628,15 +630,18 @@ where
     }
 
     /// Return a specific encoded pixel fragment by index as Vec<u8>
-    /// or None if no pixel data is found
+    /// or None if no pixel data is found.
+    /// 
+    /// Non-encapsulated pixel data can be retrieved by requesting fragment #0.
     /// 
     /// Panics if `fragment` is out of bounds for the encapsulated pixel data fragments.
     fn fragment(&self, fragment: usize) -> Option<Cow<[u8]>> {
-        let pixel_data = self.element(dicom_dictionary_std::tags::PIXEL_DATA).ok()?;
+        let pixel_data = self.get(dicom_dictionary_std::tags::PIXEL_DATA)?;
         match pixel_data.value() {
             dicom_core::DicomValue::PixelSequence(v) => {
                 Some(Cow::Borrowed(v.fragments()[fragment].as_ref()))
             }
+            dicom_core::DicomValue::Primitive(p) if fragment == 0 => Some(p.to_bytes()),
             _ => None,
         }
     }
@@ -654,7 +659,7 @@ where
     /// or byte fragments if encapsulated.
     /// Returns None if no pixel data is found
     fn raw_pixel_data(&self) -> Option<RawPixelData> {
-        let pixel_data = self.element(dicom_dictionary_std::tags::PIXEL_DATA).ok()?;
+        let pixel_data = self.get(dicom_dictionary_std::tags::PIXEL_DATA)?;
         match pixel_data.value() {
             dicom_core::DicomValue::Primitive(p) => {
                 // Create 1 fragment with all bytes
