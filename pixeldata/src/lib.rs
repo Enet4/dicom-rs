@@ -1675,7 +1675,7 @@ where
         let decoded_pixel_data = match pixel_data.value() {
             Value::PixelSequence(v) => {
                 // Return all fragments concatenated
-                v.fragments().into_iter().flatten().copied().collect()
+                v.fragments().iter().flatten().copied().collect()
             }
             Value::Primitive(p) => {
                 // Non-encoded, just return the pixel data for all frames
