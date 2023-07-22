@@ -615,6 +615,7 @@ dependencies = [
  "byteordered",
  "dicom-core",
  "dicom-encoding",
+ "dicom-test-files",
  "jpeg-decoder",
  "jpeg-encoder",
  "lazy_static",
