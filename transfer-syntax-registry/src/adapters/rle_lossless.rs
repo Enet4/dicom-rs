@@ -8,11 +8,11 @@
 //! License: <https://github.com/pydicom/pydicom/blob/master/LICENSE>
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 
+use dicom_encoding::adapters::{decode_error, DecodeResult, PixelDataObject, PixelRWAdapter};
 use dicom_encoding::snafu::prelude::*;
-use dicom_encoding::adapters::{DecodeResult, PixelDataObject, PixelRWAdapter, decode_error};
 use std::io::{self, Read, Seek};
 
-/// Pixel data adapter for the RLE Lossless transfer syntax. 
+/// Pixel data adapter for the RLE Lossless transfer syntax.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RleLosslessAdapter;
 
@@ -25,38 +25,46 @@ impl PixelRWAdapter for RleLosslessAdapter {
         let cols = src
             .cols()
             .context(decode_error::MissingAttributeSnafu { name: "Columns" })?;
-        let rows = src.rows().context(decode_error::MissingAttributeSnafu { name: "Rows" })?;
-        let samples_per_pixel = src.samples_per_pixel().context(decode_error::MissingAttributeSnafu {
-            name: "SamplesPerPixel",
-        })?;
-        let bits_allocated = src.bits_allocated().context(decode_error::MissingAttributeSnafu {
-            name: "BitsAllocated",
-        })?;
+        let rows = src
+            .rows()
+            .context(decode_error::MissingAttributeSnafu { name: "Rows" })?;
+        let samples_per_pixel =
+            src.samples_per_pixel()
+                .context(decode_error::MissingAttributeSnafu {
+                    name: "SamplesPerPixel",
+                })?;
+        let bits_allocated = src
+            .bits_allocated()
+            .context(decode_error::MissingAttributeSnafu {
+                name: "BitsAllocated",
+            })?;
 
         if bits_allocated != 8 && bits_allocated != 16 {
             whatever!("BitsAllocated other than 8 or 16 is not supported");
         }
         // For RLE the number of fragments = number of frames
-        // therefore, we can fetch the fragments one-by-one
+        // therefore, we can fetch the fragments one by one
         let nr_frames =
             src.number_of_fragments()
                 .whatever_context("Invalid pixel data, no fragments found")? as usize;
-        let bytes_per_sample = bits_allocated / 8;
+        let bytes_per_sample = (bits_allocated / 8) as usize;
+        let samples_per_pixel = samples_per_pixel as usize;
         // `stride` it the total number of bytes for each sample plane
-        let stride = bytes_per_sample * cols * rows;
-        dst.resize((samples_per_pixel * stride) as usize * nr_frames, 0);
+        let stride = bytes_per_sample * cols as usize * rows as usize;
+        let frame_size = stride * samples_per_pixel;
+        dst.resize(samples_per_pixel * stride * nr_frames, 0x00);
 
         // RLE encoded data is ordered like this (for 16-bit, 3 sample):
         //  Segment: 0     | 1     | 2     | 3     | 4     | 5
         //           R MSB | R LSB | G MSB | G LSB | B MSB | B LSB
         //  A segment contains only the MSB or LSB parts of all the sample pixels
 
-        // To minimise the amount of array manipulation later, and to make things
-        // faster we interleave each segment in a manner consistent with a planar
-        // configuration of 1 (and use little endian byte ordering):
-        //    All red samples             | All green samples           | All blue
-        //    Pxl 1   Pxl 2   ... Pxl N   | Pxl 1   Pxl 2   ... Pxl N   | ...
-        //    LSB MSB LSB MSB ... LSB MSB | LSB MSB LSB MSB ... LSB MSB | ...
+        // As currently required,
+        // we need to rearrange the pixel data to standard planar configuration.
+        // (and use little endian byte ordering):
+        //    Pixel 1                             | ... Pixel N
+        //    Red         Green       Blue        | ...
+        //    LSB R MSB R LSB G MSB G LSB B MSB B | ...
 
         for i in 0..nr_frames {
             let fragment = &src
@@ -70,23 +78,30 @@ impl PixelRWAdapter for RleLosslessAdapter {
                     // ii is 1, 0, 3, 2, 5, 4 for the example above
                     // This is where the segment order correction occurs
                     let ii = sample_number * bytes_per_sample + byte_offset;
-                    let segment = &fragment
-                        [offsets[ii as usize] as usize..offsets[(ii + 1) as usize] as usize];
+                    let segment = &fragment[offsets[ii] as usize..offsets[ii + 1] as usize];
                     let buff = io::Cursor::new(segment);
-                    let (_, mut decoder) = PackBitsReader::new(buff, segment.len())
-                        .map_err(|e| Box::new(e) as Box<_>)
+                    let (_, decoder) = PackBitsReader::new(buff, segment.len())
                         .whatever_context("Failed to read RLE segments")?;
-                    let mut decoded_segment: Vec<u8> = vec![0; (rows * cols) as usize];
-                    decoder.read_exact(&mut decoded_segment).unwrap();
+                    let mut decoded_segment = Vec::with_capacity(rows as usize * cols as usize);
+                    decoder
+                        .take(rows as u64 * cols as u64)
+                        .read_to_end(&mut decoded_segment)
+                        .unwrap();
 
-                    // Interleave pixels as described in the example above
-                    let byte_offset = bytes_per_sample - byte_offset - 1;
-                    let start = (samples_per_pixel as usize * stride as usize * i)
-                        + byte_offset as usize
-                        + (sample_number * stride) as usize;
-                    let end = start + stride as usize;
-                    for (decoded_index, dst_index) in
-                        (start..end).step_by(bytes_per_sample as usize).enumerate()
+                    // Interleave pixels as described in the example above.
+                    // in 16-bit, this is:
+                    // MSB R channel: 1,  7, 13, ...
+                    // LSB R channel: 0,  6, 12, ...
+                    // MSB G channel: 3,  9, 15, ...
+                    // LSB G channel: 2,  8, 14, ...
+                    // MSB G channel: 5, 11, 17, ...
+                    // LSB G channel: 4, 10, 16, ...
+                    let frame_start = i * frame_size;
+                    let start = frame_start + sample_number * bytes_per_sample + byte_offset;
+                    let end = (i + 1) * frame_size;
+                    for (decoded_index, dst_index) in (start..end)
+                        .step_by(bytes_per_sample * samples_per_pixel)
+                        .enumerate()
                     {
                         dst[dst_index] = decoded_segment[decoded_index];
                     }
@@ -139,10 +154,8 @@ impl PackBitsReader {
                 bytes_read += 1;
             } else if h >= 0 {
                 let num_vals = h as usize + 1;
-                let start = buffer.len();
-                buffer.resize(start + num_vals, 0);
-                reader.read_exact(&mut buffer[start..])?;
-                bytes_read += num_vals
+                std::io::copy(&mut reader.by_ref().take(num_vals as u64), &mut buffer)?;
+                bytes_read += num_vals;
             } else {
                 // h = -128 is a no-op.
             }
