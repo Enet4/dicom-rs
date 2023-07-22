@@ -26,10 +26,9 @@ use byteordered::Endianness;
 use dicom_encoding::transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec};
 
 #[cfg(any(feature = "jpeg", feature = "rle"))]
-use dicom_encoding::{
-    transfer_syntax::{NeverAdapter, TransferSyntax},
-    NeverPixelAdapter,
-};
+use dicom_encoding::transfer_syntax::{NeverAdapter, TransferSyntax};
+#[cfg(feature = "rle")]
+use dicom_encoding::NeverPixelAdapter;
 
 #[cfg(feature = "jpeg")]
 use crate::adapters::jpeg::JpegAdapter;
