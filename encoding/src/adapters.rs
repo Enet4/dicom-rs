@@ -157,6 +157,10 @@ pub trait PixelDataObject {
     /// (where 0 is the first fragment after the basic offset table)
     /// as a [`Cow<[u8]>`][1],
     /// or `None` if no such fragment is available.
+    /// 
+    /// In the case of native (non-encapsulated) pixel data,
+    /// the whole data may be obtained
+    /// by requesting fragment number 0.
     ///
     /// [1]: std::borrow::Cow
     fn fragment(&self, fragment: usize) -> Option<Cow<[u8]>>;
