@@ -42,6 +42,10 @@ impl PixelDataObject for TestDataObject {
         Some(self.bits_allocated)
     }
 
+    fn bits_stored(&self) -> Option<u16> {
+        Some(self.bits_stored)
+    }
+
     fn number_of_frames(&self) -> Option<u32> {
         Some(self.number_of_frames)
     }
