@@ -882,7 +882,7 @@ where
                 AttributeSelectorStep::Nested { tag, item } => {
                     let e =
                         obj.entries
-                            .get(&tag)
+                            .get(tag)
                             .with_context(|| crate::MissingSequenceSnafu {
                                 selector: selector.clone(),
                                 step_index: i as u32,
