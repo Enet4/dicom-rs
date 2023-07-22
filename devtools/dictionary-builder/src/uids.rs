@@ -150,7 +150,7 @@ impl std::fmt::Display for UidType {
 }
 
 /// Collects UID values from PS3.6 table A-1
-fn retrieve_uid_values<'a>(xml_data: &'a str) -> Result<Vec<UidEntry>> {
+fn retrieve_uid_values(xml_data: &str) -> Result<Vec<UidEntry>> {
     let xml = parser::parse(xml_data)?;
     let doc = xml.as_document();
 
@@ -306,7 +306,7 @@ where
     P: AsRef<Path>,
 {
     if let Some(p_dir) = dest_path.as_ref().parent() {
-        create_dir_all(&p_dir)?;
+        create_dir_all(p_dir)?;
     }
     let mut f = BufWriter::new(File::create(&dest_path)?);
 
