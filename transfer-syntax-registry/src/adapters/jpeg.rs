@@ -206,7 +206,9 @@ impl PixelDataWriter for JpegAdapter {
 
         let quality = options.quality.unwrap_or(85);
 
-        let frame_size = (cols * rows * samples_per_pixel * (bits_allocated / 8)) as usize;
+        let bytes_per_sample = (bits_allocated / 8) as usize;
+        let frame_size =
+            cols as usize * rows as usize * samples_per_pixel as usize * bytes_per_sample;
 
         let color_type = match samples_per_pixel {
             1 => ColorType::Luma,
