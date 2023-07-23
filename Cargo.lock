@@ -615,7 +615,9 @@ dependencies = [
  "byteordered",
  "dicom-core",
  "dicom-encoding",
+ "dicom-test-files",
  "jpeg-decoder",
+ "jpeg-encoder",
  "lazy_static",
  "tracing",
 ]
@@ -1095,6 +1097,12 @@ checksum = "bc0000e42512c92e31c2252315bda326620a4e034105e900c98ec492fa077b3e"
 dependencies = [
  "rayon",
 ]
+
+[[package]]
+name = "jpeg-encoder"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2cf3affe27ffd9f1992690ec7575568b222abe9cb39738f6531968aca8e64906"
 
 [[package]]
 name = "js-sys"

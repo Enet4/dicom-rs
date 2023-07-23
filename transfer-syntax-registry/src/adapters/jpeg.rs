@@ -1,8 +1,14 @@
 //! Support for JPG image decoding.
 
+use dicom_core::ops::{AttributeAction, AttributeOp};
+use dicom_core::Tag;
+use dicom_encoding::adapters::{
+    decode_error, encode_error, DecodeResult, EncodeOptions, EncodeResult, PixelDataObject,
+    PixelDataReader, PixelDataWriter,
+};
 use dicom_encoding::snafu::prelude::*;
-use dicom_encoding::adapters::{DecodeResult, PixelDataObject, decode_error, PixelDataReader};
 use jpeg_decoder::Decoder;
+use jpeg_encoder::ColorType;
 use std::io::Cursor;
 
 /// Pixel data adapter for JPEG-based transfer syntaxes.
@@ -15,13 +21,19 @@ impl PixelDataReader for JpegAdapter {
         let cols = src
             .cols()
             .context(decode_error::MissingAttributeSnafu { name: "Columns" })?;
-        let rows = src.rows().context(decode_error::MissingAttributeSnafu { name: "Rows" })?;
-        let samples_per_pixel = src.samples_per_pixel().context(decode_error::MissingAttributeSnafu {
-            name: "SamplesPerPixel",
-        })?;
-        let bits_allocated = src.bits_allocated().context(decode_error::MissingAttributeSnafu {
-            name: "BitsAllocated",
-        })?;
+        let rows = src
+            .rows()
+            .context(decode_error::MissingAttributeSnafu { name: "Rows" })?;
+        let samples_per_pixel =
+            src.samples_per_pixel()
+                .context(decode_error::MissingAttributeSnafu {
+                    name: "SamplesPerPixel",
+                })?;
+        let bits_allocated = src
+            .bits_allocated()
+            .context(decode_error::MissingAttributeSnafu {
+                name: "BitsAllocated",
+            })?;
 
         if bits_allocated != 8 && bits_allocated != 16 {
             whatever!("BitsAllocated other than 8 or 16 is not supported");
@@ -33,7 +45,10 @@ impl PixelDataReader for JpegAdapter {
         // `stride` it the total number of bytes for each sample plane
         let stride: usize = bytes_per_sample as usize * cols as usize * rows as usize;
         let base_offset = dst.len();
-        dst.resize(base_offset + (samples_per_pixel as usize * stride) * nr_frames, 0);
+        dst.resize(
+            base_offset + (samples_per_pixel as usize * stride) * nr_frames,
+            0,
+        );
 
         // Embedded jpegs can span multiple fragments
         // Hence we collect all fragments into single vector
@@ -76,25 +91,40 @@ impl PixelDataReader for JpegAdapter {
     }
 
     /// Decode DICOM image data with jpeg encoding.
-    fn decode_frame(&self, src: &dyn PixelDataObject, frame: u32, dst: &mut Vec<u8>) -> DecodeResult<()> {
+    fn decode_frame(
+        &self,
+        src: &dyn PixelDataObject,
+        frame: u32,
+        dst: &mut Vec<u8>,
+    ) -> DecodeResult<()> {
         let cols = src
             .cols()
             .context(decode_error::MissingAttributeSnafu { name: "Columns" })?;
-        let rows = src.rows().context(decode_error::MissingAttributeSnafu { name: "Rows" })?;
-        let samples_per_pixel = src.samples_per_pixel().context(decode_error::MissingAttributeSnafu {
-            name: "SamplesPerPixel",
-        })?;
-        let bits_allocated = src.bits_allocated().context(decode_error::MissingAttributeSnafu {
-            name: "BitsAllocated",
-        })?;
+        let rows = src
+            .rows()
+            .context(decode_error::MissingAttributeSnafu { name: "Rows" })?;
+        let samples_per_pixel =
+            src.samples_per_pixel()
+                .context(decode_error::MissingAttributeSnafu {
+                    name: "SamplesPerPixel",
+                })?;
+        let bits_allocated = src
+            .bits_allocated()
+            .context(decode_error::MissingAttributeSnafu {
+                name: "BitsAllocated",
+            })?;
 
-        if bits_allocated != 8 && bits_allocated != 16 {
-            whatever!("BitsAllocated other than 8 or 16 is not supported");
-        }
+        ensure_whatever!(
+            bits_allocated == 8 || bits_allocated == 16,
+            "BitsAllocated other than 8 or 16 is not supported"
+        );
 
         let nr_frames = src.number_of_frames().unwrap_or(1) as usize;
 
-        ensure!(nr_frames > frame as usize, decode_error::FrameRangeOutOfBoundsSnafu);
+        ensure!(
+            nr_frames > frame as usize,
+            decode_error::FrameRangeOutOfBoundsSnafu
+        );
 
         let bytes_per_sample = bits_allocated / 8;
 
@@ -106,7 +136,8 @@ impl PixelDataReader for JpegAdapter {
         // Embedded jpegs can span multiple fragments
         // Hence we collect all fragments into single vector
         // and then just iterate a cursor for each frame
-        let raw_pixeldata = src.raw_pixel_data()
+        let raw_pixeldata = src
+            .raw_pixel_data()
             .whatever_context("Expected to have raw pixel data available")?;
         let fragment = raw_pixeldata
             .fragments
@@ -140,5 +171,89 @@ impl PixelDataReader for JpegAdapter {
         }
 
         Ok(())
+    }
+}
+
+impl PixelDataWriter for JpegAdapter {
+    fn encode_frame(
+        &self,
+        src: &dyn PixelDataObject,
+        frame: u32,
+        options: EncodeOptions,
+        dst: &mut Vec<u8>,
+    ) -> EncodeResult<Vec<AttributeOp>> {
+        let cols = src
+            .cols()
+            .context(encode_error::MissingAttributeSnafu { name: "Columns" })?;
+        let rows = src
+            .rows()
+            .context(encode_error::MissingAttributeSnafu { name: "Rows" })?;
+        let samples_per_pixel =
+            src.samples_per_pixel()
+                .context(encode_error::MissingAttributeSnafu {
+                    name: "SamplesPerPixel",
+                })?;
+        let bits_allocated = src
+            .bits_allocated()
+            .context(encode_error::MissingAttributeSnafu {
+                name: "BitsAllocated",
+            })?;
+
+        ensure_whatever!(
+            bits_allocated == 8 || bits_allocated == 16,
+            "BitsAllocated other than 8 or 16 is not supported"
+        );
+
+        let quality = options.quality.unwrap_or(85);
+
+        let bytes_per_sample = (bits_allocated / 8) as usize;
+        let frame_size =
+            cols as usize * rows as usize * samples_per_pixel as usize * bytes_per_sample;
+
+        let color_type = match samples_per_pixel {
+            1 => ColorType::Luma,
+            3 => ColorType::Rgb,
+            _ => whatever!("Unsupported samples per pixel: {}", samples_per_pixel),
+        };
+
+        let photometric_interpretation = match samples_per_pixel {
+            1 => "MONOCHROME2",
+            3 => "RGB",
+            _ => unreachable!(),
+        };
+
+        // record dst length before encoding to know full jpeg size
+        let len_before = dst.len();
+
+        // Encode the data
+        let frame_uncompressed = src
+            .fragment(frame as usize)
+            .context(encode_error::FrameRangeOutOfBoundsSnafu)?;
+        let mut encoder = jpeg_encoder::Encoder::new(&mut *dst, quality);
+        encoder.set_progressive(false);
+        encoder
+            .encode(&frame_uncompressed, cols, rows, color_type)
+            .whatever_context("JPEG encoding failed")?;
+
+        let compressed_frame_size = dst.len() - len_before;
+
+        let compression_ratio = frame_size as f64 / compressed_frame_size as f64;
+        let compression_ratio = format!("{:.6}", compression_ratio);
+
+        // provide attribute changes
+        Ok(vec![
+            // lossy image compression
+            AttributeOp::new(Tag(0x0028, 0x2110), AttributeAction::SetStr("01".into())),
+            // lossy image compression ratio
+            AttributeOp::new(
+                Tag(0x0028, 0x2112),
+                AttributeAction::PushStr(compression_ratio.into()),
+            ),
+            // Photometric interpretation
+            AttributeOp::new(
+                Tag(0x0028, 0x0004),
+                AttributeAction::SetStr(photometric_interpretation.into()),
+            ),
+        ])
     }
 }
