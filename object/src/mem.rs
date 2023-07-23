@@ -36,7 +36,9 @@
 //! If necessary, this number can be obtained via the [`HasLength`] trait.
 //! However, any modifications made to the object will reset this length
 //! to [_undefined_](dicom_core::Length::UNDEFINED).
-use dicom_core::ops::{ApplyOp, AttributeAction, AttributeOp, AttributeSelectorStep};
+use dicom_core::ops::{
+    ApplyOp, AttributeAction, AttributeOp, AttributeSelector, AttributeSelectorStep,
+};
 use itertools::Itertools;
 use smallvec::SmallVec;
 use snafu::{OptionExt, ResultExt};
@@ -52,12 +54,12 @@ use crate::ops::{
 };
 use crate::{meta::FileMetaTable, FileMetaTableBuilder};
 use crate::{
-    AccessByNameError, AccessError, BuildMetaTableSnafu, CreateParserSnafu, CreatePrinterSnafu,
-    DicomObject, FileDicomObject, MissingElementValueSnafu, NoSuchAttributeNameSnafu,
-    NoSuchDataElementAliasSnafu, NoSuchDataElementTagSnafu, OpenFileSnafu, ParseMetaDataSetSnafu,
-    PrematureEndSnafu, PrepareMetaTableSnafu, PrintDataSetSnafu, ReadError, ReadFileSnafu,
-    ReadPreambleBytesSnafu, ReadTokenSnafu, ReadUnsupportedTransferSyntaxSnafu,
-    UnexpectedTokenSnafu, WithMetaError, WriteError,
+    AccessByNameError, AccessError, AtAccessError, BuildMetaTableSnafu, CreateParserSnafu,
+    CreatePrinterSnafu, DicomObject, FileDicomObject, MissingElementValueSnafu,
+    NoSuchAttributeNameSnafu, NoSuchDataElementAliasSnafu, NoSuchDataElementTagSnafu,
+    OpenFileSnafu, ParseMetaDataSetSnafu, PrematureEndSnafu, PrepareMetaTableSnafu,
+    PrintDataSetSnafu, ReadError, ReadFileSnafu, ReadPreambleBytesSnafu, ReadTokenSnafu,
+    ReadUnsupportedTransferSyntaxSnafu, UnexpectedTokenSnafu, WithMetaError, WriteError, MissingLeafElementSnafu, NotASequenceSnafu,
 };
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
 use dicom_core::header::{HasLength, Header};
@@ -834,6 +836,77 @@ where
         }
     }
 
+    /// Obtain the DICOM value by finding the element
+    /// that matches the given selector.
+    ///
+    /// Returns an error if the respective element or any of its parents
+    /// cannot be found.
+    ///
+    /// See the documentation of [`AttributeSelector`] for more information
+    /// on how to write attribute selectors.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use dicom_core::prelude::*;
+    /// # use dicom_core::ops::AttributeSelector;
+    /// # use dicom_dictionary_std::tags;
+    /// # use dicom_object::InMemDicomObject;
+    /// # let obj: InMemDicomObject = unimplemented!();
+    /// let referenced_sop_instance_iod = obj.value_at(
+    ///     (
+    ///         tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
+    ///         tags::REFERENCED_IMAGE_SEQUENCE,
+    ///         tags::REFERENCED_SOP_INSTANCE_UID,
+    ///     ))?
+    ///     .to_str()?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn value_at(
+        &self,
+        selector: impl Into<AttributeSelector>,
+    ) -> Result<&Value<InMemDicomObject<D>, InMemFragment>, AtAccessError> {
+
+        let selector = selector.into();
+
+        let mut obj = self;
+        for (i, step) in selector.iter().enumerate() {
+            match step {
+                // reached the leaf
+                AttributeSelectorStep::Tag(tag) => return obj.get(*tag)
+                    .map(|e| e.value())
+                    .with_context(|| MissingLeafElementSnafu {
+                        selector: selector.clone(),
+                    }),
+                // navigate further down
+                AttributeSelectorStep::Nested { tag, item } => {
+                    let e =
+                        obj.entries
+                            .get(tag)
+                            .with_context(|| crate::MissingSequenceSnafu {
+                                selector: selector.clone(),
+                                step_index: i as u32,
+                            })?;
+
+                    // get items
+                    let items = e.items().with_context(|| NotASequenceSnafu {
+                        selector: selector.clone(),
+                        step_index: i as u32,
+                    })?;
+
+                    // if item.length == i and action is a constructive action, append new item
+                    obj = items.get(*item as usize).with_context(||
+                        crate::MissingSequenceSnafu {
+                            selector: selector.clone(),
+                            step_index: i as u32,
+                        })?;
+                }
+            }
+        }
+
+        unreachable!()
+    }
+
     /// Apply the given attribute operation on this object.
     ///
     /// See the [`dicom_core::ops`] module
@@ -907,7 +980,7 @@ where
                                 step_index: i as u32,
                             }
                         })?
-                    }
+                    };
                 }
             }
         }
@@ -1004,7 +1077,7 @@ where
                 .map(|entry| entry.vr())
                 .unwrap_or(VR::UN);
             // insert element
-            
+
             // handle edge case: if VR is SQ and suggested value is empty,
             // then create an empty data set sequence
             let new_value = if vr == VR::SQ && new_value.is_empty() {
@@ -1633,6 +1706,7 @@ fn even_len(l: u32) -> u32 {
 mod tests {
 
     use super::*;
+    use crate::AtAccessError;
     use crate::{meta::FileMetaTableBuilder, open_file};
     use byteordered::Endianness;
     use dicom_core::chrono::FixedOffset;
@@ -2742,6 +2816,12 @@ mod tests {
                 .collect::<Vec<_>>(),
             Vec::<Tag>::new(),
         );
+
+        // trying to access the removed element returns an error
+        assert!(matches!(
+            main_obj.value_at((tags::SEQUENCE_OF_ULTRASOUND_REGIONS, 1, Tag(0x0018, 0x6012),)),
+            Err(AtAccessError::MissingLeafElement { .. })
+        ))
     }
 
     /// Test that constructive operations create items if necessary.
@@ -2786,6 +2866,17 @@ mod tests {
                 PrimitiveValue::from(5_u16)
             )]),
         );
+
+        // new value can be accessed using value_at
+        assert_eq!(
+            obj.value_at((
+                tags::SEQUENCE_OF_ULTRASOUND_REGIONS,
+                0,
+                tags::REGION_SPATIAL_FORMAT
+            ))
+            .unwrap(),
+            &Value::from(PrimitiveValue::from(5_u16)),
+        )
     }
 
     /// Test that operations on in-memory DICOM objects

@@ -146,6 +146,7 @@ pub use crate::mem::InMemDicomObject;
 pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
 use dicom_core::DataDictionary;
 pub use dicom_core::Tag;
+use dicom_core::ops::AttributeSelector;
 pub use dicom_dictionary_std::StandardDataDictionary;
 
 /// The default implementation of a root DICOM object.
@@ -307,6 +308,29 @@ impl AccessError {
                 }
             }
         }
+    }
+}
+
+/// An error which may occur when looking up a DICOM object's attributes
+/// at an arbitrary depth,
+/// such as through [`value_at`](crate::InMemDicomObject::value_at).
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+#[snafu(visibility(pub(crate)))]
+pub enum AtAccessError {
+    /// Missing itermediate sequence for {selector} at step {step_index}
+    MissingSequence {
+        selector: AttributeSelector,
+        step_index: u32,
+    },
+    /// Step {step_index} for {selector} is not a data set sequence 
+    NotASequence {
+        selector: AttributeSelector,
+        step_index: u32,
+    },
+    /// Missing element at last step for {selector}
+    MissingLeafElement {
+        selector: AttributeSelector,
     }
 }
 
