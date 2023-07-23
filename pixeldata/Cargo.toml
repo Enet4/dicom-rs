@@ -11,7 +11,7 @@ keywords = ["dicom"]
 readme = "README.md"
 
 [dependencies]
-dicom-object = { path = "../object", version = "0.5.4" }
+dicom-object = { path = "../object", version = "0.6.0" }
 dicom-core = { path = "../core", version = "0.6.0" }
 dicom-encoding = { path = "../encoding", version = "0.6.0" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.6.0" }
