@@ -17,7 +17,7 @@ dicom-ul = { path = '../ul', version = "0.4.4" }
 dicom-object = { path = '../object', version = "0.5.4" }
 dicom-encoding = { path = "../encoding/", version = "0.6.0" }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.6.0" }
-dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.5.1" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.6.0" }
 walkdir = "2.3.2"
 indicatif = "0.17.0"
 tracing = "0.1.34"
