@@ -276,11 +276,7 @@ pub(crate) fn get_registry() -> &'static TransferSyntaxRegistryImpl {
 
 /// create a TS with an unsupported pixel encapsulation
 pub(crate) const fn create_ts_stub(uid: &'static str, name: &'static str) -> Ts {
-    TransferSyntax::new_ele(
-        uid,
-        name,
-        Codec::EncapsulatedPixelData(None, None),
-    )
+    TransferSyntax::new_ele(uid, name, Codec::EncapsulatedPixelData(None, None))
 }
 
 /// Retrieve the default transfer syntax.

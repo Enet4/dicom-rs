@@ -1,8 +1,8 @@
 //! Root module for extended pixel data adapters.
-//! 
+//!
 //! Additional support for certain transfer syntaxes
 //! can be added via Cargo features.
-//! 
+//!
 //! - [`jpeg`](jpeg) provides native JPEG decoding
 //!   (baseline and lossless).
 //!   Requires the `jpeg` feature,

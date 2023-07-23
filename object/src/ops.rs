@@ -3,9 +3,9 @@
 //! See the [`dicom_core::ops`] module
 //! for more information.
 
-use dicom_core::Tag;
 use dicom_core::ops::{ApplyOp, AttributeOp, AttributeSelector, AttributeSelectorStep};
 use dicom_core::value::{ModifyValueError, ValueType};
+use dicom_core::Tag;
 use snafu::Snafu;
 
 use crate::FileDicomObject;
@@ -20,7 +20,7 @@ pub enum ApplyError {
         selector: AttributeSelector,
         step_index: u32,
     },
-    /// Step {step_index} for {selector} is not a data set sequence 
+    /// Step {step_index} for {selector} is not a data set sequence
     NotASequence {
         selector: AttributeSelector,
         step_index: u32,
@@ -115,9 +115,7 @@ mod tests {
         // apply operation on file meta information
         obj.apply(AttributeOp {
             selector: dicom_dictionary_std::tags::MEDIA_STORAGE_SOP_INSTANCE_UID.into(),
-            action: AttributeAction::SetStr(
-                "2.25.153241429675951194530939969687300037165".into(),
-            ),
+            action: AttributeAction::SetStr("2.25.153241429675951194530939969687300037165".into()),
         })
         .unwrap();
 

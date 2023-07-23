@@ -1,8 +1,8 @@
 //! # DICOM-rs library
-//! 
+//!
 //! This crate serves as a mother library for
 //! building DICOM compliant systems.
-//! 
+//!
 //! This library aggregates the key modules
 //! that you are likely to require when building software using DICOM-rs.
 //! These modules are also available as crates
@@ -12,11 +12,11 @@
 //! they will generally have the `dicom-` prefix.
 //! For instance, the module `object`
 //! lives in the crate named [`dicom-object`][1].
-//! 
+//!
 //! [1]: https://docs.rs/dicom-object
-//! 
-//! ## Basic 
-//! 
+//!
+//! ## Basic
+//!
 //! - For an idiomatic API to reading and writing DICOM data
 //!   from files or other sources,
 //!   see the [`object`] module.
@@ -58,13 +58,13 @@
 //!   reading and writing DICOM data sets.
 //!   It might only be truly needed if
 //!   the `object` API is unfit or too inefficient for a certain task.
-//! 
+//!
 //! ## More
-//! 
+//!
 //! See the [DICOM-rs project repository][2]
 //! for the full list of crates available in the DICOM-rs ecosystem.
-//! 
-//! [2]: https://github.com/Enet4/dicom-rs 
+//!
+//! [2]: https://github.com/Enet4/dicom-rs
 pub use dicom_core as core;
 pub use dicom_dictionary_std as dictionary_std;
 pub use dicom_dump as dump;

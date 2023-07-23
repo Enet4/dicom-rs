@@ -1,7 +1,7 @@
 use dicom_ul::pdu::reader::{read_pdu, DEFAULT_MAX_PDU};
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::{
-    PDataValue, PDataValueType, Pdu, PresentationContextProposed, UserVariableItem, AssociationRQ,
+    AssociationRQ, PDataValue, PDataValueType, Pdu, PresentationContextProposed, UserVariableItem,
 };
 use matches::matches;
 use std::io::Cursor;

@@ -616,7 +616,10 @@ pub fn is_supported_with_repo<R>(ts_repo: R, ts_uid: &str) -> bool
 where
     R: TransferSyntaxIndex,
 {
-    ts_repo.get(ts_uid).filter(|ts| !ts.is_unsupported()).is_some()
+    ts_repo
+        .get(ts_uid)
+        .filter(|ts| !ts.is_unsupported())
+        .is_some()
 }
 
 /// Check that the main transfer syntax registry

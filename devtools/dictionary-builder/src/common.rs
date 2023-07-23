@@ -1,4 +1,3 @@
-
 /// How to process retired entries
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum RetiredOptions {
@@ -18,9 +17,7 @@ impl RetiredOptions {
         if ignore {
             RetiredOptions::Ignore
         } else {
-            RetiredOptions::Include {
-                deprecate,
-            }
+            RetiredOptions::Include { deprecate }
         }
     }
 }

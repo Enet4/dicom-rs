@@ -144,9 +144,9 @@ mod util;
 pub use crate::file::{from_reader, open_file, OpenFileOptions};
 pub use crate::mem::InMemDicomObject;
 pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
+use dicom_core::ops::AttributeSelector;
 use dicom_core::DataDictionary;
 pub use dicom_core::Tag;
-use dicom_core::ops::AttributeSelector;
 pub use dicom_dictionary_std::StandardDataDictionary;
 
 /// The default implementation of a root DICOM object.
@@ -323,15 +323,13 @@ pub enum AtAccessError {
         selector: AttributeSelector,
         step_index: u32,
     },
-    /// Step {step_index} for {selector} is not a data set sequence 
+    /// Step {step_index} for {selector} is not a data set sequence
     NotASequence {
         selector: AttributeSelector,
         step_index: u32,
     },
     /// Missing element at last step for {selector}
-    MissingLeafElement {
-        selector: AttributeSelector,
-    }
+    MissingLeafElement { selector: AttributeSelector },
 }
 
 /// An error which may occur when looking up a DICOM object's attributes
@@ -487,11 +485,11 @@ where
         let to = BufWriter::new(to);
 
         // prepare encoder
-        let ts = TransferSyntaxRegistry.get(&self.meta.transfer_syntax).with_context(|| {
-            WriteUnsupportedTransferSyntaxSnafu {
+        let ts = TransferSyntaxRegistry
+            .get(&self.meta.transfer_syntax)
+            .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
-            }
-        })?;
+            })?;
         let cs = SpecificCharacterSet::Default;
         let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
 
@@ -600,16 +598,12 @@ where
 
     /// Return the Rows attribute or None if it is not found
     fn rows(&self) -> Option<u16> {
-        self.get(dicom_dictionary_std::tags::ROWS)?
-            .uint16()
-            .ok()
+        self.get(dicom_dictionary_std::tags::ROWS)?.uint16().ok()
     }
 
     /// Return the Columns attribute or None if it is not found
     fn cols(&self) -> Option<u16> {
-        self.get(dicom_dictionary_std::tags::COLUMNS)?
-            .uint16()
-            .ok()
+        self.get(dicom_dictionary_std::tags::COLUMNS)?.uint16().ok()
     }
 
     /// Return the SamplesPerPixel attribute or None if it is not found
@@ -652,9 +646,9 @@ where
 
     /// Return a specific encoded pixel fragment by index as Vec<u8>
     /// or None if no pixel data is found.
-    /// 
+    ///
     /// Non-encapsulated pixel data can be retrieved by requesting fragment #0.
-    /// 
+    ///
     /// Panics if `fragment` is out of bounds for the encapsulated pixel data fragments.
     fn fragment(&self, fragment: usize) -> Option<Cow<[u8]>> {
         let pixel_data = self.get(dicom_dictionary_std::tags::PIXEL_DATA)?;

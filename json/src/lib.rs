@@ -34,9 +34,9 @@
 //! );
 //! # Ok::<(), serde_json::Error>(())
 //! ```
-//! 
+//!
 //! To turn DICOM JSON back into an in-memory object:
-//! 
+//!
 //! ```
 //! # use dicom_object::mem::InMemDicomObject;
 //! let json = r#"{
@@ -157,16 +157,16 @@ pub use crate::ser::{to_string, to_string_pretty, to_value, to_vec, to_writer};
 /// Specify the concrete DICOM data type to deserialize to,
 /// place it as the type parameter `T` of `DicomJson<T>`,
 /// then request to deserialize it.
-/// 
+///
 /// `DicomJson` can deserialize:
-/// 
+///
 /// - [`InMemDicomObject`][1], expecting a JSON object indexed by tags;
 /// - [`Tag`][5], a string formatted as a DICOM tag;
 /// - [`VR`][6], a 2-character string with one of the supported
 ///   value representation identifiers.
 ///
 /// [6]: dicom_core::VR
-/// 
+///
 /// ## Example
 ///
 /// ```

@@ -151,9 +151,9 @@ where
 mod tests {
     use super::ImplicitVRLittleEndianDecoder;
     use crate::decode::Decode;
-    use dicom_core::Tag;
     use dicom_core::dictionary::stub::StubDataDictionary;
     use dicom_core::header::{HasLength, Header, Length, VR};
+    use dicom_core::Tag;
     use std::io::{Cursor, Read, Seek, SeekFrom};
 
     // manually crafting some DICOM data elements

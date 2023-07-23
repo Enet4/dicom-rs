@@ -195,13 +195,13 @@ impl<'a, D> From<&'a InMemElement<D>> for DicomJson<&'a InMemElement<D>> {
 
 impl<D> Serialize for DicomJson<&'_ InMemElement<D>> {
     /// Serializes the data element as a single JSON map.
-    /// 
+    ///
     /// The fields present will be:
     /// - `"vr"`, containing the value representation;
     /// - Either `"Value"` (as an array of values)
     ///   or `"InlineBinary"` (binary data in base64),
     ///   if the value is not empty.
-    /// 
+    ///
     /// The DICOM tag is not encoded,
     /// as it is typically serialized as the entry key within a data set.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

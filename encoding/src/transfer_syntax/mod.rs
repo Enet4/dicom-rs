@@ -163,7 +163,7 @@ where
 /// albeit without the means to decode or encode it.
 /// See the [`adapters`](crate::adapters) module
 /// to know how to write pixel data encoders and decoders.
-/// 
+///
 /// [1]: Codec::EncapsulatedPixelData
 macro_rules! submit_transfer_syntax {
     ($ts: expr) => {
@@ -235,7 +235,7 @@ macro_rules! submit_transfer_syntax {
 /// albeit without the means to decode or encode it.
 /// See the [`adapters`](crate::adapters) module
 /// to know how to write pixel data encoders and decoders.
-/// 
+///
 /// [1]: Codec::EncapsulatedPixelData
 macro_rules! submit_ele_transfer_syntax {
     ($uid: expr, $name: expr, $codec: expr) => {
@@ -268,7 +268,6 @@ macro_rules! submit_ele_transfer_syntax {
         // ignore request
     };
 }
-
 
 /// A description and possible implementation regarding
 /// the encoding and decoding requirements of a transfer syntax.
@@ -473,13 +472,9 @@ impl<D, R, W> TransferSyntax<D, R, W> {
     ///     )
     /// }
     /// ```
-    /// 
+    ///
     /// See [`submit_ele_transfer_syntax`] for an alternative.
-    pub const fn new_ele(
-        uid: &'static str,
-        name: &'static str,
-        codec: Codec<D, R, W>,
-    ) -> Self {
+    pub const fn new_ele(uid: &'static str, name: &'static str, codec: Codec<D, R, W>) -> Self {
         TransferSyntax {
             uid,
             name,
@@ -642,9 +637,10 @@ impl<D, R, W> TransferSyntax<D, R, W> {
     {
         let codec = match self.codec {
             Codec::Dataset(d) => Codec::Dataset(d.map(|d| Box::new(d) as _)),
-            Codec::EncapsulatedPixelData(r, w) => {
-                Codec::EncapsulatedPixelData(r.map(|r| Box::new(r) as _), w.map(|w| Box::new(w) as _))
-            }
+            Codec::EncapsulatedPixelData(r, w) => Codec::EncapsulatedPixelData(
+                r.map(|r| Box::new(r) as _),
+                w.map(|w| Box::new(w) as _),
+            ),
             Codec::None => Codec::None,
         };
 

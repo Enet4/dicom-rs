@@ -1710,8 +1710,11 @@ mod tests {
     use dicom_object::open_file;
     use dicom_test_files;
 
-
-    fn is_send_and_sync<T>() where T: Send + Sync {}
+    fn is_send_and_sync<T>()
+    where
+        T: Send + Sync,
+    {
+    }
 
     #[test]
     fn error_is_send_and_sync() {
@@ -2160,7 +2163,6 @@ mod tests {
             assert_eq!(ndarray[[1, 49, 16, 0]], 65535);
             assert_eq!(ndarray[[1, 49, 16, 1]], 65535);
             assert_eq!(ndarray[[1, 49, 16, 2]], 0);
-
         }
 
         #[cfg(feature = "image")]

@@ -18,8 +18,8 @@
 use clap::{Parser, Subcommand};
 
 mod common;
-mod uids;
 mod tags;
+mod uids;
 
 /// DICOM dictionary builder
 #[derive(Debug, Parser)]

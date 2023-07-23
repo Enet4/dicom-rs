@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 /// Type trait for a dictionary of known DICOM unique identifiers (UIDs).
-/// 
+///
 /// UID dictionaries provide the means to
 /// look up information at run-time about a certain UID.
 ///

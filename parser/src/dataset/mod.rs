@@ -206,9 +206,7 @@ where
                 header,
                 mut decoder,
             } => decoder.skip_bytes(header.len.0),
-            LazyDataToken::LazyItemValue { len, mut decoder } => {
-                decoder.skip_bytes(len)
-            }
+            LazyDataToken::LazyItemValue { len, mut decoder } => decoder.skip_bytes(len),
             _ => Ok(()), // do nothing
         }
     }

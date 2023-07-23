@@ -56,10 +56,11 @@ use crate::{meta::FileMetaTable, FileMetaTableBuilder};
 use crate::{
     AccessByNameError, AccessError, AtAccessError, BuildMetaTableSnafu, CreateParserSnafu,
     CreatePrinterSnafu, DicomObject, FileDicomObject, MissingElementValueSnafu,
-    NoSuchAttributeNameSnafu, NoSuchDataElementAliasSnafu, NoSuchDataElementTagSnafu,
-    OpenFileSnafu, ParseMetaDataSetSnafu, PrematureEndSnafu, PrepareMetaTableSnafu,
-    PrintDataSetSnafu, ReadError, ReadFileSnafu, ReadPreambleBytesSnafu, ReadTokenSnafu,
-    ReadUnsupportedTransferSyntaxSnafu, UnexpectedTokenSnafu, WithMetaError, WriteError, MissingLeafElementSnafu, NotASequenceSnafu,
+    MissingLeafElementSnafu, NoSuchAttributeNameSnafu, NoSuchDataElementAliasSnafu,
+    NoSuchDataElementTagSnafu, NotASequenceSnafu, OpenFileSnafu, ParseMetaDataSetSnafu,
+    PrematureEndSnafu, PrepareMetaTableSnafu, PrintDataSetSnafu, ReadError, ReadFileSnafu,
+    ReadPreambleBytesSnafu, ReadTokenSnafu, ReadUnsupportedTransferSyntaxSnafu,
+    UnexpectedTokenSnafu, WithMetaError, WriteError,
 };
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
 use dicom_core::header::{HasLength, Header};
@@ -866,27 +867,28 @@ where
         &self,
         selector: impl Into<AttributeSelector>,
     ) -> Result<&Value<InMemDicomObject<D>, InMemFragment>, AtAccessError> {
-
         let selector = selector.into();
 
         let mut obj = self;
         for (i, step) in selector.iter().enumerate() {
             match step {
                 // reached the leaf
-                AttributeSelectorStep::Tag(tag) => return obj.get(*tag)
-                    .map(|e| e.value())
-                    .with_context(|| MissingLeafElementSnafu {
-                        selector: selector.clone(),
-                    }),
+                AttributeSelectorStep::Tag(tag) => {
+                    return obj.get(*tag).map(|e| e.value()).with_context(|| {
+                        MissingLeafElementSnafu {
+                            selector: selector.clone(),
+                        }
+                    })
+                }
                 // navigate further down
                 AttributeSelectorStep::Nested { tag, item } => {
-                    let e =
-                        obj.entries
-                            .get(tag)
-                            .with_context(|| crate::MissingSequenceSnafu {
-                                selector: selector.clone(),
-                                step_index: i as u32,
-                            })?;
+                    let e = obj
+                        .entries
+                        .get(tag)
+                        .with_context(|| crate::MissingSequenceSnafu {
+                            selector: selector.clone(),
+                            step_index: i as u32,
+                        })?;
 
                     // get items
                     let items = e.items().with_context(|| NotASequenceSnafu {
@@ -895,11 +897,13 @@ where
                     })?;
 
                     // if item.length == i and action is a constructive action, append new item
-                    obj = items.get(*item as usize).with_context(||
-                        crate::MissingSequenceSnafu {
-                            selector: selector.clone(),
-                            step_index: i as u32,
-                        })?;
+                    obj =
+                        items
+                            .get(*item as usize)
+                            .with_context(|| crate::MissingSequenceSnafu {
+                                selector: selector.clone(),
+                                step_index: i as u32,
+                            })?;
                 }
             }
         }

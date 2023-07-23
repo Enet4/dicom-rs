@@ -28,8 +28,8 @@
 pub mod dictionary;
 pub mod header;
 pub mod ops;
-pub mod value;
 pub mod prelude;
+pub mod value;
 
 pub use dictionary::DataDictionary;
 pub use header::{DataElement, DataElementHeader, Length, Tag, VR};

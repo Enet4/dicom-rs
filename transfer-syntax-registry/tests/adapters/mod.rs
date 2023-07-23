@@ -5,7 +5,7 @@ use dicom_core::value::{InMemFragment, PixelFragmentSequence};
 use dicom_encoding::adapters::{PixelDataObject, RawPixelData};
 
 /// A test data object.
-/// 
+///
 /// Can be used to test pixel data adapters
 /// without having to open a real DICOM file using `dicom_object`.
 #[derive(Debug)]

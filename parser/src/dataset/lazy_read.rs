@@ -125,9 +125,7 @@ impl<R> LazyDataSetReader<DynStatefulDecoder<R>> {
     where
         R: ReadSeek,
     {
-        let position = source
-            .stream_position()
-            .context(GetPositionSnafu)?;
+        let position = source.stream_position().context(GetPositionSnafu)?;
         let parser =
             DynStatefulDecoder::new_with(source, ts, cs, position).context(CreateDecoderSnafu)?;
 

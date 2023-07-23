@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use dicom_core::dictionary::{UidDictionaryEntryRef, UidDictionary};
+use dicom_core::dictionary::{UidDictionary, UidDictionaryEntryRef};
 use once_cell::sync::Lazy;
 
 use crate::uids::SOP_CLASSES;
@@ -77,7 +77,6 @@ impl UidDictionary for StandardUidRegistry {
 #[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
 pub struct StandardSopClassDictionary;
 
-
 impl UidDictionary for StandardSopClassDictionary {
     type Entry = UidDictionaryEntryRef<'static>;
 
@@ -100,12 +99,10 @@ fn init_dictionary() -> StandardUidRegistry {
     d
 }
 
-
-
 #[cfg(test)]
 mod tests {
-    use dicom_core::dictionary::{UidDictionaryEntryRef, UidDictionary, UidType};
     use crate::StandardSopClassDictionary;
+    use dicom_core::dictionary::{UidDictionary, UidDictionaryEntryRef, UidType};
 
     // tests for just a few SOP classes to make sure that the entries
     // were well installed into the dictionary index
@@ -152,5 +149,5 @@ mod tests {
         // no transfer syntaxes, only SOP classes
         let entry = dict.by_uid(crate::uids::EXPLICIT_VR_LITTLE_ENDIAN);
         assert_eq!(entry, None);
-   }
+    }
 }

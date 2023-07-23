@@ -13,7 +13,7 @@
 //! to be able to decode and encode imaging data, respectively.
 
 use dicom_core::{ops::AttributeOp, value::C};
-use snafu::{Snafu, OptionExt};
+use snafu::{OptionExt, Snafu};
 use std::borrow::Cow;
 
 /// The possible error conditions when decoding (reading) pixel data.
@@ -48,7 +48,7 @@ pub enum DecodeError {
     },
 
     /// The input pixel data is not encapsulated.
-    /// 
+    ///
     /// Either the image needs no decoding
     /// or the compressed imaging data was in a flat pixel data element by mistake.
     NotEncapsulated,
@@ -81,7 +81,7 @@ pub enum DecodeError {
 pub enum EncodeError {
     /// A custom error when encoding fails.
     /// Read the `message` and the underlying `source`
-    /// for more details. 
+    /// for more details.
     #[snafu(whatever, display("{}", message))]
     Custom {
         /// The error message.
@@ -160,7 +160,7 @@ pub trait PixelDataObject {
     /// (where 0 is the first fragment after the basic offset table)
     /// as a [`Cow<[u8]>`][1],
     /// or `None` if no such fragment is available.
-    /// 
+    ///
     /// In the case of native (non-encapsulated) pixel data,
     /// the whole data may be obtained
     /// by requesting fragment number 0.
@@ -237,8 +237,11 @@ pub trait PixelDataReader {
     /// the output must be in RGB with each pixel contiguous in memory
     /// (planar configuration of 0).
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()> {
-        let frames = src.number_of_frames()
-            .context(decode_error::MissingAttributeSnafu { name: "NumberOfFrames" })?;
+        let frames = src
+            .number_of_frames()
+            .context(decode_error::MissingAttributeSnafu {
+                name: "NumberOfFrames",
+            })?;
         for frame in 0..frames {
             self.decode_frame(src, frame, dst)?;
         }
@@ -304,8 +307,11 @@ pub trait PixelDataWriter {
         dst: &mut Vec<Vec<u8>>,
         offset_table: &mut Vec<u32>,
     ) -> EncodeResult<Vec<AttributeOp>> {
-        let frames = src.number_of_frames()
-            .context(encode_error::MissingAttributeSnafu { name: "NumberOfFrames" })?;
+        let frames = src
+            .number_of_frames()
+            .context(encode_error::MissingAttributeSnafu {
+                name: "NumberOfFrames",
+            })?;
         let mut out = Vec::new();
         for frame in 0..frames {
             let mut frame_data = Vec::new();
@@ -353,7 +359,7 @@ pub type DynPixelDataReader = Box<dyn PixelDataReader + Send + Sync + 'static>;
 pub type DynPixelDataWriter = Box<dyn PixelDataWriter + Send + Sync + 'static>;
 
 /// An immaterial type representing an adapter which is never provided.
-/// 
+///
 /// This type may be used as the type parameters `R` and `W`
 /// of [`TransferSyntax`](crate::transfer_syntax::TransferSyntax)
 /// when representing a transfer syntax which

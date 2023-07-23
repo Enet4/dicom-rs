@@ -110,7 +110,7 @@ pub enum ValueReadStrategy {
     /// All text is still decoded into Rust string values,
     /// in accordance to the standard,
     /// unless its value representation is unknown to the decoder.
-    /// 
+    ///
     /// This is the default strategy.
     #[default]
     Preserved,

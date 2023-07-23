@@ -402,35 +402,18 @@ fn store_req_command(
             VR::UI,
             dicom_value!(Str, storage_sop_class_uid),
         ),
-
         // command field
-        DataElement::new(
-            tags::COMMAND_FIELD,
-            VR::US,
-            dicom_value!(U16, [0x0001]),
-        ),
-
+        DataElement::new(tags::COMMAND_FIELD, VR::US, dicom_value!(U16, [0x0001])),
         // message ID
-        DataElement::new(
-            tags::MESSAGE_ID,
-            VR::US,
-            dicom_value!(U16, [message_id]),
-        ),
-
+        DataElement::new(tags::MESSAGE_ID, VR::US, dicom_value!(U16, [message_id])),
         //priority
-        DataElement::new(
-            tags::PRIORITY,
-            VR::US,
-            dicom_value!(U16, [0x0000]),
-        ),
-
+        DataElement::new(tags::PRIORITY, VR::US, dicom_value!(U16, [0x0000])),
         // data set type
         DataElement::new(
             tags::COMMAND_DATA_SET_TYPE,
             VR::US,
             dicom_value!(U16, [0x0000]),
         ),
-
         // affected SOP Instance UID
         DataElement::new(
             tags::AFFECTED_SOP_INSTANCE_UID,

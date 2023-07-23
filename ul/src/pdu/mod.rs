@@ -329,27 +329,20 @@ pub enum UserVariableItem {
     MaxLength(u32),
     ImplementationClassUID(String),
     ImplementationVersionName(String),
-    SopClassExtendedNegotiationSubItem(String, Vec<u8>)
+    SopClassExtendedNegotiationSubItem(String, Vec<u8>),
 }
 
 /// An in-memory representation of a full Protocol Data Unit (PDU)
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Hash)]
 pub enum Pdu {
-    Unknown {
-        pdu_type: u8,
-        data: Vec<u8>,
-    },
+    Unknown { pdu_type: u8, data: Vec<u8> },
     AssociationRQ(AssociationRQ),
     AssociationAC(AssociationAC),
     AssociationRJ(AssociationRJ),
-    PData {
-        data: Vec<PDataValue>,
-    },
+    PData { data: Vec<PDataValue> },
     ReleaseRQ,
     ReleaseRP,
-    AbortRQ {
-        source: AbortRQSource,
-    },
+    AbortRQ { source: AbortRQSource },
 }
 
 impl Pdu {

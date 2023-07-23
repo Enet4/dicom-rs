@@ -192,10 +192,10 @@ impl<'a> From<&'a str> for PersonNameDef<'a> {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
     use dicom_core::dicom_value;
     use dicom_core::value::DicomDate;
     use dicom_core::PrimitiveValue;
+    use pretty_assertions::assert_eq;
     use serde_json::json;
     use serde_json::Value;
 
