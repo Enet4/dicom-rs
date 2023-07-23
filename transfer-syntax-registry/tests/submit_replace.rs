@@ -43,7 +43,7 @@ submit_transfer_syntax! {
         "JPIP Referenced Deflate (Override)",
         Endianness::Little,
         true,
-        Codec::Dataset::<_, NeverPixelAdapter>(DummyCodecAdapter)
+        Codec::Dataset::<_, NeverPixelAdapter, NeverPixelAdapter>(Some(DummyCodecAdapter))
     )
 }
 
@@ -55,5 +55,7 @@ fn contains_dummy_ts() {
     let ts = ts.unwrap();
     assert_eq!(ts.uid(), "1.2.840.10008.1.2.4.95");
     assert_eq!(ts.name(), "JPIP Referenced Deflate (Override)");
-    assert!(ts.fully_supported());
+    assert!(ts.is_fully_supported());
+    assert!(ts.can_decode_dataset());
+    assert!(ts.can_decode_all());
 }

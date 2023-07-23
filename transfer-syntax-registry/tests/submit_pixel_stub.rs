@@ -4,16 +4,14 @@
 //! Only applicable to the inventory-based registry.
 #![cfg(feature = "inventory-registry")]
 
-use dicom_encoding::{
-    submit_ele_transfer_syntax, Codec, TransferSyntaxIndex,
-};
+use dicom_encoding::{submit_ele_transfer_syntax, Codec, TransferSyntaxIndex};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
 // install this dummy as a private transfer syntax
 submit_ele_transfer_syntax!(
     "1.2.840.10008.1.999.9999.99999",
     "Dummy Little Endian",
-    Codec::EncapsulatedPixelData
+    Codec::EncapsulatedPixelData(None, None)
 );
 
 const ALWAYS_DUMMY: &str = "1.2.840.10008.1.999.9999.99999.2";
@@ -22,7 +20,7 @@ const ALWAYS_DUMMY: &str = "1.2.840.10008.1.999.9999.99999.2";
 submit_ele_transfer_syntax!(
     ALWAYS_DUMMY,
     "Always Dummy Lossless Little Endian",
-    Codec::EncapsulatedPixelData
+    Codec::EncapsulatedPixelData(None, None)
 );
 
 const FOREVER_DUMMY: &str = "1.2.840.10008.1.999.9999.99999.3";
@@ -32,7 +30,7 @@ const FOREVER_DUMMY_NAME: &str = "Forever Dummy Hierarchical Little Endian";
 submit_ele_transfer_syntax!(
     FOREVER_DUMMY,
     FOREVER_DUMMY_NAME,
-    Codec::EncapsulatedPixelData
+    Codec::EncapsulatedPixelData(None, None)
 );
 
 #[test]
@@ -44,8 +42,8 @@ fn contains_stub_ts() {
     let ts = ts.unwrap();
     assert_eq!(ts.uid(), "1.2.840.10008.1.999.9999.99999");
     assert_eq!(ts.name(), "Dummy Little Endian");
-    assert!(!ts.fully_supported());
-    assert!(ts.unsupported_pixel_encapsulation());
+    assert!(!ts.is_fully_supported());
+    assert!(ts.is_unsupported_pixel_encapsulation());
     // can obtain a data set decoder
     assert!(ts.decoder().is_some());
 

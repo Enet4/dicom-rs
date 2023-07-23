@@ -73,7 +73,7 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
             .with_transfer_syntax("1.2.840.10008.1.2.1");
     } else {
         for ts in TransferSyntaxRegistry.iter() {
-            if !ts.unsupported() {
+            if !ts.is_unsupported() {
                 options = options.with_transfer_syntax(ts.uid());
             }
         }

@@ -1631,7 +1631,7 @@ where
                 ts_uid: transfer_syntax,
             })?;
 
-        if !ts.fully_supported() {
+        if !ts.can_decode_all() {
             return UnsupportedTransferSyntaxSnafu {
                 ts: transfer_syntax,
             }
@@ -1639,7 +1639,7 @@ where
         }
 
         // Try decoding it using a native Rust decoder
-        if let Codec::PixelData(decoder) = ts.codec() {
+        if let Codec::EncapsulatedPixelData(Some(decoder), _) = ts.codec() {
             let mut data: Vec<u8> = Vec::new();
             (*decoder)
                 .decode(self, &mut data)
@@ -1718,7 +1718,6 @@ mod tests {
         is_send_and_sync::<Error>();
     }
 
-    #[cfg(feature = "ndarray")]
     #[test]
     fn test_to_vec_rgb() {
         let test_file = dicom_test_files::path("pydicom/SC_rgb_16bit.dcm").unwrap();
