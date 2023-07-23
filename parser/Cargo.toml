@@ -12,7 +12,7 @@ readme = "README.md"
 
 [dependencies]
 dicom-core = { path = "../core", version = "0.6.0" }
-dicom-encoding = { path = "../encoding", version = "0.5.3" }
+dicom-encoding = { path = "../encoding", version = "0.6.0" }
 chrono = { version = "0.4.22", default-features = false, features = ["std"] }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.6.0" }
 smallvec = "1.6.1"
