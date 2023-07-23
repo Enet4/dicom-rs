@@ -15,7 +15,7 @@ dicom-core = { path = '../core', version = "0.6.0" }
 dicom-ul = { path = '../ul', version = "0.4.4" }
 dicom-object = { path = '../object', version = "0.5.4" }
 dicom-encoding = { path = "../encoding/", version = "0.5.3" }
-dicom-dictionary-std = { path = "../dictionary-std/", version = "0.5.0" }
+dicom-dictionary-std = { path = "../dictionary-std/", version = "0.6.0" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.5.1" }
 dicom-dump = { path = "../dump", default-features = false, version = "0.5.4" }
 clap = { version = "4.0.18", features = ["derive"] }

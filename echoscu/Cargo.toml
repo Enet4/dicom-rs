@@ -13,7 +13,7 @@ readme = "README.md"
 [dependencies]
 clap = { version  = "4.0.18", features = ["derive"] }
 dicom-core = { path = "../core", version = "0.6.0" }
-dicom-dictionary-std = { path = "../dictionary-std/", version = "0.5.0" }
+dicom-dictionary-std = { path = "../dictionary-std/", version = "0.6.0" }
 dicom-dump = { version = "0.5.4", path = "../dump", default-features = false }
 dicom-object = { path = "../object/", version = "0.5.3" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.5.1", default-features = false }
