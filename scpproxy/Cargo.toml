@@ -1,6 +1,6 @@
 [package]
 name = "dicom-scpproxy"
-version = "0.4.1"
+version = "0.5.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>", "Paul Knopf <pauldotknopf@gmail.com>"]
 description = "A proxy SCP server, for logging and diagnostics"
 edition = "2018"
