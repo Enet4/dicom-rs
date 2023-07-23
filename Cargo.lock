@@ -365,7 +365,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-dictionary-builder"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "clap",
  "eyre",
