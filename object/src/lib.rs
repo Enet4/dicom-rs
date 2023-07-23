@@ -31,7 +31,7 @@
 //! either by creating a [`Tag`](dicom_core::Tag)
 //! or by using one of the [readily available constants][const]
 //! from the [`dicom-dictionary-std`][dictionary-std] crate.
-//! 
+//!
 //! [const]: dicom_dictionary_std::tags
 //! [dictionary-std]: https://docs.rs/dicom-dictionary-std
 //!
@@ -62,10 +62,10 @@
 //! # Ok(())
 //! # }
 //! ```
-//! 
+//!
 //! **Note:** if you need to decode the pixel data first,
 //! see the [dicom-pixeldata] crate.
-//! 
+//!
 //! [dicom-pixeldata]: https://docs.rs/dicom-pixeldata
 //!
 //! Finally, DICOM objects can be serialized back into DICOM encoded bytes.
@@ -88,7 +88,7 @@
 //! [`FileMetaTableBuilder`]: crate::meta::FileMetaTableBuilder
 //! [`with_meta`]: crate::InMemDicomObject::with_meta
 //! [`with_exact_meta`]: crate::InMemDicomObject::with_exact_meta
-//! 
+//!
 //! ```no_run
 //! # use dicom_object::{InMemDicomObject, FileMetaTableBuilder};
 //! # fn something(obj: InMemDicomObject) -> Result<(), Box<dyn std::error::Error>> {
@@ -336,7 +336,7 @@ pub enum AtAccessError {
 
 /// An error which may occur when looking up a DICOM object's attributes
 /// by a keyword (or alias) instead of by tag.
-/// 
+///
 /// These accesses incur a look-up at the data element dictionary,
 /// which may fail if no such entry exists.
 #[derive(Debug, Snafu)]
@@ -423,12 +423,11 @@ where
         self.meta.write(&mut to).context(PrintMetaDataSetSnafu)?;
 
         // prepare encoder
-        let registry = TransferSyntaxRegistry::default();
-        let ts = registry.get(&self.meta.transfer_syntax).with_context(|| {
-            WriteUnsupportedTransferSyntaxSnafu {
+        let ts = TransferSyntaxRegistry
+            .get(&self.meta.transfer_syntax)
+            .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
-            }
-        })?;
+            })?;
         let cs = SpecificCharacterSet::Default;
         let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
 
@@ -457,12 +456,11 @@ where
         self.meta.write(&mut to).context(PrintMetaDataSetSnafu)?;
 
         // prepare encoder
-        let registry = TransferSyntaxRegistry::default();
-        let ts = registry.get(&self.meta.transfer_syntax).with_context(|| {
-            WriteUnsupportedTransferSyntaxSnafu {
+        let ts = TransferSyntaxRegistry
+            .get(&self.meta.transfer_syntax)
+            .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
-            }
-        })?;
+            })?;
         let cs = SpecificCharacterSet::Default;
         let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
 
@@ -489,8 +487,7 @@ where
         let to = BufWriter::new(to);
 
         // prepare encoder
-        let registry = TransferSyntaxRegistry::default();
-        let ts = registry.get(&self.meta.transfer_syntax).with_context(|| {
+        let ts = TransferSyntaxRegistry.get(&self.meta.transfer_syntax).with_context(|| {
             WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             }
