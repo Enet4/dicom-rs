@@ -28,6 +28,7 @@ other Rust libraries and applications.
   such as images and multidimensional arrays.
 - [`dump`](dump) provides helpful routines for
   dumping the contents of DICOM objects.
+- [`json`](json) provides serialization and deserialization to DICOM JSON.
 - [`ul`](ul) implements the DICOM upper layer protocol.
 - [`dictionary-std`](dictionary-std) contains a Rust definition of
   the standard data dictionary.
