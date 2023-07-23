@@ -15,7 +15,7 @@ default = ['dicom-object/inventory-registry', 'dicom-object/backtraces']
 
 [dependencies]
 clap = { version  = "4.0.18", features = ["derive"] }
-dicom-object = { path = "../object/", version = "0.5.4" }
+dicom-object = { path = "../object/", version = "0.6.0" }
 dicom-pixeldata = { path = "../pixeldata/", version = "0.1.5", features = ["image"] }
 snafu = "0.7.3"
 tracing = "0.1.34"
