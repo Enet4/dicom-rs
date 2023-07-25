@@ -94,20 +94,21 @@ impl From<Vec<Fragments>> for PixelFragmentSequence<InMemFragment> {
 
         let mut fragments = Vec::new();
         let is_multiframe = value.len() > 1;
+        let last_frame = value.len() - 1;
 
-        for mut frame in value {
+        for (index, mut frame) in value.into_iter().enumerate() {
             if frame.is_multiframe() && is_multiframe {
                 panic!("More than 1 fragment per frame is invalid for multi frame pixel data");
             }
 
-            let offset = frame.len();
-            offset_table.push(current_offset + offset);
-            current_offset += offset;
+            if index < last_frame {
+                let offset = frame.len();
+                offset_table.push(current_offset + offset);
+                current_offset += offset;
+            }
 
             fragments.append(&mut frame.fragments);
         }
-
-        offset_table.resize(offset_table.len() - 1, 0);
 
         PixelFragmentSequence {
             offset_table,
