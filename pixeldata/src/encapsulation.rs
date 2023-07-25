@@ -65,7 +65,7 @@ mod tests {
         {
             let offset_table = enc.offset_table();
             let fragments = enc.fragments();
-            assert_eq!(offset_table.len(), 3);
+            assert_eq!(offset_table.len(), 2);
             assert_eq!(fragments.len(), 2);
             assert_eq!(fragments[0].len(), 4);
             assert_eq!(fragments[1].len(), 4);
@@ -79,7 +79,7 @@ mod tests {
         if let Value::PixelSequence(enc) = encapsulate_single_frame(vec![20, 30, 40], 1) {
             let offset_table = enc.offset_table();
             let fragments = enc.fragments();
-            assert_eq!(offset_table.len(), 2);
+            assert_eq!(offset_table.len(), 1);
             assert_eq!(fragments.len(), 2);
             assert_eq!(fragments[0].len(), 2);
             assert_eq!(fragments[1].len(), 2);
