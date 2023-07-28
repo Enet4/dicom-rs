@@ -199,8 +199,8 @@ mod tests {
     #[test]
     fn test_bot_multi_frame_generation() {
         let data = vec![
-            Fragments::new(vec![0u8, 0u8, 0u8, 0u8], 0),
-            Fragments::new(vec![1u8, 1u8, 1u8, 1u8, 1u8, 1u8], 0),
+            Fragments::new(vec![0u8; 4], 0),
+            Fragments::new(vec![1u8; 6], 0),
         ];
         let fragment_sequence: PixelFragmentSequence<InMemFragment> = data.into();
         assert_eq!(fragment_sequence.offset_table.len(), 2);
