@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn test_bot_single_fragment_generation() {
-        let data = vec![Fragments::new(vec![0u8, 0u8], 2)];
+        let data = vec![Fragments::new(vec![0u8; 2], 2)];
         let fragment_sequence: PixelFragmentSequence<InMemFragment> = data.into();
         assert_eq!(fragment_sequence.offset_table.len(), 1);
         assert_eq!(fragment_sequence.offset_table[0], 0);
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_bot_multi_fragments_generation() {
-        let data = vec![Fragments::new(vec![0u8, 0u8, 0u8, 0u8], 2)];
+        let data = vec![Fragments::new(vec![0u8; 4], 2)];
         let fragment_sequence: PixelFragmentSequence<InMemFragment> = data.into();
         assert_eq!(fragment_sequence.offset_table.len(), 1);
         assert_eq!(fragment_sequence.offset_table[0], 0);
