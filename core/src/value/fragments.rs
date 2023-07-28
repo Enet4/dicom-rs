@@ -94,15 +94,18 @@ impl From<Vec<Fragments>> for PixelFragmentSequence<InMemFragment> {
 
         let mut fragments = Vec::new();
         let is_multiframe = value.len() > 1;
+        let last_frame = value.len() - 1;
 
-        for mut frame in value {
+        for (index, mut frame) in value.into_iter().enumerate() {
             if frame.is_multiframe() && is_multiframe {
                 panic!("More than 1 fragment per frame is invalid for multi frame pixel data");
             }
 
-            let offset = frame.len();
-            offset_table.push(current_offset + offset);
-            current_offset += offset;
+            if index < last_frame {
+                let offset = frame.len();
+                offset_table.push(current_offset + offset);
+                current_offset += offset;
+            }
 
             fragments.append(&mut frame.fragments);
         }
@@ -117,6 +120,7 @@ impl From<Vec<Fragments>> for PixelFragmentSequence<InMemFragment> {
 #[cfg(test)]
 mod tests {
     use crate::value::fragments::Fragments;
+    use crate::value::{InMemFragment, PixelFragmentSequence};
 
     #[test]
     fn test_fragment_frame() {
@@ -174,5 +178,33 @@ mod tests {
         assert_eq!(fragment.fragments[0], vec![150, 164]);
         assert_eq!(fragment.fragments[1].len(), 2);
         assert_eq!(fragment.fragments[1], vec![200, 222]);
+    }
+
+    #[test]
+    fn test_bot_single_fragment_generation() {
+        let data = vec![Fragments::new(vec![0u8; 2], 2)];
+        let fragment_sequence: PixelFragmentSequence<InMemFragment> = data.into();
+        assert_eq!(fragment_sequence.offset_table.len(), 1);
+        assert_eq!(fragment_sequence.offset_table[0], 0);
+    }
+
+    #[test]
+    fn test_bot_multi_fragments_generation() {
+        let data = vec![Fragments::new(vec![0u8; 4], 2)];
+        let fragment_sequence: PixelFragmentSequence<InMemFragment> = data.into();
+        assert_eq!(fragment_sequence.offset_table.len(), 1);
+        assert_eq!(fragment_sequence.offset_table[0], 0);
+    }
+
+    #[test]
+    fn test_bot_multi_frame_generation() {
+        let data = vec![
+            Fragments::new(vec![0u8; 4], 0),
+            Fragments::new(vec![1u8; 6], 0),
+        ];
+        let fragment_sequence: PixelFragmentSequence<InMemFragment> = data.into();
+        assert_eq!(fragment_sequence.offset_table.len(), 2);
+        assert_eq!(fragment_sequence.offset_table[0], 0);
+        assert_eq!(fragment_sequence.offset_table[1], 12); // 8 separator bytes + 4 data bytes
     }
 }
