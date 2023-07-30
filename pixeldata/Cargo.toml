@@ -31,7 +31,7 @@ features = ["jpeg", "png", "pnm", "tiff", "webp", "bmp"]
 optional = true
 
 [dev-dependencies]
-rstest = "0.16"
+rstest = "0.18.1"
 dicom-test-files = "0.2.1"
 
 [features]
