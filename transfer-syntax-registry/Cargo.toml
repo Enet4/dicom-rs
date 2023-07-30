@@ -24,7 +24,7 @@ rle = []
 rayon = ["jpeg-decoder?/rayon"]
 
 [dependencies]
-dicom-core = { path = "../core", version = "0.6.0" }
+dicom-core = { path = "../core", version = "0.6.1" }
 dicom-encoding = { path = "../encoding", version = "0.6.0" }
 lazy_static = "1.2.0"
 byteordered = "0.6"
