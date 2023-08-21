@@ -1025,6 +1025,70 @@ fn write_pdu_variable_user_variables(
                     })
                     .context(WriteChunkSnafu { name: "Sub-item" })?;
                 }
+                UserVariableItem::UserIdentityItem(user_identity) => {
+                    // 1 - Item-type - 58H
+                    writer
+                        .write_u8(0x58)
+                        .context(WriteFieldSnafu { field: "Item-type" })?;
+
+                    // 2 - Reserved - This reserved field shall be sent with a value 00H but not
+                    // tested to this value when received.
+                    writer
+                        .write_u8(0x00)
+                        .context(WriteReservedSnafu { bytes: 1_u32 })?;
+
+                    // 3-4 - Item-length
+                    write_chunk_u16(writer, |writer| {
+                        // 5 - User-Identity-Type
+                        writer
+                            .write_u8(user_identity.identity_type().to_u8())
+                            .context(WriteFieldSnafu {
+                                field: "User-Identity-Type",
+                            })?;
+
+                        // 6 - Positive-response-requested
+                        let positive_response_requested_out: u8 =
+                            if user_identity.positive_response_requested() {
+                                1
+                            } else {
+                                0
+                            };
+                        writer.write_u8(positive_response_requested_out).context(
+                            WriteFieldSnafu {
+                                field: "Positive-response-requested",
+                            },
+                        )?;
+
+                        // 7-8 - Primary-field-length
+                        write_chunk_u16(writer, |writer| {
+                            // 9-n - Primary-field
+                            writer
+                                .write_all(user_identity.primary_field().as_slice())
+                                .context(WriteFieldSnafu {
+                                    field: "Primary-field",
+                                })
+                        })
+                        .context(WriteChunkSnafu {
+                            name: "Primary-field",
+                        })?;
+
+                        // n+1-n+2 - Secondary-field-length
+                        write_chunk_u16(writer, |writer| {
+                            // n+3-m - Secondary-field
+                            writer
+                                .write_all(user_identity.secondary_field().as_slice())
+                                .context(WriteFieldSnafu {
+                                    field: "Secondary-field",
+                                })
+                        })
+                        .context(WriteChunkSnafu {
+                            name: "Secondary-field",
+                        })
+                    })
+                    .context(WriteChunkSnafu {
+                        name: "Item-length",
+                    })?;
+                }
                 UserVariableItem::Unknown(item_type, data) => {
                     writer
                         .write_u8(*item_type)

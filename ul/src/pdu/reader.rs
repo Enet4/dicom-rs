@@ -945,6 +945,52 @@ where
                             data,
                         ));
                     }
+                    0x58 => {
+                        // User Identity Negotiation
+
+                        // 5 - User Identity Type
+                        let user_identity_type = cursor.read_u8().context(ReadPduFieldSnafu {
+                            field: "User-Identity-type",
+                        })?;
+
+                        // 6 - Positive-response-requested
+                        let positive_response_requested =
+                            cursor.read_u8().context(ReadPduFieldSnafu {
+                                field: "User-Identity-positive-response-requested",
+                            })?;
+
+                        // 7-8 - Primary Field Length
+                        let primary_field_length =
+                            cursor.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
+                                field: "User-Identity-primary-field-length",
+                            })?;
+
+                        // 9-n - Primary Field
+                        let primary_field = read_n(&mut cursor, primary_field_length as usize)
+                            .context(ReadPduFieldSnafu {
+                                field: "User-Identity-primary-field",
+                            })?;
+
+                        // n+1-n+2 - Secondary Field Length
+                        // Only non-zero if user identity type is 2 (username and password)
+                        let secondary_field_length =
+                            cursor.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
+                                field: "User-Identity-secondary-field-length",
+                            })?;
+
+                        // n+3-m - Secondary Field
+                        let secondary_field = read_n(&mut cursor, secondary_field_length as usize)
+                            .context(ReadPduFieldSnafu {
+                                field: "User-Identity-secondary-field",
+                            })?;
+
+                        user_variables.push(UserVariableItem::UserIdentityItem(UserIdentity::new(
+                            positive_response_requested == 1,
+                            UserIdentityType::from(user_identity_type),
+                            primary_field,
+                            secondary_field,
+                        )));
+                    }
                     _ => {
                         user_variables.push(UserVariableItem::Unknown(
                             item_type,

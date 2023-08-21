@@ -17,7 +17,7 @@ use crate::{
         writer::write_pdu,
         AbortRQSource, AssociationAC, AssociationRJ, AssociationRQ, Pdu,
         PresentationContextProposed, PresentationContextResult, PresentationContextResultReason,
-        UserVariableItem,
+        UserIdentity, UserIdentityType, UserVariableItem,
     },
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
@@ -167,6 +167,16 @@ pub struct ClientAssociationOptions<'a> {
     max_pdu_length: u32,
     /// whether to receive PDUs in strict mode
     strict: bool,
+    /// User identity username
+    username: Option<Cow<'a, str>>,
+    /// User identity password
+    password: Option<Cow<'a, str>>,
+    /// User identity Kerberos service ticket
+    kerberos_service_ticket: Option<Cow<'a, str>>,
+    /// User identity SAML assertion
+    saml_assertion: Option<Cow<'a, str>>,
+    /// User identity JWT
+    jwt: Option<Cow<'a, str>>,
 }
 
 impl<'a> Default for ClientAssociationOptions<'a> {
@@ -183,6 +193,11 @@ impl<'a> Default for ClientAssociationOptions<'a> {
             protocol_version: 1,
             max_pdu_length: crate::pdu::reader::DEFAULT_MAX_PDU,
             strict: true,
+            username: None,
+            password: None,
+            kerberos_service_ticket: None,
+            saml_assertion: None,
+            jwt: None,
         }
     }
 }
@@ -270,6 +285,76 @@ impl<'a> ClientAssociationOptions<'a> {
         self
     }
 
+    /// Sets the user identity username
+    pub fn username<T>(mut self, username: T) -> Self
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        let username = username.into();
+        if username.is_empty() {
+            self.username = None;
+        } else {
+            self.username = Some(username);
+        }
+        self
+    }
+
+    /// Sets the user identity password
+    pub fn password<T>(mut self, password: T) -> Self
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        let password = password.into();
+        if password.is_empty() {
+            self.password = None;
+        } else {
+            self.password = Some(password);
+        }
+        self
+    }
+
+    /// Sets the user identity Kerberos service ticket
+    pub fn kerberos_service_ticket<T>(mut self, kerberos_service_ticket: T) -> Self
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        let kerberos_service_ticket = kerberos_service_ticket.into();
+        if kerberos_service_ticket.is_empty() {
+            self.kerberos_service_ticket = None;
+        } else {
+            self.kerberos_service_ticket = Some(kerberos_service_ticket);
+        }
+        self
+    }
+
+    /// Sets the user identity SAML assertion
+    pub fn saml_assertion<T>(mut self, saml_assertion: T) -> Self
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        let saml_assertion = saml_assertion.into();
+        if saml_assertion.is_empty() {
+            self.saml_assertion = None;
+        } else {
+            self.saml_assertion = Some(saml_assertion);
+        }
+        self
+    }
+
+    /// Sets the user identity JWT
+    pub fn jwt<T>(mut self, jwt: T) -> Self
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        let jwt = jwt.into();
+        if jwt.is_empty() {
+            self.jwt = None;
+        } else {
+            self.jwt = Some(jwt);
+        }
+        self
+    }
+
     /// Initiate the TCP connection to the given address
     /// and request a new DICOM association,
     /// negotiating the presentation contexts in the process.
@@ -319,6 +404,11 @@ impl<'a> ClientAssociationOptions<'a> {
             protocol_version,
             max_pdu_length,
             strict,
+            username,
+            password,
+            kerberos_service_ticket,
+            saml_assertion,
+            jwt,
         } = self;
 
         // fail if no presentation contexts were provided: they represent intent,
@@ -355,19 +445,30 @@ impl<'a> ClientAssociationOptions<'a> {
                     .collect(),
             })
             .collect();
+
+        let mut user_variables = vec![
+            UserVariableItem::MaxLength(max_pdu_length),
+            UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
+            UserVariableItem::ImplementationVersionName(IMPLEMENTATION_VERSION_NAME.to_string()),
+        ];
+
+        if let Some(user_identity) = Self::determine_user_identity(
+            username,
+            password,
+            kerberos_service_ticket,
+            saml_assertion,
+            jwt,
+        ) {
+            user_variables.push(UserVariableItem::UserIdentityItem(user_identity));
+        }
+
         let msg = Pdu::AssociationRQ(AssociationRQ {
             protocol_version,
             calling_ae_title: calling_ae_title.to_string(),
             called_ae_title: called_ae_title.to_string(),
             application_context_name: application_context_name.to_string(),
             presentation_contexts,
-            user_variables: vec![
-                UserVariableItem::MaxLength(max_pdu_length),
-                UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
-                UserVariableItem::ImplementationVersionName(
-                    IMPLEMENTATION_VERSION_NAME.to_string(),
-                ),
-            ],
+            user_variables,
         });
 
         let mut socket = std::net::TcpStream::connect(ae_address).context(ConnectSnafu)?;
@@ -466,6 +567,66 @@ impl<'a> ClientAssociationOptions<'a> {
                 UnknownResponseSnafu { pdu }.fail()
             }
         }
+    }
+
+    fn determine_user_identity<T>(
+        username: Option<T>,
+        password: Option<T>,
+        kerberos_service_ticket: Option<T>,
+        saml_assertion: Option<T>,
+        jwt: Option<T>,
+    ) -> Option<UserIdentity>
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        let mut result: Option<UserIdentity> = None;
+
+        if let Some(username) = username {
+            if let Some(password) = password {
+                result = Some(UserIdentity::new(
+                    false,
+                    UserIdentityType::UsernamePassword,
+                    username.into().as_bytes().to_vec(),
+                    password.into().as_bytes().to_vec(),
+                ));
+            } else {
+                result = Some(UserIdentity::new(
+                    false,
+                    UserIdentityType::Username,
+                    username.into().as_bytes().to_vec(),
+                    vec![],
+                ));
+            }
+        }
+
+        if let Some(kerberos_service_ticket) = kerberos_service_ticket {
+            result = Some(UserIdentity::new(
+                false,
+                UserIdentityType::KerberosServiceTicket,
+                kerberos_service_ticket.into().as_bytes().to_vec(),
+                vec![],
+            ));
+        }
+
+        if let Some(saml_assertion) = saml_assertion {
+            result = Some(UserIdentity::new(
+                false,
+                UserIdentityType::SAMLAssertion,
+                saml_assertion.into().as_bytes().to_vec(),
+                vec![],
+            ));
+        }
+
+        if let Some(jwt) = jwt {
+            result = Some(UserIdentity::new(
+                false,
+                UserIdentityType::JWT,
+                jwt.into().as_bytes().to_vec(),
+                vec![],
+            ));
+        }
+
+        result
     }
 }
 

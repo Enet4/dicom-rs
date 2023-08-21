@@ -330,6 +330,79 @@ pub enum UserVariableItem {
     ImplementationClassUID(String),
     ImplementationVersionName(String),
     SopClassExtendedNegotiationSubItem(String, Vec<u8>),
+    UserIdentityItem(UserIdentity),
+}
+
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+pub struct UserIdentity {
+    positive_response_requested: bool,
+    identity_type: UserIdentityType,
+    primary_field: Vec<u8>,
+    secondary_field: Vec<u8>,
+}
+impl UserIdentity {
+    pub fn new(
+        positive_response_requested: bool,
+        identity_type: UserIdentityType,
+        primary_field: Vec<u8>,
+        secondary_field: Vec<u8>,
+    ) -> Self {
+        UserIdentity {
+            positive_response_requested,
+            identity_type,
+            primary_field,
+            secondary_field,
+        }
+    }
+
+    pub fn positive_response_requested(&self) -> bool {
+        self.positive_response_requested
+    }
+
+    pub fn identity_type(&self) -> UserIdentityType {
+        self.identity_type.clone()
+    }
+
+    pub fn primary_field(&self) -> Vec<u8> {
+        self.primary_field.clone()
+    }
+
+    pub fn secondary_field(&self) -> Vec<u8> {
+        self.secondary_field.clone()
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+pub enum UserIdentityType {
+    Username,
+    UsernamePassword,
+    KerberosServiceTicket,
+    SAMLAssertion,
+    JWT,
+    Unsupported,
+}
+impl UserIdentityType {
+    fn from(user_identity_type: u8) -> Self {
+        match user_identity_type {
+            1 => Self::Username,
+            2 => Self::UsernamePassword,
+            3 => Self::KerberosServiceTicket,
+            4 => Self::SAMLAssertion,
+            5 => Self::JWT,
+            _ => Self::Unsupported,
+        }
+    }
+
+    fn to_u8(&self) -> u8 {
+        match self {
+            Self::Username => 1,
+            Self::UsernamePassword => 2,
+            Self::KerberosServiceTicket => 3,
+            Self::SAMLAssertion => 4,
+            Self::JWT => 5,
+            Self::Unsupported => 0,
+        }
+    }
 }
 
 /// An in-memory representation of a full Protocol Data Unit (PDU)
