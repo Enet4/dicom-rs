@@ -322,10 +322,10 @@ where
         S: Read,
     {
         let buf = reader.fill_buf()?;
-        let buflen= buf.len();
+        let buflen = buf.len();
 
         if buflen < 4 {
-            return Err(std::io::ErrorKind::UnexpectedEof.into())
+            return Err(std::io::ErrorKind::UnexpectedEof.into());
         }
 
         if buflen >= 132 && &buf[128..132] == b"DICM" {
