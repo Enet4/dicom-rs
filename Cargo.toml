@@ -25,6 +25,9 @@ members = [
     "ul",
 ]
 
+# use edition 2021 resolver
+resolver = "2"
+
 # optimize JPEG decoder to run tests faster
 [profile.dev.package."jpeg-decoder"]
 opt-level = 2
