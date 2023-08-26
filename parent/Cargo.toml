@@ -1,6 +1,6 @@
 [package]
 name = "dicom"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A pure Rust implementation of the DICOM standard"
 edition = "2018"
@@ -21,7 +21,7 @@ pixeldata = ['dicom-pixeldata']
 [dependencies]
 dicom-core = { path = "../core", version = "0.6.1" }
 dicom-dictionary-std = { path = "../dictionary-std", version = "0.6.0" }
-dicom-dump = { version = "0.6.0", path = "../dump", default-features = false }
+dicom-dump = { version = "0.6.1", path = "../dump", default-features = false }
 dicom-encoding = { path = "../encoding", version = "0.6.0" }
 dicom-parser = { path = "../parser", version = "0.6.0" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.6.0" }
