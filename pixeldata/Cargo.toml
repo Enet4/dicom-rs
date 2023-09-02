@@ -10,6 +10,11 @@ categories = ["multimedia::images"]
 keywords = ["dicom"]
 readme = "README.md"
 
+[[bin]]
+name = "dicom-transcode"
+path = "src/bin/dicom-transcode.rs"
+required-features = ["cli"]
+
 [dependencies]
 dicom-object = { path = "../object", version = "0.6.1" }
 dicom-core = { path = "../core", version = "0.6.1" }
@@ -30,6 +35,15 @@ default-features = false
 features = ["jpeg", "png", "pnm", "tiff", "webp", "bmp", "openexr"]
 optional = true
 
+[dependencies.clap]
+version = "4.4.2"
+optional = true
+features = ["cargo", "derive"]
+
+[dependencies.tracing-subscriber]
+version = "0.3.17"
+optional = true
+
 [dev-dependencies]
 rstest = "0.18.1"
 dicom-test-files = "0.2.1"
@@ -43,6 +57,8 @@ image = ["dep:image"]
 native = ["dicom-transfer-syntax-registry/native"]
 gdcm = ["gdcm-rs"]
 rayon = ["dep:rayon", "image?/jpeg_rayon", "dicom-transfer-syntax-registry/rayon"]
+
+cli = ["dep:clap", "dep:tracing-subscriber"]
 
 [package.metadata.docs.rs]
 features = ["image", "ndarray"]

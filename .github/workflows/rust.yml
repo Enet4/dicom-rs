@@ -23,7 +23,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
           cache: true
       # test project with default + extra features
-      - run: cargo test --features image,ndarray,sop-class,rle
+      - run: cargo test --features image,ndarray,sop-class,rle,cli
       # test dicom-pixeldata with gdcm-rs
       - run: cargo test -p dicom-pixeldata --features gdcm
       # test dicom-pixeldata without default features
