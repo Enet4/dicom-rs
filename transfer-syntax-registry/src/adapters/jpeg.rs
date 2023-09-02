@@ -50,9 +50,10 @@ impl PixelDataReader for JpegAdapter {
             0,
         );
 
-        // Embedded jpegs can span multiple fragments
+        // Although it is non-standard,
+        // some embedded JPEGs might span multiple fragments.
         // Hence we collect all fragments into single vector
-        // and then just iterate a cursor for each frame
+        // and then iterate a cursor for each frame
         let fragments: Vec<u8> = src
             .raw_pixel_data()
             .whatever_context("Expected to have raw pixel data available")?
@@ -76,10 +77,21 @@ impl PixelDataReader for JpegAdapter {
             dst[dst_offset..(dst_offset + decoded_len)].copy_from_slice(&decoded);
             dst_offset += decoded_len;
 
-            // dicom fields always have to have an even length and fill this space with padding
-            // if uneven we have to move one position further to consume this padding
+            // DICOM fragments should always have an even length,
+            // filling this spacing with padding if it is odd.
+            // Some implementations might add this padding,
+            // whereas other might not.
+            // So we look for the start of the SOI marker
+            // to identify whether the padding is there
             if cursor.position() % 2 > 0 {
-                cursor.set_position(cursor.position() + 1);
+                let next_bytes = [
+                    // skip one
+                    cursor.get_ref().get(cursor.position() as usize + 1).copied(),
+                    cursor.get_ref().get(cursor.position() as usize + 2).copied(),
+                ];
+                if next_bytes == [Some(0xFF), Some(0xD8)] {
+                    cursor.set_position(cursor.position() + 1);
+                }
             }
 
             if cursor.position() >= fragments_len {
