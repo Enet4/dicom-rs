@@ -240,6 +240,7 @@ impl FileMetaTable {
             .uid()
             .trim_end_matches(|c: char| c.is_whitespace() || c == '\0')
             .to_string();
+        self.update_information_group_length();
     }
 
     /// Calculate the expected file meta group length
@@ -1173,6 +1174,33 @@ mod tests {
 
         assert_eq!(table.information_group_length, gt.information_group_length);
         assert_eq!(table, gt);
+    }
+
+    /// Changing the transfer syntax updates the file meta group length.
+    #[test]
+    fn change_transfer_syntax_update_table() {
+        let mut table = FileMetaTableBuilder::new()
+            .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1")
+            .media_storage_sop_instance_uid(
+                "1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567",
+            )
+            .transfer_syntax("1.2.840.10008.1.2.1")
+            .build()
+            .unwrap();
+
+        assert_eq!(
+            table.information_group_length,
+            156 + dicom_len(IMPLEMENTATION_CLASS_UID) + dicom_len(IMPLEMENTATION_VERSION_NAME)
+        );
+
+        // Note (#409): erased is required due to a missing type parameter in the setter
+        table.set_transfer_syntax(
+            &dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
+        );
+        assert_eq!(
+            table.information_group_length,
+            154 + dicom_len(IMPLEMENTATION_CLASS_UID) + dicom_len(IMPLEMENTATION_VERSION_NAME)
+        );
     }
 
     #[test]
