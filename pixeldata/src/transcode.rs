@@ -75,8 +75,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// 
 /// // save transcoded version to file
 /// obj.write_to_file("image_jpg.dcm")?;
-/// 
-/// Ok::<(), Box<dyn std::error::Error>>(())
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub trait Transcode {
     /// Convert the receiving object's transfer syntax
