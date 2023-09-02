@@ -113,7 +113,7 @@ where
     D: Clone + DataDictionary,
 {
     fn transcode_with_options(&mut self, ts: &TransferSyntax, options: EncodeOptions) -> Result<()> {
-        let current_ts_uid = &self.meta().transfer_syntax;
+        let current_ts_uid = self.meta().transfer_syntax();
         // do nothing if the transfer syntax already matches
         if current_ts_uid == ts.uid() {
             return Ok(());
@@ -288,7 +288,7 @@ mod tests {
         let mut obj = open_file(test_file).unwrap();
 
         // pre-condition check: pixel data conversion is needed here
-        assert_eq!(&obj.meta().transfer_syntax, uids::JPEG_LOSSLESS_SV1);
+        assert_eq!(obj.meta().transfer_syntax(), uids::JPEG_LOSSLESS_SV1);
 
         // transcode to explicit VR little endian
         obj.transcode(&EXPLICIT_VR_LITTLE_ENDIAN.erased())
@@ -393,14 +393,14 @@ mod tests {
         let mut obj = open_file(test_file).unwrap();
 
         // pre-condition check: pixel data conversion is needed here
-        assert_eq!(&obj.meta().transfer_syntax, uids::JPEG_EXTENDED12_BIT);
+        assert_eq!(obj.meta().transfer_syntax(), uids::JPEG_EXTENDED12_BIT);
 
         // transcode to explicit VR little endian
         obj.transcode(&EXPLICIT_VR_LITTLE_ENDIAN.erased())
             .expect("Should have transcoded successfully");
 
         // check transfer syntax
-        assert_eq!(&obj.meta().transfer_syntax, EXPLICIT_VR_LITTLE_ENDIAN.uid());
+        assert_eq!(obj.meta().transfer_syntax(), EXPLICIT_VR_LITTLE_ENDIAN.uid());
 
         // check that the pixel data is in its native form
         // and has the expected size
@@ -415,6 +415,42 @@ mod tests {
         let bps = 2;
 
         assert_eq!(pixels.len(), rows * cols * spp * bps);
+    }
+
+
+    /// can transcode native multi-frame pixel data
+    #[test]
+    fn test_transcode_2frames_to_jpeg() {
+        let test_file = dicom_test_files::path("pydicom/SC_rgb_2frame.dcm").unwrap();
+        let mut obj = open_file(test_file).unwrap();
+
+        // pre-condition check: pixel data conversion is needed here
+        assert_eq!(obj.meta().transfer_syntax(), uids::EXPLICIT_VR_LITTLE_ENDIAN);
+
+        // transcode to JPEG baseline
+        obj.transcode(&JPEG_BASELINE.erased())
+            .expect("Should have transcoded successfully");
+
+        // check transfer syntax
+        assert_eq!(obj.meta().transfer_syntax(), JPEG_BASELINE.uid());
+
+        // check that the number of frames stayed the same
+        let num_frames = obj.get(tags::NUMBER_OF_FRAMES).unwrap();
+        assert_eq!(num_frames.to_int::<u32>().unwrap(), 2);
+
+        // check that the pixel data is encapsulated
+        let pixel_data = obj.element(tags::PIXEL_DATA).unwrap();
+
+        let fragments = pixel_data
+            .fragments()
+            .expect("Pixel Data should be in encapsulated fragments");
+        
+        // two frames, two fragments (as required by JPEG baseline)
+        assert_eq!(fragments.len(), 2);
+
+        // each frame has some data
+        assert!(fragments[0].len() > 4);
+        assert!(fragments[1].len() > 4);
     }
 
     /// if the transfer syntax is the same, no transcoding should be performed
