@@ -27,7 +27,7 @@ tracing = "0.1.34"
 [dependencies.image]
 version = "0.24.5"
 default-features = false
-features = ["jpeg", "png", "pnm", "tiff", "webp", "bmp"]
+features = ["jpeg", "png", "pnm", "tiff", "webp", "bmp", "openexr"]
 optional = true
 
 [dev-dependencies]
