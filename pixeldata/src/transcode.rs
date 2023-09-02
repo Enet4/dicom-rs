@@ -277,8 +277,11 @@ mod tests {
     use dicom_dictionary_std::uids;
     use dicom_object::open_file;
     use dicom_test_files;
-    use dicom_transfer_syntax_registry::entries::{JPEG_BASELINE, JPEG_EXTENDED};
+    use dicom_transfer_syntax_registry::entries::JPEG_EXTENDED;
+    #[cfg(feature = "native")]
+    use dicom_transfer_syntax_registry::entries::JPEG_BASELINE;
 
+    #[cfg(feature = "native")]
     #[test]
     fn test_transcode_from_jpeg_lossless_to_native_rgb() {
         let test_file = dicom_test_files::path("pydicom/SC_rgb_jpeg_gdcm.dcm").unwrap();
@@ -308,6 +311,7 @@ mod tests {
         assert_eq!(pixels.len(), rows * cols * spp);
     }
 
+    #[cfg(feature = "native")]
     #[test]
     fn test_transcode_from_native_to_jpeg_rgb() {
         let test_file = dicom_test_files::path("pydicom/SC_rgb.dcm").unwrap();
@@ -380,6 +384,7 @@ mod tests {
 
     }
 
+    #[cfg(feature = "native")]
     #[test]
     // Note: Test ignored until 12-bit JPEG decoding is supported
     #[ignore]
@@ -432,11 +437,13 @@ mod tests {
             let test_file = dicom_test_files::path("pydicom/JPEG-lossy.dcm").unwrap();
             let mut obj = open_file(test_file).unwrap();
 
+            assert_eq!(obj.meta().transfer_syntax(), uids::JPEG_EXTENDED12_BIT);
+
             // transcode to the same TS
             obj.transcode(&JPEG_EXTENDED.erased())
                 .expect("Should have transcoded successfully");
 
-            assert_eq!(obj.meta().transfer_syntax(), JPEG_EXTENDED.uid());
+            assert_eq!(obj.meta().transfer_syntax(), uids::JPEG_EXTENDED12_BIT);
             // pixel data is still encapsulated
             let fragments = obj.get(tags::PIXEL_DATA).unwrap().fragments().unwrap();
             assert_eq!(fragments.len(), 1);
