@@ -13,7 +13,7 @@
 //! to be able to decode and encode imaging data, respectively.
 
 use dicom_core::{ops::AttributeOp, value::C};
-use snafu::{OptionExt, Snafu};
+use snafu::Snafu;
 use std::borrow::Cow;
 
 /// The possible error conditions when decoding (reading) pixel data.
@@ -239,9 +239,7 @@ pub trait PixelDataReader {
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()> {
         let frames = src
             .number_of_frames()
-            .context(decode_error::MissingAttributeSnafu {
-                name: "NumberOfFrames",
-            })?;
+            .unwrap_or(1);
         for frame in 0..frames {
             self.decode_frame(src, frame, dst)?;
         }
@@ -309,9 +307,7 @@ pub trait PixelDataWriter {
     ) -> EncodeResult<Vec<AttributeOp>> {
         let frames = src
             .number_of_frames()
-            .context(encode_error::MissingAttributeSnafu {
-                name: "NumberOfFrames",
-            })?;
+            .unwrap_or(1);
         let mut out = Vec::new();
         for frame in 0..frames {
             let mut frame_data = Vec::new();
