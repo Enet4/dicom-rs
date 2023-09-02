@@ -419,6 +419,7 @@ mod tests {
 
 
     /// can transcode native multi-frame pixel data
+    #[cfg(feature = "native")]
     #[test]
     fn test_transcode_2frames_to_jpeg() {
         let test_file = dicom_test_files::path("pydicom/SC_rgb_2frame.dcm").unwrap();
