@@ -50,32 +50,37 @@ impl PixelDataReader for JpegAdapter {
             0,
         );
 
-        // Although it is non-standard,
-        // some embedded JPEGs might span multiple fragments.
+        let raw = src
+            .raw_pixel_data()
+            .whatever_context("Expected to have raw pixel data available")?;
+
+        // Some embedded JPEGs might span multiple fragments.
         // Hence we collect all fragments into single vector
         // and then iterate a cursor for each frame
-        let fragments: Vec<u8> = src
-            .raw_pixel_data()
-            .whatever_context("Expected to have raw pixel data available")?
-            .fragments
-            .into_iter()
-            .flatten()
-            .collect();
+        // Note: not the most efficient way to do this,
+        // consider optimizing later with bytes data structures
+        let fragments: Vec<u8> = raw.fragments.into_iter().flatten().collect();
 
         let fragments_len = fragments.len() as u64;
         let mut cursor = Cursor::new(fragments);
         let mut dst_offset = base_offset;
 
+        let mut i: u32 = 0;
         loop {
             let mut decoder = Decoder::new(&mut cursor);
             let decoded = decoder
                 .decode()
                 .map_err(|e| Box::new(e) as Box<_>)
-                .whatever_context("JPEG decoder failure")?;
+                .with_whatever_context(|_| format!("JPEG decoding failure on frame {}", i))?;
 
             let decoded_len = decoded.len();
             dst[dst_offset..(dst_offset + decoded_len)].copy_from_slice(&decoded);
             dst_offset += decoded_len;
+            i += 1;
+
+            if next_even(cursor.position()) >= next_even(fragments_len) {
+                break;
+            }
 
             // DICOM fragments should always have an even length,
             // filling this spacing with padding if it is odd.
@@ -84,18 +89,25 @@ impl PixelDataReader for JpegAdapter {
             // So we look for the start of the SOI marker
             // to identify whether the padding is there
             if cursor.position() % 2 > 0 {
-                let next_bytes = [
-                    // skip one
-                    cursor.get_ref().get(cursor.position() as usize + 1).copied(),
-                    cursor.get_ref().get(cursor.position() as usize + 2).copied(),
-                ];
-                if next_bytes == [Some(0xFF), Some(0xD8)] {
+                let Some(next_byte_1) = cursor
+                    .get_ref()
+                    .get(cursor.position() as usize + 1)
+                    .copied() else {
+                        // no more frames to read
+                        break;
+                    };
+                let Some(next_byte_2) = cursor
+                    .get_ref()
+                    .get(cursor.position() as usize + 2)
+                    .copied() else {
+                        // no more frames to read
+                        break;
+                    };
+                
+                if [next_byte_1, next_byte_2] == [0xFF, 0xD8] {
+                    // skip padding and continue
                     cursor.set_position(cursor.position() + 1);
                 }
-            }
-
-            if cursor.position() >= fragments_len {
-                break;
             }
         }
 
@@ -268,4 +280,8 @@ impl PixelDataWriter for JpegAdapter {
             ),
         ])
     }
+}
+
+fn next_even(l: u64) -> u64 {
+    (l + 1) & !1
 }
