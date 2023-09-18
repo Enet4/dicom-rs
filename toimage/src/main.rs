@@ -7,7 +7,7 @@ use dicom_core::prelude::*;
 use dicom_dictionary_std::{tags, uids};
 use dicom_object::open_file;
 use dicom_pixeldata::{ConvertOptions, PixelDecoder};
-use snafu::{Report, ResultExt, Snafu, Whatever};
+use snafu::{OptionExt, Report, ResultExt, Snafu, Whatever};
 use tracing::{error, Level};
 
 /// Convert a DICOM file into an image file
@@ -56,6 +56,17 @@ enum Error {
     },
     /// failed to decode pixel data
     DecodePixelData { source: dicom_pixeldata::Error },
+    /// missing offset table entry for frame #{frame_number}
+    MissingOffsetEntry { frame_number: u32 },
+    /// missing key property {name}
+    MissingProperty { name: &'static str },
+    /// property {name} contains an invalid value
+    InvalidPropertyValue {
+        name: &'static str,
+        source: dicom_core::value::ConvertValueError,
+    },
+    /// pixel data of frame #{frame_number} is out of bounds
+    FrameOutOfBounds { frame_number: u32 },
     /// failed to convert pixel data to image
     ConvertImage { source: dicom_pixeldata::Error },
     /// failed to save image to file
@@ -72,10 +83,13 @@ impl Error {
     fn to_exit_code(&self) -> i32 {
         match self {
             Error::ReadFile { .. } => -1,
-            Error::DecodePixelData { .. } => -2,
+            Error::DecodePixelData { .. }
+            | Error::MissingOffsetEntry { .. }
+            | Error::MissingProperty { .. }
+            | Error::InvalidPropertyValue { .. }
+            | Error::FrameOutOfBounds { .. } => -2,
             Error::ConvertImage { .. } => -3,
-            Error::SaveData { .. } => -4,
-            Error::SaveImage { .. } => -4,
+            Error::SaveData { .. } | Error::SaveImage { .. } => -4,
             Error::UnexpectedPixelData => -7,
         }
     }
@@ -173,13 +187,61 @@ fn run(args: App) -> Result<(), Error> {
 
                     Cow::Borrowed(&fragment[..])
                 } else {
-                    // accumulate frame's pixel data into a single buffer
-                    todo!("unwrapping encapsulated pixel data with multiple fragments")
+                    // In this case we look up the basic offset table
+                    // and gather all of the frame's fragments in a single vector.
+                    // Note: not the most efficient way to do this,
+                    // consider optimizing later with byte chunk readers
+                    let offset_table = seq.offset_table();
+                    let base_offset = offset_table.get(frame_number as usize).copied();
+                    let base_offset = if frame_number == 0 {
+                        base_offset.unwrap_or(0) as usize
+                    } else {
+                        base_offset.context(MissingOffsetEntrySnafu { frame_number })? as usize
+                    };
+                    let next_offset = offset_table.get(frame_number as usize + 1);
+
+                    let mut offset = 0;
+                    let mut frame_data = Vec::new();
+                    for fragment in seq.fragments() {
+                        // include it
+                        if offset >= base_offset {
+                            frame_data.extend_from_slice(fragment);
+                        }
+                        offset += fragment.len() + 8;
+                        if let Some(&next_offset) = next_offset {
+                            if offset >= next_offset as usize {
+                                // next fragment is for the next frame
+                                break;
+                            }
+                        }
+                    }
+
+                    Cow::Owned(frame_data)
                 }
             }
             DicomValue::Primitive(v) => {
-                // temporary impl: grab and dump all of it as bytes
-                v.to_bytes()
+                // grab the intended slice based on image properties
+
+                let get_int_property = |tag, name| {
+                    obj.get(tag)
+                        .context(MissingPropertySnafu { name })?
+                        .to_int::<usize>()
+                        .context(InvalidPropertyValueSnafu { name })
+                };
+
+                let rows = get_int_property(tags::ROWS, "Rows")?;
+                let columns = get_int_property(tags::COLUMNS, "Columns")?;
+                let samples_per_pixel = get_int_property(tags::SAMPLES_PER_PIXEL, "Samples Per Pixel")?;
+                let bits_allocated = get_int_property(tags::BITS_ALLOCATED, "Bits Allocated")?;
+                let frame_size = rows * columns * samples_per_pixel * ((bits_allocated + 7) / 8);
+
+                let frame = frame_number as usize;
+                Cow::Owned(
+                    v.to_bytes()
+                        .get((frame_size * frame)..(frame_size * (frame + 1)))
+                        .context(FrameOutOfBoundsSnafu { frame_number })?
+                        .to_vec(),
+                )
             }
             _ => {
                 return UnexpectedPixelDataSnafu.fail();
