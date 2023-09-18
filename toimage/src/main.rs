@@ -257,7 +257,7 @@ fn run(args: App) -> Result<(), Error> {
             }
         };
 
-        std::fs::write(&output, &out_data).context(SaveDataSnafu)?;
+        std::fs::write(output, out_data).context(SaveDataSnafu)?;
     } else {
         let output = output.unwrap_or_else(|| {
             let mut path = file.clone();
