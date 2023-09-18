@@ -51,11 +51,15 @@ struct App {
 enum Error {
     #[snafu(display("could not read DICOM file {}", path.display()))]
     ReadFile {
-        source: dicom_object::ReadError,
+        #[snafu(source(from(dicom_object::ReadError, Box::new)))]
+        source: Box<dicom_object::ReadError>,
         path: PathBuf,
     },
     /// failed to decode pixel data
-    DecodePixelData { source: dicom_pixeldata::Error },
+    DecodePixelData {
+        #[snafu(source(from(dicom_pixeldata::Error, Box::new)))]
+        source: Box<dicom_pixeldata::Error>,
+    },
     /// missing offset table entry for frame #{frame_number}
     MissingOffsetEntry { frame_number: u32 },
     /// missing key property {name}
@@ -63,15 +67,20 @@ enum Error {
     /// property {name} contains an invalid value
     InvalidPropertyValue {
         name: &'static str,
-        source: dicom_core::value::ConvertValueError,
+        #[snafu(source(from(dicom_core::value::ConvertValueError, Box::new)))]
+        source: Box<dicom_core::value::ConvertValueError>,
     },
     /// pixel data of frame #{frame_number} is out of bounds
     FrameOutOfBounds { frame_number: u32 },
     /// failed to convert pixel data to image
-    ConvertImage { source: dicom_pixeldata::Error },
+    ConvertImage {
+        #[snafu(source(from(dicom_pixeldata::Error, Box::new)))]
+        source: Box<dicom_pixeldata::Error>,
+    },
     /// failed to save image to file
     SaveImage {
-        source: dicom_pixeldata::image::ImageError,
+        #[snafu(source(from(dicom_pixeldata::image::ImageError, Box::new)))]
+        source: Box<dicom_pixeldata::image::ImageError>,
     },
     /// failed to save pixel data to file
     SaveData { source: std::io::Error },
