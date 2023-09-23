@@ -174,7 +174,9 @@ impl AccessControl for AcceptCalledAeTitle {
 /// ```
 ///
 /// The SCP will by default accept all transfer syntaxes
-/// supported by the main [transfer syntax registry][1].
+/// supported by the main [transfer syntax registry][1],
+/// unless one or more transfer syntaxes are explicitly indicated
+/// through calls to [`with_transfer_syntax`][2].
 ///
 /// Access control logic is also available,
 /// enabling application entities to decide on
@@ -194,6 +196,7 @@ impl AccessControl for AcceptCalledAeTitle {
 /// [`AccessControl`]: AccessControl
 ///
 /// [1]: dicom_transfer_syntax_registry
+/// [2]: ServerAssociationOptions::with_transfer_syntax
 #[derive(Debug, Clone)]
 pub struct ServerAssociationOptions<'a, A> {
     /// the application entity access control policy
@@ -431,12 +434,14 @@ where
                             };
                         }
 
-                        let mut reason = PresentationContextResultReason::Acceptance;
-                        let transfer_syntax = choose_supported(pc.transfer_syntaxes)
+                        let (transfer_syntax, reason) = self
+                            .choose_ts(pc.transfer_syntaxes)
+                            .map(|ts| (ts, PresentationContextResultReason::Acceptance))
                             .unwrap_or_else(|| {
-                                reason =
-                                    PresentationContextResultReason::TransferSyntaxesNotSupported;
-                                "1.2.840.10008.1.2".to_string()
+                                (
+                                    "1.2.840.10008.1.2".to_string(),
+                                    PresentationContextResultReason::TransferSyntaxesNotSupported,
+                                )
                             });
 
                         PresentationContextResult {
@@ -491,6 +496,32 @@ where
             | pdu @ Pdu::AbortRQ { .. } => UnexpectedRequestSnafu { pdu }.fail(),
             pdu @ Pdu::Unknown { .. } => UnknownRequestSnafu { pdu }.fail(),
         }
+    }
+
+    /// From a sequence of transfer syntaxes,
+    /// choose the first transfer syntax to
+    /// - be on the options' list of transfer syntaxes, and
+    /// - be supported by the main transfer syntax registry.
+    ///
+    /// If the options' list is empty,
+    /// accept the first transfer syntax supported.
+    fn choose_ts<I, T>(&self, it: I) -> Option<T>
+    where
+        I: IntoIterator<Item = T>,
+        T: AsRef<str>,
+    {
+        if self.transfer_syntax_uids.is_empty() {
+            return choose_supported(it);
+        }
+
+        it.into_iter().find(|ts| {
+            let ts = ts.as_ref();
+            if self.transfer_syntax_uids.is_empty() {
+                ts.trim_end_matches(|c: char| c.is_whitespace() || c == '\0') == "1.2.840.10008.1.2"
+            } else {
+                self.transfer_syntax_uids.contains(&trim_uid(ts.into())) && is_supported(ts)
+            }
+        })
     }
 }
 
