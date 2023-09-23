@@ -578,6 +578,7 @@ dependencies = [
  "dicom-dictionary-std",
  "dicom-encoding",
  "dicom-object",
+ "dicom-pixeldata",
  "dicom-transfer-syntax-registry",
  "dicom-ul",
  "indicatif",
