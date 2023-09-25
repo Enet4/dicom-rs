@@ -148,11 +148,11 @@ fn run(args: App) -> Result<(), Error> {
             // try to identify a better extension for this file
             // based on transfer syntax
             match obj.meta().transfer_syntax() {
-                uids::JPEG_BASELINE8_BIT | uids::JPEG_LOSSLESS | uids::JPEG_LOSSLESS_SV1 => {
+                uids::JPEG_BASELINE8_BIT
+                | uids::JPEG_EXTENDED12_BIT
+                | uids::JPEG_LOSSLESS
+                | uids::JPEG_LOSSLESS_SV1 => {
                     path.set_extension("jpg");
-                }
-                uids::JPEG_EXTENDED12_BIT => {
-                    path.set_extension("jpe");
                 }
                 uids::JPEG2000
                 | uids::JPEG2000MC
@@ -240,7 +240,8 @@ fn run(args: App) -> Result<(), Error> {
 
                 let rows = get_int_property(tags::ROWS, "Rows")?;
                 let columns = get_int_property(tags::COLUMNS, "Columns")?;
-                let samples_per_pixel = get_int_property(tags::SAMPLES_PER_PIXEL, "Samples Per Pixel")?;
+                let samples_per_pixel =
+                    get_int_property(tags::SAMPLES_PER_PIXEL, "Samples Per Pixel")?;
                 let bits_allocated = get_int_property(tags::BITS_ALLOCATED, "Bits Allocated")?;
                 let frame_size = rows * columns * samples_per_pixel * ((bits_allocated + 7) / 8);
 
