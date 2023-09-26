@@ -609,6 +609,21 @@ pub enum AttributeAction {
     /// Append a 64-bit floating point number as an additional numeric value,
     /// creating the attribute if it does not exist yet.
     PushF64(f64),
+    /// Truncate a value or a sequence to the given number of items,
+    /// removing extraneous items from the end of the list.
+    /// 
+    /// On primitive values, this truncates the value
+    /// by the number of individual value items
+    /// (note that bytes in a [`PrimitiveValue::U8`]
+    /// are treated as individual items).
+    /// On data set sequences and pixel data fragment sequences,
+    /// this operation is applied to
+    /// the data set items (or fragments) in the sequence.
+    /// 
+    /// Does nothing if the attribute does not exist
+    /// or the cardinality of the element is already lower than or equal to
+    /// the given size.
+    Truncate(usize),
 }
 
 impl AttributeAction {
