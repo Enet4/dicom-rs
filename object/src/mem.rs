@@ -1063,6 +1063,10 @@ where
             AttributeAction::PushU16(integer) => self.apply_push_u16_impl(tag, integer),
             AttributeAction::PushF32(number) => self.apply_push_f32_impl(tag, number),
             AttributeAction::PushF64(number) => self.apply_push_f64_impl(tag, number),
+            AttributeAction::Truncate(limit) => {
+                self.update_value(tag, |value| value.truncate(limit));
+                Ok(())
+            }
             _ => UnsupportedActionSnafu.fail(),
         }
     }
@@ -2927,6 +2931,57 @@ mod tests {
                     .unwrap()
                     .items()
                     .map(|items| items.len()),
+                Some(1),
+            );
+        }
+    }
+
+    /// Test that operations on in-memory DICOM objects
+    /// can truncate sequences.
+    #[test]
+    fn inmem_ops_can_truncate_seq() {
+        let mut obj = InMemDicomObject::from_element_iter([
+            DataElement::new(
+                tags::SEQUENCE_OF_ULTRASOUND_REGIONS,
+                VR::SQ,
+                DataSetSequence::from(vec![InMemDicomObject::new_empty()]),
+            ),
+            DataElement::new_with_len(
+                tags::PIXEL_DATA,
+                VR::OB,
+                Length::UNDEFINED,
+                PixelFragmentSequence::new(vec![], vec![vec![0xcc; 8192], vec![0x55; 1024]]),
+            ),
+        ]);
+
+        // removes the single item in the sequences
+        obj.apply(AttributeOp::new(
+            tags::SEQUENCE_OF_ULTRASOUND_REGIONS,
+            AttributeAction::Truncate(0),
+        ))
+        .unwrap();
+
+        {
+            let sequence_ultrasound = obj
+                .get(tags::SEQUENCE_OF_ULTRASOUND_REGIONS)
+                .expect("should have sequence element");
+            assert_eq!(sequence_ultrasound.items().as_deref(), Some(&[][..]),);
+        }
+
+        // remove one of the fragments
+        obj.apply(AttributeOp::new(
+            tags::PIXEL_DATA,
+            AttributeAction::Truncate(1),
+        ))
+        .unwrap();
+
+        {
+            // pixel data should now have a single fragment
+            assert_eq!(
+                obj.get(tags::PIXEL_DATA)
+                    .unwrap()
+                    .fragments()
+                    .map(|fragments| fragments.len()),
                 Some(1),
             );
         }

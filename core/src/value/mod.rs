@@ -249,6 +249,27 @@ impl<I, P> Value<I, P> {
             _ => None,
         }
     }
+
+    /// Shorten this value by removing trailing elements
+    /// to fit the given limit.
+    /// 
+    /// On primitive values,
+    /// elements are counted by the number of individual value items
+    /// (note that bytes in a [`PrimitiveValue::U8`]
+    /// are treated as individual items).
+    /// On data set sequences and pixel data fragment sequences,
+    /// this operation is applied to
+    /// the data set items (or fragments) in the sequence.
+    ///
+    /// Nothing is done if the value's cardinality
+    /// is already lower than or equal to the limit.
+    pub fn truncate(&mut self, limit: usize) {
+        match self {
+            Value::Primitive(v) => v.truncate(limit),
+            Value::Sequence(v) => v.truncate(limit),
+            Value::PixelSequence(v) => v.truncate(limit),
+        }
+    }
 }
 
 impl<I, P> From<&str> for Value<I, P> {
@@ -839,6 +860,13 @@ impl<I> DataSetSequence<I> {
     pub fn length(&self) -> Length {
         HasLength::length(self)
     }
+
+    /// Shorten this sequence by removing trailing data set items
+    /// to fit the given limit.
+    #[inline]
+    pub fn truncate(&mut self, limit: usize) {
+        self.items.truncate(limit);
+    }
 }
 
 impl<I> HasLength for DataSetSequence<I> {
@@ -1011,6 +1039,15 @@ impl<P> PixelFragmentSequence<P> {
     #[inline]
     pub fn length(&self) -> Length {
         HasLength::length(self)
+    }
+
+    /// Shorten this sequence by removing trailing fragments
+    /// to fit the given limit.
+    /// 
+    /// Note that this operations does not affect the basic offset table.
+    #[inline]
+    pub fn truncate(&mut self, limit: usize) {
+        self.fragments.truncate(limit);
     }
 }
 

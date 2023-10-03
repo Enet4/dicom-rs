@@ -4095,6 +4095,50 @@ impl PrimitiveValue {
             .build()),
         }
     }
+
+    /// Shorten this value by removing trailing elements
+    /// to fit the given limit.
+    /// 
+    /// Elements are counted by the number of individual value items
+    /// (note that bytes in a [`PrimitiveValue::U8`]
+    /// are treated as individual items).
+    ///
+    /// Nothing is done if the value's cardinality
+    /// is already lower than or equal to the limit.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::dicom_value;
+    /// # use dicom_core::value::PrimitiveValue;
+    /// let mut value = dicom_value!(I32, [1, 2, 5]);
+    /// value.truncate(2);
+    /// assert_eq!(value.to_multi_int::<i32>()?, vec![1, 2]);
+    ///
+    /// value.truncate(0);
+    /// assert_eq!(value.multiplicity(), 0);
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn truncate(&mut self, limit: usize) {
+        match self {
+            PrimitiveValue::Empty |
+            PrimitiveValue::Str(_) => { /* no-op */ },
+            PrimitiveValue::Strs(l) => l.truncate(limit),
+            PrimitiveValue::Tags(l) => l.truncate(limit),
+            PrimitiveValue::U8(l) => l.truncate(limit),
+            PrimitiveValue::I16(l) => l.truncate(limit),
+            PrimitiveValue::U16(l) => l.truncate(limit),
+            PrimitiveValue::I32(l) => l.truncate(limit),
+            PrimitiveValue::U32(l) => l.truncate(limit),
+            PrimitiveValue::I64(l) => l.truncate(limit),
+            PrimitiveValue::U64(l) => l.truncate(limit),
+            PrimitiveValue::F32(l) => l.truncate(limit),
+            PrimitiveValue::F64(l) => l.truncate(limit),
+            PrimitiveValue::Date(l) => l.truncate(limit),
+            PrimitiveValue::DateTime(l) => l.truncate(limit),
+            PrimitiveValue::Time(l) => l.truncate(limit),
+        }
+    }
 }
 
 /// The output of this method is equivalent to calling the method `to_str`

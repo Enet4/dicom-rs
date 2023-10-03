@@ -285,9 +285,13 @@ impl FileMetaTable {
             tags::PRIVATE_INFORMATION_CREATOR_UID => {
                 Self::apply_optional_string(op, &mut self.private_information_creator_uid)
             }
-            _ if matches!(op.action, AttributeAction::Remove | AttributeAction::Empty) => {
+            _ if matches!(
+                op.action,
+                AttributeAction::Remove | AttributeAction::Empty | AttributeAction::Truncate(_)
+            ) =>
+            {
                 // any other attribute is not supported
-                // (ignore Remove and Empty)
+                // (ignore Remove, Empty, Truncate)
                 Ok(())
             }
             _ => UnsupportedAttributeSnafu.fail(),
@@ -301,7 +305,7 @@ impl FileMetaTable {
     fn apply_required_string(op: AttributeOp, target_attribute: &mut String) -> ApplyResult {
         match op.action {
             AttributeAction::Remove | AttributeAction::Empty => MandatorySnafu.fail(),
-            AttributeAction::SetVr(_) => {
+            AttributeAction::SetVr(_) | AttributeAction::Truncate(_) => {
                 // ignore
                 Ok(())
             }
