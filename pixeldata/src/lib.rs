@@ -1489,6 +1489,46 @@ impl DecodedPixelData<'_> {
             .context(InvalidShapeSnafu)
             .map_err(Error::from)
     }
+
+    /// Make the decoded pixel data
+    /// independent from the original DICOM object,
+    /// by making copies of any necessary data.
+    /// 
+    /// This is useful when you only need the imaging data,
+    /// or when you want a composition of the object and decoded pixel data
+    /// within the same value type.
+    ///
+    /// # Example
+    /// 
+    /// ```no_run
+    /// # use dicom_object::open_file;
+    /// # use dicom_pixeldata::{DecodedPixelData, PixelDecoder};
+    /// fn get_pixeldata_only(path: &str) -> Result<DecodedPixelData<'static>, Box<dyn std::error::Error>> {
+    ///     let obj = open_file(path)?;
+    ///     let pixeldata = obj.decode_pixel_data()?;
+    ///     // can freely return from function
+    ///     Ok(pixeldata.to_owned())
+    /// }
+    /// ```
+    pub fn to_owned(&self) -> DecodedPixelData<'static> {
+        DecodedPixelData {
+            data: Cow::Owned(self.data.to_vec()),
+            bits_allocated: self.bits_allocated,
+            bits_stored: self.bits_stored,
+            high_bit: self.high_bit,
+            pixel_representation: self.pixel_representation,
+            photometric_interpretation: self.photometric_interpretation.clone(),
+            planar_configuration: self.planar_configuration,
+            number_of_frames: self.number_of_frames,
+            rows: self.rows,
+            cols: self.cols,
+            samples_per_pixel: self.samples_per_pixel,
+            rescale_intercept: self.rescale_intercept,
+            rescale_slope: self.rescale_slope,
+            voi_lut_function: self.voi_lut_function,
+            window: self.window,
+        }
+    }
 }
 
 fn bytes_to_vec_u16(data: &[u8]) -> Vec<u16> {
