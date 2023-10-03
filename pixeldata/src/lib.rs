@@ -1490,8 +1490,8 @@ impl DecodedPixelData<'_> {
             .map_err(Error::from)
     }
 
-    /// Make the decoded pixel data
-    /// independent from the original DICOM object,
+    /// Obtain a version of the decoded pixel data
+    /// that is independent from the original DICOM object,
     /// by making copies of any necessary data.
     /// 
     /// This is useful when you only need the imaging data,
