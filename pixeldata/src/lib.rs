@@ -375,7 +375,7 @@ pub enum BitDepthOption {
 /// can be specified through one of the various `to_*` methods,
 /// such as [`to_dynamic_image`](Self::to_dynamic_image)
 /// and [`to_vec`](Self::to_vec).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DecodedPixelData<'a> {
     /// the raw bytes of pixel data
     data: Cow<'a, [u8]>,
