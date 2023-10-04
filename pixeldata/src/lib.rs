@@ -1503,7 +1503,7 @@ impl DecodedPixelData<'_> {
     /// ```no_run
     /// # use dicom_object::open_file;
     /// # use dicom_pixeldata::{DecodedPixelData, PixelDecoder};
-    # type Error = Box<dyn std::error::Error>;
+    /// # type Error = Box<dyn std::error::Error>;
     /// fn get_pixeldata_only(path: &str) -> Result<DecodedPixelData<'static>, Error> {
     ///     let obj = open_file(path)?;
     ///     let pixeldata = obj.decode_pixel_data()?;
