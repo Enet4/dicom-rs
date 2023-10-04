@@ -172,13 +172,13 @@ pub struct ClientAssociationOptions<'a> {
 impl<'a> Default for ClientAssociationOptions<'a> {
     fn default() -> Self {
         ClientAssociationOptions {
-            /// the calling AE title
+            // the calling AE title
             calling_ae_title: "THIS-SCU".into(),
-            /// the called AE title
+            // the called AE title
             called_ae_title: None,
-            /// the requested application context name
+            // the requested application context name
             application_context_name: "1.2.840.10008.3.1.1.1".into(),
-            /// the list of requested presentation contexts
+            // the list of requested presentation contexts
             presentation_contexts: Vec::new(),
             protocol_version: 1,
             max_pdu_length: crate::pdu::reader::DEFAULT_MAX_PDU,
