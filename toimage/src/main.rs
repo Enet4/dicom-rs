@@ -266,7 +266,9 @@ fn run(args: App) -> Result<(), Error> {
             path
         });
 
-        let pixel = obj.decode_pixel_data().context(DecodePixelDataSnafu)?;
+        let pixel = obj
+            .decode_pixel_data_frame(frame_number)
+            .context(DecodePixelDataSnafu)?;
 
         if verbose {
             println!(
