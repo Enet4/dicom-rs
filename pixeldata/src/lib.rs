@@ -151,6 +151,11 @@ pub struct Error(InnerError);
 /// Inner error type
 #[derive(Debug, Snafu)]
 pub enum InnerError {
+    #[snafu(display("Object has no Pixel Data"))]
+    NoPixelData {
+        backtrace: Backtrace,
+    },
+
     #[snafu(display("Failed to get required DICOM attribute"))]
     GetAttribute {
         #[snafu(backtrace)]
@@ -368,7 +373,8 @@ pub enum BitDepthOption {
 /// A blob of decoded pixel data.
 ///
 /// This is the outcome of collecting a DICOM object's imaging-related attributes
-/// into a decoded form.
+/// into a decoded form
+/// (see [`PixelDecoder`]).
 /// The decoded pixel data samples will be stored as raw bytes in native form
 /// without any LUT transformations applied.
 /// Whether to apply such transformations
@@ -1493,13 +1499,13 @@ impl DecodedPixelData<'_> {
     /// Obtain a version of the decoded pixel data
     /// that is independent from the original DICOM object,
     /// by making copies of any necessary data.
-    /// 
+    ///
     /// This is useful when you only need the imaging data,
     /// or when you want a composition of the object and decoded pixel data
     /// within the same value type.
     ///
     /// # Example
-    /// 
+    ///
     /// ```no_run
     /// # use dicom_object::open_file;
     /// # use dicom_pixeldata::{DecodedPixelData, PixelDecoder};
@@ -1614,48 +1620,121 @@ fn convert_i16_to_u16(i: &[i16]) -> Vec<u16> {
     iter.map(|p| (*p as i32 + 0x8000) as u16).collect()
 }
 
-/// Trait for objects which can be decoded into pixel data instances.
+/// Trait for objects which can be decoded into
+/// blobs of easily consumable pixel data.
 ///
-/// This is the main trait which extends the capability of [`dicom_object`]
-/// to also make a pathway towards imaging data retrieval.
+/// This is the main trait which extends the capability of DICOM objects
+/// (such as [`DefaultDicomObject`](dicom_object::DefaultDicomObject) from [`dicom_object`])
+/// with a pathway to retrieve the imaging data.
+///
+/// See examples of use in the [root crate documentation](crate).
 pub trait PixelDecoder {
-    /// Decode the pixel data in this object,
+    /// Decode the full pixel data in this object,
     /// yielding a base set of imaging properties
     /// and pixel data in native form.
+    ///
+    /// The resulting pixel data will be tied to
+    /// the original object's lifetime.
     /// In the event that the pixel data is in an encapsulated form,
-    /// a new byte buffer (`Vec<u8>`) is created.
+    /// new byte buffers are allocated for holding their native form.
     fn decode_pixel_data(&self) -> Result<DecodedPixelData<'_>>;
+
+    /// Decode the pixel data of a single frame in this object,
+    /// yielding a base set of imaging properties
+    /// and pixel data in native form.
+    ///
+    /// The resulting pixel data will be tied to
+    /// the original object's lifetime.
+    /// In the event that the pixel data is in an encapsulated form,
+    /// new byte buffers are allocated for holding their native form.
+    /// The number of frames recorded will be always 1,
+    /// and the existence of other frames is ignored.
+    /// When calling single frame retrieval methods afterwards,
+    /// such as [`to_vec_frame`](DecodedPixelData::to_vec_frame),
+    /// assume the intended frame number to be `0`.
+    /// 
+    /// ---
+    ///
+    /// The default implementation decodes the full pixel data
+    /// and then provides a crop containing only the frame of interest.
+    /// Implementers are advised to write their own implementation for efficiency.
+    fn decode_pixel_data_frame(&self, frame: u32) -> Result<DecodedPixelData<'_>> {
+        let mut px = self.decode_pixel_data()?;
+
+        // calculate frame offset and size
+        let frame_size = ((px.bits_allocated + 7) / 8) as usize
+            * px.samples_per_pixel as usize
+            * px.rows as usize
+            * px.cols as usize;
+        let frame_offset = frame_size * frame as usize;
+
+        // crop to frame
+        match &mut px.data {
+            Cow::Owned(data) => *data = data[frame_offset..frame_offset + frame_size].to_vec(),
+            Cow::Borrowed(data) => {
+                *data = &data[frame_offset..frame_offset + frame_size];
+            }
+        }
+
+        // reset number of frames
+        px.number_of_frames = 1;
+
+        Ok(px)
+    }
+}
+
+/// Aggregator of key properties for imaging data,
+/// without the pixel data proper.
+///
+/// Currently kept private,
+/// might become part of the public API in the future.
+#[derive(Debug)]
+#[cfg(not(feature = "gdcm"))]
+pub(crate) struct ImagingProperties {
+    pub(crate) cols: u16,
+    pub(crate) rows: u16,
+    pub(crate) samples_per_pixel: u16,
+    pub(crate) bits_allocated: u16,
+    pub(crate) bits_stored: u16,
+    pub(crate) high_bit: u16,
+    pub(crate) pixel_representation: PixelRepresentation,
+    pub(crate) planar_configuration: PlanarConfiguration,
+    pub(crate) photometric_interpretation: PhotometricInterpretation,
+    pub(crate) rescale_intercept: f64,
+    pub(crate) rescale_slope: f64,
+    pub(crate) number_of_frames: u32,
+    pub(crate) voi_lut_function: Option<VoiLutFunction>,
+    pub(crate) window: Option<WindowLevel>,
 }
 
 #[cfg(not(feature = "gdcm"))]
-impl<D> PixelDecoder for FileDicomObject<InMemDicomObject<D>>
-where
-    D: DataDictionary + Clone,
-{
-    fn decode_pixel_data(&self) -> Result<DecodedPixelData> {
+impl ImagingProperties {
+    fn from_obj<D>(
+        obj: &FileDicomObject<InMemDicomObject<D>>,
+    ) -> Result<Self, attribute::GetAttributeError>
+    where
+        D: Clone + DataDictionary,
+    {
         use attribute::*;
         use std::convert::TryFrom;
 
-        let pixel_data = pixel_data(self).context(GetAttributeSnafu)?;
-        let cols = cols(self).context(GetAttributeSnafu)?;
-        let rows = rows(self).context(GetAttributeSnafu)?;
-
-        let photometric_interpretation =
-            photometric_interpretation(self).context(GetAttributeSnafu)?;
-        let samples_per_pixel = samples_per_pixel(self).context(GetAttributeSnafu)?;
-        let planar_configuration = planar_configuration(self).context(GetAttributeSnafu)?;
-        let bits_allocated = bits_allocated(self).context(GetAttributeSnafu)?;
-        let bits_stored = bits_stored(self).context(GetAttributeSnafu)?;
-        let high_bit = high_bit(self).context(GetAttributeSnafu)?;
-        let pixel_representation = pixel_representation(self).context(GetAttributeSnafu)?;
-        let rescale_intercept = rescale_intercept(self);
-        let rescale_slope = rescale_slope(self);
-        let number_of_frames = number_of_frames(self).context(GetAttributeSnafu)?;
-        let voi_lut_function = voi_lut_function(self).context(GetAttributeSnafu)?;
+        let cols = cols(obj)?;
+        let rows = rows(obj)?;
+        let photometric_interpretation = photometric_interpretation(obj)?;
+        let samples_per_pixel = samples_per_pixel(obj)?;
+        let planar_configuration = planar_configuration(obj)?;
+        let bits_allocated = bits_allocated(obj)?;
+        let bits_stored = bits_stored(obj)?;
+        let high_bit = high_bit(obj)?;
+        let pixel_representation = pixel_representation(obj)?;
+        let rescale_intercept = rescale_intercept(obj);
+        let rescale_slope = rescale_slope(obj);
+        let number_of_frames = number_of_frames(obj)?;
+        let voi_lut_function = voi_lut_function(obj)?;
         let voi_lut_function = voi_lut_function.and_then(|v| VoiLutFunction::try_from(&*v).ok());
 
-        let window = if let Some(window_center) = window_center(self).context(GetAttributeSnafu)? {
-            let window_width = window_width(self).context(GetAttributeSnafu)?;
+        let window = if let Some(window_center) = window_center(obj)? {
+            let window_width = window_width(obj)?;
 
             window_width.map(|width| WindowLevel {
                 center: window_center,
@@ -1664,6 +1743,52 @@ where
         } else {
             None
         };
+
+        Ok(Self {
+            cols,
+            rows,
+            samples_per_pixel,
+            bits_allocated,
+            bits_stored,
+            high_bit,
+            pixel_representation,
+            planar_configuration,
+            photometric_interpretation,
+            rescale_intercept,
+            rescale_slope,
+            number_of_frames,
+            voi_lut_function,
+            window,
+        })
+    }
+}
+
+#[cfg(not(feature = "gdcm"))]
+impl<D> PixelDecoder for FileDicomObject<InMemDicomObject<D>>
+where
+    D: DataDictionary + Clone,
+{
+    fn decode_pixel_data(&self) -> Result<DecodedPixelData> {
+        use dicom_dictionary_std::tags;
+
+        let pixel_data = self.get(tags::PIXEL_DATA).context(NoPixelDataSnafu)?;
+
+        let ImagingProperties {
+            cols,
+            rows,
+            samples_per_pixel,
+            bits_allocated,
+            bits_stored,
+            high_bit,
+            pixel_representation,
+            planar_configuration,
+            photometric_interpretation,
+            rescale_intercept,
+            rescale_slope,
+            number_of_frames,
+            voi_lut_function,
+            window,
+        } = ImagingProperties::from_obj(self).context(GetAttributeSnafu)?;
 
         let transfer_syntax = &self.meta().transfer_syntax;
         let ts = TransferSyntaxRegistry
@@ -1679,7 +1804,7 @@ where
             .fail()?;
         }
 
-        // Try decoding it using a native Rust decoder
+        // Try decoding it using a registered pixel data decoder
         if let Codec::EncapsulatedPixelData(Some(decoder), _) = ts.codec() {
             let mut data: Vec<u8> = Vec::new();
             (*decoder)
@@ -1716,6 +1841,7 @@ where
         let decoded_pixel_data = match pixel_data.value() {
             Value::PixelSequence(v) => {
                 // Return all fragments concatenated
+                // (should only happen for Encapsulated Uncompressed)
                 v.fragments().iter().flatten().copied().collect()
             }
             Value::Primitive(p) => {
@@ -1730,6 +1856,119 @@ where
             cols: cols.into(),
             rows: rows.into(),
             number_of_frames,
+            photometric_interpretation,
+            samples_per_pixel,
+            planar_configuration,
+            bits_allocated,
+            bits_stored,
+            high_bit,
+            pixel_representation,
+            rescale_intercept,
+            rescale_slope,
+            voi_lut_function,
+            window,
+        })
+    }
+
+    fn decode_pixel_data_frame(&self, frame: u32) -> Result<DecodedPixelData<'_>> {
+        use dicom_dictionary_std::tags;
+
+        let pixel_data = self.get(tags::PIXEL_DATA).context(NoPixelDataSnafu)?;
+
+        let ImagingProperties {
+            cols,
+            rows,
+            samples_per_pixel,
+            bits_allocated,
+            bits_stored,
+            high_bit,
+            pixel_representation,
+            planar_configuration,
+            photometric_interpretation,
+            rescale_intercept,
+            rescale_slope,
+            number_of_frames,
+            voi_lut_function,
+            window,
+        } = ImagingProperties::from_obj(self).context(GetAttributeSnafu)?;
+
+        let transfer_syntax = &self.meta().transfer_syntax;
+        let ts = TransferSyntaxRegistry
+            .get(transfer_syntax)
+            .with_context(|| UnknownTransferSyntaxSnafu {
+                ts_uid: transfer_syntax,
+            })?;
+
+        if !ts.can_decode_all() {
+            return UnsupportedTransferSyntaxSnafu {
+                ts: transfer_syntax,
+            }
+            .fail()?;
+        }
+
+        // Try decoding it using a registered pixel data decoder
+        if let Codec::EncapsulatedPixelData(Some(decoder), _) = ts.codec() {
+            let mut data: Vec<u8> = Vec::new();
+            (*decoder)
+                .decode_frame(self, frame, &mut data)
+                .context(DecodePixelDataSnafu)?;
+
+            // pixels are already interpreted,
+            // set new photometric interpretation
+            let new_pi = match samples_per_pixel {
+                1 => PhotometricInterpretation::Monochrome2,
+                3 => PhotometricInterpretation::Rgb,
+                _ => photometric_interpretation,
+            };
+
+            return Ok(DecodedPixelData {
+                data: Cow::from(data),
+                cols: cols.into(),
+                rows: rows.into(),
+                number_of_frames: 1,
+                photometric_interpretation: new_pi,
+                samples_per_pixel,
+                planar_configuration: PlanarConfiguration::Standard,
+                bits_allocated,
+                bits_stored,
+                high_bit,
+                pixel_representation,
+                rescale_intercept,
+                rescale_slope,
+                voi_lut_function,
+                window,
+            });
+        }
+
+        let decoded_pixel_data = match pixel_data.value() {
+            Value::PixelSequence(v) => {
+                let fragments = v.fragments();
+                if number_of_frames as usize == fragments.len() {
+                    // return a single fragment
+                    fragments[frame as usize].to_vec()
+                } else {
+                    // not supported, return an error
+                    InvalidPixelDataSnafu.fail()?
+                }
+            }
+            Value::Primitive(p) => {
+                // Non-encoded, just return the pixel data for a single frame
+                let frame_size = ((bits_allocated + 7) / 8) as usize
+                    * samples_per_pixel as usize
+                    * rows as usize
+                    * cols as usize;
+                let frame_offset = frame_size * frame as usize;
+                let data = p.to_bytes();
+                data[frame_offset..frame_offset + frame_size].to_vec()
+            }
+            Value::Sequence(..) => InvalidPixelDataSnafu.fail()?,
+        };
+
+        Ok(DecodedPixelData {
+            data: Cow::from(decoded_pixel_data),
+            cols: cols.into(),
+            rows: rows.into(),
+            number_of_frames: 1,
             photometric_interpretation,
             samples_per_pixel,
             planar_configuration,
@@ -2260,6 +2499,37 @@ mod tests {
                 ));
                 image.save(image_path).unwrap();
             }
+        }
+
+        #[cfg(feature = "image")]
+        #[rstest]
+        #[case("pydicom/color3d_jpeg_baseline.dcm", 0)]
+        #[case("pydicom/color3d_jpeg_baseline.dcm", 1)]
+        #[case("pydicom/color3d_jpeg_baseline.dcm", 78)]
+        #[case("pydicom/color3d_jpeg_baseline.dcm", 119)]
+        #[case("pydicom/SC_rgb_rle_2frame.dcm", 0)]
+        #[case("pydicom/SC_rgb_rle_2frame.dcm", 1)]
+        #[case("pydicom/JPEG2000_UNC.dcm", 0)]
+        fn test_decode_pixel_data_individual_frames(#[case] value: &str, #[case] frame: u32) {
+            use std::path::Path;
+            let test_file = dicom_test_files::path(value).unwrap();
+            println!("Parsing pixel data for {}", test_file.display());
+            let obj = open_file(test_file).unwrap();
+            let pixel_data = obj.decode_pixel_data_frame(frame).unwrap();
+            let output_dir = Path::new(
+                "../target/dicom_test_files/_out/test_decode_pixel_data_individual_frames",
+            );
+            std::fs::create_dir_all(output_dir).unwrap();
+    
+            assert_eq!(pixel_data.number_of_frames(), 1, "expected 1 frame only");
+    
+            let image = pixel_data.to_dynamic_image(0).unwrap();
+            let image_path = output_dir.join(format!(
+                "{}-{}.png",
+                Path::new(value).file_stem().unwrap().to_str().unwrap(),
+                frame,
+            ));
+            image.save(image_path).unwrap();
         }
     }
 }

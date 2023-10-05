@@ -2,7 +2,7 @@
 
 use dicom_core::{DataDictionary, Tag};
 use dicom_dictionary_std::tags;
-use dicom_object::{mem::InMemElement, FileDicomObject, InMemDicomObject};
+use dicom_object::{FileDicomObject, InMemDicomObject};
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::fmt;
 
@@ -140,16 +140,6 @@ pub fn high_bit<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Result<u16> {
     retrieve_required_u16(obj, tags::HIGH_BIT, AttributeName::HighBit)
-}
-
-/// Get the PixelData element from the DICOM object
-pub fn pixel_data<D: DataDictionary + Clone>(
-    obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> Result<&InMemElement<D>> {
-    let name = AttributeName::PixelData;
-    obj.element_opt(tags::PIXEL_DATA)
-        .context(RetrieveSnafu { name })?
-        .context(MissingRequiredSnafu { name })
 }
 
 /// Get the RescaleIntercept from the DICOM object or returns 0
