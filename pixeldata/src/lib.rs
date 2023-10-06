@@ -151,11 +151,6 @@ pub struct Error(InnerError);
 /// Inner error type
 #[derive(Debug, Snafu)]
 pub enum InnerError {
-    #[snafu(display("Object has no Pixel Data"))]
-    NoPixelData {
-        backtrace: Backtrace,
-    },
-
     #[snafu(display("Failed to get required DICOM attribute"))]
     GetAttribute {
         #[snafu(backtrace)]
@@ -1769,9 +1764,7 @@ where
     D: DataDictionary + Clone,
 {
     fn decode_pixel_data(&self) -> Result<DecodedPixelData> {
-        use dicom_dictionary_std::tags;
-
-        let pixel_data = self.get(tags::PIXEL_DATA).context(NoPixelDataSnafu)?;
+        let pixel_data = attribute::pixel_data(self).context(GetAttributeSnafu)?;
 
         let ImagingProperties {
             cols,
@@ -1871,9 +1864,7 @@ where
     }
 
     fn decode_pixel_data_frame(&self, frame: u32) -> Result<DecodedPixelData<'_>> {
-        use dicom_dictionary_std::tags;
-
-        let pixel_data = self.get(tags::PIXEL_DATA).context(NoPixelDataSnafu)?;
+        let pixel_data = attribute::pixel_data(self).context(GetAttributeSnafu)?;
 
         let ImagingProperties {
             cols,

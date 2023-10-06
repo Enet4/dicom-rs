@@ -16,9 +16,8 @@ where
 {
     fn decode_pixel_data(&self) -> Result<DecodedPixelData> {
         use super::attribute::*;
-        use dicom_dictionary_std::tags;
 
-        let pixel_data = self.get(tags::PIXEL_DATA).context(NoPixelDataSnafu)?;
+        let pixel_data = pixel_data(self).context(GetAttributeSnafu)?;
         
         let cols = cols(self).context(GetAttributeSnafu)?;
         let rows = rows(self).context(GetAttributeSnafu)?;
