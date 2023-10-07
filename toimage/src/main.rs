@@ -246,12 +246,21 @@ fn run(args: App) -> Result<(), Error> {
                 let frame_size = rows * columns * samples_per_pixel * ((bits_allocated + 7) / 8);
 
                 let frame = frame_number as usize;
-                Cow::Owned(
-                    v.to_bytes()
-                        .get((frame_size * frame)..(frame_size * (frame + 1)))
-                        .context(FrameOutOfBoundsSnafu { frame_number })?
-                        .to_vec(),
-                )
+                let mut data = v.to_bytes();
+                match &mut data {
+                    Cow::Borrowed(data) => {
+                        *data = data
+                            .get((frame_size * frame)..(frame_size * (frame + 1)))
+                            .context(FrameOutOfBoundsSnafu { frame_number })?;
+                    }
+                    Cow::Owned(data) => {
+                        *data = data
+                            .get((frame_size * frame)..(frame_size * (frame + 1)))
+                            .context(FrameOutOfBoundsSnafu { frame_number })?
+                            .to_vec();
+                    }
+                }
+                data
             }
             _ => {
                 return UnexpectedPixelDataSnafu.fail();
@@ -266,7 +275,9 @@ fn run(args: App) -> Result<(), Error> {
             path
         });
 
-        let pixel = obj.decode_pixel_data().context(DecodePixelDataSnafu)?;
+        let pixel = obj
+            .decode_pixel_data_frame(frame_number)
+            .context(DecodePixelDataSnafu)?;
 
         if verbose {
             println!(
@@ -287,7 +298,7 @@ fn run(args: App) -> Result<(), Error> {
         }
 
         let image = pixel
-            .to_dynamic_image_with_options(frame_number, &options)
+            .to_dynamic_image_with_options(0, &options)
             .context(ConvertImageSnafu)?;
 
         image.save(&output).context(SaveImageSnafu)?;

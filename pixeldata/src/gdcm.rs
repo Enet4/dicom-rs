@@ -18,6 +18,7 @@ where
         use super::attribute::*;
 
         let pixel_data = pixel_data(self).context(GetAttributeSnafu)?;
+        
         let cols = cols(self).context(GetAttributeSnafu)?;
         let rows = rows(self).context(GetAttributeSnafu)?;
 
@@ -212,6 +213,37 @@ mod tests {
             ));
             image.save(image_path).unwrap();
         }
+    }
+
+    #[cfg(feature = "image")]
+    #[rstest]
+    #[case("pydicom/color3d_jpeg_baseline.dcm", 0)]
+    #[case("pydicom/color3d_jpeg_baseline.dcm", 1)]
+    #[case("pydicom/color3d_jpeg_baseline.dcm", 78)]
+    #[case("pydicom/color3d_jpeg_baseline.dcm", 119)]
+    #[case("pydicom/SC_rgb_rle_2frame.dcm", 0)]
+    #[case("pydicom/SC_rgb_rle_2frame.dcm", 1)]
+    #[case("pydicom/JPEG2000.dcm", 0)]
+    #[case("pydicom/JPEG2000_UNC.dcm", 0)]
+   fn test_parse_dicom_pixel_data_individual_frames(#[case] value: &str, #[case] frame: u32) {
+        let test_file = dicom_test_files::path(value).unwrap();
+        println!("Parsing pixel data for {}", test_file.display());
+        let obj = open_file(test_file).unwrap();
+        let pixel_data = obj.decode_pixel_data_frame(frame).unwrap();
+        let output_dir = Path::new(
+            "../target/dicom_test_files/_out/test_gdcm_parse_dicom_pixel_data_individual_frames",
+        );
+        std::fs::create_dir_all(output_dir).unwrap();
+
+        assert_eq!(pixel_data.number_of_frames(), 1);
+
+        let image = pixel_data.to_dynamic_image(0).unwrap();
+        let image_path = output_dir.join(format!(
+            "{}-{}.png",
+            Path::new(value).file_stem().unwrap().to_str().unwrap(),
+            frame,
+        ));
+        image.save(image_path).unwrap();
     }
 
     #[cfg(feature = "ndarray")]
