@@ -1,9 +1,15 @@
 //! A CLI tool for converting a DICOM image file
 //! into a general purpose image file (e.g. PNG).
-use std::{borrow::Cow, path::PathBuf};
+use std::borrow::Cow;
+use std::collections::HashSet;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use clap::Parser;
 use dicom_core::prelude::*;
+use dicom_core::Tag;
 use dicom_dictionary_std::{tags, uids};
 use dicom_object::open_file;
 use dicom_pixeldata::{ConvertOptions, PixelDecoder};
@@ -11,16 +17,31 @@ use snafu::{OptionExt, Report, ResultExt, Snafu, Whatever};
 use tracing::{error, Level};
 
 /// Convert a DICOM file into an image file
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 #[command(version)]
 struct App {
     /// Path to the DICOM file to convert
-    file: PathBuf,
+    file: Vec<PathBuf>,
 
-    /// Path to the output image
-    /// (default is to replace input extension with `.png`)
+    /// Recursively parse sub folders if the given path is a directory
+    #[arg(short = 'r', long = "recursive")]
+    recursive: bool,
+
+    /// Name of the output file(s)
+    /// (default is the same as the input file)
     #[arg(short = 'o', long = "out")]
     output: Option<PathBuf>,
+
+    /// Path to the output directory
+    /// Directory will be created if it does not exist
+    /// (default is `.`)
+    #[arg(short = 'd', long = "dir")]
+    output_dir: Option<PathBuf>,
+
+    /// File extension to use for output files
+    /// (default is `.png`)
+    #[arg(short = 'e', long = "ext", default_value = "png")]
+    ext: String,
 
     /// Frame number (0-indexed)
     #[arg(short = 'F', long = "frame", default_value = "0")]
@@ -45,6 +66,12 @@ struct App {
     /// Print more information about the image and the output file
     #[arg(short = 'v', long = "verbose")]
     verbose: bool,
+}
+
+#[derive(Debug)]
+struct InOutPair {
+    input: PathBuf,
+    output: PathBuf,
 }
 
 #[derive(Debug, Snafu)]
@@ -129,9 +156,37 @@ fn main() {
 }
 
 fn run(args: App) -> Result<(), Error> {
+    let dicom_files = get_file_paths(&args.file, args.recursive);
+
+    if let Some(dir) = args.output_dir.clone() {
+        fs::create_dir_all(dir).unwrap();
+    }
+
+    let inventory = build_inventory(
+        &dicom_files,
+        &args
+            .output_dir
+            .clone()
+            .unwrap_or_else(|| std::env::current_dir().unwrap()),
+        &args.output,
+        &args.ext,
+    );
+
+    for pair in inventory {
+        let args = args.clone();
+        convert_file(pair, args)?;
+    }
+
+    Ok(())
+}
+
+fn convert_file(mut pair: InOutPair, args: App) -> Result<(), Error> {
     let App {
-        file,
-        output,
+        file: _,
+        recursive: _,
+        output: _,
+        output_dir: _,
+        ext: _,
         frame_number,
         force_8bit,
         force_16bit,
@@ -139,33 +194,30 @@ fn run(args: App) -> Result<(), Error> {
         verbose,
     } = args;
 
-    let obj = open_file(&file).with_context(|_| ReadFileSnafu { path: file.clone() })?;
+    let obj = open_file(&pair.input).with_context(|_| ReadFileSnafu {
+        path: pair.input.clone(),
+    })?;
 
     if unwrap {
-        let output = output.unwrap_or_else(|| {
-            let mut path = file.clone();
-
-            // try to identify a better extension for this file
-            // based on transfer syntax
-            match obj.meta().transfer_syntax() {
-                uids::JPEG_BASELINE8_BIT
-                | uids::JPEG_EXTENDED12_BIT
-                | uids::JPEG_LOSSLESS
-                | uids::JPEG_LOSSLESS_SV1 => {
-                    path.set_extension("jpg");
-                }
-                uids::JPEG2000
-                | uids::JPEG2000MC
-                | uids::JPEG2000MC_LOSSLESS
-                | uids::JPEG2000_LOSSLESS => {
-                    path.set_extension("jp2");
-                }
-                _ => {
-                    path.set_extension("data");
-                }
+        // try to identify a better extension for this file
+        // based on transfer syntax
+        match obj.meta().transfer_syntax() {
+            uids::JPEG_BASELINE8_BIT
+            | uids::JPEG_EXTENDED12_BIT
+            | uids::JPEG_LOSSLESS
+            | uids::JPEG_LOSSLESS_SV1 => {
+                pair.output.set_extension("jpg");
             }
-            path
-        });
+            uids::JPEG2000
+            | uids::JPEG2000MC
+            | uids::JPEG2000MC_LOSSLESS
+            | uids::JPEG2000_LOSSLESS => {
+                pair.output.set_extension("jp2");
+            }
+            _ => {
+                pair.output.set_extension("data");
+            }
+        };
 
         let pixeldata = obj.get(tags::PIXEL_DATA).unwrap_or_else(|| {
             error!("DICOM file has no pixel data");
@@ -267,14 +319,8 @@ fn run(args: App) -> Result<(), Error> {
             }
         };
 
-        std::fs::write(output, out_data).context(SaveDataSnafu)?;
+        std::fs::write(pair.output, out_data).context(SaveDataSnafu)?;
     } else {
-        let output = output.unwrap_or_else(|| {
-            let mut path = file.clone();
-            path.set_extension("png");
-            path
-        });
-
         let pixel = obj
             .decode_pixel_data_frame(frame_number)
             .context(DecodePixelDataSnafu)?;
@@ -301,14 +347,111 @@ fn run(args: App) -> Result<(), Error> {
             .to_dynamic_image_with_options(0, &options)
             .context(ConvertImageSnafu)?;
 
-        image.save(&output).context(SaveImageSnafu)?;
+        image.save(&pair.output).context(SaveImageSnafu)?;
 
         if verbose {
-            println!("Image saved to {}", output.display());
+            println!("Image saved to {}", pair.output.display());
         }
     }
 
     Ok(())
+}
+
+fn get_file_paths(src: &[PathBuf], recursive: bool) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    for path in src {
+        if path.is_dir() {
+            if !recursive {
+                continue;
+            }
+            files.append(&mut get_file_paths(
+                &fs::read_dir(path)
+                    .unwrap()
+                    .map(|x| x.unwrap().path())
+                    .collect::<Vec<PathBuf>>(),
+                recursive,
+            ));
+        } else {
+            if !is_dicom_file(path) {
+                continue;
+            };
+            files.push(path.clone());
+        }
+    }
+    files
+}
+
+fn is_dicom_file(file: &PathBuf) -> bool {
+    // ignore DICOMDIR files
+    if file.file_name().unwrap() == "DICOMDIR" {
+        return false;
+    }
+
+    // try to open the file to validate that it is a DICOM file
+    dicom_object::OpenFileOptions::new()
+        .read_until(Tag(0x0001, 0x000))
+        .open_file(file)
+        .is_ok()
+}
+
+// The "inventory" is just a list of input files mapped to their converted
+// output file path.
+// This function is responsible for building that list and handling name
+// collisions.
+fn build_inventory(
+    src: &[PathBuf],
+    dst: &Path,
+    output_name: &Option<PathBuf>,
+    ext: &str,
+) -> Vec<InOutPair> {
+    let mut inventory = Vec::new();
+    let mut used_paths = HashSet::new();
+
+    for path in src {
+        let mut output_path = match output_name {
+            // if no output name is given, use the same name as the input file
+            // but with the given extension
+            None => dst.join(path.file_name().unwrap()),
+            // if an output name is given, use that name for all files
+            Some(name) => dst.join(name),
+        };
+
+        // Using set_extension() is not sufficient because it will remove the
+        // last part of the filename if it's an UID with no extension
+        if output_path.extension() == Some(std::ffi::OsStr::new("dcm")) {
+            output_path.set_extension(ext);
+        } else {
+            output_path = PathBuf::from(format!("{}.{}", output_path.to_str().unwrap(), ext));
+        }
+
+        let mut i = 1;
+        while used_paths.contains(&output_path) {
+            output_path.set_extension("");
+            let mut path = path.clone();
+            if path.extension() == Some(std::ffi::OsStr::new("dcm")) {
+                path.set_extension("");
+            }
+            output_path = match output_name {
+                None => dst.join(format!(
+                    "{} ({}).{}",
+                    path.file_name().unwrap().to_str().unwrap(),
+                    i,
+                    ext
+                )),
+                Some(name) => dst.join(format!("{} ({}).{}", name.to_str().unwrap(), i, ext)),
+            };
+
+            i += 1;
+        }
+
+        used_paths.insert(output_path.clone());
+
+        inventory.push(InOutPair {
+            input: fs::canonicalize(path.clone()).unwrap(),
+            output: output_path,
+        });
+    }
+    inventory
 }
 
 #[cfg(test)]
