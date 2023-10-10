@@ -21,7 +21,7 @@
 //! hence expanding support for those transfer syntaxes
 //! to the registry.
 
-use crate::create_ts_stub;
+use crate::{adapters::uncompressed::UncompressedAdapter, create_ts_stub};
 use byteordered::Endianness;
 use dicom_encoding::transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec};
 
@@ -60,6 +60,17 @@ pub const EXPLICIT_VR_BIG_ENDIAN: Ts = Ts::new(
     Endianness::Big,
     true,
     Codec::None,
+);
+
+/// **Fully implemented:** Encapsulated Uncompressed Explicit VR Little Endian
+pub const ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN: TransferSyntax<
+    NeverAdapter,
+    UncompressedAdapter,
+    UncompressedAdapter,
+> = TransferSyntax::new_ele(
+    "1.2.840.10008.1.2.1.98",
+    "Encapsulated Uncompressed Explicit VR Little Endian",
+    Codec::EncapsulatedPixelData(Some(UncompressedAdapter), Some(UncompressedAdapter)),
 );
 
 // -- transfer syntaxes with pixel data adapters, fully supported --

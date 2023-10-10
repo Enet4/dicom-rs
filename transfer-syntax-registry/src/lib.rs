@@ -200,10 +200,12 @@ lazy_static! {
         };
 
         use self::entries::*;
-        let built_in_ts: [TransferSyntax; 36] = [
+        let built_in_ts: [TransferSyntax; 37] = [
             IMPLICIT_VR_LITTLE_ENDIAN.erased(),
             EXPLICIT_VR_LITTLE_ENDIAN.erased(),
             EXPLICIT_VR_BIG_ENDIAN.erased(),
+
+            ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN.erased(),
 
             DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN.erased(),
             JPIP_REFERENCED_DEFLATE.erased(),

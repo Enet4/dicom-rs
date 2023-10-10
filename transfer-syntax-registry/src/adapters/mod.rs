@@ -16,6 +16,8 @@ pub mod jpeg;
 #[cfg(feature = "rle")]
 pub mod rle_lossless;
 
+pub mod uncompressed;
+
 /// **Note:** This module is a stub.
 /// Enable the `jpeg` feature to use this module.
 #[cfg(not(feature = "jpeg"))]
