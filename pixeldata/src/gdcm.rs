@@ -167,11 +167,11 @@ where
         let transfer_syntax = &self.meta().transfer_syntax;
         let registry =
             TransferSyntaxRegistry
-                .get(&&transfer_syntax)
+                .get(transfer_syntax)
                 .context(UnknownTransferSyntaxSnafu {
                     ts_uid: transfer_syntax,
                 })?;
-        let ts_type = GDCMTransferSyntax::from_str(&registry.uid()).map_err(|_| {
+        let ts_type = GDCMTransferSyntax::from_str(registry.uid()).map_err(|_| {
             UnsupportedTransferSyntaxSnafu {
                 ts: transfer_syntax.clone(),
             }
@@ -184,8 +184,7 @@ where
         let high_bit = high_bit(self).context(GetAttributeSnafu)?;
         let pixel_representation = pixel_representation(self).context(GetAttributeSnafu)?;
         let planar_configuration = if let Ok(el) = self.element(tags::PLANAR_CONFIGURATION) {
-            let res = el.uint16();
-            res.unwrap_or(0)
+            el.uint16().unwrap_or(0)
         } else {
             0
         };
@@ -205,18 +204,15 @@ where
 
                 let frame = frame as usize;
                 let data = if number_of_frames == 1 && fragments.len() > 1 {
-                    let mut buf = Vec::new();
-                    fragments
-                        .into_iter()
-                        .for_each(|fragment| buf.append(&mut fragment.clone()));
-                    buf
+                    fragments.iter().flat_map(|frame| frame.to_vec()).collect()
                 } else {
                     fragments[frame].to_vec()
                 };
 
-                let frame = match ts_type {
+                match ts_type {
                     GDCMTransferSyntax::ImplicitVRLittleEndian
                     | GDCMTransferSyntax::ExplicitVRLittleEndian => {
+                        // This is just in case of encapsulated uncompressed data
                         let frame_size = cols * rows * samples_per_pixel * (bits_allocated / 8);
                         data.chunks_exact(frame_size as usize)
                             .nth(frame)
@@ -242,54 +238,48 @@ where
                         .context(DecodePixelDataSnafu)?
                         .to_vec()
                     }
-                };
-
-                if planar_configuration == 1 && samples_per_pixel == 3 {
-                    let frame_size =
-                        (cols as usize * rows as usize * (bits_allocated as usize / 8)) as usize;
-                    let mut interleaved = Vec::with_capacity(frame.len());
-
-                    for i in 0..frame_size {
-                        interleaved.push(frame[i]);
-                        interleaved.push(frame[i + frame_size]);
-                        interleaved.push(frame[i + frame_size * 2]);
-                    }
-                    interleaved
-                } else {
-                    frame
                 }
             }
             Value::Primitive(p) => {
-                // Non-encoded, just return the pixel data of the first frame
-                p.to_bytes().to_vec()
+                // Uncompressed data
+                let frame_size = cols as usize
+                    * rows as usize
+                    * samples_per_pixel as usize
+                    * (bits_allocated as usize / 8);
+                p.to_bytes()
+                    .chunks_exact(frame_size)
+                    .nth(frame as usize)
+                    .map(|frame| frame.to_vec())
+                    .unwrap_or_default()
             }
             Value::Sequence(_) => InvalidPixelDataSnafu.fail()?,
         };
 
-        // pixels are already interpreted,
-        // set new photometric interpretation
-        // let new_pi = match samples_per_pixel {
-        //     1 => PhotometricInterpretation::Monochrome2,
-        //     3 => PhotometricInterpretation::Rgb,
-        //     _ => photometric_interpretation,
-        // };
-
-        let window = if let Some(window_center) = window_center(self).context(GetAttributeSnafu)? {
-            let window_width = window_width(self).context(GetAttributeSnafu)?;
-
-            window_width.map(|width| WindowLevel {
-                center: window_center,
-                width,
-            })
+        // Convert to PlanarConfiguration::Standard
+        let decoded_pixel_data = if planar_configuration == 1 && samples_per_pixel == 3 {
+            interleave_planes(
+                cols as usize,
+                rows as usize,
+                bits_allocated as usize,
+                decoded_pixel_data,
+            )
         } else {
-            None
+            decoded_pixel_data
+        };
+
+        let window = match (
+            window_center(self).context(GetAttributeSnafu)?,
+            window_width(self).context(GetAttributeSnafu)?,
+        ) {
+            (Some(center), Some(width)) => Some(WindowLevel { center, width }),
+            _ => None,
         };
 
         Ok(DecodedPixelData {
             data: Cow::from(decoded_pixel_data),
             cols: cols.into(),
             rows: rows.into(),
-            number_of_frames,
+            number_of_frames: 1,
             photometric_interpretation,
             samples_per_pixel,
             planar_configuration: PlanarConfiguration::Standard,
@@ -303,6 +293,33 @@ where
             window,
         })
     }
+}
+
+fn interleave_planes(cols: usize, rows: usize, bits_allocated: usize, data: Vec<u8>) -> Vec<u8> {
+    let frame_size = cols * rows * (bits_allocated / 8);
+    let mut interleaved = Vec::with_capacity(data.len());
+
+    let mut i = 0;
+    while i < frame_size {
+        interleaved.push(data[i]);
+        if bits_allocated > 8 {
+            interleaved.push(data[i + 1])
+        }
+
+        interleaved.push(data[i + frame_size]);
+        if bits_allocated > 8 {
+            interleaved.push(data[i + frame_size + 1])
+        }
+
+        interleaved.push(data[i + frame_size * 2]);
+        if bits_allocated > 8 {
+            interleaved.push(data[i + frame_size * 2 + 1])
+        }
+
+        i = if bits_allocated > 8 { i + 2 } else { i + 1 };
+    }
+
+    interleaved
 }
 
 #[cfg(test)]
