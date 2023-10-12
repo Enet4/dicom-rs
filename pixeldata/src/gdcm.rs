@@ -36,11 +36,11 @@ where
         let transfer_syntax = &self.meta().transfer_syntax;
         let registry =
             TransferSyntaxRegistry
-                .get(&&transfer_syntax)
+                .get(transfer_syntax)
                 .context(UnknownTransferSyntaxSnafu {
                     ts_uid: transfer_syntax,
                 })?;
-        let ts_type = GDCMTransferSyntax::from_str(&registry.uid()).map_err(|_| {
+        let ts_type = GDCMTransferSyntax::from_str(registry.uid()).map_err(|_| {
             UnsupportedTransferSyntaxSnafu {
                 ts: transfer_syntax.clone(),
             }
@@ -67,7 +67,7 @@ where
                 };
                 if fragments.len() > 1 {
                     // Bundle fragments and decode multi-frame dicoms
-                    let dims = [cols.into(), rows.into(), number_of_frames.into()];
+                    let dims = [cols.into(), rows.into(), number_of_frames];
                     let fragments: Vec<_> = fragments.iter().map(|frag| frag.as_slice()).collect();
                     decode_multi_frame_compressed(
                         fragments.as_slice(),
