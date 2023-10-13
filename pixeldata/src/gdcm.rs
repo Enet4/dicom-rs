@@ -25,13 +25,16 @@ where
 
         let photometric_interpretation =
             photometric_interpretation(self).context(GetAttributeSnafu)?;
-        let pi_type = GDCMPhotometricInterpretation::from_str(photometric_interpretation.as_str())
-            .map_err(|_| {
-                UnsupportedPhotometricInterpretationSnafu {
-                    pi: photometric_interpretation.clone(),
-                }
-                .build()
-            })?;
+        let pi_type = match photometric_interpretation {
+            PhotometricInterpretation::PaletteColor => GDCMPhotometricInterpretation::PALETTE_COLOR,
+            _ => GDCMPhotometricInterpretation::from_str(photometric_interpretation.as_str())
+                .map_err(|_| {
+                    UnsupportedPhotometricInterpretationSnafu {
+                        pi: photometric_interpretation.clone(),
+                    }
+                    .build()
+                })?,
+        };
 
         let transfer_syntax = &self.meta().transfer_syntax;
         let registry =
@@ -156,13 +159,16 @@ where
 
         let photometric_interpretation =
             photometric_interpretation(self).context(GetAttributeSnafu)?;
-        let pi_type = GDCMPhotometricInterpretation::from_str(photometric_interpretation.as_str())
-            .map_err(|_| {
-                UnsupportedPhotometricInterpretationSnafu {
-                    pi: photometric_interpretation.clone(),
-                }
-                .build()
-            })?;
+        let pi_type = match photometric_interpretation {
+            PhotometricInterpretation::PaletteColor => GDCMPhotometricInterpretation::PALETTE_COLOR,
+            _ => GDCMPhotometricInterpretation::from_str(photometric_interpretation.as_str())
+                .map_err(|_| {
+                    UnsupportedPhotometricInterpretationSnafu {
+                        pi: photometric_interpretation.clone(),
+                    }
+                    .build()
+                })?,
+        };
 
         let transfer_syntax = &self.meta().transfer_syntax;
         let registry =
