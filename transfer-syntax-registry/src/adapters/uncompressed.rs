@@ -47,7 +47,7 @@ impl PixelDataReader for UncompressedAdapter {
             .get(frame as usize)
             .context(decode_error::FrameRangeOutOfBoundsSnafu)?;
 
-        dst.extend_from_slice(&fragment);
+        dst.extend_from_slice(fragment);
 
         Ok(())
     }
