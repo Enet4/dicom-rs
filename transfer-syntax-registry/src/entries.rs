@@ -25,10 +25,8 @@ use crate::{adapters::uncompressed::UncompressedAdapter, create_ts_stub};
 use byteordered::Endianness;
 use dicom_encoding::transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec};
 
-use dicom_encoding::TransferSyntax;
+use dicom_encoding::transfer_syntax::{NeverAdapter, TransferSyntax};
 
-#[cfg(any(feature = "jpeg", feature = "rle"))]
-use dicom_encoding::transfer_syntax::NeverAdapter;
 #[cfg(feature = "rle")]
 use dicom_encoding::NeverPixelAdapter;
 
