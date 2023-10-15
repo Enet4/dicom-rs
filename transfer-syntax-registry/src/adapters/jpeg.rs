@@ -1,7 +1,7 @@
 //! Support for JPG image decoding.
 
 use dicom_core::ops::{AttributeAction, AttributeOp};
-use dicom_core::Tag;
+use dicom_core::{Tag, PrimitiveValue};
 use dicom_encoding::adapters::{
     decode_error, encode_error, DecodeResult, EncodeOptions, EncodeResult, PixelDataObject,
     PixelDataReader, PixelDataWriter,
@@ -284,6 +284,11 @@ impl PixelDataWriter for JpegAdapter {
             .context(encode_error::MissingAttributeSnafu {
                 name: "BitsAllocated",
             })?;
+        let bits_stored = src
+            .bits_stored()
+            .context(encode_error::MissingAttributeSnafu {
+                name: "BitsStored",
+            })?;
 
         ensure_whatever!(
             bits_allocated == 8 || bits_allocated == 16,
@@ -305,20 +310,28 @@ impl PixelDataWriter for JpegAdapter {
         let photometric_interpretation = match samples_per_pixel {
             1 => "MONOCHROME2",
             3 => "RGB",
-            _ => unreachable!(),
+            _ => whatever!("Unsupported samples per pixel: {}", samples_per_pixel),
         };
 
         // record dst length before encoding to know full jpeg size
         let len_before = dst.len();
 
+        // identify frame data using the frame index
+        let pixeldata_uncompressed = &src
+            .raw_pixel_data()
+            .context(encode_error::MissingAttributeSnafu { name: "Pixel Data" })?
+            .fragments[0];
+
+        let frame_data = pixeldata_uncompressed.get(frame_size * frame as usize .. frame_size * (frame as usize + 1))
+            .whatever_context("Frame index out of bounds")?;
+        
+        let frame_data = narrow_8bit(frame_data, bits_stored)?;
+
         // Encode the data
-        let frame_uncompressed = src
-            .fragment(frame as usize)
-            .context(encode_error::FrameRangeOutOfBoundsSnafu)?;
         let mut encoder = jpeg_encoder::Encoder::new(&mut *dst, quality);
         encoder.set_progressive(false);
         encoder
-            .encode(&frame_uncompressed, cols, rows, color_type)
+            .encode(&frame_data, cols, rows, color_type)
             .whatever_context("JPEG encoding failed")?;
 
         let compressed_frame_size = dst.len() - len_before;
@@ -328,6 +341,12 @@ impl PixelDataWriter for JpegAdapter {
 
         // provide attribute changes
         Ok(vec![
+            // bits allocated
+            AttributeOp::new(Tag(0x0028, 0x0100), AttributeAction::Set(PrimitiveValue::from(8_u16))),
+            // bits stored
+            AttributeOp::new(Tag(0x0028, 0x0101), AttributeAction::Set(PrimitiveValue::from(8_u16))),
+            // high bit
+            AttributeOp::new(Tag(0x0028, 0x0102), AttributeAction::Set(PrimitiveValue::from(7_u16))),
             // lossy image compression
             AttributeOp::new(Tag(0x0028, 0x2110), AttributeAction::SetStr("01".into())),
             // lossy image compression ratio
@@ -346,4 +365,22 @@ impl PixelDataWriter for JpegAdapter {
 
 fn next_even(l: u64) -> u64 {
     (l + 1) & !1
+}
+
+/// reduce data precision to 8 bits if necessary
+/// data loss is possible
+fn narrow_8bit(frame_data: &[u8], bits_stored: u16) -> EncodeResult<Cow<[u8]>> {
+    debug_assert!(bits_stored >= 8);
+    match bits_stored {
+        8 => Ok(Cow::Borrowed(frame_data)),
+        9..=16 => {
+            let mut v = Vec::with_capacity(frame_data.len() / 2);
+            for chunk in frame_data.chunks(2) {
+                let b = u16::from(chunk[0])| u16::from(chunk[1]) << 8;
+                v.push((b >> (bits_stored - 8)) as u8);
+            }
+            Ok(Cow::Owned(v))
+        }
+        b => whatever!("Unsupported Bits Stored {}", b),
+    }
 }
