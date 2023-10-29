@@ -95,7 +95,7 @@ impl PixelDataWriter for UncompressedAdapter {
             .whatever_context("Frame index out of bounds")?;
 
         // Copy the the data to the output
-        dst.extend_from_slice(&frame_data);
+        dst.extend_from_slice(frame_data);
 
         // provide attribute changes
         Ok(vec![
