@@ -277,7 +277,7 @@ mod tests {
     use dicom_dictionary_std::uids;
     use dicom_object::open_file;
     use dicom_test_files;
-    use dicom_transfer_syntax_registry::entries::JPEG_EXTENDED;
+    use dicom_transfer_syntax_registry::entries::{JPEG_EXTENDED, ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN};
     #[cfg(feature = "native")]
     use dicom_transfer_syntax_registry::entries::JPEG_BASELINE;
 
@@ -486,4 +486,26 @@ mod tests {
             assert_eq!(fragments.len(), 1);
         }
     }
+
+    /// converting to Encapsulated Uncompressed Explicit VR Little Endian
+    /// should split each frame into separate fragments in native form
+    #[test]
+    fn test_transcode_encapsulated_uncompressed() {
+        let test_file = dicom_test_files::path("pydicom/SC_rgb_2frame.dcm").unwrap();
+        let mut obj = open_file(test_file).unwrap();
+
+        // transcode to the same TS
+        obj.transcode(&ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN.erased())
+            .expect("Should have transcoded successfully");
+
+        assert_eq!(obj.meta().transfer_syntax(), ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN.uid());
+        // pixel data is encapsulated, but in native form
+        let pixel_data = obj.get(tags::PIXEL_DATA).unwrap();
+        let fragments = pixel_data.fragments().unwrap();
+        assert_eq!(fragments.len(), 2);
+        // each frame should have native pixel data (100x100 RGB)
+        assert_eq!(fragments[0].len(), 100 * 100 * 3);
+        assert_eq!(fragments[1].len(), 100 * 100 * 3);
+    }
+
 }
