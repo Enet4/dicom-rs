@@ -32,6 +32,9 @@ struct App {
     /// (default is to replace input extension with `.new.dcm`)
     #[arg(short = 'o', long = "out")]
     output: Option<PathBuf>,
+    /// Retain the implementation class UID and version name from base DICOM
+    #[arg(long)]
+    retain_implementation: bool,
     /// Print more information about the image and the output file
     #[arg(short = 'v', long = "verbose")]
     verbose: bool,
@@ -47,6 +50,7 @@ fn main() {
         dcm_file,
         img_file,
         output,
+        retain_implementation,
         verbose,
     } = App::parse();
 
@@ -177,13 +181,27 @@ fn main() {
 
     let class_uid = obj.meta().media_storage_sop_class_uid.clone();
 
+    let mut meta_builder = FileMetaTableBuilder::new()
+        // currently the tool will always decode the image's pixel data,
+        // so encode it as Explicit VR Little Endian
+        .transfer_syntax("1.2.840.10008.1.2.1")
+        .media_storage_sop_class_uid(class_uid);
+
+    // recover implementation class UID and version name from base object
+    if retain_implementation {
+        let implementation_class_uid = &obj.meta().implementation_class_uid;
+        meta_builder = meta_builder
+            .implementation_class_uid(implementation_class_uid);
+        
+        if let Some(implementation_version_name) = obj.meta().implementation_version_name.as_ref() {
+            meta_builder = meta_builder
+                .implementation_version_name(implementation_version_name);
+        }
+    }
+
     let obj = obj
         .into_inner()
-        .with_meta(
-            FileMetaTableBuilder::new()
-                .transfer_syntax("1.2.840.10008.1.2.1")
-                .media_storage_sop_class_uid(class_uid),
-        )
+        .with_meta(meta_builder)
         .unwrap_or_else(|e| {
             tracing::error!("{}", snafu::Report::from_error(e));
             std::process::exit(-3);

@@ -40,6 +40,10 @@ struct App {
     #[clap(flatten)]
     target_ts: TargetTransferSyntax,
 
+    /// Retain the original implementation class UID and version name
+    #[clap(long)]
+    retain_implementation: bool,
+
     /// Verbose mode
     #[clap(short = 'v', long = "verbose")]
     verbose: bool,
@@ -113,6 +117,7 @@ fn run() -> Result<(), Whatever> {
         quality,
         effort,
         target_ts,
+        retain_implementation,
         verbose,
     } = App::parse();
 
@@ -147,6 +152,12 @@ fn run() -> Result<(), Whatever> {
         eprintln!("{}", Report::from_error(e));
         std::process::exit(ERROR_TRANSCODE);
     });
+
+    // override implementation class UID and version name
+    if !retain_implementation {
+        obj.meta_mut().implementation_class_uid = dicom_object::IMPLEMENTATION_CLASS_UID.to_string();
+        obj.meta_mut().implementation_version_name = Some(dicom_object::IMPLEMENTATION_VERSION_NAME.to_string());
+    }
 
     // write to file
     obj.write_to_file(output).unwrap_or_else(|e| {
