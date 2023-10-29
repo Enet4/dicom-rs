@@ -168,8 +168,7 @@ where
                 }
 
                 // update transfer syntax
-                self.meta_mut()
-                    .set_transfer_syntax(&ts);
+                self.meta_mut().set_transfer_syntax(ts);
 
                 Ok(())
             },
