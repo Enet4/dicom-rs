@@ -403,10 +403,11 @@ impl DicomTime {
         )))
     }
 
-    /**
-     * Constructs a new `DicomTime` from an hour, minute, second and microsecond value,
-     * which leads to full (HHMMSS.FFFFFF) precision. Microsecond cannot exceed `999_999`.
-     */
+    /// Constructs a new `DicomTime` from an hour, minute, second and microsecond value,
+    /// which leads to full (`HHMMSS.FFFFFF`) precision.
+    ///
+    /// Microsecond cannot exceed `999_999`.
+    /// Instead, leap seconds can be represented by setting `second` to 60.
     pub fn from_hms_micro(hour: u8, minute: u8, second: u8, microsecond: u32) -> Result<DicomTime> {
         check_component(DateComponent::Fraction, &microsecond)?;
         Ok(DicomTime(DicomTimeImpl::Fraction(
@@ -520,7 +521,15 @@ impl TryFrom<&NaiveTime> for DicomTime {
             value: time.second().to_string(),
             component: DateComponent::Second,
         })?;
-        DicomTime::from_hms_micro(hour, minute, second, time.nanosecond() / 1000)
+        let microsecond = time.nanosecond() / 1000;
+        // leap second correction: convert (59, 1_000_000 + x) to (60, x)
+        let (second, microsecond) = if microsecond >= 1_000_000 && second == 59 {
+            (60, microsecond - 1_000_000)
+        } else {
+            (second, microsecond)
+        };
+
+        DicomTime::from_hms_micro(hour, minute, second, microsecond)
     }
 }
 
@@ -643,10 +652,17 @@ impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
             value: dt.second().to_string(),
             component: DateComponent::Second,
         })?;
+        let microsecond = dt.nanosecond() / 1000;
+        // leap second correction: convert (59, 1_000_000 + x) to (60, x)
+        let (second, microsecond) = if microsecond >= 1_000_000 && second == 59 {
+            (60, microsecond - 1_000_000)
+        } else {
+            (second, microsecond)
+        };
 
         DicomDateTime::from_date_and_time(
             DicomDate::from_ymd(year, month, day)?,
-            DicomTime::from_hms_micro(hour, minute, second, dt.nanosecond() / 1000)?,
+            DicomTime::from_hms_micro(hour, minute, second, microsecond)?,
             *dt.offset(),
         )
     }
@@ -946,6 +962,30 @@ mod tests {
             "090101.0"
         );
 
+        // leap second allowed here
+        assert_eq!(
+            DicomTime::from_hmsf(23, 59, 60, 123, 3)
+                .unwrap()
+                .to_encoded(),
+            "235960.123",
+        );
+
+        // leap second from chrono NaiveTime is admitted
+        assert_eq!(
+            DicomTime::try_from(&NaiveTime::from_hms_micro_opt(16, 31, 59, 1_000_000).unwrap())
+                .unwrap()
+                .to_encoded(),
+            "163160.0",
+        );
+
+        // sub-second precision after leap second from NaiveTime is admitted
+        assert_eq!(
+            DicomTime::try_from(&NaiveTime::from_hms_micro_opt(16, 31, 59, 1_012_345).unwrap())
+                .unwrap()
+                .to_encoded(),
+            "163160.012345",
+        );
+
         assert!(matches!(
             DicomTime::from_hmsf(9, 1, 1, 1, 7),
             Err(Error::FractionPrecisionRange { value: 7, .. })
@@ -968,8 +1008,9 @@ mod tests {
             })
         ));
 
+        // invalid second fraction: leap second not allowed here
         assert!(matches!(
-            DicomTime::try_from(&NaiveTime::from_hms_micro_opt(16, 31, 28, 1_000_000).unwrap()),
+            DicomTime::from_hmsf(9, 1, 1, 1_000_000, 6),
             Err(Error::InvalidComponent {
                 component: DateComponent::Fraction,
                 ..
@@ -1087,6 +1128,25 @@ mod tests {
             DicomDateTime {
                 date: DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 time: Some(DicomTime::from_hms_micro(23, 59, 59, 0).unwrap()),
+                offset: default_offset
+            }
+        );
+
+        // leap second from chrono NaiveTime is admitted
+        assert_eq!(
+            DicomDateTime::try_from(
+                &FixedOffset::east_opt(0)
+                    .unwrap()
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(2023, 12, 31).unwrap(),
+                        NaiveTime::from_hms_micro_opt(23, 59, 59, 1_000_000).unwrap()
+                    ))
+                    .unwrap()
+            )
+            .unwrap(),
+            DicomDateTime {
+                date: DicomDate::from_ymd(2023, 12, 31).unwrap(),
+                time: Some(DicomTime::from_hms_micro(23, 59, 60, 0).unwrap()),
                 offset: default_offset
             }
         );
