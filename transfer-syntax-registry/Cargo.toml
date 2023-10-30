@@ -10,7 +10,7 @@ keywords = ["dicom"]
 readme = "README.md"
 
 [features]
-default = ["rayon"]
+default = ["rayon", "simd"]
 
 # inventory for compile time plugin-based transfer syntax registration
 inventory-registry = ['dicom-encoding/inventory-registry']
@@ -25,12 +25,16 @@ openjp2 = ["dep:jpeg2k", "jpeg2k/openjp2"]
 rle = []
 # enable Rayon for JPEG decoding
 rayon = ["jpeg-decoder?/rayon"]
-# build OpenJPEG with multithreading
-openjpeg-sys-threads = ["rayon", "jpeg2k?/threads"]
+# enable SIMD operations for JPEG encoding
+simd = ["jpeg-encoder?/simd"]
 
 # JPEG 2000 support via the OpenJPEG Rust port,
-# overrides `openjp2` if present
+# conflicts with `openjp2`
 openjpeg-sys = ["dep:jpeg2k", "jpeg2k/openjpeg-sys"]
+
+# build OpenJPEG with multithreading,
+# implies "rayon"
+openjpeg-sys-threads = ["rayon", "jpeg2k?/threads"]
 
 [dependencies]
 dicom-core = { path = "../core", version = "0.6.1" }
@@ -49,7 +53,7 @@ version = "0.3.0"
 optional = true
 
 [dependencies.jpeg-encoder]
-version = "0.5.1"
+version = "0.6"
 optional = true
 
 [package.metadata.docs.rs]
