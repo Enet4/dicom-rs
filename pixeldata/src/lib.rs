@@ -2443,11 +2443,11 @@ mod tests {
 
         #[cfg(feature = "image")]
         #[rstest]
-        // jpeg2000 encoding not supported
-        #[should_panic(expected = "UnsupportedTransferSyntax { ts: \"1.2.840.10008.1.2.4.91\"")]
-        #[case("pydicom/693_J2KI.dcm", 1)]
-        #[should_panic(expected = "UnsupportedTransferSyntax { ts: \"1.2.840.10008.1.2.4.90\"")]
-        #[case("pydicom/693_J2KR.dcm", 1)]
+        // jpeg2000 encoding
+        #[cfg_attr(any(feature = "openjp2", feature = "openjpeg-sys"), case("pydicom/emri_small_jpeg_2k_lossless.dcm", 10))]
+        #[cfg_attr(any(feature = "openjp2", feature = "openjpeg-sys"), case("pydicom/693_J2KI.dcm", 1))]
+        #[cfg_attr(any(feature = "openjp2", feature = "openjpeg-sys"), case("pydicom/693_J2KR.dcm", 1))]
+        #[cfg_attr(any(feature = "openjp2", feature = "openjpeg-sys"), case("pydicom/JPEG2000.dcm", 1))]
         //
         // jpeg-ls encoding not supported
         #[should_panic(expected = "UnsupportedTransferSyntax { ts: \"1.2.840.10008.1.2.4.80\"")]
@@ -2455,18 +2455,18 @@ mod tests {
         #[should_panic(expected = "UnsupportedTransferSyntax { ts: \"1.2.840.10008.1.2.4.80\"")]
         #[case("pydicom/MR_small_jpeg_ls_lossless.dcm", 1)]
         //
-        // sample precicion of 12 not supported
+        // sample precision of 12 not supported yet
         #[should_panic(expected = "Unsupported(SamplePrecision(12))")]
         #[case("pydicom/JPEG-lossy.dcm", 1)]
         //
-        // works fine
-        #[case("pydicom/color3d_jpeg_baseline.dcm", 120)]
+        // JPEG baseline (8bit)
+        #[cfg_attr(feature = "jpeg", case("pydicom/color3d_jpeg_baseline.dcm", 120))]
+        #[cfg_attr(feature = "jpeg", case("pydicom/SC_rgb_jpeg_lossy_gdcm.dcm", 1))]
+        #[cfg_attr(feature = "jpeg", case("pydicom/SC_rgb_jpeg_gdcm.dcm", 1))]
         //
-        // works fine
-        #[case("pydicom/JPEG-LL.dcm", 1)]
-        #[case("pydicom/JPGLosslessP14SV1_1s_1f_8b.dcm", 1)]
-        #[case("pydicom/SC_rgb_jpeg_gdcm.dcm", 1)]
-        #[case("pydicom/SC_rgb_jpeg_lossy_gdcm.dcm", 1)]
+        // JPEG lossless
+        #[cfg_attr(feature = "jpeg", case("pydicom/JPEG-LL.dcm", 1))]
+        #[cfg_attr(feature = "jpeg", case("pydicom/JPGLosslessP14SV1_1s_1f_8b.dcm", 1))]
 
         fn test_parse_jpeg_encoded_dicom_pixel_data(#[case] value: &str, #[case] frames: u32) {
             use std::fs;
@@ -2476,7 +2476,7 @@ mod tests {
             println!("Parsing pixel data for {}", test_file.display());
             let obj = open_file(test_file).unwrap();
             let pixel_data = obj.decode_pixel_data().unwrap();
-            assert_eq!(pixel_data.number_of_frames(), frames);
+            assert_eq!(pixel_data.number_of_frames(), frames, "number of frames mismatch");
 
             let output_dir = Path::new(
                 "../target/dicom_test_files/_out/test_parse_jpeg_encoded_dicom_pixel_data",
@@ -2484,7 +2484,7 @@ mod tests {
             fs::create_dir_all(output_dir).unwrap();
 
             for i in 0..pixel_data.number_of_frames().min(MAX_TEST_FRAMES) {
-                let image = pixel_data.to_dynamic_image(i).unwrap();
+                let image = pixel_data.to_dynamic_image(i).expect("failed to retrieve the frame requested");
                 let image_path = output_dir.join(format!(
                     "{}-{}.png",
                     Path::new(value).file_stem().unwrap().to_str().unwrap(),
@@ -2496,10 +2496,10 @@ mod tests {
 
         #[cfg(feature = "image")]
         #[rstest]
-        #[case("pydicom/color3d_jpeg_baseline.dcm", 0)]
-        #[case("pydicom/color3d_jpeg_baseline.dcm", 1)]
-        #[case("pydicom/color3d_jpeg_baseline.dcm", 78)]
-        #[case("pydicom/color3d_jpeg_baseline.dcm", 119)]
+        #[cfg_attr(feature = "jpeg", case("pydicom/color3d_jpeg_baseline.dcm", 0))]
+        #[cfg_attr(feature = "jpeg", case("pydicom/color3d_jpeg_baseline.dcm", 1))]
+        #[cfg_attr(feature = "jpeg", case("pydicom/color3d_jpeg_baseline.dcm", 78))]
+        #[cfg_attr(feature = "jpeg", case("pydicom/color3d_jpeg_baseline.dcm", 119))]
         #[case("pydicom/SC_rgb_rle_2frame.dcm", 0)]
         #[case("pydicom/SC_rgb_rle_2frame.dcm", 1)]
         #[case("pydicom/JPEG2000_UNC.dcm", 0)]

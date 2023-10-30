@@ -81,6 +81,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.75"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4668cab20f66d8d020e1fbc0ebe47217433c1b6c8f2040faf858554e394ace6"
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -170,6 +176,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbf2cd9424f5ff404aba1959c835cbc448ee8b689b870a9981c76c0fd46280e6"
 dependencies = [
  "byteorder",
+]
+
+[[package]]
+name = "c2rust-bitfields"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb34f0c0ace43530b2df7f18bc69ee0c4082158aa451ece29602f8c841e73764"
+dependencies = [
+ "c2rust-bitfields-derive",
+]
+
+[[package]]
+name = "c2rust-bitfields-derive"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3dd1601a7b828ab874d890e5a895563ca8ad485bdd3d2a359f148c8b72537241"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -623,6 +649,7 @@ dependencies = [
  "dicom-test-files",
  "jpeg-decoder",
  "jpeg-encoder",
+ "jpeg2k",
  "lazy_static",
  "tracing",
 ]
@@ -1125,6 +1152,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2cf3affe27ffd9f1992690ec7575568b222abe9cb39738f6531968aca8e64906"
 
 [[package]]
+name = "jpeg2k"
+version = "0.6.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "450b1c9d2621b6fb60d724e77c41cb924dc7509eace907a23dc99b1b4a2416bc"
+dependencies = [
+ "anyhow",
+ "log",
+ "openjp2",
+ "openjpeg-sys",
+ "thiserror",
+]
+
+[[package]]
 name = "js-sys"
 version = "0.3.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1315,6 +1355,29 @@ name = "once_cell"
 version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
+
+[[package]]
+name = "openjp2"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14b5cbb9da46ebbda123ad91818b10cd2697f062d392693a4db078e0e495813c"
+dependencies = [
+ "bitflags 1.3.2",
+ "c2rust-bitfields",
+ "libc",
+ "log",
+ "sprintf",
+]
+
+[[package]]
+name = "openjpeg-sys"
+version = "1.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e619b5395bceca2cc5da20027e39ee6cb91fef816ec99cebb14dec3acf020def"
+dependencies = [
+ "cc",
+ "libc",
+]
 
 [[package]]
 name = "overload"
@@ -1765,6 +1828,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "sprintf"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c0cdea5a20a06e7c57f627094e7b1618e5665592cd88f2d45fa4014e348db58"
+
+[[package]]
 name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1863,6 +1932,26 @@ checksum = "1e4129646ca0ed8f45d09b929036bafad5377103edd06e50bf574b353d2b08d9"
 dependencies = [
  "libc",
  "winapi",
+]
+
+[[package]]
+name = "thiserror"
+version = "1.0.50"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9a7210f5c9a7156bb50aa36aed4c95afb51df0df00713949448cf9e97d382d2"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.50"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "266b2e40bc00e5a6c09c3584011e08b06f123c00362c92b975ba9843aaaa14b8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.29",
 ]
 
 [[package]]
