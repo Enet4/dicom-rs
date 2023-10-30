@@ -28,12 +28,13 @@ rayon = ["jpeg-decoder?/rayon"]
 # enable SIMD operations for JPEG encoding
 simd = ["jpeg-encoder?/simd"]
 
-# build OpenJPEG with multithreading
-openjpeg-sys-threads = ["rayon", "jpeg2k?/threads"]
-
 # JPEG 2000 support via the OpenJPEG Rust port,
-# overrides `openjp2` if present
+# conflicts with `openjp2`
 openjpeg-sys = ["dep:jpeg2k", "jpeg2k/openjpeg-sys"]
+
+# build OpenJPEG with multithreading,
+# implies "rayon"
+openjpeg-sys-threads = ["rayon", "jpeg2k?/threads"]
 
 [dependencies]
 dicom-core = { path = "../core", version = "0.6.1" }
