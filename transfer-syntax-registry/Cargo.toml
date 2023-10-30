@@ -10,7 +10,7 @@ keywords = ["dicom"]
 readme = "README.md"
 
 [features]
-default = ["rayon"]
+default = ["rayon", "simd"]
 
 # inventory for compile time plugin-based transfer syntax registration
 inventory-registry = ['dicom-encoding/inventory-registry']
@@ -25,6 +25,9 @@ openjp2 = ["dep:jpeg2k", "jpeg2k/openjp2"]
 rle = []
 # enable Rayon for JPEG decoding
 rayon = ["jpeg-decoder?/rayon"]
+# enable SIMD operations for JPEG encoding
+simd = ["jpeg-encoder?/simd"]
+
 # build OpenJPEG with multithreading
 openjpeg-sys-threads = ["rayon", "jpeg2k?/threads"]
 
