@@ -11,7 +11,7 @@ keywords = ["dicom"]
 readme = "README.md"
 
 [dependencies]
-dicom-core = { path = "../core", version = "0.6.1" }
+dicom-core = { path = "../core", version = "0.6.2" }
 dicom-dictionary-std = { path = "../dictionary-std", version = "0.6.0" }
 encoding = "0.2.33"
 byteordered = "0.6"
