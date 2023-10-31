@@ -12,7 +12,7 @@ readme = "README.md"
 
 [dependencies]
 byteordered = "0.6"
-dicom-encoding = { path = "../encoding/", version = "0.6.0" }
+dicom-encoding = { path = "../encoding/", version = "0.6.1" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.6.0", default-features = false }
 snafu = "0.7.3"
 tracing = "0.1.34"

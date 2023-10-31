@@ -1,6 +1,6 @@
 [package]
 name = "dicom-encoding"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "DICOM encoding and decoding primitives"
 edition = "2018"

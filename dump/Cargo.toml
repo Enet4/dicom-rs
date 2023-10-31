@@ -29,7 +29,7 @@ term_size = "0.3.2"
 snafu = "0.7.3"
 clap = { version  = "4.0.18", features = ["derive"], optional = true }
 dicom-core = { path = "../core", version = "0.6.2" }
-dicom-encoding = { path = "../encoding", version = "0.6.0" }
+dicom-encoding = { path = "../encoding", version = "0.6.1" }
 dicom-object = { path = "../object/", version = "0.6.1" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.6.0", default-features = false }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.6.0" }
