@@ -17,7 +17,7 @@ default = ['dicom-object/inventory-registry', 'dicom-object/backtraces', 'dicom-
 clap = { version  = "4.0.18", features = ["derive"] }
 dicom-core = { version = "0.6.2", path = "../core" }
 dicom-dictionary-std = { version = "0.6.1", path = "../dictionary-std" }
-dicom-object = { path = "../object/", version = "0.6.1" }
+dicom-object = { path = "../object/", version = "0.6.2" }
 dicom-pixeldata = { path = "../pixeldata/", version = "0.2.0", default-features = false, features = ["image", "rayon"] }
 snafu = { version = "0.7.3", features = ["rust_1_61"] }
 tracing = "0.1.34"
