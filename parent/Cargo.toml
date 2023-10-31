@@ -20,7 +20,7 @@ pixeldata = ['dicom-pixeldata']
 
 [dependencies]
 dicom-core = { path = "../core", version = "0.6.2" }
-dicom-dictionary-std = { path = "../dictionary-std", version = "0.6.0" }
+dicom-dictionary-std = { path = "../dictionary-std", version = "0.6.1" }
 dicom-dump = { version = "0.6.1", path = "../dump", default-features = false }
 dicom-encoding = { path = "../encoding", version = "0.6.1" }
 dicom-parser = { path = "../parser", version = "0.6.0" }
