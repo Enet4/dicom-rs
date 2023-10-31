@@ -2657,6 +2657,12 @@ pub const DATE_TIME_OF_LAST_CALIBRATION: Tag = Tag(0x0018, 0x1202);
 /// CalibrationDateTime (0018,1203) DT 1 DICOM
 #[rustfmt::skip]
 pub const CALIBRATION_DATE_TIME: Tag = Tag(0x0018, 0x1203);
+/// DateOfManufacture (0018,1204) DA 1 DICOM
+#[rustfmt::skip]
+pub const DATE_OF_MANUFACTURE: Tag = Tag(0x0018, 0x1204);
+/// DateOfInstallation (0018,1205) DA 1 DICOM
+#[rustfmt::skip]
+pub const DATE_OF_INSTALLATION: Tag = Tag(0x0018, 0x1205);
 /// ConvolutionKernel (0018,1210) SH 1-n DICOM
 #[rustfmt::skip]
 pub const CONVOLUTION_KERNEL: Tag = Tag(0x0018, 0x1210);
@@ -4454,6 +4460,69 @@ pub const TRANSDUCER_APPLICATION_CODE_SEQUENCE: Tag = Tag(0x0018, 0x980F);
 /// ZeroVelocityPixelValue (0018,9810) US 1 DICOM
 #[rustfmt::skip]
 pub const ZERO_VELOCITY_PIXEL_VALUE: Tag = Tag(0x0018, 0x9810);
+/// PhotoacousticExcitationCharacteristicsSequence (0018,9821) SQ 1 DICOM
+#[rustfmt::skip]
+pub const PHOTOACOUSTIC_EXCITATION_CHARACTERISTICS_SEQUENCE: Tag = Tag(0x0018, 0x9821);
+/// ExcitationSpectralWidth (0018,9822) FD 1 DICOM
+#[rustfmt::skip]
+pub const EXCITATION_SPECTRAL_WIDTH: Tag = Tag(0x0018, 0x9822);
+/// ExcitationEnergy (0018,9823) FD 1 DICOM
+#[rustfmt::skip]
+pub const EXCITATION_ENERGY: Tag = Tag(0x0018, 0x9823);
+/// ExcitationPulseDuration (0018,9824) FD 1 DICOM
+#[rustfmt::skip]
+pub const EXCITATION_PULSE_DURATION: Tag = Tag(0x0018, 0x9824);
+/// ExcitationWavelengthSequence (0018,9825) SQ 1 DICOM
+#[rustfmt::skip]
+pub const EXCITATION_WAVELENGTH_SEQUENCE: Tag = Tag(0x0018, 0x9825);
+/// ExcitationWavelength (0018,9826) FD 1 DICOM
+#[rustfmt::skip]
+pub const EXCITATION_WAVELENGTH: Tag = Tag(0x0018, 0x9826);
+/// IlluminationTranslationFlag (0018,9828) CS 1 DICOM
+#[rustfmt::skip]
+pub const ILLUMINATION_TRANSLATION_FLAG: Tag = Tag(0x0018, 0x9828);
+/// AcousticCouplingMediumFlag (0018,9829) CS 1 DICOM
+#[rustfmt::skip]
+pub const ACOUSTIC_COUPLING_MEDIUM_FLAG: Tag = Tag(0x0018, 0x9829);
+/// AcousticCouplingMediumCodeSequence (0018,982A) SQ 1 DICOM
+#[rustfmt::skip]
+pub const ACOUSTIC_COUPLING_MEDIUM_CODE_SEQUENCE: Tag = Tag(0x0018, 0x982A);
+/// AcousticCouplingMediumTemperature (0018,982B) FD 1 DICOM
+#[rustfmt::skip]
+pub const ACOUSTIC_COUPLING_MEDIUM_TEMPERATURE: Tag = Tag(0x0018, 0x982B);
+/// TransducerResponseSequence (0018,982C) SQ 1 DICOM
+#[rustfmt::skip]
+pub const TRANSDUCER_RESPONSE_SEQUENCE: Tag = Tag(0x0018, 0x982C);
+/// CenterFrequency (0018,982D) FD 1 DICOM
+#[rustfmt::skip]
+pub const CENTER_FREQUENCY: Tag = Tag(0x0018, 0x982D);
+/// FractionalBandwidth (0018,982E) FD 1 DICOM
+#[rustfmt::skip]
+pub const FRACTIONAL_BANDWIDTH: Tag = Tag(0x0018, 0x982E);
+/// LowerCutoffFrequency (0018,982F) FD 1 DICOM
+#[rustfmt::skip]
+pub const LOWER_CUTOFF_FREQUENCY: Tag = Tag(0x0018, 0x982F);
+/// UpperCutoffFrequency (0018,9830) FD 1 DICOM
+#[rustfmt::skip]
+pub const UPPER_CUTOFF_FREQUENCY: Tag = Tag(0x0018, 0x9830);
+/// TransducerTechnologySequence (0018,9831) SQ 1 DICOM
+#[rustfmt::skip]
+pub const TRANSDUCER_TECHNOLOGY_SEQUENCE: Tag = Tag(0x0018, 0x9831);
+/// SoundSpeedCorrectionMechanismCodeSequence (0018,9832) SQ 1 DICOM
+#[rustfmt::skip]
+pub const SOUND_SPEED_CORRECTION_MECHANISM_CODE_SEQUENCE: Tag = Tag(0x0018, 0x9832);
+/// ObjectSoundSpeed (0018,9833) FD 1 DICOM
+#[rustfmt::skip]
+pub const OBJECT_SOUND_SPEED: Tag = Tag(0x0018, 0x9833);
+/// AcousticCouplingMediumSoundSpeed (0018,9834) FD 1 DICOM
+#[rustfmt::skip]
+pub const ACOUSTIC_COUPLING_MEDIUM_SOUND_SPEED: Tag = Tag(0x0018, 0x9834);
+/// PhotoacousticImageFrameTypeSequence (0018,9835) SQ 1 DICOM
+#[rustfmt::skip]
+pub const PHOTOACOUSTIC_IMAGE_FRAME_TYPE_SEQUENCE: Tag = Tag(0x0018, 0x9835);
+/// ImageDataTypeCodeSequence (0018,9836) SQ 1 DICOM
+#[rustfmt::skip]
+pub const IMAGE_DATA_TYPE_CODE_SEQUENCE: Tag = Tag(0x0018, 0x9836);
 /// ReferenceLocationLabel (0018,9900) LO 1 DICOM
 #[rustfmt::skip]
 pub const REFERENCE_LOCATION_LABEL: Tag = Tag(0x0018, 0x9900);
@@ -16741,6 +16810,8 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(TIME_OF_LAST_CALIBRATION), alias: "TimeOfLastCalibration", vr: TM }, // DICOM
     E { tag: Single(DATE_TIME_OF_LAST_CALIBRATION), alias: "DateTimeOfLastCalibration", vr: DT }, // DICOM
     E { tag: Single(CALIBRATION_DATE_TIME), alias: "CalibrationDateTime", vr: DT }, // DICOM
+    E { tag: Single(DATE_OF_MANUFACTURE), alias: "DateOfManufacture", vr: DA }, // DICOM
+    E { tag: Single(DATE_OF_INSTALLATION), alias: "DateOfInstallation", vr: DA }, // DICOM
     E { tag: Single(CONVOLUTION_KERNEL), alias: "ConvolutionKernel", vr: SH }, // DICOM
     E { tag: Single(ACTUAL_FRAME_DURATION), alias: "ActualFrameDuration", vr: IS }, // DICOM
     E { tag: Single(COUNT_RATE), alias: "CountRate", vr: IS }, // DICOM
@@ -17340,6 +17411,27 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(TRANSDUCER_BEAM_STEERING_CODE_SEQUENCE), alias: "TransducerBeamSteeringCodeSequence", vr: SQ }, // DICOM
     E { tag: Single(TRANSDUCER_APPLICATION_CODE_SEQUENCE), alias: "TransducerApplicationCodeSequence", vr: SQ }, // DICOM
     E { tag: Single(ZERO_VELOCITY_PIXEL_VALUE), alias: "ZeroVelocityPixelValue", vr: US }, // DICOM
+    E { tag: Single(PHOTOACOUSTIC_EXCITATION_CHARACTERISTICS_SEQUENCE), alias: "PhotoacousticExcitationCharacteristicsSequence", vr: SQ }, // DICOM
+    E { tag: Single(EXCITATION_SPECTRAL_WIDTH), alias: "ExcitationSpectralWidth", vr: FD }, // DICOM
+    E { tag: Single(EXCITATION_ENERGY), alias: "ExcitationEnergy", vr: FD }, // DICOM
+    E { tag: Single(EXCITATION_PULSE_DURATION), alias: "ExcitationPulseDuration", vr: FD }, // DICOM
+    E { tag: Single(EXCITATION_WAVELENGTH_SEQUENCE), alias: "ExcitationWavelengthSequence", vr: SQ }, // DICOM
+    E { tag: Single(EXCITATION_WAVELENGTH), alias: "ExcitationWavelength", vr: FD }, // DICOM
+    E { tag: Single(ILLUMINATION_TRANSLATION_FLAG), alias: "IlluminationTranslationFlag", vr: CS }, // DICOM
+    E { tag: Single(ACOUSTIC_COUPLING_MEDIUM_FLAG), alias: "AcousticCouplingMediumFlag", vr: CS }, // DICOM
+    E { tag: Single(ACOUSTIC_COUPLING_MEDIUM_CODE_SEQUENCE), alias: "AcousticCouplingMediumCodeSequence", vr: SQ }, // DICOM
+    E { tag: Single(ACOUSTIC_COUPLING_MEDIUM_TEMPERATURE), alias: "AcousticCouplingMediumTemperature", vr: FD }, // DICOM
+    E { tag: Single(TRANSDUCER_RESPONSE_SEQUENCE), alias: "TransducerResponseSequence", vr: SQ }, // DICOM
+    E { tag: Single(CENTER_FREQUENCY), alias: "CenterFrequency", vr: FD }, // DICOM
+    E { tag: Single(FRACTIONAL_BANDWIDTH), alias: "FractionalBandwidth", vr: FD }, // DICOM
+    E { tag: Single(LOWER_CUTOFF_FREQUENCY), alias: "LowerCutoffFrequency", vr: FD }, // DICOM
+    E { tag: Single(UPPER_CUTOFF_FREQUENCY), alias: "UpperCutoffFrequency", vr: FD }, // DICOM
+    E { tag: Single(TRANSDUCER_TECHNOLOGY_SEQUENCE), alias: "TransducerTechnologySequence", vr: SQ }, // DICOM
+    E { tag: Single(SOUND_SPEED_CORRECTION_MECHANISM_CODE_SEQUENCE), alias: "SoundSpeedCorrectionMechanismCodeSequence", vr: SQ }, // DICOM
+    E { tag: Single(OBJECT_SOUND_SPEED), alias: "ObjectSoundSpeed", vr: FD }, // DICOM
+    E { tag: Single(ACOUSTIC_COUPLING_MEDIUM_SOUND_SPEED), alias: "AcousticCouplingMediumSoundSpeed", vr: FD }, // DICOM
+    E { tag: Single(PHOTOACOUSTIC_IMAGE_FRAME_TYPE_SEQUENCE), alias: "PhotoacousticImageFrameTypeSequence", vr: SQ }, // DICOM
+    E { tag: Single(IMAGE_DATA_TYPE_CODE_SEQUENCE), alias: "ImageDataTypeCodeSequence", vr: SQ }, // DICOM
     E { tag: Single(REFERENCE_LOCATION_LABEL), alias: "ReferenceLocationLabel", vr: LO }, // DICOM
     E { tag: Single(REFERENCE_LOCATION_DESCRIPTION), alias: "ReferenceLocationDescription", vr: UT }, // DICOM
     E { tag: Single(REFERENCE_BASIS_CODE_SEQUENCE), alias: "ReferenceBasisCodeSequence", vr: SQ }, // DICOM
