@@ -74,12 +74,14 @@ The project also comprises an assortment of command line tools.
   is also a command-line application for inspecting DICOM files.
 - [`scpproxy`](scpproxy) implements a Proxy service class provider.
 - [`echoscu`](echoscu) implements a Verification service class user.
+- [`findscu`](findscu) implements a Find service class user.
 - [`storescu`](storescu) implements a Storage service class user.
 - [`storescp`](storescp) implements a Storage service class provider.
 - [`toimage`](toimage) lets you convert a DICOM file into an image file.
 - [`fromimage`](fromimage) lets you replace the imaging data of a DICOM file
   with one from an image file.
-- [`findscu`](findscu) implements a Find service class user.
+- [`pixeldata`](pixeldata) also includes `dicom-transcode`,
+  which lets you transcode DICOM files to other transfer syntaxes.
 
 ### Development tools
 
@@ -93,6 +95,11 @@ You can use Cargo to build all crates in the repository.
 ```sh
 cargo build
 ```
+
+Other than the parts needed to build a pure Rust project,
+no other development dependencies are necessary
+unless certain extensions are included via Cargo features.
+Consult each crate for guidelines on selecting features to suit your needs.
 
 ## Roadmap & Contributing
 
