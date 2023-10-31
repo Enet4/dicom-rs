@@ -16,10 +16,13 @@
 //!
 //! Support may be partial, in which case the data set can be retrieved
 //! but the pixel data may not be decoded through the DICOM-rs ecosystem.
-//! By default, adapters for encapsulated pixel data are not included.
-//! To include native support for some transfer syntaxes with encapsulated pixel data,
+//! By default, adapters for encapsulated pixel data
+//! need to be explicitly added by dependent projects,
+//! such as `dicom-pixeldata`.
+//! When adding `dicom-transfer-syntax-registry` yourself,
+//! to include support for some transfer syntaxes with encapsulated pixel data,
 //! add the **`native`** Cargo feature
-//! or one of the other transfer syntax features available.
+//! or one of the other image encoding features available.
 //!
 //! By default, a fixed known set of transfer syntaxes are provided as built in.
 //! Moreover, support for more TSes can be extended by other crates
@@ -59,6 +62,18 @@
 //! | JPEG 2000 Part 2 Multi-component Image Compression | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | RLE Lossless                  | Cargo feature `rle` | x |
 //!
+//! Cargo features behind `native` (`jpeg`, `rle`, `openjp2`)
+//! provide implementations that are written in pure Rust,
+//! and so they are easier to build and may be available in all platforms supported by Rust.
+//! However, a native implementation might not always be available,
+//! or alternative implementations may be preferred:
+//! 
+//! - `openjpeg-sys` provides a binding to the OpenJPEG reference implementation,
+//!   which is written in C and is statically linked.
+//!   It may offer better performance than the pure Rust implementation,
+//!   but cannot be used in WebAssembly.
+//!   Include `openjpeg-sys-threads` to build OpenJPEG with multithreading.
+//! 
 //! Transfer syntaxes which are not supported,
 //! either due to being unable to read the data set
 //! or decode encapsulated pixel data,
@@ -67,7 +82,7 @@
 //! These stubs may also be replaced by separate libraries
 //! if using the inventory-based registry.
 //!
-//! [inventory]: https://docs.rs/inventory/0.3.6/inventory
+//! [inventory]: https://docs.rs/inventory/0.3.12/inventory
 
 use dicom_encoding::transfer_syntax::{
     AdapterFreeTransferSyntax as Ts, Codec, TransferSyntaxIndex,
