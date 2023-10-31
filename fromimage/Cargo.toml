@@ -1,6 +1,6 @@
 [package]
 name = "dicom-fromimage"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2018"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A CLI tool for replacing the image content from DICOM files"
