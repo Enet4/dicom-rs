@@ -17,6 +17,8 @@ inventory-registry = ['dicom-encoding/inventory-registry']
 
 # natively implemented image encodings
 native = ["jpeg", "openjp2", "rle"]
+# native implementations that work on Windows
+native_windows = ["jpeg", "rle"]
 # native JPEG support
 jpeg = ["jpeg-decoder", "jpeg-encoder"]
 # native JPEG 2000 support via the OpenJPEG Rust port

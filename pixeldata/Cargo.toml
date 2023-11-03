@@ -50,12 +50,17 @@ dicom-test-files = "0.2.1"
 
 [features]
 default = ["rayon", "native"]
+# preferred default features for Windows
+# (if on Windows, disable default features then add this one)
+default_windows = ["rayon", "native_windows"]
 
 ndarray = ["dep:ndarray"]
 image = ["dep:image"]
 
 # Rust native image codec implementations
-native = ["dicom-transfer-syntax-registry/native", "jpeg"]
+native = ["dicom-transfer-syntax-registry/native", "jpeg", "rle"]
+# Rust native image codec implementations that work on Windows
+native_windows = ["dicom-transfer-syntax-registry/native_windows", "jpeg", "rle"]
 # native JPEG codec implementation
 jpeg = ["dicom-transfer-syntax-registry/jpeg"]
 # native RLE lossless codec implementation
