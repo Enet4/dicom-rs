@@ -11,14 +11,16 @@
 //! - [`jpeg2k`](jpeg2k) contains JPEG 2000 support,
 //!   which is currently available through [OpenJPEG].
 //!   The `openjp2` feature provides native JPEG 2000 decoding
-//!   via the [Rust port of OpenJPEG][OpenJPEG-rs].
+//!   via the [Rust port of OpenJPEG][OpenJPEG-rs],
+//!   which works on Linux and Mac OS, but not on Windows.
 //!   Alternatively, enable the `openjpeg-sys` feature
 //!   to statically link to the OpenJPEG reference implementation.
-//!   `openjp2` is enabled by default.
+//!   `openjp2` is enabled by the feature `native`.
+//!   To build on Windows, enable `native_windows` instead.
 //! - [`rle_lossless`](rle_lossless) provides native RLE lossless decoding.
 //!   Requires the `rle` feature,
 //!   enabled by default.
-//! 
+//!
 //! [OpenJPEG]: https://github.com/uclouvain/openjpeg
 //! [OpenJPEG-rs]: https://crates.io/crates/openjp2
 #[cfg(feature = "jpeg")]
