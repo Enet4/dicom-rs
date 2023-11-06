@@ -322,7 +322,7 @@ fn run() -> Result<(), Error> {
                     // check DICOM status,
                     // as some implementations might report status code 0
                     // upon sending the response data
-                    let status = cmd_obj
+                    let status = dcm
                         .get(tags::STATUS)
                         .whatever_context("status code from response is missing")?
                         .to_int::<u16>()
