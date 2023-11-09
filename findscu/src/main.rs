@@ -282,7 +282,7 @@ fn run() -> Result<(), Error> {
                         .context(DumpOutputSnafu)?;
                 }
                 let status = cmd_obj
-                    .element(tags::STATUS)
+                    .get(tags::STATUS)
                     .whatever_context("status code from response is missing")?
                     .to_int::<u16>()
                     .whatever_context("failed to read status code")?;
@@ -318,6 +318,23 @@ fn run() -> Result<(), Error> {
                     DumpOptions::new()
                         .dump_object(&dcm)
                         .context(DumpOutputSnafu)?;
+
+                    // check DICOM status,
+                    // as some implementations might report status code 0
+                    // upon sending the response data
+                    let status = dcm
+                        .get(tags::STATUS)
+                        .whatever_context("status code from response is missing")?
+                        .to_int::<u16>()
+                        .whatever_context("failed to read status code")?;
+
+                    if status == 0 {
+                        if verbose {
+                            debug!("Matching is complete");
+                        }
+                        break;
+                    }
+
                     i += 1;
                 } else {
                     warn!("Operation failed (status code {})", status);
