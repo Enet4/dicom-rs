@@ -17,39 +17,43 @@ jobs:
           - stable
           - beta
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
+          components: clippy
           cache: true
       # test project with default + extra features
-      - run: cargo test --features image,ndarray,sop-class,rle
+      - run: cargo test --features image,ndarray,sop-class,rle,cli
       # test dicom-pixeldata with gdcm-rs
       - run: cargo test -p dicom-pixeldata --features gdcm
       # test dicom-pixeldata without default features
       - run: cargo test -p dicom-pixeldata --no-default-features
+      # run Clippy with stable toolchain
+      - if: matrix.rust == 'stable'
+        run: cargo clippy
+        env:
+          RUSTFLAGS: -W warnings
 
   check_windows:
-    name: Check (Windows)
+    name: Build (Windows)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: true
+      - run: cargo build --no-default-features --features=image,ndarray,sop-class,rle,cli,default_windows,backtraces,inventory-registry
+
+  check_macos:
+    name: Check (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
           cache: true
       - run: cargo check
-
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-          components: clippy
-          cache: true
-      - run: cargo clippy
-        env:
-          RUSTFLAGS: -W warnings
+    

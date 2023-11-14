@@ -21,17 +21,19 @@
 //! hence expanding support for those transfer syntaxes
 //! to the registry.
 
-use crate::create_ts_stub;
+use crate::{adapters::uncompressed::UncompressedAdapter, create_ts_stub};
 use byteordered::Endianness;
 use dicom_encoding::transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec};
 
-#[cfg(any(feature = "jpeg", feature = "rle"))]
 use dicom_encoding::transfer_syntax::{NeverAdapter, TransferSyntax};
-#[cfg(feature = "rle")]
+
+#[cfg(any(feature = "rle", feature = "openjp2", feature = "openjpeg-sys"))]
 use dicom_encoding::NeverPixelAdapter;
 
 #[cfg(feature = "jpeg")]
 use crate::adapters::jpeg::JpegAdapter;
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+use crate::adapters::jpeg2k::Jpeg2000Adapter;
 #[cfg(feature = "rle")]
 use crate::adapters::rle_lossless::RleLosslessAdapter;
 
@@ -60,6 +62,17 @@ pub const EXPLICIT_VR_BIG_ENDIAN: Ts = Ts::new(
     Endianness::Big,
     true,
     Codec::None,
+);
+
+/// **Fully implemented:** Encapsulated Uncompressed Explicit VR Little Endian
+pub const ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN: TransferSyntax<
+    NeverAdapter,
+    UncompressedAdapter,
+    UncompressedAdapter,
+> = TransferSyntax::new_ele(
+    "1.2.840.10008.1.2.1.98",
+    "Encapsulated Uncompressed Explicit VR Little Endian",
+    Codec::EncapsulatedPixelData(Some(UncompressedAdapter), Some(UncompressedAdapter)),
 );
 
 // -- transfer syntaxes with pixel data adapters, fully supported --
@@ -180,6 +193,73 @@ pub const JPIP_REFERENCED_DEFLATE: Ts = Ts::new_ele(
     Codec::Dataset(None),
 );
 
+// --- JPEG 2000 support ---
+
+/// An alias for a transfer syntax specifier with [`Jpeg2000Adapter`]
+/// (supports decoding and encoding to JPEG baseline,
+/// support for JPEG extended and JPEG lossless may vary).
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+type Jpeg2000Ts<R = Jpeg2000Adapter, W = NeverPixelAdapter> = TransferSyntax<NeverAdapter, R, W>;
+
+/// Create a transfer syntax with JPEG 2000 encapsulated pixel data
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+const fn create_ts_jpeg2k(uid: &'static str, name: &'static str) -> Jpeg2000Ts {
+    TransferSyntax::new_ele(
+        uid,
+        name,
+        Codec::EncapsulatedPixelData(Some(Jpeg2000Adapter), None),
+    )
+}
+
+/// **Decoder implementation:** JPEG 2000 Image Compression (Lossless Only)
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+pub const JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY: Jpeg2000Ts = create_ts_jpeg2k(
+    "1.2.840.10008.1.2.4.90",
+    "JPEG 2000 Image Compression (Lossless Only)",
+);
+/// **Stub descriptor:** JPEG 2000 Image Compression (Lossless Only)
+#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys")))]
+pub const JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.90",
+    "JPEG 2000 Image Compression (Lossless Only)",
+);
+
+/// **Decoder implementation:** JPEG 2000 Image Compression
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+pub const JPEG_2000_IMAGE_COMPRESSION: Jpeg2000Ts =
+    create_ts_jpeg2k("1.2.840.10008.1.2.4.91", "JPEG 2000 Image Compression");
+/// **Stub descriptor:** JPEG 2000 Image Compression
+#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys")))]
+pub const JPEG_2000_IMAGE_COMPRESSION: Ts =
+    create_ts_stub("1.2.840.10008.1.2.4.91", "JPEG 2000 Image Compression");
+
+/// **Decoder implementation:** JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only)
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION_LOSSLESS_ONLY: Jpeg2000Ts =
+    create_ts_jpeg2k(
+        "1.2.840.10008.1.2.4.92",
+        "JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only)",
+    );
+/// **Stub descriptor:** JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only)
+#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys")))]
+pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION_LOSSLESS_ONLY: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.92",
+    "JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only)",
+);
+
+/// **Decoder implementation:** JPEG 2000 Part 2 Multi-component Image Compression
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION: Jpeg2000Ts = create_ts_jpeg2k(
+    "1.2.840.10008.1.2.4.93",
+    "JPEG 2000 Part 2 Multi-component Image Compression",
+);
+/// **Stub descriptor:** JPEG 2000 Part 2 Multi-component Image Compression
+#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys")))]
+pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.93",
+    "JPEG 2000 Part 2 Multi-component Image Compression",
+);
+
 // --- partially supported transfer syntaxes, pixel data encapsulation not supported ---
 
 /// **Stub descriptor:** JPEG-LS Lossless Image Compression
@@ -191,25 +271,6 @@ pub const JPEG_LS_LOSSLESS_IMAGE_COMPRESSION: Ts = create_ts_stub(
 pub const JPEG_LS_LOSSY_IMAGE_COMPRESSION: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.81",
     "JPEG-LS Lossy (Near-Lossless) Image Compression",
-);
-
-/// **Stub descriptor:** JPEG 2000 Image Compression (Lossless Only)
-pub const JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY: Ts = create_ts_stub(
-    "1.2.840.10008.1.2.4.90",
-    "JPEG 2000 Image Compression (Lossless Only)",
-);
-/// **Stub descriptor:** JPEG 2000 Image Compression
-pub const JPEG_2000_IMAGE_COMPRESSION: Ts =
-    create_ts_stub("1.2.840.10008.1.2.4.91", "JPEG 2000 Image Compression");
-/// **Stub descriptor:** JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only)
-pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION_LOSSLESS_ONLY: Ts = create_ts_stub(
-    "1.2.840.10008.1.2.4.92",
-    "JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only)",
-);
-/// **Stub descriptor:** JPEG 2000 Part 2 Multi-component Image Compression
-pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION: Ts = create_ts_stub(
-    "1.2.840.10008.1.2.4.93",
-    "JPEG 2000 Part 2 Multi-component Image Compression",
 );
 
 /// **Stub descriptor:** JPIP Referenced

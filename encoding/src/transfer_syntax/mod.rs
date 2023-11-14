@@ -292,9 +292,10 @@ macro_rules! submit_ele_transfer_syntax {
 pub enum Codec<D, R, W> {
     /// No codec is required for this transfer syntax.
     ///
-    /// Pixel data, if any, should be in its native, unencapsulated form.
+    /// Pixel data, if any, should be in its _native_, unencapsulated format.
     None,
-    /// Pixel data for this transfer syntax is encapsulated.
+    /// Pixel data for this transfer syntax is encapsulated
+    /// and likely subjected to a specific encoding process.
     /// The first part of the tuple struct contains the pixel data decoder,
     /// whereas the second item is for the pixel data encoder.
     ///

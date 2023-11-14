@@ -1,8 +1,9 @@
 use clap::Parser;
 use dicom_core::{dicom_value, header::Tag, DataElement, VR};
-use dicom_dictionary_std::tags;
+use dicom_dictionary_std::{tags, uids};
 use dicom_encoding::transfer_syntax;
-use dicom_object::{mem::InMemDicomObject, open_file, StandardDataDictionary};
+use dicom_encoding::TransferSyntax;
+use dicom_object::{mem::InMemDicomObject, open_file, DefaultDicomObject, StandardDataDictionary};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{
     association::ClientAssociationOptions,
@@ -50,6 +51,11 @@ struct App {
     /// fail if not all DICOM files can be transferred
     #[arg(long = "fail-first")]
     fail_first: bool,
+    /// fail file transfer if it cannot be done without transcoding
+    #[arg(long("never-transcode"))]
+    // hide option if transcoding is disabled
+    #[cfg_attr(not(feature = "transcode"), arg(hide(true)))]
+    never_transcode: bool,
 }
 
 struct DicomFile {
@@ -77,6 +83,9 @@ enum Error {
     /// Could not construct DICOM command
     CreateCommand { source: dicom_object::WriteError },
 
+    /// Unsupported file transfer syntax {uid}
+    UnsupportedFileTransferSyntax { uid: std::borrow::Cow<'static, str> },
+
     #[snafu(whatever, display("{}", message))]
     Other {
         message: String,
@@ -102,7 +111,13 @@ fn run() -> Result<(), Error> {
         called_ae_title,
         max_pdu_length,
         fail_first,
+        mut never_transcode,
     } = App::parse();
+
+    // never transcode if the feature is disabled
+    if cfg!(not(feature = "transcode")) {
+        never_transcode = true;
+    }
 
     tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()
@@ -143,6 +158,21 @@ fn run() -> Result<(), Error> {
                     dicom_file.sop_class_uid.to_string(),
                     dicom_file.file_transfer_syntax.clone(),
                 ));
+
+                // also accept uncompressed transfer syntaxes
+                // as mandated by the standard
+                // (though it might not always be able to fulfill this)
+                if !never_transcode {
+                    presentation_contexts.insert((
+                        dicom_file.sop_class_uid.to_string(),
+                        uids::EXPLICIT_VR_LITTLE_ENDIAN.to_string(),
+                    ));
+                    presentation_contexts.insert((
+                        dicom_file.sop_class_uid.to_string(),
+                        uids::IMPLICIT_VR_LITTLE_ENDIAN.to_string(),
+                    ));
+                }
+
                 dicom_files.push(dicom_file);
             }
             Err(_) => {
@@ -179,11 +209,19 @@ fn run() -> Result<(), Error> {
     }
 
     for file in &mut dicom_files {
-        // TODO(#106) transfer syntax conversion is currently not supported
-        let r: Result<_, Error> = check_presentation_contexts(file, scu.presentation_contexts())
-            .whatever_context::<_, _>("Could not choose a transfer syntax");
+        // identify the right transfer syntax to use
+        let r: Result<_, Error> =
+            check_presentation_contexts(file, scu.presentation_contexts(), never_transcode)
+                .whatever_context::<_, _>("Could not choose a transfer syntax");
         match r {
             Ok((pc, ts)) => {
+                if verbose {
+                    debug!(
+                        "{}: Selected presentation context: {:?}",
+                        file.file.display(),
+                        pc
+                    );
+                }
                 file.pc_selected = Some(pc);
                 file.ts_selected = Some(ts);
             }
@@ -231,7 +269,11 @@ fn run() -> Result<(), Error> {
                 open_file(&file.file).whatever_context("Could not open listed DICOM file")?;
             let ts_selected = TransferSyntaxRegistry
                 .get(&ts_uid_selected)
-                .whatever_context("Unsupported file transfer syntax")?;
+                .with_context(|| UnsupportedFileTransferSyntaxSnafu { uid: ts_uid_selected.to_string() })?;
+
+            // transcode file if necessary
+            let dicom_file = into_ts(dicom_file, ts_selected, verbose)?;
+
             dicom_file
                 .write_dataset_with_ts(&mut object_data, ts_selected)
                 .whatever_context("Could not write object dataset")?;
@@ -440,7 +482,7 @@ fn check_file(file: &Path) -> Result<DicomFile, Error> {
     let transfer_syntax_uid = &meta.transfer_syntax.trim_end_matches('\0');
     let ts = TransferSyntaxRegistry
         .get(transfer_syntax_uid)
-        .whatever_context("Unsupported file transfer syntax")?;
+        .with_context(|| UnsupportedFileTransferSyntaxSnafu { uid: transfer_syntax_uid.to_string() })?;
     Ok(DicomFile {
         file: file.to_path_buf(),
         sop_class_uid: storage_sop_class_uid.to_string(),
@@ -454,32 +496,92 @@ fn check_file(file: &Path) -> Result<DicomFile, Error> {
 fn check_presentation_contexts(
     file: &DicomFile,
     pcs: &[dicom_ul::pdu::PresentationContextResult],
+    never_transcode: bool,
 ) -> Result<(dicom_ul::pdu::PresentationContextResult, String), Error> {
     let file_ts = TransferSyntaxRegistry
         .get(&file.file_transfer_syntax)
-        .whatever_context("Unsupported file transfer syntax")?;
-    // TODO(#106) transfer syntax conversion is currently not supported
-    let pc = pcs
-        .iter()
-        .find(|pc| {
-            // Check support for this transfer syntax.
-            // If it is the same as the file, we're good.
-            // Otherwise, uncompressed data set encoding
-            // and native pixel data is required on both ends.
-            let ts = &pc.transfer_syntax;
-            ts == file_ts.uid()
-                || TransferSyntaxRegistry
-                    .get(&pc.transfer_syntax)
-                    .filter(|ts| file_ts.is_codec_free() && ts.is_codec_free())
-                    .map(|_| true)
-                    .unwrap_or(false)
-        })
-        .whatever_context("No presentation context accepted")?;
+        .with_context(|| UnsupportedFileTransferSyntaxSnafu { uid: file.file_transfer_syntax.to_string() })?;
+    // if destination does not support original file TS,
+    // check whether we can transcode to explicit VR LE
+
+    let pc = pcs.iter().find(|pc| {
+        // Check support for this transfer syntax.
+        // If it is the same as the file, we're good.
+        // Otherwise, uncompressed data set encoding
+        // and native pixel data is required on both ends.
+        let ts = &pc.transfer_syntax;
+        ts == file_ts.uid()
+            || TransferSyntaxRegistry
+                .get(&pc.transfer_syntax)
+                .filter(|ts| file_ts.is_codec_free() && ts.is_codec_free())
+                .map(|_| true)
+                .unwrap_or(false)
+    });
+
+    let pc = match pc {
+        Some(pc) => pc,
+        None => {
+            if never_transcode || !file_ts.can_decode_all() {
+                whatever!("No presentation context acceptable");
+            }
+
+            // Else, if transcoding is possible, we go for it.
+            pcs.iter()
+                // accept explicit VR little endian
+                .find(|pc| pc.transfer_syntax == uids::EXPLICIT_VR_LITTLE_ENDIAN)
+                .or_else(||
+                    // accept implicit VR little endian
+                    pcs.iter()
+                        .find(|pc| pc.transfer_syntax == uids::IMPLICIT_VR_LITTLE_ENDIAN))
+                // welp
+                .whatever_context("No presentation context acceptable")?
+        }
+    };
     let ts = TransferSyntaxRegistry
         .get(&pc.transfer_syntax)
         .whatever_context("Poorly negotiated transfer syntax")?;
 
     Ok((pc.clone(), String::from(ts.uid())))
+}
+
+
+// transcoding functions
+
+#[cfg(feature = "transcode")]
+fn into_ts(
+    dicom_file: DefaultDicomObject,
+    ts_selected: &TransferSyntax,
+    verbose: bool,
+) -> Result<DefaultDicomObject, Error> {
+    if ts_selected.uid() != dicom_file.meta().transfer_syntax() {
+        use dicom_pixeldata::Transcode;
+        let mut file = dicom_file;
+        if verbose {
+            info!(
+                "Transcoding file from {} to {}",
+                file.meta().transfer_syntax(),
+                ts_selected.uid()
+            );
+        }
+        file.transcode(ts_selected)
+            .whatever_context("Failed to transcode file")?;
+        Ok(file)
+    } else {
+        Ok(dicom_file)
+    }
+}
+
+#[cfg(not(feature = "transcode"))]
+fn into_ts(
+    dicom_file: DefaultDicomObject,
+    ts_selected: &TransferSyntax,
+    _verbose: bool,
+) -> Result<DefaultDicomObject, Error> {
+    if ts_selected.uid() != dicom_file.meta().transfer_syntax() {
+        panic!("Transcoding feature is disabled, should not have tried to transcode")
+    } else {
+        Ok(dicom_file)
+    }
 }
 
 #[cfg(test)]
