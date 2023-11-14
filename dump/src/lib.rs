@@ -748,6 +748,7 @@ fn value_summary(
             true,
             VR::CS
             | VR::AE
+            | VR::AS
             | VR::DA
             | VR::DS
             | VR::DT
@@ -755,10 +756,13 @@ fn value_summary(
             | VR::LO
             | VR::LT
             | VR::PN
+            | VR::SH
+            | VR::ST
             | VR::TM
             | VR::UC
             | VR::UI
-            | VR::UR,
+            | VR::UR
+            | VR::UT,
         ) => None,
         (false, _, _) => Some(max_characters),
     };
