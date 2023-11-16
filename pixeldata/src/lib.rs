@@ -1724,8 +1724,9 @@ impl ImagingProperties {
         let bits_stored = bits_stored(obj)?;
         let high_bit = high_bit(obj)?;
         let pixel_representation = pixel_representation(obj)?;
-        let rescale_intercept = rescale_intercept(obj);
-        let rescale_slope = rescale_slope(obj);
+        // TODO: Update to vecs.
+        let rescale_intercept = rescale_intercept(obj)[0];
+        let rescale_slope = rescale_slope(obj)[0];
         let number_of_frames = number_of_frames(obj)?;
         let voi_lut_function = voi_lut_function(obj)?;
         let voi_lut_function = voi_lut_function.and_then(|v| VoiLutFunction::try_from(&*v).ok());

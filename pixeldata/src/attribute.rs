@@ -1,8 +1,9 @@
 //! Utility module for fetching key attributes from a DICOM object.
 
-use dicom_core::{DataDictionary, Tag};
+use dicom_core::{DataDictionary, Tag, ops::AttributeSelector};
 use dicom_dictionary_std::tags;
 use dicom_object::{mem::InMemElement, FileDicomObject, InMemDicomObject};
+use num_traits::FloatConst;
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::fmt;
 
@@ -152,20 +153,90 @@ pub fn pixel_data<D: DataDictionary + Clone>(
         .context(MissingRequiredSnafu { name })
 }
 
+
+// todo: maybe generalize in the future
+fn get_f64_from_per_frame<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>, selector: [Tag; 2], default: f64) -> Option<Vec<f64>>{
+    obj.element(tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE).ok()
+        .and_then(|seq| seq.items())
+        .and_then(|items| 
+            items
+            .iter()
+            .map(|item| {
+                item.element(selector[0]).ok()
+                    .and_then(|seq| seq.items())
+                    .and_then(|items| 
+                        if items.len() > 0 {
+                            items[0].element(selector[1]).ok()
+                                .and_then(|e| e.to_float64().ok())
+                        } else {
+                            Some(default)
+                        })
+            })
+            .collect::<Option<Vec<f64>>>()
+        )
+}
+
+fn get_f64_from_shared<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>, selector: [Tag; 2], default: f64) -> Option<Vec<f64>>{
+    obj.element(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE).ok()
+        .and_then(|seq| seq.items())
+        .and_then(|items| 
+            if items.len() > 0 {
+                items[0].element(selector[0]).ok()
+                    .and_then(|seq| seq.items())
+                    .and_then(|items| if items.len() > 0 {
+                        items[0].element(selector[1]).ok()
+                            .and_then(|e|
+                                vec![e.to_float64().ok()].into_iter().collect::<Option<Vec<f64>>>()
+                            )
+                    } else {
+                        Some(vec![default])
+                    })
+            } else {
+                Some(vec![default])
+            }
+            
+        )
+}
+
+
 /// Get the RescaleIntercept from the DICOM object or returns 0
 pub fn rescale_intercept<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> f64 {
-    obj.element(tags::RESCALE_INTERCEPT)
-        .map_or(Ok(0.), |e| e.to_float64())
-        .unwrap_or(0.)
+) -> Vec<f64> {
+    obj.element(tags::RESCALE_INTERCEPT).ok()
+        .and_then(|e| vec![e.to_float64().ok()].into_iter().collect::<Option<Vec<f64>>>())
+        .or(
+            get_f64_from_per_frame(
+                obj, 
+                [tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, tags::RESCALE_INTERCEPT],
+                0.
+        ))
+        .or(
+            get_f64_from_shared(
+                obj, 
+                [tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, tags::RESCALE_INTERCEPT],
+                0.
+        ))
+        .unwrap_or(vec![0.])
 }
 
 /// Get the RescaleSlope from the DICOM object or returns 1.0
-pub fn rescale_slope<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> f64 {
-    obj.element(tags::RESCALE_SLOPE)
-        .map_or(Ok(1.0), |e| e.to_float64())
-        .unwrap_or(1.0)
+pub fn rescale_slope<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> Vec<f64> {
+    obj.element(tags::RESCALE_SLOPE).ok()
+        .and_then(|e| vec![e.to_float64().ok()].into_iter().collect::<Option<Vec<f64>>>())
+        .or(
+            get_f64_from_per_frame(
+                obj, 
+                [tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, tags::RESCALE_SLOPE],
+                1.0
+        ))
+        .or(
+            get_f64_from_shared(
+                obj, 
+                [tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, tags::RESCALE_SLOPE],
+                1.0
+        ))
+        .unwrap_or(vec![1.0])
 }
 
 /// Get the NumberOfFrames from the DICOM object,
@@ -497,6 +568,11 @@ pub fn photometric_interpretation<D: DataDictionary + Clone>(
 
 #[cfg(test)]
 mod tests {
+    use dicom_core::{DataElement, dicom_value, VR, ops::{AttributeOp, ApplyOp, AttributeAction, AttributeSelectorStep}, PrimitiveValue, value::DataSetSequence};
+    use dicom_dictionary_std::{tags, uids};
+    use dicom_object::{InMemDicomObject, FileDicomObject, FileMetaTable, FileMetaTableBuilder};
+    use super::rescale_intercept;
+
 
     #[test]
     fn errors_are_not_too_large() {
@@ -506,5 +582,72 @@ mod tests {
             "GetAttributeError size is too large ({} > 64)",
             size
         );
+    }
+
+    #[test]
+    fn test_get_rescale_intercept(){
+        let mut dcm = FileDicomObject::new_empty_with_meta(
+            FileMetaTableBuilder::new()
+                .transfer_syntax(uids::EXPLICIT_VR_LITTLE_ENDIAN)
+                .media_storage_sop_class_uid("1")
+                .media_storage_sop_instance_uid("1")
+                .build()
+                .unwrap()
+        );
+
+        assert_eq!(rescale_intercept(&dcm), vec![0.]);
+
+        dcm.put_element(DataElement::new(tags::RESCALE_INTERCEPT, VR::DS, dicom_value!(F64, 1.0)));
+        assert_eq!(rescale_intercept(&dcm), vec![1.0]);
+
+        dcm.take_element(tags::RESCALE_INTERCEPT).unwrap();
+
+        // Add shared functional groups sequence
+        dcm.apply(AttributeOp::new(
+            tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
+            AttributeAction::SetIfMissing(PrimitiveValue::Empty),
+       )).unwrap();
+        assert_eq!(rescale_intercept(&dcm), vec![0.0]);
+
+        dcm.apply(AttributeOp::new(
+            (tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE, 0, tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE),
+            AttributeAction::Set(PrimitiveValue::Empty),
+        )).unwrap();
+        assert_eq!(rescale_intercept(&dcm), vec![0.0]);
+        dcm.apply(AttributeOp::new(
+            (tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE, 0, tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, 0, tags::RESCALE_INTERCEPT),
+            AttributeAction::Set(dicom_value!(F64, 3.0)),
+        )).unwrap();
+        assert_eq!(rescale_intercept(&dcm), vec![3.0]);
+
+        dcm.take_element(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE).unwrap();
+
+        let rescale = |v| { DataElement::new(
+            tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
+            VR::SQ,
+            DataSetSequence::from(vec![
+                InMemDicomObject::from_element_iter([
+                    DataElement::new(
+                        tags::RESCALE_INTERCEPT,
+                        VR::DS,
+                        dicom_value!(F64, v),
+                    )
+                ])
+            ]),
+        )};
+
+        let exp = vec![1.0, 3.0, 5.0];
+
+        let els = exp.iter().map(|v| 
+            InMemDicomObject::from_element_iter([rescale(*v)])
+        ).collect::<Vec<_>>();
+
+        dcm.put(DataElement::new(
+            tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE,
+            VR::SQ,
+            DataSetSequence::from(els),
+        ));
+        assert_eq!(rescale_intercept(&dcm), exp);
+
     }
 }
