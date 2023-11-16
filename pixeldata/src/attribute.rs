@@ -153,48 +153,31 @@ pub fn pixel_data<D: DataDictionary + Clone>(
         .context(MissingRequiredSnafu { name })
 }
 
-
-// todo: maybe generalize in the future
-fn get_f64_from_per_frame<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>, selector: [Tag; 2], default: f64) -> Option<Vec<f64>>{
-    obj.element(tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE).ok()
-        .and_then(|seq| seq.items())
-        .and_then(|items| 
-            items
-            .iter()
-            .map(|item| {
-                item.element(selector[0]).ok()
-                    .and_then(|seq| seq.items())
-                    .and_then(|items| 
-                        if items.len() > 0 {
-                            items[0].element(selector[1]).ok()
-                                .and_then(|e| e.to_float64().ok())
-                        } else {
-                            Some(default)
-                        })
-            })
-            .collect::<Option<Vec<f64>>>()
-        )
-}
-
-fn get_f64_from_shared<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>, selector: [Tag; 2], default: f64) -> Option<Vec<f64>>{
+fn get_from_shared<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>, selector: [Tag; 2]) -> Option<Vec<&InMemElement<D>>> {
     obj.element(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE).ok()
         .and_then(|seq| seq.items())
-        .and_then(|items| 
-            if items.len() > 0 {
-                items[0].element(selector[0]).ok()
-                    .and_then(|seq| seq.items())
-                    .and_then(|items| if items.len() > 0 {
-                        items[0].element(selector[1]).ok()
-                            .and_then(|e|
-                                vec![e.to_float64().ok()].into_iter().collect::<Option<Vec<f64>>>()
-                            )
-                    } else {
-                        Some(vec![default])
-                    })
-            } else {
-                Some(vec![default])
-            }
-            
+        .and_then(|items| items.get(0))
+        .and_then(|ds| 
+            ds.element(selector[0]).ok()
+                .and_then(|seq| seq.items())
+                .and_then(|items| items.get(0))
+                .and_then(|ds| ds.element(selector[1]).ok())
+        )
+        .map(|inner| vec![inner])
+}
+
+fn get_from_per_frame<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>, selector: [Tag; 2]) -> Option<Vec<&InMemElement<D>>> {
+    obj.element(tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE).ok()
+        .and_then(|seq| seq.items())
+        .and_then(|items|
+            items.iter()
+                .map(|item| 
+                    item.element(selector[0]).ok()
+                        .and_then(|seq| seq.items())
+                        .and_then(|items| items.get(0))
+                        .and_then(|ds| ds.element(selector[1]).ok())
+                )
+                .collect::<Option<Vec<_>>>()
         )
 }
 
@@ -206,36 +189,64 @@ pub fn rescale_intercept<D: DataDictionary + Clone>(
     obj.element(tags::RESCALE_INTERCEPT).ok()
         .and_then(|e| vec![e.to_float64().ok()].into_iter().collect::<Option<Vec<f64>>>())
         .or(
-            get_f64_from_per_frame(
+            get_from_per_frame(
                 obj, 
                 [tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, tags::RESCALE_INTERCEPT],
-                0.
-        ))
+            )
+                .and_then(|v| 
+                    v.into_iter()
+                        .map(|el|{
+                            el.to_float64().ok()
+                        })
+                        .collect()
+            )
+        )
         .or(
-            get_f64_from_shared(
+            get_from_shared(
                 obj, 
                 [tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, tags::RESCALE_INTERCEPT],
-                0.
-        ))
+            )
+                .and_then(|v| 
+                    v.into_iter()
+                        .map(|el|{
+                            el.to_float64().ok()
+                        })
+                        .collect()
+            )
+        )
         .unwrap_or(vec![0.])
 }
 
 /// Get the RescaleSlope from the DICOM object or returns 1.0
 pub fn rescale_slope<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> Vec<f64> {
-    obj.element(tags::RESCALE_SLOPE).ok()
+    obj.element(tags::RESCALE_INTERCEPT).ok()
         .and_then(|e| vec![e.to_float64().ok()].into_iter().collect::<Option<Vec<f64>>>())
         .or(
-            get_f64_from_per_frame(
+            get_from_per_frame(
                 obj, 
-                [tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, tags::RESCALE_SLOPE],
-                1.0
-        ))
+                [tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, tags::RESCALE_INTERCEPT],
+            )
+                .and_then(|v| 
+                    v.into_iter()
+                        .map(|el|{
+                            el.to_float64().ok()
+                        })
+                        .collect()
+            )
+        )
         .or(
-            get_f64_from_shared(
+            get_from_shared(
                 obj, 
-                [tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, tags::RESCALE_SLOPE],
-                1.0
-        ))
+                [tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, tags::RESCALE_INTERCEPT],
+            )
+                .and_then(|v| 
+                    v.into_iter()
+                        .map(|el|{
+                            el.to_float64().ok()
+                        })
+                        .collect()
+            )
+        )
         .unwrap_or(vec![1.0])
 }
 
