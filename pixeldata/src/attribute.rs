@@ -179,9 +179,15 @@ fn get_from_shared<D: DataDictionary + Clone>(
 ) -> Option<Vec<&InMemElement<D>>> {
     obj.get(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE)?.items()?
         .get(0)?
-        .get(selector[0])?.items()?
-        .get(0)?
-        .get(selector[1])
+        .get(selector[0])
+        .and_then(|inner|inner.items()?
+            .get(0)?
+            .get(selector[1]))
+        // Sometimes the tag is not in the properly nested sequence, but just flat in the first 
+        // element of the SharedFunctionalGroupsSequence
+        .or_else(|| obj.get(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE)?.items()?
+            .get(0)?
+            .get(selector[1]))
         .map(|inner| vec![inner])
 }
 
@@ -235,7 +241,7 @@ pub fn rescale_intercept<D: DataDictionary + Clone>(
 pub fn rescale_slope<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Vec<f64> {
-    obj.element(tags::RESCALE_INTERCEPT)
+    obj.element(tags::RESCALE_SLOPE)
         .ok()
         .and_then(|e| {
             vec![e.to_float64().ok()]
@@ -246,7 +252,7 @@ pub fn rescale_slope<D: DataDictionary + Clone>(
             obj,
             [
                 tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
-                tags::RESCALE_INTERCEPT,
+                tags::RESCALE_SLOPE,
             ],
         )
         .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect()))
@@ -254,7 +260,7 @@ pub fn rescale_slope<D: DataDictionary + Clone>(
             obj,
             [
                 tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
-                tags::RESCALE_INTERCEPT,
+                tags::RESCALE_SLOPE,
             ],
         )
         .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect()))
@@ -349,21 +355,6 @@ where
         .context(MissingRequiredSnafu { name })?
         .uint16()
         .context(CastValueSnafu { name })
-}
-
-#[inline]
-fn retrieve_optional_to_f64<D>(
-    obj: &FileDicomObject<InMemDicomObject<D>>,
-    tag: Tag,
-    name: AttributeName,
-) -> Result<Option<f64>>
-where
-    D: DataDictionary + Clone,
-{
-    match obj.element_opt(tag).context(RetrieveSnafu { name })? {
-        Some(e) => e.to_float64().context(ConvertValueSnafu { name }).map(Some),
-        None => Ok(None),
-    }
 }
 
 /// A decoded representation of the DICOM _Pixel Representation_ attribute.
