@@ -177,20 +177,11 @@ fn get_from_shared<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
     selector: [Tag; 2],
 ) -> Option<Vec<&InMemElement<D>>> {
-    obj.element(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE)
-        .ok()
-        .and_then(|seq| seq.items())
-        .and_then(|items| items.get(0))
-        .and_then(|ds| // SharedFunctionalGroupsSequence.0
-            ds.element(selector[0]).ok() // SharedFunctionalGroupsSequence.0.[selector[0]]
-                .and_then(|seq| seq.items())
-                .and_then(|items| items.get(0))
-                .and_then(|ds| ds.element(selector[1]).ok())
-                // Sometimes the tag is not in the properly nested sequence, but just flat in the first 
-                // element of the SharedFunctionalGroupsSequence
-                .or_else(|| // SharedFunctionalGroupsSequence.0.[selector[1]]
-                    ds.element(selector[1]).ok()
-                ))
+    obj.get(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE)?.items()?
+        .get(0)?
+        .get(selector[0])?.items()?
+        .get(0)?
+        .get(selector[1])
         .map(|inner| vec![inner])
 }
 
@@ -198,21 +189,16 @@ fn get_from_per_frame<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
     selector: [Tag; 2],
 ) -> Option<Vec<&InMemElement<D>>> {
-    obj.element(tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE)
-        .ok()
-        .and_then(|seq| seq.items())
-        .and_then(|items| {
-            items
-                .iter()
-                .map(|item| {
-                    item.element(selector[0])
-                        .ok()
-                        .and_then(|seq| seq.items())
-                        .and_then(|items| items.get(0))
-                        .and_then(|ds| ds.element(selector[1]).ok())
-                })
-                .collect::<Option<Vec<_>>>()
+    obj.get(tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE)?
+        .items()?
+        .iter()
+        .map(|item| {
+            Some(item.get(selector[0])?
+                .items()?
+                .get(0)?
+                .get(selector[1])?)
         })
+        .collect::<Option<Vec<_>>>()
 }
 
 /// Get the RescaleIntercept from the DICOM object or returns 0
@@ -662,8 +648,8 @@ mod tests {
         FileDicomObject::new_empty_with_meta(
             FileMetaTableBuilder::new()
                 .transfer_syntax(uids::EXPLICIT_VR_LITTLE_ENDIAN)
-                .media_storage_sop_class_uid("1")
-                .media_storage_sop_instance_uid("1")
+                .media_storage_sop_class_uid(uids::ENHANCED_MR_IMAGE_STORAGE)
+                .media_storage_sop_instance_uid("2.25.145929179730251416957282651365760465911")
                 .build()
                 .unwrap(),
         )
