@@ -1,6 +1,6 @@
 //! Utility module for fetching key attributes from a DICOM object.
 
-use dicom_core::{DataDictionary, Tag, ops::AttributeSelector};
+use dicom_core::{DataDictionary, Tag};
 use dicom_dictionary_std::tags;
 use dicom_object::{mem::InMemElement, FileDicomObject, InMemDicomObject};
 use num_traits::FloatConst;
@@ -25,6 +25,8 @@ pub enum AttributeName {
     PixelData,
     PixelRepresentation,
     PlanarConfiguration,
+    RescaleSlope,
+    RescaleIntercept,
     SamplesPerPixel,
     VoiLutFunction,
     WindowCenter,
@@ -77,6 +79,14 @@ pub enum GetAttributeError {
         value: String,
         backtrace: Backtrace,
     },
+
+    #[snafu(visibility(pub))]
+    #[snafu(display("Lengths must all be the same for `{:?}`, found `{:?}`", items, values))]
+    LengthMismatch {
+        items: Vec<AttributeName>,
+        values: Vec<String>,
+        backtrace: Backtrace
+    }
 }
 
 pub type Result<T, E = GetAttributeError> = std::result::Result<T, E>;
@@ -94,25 +104,27 @@ pub fn rows<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>
 /// Get the VOILUTFunction from the DICOM object
 pub fn voi_lut_function<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> Result<Option<String>> {
-    let elem = if let Some(elem) =
-        obj.element_opt(tags::VOILUT_FUNCTION)
-            .context(RetrieveSnafu {
-                name: AttributeName::VoiLutFunction,
-            })? {
-        elem
-    } else {
-        return Ok(None);
-    };
+) -> Result<Option<Vec<String>>>{
+    let elems = obj.element(tags::VOILUT_FUNCTION).ok()
+        .map(|v| vec![v])
+        .or(get_from_shared(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::VOILUT_FUNCTION]))
+        .or(get_from_per_frame(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::VOILUT_FUNCTION]));
+    if let Some(elems_inner) = elems {
+        let res = elems_inner.iter().map(|el|{
+            (*el).string()
+                .context(CastValueSnafu {
+                    name: AttributeName::VoiLutFunction,
+                })
+                .map(|v|{
+                    v.trim().to_string()
+                })
+        })
+        .collect::<Result<Vec<_>, >>()?;
+        Ok(Some(res))
 
-    let value = elem
-        .string()
-        .context(CastValueSnafu {
-            name: AttributeName::VoiLutFunction,
-        })?
-        .trim()
-        .to_string();
-    Ok(Some(value))
+    } else {
+        return Ok(None)
+    }
 }
 
 /// Get the SamplesPerPixel from the DICOM object
@@ -157,11 +169,16 @@ fn get_from_shared<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomOb
     obj.element(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE).ok()
         .and_then(|seq| seq.items())
         .and_then(|items| items.get(0))
-        .and_then(|ds| 
-            ds.element(selector[0]).ok()
+        .and_then(|ds| // SharedFunctionalGroupsSequence.0
+            ds.element(selector[0]).ok() // SharedFunctionalGroupsSequence.0.[selector[0]]
                 .and_then(|seq| seq.items())
                 .and_then(|items| items.get(0))
                 .and_then(|ds| ds.element(selector[1]).ok())
+                // Sometimes the tag is not in the properly nested sequence, but just flat in the first 
+                // element of the SharedFunctionalGroupsSequence
+                .or_else(|| // SharedFunctionalGroupsSequence.0.[selector[1]]
+                    ds.element(selector[1]).ok()
+                )
         )
         .map(|inner| vec![inner])
 }
@@ -281,15 +298,71 @@ pub fn number_of_frames<D: DataDictionary + Clone>(
 /// Retrieve the WindowCenter from the DICOM object if it exists.
 pub fn window_center<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> Result<Option<f64>> {
-    retrieve_optional_to_f64(obj, tags::WINDOW_CENTER, AttributeName::WindowCenter)
+) -> Result<Option<Vec<f64>>> {
+    let wc = obj.element(tags::WINDOW_CENTER).ok()
+        .and_then(|e| vec![e.to_float64().ok()].into_iter().collect::<Option<Vec<f64>>>())
+        .or(
+            get_from_per_frame(
+                obj, 
+                [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_CENTER],
+            )
+                .and_then(|v| 
+                    v.into_iter()
+                        .map(|el|{
+                            el.to_float64().ok()
+                        })
+                        .collect()
+            )
+        )
+        .or(
+            get_from_shared(
+                obj, 
+                [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_CENTER],
+            )
+                .and_then(|v| 
+                    v.into_iter()
+                        .map(|el|{
+                            el.to_float64().ok()
+                        })
+                        .collect()
+            )
+        );
+        Ok(wc)
 }
 
 /// Retrieve the WindowWidth from the DICOM object if it exists.
 pub fn window_width<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> Result<Option<f64>> {
-    retrieve_optional_to_f64(obj, tags::WINDOW_WIDTH, AttributeName::WindowWidth)
+) -> Result<Option<Vec<f64>>> {
+    let ww = obj.element(tags::WINDOW_WIDTH).ok()
+        .and_then(|e| vec![e.to_float64().ok()].into_iter().collect::<Option<Vec<f64>>>())
+        .or(
+            get_from_per_frame(
+                obj, 
+                [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_WIDTH],
+            )
+                .and_then(|v| 
+                    v.into_iter()
+                        .map(|el|{
+                            el.to_float64().ok()
+                        })
+                        .collect()
+            )
+        )
+        .or(
+            get_from_shared(
+                obj, 
+                [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_WIDTH],
+            )
+                .and_then(|v| 
+                    v.into_iter()
+                        .map(|el|{
+                            el.to_float64().ok()
+                        })
+                        .collect()
+            )
+        );
+        Ok(ww)
 }
 
 #[inline]
@@ -579,9 +652,9 @@ pub fn photometric_interpretation<D: DataDictionary + Clone>(
 
 #[cfg(test)]
 mod tests {
-    use dicom_core::{DataElement, dicom_value, VR, ops::{AttributeOp, ApplyOp, AttributeAction, AttributeSelectorStep}, PrimitiveValue, value::DataSetSequence};
+    use dicom_core::{DataElement, dicom_value, VR, ops::{AttributeOp, ApplyOp, AttributeAction}, PrimitiveValue, value::DataSetSequence};
     use dicom_dictionary_std::{tags, uids};
-    use dicom_object::{InMemDicomObject, FileDicomObject, FileMetaTable, FileMetaTableBuilder};
+    use dicom_object::{InMemDicomObject, FileDicomObject, FileMetaTableBuilder, DefaultDicomObject};
     use super::rescale_intercept;
 
 
@@ -595,44 +668,79 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_get_rescale_intercept(){
-        let mut dcm = FileDicomObject::new_empty_with_meta(
+    fn dummy_dicom() -> DefaultDicomObject{
+        FileDicomObject::new_empty_with_meta(
             FileMetaTableBuilder::new()
                 .transfer_syntax(uids::EXPLICIT_VR_LITTLE_ENDIAN)
                 .media_storage_sop_class_uid("1")
                 .media_storage_sop_instance_uid("1")
                 .build()
                 .unwrap()
-        );
+        )
+    }
 
+    #[test]
+    fn get_required_field_from_top_level_dataset(){
+        let mut dcm = dummy_dicom();
+        // Returns vec![0.] if not present
         assert_eq!(rescale_intercept(&dcm), vec![0.]);
 
+        // Finds the correct value from top level dataset
         dcm.put_element(DataElement::new(tags::RESCALE_INTERCEPT, VR::DS, dicom_value!(F64, 1.0)));
         assert_eq!(rescale_intercept(&dcm), vec![1.0]);
+    }
 
-        dcm.take_element(tags::RESCALE_INTERCEPT).unwrap();
-
+    #[test]
+    fn get_required_field_from_shared_fn_groups(){
+        let mut dcm = dummy_dicom();
         // Add shared functional groups sequence
         dcm.apply(AttributeOp::new(
             tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
             AttributeAction::SetIfMissing(PrimitiveValue::Empty),
-       )).unwrap();
+        )).unwrap();
+        // Check the fn still returns nothing.
         assert_eq!(rescale_intercept(&dcm), vec![0.0]);
 
+        // Add the PixelValueTransformationSequence entry
         dcm.apply(AttributeOp::new(
             (tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE, 0, tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE),
             AttributeAction::Set(PrimitiveValue::Empty),
         )).unwrap();
+        
+        // Check the fn still returns nothing.
         assert_eq!(rescale_intercept(&dcm), vec![0.0]);
         dcm.apply(AttributeOp::new(
             (tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE, 0, tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, 0, tags::RESCALE_INTERCEPT),
             AttributeAction::Set(dicom_value!(F64, 3.0)),
         )).unwrap();
+        // Check value is returned correctly
         assert_eq!(rescale_intercept(&dcm), vec![3.0]);
+    }
 
-        dcm.take_element(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE).unwrap();
+    #[test]
+    fn get_required_field_from_shared_fn_groups_improper_placement(){
+        let mut dcm = dummy_dicom();
+        // Add shared functional groups sequence
+        dcm.apply(AttributeOp::new(
+            tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
+            AttributeAction::SetIfMissing(PrimitiveValue::Empty),
+        )).unwrap();
+        // Check the fn still returns nothing.
+        assert_eq!(rescale_intercept(&dcm), vec![0.0]);
+        
+        // Add rescale intercept at top level of SharedFunctionalGroupsSequence
+        dcm.apply(AttributeOp::new(
+            (tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE, 0, tags::RESCALE_INTERCEPT),
+            AttributeAction::Set(dicom_value!(F64, 3.0)),
+        )).unwrap();
+        // Check value is returned correctly
+        assert_eq!(rescale_intercept(&dcm), vec![3.0]);
+    }
 
+
+    #[test]
+    fn get_required_field_from_per_frame_fns(){
+        let mut dcm = dummy_dicom();
         let rescale = |v| { DataElement::new(
             tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
             VR::SQ,
