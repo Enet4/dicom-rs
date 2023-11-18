@@ -39,6 +39,7 @@
 use dicom_core::ops::{
     ApplyOp, AttributeAction, AttributeOp, AttributeSelector, AttributeSelectorStep,
 };
+use dicom_encoding::Codec;
 use itertools::Itertools;
 use smallvec::SmallVec;
 use snafu::{OptionExt, ResultExt};
@@ -459,16 +460,30 @@ where
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let cs = SpecificCharacterSet::Default;
-            let mut dataset =
-                DataSetReader::new_with_ts_cs(file, ts, cs).context(CreateParserSnafu)?;
-            let obj = InMemDicomObject::build_object(
-                &mut dataset,
-                dict,
-                false,
-                Length::UNDEFINED,
-                read_until,
-            )?;
-            Ok(FileDicomObject { meta, obj })
+            if let Codec::Dataset(Some(adapter)) = ts.codec() {
+                let adapter = adapter.adapt_reader(Box::new(file));
+                let mut dataset =
+                    DataSetReader::new_with_ts_cs(adapter, ts, cs).context(CreateParserSnafu)?;
+                let obj = InMemDicomObject::build_object(
+                    &mut dataset,
+                    dict,
+                    false,
+                    Length::UNDEFINED,
+                    read_until,
+                )?;
+                Ok(FileDicomObject { meta, obj })
+            } else {
+                let mut dataset =
+                    DataSetReader::new_with_ts_cs(file, ts, cs).context(CreateParserSnafu)?;
+                let obj = InMemDicomObject::build_object(
+                    &mut dataset,
+                    dict,
+                    false,
+                    Length::UNDEFINED,
+                    read_until,
+                )?;
+                Ok(FileDicomObject { meta, obj })
+            }
         } else {
             ReadUnsupportedTransferSyntaxSnafu {
                 uid: meta.transfer_syntax,
