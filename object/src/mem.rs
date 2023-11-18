@@ -39,6 +39,7 @@
 use dicom_core::ops::{
     ApplyOp, AttributeAction, AttributeOp, AttributeSelector, AttributeSelectorStep,
 };
+use dicom_encoding::Codec;
 use dicom_parser::dataset::read::{DataSetReaderOptions, OddLengthStrategy};
 use itertools::Itertools;
 use smallvec::SmallVec;
@@ -500,20 +501,31 @@ where
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let mut options = DataSetReaderOptions::default();
             options.odd_length = odd_length;
-            let mut dataset = DataSetReader::new_with_ts_options(
-                file,
-                ts,
-                options,
-            )
-            .context(CreateParserSnafu)?;
-            let obj = InMemDicomObject::build_object(
-                &mut dataset,
-                dict,
-                false,
-                Length::UNDEFINED,
-                read_until,
-            )?;
-            Ok(FileDicomObject { meta, obj })
+
+            if let Codec::Dataset(Some(adapter)) = ts.codec() {
+                let adapter = adapter.adapt_reader(Box::new(file));
+                let mut dataset =
+                    DataSetReader::new_with_ts_options(adapter, ts, options).context(CreateParserSnafu)?;
+                let obj = InMemDicomObject::build_object(
+                    &mut dataset,
+                    dict,
+                    false,
+                    Length::UNDEFINED,
+                    read_until,
+                )?;
+                Ok(FileDicomObject { meta, obj })
+            } else {
+                let mut dataset =
+                    DataSetReader::new_with_ts_options(file, ts, options).context(CreateParserSnafu)?;
+                let obj = InMemDicomObject::build_object(
+                    &mut dataset,
+                    dict,
+                    false,
+                    Length::UNDEFINED,
+                    read_until,
+                )?;
+                Ok(FileDicomObject { meta, obj })
+            }
         } else {
             ReadUnsupportedTransferSyntaxSnafu {
                 uid: meta.transfer_syntax,
