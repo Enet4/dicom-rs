@@ -2661,6 +2661,22 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_can_read_deflated(){
+        
+        let path = dicom_test_files::path("pydicom/image_dfl.dcm").expect("test DICOM file should exist");
+    
+        // should read preamble even though it's from a reader
+        let obj = open_file(path.clone()).expect("Should read file");
+    
+        let res = obj.decode_pixel_data().expect("Should decode pixel data.");
+        assert_eq!(res.to_vec::<u8>().unwrap().len(), (res.rows() as usize * res.columns() as usize));
+        let mut buf = Vec::<u8>::new();
+        obj.write_all(&mut buf).expect("Should write deflated");
+
+        assert_eq!(std::fs::metadata(path).unwrap().len() as usize, buf.len())
+    }
+
     #[cfg(not(feature = "gdcm"))]
     mod not_gdcm {
         #[cfg(feature = "ndarray")]
