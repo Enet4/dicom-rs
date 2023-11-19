@@ -162,7 +162,7 @@ impl FileDicomObject<InMemDicomObject<StandardDataDictionary>> {
     /// followed by the rest of the data set.
     pub fn from_reader<S>(src: S) -> Result<Self, ReadError>
     where
-        S: Read,
+        S: Read + 'static,
     {
         Self::from_reader_with_dict(src, StandardDataDictionary)
     }
@@ -381,20 +381,31 @@ where
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let mut options = DataSetReaderOptions::default();
             options.odd_length = odd_length;
-            let mut dataset = DataSetReader::new_with_ts_cs_options(
-                file,
-                ts,
-                SpecificCharacterSet::default(),
-                options,
-            )
-            .context(CreateParserSnafu)?;
-            let obj = InMemDicomObject::build_object(
-                &mut dataset,
-                dict,
-                false,
-                Length::UNDEFINED,
-                read_until,
-            )?;
+
+            let obj = if let Codec::Dataset(Some(adapter)) = ts.codec() {
+                let adapter = adapter.adapt_reader(Box::new(file));
+                let mut dataset =
+                    DataSetReader::new_with_ts(adapter, ts).context(CreateParserSnafu)?;
+
+                InMemDicomObject::build_object(
+                    &mut dataset,
+                    dict,
+                    false,
+                    Length::UNDEFINED,
+                    read_until,
+                )?
+            } else {
+                let mut dataset =
+                    DataSetReader::new_with_ts(file, ts).context(CreateParserSnafu)?;
+
+                InMemDicomObject::build_object(
+                    &mut dataset,
+                    dict,
+                    false,
+                    Length::UNDEFINED,
+                    read_until,
+                )?
+            };
 
             // if Media Storage SOP Class UID is empty attempt to infer from SOP Class UID
             if meta.media_storage_sop_class_uid().is_empty() {
@@ -434,7 +445,7 @@ where
     /// skipping it when found.
     /// Then it reads the file meta group,
     /// followed by the rest of the data set.
-    pub fn from_reader_with_dict<S>(src: S, dict: D) -> Result<Self, ReadError>
+    pub fn from_reader_with_dict<'s: 'static, S: 's>(src: S, dict: D) -> Result<Self, ReadError>
     where
         S: Read,
     {
@@ -454,7 +465,7 @@ where
     /// is insufficient. Otherwise, please use [`from_reader_with_dict`] instead.
     ///
     /// [`from_reader_with_dict`]: #method.from_reader_with_dict
-    pub fn from_reader_with<'s, S, R>(src: S, dict: D, ts_index: R) -> Result<Self, ReadError>
+    pub fn from_reader_with<'s: 'static, S: 's, R>(src: S, dict: D, ts_index: R) -> Result<Self, ReadError>
     where
         S: Read + 's,
         R: TransferSyntaxIndex,
@@ -469,7 +480,7 @@ where
         )
     }
 
-    pub(crate) fn from_reader_with_all_options<'s, S, R>(
+    pub(crate) fn from_reader_with_all_options<'s: 'static, S, R>(
         src: S,
         dict: D,
         ts_index: R,

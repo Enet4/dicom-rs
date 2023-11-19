@@ -18,7 +18,7 @@ pub type Result<T, E = ReadError> = std::result::Result<T, E>;
 /// preamble: file meta group, followed by the rest of the data set.
 pub fn from_reader<F>(file: F) -> Result<DefaultDicomObject>
 where
-    F: Read,
+    F: Read + 'static,
 {
     OpenFileOptions::new().from_reader(file)
 }
@@ -163,7 +163,7 @@ impl<D, T> OpenFileOptions<D, T> {
     /// This method assumes
     /// the standard file encoding structure without the preamble:
     /// file meta group, followed by the rest of the data set.
-    pub fn from_reader<R>(self, from: R) -> Result<DefaultDicomObject<D>>
+    pub fn from_reader<'s: 'static, R: 's>(self, from: R) -> Result<DefaultDicomObject<D>>
     where
         R: Read,
         D: DataDictionary,
