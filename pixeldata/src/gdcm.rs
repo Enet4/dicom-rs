@@ -1,6 +1,7 @@
 //! Decode pixel data using GDCM when the default features are enabled.
 
 use crate::*;
+use dicom_dictionary_std::tags;
 use dicom_encoding::adapters::DecodeError;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
@@ -18,28 +19,31 @@ where
         use super::attribute::*;
 
         let pixel_data = pixel_data(self).context(GetAttributeSnafu)?;
-        
+
         let cols = cols(self).context(GetAttributeSnafu)?;
         let rows = rows(self).context(GetAttributeSnafu)?;
 
         let photometric_interpretation =
             photometric_interpretation(self).context(GetAttributeSnafu)?;
-        let pi_type = GDCMPhotometricInterpretation::from_str(photometric_interpretation.as_str())
-            .map_err(|_| {
-                UnsupportedPhotometricInterpretationSnafu {
-                    pi: photometric_interpretation.clone(),
-                }
-                .build()
-            })?;
+        let pi_type = match photometric_interpretation {
+            PhotometricInterpretation::PaletteColor => GDCMPhotometricInterpretation::PALETTE_COLOR,
+            _ => GDCMPhotometricInterpretation::from_str(photometric_interpretation.as_str())
+                .map_err(|_| {
+                    UnsupportedPhotometricInterpretationSnafu {
+                        pi: photometric_interpretation.clone(),
+                    }
+                    .build()
+                })?,
+        };
 
         let transfer_syntax = &self.meta().transfer_syntax;
         let registry =
             TransferSyntaxRegistry
-                .get(&&transfer_syntax)
+                .get(transfer_syntax)
                 .context(UnknownTransferSyntaxSnafu {
                     ts_uid: transfer_syntax,
                 })?;
-        let ts_type = GDCMTransferSyntax::from_str(&registry.uid()).map_err(|_| {
+        let ts_type = GDCMTransferSyntax::from_str(registry.uid()).map_err(|_| {
             UnsupportedTransferSyntaxSnafu {
                 ts: transfer_syntax.clone(),
             }
@@ -66,7 +70,7 @@ where
                 };
                 if fragments.len() > 1 {
                     // Bundle fragments and decode multi-frame dicoms
-                    let dims = [cols.into(), rows.into(), number_of_frames.into()];
+                    let dims = [cols.into(), rows.into(), number_of_frames];
                     let fragments: Vec<_> = fragments.iter().map(|frag| frag.as_slice()).collect();
                     decode_multi_frame_compressed(
                         fragments.as_slice(),
@@ -144,6 +148,184 @@ where
             window,
         })
     }
+
+    fn decode_pixel_data_frame(&self, frame: u32) -> Result<DecodedPixelData<'_>> {
+        use super::attribute::*;
+
+        let pixel_data = pixel_data(self).context(GetAttributeSnafu)?;
+
+        let cols = cols(self).context(GetAttributeSnafu)?;
+        let rows = rows(self).context(GetAttributeSnafu)?;
+
+        let photometric_interpretation =
+            photometric_interpretation(self).context(GetAttributeSnafu)?;
+        let pi_type = match photometric_interpretation {
+            PhotometricInterpretation::PaletteColor => GDCMPhotometricInterpretation::PALETTE_COLOR,
+            _ => GDCMPhotometricInterpretation::from_str(photometric_interpretation.as_str())
+                .map_err(|_| {
+                    UnsupportedPhotometricInterpretationSnafu {
+                        pi: photometric_interpretation.clone(),
+                    }
+                    .build()
+                })?,
+        };
+
+        let transfer_syntax = &self.meta().transfer_syntax;
+        let registry =
+            TransferSyntaxRegistry
+                .get(transfer_syntax)
+                .context(UnknownTransferSyntaxSnafu {
+                    ts_uid: transfer_syntax,
+                })?;
+        let ts_type = GDCMTransferSyntax::from_str(registry.uid()).map_err(|_| {
+            UnsupportedTransferSyntaxSnafu {
+                ts: transfer_syntax.clone(),
+            }
+            .build()
+        })?;
+
+        let samples_per_pixel = samples_per_pixel(self).context(GetAttributeSnafu)?;
+        let bits_allocated = bits_allocated(self).context(GetAttributeSnafu)?;
+        let bits_stored = bits_stored(self).context(GetAttributeSnafu)?;
+        let high_bit = high_bit(self).context(GetAttributeSnafu)?;
+        let pixel_representation = pixel_representation(self).context(GetAttributeSnafu)?;
+        let planar_configuration = if let Ok(el) = self.element(tags::PLANAR_CONFIGURATION) {
+            el.uint16().unwrap_or(0)
+        } else {
+            0
+        };
+        let rescale_intercept = rescale_intercept(self);
+        let rescale_slope = rescale_slope(self);
+        let number_of_frames = number_of_frames(self).context(GetAttributeSnafu)?;
+        let voi_lut_function = voi_lut_function(self).context(GetAttributeSnafu)?;
+        let voi_lut_function = voi_lut_function.and_then(|v| VoiLutFunction::try_from(&*v).ok());
+
+        let decoded_pixel_data = match pixel_data.value() {
+            Value::PixelSequence(v) => {
+                let fragments = v.fragments();
+                let gdcm_error_mapper = |source: GDCMError| DecodeError::Custom {
+                    message: source.to_string(),
+                    source: Some(Box::new(source)),
+                };
+
+                let frame = frame as usize;
+                let data = if number_of_frames == 1 && fragments.len() > 1 {
+                    fragments.iter().flat_map(|frame| frame.to_vec()).collect()
+                } else {
+                    fragments[frame].to_vec()
+                };
+
+                match ts_type {
+                    GDCMTransferSyntax::ImplicitVRLittleEndian
+                    | GDCMTransferSyntax::ExplicitVRLittleEndian => {
+                        // This is just in case of encapsulated uncompressed data
+                        let frame_size = cols * rows * samples_per_pixel * (bits_allocated / 8);
+                        data.chunks_exact(frame_size as usize)
+                            .nth(frame)
+                            .map(|frame| frame.to_vec())
+                            .unwrap_or_default()
+                    }
+                    _ => {
+                        let buffer = [data.as_slice()];
+                        let dims = [cols.into(), rows.into(), 1];
+
+                        decode_multi_frame_compressed(
+                            &buffer,
+                            &dims,
+                            pi_type,
+                            ts_type,
+                            samples_per_pixel,
+                            bits_allocated,
+                            bits_stored,
+                            high_bit,
+                            pixel_representation as u16,
+                        )
+                        .map_err(gdcm_error_mapper)
+                        .context(DecodePixelDataSnafu)?
+                        .to_vec()
+                    }
+                }
+            }
+            Value::Primitive(p) => {
+                // Uncompressed data
+                let frame_size = cols as usize
+                    * rows as usize
+                    * samples_per_pixel as usize
+                    * (bits_allocated as usize / 8);
+                p.to_bytes()
+                    .chunks_exact(frame_size)
+                    .nth(frame as usize)
+                    .map(|frame| frame.to_vec())
+                    .unwrap_or_default()
+            }
+            Value::Sequence(_) => InvalidPixelDataSnafu.fail()?,
+        };
+
+        // Convert to PlanarConfiguration::Standard
+        let decoded_pixel_data = if planar_configuration == 1 && samples_per_pixel == 3 {
+            interleave_planes(
+                cols as usize,
+                rows as usize,
+                bits_allocated as usize,
+                decoded_pixel_data,
+            )
+        } else {
+            decoded_pixel_data
+        };
+
+        let window = match (
+            window_center(self).context(GetAttributeSnafu)?,
+            window_width(self).context(GetAttributeSnafu)?,
+        ) {
+            (Some(center), Some(width)) => Some(WindowLevel { center, width }),
+            _ => None,
+        };
+
+        Ok(DecodedPixelData {
+            data: Cow::from(decoded_pixel_data),
+            cols: cols.into(),
+            rows: rows.into(),
+            number_of_frames: 1,
+            photometric_interpretation,
+            samples_per_pixel,
+            planar_configuration: PlanarConfiguration::Standard,
+            bits_allocated,
+            bits_stored,
+            high_bit,
+            pixel_representation,
+            rescale_intercept,
+            rescale_slope,
+            voi_lut_function,
+            window,
+        })
+    }
+}
+
+fn interleave_planes(cols: usize, rows: usize, bits_allocated: usize, data: Vec<u8>) -> Vec<u8> {
+    let frame_size = cols * rows * (bits_allocated / 8);
+    let mut interleaved = Vec::with_capacity(data.len());
+
+    let mut i = 0;
+    while i < frame_size {
+        interleaved.push(data[i]);
+        if bits_allocated > 8 {
+            interleaved.push(data[i + 1])
+        }
+
+        interleaved.push(data[i + frame_size]);
+        if bits_allocated > 8 {
+            interleaved.push(data[i + frame_size + 1])
+        }
+
+        interleaved.push(data[i + frame_size * 2]);
+        if bits_allocated > 8 {
+            interleaved.push(data[i + frame_size * 2 + 1])
+        }
+
+        i = if bits_allocated > 8 { i + 2 } else { i + 1 };
+    }
+
+    interleaved
 }
 
 #[cfg(test)]
@@ -225,7 +407,7 @@ mod tests {
     #[case("pydicom/SC_rgb_rle_2frame.dcm", 1)]
     #[case("pydicom/JPEG2000.dcm", 0)]
     #[case("pydicom/JPEG2000_UNC.dcm", 0)]
-   fn test_parse_dicom_pixel_data_individual_frames(#[case] value: &str, #[case] frame: u32) {
+    fn test_parse_dicom_pixel_data_individual_frames(#[case] value: &str, #[case] frame: u32) {
         let test_file = dicom_test_files::path(value).unwrap();
         println!("Parsing pixel data for {}", test_file.display());
         let obj = open_file(test_file).unwrap();
