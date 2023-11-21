@@ -46,8 +46,8 @@ struct App {
     fail_first: bool,
     /// Output format
     #[arg(value_enum)]
-    #[clap(short = 'o', long = "output", default_value = "text")]
-    output_type: DumpFormat
+    #[clap(short = 'f', long = "format", default_value = "text")]
+    format: DumpFormat
 }
 
 fn is_terminal() -> bool {
@@ -69,7 +69,7 @@ fn run() -> Result<(), Whatever> {
         width,
         color,
         fail_first,
-        output_type,
+        format,
     } = App::parse();
 
     let width = width
@@ -83,7 +83,7 @@ fn run() -> Result<(), Whatever> {
         .no_limit(if !is_terminal() { true } else {no_limit})
         .width(width)
         .color_mode(color)
-        .format(output_type);
+        .format(format);
     let fail_first = filenames.len() == 1 || fail_first;
     let mut errors: i32 = 0;
 

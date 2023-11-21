@@ -236,7 +236,7 @@ impl DumpOptions {
             },
             DumpFormat::Json => {
                 let json_obj = DicomJson::from(obj);
-                println!("{}", serde_json::to_string_pretty(&json_obj)?);
+                serde_json::to_writer_pretty(stdout(), &json_obj)?;
                 Ok(())
             }
         }
