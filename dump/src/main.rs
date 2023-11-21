@@ -1,7 +1,7 @@
 //! A CLI tool for inspecting the contents of a DICOM file
 //! by printing it in a human readable format.
 use clap::Parser;
-use dicom_dump::{ColorMode, DumpOptions};
+use dicom_dump::{ColorMode, DumpOptions, DumpFormat};
 use dicom_object::open_file;
 use snafu::{Report, Whatever};
 use std::io::ErrorKind;
@@ -12,6 +12,7 @@ const ERROR_READ: i32 = -2;
 /// Exit code for when an error emerged while dumping the file.
 const ERROR_PRINT: i32 = -3;
 
+
 /// Dump the contents of DICOM files
 #[derive(Debug, Parser)]
 #[command(version)]
@@ -20,7 +21,10 @@ struct App {
     #[clap(required = true)]
     files: Vec<PathBuf>,
     /// Print text values to the end
-    /// (limited to `width` by default)
+    /// (limited to `width` by default).
+    /// 
+    /// Does not apply if output is not a tty 
+    /// or if output type is json
     #[clap(long = "no-text-limit")]
     no_text_limit: bool,
     /// Print all values to the end
@@ -28,7 +32,10 @@ struct App {
     #[clap(long = "no-limit")]
     no_limit: bool,
     /// The width of the display
-    /// (default is to check automatically)
+    /// (default is to check automatically).
+    /// 
+    /// Does not apply if output is not a tty 
+    /// or if output type is json
     #[clap(short = 'w', long = "width")]
     width: Option<u32>,
     /// The color mode
@@ -37,6 +44,14 @@ struct App {
     /// Fail if any errors are encountered
     #[clap(long = "fail-first")]
     fail_first: bool,
+    /// Output format
+    #[arg(value_enum)]
+    #[clap(short = 'o', long = "output", default_value = "text")]
+    output_type: DumpFormat
+}
+
+fn is_terminal() -> bool {
+    atty::is(atty::Stream::Stdout)
 }
 
 fn main() {
@@ -54,6 +69,7 @@ fn run() -> Result<(), Whatever> {
         width,
         color,
         fail_first,
+        output_type,
     } = App::parse();
 
     let width = width
@@ -63,14 +79,17 @@ fn run() -> Result<(), Whatever> {
     let mut options = DumpOptions::new();
     options
         .no_text_limit(no_text_limit)
-        .no_limit(no_limit)
+        // No limit when output is not a terminal
+        .no_limit(if !is_terminal() { true } else {no_limit})
         .width(width)
-        .color_mode(color);
+        .color_mode(color)
+        .format(output_type);
     let fail_first = filenames.len() == 1 || fail_first;
     let mut errors: i32 = 0;
 
     for filename in &filenames {
-        println!("{}: ", filename.display());
+        // Write filename to stderr to make piping easier, i.e. dicom-dump -o json file.dcm | jq
+        eprintln!("{}: ", filename.display());
         match open_file(filename) {
             Err(e) => {
                 eprintln!("{}", Report::from_error(e));

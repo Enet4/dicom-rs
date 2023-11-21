@@ -32,6 +32,7 @@
 //! options.width(100).dump_file(&obj)?;
 //! # Result::<(), Box<dyn std::error::Error>>::Ok(())
 //! ```
+use clap::ValueEnum;
 #[cfg(feature = "sop-class")]
 use dicom_core::dictionary::UidDictionary;
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
@@ -41,6 +42,7 @@ use dicom_core::VR;
 #[cfg(feature = "sop-class")]
 use dicom_dictionary_std::StandardSopClassDictionary;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
+use dicom_json::DicomJson;
 use dicom_object::mem::{InMemDicomObject, InMemElement};
 use dicom_object::{FileDicomObject, FileMetaTable, StandardDataDictionary};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
@@ -50,12 +52,10 @@ use std::fmt::{self, Display, Formatter};
 use std::io::{stdout, Result as IoResult, Write};
 use std::str::FromStr;
 
-/// An enum of all supported output formats for dumping DICOM data.
-#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
-#[non_exhaustive]
+#[derive(ValueEnum, Clone, Debug, PartialEq, Default)]
 pub enum DumpFormat {
-    /// The main DICOM dump format adopted by the project.
-    ///
+    /// Text dump of DICOM file
+    /// 
     /// It is primarily designed to be human readable,
     /// although its output can be used to recover the original object
     /// in its uncut form (no limit width).
@@ -64,15 +64,12 @@ pub enum DumpFormat {
     ///
     /// Note that this format is not stabilized,
     /// and may change with subsequent versions of the crate.
-    Main,
+    #[default]
+    Text,
+    /// Dicom part 18 chapter F json format provided by the json crate
+    Json,
 }
 
-/// The [main output format](DumpFormat::Main) is used by default.
-impl Default for DumpFormat {
-    fn default() -> Self {
-        DumpFormat::Main
-    }
-}
 
 /// Options and flags to configure how to dump a DICOM file or object.
 ///
@@ -227,14 +224,23 @@ impl DumpOptions {
         } else {
             (true, true)
         };
+        match self.format {
+            DumpFormat::Text => {
+                meta_dump(&mut to, meta, if no_limit { u32::MAX } else { width })?;
 
-        meta_dump(&mut to, meta, if no_limit { u32::MAX } else { width })?;
+                writeln!(to, "{:-<58}", "")?;
 
-        writeln!(to, "{:-<58}", "")?;
+                dump(&mut to, obj, width, 0, no_text_limit, no_limit)?;
 
-        dump(&mut to, obj, width, 0, no_text_limit, no_limit)?;
+                Ok(())
+            },
+            DumpFormat::Json => {
+                let json_obj = DicomJson::from(obj);
+                println!("{}", serde_json::to_string_pretty(&json_obj)?);
+                Ok(())
+            }
+        }
 
-        Ok(())
     }
 
     /// Dump the contents of a DICOM object to standard output.
