@@ -228,6 +228,7 @@ pub struct StatefulDecoder<D, S, BD = BasicDecoder, TC = SpecificCharacterSet> {
     decoder: D,
     basic: BD,
     text: TC,
+    cs: Vec<TC>,
     buffer: Vec<u8>,
     /// the assumed position of the reader source
     position: u64,
@@ -289,6 +290,7 @@ where
             basic: LittleEndianBasicDecoder,
             decoder: ExplicitVRLittleEndianDecoder::default(),
             text: DefaultCharacterSetCodec,
+            cs: Vec::new(),
             buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
             position: 0,
             signed_pixeldata: None,
@@ -320,6 +322,7 @@ where
             basic,
             decoder,
             text,
+            cs: Vec::new(),
             buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
             position,
             signed_pixeldata: None,
@@ -368,6 +371,51 @@ where
             })
     }
 
+    fn read_element_data(&mut self, header: &DataElementHeader) -> Result<usize> {
+        let len = self.require_known_length(header)?;
+        self.buffer.resize_with(len, Default::default);
+        self.from
+            .read_exact(&mut self.buffer)
+            .context(ReadValueDataSnafu {
+                position: self.position,
+            })?;
+
+        Ok(len)
+    }
+
+    fn read_value_strs_impl(
+        &mut self,
+        header: &DataElementHeader,
+        require_known_length: usize,
+    ) -> Result<Vec<String>> {
+        let parts: Result<Vec<String>> = match header.vr() {
+            VR::AE | VR::CS | VR::AS => self
+                .buffer
+                .split(|v| *v == b'\\')
+                .map(|slice| {
+                    DefaultCharacterSetCodec
+                        .decode(slice)
+                        .context(DecodeTextSnafu {
+                            position: self.position,
+                        })
+                })
+                .collect(),
+            _ => self
+                .buffer
+                .split(|v| *v == b'\\')
+                .map(|slice| {
+                    self.text.decode(slice).context(DecodeTextSnafu {
+                        position: self.position,
+                    })
+                })
+                .collect(),
+        };
+
+        self.position += require_known_length as u64;
+
+        parts
+    }
+
     fn read_value_tag(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
         let len = self.require_known_length(header)?;
 
@@ -401,40 +449,69 @@ where
     }
 
     fn read_value_strs(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
-        let len = self.require_known_length(header)?;
         // sequence of strings
-        self.buffer.resize_with(len, Default::default);
-        self.from
-            .read_exact(&mut self.buffer)
-            .context(ReadValueDataSnafu {
-                position: self.position,
-            })?;
+        let len = self.read_element_data(header)?;
 
-        let parts: Result<_> = match header.vr() {
-            VR::AE | VR::CS | VR::AS => self
-                .buffer
-                .split(|v| *v == b'\\')
-                .map(|slice| {
-                    DefaultCharacterSetCodec
-                        .decode(slice)
-                        .context(DecodeTextSnafu {
-                            position: self.position,
-                        })
-                })
-                .collect(),
-            _ => self
-                .buffer
-                .split(|v| *v == b'\\')
-                .map(|slice| {
-                    self.text.decode(slice).context(DecodeTextSnafu {
-                        position: self.position,
-                    })
-                })
-                .collect(),
+        let parts = self.read_value_strs_impl(header, len)?;
+
+        Ok(PrimitiveValue::Strs(parts.into()))
+    }
+
+    fn read_value_pn(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
+        match self.read_value_pns(header) {
+            Ok(PrimitiveValue::Strs(parts)) => Ok(PrimitiveValue::Str(parts.join("="))),
+            Ok(_) => {
+                panic!("wron impl: read_value_pns should always return Strs")
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    fn read_value_pns(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
+        let len = self.read_element_data(header)?;
+
+        let equal_positions: Vec<_> = self
+            .buffer
+            .iter()
+            .enumerate()
+            .filter(|&(_, &b)| b == b'=')
+            .map(|(i, _)| i)
+            .collect();
+
+        let decoded_parts = if equal_positions.len() == 0 {
+            self.read_value_strs_impl(header, len)?
+        } else {
+            let mut binary_data = Vec::new();
+            let mut equal_position = 0;
+            for &index in &equal_positions {
+                binary_data.push(&self.buffer[equal_position..index]);
+                equal_position = index + 1;
+            }
+            binary_data.push(&self.buffer[equal_position..]);
+
+            let mut decoded_parts = Vec::new();
+
+            let (cs1, cs2) = match self.cs.len() {
+                0 => (&self.text, &self.text),
+                1 => (&self.text, self.cs.get(0).unwrap_or(&self.text)),
+                _ => (
+                    self.cs.get(0).unwrap_or(&self.text),
+                    self.cs.get(1).unwrap_or(&self.text),
+                ),
+            };
+
+            for (i, part) in binary_data.iter().enumerate() {
+                let charset = if i == 0 { cs1 } else { cs2 };
+                let decoded = charset.decode(part).context(DecodeTextSnafu {
+                    position: self.position,
+                })?;
+                decoded_parts.push(decoded);
+            }
+
+            decoded_parts
         };
 
-        self.position += len as u64;
-        Ok(PrimitiveValue::Strs(parts?))
+        Ok(PrimitiveValue::Strs(decoded_parts.into()))
     }
 
     fn read_value_str(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
@@ -784,6 +861,7 @@ where
 {
     fn set_character_set(&mut self, charset: SpecificCharacterSet) -> Result<()> {
         self.text = charset;
+        self.cs.push(charset);
         Ok(())
     }
 
@@ -803,14 +881,14 @@ where
             // Edge case handling strategies for
             // unsupported specific character sets should probably be considered
             // in the future. See #40 for discussion.
-            if let Some(charset) = parts.first().map(|x| x.as_ref()).and_then(|name| {
-                SpecificCharacterSet::from_code(name).or_else(|| {
-                    tracing::warn!("Unsupported character set `{}`, ignoring", name);
-                    None
-                })
-            }) {
-                self.set_character_set(charset)?;
-            }
+            parts.iter().for_each(|name| {
+                if let Some(charset) = SpecificCharacterSet::from_code(name) {
+                    self.set_character_set(charset).unwrap_or_else(|e| {
+                        tracing::warn!("Unsupported character set `{}`, ignoring", name);
+                        tracing::warn!("Error: {}", e);
+                    });
+                }
+            });
         }
 
         Ok(out)
@@ -933,9 +1011,8 @@ where
                 .fail()
             }
             VR::AT => self.read_value_tag(header),
-            VR::AE | VR::AS | VR::PN | VR::SH | VR::LO | VR::UC | VR::UI => {
-                self.read_value_strs(header)
-            }
+            VR::AE | VR::AS | VR::SH | VR::LO | VR::UC | VR::UI => self.read_value_strs(header),
+            VR::PN => self.read_value_pns(header),
             VR::CS => self.read_value_cs(header),
             VR::UT | VR::ST | VR::UR | VR::LT => self.read_value_str(header),
             VR::UN | VR::OB => self.read_value_ob(header),
@@ -971,7 +1048,6 @@ where
             VR::AT => self.read_value_tag(header),
             VR::AE
             | VR::AS
-            | VR::PN
             | VR::SH
             | VR::LO
             | VR::UC
@@ -981,6 +1057,7 @@ where
             | VR::DA
             | VR::TM
             | VR::DT => self.read_value_strs(header),
+            VR::PN => self.read_value_pn(header),
             VR::CS => self.read_value_cs(header),
             VR::UT | VR::ST | VR::UR | VR::LT => self.read_value_str(header),
             VR::UN | VR::OB => self.read_value_ob(header),
@@ -1110,13 +1187,16 @@ fn trim_trail_empty_bytes(mut x: &[u8]) -> &[u8] {
 mod tests {
     use super::{StatefulDecode, StatefulDecoder};
     use dicom_core::header::{DataElementHeader, HasLength, Header, Length, SequenceItemHeader};
-    use dicom_core::{Tag, VR};
+    use dicom_core::{PrimitiveValue, Tag, VR};
     use dicom_encoding::decode::basic::LittleEndianBasicDecoder;
     use dicom_encoding::decode::{
         explicit_le::ExplicitVRLittleEndianDecoder, implicit_le::ImplicitVRLittleEndianDecoder,
     };
     use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
+    use encoding_rs::{ISO_2022_JP, SHIFT_JIS, UTF_8};
+    use smallvec::SmallVec;
     use std::io::{Cursor, Seek, SeekFrom};
+    use std::str;
 
     // manually crafting some DICOM data elements
     //  Tag: (0002,0002) Media Storage SOP Class UID
@@ -1573,5 +1653,181 @@ mod tests {
                 len: Length(2),
             }
         );
+    }
+    
+    #[test]
+    fn test_read_value_pn_ps_3_5_h_3_2_multistr() {
+        let yamada_taro_sjis = SHIFT_JIS.encode("ﾔﾏﾀﾞ^ﾀﾛｳ").0;
+        let equal_ascii = b"=";
+        let yamada_taro_iso2022jp = ISO_2022_JP.encode("山田^太郎").0;
+        let equal_ascii_2 = b"=";
+        let yamada_taro_kana_iso2022jp = ISO_2022_JP.encode("ヤマダ^タロウ").0;
+
+        let mut combined = Vec::new();
+        combined.extend_from_slice(&yamada_taro_sjis);
+        combined.extend_from_slice(equal_ascii);
+        combined.extend_from_slice(&yamada_taro_iso2022jp);
+        combined.extend_from_slice(equal_ascii_2);
+        combined.extend_from_slice(&yamada_taro_kana_iso2022jp);
+
+        let mut cursor = Cursor::new(&combined);
+
+        let mut decoder = StatefulDecoder::new(
+            &mut cursor,
+            ImplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            SpecificCharacterSet::Default,
+        );
+
+        let header =
+            DataElementHeader::new(Tag(0x0010, 0x0010), VR::PN, Length(combined.len() as u32));
+
+        let result = decoder.read_value(&header);
+        assert!(result.is_ok());
+
+        let value = result.unwrap();
+        let expected: SmallVec<[&str; 3]> =
+            vec!["ﾔﾏﾀ\u{ff9e}^ﾀﾛｳ", "山田^太郎", "ヤマダ^タロウ"].into();
+        match value {
+            PrimitiveValue::Strs(s) => {
+                assert_eq!(s, expected);
+            }
+            _ => panic!("Unexpected value type"),
+        }
+    }
+
+    #[test]
+    fn test_read_value_pn_ps_3_5_h_3_2() {
+        let yamada_taro_sjis = SHIFT_JIS.encode("ﾔﾏﾀﾞ^ﾀﾛｳ").0;
+        let equal_ascii = b"=";
+        let yamada_taro_iso2022jp = ISO_2022_JP.encode("山田^太郎").0;
+        let equal_ascii_2 = b"=";
+        let yamada_taro_kana_iso2022jp = ISO_2022_JP.encode("ヤマダ^タロウ").0;
+
+        let mut combined = Vec::new();
+        combined.extend_from_slice(&yamada_taro_sjis);
+        combined.extend_from_slice(equal_ascii);
+        combined.extend_from_slice(&yamada_taro_iso2022jp);
+        combined.extend_from_slice(equal_ascii_2);
+        combined.extend_from_slice(&yamada_taro_kana_iso2022jp);
+
+        let mut cursor = Cursor::new(&combined);
+
+        let mut decoder = StatefulDecoder::new(
+            &mut cursor,
+            ImplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            SpecificCharacterSet::Default,
+        );
+
+        decoder
+            .set_character_set(SpecificCharacterSet::IsoIr13)
+            .unwrap();
+        decoder
+            .set_character_set(SpecificCharacterSet::IsoIr87)
+            .unwrap();
+
+        let header =
+            DataElementHeader::new(Tag(0x0010, 0x0010), VR::PN, Length(combined.len() as u32));
+
+        let result = decoder.read_value_preserved(&header);
+        assert!(result.is_ok());
+
+        let value = result.unwrap();
+        let expected = "ﾔﾏﾀ\u{ff9e}^ﾀﾛｳ=山田^太郎=ヤマダ^タロウ";
+        match value {
+            PrimitiveValue::Str(s) => {
+                assert_eq!(s, expected);
+            }
+            _ => panic!("Unexpected value type"),
+        }
+    }
+    #[test]
+    fn test_read_value_pn_ps_3_5_h_3_1_multistr() {
+        let yamada_taro_sjis = UTF_8.encode("Yamada^Taro").0;
+        let equal_ascii = b"=";
+        let yamada_taro_iso2022jp = ISO_2022_JP.encode("山田^太郎").0;
+        let equal_ascii_2 = b"=";
+        let yamada_taro_kana_iso2022jp = ISO_2022_JP.encode("ヤマダ^タロウ").0;
+
+        let mut combined = Vec::new();
+        combined.extend_from_slice(&yamada_taro_sjis);
+        combined.extend_from_slice(equal_ascii);
+        combined.extend_from_slice(&yamada_taro_iso2022jp);
+        combined.extend_from_slice(equal_ascii_2);
+        combined.extend_from_slice(&yamada_taro_kana_iso2022jp);
+
+        let mut cursor = Cursor::new(&combined);
+
+        let mut decoder = StatefulDecoder::new(
+            &mut cursor,
+            ImplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            SpecificCharacterSet::Default,
+        );
+
+        decoder
+            .set_character_set(SpecificCharacterSet::IsoIr87)
+            .unwrap();
+
+        let header =
+            DataElementHeader::new(Tag(0x0010, 0x0010), VR::PN, Length(combined.len() as u32));
+
+        let result = decoder.read_value(&header);
+        assert!(result.is_ok());
+
+        let value = result.unwrap();
+        let expected: SmallVec<[&str; 3]> =
+            vec!["Yamada^Taro", "山田^太郎", "ヤマダ^タロウ"].into();
+        match value {
+            PrimitiveValue::Strs(s) => {
+                assert_eq!(s, expected);
+            }
+            _ => panic!("Unexpected value type"),
+        }
+    }
+
+    #[test]
+    fn test_read_value_pn_ps_3_5_h_3_1() {
+        let yamada_taro_sjis = UTF_8.encode("Yamada^Taro").0;
+        let equal_ascii = b"=";
+        let yamada_taro_iso2022jp = ISO_2022_JP.encode("山田^太郎").0;
+        let equal_ascii_2 = b"=";
+        let yamada_taro_kana_iso2022jp = ISO_2022_JP.encode("ヤマダ^タロウ").0;
+
+        let mut combined = Vec::new();
+        combined.extend_from_slice(&yamada_taro_sjis);
+        combined.extend_from_slice(equal_ascii);
+        combined.extend_from_slice(&yamada_taro_iso2022jp);
+        combined.extend_from_slice(equal_ascii_2);
+        combined.extend_from_slice(&yamada_taro_kana_iso2022jp);
+
+        let mut cursor = Cursor::new(&combined);
+
+        let mut decoder = StatefulDecoder::new(
+            &mut cursor,
+            ImplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            SpecificCharacterSet::Default,
+        );
+
+        decoder
+            .set_character_set(SpecificCharacterSet::IsoIr87)
+            .unwrap();
+
+        let header =
+            DataElementHeader::new(Tag(0x0010, 0x0010), VR::PN, Length(combined.len() as u32));
+
+        let result = decoder.read_value_preserved(&header);
+        assert!(result.is_ok());
+
+        let value = result.unwrap();
+        let expected = "Yamada^Taro=山田^太郎=ヤマダ^タロウ";
+        match value {
+            PrimitiveValue::Str(s) => {
+                assert_eq!(s, expected);
+            }
+            _ => panic!("Unexpected value type"),
+        }
     }
 }
