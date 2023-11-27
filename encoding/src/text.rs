@@ -449,4 +449,17 @@ mod tests {
             b"\xb8\xd2\xd0\xdd\xda\xde\xd2^\xb0\xdd\xd4\xe0\xd5\xd9",
         );
     }
+
+    #[test]
+    fn iso_ir_13_baseline() {
+        let codec = SpecificCharacterSet::IsoIr13;
+        test_codec(codec, "ﾔﾏﾀﾞ^ﾀﾛｳ", b"\xd4\xcf\xc0\xde^\xc0\xdb\xb3");
+    }
+
+    #[test]
+    fn iso_ir_87_baseline() {
+        let codec = SpecificCharacterSet::IsoIr87;
+        test_codec(codec, "山田^太郎", b"\x1b$B;3ED\x1b(B^\x1b$BB@O:");
+        test_codec(codec, "やまだ^たろう", b"\x1b$B$d$^$@\x1b(B^\x1b$B$?$m$&");
+    }
 }
