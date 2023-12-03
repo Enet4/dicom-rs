@@ -68,4 +68,6 @@ optional = true
 features = ["native"]
 
 [dev-dependencies]
+dicom-object = { path = "../object" }
+dicom-pixeldata = { path = "../pixeldata" }
 dicom-test-files = "0.2.1"
