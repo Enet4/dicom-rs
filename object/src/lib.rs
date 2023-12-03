@@ -151,6 +151,7 @@ pub use dicom_dictionary_std::StandardDataDictionary;
 pub type DefaultDicomObject<D = StandardDataDictionary> = FileDicomObject<mem::InMemDicomObject<D>>;
 
 use dicom_core::header::{GroupNumber, Header};
+use dicom_encoding::Codec;
 use dicom_encoding::adapters::{PixelDataObject, RawPixelData};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
@@ -475,21 +476,34 @@ where
             .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             })?;
-        let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
+        if let Codec::Dataset(Some(adapter))= ts.codec() {
+            let adapter = adapter.adapt_writer(Box::new(to));
+            let mut dset_writer = DataSetWriter::with_ts(adapter, ts).context(CreatePrinterSnafu)?;
 
-        // We use the default options, because only the inner object knows if something needs to change
-        dset_writer
-            .write_sequence((&self.obj).into_tokens())
-            .context(PrintDataSetSnafu)?;
+            // write object
+            dset_writer
+                .write_sequence((&self.obj).into_tokens())
+                .context(PrintDataSetSnafu)?;
 
-        Ok(())
+            Ok(())
+
+        } else {
+            let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
+
+            // write object
+            dset_writer
+                .write_sequence((&self.obj).into_tokens())
+                .context(PrintDataSetSnafu)?;
+
+            Ok(())
+        }
     }
 
     /// Write the entire object as a DICOM file
     /// into the given writer.
     /// Preamble, magic code, and file meta group will be included
     /// before the inner object.
-    pub fn write_all<W: Write>(&self, to: W) -> Result<(), WriteError> {
+    pub fn write_all<W: Write + 'static>(&self, to: W) -> Result<(), WriteError> {
         let mut to = BufWriter::new(to);
 
         // write preamble
@@ -507,14 +521,27 @@ where
             .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             })?;
-        let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
+        if let Codec::Dataset(Some(adapter))= ts.codec() {
+            let adapter = adapter.adapt_writer(Box::new(to));
+            let mut dset_writer = DataSetWriter::with_ts(adapter, ts).context(CreatePrinterSnafu)?;
 
-        // We use the default options, because only the inner object knows if something needs to change
-        dset_writer
-            .write_sequence((&self.obj).into_tokens())
-            .context(PrintDataSetSnafu)?;
+            // write object
+            dset_writer
+                .write_sequence((&self.obj).into_tokens())
+                .context(PrintDataSetSnafu)?;
 
-        Ok(())
+            Ok(())
+
+        } else {
+            let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
+
+            // write object
+            dset_writer
+                .write_sequence((&self.obj).into_tokens())
+                .context(PrintDataSetSnafu)?;
+
+            Ok(())
+        }
     }
 
     /// Write the file meta group set into the given writer.
@@ -528,7 +555,7 @@ where
     /// without preamble, magic code, nor file meta group.
     ///
     /// The transfer syntax is selected from the file meta table.
-    pub fn write_dataset<W: Write>(&self, to: W) -> Result<(), WriteError> {
+    pub fn write_dataset<W: Write + 'static>(&self, to: W) -> Result<(), WriteError> {
         let to = BufWriter::new(to);
 
         // prepare encoder
@@ -537,14 +564,27 @@ where
             .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             })?;
-        let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
+        if let Codec::Dataset(Some(adapter))= ts.codec() {
+            let adapter = adapter.adapt_writer(Box::new(to));
+            let mut dset_writer = DataSetWriter::with_ts(adapter, ts).context(CreatePrinterSnafu)?;
 
-        // write object
-        dset_writer
-            .write_sequence((&self.obj).into_tokens())
-            .context(PrintDataSetSnafu)?;
+            // write object
+            dset_writer
+                .write_sequence((&self.obj).into_tokens())
+                .context(PrintDataSetSnafu)?;
 
-        Ok(())
+            Ok(())
+
+        } else {
+            let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
+
+            // write object
+            dset_writer
+                .write_sequence((&self.obj).into_tokens())
+                .context(PrintDataSetSnafu)?;
+
+            Ok(())
+        }
     }
 }
 
