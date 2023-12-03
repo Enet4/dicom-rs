@@ -100,3 +100,5 @@ features = ["native"]
 
 [dev-dependencies]
 dicom-test-files = "0.3"
+dicom-object = { path = "../object" }
+dicom-pixeldata = { path = "../pixeldata" }
