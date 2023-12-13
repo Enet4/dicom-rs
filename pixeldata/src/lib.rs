@@ -403,11 +403,13 @@ pub struct DecodedPixelData<'a> {
     high_bit: u16,
     /// the pixel representation: 0 for unsigned, 1 for signed
     pixel_representation: PixelRepresentation,
-    /// Multiframe dicom objects can have one of the following 4 per frame, or one shared.
-    /// the pixel value rescale intercept
-    rescale_intercept: Vec<f64>,
-    /// the pixel value rescale slope
-    rescale_slope: Vec<f64>,
+    /// Multiframe dicom objects can have rescale information, voi LUT and
+    /// window level information once in the shared functional group sequence,
+    /// or multiple times in the per-frame functional group sequence. This is a
+    /// vector of intercepts and slopes, one for each frame.
+    /// 
+    /// the pixel value rescale slope and intercept
+    rescale: Vec<Rescale>,
     // the VOI LUT function
     voi_lut_function: Option<Vec<VoiLutFunction>>,
     /// the window level specified via width and center
@@ -531,16 +533,14 @@ impl DecodedPixelData<'_> {
 
     /// Retrieve object's rescale parameters.
     #[inline]
-    pub fn rescale(&self) -> Vec<Rescale> {
-        zip(&self.rescale_intercept, &self.rescale_slope)
-            .map(|(intercept, slope)| Rescale { intercept: *intercept, slope: *slope })
-            .collect()
+    pub fn rescale(&self) -> &[Rescale] {
+        &self.rescale
     }
 
     /// Retrieve the VOI LUT function defined by the object, if any.
     #[inline]
-    pub fn voi_lut_function(&self) -> Option<&Vec<VoiLutFunction>> {
-        self.voi_lut_function.as_ref()
+    pub fn voi_lut_function(&self) -> Option<&[VoiLutFunction]> {
+        self.voi_lut_function.as_deref()
     }
 
     // converter methods
@@ -920,10 +920,7 @@ impl DecodedPixelData<'_> {
                         let rescale = if let ModalityLutOption::Override(rescale) = modality_lut {
                             *rescale
                         } else {
-                            Rescale::new(
-                                if self.rescale_slope.len() > 1 {self.rescale_slope[frame as usize]} else {self.rescale_slope[0]}, 
-                                if self.rescale_intercept.len() > 1 {self.rescale_intercept[frame as usize]} else {self.rescale_intercept[0]}
-                            )
+                            if self.rescale.len() > 1 { self.rescale[frame as usize]} else {self.rescale[0]}
                         };
 
                         // fetch pixel data as a slice of u16 values,
@@ -1563,8 +1560,7 @@ impl DecodedPixelData<'_> {
             rows: self.rows,
             cols: self.cols,
             samples_per_pixel: self.samples_per_pixel,
-            rescale_intercept: self.rescale_intercept.clone(),
-            rescale_slope: self.rescale_slope.clone(),
+            rescale: self.rescale.to_vec(),
             voi_lut_function: self.voi_lut_function.clone(),
             window: self.window.clone(),
         }
@@ -1760,7 +1756,6 @@ impl ImagingProperties {
         let bits_stored = bits_stored(obj)?;
         let high_bit = high_bit(obj)?;
         let pixel_representation = pixel_representation(obj)?;
-        // TODO: Update to vecs.
         let rescale_intercept = rescale_intercept(obj);
         let rescale_slope = rescale_slope(obj);
         let number_of_frames = number_of_frames(obj)?;
@@ -1865,6 +1860,10 @@ where
             .fail()?;
         }
 
+        let rescale = zip(&rescale_intercept, &rescale_slope)
+            .map(|(intercept, slope)| Rescale { intercept: *intercept, slope: *slope })
+            .collect();
+
         // Try decoding it using a registered pixel data decoder
         if let Codec::EncapsulatedPixelData(Some(decoder), _) = ts.codec() {
             let mut data: Vec<u8> = Vec::new();
@@ -1892,8 +1891,7 @@ where
                 bits_stored,
                 high_bit,
                 pixel_representation,
-                rescale_intercept,
-                rescale_slope,
+                rescale,
                 voi_lut_function,
                 window,
             });
@@ -1924,8 +1922,7 @@ where
             bits_stored,
             high_bit,
             pixel_representation,
-            rescale_intercept,
-            rescale_slope,
+            rescale,
             voi_lut_function,
             window,
         })
@@ -1965,6 +1962,10 @@ where
             .fail()?;
         }
 
+        let rescale = zip(&rescale_intercept, &rescale_slope)
+            .map(|(intercept, slope)| Rescale { intercept: *intercept, slope: *slope })
+            .collect();
+
         // Try decoding it using a registered pixel data decoder
         if let Codec::EncapsulatedPixelData(Some(decoder), _) = ts.codec() {
             let mut data: Vec<u8> = Vec::new();
@@ -1992,8 +1993,7 @@ where
                 bits_stored,
                 high_bit,
                 pixel_representation,
-                rescale_intercept,
-                rescale_slope,
+                rescale,
                 voi_lut_function,
                 window,
             });
@@ -2035,8 +2035,7 @@ where
             bits_stored,
             high_bit,
             pixel_representation,
-            rescale_intercept,
-            rescale_slope,
+            rescale,
             voi_lut_function,
             window,
         })

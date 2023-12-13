@@ -3,7 +3,6 @@
 use dicom_core::{DataDictionary, Tag};
 use dicom_dictionary_std::tags;
 use dicom_object::{mem::InMemElement, FileDicomObject, InMemDicomObject};
-use num_traits::FloatConst;
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::fmt;
 
