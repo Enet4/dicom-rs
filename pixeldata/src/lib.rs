@@ -1184,8 +1184,10 @@ impl DecodedPixelData<'_> {
                     {
                         let rescale = if let ModalityLutOption::Override(rescale) = modality_lut {
                             *rescale
+                        } else if self.rescale().len() > 1 {
+                            self.rescale()[frame as usize]
                         } else {
-                            if self.rescale().len() > 1 {self.rescale()[frame as usize]} else {self.rescale()[0]}
+                            self.rescale()[0]
                         };
                         let signed = self.pixel_representation == PixelRepresentation::Signed;
 
@@ -1264,8 +1266,10 @@ impl DecodedPixelData<'_> {
 
                         let rescale = if let ModalityLutOption::Override(rescale) = modality_lut {
                             *rescale
+                        } else if self.rescale().len() > 1 {
+                            self.rescale()[frame as usize]
                         } else {
-                            if self.rescale().len() > 1 {self.rescale()[frame as usize]} else {self.rescale()[0]}
+                            self.rescale()[0]
                         };
 
                         let signed = self.pixel_representation == PixelRepresentation::Signed;

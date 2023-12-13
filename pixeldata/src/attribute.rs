@@ -130,7 +130,7 @@ pub fn voi_lut_function<D: DataDictionary + Clone>(
             .collect::<Result<Vec<_>>>()?;
         Ok(Some(res))
     } else {
-        return Ok(None);
+        Ok(None)
     }
 }
 
@@ -198,10 +198,10 @@ fn get_from_per_frame<D: DataDictionary + Clone>(
         .items()?
         .iter()
         .map(|item| {
-            Some(item.get(selector[0])?
+            item.get(selector[0])?
                 .items()?
                 .get(0)?
-                .get(selector[1])?)
+                .get(selector[1])
         })
         .collect::<Option<Vec<_>>>()
 }
