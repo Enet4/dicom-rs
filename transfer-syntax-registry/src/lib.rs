@@ -62,9 +62,9 @@
 //! | JPEG 2000 Part 2 Multi-component Image Compression | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | RLE Lossless                  | Cargo feature `rle` | x |
 //!
-//! Cargo features behind `native` (`jpeg`, `rle`, `openjp2`)
-//! provide implementations that are written in pure Rust,
-//! and so they are easier to build and may be available in all platforms supported by Rust.
+//! Cargo features behind `native` (`jpeg`, `rle`)
+//! provide implementations that are written in pure Rust
+//! and are likely available in all supported platforms.
 //! However, a native implementation might not always be available,
 //! or alternative implementations may be preferred:
 //! 
@@ -73,6 +73,9 @@
 //!   It may offer better performance than the pure Rust implementation,
 //!   but cannot be used in WebAssembly.
 //!   Include `openjpeg-sys-threads` to build OpenJPEG with multithreading.
+//! - `openjp2` provides a binding to a computer-translated Rust port of OpenJPEG.
+//!   Due to the nature of this crate,
+//!   it does not work on all supported platforms.
 //! 
 //! Transfer syntaxes which are not supported,
 //! either due to being unable to read the data set

@@ -16,12 +16,13 @@ default = ["rayon", "simd"]
 inventory-registry = ['dicom-encoding/inventory-registry']
 
 # natively implemented image encodings
-native = ["jpeg", "openjp2", "rle"]
+native = ["jpeg", "rle"]
 # native implementations that work on Windows
 native_windows = ["jpeg", "rle"]
 # native JPEG support
 jpeg = ["jpeg-decoder", "jpeg-encoder"]
-# native JPEG 2000 support via the OpenJPEG Rust port
+# JPEG 2000 support via the OpenJPEG Rust port,
+# works on Linux and a few other platforms
 openjp2 = ["dep:jpeg2k", "jpeg2k/openjp2"]
 # native RLE lossless support
 rle = []
