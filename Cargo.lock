@@ -3,15 +3,6 @@
 version = 3
 
 [[package]]
-name = "addr2line"
-version = "0.21.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a30b2e23b9e17a9f90641c7ab1549cd9b44f296d3ccbf309d2863cfe398a0cb"
-dependencies = [
- "gimli",
-]
-
-[[package]]
 name = "adler"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -100,21 +91,6 @@ name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
-
-[[package]]
-name = "backtrace"
-version = "0.3.69"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2089b7e3f35b9dd2d0ed921ead4f6d318c27680d4a5bd167b3ee120edb105837"
-dependencies = [
- "addr2line",
- "cc",
- "cfg-if",
- "libc",
- "miniz_oxide",
- "object",
- "rustc-demangle",
-]
 
 [[package]]
 name = "base64"
@@ -394,7 +370,7 @@ dependencies = [
  "num-traits",
  "safe-transmute",
  "smallvec",
- "snafu",
+ "snafu 0.8.0",
 ]
 
 [[package]]
@@ -431,7 +407,7 @@ dependencies = [
  "dicom-object",
  "dicom-transfer-syntax-registry",
  "owo-colors",
- "snafu",
+ "snafu 0.8.0",
  "terminal_size",
 ]
 
@@ -446,7 +422,7 @@ dependencies = [
  "dicom-object",
  "dicom-transfer-syntax-registry",
  "dicom-ul",
- "snafu",
+ "snafu 0.8.0",
  "tracing",
  "tracing-subscriber",
 ]
@@ -460,7 +436,7 @@ dependencies = [
  "dicom-dictionary-std",
  "encoding",
  "inventory",
- "snafu",
+ "snafu 0.8.0",
 ]
 
 [[package]]
@@ -475,7 +451,7 @@ dependencies = [
  "dicom-object",
  "dicom-transfer-syntax-registry",
  "dicom-ul",
- "snafu",
+ "snafu 0.8.0",
  "tracing",
  "tracing-subscriber",
 ]
@@ -489,7 +465,7 @@ dependencies = [
  "dicom-dictionary-std",
  "dicom-object",
  "image",
- "snafu",
+ "snafu 0.8.0",
  "tracing",
  "tracing-subscriber",
 ]
@@ -522,7 +498,7 @@ dependencies = [
  "dicom-transfer-syntax-registry",
  "itertools",
  "smallvec",
- "snafu",
+ "snafu 0.8.0",
  "tempfile",
  "tracing",
 ]
@@ -536,7 +512,7 @@ dependencies = [
  "dicom-dictionary-std",
  "dicom-encoding",
  "smallvec",
- "snafu",
+ "snafu 0.8.0",
  "tracing",
 ]
 
@@ -558,7 +534,7 @@ dependencies = [
  "num-traits",
  "rayon",
  "rstest",
- "snafu",
+ "snafu 0.8.0",
  "tracing",
  "tracing-subscriber",
 ]
@@ -570,7 +546,7 @@ dependencies = [
  "clap",
  "dicom-dictionary-std",
  "dicom-ul",
- "snafu",
+ "snafu 0.8.0",
  "tracing",
  "tracing-subscriber",
 ]
@@ -586,7 +562,7 @@ dependencies = [
  "dicom-object",
  "dicom-transfer-syntax-registry",
  "dicom-ul",
- "snafu",
+ "snafu 0.8.0",
  "tracing",
  "tracing-subscriber",
 ]
@@ -604,7 +580,7 @@ dependencies = [
  "dicom-transfer-syntax-registry",
  "dicom-ul",
  "indicatif",
- "snafu",
+ "snafu 0.8.0",
  "tracing",
  "tracing-subscriber",
  "walkdir",
@@ -630,7 +606,7 @@ dependencies = [
  "dicom-dictionary-std",
  "dicom-object",
  "dicom-pixeldata",
- "snafu",
+ "snafu 0.8.0",
  "tracing",
  "tracing-subscriber",
 ]
@@ -658,7 +634,7 @@ dependencies = [
  "dicom-encoding",
  "dicom-transfer-syntax-registry",
  "matches",
- "snafu",
+ "snafu 0.8.0",
  "tracing",
 ]
 
@@ -949,7 +925,7 @@ dependencies = [
  "cc",
  "cmake",
  "libc",
- "snafu",
+ "snafu 0.7.5",
  "strum",
  "strum_macros",
 ]
@@ -974,12 +950,6 @@ dependencies = [
  "libc",
  "wasi",
 ]
-
-[[package]]
-name = "gimli"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fb8d784f27acf97159b40fc4db5ecd8aa23b9ad5ef69cdd136d3bc80665f0c0"
 
 [[package]]
 name = "glob"
@@ -1327,15 +1297,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
-name = "object"
-version = "0.32.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cf5f9dd3933bd50a9e1f149ec995f39ae2c496d31fd772c1fd45ebc27e902b0"
-dependencies = [
- "memchr",
-]
-
-[[package]]
 name = "once_cell"
 version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1570,12 +1531,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustc-demangle"
-version = "0.1.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d626bb9dae77e28219937af045c257c28bfd3f69333c512553507f5f9798cb76"
-
-[[package]]
 name = "rustc_version"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1747,9 +1702,17 @@ version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4de37ad025c587a29e8f3f5605c00f70b98715ef90b9061a815b9e59e9042d6"
 dependencies = [
- "backtrace",
  "doc-comment",
- "snafu-derive",
+ "snafu-derive 0.7.5",
+]
+
+[[package]]
+name = "snafu"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d342c51730e54029130d7dc9fd735d28c4cd360f1368c01981d4f03ff207f096"
+dependencies = [
+ "snafu-derive 0.8.0",
 ]
 
 [[package]]
@@ -1762,6 +1725,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "snafu-derive"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "080c44971436b1af15d6f61ddd8b543995cf63ab8e677d46b00cc06f4ef267a0"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.39",
 ]
 
 [[package]]

@@ -717,7 +717,7 @@ mod tests {
 
     #[test]
     fn errors_not_too_large() {
-        assert_type_not_too_large::<AccessError>(48);
+        assert_type_not_too_large::<AccessError>(56);
     }
 
     #[test]
