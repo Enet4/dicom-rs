@@ -78,12 +78,27 @@ pub enum GetAttributeError {
         value: String,
         backtrace: Backtrace,
     },
-
     #[snafu(visibility(pub))]
-    #[snafu(display("Lengths must all be the same for `{:?}`, found `{:?}`", items, values))]
-    LengthMismatch {
-        items: Vec<AttributeName>,
-        values: Vec<String>,
+    #[snafu(display("Value multiplicity of VOI LUT Function must match the number of frames. Expected `{:?}`, found `{:?}`", nr_frames, vm))]
+    LengthMismatchVoiLutFunction {
+        vm: u32,
+        nr_frames: u32,
+        backtrace: Backtrace,
+    },
+    #[snafu(visibility(pub))]
+    #[snafu(display("Value multiplicity of Rescale Slope/Intercept must match the number of frames. Expected `{:?}`, found `{:?}` (slope), `{:?}` (intercept)", nr_frames, slope_vm, intercept_vm))]
+    LengthMismatchRescale {
+        intercept_vm: u32,
+        slope_vm: u32,
+        nr_frames: u32,
+        backtrace: Backtrace,
+    },
+    #[snafu(visibility(pub))]
+    #[snafu(display("Value multiplicity of Window Center/Width must match the number of frames. Expected `{:?}`, found `{:?}` (center), `{:?}` (width)", nr_frames, wc_vm, ww_vm))]
+    LengthMismatchWindowLevel {
+        wc_vm: u32,
+        ww_vm: u32,
+        nr_frames: u32,
         backtrace: Backtrace,
     },
 }

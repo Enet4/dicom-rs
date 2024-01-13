@@ -1770,26 +1770,28 @@ impl ImagingProperties {
                 .collect()
             );
         if let Some(inner) = &voi_lut_function {
-            ensure!((inner.len() == number_of_frames as usize || inner.len() == 1), LengthMismatchSnafu {
-                items: vec![AttributeName::VoiLutFunction, AttributeName::NumberOfFrames],
-                values: vec![inner.len().to_string(), number_of_frames.to_string()]
+            ensure!((inner.len() == number_of_frames as usize || inner.len() == 1), LengthMismatchVoiLutFunctionSnafu{
+                vm: inner.len() as u32,
+                nr_frames: number_of_frames as u32
             });
         }
 
         ensure!(
             rescale_intercept.len() == rescale_slope.len() &&
                 (rescale_slope.len() == number_of_frames as usize || rescale_slope.len() == 1),
-        LengthMismatchSnafu {
-            items: vec![AttributeName::RescaleSlope, AttributeName::RescaleIntercept, AttributeName::NumberOfFrames],
-            values: vec![rescale_slope.len().to_string(), rescale_intercept.len().to_string(), number_of_frames.to_string()]
+        LengthMismatchRescaleSnafu {
+            slope_vm: rescale_slope.len() as u32,
+            intercept_vm: rescale_intercept.len() as u32,
+            nr_frames: number_of_frames as u32
         });
 
         let window = if let Some(wcs) = window_center(obj)? {
             let width = window_width(obj)?;
             if let Some(wws) = width {
-                ensure!(wcs.len() == wws.len() && (wws.len() == number_of_frames as usize || wws.len() == 1), LengthMismatchSnafu {
-                    items: vec![AttributeName::WindowCenter, AttributeName::WindowWidth, AttributeName::NumberOfFrames],
-                    values: vec![wws.len().to_string(), wcs.len().to_string(), number_of_frames.to_string()]
+                ensure!(wcs.len() == wws.len() && (wws.len() == number_of_frames as usize || wws.len() == 1), LengthMismatchWindowLevelSnafu {
+                    wc_vm: wcs.len() as u32,
+                    ww_vm: wws.len() as u32,
+                    nr_frames: number_of_frames as u32
                 });
                 Some(zip(wcs, wws)
                     .map(|(wc, ww)| WindowLevel {
