@@ -121,10 +121,9 @@ use num_traits::NumCast;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 #[cfg(all(feature = "rayon", feature = "image"))]
 use rayon::slice::ParallelSliceMut;
-use snafu::{OptionExt, ensure};
-use snafu::{Backtrace, ResultExt, Snafu};
-use std::borrow::Cow;
+use snafu::{Backtrace, ResultExt, Snafu, OptionExt, ensure};
 use std::iter::zip;
+use std::borrow::Cow;
 
 #[cfg(feature = "image")]
 pub use image;
@@ -807,8 +806,10 @@ impl DecodedPixelData<'_> {
                     ModalityLutOption::Default | ModalityLutOption::Override(..) => {
                         let rescale = if let ModalityLutOption::Override(rescale) = modality_lut {
                             *rescale
+                        } else if self.rescale().len() > 1 {
+                            self.rescale()[frame as usize]
                         } else {
-                            if self.rescale().len() > 1 {self.rescale()[frame as usize]} else {self.rescale()[0]}
+                            self.rescale()[0]
                         };
 
                         let signed = self.pixel_representation == PixelRepresentation::Signed;
@@ -919,8 +920,10 @@ impl DecodedPixelData<'_> {
                     ModalityLutOption::Default | ModalityLutOption::Override(..) => {
                         let rescale = if let ModalityLutOption::Override(rescale) = modality_lut {
                             *rescale
+                        } else if self.rescale.len() > 1 { 
+                            self.rescale[frame as usize]
                         } else {
-                            if self.rescale.len() > 1 { self.rescale[frame as usize]} else {self.rescale[0]}
+                            self.rescale[0]
                         };
 
                         // fetch pixel data as a slice of u16 values,

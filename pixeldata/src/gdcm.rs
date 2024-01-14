@@ -9,7 +9,8 @@ use gdcm_rs::{
     decode_multi_frame_compressed, decode_single_frame_compressed, Error as GDCMError,
     GDCMPhotometricInterpretation, GDCMTransferSyntax,
 };
-use std::{convert::TryFrom, str::FromStr};
+use std::{convert::TryFrom, str::FromStr, iter::zip};
+use snafu::{ensure, ResultExt};
 
 impl<D> PixelDecoder for FileDicomObject<InMemDicomObject<D>>
 where
@@ -59,7 +60,26 @@ where
         let rescale_slope = rescale_slope(self);
         let number_of_frames = number_of_frames(self).context(GetAttributeSnafu)?;
         let voi_lut_function = voi_lut_function(self).context(GetAttributeSnafu)?;
-        let voi_lut_function = voi_lut_function.and_then(|v| VoiLutFunction::try_from(&*v).ok());
+        let voi_lut_function: Option<Vec<VoiLutFunction>> = voi_lut_function.
+            and_then(|fns| fns.iter()
+                .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
+                .collect()
+            );
+        if let Some(inner) = &voi_lut_function {
+            if !(inner.len() == number_of_frames as usize || inner.len() == 1) {
+                LengthMismatchVoiLutFunctionSnafu {
+                    vm: inner.len() as u32,
+                    nr_frames: number_of_frames as u32
+                }.fail().context(GetAttributeSnafu)?;
+            } 
+        }
+        if !(rescale_intercept.len() == rescale_slope.len() && (rescale_slope.len() == number_of_frames as usize || rescale_slope.len() == 1)) {
+            LengthMismatchRescaleSnafu {
+                slope_vm: rescale_slope.len() as u32,
+                intercept_vm: rescale_intercept.len() as u32,
+                nr_frames: number_of_frames as u32
+            }.fail().context(GetAttributeSnafu)?;
+        }
 
         let decoded_pixel_data = match pixel_data.value() {
             Value::PixelSequence(v) => {
@@ -119,13 +139,31 @@ where
             _ => photometric_interpretation,
         };
 
-        let window = if let Some(window_center) = window_center(self).context(GetAttributeSnafu)? {
-            let window_width = window_width(self).context(GetAttributeSnafu)?;
+        let rescale = zip(&rescale_intercept, &rescale_slope)
+            .map(|(intercept, slope)| Rescale { intercept: *intercept, slope: *slope })
+            .collect();
 
-            window_width.map(|width| WindowLevel {
-                center: window_center,
-                width,
-            })
+        let window = if let Some(wcs) = window_center(self).context(GetAttributeSnafu)? {
+            let width = window_width(self).context(GetAttributeSnafu)?;
+            if let Some(wws) = width {
+                if !(wcs.len() == wws.len() && (wws.len() == number_of_frames as usize || wws.len() == 1)) {
+
+                    LengthMismatchWindowLevelSnafu {
+                        wc_vm: wcs.len() as u32,
+                        ww_vm: wws.len() as u32,
+                        nr_frames: number_of_frames as u32
+                    }.fail().context(GetAttributeSnafu)?;
+                }
+                Some(zip(wcs, wws)
+                    .map(|(wc, ww)| WindowLevel {
+                        center: wc,
+                        width: ww,
+                    })
+                    .collect())
+            }
+            else {
+                None
+            }
         } else {
             None
         };
@@ -142,8 +180,7 @@ where
             bits_stored,
             high_bit,
             pixel_representation,
-            rescale_intercept,
-            rescale_slope,
+            rescale,
             voi_lut_function,
             window,
         })
