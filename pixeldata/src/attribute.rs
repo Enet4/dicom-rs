@@ -491,8 +491,7 @@ pub fn photometric_interpretation<D: DataDictionary + Clone>(
         .context(MissingRequiredSnafu { name })?
         .string()
         .context(CastValueSnafu { name })?
-        .trim()
-        .trim_matches(char::from(0))
+        .trim_matches(|c: char| c.is_whitespace() || c == '\0')
         .into())
 }
 
