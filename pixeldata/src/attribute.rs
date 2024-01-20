@@ -184,7 +184,7 @@ fn get_from_shared<D: DataDictionary + Clone>(
         .or_else(|| obj.get(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE)?.items()?
             .get(0)?
             .get(selector[1]))
-        .map(|inner| std::iter::once(inner))
+        .map(std::iter::once)
 }
 
 fn get_from_per_frame<D: DataDictionary + Clone>(
@@ -194,13 +194,12 @@ fn get_from_per_frame<D: DataDictionary + Clone>(
     Some(obj.get(tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE)?
         .items()?
         .iter()
-        .map(move |item| {
+        .filter_map(move |item| {
             item.get(selector[0])?
                 .items()?
                 .get(0)?
                 .get(selector[1])
-        })
-        .filter_map(|inner| inner))
+        }))
 }
 
 /// Get the RescaleIntercept from the DICOM object or returns 0
