@@ -66,20 +66,19 @@ where
                 .collect()
             );
         if let Some(inner) = &voi_lut_function {
-            if !(inner.len() == number_of_frames as usize || inner.len() == 1) {
-                LengthMismatchVoiLutFunctionSnafu {
-                    vm: inner.len() as u32,
-                    nr_frames: number_of_frames as u32
-                }.fail().context(GetAttributeSnafu)?;
-            } 
-        }
-        if !(rescale_intercept.len() == rescale_slope.len() && (rescale_slope.len() == number_of_frames as usize || rescale_slope.len() == 1)) {
-            LengthMismatchRescaleSnafu {
-                slope_vm: rescale_slope.len() as u32,
-                intercept_vm: rescale_intercept.len() as u32,
+            ensure!((inner.len() == number_of_frames as usize || inner.len() == 1), LengthMismatchVoiLutFunctionSnafu{
+                vm: inner.len() as u32,
                 nr_frames: number_of_frames as u32
-            }.fail().context(GetAttributeSnafu)?;
+            });
         }
+        ensure!(
+            rescale_intercept.len() == rescale_slope.len() &&
+                (rescale_slope.len() == number_of_frames as usize || rescale_slope.len() == 1),
+        LengthMismatchRescaleSnafu {
+            slope_vm: rescale_slope.len() as u32,
+            intercept_vm: rescale_intercept.len() as u32,
+            nr_frames: number_of_frames as u32
+        });
 
         let decoded_pixel_data = match pixel_data.value() {
             Value::PixelSequence(v) => {
@@ -146,14 +145,11 @@ where
         let window = if let Some(wcs) = window_center(self).context(GetAttributeSnafu)? {
             let width = window_width(self).context(GetAttributeSnafu)?;
             if let Some(wws) = width {
-                if !(wcs.len() == wws.len() && (wws.len() == number_of_frames as usize || wws.len() == 1)) {
-
-                    LengthMismatchWindowLevelSnafu {
-                        wc_vm: wcs.len() as u32,
-                        ww_vm: wws.len() as u32,
-                        nr_frames: number_of_frames as u32
-                    }.fail().context(GetAttributeSnafu)?;
-                }
+                ensure!(wcs.len() == wws.len() && (wws.len() == number_of_frames as usize || wws.len() == 1), LengthMismatchWindowLevelSnafu {
+                    wc_vm: wcs.len() as u32,
+                    ww_vm: wws.len() as u32,
+                    nr_frames: number_of_frames as u32
+                });
                 Some(zip(wcs, wws)
                     .map(|(wc, ww)| WindowLevel {
                         center: wc,

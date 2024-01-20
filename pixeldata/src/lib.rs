@@ -220,6 +220,26 @@ pub enum InnerError {
         frame_number: u32,
         backtrace: Backtrace,
     },
+    #[snafu(display("Value multiplicity of VOI LUT Function must match the number of frames. Expected `{:?}`, found `{:?}`", nr_frames, vm))]
+    LengthMismatchVoiLutFunction {
+        vm: u32,
+        nr_frames: u32,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("Value multiplicity of Rescale Slope/Intercept must match the number of frames. Expected `{:?}`, found `{:?}` (slope), `{:?}` (intercept)", nr_frames, slope_vm, intercept_vm))]
+    LengthMismatchRescale {
+        intercept_vm: u32,
+        slope_vm: u32,
+        nr_frames: u32,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("Value multiplicity of Window Center/Width must match the number of frames. Expected `{:?}`, found `{:?}` (center), `{:?}` (width)", nr_frames, wc_vm, ww_vm))]
+    LengthMismatchWindowLevel {
+        wc_vm: u32,
+        ww_vm: u32,
+        nr_frames: u32,
+        backtrace: Backtrace,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -1747,26 +1767,26 @@ pub(crate) struct ImagingProperties {
 impl ImagingProperties {
     fn from_obj<D>(
         obj: &FileDicomObject<InMemDicomObject<D>>,
-    ) -> Result<Self, attribute::GetAttributeError>
+    ) -> Result<Self>
     where
         D: Clone + DataDictionary,
     {
         use attribute::*;
         use std::convert::TryFrom;
 
-        let cols = cols(obj)?;
-        let rows = rows(obj)?;
-        let photometric_interpretation = photometric_interpretation(obj)?;
-        let samples_per_pixel = samples_per_pixel(obj)?;
-        let planar_configuration = planar_configuration(obj)?;
-        let bits_allocated = bits_allocated(obj)?;
-        let bits_stored = bits_stored(obj)?;
-        let high_bit = high_bit(obj)?;
-        let pixel_representation = pixel_representation(obj)?;
+        let cols = cols(obj).context(GetAttributeSnafu)?;
+        let rows = rows(obj).context(GetAttributeSnafu)?;
+        let photometric_interpretation = photometric_interpretation(obj).context(GetAttributeSnafu)?;
+        let samples_per_pixel = samples_per_pixel(obj).context(GetAttributeSnafu)?;
+        let planar_configuration = planar_configuration(obj).context(GetAttributeSnafu)?;
+        let bits_allocated = bits_allocated(obj).context(GetAttributeSnafu)?;
+        let bits_stored = bits_stored(obj).context(GetAttributeSnafu)?;
+        let high_bit = high_bit(obj).context(GetAttributeSnafu)?;
+        let pixel_representation = pixel_representation(obj).context(GetAttributeSnafu)?;
         let rescale_intercept = rescale_intercept(obj);
         let rescale_slope = rescale_slope(obj);
-        let number_of_frames = number_of_frames(obj)?;
-        let voi_lut_function = voi_lut_function(obj)?;
+        let number_of_frames = number_of_frames(obj).context(GetAttributeSnafu)?;
+        let voi_lut_function = voi_lut_function(obj).context(GetAttributeSnafu)?;
         let voi_lut_function: Option<Vec<VoiLutFunction>> = voi_lut_function.
             and_then(|fns| fns.iter()
                 .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
@@ -1788,8 +1808,8 @@ impl ImagingProperties {
             nr_frames: number_of_frames as u32
         });
 
-        let window = if let Some(wcs) = window_center(obj)? {
-            let width = window_width(obj)?;
+        let window = if let Some(wcs) = window_center(obj).context(GetAttributeSnafu)? {
+            let width = window_width(obj).context(GetAttributeSnafu)?;
             if let Some(wws) = width {
                 ensure!(wcs.len() == wws.len() && (wws.len() == number_of_frames as usize || wws.len() == 1), LengthMismatchWindowLevelSnafu {
                     wc_vm: wcs.len() as u32,
@@ -1853,7 +1873,7 @@ where
             number_of_frames,
             voi_lut_function,
             window,
-        } = ImagingProperties::from_obj(self).context(GetAttributeSnafu)?;
+        } = ImagingProperties::from_obj(self)?;
 
         let transfer_syntax = &self.meta().transfer_syntax;
         let ts = TransferSyntaxRegistry
@@ -1955,7 +1975,7 @@ where
             number_of_frames,
             voi_lut_function,
             window,
-        } = ImagingProperties::from_obj(self).context(GetAttributeSnafu)?;
+        } = ImagingProperties::from_obj(self)?;
 
         let transfer_syntax = &self.meta().transfer_syntax;
         let ts = TransferSyntaxRegistry
