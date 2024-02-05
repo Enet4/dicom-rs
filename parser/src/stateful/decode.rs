@@ -230,7 +230,6 @@ pub struct StatefulDecoder<D, S, BD = BasicDecoder, TC = SpecificCharacterSet> {
     decoder: D,
     basic: BD,
     text: TC,
-    dt_utc_offset: FixedOffset,
     buffer: Vec<u8>,
     /// the assumed position of the reader source
     position: u64,
@@ -291,7 +290,6 @@ where
             basic: LittleEndianBasicDecoder,
             decoder: ExplicitVRLittleEndianDecoder::default(),
             text: DefaultCharacterSetCodec,
-            dt_utc_offset: FixedOffset::east_opt(0).unwrap(),
             buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
             position: 0,
         }
@@ -322,7 +320,6 @@ where
             basic,
             decoder,
             text,
-            dt_utc_offset: FixedOffset::east_opt(0).unwrap(),
             buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
             position,
         }
@@ -588,7 +585,7 @@ where
         let vec: Result<_> = buf
             .split(|b| *b == b'\\')
             .map(|part| {
-                parse_datetime_partial(part, self.dt_utc_offset).context(DeserializeValueSnafu {
+                parse_datetime_partial(part).context(DeserializeValueSnafu {
                     position: self.position,
                 })
             })

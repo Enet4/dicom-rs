@@ -503,11 +503,8 @@ where
     ///
     /// Returns an error if the value is not primitive.
     ///
-    pub fn to_datetime(
-        &self,
-        default_offset: FixedOffset,
-    ) -> Result<DicomDateTime, ConvertValueError> {
-        self.value().to_datetime(default_offset)
+    pub fn to_datetime(&self) -> Result<DicomDateTime, ConvertValueError> {
+        self.value().to_datetime()
     }
 
     /// Retrieve and convert the primitive value into a sequence of date-times.
@@ -517,11 +514,8 @@ where
     ///
     /// Returns an error if the value is not primitive.
     ///
-    pub fn to_multi_datetime(
-        &self,
-        default_offset: FixedOffset,
-    ) -> Result<Vec<DicomDateTime>, ConvertValueError> {
-        self.value().to_multi_datetime(default_offset)
+    pub fn to_multi_datetime(&self) -> Result<Vec<DicomDateTime>, ConvertValueError> {
+        self.value().to_multi_datetime()
     }
 
     /// Retrieve the items stored in a sequence value.
