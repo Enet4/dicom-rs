@@ -92,6 +92,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// This trait is implemented by date / time structures with partial precision.
 /// If the date / time structure is not precise, it is up to the user to call one of these
 /// methods to retrieve a suitable  [`chrono`] value.
+/// 
 ///
 /// # Examples
 ///
@@ -150,16 +151,6 @@ pub trait AsRange: Precision {
     /// Returns a tuple of the earliest and latest possible value from a partial precision structure.
     fn range(&self) -> Result<Self::Range>;
 
-    /// Returns `true` if partial precision structure has the maximum possible accuracy and is
-    /// a valid date / time.
-    /// For fraction of a second, the full 6 digits are required for the value to be precise.
-    /// 
-    fn is_precise(&self) -> bool {
-        let e = self.earliest();
-        let l = self.latest();
-
-        e.is_ok() && l.is_ok() && e.ok() == l.ok()
-    }
 }
 
 impl AsRange for DicomDate {
@@ -764,13 +755,13 @@ impl DateTimeRange {
         }
     }
 
-    pub fn has_time_zone(&self) -> bool {
+    /*pub fn has_time_zone(&self) -> bool {
         self.time_zone().is_some()
     }
 
     pub fn time_zone(&self) -> Option<&FixedOffset> {
-        self.time_zone()
-    }
+        self.time_zone.as_ref()
+    }*/
 }
 
 /**
