@@ -176,39 +176,42 @@ enum DicomTimeImpl {
 /// Represents a Dicom DateTime value with a partial precision,
 /// where some date or time components may be missing.
 ///
-/// `DicomDateTime` is always internally represented by a [DicomDate]
-/// and optionally by a [DicomTime] and a timezone [FixedOffset].
+/// `DicomDateTime` is always internally represented by a [DicomDate].
+/// The [DicomTime] and a timezone [FixedOffset] values are optional.
 ///
-/// It implements [AsRange] trait and optionally holds a [FixedOffset] value, from which corresponding
-/// [datetime][DateTime] values can be retrieved.
+/// It implements [AsRange] trait, which serves to access usable precise values from `DicomDateTime` values
+/// with missing components in the form of [PreciseDateTimeResult].
 /// # Example
 /// ```
 /// # use std::error::Error;
 /// # use std::convert::TryFrom;
 /// use chrono::{DateTime, FixedOffset, TimeZone, NaiveDateTime, NaiveDate, NaiveTime};
-/// use dicom_core::value::{DicomDate, DicomTime, DicomDateTime, AsRange};
+/// use dicom_core::value::{DicomDate, DicomTime, DicomDateTime, AsRange, PreciseDateTimeResult};
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
 /// let offset = FixedOffset::east_opt(3600).unwrap();
 ///
-/// // the least precise date-time value possible is a 'YYYY'
-/// let dt = DicomDateTime::from_date(
+/// // lets create the least precise date-time value possible 'YYYY' and make it time-zone aware
+/// let dt = DicomDateTime::from_date_with_time_zone(
 ///     DicomDate::from_y(2020)?,
 ///     offset
 /// );
+/// // the earliest possible value is output as a [PreciseDateTimeResult]
 /// assert_eq!(
-///     Some(dt.earliest()?),
+///     dt.earliest()?,
+///     PreciseDateTimeResult::WithTimeZone(
 ///     offset.from_local_datetime(&NaiveDateTime::new(
 ///         NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
 ///         NaiveTime::from_hms_opt(0, 0, 0).unwrap()
-///     )).single()
+///     )).single().unwrap())
 /// );
 /// assert_eq!(
-///     Some(dt.latest()?),
+///     dt.latest()?,
+///     PreciseDateTimeResult::WithTimeZone(
 ///     offset.from_local_datetime(&NaiveDateTime::new(
 ///         NaiveDate::from_ymd_opt(2020, 12, 31).unwrap(),
 ///         NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
-///     )).single()
+///     )).single().unwrap())
 /// );
 ///
 /// let chrono_datetime = offset.from_local_datetime(&NaiveDateTime::new(

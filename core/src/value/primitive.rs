@@ -2674,10 +2674,10 @@ impl PrimitiveValue {
     /// # fn main() -> Result<(), Box<dyn Error>> {
     /// let default_offset = FixedOffset::east(0);
     ///
-    /// // full accuracy `DicomDateTime` can be converted
+    /// // full accuracy `DicomDateTime` with a time-zone can be converted
     /// assert_eq!(
     ///     PrimitiveValue::from(
-    ///         DicomDateTime::from_date_and_time(
+    ///         DicomDateTime::from_date_and_time_with_time_zone(
     ///         DicomDate::from_ymd(2012, 12, 21)?,
     ///         DicomTime::from_hms_micro(9, 30, 1, 1)?,
     ///         default_offset
@@ -2873,49 +2873,54 @@ impl PrimitiveValue {
     /// ```
     /// # use dicom_core::value::{C, PrimitiveValue};
     /// # use smallvec::smallvec;
-    /// # use chrono::{DateTime, FixedOffset, TimeZone};
+    /// # use chrono::{DateTime, FixedOffset, TimeZone, NaiveDateTime, NaiveDate, NaiveTime};
     /// # use std::error::Error;
-    /// use dicom_core::value::{DicomDateTime, AsRange, DateTimeRange};
+    /// use dicom_core::value::{DicomDateTime, AsRange, DateTimeRange, PreciseDateTimeResult};
     ///
     /// # fn main() -> Result<(), Box<dyn Error>> {
-    /// let default_offset = FixedOffset::east(0);
-    ///
-    /// let dt_value = PrimitiveValue::from("20121221093001.1").to_datetime(default_offset)?;
+    /// 
+    /// // let's parse a date-time text value with 0.1 second precision without a time-zone.
+    /// let dt_value = PrimitiveValue::from("20121221093001.1").to_datetime()?;
     ///
     /// assert_eq!(
     ///     dt_value.earliest()?,
-    ///     FixedOffset::east(0)
-    ///         .ymd(2012, 12, 21)
-    ///         .and_hms_micro(9, 30, 1, 100_000)
+    ///     PreciseDateTimeResult::Naive(NaiveDateTime::new(
+    ///      NaiveDate::from_ymd_opt(2012, 12, 21).unwrap(),
+    ///      NaiveTime::from_hms_micro_opt(9, 30, 1, 100_000).unwrap()
+    ///         ))
     /// );
     /// assert_eq!(
     ///     dt_value.latest()?,
-    ///     FixedOffset::east(0)
-    ///         .ymd(2012, 12, 21)
-    ///         .and_hms_micro(9, 30, 1, 199_999)
+    ///     PreciseDateTimeResult::Naive(NaiveDateTime::new(
+    ///      NaiveDate::from_ymd_opt(2012, 12, 21).unwrap(),
+    ///      NaiveTime::from_hms_micro_opt(9, 30, 1, 199_999).unwrap()
+    ///         ))
     /// );
     ///
-    /// let dt_value = PrimitiveValue::from("20121221093001.123456").to_datetime(default_offset)?;
+    /// let default_offset = FixedOffset::east(3600);
+    /// // let's parse a date-time text value with full precision with a time-zone east +01:00.
+    /// let dt_value = PrimitiveValue::from("20121221093001.123456+0100").to_datetime()?;
     ///
     /// // date-time has all components
     /// assert_eq!(dt_value.is_precise(), true);
     ///
-    /// assert!(dt_value.exact().is_ok());
-    ///
-    /// // .to_chrono_datetime() only works for a precise value
     /// assert_eq!(
-    ///     dt_value.to_chrono_datetime()?,
-    ///     dt_value.exact()?
+    ///     dt_value.exact()?,
+    ///     PreciseDateTimeResult::WithTimeZone(
+    ///     default_offset
+    ///     .ymd(2012,12,21)
+    ///     .and_hms_micro(9, 30, 1, 123_456)
+    ///     )      
     /// );
     ///
     /// // ranges are inclusive, for a precise value, two identical values are returned
     /// assert_eq!(
     ///     dt_value.range()?,
-    ///     DateTimeRange::from_start_to_end(
-    ///         FixedOffset::east(0)
+    ///     DateTimeRange::from_start_to_end_with_time_zone(
+    ///         FixedOffset::east(3600)
     ///             .ymd(2012, 12, 21)
     ///             .and_hms_micro(9, 30, 1, 123_456),
-    ///         FixedOffset::east(0)
+    ///         FixedOffset::east(3600)
     ///             .ymd(2012, 12, 21)
     ///             .and_hms_micro(9, 30, 1, 123_456))?
     ///     
@@ -3165,27 +3170,34 @@ impl PrimitiveValue {
     /// # use dicom_core::value::{C, PrimitiveValue};
     /// use chrono::{DateTime, FixedOffset, TimeZone};
     /// # use std::error::Error;
-    /// use dicom_core::value::{DateTimeRange};
+    /// use dicom_core::value::{DateTimeRange, PreciseDateTimeResult};
     ///
     /// # fn main() -> Result<(), Box<dyn Error>> {
     ///
-    /// let offset = FixedOffset::east(3600);
+    /// // let's parse a text representation of a date-time range, where the lower bound is a microsecond
+    /// // precision value with a time-zone (east +05:00) and the upper bound is a minimum precision value
+    /// // without a specified time-zone
+    /// let dt_range = PrimitiveValue::from("19920101153020.123+0500-1993").to_datetime_range()?;
     ///
-    /// let dt_range = PrimitiveValue::from("19920101153020.123+0500-1993").to_datetime_range(offset)?;
-    ///
-    /// // default offset override with parsed value
+    /// // lower bound of range is parsed into a PreciseDateTimeResult::WithTimeZone variant
     /// assert_eq!(
     ///     dt_range.start(),
-    ///     Some(&FixedOffset::east(5*3600).ymd(1992, 1, 1)
-    ///         .and_hms_micro(15, 30, 20, 123_000)  
+    ///     Some(PreciseDateTimeResult::WithTimeZone(
+    ///         FixedOffset::east_opt(5*3600).unwrap().ymd(1992, 1, 1)
+    ///         .and_hms_micro(15, 30, 20, 123_000)
+    ///         )  
     ///     )
     /// );
     ///
-    /// // null components default to latest possible
+    /// // null components of date-time default to latest possible
+    /// // because lower bound value is time-zone aware, the upper bound will also be parsed
+    /// // into a time-zone aware value with 
     /// assert_eq!(
     ///     dt_range.end(),
-    ///     Some(&offset.ymd(1993, 12, 31)
-    ///         .and_hms_micro(23, 59, 59, 999_999)  
+    ///     Some(PreciseDateTimeResult::WithTimeZone(
+    ///         FixedOffset::east_opt(0).unwrap().ymd(1993, 12, 31)
+    ///         .and_hms_micro(23, 59, 59, 999_999)
+    ///         )  
     ///     )
     /// );
     ///

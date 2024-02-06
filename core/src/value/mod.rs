@@ -16,7 +16,7 @@ pub mod serialize;
 pub use self::deserialize::Error as DeserializeError;
 pub use self::partial::{DicomDate, DicomDateTime, DicomTime};
 pub use self::person_name::PersonName;
-pub use self::range::{AsRange, DateRange, DateTimeRange, TimeRange};
+pub use self::range::{AsRange, DateRange, DateTimeRange, TimeRange, PreciseDateTimeResult};
 
 pub use self::primitive::{
     CastValueError, ConvertValueError, InvalidValueReadError, ModifyValueError, PrimitiveValue,

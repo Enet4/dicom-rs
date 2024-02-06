@@ -127,10 +127,10 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// # }
 /// ```
 pub trait AsRange: Precision {
-    type Item: PartialEq + PartialOrd;
+    type PreciseValue: PartialEq + PartialOrd;
     type Range;
     /// Returns a corresponding `chrono` value, if the partial precision structure has full accuracy.
-    fn exact(&self) -> Result<Self::Item> {
+    fn exact(&self) -> Result<Self::PreciseValue> {
         if self.is_precise() {
             Ok(self.earliest()?)
         } else {
@@ -138,20 +138,22 @@ pub trait AsRange: Precision {
         }
     }
 
-    /// Returns the earliest possible `chrono` value from a partial precision structure.
+    /// Returns the earliest possible valid `chrono` value from a partial precision structure.
     /// Missing components default to 1 (days, months) or 0 (hours, minutes, ...)
     /// If structure contains invalid combination of `DateComponent`s, it fails.
-    fn earliest(&self) -> Result<Self::Item>;
+    fn earliest(&self) -> Result<Self::PreciseValue>;
 
-    /// Returns the latest possible `chrono` value from a partial precision structure.
+    /// Returns the latest possible valid `chrono` value from a partial precision structure.
     /// If structure contains invalid combination of `DateComponent`s, it fails.
-    fn latest(&self) -> Result<Self::Item>;
+    fn latest(&self) -> Result<Self::PreciseValue>;
 
     /// Returns a tuple of the earliest and latest possible value from a partial precision structure.
     fn range(&self) -> Result<Self::Range>;
 
-    /// Returns `true` if partial precision structure has the maximum possible accuracy.
+    /// Returns `true` if partial precision structure has the maximum possible accuracy and is
+    /// a valid date / time.
     /// For fraction of a second, the full 6 digits are required for the value to be precise.
+    /// 
     fn is_precise(&self) -> bool {
         let e = self.earliest();
         let l = self.latest();
@@ -161,9 +163,9 @@ pub trait AsRange: Precision {
 }
 
 impl AsRange for DicomDate {
-    type Item = NaiveDate;
+    type PreciseValue = NaiveDate;
     type Range = DateRange;
-    fn earliest(&self) -> Result<Self::Item> {
+    fn earliest(&self) -> Result<Self::PreciseValue> {
         let (y, m, d) = {
             (
                 *self.year() as i32,
@@ -174,7 +176,7 @@ impl AsRange for DicomDate {
         NaiveDate::from_ymd_opt(y, m, d).context(InvalidDateSnafu { y, m, d })
     }
 
-    fn latest(&self) -> Result<Self::Item> {
+    fn latest(&self) -> Result<Self::PreciseValue> {
         let (y, m, d) = (
             self.year(),
             self.month().unwrap_or(&12),
@@ -227,9 +229,9 @@ impl AsRange for DicomDate {
 }
 
 impl AsRange for DicomTime {
-    type Item = NaiveTime;
+    type PreciseValue = NaiveTime;
     type Range = TimeRange;
-    fn earliest(&self) -> Result<Self::Item> {
+    fn earliest(&self) -> Result<Self::PreciseValue> {
         let (h, m, s, f) = (
             self.hour(),
             self.minute().unwrap_or(&0),
@@ -249,7 +251,7 @@ impl AsRange for DicomTime {
             },
         )
     }
-    fn latest(&self) -> Result<Self::Item> {
+    fn latest(&self) -> Result<Self::PreciseValue> {
         let (h, m, s, f) = (
             self.hour(),
             self.minute().unwrap_or(&59),
@@ -278,9 +280,9 @@ impl AsRange for DicomTime {
 }
 
 impl AsRange for DicomDateTime {
-    type Item = PreciseDateTimeResult;
+    type PreciseValue = PreciseDateTimeResult;
     type Range = DateTimeRange;
-    fn earliest(&self) -> Result<Self::Item> {
+    fn earliest(&self) -> Result<Self::PreciseValue> {
         let date = self.date().earliest()?;
         let time = match self.time() {
             Some(time) => time.earliest()?,
@@ -305,7 +307,7 @@ impl AsRange for DicomDateTime {
         }
     }
 
-    fn latest(&self) -> Result<Self::Item> {
+    fn latest(&self) -> Result<Self::PreciseValue> {
         let date = self.date().latest()?;
         let time = match self.time() {
             Some(time) => time.latest()?,
