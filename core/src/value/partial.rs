@@ -5,6 +5,7 @@ use snafu::{Backtrace, ResultExt, Snafu};
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::ops::RangeInclusive;
+use crate::value::AsRange;
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -91,7 +92,7 @@ pub enum DateComponent {
 /// # use std::error::Error;
 /// # use std::convert::TryFrom;
 /// use chrono::NaiveDate;
-/// use dicom_core::value::{DicomDate, AsRange};
+/// use dicom_core::value::{DicomDate, AsRange, Precision};
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
 /// let date = DicomDate::from_y(1492)?;
@@ -786,7 +787,7 @@ impl fmt::Debug for DicomDateTime {
 }
 
 
-/// This trait is implemented by partial precision date, time and date-time structures.
+/*/// This trait is implemented by partial precision date, time and date-time structures.
 /// This is useful to easily determine if the date / time value is precise without calling more expensive
 /// methods first.
 /// [Precision::precision()] method will retrieve the last fully precise component of it's stored date / time value.
@@ -847,7 +848,7 @@ impl fmt::Debug for DicomDateTime {
 pub trait Precision {
     /// will retrieve the last fully precise component of a date / time structure
     fn precision(&self) -> DateComponent;
-    /// returns true if value has all possible components
+    /// returns true if value has all possible date / time components
     fn is_precise(&self) -> bool;
 }
 
@@ -897,7 +898,7 @@ impl Precision for DicomDateTime {
             None => false
         }
     }
-}
+}*/
 
 impl DicomDate {
     /**

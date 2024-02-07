@@ -2,14 +2,14 @@
 //! Parsing into ranges happens via partial precision  structures (DicomDate, DicomTime,
 //! DicomDatime) so ranges can handle null components in date, time, date-time values.
 use chrono::{
-    offset, DateTime, FixedOffset, LocalResult, NaiveDate, NaiveDateTime, NaiveTime, TimeZone,
+    DateTime, FixedOffset, LocalResult, NaiveDate, NaiveDateTime, NaiveTime, TimeZone,
 };
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 
 use crate::value::deserialize::{
     parse_date_partial, parse_datetime_partial, parse_time_partial, Error as DeserializeError,
 };
-use crate::value::partial::{DateComponent, DicomDate, DicomDateTime, DicomTime, Precision};
+use crate::value::partial::{DateComponent, DicomDate, DicomDateTime, DicomTime};
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -85,14 +85,18 @@ pub enum Error {
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// The DICOM protocol accepts date / time values with null components.
+/// The DICOM protocol accepts date (DA) / time(TM) / date-time(DT) values with null components.
 ///
 /// Imprecise values are to be handled as date / time ranges.
 ///
 /// This trait is implemented by date / time structures with partial precision.
-/// If the date / time structure is not precise, it is up to the user to call one of these
-/// methods to retrieve a suitable  [`chrono`] value.
 /// 
+/// [Precision::is_precise()] method will check if the given value has full precision. If so, it can be
+/// converted with [AsRange::exact()] to a `chrono` value. If not, [AsRange::range()] will yield a 
+/// date / time range. 
+/// 
+/// Please note that precision does not equal validity. A precise 'YYYYMMDD' [DicomDate] can still
+/// fail to produce a valid [chrono::NaiveDate]
 ///
 /// # Examples
 ///
@@ -123,13 +127,51 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// );
 /// // only a time with 6 digits second fraction is considered precise
 /// assert!(dicom_time.exact().is_err());
+/// 
+/// let primitive = PrimitiveValue::from("199402");
+/// 
+/// // This is the fastest way to get to a useful value, but it fails not only for invalid
+/// // dates but for imprecise ones as well. 
+/// assert!(primitive.to_naive_date().is_err());
+/// 
+/// // We should take indermediary steps ...
+/// 
+/// // The parser now checks for basic year and month value ranges here.
+/// // But, it would not detect invalid dates like 30th of february etc.
+/// let dicom_date : DicomDate = primitive.to_date()?;
+/// 
+/// // now we have a valid DicomDate value, let's check if it's precise.
+/// if dicom_date.is_precise(){
+///         // no components are missing, we can proceed by calling .exact()
+///         // which calls the `chrono` library
+///         let precise_date: NaiveDate = dicom_date.exact()?;
+/// }
+/// else{
+///         // day and / or month are missing, no need to call expensive .exact() method 
+///         // - it will fail 
+///         // try to retrieve the date range instead
+///         let date_range: DateRange = dicom_date.range()?;
+/// 
+///         // the real conversion to a `chrono` value only happens at this stage
+///         if let Some(start)  = date_range.start(){
+///             // the range has a given lower date bound
+///         } 
+/// 
+///         // or try to retrieve the earliest possible value directly from DicomDate
+///         let earliest: NaiveDate = dicom_date.earliest()?;
+/// 
+/// }
 ///
 /// # Ok(())
 /// # }
 /// ```
-pub trait AsRange: Precision {
+pub trait AsRange {
     type PreciseValue: PartialEq + PartialOrd;
     type Range;
+
+    /// returns true if value has all possible date / time components
+    fn is_precise(&self) -> bool;
+
     /// Returns a corresponding `chrono` value, if the partial precision structure has full accuracy.
     fn exact(&self) -> Result<Self::PreciseValue> {
         if self.is_precise() {
@@ -156,6 +198,11 @@ pub trait AsRange: Precision {
 impl AsRange for DicomDate {
     type PreciseValue = NaiveDate;
     type Range = DateRange;
+
+    fn is_precise(&self) -> bool {
+        self.day().is_some()
+    }
+
     fn earliest(&self) -> Result<Self::PreciseValue> {
         let (y, m, d) = {
             (
@@ -222,6 +269,14 @@ impl AsRange for DicomDate {
 impl AsRange for DicomTime {
     type PreciseValue = NaiveTime;
     type Range = TimeRange;
+
+    fn is_precise(&self) -> bool {
+        match self.fraction_and_precision(){
+            Some((fr_, precision)) if precision == &6 => true,
+            _ => false
+        }
+    }
+
     fn earliest(&self) -> Result<Self::PreciseValue> {
         let (h, m, s, f) = (
             self.hour(),
@@ -273,6 +328,14 @@ impl AsRange for DicomTime {
 impl AsRange for DicomDateTime {
     type PreciseValue = PreciseDateTimeResult;
     type Range = DateTimeRange;
+
+    fn is_precise(&self) -> bool {
+        match self.time(){
+            Some(dicom_time) => dicom_time.is_precise(),
+            None => false
+        }
+    }
+
     fn earliest(&self) -> Result<Self::PreciseValue> {
         let date = self.date().earliest()?;
         let time = match self.time() {
@@ -361,9 +424,11 @@ impl DicomTime {
     ///
     /// Missing second fraction defaults to zero.
     pub fn to_naive_time(self) -> Result<NaiveTime> {
-        match self.precision() {
-            DateComponent::Second | DateComponent::Fraction => self.earliest(),
-            _ => ImpreciseValueSnafu.fail(),
+        if self.second().is_some() {
+            self.earliest()
+        }
+        else{
+            ImpreciseValueSnafu.fail()
         }
     }
 }
