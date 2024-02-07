@@ -5051,7 +5051,6 @@ mod tests {
 
     #[test]
     fn primitive_value_to_datetime_range() {
-        let offset = FixedOffset::west_opt(3600).unwrap();
 
         assert_eq!(
             dicom_value!(Str, "202002-20210228153012.123")
@@ -5069,25 +5068,24 @@ mod tests {
             )
             .unwrap()
         );
-        // East UTC offset gets parsed
+        // East UTC offset gets parsed but will result in an ambiguous dt-range variant
         assert_eq!(
             PrimitiveValue::from(&b"2020-2030+0800"[..])
                 .to_datetime_range()
                 .unwrap(),
-            DateTimeRange::from_start_to_end_with_time_zone(
-                FixedOffset::east_opt(0) // this offset is missing, so generated
-                    .unwrap()
-                    .with_ymd_and_hms(2020, 1, 1, 0, 0, 0)
-                    .unwrap(),
-                FixedOffset::east_opt(8 * 3600)
+            DateTimeRange::AmbiguousStart { 
+                ambiguous_start: NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
+                    NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+                ),
+                end: FixedOffset::east_opt(8 * 3600)
                     .unwrap()
                     .from_local_datetime(&NaiveDateTime::new(
                         NaiveDate::from_ymd_opt(2030, 12, 31).unwrap(),
                         NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
                     ))
                     .unwrap()
-            )
-            .unwrap()
+                }
         );
     }
 

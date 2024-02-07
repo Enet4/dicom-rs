@@ -1245,7 +1245,7 @@ mod tests {
             )
             .latest()
             .unwrap(),
-            PreciseDateTimeResult::WithTimeZone(
+            PreciseDateTimeResult::TimeZone(
             FixedOffset::east_opt(0)
                 .unwrap()
                 .from_local_datetime(&NaiveDateTime::new(
@@ -1266,7 +1266,7 @@ mod tests {
             .unwrap()
             .earliest()
             .unwrap(),
-            PreciseDateTimeResult::WithTimeZone(
+            PreciseDateTimeResult::TimeZone(
             FixedOffset::east_opt(0)
                 .unwrap()
                 .from_local_datetime(&NaiveDateTime::new(
@@ -1286,7 +1286,7 @@ mod tests {
             .unwrap()
             .latest()
             .unwrap(),
-            PreciseDateTimeResult::WithTimeZone(
+            PreciseDateTimeResult::TimeZone(
             FixedOffset::east_opt(0)
                 .unwrap()
                 .from_local_datetime(&NaiveDateTime::new(
