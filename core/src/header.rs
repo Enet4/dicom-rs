@@ -6,7 +6,6 @@ use crate::value::{
     CastValueError, ConvertValueError, DataSetSequence, DicomDate, DicomDateTime, DicomTime,
     InMemFragment, PrimitiveValue, Value, C,
 };
-use chrono::FixedOffset;
 use num_traits::NumCast;
 use snafu::{ensure, Backtrace, Snafu};
 use std::borrow::Cow;

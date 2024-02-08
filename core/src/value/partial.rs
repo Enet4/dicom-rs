@@ -1,11 +1,11 @@
 //! Handling of partial precision of Date, Time and DateTime values.
 
+use crate::value::AsRange;
 use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::ops::RangeInclusive;
-use crate::value::AsRange;
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -92,7 +92,7 @@ pub enum DateComponent {
 /// # use std::error::Error;
 /// # use std::convert::TryFrom;
 /// use chrono::NaiveDate;
-/// use dicom_core::value::{DicomDate, AsRange, Precision};
+/// use dicom_core::value::{DicomDate, AsRange};
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
 /// let date = DicomDate::from_y(1492)?;
@@ -207,7 +207,7 @@ enum DicomTimeImpl {
 /// // the earliest possible value is output as a [PreciseDateTimeResult]
 /// assert_eq!(
 ///     dt.earliest()?,
-///     PreciseDateTimeResult::WithTimeZone(
+///     PreciseDateTimeResult::TimeZone(
 ///     offset.from_local_datetime(&NaiveDateTime::new(
 ///         NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
 ///         NaiveTime::from_hms_opt(0, 0, 0).unwrap()
@@ -215,7 +215,7 @@ enum DicomTimeImpl {
 /// );
 /// assert_eq!(
 ///     dt.latest()?,
-///     PreciseDateTimeResult::WithTimeZone(
+///     PreciseDateTimeResult::TimeZone(
 ///     offset.from_local_datetime(&NaiveDateTime::new(
 ///         NaiveDate::from_ymd_opt(2020, 12, 31).unwrap(),
 ///         NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
@@ -326,6 +326,15 @@ impl DicomDate {
             DicomDate(DicomDateImpl::Year(_)) => None,
             DicomDate(DicomDateImpl::Month(_, _)) => None,
             DicomDate(DicomDateImpl::Day(_, _, d)) => Some(d),
+        }
+    }
+
+    /** Rertrieves the last fully precise `DateComponent` of the value */
+    pub(crate) fn precision(&self) -> DateComponent {
+        match self {
+            DicomDate(DicomDateImpl::Year(..)) => DateComponent::Year,
+            DicomDate(DicomDateImpl::Month(..)) => DateComponent::Month,
+            DicomDate(DicomDateImpl::Day(..)) => DateComponent::Day,
         }
     }
 }
@@ -515,6 +524,16 @@ impl DicomTime {
             frac_precision,
         )))
     }
+
+    /** Rertrieves the last fully precise `DateComponent` of the value */
+    pub(crate) fn precision(&self) -> DateComponent {
+        match self {
+            DicomTime(DicomTimeImpl::Hour(..)) => DateComponent::Hour,
+            DicomTime(DicomTimeImpl::Minute(..)) => DateComponent::Minute,
+            DicomTime(DicomTimeImpl::Second(..)) => DateComponent::Second,
+            DicomTime(DicomTimeImpl::Fraction(..)) => DateComponent::Fraction,
+        }
+    }
 }
 
 impl TryFrom<&NaiveTime> for DicomTime {
@@ -669,6 +688,10 @@ impl DicomDateTime {
     pub fn has_time_zone(&self) -> bool {
         self.time_zone.is_some()
     }
+
+    /** Retrieves a refrence to the internal offset value */
+    #[deprecated(since = "0.6.4", note = "Use `time_zone` instead")]
+    pub fn offset(&self) {}
 }
 
 impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
@@ -786,120 +809,6 @@ impl fmt::Debug for DicomDateTime {
     }
 }
 
-
-/*/// This trait is implemented by partial precision date, time and date-time structures.
-/// This is useful to easily determine if the date / time value is precise without calling more expensive
-/// methods first.
-/// [Precision::precision()] method will retrieve the last fully precise component of it's stored date / time value.
-/// [Precision::is_precise()] method will check if the given value has full precision. If so, it can be
-/// converted with [AsRange::exact()] to a `chrono` value. If not, [AsRange::range()] will yield a 
-/// date / time range.
-/// 
-/// Please note that precision does not equal validity. A precise 'YYYYMMDD' [DicomDate] can still
-/// fail to produce a valid [chrono::NaiveDate]
-/// 
-/// # Example
-/// 
-/// ```
-/// # use dicom_core::value::{C, PrimitiveValue};
-/// use chrono::{NaiveDate};
-/// # use std::error::Error;
-/// use dicom_core::value::{DateRange, DicomDate, AsRange, Precision};
-/// # fn main() -> Result<(), Box<dyn Error>> {
-/// 
-/// let primitive = PrimitiveValue::from("199402");
-/// 
-/// // the fastest way to get to a useful value, but it fails not only for invalid
-/// // dates but for imprecise ones as well. 
-/// assert!(primitive.to_naive_date().is_err());
-/// 
-/// // We should take indermediary steps ...
-/// 
-/// // The parser now checks for basic year and month value ranges here.
-/// // But, it would not detect invalid dates like 30th of february etc.
-/// let dicom_date : DicomDate = primitive.to_date()?;
-/// 
-/// // now we have a valid DicomDate value, let's check if it's precise.
-/// if dicom_date.is_precise(){
-///         // no components are missing, we can proceed by calling .exact()
-///         // which calls the `chrono` library
-///         let precise_date: NaiveDate = dicom_date.exact()?;
-/// }
-/// else{
-///         // day and / or month are missing, no need to call expensive .exact() method 
-///         // - it will fail 
-///         // try to retrieve the date range instead
-///         let date_range: DateRange = dicom_date.range()?;
-/// 
-///         // the real conversion to a `chrono` value only happens at this stage
-///         if let Some(start)  = date_range.start(){
-///             // the range has a given lower date bound
-///         } 
-/// 
-///         // or try to retrieve the earliest possible value directly from DicomDate
-///         let earliest: NaiveDate = dicom_date.earliest()?;
-/// 
-/// }
-/// 
-/// 
-/// # Ok(())
-/// # }
-/// ```
-pub trait Precision {
-    /// will retrieve the last fully precise component of a date / time structure
-    fn precision(&self) -> DateComponent;
-    /// returns true if value has all possible date / time components
-    fn is_precise(&self) -> bool;
-}
-
-impl Precision for DicomDate {
-    fn precision(&self) -> DateComponent {
-        match self {
-            DicomDate(DicomDateImpl::Year(..)) => DateComponent::Year,
-            DicomDate(DicomDateImpl::Month(..)) => DateComponent::Month,
-            DicomDate(DicomDateImpl::Day(..)) => DateComponent::Day,
-        }
-    }
-    fn is_precise(&self) -> bool {
-        match self{
-            DicomDate(DicomDateImpl::Day(..)) => true,
-            _ => false
-        }
-    }
-}
-
-impl Precision for DicomTime {
-    fn precision(&self) -> DateComponent {
-        match self {
-            DicomTime(DicomTimeImpl::Hour(..)) => DateComponent::Hour,
-            DicomTime(DicomTimeImpl::Minute(..)) => DateComponent::Minute,
-            DicomTime(DicomTimeImpl::Second(..)) => DateComponent::Second,
-            DicomTime(DicomTimeImpl::Fraction(..)) => DateComponent::Fraction,
-        }
-    }
-    fn is_precise(&self) -> bool {
-        match self.fraction_and_precision() {
-            Some((_,fraction_precision)) if fraction_precision == &6 => true,
-            _ => false
-        }
-    }
-}
-
-impl Precision for DicomDateTime {
-    fn precision(&self) -> DateComponent {
-        match self.time {
-            Some(time) => time.precision(),
-            None => self.date.precision(),
-        }
-    }
-    fn is_precise(&self) -> bool {
-        match self.time(){
-            Some(time) => time.is_precise(),
-            None => false
-        }
-    }
-}*/
-
 impl DicomDate {
     /**
      * Retrieves a dicom encoded string representation of the value.
@@ -960,7 +869,7 @@ impl DicomDateTime {
                     self.date.to_encoded(),
                     offset.to_string().replace(':', "")
                 ),
-                None => format!("{}", self.date.to_encoded()),
+                None => self.date.to_encoded().to_string(),
             },
         }
     }
@@ -968,7 +877,7 @@ impl DicomDateTime {
 
 #[cfg(test)]
 mod tests {
-    use crate::value::range::{AsRange,PreciseDateTimeResult};
+    use crate::value::range::{AsRange, PreciseDateTimeResult};
 
     use super::*;
     use chrono::{NaiveDateTime, TimeZone};
@@ -979,11 +888,9 @@ mod tests {
             DicomDate::from_ymd(1944, 2, 29).unwrap(),
             DicomDate(DicomDateImpl::Day(1944, 2, 29))
         );
-        
+
         // cheap precision check, but date is invalid
-        assert!(
-            DicomDate::from_ymd(1945, 2, 29).unwrap().is_precise()
-        );
+        assert!(DicomDate::from_ymd(1945, 2, 29).unwrap().is_precise());
         assert_eq!(
             DicomDate::from_ym(1944, 2).unwrap(),
             DicomDate(DicomDateImpl::Month(1944, 2))
@@ -1064,12 +971,12 @@ mod tests {
             DicomTime(DicomTimeImpl::Hour(1))
         );
         // cheap precision checks
-        assert!(
-            DicomTime::from_hms_micro(9, 1, 1, 123456).unwrap().is_precise()
-        );
-        assert!(
-            !DicomTime::from_hms_milli(9, 1, 1, 123).unwrap().is_precise()
-        );
+        assert!(DicomTime::from_hms_micro(9, 1, 1, 123456)
+            .unwrap()
+            .is_precise());
+        assert!(!DicomTime::from_hms_milli(9, 1, 1, 123)
+            .unwrap()
+            .is_precise());
 
         assert_eq!(
             DicomTime::from_hms_milli(9, 1, 1, 123)
@@ -1228,11 +1135,9 @@ mod tests {
         );
 
         assert_eq!(
-            DicomDateTime::from_date(
-                DicomDate::from_ym(2020, 2).unwrap()
-            )
-            .earliest()
-            .unwrap(),
+            DicomDateTime::from_date(DicomDate::from_ym(2020, 2).unwrap())
+                .earliest()
+                .unwrap(),
             PreciseDateTimeResult::Naive(NaiveDateTime::new(
                 NaiveDate::from_ymd_opt(2020, 2, 1).unwrap(),
                 NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
@@ -1247,15 +1152,14 @@ mod tests {
             .latest()
             .unwrap(),
             PreciseDateTimeResult::TimeZone(
-            FixedOffset::east_opt(0)
-                .unwrap()
-                .from_local_datetime(&NaiveDateTime::new(
-                    NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
-                    NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
-                ))
-                .unwrap()
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                        NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+                    ))
+                    .unwrap()
             )
-
         );
 
         assert_eq!(
@@ -1268,15 +1172,14 @@ mod tests {
             .earliest()
             .unwrap(),
             PreciseDateTimeResult::TimeZone(
-            FixedOffset::east_opt(0)
-                .unwrap()
-                .from_local_datetime(&NaiveDateTime::new(
-                    NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
-                    NaiveTime::from_hms_micro_opt(23, 59, 59, 100_000).unwrap()
-                ))
-                .unwrap()
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                        NaiveTime::from_hms_micro_opt(23, 59, 59, 100_000).unwrap()
+                    ))
+                    .unwrap()
             )
-
         );
         assert_eq!(
             DicomDateTime::from_date_and_time_with_time_zone(
@@ -1288,13 +1191,13 @@ mod tests {
             .latest()
             .unwrap(),
             PreciseDateTimeResult::TimeZone(
-            FixedOffset::east_opt(0)
-                .unwrap()
-                .from_local_datetime(&NaiveDateTime::new(
-                    NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
-                    NaiveTime::from_hms_micro_opt(23, 59, 59, 109_999).unwrap()
-                ))
-                .unwrap()
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                        NaiveTime::from_hms_micro_opt(23, 59, 59, 109_999).unwrap()
+                    ))
+                    .unwrap()
             )
         );
 
@@ -1401,17 +1304,17 @@ mod tests {
             DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2000, 1, 1).unwrap(),
                 DicomTime::from_hms_milli(23, 59, 59, 10).unwrap()
-            ).unwrap()
-            .is_precise() == false
+            )
+            .unwrap()
+            .is_precise()
+                == false
         );
 
-        assert!(
-            DicomDateTime::from_date_and_time(
-                DicomDate::from_ymd(2000, 1, 1).unwrap(),
-                DicomTime::from_hms_micro(23, 59, 59, 654_321).unwrap()
-            ).unwrap()
-            .is_precise() 
-        );
-
+        assert!(DicomDateTime::from_date_and_time(
+            DicomDate::from_ymd(2000, 1, 1).unwrap(),
+            DicomTime::from_hms_micro(23, 59, 59, 654_321).unwrap()
+        )
+        .unwrap()
+        .is_precise());
     }
 }

@@ -4,10 +4,9 @@
 
 use super::DicomValueType;
 use crate::header::{HasLength, Length, Tag};
-use crate::value::partial::{DateComponent, DicomDate, DicomDateTime, DicomTime, Precision};
+use crate::value::partial::{DateComponent, DicomDate, DicomDateTime, DicomTime};
 use crate::value::person_name::PersonName;
 use crate::value::range::{DateRange, DateTimeRange, TimeRange};
-use chrono::FixedOffset;
 use itertools::Itertools;
 use num_traits::NumCast;
 use safe_transmute::to_bytes::transmute_to_bytes;
@@ -183,7 +182,7 @@ impl std::error::Error for ConvertValueError {
 pub type Result<T, E = InvalidValueReadError> = std::result::Result<T, E>;
 
 // Re-exported from chrono
-pub use chrono::{DateTime, NaiveDate, NaiveTime};
+pub use chrono::{NaiveDate, NaiveTime};
 
 /// An aggregation of one or more elements in a value.
 pub type C<T> = SmallVec<[T; 2]>;
@@ -2641,217 +2640,10 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve a single `chrono::DateTime` from this value.
-    ///
-    /// If the value is already represented as a precise `DicomDateTime`,
-    /// it is converted to `chrono::DateTime`. Imprecise values fail.
-    /// If the value is a string or sequence of strings,
-    /// the first string is decoded to obtain a date-time,
-    /// potentially failing if the string does not represent a valid time.
-    /// If the value in its textual form does not present a time zone,
-    /// `default_offset` is used.
-    /// If the value is a sequence of U8 bytes, the bytes are
-    /// first interpreted as an ASCII character string.
-    /// Otherwise, the operation fails.
-    ///
-    /// Users of this method are advised to retrieve
-    /// the default time zone offset
-    /// from the same source of the DICOM value.
-    ///
-    /// Users are advised that this method requires at least 1 out of 6 digits of the second
-    /// fraction .F to be present. Otherwise, the operation fails.
-    ///
-    /// Partial precision date-times are handled by `DicomDateTime`,
-    /// which can be retrieved by [`.to_datetime()`](PrimitiveValue::to_datetime).
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use dicom_core::value::{C, PrimitiveValue, DicomDateTime, DicomDate, DicomTime};
-    /// # use smallvec::smallvec;
-    /// # use chrono::{DateTime, FixedOffset, TimeZone};
-    /// # use std::error::Error;
-    /// # fn main() -> Result<(), Box<dyn Error>> {
-    /// let default_offset = FixedOffset::east(0);
-    ///
-    /// // full accuracy `DicomDateTime` with a time-zone can be converted
-    /// assert_eq!(
-    ///     PrimitiveValue::from(
-    ///         DicomDateTime::from_date_and_time_with_time_zone(
-    ///         DicomDate::from_ymd(2012, 12, 21)?,
-    ///         DicomTime::from_hms_micro(9, 30, 1, 1)?,
-    ///         default_offset
-    ///         )?
-    ///     ).to_chrono_datetime(default_offset)?,
-    ///     FixedOffset::east(0)
-    ///         .ymd(2012, 12, 21)
-    ///         .and_hms_micro(9, 30, 1, 1)
-    ///     ,
-    /// );
-    ///
-    /// assert_eq!(
-    ///     PrimitiveValue::from("20121221093001.1")
-    ///         .to_chrono_datetime(default_offset).ok(),
-    ///     Some(FixedOffset::east(0)
-    ///         .ymd(2012, 12, 21)
-    ///         .and_hms_micro(9, 30, 1, 100_000)
-    ///     ),
-    /// );
-    /// # Ok(())
-    /// # }
-    /// ```
-    #[deprecated(
-        note = "As time-zone aware an naive DicomDateTime was introduced, this method could only access the time-zone
-    aware values, which would lead to confusing behavior."
-    )]
-    pub fn to_chrono_datetime(
-        &self,
-        default_offset: FixedOffset,
-    ) -> Result<DateTime<FixedOffset>, ConvertValueError> {
-        match self {
-            PrimitiveValue::Str(s) => {
-                super::deserialize::parse_datetime(s.trim_end().as_bytes(), default_offset)
-                    .context(ParseDateTimeSnafu)
-                    .map_err(|err| ConvertValueError {
-                        requested: "DateTime",
-                        original: self.value_type(),
-                        cause: Some(err),
-                    })
-            }
-            PrimitiveValue::Strs(s) => super::deserialize::parse_datetime(
-                s.first().map(|s| s.trim_end().as_bytes()).unwrap_or(&[]),
-                default_offset,
-            )
-            .context(ParseDateTimeSnafu)
-            .map_err(|err| ConvertValueError {
-                requested: "DateTime",
-                original: self.value_type(),
-                cause: Some(err),
-            }),
-            PrimitiveValue::U8(bytes) => {
-                super::deserialize::parse_datetime(trim_last_whitespace(bytes), default_offset)
-                    .context(ParseDateTimeSnafu)
-                    .map_err(|err| ConvertValueError {
-                        requested: "DateTime",
-                        original: self.value_type(),
-                        cause: Some(err),
-                    })
-            }
-            _ => Err(ConvertValueError {
-                requested: "DateTime",
-                original: self.value_type(),
-                cause: None,
-            }),
-        }
-    }
-
-    /// Retrieve the full sequence of `chrono::DateTime`s from this value.
-    ///
-    /// If the value is already represented as a sequence of precise `DicomDateTime` values,
-    /// it is converted to a sequence of `chrono::DateTime` values. Imprecise values fail.
-    /// If the value is a string or sequence of strings,
-    /// the strings are decoded to obtain a date, potentially failing if
-    /// any of the strings does not represent a valid date.
-    /// If the value is a sequence of U8 bytes, the bytes are
-    /// first interpreted as an ASCII character string,
-    /// then as a backslash-separated list of date-times.
-    /// Otherwise, the operation fails.
-    ///
-    /// Users are advised that this method requires at least 1 out of 6 digits of the second
-    /// fraction .F to be present. Otherwise, the operation fails.
-    ///
-    /// Partial precision date-times are handled by `DicomDateTime`,
-    /// which can be retrieved by [`.to_multi_datetime()`](PrimitiveValue::to_multi_datetime).
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use dicom_core::value::{C, PrimitiveValue, DicomDate, DicomTime, DicomDateTime};
-    /// # use smallvec::smallvec;
-    /// # use chrono::{FixedOffset, TimeZone};
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let default_offset = FixedOffset::east(0);
-    ///
-    /// // full accuracy `DicomDateTime` can be converted
-    /// assert_eq!(
-    ///     PrimitiveValue::from(
-    ///         DicomDateTime::from_date_and_time(
-    ///         DicomDate::from_ymd(2012, 12, 21)?,
-    ///         DicomTime::from_hms_micro(9, 30, 1, 123_456)?,
-    ///         default_offset
-    ///         )?
-    ///     ).to_multi_chrono_datetime(default_offset)?,
-    ///     vec![FixedOffset::east(0)
-    ///         .ymd(2012, 12, 21)
-    ///         .and_hms_micro(9, 30, 1, 123_456)
-    ///     ],
-    /// );
-    ///
-    /// assert_eq!(
-    ///     PrimitiveValue::Strs(smallvec![
-    ///         "20121221093001.123".to_string(),
-    ///         "20180102100123.123456".to_string(),
-    ///     ]).to_multi_chrono_datetime(default_offset).ok(),
-    ///     Some(vec![
-    ///         FixedOffset::east(0)
-    ///             .ymd(2012, 12, 21)
-    ///             .and_hms_micro(9, 30, 1, 123_000),
-    ///         FixedOffset::east(0)
-    ///             .ymd(2018, 1, 2)
-    ///             .and_hms_micro(10, 1, 23, 123_456)
-    ///     ]),
-    /// );
-    /// # Ok(())
-    /// # }
-    /// ```
-    #[deprecated(
-        note = "As time-zone aware an naive DicomDateTime was introduced, this method could only access the time-zone
-    aware values, which would lead to confusing behavior."
-    )]
-    pub fn to_multi_chrono_datetime(
-        &self,
-        default_offset: FixedOffset,
-    ) -> Result<Vec<DateTime<FixedOffset>>, ConvertValueError> {
-        match self {
-            PrimitiveValue::Str(s) => {
-                super::deserialize::parse_datetime(s.trim_end().as_bytes(), default_offset)
-                    .map(|date| vec![date])
-                    .context(ParseDateSnafu)
-                    .map_err(|err| ConvertValueError {
-                        requested: "DateTime",
-                        original: self.value_type(),
-                        cause: Some(err),
-                    })
-            }
-            PrimitiveValue::Strs(s) => s
-                .into_iter()
-                .map(|s| {
-                    super::deserialize::parse_datetime(s.trim_end().as_bytes(), default_offset)
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .context(ParseDateSnafu)
-                .map_err(|err| ConvertValueError {
-                    requested: "DateTime",
-                    original: self.value_type(),
-                    cause: Some(err),
-                }),
-            PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
-                .split(|c| *c == b'\\')
-                .map(|s| super::deserialize::parse_datetime(s, default_offset))
-                .collect::<Result<Vec<_>, _>>()
-                .context(ParseDateSnafu)
-                .map_err(|err| ConvertValueError {
-                    requested: "DateTime",
-                    original: self.value_type(),
-                    cause: Some(err),
-                }),
-            _ => Err(ConvertValueError {
-                requested: "DateTime",
-                original: self.value_type(),
-                cause: None,
-            }),
-        }
-    }
+    #[deprecated(since = "0.6.4", note = "Use `to_datetime` instead")]
+    pub fn to_chrono_datetime(&self) {}
+    #[deprecated(since = "0.6.4", note = "Use `to_multi_datetime` instead")]
+    pub fn to_multi_chrono_datetime(&self) {}
 
     /// Retrieve a single `DicomDateTime` from this value.
     ///
@@ -2878,7 +2670,7 @@ impl PrimitiveValue {
     /// use dicom_core::value::{DicomDateTime, AsRange, DateTimeRange, PreciseDateTimeResult};
     ///
     /// # fn main() -> Result<(), Box<dyn Error>> {
-    /// 
+    ///
     /// // let's parse a date-time text value with 0.1 second precision without a time-zone.
     /// let dt_value = PrimitiveValue::from("20121221093001.1").to_datetime()?;
     ///
@@ -2897,7 +2689,7 @@ impl PrimitiveValue {
     ///         ))
     /// );
     ///
-    /// let default_offset = FixedOffset::east(3600);
+    /// let default_offset = FixedOffset::east_opt(3600).unwrap();
     /// // let's parse a date-time text value with full precision with a time-zone east +01:00.
     /// let dt_value = PrimitiveValue::from("20121221093001.123456+0100").to_datetime()?;
     ///
@@ -2906,23 +2698,25 @@ impl PrimitiveValue {
     ///
     /// assert_eq!(
     ///     dt_value.exact()?,
-    ///     PreciseDateTimeResult::WithTimeZone(
+    ///     PreciseDateTimeResult::TimeZone(
     ///     default_offset
-    ///     .ymd(2012,12,21)
-    ///     .and_hms_micro(9, 30, 1, 123_456)
-    ///     )      
+    ///     .ymd_opt(2012, 12, 21).unwrap()
+    ///     .and_hms_micro_opt(9, 30, 1, 123_456).unwrap()
+    ///     )
+    ///        
     /// );
     ///
     /// // ranges are inclusive, for a precise value, two identical values are returned
     /// assert_eq!(
     ///     dt_value.range()?,
     ///     DateTimeRange::from_start_to_end_with_time_zone(
-    ///         FixedOffset::east(3600)
-    ///             .ymd(2012, 12, 21)
-    ///             .and_hms_micro(9, 30, 1, 123_456),
-    ///         FixedOffset::east(3600)
-    ///             .ymd(2012, 12, 21)
-    ///             .and_hms_micro(9, 30, 1, 123_456))?
+    ///         FixedOffset::east_opt(3600).unwrap()
+    ///             .ymd_opt(2012, 12, 21).unwrap()
+    ///             .and_hms_micro_opt(9, 30, 1, 123_456).unwrap(),
+    ///         FixedOffset::east_opt(3600).unwrap()
+    ///             .ymd_opt(2012, 12, 21).unwrap()
+    ///             .and_hms_micro_opt(9, 30, 1, 123_456).unwrap()
+    ///     )?
     ///     
     /// );
     /// # Ok(())
@@ -2993,7 +2787,7 @@ impl PrimitiveValue {
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
-                .map(|s| super::deserialize::parse_datetime_partial(s))
+                .map(super::deserialize::parse_datetime_partial)
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
                 .map_err(|err| ConvertValueError {
@@ -3168,7 +2962,7 @@ impl PrimitiveValue {
     ///
     /// ```
     /// # use dicom_core::value::{C, PrimitiveValue};
-    /// use chrono::{DateTime, FixedOffset, TimeZone};
+    /// use chrono::{DateTime, NaiveDate, NaiveTime, NaiveDateTime, FixedOffset, TimeZone};
     /// # use std::error::Error;
     /// use dicom_core::value::{DateTimeRange, PreciseDateTimeResult};
     ///
@@ -3176,34 +2970,60 @@ impl PrimitiveValue {
     ///
     /// // let's parse a text representation of a date-time range, where the lower bound is a microsecond
     /// // precision value with a time-zone (east +05:00) and the upper bound is a minimum precision value
-    /// // without a specified time-zone
-    /// let dt_range = PrimitiveValue::from("19920101153020.123+0500-1993").to_datetime_range()?;
+    /// // with a time-zone
+    /// let dt_range = PrimitiveValue::from("19920101153020.123+0500-1993+0300").to_datetime_range()?;
     ///
-    /// // lower bound of range is parsed into a PreciseDateTimeResult::WithTimeZone variant
+    /// // lower bound of range is parsed into a PreciseDateTimeResult::TimeZone variant
     /// assert_eq!(
     ///     dt_range.start(),
-    ///     Some(PreciseDateTimeResult::WithTimeZone(
-    ///         FixedOffset::east_opt(5*3600).unwrap().ymd(1992, 1, 1)
-    ///         .and_hms_micro(15, 30, 20, 123_000)
+    ///     Some(PreciseDateTimeResult::TimeZone(
+    ///         FixedOffset::east_opt(5*3600).unwrap().ymd_opt(1992, 1, 1).unwrap()
+    ///         .and_hms_micro_opt(15, 30, 20, 123_000).unwrap()
     ///         )  
     ///     )
     /// );
     ///
-    /// // null components of date-time default to latest possible
-    /// // because lower bound value is time-zone aware, the upper bound will also be parsed
-    /// // into a time-zone aware value with 
+    /// // upper bound of range is parsed into a PreciseDateTimeResult::TimeZone variant
     /// assert_eq!(
     ///     dt_range.end(),
-    ///     Some(PreciseDateTimeResult::WithTimeZone(
-    ///         FixedOffset::east_opt(0).unwrap().ymd(1993, 12, 31)
-    ///         .and_hms_micro(23, 59, 59, 999_999)
+    ///     Some(PreciseDateTimeResult::TimeZone(
+    ///         FixedOffset::east_opt(3*3600).unwrap().ymd_opt(1993, 12, 31).unwrap()
+    ///         .and_hms_micro_opt(23, 59, 59, 999_999).unwrap()
     ///         )  
     ///     )
     /// );
     ///
-    /// let range_from = PrimitiveValue::from("2012-").to_datetime_range(offset)?;
+    ///
+    ///
+    /// let range_from = PrimitiveValue::from("2012-").to_datetime_range()?;
     ///
     /// assert!(range_from.end().is_none());
+    ///
+    /// // The DICOM protocol allows for parsing text representations of date-time ranges,
+    /// // where one bound has a time-zone but the other has not.
+    /// let dt_range = PrimitiveValue::from("1992+0500-1993").to_datetime_range()?;
+    ///
+    /// // the resulting DateTimeRange variant holds and ambiguous value, that needs further interpretation.
+    /// assert_eq!(
+    ///     
+    ///   dt_range,
+    ///   DateTimeRange::AmbiguousEnd{
+    ///         start: FixedOffset::east_opt(5*3600).unwrap().ymd_opt(1992, 1, 1).unwrap()
+    ///         .and_hms_micro_opt(0, 0, 0, 0).unwrap(),
+    ///         // this naive value needs further interpretation
+    ///         ambiguous_end: NaiveDateTime::new(
+    ///              NaiveDate::from_ymd_opt(1993, 12, 31).unwrap(),
+    ///             NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap(),
+    ///         )
+    ///     
+    ///     }
+    ///     
+    /// );
+    ///
+    /// // ambiguous date-time time range holds a precise lower bound
+    /// assert!(dt_range.start().is_some());
+    /// // but not a precise upper bound
+    /// assert!(dt_range.end().is_none());
     ///
     /// # Ok(())
     /// # }
@@ -4835,91 +4655,6 @@ mod tests {
     }
 
     #[test]
-    fn primitive_value_to_chrono_datetime() {
-        let this_datetime = FixedOffset::east_opt(1)
-            .unwrap()
-            .with_ymd_and_hms(2012, 12, 21, 11, 9, 26)
-            .unwrap();
-        let this_datetime_frac = FixedOffset::east_opt(1)
-            .unwrap()
-            .from_local_datetime(&NaiveDateTime::new(
-                NaiveDate::from_ymd_opt(2012, 12, 21).unwrap(),
-                NaiveTime::from_hms_micro_opt(11, 9, 26, 380_000).unwrap(),
-            ))
-            .unwrap();
-
-        // from text (Str) - fraction is mandatory even if zero
-        assert_eq!(
-            dicom_value!(Str, "20121221110926.0")
-                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
-                .unwrap(),
-            this_datetime,
-        );
-        // from text with fraction of a second + padding
-        assert_eq!(
-            PrimitiveValue::from("20121221110926.38 ")
-                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
-                .unwrap(),
-            this_datetime_frac,
-        );
-        // from text (Strs) - fraction is mandatory even if zero
-        assert_eq!(
-            dicom_value!(Strs, ["20121221110926.0"])
-                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
-                .unwrap(),
-            this_datetime,
-        );
-        // from text (Strs) with fraction of a second + padding
-        assert_eq!(
-            dicom_value!(Strs, ["20121221110926.38 "])
-                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
-                .unwrap(),
-            this_datetime_frac,
-        );
-        // from bytes with fraction of a second + padding
-        assert_eq!(
-            PrimitiveValue::from(&b"20121221110926.38 "[..])
-                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
-                .unwrap(),
-            this_datetime_frac,
-        );
-
-        // without fraction of a second
-        let this_datetime = FixedOffset::east_opt(1)
-            .unwrap()
-            .with_ymd_and_hms(2012, 12, 21, 11, 9, 26)
-            .unwrap();
-        assert_eq!(
-            dicom_value!(Str, "20121221110926")
-                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
-                .unwrap(),
-            this_datetime,
-        );
-
-        // without seconds
-        assert!(matches!(
-            PrimitiveValue::from("201212211109")
-                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap()),
-            Err(ConvertValueError {
-                requested: "DateTime",
-                original: ValueType::Str,
-                ..
-            })
-        ));
-
-        // not a datetime
-        assert!(matches!(
-            PrimitiveValue::from("Smith^John")
-                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap()),
-            Err(ConvertValueError {
-                requested: "DateTime",
-                original: ValueType::Str,
-                ..
-            })
-        ));
-    }
-
-    #[test]
     fn primitive_value_to_dicom_datetime() {
         let offset = FixedOffset::east_opt(1).unwrap();
 
@@ -5051,7 +4786,6 @@ mod tests {
 
     #[test]
     fn primitive_value_to_datetime_range() {
-
         assert_eq!(
             dicom_value!(Str, "202002-20210228153012.123")
                 .to_datetime_range()
@@ -5073,7 +4807,7 @@ mod tests {
             PrimitiveValue::from(&b"2020-2030+0800"[..])
                 .to_datetime_range()
                 .unwrap(),
-            DateTimeRange::AmbiguousStart { 
+            DateTimeRange::AmbiguousStart {
                 ambiguous_start: NaiveDateTime::new(
                     NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
                     NaiveTime::from_hms_opt(0, 0, 0).unwrap()
@@ -5085,7 +4819,7 @@ mod tests {
                         NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
                     ))
                     .unwrap()
-                }
+            }
         );
     }
 

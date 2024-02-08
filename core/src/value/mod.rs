@@ -23,9 +23,6 @@ pub use self::primitive::{
     ValueType,
 };
 
-/// re-exported from chrono
-use chrono::FixedOffset;
-
 /// An aggregation of one or more elements in a value.
 pub type C<T> = SmallVec<[T; 2]>;
 

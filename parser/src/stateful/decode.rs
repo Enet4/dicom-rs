@@ -2,7 +2,6 @@
 //! which also supports text decoding.
 
 use crate::util::n_times;
-use chrono::FixedOffset;
 use dicom_core::header::{DataElementHeader, HasLength, Length, SequenceItemHeader, Tag, VR};
 use dicom_core::value::deserialize::{
     parse_date_partial, parse_datetime_partial, parse_time_partial,
