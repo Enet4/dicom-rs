@@ -6,7 +6,7 @@ use super::DicomValueType;
 use crate::header::{HasLength, Length, Tag};
 use crate::value::partial::{DateComponent, DicomDate, DicomDateTime, DicomTime};
 use crate::value::person_name::PersonName;
-use crate::value::range::{DateRange, DateTimeRange, TimeRange};
+use crate::value::range::{AmbiguousDtRangeParser, DateRange, DateTimeRange, TimeRange};
 use itertools::Itertools;
 use num_traits::NumCast;
 use safe_transmute::to_bytes::transmute_to_bytes;
@@ -2993,37 +2993,29 @@ impl PrimitiveValue {
     ///     )
     /// );
     ///
+    /// let lower = PrimitiveValue::from("2012-").to_datetime_range()?;
     ///
-    ///
-    /// let range_from = PrimitiveValue::from("2012-").to_datetime_range()?;
-    ///
-    /// assert!(range_from.end().is_none());
+    /// assert!(lower.end().is_none());
     ///
     /// // The DICOM protocol allows for parsing text representations of date-time ranges,
     /// // where one bound has a time-zone but the other has not.
     /// let dt_range = PrimitiveValue::from("1992+0500-1993").to_datetime_range()?;
     ///
-    /// // the resulting DateTimeRange variant holds and ambiguous value, that needs further interpretation.
+    /// // the default behavior in this case is to use the known time-zone to construct
+    /// // two time-zone aware DT bounds.
     /// assert_eq!(
-    ///     
     ///   dt_range,
-    ///   DateTimeRange::AmbiguousEnd{
-    ///         start: FixedOffset::east_opt(5*3600).unwrap().ymd_opt(1992, 1, 1).unwrap()
-    ///         .and_hms_micro_opt(0, 0, 0, 0).unwrap(),
-    ///         // this naive value needs further interpretation
-    ///         ambiguous_end: NaiveDateTime::new(
-    ///              NaiveDate::from_ymd_opt(1993, 12, 31).unwrap(),
-    ///             NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap(),
+    ///   DateTimeRange::TimeZone{
+    ///         start: Some(FixedOffset::east_opt(5*3600).unwrap()
+    ///             .ymd_opt(1992, 1, 1).unwrap()
+    ///             .and_hms_micro_opt(0, 0, 0, 0).unwrap()
+    ///         ),
+    ///         end: Some(FixedOffset::east_opt(5*3600).unwrap()
+    ///             .ymd_opt(1993, 12, 31).unwrap()
+    ///             .and_hms_micro_opt(23, 59, 59, 999_999).unwrap()
     ///         )
-    ///     
     ///     }
-    ///     
     /// );
-    ///
-    /// // ambiguous date-time time range holds a precise lower bound
-    /// assert!(dt_range.start().is_some());
-    /// // but not a precise upper bound
-    /// assert!(dt_range.end().is_none());
     ///
     /// # Ok(())
     /// # }
@@ -3048,6 +3040,97 @@ impl PrimitiveValue {
             }),
             PrimitiveValue::U8(bytes) => {
                 super::range::parse_datetime_range(trim_last_whitespace(bytes))
+                    .context(ParseDateTimeRangeSnafu)
+                    .map_err(|err| ConvertValueError {
+                        requested: "DateTimeRange",
+                        original: self.value_type(),
+                        cause: Some(err),
+                    })
+            }
+            _ => Err(ConvertValueError {
+                requested: "DateTimeRange",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve a single `DateTimeRange` from this value.
+    ///
+    /// Use a custom ambiguous date-time range parser.
+    ///
+    /// See [PrimitiveValue::to_datetime_range] and [AmbiguousDtRangeParser]
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use std::error::Error;
+    /// use dicom_core::value::range::{AmbiguousDtRangeParser, ToLocalTimeZone, IgnoreTimeZone, DateTimeRange};
+    /// use chrono::{NaiveDate, NaiveTime, NaiveDateTime};
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    ///
+    /// // The DICOM protocol allows for parsing text representations of date-time ranges,
+    /// // where one bound has a time-zone but the other has not.
+    /// // the default behavior in this case is to use the known time-zone to construct
+    /// // two time-zone aware DT bounds. But we want to use the local clock time-zone instead
+    /// let dt_range = PrimitiveValue::from("1992+0599-1993")
+    ///     .to_datetime_range_custom::<ToLocalTimeZone>()?;
+    ///
+    /// // local clock time-zone in the upper bound should be different from 0599 in the lower bound.
+    /// assert_ne!(
+    ///     dt_range.start().unwrap()
+    ///         .as_datetime_with_time_zone().unwrap()
+    ///         .offset(),
+    ///     dt_range.end().unwrap()
+    ///         .as_datetime_with_time_zone().unwrap()
+    ///         .offset()
+    /// );
+    /// 
+    /// // ignores parsed time-zone, retrieve naive range
+    /// let naive_range = PrimitiveValue::from("1992+0599-1993")
+    ///     .to_datetime_range_custom::<IgnoreTimeZone>()?;
+    ///
+    /// assert_eq!(
+    ///     naive_range,
+    ///     DateTimeRange::from_start_to_end(
+    ///         NaiveDateTime::new(
+    ///             NaiveDate::from_ymd_opt(1992, 1, 1).unwrap(),
+    ///             NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
+    ///         ),
+    ///         NaiveDateTime::new(
+    ///             NaiveDate::from_ymd_opt(1993, 12, 31).unwrap(),
+    ///             NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+    ///         )
+    ///     ).unwrap()
+    /// );
+    /// 
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn to_datetime_range_custom<T: AmbiguousDtRangeParser>(
+        &self,
+    ) -> Result<DateTimeRange, ConvertValueError> {
+        match self {
+            PrimitiveValue::Str(s) => {
+                super::range::parse_datetime_range_custom::<T>(s.trim_end().as_bytes())
+                    .context(ParseDateTimeRangeSnafu)
+                    .map_err(|err| ConvertValueError {
+                        requested: "DateTimeRange",
+                        original: self.value_type(),
+                        cause: Some(err),
+                    })
+            }
+            PrimitiveValue::Strs(s) => super::range::parse_datetime_range_custom::<T>(
+                s.first().map(|s| s.trim_end().as_bytes()).unwrap_or(&[]),
+            )
+            .context(ParseDateTimeRangeSnafu)
+            .map_err(|err| ConvertValueError {
+                requested: "DateTimeRange",
+                original: self.value_type(),
+                cause: Some(err),
+            }),
+            PrimitiveValue::U8(bytes) => {
+                super::range::parse_datetime_range_custom::<T>(trim_last_whitespace(bytes))
                     .context(ParseDateTimeRangeSnafu)
                     .map_err(|err| ConvertValueError {
                         requested: "DateTimeRange",
@@ -4802,23 +4885,31 @@ mod tests {
             )
             .unwrap()
         );
-        // East UTC offset gets parsed but will result in an ambiguous dt-range variant
+        // East UTC offset gets parsed and the missing lower bound time-zone
+        // will be the same as the parsed offset value
         assert_eq!(
             PrimitiveValue::from(&b"2020-2030+0800"[..])
                 .to_datetime_range()
                 .unwrap(),
-            DateTimeRange::AmbiguousStart {
-                ambiguous_start: NaiveDateTime::new(
-                    NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
-                    NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+            DateTimeRange::TimeZone {
+                start: Some(
+                    FixedOffset::east_opt(8 * 3600)
+                        .unwrap()
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
+                            NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+                        ))
+                        .unwrap()
                 ),
-                end: FixedOffset::east_opt(8 * 3600)
-                    .unwrap()
-                    .from_local_datetime(&NaiveDateTime::new(
-                        NaiveDate::from_ymd_opt(2030, 12, 31).unwrap(),
-                        NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
-                    ))
-                    .unwrap()
+                end: Some(
+                    FixedOffset::east_opt(8 * 3600)
+                        .unwrap()
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(2030, 12, 31).unwrap(),
+                            NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+                        ))
+                        .unwrap()
+                )
             }
         );
     }

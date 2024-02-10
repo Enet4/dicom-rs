@@ -1,7 +1,9 @@
 //! Handling of date, time, date-time ranges. Needed for range matching.
 //! Parsing into ranges happens via partial precision  structures (DicomDate, DicomTime,
 //! DicomDatime) so ranges can handle null components in date, time, date-time values.
-use chrono::{DateTime, FixedOffset, LocalResult, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
+use chrono::{
+    DateTime, FixedOffset, Local, LocalResult, NaiveDate, NaiveDateTime, NaiveTime, TimeZone,
+};
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 
 use crate::value::deserialize::{
@@ -545,35 +547,7 @@ pub enum DateTimeRange {
     TimeZone {
         start: Option<DateTime<FixedOffset>>,
         end: Option<DateTime<FixedOffset>>,
-    },
-    /// DateTime range with a lower bound value which is ambiguous and needs further interpretation.
-    /// This variant can only be a result of parsing a date-time range from an external source.
-    /// The standard allows for parsing a date-time range in which one DT value provides time-zone
-    /// information but the other does not.
-    ///
-    /// Example '19750101-19800101+0200'.
-    ///
-    /// In such case, the missing time-zone can be interpreted as the local time-zone or the time-zone
-    ///  provided with the upper bound (or something else altogether).
-    /// And that is why this variant is not guaranteed to be monotonically ordered in time.
-    AmbiguousStart {
-        ambiguous_start: NaiveDateTime,
-        end: DateTime<FixedOffset>,
-    },
-    /// DateTime range with a upper bound value which is ambiguous and needs further interpretation.
-    /// This variant can only be a result of parsing a date-time range from an external source.
-    /// The standard allows for parsing a date-time range in which one DT value provides time-zone
-    /// information but the other does not.
-    ///
-    /// Example '19750101+0200-19800101'.
-    ///
-    /// In such case, the missing time-zone can be interpreted as the local time-zone or the time-zone
-    ///  provided with the lower bound (or something else altogether).
-    /// And that is why this variant is not guaranteed to be monotonically ordered in time.
-    AmbiguousEnd {
-        start: DateTime<FixedOffset>,
-        ambiguous_end: NaiveDateTime,
-    },
+    }
 }
 
 /// A precise date-time value, that can either be time-zone aware or time-zone naive.
@@ -790,34 +764,19 @@ impl DateTimeRange {
         }
     }
 
-    /// Returns the lower bound of the range.
-    ///
-    /// If the date-time range contains an ambiguous lower bound value, it will return `None`.
-    /// See [DateTimeRange::AmbiguousStart]
+    /// Returns the lower bound of the range, if present.
     pub fn start(&self) -> Option<PreciseDateTimeResult> {
         match self {
             DateTimeRange::Naive { start, .. } => start.map(PreciseDateTimeResult::Naive),
             DateTimeRange::TimeZone { start, .. } => start.map(PreciseDateTimeResult::TimeZone),
-            DateTimeRange::AmbiguousStart { .. } => None,
-            DateTimeRange::AmbiguousEnd { start, .. } => {
-                Some(PreciseDateTimeResult::TimeZone(*start))
-            }
         }
     }
 
-    /// Returns the upper bound of the range.
-    ///
-    /// If the date-time range contains an ambiguous upper bound value, it will return `None`.
-    /// See [DateTimeRange::AmbiguousEnd]
+    /// Returns the upper bound of the range, if present.
     pub fn end(&self) -> Option<PreciseDateTimeResult> {
         match self {
             DateTimeRange::Naive { start: _, end } => end.map(PreciseDateTimeResult::Naive),
             DateTimeRange::TimeZone { start: _, end } => end.map(PreciseDateTimeResult::TimeZone),
-            DateTimeRange::AmbiguousStart {
-                ambiguous_start: _,
-                end,
-            } => Some(PreciseDateTimeResult::TimeZone(*end)),
-            DateTimeRange::AmbiguousEnd { .. } => None,
         }
     }
 
@@ -861,14 +820,6 @@ impl DateTimeRange {
                 Some(ed) => Ok(DateTimeRange::from_end(NaiveDateTime::new(*ed, end_time))),
                 None => panic!("Impossible combination of two None values for a date range."),
             },
-        }
-    }
-    /// Returns true, if one value in the range is ambiguous.
-    ///
-    /// For details see [DateTimeRange::AmbiguousEnd] or [DateTimeRange::AmbiguousStart]
-    pub fn is_ambiguous(&self) -> bool {
-        matches! {self,
-            &DateTimeRange::AmbiguousEnd { .. } | &DateTimeRange::AmbiguousStart { .. }
         }
     }
 }
@@ -943,6 +894,187 @@ pub fn parse_time_range(buf: &[u8]) -> Result<TimeRange> {
     }
 }
 
+/// The Dicom standard allows for parsing a date-time range in which one DT value provides time-zone
+/// information but the other does not.
+///
+/// Example '19750101-19800101+0200'.
+///
+/// In such case, the missing time-zone can be interpreted as the local time-zone or the time-zone
+/// provided with the upper bound (or something else altogether).
+/// This trait is implemented by parsers handling the afformentioned situation.
+pub trait AmbiguousDtRangeParser {
+    /// Retrieve a [DateTimeRange] if the lower range bound is missing a time-zone
+    fn parse_with_ambiguous_start(
+        ambiguous_start: NaiveDateTime,
+        end: DateTime<FixedOffset>,
+    ) -> Result<DateTimeRange>;
+    /// Retrieve a [DateTimeRange] if the upper range bound is missing a time-zone
+    fn parse_with_ambiguous_end(
+        start: DateTime<FixedOffset>,
+        ambiguous_end: NaiveDateTime,
+    ) -> Result<DateTimeRange>;
+}
+
+/// Use time-zone information from the time-zone aware value.
+/// Retrieves a [DateTimeRange::TimeZone] (Default).
+#[derive(Debug)]
+pub struct ToKnownTimeZone;
+
+/// Use time-zone information of the local system clock.
+/// Retrieves a [DateTimeRange::TimeZone].
+#[derive(Debug)]
+pub struct ToLocalTimeZone;
+
+/// Discard known, parsed time-zone information.
+/// Retrieves a [DateTimeRange::Naive].
+#[derive(Debug)]
+pub struct IgnoreTimeZone;
+
+impl AmbiguousDtRangeParser for ToKnownTimeZone {
+    fn parse_with_ambiguous_start(
+        ambiguous_start: NaiveDateTime,
+        end: DateTime<FixedOffset>,
+    ) -> Result<DateTimeRange> {
+        let start = end
+            .offset()
+            .from_local_datetime(&ambiguous_start)
+            .single()
+            .context(InvalidDateTimeSnafu {
+                naive: ambiguous_start,
+                offset: *end.offset(),
+            })?;
+        if start > end {
+            RangeInversionSnafu {
+                start: ambiguous_start.to_string(),
+                end: end.to_string(),
+            }
+            .fail()
+        } else {
+            Ok(DateTimeRange::TimeZone {
+                start: Some(start),
+                end: Some(end),
+            })
+        }
+    }
+    fn parse_with_ambiguous_end(
+        start: DateTime<FixedOffset>,
+        ambiguous_end: NaiveDateTime,
+    ) -> Result<DateTimeRange> {
+        let end = start
+            .offset()
+            .from_local_datetime(&ambiguous_end)
+            .single()
+            .context(InvalidDateTimeSnafu {
+                naive: ambiguous_end,
+                offset: *start.offset(),
+            })?;
+        if start > end {
+            RangeInversionSnafu {
+                start: start.to_string(),
+                end: ambiguous_end.to_string(),
+            }
+            .fail()
+        } else {
+            Ok(DateTimeRange::TimeZone {
+                start: Some(start),
+                end: Some(end),
+            })
+        }
+    }
+}
+
+impl AmbiguousDtRangeParser for ToLocalTimeZone {
+    fn parse_with_ambiguous_start(
+        ambiguous_start: NaiveDateTime,
+        end: DateTime<FixedOffset>,
+    ) -> Result<DateTimeRange> {
+        let start = Local::now()
+            .offset()
+            .from_local_datetime(&ambiguous_start)
+            .single()
+            .context(InvalidDateTimeSnafu {
+                naive: ambiguous_start,
+                offset: *end.offset(),
+            })?;
+        if start > end {
+            RangeInversionSnafu {
+                start: ambiguous_start.to_string(),
+                end: end.to_string(),
+            }
+            .fail()
+        } else {
+            Ok(DateTimeRange::TimeZone {
+                start: Some(start),
+                end: Some(end),
+            })
+        }
+    }
+    fn parse_with_ambiguous_end(
+        start: DateTime<FixedOffset>,
+        ambiguous_end: NaiveDateTime,
+    ) -> Result<DateTimeRange> {
+        let end = Local::now()
+            .offset()
+            .from_local_datetime(&ambiguous_end)
+            .single()
+            .context(InvalidDateTimeSnafu {
+                naive: ambiguous_end,
+                offset: *start.offset(),
+            })?;
+        if start > end {
+            RangeInversionSnafu {
+                start: start.to_string(),
+                end: ambiguous_end.to_string(),
+            }
+            .fail()
+        } else {
+            Ok(DateTimeRange::TimeZone {
+                start: Some(start),
+                end: Some(end),
+            })
+        }
+    }
+}
+
+impl AmbiguousDtRangeParser for IgnoreTimeZone {
+    fn parse_with_ambiguous_start(
+        ambiguous_start: NaiveDateTime,
+        end: DateTime<FixedOffset>,
+    ) -> Result<DateTimeRange> {
+        let end = end.naive_local();
+        if ambiguous_start > end {
+            RangeInversionSnafu {
+                start: ambiguous_start.to_string(),
+                end: end.to_string(),
+            }
+            .fail()
+        } else {
+            Ok(DateTimeRange::Naive {
+                start: Some(ambiguous_start),
+                end: Some(end),
+            })
+        }
+    }
+    fn parse_with_ambiguous_end(
+        start: DateTime<FixedOffset>,
+        ambiguous_end: NaiveDateTime,
+    ) -> Result<DateTimeRange> {
+        let start = start.naive_local();
+        if start > ambiguous_end {
+            RangeInversionSnafu {
+                start: start.to_string(),
+                end: ambiguous_end.to_string(),
+            }
+            .fail()
+        } else {
+            Ok(DateTimeRange::Naive {
+                start: Some(start),
+                end: Some(ambiguous_end),
+            })
+        }
+    }
+}
+
 /// Looks for a range separator '-'.
 /// Returns a `DateTimeRange`.
 /// If the parser encounters two date-time values, where one is time-zone aware and the other is not,
@@ -955,6 +1087,16 @@ pub fn parse_time_range(buf: &[u8]) -> Result<TimeRange> {
 /// In such cases, two '-' characters are present and the parser will favor the first one as a range separator,
 /// if it produces a valid `DateTimeRange`. Otherwise, it tries the second one.
 pub fn parse_datetime_range(buf: &[u8]) -> Result<DateTimeRange> {
+    parse_datetime_range_impl::<ToKnownTimeZone>(buf)
+}
+
+/// Same as [parse_datetime_range()] but allows for custom handling of ambiguous Date-time ranges.
+/// See [AmbiguousDtRangeParser].
+pub fn parse_datetime_range_custom<T: AmbiguousDtRangeParser>(buf: &[u8]) -> Result<DateTimeRange> {
+    parse_datetime_range_impl::<T>(buf)
+}
+
+pub fn parse_datetime_range_impl<T: AmbiguousDtRangeParser>(buf: &[u8]) -> Result<DateTimeRange> {
     // minimum length of one valid DicomDateTime (YYYY) and one '-' separator
     if buf.len() < 5 {
         return UnexpectedEndOfElementSnafu.fail();
@@ -1018,18 +1160,12 @@ pub fn parse_datetime_range(buf: &[u8]) -> Result<DateTimeRange> {
                                 // lower bound time-zone was missing
                                 PreciseDateTimeResult::Naive(start),
                                 PreciseDateTimeResult::TimeZone(end),
-                            ) => Ok(DateTimeRange::AmbiguousStart {
-                                ambiguous_start: start,
-                                end,
-                            }),
+                            ) => T::parse_with_ambiguous_start(start, end),
                             (
                                 PreciseDateTimeResult::TimeZone(start),
                                 // upper bound time-zone was missing
                                 PreciseDateTimeResult::Naive(end),
-                            ) => Ok(DateTimeRange::AmbiguousEnd {
-                                start,
-                                ambiguous_end: end,
-                            }),
+                            ) => T::parse_with_ambiguous_end(start, end),
                         };
                         match dtr {
                             Ok(val) => return Ok(val),
@@ -1060,17 +1196,11 @@ pub fn parse_datetime_range(buf: &[u8]) -> Result<DateTimeRange> {
             }
             // lower bound time-zone was missing
             (PreciseDateTimeResult::Naive(start), PreciseDateTimeResult::TimeZone(end)) => {
-                Ok(DateTimeRange::AmbiguousStart {
-                    ambiguous_start: start,
-                    end,
-                })
+                T::parse_with_ambiguous_start(start, end)
             }
             // upper bound time-zone was missing
             (PreciseDateTimeResult::TimeZone(start), PreciseDateTimeResult::Naive(end)) => {
-                Ok(DateTimeRange::AmbiguousEnd {
-                    start,
-                    ambiguous_end: end,
-                })
+                T::parse_with_ambiguous_end(start, end)
             }
         }
     }
@@ -1606,21 +1736,24 @@ mod tests {
             })
         );
         // one 'west' Time zone offset gets parsed, offset cannot be mistaken for a date-time
-        // the missing Time zone offset will result in an ambiguous range variant
+        // the missing Time zone offset will be replaced with the existing one (default behavior)
         assert_eq!(
             parse_datetime_range(b"19900101-1200-1999").unwrap(),
-            DateTimeRange::AmbiguousEnd {
-                start: FixedOffset::west_opt(12 * 3600)
+            DateTimeRange::TimeZone {
+                start: Some(FixedOffset::west_opt(12 * 3600)
                     .unwrap()
                     .from_local_datetime(&NaiveDateTime::new(
                         NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
                         NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
                     ))
-                    .unwrap(),
-                ambiguous_end: NaiveDateTime::new(
+                    .unwrap()),
+                end: Some(FixedOffset::west_opt(12 * 3600)
+                .unwrap()
+                .from_local_datetime(&NaiveDateTime::new(
                     NaiveDate::from_ymd_opt(1999, 12, 31).unwrap(),
                     NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
-                )
+                )).unwrap()
+            )
             }
         );
         // '0500' can either be a valid west UTC offset on the lower bound, or a valid date-time on the upper bound
@@ -1628,18 +1761,22 @@ mod tests {
         // and will result in an ambiguous range variant.
         assert_eq!(
             parse_datetime_range(b"0050-0500-1000").unwrap(),
-            DateTimeRange::AmbiguousStart {
-                ambiguous_start: NaiveDateTime::new(
-                    NaiveDate::from_ymd_opt(50, 1, 1).unwrap(),
+            DateTimeRange::TimeZone {
+                start:  
+                Some(FixedOffset::west_opt(10 * 3600)
+                    .unwrap()
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(50, 1, 1).unwrap(),
                     NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
-                ),
-                end: FixedOffset::west_opt(10 * 3600)
+                    ))
+                    .unwrap()),
+                end: Some(FixedOffset::west_opt(10 * 3600)
                     .unwrap()
                     .from_local_datetime(&NaiveDateTime::new(
                         NaiveDate::from_ymd_opt(500, 12, 31).unwrap(),
                         NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
                     ))
-                    .unwrap()
+                    .unwrap())
             }
         );
         // sequence with more than 3 dashes '-' is refused.
