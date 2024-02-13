@@ -3065,7 +3065,7 @@ impl PrimitiveValue {
     /// ```
     /// # use dicom_core::value::{C, PrimitiveValue};
     /// # use std::error::Error;
-    /// use dicom_core::value::range::{AmbiguousDtRangeParser, ToLocalTimeZone, IgnoreTimeZone, DateTimeRange};
+    /// use dicom_core::value::range::{AmbiguousDtRangeParser, ToLocalTimeZone, IgnoreTimeZone, FailOnAmbiguousRange, DateTimeRange};
     /// use chrono::{NaiveDate, NaiveTime, NaiveDateTime};
     /// # fn main() -> Result<(), Box<dyn Error>> {
     ///
@@ -3086,7 +3086,7 @@ impl PrimitiveValue {
     ///         .offset()
     /// );
     /// 
-    /// // ignores parsed time-zone, retrieve naive range
+    /// // ignore parsed time-zone, retrieve a time-zone naive range
     /// let naive_range = PrimitiveValue::from("1992+0599-1993")
     ///     .to_datetime_range_custom::<IgnoreTimeZone>()?;
     ///
@@ -3103,6 +3103,14 @@ impl PrimitiveValue {
     ///         )
     ///     ).unwrap()
     /// );
+    /// 
+    /// // fail upon parsing a ambiguous DT range
+    /// assert!(
+    /// PrimitiveValue::from("1992+0599-1993")
+    ///     .to_datetime_range_custom::<FailOnAmbiguousRange>().is_err()
+    /// );
+    /// 
+    /// 
     /// 
     /// # Ok(())
     /// # }

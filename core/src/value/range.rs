@@ -2,7 +2,7 @@
 //! Parsing into ranges happens via partial precision  structures (DicomDate, DicomTime,
 //! DicomDatime) so ranges can handle null components in date, time, date-time values.
 use chrono::{
-    DateTime, FixedOffset, Local, LocalResult, NaiveDate, NaiveDateTime, NaiveTime, TimeZone,
+    DateTime, FixedOffset, Local, LocalResult, NaiveDate, NaiveDateTime, NaiveTime, TimeZone
 };
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 
@@ -82,6 +82,10 @@ pub enum Error {
         "Trying to convert a time-zone aware date-time value to a time-zone unaware value"
     ))]
     DateTimeTzAware { backtrace: Backtrace },
+    #[snafu(display(
+        "Parsing a date-time range from '{start}' to '{end}' with only one time-zone '{time_zone} value, second time-zone is missing.'"
+    ))]
+    AmbiguousDtRange { start: NaiveDateTime, end: NaiveDateTime, time_zone: FixedOffset, backtrace: Backtrace },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -920,6 +924,10 @@ pub trait AmbiguousDtRangeParser {
 #[derive(Debug)]
 pub struct ToKnownTimeZone;
 
+/// Fail if ambiguous date-time range is parsed
+#[derive(Debug)]
+pub struct FailOnAmbiguousRange;
+
 /// Use time-zone information of the local system clock.
 /// Retrieves a [DateTimeRange::TimeZone].
 #[derive(Debug)]
@@ -980,6 +988,27 @@ impl AmbiguousDtRangeParser for ToKnownTimeZone {
                 end: Some(end),
             })
         }
+    }
+}
+
+impl AmbiguousDtRangeParser for FailOnAmbiguousRange{
+    fn parse_with_ambiguous_end(
+            start: DateTime<FixedOffset>,
+            end: NaiveDateTime,
+        ) -> Result<DateTimeRange> {
+        let time_zone = *start.offset();
+        let start = start.naive_local();
+        AmbiguousDtRangeSnafu{ start, end, time_zone}.fail()
+
+    }
+    fn parse_with_ambiguous_start(
+            start: NaiveDateTime,
+            end: DateTime<FixedOffset>,
+        ) -> Result<DateTimeRange> {
+        let time_zone = *end.offset();
+        let end = end.naive_local();
+        AmbiguousDtRangeSnafu{ start, end, time_zone}.fail()
+        
     }
 }
 
