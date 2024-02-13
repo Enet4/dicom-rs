@@ -2,7 +2,7 @@
 //!
 //! See [`PrimitiveValue`](./enum.PrimitiveValue.html).
 
-use super::DicomValueType;
+use super::{AsRange, DicomValueType};
 use crate::header::{HasLength, Length, Tag};
 use crate::value::partial::{DateComponent, DicomDate, DicomDateTime, DicomTime};
 use crate::value::person_name::PersonName;
@@ -2804,7 +2804,7 @@ impl PrimitiveValue {
     }
     /// Retrieve a single `DateRange` from this value.
     ///
-    /// If the value is already represented as a `DicomDate`, it is converted into `DateRange` - todo.
+    /// If the value is already represented as a `DicomDate`, it is converted into `DateRange`.
     /// If the value is a string or sequence of strings,
     /// the first string is decoded to obtain a `DateRange`, potentially failing if the
     /// string does not represent a valid `DateRange`.
@@ -2841,6 +2841,14 @@ impl PrimitiveValue {
     /// ```
     pub fn to_date_range(&self) -> Result<DateRange, ConvertValueError> {
         match self {
+            PrimitiveValue::Date(da) if !da.is_empty() => da[0]
+                .range()
+                .context(ParseDateRangeSnafu)
+                .map_err(|err| ConvertValueError {
+                    requested: "DateRange",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
             PrimitiveValue::Str(s) => super::range::parse_date_range(s.trim_end().as_bytes())
                 .context(ParseDateRangeSnafu)
                 .map_err(|err| ConvertValueError {
@@ -2876,7 +2884,7 @@ impl PrimitiveValue {
 
     /// Retrieve a single `TimeRange` from this value.
     ///
-    /// If the value is already represented as a `DicomTime`, it is converted into `TimeRange` - todo.
+    /// If the value is already represented as a `DicomTime`, it is converted into a `TimeRange`.
     /// If the value is a string or sequence of strings,
     /// the first string is decoded to obtain a `TimeRange`, potentially failing if the
     /// string does not represent a valid `DateRange`.
@@ -2916,6 +2924,14 @@ impl PrimitiveValue {
     /// ```
     pub fn to_time_range(&self) -> Result<TimeRange, ConvertValueError> {
         match self {
+            PrimitiveValue::Time(t) if !t.is_empty() => t[0]
+                .range()
+                .context(ParseTimeRangeSnafu)
+                .map_err(|err| ConvertValueError {
+                    requested: "TimeRange",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
             PrimitiveValue::Str(s) => super::range::parse_time_range(s.trim_end().as_bytes())
                 .context(ParseTimeRangeSnafu)
                 .map_err(|err| ConvertValueError {
@@ -3022,6 +3038,14 @@ impl PrimitiveValue {
     /// ```
     pub fn to_datetime_range(&self) -> Result<DateTimeRange, ConvertValueError> {
         match self {
+            PrimitiveValue::DateTime(dt) if !dt.is_empty() => dt[0]
+                .range()
+                .context(ParseDateTimeRangeSnafu)
+                .map_err(|err| ConvertValueError {
+                    requested: "DateTimeRange",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
             PrimitiveValue::Str(s) => super::range::parse_datetime_range(s.trim_end().as_bytes())
                 .context(ParseDateTimeRangeSnafu)
                 .map_err(|err| ConvertValueError {
@@ -3059,7 +3083,7 @@ impl PrimitiveValue {
     ///
     /// Use a custom ambiguous date-time range parser.
     ///
-    /// See [PrimitiveValue::to_datetime_range] and [AmbiguousDtRangeParser]
+    /// For full description see [PrimitiveValue::to_datetime_range] and [AmbiguousDtRangeParser].
     /// # Example
     ///
     /// ```
@@ -3085,7 +3109,7 @@ impl PrimitiveValue {
     ///         .as_datetime_with_time_zone().unwrap()
     ///         .offset()
     /// );
-    /// 
+    ///
     /// // ignore parsed time-zone, retrieve a time-zone naive range
     /// let naive_range = PrimitiveValue::from("1992+0599-1993")
     ///     .to_datetime_range_custom::<IgnoreTimeZone>()?;
@@ -3103,15 +3127,15 @@ impl PrimitiveValue {
     ///         )
     ///     ).unwrap()
     /// );
-    /// 
+    ///
     /// // fail upon parsing a ambiguous DT range
     /// assert!(
     /// PrimitiveValue::from("1992+0599-1993")
     ///     .to_datetime_range_custom::<FailOnAmbiguousRange>().is_err()
     /// );
-    /// 
-    /// 
-    /// 
+    ///
+    ///
+    ///
     /// # Ok(())
     /// # }
     /// ```
@@ -3119,6 +3143,14 @@ impl PrimitiveValue {
         &self,
     ) -> Result<DateTimeRange, ConvertValueError> {
         match self {
+            PrimitiveValue::DateTime(dt) if !dt.is_empty() => dt[0]
+                .range()
+                .context(ParseDateTimeRangeSnafu)
+                .map_err(|err| ConvertValueError {
+                    requested: "DateTimeRange",
+                    original: self.value_type(),
+                    cause: Some(err),
+                }),
             PrimitiveValue::Str(s) => {
                 super::range::parse_datetime_range_custom::<T>(s.trim_end().as_bytes())
                     .context(ParseDateTimeRangeSnafu)
