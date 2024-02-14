@@ -781,6 +781,8 @@ impl FileMetaTable {
             writer,
             EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
         );
+        //There are no sequences in the `FileMetaTable`, so the value of `invalidate_sq_len` is
+        //not important
         dset.write_sequence(
             self.clone()
                 .into_element_iter()

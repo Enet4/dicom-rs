@@ -427,7 +427,7 @@ where
         let cs = SpecificCharacterSet::Default;
         let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
 
-        // write object
+        // We use the default options, because only the inner object knows if something needs to change
         dset_writer
             .write_sequence((&self.obj).into_tokens())
             .context(PrintDataSetSnafu)?;
@@ -460,7 +460,7 @@ where
         let cs = SpecificCharacterSet::Default;
         let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
 
-        // write object
+        // We use the default options, because only the inner object knows if something needs to change
         dset_writer
             .write_sequence((&self.obj).into_tokens())
             .context(PrintDataSetSnafu)?;

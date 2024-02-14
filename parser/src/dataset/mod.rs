@@ -4,6 +4,7 @@ use dicom_core::header::{DataElementHeader, HasLength, Length, VR};
 use dicom_core::value::{DicomValueType, PrimitiveValue};
 use dicom_core::{value::Value, DataElement, Tag};
 use snafu::{OptionExt, ResultExt, Snafu};
+use std::default::Default;
 use std::fmt;
 
 pub mod lazy_read;
@@ -27,6 +28,7 @@ pub enum Error {
     /// Unexpected undefined value length
     UndefinedLength,
 }
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// A token of a DICOM data set stream. This is part of the interpretation of a
@@ -415,19 +417,41 @@ pub enum SeqTokenType {
     Item,
 }
 
+/// Options for token generation
+#[derive(Debug, Copy, Clone, Default, Eq, PartialEq)]
+#[non_exhaustive]
+pub struct IntoTokensOptions {
+    /// Set this to true when we are sure we need to invalidate all sequence lengths
+    /// Determines if the sequence length in bytes might be invalid and should
+    /// either be recalculated or marked as undefined.
+    pub force_invalidate_sq_length: bool,
+}
+
+impl IntoTokensOptions {
+    pub fn new(force_invalidate_sq_length: bool) -> Self {
+        IntoTokensOptions {
+            force_invalidate_sq_length,
+        }
+    }
+}
+
 /// A trait for converting structured DICOM data into a stream of data tokens.
 pub trait IntoTokens {
     /// The iterator type through which tokens are obtained.
     type Iter: Iterator<Item = DataToken>;
 
-    /// Convert the value into tokens.
     fn into_tokens(self) -> Self::Iter;
+    fn into_tokens_with_options(self, options: IntoTokensOptions) -> Self::Iter;
 }
 
 impl IntoTokens for dicom_core::header::EmptyObject {
     type Iter = std::iter::Empty<DataToken>;
 
     fn into_tokens(self) -> Self::Iter {
+        unreachable!()
+    }
+
+    fn into_tokens_with_options(self, _options: IntoTokensOptions) -> Self::Iter {
         unreachable!()
     }
 }
@@ -442,6 +466,7 @@ where
         // Option is used for easy taking from a &mut,
         // should always be Some in practice
         Option<DataElement<I, P>>,
+        IntoTokensOptions,
     ),
     /// the header of a plain primitive element was read
     Header(
@@ -489,10 +514,14 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let (out, next_state) = match self {
-            DataElementTokens::Start(elem) => {
+            DataElementTokens::Start(elem, options) => {
                 let elem = elem.take().unwrap();
                 // data element header token
-                let header = *elem.header();
+
+                let mut header = *elem.header();
+                if options.force_invalidate_sq_length && elem.vr() == VR::SQ {
+                    header.len = Length::UNDEFINED;
+                }
 
                 let token = DataToken::from(header);
                 match token {
@@ -501,12 +530,23 @@ where
                         match elem.into_value() {
                             Value::Primitive(_) | Value::PixelSequence { .. } => unreachable!(),
                             Value::Sequence(seq) => {
+                                let seq = if options.force_invalidate_sq_length {
+                                    seq.into_items().into_vec().into()
+                                } else {
+                                    seq
+                                };
+
                                 let items: dicom_core::value::C<_> = seq
                                     .into_items()
                                     .into_iter()
                                     .map(|o| AsItem(o.length(), o))
                                     .collect();
-                                (Some(token), DataElementTokens::Items(items.into_tokens()))
+                                (
+                                    Some(token),
+                                    DataElementTokens::Items(
+                                        items.into_tokens_with_options(*options),
+                                    ),
+                                )
                             }
                         }
                     }
@@ -519,7 +559,8 @@ where
                                     Some(DataToken::PixelSequenceStart),
                                     DataElementTokens::PixelData(
                                         Some(fragments),
-                                        OffsetTableItem(offset_table).into_tokens(),
+                                        OffsetTableItem(offset_table)
+                                            .into_tokens_with_options(*options),
                                     ),
                                 )
                             }
@@ -591,7 +632,12 @@ where
     type Iter = DataElementTokens<I, P>;
 
     fn into_tokens(self) -> Self::Iter {
-        DataElementTokens::Start(Some(self))
+        //Avoid
+        self.into_tokens_with_options(Default::default())
+    }
+
+    fn into_tokens_with_options(self, options: IntoTokensOptions) -> Self::Iter {
+        DataElementTokens::Start(Some(self), options)
     }
 }
 
@@ -601,6 +647,7 @@ where
 pub struct FlattenTokens<O, K> {
     seq: O,
     tokens: Option<K>,
+    into_token_options: IntoTokensOptions,
 }
 
 impl<O, K> Iterator for FlattenTokens<O, K>
@@ -616,7 +663,7 @@ where
         if self.tokens.is_none() {
             match self.seq.next() {
                 Some(entries) => {
-                    self.tokens = Some(entries.into_tokens());
+                    self.tokens = Some(entries.into_tokens_with_options(self.into_token_options));
                 }
                 None => return None,
             }
@@ -641,9 +688,14 @@ where
     type Iter = FlattenTokens<<Vec<T> as IntoIterator>::IntoIter, <T as IntoTokens>::Iter>;
 
     fn into_tokens(self) -> Self::Iter {
+        self.into_tokens_with_options(Default::default())
+    }
+
+    fn into_tokens_with_options(self, into_token_options: IntoTokensOptions) -> Self::Iter {
         FlattenTokens {
             seq: self.into_iter(),
             tokens: None,
+            into_token_options,
         }
     }
 }
@@ -656,9 +708,14 @@ where
         FlattenTokens<<dicom_core::value::C<T> as IntoIterator>::IntoIter, <T as IntoTokens>::Iter>;
 
     fn into_tokens(self) -> Self::Iter {
+        self.into_tokens_with_options(Default::default())
+    }
+
+    fn into_tokens_with_options(self, into_token_options: IntoTokensOptions) -> Self::Iter {
         FlattenTokens {
             seq: self.into_iter(),
             tokens: None,
+            into_token_options,
         }
     }
 }
@@ -682,13 +739,18 @@ impl<T> ItemTokens<T>
 where
     T: Iterator<Item = DataToken>,
 {
-    pub fn new<O>(len: Length, object: O) -> Self
+    pub fn new<O>(len: Length, object: O, options: IntoTokensOptions) -> Self
     where
         O: IntoTokens<Iter = T>,
     {
+        let len = if len.0 != 0 && options.force_invalidate_sq_length {
+            Length::UNDEFINED
+        } else {
+            len
+        };
         ItemTokens::Start {
             len,
-            object_tokens: Some(object.into_tokens()),
+            object_tokens: Some(object.into_tokens_with_options(options)),
         }
     }
 }
@@ -737,7 +799,11 @@ where
     type Iter = ItemTokens<I::Iter>;
 
     fn into_tokens(self) -> Self::Iter {
-        ItemTokens::new(self.0, self.1)
+        self.into_tokens_with_options(Default::default())
+    }
+
+    fn into_tokens_with_options(self, options: IntoTokensOptions) -> Self::Iter {
+        ItemTokens::new(self.0, self.1, options)
     }
 }
 
@@ -761,14 +827,19 @@ where
     type Iter = ItemValueTokens<P>;
 
     fn into_tokens(self) -> Self::Iter {
-        ItemValueTokens::new(self.0)
+        self.into_tokens_with_options(Default::default())
+    }
+
+    fn into_tokens_with_options(self, options: IntoTokensOptions) -> Self::Iter {
+        ItemValueTokens::new(self.0, options)
     }
 }
 
 #[derive(Debug)]
 pub enum ItemValueTokens<P> {
-    /// Just started, an item header token will come next
-    Start(Option<P>),
+    /// Just started, an item header token will come next. Takes a bool to configure if inner
+    /// lengths can be trusted to be valid
+    Start(Option<P>, bool),
     /// Will return a token of the value
     Value(P),
     /// Will return an end of item token
@@ -779,8 +850,8 @@ pub enum ItemValueTokens<P> {
 
 impl<P> ItemValueTokens<P> {
     #[inline]
-    pub fn new(value: P) -> Self {
-        ItemValueTokens::Start(Some(value))
+    pub fn new(value: P, into_tokens_options: IntoTokensOptions) -> Self {
+        ItemValueTokens::Start(Some(value), into_tokens_options.force_invalidate_sq_length)
     }
 }
 
@@ -792,13 +863,18 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let (out, next_state) = match self {
-            ItemValueTokens::Start(value) => {
+            ItemValueTokens::Start(value, invalidate_len) => {
                 let value = value.take().unwrap();
-                let len = Length(value.as_ref().len() as u32);
+                let end_item = value.as_ref().is_empty();
+                let len = if *invalidate_len && !end_item {
+                    Length::UNDEFINED
+                } else {
+                    Length(value.as_ref().len() as u32)
+                };
 
                 (
                     Some(DataToken::ItemStart { len }),
-                    if len == Length(0) {
+                    if end_item {
                         ItemValueTokens::Done
                     } else {
                         ItemValueTokens::Value(value)
@@ -833,6 +909,11 @@ where
     type Iter = OffsetTableItemTokens<P>;
 
     fn into_tokens(self) -> Self::Iter {
+        self.into_tokens_with_options(Default::default())
+    }
+
+    fn into_tokens_with_options(self, _options: IntoTokensOptions) -> Self::Iter {
+        //There are no sequences here that might need to be invalidated
         OffsetTableItemTokens::new(self.0)
     }
 }
@@ -897,7 +978,7 @@ mod tests {
         PrimitiveValue, Tag, VR,
     };
 
-    use super::{DataToken, IntoTokens, LazyDataToken};
+    use super::{DataToken, IntoTokens, IntoTokensOptions, LazyDataToken};
     use smallvec::smallvec;
 
     use dicom_encoding::{
@@ -932,9 +1013,14 @@ mod tests {
         >;
 
         fn into_tokens(self) -> Self::Iter {
+            self.into_tokens_with_options(Default::default())
+        }
+
+        fn into_tokens_with_options(self, into_token_options: IntoTokensOptions) -> Self::Iter {
             super::FlattenTokens {
                 seq: self.1.into_iter(),
                 tokens: None,
+                into_token_options,
             }
         }
     }
