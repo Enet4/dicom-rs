@@ -2978,7 +2978,7 @@ impl PrimitiveValue {
     ///
     /// ```
     /// # use dicom_core::value::{C, PrimitiveValue};
-    /// use chrono::{DateTime, NaiveDate, NaiveTime, NaiveDateTime, FixedOffset, TimeZone};
+    /// use chrono::{DateTime, NaiveDate, NaiveTime, NaiveDateTime, FixedOffset, TimeZone, Local};
     /// # use std::error::Error;
     /// use dicom_core::value::{DateTimeRange, PreciseDateTimeResult};
     ///
@@ -3011,14 +3011,15 @@ impl PrimitiveValue {
     ///
     /// let lower = PrimitiveValue::from("2012-").to_datetime_range()?;
     ///
+    /// // range has no upper bound
     /// assert!(lower.end().is_none());
     ///
     /// // The DICOM protocol allows for parsing text representations of date-time ranges,
     /// // where one bound has a time-zone but the other has not.
     /// let dt_range = PrimitiveValue::from("1992+0500-1993").to_datetime_range()?;
     ///
-    /// // the default behavior in this case is to use the known time-zone to construct
-    /// // two time-zone aware DT bounds.
+    /// // the default behavior in this case is to use the local clock time-zone offset
+    /// // in place of the missing time-zone. This can be customized with [to_datetime_range_custom()]
     /// assert_eq!(
     ///   dt_range,
     ///   DateTimeRange::TimeZone{
@@ -3026,7 +3027,7 @@ impl PrimitiveValue {
     ///             .ymd_opt(1992, 1, 1).unwrap()
     ///             .and_hms_micro_opt(0, 0, 0, 0).unwrap()
     ///         ),
-    ///         end: Some(FixedOffset::east_opt(5*3600).unwrap()
+    ///         end: Some(Local::now().offset()
     ///             .ymd_opt(1993, 12, 31).unwrap()
     ///             .and_hms_micro_opt(23, 59, 59, 999_999).unwrap()
     ///         )
@@ -3128,7 +3129,7 @@ impl PrimitiveValue {
     ///     ).unwrap()
     /// );
     ///
-    /// // fail upon parsing a ambiguous DT range
+    /// // always fail upon parsing an ambiguous DT range
     /// assert!(
     /// PrimitiveValue::from("1992+0599-1993")
     ///     .to_datetime_range_custom::<FailOnAmbiguousRange>().is_err()
@@ -4311,7 +4312,7 @@ mod tests {
     use crate::value::partial::{DicomDate, DicomDateTime, DicomTime};
     use crate::value::range::{DateRange, DateTimeRange, TimeRange};
     use crate::value::{PrimitiveValue, ValueType};
-    use chrono::{FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
+    use chrono::{FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
     use smallvec::smallvec;
 
     #[test]
@@ -4926,15 +4927,15 @@ mod tests {
             .unwrap()
         );
         // East UTC offset gets parsed and the missing lower bound time-zone
-        // will be the same as the parsed offset value
+        // will be the local clock time-zone offset
         assert_eq!(
             PrimitiveValue::from(&b"2020-2030+0800"[..])
                 .to_datetime_range()
                 .unwrap(),
             DateTimeRange::TimeZone {
                 start: Some(
-                    FixedOffset::east_opt(8 * 3600)
-                        .unwrap()
+                    Local::now()
+                        .offset()
                         .from_local_datetime(&NaiveDateTime::new(
                             NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
                             NaiveTime::from_hms_opt(0, 0, 0).unwrap()

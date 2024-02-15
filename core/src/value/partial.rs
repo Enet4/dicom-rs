@@ -75,11 +75,13 @@ pub enum DateComponent {
     Millisecond,
     // microsecond (full second fraction)
     Fraction,
+    // West UTC time-zone offset
     UtcWest,
+    // East UTC time-zone offset
     UtcEast,
 }
 
-/// Represents a Dicom Date value with a partial precision,
+/// Represents a Dicom date (DA) value with a partial precision,
 /// where some date components may be missing.
 ///
 /// Unlike [chrono::NaiveDate], it does not allow for negative years.
@@ -113,7 +115,7 @@ pub enum DateComponent {
 #[derive(Clone, Copy, PartialEq)]
 pub struct DicomDate(DicomDateImpl);
 
-/// Represents a Dicom Time value with a partial precision,
+/// Represents a Dicom time (TM) value with a partial precision,
 /// where some time components may be missing.
 ///
 /// Unlike [chrono::NaiveTime], this implemenation has only 6 digit precision
@@ -181,14 +183,14 @@ enum DicomTimeImpl {
     Fraction(u8, u8, u8, u32, u8),
 }
 
-/// Represents a Dicom DateTime value with a partial precision,
+/// Represents a Dicom date-time (DT) value with a partial precision,
 /// where some date or time components may be missing.
 ///
 /// `DicomDateTime` is always internally represented by a [DicomDate].
 /// The [DicomTime] and a timezone [FixedOffset] values are optional.
 ///
-/// It implements [AsRange] trait, which serves to access usable precise values from `DicomDateTime` values
-/// with missing components in the form of [PreciseDateTimeResult].
+/// It implements [AsRange] trait, which serves to retrieve a [PreciseDateTimeResult] from values
+/// with missing components.
 /// # Example
 /// ```
 /// # use std::error::Error;
