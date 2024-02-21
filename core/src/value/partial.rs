@@ -331,7 +331,7 @@ impl DicomDate {
         }
     }
 
-    /** Rertrieves the last fully precise `DateComponent` of the value */
+    /** Retrieves the last fully precise `DateComponent` of the value */
     pub(crate) fn precision(&self) -> DateComponent {
         match self {
             DicomDate(DicomDateImpl::Year(..)) => DateComponent::Year,
@@ -527,7 +527,7 @@ impl DicomTime {
         )))
     }
 
-    /** Rertrieves the last fully precise `DateComponent` of the value */
+    /** Retrieves the last fully precise `DateComponent` of the value */
     pub(crate) fn precision(&self) -> DateComponent {
         match self {
             DicomTime(DicomTimeImpl::Hour(..)) => DateComponent::Hour,
@@ -691,8 +691,8 @@ impl DicomDateTime {
         self.time_zone.is_some()
     }
 
-    /** Retrieves a refrence to the internal offset value */
-    #[deprecated(since = "0.6.4", note = "Use `time_zone` instead")]
+    /** Retrieves a reference to the internal offset value */
+    #[deprecated(since = "0.7.0", note = "Use `time_zone` instead")]
     pub fn offset(&self) {}
 }
 

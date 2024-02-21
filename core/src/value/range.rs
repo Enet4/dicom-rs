@@ -464,7 +464,7 @@ impl DicomDateTime {
     }
 
     #[deprecated(
-        since = "0.6.4",
+        since = "0.7.0",
         note = "Use `to_datetime_with_time_zone` or `to_naive_date_time`"
     )]
     pub fn to_chrono_datetime(self) -> Result<DateTime<FixedOffset>> {

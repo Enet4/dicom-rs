@@ -2640,9 +2640,9 @@ impl PrimitiveValue {
         }
     }
 
-    #[deprecated(since = "0.6.4", note = "Use `to_datetime` instead")]
+    #[deprecated(since = "0.7.0", note = "Use `to_datetime` instead")]
     pub fn to_chrono_datetime(&self) {}
-    #[deprecated(since = "0.6.4", note = "Use `to_multi_datetime` instead")]
+    #[deprecated(since = "0.7.0", note = "Use `to_multi_datetime` instead")]
     pub fn to_multi_chrono_datetime(&self) {}
 
     /// Retrieve a single `DicomDateTime` from this value.
@@ -3014,12 +3014,11 @@ impl PrimitiveValue {
     /// // range has no upper bound
     /// assert!(lower.end().is_none());
     ///
-    /// // The DICOM protocol allows for parsing text representations of date-time ranges,
-    /// // where one bound has a time-zone but the other has not.
+    /// // One time-zone in a range is missing
     /// let dt_range = PrimitiveValue::from("1992+0500-1993").to_datetime_range()?;
     ///
-    /// // the default behavior in this case is to use the local clock time-zone offset
-    /// // in place of the missing time-zone. This can be customized with [to_datetime_range_custom()]
+    /// // It will be replaced with the local clock time-zone offset
+    /// // This can be customized with [to_datetime_range_custom()]
     /// assert_eq!(
     ///   dt_range,
     ///   DateTimeRange::TimeZone{
@@ -3090,19 +3089,18 @@ impl PrimitiveValue {
     /// ```
     /// # use dicom_core::value::{C, PrimitiveValue};
     /// # use std::error::Error;
-    /// use dicom_core::value::range::{AmbiguousDtRangeParser, ToLocalTimeZone, IgnoreTimeZone, FailOnAmbiguousRange, DateTimeRange};
+    /// use dicom_core::value::range::{AmbiguousDtRangeParser, ToKnownTimeZone, IgnoreTimeZone, FailOnAmbiguousRange, DateTimeRange};
     /// use chrono::{NaiveDate, NaiveTime, NaiveDateTime};
     /// # fn main() -> Result<(), Box<dyn Error>> {
     ///
-    /// // The DICOM protocol allows for parsing text representations of date-time ranges,
-    /// // where one bound has a time-zone but the other has not.
-    /// // the default behavior in this case is to use the known time-zone to construct
-    /// // two time-zone aware DT bounds. But we want to use the local clock time-zone instead
-    /// let dt_range = PrimitiveValue::from("1992+0599-1993")
-    ///     .to_datetime_range_custom::<ToLocalTimeZone>()?;
+    /// // The upper bound time-zone is missing
+    /// // the default behavior in this case is to use the local clock time-zone.
+    /// // But we want to use the known (parsed) time-zone from the lower bound instead.
+    /// let dt_range = PrimitiveValue::from("1992+0500-1993")
+    ///     .to_datetime_range_custom::<ToKnownTimeZone>()?;
     ///
-    /// // local clock time-zone in the upper bound should be different from 0599 in the lower bound.
-    /// assert_ne!(
+    /// // values are in the same time-zone
+    /// assert_eq!(
     ///     dt_range.start().unwrap()
     ///         .as_datetime_with_time_zone().unwrap()
     ///         .offset(),

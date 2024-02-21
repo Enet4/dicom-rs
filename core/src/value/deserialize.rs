@@ -337,7 +337,7 @@ where
 * For DateTime with missing components, or if exact second fraction accuracy needs to be preserved,
   use `parse_datetime_partial`.
 */
-#[deprecated(since = "0.6.4", note = "Only use parse_datetime_partial()")]
+#[deprecated(since = "0.7.0", note = "Only use parse_datetime_partial()")]
 pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime<FixedOffset>> {
     let date = parse_date(buf)?;
     let buf = &buf[8..];
