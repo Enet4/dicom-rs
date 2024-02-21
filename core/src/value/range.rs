@@ -2,7 +2,7 @@
 //! Parsing into ranges happens via partial precision  structures (DicomDate, DicomTime,
 //! DicomDatime) so ranges can handle null components in date, time, date-time values.
 use chrono::{
-    DateTime, FixedOffset, Local, LocalResult, NaiveDate, NaiveDateTime, NaiveTime, TimeZone,
+    DateTime, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone,
 };
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 
@@ -63,18 +63,8 @@ pub enum Error {
         f: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display(
-        "Date-time does not contain time-zone, cannot convert to time-zone aware value"
-    ))]
-    NoTimeZone { backtrace: Backtrace },
-    #[snafu(display(
-        "Failed to convert to a time-zone aware date-time value: Given local time representation is invalid"
-    ))]
+    #[snafu(display("Use 'to_precise_datetime' to retrieve a precise value from a date-time"))]
     ToPreciseDateTime { backtrace: Backtrace },
-    #[snafu(display(
-        "Use 'to_datetime_with_time_zone' or 'to_naive_date_time' to retrieve a precise value from a date-time"
-    ))]
-    DateTimeTzAware { backtrace: Backtrace },
     #[snafu(display(
         "Parsing a date-time range from '{start}' to '{end}' with only one time-zone '{time_zone} value, second time-zone is missing.'"
     ))]
@@ -173,7 +163,7 @@ pub trait AsRange {
     /// returns true if value has all possible date / time components
     fn is_precise(&self) -> bool;
 
-    /// Returns a corresponding `chrono` value, if the partial precision structure has full accuracy.
+    /// Returns a corresponding precise value, if the partial precision structure has full accuracy.
     fn exact(&self) -> Result<Self::PreciseValue> {
         if self.is_precise() {
             Ok(self.earliest()?)
@@ -182,12 +172,12 @@ pub trait AsRange {
         }
     }
 
-    /// Returns the earliest possible valid `chrono` value from a partial precision structure.
+    /// Returns the earliest possible value from a partial precision structure.
     /// Missing components default to 1 (days, months) or 0 (hours, minutes, ...)
     /// If structure contains invalid combination of `DateComponent`s, it fails.
     fn earliest(&self) -> Result<Self::PreciseValue>;
 
-    /// Returns the latest possible valid `chrono` value from a partial precision structure.
+    /// Returns the latest possible value from a partial precision structure.
     /// If structure contains invalid combination of `DateComponent`s, it fails.
     fn latest(&self) -> Result<Self::PreciseValue>;
 
@@ -389,20 +379,15 @@ impl AsRange for DicomDateTime {
         let start = self.earliest()?;
         let end = self.latest()?;
 
-        if start.has_time_zone() {
-            let s = start.into_datetime_with_time_zone()?;
-            let e = end.into_datetime_with_time_zone()?;
-            Ok(DateTimeRange::TimeZone {
-                start: Some(s),
-                end: Some(e),
-            })
-        } else {
-            let s = start.into_datetime()?;
-            let e = end.into_datetime()?;
-            Ok(DateTimeRange::Naive {
-                start: Some(s),
-                end: Some(e),
-            })
+        match (start, end) {
+            (PreciseDateTimeResult::Naive(start), PreciseDateTimeResult::Naive(end)) => {
+                DateTimeRange::from_start_to_end(start, end)
+            }
+            (PreciseDateTimeResult::TimeZone(start), PreciseDateTimeResult::TimeZone(end)) => {
+                DateTimeRange::from_start_to_end_with_time_zone(start, end)
+            }
+
+            _ => unreachable!(),
         }
     }
 }
@@ -430,43 +415,14 @@ impl DicomTime {
 }
 
 impl DicomDateTime {
-    /// Retrieves a `chrono::DateTime<FixedOffset>`.
-    /// It the value does not store a time-zone or the date-time value is not precise or the conversion leads to ambiguous results,
+    /// Retrieves a [PreciseDateTimeResult] from a date-time value.
+    /// If the date-time value is not precise or the conversion leads to ambiguous results,
     /// it fails.
-    /// To inspect the possibly ambiguous results of this conversion, see `to_chrono_local_result`
-    pub fn to_datetime_with_time_zone(self) -> Result<DateTime<FixedOffset>> {
-        self.exact()?.into_datetime_with_time_zone()
+    pub fn to_precise_datetime(&self) -> Result<PreciseDateTimeResult> {
+        self.exact()
     }
 
-    /// Retrieves a `chrono::NaiveDateTime`. If the internal date-time value is not precise or
-    /// it is time-zone aware, this method will fail.
-    pub fn to_naive_datetime(&self) -> Result<NaiveDateTime> {
-        self.exact()?.into_datetime()
-    }
-
-    /// Retrieves a `chrono::LocalResult` by converting the internal time-zone naive date-time representation
-    /// to a time-zone aware representation.
-    /// It the value does not store a time-zone or the date-time value is not precise, it fails.
-    pub fn to_chrono_local_result(self) -> Result<LocalResult<DateTime<FixedOffset>>> {
-        if !self.is_precise() {
-            return ImpreciseValueSnafu.fail();
-        }
-
-        if let Some(offset) = self.time_zone() {
-            let date = self.date().earliest()?;
-            let time = self.time().context(ImpreciseValueSnafu)?.earliest()?;
-
-            let naive_date_time = NaiveDateTime::new(date, time);
-            Ok(offset.from_local_datetime(&naive_date_time))
-        } else {
-            NoTimeZoneSnafu.fail()
-        }
-    }
-
-    #[deprecated(
-        since = "0.7.0",
-        note = "Use `to_datetime_with_time_zone` or `to_naive_date_time`"
-    )]
+    #[deprecated(since = "0.7.0", note = "Use `to_precise_date_time()`")]
     pub fn to_chrono_datetime(self) -> Result<DateTime<FixedOffset>> {
         ToPreciseDateTimeSnafu.fail()
     }
@@ -574,19 +530,19 @@ impl PreciseDateTimeResult {
         }
     }
 
-    /// Moves out a `chrono::DateTime<FixedOffset>` if the result is time-zone aware, otherwise it fails.
-    pub fn into_datetime_with_time_zone(self) -> Result<DateTime<FixedOffset>> {
+    /// Moves out a `chrono::DateTime<FixedOffset>` if the result is time-zone aware.
+    pub fn into_datetime_with_time_zone(self) -> Option<DateTime<FixedOffset>> {
         match self {
-            PreciseDateTimeResult::Naive(..) => NoTimeZoneSnafu.fail(),
-            PreciseDateTimeResult::TimeZone(value) => Ok(value),
+            PreciseDateTimeResult::Naive(..) => None,
+            PreciseDateTimeResult::TimeZone(value) => Some(value),
         }
     }
 
-    /// Moves out a `chrono::NaiveDateTime` if the result is time-zone naive, otherwise it fails.
-    pub fn into_datetime(self) -> Result<NaiveDateTime> {
+    /// Moves out a `chrono::NaiveDateTime` if the result is time-zone naive.
+    pub fn into_datetime(self) -> Option<NaiveDateTime> {
         match self {
-            PreciseDateTimeResult::Naive(value) => Ok(value),
-            PreciseDateTimeResult::TimeZone(..) => DateTimeTzAwareSnafu.fail(),
+            PreciseDateTimeResult::Naive(value) => Some(value),
+            PreciseDateTimeResult::TimeZone(..) => None,
         }
     }
 
@@ -1796,7 +1752,8 @@ mod tests {
                         .unwrap()
                 ),
                 end: Some(
-                    Local::now().offset()
+                    Local::now()
+                        .offset()
                         .from_local_datetime(&NaiveDateTime::new(
                             NaiveDate::from_ymd_opt(1999, 12, 31).unwrap(),
                             NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
