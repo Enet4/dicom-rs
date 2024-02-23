@@ -671,17 +671,17 @@ impl DicomDateTime {
         }
     }
 
-    /** Retrieves a refrence to the internal date value */
+    /** Retrieves a reference to the internal date value */
     pub fn date(&self) -> &DicomDate {
         &self.date
     }
 
-    /** Retrieves a refrence to the internal time value, if present */
+    /** Retrieves a reference to the internal time value, if present */
     pub fn time(&self) -> Option<&DicomTime> {
         self.time.as_ref()
     }
 
-    /** Retrieves a refrence to the internal time-zone value, if present */
+    /** Retrieves a reference to the internal time-zone value, if present */
     pub fn time_zone(&self) -> Option<&FixedOffset> {
         self.time_zone.as_ref()
     }
