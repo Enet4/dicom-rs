@@ -32,6 +32,7 @@
 //! options.width(100).dump_file(&obj)?;
 //! # Result::<(), Box<dyn std::error::Error>>::Ok(())
 //! ```
+#[cfg(feature = "cli")]
 use clap::ValueEnum;
 #[cfg(feature = "sop-class")]
 use dicom_core::dictionary::UidDictionary;
@@ -52,7 +53,8 @@ use std::fmt::{self, Display, Formatter};
 use std::io::{stdout, Result as IoResult, Write};
 use std::str::FromStr;
 
-#[derive(ValueEnum, Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "cli", derive(ValueEnum))]
 pub enum DumpFormat {
     /// Text dump of DICOM file
     /// 
