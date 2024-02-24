@@ -66,7 +66,8 @@ pub enum DumpFormat {
     /// and may change with subsequent versions of the crate.
     #[default]
     Text,
-    /// Dicom part 18 chapter F json format provided by the json crate
+    /// DICOM part 18 chapter F JSON format,
+    /// provided via [`dicom_json`]
     Json,
 }
 
