@@ -271,24 +271,33 @@ impl DumpOptions {
     where
         D: DataDictionary,
     {
-        match (self.color, to_stdout) {
-            (ColorMode::Never, _) => colored::control::set_override(false),
-            (ColorMode::Always, _) => colored::control::set_override(true),
-            (ColorMode::Auto, false) => colored::control::set_override(false),
-            (ColorMode::Auto, true) => colored::control::unset_override(),
+        match self.format {
+            DumpFormat::Text => {
+                match (self.color, to_stdout) {
+                    (ColorMode::Never, _) => colored::control::set_override(false),
+                    (ColorMode::Always, _) => colored::control::set_override(true),
+                    (ColorMode::Auto, false) => colored::control::set_override(false),
+                    (ColorMode::Auto, true) => colored::control::unset_override(),
+                }
+
+                let width = determine_width(self.width);
+
+                let (no_text_limit, no_limit) = if to_stdout {
+                    (self.no_text_limit, self.no_limit)
+                } else {
+                    (true, true)
+                };
+
+                dump(&mut to, obj, width, 0, no_text_limit, no_limit)?;
+
+                Ok(())
+            }
+            DumpFormat::Json => {
+                let json_obj = DicomJson::from(obj);
+                serde_json::to_writer_pretty(to, &json_obj)?;
+                Ok(())
+            }
         }
-
-        let width = determine_width(self.width);
-
-        let (no_text_limit, no_limit) = if to_stdout {
-            (self.no_text_limit, self.no_limit)
-        } else {
-            (true, true)
-        };
-
-        dump(&mut to, obj, width, 0, no_text_limit, no_limit)?;
-
-        Ok(())
     }
 }
 
@@ -1102,5 +1111,34 @@ mod tests {
             assert_eq!(&parts[..3], &[expected.0, expected.1, expected.2]);
             assert_eq!(value, expected.3);
         }
+    }
+
+    #[test]
+    fn dump_json() {
+        // create object
+        let obj = InMemDicomObject::from_element_iter(vec![DataElement::new(
+            tags::SOP_INSTANCE_UID,
+            VR::UI,
+            PrimitiveValue::from("1.2.888.123"),
+        )]);
+
+        let mut out = Vec::new();
+        DumpOptions::new()
+            .color_mode(ColorMode::Never)
+            .format(crate::DumpFormat::Json)
+            .dump_object_to(&mut out, &obj)
+            .unwrap();
+
+        let json = std::str::from_utf8(&out).expect("output is not valid UTF-8");
+        assert_eq!(
+            json,
+            r#"{
+  "00080018": {
+    "vr": "UI",
+    "Value": [
+      "1.2.888.123"
+    ]
+  }
+}"#);
     }
 }
