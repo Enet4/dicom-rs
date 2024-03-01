@@ -262,81 +262,12 @@ where
         }
     }
 
-    /// Encode and write a primitive value.
-    ///
-    /// Its use is not recommended
-    /// because the encoded value's real length
-    /// might not match the header's length,
-    /// leading to an inconsistent data set.
-    #[deprecated(since = "0.5.0", note = "use `encode_primitive_element` instead")]
-    pub fn encode_primitive(
-        &mut self,
-        de: &DataElementHeader,
-        value: &PrimitiveValue,
-    ) -> Result<()> {
-        // intercept string encoding calls to use the text codec
-        match value {
-            PrimitiveValue::Str(text) => {
-                self.encode_text(text, de.vr())?;
-
-                // if element is Specific Character Set,
-                // update the text codec
-                if de.tag == Tag(0x0008, 0x0005) {
-                    self.try_new_codec(text);
-                }
-
-                Ok(())
-            }
-            PrimitiveValue::Strs(texts) => {
-                self.encode_texts(&texts[..], de.vr())?;
-
-                // if element is Specific Character Set,
-                // update the text codec
-                if de.tag == Tag(0x0008, 0x0005) {
-                    if let Some(charset_name) = texts.first() {
-                        self.try_new_codec(charset_name);
-                    }
-                }
-                Ok(())
-            }
-            _ => {
-                let bytes = self.encoder.encode_primitive(&mut self.to, value).context(
-                    EncodeDataSnafu {
-                        position: self.bytes_written,
-                    },
-                )?;
-
-                self.bytes_written += bytes as u64;
-                if bytes % 2 != 0 {
-                    self.to.write_all(&[0]).context(WriteValueDataSnafu {
-                        position: self.bytes_written,
-                    })?;
-                    self.bytes_written += 1;
-                }
-                Ok(())
-            }
-        }
-    }
-
     fn try_new_codec(&mut self, name: &str) {
         if let Some(codec) = SpecificCharacterSet::from_code(name) {
             self.text = codec;
         } else {
             tracing::warn!("Unsupported character set `{}`, ignoring", name);
         }
-    }
-
-    fn encode_text(&mut self, text: &str, vr: VR) -> Result<()> {
-        let bytes = self.encode_text_untrailed(text, vr)?;
-        // pad to even length
-        if bytes % 2 == 1 {
-            let pad = if vr == VR::UI { b"\0" } else { b" " };
-            self.to.write_all(pad).context(WriteValueDataSnafu {
-                position: self.bytes_written,
-            })?;
-            self.bytes_written += 1;
-        }
-        Ok(())
     }
 
     fn encode_text_element(&mut self, text: &str, de: DataElementHeader) -> Result<()> {
@@ -411,41 +342,6 @@ where
         }
 
         Ok(())
-    }
-
-    fn encode_texts<S>(&mut self, texts: &[S], vr: VR) -> Result<()>
-    where
-        S: AsRef<str>,
-    {
-        let mut acc = 0;
-        for (i, text) in texts.iter().enumerate() {
-            acc += self.encode_text_untrailed(text.as_ref(), vr)?;
-            if i < texts.len() - 1 {
-                self.to.write_all(b"\\").context(WriteValueDataSnafu {
-                    position: self.bytes_written,
-                })?;
-                acc += 1;
-                self.bytes_written += 1;
-            }
-        }
-        // pad to even length
-        if acc % 2 == 1 {
-            let pad = if vr == VR::UI { b"\0" } else { b" " };
-            self.to.write_all(pad).context(WriteValueDataSnafu {
-                position: self.bytes_written,
-            })?;
-            self.bytes_written += 1;
-        }
-        Ok(())
-    }
-
-    fn encode_text_untrailed(&mut self, text: &str, vr: VR) -> Result<usize> {
-        let data = self.convert_text_untrailed(text, vr)?;
-        self.to.write_all(&data).context(WriteValueDataSnafu {
-            position: self.bytes_written,
-        })?;
-        self.bytes_written += data.len() as u64;
-        Ok(data.len())
     }
 
     fn convert_text_untrailed(&self, text: &str, vr: VR) -> Result<Vec<u8>> {
