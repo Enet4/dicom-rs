@@ -1,0 +1,17 @@
+[package]
+name = "dicom-web"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dicom-core = { path = "../core", version = "0.6.3" }
+dicom-json = { path = "../json/", version = "0.1.1" }
+dicom-object = { path = "../object/", version = "0.6.3" }
+reqwest = { version = "0.11.24", features = ["json"] }
+serde_json = { version = "1.0.96", features = ["preserve_order"] }
+snafu = "0.8.1"
+
+[dev-dependencies]
+tokio = { version = "1.36.0", features = ["macros"] }

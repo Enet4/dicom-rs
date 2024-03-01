@@ -1649,7 +1649,7 @@ pub trait PixelDecoder {
     /// When calling single frame retrieval methods afterwards,
     /// such as [`to_vec_frame`](DecodedPixelData::to_vec_frame),
     /// assume the intended frame number to be `0`.
-    /// 
+    ///
     /// ---
     ///
     /// The default implementation decodes the full pixel data
@@ -2444,10 +2444,22 @@ mod tests {
         #[cfg(feature = "image")]
         #[rstest]
         // jpeg2000 encoding
-        #[cfg_attr(any(feature = "openjp2", feature = "openjpeg-sys"), case("pydicom/emri_small_jpeg_2k_lossless.dcm", 10))]
-        #[cfg_attr(any(feature = "openjp2", feature = "openjpeg-sys"), case("pydicom/693_J2KI.dcm", 1))]
-        #[cfg_attr(any(feature = "openjp2", feature = "openjpeg-sys"), case("pydicom/693_J2KR.dcm", 1))]
-        #[cfg_attr(any(feature = "openjp2", feature = "openjpeg-sys"), case("pydicom/JPEG2000.dcm", 1))]
+        #[cfg_attr(
+            any(feature = "openjp2", feature = "openjpeg-sys"),
+            case("pydicom/emri_small_jpeg_2k_lossless.dcm", 10)
+        )]
+        #[cfg_attr(
+            any(feature = "openjp2", feature = "openjpeg-sys"),
+            case("pydicom/693_J2KI.dcm", 1)
+        )]
+        #[cfg_attr(
+            any(feature = "openjp2", feature = "openjpeg-sys"),
+            case("pydicom/693_J2KR.dcm", 1)
+        )]
+        #[cfg_attr(
+            any(feature = "openjp2", feature = "openjpeg-sys"),
+            case("pydicom/JPEG2000.dcm", 1)
+        )]
         //
         // jpeg-ls encoding not supported
         #[should_panic(expected = "UnsupportedTransferSyntax { ts: \"1.2.840.10008.1.2.4.80\"")]
@@ -2476,7 +2488,11 @@ mod tests {
             println!("Parsing pixel data for {}", test_file.display());
             let obj = open_file(test_file).unwrap();
             let pixel_data = obj.decode_pixel_data().unwrap();
-            assert_eq!(pixel_data.number_of_frames(), frames, "number of frames mismatch");
+            assert_eq!(
+                pixel_data.number_of_frames(),
+                frames,
+                "number of frames mismatch"
+            );
 
             let output_dir = Path::new(
                 "../target/dicom_test_files/_out/test_parse_jpeg_encoded_dicom_pixel_data",
@@ -2484,7 +2500,9 @@ mod tests {
             fs::create_dir_all(output_dir).unwrap();
 
             for i in 0..pixel_data.number_of_frames().min(MAX_TEST_FRAMES) {
-                let image = pixel_data.to_dynamic_image(i).expect("failed to retrieve the frame requested");
+                let image = pixel_data
+                    .to_dynamic_image(i)
+                    .expect("failed to retrieve the frame requested");
                 let image_path = output_dir.join(format!(
                     "{}-{}.png",
                     Path::new(value).file_stem().unwrap().to_str().unwrap(),
@@ -2513,9 +2531,9 @@ mod tests {
                 "../target/dicom_test_files/_out/test_decode_pixel_data_individual_frames",
             );
             std::fs::create_dir_all(output_dir).unwrap();
-    
+
             assert_eq!(pixel_data.number_of_frames(), 1, "expected 1 frame only");
-    
+
             let image = pixel_data.to_dynamic_image(0).unwrap();
             let image_path = output_dir.join(format!(
                 "{}-{}.png",

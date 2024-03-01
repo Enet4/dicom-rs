@@ -190,12 +190,10 @@ fn main() {
     // recover implementation class UID and version name from base object
     if retain_implementation {
         let implementation_class_uid = &obj.meta().implementation_class_uid;
-        meta_builder = meta_builder
-            .implementation_class_uid(implementation_class_uid);
-        
+        meta_builder = meta_builder.implementation_class_uid(implementation_class_uid);
+
         if let Some(implementation_version_name) = obj.meta().implementation_version_name.as_ref() {
-            meta_builder = meta_builder
-                .implementation_version_name(implementation_version_name);
+            meta_builder = meta_builder.implementation_version_name(implementation_version_name);
         }
     }
 
