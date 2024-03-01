@@ -189,14 +189,14 @@ enum DicomTimeImpl {
 /// `DicomDateTime` is always internally represented by a [DicomDate].
 /// The [DicomTime] and a timezone [FixedOffset] values are optional.
 ///
-/// It implements [AsRange] trait, which serves to retrieve a [PreciseDateTimeResult] from values
+/// It implements [AsRange] trait, which serves to retrieve a [PreciseDateTime](crate::value::range::PreciseDateTime) from values
 /// with missing components.
 /// # Example
 /// ```
 /// # use std::error::Error;
 /// # use std::convert::TryFrom;
 /// use chrono::{DateTime, FixedOffset, TimeZone, NaiveDateTime, NaiveDate, NaiveTime};
-/// use dicom_core::value::{DicomDate, DicomTime, DicomDateTime, AsRange, PreciseDateTimeResult};
+/// use dicom_core::value::{DicomDate, DicomTime, DicomDateTime, AsRange, PreciseDateTime};
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
 /// let offset = FixedOffset::east_opt(3600).unwrap();
@@ -206,10 +206,10 @@ enum DicomTimeImpl {
 ///     DicomDate::from_y(2020)?,
 ///     offset
 /// );
-/// // the earliest possible value is output as a [PreciseDateTimeResult]
+/// // the earliest possible value is output as a [PreciseDateTime]
 /// assert_eq!(
 ///     dt.earliest()?,
-///     PreciseDateTimeResult::TimeZone(
+///     PreciseDateTime::TimeZone(
 ///     offset.from_local_datetime(&NaiveDateTime::new(
 ///         NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
 ///         NaiveTime::from_hms_opt(0, 0, 0).unwrap()
@@ -217,7 +217,7 @@ enum DicomTimeImpl {
 /// );
 /// assert_eq!(
 ///     dt.latest()?,
-///     PreciseDateTimeResult::TimeZone(
+///     PreciseDateTime::TimeZone(
 ///     offset.from_local_datetime(&NaiveDateTime::new(
 ///         NaiveDate::from_ymd_opt(2020, 12, 31).unwrap(),
 ///         NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
@@ -879,7 +879,7 @@ impl DicomDateTime {
 
 #[cfg(test)]
 mod tests {
-    use crate::value::range::{AsRange, PreciseDateTimeResult};
+    use crate::value::range::{AsRange, PreciseDateTime};
 
     use super::*;
     use chrono::{NaiveDateTime, TimeZone};
@@ -1140,7 +1140,7 @@ mod tests {
             DicomDateTime::from_date(DicomDate::from_ym(2020, 2).unwrap())
                 .earliest()
                 .unwrap(),
-            PreciseDateTimeResult::Naive(NaiveDateTime::new(
+            PreciseDateTime::Naive(NaiveDateTime::new(
                 NaiveDate::from_ymd_opt(2020, 2, 1).unwrap(),
                 NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
             ))
@@ -1153,7 +1153,7 @@ mod tests {
             )
             .latest()
             .unwrap(),
-            PreciseDateTimeResult::TimeZone(
+            PreciseDateTime::TimeZone(
                 FixedOffset::east_opt(0)
                     .unwrap()
                     .from_local_datetime(&NaiveDateTime::new(
@@ -1173,7 +1173,7 @@ mod tests {
             .unwrap()
             .earliest()
             .unwrap(),
-            PreciseDateTimeResult::TimeZone(
+            PreciseDateTime::TimeZone(
                 FixedOffset::east_opt(0)
                     .unwrap()
                     .from_local_datetime(&NaiveDateTime::new(
@@ -1192,7 +1192,7 @@ mod tests {
             .unwrap()
             .latest()
             .unwrap(),
-            PreciseDateTimeResult::TimeZone(
+            PreciseDateTime::TimeZone(
                 FixedOffset::east_opt(0)
                     .unwrap()
                     .from_local_datetime(&NaiveDateTime::new(

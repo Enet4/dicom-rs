@@ -2667,7 +2667,7 @@ impl PrimitiveValue {
     /// # use smallvec::smallvec;
     /// # use chrono::{DateTime, FixedOffset, TimeZone, NaiveDateTime, NaiveDate, NaiveTime};
     /// # use std::error::Error;
-    /// use dicom_core::value::{DicomDateTime, AsRange, DateTimeRange, PreciseDateTimeResult};
+    /// use dicom_core::value::{DicomDateTime, AsRange, DateTimeRange, PreciseDateTime};
     ///
     /// # fn main() -> Result<(), Box<dyn Error>> {
     ///
@@ -2676,14 +2676,14 @@ impl PrimitiveValue {
     ///
     /// assert_eq!(
     ///     dt_value.earliest()?,
-    ///     PreciseDateTimeResult::Naive(NaiveDateTime::new(
+    ///     PreciseDateTime::Naive(NaiveDateTime::new(
     ///      NaiveDate::from_ymd_opt(2012, 12, 21).unwrap(),
     ///      NaiveTime::from_hms_micro_opt(9, 30, 1, 100_000).unwrap()
     ///         ))
     /// );
     /// assert_eq!(
     ///     dt_value.latest()?,
-    ///     PreciseDateTimeResult::Naive(NaiveDateTime::new(
+    ///     PreciseDateTime::Naive(NaiveDateTime::new(
     ///      NaiveDate::from_ymd_opt(2012, 12, 21).unwrap(),
     ///      NaiveTime::from_hms_micro_opt(9, 30, 1, 199_999).unwrap()
     ///         ))
@@ -2698,7 +2698,7 @@ impl PrimitiveValue {
     ///
     /// assert_eq!(
     ///     dt_value.exact()?,
-    ///     PreciseDateTimeResult::TimeZone(
+    ///     PreciseDateTime::TimeZone(
     ///     default_offset
     ///     .ymd_opt(2012, 12, 21).unwrap()
     ///     .and_hms_micro_opt(9, 30, 1, 123_456).unwrap()
@@ -2980,7 +2980,7 @@ impl PrimitiveValue {
     /// # use dicom_core::value::{C, PrimitiveValue};
     /// use chrono::{DateTime, NaiveDate, NaiveTime, NaiveDateTime, FixedOffset, TimeZone, Local};
     /// # use std::error::Error;
-    /// use dicom_core::value::{DateTimeRange, PreciseDateTimeResult};
+    /// use dicom_core::value::{DateTimeRange, PreciseDateTime};
     ///
     /// # fn main() -> Result<(), Box<dyn Error>> {
     ///
@@ -2992,7 +2992,7 @@ impl PrimitiveValue {
     /// // lower bound of range is parsed into a PreciseDateTimeResult::TimeZone variant
     /// assert_eq!(
     ///     dt_range.start(),
-    ///     Some(PreciseDateTimeResult::TimeZone(
+    ///     Some(PreciseDateTime::TimeZone(
     ///         FixedOffset::east_opt(5*3600).unwrap().ymd_opt(1992, 1, 1).unwrap()
     ///         .and_hms_micro_opt(15, 30, 20, 123_000).unwrap()
     ///         )  
@@ -3002,7 +3002,7 @@ impl PrimitiveValue {
     /// // upper bound of range is parsed into a PreciseDateTimeResult::TimeZone variant
     /// assert_eq!(
     ///     dt_range.end(),
-    ///     Some(PreciseDateTimeResult::TimeZone(
+    ///     Some(PreciseDateTime::TimeZone(
     ///         FixedOffset::east_opt(3*3600).unwrap().ymd_opt(1993, 12, 31).unwrap()
     ///         .and_hms_micro_opt(23, 59, 59, 999_999).unwrap()
     ///         )  
