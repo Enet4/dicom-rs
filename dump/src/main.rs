@@ -4,7 +4,7 @@ use clap::Parser;
 use dicom_dump::{ColorMode, DumpOptions, DumpFormat};
 use dicom_object::open_file;
 use snafu::{Report, Whatever};
-use std::io::ErrorKind;
+use std::io::{ErrorKind, IsTerminal};
 use std::path::PathBuf;
 
 /// Exit code for when an error emerged while reading the DICOM file.
@@ -51,7 +51,7 @@ struct App {
 }
 
 fn is_terminal() -> bool {
-    atty::is(atty::Stream::Stdout)
+    std::io::stdout().is_terminal()
 }
 
 fn main() {
