@@ -662,8 +662,6 @@ where
     }
 
     /// Retrieves the primitive value as a [`PersonName`].
-    ///
-    /// [1]: super::value::person_name::PersonName
     pub fn to_person_name(&self) -> Result<PersonName<'_>, ConvertValueError> {
         match self {
             Value::Primitive(v) => v.to_person_name(),
