@@ -338,6 +338,8 @@ where
 ///
 /// [`parse_datetime_partial`] should be preferred,
 /// because it is more flexible and resilient to missing components.
+/// See also the implementation of [`FromStr`](std::str::FromStr)
+/// for [`DicomDateTime`].
 #[deprecated(since = "0.7.0", note = "Use `parse_datetime_partial()` then `to_precise_datetime()`")]
 pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime<FixedOffset>> {
     let date = parse_date(buf)?;
@@ -379,6 +381,9 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
 /// Decode the text from the byte slice into a [`DicomDateTime`] value,
 /// which allows for missing Date / Time components.
 /// 
+/// This is the underlying implementation of [`FromStr`](std::str::FromStr)
+/// for `DicomDateTime`.
+///
 /// # Example
 /// 
 /// ```

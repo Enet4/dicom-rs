@@ -812,6 +812,14 @@ impl fmt::Debug for DicomDateTime {
     }
 }
 
+impl std::str::FromStr for DicomDateTime {
+    type Err = crate::value::DeserializeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        crate::value::deserialize::parse_datetime_partial(s.as_bytes())
+    }
+}
+
 impl DicomDate {
     /**
      * Retrieves a dicom encoded string representation of the value.
