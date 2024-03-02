@@ -511,7 +511,7 @@ pub enum DateTimeRange {
 /// It is usually the outcome of converting a precise
 /// [DICOM date-time value](DicomDateTime)
 /// to a [chrono] date-time value.
-#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub enum PreciseDateTime {
     /// Naive date-time, with no time zone
     Naive(NaiveDateTime),
@@ -584,6 +584,23 @@ impl PreciseDateTime {
     #[inline]
     pub fn has_time_zone(&self) -> bool {
         matches!(self, PreciseDateTime::TimeZone(..))
+    }
+}
+
+/// The partial ordering for `PreciseDateTime`
+/// is defined by the partial ordering of matching variants
+/// (`Naive` with `Naive`, `TimeZone` with `TimeZone`).
+///
+/// Any other comparison cannot be defined,
+/// and therefore will always return `None`.
+impl PartialOrd for PreciseDateTime {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (PreciseDateTime::Naive(a), PreciseDateTime::Naive(b)) => a.partial_cmp(b),
+            (PreciseDateTime::TimeZone(a), PreciseDateTime::TimeZone(b)) => a.partial_cmp(b),
+            _ => None,
+        }
+    
     }
 }
 
