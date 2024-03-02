@@ -63,4 +63,4 @@ optional = true
 features = ["native"]
 
 [dev-dependencies]
-dicom-test-files = "0.2.1"
+dicom-test-files = "0.3"
