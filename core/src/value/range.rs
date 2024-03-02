@@ -799,14 +799,20 @@ pub fn parse_time_range(buf: &[u8]) -> Result<TimeRange> {
     }
 }
 
-/// The Dicom standard allows for parsing a date-time range in which one DT value provides time-zone
-/// information but the other does not.
+/// The DICOM standard allows for parsing a date-time range
+/// in which one DT value provides time-zone information
+/// but the other one does not.
+/// An example of this is the value `19750101-19800101+0200`.
 ///
-/// Example '19750101-19800101+0200'.
+/// In such cases, the missing time-zone can be interpreted as the local time-zone
+/// the time-zone provided by the upper bound, or something else altogether.
 ///
-/// In such case, the missing time-zone can be interpreted as the local time-zone or the time-zone
-/// provided with the upper bound (or something else altogether).
-/// This trait is implemented by parsers handling the afformentioned situation.
+/// This trait is implemented by parsers handling the aforementioned situation.
+/// For concrete implementations, see:
+/// - [`ToLocalTimeZone`] (the default implementation)
+/// - [`ToKnownTimeZone`]
+/// - [`FailOnAmbiguousRange`]
+/// - [`IgnoreTimeZone`]
 pub trait AmbiguousDtRangeParser {
     /// Retrieve a [DateTimeRange] if the lower range bound is missing a time-zone
     fn parse_with_ambiguous_start(
@@ -820,13 +826,17 @@ pub trait AmbiguousDtRangeParser {
     ) -> Result<DateTimeRange>;
 }
 
-/// For the missing time-zone use time-zone information of the local system clock.
+/// For the missing time-zone,
+/// use time-zone information of the local system clock.
 /// Retrieves a [DateTimeRange::TimeZone].
 ///
-/// Because "A Date Time value without the optional suffix is interpreted to be in the local time zone
-///  of the application creating the Data Element, unless explicitly specified by the Timezone Offset From UTC (0008,0201).",
-/// this is the default behavior of the parser.
-/// <https://dicom.nema.org/dicom/2013/output/chtml/part05/sect_6.2.html>
+/// This is the default behavior of the parser,
+/// which helps attain compliance with the standard
+/// as per [DICOM PS3.5 6.2](https://dicom.nema.org/medical/dicom/2023e/output/chtml/part05/sect_6.2.html):
+/// 
+/// > A Date Time Value without the optional suffix
+/// > is interpreted to be in the local time zone of the application creating the Data Element,
+/// > unless explicitly specified by the Timezone Offset From UTC (0008,0201).
 #[derive(Debug)]
 pub struct ToLocalTimeZone;
 
@@ -835,7 +845,7 @@ pub struct ToLocalTimeZone;
 #[derive(Debug)]
 pub struct ToKnownTimeZone;
 
-/// Fail if ambiguous date-time range is parsed
+/// Fail on an attempt to parse an ambiguous date-time range.
 #[derive(Debug)]
 pub struct FailOnAmbiguousRange;
 
@@ -1024,10 +1034,13 @@ impl AmbiguousDtRangeParser for IgnoreTimeZone {
 /// If the parser encounters two date-time values, where one is time-zone aware and the other is not,
 /// it will use the local time-zone offset and use it instead of the missing time-zone.
 ///
-/// Because "A Date Time value without the optional suffix is interpreted to be in the local time zone
-///  of the application creating the Data Element, unless explicitly specified by the Timezone Offset From UTC (0008,0201).",
-/// this is the default behavior of the parser.
-/// <https://dicom.nema.org/dicom/2013/output/chtml/part05/sect_6.2.html>
+/// This is the default behavior of the parser,
+/// which helps attain compliance with the standard
+/// as per [DICOM PS3.5 6.2](https://dicom.nema.org/medical/dicom/2023e/output/chtml/part05/sect_6.2.html):
+/// 
+/// > A Date Time Value without the optional suffix
+/// > is interpreted to be in the local time zone of the application creating the Data Element,
+/// > unless explicitly specified by the Timezone Offset From UTC (0008,0201).
 ///
 /// To customize this behavior, please use [parse_datetime_range_custom()].
 ///
