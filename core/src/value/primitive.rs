@@ -3102,10 +3102,10 @@ impl PrimitiveValue {
     /// // values are in the same time-zone
     /// assert_eq!(
     ///     dt_range.start().unwrap()
-    ///         .as_datetime_with_time_zone().unwrap()
+    ///         .as_datetime().unwrap()
     ///         .offset(),
     ///     dt_range.end().unwrap()
-    ///         .as_datetime_with_time_zone().unwrap()
+    ///         .as_datetime().unwrap()
     ///         .offset()
     /// );
     ///
