@@ -505,53 +505,85 @@ pub enum DateTimeRange {
     },
 }
 
-/// A precise date-time value, that can either be time-zone aware or time-zone naive.
+/// An encapsulated date-time value which is precise to the microsecond
+/// and can either be time-zone aware or time-zone naive.
 ///
+/// It is usually the outcome of converting a precise
+/// [DICOM date-time value](DicomDateTime)
+/// to a [chrono] date-time value.
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, PartialOrd)]
 pub enum PreciseDateTime {
+    /// Naive date-time, with no time zone
     Naive(NaiveDateTime),
+    /// Date-time with a time zone defined by a fixed offset
     TimeZone(DateTime<FixedOffset>),
 }
 
 impl PreciseDateTime {
-    /// Retrieves a reference to a `chrono::DateTime<FixedOffset>` if the result is time-zone aware.
-    pub fn as_datetime_with_time_zone(&self) -> Option<&DateTime<FixedOffset>> {
+    /// Retrieves a reference to a [`chrono::DateTime<FixedOffset>`][chrono::DateTime]
+    /// if the result is time-zone aware.
+    pub fn as_datetime(&self) -> Option<&DateTime<FixedOffset>> {
         match self {
             PreciseDateTime::Naive(..) => None,
             PreciseDateTime::TimeZone(value) => Some(value),
         }
     }
 
-    /// Retrieves a reference to a `chrono::NaiveDateTime` if the result is time-zone naive.
-    pub fn as_datetime(&self) -> Option<&NaiveDateTime> {
+    /// Retrieves a reference to a [`chrono::NaiveDateTime`]
+    /// only if the result is time-zone naive.
+    pub fn as_naive_datetime(&self) -> Option<&NaiveDateTime> {
         match self {
             PreciseDateTime::Naive(value) => Some(value),
             PreciseDateTime::TimeZone(..) => None,
         }
     }
 
-    /// Moves out a `chrono::DateTime<FixedOffset>` if the result is time-zone aware.
-    pub fn into_datetime_with_time_zone(self) -> Option<DateTime<FixedOffset>> {
+    /// Moves out a [`chrono::DateTime<FixedOffset>`](chrono::DateTime)
+    /// if the result is time-zone aware.
+    pub fn into_datetime(self) -> Option<DateTime<FixedOffset>> {
         match self {
             PreciseDateTime::Naive(..) => None,
             PreciseDateTime::TimeZone(value) => Some(value),
         }
     }
 
-    /// Moves out a `chrono::NaiveDateTime` if the result is time-zone naive.
-    pub fn into_datetime(self) -> Option<NaiveDateTime> {
+    /// Moves out a [`chrono::NaiveDateTime`]
+    /// only if the result is time-zone naive.
+    pub fn into_naive_datetime(self) -> Option<NaiveDateTime> {
         match self {
             PreciseDateTime::Naive(value) => Some(value),
             PreciseDateTime::TimeZone(..) => None,
         }
     }
 
-    /// Returns true if result is time-zone aware.
+    /// Retrieves the time-zone naive date component
+    /// of the precise date-time value.
+    ///
+    /// # Panics
+    ///
+    /// The time-zone aware variant uses `DateTime`,
+    /// which internally stores the date and time in UTC with a `NaiveDateTime`.
+    /// This method will panic if the offset from UTC would push the local date
+    /// outside of the representable range of a `NaiveDate`.
+    pub fn to_naive_date(&self) -> NaiveDate {
+        match self {
+            PreciseDateTime::Naive(value) => value.date(),
+            PreciseDateTime::TimeZone(value) => value.date_naive(),
+        }
+    }
+
+    /// Retrieves the time component of the precise date-time value.
+    pub fn to_naive_time(&self) -> NaiveTime {
+        match self {
+            PreciseDateTime::Naive(value) => value.time(),
+            PreciseDateTime::TimeZone(value) => value.time(),
+        }
+    }
+
+    /// Returns `true` if the result is time-zone aware.
+    #[inline]
     pub fn has_time_zone(&self) -> bool {
-        match self {
-            PreciseDateTime::Naive(..) => false,
-            PreciseDateTime::TimeZone(..) => true,
-        }
+        matches!(self, PreciseDateTime::TimeZone(..))
     }
 }
 
