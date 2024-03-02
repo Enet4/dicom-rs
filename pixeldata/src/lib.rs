@@ -577,7 +577,6 @@ impl DecodedPixelData<'_> {
     pub fn voi_lut_function(&self) -> Result<Option<&[VoiLutFunction]>> {
         if let Some(inner) = &self.voi_lut_function {
             let res = match &inner.len() {
-                // TODO, do we want to fail if there are no rescale parameters?
                 0 => Ok(None),
                 1 => Ok(Some(inner.as_slice())),
                 len @ _ => {
@@ -603,7 +602,6 @@ impl DecodedPixelData<'_> {
     pub fn window(&self) -> Result<Option<&[WindowLevel]>> {
         if let Some(inner) = &self.window {
             let res = match &inner.len() {
-                // TODO, do we want to fail if there are no rescale parameters?
                 0 => Ok(None),
                 1 => Ok(Some(inner.as_slice())),
                 len @ _ => {
