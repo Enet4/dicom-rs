@@ -189,8 +189,9 @@ enum DicomTimeImpl {
 /// `DicomDateTime` is always internally represented by a [DicomDate].
 /// The [DicomTime] and a timezone [FixedOffset] values are optional.
 ///
-/// It implements [AsRange] trait, which serves to retrieve a [PreciseDateTime](crate::value::range::PreciseDateTime) from values
-/// with missing components.
+/// It implements [AsRange] trait,
+/// which serves to retrieve a [`PreciseDateTime`]
+/// from values with missing components.
 /// # Example
 /// ```
 /// # use std::error::Error;
@@ -877,9 +878,108 @@ impl DicomDateTime {
     }
 }
 
+/// An encapsulated date-time value which is precise to the microsecond
+/// and can either be time-zone aware or time-zone naive.
+///
+/// It is usually the outcome of converting a precise
+/// [DICOM date-time value](DicomDateTime)
+/// to a [chrono] date-time value.
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
+pub enum PreciseDateTime {
+    /// Naive date-time, with no time zone
+    Naive(NaiveDateTime),
+    /// Date-time with a time zone defined by a fixed offset
+    TimeZone(DateTime<FixedOffset>),
+}
+
+impl PreciseDateTime {
+    /// Retrieves a reference to a [`chrono::DateTime<FixedOffset>`][chrono::DateTime]
+    /// if the result is time-zone aware.
+    pub fn as_datetime(&self) -> Option<&DateTime<FixedOffset>> {
+        match self {
+            PreciseDateTime::Naive(..) => None,
+            PreciseDateTime::TimeZone(value) => Some(value),
+        }
+    }
+
+    /// Retrieves a reference to a [`chrono::NaiveDateTime`]
+    /// only if the result is time-zone naive.
+    pub fn as_naive_datetime(&self) -> Option<&NaiveDateTime> {
+        match self {
+            PreciseDateTime::Naive(value) => Some(value),
+            PreciseDateTime::TimeZone(..) => None,
+        }
+    }
+
+    /// Moves out a [`chrono::DateTime<FixedOffset>`](chrono::DateTime)
+    /// if the result is time-zone aware.
+    pub fn into_datetime(self) -> Option<DateTime<FixedOffset>> {
+        match self {
+            PreciseDateTime::Naive(..) => None,
+            PreciseDateTime::TimeZone(value) => Some(value),
+        }
+    }
+
+    /// Moves out a [`chrono::NaiveDateTime`]
+    /// only if the result is time-zone naive.
+    pub fn into_naive_datetime(self) -> Option<NaiveDateTime> {
+        match self {
+            PreciseDateTime::Naive(value) => Some(value),
+            PreciseDateTime::TimeZone(..) => None,
+        }
+    }
+
+    /// Retrieves the time-zone naive date component
+    /// of the precise date-time value.
+    ///
+    /// # Panics
+    ///
+    /// The time-zone aware variant uses `DateTime`,
+    /// which internally stores the date and time in UTC with a `NaiveDateTime`.
+    /// This method will panic if the offset from UTC would push the local date
+    /// outside of the representable range of a `NaiveDate`.
+    pub fn to_naive_date(&self) -> NaiveDate {
+        match self {
+            PreciseDateTime::Naive(value) => value.date(),
+            PreciseDateTime::TimeZone(value) => value.date_naive(),
+        }
+    }
+
+    /// Retrieves the time component of the precise date-time value.
+    pub fn to_naive_time(&self) -> NaiveTime {
+        match self {
+            PreciseDateTime::Naive(value) => value.time(),
+            PreciseDateTime::TimeZone(value) => value.time(),
+        }
+    }
+
+    /// Returns `true` if the result is time-zone aware.
+    #[inline]
+    pub fn has_time_zone(&self) -> bool {
+        matches!(self, PreciseDateTime::TimeZone(..))
+    }
+}
+
+/// The partial ordering for `PreciseDateTime`
+/// is defined by the partial ordering of matching variants
+/// (`Naive` with `Naive`, `TimeZone` with `TimeZone`).
+///
+/// Any other comparison cannot be defined,
+/// and therefore will always return `None`.
+impl PartialOrd for PreciseDateTime {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (PreciseDateTime::Naive(a), PreciseDateTime::Naive(b)) => a.partial_cmp(b),
+            (PreciseDateTime::TimeZone(a), PreciseDateTime::TimeZone(b)) => a.partial_cmp(b),
+            _ => None,
+        }
+    
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::value::range::{AsRange, PreciseDateTime};
+    use crate::value::range::AsRange;
 
     use super::*;
     use chrono::{NaiveDateTime, TimeZone};
