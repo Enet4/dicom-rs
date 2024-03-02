@@ -330,14 +330,15 @@ where
     })
 }
 
-/** Retrieve a `chrono::DateTime` from the given text, while assuming the given UTC offset.
-* If a date/time component is missing, the operation fails.
-* Presence of the second fraction component `.FFFFFF` is mandatory with at
-  least one digit accuracy `.F` while missing digits default to zero.
-* For DateTime with missing components, or if exact second fraction accuracy needs to be preserved,
-  use `parse_datetime_partial`.
-*/
-#[deprecated(since = "0.7.0", note = "Only use parse_datetime_partial()")]
+/// Retrieve a `chrono::DateTime` from the given text, while assuming the given UTC offset.
+/// 
+/// If a date/time component is missing, the operation fails.
+/// Presence of the second fraction component `.FFFFFF` is mandatory with at
+/// least one digit accuracy `.F` while missing digits default to zero.
+///
+/// [`parse_datetime_partial`] should be preferred,
+/// because it is more flexible and resilient to missing components.
+#[deprecated(since = "0.7.0", note = "Use `parse_datetime_partial()` then `to_precise_datetime()`")]
 pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime<FixedOffset>> {
     let date = parse_date(buf)?;
     let buf = &buf[8..];
@@ -375,10 +376,32 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
         .context(InvalidDateTimeZoneSnafu)
 }
 
-/** Decode text into a `DicomDateTime` value.
- * Unlike `parse_datetime`, this method allows for missing Date / Time components.
- * The precision of the second fraction is stored and can be returned as a range later.
- */
+/// Decode the text from the byte slice into a [`DicomDateTime`] value,
+/// which allows for missing Date / Time components.
+/// 
+/// # Example
+/// 
+/// ```
+/// # use dicom_core::value::deserialize::parse_datetime_partial;
+/// use dicom_core::value::{DicomDate, DicomDateTime, DicomTime, PreciseDateTime};
+/// use chrono::Datelike;
+///
+/// let input = "20240201123456.000305";
+/// let dt = parse_datetime_partial(input.as_bytes())?;
+/// assert_eq!(
+///     dt,
+///     DicomDateTime::from_date_and_time(
+///         DicomDate::from_ymd(2024, 2, 1).unwrap(),
+///         DicomTime::from_hms_micro(12, 34, 56, 305).unwrap(),
+///     )?
+/// );
+/// // reinterpret as a chrono date time (with or without time zone)
+/// let dt: PreciseDateTime = dt.to_precise_datetime()?;
+/// // get just the date, for example
+/// let date = dt.to_naive_date();
+/// assert_eq!(date.year(), 2024);
+/// # Ok::<_, Box<dyn std::error::Error>>(())
+/// ```
 pub fn parse_datetime_partial(buf: &[u8]) -> Result<DicomDateTime> {
     let (date, rest) = parse_date_partial(buf)?;
 
