@@ -15,3 +15,4 @@ snafu = "0.8.1"
 
 [dev-dependencies]
 tokio = { version = "1.36.0", features = ["macros"] }
+wiremock = "0.6.0"
