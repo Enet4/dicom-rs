@@ -60,23 +60,30 @@ impl QidoRequest {
             request = request.bearer_auth(self.client.bearer_token.as_ref().unwrap());
         }
 
-        let text = self
-            .client
-            .client
-            .get(&self.url)
-            .query(&query)
+        let response = request
             .send()
             .await
-            .context(RequestFailedSnafu { url: &self.url })?
-            .text()
-            .await
-            .context(DeserializationFailedSnafu {})?;
-        println!("{}", text);
+            .context(RequestFailedSnafu { url: &self.url })?;
 
-        Ok(request
-            .send()
-            .await
-            .context(RequestFailedSnafu { url: &self.url })?
+        if !response.status().is_success() {
+            return Err(DicomWebError::HttpStatusFailure {
+                status_code: response.status(),
+            });
+        }
+
+        // Check if the response is a DICOM-JSON
+        let ct = response.headers().get("Content-Type");
+        if ct.is_none() {
+            return Err(DicomWebError::MissingContentTypeHeader);
+        }
+
+        if ct.unwrap() != "application/dicom+json" && ct.unwrap() != "application/json" {
+            return Err(DicomWebError::UnexpectedContentType {
+                content_type: ct.unwrap().to_str().unwrap().to_string(),
+            });
+        }
+
+        Ok(response
             .json::<Vec<DicomJson<InMemDicomObject>>>()
             .await
             .context(DeserializationFailedSnafu {})?
@@ -120,25 +127,29 @@ impl QidoRequest {
 
 impl DicomWebClient {
     pub fn query_studies(&self) -> QidoRequest {
-        let url = format!("{}/studies", self.qido_url);
+        let base_url = &self.qido_url;
+        let url = format!("{base_url}/studies");
 
         QidoRequest::new(self.clone(), url)
     }
 
     pub fn query_series(&self) -> QidoRequest {
-        let url = format!("{}/series", self.qido_url);
+        let base_url = &self.qido_url;
+        let url = format!("{base_url}/series");
 
         QidoRequest::new(self.clone(), url)
     }
 
     pub fn query_series_in_study(&self, study_instance_uid: &str) -> QidoRequest {
-        let url = format!("{}/studies/{}/series", self.qido_url, study_instance_uid);
+        let base_url = &self.qido_url;
+        let url = format!("{base_url}/studies/{study_instance_uid}/series");
 
         QidoRequest::new(self.clone(), url)
     }
 
     pub fn query_instances(&self) -> QidoRequest {
-        let url = format!("{}/instances", self.qido_url);
+        let base_url = &self.qido_url;
+        let url = format!("{base_url}/instances");
 
         QidoRequest::new(self.clone(), url)
     }
@@ -148,9 +159,9 @@ impl DicomWebClient {
         study_instance_uid: &str,
         series_instance_uid: &str,
     ) -> QidoRequest {
+        let base_url = &self.qido_url;
         let url = format!(
-            "{}/studies/{}/series/{}/instances",
-            self.qido_url, study_instance_uid, series_instance_uid
+            "{base_url}/studies/{study_instance_uid}/series/{series_instance_uid}/instances",
         );
 
         QidoRequest::new(self.clone(), url)

@@ -9,10 +9,16 @@ edition = "2021"
 dicom-core = { path = "../core", version = "0.6.3" }
 dicom-json = { path = "../json/", version = "0.1.1" }
 dicom-object = { path = "../object/", version = "0.6.3" }
-reqwest = { version = "0.11.24", features = ["json"] }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.6.2" }
+dicom-pixeldata = { path = "../pixeldata/", version = "0.2.2" }
+futures-util = "0.3.30"
+mime = "0.3.17"
+multipart-rs = "0.1.8"
+reqwest = { version = "0.11.24", features = ["json", "stream"] }
 serde_json = { version = "1.0.96", features = ["preserve_order"] }
 snafu = "0.8.1"
 
 [dev-dependencies]
+dicom-dictionary-std = { path = "../dictionary-std", version = "0.6.1" }
 tokio = { version = "1.36.0", features = ["macros"] }
 wiremock = "0.6.0"

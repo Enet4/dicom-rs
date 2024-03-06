@@ -22,7 +22,8 @@ members = [
     "storescu",
     "toimage",
     "transfer-syntax-registry",
-    "ul", "web",
+    "ul",
+    "web",
 ]
 
 # use edition 2021 resolver
