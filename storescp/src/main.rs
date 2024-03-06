@@ -1,7 +1,15 @@
 use std::{
-    net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream},
+    net::{Ipv4Addr, SocketAddrV4, TcpStream},
     path::PathBuf,
 };
+
+#[cfg(not(feature = "async"))]
+use std::net::TcpListener;
+
+#[cfg(feature = "async")]
+use std::sync::Arc;
+#[cfg(feature = "async")]
+use tokio::{net::TcpListener, task};
 
 use clap::Parser;
 use dicom_core::{dicom_value, DataElement, VR};
@@ -313,6 +321,7 @@ fn create_cecho_response(message_id: u16) -> InMemDicomObject<StandardDataDictio
     ])
 }
 
+#[cfg(not(feature = "async"))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = App::parse();
 
@@ -358,6 +367,52 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+#[cfg(feature = "async")]
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = Arc::new(App::parse());
+
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(if args.verbose {
+                Level::DEBUG
+            } else {
+                Level::INFO
+            })
+            .finish(),
+    )
+    .unwrap_or_else(|e| {
+        eprintln!(
+            "Could not set up global logger: {}",
+            snafu::Report::from_error(e)
+        );
+    });
+
+    std::fs::create_dir_all(&args.out_dir).unwrap_or_else(|e| {
+        error!("Could not create output directory: {}", e);
+        std::process::exit(-2);
+    });
+
+    let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), args.port);
+    let listener = TcpListener::bind(listen_addr).await?;
+    info!(
+        "{} listening on: tcp://{}",
+        &args.calling_ae_title, listen_addr
+    );
+
+    loop {
+        let (stream, _) = listener.accept().await?;
+        let std_stream = stream.into_std()?;
+        std_stream.set_nonblocking(false)?;
+        let args = args.clone();
+        task::spawn_blocking(move || {
+            if let Err(e) = run(std_stream, &args) {
+                error!("{}", snafu::Report::from_error(e));
+            }
+        });
+    }
 }
 
 #[cfg(test)]
