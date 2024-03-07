@@ -194,8 +194,10 @@ where
                 | VR::TM
                 | VR::UC
                 | VR::UI => {
-                    let items: Vec<String> =
+                    let items: Vec<Option<String>> =
                         serde_json::from_value(value).map_err(A::Error::custom)?;
+                    let items: Vec<String> =
+                        items.into_iter().map(|v| v.unwrap_or_default()).collect();
                     values = Some(PrimitiveValue::Strs(items.into()).into());
                 }
 
@@ -370,7 +372,7 @@ impl<'de> Deserialize<'de> for DicomJson<Tag> {
 #[cfg(test)]
 mod tests {
     use super::from_str;
-    use dicom_core::{DataElement, Tag, VR};
+    use dicom_core::{dicom_value, DataElement, Tag, VR};
     use dicom_object::InMemDicomObject;
 
     #[test]
@@ -426,6 +428,51 @@ mod tests {
         assert_eq!(
             obj.get(tag),
             Some(&DataElement::new(tag, VR::CS, "ISO_IR 192")),
+        )
+    }
+
+    #[test]
+    fn can_parse_null_values() {
+        let serialized = serde_json::json!({
+            "00080008": {
+                "Value": [
+                  "DERIVED",
+                  "PRIMARY",
+                  "POST_PROCESSED",
+                  "RT",
+                  null,
+                  null,
+                  null,
+                  null,
+                  "100000"
+                ],
+                "vr": "CS"
+              }
+        });
+
+        let obj: InMemDicomObject = super::from_value(serialized).unwrap();
+
+        let tag = Tag(0x0008, 0x0008);
+        assert_eq!(
+            obj.get(tag),
+            Some(&DataElement::new(
+                tag,
+                VR::CS,
+                dicom_value!(
+                    Strs,
+                    [
+                        "DERIVED",
+                        "PRIMARY",
+                        "POST_PROCESSED",
+                        "RT",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "100000",
+                    ]
+                )
+            )),
         )
     }
 }
