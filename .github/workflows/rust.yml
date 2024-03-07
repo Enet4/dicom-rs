@@ -25,6 +25,8 @@ jobs:
           cache: true
       # test project with default + extra features
       - run: cargo test --features image,ndarray,sop-class,rle,cli
+      # test dicom-pixeldata with openjpeg-sys
+      - run: cargo test -p dicom-pixeldata --features openjpeg-sys
       # test dicom-pixeldata with gdcm-rs
       - run: cargo test -p dicom-pixeldata --features gdcm
       # test dicom-pixeldata without default features
@@ -44,7 +46,7 @@ jobs:
         with:
           toolchain: stable
           cache: true
-      - run: cargo build --no-default-features --features=image,ndarray,sop-class,rle,cli,default_windows,backtraces,inventory-registry
+      - run: cargo build
 
   check_macos:
     name: Check (macOS)
