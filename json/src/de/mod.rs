@@ -164,9 +164,9 @@ where
         }
 
         // ensure that VR is present
-        if vr.is_none() {
+        let Some(vr) = vr else {
             return Err(A::Error::custom("missing VR field"));
-        }
+        };
 
         if let Some(value) = value {
             // deserialize value in different ways
@@ -320,10 +320,7 @@ where
             (Some(_), Some(_)) => unreachable!(),
         };
 
-        Ok(JsonDataElement {
-            vr: vr.unwrap(),
-            value,
-        })
+        Ok(JsonDataElement { vr, value })
     }
 }
 
