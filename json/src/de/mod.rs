@@ -171,7 +171,7 @@ where
         if let Some(value) = value {
             // deserialize value in different ways
             // depending on VR
-            match vr.unwrap() {
+            match vr {
                 // sequence
                 VR::SQ => {
                     let items: Vec<DicomJson<InMemDicomObject<D>>> =
