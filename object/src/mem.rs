@@ -1937,7 +1937,7 @@ mod tests {
         obj.put(instance_number);
 
         // add a date time
-        let dt = DicomDateTime::from_date_and_time(
+        let dt = DicomDateTime::from_date_and_time_with_time_zone(
             DicomDate::from_ymd(2022, 11, 22).unwrap(),
             DicomTime::from_hms(18, 09, 35).unwrap(),
             FixedOffset::east_opt(3600).unwrap(),

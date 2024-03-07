@@ -812,7 +812,7 @@ fn value_summary(
             }
         }
         (Strs(values), VR::DT) => {
-            match value.to_multi_datetime(dicom_core::chrono::FixedOffset::east_opt(0).unwrap()) {
+            match value.to_multi_datetime() {
                 Ok(values) => {
                     // print as reformatted date
                     DumpValue::DateTime(format_value_list(values, max_characters, false))

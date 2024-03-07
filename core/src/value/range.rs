@@ -1,13 +1,15 @@
 //! Handling of date, time, date-time ranges. Needed for range matching.
 //! Parsing into ranges happens via partial precision  structures (DicomDate, DicomTime,
 //! DicomDatime) so ranges can handle null components in date, time, date-time values.
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
+use chrono::{
+    DateTime, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone,
+};
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 
 use crate::value::deserialize::{
     parse_date_partial, parse_datetime_partial, parse_time_partial, Error as DeserializeError,
 };
-use crate::value::partial::{DateComponent, DicomDate, DicomDateTime, DicomTime, Precision};
+use crate::value::partial::{DicomDate, DicomDateTime, DicomTime, PreciseDateTime};
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -29,8 +31,12 @@ pub enum Error {
     NoRangeSeparator { backtrace: Backtrace },
     #[snafu(display("Date-time range can contain 1-3 '-' characters, {} were found", value))]
     SeparatorCount { value: usize, backtrace: Backtrace },
-    #[snafu(display("Invalid date-time"))]
-    InvalidDateTime { backtrace: Backtrace },
+    #[snafu(display("Converting a time-zone naive value '{naive}' to a time-zone '{offset}' leads to invalid date-time or ambiguous results."))]
+    InvalidDateTime {
+        naive: NaiveDateTime,
+        offset: FixedOffset,
+        backtrace: Backtrace,
+    },
     #[snafu(display(
         "Cannot convert from an imprecise value. This value represents a date / time range"
     ))]
@@ -57,16 +63,32 @@ pub enum Error {
         f: u32,
         backtrace: Backtrace,
     },
+    #[snafu(display("Use 'to_precise_datetime' to retrieve a precise value from a date-time"))]
+    ToPreciseDateTime { backtrace: Backtrace },
+    #[snafu(display(
+        "Parsing a date-time range from '{start}' to '{end}' with only one time-zone '{time_zone} value, second time-zone is missing.'"
+    ))]
+    AmbiguousDtRange {
+        start: NaiveDateTime,
+        end: NaiveDateTime,
+        time_zone: FixedOffset,
+        backtrace: Backtrace,
+    },
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// The DICOM protocol accepts date / time values with null components.
+/// The DICOM protocol accepts date (DA) / time (TM) / date-time (DT) values with null components.
 ///
-/// Imprecise values are to be handled as date / time ranges.
+/// Imprecise values are to be handled as ranges.
 ///
 /// This trait is implemented by date / time structures with partial precision.
-/// If the date / time structure is not precise, it is up to the user to call one of these
-/// methods to retrieve a suitable  [`chrono`] value.
+///
+/// [AsRange::is_precise()] method will check if the given value has full precision. If so, it can be
+/// converted with [AsRange::exact()] to a precise value. If not, [AsRange::range()] will yield a
+/// date / time / date-time range.
+///
+/// Please note that precision does not equal validity. A precise 'YYYYMMDD' [DicomDate] can still
+/// fail to produce a valid [chrono::NaiveDate]
 ///
 /// # Examples
 ///
@@ -75,7 +97,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// # use smallvec::smallvec;
 /// # use std::error::Error;
 /// use chrono::{NaiveDate, NaiveTime};
-/// use dicom_core::value::{AsRange, DicomDate, DicomTime, TimeRange};
+/// use dicom_core::value::{AsRange, DicomDate, DicomTime, DateRange, TimeRange};
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
 /// let dicom_date = DicomDate::from_ym(2010,1)?;
@@ -98,14 +120,51 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// // only a time with 6 digits second fraction is considered precise
 /// assert!(dicom_time.exact().is_err());
 ///
+/// let primitive = PrimitiveValue::from("199402");
+///
+/// // This is the fastest way to get to a useful date value, but it fails not only for invalid
+/// // dates but for imprecise ones as well.
+/// assert!(primitive.to_naive_date().is_err());
+///
+/// // Take intermediate steps:
+///
+/// // Retrieve a DicomDate.
+/// // The parser now checks for basic year and month value ranges here.
+/// // But, it would not detect invalid dates like 30th of february etc.
+/// let dicom_date : DicomDate = primitive.to_date()?;
+///
+/// // as we have a valid DicomDate value, let's check if it's precise.
+/// if dicom_date.is_precise(){
+///         // no components are missing, we can proceed by calling .exact()
+///         // which calls the `chrono` library
+///         let precise_date: NaiveDate = dicom_date.exact()?;
+/// }
+/// else{
+///         // day / month are missing, no need to call the expensive .exact() method - it will fail
+///         // retrieve the earliest possible value directly from DicomDate
+///         let earliest: NaiveDate = dicom_date.earliest()?;
+///
+///         // or convert the date to a date range instead
+///         let date_range: DateRange = dicom_date.range()?;
+///
+///         if let Some(start)  = date_range.start(){
+///             // the range has a given lower date bound
+///         }
+///
+/// }
+///
 /// # Ok(())
 /// # }
 /// ```
-pub trait AsRange: Precision {
-    type Item: PartialEq + PartialOrd;
+pub trait AsRange {
+    type PreciseValue: PartialEq + PartialOrd;
     type Range;
-    /// Returns a corresponding `chrono` value, if the partial precision structure has full accuracy.
-    fn exact(&self) -> Result<Self::Item> {
+
+    /// returns true if value has all possible date / time components
+    fn is_precise(&self) -> bool;
+
+    /// Returns a corresponding precise value, if the partial precision structure has full accuracy.
+    fn exact(&self) -> Result<Self::PreciseValue> {
         if self.is_precise() {
             Ok(self.earliest()?)
         } else {
@@ -113,32 +172,28 @@ pub trait AsRange: Precision {
         }
     }
 
-    /// Returns the earliest possible `chrono` value from a partial precision structure.
+    /// Returns the earliest possible value from a partial precision structure.
     /// Missing components default to 1 (days, months) or 0 (hours, minutes, ...)
     /// If structure contains invalid combination of `DateComponent`s, it fails.
-    fn earliest(&self) -> Result<Self::Item>;
+    fn earliest(&self) -> Result<Self::PreciseValue>;
 
-    /// Returns the latest possible `chrono` value from a partial precision structure.
+    /// Returns the latest possible value from a partial precision structure.
     /// If structure contains invalid combination of `DateComponent`s, it fails.
-    fn latest(&self) -> Result<Self::Item>;
+    fn latest(&self) -> Result<Self::PreciseValue>;
 
     /// Returns a tuple of the earliest and latest possible value from a partial precision structure.
     fn range(&self) -> Result<Self::Range>;
-
-    /// Returns `true` if partial precision structure has the maximum possible accuracy.
-    /// For fraction of a second, the full 6 digits are required for the value to be precise.
-    fn is_precise(&self) -> bool {
-        let e = self.earliest();
-        let l = self.latest();
-
-        e.is_ok() && l.is_ok() && e.ok() == l.ok()
-    }
 }
 
 impl AsRange for DicomDate {
-    type Item = NaiveDate;
+    type PreciseValue = NaiveDate;
     type Range = DateRange;
-    fn earliest(&self) -> Result<NaiveDate> {
+
+    fn is_precise(&self) -> bool {
+        self.day().is_some()
+    }
+
+    fn earliest(&self) -> Result<Self::PreciseValue> {
         let (y, m, d) = {
             (
                 *self.year() as i32,
@@ -149,7 +204,7 @@ impl AsRange for DicomDate {
         NaiveDate::from_ymd_opt(y, m, d).context(InvalidDateSnafu { y, m, d })
     }
 
-    fn latest(&self) -> Result<NaiveDate> {
+    fn latest(&self) -> Result<Self::PreciseValue> {
         let (y, m, d) = (
             self.year(),
             self.month().unwrap_or(&12),
@@ -194,7 +249,7 @@ impl AsRange for DicomDate {
         })
     }
 
-    fn range(&self) -> Result<DateRange> {
+    fn range(&self) -> Result<Self::Range> {
         let start = self.earliest()?;
         let end = self.latest()?;
         DateRange::from_start_to_end(start, end)
@@ -202,9 +257,14 @@ impl AsRange for DicomDate {
 }
 
 impl AsRange for DicomTime {
-    type Item = NaiveTime;
+    type PreciseValue = NaiveTime;
     type Range = TimeRange;
-    fn earliest(&self) -> Result<NaiveTime> {
+
+    fn is_precise(&self) -> bool {
+        matches!(self.fraction_and_precision(), Some((_fr_, precision)) if precision == &6)
+    }
+
+    fn earliest(&self) -> Result<Self::PreciseValue> {
         let (h, m, s, f) = (
             self.hour(),
             self.minute().unwrap_or(&0),
@@ -224,7 +284,7 @@ impl AsRange for DicomTime {
             },
         )
     }
-    fn latest(&self) -> Result<NaiveTime> {
+    fn latest(&self) -> Result<Self::PreciseValue> {
         let (h, m, s, f) = (
             self.hour(),
             self.minute().unwrap_or(&59),
@@ -245,7 +305,7 @@ impl AsRange for DicomTime {
             },
         )
     }
-    fn range(&self) -> Result<TimeRange> {
+    fn range(&self) -> Result<Self::Range> {
         let start = self.earliest()?;
         let end = self.latest()?;
         TimeRange::from_start_to_end(start, end)
@@ -253,9 +313,17 @@ impl AsRange for DicomTime {
 }
 
 impl AsRange for DicomDateTime {
-    type Item = DateTime<FixedOffset>;
+    type PreciseValue = PreciseDateTime;
     type Range = DateTimeRange;
-    fn earliest(&self) -> Result<DateTime<FixedOffset>> {
+
+    fn is_precise(&self) -> bool {
+        match self.time() {
+            Some(dicom_time) => dicom_time.is_precise(),
+            None => false,
+        }
+    }
+
+    fn earliest(&self) -> Result<Self::PreciseValue> {
         let date = self.date().earliest()?;
         let time = match self.time() {
             Some(time) => time.earliest()?,
@@ -266,13 +334,21 @@ impl AsRange for DicomDateTime {
             })?,
         };
 
-        self.offset()
-            .from_local_datetime(&NaiveDateTime::new(date, time))
-            .single()
-            .context(InvalidDateTimeSnafu)
+        match self.time_zone() {
+            Some(offset) => Ok(PreciseDateTime::TimeZone(
+                offset
+                    .from_local_datetime(&NaiveDateTime::new(date, time))
+                    .single()
+                    .context(InvalidDateTimeSnafu {
+                        naive: NaiveDateTime::new(date, time),
+                        offset: *offset,
+                    })?,
+            )),
+            None => Ok(PreciseDateTime::Naive(NaiveDateTime::new(date, time))),
+        }
     }
 
-    fn latest(&self) -> Result<DateTime<FixedOffset>> {
+    fn latest(&self) -> Result<Self::PreciseValue> {
         let date = self.date().latest()?;
         let time = match self.time() {
             Some(time) => time.latest()?,
@@ -285,15 +361,34 @@ impl AsRange for DicomDateTime {
                 },
             )?,
         };
-        self.offset()
-            .from_local_datetime(&NaiveDateTime::new(date, time))
-            .single()
-            .context(InvalidDateTimeSnafu)
+
+        match self.time_zone() {
+            Some(offset) => Ok(PreciseDateTime::TimeZone(
+                offset
+                    .from_local_datetime(&NaiveDateTime::new(date, time))
+                    .single()
+                    .context(InvalidDateTimeSnafu {
+                        naive: NaiveDateTime::new(date, time),
+                        offset: *offset,
+                    })?,
+            )),
+            None => Ok(PreciseDateTime::Naive(NaiveDateTime::new(date, time))),
+        }
     }
-    fn range(&self) -> Result<DateTimeRange> {
+    fn range(&self) -> Result<Self::Range> {
         let start = self.earliest()?;
         let end = self.latest()?;
-        DateTimeRange::from_start_to_end(start, end)
+
+        match (start, end) {
+            (PreciseDateTime::Naive(start), PreciseDateTime::Naive(end)) => {
+                DateTimeRange::from_start_to_end(start, end)
+            }
+            (PreciseDateTime::TimeZone(start), PreciseDateTime::TimeZone(end)) => {
+                DateTimeRange::from_start_to_end_with_time_zone(start, end)
+            }
+
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -311,18 +406,25 @@ impl DicomTime {
     ///
     /// Missing second fraction defaults to zero.
     pub fn to_naive_time(self) -> Result<NaiveTime> {
-        match self.precision() {
-            DateComponent::Second | DateComponent::Fraction => self.earliest(),
-            _ => ImpreciseValueSnafu.fail(),
+        if self.second().is_some() {
+            self.earliest()
+        } else {
+            ImpreciseValueSnafu.fail()
         }
     }
 }
 
 impl DicomDateTime {
-    /// Retrieves a `chrono::DateTime<FixedOffset>` if value is precise.
-    pub fn to_chrono_datetime(self) -> Result<DateTime<FixedOffset>> {
-        // tweak here, if full DicomTime precision req. proves impractical
+    /// Retrieves a [PreciseDateTime] from a date-time value.
+    /// If the date-time value is not precise or the conversion leads to ambiguous results,
+    /// it fails.
+    pub fn to_precise_datetime(&self) -> Result<PreciseDateTime> {
         self.exact()
+    }
+
+    #[deprecated(since = "0.7.0", note = "Use `to_precise_date_time()`")]
+    pub fn to_chrono_datetime(self) -> Result<DateTime<FixedOffset>> {
+        ToPreciseDateTimeSnafu.fail()
     }
 }
 
@@ -360,8 +462,10 @@ pub struct TimeRange {
     start: Option<NaiveTime>,
     end: Option<NaiveTime>,
 }
-/// Represents a date-time range as two [`Option<chrono::DateTime<FixedOffset>>`] values.
+/// Represents a date-time range, that can either be time-zone naive or time-zone aware. It is stored as two [`Option<chrono::DateTime<FixedOffset>>`] or
+/// two [`Option<chrono::NaiveDateTime>`] values.
 /// [None] means no upper or no lower bound for range is present.
+///
 /// # Example
 /// ```
 /// # use std::error::Error;
@@ -371,7 +475,7 @@ pub struct TimeRange {
 ///
 /// let offset = FixedOffset::west_opt(3600).unwrap();
 ///
-/// let dtr = DateTimeRange::from_start_to_end(
+/// let dtr = DateTimeRange::from_start_to_end_with_time_zone(
 ///     offset.from_local_datetime(&NaiveDateTime::new(
 ///         NaiveDate::from_ymd_opt(2000, 5, 6).unwrap(),
 ///         NaiveTime::from_hms_opt(15, 0, 0).unwrap()
@@ -384,13 +488,21 @@ pub struct TimeRange {
 ///
 /// assert!(dtr.start().is_some());
 /// assert!(dtr.end().is_some());
-/// # Ok(())
+///  # Ok(())
 /// # }
 /// ```
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
-pub struct DateTimeRange {
-    start: Option<DateTime<FixedOffset>>,
-    end: Option<DateTime<FixedOffset>>,
+pub enum DateTimeRange {
+    /// DateTime range without time-zone information
+    Naive {
+        start: Option<NaiveDateTime>,
+        end: Option<NaiveDateTime>,
+    },
+    /// DateTime range with time-zone information
+    TimeZone {
+        start: Option<DateTime<FixedOffset>>,
+        end: Option<DateTime<FixedOffset>>,
+    },
 }
 
 impl DateRange {
@@ -486,9 +598,9 @@ impl TimeRange {
 }
 
 impl DateTimeRange {
-    /// Constructs a new `DateTimeRange` from two `chrono::DateTime` values
+    /// Constructs a new time-zone aware `DateTimeRange` from two `chrono::DateTime<FixedOffset>` values
     /// monotonically ordered in time.
-    pub fn from_start_to_end(
+    pub fn from_start_to_end_with_time_zone(
         start: DateTime<FixedOffset>,
         end: DateTime<FixedOffset>,
     ) -> Result<DateTimeRange> {
@@ -499,47 +611,85 @@ impl DateTimeRange {
             }
             .fail()
         } else {
-            Ok(DateTimeRange {
+            Ok(DateTimeRange::TimeZone {
                 start: Some(start),
                 end: Some(end),
             })
         }
     }
 
-    /// Constructs a new `DateTimeRange` beginning with a `chrono::DateTime` value
+    /// Constructs a new time-zone naive `DateTimeRange` from two `chrono::NaiveDateTime` values
+    /// monotonically ordered in time.
+    pub fn from_start_to_end(start: NaiveDateTime, end: NaiveDateTime) -> Result<DateTimeRange> {
+        if start > end {
+            RangeInversionSnafu {
+                start: start.to_string(),
+                end: end.to_string(),
+            }
+            .fail()
+        } else {
+            Ok(DateTimeRange::Naive {
+                start: Some(start),
+                end: Some(end),
+            })
+        }
+    }
+
+    /// Constructs a new time-zone aware `DateTimeRange` beginning with a `chrono::DateTime<FixedOffset>` value
     /// and no upper limit.
-    pub fn from_start(start: DateTime<FixedOffset>) -> DateTimeRange {
-        DateTimeRange {
+    pub fn from_start_with_time_zone(start: DateTime<FixedOffset>) -> DateTimeRange {
+        DateTimeRange::TimeZone {
             start: Some(start),
             end: None,
         }
     }
 
-    /// Constructs a new `DateTimeRange` with no lower limit, ending with a `chrono::DateTime` value.
-    pub fn from_end(end: DateTime<FixedOffset>) -> DateTimeRange {
-        DateTimeRange {
+    /// Constructs a new time-zone naive `DateTimeRange` beginning with a `chrono::NaiveDateTime` value
+    /// and no upper limit.
+    pub fn from_start(start: NaiveDateTime) -> DateTimeRange {
+        DateTimeRange::Naive {
+            start: Some(start),
+            end: None,
+        }
+    }
+
+    /// Constructs a new time-zone aware `DateTimeRange` with no lower limit, ending with a `chrono::DateTime<FixedOffset>` value.
+    pub fn from_end_with_time_zone(end: DateTime<FixedOffset>) -> DateTimeRange {
+        DateTimeRange::TimeZone {
             start: None,
             end: Some(end),
         }
     }
 
-    /// Returns a reference to the lower bound of the range.
-    pub fn start(&self) -> Option<&DateTime<FixedOffset>> {
-        self.start.as_ref()
+    /// Constructs a new time-zone naive `DateTimeRange` with no lower limit, ending with a `chrono::NaiveDateTime` value.
+    pub fn from_end(end: NaiveDateTime) -> DateTimeRange {
+        DateTimeRange::Naive {
+            start: None,
+            end: Some(end),
+        }
     }
 
-    /// Returns a reference to the upper bound of the range.
-    pub fn end(&self) -> Option<&DateTime<FixedOffset>> {
-        self.end.as_ref()
+    /// Returns the lower bound of the range, if present.
+    pub fn start(&self) -> Option<PreciseDateTime> {
+        match self {
+            DateTimeRange::Naive { start, .. } => start.map(PreciseDateTime::Naive),
+            DateTimeRange::TimeZone { start, .. } => start.map(PreciseDateTime::TimeZone),
+        }
+    }
+
+    /// Returns the upper bound of the range, if present.
+    pub fn end(&self) -> Option<PreciseDateTime> {
+        match self {
+            DateTimeRange::Naive { start: _, end } => end.map(PreciseDateTime::Naive),
+            DateTimeRange::TimeZone { start: _, end } => end.map(PreciseDateTime::TimeZone),
+        }
     }
 
     /// For combined datetime range matching,
     /// this method constructs a `DateTimeRange` from a `DateRange` and a `TimeRange`.
-    pub fn from_date_and_time_range(
-        dr: DateRange,
-        tr: TimeRange,
-        offset: FixedOffset,
-    ) -> Result<DateTimeRange> {
+    /// As 'DateRange' and 'TimeRange' are always time-zone unaware, the resulting DateTimeRange
+    /// will always be time-zone unaware.
+    pub fn from_date_and_time_range(dr: DateRange, tr: TimeRange) -> Result<DateTimeRange> {
         let start_date = dr.start();
         let end_date = dr.end();
 
@@ -564,29 +714,15 @@ impl DateTimeRange {
         match start_date {
             Some(sd) => match end_date {
                 Some(ed) => Ok(DateTimeRange::from_start_to_end(
-                    offset
-                        .from_local_datetime(&NaiveDateTime::new(*sd, start_time))
-                        .single()
-                        .context(InvalidDateTimeSnafu)?,
-                    offset
-                        .from_local_datetime(&NaiveDateTime::new(*ed, end_time))
-                        .single()
-                        .context(InvalidDateTimeSnafu)?,
+                    NaiveDateTime::new(*sd, start_time),
+                    NaiveDateTime::new(*ed, end_time),
                 )?),
-                None => Ok(DateTimeRange::from_start(
-                    offset
-                        .from_local_datetime(&NaiveDateTime::new(*sd, start_time))
-                        .single()
-                        .context(InvalidDateTimeSnafu)?,
-                )),
+                None => Ok(DateTimeRange::from_start(NaiveDateTime::new(
+                    *sd, start_time,
+                ))),
             },
             None => match end_date {
-                Some(ed) => Ok(DateTimeRange::from_end(
-                    offset
-                        .from_local_datetime(&NaiveDateTime::new(*ed, end_time))
-                        .single()
-                        .context(InvalidDateTimeSnafu)?,
-                )),
+                Some(ed) => Ok(DateTimeRange::from_end(NaiveDateTime::new(*ed, end_time))),
                 None => panic!("Impossible combination of two None values for a date range."),
             },
         }
@@ -663,16 +799,269 @@ pub fn parse_time_range(buf: &[u8]) -> Result<TimeRange> {
     }
 }
 
+/// The DICOM standard allows for parsing a date-time range
+/// in which one DT value provides time-zone information
+/// but the other one does not.
+/// An example of this is the value `19750101-19800101+0200`.
+///
+/// In such cases, the missing time-zone can be interpreted as the local time-zone
+/// the time-zone provided by the upper bound, or something else altogether.
+///
+/// This trait is implemented by parsers handling the aforementioned situation.
+/// For concrete implementations, see:
+/// - [`ToLocalTimeZone`] (the default implementation)
+/// - [`ToKnownTimeZone`]
+/// - [`FailOnAmbiguousRange`]
+/// - [`IgnoreTimeZone`]
+pub trait AmbiguousDtRangeParser {
+    /// Retrieve a [DateTimeRange] if the lower range bound is missing a time-zone
+    fn parse_with_ambiguous_start(
+        ambiguous_start: NaiveDateTime,
+        end: DateTime<FixedOffset>,
+    ) -> Result<DateTimeRange>;
+    /// Retrieve a [DateTimeRange] if the upper range bound is missing a time-zone
+    fn parse_with_ambiguous_end(
+        start: DateTime<FixedOffset>,
+        ambiguous_end: NaiveDateTime,
+    ) -> Result<DateTimeRange>;
+}
+
+/// For the missing time-zone,
+/// use time-zone information of the local system clock.
+/// Retrieves a [DateTimeRange::TimeZone].
+///
+/// This is the default behavior of the parser,
+/// which helps attain compliance with the standard
+/// as per [DICOM PS3.5 6.2](https://dicom.nema.org/medical/dicom/2023e/output/chtml/part05/sect_6.2.html):
+/// 
+/// > A Date Time Value without the optional suffix
+/// > is interpreted to be in the local time zone of the application creating the Data Element,
+/// > unless explicitly specified by the Timezone Offset From UTC (0008,0201).
+#[derive(Debug)]
+pub struct ToLocalTimeZone;
+
+/// Use time-zone information from the time-zone aware value.
+/// Retrieves a [DateTimeRange::TimeZone].
+#[derive(Debug)]
+pub struct ToKnownTimeZone;
+
+/// Fail on an attempt to parse an ambiguous date-time range.
+#[derive(Debug)]
+pub struct FailOnAmbiguousRange;
+
+/// Discard known (parsed) time-zone information.
+/// Retrieves a [DateTimeRange::Naive].
+#[derive(Debug)]
+pub struct IgnoreTimeZone;
+
+impl AmbiguousDtRangeParser for ToKnownTimeZone {
+    fn parse_with_ambiguous_start(
+        ambiguous_start: NaiveDateTime,
+        end: DateTime<FixedOffset>,
+    ) -> Result<DateTimeRange> {
+        let start = end
+            .offset()
+            .from_local_datetime(&ambiguous_start)
+            .single()
+            .context(InvalidDateTimeSnafu {
+                naive: ambiguous_start,
+                offset: *end.offset(),
+            })?;
+        if start > end {
+            RangeInversionSnafu {
+                start: ambiguous_start.to_string(),
+                end: end.to_string(),
+            }
+            .fail()
+        } else {
+            Ok(DateTimeRange::TimeZone {
+                start: Some(start),
+                end: Some(end),
+            })
+        }
+    }
+    fn parse_with_ambiguous_end(
+        start: DateTime<FixedOffset>,
+        ambiguous_end: NaiveDateTime,
+    ) -> Result<DateTimeRange> {
+        let end = start
+            .offset()
+            .from_local_datetime(&ambiguous_end)
+            .single()
+            .context(InvalidDateTimeSnafu {
+                naive: ambiguous_end,
+                offset: *start.offset(),
+            })?;
+        if start > end {
+            RangeInversionSnafu {
+                start: start.to_string(),
+                end: ambiguous_end.to_string(),
+            }
+            .fail()
+        } else {
+            Ok(DateTimeRange::TimeZone {
+                start: Some(start),
+                end: Some(end),
+            })
+        }
+    }
+}
+
+impl AmbiguousDtRangeParser for FailOnAmbiguousRange {
+    fn parse_with_ambiguous_end(
+        start: DateTime<FixedOffset>,
+        end: NaiveDateTime,
+    ) -> Result<DateTimeRange> {
+        let time_zone = *start.offset();
+        let start = start.naive_local();
+        AmbiguousDtRangeSnafu {
+            start,
+            end,
+            time_zone,
+        }
+        .fail()
+    }
+    fn parse_with_ambiguous_start(
+        start: NaiveDateTime,
+        end: DateTime<FixedOffset>,
+    ) -> Result<DateTimeRange> {
+        let time_zone = *end.offset();
+        let end = end.naive_local();
+        AmbiguousDtRangeSnafu {
+            start,
+            end,
+            time_zone,
+        }
+        .fail()
+    }
+}
+
+impl AmbiguousDtRangeParser for ToLocalTimeZone {
+    fn parse_with_ambiguous_start(
+        ambiguous_start: NaiveDateTime,
+        end: DateTime<FixedOffset>,
+    ) -> Result<DateTimeRange> {
+        let start = Local::now()
+            .offset()
+            .from_local_datetime(&ambiguous_start)
+            .single()
+            .context(InvalidDateTimeSnafu {
+                naive: ambiguous_start,
+                offset: *end.offset(),
+            })?;
+        if start > end {
+            RangeInversionSnafu {
+                start: ambiguous_start.to_string(),
+                end: end.to_string(),
+            }
+            .fail()
+        } else {
+            Ok(DateTimeRange::TimeZone {
+                start: Some(start),
+                end: Some(end),
+            })
+        }
+    }
+    fn parse_with_ambiguous_end(
+        start: DateTime<FixedOffset>,
+        ambiguous_end: NaiveDateTime,
+    ) -> Result<DateTimeRange> {
+        let end = Local::now()
+            .offset()
+            .from_local_datetime(&ambiguous_end)
+            .single()
+            .context(InvalidDateTimeSnafu {
+                naive: ambiguous_end,
+                offset: *start.offset(),
+            })?;
+        if start > end {
+            RangeInversionSnafu {
+                start: start.to_string(),
+                end: ambiguous_end.to_string(),
+            }
+            .fail()
+        } else {
+            Ok(DateTimeRange::TimeZone {
+                start: Some(start),
+                end: Some(end),
+            })
+        }
+    }
+}
+
+impl AmbiguousDtRangeParser for IgnoreTimeZone {
+    fn parse_with_ambiguous_start(
+        ambiguous_start: NaiveDateTime,
+        end: DateTime<FixedOffset>,
+    ) -> Result<DateTimeRange> {
+        let end = end.naive_local();
+        if ambiguous_start > end {
+            RangeInversionSnafu {
+                start: ambiguous_start.to_string(),
+                end: end.to_string(),
+            }
+            .fail()
+        } else {
+            Ok(DateTimeRange::Naive {
+                start: Some(ambiguous_start),
+                end: Some(end),
+            })
+        }
+    }
+    fn parse_with_ambiguous_end(
+        start: DateTime<FixedOffset>,
+        ambiguous_end: NaiveDateTime,
+    ) -> Result<DateTimeRange> {
+        let start = start.naive_local();
+        if start > ambiguous_end {
+            RangeInversionSnafu {
+                start: start.to_string(),
+                end: ambiguous_end.to_string(),
+            }
+            .fail()
+        } else {
+            Ok(DateTimeRange::Naive {
+                start: Some(start),
+                end: Some(ambiguous_end),
+            })
+        }
+    }
+}
+
 /// Looks for a range separator '-'.
 /// Returns a `DateTimeRange`.
+///
+/// If the parser encounters two date-time values, where one is time-zone aware and the other is not,
+/// it will use the local time-zone offset and use it instead of the missing time-zone.
+///
+/// This is the default behavior of the parser,
+/// which helps attain compliance with the standard
+/// as per [DICOM PS3.5 6.2](https://dicom.nema.org/medical/dicom/2023e/output/chtml/part05/sect_6.2.html):
+/// 
+/// > A Date Time Value without the optional suffix
+/// > is interpreted to be in the local time zone of the application creating the Data Element,
+/// > unless explicitly specified by the Timezone Offset From UTC (0008,0201).
+///
+/// To customize this behavior, please use [parse_datetime_range_custom()].
+///
 /// Users are advised, that for very specific inputs, inconsistent behavior can occur.
 /// This behavior can only be produced when all of the following is true:
-/// - two very short date-times in the form of YYYY are presented
-/// - both YYYY values can be exchanged for a valid west UTC offset, meaning year <= 1200
-/// - only one west UTC offset is presented.
-/// In such cases, two '-' characters are present and the parser will favor the first one,
+/// - two very short date-times in the form of YYYY are presented (YYYY-YYYY)
+/// - both YYYY values can be exchanged for a valid west UTC offset, meaning year <= 1200 e.g. (1000-1100)
+/// - only one west UTC offset is presented. e.g. (1000-1100-0100)
+/// In such cases, two '-' characters are present and the parser will favor the first one as a range separator,
 /// if it produces a valid `DateTimeRange`. Otherwise, it tries the second one.
-pub fn parse_datetime_range(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTimeRange> {
+pub fn parse_datetime_range(buf: &[u8]) -> Result<DateTimeRange> {
+    parse_datetime_range_impl::<ToLocalTimeZone>(buf)
+}
+
+/// Same as [parse_datetime_range()] but allows for custom handling of ambiguous Date-time ranges.
+/// See [AmbiguousDtRangeParser].
+pub fn parse_datetime_range_custom<T: AmbiguousDtRangeParser>(buf: &[u8]) -> Result<DateTimeRange> {
+    parse_datetime_range_impl::<T>(buf)
+}
+
+pub fn parse_datetime_range_impl<T: AmbiguousDtRangeParser>(buf: &[u8]) -> Result<DateTimeRange> {
     // minimum length of one valid DicomDateTime (YYYY) and one '-' separator
     if buf.len() < 5 {
         return UnexpectedEndOfElementSnafu.fail();
@@ -681,19 +1070,24 @@ pub fn parse_datetime_range(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<Da
     if buf[0] == b'-' {
         // starting with separator, range is None-Some
         let buf = &buf[1..];
-        Ok(DateTimeRange::from_end(
-            parse_datetime_partial(buf, dt_utc_offset)
-                .context(ParseSnafu)?
-                .latest()?,
-        ))
+        match parse_datetime_partial(buf).context(ParseSnafu)?.latest()? {
+            PreciseDateTime::Naive(end) => Ok(DateTimeRange::from_end(end)),
+            PreciseDateTime::TimeZone(end_tz) => {
+                Ok(DateTimeRange::from_end_with_time_zone(end_tz))
+            }
+        }
     } else if buf[buf.len() - 1] == b'-' {
         // ends with separator, range is Some-None
         let buf = &buf[0..(buf.len() - 1)];
-        Ok(DateTimeRange::from_start(
-            parse_datetime_partial(buf, dt_utc_offset)
-                .context(ParseSnafu)?
-                .earliest()?,
-        ))
+        match parse_datetime_partial(buf)
+            .context(ParseSnafu)?
+            .earliest()?
+        {
+            PreciseDateTime::Naive(start) => Ok(DateTimeRange::from_start(start)),
+            PreciseDateTime::TimeZone(start_tz) => {
+                Ok(DateTimeRange::from_start_with_time_zone(start_tz))
+            }
+        }
     } else {
         // range must be Some-Some, now, count number of dashes and get their indexes
         let dashes: Vec<usize> = buf
@@ -711,14 +1105,33 @@ pub fn parse_datetime_range(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<Da
                 let (start1, end1) = buf.split_at(dashes[0]);
 
                 let first = (
-                    parse_datetime_partial(start1, dt_utc_offset),
-                    parse_datetime_partial(&end1[1..], dt_utc_offset),
+                    parse_datetime_partial(start1),
+                    parse_datetime_partial(&end1[1..]),
                 );
                 match first {
                     // if split at the first dash produces a valid range, accept. Else try the other dash
                     (Ok(s), Ok(e)) => {
                         //create a result here, to check for range inversion
-                        let dtr = DateTimeRange::from_start_to_end(s.earliest()?, e.latest()?);
+                        let dtr = match (s.earliest()?, e.latest()?) {
+                            (
+                                PreciseDateTime::Naive(start),
+                                PreciseDateTime::Naive(end),
+                            ) => DateTimeRange::from_start_to_end(start, end),
+                            (
+                                PreciseDateTime::TimeZone(start),
+                                PreciseDateTime::TimeZone(end),
+                            ) => DateTimeRange::from_start_to_end_with_time_zone(start, end),
+                            (
+                                // lower bound time-zone was missing
+                                PreciseDateTime::Naive(start),
+                                PreciseDateTime::TimeZone(end),
+                            ) => T::parse_with_ambiguous_start(start, end),
+                            (
+                                PreciseDateTime::TimeZone(start),
+                                // upper bound time-zone was missing
+                                PreciseDateTime::Naive(end),
+                            ) => T::parse_with_ambiguous_end(start, end),
+                        };
                         match dtr {
                             Ok(val) => return Ok(val),
                             Err(_) => dashes[1],
@@ -733,14 +1146,28 @@ pub fn parse_datetime_range(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<Da
 
         let (start, end) = buf.split_at(separator);
         let end = &end[1..];
-        DateTimeRange::from_start_to_end(
-            parse_datetime_partial(start, dt_utc_offset)
+
+        match (
+            parse_datetime_partial(start)
                 .context(ParseSnafu)?
                 .earliest()?,
-            parse_datetime_partial(end, dt_utc_offset)
-                .context(ParseSnafu)?
-                .latest()?,
-        )
+            parse_datetime_partial(end).context(ParseSnafu)?.latest()?,
+        ) {
+            (PreciseDateTime::Naive(start), PreciseDateTime::Naive(end)) => {
+                DateTimeRange::from_start_to_end(start, end)
+            }
+            (PreciseDateTime::TimeZone(start), PreciseDateTime::TimeZone(end)) => {
+                DateTimeRange::from_start_to_end_with_time_zone(start, end)
+            }
+            // lower bound time-zone was missing
+            (PreciseDateTime::Naive(start), PreciseDateTime::TimeZone(end)) => {
+                T::parse_with_ambiguous_start(start, end)
+            }
+            // upper bound time-zone was missing
+            (PreciseDateTime::TimeZone(start), PreciseDateTime::Naive(end)) => {
+                T::parse_with_ambiguous_end(start, end)
+            }
+        }
     }
 }
 
@@ -825,11 +1252,11 @@ mod tests {
     }
 
     #[test]
-    fn test_datetime_range() {
+    fn test_datetime_range_with_time_zone() {
         let offset = FixedOffset::west_opt(3600).unwrap();
 
         assert_eq!(
-            DateTimeRange::from_start(
+            DateTimeRange::from_start_with_time_zone(
                 offset
                     .from_local_datetime(&NaiveDateTime::new(
                         NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
@@ -838,17 +1265,17 @@ mod tests {
                     .unwrap()
             )
             .start(),
-            Some(
-                &offset
+            Some(PreciseDateTime::TimeZone(
+                offset
                     .from_local_datetime(&NaiveDateTime::new(
                         NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
                         NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
                     ))
                     .unwrap()
-            )
+            ))
         );
         assert_eq!(
-            DateTimeRange::from_end(
+            DateTimeRange::from_end_with_time_zone(
                 offset
                     .from_local_datetime(&NaiveDateTime::new(
                         NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
@@ -857,17 +1284,17 @@ mod tests {
                     .unwrap()
             )
             .end(),
-            Some(
-                &offset
+            Some(PreciseDateTime::TimeZone(
+                offset
                     .from_local_datetime(&NaiveDateTime::new(
                         NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
                         NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
                     ))
                     .unwrap()
-            )
+            ))
         );
         assert_eq!(
-            DateTimeRange::from_start_to_end(
+            DateTimeRange::from_start_to_end_with_time_zone(
                 offset
                     .from_local_datetime(&NaiveDateTime::new(
                         NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
@@ -883,17 +1310,17 @@ mod tests {
             )
             .unwrap()
             .start(),
-            Some(
-                &offset
+            Some(PreciseDateTime::TimeZone(
+                offset
                     .from_local_datetime(&NaiveDateTime::new(
                         NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
                         NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
                     ))
                     .unwrap()
-            )
+            ))
         );
         assert_eq!(
-            DateTimeRange::from_start_to_end(
+            DateTimeRange::from_start_to_end_with_time_zone(
                 offset
                     .from_local_datetime(&NaiveDateTime::new(
                         NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
@@ -909,17 +1336,17 @@ mod tests {
             )
             .unwrap()
             .end(),
-            Some(
-                &offset
+            Some(PreciseDateTime::TimeZone(
+                offset
                     .from_local_datetime(&NaiveDateTime::new(
                         NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
                         NaiveTime::from_hms_micro_opt(1, 1, 1, 5).unwrap()
                     ))
                     .unwrap()
-            )
+            ))
         );
         assert!(matches!(
-            DateTimeRange::from_start_to_end(
+            DateTimeRange::from_start_to_end_with_time_zone(
                 offset
                 .from_local_datetime(&NaiveDateTime::new(
                     NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
@@ -938,6 +1365,85 @@ mod tests {
                 start, end ,.. })
                 if start == "1990-01-01 01:01:01.000005 -01:00" &&
                    end == "1990-01-01 01:01:01.000001 -01:00"
+        ));
+    }
+
+    #[test]
+    fn test_datetime_range_naive() {
+        assert_eq!(
+            DateTimeRange::from_start(NaiveDateTime::new(
+                NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
+            ))
+            .start(),
+            Some(PreciseDateTime::Naive(NaiveDateTime::new(
+                NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
+            )))
+        );
+        assert_eq!(
+            DateTimeRange::from_end(NaiveDateTime::new(
+                NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
+            ))
+            .end(),
+            Some(PreciseDateTime::Naive(NaiveDateTime::new(
+                NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
+            )))
+        );
+        assert_eq!(
+            DateTimeRange::from_start_to_end(
+                NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                    NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
+                ),
+                NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                    NaiveTime::from_hms_micro_opt(1, 1, 1, 5).unwrap()
+                )
+            )
+            .unwrap()
+            .start(),
+            Some(PreciseDateTime::Naive(NaiveDateTime::new(
+                NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
+            )))
+        );
+        assert_eq!(
+            DateTimeRange::from_start_to_end(
+                NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                    NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
+                ),
+                NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                    NaiveTime::from_hms_micro_opt(1, 1, 1, 5).unwrap()
+                )
+            )
+            .unwrap()
+            .end(),
+            Some(PreciseDateTime::Naive(NaiveDateTime::new(
+                NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                NaiveTime::from_hms_micro_opt(1, 1, 1, 5).unwrap()
+            )))
+        );
+        assert!(matches!(
+            DateTimeRange::from_start_to_end(
+                NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                    NaiveTime::from_hms_micro_opt(1, 1, 1, 5).unwrap()
+                ),
+                NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
+                    NaiveTime::from_hms_micro_opt(1, 1, 1, 1).unwrap()
+                )
+            )
+           ,
+            Err(Error::RangeInversion {
+                start, end ,.. })
+                if start == "1990-01-01 01:01:01.000005" &&
+                   end == "1990-01-01 01:01:01.000001"
         ));
     }
 
@@ -1052,109 +1558,80 @@ mod tests {
 
     #[test]
     fn test_parse_datetime_range() {
-        let offset = FixedOffset::west_opt(3600).unwrap();
         assert_eq!(
-            parse_datetime_range(b"-20200229153420.123456", offset).ok(),
-            Some(DateTimeRange {
+            parse_datetime_range(b"-20200229153420.123456").ok(),
+            Some(DateTimeRange::Naive {
                 start: None,
-                end: Some(
-                    offset
-                        .from_local_datetime(&NaiveDateTime::new(
-                            NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
-                            NaiveTime::from_hms_micro_opt(15, 34, 20, 123_456).unwrap()
-                        ))
-                        .unwrap()
-                )
+                end: Some(NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                    NaiveTime::from_hms_micro_opt(15, 34, 20, 123_456).unwrap()
+                ))
             })
         );
         assert_eq!(
-            parse_datetime_range(b"-20200229153420.123", offset).ok(),
-            Some(DateTimeRange {
+            parse_datetime_range(b"-20200229153420.123").ok(),
+            Some(DateTimeRange::Naive {
                 start: None,
-                end: Some(
-                    offset
-                        .from_local_datetime(&NaiveDateTime::new(
-                            NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
-                            NaiveTime::from_hms_micro_opt(15, 34, 20, 123_999).unwrap()
-                        ))
-                        .unwrap()
-                )
+                end: Some(NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                    NaiveTime::from_hms_micro_opt(15, 34, 20, 123_999).unwrap()
+                ))
             })
         );
         assert_eq!(
-            parse_datetime_range(b"-20200229153420", offset).ok(),
-            Some(DateTimeRange {
+            parse_datetime_range(b"-20200229153420").ok(),
+            Some(DateTimeRange::Naive {
                 start: None,
-                end: Some(
-                    offset
-                        .from_local_datetime(&NaiveDateTime::new(
-                            NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
-                            NaiveTime::from_hms_micro_opt(15, 34, 20, 999_999).unwrap()
-                        ))
-                        .unwrap()
-                )
+                end: Some(NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                    NaiveTime::from_hms_micro_opt(15, 34, 20, 999_999).unwrap()
+                ))
             })
         );
         assert_eq!(
-            parse_datetime_range(b"-2020022915", offset).ok(),
-            Some(DateTimeRange {
+            parse_datetime_range(b"-2020022915").ok(),
+            Some(DateTimeRange::Naive {
                 start: None,
-                end: Some(
-                    offset
-                        .from_local_datetime(&NaiveDateTime::new(
-                            NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
-                            NaiveTime::from_hms_micro_opt(15, 59, 59, 999_999).unwrap()
-                        ))
-                        .unwrap()
-                )
+                end: Some(NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                    NaiveTime::from_hms_micro_opt(15, 59, 59, 999_999).unwrap()
+                ))
             })
         );
         assert_eq!(
-            parse_datetime_range(b"-202002", offset).ok(),
-            Some(DateTimeRange {
+            parse_datetime_range(b"-202002").ok(),
+            Some(DateTimeRange::Naive {
                 start: None,
-                end: Some(
-                    offset
-                        .from_local_datetime(&NaiveDateTime::new(
-                            NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
-                            NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
-                        ))
-                        .unwrap()
-                )
+                end: Some(NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                    NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+                ))
             })
         );
         assert_eq!(
-            parse_datetime_range(b"0002-", offset).ok(),
-            Some(DateTimeRange {
-                start: Some(
-                    offset
-                        .from_local_datetime(&NaiveDateTime::new(
-                            NaiveDate::from_ymd_opt(2, 1, 1).unwrap(),
-                            NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
-                        ))
-                        .unwrap()
-                ),
+            parse_datetime_range(b"0002-").ok(),
+            Some(DateTimeRange::Naive {
+                start: Some(NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2, 1, 1).unwrap(),
+                    NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
+                )),
                 end: None
             })
         );
         assert_eq!(
-            parse_datetime_range(b"00021231-", offset).ok(),
-            Some(DateTimeRange {
-                start: Some(
-                    offset
-                        .from_local_datetime(&NaiveDateTime::new(
-                            NaiveDate::from_ymd_opt(2, 12, 31).unwrap(),
-                            NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
-                        ))
-                        .unwrap()
-                ),
+            parse_datetime_range(b"00021231-").ok(),
+            Some(DateTimeRange::Naive {
+                start: Some(NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2, 12, 31).unwrap(),
+                    NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
+                )),
                 end: None
             })
         );
         // two 'east' UTC offsets get parsed
         assert_eq!(
-            parse_datetime_range(b"19900101+0500-1999+1400", offset).ok(),
-            Some(DateTimeRange {
+            parse_datetime_range(b"19900101+0500-1999+1400").ok(),
+            Some(DateTimeRange::TimeZone {
                 start: Some(
                     FixedOffset::east_opt(5 * 3600)
                         .unwrap()
@@ -1175,10 +1652,10 @@ mod tests {
                 )
             })
         );
-        // two 'west' UTC offsets get parsed
+        // two 'west' Time zone offsets get parsed
         assert_eq!(
-            parse_datetime_range(b"19900101-0500-1999-1200", offset).ok(),
-            Some(DateTimeRange {
+            parse_datetime_range(b"19900101-0500-1999-1200").ok(),
+            Some(DateTimeRange::TimeZone {
                 start: Some(
                     FixedOffset::west_opt(5 * 3600)
                         .unwrap()
@@ -1199,10 +1676,10 @@ mod tests {
                 )
             })
         );
-        // 'east' and 'west' UTC offsets get parsed
+        // 'east' and 'west' Time zone offsets get parsed
         assert_eq!(
-            parse_datetime_range(b"19900101+1400-1999-1200", offset).ok(),
-            Some(DateTimeRange {
+            parse_datetime_range(b"19900101+1400-1999-1200").ok(),
+            Some(DateTimeRange::TimeZone {
                 start: Some(
                     FixedOffset::east_opt(14 * 3600)
                         .unwrap()
@@ -1223,10 +1700,11 @@ mod tests {
                 )
             })
         );
-        // one 'west' UTC offsets gets parsed, offset cannot be mistaken for a date-time
+        // one 'west' Time zone offset gets parsed, offset cannot be mistaken for a date-time
+        // the missing Time zone offset will be replaced with local clock time-zone offset (default behavior)
         assert_eq!(
-            parse_datetime_range(b"19900101-1200-1999", offset).unwrap(),
-            DateTimeRange {
+            parse_datetime_range(b"19900101-1200-1999").unwrap(),
+            DateTimeRange::TimeZone {
                 start: Some(
                     FixedOffset::west_opt(12 * 3600)
                         .unwrap()
@@ -1237,7 +1715,8 @@ mod tests {
                         .unwrap()
                 ),
                 end: Some(
-                    offset
+                    Local::now()
+                        .offset()
                         .from_local_datetime(&NaiveDateTime::new(
                             NaiveDate::from_ymd_opt(1999, 12, 31).unwrap(),
                             NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
@@ -1246,13 +1725,15 @@ mod tests {
                 )
             }
         );
-        // '0500' can either be a valid west UTC offset on left side, or a valid datime on the right side
-        // Now, the first dash is considered to be a separator.
+        // '0500' can either be a valid west UTC offset on the lower bound, or a valid date-time on the upper bound
+        // Now, the first dash is considered to be a range separator, so the lower bound time-zone offset is missing
+        // and will be considered to be the local clock time-zone offset.
         assert_eq!(
-            parse_datetime_range(b"0050-0500-1000", offset).unwrap(),
-            DateTimeRange {
+            parse_datetime_range(b"0050-0500-1000").unwrap(),
+            DateTimeRange::TimeZone {
                 start: Some(
-                    offset
+                    Local::now()
+                        .offset()
                         .from_local_datetime(&NaiveDateTime::new(
                             NaiveDate::from_ymd_opt(50, 1, 1).unwrap(),
                             NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
@@ -1272,12 +1753,12 @@ mod tests {
         );
         // sequence with more than 3 dashes '-' is refused.
         assert!(matches!(
-            parse_datetime_range(b"0001-00021231-2021-0100-0100", offset),
+            parse_datetime_range(b"0001-00021231-2021-0100-0100"),
             Err(Error::SeparatorCount { .. })
         ));
         // any sequence without a dash '-' is refused.
         assert!(matches!(
-            parse_datetime_range(b"00021231+0500", offset),
+            parse_datetime_range(b"00021231+0500"),
             Err(Error::NoRangeSeparator { .. })
         ));
     }
