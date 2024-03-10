@@ -935,7 +935,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: bytes[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -947,7 +948,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -959,7 +961,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -971,7 +974,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -983,7 +987,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -995,7 +1000,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1007,7 +1013,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1103,7 +1110,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1118,7 +1126,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1133,7 +1142,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1148,7 +1158,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1163,7 +1174,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1178,7 +1190,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1193,7 +1206,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1268,7 +1282,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: bytes[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1280,7 +1295,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1292,7 +1308,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1304,7 +1321,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1316,7 +1334,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1328,7 +1347,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1340,7 +1360,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1353,7 +1374,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1437,7 +1459,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1452,7 +1475,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1467,7 +1491,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1482,7 +1507,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1497,7 +1523,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1512,7 +1539,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1527,7 +1555,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1543,7 +1572,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1618,7 +1648,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: bytes[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1630,7 +1661,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1642,7 +1674,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1654,7 +1687,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1666,7 +1700,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1678,7 +1713,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1690,7 +1726,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1702,7 +1739,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build().into(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1786,7 +1824,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1801,7 +1840,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1816,7 +1856,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1831,7 +1872,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1846,7 +1888,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1861,7 +1904,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1876,7 +1920,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1891,7 +1936,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build().into(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
