@@ -81,7 +81,7 @@ enum Error {
     },
 
     /// Could not construct DICOM command
-    CreateCommand { source: dicom_object::WriteError },
+    CreateCommand { source: Box<dicom_object::WriteError> },
 
     /// Unsupported file transfer syntax {uid}
     UnsupportedFileTransferSyntax { uid: std::borrow::Cow<'static, str> },
@@ -262,6 +262,7 @@ fn run() -> Result<(), Error> {
                 &mut cmd_data,
                 &dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
             )
+            .map_err(Box::from)
             .context(CreateCommandSnafu)?;
 
             let mut object_data = Vec::with_capacity(2048);
