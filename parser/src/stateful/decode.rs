@@ -232,6 +232,7 @@ pub struct StatefulDecoder<D, S, BD = BasicDecoder, TC = SpecificCharacterSet> {
     buffer: Vec<u8>,
     /// the assumed position of the reader source
     position: u64,
+    signed_pixeldata: Option<bool>,
 }
 
 impl<S> StatefulDecoder<DynDecoder<S>, S> {
@@ -291,6 +292,7 @@ where
             text: DefaultCharacterSetCodec,
             buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
             position: 0,
+            signed_pixeldata: None,
         }
     }
 }
@@ -321,6 +323,7 @@ where
             text,
             buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
             position,
+            signed_pixeldata: None,
         }
     }
 }
@@ -719,6 +722,12 @@ where
             })?;
 
         self.position += len as u64;
+
+        if header.tag == Tag(0x0028, 0x0103) {
+            //Pixel Representation is not 0, so 2s complement (signed)
+            self.signed_pixeldata = Some(vec[0] != 0);
+        }
+
         Ok(PrimitiveValue::U16(vec))
     }
 
@@ -876,7 +885,8 @@ where
     type Reader = S;
 
     fn decode_header(&mut self) -> Result<DataElementHeader> {
-        self.decoder
+        let mut header = self
+            .decoder
             .decode_header(&mut self.from)
             .context(DecodeElementHeaderSnafu {
                 position: self.position,
@@ -885,7 +895,15 @@ where
                 self.position += bytes_read as u64;
                 header
             })
-            .map_err(From::from)
+            .map_err(From::from)?;
+
+        //If we are decoding the PixelPadding element, make sure the VR is the same as the pixel
+        //representation (US by default, SS for signed data).
+        if let Some(vr) = self.determine_vr_based_on_pixel_representation(header.tag) {
+            header.vr = vr;
+        }
+
+        Ok(header)
     }
 
     fn decode_item_header(&mut self) -> Result<SequenceItemHeader> {
@@ -1046,6 +1064,38 @@ where
                 new_position: position,
             })
             .map(|_| ())
+    }
+}
+
+impl<D, S, BD> StatefulDecoder<D, S, BD>
+where
+    D: DecodeFrom<S>,
+    BD: BasicDecode,
+    S: Read,
+{
+    /// The pixel representation affects the VR for several elements.
+    /// Returns `Some(VR::SS)` if the vr needs to be modified to SS. Returns `None`
+    /// if this element is not affected _or_ if we have Unsigned Pixel Representation.
+    fn determine_vr_based_on_pixel_representation(&self, tag: Tag) -> Option<VR> {
+        static TAGS_PIXEL_VALUE_VR: &[Tag] = &[
+            Tag(0x0028, 0x0106), // SmallestImagePixelValue
+            Tag(0x0028, 0x0107), // LargestImagePixelValue
+            Tag(0x0028, 0x0108), // SmallestPixelValueInSeries
+            Tag(0x0028, 0x0109), // LargestPixelValueInSeries
+            Tag(0x0028, 0x0120), // PixelPaddingValue
+            Tag(0x0028, 0x0121), // PixelPaddingRangeLimit
+            Tag(0x0028, 0x1101), // RedPaletteColorLookupTableDescriptor
+            Tag(0x0028, 0x1102), // GreenPaletteColorLookupTableDescriptor
+            Tag(0x0028, 0x1103), // BluePaletteColorLookupTableDescriptor
+        ];
+
+        if matches!(self.signed_pixeldata, Some(true))
+            && TAGS_PIXEL_VALUE_VR.binary_search(&tag).is_ok()
+        {
+            Some(VR::SS)
+        } else {
+            None
+        }
     }
 }
 
@@ -1474,5 +1524,55 @@ mod tests {
         assert_eq!(item_header, SequenceItemHeader::SequenceDelimiter);
 
         assert_eq!(decoder.position(), 138);
+    }
+
+    #[test]
+    fn decode_and_use_pixel_representation() {
+        const RAW: &'static [u8; 20] = &[
+            0x28, 0x00, 0x03, 0x01, // Tag: (0023,0103) PixelRepresentation
+            0x02, 0x00, 0x00, 0x00, // Length: 2
+            0x01, 0x00, // Value: "1",
+            0x28, 0x00, 0x20, 0x01, // Tag: (0023,0120) PixelPadding
+            0x02, 0x00, 0x00, 0x00, // Length: 2
+            0x01, 0x00, // Value: "1"
+        ];
+
+        let mut cursor = &RAW[..];
+        let mut decoder = StatefulDecoder::new(
+            &mut cursor,
+            ImplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            SpecificCharacterSet::Default,
+        );
+
+        is_stateful_decoder(&decoder);
+
+        let header_1 = decoder
+            .decode_header()
+            .expect("should find an element header");
+        assert_eq!(
+            header_1,
+            DataElementHeader {
+                tag: Tag(0x0028, 0x0103),
+                vr: VR::US,
+                len: Length(2),
+            }
+        );
+
+        decoder
+            .read_value(&header_1)
+            .expect("Can read Pixel Representation");
+
+        let header_2 = decoder
+            .decode_header()
+            .expect("should find an element header");
+        assert_eq!(
+            header_2,
+            DataElementHeader {
+                tag: Tag(0x0028, 0x0120),
+                vr: VR::SS,
+                len: Length(2),
+            }
+        );
     }
 }
