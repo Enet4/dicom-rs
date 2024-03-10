@@ -57,7 +57,7 @@ fn run() -> Result<(), Whatever> {
     } = App::parse();
 
     let width = width
-        .or_else(|| term_size::dimensions().map(|(width, _)| width as u32))
+        .or_else(|| terminal_size::terminal_size().map(|(width, _)| width.0 as u32))
         .unwrap_or(120);
 
     let mut options = DumpOptions::new();
