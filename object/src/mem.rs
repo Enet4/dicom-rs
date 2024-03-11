@@ -677,6 +677,10 @@ where
         self.entries.get(&tag)
     }
 
+    pub fn get_mut(&mut self, tag: Tag) -> Option<&mut InMemElement<D>> {
+        self.entries.get_mut(&tag)
+    }
+
     /// Retrieve a particular DICOM element that might not exist by its name.
     ///
     /// If the element does not exist,
@@ -841,6 +845,20 @@ where
         }
     }
 
+    pub fn update_value_at(
+        &mut self,
+        selector: impl Into<AttributeSelector>,
+        f: impl FnMut(&mut Value<InMemDicomObject<D>, InMemFragment>)
+    ) -> Result<(), AtAccessError> {
+        self.entry_at_mut(selector).map(|e| {
+            e.update_value(f)
+        })
+        .and_then(|_| {
+            self.len = Length::UNDEFINED;
+            Ok(())  
+        })
+    }
+
     /// Obtain the DICOM value by finding the element
     /// that matches the given selector.
     ///
@@ -888,7 +906,7 @@ where
                 AttributeSelectorStep::Nested { tag, item } => {
                     let e = obj
                         .entries
-                        .get(tag)
+                        .get(&tag)
                         .with_context(|| crate::MissingSequenceSnafu {
                             selector: selector.clone(),
                             step_index: i as u32,
@@ -922,6 +940,150 @@ where
             VR::CS,
             "ISO_IR 192",
         ));
+    }
+
+    pub fn entry_at(
+        &self,
+        selector: impl Into<AttributeSelector>,
+    ) -> Result<&InMemElement<D>, AtAccessError> {
+        let selector = selector.into();
+
+        let mut obj = self;
+        for (i, step) in selector.iter().enumerate() {
+            match step {
+                // reached the leaf
+                AttributeSelectorStep::Tag(tag) => {
+                    return obj.get(*tag).with_context(|| {
+                        MissingLeafElementSnafu {
+                            selector: selector.clone(),
+                        }
+                    })
+                }
+                // navigate further down
+                AttributeSelectorStep::Nested { tag, item } => {
+                    let e = obj
+                        .entries
+                        .get(&tag)
+                        .with_context(|| crate::MissingSequenceSnafu {
+                            selector: selector.clone(),
+                            step_index: i as u32,
+                        })?;
+
+                    // get items
+                    let items = e.items().with_context(|| NotASequenceSnafu {
+                        selector: selector.clone(),
+                        step_index: i as u32,
+                    })?;
+
+                    // if item.length == i and action is a constructive action, append new item
+                    obj =
+                        items
+                            .get(*item as usize)
+                            .with_context(|| crate::MissingSequenceSnafu {
+                                selector: selector.clone(),
+                                step_index: i as u32,
+                            })?;
+                }
+            }
+        }
+
+        unreachable!()
+    }
+
+    pub fn entry_at_mut(
+        &mut self,
+        selector: impl Into<AttributeSelector>,
+    ) -> Result<&mut InMemElement<D>, AtAccessError> {
+        let selector = selector.into();
+
+        let mut obj = self;
+        for (i, step) in selector.iter().enumerate() {
+            match step {
+                // reached the leaf
+                AttributeSelectorStep::Tag(tag) => {
+                    return obj.get_mut(*tag).with_context(|| {
+                        MissingLeafElementSnafu {
+                            selector: selector.clone(),
+                        }
+                    })
+                }
+                // navigate further down
+                AttributeSelectorStep::Nested { tag, item } => {
+                    let e = obj
+                        .entries
+                        .get_mut(&tag)
+                        .with_context(|| crate::MissingSequenceSnafu {
+                            selector: selector.clone(),
+                            step_index: i as u32,
+                        })?;
+
+                    // get items
+                    let items = e.items_mut().with_context(|| NotASequenceSnafu {
+                        selector: selector.clone(),
+                        step_index: i as u32,
+                    })?;
+
+                    // if item.length == i and action is a constructive action, append new item
+                    obj =
+                        items
+                            .get_mut(*item as usize)
+                            .with_context(|| crate::MissingSequenceSnafu {
+                                selector: selector.clone(),
+                                step_index: i as u32,
+                            })?;
+                }
+            }
+        }
+
+        unreachable!()
+    }
+
+    pub fn value_at_mut(
+        &mut self,
+        selector: impl Into<AttributeSelector>,
+    ) -> Result<&mut Value<InMemDicomObject<D>, InMemFragment>, AtAccessError> {
+        let selector = selector.into();
+
+        let mut obj = self;
+        for (i, step) in selector.iter().enumerate() {
+            match step {
+                // reached the leaf
+                AttributeSelectorStep::Tag(tag) => {
+                    return obj.get_mut(*tag).map(|e| e.value_mut()).with_context(|| {
+                        MissingLeafElementSnafu {
+                            selector: selector.clone(),
+                        }
+                    })
+                }
+                // navigate further down
+                AttributeSelectorStep::Nested { tag, item } => {
+                    let e = obj
+                        .entries
+                        .get_mut(&tag)
+                        .with_context(|| crate::MissingSequenceSnafu {
+                            selector: selector.clone(),
+                            step_index: i as u32,
+                        })?;
+
+                    // get items
+                    let items = e.items_mut().with_context(|| NotASequenceSnafu {
+                        selector: selector.clone(),
+                        step_index: i as u32,
+                    })?;
+
+                    // if item.length == i and action is a constructive action, append new item
+                    obj =
+                        items
+                            .get_mut(*item as usize)
+                            .with_context(|| crate::MissingSequenceSnafu {
+                                selector: selector.clone(),
+                                step_index: i as u32,
+                            })?;
+                }
+            }
+        }
+
+        unreachable!()
     }
 
     /// Apply the given attribute operation on this object.
