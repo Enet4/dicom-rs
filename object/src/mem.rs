@@ -678,7 +678,7 @@ where
     }
 
     // Get a mutable reference to a particular DICOM attribute from this object by tag.
-    // 
+    //
     // Should be private as it would allow a user to change the tag of an
     // element and diverge from the dictionary
     fn get_mut(&mut self, tag: Tag) -> Option<&mut InMemElement<D>> {
@@ -849,16 +849,92 @@ where
         }
     }
 
+    /// Obtain the DICOM value by finding the element
+    /// that matches the given selector.
+    ///
+    /// Returns an error if the respective element or any of its parents
+    /// cannot be found.
+    ///
+    /// See the documentation of [`AttributeSelector`] for more information
+    /// on how to write attribute selectors.
+    ///
+    /// See also [`entry_at`] to get the entry rather than the value.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use dicom_core::prelude::*;
+    /// # use dicom_core::ops::AttributeSelector;
+    /// # use dicom_dictionary_std::tags;
+    /// # use dicom_object::InMemDicomObject;
+    /// # let obj: InMemDicomObject = unimplemented!();
+    /// let referenced_sop_instance_iod = obj.value_at(
+    ///     (
+    ///         tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
+    ///         tags::REFERENCED_IMAGE_SEQUENCE,
+    ///         tags::REFERENCED_SOP_INSTANCE_UID,
+    ///     ))?
+    ///     .to_str()?;
+    /// # Ok::<_, Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn value_at(
+        &self,
+        selector: impl Into<AttributeSelector>,
+    ) -> Result<&Value<InMemDicomObject<D>, InMemFragment>, AtAccessError> {
+        let selector = selector.into();
+
+        let mut obj = self;
+        for (i, step) in selector.iter().enumerate() {
+            match step {
+                // reached the leaf
+                AttributeSelectorStep::Tag(tag) => {
+                    return obj.get(*tag).map(|e| e.value()).with_context(|| {
+                        MissingLeafElementSnafu {
+                            selector: selector.clone(),
+                        }
+                    })
+                }
+                // navigate further down
+                AttributeSelectorStep::Nested { tag, item } => {
+                    let e = obj
+                        .entries
+                        .get(tag)
+                        .with_context(|| crate::MissingSequenceSnafu {
+                            selector: selector.clone(),
+                            step_index: i as u32,
+                        })?;
+
+                    // get items
+                    let items = e.items().with_context(|| NotASequenceSnafu {
+                        selector: selector.clone(),
+                        step_index: i as u32,
+                    })?;
+
+                    // if item.length == i and action is a constructive action, append new item
+                    obj =
+                        items
+                            .get(*item as usize)
+                            .with_context(|| crate::MissingSequenceSnafu {
+                                selector: selector.clone(),
+                                step_index: i as u32,
+                            })?;
+                }
+            }
+        }
+
+        unreachable!()
+    }
+
     /// Obtain a temporary mutable reference to a DICOM value by AttributeSelector,
     /// so that mutations can be applied within.
     ///
     /// If found, this method resets all related lengths recorded
     /// and returns `true`.
     /// Returns `false` otherwise.
-    /// 
+    ///
     /// See the documentation of [`AttributeSelector`] for more information
     /// on how to write attribute selectors.
-    /// 
+    ///
     /// NOTE: Also consider using the [`apply`].
     ///
     /// # Example
@@ -875,15 +951,15 @@ where
     ///         DataSetSequence::from(vec![InMemDicomObject::from_element_iter([
     ///             DataElement::new(
     ///                 tags::PATIENT_ID,
-    ///                 VR::LO, 
+    ///                 VR::LO,
     ///                 dicom_value!(Str, "1234")
     ///             )])
     ///         ])
     ///     ),
     /// ]);
     /// let selector = (
-    ///     tags::OTHER_PATIENT_I_DS_SEQUENCE, 
-    ///     0, 
+    ///     tags::OTHER_PATIENT_I_DS_SEQUENCE,
+    ///     0,
     ///     tags::PATIENT_ID
     /// );
     ///
@@ -908,7 +984,7 @@ where
         })
         .and_then(|_| {
             self.len = Length::UNDEFINED;
-            Ok(())  
+            Ok(())
         })
     }
 
@@ -996,8 +1072,13 @@ where
     }
 
     /// Get a DataElement by AttributeSelector
-    /// 
+    ///
     /// If the element or other intermediate elements do not exist, the method will return an error.
+    ///
+    /// See the documentation of [`AttributeSelector`] for more information
+    /// on how to write attribute selectors.
+    ///
+    /// If you only need the value, use [`value_at`].
     pub fn entry_at(
         &self,
         selector: impl Into<AttributeSelector>,
@@ -1019,7 +1100,7 @@ where
                 AttributeSelectorStep::Nested { tag, item } => {
                     let e = obj
                         .entries
-                        .get(&tag)
+                        .get(tag)
                         .with_context(|| crate::MissingSequenceSnafu {
                             selector: selector.clone(),
                             step_index: i as u32,
@@ -1070,7 +1151,7 @@ where
                 AttributeSelectorStep::Nested { tag, item } => {
                     let e = obj
                         .entries
-                        .get_mut(&tag)
+                        .get_mut(tag)
                         .with_context(|| crate::MissingSequenceSnafu {
                             selector: selector.clone(),
                             step_index: i as u32,
@@ -1098,8 +1179,8 @@ where
     }
 
     /// Apply the given attribute operation on this object.
-    /// 
-    /// For a more free-form update, see [`update_value_at`].
+    ///
+    /// For more complex updates, see [`update_value_at`].
     ///
     /// See the [`dicom_core::ops`] module
     /// for more information.
