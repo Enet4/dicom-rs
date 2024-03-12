@@ -230,10 +230,6 @@ impl<I, P> DataElement<I, P> {
         &self.value
     }
 
-    pub fn value_mut(&mut self) -> &mut Value<I, P> {
-        &mut self.value
-    }
-
     /// Move the data value out of the element, discarding the rest. If the
     /// value is a sequence, its lifetime may still be bound to its original
     /// source.

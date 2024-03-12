@@ -677,7 +677,11 @@ where
         self.entries.get(&tag)
     }
 
-    pub fn get_mut(&mut self, tag: Tag) -> Option<&mut InMemElement<D>> {
+    // Get a mutable reference to a particular DICOM attribute from this object by tag.
+    // 
+    // Should be private as it would allow a user to change the tag of an
+    // element and diverge from the dictionary
+    fn get_mut(&mut self, tag: Tag) -> Option<&mut InMemElement<D>> {
         self.entries.get_mut(&tag)
     }
 
@@ -803,7 +807,7 @@ where
         self.len = Length::UNDEFINED;
     }
 
-    /// Obtain a temporary mutable reference to a DICOM value,
+    /// Obtain a temporary mutable reference to a DICOM value by tag,
     /// so that mutations can be applied within.
     ///
     /// If found, this method resets all related lengths recorded
@@ -845,6 +849,55 @@ where
         }
     }
 
+    /// Obtain a temporary mutable reference to a DICOM value by AttributeSelector,
+    /// so that mutations can be applied within.
+    ///
+    /// If found, this method resets all related lengths recorded
+    /// and returns `true`.
+    /// Returns `false` otherwise.
+    /// 
+    /// See the documentation of [`AttributeSelector`] for more information
+    /// on how to write attribute selectors.
+    /// 
+    /// NOTE: Also consider using the [`apply`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::{DataElement, VR, dicom_value, value::DataSetSequence};
+    /// # use dicom_dictionary_std::tags;
+    /// # use dicom_object::InMemDicomObject;
+    /// # use dicom_core::ops::{AttributeAction, AttributeOp, ApplyOp};
+    /// let mut dcm = InMemDicomObject::from_element_iter([
+    ///     DataElement::new(
+    ///         tags::OTHER_PATIENT_I_DS_SEQUENCE,
+    ///         VR::SQ,
+    ///         DataSetSequence::from(vec![InMemDicomObject::from_element_iter([
+    ///             DataElement::new(
+    ///                 tags::PATIENT_ID,
+    ///                 VR::LO, 
+    ///                 dicom_value!(Str, "1234")
+    ///             )])
+    ///         ])
+    ///     ),
+    /// ]);
+    /// let selector = (
+    ///     tags::OTHER_PATIENT_I_DS_SEQUENCE, 
+    ///     0, 
+    ///     tags::PATIENT_ID
+    /// );
+    ///
+    /// // update referenced SOP instance UID for deidentification potentially
+    /// dcm.update_value_at(*&selector, |e| {
+    ///     let mut v = e.primitive_mut().unwrap();
+    ///     *v = dicom_value!(Str, "abcd");
+    /// });
+    ///
+    /// assert_eq!(
+    ///     dcm.entry_at(*&selector).unwrap().value().to_str().unwrap(),
+    ///     "abcd"
+    /// );
+    /// ```
     pub fn update_value_at(
         &mut self,
         selector: impl Into<AttributeSelector>,
@@ -942,6 +995,9 @@ where
         ));
     }
 
+    /// Get a DataElement by AttributeSelector
+    /// 
+    /// If the element or other intermediate elements do not exist, the method will return an error.
     pub fn entry_at(
         &self,
         selector: impl Into<AttributeSelector>,
@@ -990,7 +1046,10 @@ where
         unreachable!()
     }
 
-    pub fn entry_at_mut(
+    // Get a mutable reference to a particular entry by AttributeSelector
+    //
+    // Should be private for the same reason as `self.get_mut`
+    fn entry_at_mut(
         &mut self,
         selector: impl Into<AttributeSelector>,
     ) -> Result<&mut InMemElement<D>, AtAccessError> {
@@ -1038,55 +1097,9 @@ where
         unreachable!()
     }
 
-    pub fn value_at_mut(
-        &mut self,
-        selector: impl Into<AttributeSelector>,
-    ) -> Result<&mut Value<InMemDicomObject<D>, InMemFragment>, AtAccessError> {
-        let selector = selector.into();
-
-        let mut obj = self;
-        for (i, step) in selector.iter().enumerate() {
-            match step {
-                // reached the leaf
-                AttributeSelectorStep::Tag(tag) => {
-                    return obj.get_mut(*tag).map(|e| e.value_mut()).with_context(|| {
-                        MissingLeafElementSnafu {
-                            selector: selector.clone(),
-                        }
-                    })
-                }
-                // navigate further down
-                AttributeSelectorStep::Nested { tag, item } => {
-                    let e = obj
-                        .entries
-                        .get_mut(&tag)
-                        .with_context(|| crate::MissingSequenceSnafu {
-                            selector: selector.clone(),
-                            step_index: i as u32,
-                        })?;
-
-                    // get items
-                    let items = e.items_mut().with_context(|| NotASequenceSnafu {
-                        selector: selector.clone(),
-                        step_index: i as u32,
-                    })?;
-
-                    // if item.length == i and action is a constructive action, append new item
-                    obj =
-                        items
-                            .get_mut(*item as usize)
-                            .with_context(|| crate::MissingSequenceSnafu {
-                                selector: selector.clone(),
-                                step_index: i as u32,
-                            })?;
-                }
-            }
-        }
-
-        unreachable!()
-    }
-
     /// Apply the given attribute operation on this object.
+    /// 
+    /// For a more free-form update, see [`update_value_at`].
     ///
     /// See the [`dicom_core::ops`] module
     /// for more information.
