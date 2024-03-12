@@ -158,15 +158,13 @@ fn run() -> Result<(), Whatever> {
             }
 
             // msg ID response, should be equal to sent msg ID
-            let msg_id_elem = obj
+            let got_msg_id: u16 = obj
                 .element(tags::MESSAGE_ID_BEING_RESPONDED_TO)
-                .whatever_context("Could not retrieve Message ID from response")?;
+                .whatever_context("Could not retrieve Message ID from response")?
+                .to_int()
+                .whatever_context("Message ID is not a valid integer")?;
 
-            if message_id
-                != msg_id_elem
-                    .to_int()
-                    .whatever_context("Message ID is not a valid integer")?
-            {
+            if message_id != got_msg_id {
                 whatever!("Message ID mismatch");
             }
         }
