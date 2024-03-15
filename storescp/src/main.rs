@@ -248,6 +248,10 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
                             association.client_ae_title()
                         );
                     }
+                    Pdu::AbortRQ { source } => {
+                        warn!("Aborted connection from: {:?}", source);
+                        break;
+                    },
                     _ => {}
                 }
             }
