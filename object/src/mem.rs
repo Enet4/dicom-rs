@@ -978,15 +978,13 @@ where
     pub fn update_value_at(
         &mut self,
         selector: impl Into<AttributeSelector>,
-        f: impl FnMut(&mut Value<InMemDicomObject<D>, InMemFragment>)
+        f: impl FnMut(&mut Value<InMemDicomObject<D>, InMemFragment>),
     ) -> Result<(), AtAccessError> {
-        self.entry_at_mut(selector).map(|e| {
-            e.update_value(f)
-        })
-        .and_then(|_| {
-            self.len = Length::UNDEFINED;
-            Ok(())
-        })
+        self.entry_at_mut(selector)
+            .map(|e| e.update_value(f))
+            .map(|_| {
+                self.len = Length::UNDEFINED;
+            })
     }
 
     /// Get a DataElement by AttributeSelector
@@ -1008,10 +1006,8 @@ where
             match step {
                 // reached the leaf
                 AttributeSelectorStep::Tag(tag) => {
-                    return obj.get(*tag).with_context(|| {
-                        MissingLeafElementSnafu {
-                            selector: selector.clone(),
-                        }
+                    return obj.get(*tag).with_context(|| MissingLeafElementSnafu {
+                        selector: selector.clone(),
                     })
                 }
                 // navigate further down
@@ -1059,21 +1055,19 @@ where
             match step {
                 // reached the leaf
                 AttributeSelectorStep::Tag(tag) => {
-                    return obj.get_mut(*tag).with_context(|| {
-                        MissingLeafElementSnafu {
-                            selector: selector.clone(),
-                        }
+                    return obj.get_mut(*tag).with_context(|| MissingLeafElementSnafu {
+                        selector: selector.clone(),
                     })
                 }
                 // navigate further down
                 AttributeSelectorStep::Nested { tag, item } => {
-                    let e = obj
-                        .entries
-                        .get_mut(tag)
-                        .with_context(|| crate::MissingSequenceSnafu {
-                            selector: selector.clone(),
-                            step_index: i as u32,
-                        })?;
+                    let e =
+                        obj.entries
+                            .get_mut(tag)
+                            .with_context(|| crate::MissingSequenceSnafu {
+                                selector: selector.clone(),
+                                step_index: i as u32,
+                            })?;
 
                     // get items
                     let items = e.items_mut().with_context(|| NotASequenceSnafu {
@@ -1082,13 +1076,12 @@ where
                     })?;
 
                     // if item.length == i and action is a constructive action, append new item
-                    obj =
-                        items
-                            .get_mut(*item as usize)
-                            .with_context(|| crate::MissingSequenceSnafu {
-                                selector: selector.clone(),
-                                step_index: i as u32,
-                            })?;
+                    obj = items.get_mut(*item as usize).with_context(|| {
+                        crate::MissingSequenceSnafu {
+                            selector: selector.clone(),
+                            step_index: i as u32,
+                        }
+                    })?;
                 }
             }
         }
