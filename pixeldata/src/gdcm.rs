@@ -65,19 +65,11 @@ where
                 .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
                 .collect()
             );
-        if let Some(inner) = &voi_lut_function {
-            ensure!((inner.len() == number_of_frames as usize || inner.len() == 1), LengthMismatchVoiLutFunctionSnafu{
-                vm: inner.len() as u32,
-                nr_frames: number_of_frames as u32
-            });
-        }
+
         ensure!(
-            rescale_intercept.len() == rescale_slope.len() &&
-                (rescale_slope.len() == number_of_frames as usize || rescale_slope.len() == 1),
-        LengthMismatchRescaleSnafu {
+            rescale_intercept.len() == rescale_slope.len(), LengthMismatchRescaleSnafu {
             slope_vm: rescale_slope.len() as u32,
             intercept_vm: rescale_intercept.len() as u32,
-            nr_frames: number_of_frames as u32
         });
 
         let decoded_pixel_data = match pixel_data.value() {
@@ -142,13 +134,12 @@ where
             .map(|(intercept, slope)| Rescale { intercept: *intercept, slope: *slope })
             .collect();
 
-        let window = if let Some(wcs) = window_center(self).context(GetAttributeSnafu)? {
-            let width = window_width(self).context(GetAttributeSnafu)?;
+        let window = if let Some(wcs) = window_center(&self) {
+            let width = window_width(&self);
             if let Some(wws) = width {
-                ensure!(wcs.len() == wws.len() && (wws.len() == number_of_frames as usize || wws.len() == 1), LengthMismatchWindowLevelSnafu {
+                ensure!(wcs.len() == wws.len(), LengthMismatchWindowLevelSnafu {
                     wc_vm: wcs.len() as u32,
                     ww_vm: wws.len() as u32,
-                    nr_frames: number_of_frames as u32
                 });
                 Some(zip(wcs, wws)
                     .map(|(wc, ww)| WindowLevel {
@@ -179,6 +170,7 @@ where
             rescale,
             voi_lut_function,
             window,
+            enforce_frame_fg_vm_match: false,
         })
     }
 
