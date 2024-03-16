@@ -1087,7 +1087,7 @@ where
             // infer VR from tag
             let vr = dicom_dictionary_std::StandardDataDictionary
                 .by_tag(tag)
-                .map(|entry| entry.vr())
+                .and_then(|entry| entry.vr().exact())
                 .unwrap_or(VR::UN);
             // insert element
 
@@ -1128,7 +1128,7 @@ where
             // infer VR from tag
             let vr = dicom_dictionary_std::StandardDataDictionary
                 .by_tag(tag)
-                .map(|entry| entry.vr())
+                .and_then(|entry| entry.vr().exact())
                 .unwrap_or(VR::UN);
             // insert element
             self.put(DataElement::new(tag, vr, PrimitiveValue::from(&*string)));
@@ -1161,7 +1161,7 @@ where
             // infer VR from tag
             let vr = dicom_dictionary_std::StandardDataDictionary
                 .by_tag(tag)
-                .map(|entry| entry.vr())
+                .and_then(|entry| entry.vr().exact())
                 .unwrap_or(VR::SL);
             // insert element
             self.put(DataElement::new(tag, vr, PrimitiveValue::from(integer)));
@@ -1194,7 +1194,7 @@ where
             // infer VR from tag
             let vr = dicom_dictionary_std::StandardDataDictionary
                 .by_tag(tag)
-                .map(|entry| entry.vr())
+                .and_then(|entry| entry.vr().exact())
                 .unwrap_or(VR::UL);
             // insert element
             self.put(DataElement::new(tag, vr, PrimitiveValue::from(integer)));
@@ -1227,7 +1227,7 @@ where
             // infer VR from tag
             let vr = dicom_dictionary_std::StandardDataDictionary
                 .by_tag(tag)
-                .map(|entry| entry.vr())
+                .and_then(|entry| entry.vr().exact())
                 .unwrap_or(VR::SS);
             // insert element
             self.put(DataElement::new(tag, vr, PrimitiveValue::from(integer)));
@@ -1260,7 +1260,7 @@ where
             // infer VR from tag
             let vr = dicom_dictionary_std::StandardDataDictionary
                 .by_tag(tag)
-                .map(|entry| entry.vr())
+                .and_then(|entry| entry.vr().exact())
                 .unwrap_or(VR::US);
             // insert element
             self.put(DataElement::new(tag, vr, PrimitiveValue::from(integer)));
@@ -1293,7 +1293,7 @@ where
             // infer VR from tag
             let vr = dicom_dictionary_std::StandardDataDictionary
                 .by_tag(tag)
-                .map(|entry| entry.vr())
+                .and_then(|entry| entry.vr().exact())
                 .unwrap_or(VR::FL);
             // insert element
             self.put(DataElement::new(tag, vr, PrimitiveValue::from(number)));
@@ -1326,7 +1326,7 @@ where
             // infer VR from tag
             let vr = dicom_dictionary_std::StandardDataDictionary
                 .by_tag(tag)
-                .map(|entry| entry.vr())
+                .and_then(|entry| entry.vr().exact())
                 .unwrap_or(VR::FD);
             // insert element
             self.put(DataElement::new(tag, vr, PrimitiveValue::from(number)));

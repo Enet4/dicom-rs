@@ -140,6 +140,82 @@ impl FromStr for TagRange {
     }
 }
 
+/// A "virtual" value representation (VR) descriptor
+/// which extends the standard enumeration with context-dependent VRs.
+///
+/// It is used by element dictionary entries to describe circumstances
+/// in which the real VR may depend on context.
+/// As an example, the _Pixel Data_ attribute
+/// can have a value representation of either [`OB`](VR::OB) or [`OW`](VR::OW).
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum VirtualVr {
+    /// The value representation is exactly known
+    /// and does not depend on context.
+    Exact(VR),
+    /// Represents a pixel data sample value
+    /// with a short magnitude.
+    ///
+    /// The value representation depends on
+    /// the pixel data value sample representation.
+    /// If pixel data values are signed
+    /// (represented by a _Pixel Representation_ value of `1`),
+    /// then values with this virtual VR
+    /// should be interpreted as signed 16 bit integers
+    /// ([`SS`](VR::SS)),
+    /// otherwise they should be interpreted as unsigned 16 bit integers
+    /// ([`US`](VR::US)).
+    Xs,
+    /// Represents overlay data sample values.
+    /// 
+    /// It can be either [`OB`](VR::OB) or [`OW`](VR::OW).
+    Ox,
+    /// Represents pixel data sample value.
+    ///
+    /// It can be either [`OB`](VR::OB) or [`OW`](VR::OW).
+    Px,
+    /// Represents LUT data, which can be [`US`](VR::US) or [`OW`](VR::OW)
+    Lt,
+}
+
+impl From<VR> for VirtualVr {
+    fn from(value: VR) -> Self {
+        VirtualVr::Exact(value)
+    }
+}
+
+impl VirtualVr {
+    /// Return the underlying value representation
+    /// in the case that it can be unambiguously defined without context.
+    pub fn exact(self) -> Option<VR> {
+        match self {
+            VirtualVr::Exact(vr) => Some(vr),
+            _ => None,
+        }
+    }
+
+    /// Return the underlying value representation,
+    /// making a relaxed conversion if it cannot be
+    /// accurately resolved without context.
+    ///
+    /// - [`Xs`](VirtualVr::Xs) is relaxed to [`US`](VR::US)
+    /// - [`Ox`](VirtualVr::Ox) is relaxed to [`OW`](VR::OW)
+    /// - [`Px`](VirtualVr::Px) is relaxed to [`OW`](VR::OW)
+    /// - [`Lt`](VirtualVr::Lt) is relaxed to [`OW`](VR::OW)
+    /// 
+    /// This method is ill-advised for uses where
+    /// the corresponding attribute is important.
+    pub fn relaxed(self) -> VR {
+        match self {
+            VirtualVr::Exact(vr) => vr,
+            VirtualVr::Xs => VR::US,
+            VirtualVr::Ox => VR::OW,
+            VirtualVr::Px => VR::OW,
+            VirtualVr::Lt => VR::OW,
+        }
+    }
+}
+
 /// An error during attribute selector parsing
 #[derive(Debug, Snafu)]
 pub struct ParseSelectorError(ParseSelectorErrorInner);
@@ -324,9 +400,11 @@ pub trait DataDictionaryEntry {
     /// The alias of the attribute, with no spaces, usually in UpperCamelCase.
     fn alias(&self) -> &str;
 
-    /// The _typical_ value representation of the attribute.
-    /// In some edge cases, an element might not have this VR.
-    fn vr(&self) -> VR;
+    /// The extended value representation descriptor of the attribute.
+    /// The use of [`VirtualVr`] is to attend to edge cases
+    /// in which the representation of a value
+    /// depends on surrounding context.
+    fn vr(&self) -> VirtualVr;
 }
 
 /// A data type for a dictionary entry with full ownership.
@@ -337,7 +415,7 @@ pub struct DataDictionaryEntryBuf {
     /// The alias of the attribute, with no spaces, usually InCapitalizedCamelCase
     pub alias: String,
     /// The _typical_  value representation of the attribute
-    pub vr: VR,
+    pub vr: VirtualVr,
 }
 
 impl DataDictionaryEntry for DataDictionaryEntryBuf {
@@ -347,7 +425,7 @@ impl DataDictionaryEntry for DataDictionaryEntryBuf {
     fn alias(&self) -> &str {
         self.alias.as_str()
     }
-    fn vr(&self) -> VR {
+    fn vr(&self) -> VirtualVr {
         self.vr
     }
 }
@@ -359,8 +437,8 @@ pub struct DataDictionaryEntryRef<'a> {
     pub tag: TagRange,
     /// The alias of the attribute, with no spaces, usually InCapitalizedCamelCase
     pub alias: &'a str,
-    /// The _typical_  value representation of the attribute
-    pub vr: VR,
+    /// The extended value representation descriptor of the attribute
+    pub vr: VirtualVr,
 }
 
 impl<'a> DataDictionaryEntry for DataDictionaryEntryRef<'a> {
@@ -370,7 +448,7 @@ impl<'a> DataDictionaryEntry for DataDictionaryEntryRef<'a> {
     fn alias(&self) -> &str {
         self.alias
     }
-    fn vr(&self) -> VR {
+    fn vr(&self) -> VirtualVr {
         self.vr
     }
 }
