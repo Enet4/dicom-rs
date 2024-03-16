@@ -555,8 +555,7 @@ impl DecodedPixelData<'_> {
     #[inline]
     pub fn rescale(&self) -> Result<&[Rescale]> {
         match &self.rescale.len() {
-            // TODO, do we want to fail if there are no rescale parameters?
-            0 => LengthMismatchRescaleSnafu{slope_vm: 0u32, intercept_vm: 0u32}.fail()?,
+            0 => Ok(&[Rescale { slope: 1., intercept: 0. }]),
             1 => Ok(&self.rescale),
             len @ _ => {
                 if *len == self.number_of_frames as usize {
@@ -1006,10 +1005,10 @@ impl DecodedPixelData<'_> {
                             let default = self.rescale()?;
                             if let ModalityLutOption::Override(rescale) = modality_lut {
                                 *rescale
-                            } else if self.rescale.len() > 1 { 
+                            } else if default.len() > 1 {
                                 self.rescale[frame as usize]
                             } else {
-                                self.rescale[0]
+                                default[0]
                             }
                         };
 
@@ -1873,8 +1872,8 @@ impl ImagingProperties {
             intercept_vm: rescale_intercept.len() as u32,
         });
 
-        let window = if let Some(wcs) = window_center(obj).context(GetAttributeSnafu)? {
-            let width = window_width(obj).context(GetAttributeSnafu)?;
+        let window = if let Some(wcs) = window_center(obj) {
+            let width = window_width(obj);
             if let Some(wws) = width {
                 ensure!(wcs.len() == wws.len(), LengthMismatchWindowLevelSnafu {
                     wc_vm: wcs.len() as u32,

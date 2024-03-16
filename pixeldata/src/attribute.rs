@@ -293,10 +293,9 @@ pub fn number_of_frames<D: DataDictionary + Clone>(
 /// Retrieve the WindowCenter from the DICOM object if it exists.
 pub fn window_center<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> Result<Option<Vec<f64>>> {
+) -> Option<Vec<f64>> {
     let wc = obj
-        .element(tags::WINDOW_CENTER)
-        .ok()
+        .get(tags::WINDOW_CENTER)
         .and_then(|e| {
             vec![e.to_float64().ok()]
                 .into_iter()
@@ -310,16 +309,15 @@ pub fn window_center<D: DataDictionary + Clone>(
             get_from_shared(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_CENTER])
                 .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect()),
         );
-    Ok(wc)
+    wc
 }
 
 /// Retrieve the WindowWidth from the DICOM object if it exists.
 pub fn window_width<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> Result<Option<Vec<f64>>> {
+) -> Option<Vec<f64>> {
     let ww = obj
-        .element(tags::WINDOW_WIDTH)
-        .ok()
+        .get(tags::WINDOW_WIDTH)
         .and_then(|e| {
             vec![e.to_float64().ok()]
                 .into_iter()
@@ -333,7 +331,7 @@ pub fn window_width<D: DataDictionary + Clone>(
             get_from_shared(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_WIDTH])
                 .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect()),
         );
-    Ok(ww)
+    ww
 }
 
 #[inline]
