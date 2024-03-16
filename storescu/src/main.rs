@@ -269,7 +269,9 @@ fn run() -> Result<(), Error> {
                 open_file(&file.file).whatever_context("Could not open listed DICOM file")?;
             let ts_selected = TransferSyntaxRegistry
                 .get(&ts_uid_selected)
-                .with_context(|| UnsupportedFileTransferSyntaxSnafu { uid: ts_uid_selected.to_string() })?;
+                .with_context(|| UnsupportedFileTransferSyntaxSnafu {
+                    uid: ts_uid_selected.to_string(),
+                })?;
 
             // transcode file if necessary
             let dicom_file = into_ts(dicom_file, ts_selected, verbose)?;
@@ -482,7 +484,9 @@ fn check_file(file: &Path) -> Result<DicomFile, Error> {
     let transfer_syntax_uid = &meta.transfer_syntax.trim_end_matches('\0');
     let ts = TransferSyntaxRegistry
         .get(transfer_syntax_uid)
-        .with_context(|| UnsupportedFileTransferSyntaxSnafu { uid: transfer_syntax_uid.to_string() })?;
+        .with_context(|| UnsupportedFileTransferSyntaxSnafu {
+            uid: transfer_syntax_uid.to_string(),
+        })?;
     Ok(DicomFile {
         file: file.to_path_buf(),
         sop_class_uid: storage_sop_class_uid.to_string(),
@@ -500,7 +504,9 @@ fn check_presentation_contexts(
 ) -> Result<(dicom_ul::pdu::PresentationContextResult, String), Error> {
     let file_ts = TransferSyntaxRegistry
         .get(&file.file_transfer_syntax)
-        .with_context(|| UnsupportedFileTransferSyntaxSnafu { uid: file.file_transfer_syntax.to_string() })?;
+        .with_context(|| UnsupportedFileTransferSyntaxSnafu {
+            uid: file.file_transfer_syntax.to_string(),
+        })?;
     // if destination does not support original file TS,
     // check whether we can transcode to explicit VR LE
 
@@ -543,7 +549,6 @@ fn check_presentation_contexts(
 
     Ok((pc.clone(), String::from(ts.uid())))
 }
-
 
 // transcoding functions
 
