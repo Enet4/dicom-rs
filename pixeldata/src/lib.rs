@@ -121,7 +121,10 @@ use num_traits::NumCast;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 #[cfg(all(feature = "rayon", feature = "image"))]
 use rayon::slice::ParallelSliceMut;
-use snafu::{Backtrace, ResultExt, Snafu, OptionExt, ensure};
+use snafu::{Backtrace, ResultExt, Snafu, OptionExt};
+#[cfg(not(feature = "gdcm"))]
+use snafu::ensure;
+#[cfg(not(feature = "gdcm"))]
 use std::iter::zip;
 use std::borrow::Cow;
 
