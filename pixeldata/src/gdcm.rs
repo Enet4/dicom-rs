@@ -223,7 +223,11 @@ where
         let rescale_slope = rescale_slope(self);
         let number_of_frames = number_of_frames(self).context(GetAttributeSnafu)?;
         let voi_lut_function = voi_lut_function(self).context(GetAttributeSnafu)?;
-        let voi_lut_function = voi_lut_function.and_then(|v| VoiLutFunction::try_from(&*v).ok());
+        let voi_lut_function: Option<Vec<VoiLutFunction>> = voi_lut_function.
+            and_then(|fns| fns.iter()
+                .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
+                .collect()
+            );
 
         let decoded_pixel_data = match pixel_data.value() {
             Value::PixelSequence(v) => {
@@ -298,13 +302,29 @@ where
             decoded_pixel_data
         };
 
-        let window = match (
-            window_center(self).context(GetAttributeSnafu)?,
-            window_width(self).context(GetAttributeSnafu)?,
-        ) {
-            (Some(center), Some(width)) => Some(WindowLevel { center, width }),
-            _ => None,
+        let window = if let Some(wcs) = window_center(self) {
+            let width = window_width(self);
+            if let Some(wws) = width {
+                ensure!(wcs.len() == wws.len(), LengthMismatchWindowLevelSnafu {
+                    wc_vm: wcs.len() as u32,
+                    ww_vm: wws.len() as u32,
+                });
+                Some(zip(wcs, wws)
+                    .map(|(wc, ww)| WindowLevel {
+                        center: wc,
+                        width: ww,
+                    })
+                    .collect())
+            }
+            else {
+                None
+            }
+        } else {
+            None
         };
+        let rescale = zip(&rescale_intercept, &rescale_slope)
+            .map(|(intercept, slope)| Rescale { intercept: *intercept, slope: *slope })
+            .collect();
 
         Ok(DecodedPixelData {
             data: Cow::from(decoded_pixel_data),
@@ -318,10 +338,10 @@ where
             bits_stored,
             high_bit,
             pixel_representation,
-            rescale_intercept,
-            rescale_slope,
+            rescale: rescale,
             voi_lut_function,
             window,
+            enforce_frame_fg_vm_match: false
         })
     }
 }
