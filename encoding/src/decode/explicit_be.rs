@@ -1,8 +1,11 @@
 //! Explicit VR Big Endian syntax transfer implementation.
 
 use crate::decode::basic::BigEndianBasicDecoder;
-use crate::decode::*;
-use crate::decode::{BasicDecode, Decode, DecodeFrom};
+use crate::decode::{
+    BadSequenceHeaderSnafu, BasicDecode, Decode, DecodeFrom, ReadHeaderTagSnafu,
+    ReadItemHeaderSnafu, ReadItemLengthSnafu, ReadLengthSnafu, ReadReservedSnafu, ReadTagSnafu,
+    ReadVrSnafu, Result,
+};
 use byteordered::byteorder::{BigEndian, ByteOrder};
 use dicom_core::header::{DataElementHeader, Length, SequenceItemHeader};
 use dicom_core::{Tag, VR};
@@ -65,7 +68,9 @@ impl Decode for ExplicitVRBigEndianDecoder {
             }
             _ => {
                 // read 2 bytes for the data length
-                source.read_exact(&mut buf[0..2]).context(ReadLengthSnafu)?;
+                source
+                    .read_exact(&mut buf[0..2])
+                    .context(ReadItemLengthSnafu)?;
                 bytes_read = 8;
                 u32::from(BigEndian::read_u16(&buf[0..2]))
             }

@@ -1,7 +1,11 @@
 //! Explicit VR Little Endian syntax transfer implementation
 
 use crate::decode::basic::LittleEndianBasicDecoder;
-use crate::decode::*;
+use crate::decode::{
+    BadSequenceHeaderSnafu, BasicDecode, Decode, DecodeFrom, ReadHeaderTagSnafu,
+    ReadItemHeaderSnafu, ReadItemLengthSnafu, ReadLengthSnafu, ReadReservedSnafu, ReadTagSnafu,
+    ReadVrSnafu, Result,
+};
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 use dicom_core::header::{DataElementHeader, Length, SequenceItemHeader};
 use dicom_core::{Tag, VR};
