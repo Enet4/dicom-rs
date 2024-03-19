@@ -139,8 +139,6 @@ pub mod meta;
 pub mod ops;
 pub mod tokens;
 
-mod util;
-
 pub use crate::file::{from_reader, open_file, OpenFileOptions};
 pub use crate::mem::InMemDicomObject;
 pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
