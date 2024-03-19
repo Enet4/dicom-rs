@@ -18,7 +18,6 @@ use dicom_encoding::transfer_syntax::{DynDecoder, TransferSyntax};
 use smallvec::smallvec;
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use std::io::Read;
-use std::iter::Iterator;
 use std::{fmt::Debug, io::Seek, io::SeekFrom};
 
 #[derive(Debug, Snafu)]

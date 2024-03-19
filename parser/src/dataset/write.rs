@@ -6,9 +6,9 @@
 //! to a writer.
 //! In this process, the writer will also adapt values
 //! to the necessary DICOM encoding rules.
-use crate::dataset::*;
+use crate::dataset::{DataToken, SeqTokenType};
 use crate::stateful::encode::StatefulEncoder;
-use dicom_core::{DataElementHeader, Length, VR};
+use dicom_core::{DataElementHeader, Length, Tag, VR};
 use dicom_encoding::encode::EncodeTo;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::DynEncoder;
