@@ -17,6 +17,8 @@ inventory-registry = ['dicom-encoding/inventory-registry', 'dicom-transfer-synta
 backtraces = ['dicom-object/backtraces']
 ul = ['dicom-ul']
 pixeldata = ['dicom-pixeldata']
+image = ["pixeldata", "dicom-pixeldata/image"]
+ndarray = ["pixeldata", "dicom-pixeldata/ndarray"]
 
 [dependencies]
 dicom-core = { path = "../core", version = "0.6.3" }
