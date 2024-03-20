@@ -269,7 +269,6 @@ mod tests {
     use super::*;
     use dicom_dictionary_std::uids;
     use dicom_object::open_file;
-    use dicom_test_files;
     use dicom_transfer_syntax_registry::entries::{JPEG_EXTENDED, ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN};
     #[cfg(feature = "native")]
     use dicom_transfer_syntax_registry::entries::JPEG_BASELINE;

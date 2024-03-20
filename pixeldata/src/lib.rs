@@ -1981,7 +1981,6 @@ where
 mod tests {
     use super::*;
     use dicom_object::open_file;
-    use dicom_test_files;
 
     fn is_send_and_sync<T>()
     where

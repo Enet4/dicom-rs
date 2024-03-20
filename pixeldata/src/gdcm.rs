@@ -2,7 +2,6 @@
 
 use crate::*;
 use dicom_dictionary_std::tags;
-use dicom_encoding::adapters::DecodeError;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use gdcm_rs::{
