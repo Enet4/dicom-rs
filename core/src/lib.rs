@@ -145,7 +145,6 @@ macro_rules! dicom_value {
 
 #[cfg(test)]
 mod tests {
-    use crate::dicom_value;
     use crate::value::PrimitiveValue;
     use smallvec::smallvec;
 

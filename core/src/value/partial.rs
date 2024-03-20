@@ -987,10 +987,8 @@ impl PartialOrd for PreciseDateTime {
 
 #[cfg(test)]
 mod tests {
-    use crate::value::range::AsRange;
-
     use super::*;
-    use chrono::{NaiveDateTime, TimeZone};
+    use chrono::TimeZone;
 
     #[test]
     fn test_dicom_date() {

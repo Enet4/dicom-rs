@@ -1357,11 +1357,7 @@ impl fmt::Display for Length {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        dicom_value,
-        value::{InMemFragment, PixelFragmentSequence},
-        DicomValue,
-    };
+    use crate::{dicom_value, value::PixelFragmentSequence, DicomValue};
 
     #[test]
     fn to_clean_string() {
