@@ -22,10 +22,10 @@ required-features = ["cli"]
 [features]
 default = ["cli", "sop-class"]
 sop-class = ["dicom-dictionary-std/sop-class"]
-cli = ["clap", "dicom-transfer-syntax-registry/inventory-registry", "dicom-object/backtraces"]
+cli = ["clap", "dicom-transfer-syntax-registry/inventory-registry"]
 
 [dependencies]
-snafu = "0.7.3"
+snafu = "0.8"
 clap = { version  = "4.0.18", features = ["derive"], optional = true }
 dicom-core = { path = "../core", version = "0.6.3" }
 dicom-encoding = { path = "../encoding", version = "0.6.1" }

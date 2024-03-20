@@ -154,7 +154,7 @@ pub struct ConvertValueError {
     /// The reason why the conversion was unsuccessful,
     /// or none if a conversion from the given original representation
     /// is not possible
-    pub cause: Option<InvalidValueReadError>,
+    pub cause: Option<Box<InvalidValueReadError>>,
 }
 
 impl Display for ConvertValueError {
@@ -915,7 +915,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "integer",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
@@ -925,7 +925,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "integer",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::U8(bytes) if !bytes.is_empty() => {
                 T::from(bytes[0]).ok_or_else(|| ConvertValueError {
@@ -935,7 +935,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: bytes[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -947,7 +948,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -959,7 +961,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -971,7 +974,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -983,7 +987,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -995,7 +1000,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1007,7 +1013,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1075,7 +1082,7 @@ impl PrimitiveValue {
                     ConvertValueError {
                         requested: "integer",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     }
                 })?;
                 Ok(vec![out])
@@ -1087,7 +1094,7 @@ impl PrimitiveValue {
                             ConvertValueError {
                                 requested: "integer",
                                 original: self.value_type(),
-                                cause: Some(err),
+                                cause: Some(Box::from(err)),
                             }
                         })
                     })
@@ -1103,7 +1110,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1118,7 +1126,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1133,7 +1142,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1148,7 +1158,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1163,7 +1174,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1178,7 +1190,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1193,7 +1206,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1248,7 +1262,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "float32",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
@@ -1258,7 +1272,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "float32",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::U8(bytes) if !bytes.is_empty() => {
                 NumCast::from(bytes[0]).ok_or_else(|| ConvertValueError {
@@ -1268,7 +1282,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: bytes[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1280,7 +1295,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1292,7 +1308,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1304,7 +1321,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1316,7 +1334,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1328,7 +1347,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1340,7 +1360,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1353,7 +1374,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1410,7 +1432,7 @@ impl PrimitiveValue {
                         .map_err(|err| ConvertValueError {
                             requested: "float32",
                             original: self.value_type(),
-                            cause: Some(err),
+                            cause: Some(Box::from(err)),
                         })?;
                 Ok(vec![out])
             }
@@ -1423,7 +1445,7 @@ impl PrimitiveValue {
                         .map_err(|err| ConvertValueError {
                             requested: "float32",
                             original: self.value_type(),
-                            cause: Some(err),
+                            cause: Some(Box::from(err)),
                         })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -1437,7 +1459,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1452,7 +1475,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1467,7 +1491,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1482,7 +1507,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1497,7 +1523,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1512,7 +1539,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1527,7 +1555,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1543,7 +1572,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1598,7 +1628,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "float64",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
@@ -1608,7 +1638,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "float64",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::U8(bytes) if !bytes.is_empty() => {
                 NumCast::from(bytes[0]).ok_or_else(|| ConvertValueError {
@@ -1618,7 +1648,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: bytes[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1630,7 +1661,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1642,7 +1674,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1654,7 +1687,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1666,7 +1700,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1678,7 +1713,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1690,7 +1726,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1702,7 +1739,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1759,7 +1797,7 @@ impl PrimitiveValue {
                         .map_err(|err| ConvertValueError {
                             requested: "float64",
                             original: self.value_type(),
-                            cause: Some(err),
+                            cause: Some(Box::from(err)),
                         })?;
                 Ok(vec![out])
             }
@@ -1772,7 +1810,7 @@ impl PrimitiveValue {
                         .map_err(|err| ConvertValueError {
                             requested: "float64",
                             original: self.value_type(),
-                            cause: Some(err),
+                            cause: Some(Box::from(err)),
                         })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -1786,7 +1824,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1801,7 +1840,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1816,7 +1856,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1831,7 +1872,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1846,7 +1888,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1861,7 +1904,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1876,7 +1920,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1891,7 +1936,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1964,14 +2010,14 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Str(s) => super::deserialize::parse_date(s.as_bytes())
                 .context(ParseDateSnafu)
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => {
                 super::deserialize::parse_date(s.first().map(|s| s.as_bytes()).unwrap_or(&[]))
@@ -1979,7 +2025,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "NaiveDate",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::U8(bytes) => super::deserialize::parse_date(bytes)
@@ -1987,7 +2033,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             _ => Err(ConvertValueError {
                 requested: "NaiveDate",
@@ -2056,7 +2102,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Str(s) => super::deserialize::parse_date(s.trim_end().as_bytes())
                 .map(|date| vec![date])
@@ -2064,7 +2110,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => s
                 .into_iter()
@@ -2074,7 +2120,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
@@ -2084,7 +2130,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             _ => Err(ConvertValueError {
                 requested: "NaiveDate",
@@ -2161,7 +2207,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DicomDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => super::deserialize::parse_date_partial(
                 s.first().map(|s| s.as_bytes()).unwrap_or(&[]),
@@ -2171,7 +2217,7 @@ impl PrimitiveValue {
             .map_err(|err| ConvertValueError {
                 requested: "DicomDate",
                 original: self.value_type(),
-                cause: Some(err),
+                cause: Some(Box::from(err)),
             }),
             PrimitiveValue::U8(bytes) => super::deserialize::parse_date_partial(bytes)
                 .map(|(date, _)| date)
@@ -2179,7 +2225,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DicomDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             _ => Err(ConvertValueError {
                 requested: "DicomDate",
@@ -2222,7 +2268,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "DicomDate",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) => s
@@ -2236,7 +2282,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DicomDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
@@ -2246,7 +2292,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DicomDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             _ => Err(ConvertValueError {
                 requested: "DicomDate",
@@ -2305,7 +2351,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Str(s) => super::deserialize::parse_time(s.trim_end().as_bytes())
                 .map(|(date, _rest)| date)
@@ -2313,7 +2359,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => super::deserialize::parse_time(
                 s.first().map(|s| s.trim_end().as_bytes()).unwrap_or(&[]),
@@ -2323,7 +2369,7 @@ impl PrimitiveValue {
             .map_err(|err| ConvertValueError {
                 requested: "NaiveTime",
                 original: self.value_type(),
-                cause: Some(err),
+                cause: Some(Box::from(err)),
             }),
             PrimitiveValue::U8(bytes) => {
                 super::deserialize::parse_time(trim_last_whitespace(bytes))
@@ -2332,7 +2378,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "NaiveTime",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             _ => Err(ConvertValueError {
@@ -2402,7 +2448,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Str(s) => super::deserialize::parse_time(s.trim_end().as_bytes())
                 .map(|(date, _rest)| vec![date])
@@ -2410,7 +2456,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => s
                 .into_iter()
@@ -2423,7 +2469,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
@@ -2433,7 +2479,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             _ => Err(ConvertValueError {
                 requested: "NaiveTime",
@@ -2526,7 +2572,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "DicomTime",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) => super::deserialize::parse_time_partial(
@@ -2537,7 +2583,7 @@ impl PrimitiveValue {
             .map_err(|err| ConvertValueError {
                 requested: "DicomTime",
                 original: self.value_type(),
-                cause: Some(err),
+                cause: Some(Box::from(err)),
             }),
             PrimitiveValue::U8(bytes) => {
                 super::deserialize::parse_time_partial(trim_last_whitespace(bytes))
@@ -2546,7 +2592,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "DicomTime",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             _ => Err(ConvertValueError {
@@ -2606,7 +2652,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "DicomTime",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) => s
@@ -2620,7 +2666,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DicomTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
@@ -2630,7 +2676,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DicomTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             _ => Err(ConvertValueError {
                 requested: "DicomTime",
@@ -2731,7 +2777,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "DicomDateTime",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) => super::deserialize::parse_datetime_partial(
@@ -2741,7 +2787,7 @@ impl PrimitiveValue {
             .map_err(|err| ConvertValueError {
                 requested: "DicomDateTime",
                 original: self.value_type(),
-                cause: Some(err),
+                cause: Some(Box::from(err)),
             }),
             PrimitiveValue::U8(bytes) => {
                 super::deserialize::parse_datetime_partial(trim_last_whitespace(bytes))
@@ -2749,7 +2795,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "DicomDateTime",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             _ => Err(ConvertValueError {
@@ -2772,7 +2818,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "DicomDateTime",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) => s
@@ -2783,7 +2829,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DicomDateTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
@@ -2793,7 +2839,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DicomDateTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             _ => Err(ConvertValueError {
                 requested: "DicomDateTime",
@@ -2847,14 +2893,14 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DateRange",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Str(s) => super::range::parse_date_range(s.trim_end().as_bytes())
                 .context(ParseDateRangeSnafu)
                 .map_err(|err| ConvertValueError {
                     requested: "DateRange",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => super::range::parse_date_range(
                 s.first().map(|s| s.trim_end().as_bytes()).unwrap_or(&[]),
@@ -2863,7 +2909,7 @@ impl PrimitiveValue {
             .map_err(|err| ConvertValueError {
                 requested: "DateRange",
                 original: self.value_type(),
-                cause: Some(err),
+                cause: Some(Box::from(err)),
             }),
             PrimitiveValue::U8(bytes) => {
                 super::range::parse_date_range(trim_last_whitespace(bytes))
@@ -2871,7 +2917,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "DateRange",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             _ => Err(ConvertValueError {
@@ -2930,14 +2976,14 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "TimeRange",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Str(s) => super::range::parse_time_range(s.trim_end().as_bytes())
                 .context(ParseTimeRangeSnafu)
                 .map_err(|err| ConvertValueError {
                     requested: "TimeRange",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => super::range::parse_time_range(
                 s.first().map(|s| s.trim_end().as_bytes()).unwrap_or(&[]),
@@ -2946,7 +2992,7 @@ impl PrimitiveValue {
             .map_err(|err| ConvertValueError {
                 requested: "TimeRange",
                 original: self.value_type(),
-                cause: Some(err),
+                cause: Some(Box::from(err)),
             }),
             PrimitiveValue::U8(bytes) => {
                 super::range::parse_time_range(trim_last_whitespace(bytes))
@@ -2954,7 +3000,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "TimeRange",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             _ => Err(ConvertValueError {
@@ -3044,14 +3090,14 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DateTimeRange",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Str(s) => super::range::parse_datetime_range(s.trim_end().as_bytes())
                 .context(ParseDateTimeRangeSnafu)
                 .map_err(|err| ConvertValueError {
                     requested: "DateTimeRange",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => super::range::parse_datetime_range(
                 s.first().map(|s| s.trim_end().as_bytes()).unwrap_or(&[]),
@@ -3060,7 +3106,7 @@ impl PrimitiveValue {
             .map_err(|err| ConvertValueError {
                 requested: "DateTimeRange",
                 original: self.value_type(),
-                cause: Some(err),
+                cause: Some(Box::from(err)),
             }),
             PrimitiveValue::U8(bytes) => {
                 super::range::parse_datetime_range(trim_last_whitespace(bytes))
@@ -3068,7 +3114,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "DateTimeRange",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             _ => Err(ConvertValueError {
@@ -3148,7 +3194,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DateTimeRange",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Str(s) => {
                 super::range::parse_datetime_range_custom::<T>(s.trim_end().as_bytes())
@@ -3156,7 +3202,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "DateTimeRange",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) => super::range::parse_datetime_range_custom::<T>(
@@ -3166,7 +3212,7 @@ impl PrimitiveValue {
             .map_err(|err| ConvertValueError {
                 requested: "DateTimeRange",
                 original: self.value_type(),
-                cause: Some(err),
+                cause: Some(Box::from(err)),
             }),
             PrimitiveValue::U8(bytes) => {
                 super::range::parse_datetime_range_custom::<T>(trim_last_whitespace(bytes))
@@ -3174,7 +3220,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "DateTimeRange",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             _ => Err(ConvertValueError {
@@ -4479,8 +4525,8 @@ mod tests {
                 requested: _,
                 original: ValueType::Strs,
                 // would try to parse as an integer and fail
-                cause: Some(InvalidValueReadError::ParseInteger { .. }),
-            })
+                cause: Some(cause),
+            }) if matches!(&*cause, InvalidValueReadError::ParseInteger { .. })
         ));
     }
 
@@ -4520,12 +4566,13 @@ mod tests {
             Err(ConvertValueError {
                 original: ValueType::I32,
                 // the cast from -1_i32 to u32 would fail
-                cause: Some(InvalidValueReadError::NarrowConvert {
-                    value: x,
-                   ..
-                }),
+                cause: Some(cause),
                 ..
-            }) if &x == "-1"
+            }) if matches!(&*cause,
+                InvalidValueReadError::NarrowConvert {
+                value: x,
+               ..
+            } if x == "-1")
         ));
 
         // not even from strings
@@ -4534,9 +4581,9 @@ mod tests {
             Err(ConvertValueError {
                 original: ValueType::Strs,
                 // the conversion from "-1" to u32 would fail
-                cause: Some(InvalidValueReadError::ParseInteger { .. }),
+                cause: Some(cause),
                 ..
-            })
+            }) if matches!(&*cause, InvalidValueReadError::ParseInteger { .. })
         ));
 
         // does not admit strings which are not numbers
@@ -4546,8 +4593,8 @@ mod tests {
                 requested: _,
                 original: ValueType::Strs,
                 // would try to parse as an integer and fail
-                cause: Some(InvalidValueReadError::ParseInteger { .. }),
-            })
+                cause: Some(cause),
+            }) if matches!(&*cause, InvalidValueReadError::ParseInteger { .. })
         ));
     }
 
@@ -4581,8 +4628,8 @@ mod tests {
                 requested: _,
                 original: ValueType::Strs,
                 // would try to parse as a float and fail
-                cause: Some(InvalidValueReadError::ParseFloat { .. }),
-            })
+                cause: Some(cause),
+            }) if matches!(&*cause, InvalidValueReadError::ParseFloat { .. })
         ));
     }
 

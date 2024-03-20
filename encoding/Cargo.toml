@@ -16,7 +16,7 @@ dicom-dictionary-std = { path = "../dictionary-std", version = "0.6.1" }
 encoding = "0.2.33"
 byteordered = "0.6"
 inventory = { version = "0.3.2", optional = true }
-snafu = "0.7.3"
+snafu = "0.8"
 
 [features]
 default = []

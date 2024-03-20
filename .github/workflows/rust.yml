@@ -46,7 +46,7 @@ jobs:
         with:
           toolchain: stable
           cache: true
-      - run: cargo build
+      - run: cargo build --features=cli,inventory-registry,sop-class
 
   check_macos:
     name: Check (macOS)

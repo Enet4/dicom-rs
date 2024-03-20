@@ -16,5 +16,5 @@ dicom-encoding = { path = "../encoding", version = "0.6.1" }
 chrono = { version = "0.4.22", default-features = false, features = ["std"] }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.6.1" }
 smallvec = "1.6.1"
-snafu = "0.7.3"
+snafu = "0.8"
 tracing = "0.1.34"

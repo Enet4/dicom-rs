@@ -18,6 +18,6 @@ dicom-dump = { version = "0.6.2", path = "../dump", default-features = false }
 dicom-object = { path = "../object/", version = "0.6.3" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.6.2", default-features = false }
 dicom-ul = { path = "../ul", version = "0.5.1" }
-snafu = "0.7.3"
+snafu = "0.8"
 tracing = "0.1.34"
 tracing-subscriber = "0.3.11"

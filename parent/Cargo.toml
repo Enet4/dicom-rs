@@ -14,7 +14,6 @@ maintenance = { status = "actively-developed" }
 [features]
 default = ['inventory-registry', 'ul', 'pixeldata']
 inventory-registry = ['dicom-encoding/inventory-registry', 'dicom-transfer-syntax-registry/inventory-registry']
-backtraces = ['dicom-object/backtraces']
 ul = ['dicom-ul']
 pixeldata = ['dicom-pixeldata']
 image = ["pixeldata", "dicom-pixeldata/image"]
