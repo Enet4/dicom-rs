@@ -10,7 +10,7 @@ keywords = ["dicom", "attributes", "json", "serialization"]
 readme = "README.md"
 
 [dependencies]
-base64 = "0.21.2"
+base64 = "0.22"
 dicom-core = { version = "0.6.3", path = "../core" }
 dicom-dictionary-std = { version = "0.6.1", path = "../dictionary-std" }
 dicom-object = { version = "0.6.3", path = "../object" }
