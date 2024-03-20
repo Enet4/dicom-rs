@@ -15,7 +15,7 @@
 //! [GDCM bindings]: https://crates.io/crates/gdcm-rs
 //!
 //! ```toml
-//! dicom-pixeldata = { version = "0.1", features = ["gdcm"] }
+//! dicom-pixeldata = { version = "0.2", features = ["gdcm"] }
 //! ```
 //!
 //! Once the pixel data is decoded,
