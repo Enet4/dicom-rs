@@ -304,8 +304,8 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use dicom_core::value::DataSetSequence;
-    use dicom_core::{dicom_value, value::DicomDate, Tag};
-    use dicom_core::{Length, VR};
+    use dicom_core::Length;
+    use dicom_core::{dicom_value, value::DicomDate};
     use dicom_dictionary_std::tags;
     use serde_json::json;
 
