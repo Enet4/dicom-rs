@@ -152,8 +152,6 @@ enum ParseSelectorErrorInner {
     ParseKey,
     /// invalid item index, should be an unsigned integer
     ParseItemIndex,
-    /// intermediate selector step should select a sequence item
-    ParseItem,
     /// last selector step should select a plain tag
     ParseLeaf,
 }

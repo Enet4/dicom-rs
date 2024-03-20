@@ -36,9 +36,6 @@ pub(crate) enum InnerError {
     /// Could not decode pixel data of receiving object  
     DecodePixelData { source: crate::Error },
 
-    /// Could not read receiving object
-    ReadObject { source: dicom_object::ReadError },
-
     /// Could not encode pixel data to target encoding
     EncodePixelData {
         source: dicom_encoding::adapters::EncodeError,
@@ -46,9 +43,6 @@ pub(crate) enum InnerError {
 
     /// Unsupported bits per sample ({bits_allocated})
     UnsupportedBitsAllocated { bits_allocated: u16 },
-
-    /// Encoding multi-frame objects is not implemented
-    MultiFrameEncodingNotImplemented,
 }
 
 /// Alias for the result of transcoding a DICOM object.
@@ -275,7 +269,6 @@ mod tests {
     use super::*;
     use dicom_dictionary_std::uids;
     use dicom_object::open_file;
-    use dicom_test_files;
     use dicom_transfer_syntax_registry::entries::{JPEG_EXTENDED, ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN};
     #[cfg(feature = "native")]
     use dicom_transfer_syntax_registry::entries::JPEG_BASELINE;

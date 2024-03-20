@@ -11,8 +11,6 @@ use dicom_object::{
     mem::InMemDicomObject,
     open_file,
 };
-use dicom_test_files;
-
 #[test]
 fn test_ob_value_with_unknown_length() {
     let path =

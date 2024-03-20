@@ -460,7 +460,6 @@ pub fn parse_datetime_partial(buf: &[u8]) -> Result<DicomDateTime> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{FixedOffset, NaiveDate, NaiveTime};
 
     #[test]
     fn test_parse_date() {

@@ -12,7 +12,6 @@ use dicom_encoding::transfer_syntax::TransferSyntax;
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::cmp::Ordering;
 use std::io::Read;
-use std::iter::Iterator;
 
 use super::{DataToken, SeqTokenType};
 

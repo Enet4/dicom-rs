@@ -1217,7 +1217,7 @@ impl PartialOrd<Length> for Length {
     }
 }
 
-impl ::std::ops::Add<Length> for Length {
+impl std::ops::Add<Length> for Length {
     type Output = Self;
 
     fn add(self, rhs: Length) -> Self::Output {
@@ -1235,7 +1235,7 @@ impl ::std::ops::Add<Length> for Length {
     }
 }
 
-impl ::std::ops::Add<i32> for Length {
+impl std::ops::Add<i32> for Length {
     type Output = Self;
 
     fn add(self, rhs: i32) -> Self::Output {
@@ -1357,11 +1357,7 @@ impl fmt::Display for Length {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        dicom_value,
-        value::{InMemFragment, PixelFragmentSequence},
-        DicomValue,
-    };
+    use crate::{dicom_value, value::PixelFragmentSequence, DicomValue};
 
     #[test]
     fn to_clean_string() {

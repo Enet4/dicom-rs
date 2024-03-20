@@ -252,7 +252,7 @@ impl PackBitsReader {
                 bytes_read += 1;
             } else if h >= 0 {
                 let num_vals = h as usize + 1;
-                std::io::copy(&mut reader.by_ref().take(num_vals as u64), &mut buffer)?;
+                io::copy(&mut reader.by_ref().take(num_vals as u64), &mut buffer)?;
                 bytes_read += num_vals;
             } else {
                 // h = -128 is a no-op.

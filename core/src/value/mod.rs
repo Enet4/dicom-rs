@@ -1086,7 +1086,6 @@ impl<P> DicomValueType for PixelFragmentSequence<P> {
 mod tests {
     use super::*;
     use crate::dicom_value;
-    use crate::header::EmptyObject;
     use smallvec::smallvec;
 
     #[test]

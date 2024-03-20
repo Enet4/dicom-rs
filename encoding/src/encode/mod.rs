@@ -144,12 +144,12 @@ pub trait BasicEncode {
     #[inline]
     fn with_encoder<T, F1, F2>(&self, f_le: F1, f_be: F2) -> T
     where
-        F1: FnOnce(self::basic::LittleEndianBasicEncoder) -> T,
-        F2: FnOnce(self::basic::BigEndianBasicEncoder) -> T,
+        F1: FnOnce(basic::LittleEndianBasicEncoder) -> T,
+        F2: FnOnce(basic::BigEndianBasicEncoder) -> T,
     {
         match self.endianness() {
-            Endianness::Little => f_le(self::basic::LittleEndianBasicEncoder),
-            Endianness::Big => f_be(self::basic::BigEndianBasicEncoder),
+            Endianness::Little => f_le(basic::LittleEndianBasicEncoder),
+            Endianness::Big => f_be(basic::BigEndianBasicEncoder),
         }
     }
 

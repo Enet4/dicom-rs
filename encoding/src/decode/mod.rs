@@ -90,13 +90,13 @@ pub trait BasicDecode {
     fn endianness(&self) -> Endianness;
 
     /// Decode an unsigned short value from the given source.
-    fn decode_us<S>(&self, source: S) -> std::io::Result<u16>
+    fn decode_us<S>(&self, source: S) -> io::Result<u16>
     where
         S: Read;
 
     /// Decode a sequence of unsigned shorts value from the given source
     /// into the given destination.
-    fn decode_us_into<S>(&self, mut source: S, dst: &mut [u16]) -> std::io::Result<()>
+    fn decode_us_into<S>(&self, mut source: S, dst: &mut [u16]) -> io::Result<()>
     where
         S: Read,
     {
@@ -108,13 +108,13 @@ pub trait BasicDecode {
     }
 
     /// Decode an unsigned long value from the given source.
-    fn decode_ul<S>(&self, source: S) -> std::io::Result<u32>
+    fn decode_ul<S>(&self, source: S) -> io::Result<u32>
     where
         S: Read;
 
     /// Decode a sequence of unsigned long values from the given source
     /// into the given destination.
-    fn decode_ul_into<S>(&self, mut source: S, dst: &mut [u32]) -> std::io::Result<()>
+    fn decode_ul_into<S>(&self, mut source: S, dst: &mut [u32]) -> io::Result<()>
     where
         S: Read,
     {
@@ -126,13 +126,13 @@ pub trait BasicDecode {
     }
 
     /// Decode an unsigned very long value from the given source.
-    fn decode_uv<S>(&self, source: S) -> std::io::Result<u64>
+    fn decode_uv<S>(&self, source: S) -> io::Result<u64>
     where
         S: Read;
 
     /// Decode a sequence of unsigned very long values from the given source
     /// into the given destination.
-    fn decode_uv_into<S>(&self, mut source: S, dst: &mut [u64]) -> std::io::Result<()>
+    fn decode_uv_into<S>(&self, mut source: S, dst: &mut [u64]) -> io::Result<()>
     where
         S: Read,
     {
@@ -144,13 +144,13 @@ pub trait BasicDecode {
     }
 
     /// Decode a signed short value from the given source.
-    fn decode_ss<S>(&self, source: S) -> std::io::Result<i16>
+    fn decode_ss<S>(&self, source: S) -> io::Result<i16>
     where
         S: Read;
 
     /// Decode a sequence of signed short values from the given source
     /// into the given destination.
-    fn decode_ss_into<S>(&self, mut source: S, dst: &mut [i16]) -> std::io::Result<()>
+    fn decode_ss_into<S>(&self, mut source: S, dst: &mut [i16]) -> io::Result<()>
     where
         S: Read,
     {
@@ -162,13 +162,13 @@ pub trait BasicDecode {
     }
 
     /// Decode a signed long value from the given source.
-    fn decode_sl<S>(&self, source: S) -> std::io::Result<i32>
+    fn decode_sl<S>(&self, source: S) -> io::Result<i32>
     where
         S: Read;
 
     /// Decode a sequence of signed long values from the given source
     /// into the given destination.
-    fn decode_sl_into<S>(&self, mut source: S, dst: &mut [i32]) -> std::io::Result<()>
+    fn decode_sl_into<S>(&self, mut source: S, dst: &mut [i32]) -> io::Result<()>
     where
         S: Read,
     {
@@ -180,13 +180,13 @@ pub trait BasicDecode {
     }
 
     /// Decode a signed very long value from the given source.
-    fn decode_sv<S>(&self, source: S) -> std::io::Result<i64>
+    fn decode_sv<S>(&self, source: S) -> io::Result<i64>
     where
         S: Read;
 
     /// Decode a sequence of signed very long values from the given source
     /// into the given destination.
-    fn decode_sv_into<S>(&self, mut source: S, dst: &mut [i64]) -> std::io::Result<()>
+    fn decode_sv_into<S>(&self, mut source: S, dst: &mut [i64]) -> io::Result<()>
     where
         S: Read,
     {
@@ -198,13 +198,13 @@ pub trait BasicDecode {
     }
 
     /// Decode a single precision float value from the given source.
-    fn decode_fl<S>(&self, source: S) -> std::io::Result<f32>
+    fn decode_fl<S>(&self, source: S) -> io::Result<f32>
     where
         S: Read;
 
     /// Decode a sequence of single precision float values from the given source
     /// into the given destination.
-    fn decode_fl_into<S>(&self, mut source: S, dst: &mut [f32]) -> std::io::Result<()>
+    fn decode_fl_into<S>(&self, mut source: S, dst: &mut [f32]) -> io::Result<()>
     where
         S: Read,
     {
@@ -216,13 +216,13 @@ pub trait BasicDecode {
     }
 
     /// Decode a double precision float value from the given source.
-    fn decode_fd<S>(&self, source: S) -> std::io::Result<f64>
+    fn decode_fd<S>(&self, source: S) -> io::Result<f64>
     where
         S: Read;
 
     /// Decode a sequence of double precision float values from the given source
     /// into the given destination.
-    fn decode_fd_into<S>(&self, mut source: S, dst: &mut [f64]) -> std::io::Result<()>
+    fn decode_fd_into<S>(&self, mut source: S, dst: &mut [f64]) -> io::Result<()>
     where
         S: Read,
     {
@@ -234,7 +234,7 @@ pub trait BasicDecode {
     }
 
     /// Decode a DICOM attribute tag from the given source.
-    fn decode_tag<S>(&self, mut source: S) -> std::io::Result<Tag>
+    fn decode_tag<S>(&self, mut source: S) -> io::Result<Tag>
     where
         S: Read,
     {
@@ -252,119 +252,119 @@ where
         (**self).endianness()
     }
 
-    fn decode_us<S>(&self, source: S) -> std::io::Result<u16>
+    fn decode_us<S>(&self, source: S) -> io::Result<u16>
     where
         S: Read,
     {
         (**self).decode_us(source)
     }
 
-    fn decode_us_into<S>(&self, source: S, dst: &mut [u16]) -> std::io::Result<()>
+    fn decode_us_into<S>(&self, source: S, dst: &mut [u16]) -> io::Result<()>
     where
         S: Read,
     {
         (**self).decode_us_into(source, dst)
     }
 
-    fn decode_ul<S>(&self, source: S) -> std::io::Result<u32>
+    fn decode_ul<S>(&self, source: S) -> io::Result<u32>
     where
         S: Read,
     {
         (**self).decode_ul(source)
     }
 
-    fn decode_ul_into<S>(&self, source: S, dst: &mut [u32]) -> std::io::Result<()>
+    fn decode_ul_into<S>(&self, source: S, dst: &mut [u32]) -> io::Result<()>
     where
         S: Read,
     {
         (**self).decode_ul_into(source, dst)
     }
 
-    fn decode_uv<S>(&self, source: S) -> std::io::Result<u64>
+    fn decode_uv<S>(&self, source: S) -> io::Result<u64>
     where
         S: Read,
     {
         (**self).decode_uv(source)
     }
 
-    fn decode_uv_into<S>(&self, source: S, dst: &mut [u64]) -> std::io::Result<()>
+    fn decode_uv_into<S>(&self, source: S, dst: &mut [u64]) -> io::Result<()>
     where
         S: Read,
     {
         (**self).decode_uv_into(source, dst)
     }
 
-    fn decode_ss<S>(&self, source: S) -> std::io::Result<i16>
+    fn decode_ss<S>(&self, source: S) -> io::Result<i16>
     where
         S: Read,
     {
         (**self).decode_ss(source)
     }
 
-    fn decode_ss_into<S>(&self, source: S, dst: &mut [i16]) -> std::io::Result<()>
+    fn decode_ss_into<S>(&self, source: S, dst: &mut [i16]) -> io::Result<()>
     where
         S: Read,
     {
         (**self).decode_ss_into(source, dst)
     }
 
-    fn decode_sl<S>(&self, source: S) -> std::io::Result<i32>
+    fn decode_sl<S>(&self, source: S) -> io::Result<i32>
     where
         S: Read,
     {
         (**self).decode_sl(source)
     }
 
-    fn decode_sl_into<S>(&self, source: S, dst: &mut [i32]) -> std::io::Result<()>
+    fn decode_sl_into<S>(&self, source: S, dst: &mut [i32]) -> io::Result<()>
     where
         S: Read,
     {
         (**self).decode_sl_into(source, dst)
     }
 
-    fn decode_sv<S>(&self, source: S) -> std::io::Result<i64>
+    fn decode_sv<S>(&self, source: S) -> io::Result<i64>
     where
         S: Read,
     {
         (**self).decode_sv(source)
     }
 
-    fn decode_sv_into<S>(&self, source: S, dst: &mut [i64]) -> std::io::Result<()>
+    fn decode_sv_into<S>(&self, source: S, dst: &mut [i64]) -> io::Result<()>
     where
         S: Read,
     {
         (**self).decode_sv_into(source, dst)
     }
 
-    fn decode_fl<S>(&self, source: S) -> std::io::Result<f32>
+    fn decode_fl<S>(&self, source: S) -> io::Result<f32>
     where
         S: Read,
     {
         (**self).decode_fl(source)
     }
 
-    fn decode_fl_into<S>(&self, source: S, dst: &mut [f32]) -> std::io::Result<()>
+    fn decode_fl_into<S>(&self, source: S, dst: &mut [f32]) -> io::Result<()>
     where
         S: Read,
     {
         (**self).decode_fl_into(source, dst)
     }
 
-    fn decode_fd<S>(&self, source: S) -> std::io::Result<f64>
+    fn decode_fd<S>(&self, source: S) -> io::Result<f64>
     where
         S: Read,
     {
         (**self).decode_fd(source)
     }
 
-    fn decode_fd_into<S>(&self, source: S, dst: &mut [f64]) -> std::io::Result<()>
+    fn decode_fd_into<S>(&self, source: S, dst: &mut [f64]) -> io::Result<()>
     where
         S: Read,
     {
         (**self).decode_fd_into(source, dst)
     }
 
-    fn decode_tag<S>(&self, source: S) -> std::io::Result<Tag>
+    fn decode_tag<S>(&self, source: S) -> io::Result<Tag>
     where
         S: Read,
     {
@@ -380,119 +380,119 @@ where
         (**self).endianness()
     }
 
-    fn decode_us<S>(&self, source: S) -> std::io::Result<u16>
+    fn decode_us<S>(&self, source: S) -> io::Result<u16>
     where
         S: Read,
     {
         (**self).decode_us(source)
     }
 
-    fn decode_us_into<S>(&self, source: S, dst: &mut [u16]) -> std::io::Result<()>
+    fn decode_us_into<S>(&self, source: S, dst: &mut [u16]) -> io::Result<()>
     where
         S: Read,
     {
         (**self).decode_us_into(source, dst)
     }
 
-    fn decode_ul<S>(&self, source: S) -> std::io::Result<u32>
+    fn decode_ul<S>(&self, source: S) -> io::Result<u32>
     where
         S: Read,
     {
         (**self).decode_ul(source)
     }
 
-    fn decode_ul_into<S>(&self, source: S, dst: &mut [u32]) -> std::io::Result<()>
+    fn decode_ul_into<S>(&self, source: S, dst: &mut [u32]) -> io::Result<()>
     where
         S: Read,
     {
         (**self).decode_ul_into(source, dst)
     }
 
-    fn decode_uv<S>(&self, source: S) -> std::io::Result<u64>
+    fn decode_uv<S>(&self, source: S) -> io::Result<u64>
     where
         S: Read,
     {
         (**self).decode_uv(source)
     }
 
-    fn decode_uv_into<S>(&self, source: S, dst: &mut [u64]) -> std::io::Result<()>
+    fn decode_uv_into<S>(&self, source: S, dst: &mut [u64]) -> io::Result<()>
     where
         S: Read,
     {
         (**self).decode_uv_into(source, dst)
     }
 
-    fn decode_ss<S>(&self, source: S) -> std::io::Result<i16>
+    fn decode_ss<S>(&self, source: S) -> io::Result<i16>
     where
         S: Read,
     {
         (**self).decode_ss(source)
     }
 
-    fn decode_ss_into<S>(&self, source: S, dst: &mut [i16]) -> std::io::Result<()>
+    fn decode_ss_into<S>(&self, source: S, dst: &mut [i16]) -> io::Result<()>
     where
         S: Read,
     {
         (**self).decode_ss_into(source, dst)
     }
 
-    fn decode_sl<S>(&self, source: S) -> std::io::Result<i32>
+    fn decode_sl<S>(&self, source: S) -> io::Result<i32>
     where
         S: Read,
     {
         (**self).decode_sl(source)
     }
 
-    fn decode_sl_into<S>(&self, source: S, dst: &mut [i32]) -> std::io::Result<()>
+    fn decode_sl_into<S>(&self, source: S, dst: &mut [i32]) -> io::Result<()>
     where
         S: Read,
     {
         (**self).decode_sl_into(source, dst)
     }
 
-    fn decode_sv<S>(&self, source: S) -> std::io::Result<i64>
+    fn decode_sv<S>(&self, source: S) -> io::Result<i64>
     where
         S: Read,
     {
         (**self).decode_sv(source)
     }
 
-    fn decode_sv_into<S>(&self, source: S, dst: &mut [i64]) -> std::io::Result<()>
+    fn decode_sv_into<S>(&self, source: S, dst: &mut [i64]) -> io::Result<()>
     where
         S: Read,
     {
         (**self).decode_sv_into(source, dst)
     }
 
-    fn decode_fl<S>(&self, source: S) -> std::io::Result<f32>
+    fn decode_fl<S>(&self, source: S) -> io::Result<f32>
     where
         S: Read,
     {
         (**self).decode_fl(source)
     }
 
-    fn decode_fl_into<S>(&self, source: S, dst: &mut [f32]) -> std::io::Result<()>
+    fn decode_fl_into<S>(&self, source: S, dst: &mut [f32]) -> io::Result<()>
     where
         S: Read,
     {
         (**self).decode_fl_into(source, dst)
     }
 
-    fn decode_fd<S>(&self, source: S) -> std::io::Result<f64>
+    fn decode_fd<S>(&self, source: S) -> io::Result<f64>
     where
         S: Read,
     {
         (**self).decode_fd(source)
     }
 
-    fn decode_fd_into<S>(&self, source: S, dst: &mut [f64]) -> std::io::Result<()>
+    fn decode_fd_into<S>(&self, source: S, dst: &mut [f64]) -> io::Result<()>
     where
         S: Read,
     {
         (**self).decode_fd_into(source, dst)
     }
 
-    fn decode_tag<S>(&self, source: S) -> std::io::Result<Tag>
+    fn decode_tag<S>(&self, source: S) -> io::Result<Tag>
     where
         S: Read,
     {
