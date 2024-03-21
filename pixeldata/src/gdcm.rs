@@ -498,6 +498,8 @@ mod tests {
     #[cfg(feature = "ndarray")]
     #[test]
     fn test_to_ndarray_signed_word_no_lut() {
+        use crate::{ConvertOptions, ModalityLutOption};
+
         let test_file = dicom_test_files::path("pydicom/JPEG2000.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
         let options = ConvertOptions::new().with_modality_lut(ModalityLutOption::None);

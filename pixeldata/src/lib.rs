@@ -103,6 +103,7 @@
 //!
 
 use byteorder::{ByteOrder, NativeEndian};
+#[cfg(not(feature = "gdcm"))]
 use dicom_core::{DataDictionary, DicomValue};
 use dicom_encoding::adapters::DecodeError;
 #[cfg(not(feature = "gdcm"))]
@@ -122,7 +123,9 @@ use num_traits::NumCast;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 #[cfg(all(feature = "rayon", feature = "image"))]
 use rayon::slice::ParallelSliceMut;
-use snafu::{Backtrace, ResultExt, Snafu, OptionExt};
+use snafu::{Backtrace, ResultExt, Snafu};
+#[cfg(any(not(feature = "gdcm"), feature = "image"))]
+use snafu::OptionExt;
 #[cfg(not(feature = "gdcm"))]
 use snafu::ensure;
 #[cfg(not(feature = "gdcm"))]
