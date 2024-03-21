@@ -103,13 +103,11 @@
 //!
 
 use byteorder::{ByteOrder, NativeEndian};
-use dicom_core::{value::Value, DataDictionary};
 use dicom_encoding::adapters::DecodeError;
 #[cfg(not(feature = "gdcm"))]
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 #[cfg(not(feature = "gdcm"))]
 use dicom_encoding::Codec;
-use dicom_object::{FileDicomObject, InMemDicomObject};
 #[cfg(not(feature = "gdcm"))]
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 #[cfg(feature = "image")]

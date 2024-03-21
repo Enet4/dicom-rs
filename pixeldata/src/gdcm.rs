@@ -1,15 +1,22 @@
 //! Decode pixel data using GDCM when the default features are enabled.
 
-use crate::*;
+use crate::{
+    DecodePixelDataSnafu, DecodedPixelData, GetAttributeSnafu, InvalidPixelDataSnafu,
+    LengthMismatchRescaleSnafu, LengthMismatchWindowLevelSnafu, PixelDecoder, Rescale,
+    Result, UnknownTransferSyntaxSnafu, UnsupportedPhotometricInterpretationSnafu,
+    UnsupportedTransferSyntaxSnafu, VoiLutFunction, WindowLevel
+};
+use dicom_core::{DataDictionary, DicomValue};
 use dicom_dictionary_std::tags;
-use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
+use dicom_encoding::{adapters::DecodeError, transfer_syntax::TransferSyntaxIndex};
+use dicom_object::{FileDicomObject, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use gdcm_rs::{
     decode_multi_frame_compressed, decode_single_frame_compressed, Error as GDCMError,
     GDCMPhotometricInterpretation, GDCMTransferSyntax,
 };
-use std::{convert::TryFrom, str::FromStr, iter::zip};
-use snafu::{ensure, ResultExt};
+use std::{borrow::Cow, convert::TryFrom, iter::zip, str::FromStr};
+use snafu::{ensure, OptionExt, ResultExt};
 
 impl<D> PixelDecoder for FileDicomObject<InMemDicomObject<D>>
 where
@@ -72,7 +79,7 @@ where
         });
 
         let decoded_pixel_data = match pixel_data.value() {
-            Value::PixelSequence(v) => {
+            DicomValue::PixelSequence(v) => {
                 let fragments = v.fragments();
                 let gdcm_error_mapper = |source: GDCMError| DecodeError::Custom {
                     message: source.to_string(),
@@ -114,11 +121,11 @@ where
                     .to_vec()
                 }
             }
-            Value::Primitive(p) => {
+            DicomValue::Primitive(p) => {
                 // Non-encoded, just return the pixel data of the first frame
                 p.to_bytes().to_vec()
             }
-            Value::Sequence(_) => InvalidPixelDataSnafu.fail()?,
+            DicomValue::Sequence(_) => InvalidPixelDataSnafu.fail()?,
         };
 
         // pixels are already interpreted,
@@ -229,7 +236,7 @@ where
             );
 
         let decoded_pixel_data = match pixel_data.value() {
-            Value::PixelSequence(v) => {
+            DicomValue::PixelSequence(v) => {
                 let fragments = v.fragments();
                 let gdcm_error_mapper = |source: GDCMError| DecodeError::Custom {
                     message: source.to_string(),
@@ -274,7 +281,7 @@ where
                     }
                 }
             }
-            Value::Primitive(p) => {
+            DicomValue::Primitive(p) => {
                 // Uncompressed data
                 let frame_size = cols as usize
                     * rows as usize
@@ -286,7 +293,7 @@ where
                     .map(|frame| frame.to_vec())
                     .unwrap_or_default()
             }
-            Value::Sequence(_) => InvalidPixelDataSnafu.fail()?,
+            DicomValue::Sequence(_) => InvalidPixelDataSnafu.fail()?,
         };
 
         // Convert to PlanarConfiguration::Standard
