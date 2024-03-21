@@ -103,11 +103,14 @@
 //!
 
 use byteorder::{ByteOrder, NativeEndian};
+use dicom_core::{DataDictionary, DicomValue};
 use dicom_encoding::adapters::DecodeError;
 #[cfg(not(feature = "gdcm"))]
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 #[cfg(not(feature = "gdcm"))]
 use dicom_encoding::Codec;
+#[cfg(not(feature = "gdcm"))]
+use dicom_object::{FileDicomObject, InMemDicomObject};
 #[cfg(not(feature = "gdcm"))]
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 #[cfg(feature = "image")]
@@ -1992,16 +1995,16 @@ where
         }
 
         let decoded_pixel_data = match pixel_data.value() {
-            Value::PixelSequence(v) => {
+            DicomValue::PixelSequence(v) => {
                 // Return all fragments concatenated
                 // (should only happen for Encapsulated Uncompressed)
                 v.fragments().iter().flatten().copied().collect()
             }
-            Value::Primitive(p) => {
+            DicomValue::Primitive(p) => {
                 // Non-encoded, just return the pixel data for all frames
                 p.to_bytes().to_vec()
             }
-            Value::Sequence(..) => InvalidPixelDataSnafu.fail()?,
+            DicomValue::Sequence(..) => InvalidPixelDataSnafu.fail()?,
         };
 
         Ok(DecodedPixelData {
@@ -2096,7 +2099,7 @@ where
         }
 
         let decoded_pixel_data = match pixel_data.value() {
-            Value::PixelSequence(v) => {
+            DicomValue::PixelSequence(v) => {
                 let fragments = v.fragments();
                 if number_of_frames as usize == fragments.len() {
                     // return a single fragment
@@ -2106,7 +2109,7 @@ where
                     InvalidPixelDataSnafu.fail()?
                 }
             }
-            Value::Primitive(p) => {
+            DicomValue::Primitive(p) => {
                 // Non-encoded, just return the pixel data for a single frame
                 let frame_size = ((bits_allocated + 7) / 8) as usize
                     * samples_per_pixel as usize
@@ -2116,7 +2119,7 @@ where
                 let data = p.to_bytes();
                 data[frame_offset..frame_offset + frame_size].to_vec()
             }
-            Value::Sequence(..) => InvalidPixelDataSnafu.fail()?,
+            DicomValue::Sequence(..) => InvalidPixelDataSnafu.fail()?,
         };
 
         Ok(DecodedPixelData {
@@ -2388,16 +2391,17 @@ mod tests {
     #[cfg(not(feature = "gdcm"))]
     mod not_gdcm {
         #[cfg(any(feature = "transfer-syntax-registry/rle", feature = "image"))]
-        use super::*;
         #[cfg(feature = "image")]
         use rstest::rstest;
+        #[cfg(feature = "ndarray")]
+        use crate::PixelDecoder;
 
         #[cfg(feature = "transfer-syntax-registry/rle")]
         #[test]
         fn test_native_decoding_pixel_data_rle_8bit_1frame_vec() {
             let path = dicom_test_files::path("pydicom/SC_rgb_rle.dcm")
                 .expect("test DICOM file should exist");
-            let object = open_file(&path).unwrap();
+            let object = dicom_object::open_file(&path).unwrap();
 
             let options = ConvertOptions::new().with_modality_lut(ModalityLutOption::None);
             let decoded = object.decode_pixel_data().unwrap();
@@ -2435,9 +2439,11 @@ mod tests {
         #[cfg(feature = "ndarray")]
         #[test]
         fn test_native_decoding_pixel_data_rle_8bit_1frame_ndarray() {
+            use crate::{ConvertOptions, ModalityLutOption};
+
             let path = dicom_test_files::path("pydicom/SC_rgb_rle.dcm")
                 .expect("test DICOM file should exist");
-            let object = open_file(&path).unwrap();
+            let object = dicom_object::open_file(&path).unwrap();
 
             let options = ConvertOptions::new().with_modality_lut(ModalityLutOption::None);
             let ndarray = object
@@ -2469,9 +2475,11 @@ mod tests {
         #[cfg(feature = "ndarray")]
         #[test]
         fn test_native_decoding_pixel_data_rle_8bit_2frame() {
+            use crate::{ConvertOptions, ModalityLutOption};
+
             let path = dicom_test_files::path("pydicom/SC_rgb_rle_2frame.dcm")
                 .expect("test DICOM file should exist");
-            let object = open_file(&path).unwrap();
+            let object = dicom_object::open_file(&path).unwrap();
             let options = ConvertOptions::new().with_modality_lut(ModalityLutOption::None);
             let ndarray = object
                 .decode_pixel_data()
@@ -2519,9 +2527,11 @@ mod tests {
         #[cfg(feature = "ndarray")]
         #[test]
         fn test_native_decoding_pixel_data_rle_16bit_1frame() {
+            use crate::{ConvertOptions, ModalityLutOption};
+
             let path = dicom_test_files::path("pydicom/SC_rgb_rle_16bit.dcm")
                 .expect("test DICOM file should exist");
-            let object = open_file(&path).unwrap();
+            let object = dicom_object::open_file(&path).unwrap();
             let options = ConvertOptions::new().with_modality_lut(ModalityLutOption::None);
             let ndarray = object
                 .decode_pixel_data()
@@ -2553,7 +2563,7 @@ mod tests {
         fn test_native_decoding_pixel_data_rle_16bit_2frame() {
             let path = dicom_test_files::path("pydicom/SC_rgb_rle_16bit_2frame.dcm")
                 .expect("test DICOM file should exist");
-            let object = open_file(&path).unwrap();
+            let object = dicom_object::open_file(&path).unwrap();
             let ndarray = object
                 .decode_pixel_data()
                 .unwrap()
@@ -2632,10 +2642,11 @@ mod tests {
         fn test_parse_jpeg_encoded_dicom_pixel_data(#[case] value: &str, #[case] frames: u32) {
             use std::fs;
             use std::path::Path;
+            use crate::PixelDecoder as _;
 
             let test_file = dicom_test_files::path(value).unwrap();
             println!("Parsing pixel data for {}", test_file.display());
-            let obj = open_file(test_file).unwrap();
+            let obj = dicom_object::open_file(test_file).unwrap();
             let pixel_data = obj.decode_pixel_data().unwrap();
             assert_eq!(pixel_data.number_of_frames(), frames, "number of frames mismatch");
 
@@ -2666,9 +2677,11 @@ mod tests {
         #[case("pydicom/JPEG2000_UNC.dcm", 0)]
         fn test_decode_pixel_data_individual_frames(#[case] value: &str, #[case] frame: u32) {
             use std::path::Path;
+            use crate::PixelDecoder as _;
+
             let test_file = dicom_test_files::path(value).unwrap();
             println!("Parsing pixel data for {}", test_file.display());
-            let obj = open_file(test_file).unwrap();
+            let obj = dicom_object::open_file(test_file).unwrap();
             let pixel_data = obj.decode_pixel_data_frame(frame).unwrap();
             let output_dir = Path::new(
                 "../target/dicom_test_files/_out/test_decode_pixel_data_individual_frames",
