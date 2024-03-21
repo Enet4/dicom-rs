@@ -2,9 +2,9 @@
 
 use crate::{
     DecodePixelDataSnafu, DecodedPixelData, GetAttributeSnafu, InvalidPixelDataSnafu,
-    LengthMismatchRescaleSnafu, LengthMismatchWindowLevelSnafu, PixelDecoder, Rescale,
-    Result, UnknownTransferSyntaxSnafu, UnsupportedPhotometricInterpretationSnafu,
-    UnsupportedTransferSyntaxSnafu, VoiLutFunction, WindowLevel
+    LengthMismatchRescaleSnafu, LengthMismatchWindowLevelSnafu, PixelDecoder, Rescale, Result,
+    UnknownTransferSyntaxSnafu, UnsupportedPhotometricInterpretationSnafu,
+    UnsupportedTransferSyntaxSnafu, VoiLutFunction, WindowLevel,
 };
 use dicom_core::{DataDictionary, DicomValue};
 use dicom_dictionary_std::tags;
@@ -15,8 +15,8 @@ use gdcm_rs::{
     decode_multi_frame_compressed, decode_single_frame_compressed, Error as GDCMError,
     GDCMPhotometricInterpretation, GDCMTransferSyntax,
 };
-use std::{borrow::Cow, convert::TryFrom, iter::zip, str::FromStr};
 use snafu::{ensure, OptionExt, ResultExt};
+use std::{borrow::Cow, convert::TryFrom, iter::zip, str::FromStr};
 
 impl<D> PixelDecoder for FileDicomObject<InMemDicomObject<D>>
 where
@@ -66,17 +66,19 @@ where
         let rescale_slope = rescale_slope(self);
         let number_of_frames = number_of_frames(self).context(GetAttributeSnafu)?;
         let voi_lut_function = voi_lut_function(self).context(GetAttributeSnafu)?;
-        let voi_lut_function: Option<Vec<VoiLutFunction>> = voi_lut_function.
-            and_then(|fns| fns.iter()
+        let voi_lut_function: Option<Vec<VoiLutFunction>> = voi_lut_function.and_then(|fns| {
+            fns.iter()
                 .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
                 .collect()
-            );
+        });
 
         ensure!(
-            rescale_intercept.len() == rescale_slope.len(), LengthMismatchRescaleSnafu {
-            slope_vm: rescale_slope.len() as u32,
-            intercept_vm: rescale_intercept.len() as u32,
-        });
+            rescale_intercept.len() == rescale_slope.len(),
+            LengthMismatchRescaleSnafu {
+                slope_vm: rescale_slope.len() as u32,
+                intercept_vm: rescale_intercept.len() as u32,
+            }
+        );
 
         let decoded_pixel_data = match pixel_data.value() {
             DicomValue::PixelSequence(v) => {
@@ -137,24 +139,31 @@ where
         };
 
         let rescale = zip(&rescale_intercept, &rescale_slope)
-            .map(|(intercept, slope)| Rescale { intercept: *intercept, slope: *slope })
+            .map(|(intercept, slope)| Rescale {
+                intercept: *intercept,
+                slope: *slope,
+            })
             .collect();
 
         let window = if let Some(wcs) = window_center(&self) {
             let width = window_width(&self);
             if let Some(wws) = width {
-                ensure!(wcs.len() == wws.len(), LengthMismatchWindowLevelSnafu {
-                    wc_vm: wcs.len() as u32,
-                    ww_vm: wws.len() as u32,
-                });
-                Some(zip(wcs, wws)
-                    .map(|(wc, ww)| WindowLevel {
-                        center: wc,
-                        width: ww,
-                    })
-                    .collect())
-            }
-            else {
+                ensure!(
+                    wcs.len() == wws.len(),
+                    LengthMismatchWindowLevelSnafu {
+                        wc_vm: wcs.len() as u32,
+                        ww_vm: wws.len() as u32,
+                    }
+                );
+                Some(
+                    zip(wcs, wws)
+                        .map(|(wc, ww)| WindowLevel {
+                            center: wc,
+                            width: ww,
+                        })
+                        .collect(),
+                )
+            } else {
                 None
             }
         } else {
@@ -229,11 +238,11 @@ where
         let rescale_slope = rescale_slope(self);
         let number_of_frames = number_of_frames(self).context(GetAttributeSnafu)?;
         let voi_lut_function = voi_lut_function(self).context(GetAttributeSnafu)?;
-        let voi_lut_function: Option<Vec<VoiLutFunction>> = voi_lut_function.
-            and_then(|fns| fns.iter()
+        let voi_lut_function: Option<Vec<VoiLutFunction>> = voi_lut_function.and_then(|fns| {
+            fns.iter()
                 .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
                 .collect()
-            );
+        });
 
         let decoded_pixel_data = match pixel_data.value() {
             DicomValue::PixelSequence(v) => {
@@ -311,25 +320,32 @@ where
         let window = if let Some(wcs) = window_center(self) {
             let width = window_width(self);
             if let Some(wws) = width {
-                ensure!(wcs.len() == wws.len(), LengthMismatchWindowLevelSnafu {
-                    wc_vm: wcs.len() as u32,
-                    ww_vm: wws.len() as u32,
-                });
-                Some(zip(wcs, wws)
-                    .map(|(wc, ww)| WindowLevel {
-                        center: wc,
-                        width: ww,
-                    })
-                    .collect())
-            }
-            else {
+                ensure!(
+                    wcs.len() == wws.len(),
+                    LengthMismatchWindowLevelSnafu {
+                        wc_vm: wcs.len() as u32,
+                        ww_vm: wws.len() as u32,
+                    }
+                );
+                Some(
+                    zip(wcs, wws)
+                        .map(|(wc, ww)| WindowLevel {
+                            center: wc,
+                            width: ww,
+                        })
+                        .collect(),
+                )
+            } else {
                 None
             }
         } else {
             None
         };
         let rescale = zip(&rescale_intercept, &rescale_slope)
-            .map(|(intercept, slope)| Rescale { intercept: *intercept, slope: *slope })
+            .map(|(intercept, slope)| Rescale {
+                intercept: *intercept,
+                slope: *slope,
+            })
             .collect();
 
         Ok(DecodedPixelData {
@@ -347,7 +363,7 @@ where
             rescale: rescale,
             voi_lut_function,
             window,
-            enforce_frame_fg_vm_match: false
+            enforce_frame_fg_vm_match: false,
         })
     }
 }
