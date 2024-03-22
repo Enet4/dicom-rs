@@ -546,12 +546,7 @@ impl ClientAssociation {
         let _ = self.socket.shutdown(std::net::Shutdown::Both);
         out
     }
-
-    /// Release implementation function,
-    /// which tries to send a release request and receive a release response.
-    /// This is in a separate private function because
-    /// terminating a connection should still close the connection
-    /// if the exchange fails.
+    
     /// Send an abort message and shut down the TCP connection,
     /// terminating the association.
     pub fn abort(mut self) -> Result<()> {
@@ -598,6 +593,11 @@ impl ClientAssociation {
         PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
     }
 
+    /// Release implementation function,
+    /// which tries to send a release request and receive a release response.
+    /// This is in a separate private function because
+    /// terminating a connection should still close the connection
+    /// if the exchange fails.
     fn release_impl(&mut self) -> Result<()> {
         let pdu = Pdu::ReleaseRQ;
         self.send(&pdu)?;
