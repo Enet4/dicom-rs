@@ -319,20 +319,17 @@ fn run() -> Result<(), Error> {
                         .dump_object(&dcm)
                         .context(DumpOutputSnafu)?;
 
-                    // check DICOM status,
+                    // check DICOM status in response data,
                     // as some implementations might report status code 0
                     // upon sending the response data
-                    let status = dcm
-                        .get(tags::STATUS)
-                        .whatever_context("status code from response is missing")?
-                        .to_int::<u16>()
-                        .whatever_context("failed to read status code")?;
-
-                    if status == 0 {
-                        if verbose {
-                            debug!("Matching is complete");
+                    if let Some(status) = dcm.get(tags::STATUS) {
+                        let status = status.to_int::<u16>().ok();
+                        if status == Some(0) {
+                            if verbose {
+                                debug!("Matching is complete");
+                            }
+                            break;
                         }
-                        break;
                     }
 
                     i += 1;
