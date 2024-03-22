@@ -39,6 +39,7 @@
 use dicom_core::ops::{
     ApplyOp, AttributeAction, AttributeOp, AttributeSelector, AttributeSelectorStep,
 };
+use dicom_encoding::Codec;
 use itertools::Itertools;
 use smallvec::SmallVec;
 use snafu::{OptionExt, ResultExt};
@@ -155,7 +156,7 @@ impl FileDicomObject<InMemDicomObject<StandardDataDictionary>> {
     /// followed by the rest of the data set.
     pub fn from_reader<S>(src: S) -> Result<Self, ReadError>
     where
-        S: Read,
+        S: Read + 'static,
     {
         Self::from_reader_with_dict(src, StandardDataDictionary)
     }
@@ -230,7 +231,7 @@ impl InMemDicomObject<StandardDataDictionary> {
         cs: SpecificCharacterSet,
     ) -> Result<Self, ReadError>
     where
-        S: Read,
+        S: Read + 'static,
     {
         Self::read_dataset_with_dict_ts_cs(from, StandardDataDictionary, ts, cs)
     }
@@ -244,7 +245,7 @@ impl InMemDicomObject<StandardDataDictionary> {
     #[inline]
     pub fn read_dataset_with_ts<S>(from: S, ts: &TransferSyntax) -> Result<Self, ReadError>
     where
-        S: Read,
+        S: Read + 'static,
     {
         Self::read_dataset_with_dict_ts_cs(
             from,
@@ -367,19 +368,36 @@ where
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let cs = SpecificCharacterSet::Default;
-            let mut dataset =
-                DataSetReader::new_with_ts_cs(file, ts, cs).context(CreateParserSnafu)?;
+            if let Codec::Dataset(Some(adapter)) = ts.codec() {
+                let adapter = adapter.adapt_reader(Box::new(file));
+                let mut dataset =
+                    DataSetReader::new_with_ts_cs(adapter, ts, cs).context(CreateParserSnafu)?;
 
-            Ok(FileDicomObject {
-                meta,
-                obj: InMemDicomObject::build_object(
-                    &mut dataset,
-                    dict,
-                    false,
-                    Length::UNDEFINED,
-                    read_until,
-                )?,
-            })
+                Ok(FileDicomObject {
+                    meta,
+                    obj: InMemDicomObject::build_object(
+                        &mut dataset,
+                        dict,
+                        false,
+                        Length::UNDEFINED,
+                        read_until,
+                    )?,
+                })
+            } else {
+                let mut dataset =
+                    DataSetReader::new_with_ts_cs(file, ts, cs).context(CreateParserSnafu)?;
+
+                Ok(FileDicomObject {
+                    meta,
+                    obj: InMemDicomObject::build_object(
+                        &mut dataset,
+                        dict,
+                        false,
+                        Length::UNDEFINED,
+                        read_until,
+                    )?,
+                })
+            }
         } else {
             ReadUnsupportedTransferSyntaxSnafu {
                 uid: meta.transfer_syntax,
@@ -395,7 +413,7 @@ where
     /// skipping it when found.
     /// Then it reads the file meta group,
     /// followed by the rest of the data set.
-    pub fn from_reader_with_dict<S>(src: S, dict: D) -> Result<Self, ReadError>
+    pub fn from_reader_with_dict<'s: 'static, S: 's>(src: S, dict: D) -> Result<Self, ReadError>
     where
         S: Read,
     {
@@ -415,7 +433,7 @@ where
     /// is insufficient. Otherwise, please use [`from_reader_with_dict`] instead.
     ///
     /// [`from_reader_with_dict`]: #method.from_reader_with_dict
-    pub fn from_reader_with<'s, S: 's, R>(src: S, dict: D, ts_index: R) -> Result<Self, ReadError>
+    pub fn from_reader_with<'s: 'static, S: 's, R>(src: S, dict: D, ts_index: R) -> Result<Self, ReadError>
     where
         S: Read,
         R: TransferSyntaxIndex,
@@ -423,7 +441,7 @@ where
         Self::from_reader_with_all_options(src, dict, ts_index, None, ReadPreamble::Auto)
     }
 
-    pub(crate) fn from_reader_with_all_options<'s, S: 's, R>(
+    pub(crate) fn from_reader_with_all_options<'s: 'static, S, R>(
         src: S,
         dict: D,
         ts_index: R,
@@ -431,7 +449,7 @@ where
         mut read_preamble: ReadPreamble,
     ) -> Result<Self, ReadError>
     where
-        S: Read,
+        S: Read + 's,
         R: TransferSyntaxIndex,
     {
         let mut file = BufReader::new(src);
@@ -453,16 +471,30 @@ where
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let cs = SpecificCharacterSet::Default;
-            let mut dataset =
-                DataSetReader::new_with_ts_cs(file, ts, cs).context(CreateParserSnafu)?;
-            let obj = InMemDicomObject::build_object(
-                &mut dataset,
-                dict,
-                false,
-                Length::UNDEFINED,
-                read_until,
-            )?;
-            Ok(FileDicomObject { meta, obj })
+            if let Codec::Dataset(Some(adapter)) = ts.codec() {
+                let adapter = adapter.adapt_reader(Box::new(file));
+                let mut dataset =
+                    DataSetReader::new_with_ts_cs(adapter, ts, cs).context(CreateParserSnafu)?;
+                let obj = InMemDicomObject::build_object(
+                    &mut dataset,
+                    dict,
+                    false,
+                    Length::UNDEFINED,
+                    read_until,
+                )?;
+                Ok(FileDicomObject { meta, obj })
+            } else {
+                let mut dataset =
+                    DataSetReader::new_with_ts_cs(file, ts, cs).context(CreateParserSnafu)?;
+                let obj = InMemDicomObject::build_object(
+                    &mut dataset,
+                    dict,
+                    false,
+                    Length::UNDEFINED,
+                    read_until,
+                )?;
+                Ok(FileDicomObject { meta, obj })
+            }
         } else {
             ReadUnsupportedTransferSyntaxSnafu {
                 uid: meta.transfer_syntax,
@@ -583,7 +615,7 @@ where
         ts: &TransferSyntax,
     ) -> Result<Self, ReadError>
     where
-        S: Read,
+        S: Read + 'static,
         D: DataDictionary,
     {
         Self::read_dataset_with_dict_ts_cs(from, dict, ts, SpecificCharacterSet::Default)
@@ -603,12 +635,19 @@ where
         cs: SpecificCharacterSet,
     ) -> Result<Self, ReadError>
     where
-        S: Read,
+        S: Read + 'static,
         D: DataDictionary,
     {
         let from = BufReader::new(from);
-        let mut dataset = DataSetReader::new_with_ts_cs(from, ts, cs).context(CreateParserSnafu)?;
-        InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
+        if let Codec::Dataset(Some(adapter)) = ts.codec() {
+            let adapter = adapter.adapt_reader(Box::new(from));
+            let mut dataset =
+                DataSetReader::new_with_ts_cs(adapter, ts, cs).context(CreateParserSnafu)?;
+            InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
+        } else {
+            let mut dataset = DataSetReader::new_with_ts_cs(from, ts, cs).context(CreateParserSnafu)?;
+            InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
+        }
     }
 
     // Standard methods follow. They are not placed as a trait implementation
@@ -1325,7 +1364,9 @@ where
     /// in which then that character set will be used.
     ///
     /// Note: [`write_dataset_with_ts`] and [`write_dataset_with_ts_cs`]
-    /// may be easier to use.
+    /// may be easier to use and _will_ apply a dataset adapter (such as
+    /// DeflatedExplicitVRLittleEndian (1.2.840.10008.1.2.99)) whereas this
+    /// method will _not_
     ///
     /// [`write_dataset_with_ts`]: #method.write_dataset_with_ts
     /// [`write_dataset_with_ts_cs`]: #method.write_dataset_with_ts_cs
@@ -1358,17 +1399,30 @@ where
         cs: SpecificCharacterSet,
     ) -> Result<(), WriteError>
     where
-        W: Write,
+        W: Write + 'static,
     {
-        // prepare data set writer
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
+        if let Codec::Dataset(Some(adapter)) = ts.codec() {
+            let adapter = adapter.adapt_writer(Box::new(to));
+            // prepare data set writer
+            let mut dset_writer = DataSetWriter::with_ts_cs(adapter, ts, cs).context(CreatePrinterSnafu)?;
 
-        // write object
-        dset_writer
-            .write_sequence(self.into_tokens())
-            .context(PrintDataSetSnafu)?;
+            // write object
+            dset_writer
+                .write_sequence(self.into_tokens())
+                .context(PrintDataSetSnafu)?;
 
-        Ok(())
+            Ok(())
+        } else {
+            // prepare data set writer
+            let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
+
+            // write object
+            dset_writer
+                .write_sequence(self.into_tokens())
+                .context(PrintDataSetSnafu)?;
+
+            Ok(())
+        }
     }
 
     /// Write this object's data set into the given writer,
@@ -1380,7 +1434,7 @@ where
     /// after which the text encoder is overridden accordingly.
     pub fn write_dataset_with_ts<W>(&self, to: W, ts: &TransferSyntax) -> Result<(), WriteError>
     where
-        W: Write,
+        W: Write + 'static,
     {
         self.write_dataset_with_ts_cs(to, ts, SpecificCharacterSet::Default)
     }
