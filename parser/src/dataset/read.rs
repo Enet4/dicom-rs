@@ -171,19 +171,8 @@ pub struct DataSetReader<S> {
 }
 
 impl<R> DataSetReader<DynStatefulDecoder<R>> {
-    /// Creates a new iterator with the given random access source,
+    /// Create a new iterator with the given byte source,
     /// while considering the given transfer syntax and specific character set.
-    #[deprecated(
-        since = "0.5.0",
-        note = "Use `new_with_ts_cs` or `new_with_ts_cs_options` instead"
-    )]
-    pub fn new_with(source: R, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
-    where
-        R: Read,
-    {
-        Self::new_with_ts_cs(source, ts, cs)
-    }
-
     #[inline]
     pub fn new_with_ts_cs(source: R, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
     where

@@ -163,12 +163,6 @@ impl FileDicomObject<InMemDicomObject<StandardDataDictionary>> {
 
 impl InMemDicomObject<StandardDataDictionary> {
     /// Create a new empty DICOM object.
-    #[deprecated(since = "0.5.0", note = "Use `new_empty` instead")]
-    pub fn create_empty() -> Self {
-        Self::new_empty()
-    }
-
-    /// Create a new empty DICOM object.
     pub fn new_empty() -> Self {
         InMemDicomObject {
             entries: BTreeMap::new(),
@@ -620,18 +614,6 @@ where
     // Standard methods follow. They are not placed as a trait implementation
     // because they may require outputs to reference the lifetime of self,
     // which is not possible without GATs.
-
-    /// Retrieve the object's meta table if available.
-    ///
-    /// At the moment, this is sure to return `None`, because the meta
-    /// table is kept in a separate wrapper value.
-    #[deprecated(
-        since = "0.5.3",
-        note = "Always returns None, see `FileDicomObject::meta` instead"
-    )]
-    pub fn meta(&self) -> Option<&FileMetaTable> {
-        None
-    }
 
     /// Retrieve a particular DICOM element by its tag.
     ///

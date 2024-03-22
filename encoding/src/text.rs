@@ -116,13 +116,6 @@ where
     }
 }
 
-/// Type alias for a type erased text codec.
-///
-/// It is important because stateful decoders may need to change the expected
-/// text encoding format at run-time.
-#[deprecated(since = "0.5.0", note = "Use `SpecificCharacterSet` instead")]
-pub type DynamicTextCodec = Box<dyn TextCodec>;
-
 /// An enum type for all currently supported character sets.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 #[non_exhaustive]
@@ -176,21 +169,6 @@ impl SpecificCharacterSet {
             "ISO_IR_192" | "ISO_IR 192" => Some(IsoIr192),
             "GB18030" => Some(Gb18030),
             _ => None,
-        }
-    }
-
-    /// Retrieve the respective text codec.
-    #[deprecated(since = "0.5.0", note = "Use this value as the codec itself")]
-    pub fn codec(self) -> Option<Box<dyn TextCodec>> {
-        match self {
-            SpecificCharacterSet::Default => Some(Box::new(DefaultCharacterSetCodec)),
-            SpecificCharacterSet::IsoIr100 => Some(Box::new(IsoIr100CharacterSetCodec)),
-            SpecificCharacterSet::IsoIr101 => Some(Box::new(IsoIr101CharacterSetCodec)),
-            SpecificCharacterSet::IsoIr109 => Some(Box::new(IsoIr109CharacterSetCodec)),
-            SpecificCharacterSet::IsoIr110 => Some(Box::new(IsoIr110CharacterSetCodec)),
-            SpecificCharacterSet::IsoIr144 => Some(Box::new(IsoIr144CharacterSetCodec)),
-            SpecificCharacterSet::IsoIr192 => Some(Box::new(Utf8CharacterSetCodec)),
-            SpecificCharacterSet::Gb18030 => Some(Box::new(Gb18030CharacterSetCodec)),
         }
     }
 }
