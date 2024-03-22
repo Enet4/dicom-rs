@@ -10,7 +10,7 @@ use dicom_core::{
 use dicom_object::InMemDicomObject;
 use serde::de::{Deserialize, DeserializeOwned, Error as _, Visitor};
 
-use self::value::{DicomJsonPerson, NumberOrText};
+use self::value::{BulkDataUri, DicomJsonPerson, NumberOrText};
 
 mod value;
 
@@ -72,8 +72,19 @@ where
     {
         let mut obj = InMemDicomObject::<D>::new_empty_with_dict(D::default());
         while let Some(e) = map.next_entry::<DicomJson<Tag>, JsonDataElement<D>>()? {
-            let (DicomJson(tag), JsonDataElement { vr, value }) = e;
-            obj.put(DataElement::new(tag, vr, value));
+            let (
+                DicomJson(tag),
+                JsonDataElement {
+                    vr,
+                    value,
+                    bulk_data_uri,
+                },
+            ) = e;
+            if bulk_data_uri.is_some() {
+                tracing::warn!("bulk data URI is not supported for InMemDicomObject");
+            } else {
+                obj.put(DataElement::new(tag, vr, value));
+            }
         }
         Ok(obj)
     }
@@ -98,6 +109,10 @@ where
 struct JsonDataElement<D> {
     vr: VR,
     value: Value<InMemDicomObject<D>, InMemFragment>,
+    // TODO: we just ignore this when deserializing with
+    // DicomJson<InMemDicomObject>
+    // Handle this properly with a custom deserializer
+    bulk_data_uri: Option<BulkDataUri>,
 }
 
 #[derive(Debug)]
@@ -127,6 +142,7 @@ where
         let mut vr = None;
         let mut value: Option<serde_json::Value> = None;
         let mut inline_binary = None;
+        let mut bulk_data_uri = None;
 
         while let Some(key) = map.next_key::<String>()? {
             match &*key {
@@ -145,6 +161,10 @@ where
                         ));
                     }
 
+                    if bulk_data_uri.is_some() {
+                        return Err(A::Error::custom("\"Value\" conflicts with \"BulkDataURI\""));
+                    }
+
                     value = Some(map.next_value()?);
                 }
                 "InlineBinary" => {
@@ -153,9 +173,30 @@ where
                             "\"InlineBinary\" conflicts with \"Value\"",
                         ));
                     }
+
+                    if bulk_data_uri.is_some() {
+                        return Err(A::Error::custom(
+                            "\"InlineBinary\" conflicts with \"BulkDataURI\"",
+                        ));
+                    }
                     // read value as string
                     let val: String = map.next_value()?;
                     inline_binary = Some(val);
+                }
+                "BulkDataURI" => {
+                    if values.is_some() {
+                        return Err(A::Error::custom("\"BulkDataURI\" conflicts with \"Value\""));
+                    }
+
+                    if inline_binary.is_some() {
+                        return Err(A::Error::custom(
+                            "\"BulkDataURI\" conflicts with \"InlineBinary\"",
+                        ));
+                    }
+
+                    // read value as string
+                    let val: BulkDataUri = map.next_value()?;
+                    bulk_data_uri = Some(val);
                 }
                 _ => {
                     return Err(A::Error::custom("Unrecognized data element field"));
@@ -319,10 +360,14 @@ where
                 PrimitiveValue::from(data).into()
             }
             (Some(values), None) => values,
-            (Some(_), Some(_)) => unreachable!(),
+            _ => unreachable!(),
         };
 
-        Ok(JsonDataElement { vr, value })
+        Ok(JsonDataElement {
+            vr,
+            value,
+            bulk_data_uri,
+        })
     }
 }
 
@@ -474,5 +519,17 @@ mod tests {
                 )
             )),
         )
+    }
+
+    #[test]
+    fn can_resolve_bulk_data() {
+        let serialized = serde_json::json!({
+            "7FE00010": {
+                "vr": "OW",
+                "BulkDataURI": "http://localhost:8042/dicom-web/studies/1.2.276.0.89.300.10035584652.20181014.93645/series/1.2.392.200036.9125.3.1696751121028.64888163108.42362060/instances/1.2.392.200036.9125.9.0.454007928.539582480.1883970570/bulk/7fe00010"
+            }
+        });
+
+        assert!(super::from_value::<InMemDicomObject>(serialized).is_ok());
     }
 }
