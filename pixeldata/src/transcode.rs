@@ -212,7 +212,7 @@ where
 
                 // change transfer syntax to Explicit VR little endian
                 self.meta_mut()
-                    .set_transfer_syntax(&EXPLICIT_VR_LITTLE_ENDIAN.erased());
+                    .set_transfer_syntax(&EXPLICIT_VR_LITTLE_ENDIAN);
 
                 // use RWPixel adapter API
                 let mut offset_table = Vec::new();
