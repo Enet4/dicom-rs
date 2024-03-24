@@ -421,8 +421,15 @@ pub enum SeqTokenType {
 #[derive(Debug, Copy, Clone, Default, Eq, PartialEq)]
 #[non_exhaustive]
 pub struct IntoTokensOptions {
-    /// Set this to true when we are sure we need to invalidate all sequence lengths
-    /// Determines if the sequence length in bytes might be invalid and should
+    /// Whether to ignore all sequence lengths in the DICOM data set,
+    /// resulting in sequences with undefined length.
+    ///
+    /// Set this to `true` when the sequence lengths in bytes might no longer be valid,
+    /// such as when changing the character set,
+    /// and as such data set sequence lengths should be replaced with undefined.
+    /// When set to `false`,
+    /// whether to retain or replace these lengths
+    /// is left at the implementation's discretion.
     /// either be recalculated or marked as undefined.
     pub force_invalidate_sq_length: bool,
 }

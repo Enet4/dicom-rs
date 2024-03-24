@@ -3,7 +3,6 @@ use crate::mem::InMemDicomObject;
 use dicom_core::DataElement;
 use dicom_parser::dataset::{DataToken, IntoTokens, IntoTokensOptions};
 use std::collections::VecDeque;
-use std::default::Default;
 
 /// A stream of tokens from a DICOM object.
 pub struct InMemObjectTokens<E> {
