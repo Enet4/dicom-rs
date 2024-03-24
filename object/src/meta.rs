@@ -227,15 +227,10 @@ impl FileMetaTable {
     /// Set the file meta table's transfer syntax
     /// according to the given transfer syntax descriptor.
     ///
-    /// Extra padding to even length is trimmed.
-    ///
-    /// Note that the field `information_group_length` is _not_ updated
-    /// to consider the length of the new transfer syntax.
-    /// Should you wish to keep the field up to date,
-    /// call [`update_information_group_length`][1] afterwards.
-    ///
-    /// [1]: FileMetaTable::update_information_group_length
-    pub fn set_transfer_syntax<D, P>(&mut self, ts: &TransferSyntax<D, P>) {
+    /// This replaces the table's transfer syntax UID
+    /// to the given transfer syntax, without padding to even length.
+    /// The information group length field is automatically recalculated.
+    pub fn set_transfer_syntax<D, R, W>(&mut self, ts: &TransferSyntax<D, R, W>) {
         self.transfer_syntax = ts
             .uid()
             .trim_end_matches(|c: char| c.is_whitespace() || c == '\0')
@@ -1197,9 +1192,8 @@ mod tests {
             156 + dicom_len(IMPLEMENTATION_CLASS_UID) + dicom_len(IMPLEMENTATION_VERSION_NAME)
         );
 
-        // Note (#409): erased is required due to a missing type parameter in the setter
         table.set_transfer_syntax(
-            &dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
+            &dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN,
         );
         assert_eq!(
             table.information_group_length,
