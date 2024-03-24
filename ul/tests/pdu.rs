@@ -37,8 +37,8 @@ fn can_read_write_associate_rq() -> Result<(), Box<dyn std::error::Error>> {
             UserVariableItem::UserIdentityItem(UserIdentity::new(
                 false,
                 UserIdentityType::UsernamePassword,
-                "MyUsername".as_bytes().to_vec(),
-                "MyPassword".as_bytes().to_vec(),
+                b"MyUsername".to_vec(),
+                b"MyPassword".to_vec(),
             )),
         ],
     };
@@ -125,7 +125,7 @@ fn can_read_write_primary_field_only_user_identity() -> Result<(), Box<dyn std::
             UserVariableItem::UserIdentityItem(UserIdentity::new(
                 false,
                 UserIdentityType::Username,
-                "MyUsername".as_bytes().to_vec(),
+                b"MyUsername".to_vec(),
                 vec![],
             )),
         ],
