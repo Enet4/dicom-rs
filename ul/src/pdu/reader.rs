@@ -4,6 +4,7 @@ use byteordered::byteorder::{BigEndian, ReadBytesExt};
 use dicom_encoding::text::{DefaultCharacterSetCodec, TextCodec};
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::io::{Cursor, ErrorKind, Read, Seek, SeekFrom};
+use tracing::warn;
 
 /// The default maximum PDU size
 pub const DEFAULT_MAX_PDU: u32 = 16_384;
@@ -984,12 +985,21 @@ where
                                 field: "User-Identity-secondary-field",
                             })?;
 
-                        user_variables.push(UserVariableItem::UserIdentityItem(UserIdentity::new(
-                            positive_response_requested == 1,
-                            UserIdentityType::from(user_identity_type),
-                            primary_field,
-                            secondary_field,
-                        )));
+                        match UserIdentityType::from(user_identity_type) {
+                            Some(user_identity_type) => {
+                                user_variables.push(UserVariableItem::UserIdentityItem(
+                                    UserIdentity::new(
+                                        positive_response_requested == 1,
+                                        user_identity_type,
+                                        primary_field,
+                                        secondary_field,
+                                    ),
+                                ));
+                            }
+                            None => {
+                                warn!("Unknown User Identity Type code {}", user_identity_type);
+                            }
+                        }
                     }
                     _ => {
                         user_variables.push(UserVariableItem::Unknown(

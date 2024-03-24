@@ -611,7 +611,7 @@ impl<'a> ClientAssociationOptions<'a> {
         if let Some(saml_assertion) = saml_assertion {
             result = Some(UserIdentity::new(
                 false,
-                UserIdentityType::SAMLAssertion,
+                UserIdentityType::SamlAssertion,
                 saml_assertion.into().as_bytes().to_vec(),
                 vec![],
             ));
@@ -620,7 +620,7 @@ impl<'a> ClientAssociationOptions<'a> {
         if let Some(jwt) = jwt {
             result = Some(UserIdentity::new(
                 false,
-                UserIdentityType::JWT,
+                UserIdentityType::Jwt,
                 jwt.into().as_bytes().to_vec(),
                 vec![],
             ));

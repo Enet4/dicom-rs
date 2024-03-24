@@ -373,23 +373,23 @@ impl UserIdentity {
 }
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+#[non_exhaustive]
 pub enum UserIdentityType {
     Username,
     UsernamePassword,
     KerberosServiceTicket,
-    SAMLAssertion,
-    JWT,
-    Unsupported,
+    SamlAssertion,
+    Jwt,
 }
 impl UserIdentityType {
-    fn from(user_identity_type: u8) -> Self {
+    fn from(user_identity_type: u8) -> Option<Self> {
         match user_identity_type {
-            1 => Self::Username,
-            2 => Self::UsernamePassword,
-            3 => Self::KerberosServiceTicket,
-            4 => Self::SAMLAssertion,
-            5 => Self::JWT,
-            _ => Self::Unsupported,
+            1 => Some(Self::Username),
+            2 => Some(Self::UsernamePassword),
+            3 => Some(Self::KerberosServiceTicket),
+            4 => Some(Self::SamlAssertion),
+            5 => Some(Self::Jwt),
+            _ => None,
         }
     }
 
@@ -398,9 +398,8 @@ impl UserIdentityType {
             Self::Username => 1,
             Self::UsernamePassword => 2,
             Self::KerberosServiceTicket => 3,
-            Self::SAMLAssertion => 4,
-            Self::JWT => 5,
-            Self::Unsupported => 0,
+            Self::SamlAssertion => 4,
+            Self::Jwt => 5,
         }
     }
 }
