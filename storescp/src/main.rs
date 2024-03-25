@@ -10,7 +10,7 @@ use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject, StandardDataDictionary};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{pdu::PDataValueType, Pdu};
-use snafu::{OptionExt, ResultExt, Whatever};
+use snafu::{OptionExt, Report, ResultExt, Whatever};
 use tracing::{debug, error, info, warn, Level};
 
 use crate::transfer::ABSTRACT_SYNTAXES;
@@ -42,6 +42,8 @@ struct App {
     /// Which port to listen on
     #[arg(short, default_value = "11111")]
     port: u16,
+    #[arg(long)]
+    dumb: bool,
 }
 
 fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
@@ -53,6 +55,7 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
         max_pdu_length,
         out_dir,
         port: _,
+        dumb,
     } = args;
     let verbose = *verbose;
 
@@ -61,6 +64,12 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
     let mut msgid = 1;
     let mut sop_class_uid = "".to_string();
     let mut sop_instance_uid = "".to_string();
+
+    if verbose {
+        if let Ok(peer_addr) = scu_stream.peer_addr() {
+            debug!("Incoming connection from {}", peer_addr);
+        }
+    }
 
     let mut options = dicom_ul::association::ServerAssociationOptions::new()
         .accept_any()
@@ -93,7 +102,8 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
         association.presentation_contexts()
     );
 
-    loop {
+    let mut kill_switch = false;
+    while !kill_switch {
         match association.receive() {
             Ok(mut pdu) => {
                 if verbose {
@@ -102,137 +112,160 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
                 match pdu {
                     Pdu::PData { ref mut data } => {
                         if data.is_empty() {
-                            debug!("Ignoring empty PData PDU");
+                            debug!("PData PDU is empty");
                             continue;
                         }
 
-                        if data[0].value_type == PDataValueType::Data && !data[0].is_last {
-                            instance_buffer.append(&mut data[0].data);
-                        } else if data[0].value_type == PDataValueType::Command && data[0].is_last {
-                            // commands are always in implict VR LE
-                            let ts =
-                                dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN
-                                    .erased();
-                            let data_value = &data[0];
-                            let v = &data_value.data;
+                        for data_part in data {
 
-                            let obj = InMemDicomObject::read_dataset_with_ts(v.as_slice(), &ts)
-                                .whatever_context("failed to read incoming DICOM command")?;
-                            let command_field = obj
-                                .element(tags::COMMAND_FIELD)
-                                .whatever_context("Missing Command Field")?
-                                .uint16()
-                                .whatever_context("Command Field is not an integer")?;
+                            if data_part.value_type == PDataValueType::Data && !data_part.is_last {
+                                instance_buffer.append(&mut data_part.data);
+                                if verbose {
+                                    debug!("\tAccumulated {} bytes, expecting more", instance_buffer.len());
+                                }
+                            } else if data_part.value_type == PDataValueType::Command && data_part.is_last {
+                                // commands are always in implict VR LE
+                                let ts =
+                                    dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN
+                                        .erased();
+                                let data_value = &data_part;
+                                let v = &data_value.data;
 
-                            if command_field == 0x0030 {
-                                // Handle C-ECHO-RQ
-                                let cecho_response = create_cecho_response(msgid);
-                                let mut cecho_data = Vec::new();
+                                let obj = InMemDicomObject::read_dataset_with_ts(v.as_slice(), &ts)
+                                    .whatever_context("failed to read incoming DICOM command")?;
+                                if verbose {
+                                    let _ = dicom_dump::dump_object(&obj);
+                                }
 
-                                cecho_response
-                                    .write_dataset_with_ts(&mut cecho_data, &ts)
-                                    .whatever_context("could not write C-ECHO response object")?;
+                                let command_field = obj
+                                    .element(tags::COMMAND_FIELD)
+                                    .whatever_context("Missing Command Field")?
+                                    .uint16()
+                                    .whatever_context("Command Field is not an integer")?;
+
+                                if command_field == 0x0030 {
+                                    // Handle C-ECHO-RQ
+                                    let cecho_response = create_cecho_response(msgid);
+                                    let mut cecho_data = Vec::new();
+
+                                    cecho_response
+                                        .write_dataset_with_ts(&mut cecho_data, &ts)
+                                        .whatever_context("could not write C-ECHO response object")?;
+
+                                    let pdu_response = Pdu::PData {
+                                        data: vec![dicom_ul::pdu::PDataValue {
+                                            presentation_context_id: data_part.presentation_context_id,
+                                            value_type: PDataValueType::Command,
+                                            is_last: true,
+                                            data: cecho_data,
+                                        }],
+                                    };
+                                    association.send(&pdu_response).whatever_context(
+                                        "failed to send C-ECHO response object to SCU",
+                                    )?;
+                                } else {
+                                    msgid = obj
+                                        .element(tags::MESSAGE_ID)
+                                        .whatever_context("Missing Message ID")?
+                                        .to_int()
+                                        .whatever_context("Message ID is not an integer")?;
+                                    sop_class_uid = obj
+                                        .element(tags::AFFECTED_SOP_CLASS_UID)
+                                        .whatever_context("missing Affected SOP Class UID")?
+                                        .to_str()
+                                        .whatever_context("could not retrieve Affected SOP Class UID")?
+                                        .to_string();
+                                    sop_instance_uid = obj
+                                        .element(tags::AFFECTED_SOP_INSTANCE_UID)
+                                        .whatever_context("missing Affected SOP Instance UID")?
+                                        .to_str()
+                                        .whatever_context(
+                                            "could not retrieve Affected SOP Instance UID",
+                                        )?
+                                        .to_string();
+                                }
+                                instance_buffer.clear();
+                            } else if data_part.value_type == PDataValueType::Data && data_part.is_last {
+                                instance_buffer.append(&mut data_part.data);
+
+                                let presentation_context = association
+                                    .presentation_contexts()
+                                    .iter()
+                                    .find(|pc| pc.id == data_part.presentation_context_id)
+                                    .whatever_context("missing presentation context")?;
+                                let ts = &presentation_context.transfer_syntax;
+
+                                let obj = InMemDicomObject::read_dataset_with_ts(
+                                    instance_buffer.as_slice(),
+                                    TransferSyntaxRegistry.get(ts).unwrap(),
+                                )
+                                .whatever_context("failed to read DICOM data object")?;
+                                let file_meta = FileMetaTableBuilder::new()
+                                    .media_storage_sop_class_uid(
+                                        obj.element(tags::SOP_CLASS_UID)
+                                            .whatever_context("missing SOP Class UID")?
+                                            .to_str()
+                                            .whatever_context("could not retrieve SOP Class UID")?,
+                                    )
+                                    .media_storage_sop_instance_uid(
+                                        obj.element(tags::SOP_INSTANCE_UID)
+                                            .whatever_context("missing SOP Instance UID")?
+                                            .to_str()
+                                            .whatever_context("missing SOP Instance UID")?,
+                                    )
+                                    .transfer_syntax(ts)
+                                    .build()
+                                    .whatever_context("failed to build DICOM meta file information")?;
+                                let file_obj = obj.with_exact_meta(file_meta);
+
+                                // write the files to the current directory with their SOPInstanceUID as filenames
+                                let mut file_path = out_dir.clone();
+                                file_path
+                                    .push(sop_instance_uid.trim_end_matches('\0').to_string() + ".dcm");
+                                file_obj
+                                    .write_to_file(&file_path)
+                                    .whatever_context("could not save DICOM object to file")?;
+                                info!("Stored {}", file_path.display());
+
+                                // send C-STORE-RSP object
+                                // commands are always in implict VR LE
+                                let ts =
+                                    dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN
+                                        .erased();
+
+                                let obj =
+                                    create_cstore_response(msgid, &sop_class_uid, &sop_instance_uid);
+
+                                if verbose {
+                                    debug!("scp ---> scu:");
+                                    let _ = dicom_dump::dump_object(&obj);
+                                }
+
+                                let mut obj_data = Vec::new();
+
+                                obj.write_dataset_with_ts(&mut obj_data, &ts)
+                                    .whatever_context("could not write response object")?;
 
                                 let pdu_response = Pdu::PData {
                                     data: vec![dicom_ul::pdu::PDataValue {
-                                        presentation_context_id: data[0].presentation_context_id,
+                                        presentation_context_id: data_part.presentation_context_id,
                                         value_type: PDataValueType::Command,
                                         is_last: true,
-                                        data: cecho_data,
+                                        data: obj_data,
                                     }],
                                 };
-                                association.send(&pdu_response).whatever_context(
-                                    "failed to send C-ECHO response object to SCU",
-                                )?;
+                                if *dumb {
+                                    kill_switch = true;
+                                    break;
+                                }
+
+                                association
+                                    .send(&pdu_response)
+                                    .whatever_context("failed to send response object to SCU")?;
+    
                             } else {
-                                msgid = obj
-                                    .element(tags::MESSAGE_ID)
-                                    .whatever_context("Missing Message ID")?
-                                    .to_int()
-                                    .whatever_context("Message ID is not an integer")?;
-                                sop_class_uid = obj
-                                    .element(tags::AFFECTED_SOP_CLASS_UID)
-                                    .whatever_context("missing Affected SOP Class UID")?
-                                    .to_str()
-                                    .whatever_context("could not retrieve Affected SOP Class UID")?
-                                    .to_string();
-                                sop_instance_uid = obj
-                                    .element(tags::AFFECTED_SOP_INSTANCE_UID)
-                                    .whatever_context("missing Affected SOP Instance UID")?
-                                    .to_str()
-                                    .whatever_context(
-                                        "could not retrieve Affected SOP Instance UID",
-                                    )?
-                                    .to_string();
+                                warn!("Unhandled case of type {:?}, islast {}", data_part.value_type, data_part.is_last);
                             }
-                            instance_buffer.clear();
-                        } else if data[0].value_type == PDataValueType::Data && data[0].is_last {
-                            instance_buffer.append(&mut data[0].data);
-
-                            let presentation_context = association
-                                .presentation_contexts()
-                                .iter()
-                                .find(|pc| pc.id == data[0].presentation_context_id)
-                                .whatever_context("missing presentation context")?;
-                            let ts = &presentation_context.transfer_syntax;
-
-                            let obj = InMemDicomObject::read_dataset_with_ts(
-                                instance_buffer.as_slice(),
-                                TransferSyntaxRegistry.get(ts).unwrap(),
-                            )
-                            .whatever_context("failed to read DICOM data object")?;
-                            let file_meta = FileMetaTableBuilder::new()
-                                .media_storage_sop_class_uid(
-                                    obj.element(tags::SOP_CLASS_UID)
-                                        .whatever_context("missing SOP Class UID")?
-                                        .to_str()
-                                        .whatever_context("could not retrieve SOP Class UID")?,
-                                )
-                                .media_storage_sop_instance_uid(
-                                    obj.element(tags::SOP_INSTANCE_UID)
-                                        .whatever_context("missing SOP Instance UID")?
-                                        .to_str()
-                                        .whatever_context("missing SOP Instance UID")?,
-                                )
-                                .transfer_syntax(ts)
-                                .build()
-                                .whatever_context("failed to build DICOM meta file information")?;
-                            let file_obj = obj.with_exact_meta(file_meta);
-
-                            // write the files to the current directory with their SOPInstanceUID as filenames
-                            let mut file_path = out_dir.clone();
-                            file_path
-                                .push(sop_instance_uid.trim_end_matches('\0').to_string() + ".dcm");
-                            file_obj
-                                .write_to_file(&file_path)
-                                .whatever_context("could not save DICOM object to file")?;
-                            info!("Stored {}", file_path.display());
-
-                            // send C-STORE-RSP object
-                            // commands are always in implict VR LE
-                            let ts =
-                                dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN
-                                    .erased();
-
-                            let obj =
-                                create_cstore_response(msgid, &sop_class_uid, &sop_instance_uid);
-
-                            let mut obj_data = Vec::new();
-
-                            obj.write_dataset_with_ts(&mut obj_data, &ts)
-                                .whatever_context("could not write response object")?;
-
-                            let pdu_response = Pdu::PData {
-                                data: vec![dicom_ul::pdu::PDataValue {
-                                    presentation_context_id: data[0].presentation_context_id,
-                                    value_type: PDataValueType::Command,
-                                    is_last: true,
-                                    data: obj_data,
-                                }],
-                            };
-                            association
-                                .send(&pdu_response)
-                                .whatever_context("failed to send response object to SCU")?;
                         }
                     }
                     Pdu::ReleaseRQ => {
@@ -247,16 +280,24 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
                             "Released association with {}",
                             association.client_ae_title()
                         );
+                        break;
                     }
                     Pdu::AbortRQ { source } => {
                         warn!("Aborted connection from: {:?}", source);
                         break;
                     },
-                    _ => {}
+                    _ => {
+                        warn!("\t Unrecognized PDU");
+                    }
                 }
             }
             Err(err @ dicom_ul::association::server::Error::Receive { .. }) => {
-                debug!("{}", err);
+                if verbose {
+                    info!("{}", Report::from_error(err));
+                } else {
+                    info!("{}", err);
+                }
+
                 break;
             }
             Err(err) => {
@@ -265,7 +306,16 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
             }
         }
     }
-    info!("Dropping connection with {}", association.client_ae_title());
+    if kill_switch {
+        info!("Killing connection with {}", association.client_ae_title());
+        let _ = association.inner_stream().shutdown(std::net::Shutdown::Both);
+    } else {
+        if let Ok(peer_addr) = association.inner_stream().peer_addr() {
+            info!("Releasing connection with {} ({})", association.client_ae_title(), peer_addr);
+        } else {
+            info!("Releasing connection with {}", association.client_ae_title());
+        }
+    }
     Ok(())
 }
 

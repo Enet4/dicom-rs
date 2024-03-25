@@ -558,6 +558,7 @@ dependencies = [
  "clap",
  "dicom-core",
  "dicom-dictionary-std",
+ "dicom-dump",
  "dicom-encoding",
  "dicom-object",
  "dicom-transfer-syntax-registry",
