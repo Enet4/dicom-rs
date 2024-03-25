@@ -98,7 +98,7 @@ where
         } else {
             self.dict
                 .by_tag(tag)
-                .map(|entry| entry.vr())
+                .map(|entry| entry.vr().relaxed())
                 .unwrap_or(VR::UN)
         };
         Ok((DataElementHeader::new(tag, vr, Length(len)), 8))

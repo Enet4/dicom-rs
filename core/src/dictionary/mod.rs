@@ -8,7 +8,7 @@ mod uid;
 
 pub use data_element::{
     DataDictionary, DataDictionaryEntry, DataDictionaryEntryBuf, DataDictionaryEntryRef, TagByName,
-    TagRange,
+    TagRange, VirtualVr,
 };
 
 pub use uid::{UidDictionary, UidDictionaryEntry, UidDictionaryEntryRef, UidType};

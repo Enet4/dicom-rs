@@ -1,6 +1,5 @@
 //! DICOM data element (tag) dictionary builder
 use std::{
-    borrow::Cow,
     fs::{create_dir_all, File},
     io::{BufRead, BufReader, BufWriter, Write},
     path::Path,
@@ -98,29 +97,11 @@ fn parse_entries<R: BufRead>(source: R) -> Result<Vec<Entry>> {
             continue;
         }
 
-        let mut vr = parts[1].to_string();
+        let vr = parts[1].to_string();
 
-        // Some fields are dependent upon context.
-        // We may want to support this at some point, but for now,
-        // let's just choose some good defaults.
-        if vr == "up" {
-            vr = "UL".to_string();
-        }
-        if vr == "xs" {
-            vr = "US".to_string();
-        }
-        if vr == "ox" {
-            vr = "OB".to_string();
-        }
-        if vr == "px" {
-            vr = "OB".to_string();
-        }
-        if vr == "lt" {
-            vr = "OW".to_string();
-        }
         if vr == "na" {
             // These are the "Item", "ItemDelimitationItem", "SequenceDelimitationItem", etc, values.
-            // Question, should we generate const values for these, and use them internally?
+            // Do not include them for now.
             continue;
         }
 
@@ -234,7 +215,7 @@ where
 
     f.write_all(
         b"\n\
-    use dicom_core::dictionary::{DataDictionaryEntryRef, TagRange, TagRange::*};\n\
+    use dicom_core::dictionary::{DataDictionaryEntryRef, TagRange, TagRange::*, VirtualVr::*};\n\
     use dicom_core::Tag;\n\
     use dicom_core::VR::*;\n\n",
     )?;
@@ -287,14 +268,16 @@ where
         if retired_options == RetiredOptions::Ignore && e.is_retired {
             continue;
         }
-
-        let (vr1, vr2) = e.vr.split_at(2);
-
-        let vr2 = vr2.trim();
-        let second_vr: Cow<str> = if !vr2.is_empty() {
-            format!(" /*{} */", vr2).into()
-        } else {
-            vr2.into()
+        // Some fields are dependent upon context
+        let (vr1, vr2, vr3) = match &*e.vr {
+            "xs" => ("Xs", "", ""),
+            "ox" => ("Ox", "", ""),
+            "px" => ("Px", "", ""),
+            "lt" => ("Lt", "", ""),
+            // for now we will always map "up" to "UL"
+            "up" => ("Exact(", "UL", ")"),
+            // assume exact in all other cases
+            _ => ("Exact(", &*e.vr, ")"),
         };
 
         let tag_set = match e.tag_type {
@@ -304,8 +287,8 @@ where
 
         writeln!(
             f,
-            "    E {{ tag: {}, alias: \"{}\", vr: {}{} }}, // {}",
-            tag_set, e.alias, vr1, second_vr, e.obs
+            "    E {{ tag: {}, alias: \"{}\", vr: {}{}{} }}, // {}",
+            tag_set, e.alias, vr1, vr2, vr3, e.obs
         )?;
     }
     f.write_all(b"];\n")?;

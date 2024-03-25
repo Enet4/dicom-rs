@@ -1,7 +1,7 @@
 //! Data element dictionary implementation
 
 use crate::tags::ENTRIES;
-use dicom_core::dictionary::{DataDictionary, DataDictionaryEntryRef, TagRange::*};
+use dicom_core::dictionary::{DataDictionary, DataDictionaryEntryRef, TagRange::*, VirtualVr};
 use dicom_core::header::Tag;
 use dicom_core::VR;
 use once_cell::sync::Lazy;
@@ -69,14 +69,14 @@ impl StandardDataDictionaryRegistry {
 static GROUP_LENGTH_ENTRY: DataDictionaryEntryRef<'static> = DataDictionaryEntryRef {
     tag: GroupLength,
     alias: "GenericGroupLength",
-    vr: VR::UL,
+    vr: VirtualVr::Exact(VR::UL),
 };
 
 /// Generic Private Creator dictionary entry.
 static PRIVATE_CREATOR_ENTRY: DataDictionaryEntryRef<'static> = DataDictionaryEntryRef {
     tag: PrivateCreator,
     alias: "PrivateCreator",
-    vr: VR::LO,
+    vr: VirtualVr::Exact(VR::LO),
 };
 
 /// A data element dictionary which consults
@@ -172,7 +172,7 @@ mod tests {
     use crate::tags;
 
     use super::StandardDataDictionary;
-    use dicom_core::dictionary::{DataDictionary, DataDictionaryEntryRef, TagRange::*};
+    use dicom_core::dictionary::{DataDictionary, DataDictionaryEntryRef, TagRange::*, VirtualVr};
     use dicom_core::header::{Tag, VR};
     use dicom_core::ops::AttributeSelector;
 
@@ -187,7 +187,7 @@ mod tests {
             Some(&DataDictionaryEntryRef {
                 tag: Single(Tag(0x0010, 0x0010)),
                 alias: "PatientName",
-                vr: VR::PN,
+                vr: VR::PN.into(),
             })
         );
 
@@ -196,7 +196,7 @@ mod tests {
             Some(&DataDictionaryEntryRef {
                 tag: Single(Tag(0x0008, 0x0060)),
                 alias: "Modality",
-                vr: VR::CS,
+                vr: VR::CS.into(),
             })
         );
 
@@ -206,14 +206,14 @@ mod tests {
         eprintln!("{:X?}", pixel_data.tag);
         assert_eq!(pixel_data.tag, Single(Tag(0x7FE0, 0x0010)));
         assert_eq!(pixel_data.alias, "PixelData");
-        assert!(pixel_data.vr == VR::OB || pixel_data.vr == VR::OW);
+        assert!(pixel_data.vr == VirtualVr::Px);
 
         let overlay_data = dict
             .by_tag(Tag(0x6000, 0x3000))
             .expect("Overlay Data attribute should exist");
         assert_eq!(overlay_data.tag, Group100(Tag(0x6000, 0x3000)));
         assert_eq!(overlay_data.alias, "OverlayData");
-        assert!(overlay_data.vr == VR::OB || overlay_data.vr == VR::OW);
+        assert!(overlay_data.vr == VirtualVr::Ox);
 
         // repeated overlay data
         let overlay_data = dict
@@ -221,7 +221,7 @@ mod tests {
             .expect("Repeated Overlay Data attribute should exist");
         assert_eq!(overlay_data.tag, Group100(Tag(0x6000, 0x3000)));
         assert_eq!(overlay_data.alias, "OverlayData");
-        assert!(overlay_data.vr == VR::OB || overlay_data.vr == VR::OW);
+        assert!(overlay_data.vr == VirtualVr::Ox);
     }
 
     #[test]
@@ -250,7 +250,7 @@ mod tests {
             Some(&DataDictionaryEntryRef {
                 tag: Single(crate::tags::PATIENT_NAME),
                 alias: "PatientName",
-                vr: VR::PN,
+                vr: VR::PN.into(),
             })
         );
 
@@ -259,7 +259,7 @@ mod tests {
             Some(&DataDictionaryEntryRef {
                 tag: Single(crate::tags::MODALITY),
                 alias: "Modality",
-                vr: VR::CS,
+                vr: VR::CS.into(),
             })
         );
 
@@ -268,7 +268,7 @@ mod tests {
             Some(&DataDictionaryEntryRef {
                 tag: Single(crate::tags::OPERATORS_NAME),
                 alias: "OperatorsName",
-                vr: VR::PN,
+                vr: VR::PN.into(),
             })
         );
 
@@ -291,7 +291,7 @@ mod tests {
             Some(&DataDictionaryEntryRef {
                 tag: Single(FILE_META_INFORMATION_GROUP_LENGTH),
                 alias: "FileMetaInformationGroupLength",
-                vr: VR::UL,
+                vr: VR::UL.into(),
             }),
         );
 
@@ -300,7 +300,7 @@ mod tests {
             Some(&DataDictionaryEntryRef {
                 tag: Single(COMMAND_GROUP_LENGTH),
                 alias: "CommandGroupLength",
-                vr: VR::UL,
+                vr: VR::UL.into(),
             }),
         );
 
@@ -311,7 +311,7 @@ mod tests {
             Some(&DataDictionaryEntryRef {
                 tag: GroupLength,
                 alias: "GenericGroupLength",
-                vr: VR::UL,
+                vr: VR::UL.into(),
             }),
         );
 
@@ -320,7 +320,7 @@ mod tests {
             Some(&DataDictionaryEntryRef {
                 tag: GroupLength,
                 alias: "GenericGroupLength",
-                vr: VR::UL,
+                vr: VR::UL.into(),
             }),
         );
     }
@@ -332,7 +332,7 @@ mod tests {
         let private_creator = DataDictionaryEntryRef {
             tag: PrivateCreator,
             alias: "PrivateCreator",
-            vr: VR::LO,
+            vr: VR::LO.into(),
         };
 
         assert_eq!(dict.by_tag(Tag(0x0009, 0x0010)), Some(&private_creator));
