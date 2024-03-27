@@ -250,6 +250,7 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
                             "Released association with {}",
                             association.client_ae_title()
                         );
+                        break;
                     }
                     Pdu::AbortRQ { source } => {
                         warn!("Aborted connection from: {:?}", source);
@@ -268,7 +269,13 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
             }
         }
     }
-    info!("Dropping connection with {}", association.client_ae_title());
+
+    if let Ok(peer_addr) = association.inner_stream().peer_addr() {
+        info!("Dropping connection with {} ({})", association.client_ae_title(), peer_addr);
+    } else {
+        info!("Dropping connection with {}", association.client_ae_title());
+    }
+
     Ok(())
 }
 
