@@ -32,6 +32,11 @@ OPTIONS:
         --calling-ae-title <calling-ae-title>    the calling Application Entity title [default: STORE-SCU]
         --max-pdu-length <max-pdu-length>        the maximum PDU length accepted by the SCU [default: 16384]
     -m, --message-id <message-id>                the C-STORE message ID [default: 1]
+        --username <username>                    user identity username
+        --password <password>                    user identity password
+        --kerberos-service-ticket <ticket>       user identity Kerberos service ticket
+        --saml-assertion <assertion>             user identity SAML assertion
+        --jwt <jwt>                              user identity JWT
 
 ARGS:
     <addr>        socket address to Store SCP, optionally with AE title (example: "STORE-SCP@127.0.0.1:104")

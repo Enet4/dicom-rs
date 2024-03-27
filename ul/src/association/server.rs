@@ -16,7 +16,8 @@ use crate::{
         writer::write_pdu,
         AbortRQServiceProviderReason, AbortRQSource, AssociationAC, AssociationRJ,
         AssociationRJResult, AssociationRJServiceUserReason, AssociationRJSource, AssociationRQ,
-        Pdu, PresentationContextResult, PresentationContextResultReason, UserVariableItem,
+        Pdu, PresentationContextResult, PresentationContextResultReason, UserIdentity,
+        UserVariableItem,
     },
     IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
@@ -98,7 +99,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// but users are free to implement their own.
 pub trait AccessControl {
     /// Obtain the decision of whether to accept an incoming association request
-    /// based on the recorded application entity titles.
+    /// based on the recorded application entity titles and/or user identity.
     ///
     /// Returns Ok(()) if the requester node should be given clearance.
     /// Otherwise, a concrete association RJ service user reason is given.
@@ -107,6 +108,7 @@ pub trait AccessControl {
         this_ae_title: &str,
         calling_ae_title: &str,
         called_ae_title: &str,
+        user_identity: Option<&UserIdentity>,
     ) -> Result<(), AssociationRJServiceUserReason>;
 }
 
@@ -120,6 +122,7 @@ impl AccessControl for AcceptAny {
         _this_ae_title: &str,
         _calling_ae_title: &str,
         _called_ae_title: &str,
+        _user_identity: Option<&UserIdentity>,
     ) -> Result<(), AssociationRJServiceUserReason> {
         Ok(())
     }
@@ -136,6 +139,7 @@ impl AccessControl for AcceptCalledAeTitle {
         this_ae_title: &str,
         _calling_ae_title: &str,
         called_ae_title: &str,
+        _user_identity: Option<&UserIdentity>,
     ) -> Result<(), AssociationRJServiceUserReason> {
         if this_ae_title == called_ae_title {
             Ok(())
@@ -389,7 +393,19 @@ where
                 }
 
                 self.ae_access_control
-                    .check_access(&self.ae_title, &calling_ae_title, &called_ae_title)
+                    .check_access(
+                        &self.ae_title,
+                        &calling_ae_title,
+                        &called_ae_title,
+                        user_variables
+                            .iter()
+                            .find_map(|user_variable| match user_variable {
+                                UserVariableItem::UserIdentityItem(user_identity) => {
+                                    Some(user_identity)
+                                }
+                                _ => None,
+                            }),
+                    )
                     .map(Ok)
                     .unwrap_or_else(|reason| {
                         write_pdu(

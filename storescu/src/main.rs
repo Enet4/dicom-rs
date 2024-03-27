@@ -56,6 +56,21 @@ struct App {
     // hide option if transcoding is disabled
     #[cfg_attr(not(feature = "transcode"), arg(hide(true)))]
     never_transcode: bool,
+    /// User Identity username
+    #[arg(long = "username")]
+    username: Option<String>,
+    /// User Identity password
+    #[arg(long = "password")]
+    password: Option<String>,
+    /// User Identity Kerberos service ticket
+    #[arg(long = "kerberos-service-ticket")]
+    kerberos_service_ticket: Option<String>,
+    /// User Identity SAML assertion
+    #[arg(long = "saml-assertion")]
+    saml_assertion: Option<String>,
+    /// User Identity JWT
+    #[arg(long = "jwt")]
+    jwt: Option<String>,
 }
 
 struct DicomFile {
@@ -112,6 +127,11 @@ fn run() -> Result<(), Error> {
         max_pdu_length,
         fail_first,
         mut never_transcode,
+        username,
+        password,
+        kerberos_service_ticket,
+        saml_assertion,
+        jwt,
     } = App::parse();
 
     // never transcode if the feature is disabled
@@ -200,6 +220,26 @@ fn run() -> Result<(), Error> {
 
     if let Some(called_ae_title) = called_ae_title {
         scu_init = scu_init.called_ae_title(called_ae_title);
+    }
+
+    if let Some(username) = username {
+        scu_init = scu_init.username(username);
+    }
+
+    if let Some(password) = password {
+        scu_init = scu_init.password(password);
+    }
+
+    if let Some(kerberos_service_ticket) = kerberos_service_ticket {
+        scu_init = scu_init.kerberos_service_ticket(kerberos_service_ticket);
+    }
+
+    if let Some(saml_assertion) = saml_assertion {
+        scu_init = scu_init.saml_assertion(saml_assertion);
+    }
+
+    if let Some(jwt) = jwt {
+        scu_init = scu_init.jwt(jwt);
     }
 
     let mut scu = scu_init.establish_with(&addr).context(InitScuSnafu)?;
