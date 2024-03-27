@@ -69,7 +69,7 @@ use dicom_core::{DataElement, Length, PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::{tags, StandardDataDictionary};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_encoding::{encode::EncodeTo, text::SpecificCharacterSet, TransferSyntax};
-use dicom_parser::dataset::{DataSetReader, DataToken};
+use dicom_parser::dataset::{DataSetReader, DataToken, IntoTokensOptions};
 use dicom_parser::{
     dataset::{read::Error as ParserError, DataSetWriter, IntoTokens},
     StatefulDecode,
@@ -100,6 +100,10 @@ pub struct InMemDicomObject<D = StandardDataDictionary> {
     /// It is usually undefined, unless it is part of an item
     /// in a sequence with a specified length in its item header.
     len: Length,
+    /// In case the SpecificCharSet changes we need to mark the object as dirty,
+    /// because changing the character set may change the length in bytes of
+    /// stored text. It has to be public for now because we need
+    pub(crate) charset_changed: bool,
 }
 
 impl<D> PartialEq for InMemDicomObject<D> {
@@ -168,6 +172,7 @@ impl InMemDicomObject<StandardDataDictionary> {
             entries: BTreeMap::new(),
             dict: StandardDataDictionary,
             len: Length::UNDEFINED,
+            charset_changed: false,
         }
     }
 
@@ -269,6 +274,7 @@ where
                 entries: BTreeMap::new(),
                 dict,
                 len: Length::UNDEFINED,
+                charset_changed: false,
             },
         }
     }
@@ -481,6 +487,7 @@ impl FileDicomObject<InMemDicomObject<StandardDataDictionary>> {
                 entries: BTreeMap::new(),
                 dict: StandardDataDictionary,
                 len: Length::UNDEFINED,
+                charset_changed: false,
             },
         }
     }
@@ -497,6 +504,7 @@ where
             entries: BTreeMap::new(),
             dict,
             len: Length::UNDEFINED,
+            charset_changed: false,
         }
     }
 
@@ -510,6 +518,7 @@ where
             entries: entries?,
             dict,
             len: Length::UNDEFINED,
+            charset_changed: false,
         })
     }
 
@@ -523,6 +532,7 @@ where
             entries,
             dict,
             len: Length::UNDEFINED,
+            charset_changed: false,
         }
     }
 
@@ -559,6 +569,7 @@ where
             entries,
             dict,
             len: Length::UNDEFINED,
+            charset_changed: false,
         }
     }
 
@@ -689,14 +700,19 @@ where
 
     /// Insert a data element to the object, replacing (and returning) any
     /// previous element of the same attribute.
+    /// This might invalidate all sequence and item lengths if the charset of the
+    /// element changes.
     pub fn put(&mut self, elt: InMemElement<D>) -> Option<InMemElement<D>> {
         self.put_element(elt)
     }
 
     /// Insert a data element to the object, replacing (and returning) any
     /// previous element of the same attribute.
+    /// This might invalidate all sequence and item lengths if the charset of the
+    /// element changes.
     pub fn put_element(&mut self, elt: InMemElement<D>) -> Option<InMemElement<D>> {
         self.len = Length::UNDEFINED;
+        self.invalidate_if_charset_changed(elt.tag());
         self.entries.insert(elt.tag(), elt)
     }
 
@@ -815,6 +831,7 @@ where
         tag: Tag,
         f: impl FnMut(&mut Value<InMemDicomObject<D>, InMemFragment>),
     ) -> bool {
+        self.invalidate_if_charset_changed(tag);
         if let Some(e) = self.entries.get_mut(&tag) {
             e.update_value(f);
             self.len = Length::UNDEFINED;
@@ -865,7 +882,7 @@ where
                         MissingLeafElementSnafu {
                             selector: selector.clone(),
                         }
-                    })
+                    });
                 }
                 // navigate further down
                 AttributeSelectorStep::Nested { tag, item } => {
@@ -896,6 +913,15 @@ where
         }
 
         unreachable!()
+    }
+
+    /// Change the 'specific_character_set' tag to ISO_IR 192, marking the dataset as UTF-8
+    pub fn convert_to_utf8(&mut self) {
+        self.put(DataElement::new(
+            tags::SPECIFIC_CHARACTER_SET,
+            VR::CS,
+            "ISO_IR 192",
+        ));
     }
 
     /// Apply the given attribute operation on this object.
@@ -979,6 +1005,7 @@ where
     }
 
     fn apply_leaf(&mut self, tag: Tag, action: AttributeAction) -> ApplyResult {
+        self.invalidate_if_charset_changed(tag);
         match action {
             AttributeAction::Remove => {
                 self.remove_element(tag);
@@ -1054,6 +1081,8 @@ where
     }
 
     fn apply_change_value_impl(&mut self, tag: Tag, new_value: PrimitiveValue) {
+        self.invalidate_if_charset_changed(tag);
+
         if let Some(e) = self.entries.get_mut(&tag) {
             let vr = e.vr();
             // handle edge case: if VR is SQ and suggested value is empty,
@@ -1085,11 +1114,18 @@ where
         }
     }
 
+    fn invalidate_if_charset_changed(&mut self, tag: Tag) {
+        if tag == tags::SPECIFIC_CHARACTER_SET {
+            self.charset_changed = true;
+        }
+    }
+
     fn apply_push_str_impl(&mut self, tag: Tag, string: Cow<'static, str>) -> ApplyResult {
         if let Some(e) = self.entries.remove(&tag) {
             let (header, value) = e.into_parts();
             match value {
                 Value::Primitive(mut v) => {
+                    self.invalidate_if_charset_changed(tag);
                     // extend value
                     v.extend_str([string]).context(ModifySnafu)?;
                     // reinsert element
@@ -1336,10 +1372,10 @@ where
     {
         // prepare data set writer
         let mut dset_writer = DataSetWriter::new(to, encoder);
-
+        let required_options = IntoTokensOptions::new(self.charset_changed);
         // write object
         dset_writer
-            .write_sequence(self.into_tokens())
+            .write_sequence(self.into_tokens_with_options(required_options))
             .context(PrintDataSetSnafu)?;
 
         Ok(())
@@ -1362,10 +1398,11 @@ where
     {
         // prepare data set writer
         let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
+        let required_options = IntoTokensOptions::new(self.charset_changed);
 
         // write object
         dset_writer
-            .write_sequence(self.into_tokens())
+            .write_sequence(self.into_tokens_with_options(required_options))
             .context(PrintDataSetSnafu)?;
 
         Ok(())
@@ -1520,14 +1557,24 @@ where
                 }
                 DataToken::ItemEnd if in_item => {
                     // end of item, leave now
-                    return Ok(InMemDicomObject { entries, dict, len });
+                    return Ok(InMemDicomObject {
+                        entries,
+                        dict,
+                        len,
+                        charset_changed: false,
+                    });
                 }
                 token => return UnexpectedTokenSnafu { token }.fail(),
             };
             entries.insert(elem.tag(), elem);
         }
 
-        Ok(InMemDicomObject { entries, dict, len })
+        Ok(InMemDicomObject {
+            entries,
+            dict,
+            len,
+            charset_changed: false,
+        })
     }
 
     /// Build an encapsulated pixel data by collecting all fragments into an
@@ -1699,7 +1746,6 @@ fn even_len(l: u32) -> u32 {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::open_file;
     use byteordered::Endianness;
@@ -2657,7 +2703,7 @@ mod tests {
                 Some(&DataElement::new(
                     tags::INSTITUTION_NAME,
                     VR::LO,
-                    PrimitiveValue::from("Test Hospital")
+                    PrimitiveValue::from("Test Hospital"),
                 ))
             );
 
@@ -2674,7 +2720,7 @@ mod tests {
                 Some(&DataElement::new(
                     tags::INSTITUTION_NAME,
                     VR::LO,
-                    PrimitiveValue::from("REMOVED")
+                    PrimitiveValue::from("REMOVED"),
                 ))
             );
 
@@ -2702,7 +2748,7 @@ mod tests {
                 Some(&DataElement::new(
                     tags::REQUESTING_PHYSICIAN,
                     VR::PN,
-                    PrimitiveValue::from("Doctor^Anonymous")
+                    PrimitiveValue::from("Doctor^Anonymous"),
                 ))
             );
         }
@@ -2721,7 +2767,7 @@ mod tests {
                 Some(&DataElement::new(
                     tags::REQUESTING_PHYSICIAN,
                     VR::PN,
-                    PrimitiveValue::from("Doctor^Anonymous")
+                    PrimitiveValue::from("Doctor^Anonymous"),
                 ))
             );
         }
@@ -2985,6 +3031,7 @@ mod tests {
             entries,
             dict: StandardDataDictionary,
             len: Length(1),
+            charset_changed: false,
         };
 
         assert!(obj.length().is_defined());
@@ -3276,5 +3323,132 @@ mod tests {
             .unwrap()
             .length()
             .is_undefined());
+    }
+
+    #[test]
+    fn deep_sequence_change_encoding_writes_undefined_sequence_length() {
+        use smallvec::smallvec;
+
+        let obj_1 = InMemDicomObject::from_element_iter(vec![
+            //The length of this string is 20 bytes in ISO_IR 100 but should be 22 bytes in ISO_IR 192 (UTF-8)
+            DataElement::new(
+                tags::STUDY_DESCRIPTION,
+                VR::SL,
+                Value::Primitive("MORFOLOGÍA Y FUNCIÓN".into()),
+            ),
+            //ISO_IR 100 and ISO_IR 192 length are the same
+            DataElement::new(
+                tags::SERIES_DESCRIPTION,
+                VR::SL,
+                Value::Primitive("0123456789".into()),
+            ),
+        ]);
+
+        let some_tag = Tag(0x0018, 0x6011);
+
+        let inner_sequence = InMemDicomObject::from_element_iter(vec![DataElement::new(
+            some_tag,
+            VR::SQ,
+            Value::from(DataSetSequence::new(
+                smallvec![obj_1],
+                Length(30), //20 bytes from study, 10 from series
+            )),
+        )]);
+        let outer_sequence = DataElement::new(
+            some_tag,
+            VR::SQ,
+            Value::from(DataSetSequence::new(
+                smallvec![inner_sequence.clone(), inner_sequence],
+                Length(60), //20 bytes from study, 10 from series
+            )),
+        );
+
+        let original_object = InMemDicomObject::from_element_iter(vec![
+            DataElement::new(tags::SPECIFIC_CHARACTER_SET, VR::CS, "ISO_IR 100"),
+            outer_sequence,
+        ]);
+
+        assert_eq!(
+            original_object
+                .get(some_tag)
+                .expect("object should be present")
+                .length(),
+            Length(60)
+        );
+
+        let mut changed_charset = original_object.clone();
+        changed_charset.convert_to_utf8();
+        assert!(changed_charset.charset_changed);
+
+        use dicom_parser::dataset::DataToken as token;
+        let options = IntoTokensOptions::new(true);
+        let converted_tokens: Vec<_> = changed_charset.into_tokens_with_options(options).collect();
+
+        assert_eq!(
+            vec![
+                token::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0008, 0x0005),
+                    vr: VR::CS,
+                    len: Length(10),
+                }),
+                token::PrimitiveValue("ISO_IR 192".into()),
+                token::SequenceStart {
+                    tag: Tag(0x0018, 0x6011),
+                    len: Length::UNDEFINED,
+                },
+                token::ItemStart {
+                    len: Length::UNDEFINED
+                },
+                token::SequenceStart {
+                    tag: Tag(0x0018, 0x6011),
+                    len: Length::UNDEFINED,
+                },
+                token::ItemStart {
+                    len: Length::UNDEFINED
+                },
+                token::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0008, 0x1030),
+                    vr: VR::SL,
+                    len: Length(22),
+                }),
+                token::PrimitiveValue("MORFOLOGÍA Y FUNCIÓN".into()),
+                token::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0008, 0x103E),
+                    vr: VR::SL,
+                    len: Length(10),
+                }),
+                token::PrimitiveValue("0123456789".into()),
+                token::ItemEnd,
+                token::SequenceEnd,
+                token::ItemEnd,
+                token::ItemStart {
+                    len: Length::UNDEFINED
+                },
+                token::SequenceStart {
+                    tag: Tag(0x0018, 0x6011),
+                    len: Length::UNDEFINED,
+                },
+                token::ItemStart {
+                    len: Length::UNDEFINED
+                },
+                token::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0008, 0x1030),
+                    vr: VR::SL,
+                    len: Length(22),
+                }),
+                token::PrimitiveValue("MORFOLOGÍA Y FUNCIÓN".into()),
+                token::ElementHeader(DataElementHeader {
+                    tag: Tag(0x0008, 0x103E),
+                    vr: VR::SL,
+                    len: Length(10),
+                }),
+                token::PrimitiveValue("0123456789".into()),
+                token::ItemEnd,
+                token::SequenceEnd,
+                token::ItemEnd,
+                token::SequenceEnd,
+            ],
+            converted_tokens
+        );
     }
 }

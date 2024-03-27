@@ -1,7 +1,7 @@
 //! Convertion of DICOM objects into tokens.
 use crate::mem::InMemDicomObject;
 use dicom_core::DataElement;
-use dicom_parser::dataset::{DataToken, IntoTokens};
+use dicom_parser::dataset::{DataToken, IntoTokens, IntoTokensOptions};
 use std::collections::VecDeque;
 
 /// A stream of tokens from a DICOM object.
@@ -12,6 +12,8 @@ pub struct InMemObjectTokens<E> {
     elem_iter: E,
     /// whether the tokens are done
     fused: bool,
+    /// Options to take into account when generating tokens
+    token_options: IntoTokensOptions,
 }
 
 impl<E> InMemObjectTokens<E>
@@ -26,6 +28,19 @@ where
             tokens_pending: Default::default(),
             elem_iter: obj.into_iter(),
             fused: false,
+            token_options: Default::default(),
+        }
+    }
+
+    pub fn new_with_options<T>(obj: T, token_options: IntoTokensOptions) -> Self
+    where
+        T: IntoIterator<IntoIter = E, Item = E::Item>,
+    {
+        InMemObjectTokens {
+            tokens_pending: Default::default(),
+            elem_iter: obj.into_iter(),
+            fused: false,
+            token_options,
         }
     }
 }
@@ -49,8 +64,12 @@ where
 
         // otherwise, expand next element, recurse
         if let Some(elem) = self.elem_iter.next() {
-            // TODO eventually optimize this to be less eager
-            self.tokens_pending = elem.into_tokens().collect();
+            self.tokens_pending = if self.token_options == Default::default() {
+                elem.into_tokens()
+            } else {
+                elem.into_tokens_with_options(self.token_options)
+            }
+            .collect();
 
             self.next()
         } else {
@@ -72,6 +91,12 @@ impl<D> IntoTokens for InMemDicomObject<D> {
     fn into_tokens(self) -> Self::Iter {
         InMemObjectTokens::new(self)
     }
+
+    fn into_tokens_with_options(self, mut options: IntoTokensOptions) -> Self::Iter {
+        //This is required for recursing with the correct option
+        options.force_invalidate_sq_length |= self.charset_changed;
+        InMemObjectTokens::new_with_options(self, options)
+    }
 }
 
 impl<'a, D> IntoTokens for &'a InMemDicomObject<D>
@@ -82,6 +107,12 @@ where
         InMemObjectTokens<std::iter::Cloned<<&'a InMemDicomObject<D> as IntoIterator>::IntoIter>>;
 
     fn into_tokens(self) -> Self::Iter {
-        InMemObjectTokens::new(self.into_iter().cloned())
+        self.into_tokens_with_options(Default::default())
+    }
+
+    fn into_tokens_with_options(self, mut options: IntoTokensOptions) -> Self::Iter {
+        options.force_invalidate_sq_length |= self.charset_changed;
+
+        InMemObjectTokens::new_with_options(self.into_iter().cloned(), options)
     }
 }
