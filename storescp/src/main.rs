@@ -10,7 +10,7 @@ use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject, StandardDataDictionary};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{pdu::PDataValueType, Pdu};
-use snafu::{OptionExt, ResultExt, Whatever};
+use snafu::{OptionExt, Report, ResultExt, Whatever};
 use tracing::{debug, error, info, warn, Level};
 
 use crate::transfer::ABSTRACT_SYNTAXES;
@@ -260,11 +260,15 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
                 }
             }
             Err(err @ dicom_ul::association::server::Error::Receive { .. }) => {
-                debug!("{}", err);
+                if verbose {
+                    info!("{}", Report::from_error(err));
+                } else {
+                    info!("{}", err);
+                }
                 break;
             }
             Err(err) => {
-                warn!("Unexpected error: {}", snafu::Report::from_error(err));
+                warn!("Unexpected error: {}", Report::from_error(err));
                 break;
             }
         }
