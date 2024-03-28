@@ -255,7 +255,7 @@ impl InMemDicomObject<StandardDataDictionary> {
             from,
             StandardDataDictionary,
             ts,
-            SpecificCharacterSet::Default,
+            SpecificCharacterSet::default(),
         )
     }
 }
@@ -372,7 +372,7 @@ where
 
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
-            let cs = SpecificCharacterSet::Default;
+            let cs = SpecificCharacterSet::default();
             let mut dataset =
                 DataSetReader::new_with_ts_cs(file, ts, cs).context(CreateParserSnafu)?;
 
@@ -458,7 +458,7 @@ where
 
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
-            let cs = SpecificCharacterSet::Default;
+            let cs = SpecificCharacterSet::default();
             let mut dataset =
                 DataSetReader::new_with_ts_cs(file, ts, cs).context(CreateParserSnafu)?;
             let obj = InMemDicomObject::build_object(
@@ -597,7 +597,7 @@ where
         S: Read,
         D: DataDictionary,
     {
-        Self::read_dataset_with_dict_ts_cs(from, dict, ts, SpecificCharacterSet::Default)
+        Self::read_dataset_with_dict_ts_cs(from, dict, ts, SpecificCharacterSet::default())
     }
 
     /// Read an object from a source,
@@ -1419,7 +1419,7 @@ where
     where
         W: Write,
     {
-        self.write_dataset_with_ts_cs(to, ts, SpecificCharacterSet::Default)
+        self.write_dataset_with_ts_cs(to, ts, SpecificCharacterSet::default())
     }
 
     /// Encapsulate this object to contain a file meta group
@@ -1791,7 +1791,7 @@ mod tests {
         ];
 
         let decoder = ImplicitVRLittleEndianDecoder::default();
-        let text = SpecificCharacterSet::Default;
+        let text = SpecificCharacterSet::default();
         let mut cursor = &data_in[..];
         let parser = StatefulDecoder::new(
             &mut cursor,
@@ -1823,7 +1823,7 @@ mod tests {
         ];
 
         let ts = TransferSyntaxRegistry.get("1.2.840.10008.1.2").unwrap();
-        let cs = SpecificCharacterSet::Default;
+        let cs = SpecificCharacterSet::default();
         let mut cursor = &data_in[..];
 
         let obj = InMemDicomObject::read_dataset_with_dict_ts_cs(
@@ -1935,7 +1935,7 @@ mod tests {
         let mut out = Vec::new();
 
         let ts = TransferSyntaxRegistry.get("1.2.840.10008.1.2").unwrap();
-        let cs = SpecificCharacterSet::Default;
+        let cs = SpecificCharacterSet::default();
 
         obj.write_dataset_with_ts_cs(&mut out, &ts, cs).unwrap();
 

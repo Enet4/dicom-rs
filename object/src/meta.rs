@@ -54,7 +54,7 @@ pub enum Error {
     /// the text in one of its data elements.
     #[snafu(display("Could not decode text in {}", name))]
     DecodeText {
-        name: &'static str,
+        name: std::borrow::Cow<'static, str>,
         #[snafu(backtrace)]
         source: dicom_encoding::text::DecodeTextError,
     },

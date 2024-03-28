@@ -107,7 +107,7 @@ where
 impl<W, E> DataSetWriter<W, E> {
     pub fn new(to: W, encoder: E) -> Self {
         DataSetWriter {
-            printer: StatefulEncoder::new(to, encoder, SpecificCharacterSet::Default),
+            printer: StatefulEncoder::new(to, encoder, SpecificCharacterSet::default()),
             seq_tokens: Vec::new(),
             last_de: None,
         }

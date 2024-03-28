@@ -449,7 +449,7 @@ mod tests {
             let mut encoder = StatefulEncoder::new(
                 &mut out,
                 EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
-                SpecificCharacterSet::Default,
+                SpecificCharacterSet::default(),
             );
 
             encoder
@@ -484,7 +484,7 @@ mod tests {
             let mut encoder = StatefulEncoder::new(
                 &mut out,
                 EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
-                SpecificCharacterSet::Default,
+                SpecificCharacterSet::default(),
             );
 
             encoder
@@ -520,7 +520,7 @@ mod tests {
             let mut encoder = StatefulEncoder::new(
                 &mut out,
                 EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
-                SpecificCharacterSet::Default,
+                SpecificCharacterSet::default(),
             );
 
             encoder
@@ -551,7 +551,7 @@ mod tests {
             let mut encoder = StatefulEncoder::new(
                 &mut out,
                 EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
-                SpecificCharacterSet::Default,
+                SpecificCharacterSet::default(),
             );
 
             encoder.encode_item_header(9).unwrap();
@@ -578,7 +578,7 @@ mod tests {
             let mut encoder = StatefulEncoder::new(
                 &mut out,
                 EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
-                SpecificCharacterSet::Default,
+                SpecificCharacterSet::default(),
             );
 
             let tm = DicomTime::from_hms_micro(23, 57, 59, 999_999).unwrap();
@@ -643,7 +643,7 @@ mod tests {
         let mut encoder = StatefulEncoder::new(
             &mut sink,
             EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
-            SpecificCharacterSet::Default,
+            SpecificCharacterSet::default(),
         );
 
         // encode specific character set
