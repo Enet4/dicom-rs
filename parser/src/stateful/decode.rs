@@ -1694,10 +1694,10 @@ mod tests {
         );
 
         decoder
-            .set_character_set(SpecificCharacterSet::IsoIr13)
+            .set_decode_character_set(SpecificCharacterSet::IsoIr13)
             .unwrap();
         decoder
-            .set_character_set(SpecificCharacterSet::IsoIr87)
+            .set_decode_character_set(SpecificCharacterSet::IsoIr87)
             .unwrap();
 
         let header =
@@ -1742,10 +1742,10 @@ mod tests {
         );
 
         decoder
-            .set_character_set(SpecificCharacterSet::IsoIr13)
+            .set_decode_character_set(SpecificCharacterSet::IsoIr13)
             .unwrap();
         decoder
-            .set_character_set(SpecificCharacterSet::IsoIr87)
+            .set_decode_character_set(SpecificCharacterSet::IsoIr87)
             .unwrap();
 
         let header =
