@@ -582,7 +582,7 @@ mod tests {
             &mut cursor,
             ImplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder::default(),
-            SpecificCharacterSet::Default,
+            SpecificCharacterSet::default(),
         );
 
         validate_dataset_reader(data, parser, ground_truth)
@@ -597,7 +597,7 @@ mod tests {
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder::default(),
-            SpecificCharacterSet::Default,
+            SpecificCharacterSet::default(),
         );
 
         validate_dataset_reader(&data, parser, ground_truth)
@@ -1166,7 +1166,7 @@ mod tests {
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder::default(),
-            SpecificCharacterSet::Default,
+            SpecificCharacterSet::default(),
         );
         let mut dset_reader = DataSetReader::new(parser, Default::default());
 

@@ -1150,7 +1150,7 @@ mod tests {
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder,
-            SpecificCharacterSet::Default,
+            SpecificCharacterSet::default(),
         );
 
         is_stateful_decoder(&decoder);
@@ -1223,7 +1223,7 @@ mod tests {
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder,
-            SpecificCharacterSet::Default,
+            SpecificCharacterSet::default(),
         );
 
         is_stateful_decoder(&decoder);
@@ -1264,7 +1264,7 @@ mod tests {
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder,
-            SpecificCharacterSet::Default,
+            SpecificCharacterSet::default(),
             128,
         );
 
@@ -1380,7 +1380,7 @@ mod tests {
             &mut cursor,
             ImplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder,
-            SpecificCharacterSet::Default,
+            SpecificCharacterSet::default(),
         );
 
         is_stateful_decoder(&decoder);
@@ -1541,7 +1541,7 @@ mod tests {
             &mut cursor,
             ImplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder,
-            SpecificCharacterSet::Default,
+            SpecificCharacterSet::default(),
         );
 
         is_stateful_decoder(&decoder);
