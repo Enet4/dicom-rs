@@ -30,9 +30,9 @@ num-traits = "0.2.12"
 tracing = "0.1.34"
 
 [dependencies.image]
-version = "0.24.5"
+version = "0.25.1"
 default-features = false
-features = ["jpeg", "png", "pnm", "tiff", "webp", "bmp", "openexr"]
+features = ["jpeg", "png", "pnm", "tiff", "webp", "bmp", "exr"]
 optional = true
 
 [dependencies.clap]
@@ -68,7 +68,7 @@ openjp2 = ["dicom-transfer-syntax-registry/openjp2"]
 # replace pixel data decoding to use GDCM
 gdcm = ["gdcm-rs"]
 # use Rayon for image decoding
-rayon = ["dep:rayon", "image?/jpeg_rayon", "dicom-transfer-syntax-registry/rayon"]
+rayon = ["dep:rayon", "image?/rayon", "dicom-transfer-syntax-registry/rayon"]
 
 # enable command line tools
 cli = ["dep:clap", "dep:tracing-subscriber"]
