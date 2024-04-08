@@ -18,7 +18,10 @@
 //!
 //! [`SpecificCharacterSet`]: ./enum.SpecificCharacterSet.html
 
-use encoding::all::{GB18030, ISO_8859_1, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5, UTF_8};
+use encoding::all::{
+    GB18030, ISO_2022_JP, ISO_8859_1, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5, UTF_8,
+    WINDOWS_31J,
+};
 use encoding::{DecoderTrap, EncoderTrap, Encoding, RawDecoder, StringWriter};
 use snafu::{Backtrace, Snafu};
 use std::borrow::Cow;
@@ -141,6 +144,10 @@ pub enum SpecificCharacterSet {
     IsoIr192,
     /// **GB18030**: The Simplified Chinese character set.
     Gb18030,
+    /// **IsoIr13**: The Simplified Japanese single byte character set.
+    IsoIr13,
+    /// **IsoIr87**: The Simplified Japanese multi byte character set.
+    IsoIr87,
     // Support for more text encodings is tracked in issue #40.
 }
 
@@ -168,6 +175,8 @@ impl SpecificCharacterSet {
             "ISO_IR_144" | "ISO_IR 144" | "ISO 2022 IR 144" => Some(IsoIr144),
             "ISO_IR_192" | "ISO_IR 192" => Some(IsoIr192),
             "GB18030" => Some(Gb18030),
+            "ISO_IR_13" | "ISO 2022 IR 13" => Some(IsoIr13),
+            "ISO_IR_87" | "ISO 2022 IR 87" => Some(IsoIr87),
             _ => None,
         }
     }
@@ -184,6 +193,8 @@ impl TextCodec for SpecificCharacterSet {
             SpecificCharacterSet::IsoIr144 => "ISO_IR 144",
             SpecificCharacterSet::IsoIr192 => "ISO_IR 192",
             SpecificCharacterSet::Gb18030 => "GB18030",
+            SpecificCharacterSet::IsoIr13 => "ISO_IR 13",
+            SpecificCharacterSet::IsoIr87 => "ISO_IR 87",
         }
     }
 
@@ -197,6 +208,8 @@ impl TextCodec for SpecificCharacterSet {
             SpecificCharacterSet::IsoIr144 => IsoIr144CharacterSetCodec.decode(text),
             SpecificCharacterSet::IsoIr192 => Utf8CharacterSetCodec.decode(text),
             SpecificCharacterSet::Gb18030 => Gb18030CharacterSetCodec.decode(text),
+            SpecificCharacterSet::IsoIr13 => IsoIr13CharacterSetCodec.decode(text),
+            SpecificCharacterSet::IsoIr87 => IsoIr87CharacterSetCodec.decode(text),
         }
     }
 
@@ -210,6 +223,8 @@ impl TextCodec for SpecificCharacterSet {
             SpecificCharacterSet::IsoIr144 => IsoIr144CharacterSetCodec.encode(text),
             SpecificCharacterSet::IsoIr192 => Utf8CharacterSetCodec.encode(text),
             SpecificCharacterSet::Gb18030 => Gb18030CharacterSetCodec.encode(text),
+            SpecificCharacterSet::IsoIr13 => IsoIr13CharacterSetCodec.encode(text),
+            SpecificCharacterSet::IsoIr87 => IsoIr87CharacterSetCodec.encode(text),
         }
     }
 }
@@ -288,6 +303,8 @@ decl_character_set!(IsoIr110CharacterSetCodec, "ISO_IR 110", ISO_8859_4);
 decl_character_set!(IsoIr144CharacterSetCodec, "ISO_IR 144", ISO_8859_5);
 decl_character_set!(Utf8CharacterSetCodec, "ISO_IR 192", UTF_8);
 decl_character_set!(Gb18030CharacterSetCodec, "GB18030", GB18030);
+decl_character_set!(IsoIr13CharacterSetCodec, "ISO_IR_13", WINDOWS_31J);
+decl_character_set!(IsoIr87CharacterSetCodec, "ISO_IR_87", ISO_2022_JP);
 
 /// The result of a text validation procedure (please see [`validate_iso_8859`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -407,5 +424,18 @@ mod tests {
             "Иванков^Андрей",
             b"\xb8\xd2\xd0\xdd\xda\xde\xd2^\xb0\xdd\xd4\xe0\xd5\xd9",
         );
+    }
+
+    #[test]
+    fn iso_ir_13_baseline() {
+        let codec = SpecificCharacterSet::IsoIr13;
+        test_codec(codec, "ﾔﾏﾀﾞ^ﾀﾛｳ", b"\xd4\xcf\xc0\xde^\xc0\xdb\xb3");
+    }
+
+    #[test]
+    fn iso_ir_87_baseline() {
+        let codec = SpecificCharacterSet::IsoIr87;
+        test_codec(codec, "山田^太郎", b"\x1b$B;3ED\x1b(B^\x1b$BB@O:");
+        test_codec(codec, "やまだ^たろう", b"\x1b$B$d$^$@\x1b(B^\x1b$B$?$m$&");
     }
 }
