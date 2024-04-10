@@ -81,7 +81,7 @@ where
                 },
             ) = e;
             if bulk_data_uri.is_some() {
-                tracing::warn!("bulk data URI is not supported for InMemDicomObject");
+                tracing::warn!("bulk data URI is not supported for InMemDicomObject; skipping {}", tag);
             } else {
                 obj.put(DataElement::new(tag, vr, value));
             }
@@ -109,7 +109,7 @@ where
 struct JsonDataElement<D> {
     vr: VR,
     value: Value<InMemDicomObject<D>, InMemFragment>,
-    // TODO: we just ignore this when deserializing with
+    // TODO(#470): we just ignore this when deserializing with
     // DicomJson<InMemDicomObject>
     // Handle this properly with a custom deserializer
     bulk_data_uri: Option<BulkDataUri>,
