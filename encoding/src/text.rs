@@ -1,22 +1,26 @@
 //! This module contains reusable components for encoding and decoding text in DICOM
 //! data structures, including support for character repertoires.
 //!
-//! The Character Repertoires supported by DICOM are:
-//! - ISO 8859
-//! - JIS X 0201-1976 Code for Information Interchange
-//! - JIS X 0208-1990 Code for the Japanese Graphic Character set for information interchange
-//! - JIS X 0212-1990 Code of the supplementary Japanese Graphic Character set for information interchange
-//! - KS X 1001 (registered as ISO-IR 149) for Korean Language
-//! - TIS 620-2533 (1990) Thai Characters Code for Information Interchange
-//! - ISO 10646-1, 10646-2, and their associated supplements and extensions for Unicode character set
-//! - GB 18030
-//! - GB2312
+//! At the moment the following character sets are supported:
 //!
-//! At the moment, text encoding support is limited.
-//! Please see [`SpecificCharacterSet`] for a complete enumeration
-//! of all supported text encodings.
+//! | Character Set                 | decoding support | encoding support |
+//! |-------------------------------|------------------|------------------|
+//! | ISO-IR 6 (default)            | ✓ | ✓ |
+//! | ISO-IR 100 (ISO-8859-1): Right-hand part of the Latin alphabet no. 1, the Western Europe character set | ✓ | ✓ |
+//! | ISO-IR 101 (ISO-8859-2): Right-hand part of the Latin alphabet no. 2, the Central/Eastern Europe character set | ✓ | ✓ |
+//! | ISO-IR 109 (ISO-8859-3): Right-hand part of the Latin alphabet no. 3, the South Europe character set | ✓ | ✓ |
+//! | ISO-IR 110 (ISO-8859-4): Right-hand part of the Latin alphabet no. 4, the North Europe character set | ✓ | ✓ |
+//! | ISO-IR 144 (ISO-8859-5): The Latin/Cyrillic character set | ✓ | ✓ |
+//! | ISO-IR 192: The Unicode character set based on the UTF-8 encoding | ✓ | ✓ |
+//! | GB18030: The Simplified Chinese character set | ✓ | ✓ |
+//! | JIS X 0201-1976: Code for Information Interchange | x | x |
+//! | JIS X 0208-1990: Code for the Japanese Graphic Character set for information interchange | x | x |
+//! | JIS X 0212-1990: Code of the supplementary Japanese Graphic Character set for information interchange | x | x |
+//! | KS X 1001 (registered as ISO-IR 149) for Korean Language | x | x |
+//! | TIS 620-2533 (1990) Thai Characters Code for Information Interchange | x | x |
+//! | GB2312: Simplified Chinese character set | x | x |
 //!
-//! [`SpecificCharacterSet`]: ./enum.SpecificCharacterSet.html
+//! These capabilities are available through [`SpecificCharacterSet`].
 
 use encoding::all::{GB18030, ISO_8859_1, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5, UTF_8};
 use encoding::{DecoderTrap, EncoderTrap, Encoding, RawDecoder, StringWriter};
@@ -119,6 +123,19 @@ where
 /// A descriptor for a specific character set,
 /// taking part in text encoding and decoding
 /// as per [PS3.5 ch 6 6.1](https://dicom.nema.org/medical/dicom/2023e/output/chtml/part05/chapter_6.html#sect_6.1).
+/// 
+/// # Example
+///
+/// Use [`from_code`](SpecificCharacterSet::from_code)
+/// or one of the associated constants to create a character set.
+/// From there, use the [`TextCodec`] trait to encode and decode text.
+/// 
+/// ```
+/// use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
+///
+/// let character_set = SpecificCharacterSet::from_code("ISO_IR 100").unwrap();
+/// assert_eq!(character_set, SpecificCharacterSet::ISO_IR_100);
+/// ```
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct SpecificCharacterSet(CharsetImpl);
 
@@ -126,7 +143,10 @@ impl SpecificCharacterSet {
     /// ISO IR 6: The default character set, as defined by the DICOM standard.
     pub const ISO_IR_6: SpecificCharacterSet = SpecificCharacterSet(CharsetImpl::Default);
 
-    /// ISO IR 100: UTF-8 encoding
+    // ISO IR 100: ISO 8859-1, the Western Europe character set
+    pub const ISO_IR_100: SpecificCharacterSet = SpecificCharacterSet(CharsetImpl::IsoIr100);
+
+    /// ISO IR 192: UTF-8 encoding
     pub const ISO_IR_192: SpecificCharacterSet = SpecificCharacterSet(CharsetImpl::IsoIr192);
 
     /// Obtain the specific character set identified by the given code string.
