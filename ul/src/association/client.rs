@@ -295,6 +295,9 @@ impl<'a> ClientAssociationOptions<'a> {
             self.username = None;
         } else {
             self.username = Some(username);
+            self.saml_assertion = None;
+            self.jwt = None;
+            self.kerberos_service_ticket = None;
         }
         self
     }
@@ -309,6 +312,30 @@ impl<'a> ClientAssociationOptions<'a> {
             self.password = None;
         } else {
             self.password = Some(password);
+            self.saml_assertion = None;
+            self.jwt = None;
+            self.kerberos_service_ticket = None;
+        }
+        self
+    }
+
+    /// Sets the user identity username and password
+    pub fn username_password<T, U>(mut self, username: T, password: U) -> Self
+    where
+        T: Into<Cow<'a, str>>,
+        U: Into<Cow<'a, str>>,
+    {
+        let username = username.into();
+        let password = password.into();
+        if username.is_empty() {
+            self.username = None;
+            self.password = None;
+        } else {
+            self.username = Some(username);
+            self.password = Some(password);
+            self.saml_assertion = None;
+            self.jwt = None;
+            self.kerberos_service_ticket = None;
         }
         self
     }
@@ -323,6 +350,10 @@ impl<'a> ClientAssociationOptions<'a> {
             self.kerberos_service_ticket = None;
         } else {
             self.kerberos_service_ticket = Some(kerberos_service_ticket);
+            self.username = None;
+            self.password = None;
+            self.saml_assertion = None;
+            self.jwt = None;
         }
         self
     }
@@ -337,6 +368,10 @@ impl<'a> ClientAssociationOptions<'a> {
             self.saml_assertion = None;
         } else {
             self.saml_assertion = Some(saml_assertion);
+            self.username = None;
+            self.password = None;
+            self.jwt = None;
+            self.kerberos_service_ticket = None;
         }
         self
     }
@@ -351,6 +386,10 @@ impl<'a> ClientAssociationOptions<'a> {
             self.jwt = None;
         } else {
             self.jwt = Some(jwt);
+            self.username = None;
+            self.password = None;
+            self.saml_assertion = None;
+            self.kerberos_service_ticket = None;
         }
         self
     }
@@ -579,18 +618,16 @@ impl<'a> ClientAssociationOptions<'a> {
     where
         T: Into<Cow<'a, str>>,
     {
-        let mut result: Option<UserIdentity> = None;
-
         if let Some(username) = username {
             if let Some(password) = password {
-                result = Some(UserIdentity::new(
+                return Some(UserIdentity::new(
                     false,
                     UserIdentityType::UsernamePassword,
                     username.into().as_bytes().to_vec(),
                     password.into().as_bytes().to_vec(),
                 ));
             } else {
-                result = Some(UserIdentity::new(
+                return Some(UserIdentity::new(
                     false,
                     UserIdentityType::Username,
                     username.into().as_bytes().to_vec(),
@@ -600,7 +637,7 @@ impl<'a> ClientAssociationOptions<'a> {
         }
 
         if let Some(kerberos_service_ticket) = kerberos_service_ticket {
-            result = Some(UserIdentity::new(
+            return Some(UserIdentity::new(
                 false,
                 UserIdentityType::KerberosServiceTicket,
                 kerberos_service_ticket.into().as_bytes().to_vec(),
@@ -609,7 +646,7 @@ impl<'a> ClientAssociationOptions<'a> {
         }
 
         if let Some(saml_assertion) = saml_assertion {
-            result = Some(UserIdentity::new(
+            return Some(UserIdentity::new(
                 false,
                 UserIdentityType::SamlAssertion,
                 saml_assertion.into().as_bytes().to_vec(),
@@ -618,7 +655,7 @@ impl<'a> ClientAssociationOptions<'a> {
         }
 
         if let Some(jwt) = jwt {
-            result = Some(UserIdentity::new(
+            return Some(UserIdentity::new(
                 false,
                 UserIdentityType::Jwt,
                 jwt.into().as_bytes().to_vec(),
@@ -626,7 +663,7 @@ impl<'a> ClientAssociationOptions<'a> {
             ));
         }
 
-        result
+        None
     }
 }
 
@@ -707,7 +744,7 @@ impl ClientAssociation {
         let _ = self.socket.shutdown(std::net::Shutdown::Both);
         out
     }
-    
+
     /// Send an abort message and shut down the TCP connection,
     /// terminating the association.
     pub fn abort(mut self) -> Result<()> {
