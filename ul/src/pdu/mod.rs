@@ -356,7 +356,7 @@ pub enum Pdu {
 impl Pdu {
     /// Provide a short description of the PDU.
     pub fn short_description(&self) -> impl std::fmt::Display + '_ {
-        PduShortDescription(&self)
+        PduShortDescription(self)
     }
 }
 
