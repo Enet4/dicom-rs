@@ -70,7 +70,7 @@ fn term_to_value(tag: Tag, txt_value: &str) -> Result<PrimitiveValue, Whatever> 
     let vr = {
         StandardDataDictionary
             .by_tag(tag)
-            .map(|e| e.vr)
+            .and_then(|e| e.vr.exact())
             .unwrap_or(VR::LO)
     };
     let value = match vr {

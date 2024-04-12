@@ -2,11 +2,13 @@
 //! which also supports text decoding.
 
 use crate::util::n_times;
+use dicom_core::dictionary::VirtualVr;
 use dicom_core::header::{DataElementHeader, HasLength, Length, SequenceItemHeader, Tag, VR};
 use dicom_core::value::deserialize::{
     parse_date_partial, parse_datetime_partial, parse_time_partial,
 };
 use dicom_core::value::PrimitiveValue;
+use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
 use dicom_encoding::decode::explicit_le::ExplicitVRLittleEndianDecoder;
 use dicom_encoding::decode::{BasicDecode, DecodeFrom};
@@ -1076,20 +1078,10 @@ where
     /// Returns `Some(VR::SS)` if the vr needs to be modified to SS. Returns `None`
     /// if this element is not affected _or_ if we have Unsigned Pixel Representation.
     fn determine_vr_based_on_pixel_representation(&self, tag: Tag) -> Option<VR> {
-        static TAGS_PIXEL_VALUE_VR: &[Tag] = &[
-            Tag(0x0028, 0x0106), // SmallestImagePixelValue
-            Tag(0x0028, 0x0107), // LargestImagePixelValue
-            Tag(0x0028, 0x0108), // SmallestPixelValueInSeries
-            Tag(0x0028, 0x0109), // LargestPixelValueInSeries
-            Tag(0x0028, 0x0120), // PixelPaddingValue
-            Tag(0x0028, 0x0121), // PixelPaddingRangeLimit
-            Tag(0x0028, 0x1101), // RedPaletteColorLookupTableDescriptor
-            Tag(0x0028, 0x1102), // GreenPaletteColorLookupTableDescriptor
-            Tag(0x0028, 0x1103), // BluePaletteColorLookupTableDescriptor
-        ];
+        use dicom_core::dictionary::DataDictionary;
 
-        if matches!(self.signed_pixeldata, Some(true))
-            && TAGS_PIXEL_VALUE_VR.binary_search(&tag).is_ok()
+        if self.signed_pixeldata == Some(true)
+            && StandardDataDictionary.by_tag(tag).map(|e| e.vr) == Some(VirtualVr::Xs)
         {
             Some(VR::SS)
         } else {
