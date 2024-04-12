@@ -1,22 +1,26 @@
 //! This module contains reusable components for encoding and decoding text in DICOM
 //! data structures, including support for character repertoires.
 //!
-//! The Character Repertoires supported by DICOM are:
-//! - ISO 8859
-//! - JIS X 0201-1976 Code for Information Interchange
-//! - JIS X 0208-1990 Code for the Japanese Graphic Character set for information interchange
-//! - JIS X 0212-1990 Code of the supplementary Japanese Graphic Character set for information interchange
-//! - KS X 1001 (registered as ISO-IR 149) for Korean Language
-//! - TIS 620-2533 (1990) Thai Characters Code for Information Interchange
-//! - ISO 10646-1, 10646-2, and their associated supplements and extensions for Unicode character set
-//! - GB 18030
-//! - GB2312
+//! At the moment the following character sets are supported:
 //!
-//! At the moment, text encoding support is limited.
-//! Please see [`SpecificCharacterSet`] for a complete enumeration
-//! of all supported text encodings.
+//! | Character Set                 | decoding support | encoding support |
+//! |-------------------------------|------------------|------------------|
+//! | ISO-IR 6 (default)            | ✓ | ✓ |
+//! | ISO-IR 100 (ISO-8859-1): Right-hand part of the Latin alphabet no. 1, the Western Europe character set | ✓ | ✓ |
+//! | ISO-IR 101 (ISO-8859-2): Right-hand part of the Latin alphabet no. 2, the Central/Eastern Europe character set | ✓ | ✓ |
+//! | ISO-IR 109 (ISO-8859-3): Right-hand part of the Latin alphabet no. 3, the South Europe character set | ✓ | ✓ |
+//! | ISO-IR 110 (ISO-8859-4): Right-hand part of the Latin alphabet no. 4, the North Europe character set | ✓ | ✓ |
+//! | ISO-IR 144 (ISO-8859-5): The Latin/Cyrillic character set | ✓ | ✓ |
+//! | ISO-IR 192: The Unicode character set based on the UTF-8 encoding | ✓ | ✓ |
+//! | GB18030: The Simplified Chinese character set | ✓ | ✓ |
+//! | JIS X 0201-1976: Code for Information Interchange | x | x |
+//! | JIS X 0208-1990: Code for the Japanese Graphic Character set for information interchange | x | x |
+//! | JIS X 0212-1990: Code of the supplementary Japanese Graphic Character set for information interchange | x | x |
+//! | KS X 1001 (registered as ISO-IR 149) for Korean Language | x | x |
+//! | TIS 620-2533 (1990) Thai Characters Code for Information Interchange | x | x |
+//! | GB2312: Simplified Chinese character set | x | x |
 //!
-//! [`SpecificCharacterSet`]: ./enum.SpecificCharacterSet.html
+//! These capabilities are available through [`SpecificCharacterSet`].
 
 use encoding::all::{GB18030, ISO_8859_1, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5, UTF_8};
 use encoding::{DecoderTrap, EncoderTrap, Encoding, RawDecoder, StringWriter};
@@ -69,7 +73,7 @@ pub trait TextCodec {
     /// Should contain no leading or trailing spaces.
     /// This method may be useful for testing purposes, considering that
     /// `TextCodec` is often used as a trait object.
-    fn name(&self) -> &'static str;
+    fn name(&self) -> Cow<'static, str>;
 
     /// Decode the given byte buffer as a single string. The resulting string
     /// _may_ contain backslash characters ('\') to delimit individual values,
@@ -86,7 +90,7 @@ impl<T: ?Sized> TextCodec for Box<T>
 where
     T: TextCodec,
 {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> Cow<'static, str> {
         self.as_ref().name()
     }
 
@@ -103,7 +107,7 @@ impl<'a, T: ?Sized> TextCodec for &'a T
 where
     T: TextCodec,
 {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> Cow<'static, str> {
         (**self).name()
     }
 
@@ -116,10 +120,71 @@ where
     }
 }
 
-/// An enum type for all currently supported character sets.
+/// A descriptor for a specific character set,
+/// taking part in text encoding and decoding
+/// as per [PS3.5 ch 6 6.1](https://dicom.nema.org/medical/dicom/2023e/output/chtml/part05/chapter_6.html#sect_6.1).
+/// 
+/// # Example
+///
+/// Use [`from_code`](SpecificCharacterSet::from_code)
+/// or one of the associated constants to create a character set.
+/// From there, use the [`TextCodec`] trait to encode and decode text.
+/// 
+/// ```
+/// use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
+///
+/// let character_set = SpecificCharacterSet::from_code("ISO_IR 100").unwrap();
+/// assert_eq!(character_set, SpecificCharacterSet::ISO_IR_100);
+/// ```
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct SpecificCharacterSet(CharsetImpl);
+
+impl SpecificCharacterSet {
+    /// ISO IR 6: The default character set, as defined by the DICOM standard.
+    pub const ISO_IR_6: SpecificCharacterSet = SpecificCharacterSet(CharsetImpl::Default);
+
+    // ISO IR 100: ISO 8859-1, the Western Europe character set
+    pub const ISO_IR_100: SpecificCharacterSet = SpecificCharacterSet(CharsetImpl::IsoIr100);
+
+    /// ISO IR 192: UTF-8 encoding
+    pub const ISO_IR_192: SpecificCharacterSet = SpecificCharacterSet(CharsetImpl::IsoIr192);
+
+    /// Obtain the specific character set identified by the given code string.
+    ///
+    /// Supported code strings include the possible values
+    /// in the respective DICOM element (0008, 0005).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
+    ///
+    /// let character_set = SpecificCharacterSet::from_code("ISO_IR 100").unwrap();
+    /// assert_eq!(character_set.name(), "ISO_IR 100");
+    /// ```
+    pub fn from_code(code: &str) -> Option<Self> {
+        CharsetImpl::from_code(code).map(SpecificCharacterSet)
+    }
+}
+
+impl TextCodec for SpecificCharacterSet {
+    fn name(&self) -> Cow<'static, str> {
+        self.0.name()
+    }
+
+    fn decode(&self, text: &[u8]) -> DecodeResult<String> {
+        self.0.decode(text)
+    }
+
+    fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
+        self.0.encode(text)
+    }
+}
+
+/// An enum type for individual supported character sets.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 #[non_exhaustive]
-pub enum SpecificCharacterSet {
+enum CharsetImpl {
     /// **ISO-IR 6**: the default character set.
     #[default]
     Default,
@@ -144,21 +209,13 @@ pub enum SpecificCharacterSet {
     // Support for more text encodings is tracked in issue #40.
 }
 
-impl SpecificCharacterSet {
+impl CharsetImpl {
     /// Obtain the specific character set identified by the given code string.
     ///
     /// Supported code strings include the possible values
     /// in the respective DICOM element (0008, 0005).
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use dicom_encoding::text::SpecificCharacterSet;
-    /// let character_set = SpecificCharacterSet::from_code("ISO_IR 100");
-    /// assert_eq!(character_set, Some(SpecificCharacterSet::IsoIr100));
-    /// ```
     pub fn from_code(uid: &str) -> Option<Self> {
-        use self::SpecificCharacterSet::*;
+        use self::CharsetImpl::*;
         match uid.trim_end() {
             "Default" | "ISO_IR_6" | "ISO_IR 6" | "ISO 2022 IR 6" => Some(Default),
             "ISO_IR_100" | "ISO_IR 100" | "ISO 2022 IR 100" => Some(IsoIr100),
@@ -173,43 +230,43 @@ impl SpecificCharacterSet {
     }
 }
 
-impl TextCodec for SpecificCharacterSet {
-    fn name(&self) -> &'static str {
-        match self {
-            SpecificCharacterSet::Default => "ISO_IR 6",
-            SpecificCharacterSet::IsoIr100 => "ISO_IR 100",
-            SpecificCharacterSet::IsoIr101 => "ISO_IR 101",
-            SpecificCharacterSet::IsoIr109 => "ISO_IR 109",
-            SpecificCharacterSet::IsoIr110 => "ISO_IR 110",
-            SpecificCharacterSet::IsoIr144 => "ISO_IR 144",
-            SpecificCharacterSet::IsoIr192 => "ISO_IR 192",
-            SpecificCharacterSet::Gb18030 => "GB18030",
-        }
+impl TextCodec for CharsetImpl {
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed(match self {
+            CharsetImpl::Default => "ISO_IR 6",
+            CharsetImpl::IsoIr100 => "ISO_IR 100",
+            CharsetImpl::IsoIr101 => "ISO_IR 101",
+            CharsetImpl::IsoIr109 => "ISO_IR 109",
+            CharsetImpl::IsoIr110 => "ISO_IR 110",
+            CharsetImpl::IsoIr144 => "ISO_IR 144",
+            CharsetImpl::IsoIr192 => "ISO_IR 192",
+            CharsetImpl::Gb18030 => "GB18030",
+        })
     }
 
     fn decode(&self, text: &[u8]) -> DecodeResult<String> {
         match self {
-            SpecificCharacterSet::Default => DefaultCharacterSetCodec.decode(text),
-            SpecificCharacterSet::IsoIr100 => IsoIr100CharacterSetCodec.decode(text),
-            SpecificCharacterSet::IsoIr101 => IsoIr101CharacterSetCodec.decode(text),
-            SpecificCharacterSet::IsoIr109 => IsoIr109CharacterSetCodec.decode(text),
-            SpecificCharacterSet::IsoIr110 => IsoIr110CharacterSetCodec.decode(text),
-            SpecificCharacterSet::IsoIr144 => IsoIr144CharacterSetCodec.decode(text),
-            SpecificCharacterSet::IsoIr192 => Utf8CharacterSetCodec.decode(text),
-            SpecificCharacterSet::Gb18030 => Gb18030CharacterSetCodec.decode(text),
+            CharsetImpl::Default => DefaultCharacterSetCodec.decode(text),
+            CharsetImpl::IsoIr100 => IsoIr100CharacterSetCodec.decode(text),
+            CharsetImpl::IsoIr101 => IsoIr101CharacterSetCodec.decode(text),
+            CharsetImpl::IsoIr109 => IsoIr109CharacterSetCodec.decode(text),
+            CharsetImpl::IsoIr110 => IsoIr110CharacterSetCodec.decode(text),
+            CharsetImpl::IsoIr144 => IsoIr144CharacterSetCodec.decode(text),
+            CharsetImpl::IsoIr192 => Utf8CharacterSetCodec.decode(text),
+            CharsetImpl::Gb18030 => Gb18030CharacterSetCodec.decode(text),
         }
     }
 
     fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
         match self {
-            SpecificCharacterSet::Default => DefaultCharacterSetCodec.encode(text),
-            SpecificCharacterSet::IsoIr100 => IsoIr100CharacterSetCodec.encode(text),
-            SpecificCharacterSet::IsoIr101 => IsoIr101CharacterSetCodec.encode(text),
-            SpecificCharacterSet::IsoIr109 => IsoIr109CharacterSetCodec.encode(text),
-            SpecificCharacterSet::IsoIr110 => IsoIr110CharacterSetCodec.encode(text),
-            SpecificCharacterSet::IsoIr144 => IsoIr144CharacterSetCodec.encode(text),
-            SpecificCharacterSet::IsoIr192 => Utf8CharacterSetCodec.encode(text),
-            SpecificCharacterSet::Gb18030 => Gb18030CharacterSetCodec.encode(text),
+            CharsetImpl::Default => DefaultCharacterSetCodec.encode(text),
+            CharsetImpl::IsoIr100 => IsoIr100CharacterSetCodec.encode(text),
+            CharsetImpl::IsoIr101 => IsoIr101CharacterSetCodec.encode(text),
+            CharsetImpl::IsoIr109 => IsoIr109CharacterSetCodec.encode(text),
+            CharsetImpl::IsoIr110 => IsoIr110CharacterSetCodec.encode(text),
+            CharsetImpl::IsoIr144 => IsoIr144CharacterSetCodec.encode(text),
+            CharsetImpl::IsoIr192 => Utf8CharacterSetCodec.encode(text),
+            CharsetImpl::Gb18030 => Gb18030CharacterSetCodec.encode(text),
         }
     }
 }
@@ -240,8 +297,8 @@ macro_rules! decl_character_set {
         pub struct $typ;
 
         impl TextCodec for $typ {
-            fn name(&self) -> &'static str {
-                $term
+            fn name(&self) -> Cow<'static, str> {
+                Cow::Borrowed($term)
             }
 
             fn decode(&self, text: &[u8]) -> DecodeResult<String> {
@@ -262,8 +319,8 @@ macro_rules! decl_character_set {
 pub struct DefaultCharacterSetCodec;
 
 impl TextCodec for DefaultCharacterSetCodec {
-    fn name(&self) -> &'static str {
-        "ISO_IR 6"
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed("ISO_IR 6")
     }
 
     fn decode(&self, text: &[u8]) -> DecodeResult<String> {
@@ -375,33 +432,33 @@ mod tests {
 
     #[test]
     fn iso_ir_6_baseline() {
-        let codec = SpecificCharacterSet::Default;
+        let codec = SpecificCharacterSet::default();
         test_codec(codec, "Smith^John", b"Smith^John");
     }
 
     #[test]
     fn iso_ir_192_baseline() {
-        let codec = SpecificCharacterSet::IsoIr192;
+        let codec = SpecificCharacterSet::ISO_IR_192;
         test_codec(&codec, "Simões^John", "Simões^John".as_bytes());
         test_codec(codec, "Иванков^Андрей", "Иванков^Андрей".as_bytes());
     }
 
     #[test]
     fn iso_ir_100_baseline() {
-        let codec = SpecificCharacterSet::IsoIr100;
+        let codec = SpecificCharacterSet(CharsetImpl::IsoIr100);
         test_codec(&codec, "Simões^João", b"Sim\xF5es^Jo\xE3o");
         test_codec(codec, "Günther^Hans", b"G\xfcnther^Hans");
     }
 
     #[test]
     fn iso_ir_101_baseline() {
-        let codec = SpecificCharacterSet::IsoIr101;
+        let codec = SpecificCharacterSet(CharsetImpl::IsoIr101);
         test_codec(codec, "Günther^Hans", b"G\xfcnther^Hans");
     }
 
     #[test]
     fn iso_ir_144_baseline() {
-        let codec = SpecificCharacterSet::IsoIr144;
+        let codec = SpecificCharacterSet(CharsetImpl::IsoIr144);
         test_codec(
             codec,
             "Иванков^Андрей",
