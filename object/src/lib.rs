@@ -152,7 +152,7 @@ pub type DefaultDicomObject<D = StandardDataDictionary> = FileDicomObject<mem::I
 
 use dicom_core::header::Header;
 use dicom_encoding::adapters::{PixelDataObject, RawPixelData};
-use dicom_encoding::{text::SpecificCharacterSet, transfer_syntax::TransferSyntaxIndex};
+use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use smallvec::SmallVec;
