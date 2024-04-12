@@ -372,9 +372,8 @@ where
 
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
-            let cs = SpecificCharacterSet::default();
             let mut dataset =
-                DataSetReader::new_with_ts_cs(file, ts, cs).context(CreateParserSnafu)?;
+                DataSetReader::new_with_ts(file, ts).context(CreateParserSnafu)?;
 
             Ok(FileDicomObject {
                 meta,
@@ -458,9 +457,8 @@ where
 
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
-            let cs = SpecificCharacterSet::default();
             let mut dataset =
-                DataSetReader::new_with_ts_cs(file, ts, cs).context(CreateParserSnafu)?;
+                DataSetReader::new_with_ts(file, ts).context(CreateParserSnafu)?;
             let obj = InMemDicomObject::build_object(
                 &mut dataset,
                 dict,
@@ -1387,6 +1385,7 @@ where
     ///
     /// If the attribute _Specific Character Set_ is found in the data set,
     /// the last parameter is overridden accordingly.
+    /// See also [`write_dataset_with_ts`](Self::write_dataset_with_ts).
     pub fn write_dataset_with_ts_cs<W>(
         &self,
         to: W,
@@ -1427,6 +1426,9 @@ where
     ///
     /// **Note:** this method will not adjust the file meta group
     /// to be semantically valid for the object.
+    /// Namely, the _Media Storage SOP Instance UID_
+    /// and _Media Storage SOP Class UID_
+    /// are not updated based on the receiving data set.
     pub fn with_exact_meta(self, meta: FileMetaTable) -> FileDicomObject<Self> {
         FileDicomObject { meta, obj: self }
     }

@@ -424,8 +424,7 @@ where
             .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             })?;
-        let cs = SpecificCharacterSet::default();
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
+        let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
 
         // We use the default options, because only the inner object knows if something needs to change
         dset_writer
@@ -457,8 +456,7 @@ where
             .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             })?;
-        let cs = SpecificCharacterSet::default();
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
+        let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
 
         // We use the default options, because only the inner object knows if something needs to change
         dset_writer
@@ -488,8 +486,7 @@ where
             .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             })?;
-        let cs = SpecificCharacterSet::default();
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
+        let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
 
         // write object
         dset_writer
