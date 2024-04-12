@@ -152,7 +152,7 @@ pub type DefaultDicomObject<D = StandardDataDictionary> = FileDicomObject<mem::I
 
 use dicom_core::header::Header;
 use dicom_encoding::adapters::{PixelDataObject, RawPixelData};
-use dicom_encoding::{text::SpecificCharacterSet, transfer_syntax::TransferSyntaxIndex};
+use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use smallvec::SmallVec;
@@ -424,8 +424,7 @@ where
             .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             })?;
-        let cs = SpecificCharacterSet::default();
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
+        let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
 
         // We use the default options, because only the inner object knows if something needs to change
         dset_writer
@@ -457,8 +456,7 @@ where
             .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             })?;
-        let cs = SpecificCharacterSet::default();
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
+        let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
 
         // We use the default options, because only the inner object knows if something needs to change
         dset_writer
@@ -488,8 +486,7 @@ where
             .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             })?;
-        let cs = SpecificCharacterSet::default();
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
+        let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
 
         // write object
         dset_writer

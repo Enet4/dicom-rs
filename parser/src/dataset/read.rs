@@ -171,8 +171,23 @@ pub struct DataSetReader<S> {
 }
 
 impl<R> DataSetReader<DynStatefulDecoder<R>> {
-    /// Create a new iterator with the given byte source,
-    /// while considering the given transfer syntax and specific character set.
+    /// Create a new data set token reader with the given byte source,
+    /// while considering the given transfer syntax specifier.
+    #[inline]
+    pub fn new_with_ts(source: R, ts: &TransferSyntax) -> Result<Self>
+    where
+        R: Read,
+    {
+        Self::new_with_ts_cs_options(source, ts, Default::default(), Default::default())
+    }
+
+    /// Create a new data set token reader with the given byte source,
+    /// while considering the given transfer syntax specifier
+    /// and the specific character set to assume by default.
+    ///
+    /// Note that the data set being read
+    /// can override the character set with the presence of a
+    /// _Specific Character Set_ data element.
     #[inline]
     pub fn new_with_ts_cs(source: R, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
     where
