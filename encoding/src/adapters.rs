@@ -150,6 +150,11 @@ pub trait PixelDataObject {
     /// Return the _Bits Stored_, or `None` if it is not defined
     fn bits_stored(&self) -> Option<u16>;
 
+    /// Return the _Photometric Interpretation_,
+    /// with trailing whitespace removed,
+    /// or `None` if it is not defined
+    fn photometric_interpretation(&self) -> Option<&str>;
+
     /// Return the _Number Of Frames_, or `None` if it is not defined
     fn number_of_frames(&self) -> Option<u32>;
 

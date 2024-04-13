@@ -16,6 +16,7 @@ pub(crate) struct TestDataObject {
     pub bits_allocated: u16,
     pub bits_stored: u16,
     pub samples_per_pixel: u16,
+    pub photometric_interpretation: &'static str,
     pub number_of_frames: u32,
     pub flat_pixel_data: Option<Vec<u8>>,
     pub pixel_data_sequence: Option<PixelFragmentSequence<InMemFragment>>,
@@ -44,6 +45,10 @@ impl PixelDataObject for TestDataObject {
 
     fn bits_stored(&self) -> Option<u16> {
         Some(self.bits_stored)
+    }
+
+    fn photometric_interpretation(&self) -> Option<&str> {
+        Some(&self.photometric_interpretation)
     }
 
     fn number_of_frames(&self) -> Option<u32> {
