@@ -957,7 +957,7 @@ where
                 AttributeSelectorStep::Nested { tag, item } => {
                     let e = obj
                         .entries
-                        .get(&tag)
+                        .get(tag)
                         .with_context(|| crate::MissingSequenceSnafu {
                             selector: selector.clone(),
                             step_index: i as u32,
@@ -1005,7 +1005,7 @@ where
         &self,
         selector: impl Into<AttributeSelector>,
     ) -> Result<&InMemElement<D>, AtAccessError> {
-        let selector = selector.into();
+        let selector: AttributeSelector = selector.into();
 
         let mut obj = self;
         for (i, step) in selector.iter().enumerate() {
@@ -1054,7 +1054,7 @@ where
         &mut self,
         selector: impl Into<AttributeSelector>,
     ) -> Result<&mut InMemElement<D>, AtAccessError> {
-        let selector = selector.into();
+        let selector: AttributeSelector = selector.into();
 
         let mut obj = self;
         for (i, step) in selector.iter().enumerate() {
