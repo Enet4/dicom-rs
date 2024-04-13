@@ -9,7 +9,6 @@ use std::{
 
 use clap::Parser;
 use dicom_core::prelude::*;
-use dicom_core::Tag;
 use dicom_dictionary_std::{tags, uids};
 use dicom_object::open_file;
 use dicom_pixeldata::{ConvertOptions, PixelDecoder};
