@@ -20,7 +20,8 @@ use tracing::{error, Level};
 #[derive(Debug, Parser, Clone)]
 #[command(version)]
 struct App {
-    /// Path to the DICOM file to convert
+    /// Paths to the DICOM files to convert
+    #[arg(required(true))]
     file: Vec<PathBuf>,
 
     /// Recursively parse sub folders if the given path is a directory
