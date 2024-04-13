@@ -466,6 +466,7 @@ dependencies = [
  "pretty_assertions",
  "serde",
  "serde_json",
+ "tracing",
 ]
 
 [[package]]
