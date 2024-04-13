@@ -307,12 +307,6 @@ impl PixelDataWriter for JpegAdapter {
             _ => whatever!("Unsupported samples per pixel: {}", samples_per_pixel),
         };
 
-        let photometric_interpretation = match samples_per_pixel {
-            1 => "MONOCHROME2",
-            3 => "RGB",
-            _ => whatever!("Unsupported samples per pixel: {}", samples_per_pixel),
-        };
-
         // record dst length before encoding to know full jpeg size
         let len_before = dst.len();
 
@@ -340,7 +334,7 @@ impl PixelDataWriter for JpegAdapter {
         let compression_ratio = format!("{:.6}", compression_ratio);
 
         // provide attribute changes
-        Ok(vec![
+        let mut changes = vec![
             // bits allocated
             AttributeOp::new(Tag(0x0028, 0x0100), AttributeAction::Set(PrimitiveValue::from(8_u16))),
             // bits stored
@@ -354,12 +348,36 @@ impl PixelDataWriter for JpegAdapter {
                 Tag(0x0028, 0x2112),
                 AttributeAction::PushStr(compression_ratio.into()),
             ),
-            // Photometric interpretation
-            AttributeOp::new(
-                Tag(0x0028, 0x0004),
-                AttributeAction::SetStr(photometric_interpretation.into()),
-            ),
-        ])
+        ];
+
+        let pmi = src.photometric_interpretation();
+
+        if samples_per_pixel == 1 {
+            
+            // set Photometric Interpretation to Monochrome2
+            // if it was neither of the expected monochromes
+            if pmi != Some("MONOCHROME1") && pmi != Some("MONOCHROME2") {
+                changes.push(
+                    AttributeOp::new(
+                        Tag(0x0028, 0x0004),
+                        AttributeAction::SetStr("MONOCHROME2".into()),
+                    )
+                );
+            }
+        } else if samples_per_pixel == 3 {
+            // set Photometric Interpretation to RGB
+            // if it was not already set to RGB
+            if pmi != Some("RGB") {
+                changes.push(
+                    AttributeOp::new(
+                        Tag(0x0028, 0x0004),
+                        AttributeAction::SetStr("RGB".into()),
+                    )
+                );
+            }            
+        }
+
+        Ok(changes)
     }
 }
 
