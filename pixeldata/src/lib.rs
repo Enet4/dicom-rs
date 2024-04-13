@@ -1971,9 +1971,8 @@ where
                 .context(DecodePixelDataSnafu)?;
 
             // pixels are already interpreted,
-            // set new photometric interpretation
+            // set new photometric interpretation if necessary
             let new_pi = match samples_per_pixel {
-                1 => PhotometricInterpretation::Monochrome2,
                 3 => PhotometricInterpretation::Rgb,
                 _ => photometric_interpretation,
             };
@@ -2075,9 +2074,8 @@ where
                 .context(DecodePixelDataSnafu)?;
 
             // pixels are already interpreted,
-            // set new photometric interpretation
+            // set new photometric interpretation if necessary
             let new_pi = match samples_per_pixel {
-                1 => PhotometricInterpretation::Monochrome2,
                 3 => PhotometricInterpretation::Rgb,
                 _ => photometric_interpretation,
             };
@@ -2701,5 +2699,19 @@ mod tests {
             ));
             image.save(image_path).unwrap();
         }
+    }
+
+    /// Loading a MONOCHROME1 image with encapsulated pixel data
+    /// should not change the photometric interpretation
+    #[cfg(feature = "jpeg")]
+    #[test]
+    fn test_monochrome1_decode_retains_pmi() {
+        let path = dicom_test_files::path("WG04/JPLL/RG1_JPLL").unwrap();
+        let obj = dicom_object::open_file(&path).unwrap();
+        let pixel_data = obj.decode_pixel_data().unwrap();
+        assert_eq!(
+            pixel_data.photometric_interpretation(),
+            &PhotometricInterpretation::Monochrome1
+        );
     }
 }
