@@ -622,6 +622,13 @@ where
             .ok()
     }
 
+    fn photometric_interpretation(&self) -> Option<&str> {
+        self.get(dicom_dictionary_std::tags::PHOTOMETRIC_INTERPRETATION)?
+            .string()
+            .ok()
+            .map(|s| s.trim_end())
+    }
+
     /// Return the NumberOfFrames attribute or None if it is not set
     fn number_of_frames(&self) -> Option<u32> {
         self.get(dicom_dictionary_std::tags::NUMBER_OF_FRAMES)?
