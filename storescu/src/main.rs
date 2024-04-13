@@ -56,6 +56,41 @@ struct App {
     // hide option if transcoding is disabled
     #[cfg_attr(not(feature = "transcode"), arg(hide(true)))]
     never_transcode: bool,
+    /// User Identity username
+    #[arg(
+        long = "username",
+        conflicts_with("kerberos_service_ticket"),
+        conflicts_with("saml_assertion"),
+        conflicts_with("jwt")
+    )]
+    username: Option<String>,
+    /// User Identity password
+    #[arg(long = "password", requires("username"))]
+    password: Option<String>,
+    /// User Identity Kerberos service ticket
+    #[arg(
+        long = "kerberos-service-ticket",
+        conflicts_with("username"),
+        conflicts_with("saml_assertion"),
+        conflicts_with("jwt")
+    )]
+    kerberos_service_ticket: Option<String>,
+    /// User Identity SAML assertion
+    #[arg(
+        long = "saml-assertion",
+        conflicts_with("username"),
+        conflicts_with("kerberos_service_ticket"),
+        conflicts_with("jwt")
+    )]
+    saml_assertion: Option<String>,
+    /// User Identity JWT
+    #[arg(
+        long = "jwt",
+        conflicts_with("username"),
+        conflicts_with("kerberos_service_ticket"),
+        conflicts_with("saml_assertion")
+    )]
+    jwt: Option<String>,
 }
 
 struct DicomFile {
@@ -81,7 +116,9 @@ enum Error {
     },
 
     /// Could not construct DICOM command
-    CreateCommand { source: Box<dicom_object::WriteError> },
+    CreateCommand {
+        source: Box<dicom_object::WriteError>,
+    },
 
     /// Unsupported file transfer syntax {uid}
     UnsupportedFileTransferSyntax { uid: std::borrow::Cow<'static, str> },
@@ -112,6 +149,11 @@ fn run() -> Result<(), Error> {
         max_pdu_length,
         fail_first,
         mut never_transcode,
+        username,
+        password,
+        kerberos_service_ticket,
+        saml_assertion,
+        jwt,
     } = App::parse();
 
     // never transcode if the feature is disabled
@@ -202,6 +244,26 @@ fn run() -> Result<(), Error> {
         scu_init = scu_init.called_ae_title(called_ae_title);
     }
 
+    if let Some(username) = username {
+        scu_init = scu_init.username(username);
+    }
+
+    if let Some(password) = password {
+        scu_init = scu_init.password(password);
+    }
+
+    if let Some(kerberos_service_ticket) = kerberos_service_ticket {
+        scu_init = scu_init.kerberos_service_ticket(kerberos_service_ticket);
+    }
+
+    if let Some(saml_assertion) = saml_assertion {
+        scu_init = scu_init.saml_assertion(saml_assertion);
+    }
+
+    if let Some(jwt) = jwt {
+        scu_init = scu_init.jwt(jwt);
+    }
+
     let mut scu = scu_init.establish_with(&addr).context(InitScuSnafu)?;
 
     if verbose {
@@ -270,7 +332,9 @@ fn run() -> Result<(), Error> {
                 open_file(&file.file).whatever_context("Could not open listed DICOM file")?;
             let ts_selected = TransferSyntaxRegistry
                 .get(&ts_uid_selected)
-                .with_context(|| UnsupportedFileTransferSyntaxSnafu { uid: ts_uid_selected.to_string() })?;
+                .with_context(|| UnsupportedFileTransferSyntaxSnafu {
+                    uid: ts_uid_selected.to_string(),
+                })?;
 
             // transcode file if necessary
             let dicom_file = into_ts(dicom_file, ts_selected, verbose)?;
@@ -483,7 +547,9 @@ fn check_file(file: &Path) -> Result<DicomFile, Error> {
     let transfer_syntax_uid = &meta.transfer_syntax.trim_end_matches('\0');
     let ts = TransferSyntaxRegistry
         .get(transfer_syntax_uid)
-        .with_context(|| UnsupportedFileTransferSyntaxSnafu { uid: transfer_syntax_uid.to_string() })?;
+        .with_context(|| UnsupportedFileTransferSyntaxSnafu {
+            uid: transfer_syntax_uid.to_string(),
+        })?;
     Ok(DicomFile {
         file: file.to_path_buf(),
         sop_class_uid: storage_sop_class_uid.to_string(),
@@ -501,7 +567,9 @@ fn check_presentation_contexts(
 ) -> Result<(dicom_ul::pdu::PresentationContextResult, String), Error> {
     let file_ts = TransferSyntaxRegistry
         .get(&file.file_transfer_syntax)
-        .with_context(|| UnsupportedFileTransferSyntaxSnafu { uid: file.file_transfer_syntax.to_string() })?;
+        .with_context(|| UnsupportedFileTransferSyntaxSnafu {
+            uid: file.file_transfer_syntax.to_string(),
+        })?;
     // if destination does not support original file TS,
     // check whether we can transcode to explicit VR LE
 
@@ -544,7 +612,6 @@ fn check_presentation_contexts(
 
     Ok((pc.clone(), String::from(ts.uid())))
 }
-
 
 // transcoding functions
 
