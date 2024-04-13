@@ -28,7 +28,7 @@ struct App {
     recursive: bool,
 
     /// Name of the output file(s)
-    /// (default is the same as the input file)
+    /// (default is the same as the input file with extension change)
     #[arg(short = 'o', long = "out")]
     output: Option<PathBuf>,
 
@@ -39,7 +39,6 @@ struct App {
     output_dir: Option<PathBuf>,
 
     /// File extension to use for output files
-    /// (default is `.png`)
     #[arg(short = 'e', long = "ext", default_value = "png")]
     ext: String,
 
