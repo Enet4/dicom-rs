@@ -20,7 +20,7 @@ pub struct RleLosslessAdapter;
 impl PixelDataReader for RleLosslessAdapter {
     /// Decode the DICOM image from RLE Lossless completely.
     ///
-    /// See <http://dicom.nema.org/medical/Dicom/2018d/output/chtml/part05/chapter_G.html>
+    /// See <https://dicom.nema.org/medical/dicom/2023e/output/chtml/part05/chapter_G.html>
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()> {
         let cols = src
             .cols()
@@ -115,7 +115,7 @@ impl PixelDataReader for RleLosslessAdapter {
 
     /// Decode a singe frame of the DICOM image from RLE Lossless.
     ///
-    /// See <http://dicom.nema.org/medical/Dicom/2018d/output/chtml/part05/chapter_G.html>
+    /// See <https://dicom.nema.org/medical/dicom/2023e/output/chtml/part05/chapter_G.html>
     fn decode_frame(
         &self,
         src: &dyn PixelDataObject,
