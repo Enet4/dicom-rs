@@ -2703,7 +2703,8 @@ mod tests {
 
     /// Loading a MONOCHROME1 image with encapsulated pixel data
     /// should not change the photometric interpretation
-    #[cfg(feature = "jpeg")]
+    /// (this rule does not apply to decoding via GDCM)
+    #[cfg(all(feature = "jpeg", not(feature = "gdcm")))]
     #[test]
     fn test_monochrome1_decode_retains_pmi() {
         let path = dicom_test_files::path("WG04/JPLL/RG1_JPLL").unwrap();
