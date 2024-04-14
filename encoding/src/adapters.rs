@@ -236,11 +236,13 @@ pub trait PixelDataReader {
     /// The output is a sequence of native pixel values
     /// which follow the image properties of the given object
     /// _save for the photometric interpretation and planar configuration_.
-    /// The output of an image with 1 sample per pixel
-    /// is expected to be interpreted as `MONOCHROME2`,
-    /// and for 3-channel images,
+    /// If the image has 3 samples per pixel,
     /// the output must be in RGB with each pixel contiguous in memory
     /// (planar configuration of 0).
+    /// However, if the image is monochrome,
+    /// the output should retain the photometric interpretation of the source object
+    /// (so that images in _MONOCHROME1_ continue to be in _MONOCHROME1_
+    /// and images in _MONOCHROME2_ continue to be in _MONOCHROME2_).
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()> {
         let frames = src
             .number_of_frames()
@@ -257,6 +259,8 @@ pub trait PixelDataReader {
     /// as a byte stream in little endian,
     /// appending these bytes to the given vector `dst`.
     ///
+    /// The frame index is 0-based.
+    ///
     /// It is a necessary precondition that the object's pixel data
     /// is encoded in accordance to the transfer syntax(es)
     /// supported by this adapter.
@@ -265,11 +269,13 @@ pub trait PixelDataReader {
     /// The output is a sequence of native pixel values of a frame
     /// which follow the image properties of the given object
     /// _save for the photometric interpretation and planar configuration_.
-    /// The output of an image with 1 sample per pixel
-    /// is expected to be interpreted as `MONOCHROME2`,
-    /// and for 3-channel images,
+    /// If the image has 3 samples per pixel,
     /// the output must be in RGB with each pixel contiguous in memory
     /// (planar configuration of 0).
+    /// However, if the image is monochrome,
+    /// the output should retain the photometric interpretation of the source object
+    /// (so that images in _MONOCHROME1_ continue to be in _MONOCHROME1_
+    /// and images in _MONOCHROME2_ continue to be in _MONOCHROME2_).
     fn decode_frame(
         &self,
         src: &dyn PixelDataObject,
