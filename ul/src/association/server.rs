@@ -219,6 +219,8 @@ pub struct ServerAssociationOptions<'a, A> {
     max_pdu_length: u32,
     /// whether to receive PDUs in strict mode
     strict: bool,
+    /// whether to accept unknown abstract syntaxes
+    promiscuous: bool,
 }
 
 impl<'a> Default for ServerAssociationOptions<'a, AcceptAny> {
@@ -232,6 +234,7 @@ impl<'a> Default for ServerAssociationOptions<'a, AcceptAny> {
             protocol_version: 1,
             max_pdu_length: crate::pdu::reader::DEFAULT_MAX_PDU,
             strict: true,
+            promiscuous: false,
         }
     }
 }
@@ -280,6 +283,7 @@ where
             protocol_version,
             max_pdu_length,
             strict,
+            promiscuous,
             ae_access_control: _,
         } = self;
 
@@ -292,6 +296,7 @@ where
             protocol_version,
             max_pdu_length,
             strict,
+            promiscuous,
         }
     }
 
@@ -341,10 +346,17 @@ where
         self
     }
 
+    /// Override promiscuous mode:
+    /// whether to accept unknown abstract syntaxes.
+    pub fn promiscuous(mut self, promiscuous: bool) -> Self {
+        self.promiscuous = promiscuous;
+        self
+    }
+
     /// Negotiate an association with the given TCP stream.
     pub fn establish(&self, mut socket: TcpStream) -> Result<ServerAssociation> {
         ensure!(
-            !self.abstract_syntax_uids.is_empty(),
+            !self.abstract_syntax_uids.is_empty() || self.promiscuous,
             MissingAbstractSyntaxSnafu
         );
 
@@ -442,6 +454,7 @@ where
                         if !self
                             .abstract_syntax_uids
                             .contains(&trim_uid(Cow::from(pc.abstract_syntax)))
+                            && !self.promiscuous
                         {
                             return PresentationContextResult {
                                 id: pc.id,
