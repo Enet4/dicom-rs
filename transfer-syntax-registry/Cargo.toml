@@ -31,7 +31,7 @@ rayon = ["jpeg-decoder?/rayon"]
 # enable SIMD operations for JPEG encoding
 simd = ["jpeg-encoder?/simd"]
 
-# JPEG 2000 support via the OpenJPEG Rust port,
+# JPEG 2000 support via the OpenJPEG native bindings,
 # conflicts with `openjp2`
 openjpeg-sys = ["dep:jpeg2k", "jpeg2k/openjpeg-sys"]
 
@@ -48,6 +48,11 @@ tracing = "0.1.34"
 
 [dependencies.jpeg2k]
 version = "0.6.6"
+optional = true
+default-features = false
+
+[dependencies.openjp2]
+version = "0.3.5"
 optional = true
 default-features = false
 
