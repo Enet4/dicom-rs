@@ -23,7 +23,7 @@ native_windows = ["jpeg", "rle"]
 jpeg = ["jpeg-decoder", "jpeg-encoder"]
 # JPEG 2000 support via the OpenJPEG Rust port,
 # works on Linux and a few other platforms
-openjp2 = ["dep:jpeg2k", "jpeg2k/openjp2"]
+openjp2 = ["dep:jpeg2k", "dep:openjp2", "jpeg2k/openjp2"]
 # native RLE lossless support
 rle = []
 # enable Rayon for JPEG decoding
