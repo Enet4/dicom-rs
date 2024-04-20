@@ -150,7 +150,7 @@ pub use dicom_dictionary_std::StandardDataDictionary;
 /// The default implementation of a root DICOM object.
 pub type DefaultDicomObject<D = StandardDataDictionary> = FileDicomObject<mem::InMemDicomObject<D>>;
 
-use dicom_core::header::Header;
+use dicom_core::header::{ElementNumber, GroupNumber, Header};
 use dicom_encoding::adapters::{PixelDataObject, RawPixelData};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
@@ -285,6 +285,34 @@ pub enum WriteError {
     },
     #[snafu(display("Unsupported transfer syntax `{}`", uid))]
     WriteUnsupportedTransferSyntax { uid: String, backtrace: Backtrace },
+}
+
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum PrivateElementError {
+    #[snafu(display("Element number must be less than 256, got {}", elem))]
+    InvalidElement{
+        elem:  ElementNumber
+    },
+    #[snafu(display("Group number must be odd, found {}", group))]
+    InvalidGroup{
+        group: GroupNumber
+    },
+    #[snafu(display("Private creator {} not found in group {}", creator, group))]
+    PrivateCreatorNotFound {
+        creator: String,
+        group: GroupNumber
+    },
+    #[snafu(display("Private Creator {} found in group {}, but elem {} not found", creator, group, elem))]
+    ElementNotFound {
+        creator: String,
+        group: GroupNumber,
+        elem: ElementNumber
+    },
+    #[snafu(display("No space available in group {}", group))]
+    NoSpace{
+        group: GroupNumber
+    }
 }
 
 /// An error which may occur when looking up a DICOM object's attributes.
