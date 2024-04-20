@@ -41,7 +41,7 @@ use dicom_core::ops::{
 };
 use itertools::Itertools;
 use smallvec::SmallVec;
-use snafu::{OptionExt, ResultExt};
+use snafu::{ensure, OptionExt, ResultExt};
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
@@ -54,16 +54,10 @@ use crate::ops::{
 };
 use crate::{meta::FileMetaTable, FileMetaTableBuilder};
 use crate::{
-    AccessByNameError, AccessError, AtAccessError, BuildMetaTableSnafu, CreateParserSnafu,
-    CreatePrinterSnafu, DicomObject, FileDicomObject, MissingElementValueSnafu,
-    MissingLeafElementSnafu, NoSuchAttributeNameSnafu, NoSuchDataElementAliasSnafu,
-    NoSuchDataElementTagSnafu, NotASequenceSnafu, OpenFileSnafu, ParseMetaDataSetSnafu,
-    PrematureEndSnafu, PrepareMetaTableSnafu, PrintDataSetSnafu, ReadError, ReadFileSnafu,
-    ReadPreambleBytesSnafu, ReadTokenSnafu, ReadUnsupportedTransferSyntaxSnafu,
-    UnexpectedTokenSnafu, WithMetaError, WriteError,
+    AccessByNameError, AccessError, AtAccessError, BuildMetaTableSnafu, CreateParserSnafu, CreatePrinterSnafu, DicomObject, FileDicomObject, InvalidElementSnafu, InvalidGroupSnafu, MissingElementValueSnafu, MissingLeafElementSnafu, NoSpaceSnafu, NoSuchAttributeNameSnafu, NoSuchDataElementAliasSnafu, NoSuchDataElementTagSnafu, NotASequenceSnafu, OpenFileSnafu, ParseMetaDataSetSnafu, PrematureEndSnafu, PrepareMetaTableSnafu, PrintDataSetSnafu, PrivateCreatorNotFoundSnafu, PrivateElementError, ReadError, ReadFileSnafu, ReadPreambleBytesSnafu, ReadTokenSnafu, ReadUnsupportedTransferSyntaxSnafu, UnexpectedTokenSnafu, WithMetaError, WriteError
 };
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
-use dicom_core::header::{HasLength, Header};
+use dicom_core::header::{ElementNumber, GroupNumber, HasLength, Header};
 use dicom_core::value::{DataSetSequence, PixelFragmentSequence, Value, ValueType, C};
 use dicom_core::{DataElement, Length, PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::{tags, StandardDataDictionary};
@@ -666,7 +660,7 @@ where
             Err(super::AccessError::NoSuchDataElementTag { .. }) => Ok(None),
         }
     }
-
+    
     /// Get a particular DICOM attribute from this object by tag.
     ///
     /// If the element does not exist,
@@ -704,6 +698,28 @@ where
         }
     }
 
+    fn find_private_creator(&self, group: GroupNumber, creator: &str) -> Option<&Tag>{
+        let range = Tag(group, 0)..Tag(group, 0xFF);
+        for (tag, elem) in self.entries.range(range) {
+            // Private Creators are always LO
+            // https://dicom.nema.org/dicom/2013/output/chtml/part05/sect_7.8.html
+            if elem.header().vr() == VR::LO && elem.to_str().unwrap_or_default() == creator {
+                return Some(tag)
+            }
+        }
+        None
+    }
+
+    pub fn private_element(&self, group: GroupNumber, creator: &str, element: ElementNumber) -> Result<&InMemElement<D>, PrivateElementError> {
+        ensure!(element < 0xFF, InvalidElementSnafu{elem: element});
+        let tag = self.find_private_creator(group, creator)
+            .ok_or(PrivateCreatorNotFoundSnafu{group, creator: creator.to_string()}.build())?;
+
+        let element_num = (tag.element() << 8) | element;
+        Ok(self.get(Tag(group, element_num))
+            .ok_or(PrivateElementError::ElementNotFound{group, creator: creator.to_string(), elem: element})?)
+    }
+
     /// Insert a data element to the object, replacing (and returning) any
     /// previous element of the same attribute.
     /// This might invalidate all sequence and item lengths if the charset of the
@@ -720,6 +736,46 @@ where
         self.len = Length::UNDEFINED;
         self.invalidate_if_charset_changed(elt.tag());
         self.entries.insert(elt.tag(), elt)
+    }
+    
+    pub fn put_private_element(
+        &mut self,
+        group: GroupNumber,
+        creator: &str,
+        element: ElementNumber,
+        vr: VR,
+        value: PrimitiveValue
+    ) -> Result<Option<InMemElement<D>>, PrivateElementError>{
+        ensure!(element < 0xFF, InvalidElementSnafu{elem: element});
+        ensure!(group % 2 == 1, InvalidGroupSnafu{group});
+        let private_creator = self.find_private_creator(group, creator);
+        if let Some(tag) = private_creator{
+            // Private creator already exists
+            let tag = Tag(group, tag.element() << 8 | element);
+            return Ok(self.put_element(DataElement::new(tag, vr, value)))
+
+        } else {
+
+            // Find last reserved block of tags.
+            let range = Tag(group, 0)..Tag(group, 0xFF);
+            let last_entry = self.entries.range(range).rev().next();
+            let next_available = match last_entry {
+                Some((tag, _)) => tag.element() + 1,
+                None => 0x01
+            };
+            if next_available < 0xFF {
+                // Put private creator
+                let tag = Tag(group, next_available);
+                self.put_str(tag, VR::LO, creator);
+
+                // Put private element
+                let tag = Tag(group, next_available << 8 | element);
+                return Ok(self.put_element(DataElement::new(tag, vr, value)))
+
+            } else {
+                return NoSpaceSnafu{group}.fail()
+            }
+        }
     }
 
     /// Insert a new element with a string value to the object,
@@ -3625,5 +3681,44 @@ mod tests {
             ],
             converted_tokens
         );
+    }
+
+    #[test]
+    fn private_elements(){
+        let mut ds = InMemDicomObject::from_element_iter(vec![
+            DataElement::new(
+                Tag(0x0009, 0x0010),
+                VR::LO,
+                PrimitiveValue::from("CREATOR 1"),
+            ),
+            DataElement::new(
+                Tag(0x0009, 0x0011),
+                VR::LO,
+                PrimitiveValue::from("CREATOR 2"),
+            ),
+            DataElement::new(
+                Tag(0x0011, 0x0010),
+                VR::LO,
+                PrimitiveValue::from("CREATOR 3"),
+            ),
+        ]);
+        ds.put_private_element(
+            0x0009,
+            "CREATOR 1",
+            0x01,
+            VR::DS,
+            PrimitiveValue::Str("1.0".to_string())
+        ).unwrap();
+        ds.put_private_element(
+            0x0009,
+            "CREATOR 4",
+            0x02,
+            VR::DS,
+            PrimitiveValue::Str("1.0".to_string())
+        ).unwrap();
+        assert_eq!(ds.private_element(0x0009, "CREATOR 1", 0x01).unwrap().value().to_str().unwrap(), "1.0");
+        assert_eq!(ds.private_element(0x0009, "CREATOR 4", 0x02).unwrap().value().to_str().unwrap(), "1.0");
+        assert_eq!(ds.private_element(0x0009, "CREATOR 4", 0x02).unwrap().header().tag(), Tag(0x0009, 0x1202));
+
     }
 }
