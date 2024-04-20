@@ -857,7 +857,7 @@ where
     /// See the documentation of [`AttributeSelector`] for more information
     /// on how to write attribute selectors.
     ///
-    /// NOTE: Also consider using the [`apply`].
+    /// Note: Consider using [`apply`](ApplyOp::apply) when possible.
     ///
     /// # Example
     ///
@@ -998,7 +998,7 @@ where
     /// See the documentation of [`AttributeSelector`] for more information
     /// on how to write attribute selectors.
     ///
-    /// If you only need the value, use [`value_at`].
+    /// If you only need the value, use [`value_at`](Self::value_at).
     pub fn entry_at(
         &self,
         selector: impl Into<AttributeSelector>,

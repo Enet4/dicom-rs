@@ -114,14 +114,13 @@ type Result<T> = std::result::Result<T, Error>;
 /// as specified in [part 6, chapter 7][1] of the standard.
 ///
 /// Creating a new file meta table from scratch
-/// is more easily done using a [`FileMetaTableBuilder`][2].
+/// is more easily done using a [`FileMetaTableBuilder`].
 /// When modifying the struct's public fields,
 /// it is possible to update the information group length
-/// through method [`update_information_group_length`][3].
+/// through method [`update_information_group_length`][2].
 ///
 /// [1]: http://dicom.nema.org/medical/dicom/current/output/chtml/part06/chapter_7.html
-/// [2]: crate::meta::FileMetaTableBuilder
-/// [3]: FileMetaTable::update_information_group_length
+/// [2]: FileMetaTable::update_information_group_length
 #[derive(Debug, Clone, PartialEq)]
 pub struct FileMetaTable {
     /// File Meta Information Group Length
