@@ -174,15 +174,15 @@ fn get_from_shared<D: DataDictionary + Clone>(
     selector: [Tag; 2],
 ) -> Option<impl Iterator<Item = &InMemElement<D>>> {
     obj.get(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE)?.items()?
-        .get(0)?
+        .first()?
         .get(selector[0])
         .and_then(|inner|inner.items()?
-            .get(0)?
+            .first()?
             .get(selector[1]))
         // Sometimes the tag is not in the properly nested sequence, but just flat in the first 
         // element of the SharedFunctionalGroupsSequence
         .or_else(|| obj.get(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE)?.items()?
-            .get(0)?
+            .first()?
             .get(selector[1]))
         .map(std::iter::once)
 }
@@ -197,7 +197,7 @@ fn get_from_per_frame<D: DataDictionary + Clone>(
         .filter_map(move |item| {
             item.get(selector[0])?
                 .items()?
-                .get(0)?
+                .first()?
                 .get(selector[1])
         }))
 }
