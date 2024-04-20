@@ -25,6 +25,8 @@ jobs:
           cache: true
       # test project with default + extra features
       - run: cargo test --features image,ndarray,sop-class,rle,cli
+      # test dicom-pixeldata with openjp2
+      - run: cargo test -p dicom-pixeldata --features openjp2
       # test dicom-pixeldata with openjpeg-sys
       - run: cargo test -p dicom-pixeldata --features openjpeg-sys
       # test dicom-pixeldata with gdcm-rs
