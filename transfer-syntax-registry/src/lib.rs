@@ -81,7 +81,7 @@
 //! either due to being unable to read the data set
 //! or decode encapsulated pixel data,
 //! are listed as _stubs_ for partial support.
-//! The full list is available in the [`entries`](entries) module.
+//! The full list is available in the [`entries`] module.
 //! These stubs may also be replaced by separate libraries
 //! if using the inventory-based registry.
 //!
