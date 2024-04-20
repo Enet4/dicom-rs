@@ -1,9 +1,10 @@
 [package]
 name = "dicom-pixeldata-fuzz"
 version = "0.0.0"
-authors = ["Automatically generated"]
+description = "Fuzz testing for the dicom-pixeldata crate"
+authors = []
 publish = false
-edition = "2018"
+edition = "2021"
 
 [package.metadata]
 cargo-fuzz = true
