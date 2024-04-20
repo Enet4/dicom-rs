@@ -28,7 +28,7 @@
 //! ```
 //!
 //! Elements can be fetched by tag,
-//! either by creating a [`Tag`](dicom_core::Tag)
+//! either by creating a [`Tag`]
 //! or by using one of the [readily available constants][const]
 //! from the [`dicom-dictionary-std`][dictionary-std] crate.
 //!
@@ -646,8 +646,8 @@ where
         }
     }
 
-    /// Return a specific encoded pixel fragment by index as Vec<u8>
-    /// or None if no pixel data is found.
+    /// Return a specific encoded pixel fragment by index as a `Vec<u8>`
+    /// or `None` if no pixel data is found.
     ///
     /// Non-encapsulated pixel data can be retrieved by requesting fragment #0.
     ///
