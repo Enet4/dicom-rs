@@ -323,9 +323,7 @@ impl AttributeSelector {
     /// [1]: AttributeSelectorStep::Tag
     pub fn new(steps: impl IntoIterator<Item = AttributeSelectorStep>) -> Option<Self> {
         let mut steps: SmallVec<_> = steps.into_iter().collect();
-        let Some((last, rest)) = steps.split_last_mut() else {
-            return None;
-        };
+        let (last, rest) = steps.split_last_mut()?;
         if matches!(last, AttributeSelectorStep::Nested { .. }) {
             return None;
         }
