@@ -2,7 +2,7 @@
 //!
 //! The module provides an abstraction for a DICOM association
 //! in which this application entity listens to incoming association requests.
-//! See [`ServerAssociationOptions`](self::ServerAssociationOptions)
+//! See [`ServerAssociationOptions`]
 //! for details and examples on how to create an association.
 use std::{borrow::Cow, io::Write, net::TcpStream};
 
