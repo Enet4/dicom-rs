@@ -213,13 +213,46 @@ pub const IMPLEMENTATION_VERSION_NAME: &str = "DICOM-rs 0.8.1";
 ///
 /// This trait interface is experimental and prone to sudden changes.
 pub trait DicomObject {
-    type Element: Header;
+    /// The data type for an element in the DICOM object.
+    type Element<'a>: Header
+    where
+        Self: 'a;
 
     /// Retrieve a particular DICOM element by its tag.
-    fn element(&self, tag: Tag) -> Result<Self::Element, AccessError>;
+    ///
+    /// `Ok(None)` is returned when the object was successfully looked up
+    /// but the element is not present.
+    fn element_opt<'a>(&'a self, tag: Tag) -> Result<Option<Self::Element<'a>>, AccessError>;
 
-    /// Retrieve a particular DICOM element by its name.
-    fn element_by_name(&self, name: &str) -> Result<Self::Element, AccessByNameError>;
+    /// Retrieve a particular DICOM element by its name (keyword).
+    ///
+    /// `Ok(None)` is returned when the object was successfully looked up
+    /// but the element is not present.
+    ///
+    /// If the DICOM tag is already known,
+    /// prefer calling [`element_opt`](Self::element_opt).
+    fn element_by_name_opt<'a>(
+        &'a self,
+        name: &str,
+    ) -> Result<Option<Self::Element<'a>>, AccessByNameError>;
+
+    /// Retrieve a particular DICOM element by its tag.
+    ///
+    /// Unlike [`element_opt`](Self::element_opt),
+    /// this method returns an error if the element is not present.
+    fn element<'a>(&'a self, tag: Tag) -> Result<Self::Element<'a>, AccessError> {
+        self.element_opt(tag)?
+            .context(NoSuchDataElementTagSnafu { tag })
+    }
+
+    /// Retrieve a particular DICOM element by its name (keyword).
+    ///
+    /// Unlike [`element_by_name_opt`](Self::element_by_name_opt),
+    /// this method returns an error if the element is not present.
+    fn element_by_name<'a>(&'a self, name: &str) -> Result<Self::Element<'a>, AccessByNameError> {
+        self.element_by_name_opt(name)?
+            .context(NoSuchAttributeNameSnafu { name })
+    }
 
     /// Retrieve the processed meta information table, if available.
     ///
@@ -639,13 +672,29 @@ impl<O> DicomObject for FileDicomObject<O>
 where
     O: DicomObject,
 {
-    type Element = <O as DicomObject>::Element;
+    type Element<'a> = <O as DicomObject>::Element<'a>
+        where O: 'a;
 
-    fn element(&self, tag: Tag) -> Result<Self::Element, AccessError> {
+    #[inline]
+    fn element_opt(&self, tag: Tag) -> Result<Option<Self::Element<'_>>, AccessError> {
+        self.obj.element_opt(tag)
+    }
+
+    #[inline]
+    fn element_by_name_opt(
+        &self,
+        name: &str,
+    ) -> Result<Option<Self::Element<'_>>, AccessByNameError> {
+        self.obj.element_by_name_opt(name)
+    }
+
+    #[inline]
+    fn element(&self, tag: Tag) -> Result<Self::Element<'_>, AccessError> {
         self.obj.element(tag)
     }
 
-    fn element_by_name(&self, name: &str) -> Result<Self::Element, AccessByNameError> {
+    #[inline]
+    fn element_by_name(&self, name: &str) -> Result<Self::Element<'_>, AccessByNameError> {
         self.obj.element_by_name(name)
     }
 
@@ -654,17 +703,33 @@ where
     }
 }
 
-impl<'a, O: 'a> DicomObject for &'a FileDicomObject<O>
+impl<'s, O: 's> DicomObject for &'s FileDicomObject<O>
 where
     O: DicomObject,
 {
-    type Element = <O as DicomObject>::Element;
+    type Element<'a> = <O as DicomObject>::Element<'a>
+        where 's: 'a;
 
-    fn element(&self, tag: Tag) -> Result<Self::Element, AccessError> {
+    #[inline]
+    fn element_opt(&self, tag: Tag) -> Result<Option<Self::Element<'_>>, AccessError> {
+        self.obj.element_opt(tag)
+    }
+
+    #[inline]
+    fn element_by_name_opt(
+        &self,
+        name: &str,
+    ) -> Result<Option<Self::Element<'_>>, AccessByNameError> {
+        self.obj.element_by_name_opt(name)
+    }
+
+    #[inline]
+    fn element(&self, tag: Tag) -> Result<Self::Element<'_>, AccessError> {
         self.obj.element(tag)
     }
 
-    fn element_by_name(&self, name: &str) -> Result<Self::Element, AccessByNameError> {
+    #[inline]
+    fn element_by_name(&self, name: &str) -> Result<Self::Element<'_>, AccessByNameError> {
         self.obj.element_by_name(name)
     }
 }

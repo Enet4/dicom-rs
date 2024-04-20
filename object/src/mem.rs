@@ -123,22 +123,67 @@ impl<D> HasLength for InMemDicomObject<D> {
     }
 }
 
+impl<D> DicomObject for InMemDicomObject<D>
+where
+    D: DataDictionary,
+    D: Clone,
+{
+    type Element<'a> = &'a InMemElement<D>
+            where Self: 'a;
+
+    #[inline]
+    fn element_opt(&self, tag: Tag) -> Result<Option<Self::Element<'_>>> {
+        InMemDicomObject::element_opt(self, tag)
+    }
+
+    #[inline]
+    fn element_by_name_opt(
+        &self,
+        name: &str,
+    ) -> Result<Option<Self::Element<'_>>, AccessByNameError> {
+        InMemDicomObject::element_by_name_opt(self, name)
+    }
+
+    #[inline]
+    fn element(&self, tag: Tag) -> Result<Self::Element<'_>> {
+        InMemDicomObject::element(self, tag)
+    }
+
+    #[inline]
+    fn element_by_name(&self, name: &str) -> Result<Self::Element<'_>, AccessByNameError> {
+        InMemDicomObject::element_by_name(self, name)
+    }
+}
+
 impl<'s, D: 's> DicomObject for &'s InMemDicomObject<D>
 where
     D: DataDictionary,
     D: Clone,
 {
-    type Element = &'s InMemElement<D>;
+    type Element<'a> = &'a InMemElement<D>
+        where 's: 'a;
 
-    fn element(&self, tag: Tag) -> Result<Self::Element> {
-        self.entries
-            .get(&tag)
-            .context(NoSuchDataElementTagSnafu { tag })
+    #[inline]
+    fn element_opt(&self, tag: Tag) -> Result<Option<Self::Element<'_>>> {
+        InMemDicomObject::element_opt(*self, tag)
     }
 
-    fn element_by_name(&self, name: &str) -> Result<Self::Element, AccessByNameError> {
-        let tag = self.lookup_name(name)?;
-        self.element(tag).map_err(|e| e.into_access_by_name(name))
+    #[inline]
+    fn element_by_name_opt(
+        &self,
+        name: &str,
+    ) -> Result<Option<Self::Element<'_>>, AccessByNameError> {
+        InMemDicomObject::element_by_name_opt(*self, name)
+    }
+
+    #[inline]
+    fn element(&self, tag: Tag) -> Result<Self::Element<'_>> {
+        InMemDicomObject::element(*self, tag)
+    }
+
+    #[inline]
+    fn element_by_name(&self, name: &str) -> Result<Self::Element<'_>, AccessByNameError> {
+        InMemDicomObject::element_by_name(*self, name)
     }
 }
 
@@ -3124,6 +3169,29 @@ mod tests {
                 DataToken::SequenceEnd,
             ]
         );
+    }
+
+    /// Test that a DICOM object can be reliably used
+    /// behind the `DicomObject` trait.
+    #[test]
+    fn can_use_behind_trait() {
+        fn dicom_dataset() -> impl DicomObject {
+            InMemDicomObject::from_element_iter([DataElement::new(
+                tags::PATIENT_NAME,
+                VR::PN,
+                PrimitiveValue::Str("Doe^John".to_string()),
+            )])
+        }
+
+        let obj = dicom_dataset();
+        let elem1 = obj
+            .element_by_name_opt("PatientName")
+            .unwrap()
+            .expect("PatientName should be present");
+        assert_eq!(elem1.tag(), tags::PATIENT_NAME);
+
+        // try a missing element, should return None
+        assert!(obj.element_opt(tags::PATIENT_ID).unwrap().is_none());
     }
 
     /// Test attribute operations on in-memory DICOM objects.
