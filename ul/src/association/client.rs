@@ -2,7 +2,7 @@
 //!
 //! The module provides an abstraction for a DICOM association
 //! in which this application entity is the one requesting the association.
-//! See [`ClientAssociationOptions`](self::ClientAssociationOptions)
+//! See [`ClientAssociationOptions`]
 //! for details and examples on how to create an association.
 use std::{
     borrow::Cow,

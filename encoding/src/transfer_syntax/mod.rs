@@ -4,14 +4,14 @@
 //!
 //! This crate does not host specific transfer syntaxes. Instead, they are created in
 //! other crates and registered in the global transfer syntax registry,
-//! which implements [`TransferSyntaxIndex`][1].
+//! which implements [`TransferSyntaxIndex`].
 //! For more information, please see the [`dicom-transfer-syntax-registry`] crate,
 //! which provides built-in implementations.
 //!
 //! This module allows you to register your own transfer syntaxes.
 //! With the `inventory-registry` Cargo feature,
-//! you can use the macro [`submit_transfer_syntax!`]
-//! or [`submit_ele_transfer_syntax!`]
+//! you can use the macro [`submit_transfer_syntax`](crate::submit_transfer_syntax)
+//! or [`submit_ele_transfer_syntax`](crate::submit_ele_transfer_syntax)
 //! to instruct the compiler to include your implementation in the registry.
 //! Without the `inventory`-based registry
 //! (in case your environment does not support it),
@@ -81,7 +81,7 @@ pub struct TransferSyntax<D = DynDataRWAdapter, R = DynPixelDataReader, W = DynP
 /// Implementers and consumers of transfer syntaxes
 /// will usually not interact with it directly.
 /// In order to register a new transfer syntax,
-/// see the macro [`submit_transfer_syntax!`].
+/// see the macro [`submit_transfer_syntax`](crate::submit_transfer_syntax).
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransferSyntaxFactory(pub fn() -> TransferSyntax);
 
@@ -195,7 +195,7 @@ macro_rules! submit_transfer_syntax {
 /// Submit an explicit VR little endian transfer syntax specifier
 /// to be supported by the program's runtime.
 ///
-/// This macro is equivalent in behavior as [`submit_transfer_syntax!`],
+/// This macro is equivalent in behavior as [`submit_transfer_syntax`](crate::submit_transfer_syntax),
 /// but it is easier to use when
 /// writing support for compressed pixel data formats,
 /// which are usually in explicit VR little endian.
@@ -414,7 +414,8 @@ impl<D, R, W> TransferSyntax<D, R, W> {
     /// # Example
     ///
     /// To register a private transfer syntax in your program,
-    /// use [`submit_transfer_syntax!`] outside of a function body:
+    /// use [`submit_transfer_syntax`](crate::submit_transfer_syntax)
+    /// outside of a function body:
     ///  
     /// ```no_run
     /// # use dicom_encoding::{
@@ -458,7 +459,8 @@ impl<D, R, W> TransferSyntax<D, R, W> {
     /// # Example
     ///
     /// To register a private transfer syntax in your program,
-    /// use [`submit_transfer_syntax`] outside of a function body:
+    /// use [`submit_transfer_syntax`](crate::submit_transfer_syntax)
+    /// outside of a function body:
     ///  
     /// ```no_run
     /// # use dicom_encoding::{
@@ -474,7 +476,8 @@ impl<D, R, W> TransferSyntax<D, R, W> {
     /// }
     /// ```
     ///
-    /// See [`submit_ele_transfer_syntax`] for an alternative.
+    /// See [`submit_ele_transfer_syntax`](crate::submit_ele_transfer_syntax)
+    /// for an alternative.
     pub const fn new_ele(uid: &'static str, name: &'static str, codec: Codec<D, R, W>) -> Self {
         TransferSyntax {
             uid,
