@@ -985,7 +985,7 @@ pub type ElementNumber = u16;
 /// In its text form,
 /// DICOM tags are printed by [`Display`][display] in the form `(GGGG,EEEE)`,
 /// where the group and element parts are in uppercase hexadecimal.
-/// Moreover, its [`FromStr`][fromstr] implementation
+/// Moreover, its [`FromStr`] implementation
 /// support converting strings in the following text formats into DICOM tags:
 ///
 /// - `(GGGG,EEEE)`
@@ -993,7 +993,6 @@ pub type ElementNumber = u16;
 /// - `GGGGEEEE`
 ///
 /// [display]: std::fmt::Display
-/// [fromstr]: std::str::FromStr
 ///
 /// # Example
 ///
