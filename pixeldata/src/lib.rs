@@ -564,7 +564,7 @@ impl DecodedPixelData<'_> {
         match &self.rescale.len() {
             0 => Ok(&[Rescale { slope: 1., intercept: 0. }]),
             1 => Ok(&self.rescale),
-            len @ _ => {
+            len => {
                 if *len == self.number_of_frames as usize {
                     Ok(&self.rescale)
                 } else {
@@ -585,7 +585,7 @@ impl DecodedPixelData<'_> {
             let res = match &inner.len() {
                 0 => Ok(None),
                 1 => Ok(Some(inner.as_slice())),
-                len @ _ => {
+                len => {
                     if *len == self.number_of_frames as usize {
                         Ok(Some(inner.as_slice()))
                     } else {
@@ -610,7 +610,7 @@ impl DecodedPixelData<'_> {
             let res = match &inner.len() {
                 0 => Ok(None),
                 1 => Ok(Some(inner.as_slice())),
-                len @ _ => {
+                len => {
                     if *len == self.number_of_frames as usize {
                         Ok(Some(inner.as_slice()))
                     } else {
