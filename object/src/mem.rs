@@ -55,16 +55,16 @@ use crate::ops::{
 use crate::{meta::FileMetaTable, FileMetaTableBuilder};
 use crate::{
     AccessByNameError, AccessError, AtAccessError, BuildMetaTableSnafu, CreateParserSnafu,
-    CreatePrinterSnafu, DicomObject, ElementNotFoundSnafu, FileDicomObject, InvalidElementSnafu,
-    InvalidGroupSnafu, MissingElementValueSnafu, MissingLeafElementSnafu, NoSpaceSnafu,
-    NoSuchAttributeNameSnafu, NoSuchDataElementAliasSnafu, NoSuchDataElementTagSnafu,
-    NotASequenceSnafu, OpenFileSnafu, ParseMetaDataSetSnafu, PrematureEndSnafu,
-    PrepareMetaTableSnafu, PrintDataSetSnafu, PrivateCreatorNotFoundSnafu, PrivateElementError,
-    ReadError, ReadFileSnafu, ReadPreambleBytesSnafu, ReadTokenSnafu,
-    ReadUnsupportedTransferSyntaxSnafu, UnexpectedTokenSnafu, WithMetaError, WriteError,
+    CreatePrinterSnafu, DicomObject, ElementNotFoundSnafu, FileDicomObject, InvalidGroupSnafu,
+    MissingElementValueSnafu, MissingLeafElementSnafu, NoSpaceSnafu, NoSuchAttributeNameSnafu,
+    NoSuchDataElementAliasSnafu, NoSuchDataElementTagSnafu, NotASequenceSnafu, OpenFileSnafu,
+    ParseMetaDataSetSnafu, PrematureEndSnafu, PrepareMetaTableSnafu, PrintDataSetSnafu,
+    PrivateCreatorNotFoundSnafu, PrivateElementError, ReadError, ReadFileSnafu,
+    ReadPreambleBytesSnafu, ReadTokenSnafu, ReadUnsupportedTransferSyntaxSnafu,
+    UnexpectedTokenSnafu, WithMetaError, WriteError,
 };
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
-use dicom_core::header::{ElementNumber, GroupNumber, HasLength, Header};
+use dicom_core::header::{GroupNumber, HasLength, Header};
 use dicom_core::value::{DataSetSequence, PixelFragmentSequence, Value, ValueType, C};
 use dicom_core::{DataElement, Length, PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::{tags, StandardDataDictionary};
