@@ -290,29 +290,23 @@ pub enum WriteError {
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum PrivateElementError {
-    #[snafu(display("Element number must be less than 256, got {}", elem))]
-    InvalidElement{
-        elem:  ElementNumber
-    },
     #[snafu(display("Group number must be odd, found {}", group))]
-    InvalidGroup{
-        group: GroupNumber
-    },
+    InvalidGroup { group: GroupNumber },
     #[snafu(display("Private creator {} not found in group {}", creator, group))]
-    PrivateCreatorNotFound {
-        creator: String,
-        group: GroupNumber
-    },
-    #[snafu(display("Private Creator {} found in group {}, but elem {} not found", creator, group, elem))]
+    PrivateCreatorNotFound { creator: String, group: GroupNumber },
+    #[snafu(display(
+        "Private Creator {} found in group {}, but elem {} not found",
+        creator,
+        group,
+        elem
+    ))]
     ElementNotFound {
         creator: String,
         group: GroupNumber,
-        elem: ElementNumber
+        elem: u8,
     },
     #[snafu(display("No space available in group {}", group))]
-    NoSpace{
-        group: GroupNumber
-    }
+    NoSpace { group: GroupNumber },
 }
 
 /// An error which may occur when looking up a DICOM object's attributes.
