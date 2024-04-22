@@ -721,23 +721,23 @@ where
         creator: &str,
         element: u8,
     ) -> Result<&InMemElement<D>, PrivateElementError> {
-        let tag = self.find_private_creator(group, creator).ok_or(
+        let tag = self.find_private_creator(group, creator).ok_or_else(|| {
             PrivateCreatorNotFoundSnafu {
                 group,
                 creator: creator.to_string(),
             }
-            .build(),
-        )?;
+            .build()
+        })?;
 
         let element_num = (tag.element() << 8) | (element as u16);
-        self.get(Tag(group, element_num)).ok_or(
+        self.get(Tag(group, element_num)).ok_or_else(|| {
             ElementNotFoundSnafu {
                 group,
                 creator: creator.to_string(),
                 elem: element,
             }
-            .fail()?,
-        )
+            .build()
+        })
     }
 
     /// Insert a data element to the object, replacing (and returning) any
