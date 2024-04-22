@@ -150,7 +150,7 @@ pub use dicom_dictionary_std::StandardDataDictionary;
 /// The default implementation of a root DICOM object.
 pub type DefaultDicomObject<D = StandardDataDictionary> = FileDicomObject<mem::InMemDicomObject<D>>;
 
-use dicom_core::header::{ElementNumber, GroupNumber, Header};
+use dicom_core::header::{GroupNumber, Header};
 use dicom_encoding::adapters::{PixelDataObject, RawPixelData};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
