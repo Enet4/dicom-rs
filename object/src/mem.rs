@@ -723,8 +723,8 @@ where
     ///
     /// ```
     /// # use dicom_core::{VR, PrimitiveValue, Tag, DataElement};
-    /// # use dicom_object::InMemDicomObject;
-    ///
+    /// # use dicom_object::{InMemDicomObject, PrivateElementError};
+    /// # use std::error::Error;
     /// let mut ds = InMemDicomObject::from_element_iter(vec![
     ///     DataElement::new(
     ///         Tag(0x0009, 0x0010),
@@ -734,13 +734,12 @@ where
     ///     DataElement::new(Tag(0x0009, 0x01001), VR::DS, PrimitiveValue::from("1.0")),
     /// ]);
     /// assert_eq!(
-    ///     ds.private_element(0x0009, "CREATOR 1", 0x01)
-    ///         .unwrap()
+    ///     ds.private_element(0x0009, "CREATOR 1", 0x01)?
     ///         .value()
-    ///         .to_str()
-    ///         .unwrap(),
+    ///         .to_str()?,
     ///     "1.0"
     /// );
+    /// # Ok::<(), Box<dyn Error>>(())
     /// ```
     pub fn private_element(
         &self,
@@ -799,6 +798,7 @@ where
     /// ```
     /// # use dicom_core::{VR, PrimitiveValue, Tag, DataElement, header::Header};
     /// # use dicom_object::InMemDicomObject;
+    /// # use std::error::Error;
     /// let mut ds = InMemDicomObject::new_empty();
     /// ds.put_private_element(
     ///     0x0009,
@@ -806,23 +806,20 @@ where
     ///     0x02,
     ///     VR::DS,
     ///     PrimitiveValue::Str("1.0".to_string()),
-    /// )
-    /// .unwrap();
+    /// )?;
     /// assert_eq!(
-    ///     ds.private_element(0x0009, "CREATOR 1", 0x02)
-    ///         .unwrap()
+    ///     ds.private_element(0x0009, "CREATOR 1", 0x02)?
     ///         .value()
-    ///         .to_str()
-    ///         .unwrap(),
+    ///         .to_str()?,
     ///     "1.0"
     /// );
     /// assert_eq!(
-    ///     ds.private_element(0x0009, "CREATOR 1", 0x02)
-    ///         .unwrap()
+    ///     ds.private_element(0x0009, "CREATOR 1", 0x02)?
     ///         .header()
     ///         .tag(),
     ///     Tag(0x0009, 0x0102)
     /// );
+    /// # Ok::<(), Box<dyn Error>>(())
     /// ```
     pub fn put_private_element(
         &mut self,
