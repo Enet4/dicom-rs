@@ -716,7 +716,7 @@ where
     }
 
     /// Get a private element from the dataset using the group number, creator and element number.
-    /// 
+    ///
     /// For more info, see the [DICOM standard section on private elements](https://dicom.nema.org/medical/dicom/2024a/output/chtml/part05/sect_7.8.html)
     ///
     /// ## Example
@@ -787,14 +787,14 @@ where
 
     /// Insert a private element into the dataset, replacing (and returning) any
     /// previous element of the same attribute.
-    /// 
+    ///
     /// This function will find the next available private element block in the given
     /// group. If the creator already exists, the element will be added to the block
     /// already reserved for that creator. If it does not exist, then a new block
-    /// will be reserved for the creator in the specified group. 
-    /// 
+    /// will be reserved for the creator in the specified group.
+    ///
     /// For more info, see the [DICOM standard section on private elements](https://dicom.nema.org/medical/dicom/2024a/output/chtml/part05/sect_7.8.html)
-    /// 
+    ///
     /// ## Example
     /// ```
     /// # use dicom_core::{VR, PrimitiveValue, Tag, DataElement, header::Header};
@@ -3805,7 +3805,10 @@ mod tests {
             VR::DS,
             PrimitiveValue::Str("1.0".to_string()),
         );
-        assert_eq!(&res.err().unwrap().to_string(), "Group number must be odd, found 0x0012");
+        assert_eq!(
+            &res.err().unwrap().to_string(),
+            "Group number must be odd, found 0x0012"
+        );
 
         assert_eq!(
             ds.private_element(0x0009, "CREATOR 1", 0x01)
@@ -3833,17 +3836,19 @@ mod tests {
     }
 
     #[test]
-    fn private_element_group_full(){
+    fn private_element_group_full() {
         let mut ds = InMemDicomObject::from_element_iter(
-            (0..=0x00FFu16).into_iter()
-                .map(|i| DataElement::new(
-                    Tag(0x0009, i),
-                    VR::LO,
-                    PrimitiveValue::from("CREATOR 1"),
-                ))
-                .collect::<Vec<DataElement<_>>>()
+            (0..=0x00FFu16)
+                .into_iter()
+                .map(|i| {
+                    DataElement::new(Tag(0x0009, i), VR::LO, PrimitiveValue::from("CREATOR 1"))
+                })
+                .collect::<Vec<DataElement<_>>>(),
         );
         let res = ds.put_private_element(0x0009, "TEST", 0x01, VR::DS, PrimitiveValue::from("1.0"));
-        assert_eq!(res.err().unwrap().to_string(), "No space available in group 0x0009");
+        assert_eq!(
+            res.err().unwrap().to_string(),
+            "No space available in group 0x0009"
+        );
     }
 }
