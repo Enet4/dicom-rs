@@ -290,12 +290,12 @@ pub enum WriteError {
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum PrivateElementError {
-    #[snafu(display("Group number must be odd, found {}", group))]
+    #[snafu(display("Group number must be odd, found {:#06x}", group))]
     InvalidGroup { group: GroupNumber },
-    #[snafu(display("Private creator {} not found in group {}", creator, group))]
+    #[snafu(display("Private creator {} not found in group {:#06x}", creator, group))]
     PrivateCreatorNotFound { creator: String, group: GroupNumber },
     #[snafu(display(
-        "Private Creator {} found in group {}, but elem {} not found",
+        "Private Creator {} found in group {:#06x}, but elem {:#06x} not found",
         creator,
         group,
         elem
@@ -305,7 +305,7 @@ pub enum PrivateElementError {
         group: GroupNumber,
         elem: u8,
     },
-    #[snafu(display("No space available in group {}", group))]
+    #[snafu(display("No space available in group {:#06x}", group))]
     NoSpace { group: GroupNumber },
 }
 

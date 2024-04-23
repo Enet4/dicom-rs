@@ -715,6 +715,33 @@ where
         None
     }
 
+    /// Get a private element from the dataset using the group number, creator and element number.
+    /// 
+    /// For more info, see the [DICOM standard section on private elements](https://dicom.nema.org/medical/dicom/2024a/output/chtml/part05/sect_7.8.html)
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use dicom_core::{VR, PrimitiveValue, Tag, DataElement};
+    /// # use dicom_object::InMemDicomObject;
+    ///
+    /// let mut ds = InMemDicomObject::from_element_iter(vec![
+    ///     DataElement::new(
+    ///         Tag(0x0009, 0x0010),
+    ///         VR::LO,
+    ///         PrimitiveValue::from("CREATOR 1"),
+    ///     ),
+    ///     DataElement::new(Tag(0x0009, 0x01001), VR::DS, PrimitiveValue::from("1.0")),
+    /// ]);
+    /// assert_eq!(
+    ///     ds.private_element(0x0009, "CREATOR 1", 0x01)
+    ///         .unwrap()
+    ///         .value()
+    ///         .to_str()
+    ///         .unwrap(),
+    ///     "1.0"
+    /// );
+    /// ```
     pub fn private_element(
         &self,
         group: GroupNumber,
@@ -758,6 +785,45 @@ where
         self.entries.insert(elt.tag(), elt)
     }
 
+    /// Insert a private element into the dataset, replacing (and returning) any
+    /// previous element of the same attribute.
+    /// 
+    /// This function will find the next available private element block in the given
+    /// group. If the creator already exists, the element will be added to the block
+    /// already reserved for that creator. If it does not exist, then a new block
+    /// will be reserved for the creator in the specified group. 
+    /// 
+    /// For more info, see the [DICOM standard section on private elements](https://dicom.nema.org/medical/dicom/2024a/output/chtml/part05/sect_7.8.html)
+    /// 
+    /// ## Example
+    /// ```
+    /// # use dicom_core::{VR, PrimitiveValue, Tag, DataElement, header::Header};
+    /// # use dicom_object::InMemDicomObject;
+    /// let mut ds = InMemDicomObject::new_empty();
+    /// ds.put_private_element(
+    ///     0x0009,
+    ///     "CREATOR 1",
+    ///     0x02,
+    ///     VR::DS,
+    ///     PrimitiveValue::Str("1.0".to_string()),
+    /// )
+    /// .unwrap();
+    /// assert_eq!(
+    ///     ds.private_element(0x0009, "CREATOR 1", 0x02)
+    ///         .unwrap()
+    ///         .value()
+    ///         .to_str()
+    ///         .unwrap(),
+    ///     "1.0"
+    /// );
+    /// assert_eq!(
+    ///     ds.private_element(0x0009, "CREATOR 1", 0x02)
+    ///         .unwrap()
+    ///         .header()
+    ///         .tag(),
+    ///     Tag(0x0009, 0x0102)
+    /// );
+    /// ```
     pub fn put_private_element(
         &mut self,
         group: GroupNumber,
@@ -3731,6 +3797,16 @@ mod tests {
             PrimitiveValue::Str("1.0".to_string()),
         )
         .unwrap();
+
+        let res = ds.put_private_element(
+            0x0012,
+            "CREATOR 4",
+            0x02,
+            VR::DS,
+            PrimitiveValue::Str("1.0".to_string()),
+        );
+        assert_eq!(&res.err().unwrap().to_string(), "Group number must be odd, found 0x0012");
+
         assert_eq!(
             ds.private_element(0x0009, "CREATOR 1", 0x01)
                 .unwrap()
@@ -3754,5 +3830,20 @@ mod tests {
                 .tag(),
             Tag(0x0009, 0x1202)
         );
+    }
+
+    #[test]
+    fn private_element_group_full(){
+        let mut ds = InMemDicomObject::from_element_iter(
+            (0..=0x00FFu16).into_iter()
+                .map(|i| DataElement::new(
+                    Tag(0x0009, i),
+                    VR::LO,
+                    PrimitiveValue::from("CREATOR 1"),
+                ))
+                .collect::<Vec<DataElement<_>>>()
+        );
+        let res = ds.put_private_element(0x0009, "TEST", 0x01, VR::DS, PrimitiveValue::from("1.0"));
+        assert_eq!(res.err().unwrap().to_string(), "No space available in group 0x0009");
     }
 }
