@@ -707,7 +707,7 @@ where
         let range = Tag(group, 0)..Tag(group, 0xFF);
         for (tag, elem) in self.entries.range(range) {
             // Private Creators are always LO
-            // https://dicom.nema.org/dicom/2013/output/chtml/part05/sect_7.8.html
+            // https://dicom.nema.org/medical/dicom/2024a/output/chtml/part05/sect_7.8.html
             if elem.header().vr() == VR::LO && elem.to_str().unwrap_or_default() == creator {
                 return Some(tag);
             }
@@ -771,11 +771,11 @@ where
         if let Some(tag) = private_creator {
             // Private creator already exists
             let tag = Tag(group, tag.element() << 8 | (element as u16));
-            return Ok(self.put_element(DataElement::new(tag, vr, value)));
+            Ok(self.put_element(DataElement::new(tag, vr, value)))
         } else {
             // Find last reserved block of tags.
             let range = Tag(group, 0)..Tag(group, 0xFF);
-            let last_entry = self.entries.range(range).rev().next();
+            let last_entry = self.entries.range(range).next_back();
             let next_available = match last_entry {
                 Some((tag, _)) => tag.element() + 1,
                 None => 0x01,
@@ -787,9 +787,9 @@ where
 
                 // Put private element
                 let tag = Tag(group, next_available << 8 | (element as u16));
-                return Ok(self.put_element(DataElement::new(tag, vr, value)));
+                Ok(self.put_element(DataElement::new(tag, vr, value)))
             } else {
-                return NoSpaceSnafu { group }.fail();
+                NoSpaceSnafu { group }.fail()
             }
         }
     }
