@@ -70,6 +70,21 @@ pub const HEVCMP51: &str = "1.2.840.10008.1.2.4.107";
 /// Transfer Syntax: HEVC/H.265 Main 10 Profile / Level 5.1
 #[rustfmt::skip]
 pub const HEVCM10P51: &str = "1.2.840.10008.1.2.4.108";
+/// Transfer Syntax: High-Throughput JPEG 2000 Image Compression (Lossless Only)
+#[rustfmt::skip]
+pub const HTJ2K_LOSSLESS: &str = "1.2.840.10008.1.2.4.201";
+/// Transfer Syntax: High-Throughput JPEG 2000 with RPCL Options Image Compression (Lossless Only)
+#[rustfmt::skip]
+pub const HTJ2K_LOSSLESS_RPCL: &str = "1.2.840.10008.1.2.4.202";
+/// Transfer Syntax: High-Throughput JPEG 2000 Image Compression
+#[rustfmt::skip]
+pub const HTJ2K: &str = "1.2.840.10008.1.2.4.203";
+/// Transfer Syntax: JPIP HTJ2K Referenced
+#[rustfmt::skip]
+pub const JPIPHTJ2K_REFERENCED: &str = "1.2.840.10008.1.2.4.204";
+/// Transfer Syntax: JPIP HTJ2K Referenced Deflate
+#[rustfmt::skip]
+pub const JPIPHTJ2K_REFERENCED_DEFLATE: &str = "1.2.840.10008.1.2.4.205";
 /// Transfer Syntax: JPEG Baseline (Process 1): Default Transfer Syntax for Lossy JPEG 8 Bit Image Compression
 #[rustfmt::skip]
 pub const JPEG_BASELINE8_BIT: &str = "1.2.840.10008.1.2.4.50";
@@ -628,7 +643,7 @@ pub const SEGMENTED_VOLUME_RENDERING_VOLUMETRIC_PRESENTATION_STATE_STORAGE: &str
 pub const MULTIPLE_VOLUME_RENDERING_VOLUMETRIC_PRESENTATION_STATE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.11.11";
 /// SOP Class: Variable Modality LUT Softcopy Presentation State Storage
 #[rustfmt::skip]
-pub const VARIABLE_MODALITY_LUT_PRESENTATION_STATE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.11.12";
+pub const VARIABLE_MODALITY_LUT_SOFTCOPY_PRESENTATION_STATE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.11.12";
 /// SOP Class: Color Softcopy Presentation State Storage
 #[rustfmt::skip]
 pub const COLOR_SOFTCOPY_PRESENTATION_STATE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.11.2";
@@ -898,6 +913,9 @@ pub const ULTRASOUND_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.6.1";
 /// SOP Class: Enhanced US Volume Storage
 #[rustfmt::skip]
 pub const ENHANCED_US_VOLUME_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.6.2";
+/// SOP Class: Photoacoustic Image Storage
+#[rustfmt::skip]
+pub const PHOTOACOUSTIC_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.6.3";
 /// SOP Class: Eddy Current Image Storage
 #[rustfmt::skip]
 pub const EDDY_CURRENT_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.601.1";
@@ -1004,6 +1022,12 @@ pub const VL_WHOLE_SLIDE_MICROSCOPY_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1
 /// SOP Class: Dermoscopic Photography Image Storage
 #[rustfmt::skip]
 pub const DERMOSCOPIC_PHOTOGRAPHY_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.77.1.7";
+/// SOP Class: Confocal Microscopy Image Storage
+#[rustfmt::skip]
+pub const CONFOCAL_MICROSCOPY_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.77.1.8";
+/// SOP Class: Confocal Microscopy Tiled Pyramidal Image Storage
+#[rustfmt::skip]
+pub const CONFOCAL_MICROSCOPY_TILED_PYRAMIDAL_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.77.1.9";
 /// SOP Class: VL Multi-frame Image Storage - Trial (Retired)
 #[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
@@ -1138,6 +1162,9 @@ pub const GENERAL_ECG_WAVEFORM_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.9.1.2";
 /// SOP Class: Ambulatory ECG Waveform Storage
 #[rustfmt::skip]
 pub const AMBULATORY_ECG_WAVEFORM_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.9.1.3";
+/// SOP Class: General 32-bit ECG Waveform Storage
+#[rustfmt::skip]
+pub const GENERAL32BIT_ECG_WAVEFORM_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.9.1.4";
 /// SOP Class: Hemodynamic Waveform Storage
 #[rustfmt::skip]
 pub const HEMODYNAMIC_WAVEFORM_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.9.2.1";
@@ -1468,7 +1495,7 @@ pub(crate) const SOP_CLASSES: &[E] = &[
     E::new("1.2.840.10008.5.1.4.1.1.11.1", "Grayscale Softcopy Presentation State Storage", "GrayscaleSoftcopyPresentationStateStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.11.10", "Segmented Volume Rendering Volumetric Presentation State Storage", "SegmentedVolumeRenderingVolumetricPresentationStateStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.11.11", "Multiple Volume Rendering Volumetric Presentation State Storage", "MultipleVolumeRenderingVolumetricPresentationStateStorage", SopClass, false),
-    E::new("1.2.840.10008.5.1.4.1.1.11.12", "Variable Modality LUT Softcopy Presentation State Storage", "VariableModalityLUTPresentationStateStorage", SopClass, false),
+    E::new("1.2.840.10008.5.1.4.1.1.11.12", "Variable Modality LUT Softcopy Presentation State Storage", "VariableModalityLUTSoftcopyPresentationStateStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.11.2", "Color Softcopy Presentation State Storage", "ColorSoftcopyPresentationStateStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.11.3", "Pseudo-Color Softcopy Presentation State Storage", "PseudoColorSoftcopyPresentationStateStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.11.4", "Blending Softcopy Presentation State Storage", "BlendingSoftcopyPresentationStateStorage", SopClass, false),
@@ -1556,6 +1583,7 @@ pub(crate) const SOP_CLASSES: &[E] = &[
     E::new("1.2.840.10008.5.1.4.1.1.6", "Ultrasound Image Storage (Retired)", "UltrasoundImageStorageRetired", SopClass, true),
     E::new("1.2.840.10008.5.1.4.1.1.6.1", "Ultrasound Image Storage", "UltrasoundImageStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.6.2", "Enhanced US Volume Storage", "EnhancedUSVolumeStorage", SopClass, false),
+    E::new("1.2.840.10008.5.1.4.1.1.6.3", "Photoacoustic Image Storage", "PhotoacousticImageStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.601.1", "Eddy Current Image Storage", "EddyCurrentImageStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.601.2", "Eddy Current Multi-frame Image Storage", "EddyCurrentMultiFrameImageStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.66", "Raw Data Storage", "RawDataStorage", SopClass, false),
@@ -1591,6 +1619,8 @@ pub(crate) const SOP_CLASSES: &[E] = &[
     E::new("1.2.840.10008.5.1.4.1.1.77.1.5.8", "Ophthalmic Optical Coherence Tomography B-scan Volume Analysis Storage", "OphthalmicOpticalCoherenceTomographyBscanVolumeAnalysisStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.77.1.6", "VL Whole Slide Microscopy Image Storage", "VLWholeSlideMicroscopyImageStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.77.1.7", "Dermoscopic Photography Image Storage", "DermoscopicPhotographyImageStorage", SopClass, false),
+    E::new("1.2.840.10008.5.1.4.1.1.77.1.8", "Confocal Microscopy Image Storage", "ConfocalMicroscopyImageStorage", SopClass, false),
+    E::new("1.2.840.10008.5.1.4.1.1.77.1.9", "Confocal Microscopy Tiled Pyramidal Image Storage", "ConfocalMicroscopyTiledPyramidalImageStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.77.2", "VL Multi-frame Image Storage - Trial (Retired)", "VLMultiFrameImageStorageTrial", SopClass, true),
     E::new("1.2.840.10008.5.1.4.1.1.78.1", "Lensometry Measurements Storage", "LensometryMeasurementsStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.78.2", "Autorefraction Measurements Storage", "AutorefractionMeasurementsStorage", SopClass, false),
@@ -1633,6 +1663,7 @@ pub(crate) const SOP_CLASSES: &[E] = &[
     E::new("1.2.840.10008.5.1.4.1.1.9.1.1", "12-lead ECG Waveform Storage", "TwelveLeadECGWaveformStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.9.1.2", "General ECG Waveform Storage", "GeneralECGWaveformStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.9.1.3", "Ambulatory ECG Waveform Storage", "AmbulatoryECGWaveformStorage", SopClass, false),
+    E::new("1.2.840.10008.5.1.4.1.1.9.1.4", "General 32-bit ECG Waveform Storage", "General32bitECGWaveformStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.9.2.1", "Hemodynamic Waveform Storage", "HemodynamicWaveformStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.9.3.1", "Cardiac Electrophysiology Waveform Storage", "CardiacElectrophysiologyWaveformStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.9.4.1", "Basic Voice Audio Waveform Storage", "BasicVoiceAudioWaveformStorage", SopClass, false),
@@ -1734,6 +1765,11 @@ pub(crate) const TRANSFER_SYNTAXES: &[E] = &[
     E::new("1.2.840.10008.1.2.4.106.1", "Fragmentable MPEG-4 AVC/H.264 Stereo High Profile / Level 4.2", "MPEG4HP42STEREOF", TransferSyntax, false),
     E::new("1.2.840.10008.1.2.4.107", "HEVC/H.265 Main Profile / Level 5.1", "HEVCMP51", TransferSyntax, false),
     E::new("1.2.840.10008.1.2.4.108", "HEVC/H.265 Main 10 Profile / Level 5.1", "HEVCM10P51", TransferSyntax, false),
+    E::new("1.2.840.10008.1.2.4.201", "High-Throughput JPEG 2000 Image Compression (Lossless Only)", "HTJ2KLossless", TransferSyntax, false),
+    E::new("1.2.840.10008.1.2.4.202", "High-Throughput JPEG 2000 with RPCL Options Image Compression (Lossless Only)", "HTJ2KLosslessRPCL", TransferSyntax, false),
+    E::new("1.2.840.10008.1.2.4.203", "High-Throughput JPEG 2000 Image Compression", "HTJ2K", TransferSyntax, false),
+    E::new("1.2.840.10008.1.2.4.204", "JPIP HTJ2K Referenced", "JPIPHTJ2KReferenced", TransferSyntax, false),
+    E::new("1.2.840.10008.1.2.4.205", "JPIP HTJ2K Referenced Deflate", "JPIPHTJ2KReferencedDeflate", TransferSyntax, false),
     E::new("1.2.840.10008.1.2.4.50", "JPEG Baseline (Process 1): Default Transfer Syntax for Lossy JPEG 8 Bit Image Compression", "JPEGBaseline8Bit", TransferSyntax, false),
     E::new("1.2.840.10008.1.2.4.51", "JPEG Extended (Process 2", "JPEGExtended12Bit", TransferSyntax, false),
     E::new("1.2.840.10008.1.2.4.52", "JPEG Extended (Process 3", "JPEGExtended35", TransferSyntax, true),

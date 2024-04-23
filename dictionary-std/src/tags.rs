@@ -242,6 +242,9 @@ pub const RELATED_GENERAL_SOP_CLASS_UID: Tag = Tag(0x0008, 0x001A);
 /// OriginalSpecializedSOPClassUID (0008,001B) UI 1 DICOM
 #[rustfmt::skip]
 pub const ORIGINAL_SPECIALIZED_SOP_CLASS_UID: Tag = Tag(0x0008, 0x001B);
+/// SyntheticData (0008,001C) CS 1 DICOM
+#[rustfmt::skip]
+pub const SYNTHETIC_DATA: Tag = Tag(0x0008, 0x001C);
 /// StudyDate (0008,0020) DA 1 DICOM
 #[rustfmt::skip]
 pub const STUDY_DATE: Tag = Tag(0x0008, 0x0020);
@@ -1124,18 +1127,33 @@ pub const CLINICAL_TRIAL_PROTOCOL_ID: Tag = Tag(0x0012, 0x0020);
 /// ClinicalTrialProtocolName (0012,0021) LO 1 DICOM
 #[rustfmt::skip]
 pub const CLINICAL_TRIAL_PROTOCOL_NAME: Tag = Tag(0x0012, 0x0021);
+/// IssuerOfClinicalTrialProtocolID (0012,0022) LO 1 DICOM
+#[rustfmt::skip]
+pub const ISSUER_OF_CLINICAL_TRIAL_PROTOCOL_ID: Tag = Tag(0x0012, 0x0022);
+/// OtherClinicalTrialProtocolIDsSequence (0012,0023) SQ 1 DICOM
+#[rustfmt::skip]
+pub const OTHER_CLINICAL_TRIAL_PROTOCOL_I_DS_SEQUENCE: Tag = Tag(0x0012, 0x0023);
 /// ClinicalTrialSiteID (0012,0030) LO 1 DICOM
 #[rustfmt::skip]
 pub const CLINICAL_TRIAL_SITE_ID: Tag = Tag(0x0012, 0x0030);
 /// ClinicalTrialSiteName (0012,0031) LO 1 DICOM
 #[rustfmt::skip]
 pub const CLINICAL_TRIAL_SITE_NAME: Tag = Tag(0x0012, 0x0031);
+/// IssuerOfClinicalTrialSiteID (0012,0032) LO 1 DICOM
+#[rustfmt::skip]
+pub const ISSUER_OF_CLINICAL_TRIAL_SITE_ID: Tag = Tag(0x0012, 0x0032);
 /// ClinicalTrialSubjectID (0012,0040) LO 1 DICOM
 #[rustfmt::skip]
 pub const CLINICAL_TRIAL_SUBJECT_ID: Tag = Tag(0x0012, 0x0040);
+/// IssuerOfClinicalTrialSubjectID (0012,0041) LO 1 DICOM
+#[rustfmt::skip]
+pub const ISSUER_OF_CLINICAL_TRIAL_SUBJECT_ID: Tag = Tag(0x0012, 0x0041);
 /// ClinicalTrialSubjectReadingID (0012,0042) LO 1 DICOM
 #[rustfmt::skip]
 pub const CLINICAL_TRIAL_SUBJECT_READING_ID: Tag = Tag(0x0012, 0x0042);
+/// IssuerOfClinicalTrialSubjectReadingID (0012,0043) LO 1 DICOM
+#[rustfmt::skip]
+pub const ISSUER_OF_CLINICAL_TRIAL_SUBJECT_READING_ID: Tag = Tag(0x0012, 0x0043);
 /// ClinicalTrialTimePointID (0012,0050) LO 1 DICOM
 #[rustfmt::skip]
 pub const CLINICAL_TRIAL_TIME_POINT_ID: Tag = Tag(0x0012, 0x0050);
@@ -1151,6 +1169,9 @@ pub const LONGITUDINAL_TEMPORAL_EVENT_TYPE: Tag = Tag(0x0012, 0x0053);
 /// ClinicalTrialTimePointTypeCodeSequence (0012,0054) SQ 1 DICOM
 #[rustfmt::skip]
 pub const CLINICAL_TRIAL_TIME_POINT_TYPE_CODE_SEQUENCE: Tag = Tag(0x0012, 0x0054);
+/// IssuerOfClinicalTrialTimePointID (0012,0055) LO 1 DICOM
+#[rustfmt::skip]
+pub const ISSUER_OF_CLINICAL_TRIAL_TIME_POINT_ID: Tag = Tag(0x0012, 0x0055);
 /// ClinicalTrialCoordinatingCenterName (0012,0060) LO 1 DICOM
 #[rustfmt::skip]
 pub const CLINICAL_TRIAL_COORDINATING_CENTER_NAME: Tag = Tag(0x0012, 0x0060);
@@ -1169,6 +1190,9 @@ pub const CLINICAL_TRIAL_SERIES_ID: Tag = Tag(0x0012, 0x0071);
 /// ClinicalTrialSeriesDescription (0012,0072) LO 1 DICOM
 #[rustfmt::skip]
 pub const CLINICAL_TRIAL_SERIES_DESCRIPTION: Tag = Tag(0x0012, 0x0072);
+/// IssuerOfClinicalTrialSeriesID (0012,0073) LO 1 DICOM
+#[rustfmt::skip]
+pub const ISSUER_OF_CLINICAL_TRIAL_SERIES_ID: Tag = Tag(0x0012, 0x0073);
 /// ClinicalTrialProtocolEthicsCommitteeName (0012,0081) LO 1 DICOM
 #[rustfmt::skip]
 pub const CLINICAL_TRIAL_PROTOCOL_ETHICS_COMMITTEE_NAME: Tag = Tag(0x0012, 0x0081);
@@ -5036,6 +5060,9 @@ pub const PUPIL_DILATED: Tag = Tag(0x0022, 0x000D);
 /// DegreeOfDilation (0022,000E) FL 1 DICOM
 #[rustfmt::skip]
 pub const DEGREE_OF_DILATION: Tag = Tag(0x0022, 0x000E);
+/// VertexDistance (0022,000F) FD 1 DICOM
+#[rustfmt::skip]
+pub const VERTEX_DISTANCE: Tag = Tag(0x0022, 0x000F);
 /// StereoBaselineAngle (0022,0010) FL 1 DICOM
 #[rustfmt::skip]
 pub const STEREO_BASELINE_ANGLE: Tag = Tag(0x0022, 0x0010);
@@ -9239,12 +9266,6 @@ pub const PRESENTATION_STATE_COMPOSITOR_COMPONENT_SEQUENCE: Tag = Tag(0x0070, 0x
 /// WeightingTransferFunctionSequence (0070,1806) SQ 1 DICOM
 #[rustfmt::skip]
 pub const WEIGHTING_TRANSFER_FUNCTION_SEQUENCE: Tag = Tag(0x0070, 0x1806);
-/// WeightingLookupTableDescriptor (0070,1807) US 3 DICOM
-#[rustfmt::skip]
-pub const WEIGHTING_LOOKUP_TABLE_DESCRIPTOR: Tag = Tag(0x0070, 0x1807);
-/// WeightingLookupTableData (0070,1808) OB 1 DICOM
-#[rustfmt::skip]
-pub const WEIGHTING_LOOKUP_TABLE_DATA: Tag = Tag(0x0070, 0x1808);
 /// VolumetricAnnotationSequence (0070,1901) SQ 1 DICOM
 #[rustfmt::skip]
 pub const VOLUMETRIC_ANNOTATION_SEQUENCE: Tag = Tag(0x0070, 0x1901);
@@ -15301,6 +15322,14 @@ pub const GRAPHIC_LAYER_RECOMMENDED_DISPLAY_RGB_VALUE: Tag = Tag(0x0070, 0x0067)
 #[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const COMPOSITING_METHOD: Tag = Tag(0x0070, 0x1206);
+/// WeightingLookupTableDescriptor (0070,1807) US 3 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
+#[rustfmt::skip]
+pub const WEIGHTING_LOOKUP_TABLE_DESCRIPTOR: Tag = Tag(0x0070, 0x1807);
+/// WeightingLookupTableData (0070,1808) OB 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
+#[rustfmt::skip]
+pub const WEIGHTING_LOOKUP_TABLE_DATA: Tag = Tag(0x0070, 0x1808);
 /// BeamOrderIndexTrial (0074,1024) IS 1 DICOM/retired
 #[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
@@ -16051,6 +16080,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(PYRAMID_UID), alias: "PyramidUID", vr: Exact(UI) }, // DICOM
     E { tag: Single(RELATED_GENERAL_SOP_CLASS_UID), alias: "RelatedGeneralSOPClassUID", vr: Exact(UI) }, // DICOM
     E { tag: Single(ORIGINAL_SPECIALIZED_SOP_CLASS_UID), alias: "OriginalSpecializedSOPClassUID", vr: Exact(UI) }, // DICOM
+    E { tag: Single(SYNTHETIC_DATA), alias: "SyntheticData", vr: Exact(CS) }, // DICOM
     E { tag: Single(STUDY_DATE), alias: "StudyDate", vr: Exact(DA) }, // DICOM
     E { tag: Single(SERIES_DATE), alias: "SeriesDate", vr: Exact(DA) }, // DICOM
     E { tag: Single(ACQUISITION_DATE), alias: "AcquisitionDate", vr: Exact(DA) }, // DICOM
@@ -16345,21 +16375,28 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(CLINICAL_TRIAL_SPONSOR_NAME), alias: "ClinicalTrialSponsorName", vr: Exact(LO) }, // DICOM
     E { tag: Single(CLINICAL_TRIAL_PROTOCOL_ID), alias: "ClinicalTrialProtocolID", vr: Exact(LO) }, // DICOM
     E { tag: Single(CLINICAL_TRIAL_PROTOCOL_NAME), alias: "ClinicalTrialProtocolName", vr: Exact(LO) }, // DICOM
+    E { tag: Single(ISSUER_OF_CLINICAL_TRIAL_PROTOCOL_ID), alias: "IssuerOfClinicalTrialProtocolID", vr: Exact(LO) }, // DICOM
+    E { tag: Single(OTHER_CLINICAL_TRIAL_PROTOCOL_I_DS_SEQUENCE), alias: "OtherClinicalTrialProtocolIDsSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(CLINICAL_TRIAL_SITE_ID), alias: "ClinicalTrialSiteID", vr: Exact(LO) }, // DICOM
     E { tag: Single(CLINICAL_TRIAL_SITE_NAME), alias: "ClinicalTrialSiteName", vr: Exact(LO) }, // DICOM
+    E { tag: Single(ISSUER_OF_CLINICAL_TRIAL_SITE_ID), alias: "IssuerOfClinicalTrialSiteID", vr: Exact(LO) }, // DICOM
     E { tag: Single(CLINICAL_TRIAL_SUBJECT_ID), alias: "ClinicalTrialSubjectID", vr: Exact(LO) }, // DICOM
+    E { tag: Single(ISSUER_OF_CLINICAL_TRIAL_SUBJECT_ID), alias: "IssuerOfClinicalTrialSubjectID", vr: Exact(LO) }, // DICOM
     E { tag: Single(CLINICAL_TRIAL_SUBJECT_READING_ID), alias: "ClinicalTrialSubjectReadingID", vr: Exact(LO) }, // DICOM
+    E { tag: Single(ISSUER_OF_CLINICAL_TRIAL_SUBJECT_READING_ID), alias: "IssuerOfClinicalTrialSubjectReadingID", vr: Exact(LO) }, // DICOM
     E { tag: Single(CLINICAL_TRIAL_TIME_POINT_ID), alias: "ClinicalTrialTimePointID", vr: Exact(LO) }, // DICOM
     E { tag: Single(CLINICAL_TRIAL_TIME_POINT_DESCRIPTION), alias: "ClinicalTrialTimePointDescription", vr: Exact(ST) }, // DICOM
     E { tag: Single(LONGITUDINAL_TEMPORAL_OFFSET_FROM_EVENT), alias: "LongitudinalTemporalOffsetFromEvent", vr: Exact(FD) }, // DICOM
     E { tag: Single(LONGITUDINAL_TEMPORAL_EVENT_TYPE), alias: "LongitudinalTemporalEventType", vr: Exact(CS) }, // DICOM
     E { tag: Single(CLINICAL_TRIAL_TIME_POINT_TYPE_CODE_SEQUENCE), alias: "ClinicalTrialTimePointTypeCodeSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(ISSUER_OF_CLINICAL_TRIAL_TIME_POINT_ID), alias: "IssuerOfClinicalTrialTimePointID", vr: Exact(LO) }, // DICOM
     E { tag: Single(CLINICAL_TRIAL_COORDINATING_CENTER_NAME), alias: "ClinicalTrialCoordinatingCenterName", vr: Exact(LO) }, // DICOM
     E { tag: Single(PATIENT_IDENTITY_REMOVED), alias: "PatientIdentityRemoved", vr: Exact(CS) }, // DICOM
     E { tag: Single(DEIDENTIFICATION_METHOD), alias: "DeidentificationMethod", vr: Exact(LO) }, // DICOM
     E { tag: Single(DEIDENTIFICATION_METHOD_CODE_SEQUENCE), alias: "DeidentificationMethodCodeSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(CLINICAL_TRIAL_SERIES_ID), alias: "ClinicalTrialSeriesID", vr: Exact(LO) }, // DICOM
     E { tag: Single(CLINICAL_TRIAL_SERIES_DESCRIPTION), alias: "ClinicalTrialSeriesDescription", vr: Exact(LO) }, // DICOM
+    E { tag: Single(ISSUER_OF_CLINICAL_TRIAL_SERIES_ID), alias: "IssuerOfClinicalTrialSeriesID", vr: Exact(LO) }, // DICOM
     E { tag: Single(CLINICAL_TRIAL_PROTOCOL_ETHICS_COMMITTEE_NAME), alias: "ClinicalTrialProtocolEthicsCommitteeName", vr: Exact(LO) }, // DICOM
     E { tag: Single(CLINICAL_TRIAL_PROTOCOL_ETHICS_COMMITTEE_APPROVAL_NUMBER), alias: "ClinicalTrialProtocolEthicsCommitteeApprovalNumber", vr: Exact(LO) }, // DICOM
     E { tag: Single(CONSENT_FOR_CLINICAL_TRIAL_USE_SEQUENCE), alias: "ConsentForClinicalTrialUseSequence", vr: Exact(SQ) }, // DICOM
@@ -17649,6 +17686,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(HORIZONTAL_FIELD_OF_VIEW), alias: "HorizontalFieldOfView", vr: Exact(FL) }, // DICOM
     E { tag: Single(PUPIL_DILATED), alias: "PupilDilated", vr: Exact(CS) }, // DICOM
     E { tag: Single(DEGREE_OF_DILATION), alias: "DegreeOfDilation", vr: Exact(FL) }, // DICOM
+    E { tag: Single(VERTEX_DISTANCE), alias: "VertexDistance", vr: Exact(FD) }, // DICOM
     E { tag: Single(STEREO_BASELINE_ANGLE), alias: "StereoBaselineAngle", vr: Exact(FL) }, // DICOM
     E { tag: Single(STEREO_BASELINE_DISPLACEMENT), alias: "StereoBaselineDisplacement", vr: Exact(FL) }, // DICOM
     E { tag: Single(STEREO_HORIZONTAL_PIXEL_OFFSET), alias: "StereoHorizontalPixelOffset", vr: Exact(FL) }, // DICOM
@@ -19050,8 +19088,6 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(VOLUMETRIC_PRESENTATION_INPUT_INDEX), alias: "VolumetricPresentationInputIndex", vr: Exact(US) }, // DICOM
     E { tag: Single(PRESENTATION_STATE_COMPOSITOR_COMPONENT_SEQUENCE), alias: "PresentationStateCompositorComponentSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(WEIGHTING_TRANSFER_FUNCTION_SEQUENCE), alias: "WeightingTransferFunctionSequence", vr: Exact(SQ) }, // DICOM
-    E { tag: Single(WEIGHTING_LOOKUP_TABLE_DESCRIPTOR), alias: "WeightingLookupTableDescriptor", vr: Exact(US) }, // DICOM
-    E { tag: Single(WEIGHTING_LOOKUP_TABLE_DATA), alias: "WeightingLookupTableData", vr: Exact(OB) }, // DICOM
     E { tag: Single(VOLUMETRIC_ANNOTATION_SEQUENCE), alias: "VolumetricAnnotationSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(REFERENCED_STRUCTURED_CONTEXT_SEQUENCE), alias: "ReferencedStructuredContextSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(REFERENCED_CONTENT_ITEM), alias: "ReferencedContentItem", vr: Exact(UI) }, // DICOM
@@ -20964,6 +21000,8 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(DISPLAYED_AREA_BOTTOM_RIGHT_HAND_CORNER_TRIAL), alias: "DisplayedAreaBottomRightHandCornerTrial", vr: Exact(US) }, // DICOM/retired
     E { tag: Single(GRAPHIC_LAYER_RECOMMENDED_DISPLAY_RGB_VALUE), alias: "GraphicLayerRecommendedDisplayRGBValue", vr: Exact(US) }, // DICOM/retired
     E { tag: Single(COMPOSITING_METHOD), alias: "CompositingMethod", vr: Exact(CS) }, // DICOM/retired
+    E { tag: Single(WEIGHTING_LOOKUP_TABLE_DESCRIPTOR), alias: "WeightingLookupTableDescriptor", vr: Exact(US) }, // DICOM/retired
+    E { tag: Single(WEIGHTING_LOOKUP_TABLE_DATA), alias: "WeightingLookupTableData", vr: Exact(OB) }, // DICOM/retired
     E { tag: Single(BEAM_ORDER_INDEX_TRIAL), alias: "BeamOrderIndexTrial", vr: Exact(IS) }, // DICOM/retired
     E { tag: Single(DOUBLE_EXPOSURE_METERSET_TRIAL), alias: "DoubleExposureMetersetTrial", vr: Exact(DS) }, // DICOM/retired
     E { tag: Single(DOUBLE_EXPOSURE_FIELD_DELTA_TRIAL), alias: "DoubleExposureFieldDeltaTrial", vr: Exact(DS) }, // DICOM/retired
