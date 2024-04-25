@@ -1,6 +1,6 @@
 [package]
 name = "dicom-ul"
-version = "0.5.1"
+version = "0.7.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>", "Paul Knopf <pauldotknopf@gmail.com>"]
 description = "Types and methods for interacting with the DICOM Upper Layer Protocol"
 edition = "2018"
