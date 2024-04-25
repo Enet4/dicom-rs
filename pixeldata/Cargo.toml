@@ -45,7 +45,7 @@ version = "0.3.17"
 optional = true
 
 [dev-dependencies]
-rstest = "0.18.1"
+rstest = "0.19"
 dicom-test-files = "0.3"
 
 [features]
