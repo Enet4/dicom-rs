@@ -287,13 +287,17 @@ pub enum WriteError {
     WriteUnsupportedTransferSyntax { uid: String, backtrace: Backtrace },
 }
 
+/// An error which may occur during private element look-up or insertion
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum PrivateElementError {
+    /// Group number must be odd
     #[snafu(display("Group number must be odd, found {:#06x}", group))]
     InvalidGroup { group: GroupNumber },
+    /// Private creator not found in group
     #[snafu(display("Private creator {} not found in group {:#06x}", creator, group))]
     PrivateCreatorNotFound { creator: String, group: GroupNumber },
+    /// Element not found in group
     #[snafu(display(
         "Private Creator {} found in group {:#06x}, but elem {:#06x} not found",
         creator,
@@ -305,6 +309,7 @@ pub enum PrivateElementError {
         group: GroupNumber,
         elem: u8,
     },
+    /// No space available for more private elements in the group
     #[snafu(display("No space available in group {:#06x}", group))]
     NoSpace { group: GroupNumber },
 }
