@@ -493,7 +493,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-pixeldata"
-version = "0.2.2"
+version = "0.7.0"
 dependencies = [
  "byteorder",
  "clap",
