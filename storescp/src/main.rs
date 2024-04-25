@@ -112,10 +112,12 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
                         }
 
                         for data_value in data {
-
-                            if data_value.value_type == PDataValueType::Data && !data_value.is_last {
+                            if data_value.value_type == PDataValueType::Data && !data_value.is_last
+                            {
                                 instance_buffer.append(&mut data_value.data);
-                            } else if data_value.value_type == PDataValueType::Command && data_value.is_last {
+                            } else if data_value.value_type == PDataValueType::Command
+                                && data_value.is_last
+                            {
                                 // commands are always in implict VR LE
                                 let ts =
                                     dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN
@@ -138,11 +140,14 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
 
                                     cecho_response
                                         .write_dataset_with_ts(&mut cecho_data, &ts)
-                                        .whatever_context("could not write C-ECHO response object")?;
+                                        .whatever_context(
+                                            "could not write C-ECHO response object",
+                                        )?;
 
                                     let pdu_response = Pdu::PData {
                                         data: vec![dicom_ul::pdu::PDataValue {
-                                            presentation_context_id: data_value.presentation_context_id,
+                                            presentation_context_id: data_value
+                                                .presentation_context_id,
                                             value_type: PDataValueType::Command,
                                             is_last: true,
                                             data: cecho_data,
@@ -161,7 +166,9 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
                                         .element(tags::AFFECTED_SOP_CLASS_UID)
                                         .whatever_context("missing Affected SOP Class UID")?
                                         .to_str()
-                                        .whatever_context("could not retrieve Affected SOP Class UID")?
+                                        .whatever_context(
+                                            "could not retrieve Affected SOP Class UID",
+                                        )?
                                         .to_string();
                                     sop_instance_uid = obj
                                         .element(tags::AFFECTED_SOP_INSTANCE_UID)
@@ -173,7 +180,9 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
                                         .to_string();
                                 }
                                 instance_buffer.clear();
-                            } else if data_value.value_type == PDataValueType::Data && data_value.is_last {
+                            } else if data_value.value_type == PDataValueType::Data
+                                && data_value.is_last
+                            {
                                 instance_buffer.append(&mut data_value.data);
 
                                 let presentation_context = association
@@ -203,13 +212,16 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
                                     )
                                     .transfer_syntax(ts)
                                     .build()
-                                    .whatever_context("failed to build DICOM meta file information")?;
+                                    .whatever_context(
+                                        "failed to build DICOM meta file information",
+                                    )?;
                                 let file_obj = obj.with_exact_meta(file_meta);
 
                                 // write the files to the current directory with their SOPInstanceUID as filenames
                                 let mut file_path = out_dir.clone();
-                                file_path
-                                    .push(sop_instance_uid.trim_end_matches('\0').to_string() + ".dcm");
+                                file_path.push(
+                                    sop_instance_uid.trim_end_matches('\0').to_string() + ".dcm",
+                                );
                                 file_obj
                                     .write_to_file(&file_path)
                                     .whatever_context("could not save DICOM object to file")?;
@@ -221,8 +233,11 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
                                     dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN
                                         .erased();
 
-                                let obj =
-                                    create_cstore_response(msgid, &sop_class_uid, &sop_instance_uid);
+                                let obj = create_cstore_response(
+                                    msgid,
+                                    &sop_class_uid,
+                                    &sop_instance_uid,
+                                );
 
                                 let mut obj_data = Vec::new();
 
@@ -260,7 +275,7 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
                     Pdu::AbortRQ { source } => {
                         warn!("Aborted connection from: {:?}", source);
                         break;
-                    },
+                    }
                     _ => {}
                 }
             }
@@ -280,7 +295,11 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
     }
 
     if let Ok(peer_addr) = association.inner_stream().peer_addr() {
-        info!("Dropping connection with {} ({})", association.client_ae_title(), peer_addr);
+        info!(
+            "Dropping connection with {} ({})",
+            association.client_ae_title(),
+            peer_addr
+        );
     } else {
         info!("Dropping connection with {}", association.client_ae_title());
     }

@@ -80,7 +80,7 @@ mod test {
             &mut data,
             DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(1985, 12, 31).unwrap(),
-                DicomTime::from_hms_micro(23, 59, 48, 123_456).unwrap()
+                DicomTime::from_hms_micro(23, 59, 48, 123_456).unwrap(),
             )
             .unwrap(),
         )

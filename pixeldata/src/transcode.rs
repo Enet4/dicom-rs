@@ -1,14 +1,14 @@
 //! DICOM Transcoder API
-//! 
+//!
 //! This module collects the pixel data decoding and encoding capabilities
 //! of `dicom_encoding` and `dicom_pixeldata`
 //! to offer a convenient API for converting DICOM objects
 //! to different transfer syntaxes.
-//! 
+//!
 //! See the [`Transcode`] trait for more information.
 use dicom_core::{
-    value::PixelFragmentSequence, DataDictionary, DataElement,
-    Length, PrimitiveValue, VR, ops::ApplyOp,
+    ops::ApplyOp, value::PixelFragmentSequence, DataDictionary, DataElement, Length,
+    PrimitiveValue, VR,
 };
 use dicom_dictionary_std::tags;
 use dicom_encoding::{adapters::EncodeOptions, Codec, TransferSyntax, TransferSyntaxIndex};
@@ -53,20 +53,20 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Can be implemented by in-memory DICOM object representations
 /// as well as partial or lazy DICOM object readers,
 /// so that transcoding can be performed without loading the entire object.
-/// 
+///
 /// # Example
-/// 
+///
 /// A typical [file DICOM object in memory](FileDicomObject)
 /// can be transcoded inline using [`transcode`](Transcode::transcode).
-/// 
+///
 /// ```no_run
 /// # use dicom_object::open_file;
 /// use dicom_pixeldata::Transcode as _;
-/// 
+///
 /// let mut obj = dicom_object::open_file("image.dcm").unwrap();
 /// // convert to JPEG
 /// obj.transcode(&dicom_transfer_syntax_registry::entries::JPEG_BASELINE.erased())?;
-/// 
+///
 /// // save transcoded version to file
 /// obj.write_to_file("image_jpg.dcm")?;
 /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -74,7 +74,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub trait Transcode {
     /// Convert the receiving object's transfer syntax
     /// to the one specified in `ts` according to the given encoding options.
-    /// 
+    ///
     /// This method may replace one or more attributes accordingly,
     /// including the meta group specifying the transfer syntax.
     /// The encoding options only apply if the pixel data needs to be re-encoded.
@@ -84,11 +84,12 @@ pub trait Transcode {
     /// In case of an encoding error,
     /// the object may be left in an intermediate state,
     /// which should not be assumed to be consistent.
-    fn transcode_with_options(&mut self, ts: &TransferSyntax, options: EncodeOptions) -> Result<()>;
+    fn transcode_with_options(&mut self, ts: &TransferSyntax, options: EncodeOptions)
+        -> Result<()>;
 
     /// Convert the receiving object's transfer syntax
     /// to the one specified in `ts`.
-    /// 
+    ///
     /// This method may replace one or more attributes accordingly,
     /// including the meta group specifying the transfer syntax.
     ///
@@ -106,7 +107,11 @@ impl<D> Transcode for FileDicomObject<InMemDicomObject<D>>
 where
     D: Clone + DataDictionary,
 {
-    fn transcode_with_options(&mut self, ts: &TransferSyntax, options: EncodeOptions) -> Result<()> {
+    fn transcode_with_options(
+        &mut self,
+        ts: &TransferSyntax,
+        options: EncodeOptions,
+    ) -> Result<()> {
         let current_ts_uid = self.meta().transfer_syntax();
         // do nothing if the transfer syntax already matches
         if current_ts_uid == ts.uid() {
@@ -126,7 +131,7 @@ where
                 // change transfer syntax and return
                 self.meta_mut().set_transfer_syntax(ts);
                 Ok(())
-            },
+            }
             (false, true) => {
                 // decode pixel data
                 let decoded_pixeldata = self.decode_pixel_data().context(DecodePixelDataSnafu)?;
@@ -165,7 +170,7 @@ where
                 self.meta_mut().set_transfer_syntax(ts);
 
                 Ok(())
-            },
+            }
             (_, false) => {
                 // must decode then encode
                 let writer = match ts.codec() {
@@ -269,9 +274,11 @@ mod tests {
     use super::*;
     use dicom_dictionary_std::uids;
     use dicom_object::open_file;
-    use dicom_transfer_syntax_registry::entries::{JPEG_EXTENDED, ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN};
     #[cfg(feature = "native")]
     use dicom_transfer_syntax_registry::entries::JPEG_BASELINE;
+    use dicom_transfer_syntax_registry::entries::{
+        ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN, JPEG_EXTENDED,
+    };
 
     #[cfg(feature = "native")]
     #[test]
@@ -287,7 +294,10 @@ mod tests {
             .expect("Should have transcoded successfully");
 
         // check transfer syntax
-        assert_eq!(obj.meta().transfer_syntax(), EXPLICIT_VR_LITTLE_ENDIAN.uid());
+        assert_eq!(
+            obj.meta().transfer_syntax(),
+            EXPLICIT_VR_LITTLE_ENDIAN.uid()
+        );
 
         // check that the pixel data is in its native form
         // and has the expected size
@@ -310,7 +320,10 @@ mod tests {
         let mut obj = open_file(&test_file).unwrap();
 
         // pre-condition check: pixel data is native
-        assert_eq!(obj.meta().transfer_syntax(), uids::EXPLICIT_VR_LITTLE_ENDIAN);
+        assert_eq!(
+            obj.meta().transfer_syntax(),
+            uids::EXPLICIT_VR_LITTLE_ENDIAN
+        );
 
         // transcode to JPEG baseline
         obj.transcode(&JPEG_BASELINE.erased())
@@ -341,7 +354,10 @@ mod tests {
         let mut obj = open_file(test_file).unwrap();
 
         // pre-condition check: pixel data is native
-        assert_eq!(obj.meta().transfer_syntax(), uids::EXPLICIT_VR_LITTLE_ENDIAN);
+        assert_eq!(
+            obj.meta().transfer_syntax(),
+            uids::EXPLICIT_VR_LITTLE_ENDIAN
+        );
 
         // transcode to JPEG baseline
         let mut options = EncodeOptions::new();
@@ -372,8 +388,12 @@ mod tests {
 
         // the size of the second fragment should be smaller
         // due to lower quality
-        assert!(size_2 < size_1, "expected smaller size for lower quality, but {} => {}", size_2, size_1);
-
+        assert!(
+            size_2 < size_1,
+            "expected smaller size for lower quality, but {} => {}",
+            size_2,
+            size_1
+        );
     }
 
     #[cfg(feature = "native")]
@@ -392,7 +412,10 @@ mod tests {
             .expect("Should have transcoded successfully");
 
         // check transfer syntax
-        assert_eq!(obj.meta().transfer_syntax(), EXPLICIT_VR_LITTLE_ENDIAN.uid());
+        assert_eq!(
+            obj.meta().transfer_syntax(),
+            EXPLICIT_VR_LITTLE_ENDIAN.uid()
+        );
 
         // check that the pixel data is in its native form
         // and has the expected size
@@ -409,7 +432,6 @@ mod tests {
         assert_eq!(pixels.len(), rows * cols * spp * bps);
     }
 
-
     /// can transcode native multi-frame pixel data
     #[cfg(feature = "native")]
     #[test]
@@ -418,7 +440,10 @@ mod tests {
         let mut obj = open_file(test_file).unwrap();
 
         // pre-condition check: pixel data conversion is needed here
-        assert_eq!(obj.meta().transfer_syntax(), uids::EXPLICIT_VR_LITTLE_ENDIAN);
+        assert_eq!(
+            obj.meta().transfer_syntax(),
+            uids::EXPLICIT_VR_LITTLE_ENDIAN
+        );
 
         // transcode to JPEG baseline
         obj.transcode(&JPEG_BASELINE.erased())
@@ -437,7 +462,7 @@ mod tests {
         let fragments = pixel_data
             .fragments()
             .expect("Pixel Data should be in encapsulated fragments");
-        
+
         // two frames, two fragments (as required by JPEG baseline)
         assert_eq!(fragments.len(), 2);
 
@@ -457,7 +482,10 @@ mod tests {
             obj.transcode(&EXPLICIT_VR_LITTLE_ENDIAN.erased())
                 .expect("Should have transcoded successfully");
 
-            assert_eq!(obj.meta().transfer_syntax(), EXPLICIT_VR_LITTLE_ENDIAN.uid());
+            assert_eq!(
+                obj.meta().transfer_syntax(),
+                EXPLICIT_VR_LITTLE_ENDIAN.uid()
+            );
             // pixel data is still native
             let pixel_data = obj.get(tags::PIXEL_DATA).unwrap().to_bytes().unwrap();
             assert_eq!(pixel_data.len(), 100 * 100 * 3);
@@ -490,7 +518,10 @@ mod tests {
         obj.transcode(&ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN.erased())
             .expect("Should have transcoded successfully");
 
-        assert_eq!(obj.meta().transfer_syntax(), ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN.uid());
+        assert_eq!(
+            obj.meta().transfer_syntax(),
+            ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN.uid()
+        );
         // pixel data is encapsulated, but in native form
         let pixel_data = obj.get(tags::PIXEL_DATA).unwrap();
         let fragments = pixel_data.fragments().unwrap();
@@ -499,5 +530,4 @@ mod tests {
         assert_eq!(fragments[0].len(), 100 * 100 * 3);
         assert_eq!(fragments[1].len(), 100 * 100 * 3);
     }
-
 }

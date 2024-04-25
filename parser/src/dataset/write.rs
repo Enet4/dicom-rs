@@ -102,7 +102,11 @@ where
             ts_uid: ts.uid(),
             ts_alias: ts.name(),
         })?;
-        Ok(DataSetWriter::new_with_codec(to, encoder, SpecificCharacterSet::default()))
+        Ok(DataSetWriter::new_with_codec(
+            to,
+            encoder,
+            SpecificCharacterSet::default(),
+        ))
     }
 
     /// Create a new data set writer

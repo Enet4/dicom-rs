@@ -164,5 +164,4 @@ fn read_rle_2() {
     check_u16_rgb_pixel(&dest, 100, 54, 65, [0, 0, 0]);
 
     check_u16_rgb_pixel(&dest, 100, 10, 95, [0xFFFF, 0xFFFF, 0xFFFF]);
-
 }

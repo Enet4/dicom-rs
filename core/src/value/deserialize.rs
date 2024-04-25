@@ -331,7 +331,7 @@ where
 }
 
 /// Retrieve a `chrono::DateTime` from the given text, while assuming the given UTC offset.
-/// 
+///
 /// If a date/time component is missing, the operation fails.
 /// Presence of the second fraction component `.FFFFFF` is mandatory with at
 /// least one digit accuracy `.F` while missing digits default to zero.
@@ -340,7 +340,10 @@ where
 /// because it is more flexible and resilient to missing components.
 /// See also the implementation of [`FromStr`](std::str::FromStr)
 /// for [`DicomDateTime`].
-#[deprecated(since = "0.7.0", note = "Use `parse_datetime_partial()` then `to_precise_datetime()`")]
+#[deprecated(
+    since = "0.7.0",
+    note = "Use `parse_datetime_partial()` then `to_precise_datetime()`"
+)]
 pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime<FixedOffset>> {
     let date = parse_date(buf)?;
     let buf = &buf[8..];
@@ -380,12 +383,12 @@ pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime
 
 /// Decode the text from the byte slice into a [`DicomDateTime`] value,
 /// which allows for missing Date / Time components.
-/// 
+///
 /// This is the underlying implementation of [`FromStr`](std::str::FromStr)
 /// for `DicomDateTime`.
 ///
 /// # Example
-/// 
+///
 /// ```
 /// # use dicom_core::value::deserialize::parse_datetime_partial;
 /// use dicom_core::value::{DicomDate, DicomDateTime, DicomTime, PreciseDateTime};

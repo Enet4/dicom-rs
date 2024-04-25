@@ -722,7 +722,7 @@ where
     /// or the private element is not found.
     ///
     /// For more info, see the [DICOM standard section on private elements][1].
-    /// 
+    ///
     /// [1]: https://dicom.nema.org/medical/dicom/2024a/output/chtml/part05/sect_7.8.html
     ///
     /// ## Example
@@ -800,7 +800,7 @@ where
     /// An error is returned if there is no space left in the group.
     ///
     /// For more info, see the [DICOM standard section on private elements][1].
-    /// 
+    ///
     /// [1]: https://dicom.nema.org/medical/dicom/2024a/output/chtml/part05/sect_7.8.html
     ///
     /// ## Example
