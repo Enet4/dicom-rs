@@ -23,7 +23,7 @@ ndarray = ["pixeldata", "dicom-pixeldata/ndarray"]
 dicom-core = { path = "../core", version = "0.7.0" }
 dicom-dictionary-std = { path = "../dictionary-std", version = "0.7.0" }
 dicom-dump = { version = "0.6.2", path = "../dump", default-features = false }
-dicom-encoding = { path = "../encoding", version = "0.6.1" }
+dicom-encoding = { path = "../encoding", version = "0.7.0" }
 dicom-parser = { path = "../parser", version = "0.6.0" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.6.2" }
 dicom-object = { path = "../object", version = "0.6.3", default-features = false }
