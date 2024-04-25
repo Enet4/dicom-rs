@@ -11,7 +11,7 @@ keywords = ["dicom", "query", "search"]
 readme = "README.md"
 
 [dependencies]
-dicom-core = { path = '../core', version = "0.6.3" }
+dicom-core = { path = '../core', version = "0.7.0" }
 dicom-ul = { path = '../ul', version = "0.5.1" }
 dicom-object = { path = '../object', version = "0.6.3" }
 dicom-encoding = { path = "../encoding/", version = "0.6.1" }

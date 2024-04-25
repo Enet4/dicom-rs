@@ -11,7 +11,7 @@ readme = "README.md"
 
 [dependencies]
 base64 = "0.22"
-dicom-core = { version = "0.6.3", path = "../core" }
+dicom-core = { version = "0.7.0", path = "../core" }
 dicom-dictionary-std = { version = "0.6.1", path = "../dictionary-std" }
 dicom-object = { version = "0.6.3", path = "../object" }
 num-traits = "0.2.15"

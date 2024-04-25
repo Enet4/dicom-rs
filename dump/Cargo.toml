@@ -27,7 +27,7 @@ cli = ["clap", "dicom-transfer-syntax-registry/inventory-registry"]
 [dependencies]
 snafu = "0.8"
 clap = { version  = "4.0.18", features = ["derive"], optional = true }
-dicom-core = { path = "../core", version = "0.6.3" }
+dicom-core = { path = "../core", version = "0.7.0" }
 dicom-encoding = { path = "../encoding", version = "0.6.1" }
 dicom-object = { path = "../object/", version = "0.6.3" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.6.2", default-features = false }
