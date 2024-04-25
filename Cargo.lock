@@ -364,7 +364,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-dictionary-std"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "dicom-core",
  "once_cell",
