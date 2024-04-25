@@ -717,7 +717,13 @@ where
 
     /// Get a private element from the dataset using the group number, creator and element number.
     ///
-    /// For more info, see the [DICOM standard section on private elements](https://dicom.nema.org/medical/dicom/2024a/output/chtml/part05/sect_7.8.html)
+    /// An error is raised when the group number is not odd,
+    /// the private creator is not found in the group,
+    /// or the private element is not found.
+    ///
+    /// For more info, see the [DICOM standard section on private elements][1].
+    /// 
+    /// [1]: https://dicom.nema.org/medical/dicom/2024a/output/chtml/part05/sect_7.8.html
     ///
     /// ## Example
     ///
@@ -725,13 +731,13 @@ where
     /// # use dicom_core::{VR, PrimitiveValue, Tag, DataElement};
     /// # use dicom_object::{InMemDicomObject, PrivateElementError};
     /// # use std::error::Error;
-    /// let mut ds = InMemDicomObject::from_element_iter(vec![
+    /// let mut ds = InMemDicomObject::from_element_iter([
     ///     DataElement::new(
     ///         Tag(0x0009, 0x0010),
     ///         VR::LO,
     ///         PrimitiveValue::from("CREATOR 1"),
     ///     ),
-    ///     DataElement::new(Tag(0x0009, 0x01001), VR::DS, PrimitiveValue::from("1.0")),
+    ///     DataElement::new(Tag(0x0009, 0x01001), VR::DS, "1.0"),
     /// ]);
     /// assert_eq!(
     ///     ds.private_element(0x0009, "CREATOR 1", 0x01)?
@@ -791,8 +797,11 @@ where
     /// group. If the creator already exists, the element will be added to the block
     /// already reserved for that creator. If it does not exist, then a new block
     /// will be reserved for the creator in the specified group.
+    /// An error is returned if there is no space left in the group.
     ///
-    /// For more info, see the [DICOM standard section on private elements](https://dicom.nema.org/medical/dicom/2024a/output/chtml/part05/sect_7.8.html)
+    /// For more info, see the [DICOM standard section on private elements][1].
+    /// 
+    /// [1]: https://dicom.nema.org/medical/dicom/2024a/output/chtml/part05/sect_7.8.html
     ///
     /// ## Example
     /// ```
@@ -805,7 +814,7 @@ where
     ///     "CREATOR 1",
     ///     0x02,
     ///     VR::DS,
-    ///     PrimitiveValue::Str("1.0".to_string()),
+    ///     PrimitiveValue::from("1.0"),
     /// )?;
     /// assert_eq!(
     ///     ds.private_element(0x0009, "CREATOR 1", 0x02)?
