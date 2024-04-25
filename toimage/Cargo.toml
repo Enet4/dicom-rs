@@ -15,7 +15,7 @@ default = ['dicom-object/inventory-registry', 'dicom-pixeldata/native']
 
 [dependencies]
 clap = { version  = "4.0.18", features = ["derive"] }
-dicom-core = { version = "0.6.3", path = "../core" }
+dicom-core = { version = "0.7.0", path = "../core" }
 dicom-dictionary-std = { version = "0.6.1", path = "../dictionary-std" }
 dicom-object = { path = "../object/", version = "0.6.3" }
 dicom-pixeldata = { path = "../pixeldata/", version = "0.2.2", default-features = false, features = ["image", "rayon"] }
