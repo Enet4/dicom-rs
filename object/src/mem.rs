@@ -41,7 +41,7 @@ use dicom_core::ops::{
 };
 use itertools::Itertools;
 use smallvec::SmallVec;
-use snafu::{OptionExt, ResultExt};
+use snafu::{ensure, OptionExt, ResultExt};
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
@@ -55,15 +55,16 @@ use crate::ops::{
 use crate::{meta::FileMetaTable, FileMetaTableBuilder};
 use crate::{
     AccessByNameError, AccessError, AtAccessError, BuildMetaTableSnafu, CreateParserSnafu,
-    CreatePrinterSnafu, DicomObject, FileDicomObject, MissingElementValueSnafu,
-    MissingLeafElementSnafu, NoSuchAttributeNameSnafu, NoSuchDataElementAliasSnafu,
-    NoSuchDataElementTagSnafu, NotASequenceSnafu, OpenFileSnafu, ParseMetaDataSetSnafu,
-    PrematureEndSnafu, PrepareMetaTableSnafu, PrintDataSetSnafu, ReadError, ReadFileSnafu,
+    CreatePrinterSnafu, DicomObject, ElementNotFoundSnafu, FileDicomObject, InvalidGroupSnafu,
+    MissingElementValueSnafu, MissingLeafElementSnafu, NoSpaceSnafu, NoSuchAttributeNameSnafu,
+    NoSuchDataElementAliasSnafu, NoSuchDataElementTagSnafu, NotASequenceSnafu, OpenFileSnafu,
+    ParseMetaDataSetSnafu, PrematureEndSnafu, PrepareMetaTableSnafu, PrintDataSetSnafu,
+    PrivateCreatorNotFoundSnafu, PrivateElementError, ReadError, ReadFileSnafu,
     ReadPreambleBytesSnafu, ReadTokenSnafu, ReadUnsupportedTransferSyntaxSnafu,
     UnexpectedTokenSnafu, WithMetaError, WriteError,
 };
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
-use dicom_core::header::{HasLength, Header};
+use dicom_core::header::{GroupNumber, HasLength, Header};
 use dicom_core::value::{DataSetSequence, PixelFragmentSequence, Value, ValueType, C};
 use dicom_core::{DataElement, Length, PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::{tags, StandardDataDictionary};
@@ -372,8 +373,7 @@ where
 
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
-            let mut dataset =
-                DataSetReader::new_with_ts(file, ts).context(CreateParserSnafu)?;
+            let mut dataset = DataSetReader::new_with_ts(file, ts).context(CreateParserSnafu)?;
 
             Ok(FileDicomObject {
                 meta,
@@ -457,8 +457,7 @@ where
 
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
-            let mut dataset =
-                DataSetReader::new_with_ts(file, ts).context(CreateParserSnafu)?;
+            let mut dataset = DataSetReader::new_with_ts(file, ts).context(CreateParserSnafu)?;
             let obj = InMemDicomObject::build_object(
                 &mut dataset,
                 dict,
@@ -704,6 +703,75 @@ where
         }
     }
 
+    fn find_private_creator(&self, group: GroupNumber, creator: &str) -> Option<&Tag> {
+        let range = Tag(group, 0)..Tag(group, 0xFF);
+        for (tag, elem) in self.entries.range(range) {
+            // Private Creators are always LO
+            // https://dicom.nema.org/medical/dicom/2024a/output/chtml/part05/sect_7.8.html
+            if elem.header().vr() == VR::LO && elem.to_str().unwrap_or_default() == creator {
+                return Some(tag);
+            }
+        }
+        None
+    }
+
+    /// Get a private element from the dataset using the group number, creator and element number.
+    ///
+    /// An error is raised when the group number is not odd,
+    /// the private creator is not found in the group,
+    /// or the private element is not found.
+    ///
+    /// For more info, see the [DICOM standard section on private elements][1].
+    /// 
+    /// [1]: https://dicom.nema.org/medical/dicom/2024a/output/chtml/part05/sect_7.8.html
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use dicom_core::{VR, PrimitiveValue, Tag, DataElement};
+    /// # use dicom_object::{InMemDicomObject, PrivateElementError};
+    /// # use std::error::Error;
+    /// let mut ds = InMemDicomObject::from_element_iter([
+    ///     DataElement::new(
+    ///         Tag(0x0009, 0x0010),
+    ///         VR::LO,
+    ///         PrimitiveValue::from("CREATOR 1"),
+    ///     ),
+    ///     DataElement::new(Tag(0x0009, 0x01001), VR::DS, "1.0"),
+    /// ]);
+    /// assert_eq!(
+    ///     ds.private_element(0x0009, "CREATOR 1", 0x01)?
+    ///         .value()
+    ///         .to_str()?,
+    ///     "1.0"
+    /// );
+    /// # Ok::<(), Box<dyn Error>>(())
+    /// ```
+    pub fn private_element(
+        &self,
+        group: GroupNumber,
+        creator: &str,
+        element: u8,
+    ) -> Result<&InMemElement<D>, PrivateElementError> {
+        let tag = self.find_private_creator(group, creator).ok_or_else(|| {
+            PrivateCreatorNotFoundSnafu {
+                group,
+                creator: creator.to_string(),
+            }
+            .build()
+        })?;
+
+        let element_num = (tag.element() << 8) | (element as u16);
+        self.get(Tag(group, element_num)).ok_or_else(|| {
+            ElementNotFoundSnafu {
+                group,
+                creator: creator.to_string(),
+                elem: element,
+            }
+            .build()
+        })
+    }
+
     /// Insert a data element to the object, replacing (and returning) any
     /// previous element of the same attribute.
     /// This might invalidate all sequence and item lengths if the charset of the
@@ -720,6 +788,82 @@ where
         self.len = Length::UNDEFINED;
         self.invalidate_if_charset_changed(elt.tag());
         self.entries.insert(elt.tag(), elt)
+    }
+
+    /// Insert a private element into the dataset, replacing (and returning) any
+    /// previous element of the same attribute.
+    ///
+    /// This function will find the next available private element block in the given
+    /// group. If the creator already exists, the element will be added to the block
+    /// already reserved for that creator. If it does not exist, then a new block
+    /// will be reserved for the creator in the specified group.
+    /// An error is returned if there is no space left in the group.
+    ///
+    /// For more info, see the [DICOM standard section on private elements][1].
+    /// 
+    /// [1]: https://dicom.nema.org/medical/dicom/2024a/output/chtml/part05/sect_7.8.html
+    ///
+    /// ## Example
+    /// ```
+    /// # use dicom_core::{VR, PrimitiveValue, Tag, DataElement, header::Header};
+    /// # use dicom_object::InMemDicomObject;
+    /// # use std::error::Error;
+    /// let mut ds = InMemDicomObject::new_empty();
+    /// ds.put_private_element(
+    ///     0x0009,
+    ///     "CREATOR 1",
+    ///     0x02,
+    ///     VR::DS,
+    ///     PrimitiveValue::from("1.0"),
+    /// )?;
+    /// assert_eq!(
+    ///     ds.private_element(0x0009, "CREATOR 1", 0x02)?
+    ///         .value()
+    ///         .to_str()?,
+    ///     "1.0"
+    /// );
+    /// assert_eq!(
+    ///     ds.private_element(0x0009, "CREATOR 1", 0x02)?
+    ///         .header()
+    ///         .tag(),
+    ///     Tag(0x0009, 0x0102)
+    /// );
+    /// # Ok::<(), Box<dyn Error>>(())
+    /// ```
+    pub fn put_private_element(
+        &mut self,
+        group: GroupNumber,
+        creator: &str,
+        element: u8,
+        vr: VR,
+        value: PrimitiveValue,
+    ) -> Result<Option<InMemElement<D>>, PrivateElementError> {
+        ensure!(group % 2 == 1, InvalidGroupSnafu { group });
+        let private_creator = self.find_private_creator(group, creator);
+        if let Some(tag) = private_creator {
+            // Private creator already exists
+            let tag = Tag(group, tag.element() << 8 | (element as u16));
+            Ok(self.put_element(DataElement::new(tag, vr, value)))
+        } else {
+            // Find last reserved block of tags.
+            let range = Tag(group, 0)..Tag(group, 0xFF);
+            let last_entry = self.entries.range(range).next_back();
+            let next_available = match last_entry {
+                Some((tag, _)) => tag.element() + 1,
+                None => 0x01,
+            };
+            if next_available < 0xFF {
+                // Put private creator
+                let tag = Tag(group, next_available);
+                self.put_str(tag, VR::LO, creator);
+
+                // Put private element
+                let tag = Tag(group, next_available << 8 | (element as u16));
+                Ok(self.put_element(DataElement::new(tag, vr, value)))
+            } else {
+                NoSpaceSnafu { group }.fail()
+            }
+        }
     }
 
     /// Insert a new element with a string value to the object,
@@ -1926,10 +2070,7 @@ mod tests {
     use byteordered::Endianness;
     use dicom_core::chrono::FixedOffset;
     use dicom_core::value::{DicomDate, DicomDateTime, DicomTime};
-    use dicom_core::{
-        dicom_value,
-        header::DataElementHeader,
-    };
+    use dicom_core::{dicom_value, header::DataElementHeader};
     use dicom_encoding::{
         decode::{basic::BasicDecoder, implicit_le::ImplicitVRLittleEndianDecoder},
         encode::{implicit_le::ImplicitVRLittleEndianEncoder, EncoderFor},
@@ -3624,6 +3765,96 @@ mod tests {
                 token::SequenceEnd,
             ],
             converted_tokens
+        );
+    }
+
+    #[test]
+    fn private_elements() {
+        let mut ds = InMemDicomObject::from_element_iter(vec![
+            DataElement::new(
+                Tag(0x0009, 0x0010),
+                VR::LO,
+                PrimitiveValue::from("CREATOR 1"),
+            ),
+            DataElement::new(
+                Tag(0x0009, 0x0011),
+                VR::LO,
+                PrimitiveValue::from("CREATOR 2"),
+            ),
+            DataElement::new(
+                Tag(0x0011, 0x0010),
+                VR::LO,
+                PrimitiveValue::from("CREATOR 3"),
+            ),
+        ]);
+        ds.put_private_element(
+            0x0009,
+            "CREATOR 1",
+            0x01,
+            VR::DS,
+            PrimitiveValue::Str("1.0".to_string()),
+        )
+        .unwrap();
+        ds.put_private_element(
+            0x0009,
+            "CREATOR 4",
+            0x02,
+            VR::DS,
+            PrimitiveValue::Str("1.0".to_string()),
+        )
+        .unwrap();
+
+        let res = ds.put_private_element(
+            0x0012,
+            "CREATOR 4",
+            0x02,
+            VR::DS,
+            PrimitiveValue::Str("1.0".to_string()),
+        );
+        assert_eq!(
+            &res.err().unwrap().to_string(),
+            "Group number must be odd, found 0x0012"
+        );
+
+        assert_eq!(
+            ds.private_element(0x0009, "CREATOR 1", 0x01)
+                .unwrap()
+                .value()
+                .to_str()
+                .unwrap(),
+            "1.0"
+        );
+        assert_eq!(
+            ds.private_element(0x0009, "CREATOR 4", 0x02)
+                .unwrap()
+                .value()
+                .to_str()
+                .unwrap(),
+            "1.0"
+        );
+        assert_eq!(
+            ds.private_element(0x0009, "CREATOR 4", 0x02)
+                .unwrap()
+                .header()
+                .tag(),
+            Tag(0x0009, 0x1202)
+        );
+    }
+
+    #[test]
+    fn private_element_group_full() {
+        let mut ds = InMemDicomObject::from_element_iter(
+            (0..=0x00FFu16)
+                .into_iter()
+                .map(|i| {
+                    DataElement::new(Tag(0x0009, i), VR::LO, PrimitiveValue::from("CREATOR 1"))
+                })
+                .collect::<Vec<DataElement<_>>>(),
+        );
+        let res = ds.put_private_element(0x0009, "TEST", 0x01, VR::DS, PrimitiveValue::from("1.0"));
+        assert_eq!(
+            res.err().unwrap().to_string(),
+            "No space available in group 0x0009"
         );
     }
 }
