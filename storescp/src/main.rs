@@ -21,22 +21,25 @@ mod transfer;
 #[derive(Debug, Parser)]
 #[command(version)]
 struct App {
-    /// verbose mode
+    /// Verbose mode
     #[arg(short = 'v', long = "verbose")]
     verbose: bool,
-    /// the calling Application Entity title
+    /// Calling Application Entity title
     #[arg(long = "calling-ae-title", default_value = "STORE-SCP")]
     calling_ae_title: String,
-    /// enforce max pdu length
+    /// Enforce max pdu length
     #[arg(short = 's', long = "strict")]
     strict: bool,
     /// Only accept native/uncompressed transfer syntaxes
     #[arg(long)]
     uncompressed_only: bool,
-    /// max pdu length
+    /// Accept unknown SOP classes
+    #[arg(long)]
+    promiscuous: bool,
+    /// Maximum PDU length
     #[arg(short = 'm', long = "max-pdu-length", default_value = "16384")]
     max_pdu_length: u32,
-    /// output directory for incoming objects
+    /// Output directory for incoming objects
     #[arg(short = 'o', default_value = ".")]
     out_dir: PathBuf,
     /// Which port to listen on
@@ -50,6 +53,7 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
         calling_ae_title,
         strict,
         uncompressed_only,
+        promiscuous,
         max_pdu_length,
         out_dir,
         port: _,
@@ -65,7 +69,8 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
     let mut options = dicom_ul::association::ServerAssociationOptions::new()
         .accept_any()
         .ae_title(calling_ae_title)
-        .strict(*strict);
+        .strict(*strict)
+        .promiscuous(*promiscuous);
 
     if *uncompressed_only {
         options = options
