@@ -1,7 +1,7 @@
 //! Support for JPG image decoding.
 
 use dicom_core::ops::{AttributeAction, AttributeOp};
-use dicom_core::{Tag, PrimitiveValue};
+use dicom_core::{PrimitiveValue, Tag};
 use dicom_encoding::adapters::{
     decode_error, encode_error, DecodeResult, EncodeOptions, EncodeResult, PixelDataObject,
     PixelDataReader, PixelDataWriter,
@@ -169,14 +169,16 @@ impl PixelDataReader for JpegAdapter {
             Cow::Borrowed(
                 raw.fragments
                     .get(frame as usize)
-                    .with_whatever_context(|| format!("Missing fragment #{} for the frame requested", frame))?,
+                    .with_whatever_context(|| {
+                        format!("Missing fragment #{} for the frame requested", frame)
+                    })?,
             )
         } else {
             // Some embedded JPEGs might span multiple fragments.
             // In this case we look up the basic offset table
             // and gather all of the frame's fragments in a single vector.
             // Note: not the most efficient way to do this,
-            // consider optimizing later with byte chunk readers 
+            // consider optimizing later with byte chunk readers
             let base_offset = raw.offset_table.get(frame as usize).copied();
             let base_offset = if frame == 0 {
                 base_offset.unwrap_or(0) as usize
@@ -286,9 +288,7 @@ impl PixelDataWriter for JpegAdapter {
             })?;
         let bits_stored = src
             .bits_stored()
-            .context(encode_error::MissingAttributeSnafu {
-                name: "BitsStored",
-            })?;
+            .context(encode_error::MissingAttributeSnafu { name: "BitsStored" })?;
 
         ensure_whatever!(
             bits_allocated == 8 || bits_allocated == 16,
@@ -316,9 +316,10 @@ impl PixelDataWriter for JpegAdapter {
             .context(encode_error::MissingAttributeSnafu { name: "Pixel Data" })?
             .fragments[0];
 
-        let frame_data = pixeldata_uncompressed.get(frame_size * frame as usize .. frame_size * (frame as usize + 1))
+        let frame_data = pixeldata_uncompressed
+            .get(frame_size * frame as usize..frame_size * (frame as usize + 1))
             .whatever_context("Frame index out of bounds")?;
-        
+
         let frame_data = narrow_8bit(frame_data, bits_stored)?;
 
         // Encode the data
@@ -336,11 +337,20 @@ impl PixelDataWriter for JpegAdapter {
         // provide attribute changes
         let mut changes = vec![
             // bits allocated
-            AttributeOp::new(Tag(0x0028, 0x0100), AttributeAction::Set(PrimitiveValue::from(8_u16))),
+            AttributeOp::new(
+                Tag(0x0028, 0x0100),
+                AttributeAction::Set(PrimitiveValue::from(8_u16)),
+            ),
             // bits stored
-            AttributeOp::new(Tag(0x0028, 0x0101), AttributeAction::Set(PrimitiveValue::from(8_u16))),
+            AttributeOp::new(
+                Tag(0x0028, 0x0101),
+                AttributeAction::Set(PrimitiveValue::from(8_u16)),
+            ),
             // high bit
-            AttributeOp::new(Tag(0x0028, 0x0102), AttributeAction::Set(PrimitiveValue::from(7_u16))),
+            AttributeOp::new(
+                Tag(0x0028, 0x0102),
+                AttributeAction::Set(PrimitiveValue::from(7_u16)),
+            ),
             // lossy image compression
             AttributeOp::new(Tag(0x0028, 0x2110), AttributeAction::SetStr("01".into())),
             // lossy image compression ratio
@@ -353,28 +363,23 @@ impl PixelDataWriter for JpegAdapter {
         let pmi = src.photometric_interpretation();
 
         if samples_per_pixel == 1 {
-            
             // set Photometric Interpretation to Monochrome2
             // if it was neither of the expected monochromes
             if pmi != Some("MONOCHROME1") && pmi != Some("MONOCHROME2") {
-                changes.push(
-                    AttributeOp::new(
-                        Tag(0x0028, 0x0004),
-                        AttributeAction::SetStr("MONOCHROME2".into()),
-                    )
-                );
+                changes.push(AttributeOp::new(
+                    Tag(0x0028, 0x0004),
+                    AttributeAction::SetStr("MONOCHROME2".into()),
+                ));
             }
         } else if samples_per_pixel == 3 {
             // set Photometric Interpretation to RGB
             // if it was not already set to RGB
             if pmi != Some("RGB") {
-                changes.push(
-                    AttributeOp::new(
-                        Tag(0x0028, 0x0004),
-                        AttributeAction::SetStr("RGB".into()),
-                    )
-                );
-            }            
+                changes.push(AttributeOp::new(
+                    Tag(0x0028, 0x0004),
+                    AttributeAction::SetStr("RGB".into()),
+                ));
+            }
         }
 
         Ok(changes)
@@ -394,7 +399,7 @@ fn narrow_8bit(frame_data: &[u8], bits_stored: u16) -> EncodeResult<Cow<[u8]>> {
         9..=16 => {
             let mut v = Vec::with_capacity(frame_data.len() / 2);
             for chunk in frame_data.chunks(2) {
-                let b = u16::from(chunk[0])| u16::from(chunk[1]) << 8;
+                let b = u16::from(chunk[0]) | u16::from(chunk[1]) << 8;
                 v.push((b >> (bits_stored - 8)) as u8);
             }
             Ok(Cow::Owned(v))

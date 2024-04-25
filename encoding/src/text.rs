@@ -123,13 +123,13 @@ where
 /// A descriptor for a specific character set,
 /// taking part in text encoding and decoding
 /// as per [PS3.5 ch 6 6.1](https://dicom.nema.org/medical/dicom/2023e/output/chtml/part05/chapter_6.html#sect_6.1).
-/// 
+///
 /// # Example
 ///
 /// Use [`from_code`](SpecificCharacterSet::from_code)
 /// or one of the associated constants to create a character set.
 /// From there, use the [`TextCodec`] trait to encode and decode text.
-/// 
+///
 /// ```
 /// use dicom_encoding::text::{SpecificCharacterSet, TextCodec};
 ///

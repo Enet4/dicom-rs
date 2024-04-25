@@ -100,19 +100,14 @@ pub fn voi_lut_function<D: DataDictionary + Clone>(
         .element(tags::VOILUT_FUNCTION)
         .ok()
         .map(|v| vec![v])
-        .or_else(|| 
-            get_from_shared(
-                obj,
-                [tags::FRAME_VOILUT_SEQUENCE, tags::VOILUT_FUNCTION],
-            ).map(|inner| inner.collect())
-        )
-        .or_else(|| 
-            get_from_per_frame(
-                obj,
-                [tags::FRAME_VOILUT_SEQUENCE, tags::VOILUT_FUNCTION]
-            )
-            .map(|inner| inner.collect())
-        );
+        .or_else(|| {
+            get_from_shared(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::VOILUT_FUNCTION])
+                .map(|inner| inner.collect())
+        })
+        .or_else(|| {
+            get_from_per_frame(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::VOILUT_FUNCTION])
+                .map(|inner| inner.collect())
+        });
     if let Some(elems_inner) = elems {
         let res = elems_inner
             .iter()
@@ -173,17 +168,19 @@ fn get_from_shared<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
     selector: [Tag; 2],
 ) -> Option<impl Iterator<Item = &InMemElement<D>>> {
-    obj.get(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE)?.items()?
+    obj.get(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE)?
+        .items()?
         .first()?
         .get(selector[0])
-        .and_then(|inner|inner.items()?
-            .first()?
-            .get(selector[1]))
-        // Sometimes the tag is not in the properly nested sequence, but just flat in the first 
+        .and_then(|inner| inner.items()?.first()?.get(selector[1]))
+        // Sometimes the tag is not in the properly nested sequence, but just flat in the first
         // element of the SharedFunctionalGroupsSequence
-        .or_else(|| obj.get(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE)?.items()?
-            .first()?
-            .get(selector[1]))
+        .or_else(|| {
+            obj.get(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE)?
+                .items()?
+                .first()?
+                .get(selector[1])
+        })
         .map(std::iter::once)
 }
 
@@ -191,15 +188,12 @@ fn get_from_per_frame<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
     selector: [Tag; 2],
 ) -> Option<impl Iterator<Item = &InMemElement<D>>> {
-    Some(obj.get(tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE)?
-        .items()?
-        .iter()
-        .filter_map(move |item| {
-            item.get(selector[0])?
-                .items()?
-                .first()?
-                .get(selector[1])
-        }))
+    Some(
+        obj.get(tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE)?
+            .items()?
+            .iter()
+            .filter_map(move |item| item.get(selector[0])?.items()?.first()?.get(selector[1])),
+    )
 }
 
 /// Get the RescaleIntercept from the DICOM object or returns 0
@@ -213,22 +207,26 @@ pub fn rescale_intercept<D: DataDictionary + Clone>(
                 .into_iter()
                 .collect::<Option<Vec<f64>>>()
         })
-        .or_else(|| get_from_per_frame(
-            obj,
-            [
-                tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
-                tags::RESCALE_INTERCEPT,
-            ],
-        )
-        .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect()))
-        .or_else(|| get_from_shared(
-            obj,
-            [
-                tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
-                tags::RESCALE_INTERCEPT,
-            ],
-        )
-        .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect()))
+        .or_else(|| {
+            get_from_per_frame(
+                obj,
+                [
+                    tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
+                    tags::RESCALE_INTERCEPT,
+                ],
+            )
+            .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+        })
+        .or_else(|| {
+            get_from_shared(
+                obj,
+                [
+                    tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
+                    tags::RESCALE_INTERCEPT,
+                ],
+            )
+            .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+        })
         .unwrap_or(vec![0.])
 }
 
@@ -243,22 +241,26 @@ pub fn rescale_slope<D: DataDictionary + Clone>(
                 .into_iter()
                 .collect::<Option<Vec<f64>>>()
         })
-        .or_else(|| get_from_per_frame(
-            obj,
-            [
-                tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
-                tags::RESCALE_SLOPE,
-            ],
-        )
-        .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect()))
-        .or_else(|| get_from_shared(
-            obj,
-            [
-                tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
-                tags::RESCALE_SLOPE,
-            ],
-        )
-        .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect()))
+        .or_else(|| {
+            get_from_per_frame(
+                obj,
+                [
+                    tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
+                    tags::RESCALE_SLOPE,
+                ],
+            )
+            .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+        })
+        .or_else(|| {
+            get_from_shared(
+                obj,
+                [
+                    tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
+                    tags::RESCALE_SLOPE,
+                ],
+            )
+            .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+        })
         .unwrap_or(vec![1.0])
 }
 
@@ -301,14 +303,14 @@ pub fn window_center<D: DataDictionary + Clone>(
                 .into_iter()
                 .collect::<Option<Vec<f64>>>()
         })
-        .or_else(||
+        .or_else(|| {
             get_from_per_frame(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_CENTER])
-                .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect()),
-        )
-        .or_else(||
+                .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+        })
+        .or_else(|| {
             get_from_shared(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_CENTER])
-                .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect()),
-        );
+                .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+        });
     wc
 }
 
@@ -323,14 +325,14 @@ pub fn window_width<D: DataDictionary + Clone>(
                 .into_iter()
                 .collect::<Option<Vec<f64>>>()
         })
-        .or_else(||
+        .or_else(|| {
             get_from_per_frame(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_WIDTH])
-                .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect()),
-        )
-        .or_else(||
+                .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+        })
+        .or_else(|| {
             get_from_shared(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_WIDTH])
-                .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect()),
-        );
+                .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+        });
     ww
 }
 

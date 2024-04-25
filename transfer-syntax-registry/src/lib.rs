@@ -67,7 +67,7 @@
 //! and are likely available in all supported platforms.
 //! However, a native implementation might not always be available,
 //! or alternative implementations may be preferred:
-//! 
+//!
 //! - `openjpeg-sys` provides a binding to the OpenJPEG reference implementation,
 //!   which is written in C and is statically linked.
 //!   It may offer better performance than the pure Rust implementation,
@@ -76,7 +76,7 @@
 //! - `openjp2` provides a binding to a computer-translated Rust port of OpenJPEG.
 //!   Due to the nature of this crate,
 //!   it does not work on all supported platforms.
-//! 
+//!
 //! Transfer syntaxes which are not supported,
 //! either due to being unable to read the data set
 //! or decode encapsulated pixel data,

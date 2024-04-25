@@ -1,9 +1,7 @@
 //! Handling of date, time, date-time ranges. Needed for range matching.
 //! Parsing into ranges happens via partial precision  structures (DicomDate, DicomTime,
 //! DicomDatime) so ranges can handle null components in date, time, date-time values.
-use chrono::{
-    DateTime, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone,
-};
+use chrono::{DateTime, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 
 use crate::value::deserialize::{
@@ -833,7 +831,7 @@ pub trait AmbiguousDtRangeParser {
 /// This is the default behavior of the parser,
 /// which helps attain compliance with the standard
 /// as per [DICOM PS3.5 6.2](https://dicom.nema.org/medical/dicom/2023e/output/chtml/part05/sect_6.2.html):
-/// 
+///
 /// > A Date Time Value without the optional suffix
 /// > is interpreted to be in the local time zone of the application creating the Data Element,
 /// > unless explicitly specified by the Timezone Offset From UTC (0008,0201).
@@ -1037,7 +1035,7 @@ impl AmbiguousDtRangeParser for IgnoreTimeZone {
 /// This is the default behavior of the parser,
 /// which helps attain compliance with the standard
 /// as per [DICOM PS3.5 6.2](https://dicom.nema.org/medical/dicom/2023e/output/chtml/part05/sect_6.2.html):
-/// 
+///
 /// > A Date Time Value without the optional suffix
 /// > is interpreted to be in the local time zone of the application creating the Data Element,
 /// > unless explicitly specified by the Timezone Offset From UTC (0008,0201).
@@ -1072,9 +1070,7 @@ pub fn parse_datetime_range_impl<T: AmbiguousDtRangeParser>(buf: &[u8]) -> Resul
         let buf = &buf[1..];
         match parse_datetime_partial(buf).context(ParseSnafu)?.latest()? {
             PreciseDateTime::Naive(end) => Ok(DateTimeRange::from_end(end)),
-            PreciseDateTime::TimeZone(end_tz) => {
-                Ok(DateTimeRange::from_end_with_time_zone(end_tz))
-            }
+            PreciseDateTime::TimeZone(end_tz) => Ok(DateTimeRange::from_end_with_time_zone(end_tz)),
         }
     } else if buf[buf.len() - 1] == b'-' {
         // ends with separator, range is Some-None
@@ -1113,14 +1109,12 @@ pub fn parse_datetime_range_impl<T: AmbiguousDtRangeParser>(buf: &[u8]) -> Resul
                     (Ok(s), Ok(e)) => {
                         //create a result here, to check for range inversion
                         let dtr = match (s.earliest()?, e.latest()?) {
-                            (
-                                PreciseDateTime::Naive(start),
-                                PreciseDateTime::Naive(end),
-                            ) => DateTimeRange::from_start_to_end(start, end),
-                            (
-                                PreciseDateTime::TimeZone(start),
-                                PreciseDateTime::TimeZone(end),
-                            ) => DateTimeRange::from_start_to_end_with_time_zone(start, end),
+                            (PreciseDateTime::Naive(start), PreciseDateTime::Naive(end)) => {
+                                DateTimeRange::from_start_to_end(start, end)
+                            }
+                            (PreciseDateTime::TimeZone(start), PreciseDateTime::TimeZone(end)) => {
+                                DateTimeRange::from_start_to_end_with_time_zone(start, end)
+                            }
                             (
                                 // lower bound time-zone was missing
                                 PreciseDateTime::Naive(start),

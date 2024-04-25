@@ -167,7 +167,7 @@ pub enum VirtualVr {
     /// ([`US`](VR::US)).
     Xs,
     /// Represents overlay data sample values.
-    /// 
+    ///
     /// It can be either [`OB`](VR::OB) or [`OW`](VR::OW).
     Ox,
     /// Represents pixel data sample value.
@@ -202,7 +202,7 @@ impl VirtualVr {
     /// - [`Ox`](VirtualVr::Ox) is relaxed to [`OW`](VR::OW)
     /// - [`Px`](VirtualVr::Px) is relaxed to [`OW`](VR::OW)
     /// - [`Lt`](VirtualVr::Lt) is relaxed to [`OW`](VR::OW)
-    /// 
+    ///
     /// This method is ill-advised for uses where
     /// the corresponding attribute is important.
     pub fn relaxed(self) -> VR {

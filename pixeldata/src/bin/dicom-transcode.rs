@@ -2,14 +2,14 @@
 //! to another transfer syntax.
 use clap::Parser;
 use dicom_dictionary_std::uids;
-use dicom_encoding::{TransferSyntaxIndex, TransferSyntax};
 use dicom_encoding::adapters::EncodeOptions;
+use dicom_encoding::{TransferSyntax, TransferSyntaxIndex};
 use dicom_object::open_file;
-use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use snafu::{Report, Whatever, OptionExt};
-use tracing::Level;
-use std::path::PathBuf;
 use dicom_pixeldata::Transcode;
+use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
+use snafu::{OptionExt, Report, Whatever};
+use std::path::PathBuf;
+use tracing::Level;
 
 /// Exit code for when an error emerged while reading the DICOM file.
 const ERROR_READ: i32 = -2;
@@ -51,7 +51,6 @@ struct App {
 
 /// Specifier for the target transfer syntax
 #[derive(Debug, Parser)]
-
 #[group(required = true, multiple = false)]
 struct TargetTransferSyntax {
     /// Transcode to the Transfer Syntax indicated by UID
@@ -65,7 +64,7 @@ struct TargetTransferSyntax {
     /// Transcode to Implicit VR Little Endian
     #[clap(long = "impl-vr-le")]
     implicit_vr_le: bool,
-    
+
     /// Transcode to JPEG baseline (8-bit)
     #[clap(long = "jpeg-baseline")]
     jpeg_baseline: bool,
@@ -73,22 +72,24 @@ struct TargetTransferSyntax {
 
 impl TargetTransferSyntax {
     fn resolve(&self) -> Result<&'static TransferSyntax, Whatever> {
-        
         // explicit VR little endian
         if self.explicit_vr_le {
-            return Ok(TransferSyntaxRegistry.get(uids::EXPLICIT_VR_LITTLE_ENDIAN)
+            return Ok(TransferSyntaxRegistry
+                .get(uids::EXPLICIT_VR_LITTLE_ENDIAN)
                 .expect("Explicit VR Little Endian is missing???"));
         }
-        
+
         // implicit VR little endian
         if self.implicit_vr_le {
-            return Ok(TransferSyntaxRegistry.get(uids::IMPLICIT_VR_LITTLE_ENDIAN)
+            return Ok(TransferSyntaxRegistry
+                .get(uids::IMPLICIT_VR_LITTLE_ENDIAN)
                 .expect("Implicit VR Little Endian is missing???"));
         }
 
         // JPEG baseline
         if self.jpeg_baseline {
-            return TransferSyntaxRegistry.get(uids::JPEG_BASELINE8_BIT)
+            return TransferSyntaxRegistry
+                .get(uids::JPEG_BASELINE8_BIT)
                 .whatever_context("Missing specifier for JPEG Baseline (8-bit)");
         }
 
@@ -97,11 +98,11 @@ impl TargetTransferSyntax {
             snafu::whatever!("No target transfer syntax specified");
         };
 
-        TransferSyntaxRegistry.get(ts)
+        TransferSyntaxRegistry
+            .get(ts)
             .whatever_context("Unknown transfer syntax")
     }
 }
-
 
 fn main() {
     run().unwrap_or_else(|e| {
@@ -155,8 +156,10 @@ fn run() -> Result<(), Whatever> {
 
     // override implementation class UID and version name
     if !retain_implementation {
-        obj.meta_mut().implementation_class_uid = dicom_object::IMPLEMENTATION_CLASS_UID.to_string();
-        obj.meta_mut().implementation_version_name = Some(dicom_object::IMPLEMENTATION_VERSION_NAME.to_string());
+        obj.meta_mut().implementation_class_uid =
+            dicom_object::IMPLEMENTATION_CLASS_UID.to_string();
+        obj.meta_mut().implementation_version_name =
+            Some(dicom_object::IMPLEMENTATION_VERSION_NAME.to_string());
     }
 
     // write to file

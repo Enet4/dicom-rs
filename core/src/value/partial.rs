@@ -981,7 +981,6 @@ impl PartialOrd for PreciseDateTime {
             (PreciseDateTime::TimeZone(a), PreciseDateTime::TimeZone(b)) => a.partial_cmp(b),
             _ => None,
         }
-    
     }
 }
 

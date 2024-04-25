@@ -244,9 +244,7 @@ pub trait PixelDataReader {
     /// (so that images in _MONOCHROME1_ continue to be in _MONOCHROME1_
     /// and images in _MONOCHROME2_ continue to be in _MONOCHROME2_).
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()> {
-        let frames = src
-            .number_of_frames()
-            .unwrap_or(1);
+        let frames = src.number_of_frames().unwrap_or(1);
         for frame in 0..frames {
             self.decode_frame(src, frame, dst)?;
         }
@@ -316,9 +314,7 @@ pub trait PixelDataWriter {
         dst: &mut Vec<Vec<u8>>,
         offset_table: &mut Vec<u32>,
     ) -> EncodeResult<Vec<AttributeOp>> {
-        let frames = src
-            .number_of_frames()
-            .unwrap_or(1);
+        let frames = src.number_of_frames().unwrap_or(1);
         let mut out = Vec::new();
         for frame in 0..frames {
             let mut frame_data = Vec::new();

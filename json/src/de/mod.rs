@@ -81,7 +81,10 @@ where
                 },
             ) = e;
             if bulk_data_uri.is_some() {
-                tracing::warn!("bulk data URI is not supported for InMemDicomObject; skipping {}", tag);
+                tracing::warn!(
+                    "bulk data URI is not supported for InMemDicomObject; skipping {}",
+                    tag
+                );
             } else {
                 obj.put(DataElement::new(tag, vr, value));
             }
