@@ -37,7 +37,7 @@ struct App {
     ext: Option<String>,
 
     /// Frame number (0-indexed)
-    #[arg(short = 'F', long = "frames", default_value = "0")]
+    #[arg(short = 'F', long = "frame", default_value = "0")]
     frame_number: u32,
 
     /// Force output bit depth to 8 bits per sample
