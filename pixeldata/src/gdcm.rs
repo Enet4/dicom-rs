@@ -65,12 +65,12 @@ where
         let rescale_intercept = rescale_intercept(self);
         let rescale_slope = rescale_slope(self);
         let number_of_frames = number_of_frames(self).context(GetAttributeSnafu)?;
-        let voi_lut_function = voi_lut_function(self).context(GetAttributeSnafu)?;
-        let voi_lut_function: Option<Vec<VoiLutFunction>> = voi_lut_function.and_then(|fns| {
-            fns.iter()
-                .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
-                .collect()
-        });
+        let voi_lut_function: Option<Vec<VoiLutFunction>> =
+            voi_lut_function(self).unwrap_or(None).and_then(|fns| {
+                fns.iter()
+                    .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
+                    .collect()
+            });
 
         ensure!(
             rescale_intercept.len() == rescale_slope.len(),
@@ -237,12 +237,12 @@ where
         let rescale_intercept = rescale_intercept(self);
         let rescale_slope = rescale_slope(self);
         let number_of_frames = number_of_frames(self).context(GetAttributeSnafu)?;
-        let voi_lut_function = voi_lut_function(self).context(GetAttributeSnafu)?;
-        let voi_lut_function: Option<Vec<VoiLutFunction>> = voi_lut_function.and_then(|fns| {
-            fns.iter()
-                .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
-                .collect()
-        });
+        let voi_lut_function: Option<Vec<VoiLutFunction>> =
+            voi_lut_function(self).unwrap_or(None).and_then(|fns| {
+                fns.iter()
+                    .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
+                    .collect()
+            });
 
         let decoded_pixel_data = match pixel_data.value() {
             DicomValue::PixelSequence(v) => {
