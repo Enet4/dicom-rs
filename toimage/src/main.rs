@@ -248,7 +248,7 @@ fn convert_single_file(
     verbose: bool,
 ) -> Result<(), Error> {
     // check if there is a .dcm extension, otherwise, add it
-    if output.extension().unwrap() != "dcm" && !output_is_set {
+    if output.extension() != Some("dcm".as_ref()) && !output_is_set {
         let pathstr = output.to_str().unwrap();
         // it is impossible to use set_extension here since dicom file names commonly have dots in
         // them which would be interpreted as file extensions
