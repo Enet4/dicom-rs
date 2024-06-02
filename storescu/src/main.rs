@@ -570,8 +570,13 @@ fn check_presentation_contexts(
         .with_context(|| UnsupportedFileTransferSyntaxSnafu {
             uid: file.file_transfer_syntax.to_string(),
         })?;
-    // if destination does not support original file TS,
-    // check whether we can transcode to explicit VR LE
+
+    // Try to find an exact match for the file's transfer syntax first
+    let exact_match_pc = pcs.iter().find(|pc| pc.transfer_syntax == file_ts.uid());
+
+    if let Some(pc) = exact_match_pc {
+        return Ok((pc.clone(), pc.transfer_syntax.clone()));
+    }
 
     let pc = pcs.iter().find(|pc| {
         // Check support for this transfer syntax.
@@ -599,13 +604,14 @@ fn check_presentation_contexts(
                 // accept explicit VR little endian
                 .find(|pc| pc.transfer_syntax == uids::EXPLICIT_VR_LITTLE_ENDIAN)
                 .or_else(||
-                    // accept implicit VR little endian
-                    pcs.iter()
-                        .find(|pc| pc.transfer_syntax == uids::IMPLICIT_VR_LITTLE_ENDIAN))
+                // accept implicit VR little endian
+                pcs.iter()
+                    .find(|pc| pc.transfer_syntax == uids::IMPLICIT_VR_LITTLE_ENDIAN))
                 // welp
                 .whatever_context("No presentation context acceptable")?
         }
     };
+
     let ts = TransferSyntaxRegistry
         .get(&pc.transfer_syntax)
         .whatever_context("Poorly negotiated transfer syntax")?;
