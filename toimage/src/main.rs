@@ -1,26 +1,40 @@
 //! A CLI tool for converting a DICOM image file
 //! into a general purpose image file (e.g. PNG).
-use std::{borrow::Cow, path::PathBuf};
+use std::{borrow::Cow, path::PathBuf, str::FromStr};
 
 use clap::Parser;
 use dicom_core::prelude::*;
 use dicom_dictionary_std::{tags, uids};
-use dicom_object::open_file;
+use dicom_object::{open_file, FileDicomObject, InMemDicomObject};
 use dicom_pixeldata::{ConvertOptions, PixelDecoder};
 use snafu::{OptionExt, Report, ResultExt, Snafu, Whatever};
-use tracing::{error, Level};
+use tracing::{error, warn, Level};
 
 /// Convert a DICOM file into an image file
 #[derive(Debug, Parser)]
 #[command(version)]
 struct App {
     /// Path to the DICOM file to convert
-    file: PathBuf,
+    files: Vec<PathBuf>,
 
-    /// Path to the output image
+    /// Parse directory recursively
+    #[arg(short = 'r', long = "recursive")]
+    recursive: bool,
+
+    /// Path to the output image, this should include the file extension
     /// (default is to replace input extension with `.png`)
     #[arg(short = 'o', long = "out")]
     output: Option<PathBuf>,
+
+    /// Path to the output directory if multiple files are given
+    /// Conflicts with `output`
+    #[arg(short = 'd', long = "outdir", conflicts_with = "output")]
+    outdir: Option<PathBuf>,
+
+    /// Extension when converting multiple files
+    /// (default is to replace input extension with `.png`)
+    #[arg(short = 'e', long = "ext", conflicts_with = "output")]
+    ext: Option<String>,
 
     /// Frame number (0-indexed)
     #[arg(short = 'F', long = "frame", default_value = "0")]
@@ -86,6 +100,10 @@ enum Error {
     SaveData { source: std::io::Error },
     /// Unexpected DICOM pixel data as data set sequence
     UnexpectedPixelData,
+    /// No files given
+    NoFiles,
+    /// Read dir error
+    ReadDir { source: std::io::Error },
 }
 
 impl Error {
@@ -100,6 +118,8 @@ impl Error {
             Error::ConvertImage { .. } => -3,
             Error::SaveData { .. } | Error::SaveImage { .. } => -4,
             Error::UnexpectedPixelData => -7,
+            Error::NoFiles => -8,
+            Error::ReadDir { .. } => -9,
         }
     }
 }
@@ -130,8 +150,11 @@ fn main() {
 
 fn run(args: App) -> Result<(), Error> {
     let App {
-        file,
+        files,
+        recursive,
+        outdir,
         output,
+        ext,
         frame_number,
         force_8bit,
         force_16bit,
@@ -139,42 +162,132 @@ fn run(args: App) -> Result<(), Error> {
         verbose,
     } = args;
 
-    let obj = open_file(&file).with_context(|_| ReadFileSnafu { path: file.clone() })?;
+    if files.is_empty() {
+        return Err(Error::NoFiles);
+    };
+
+    if files.len() == 1 {
+        let file = &files[0];
+        match file.is_dir() {
+            true => {
+                let dicoms: Vec<(FileDicomObject<InMemDicomObject>, PathBuf)> =
+                    collect_dicom_files(file, recursive)?;
+
+                if dicoms.is_empty() {
+                    return Err(Error::NoFiles);
+                }
+
+                dicoms.iter().for_each(|file| {
+                    convert_single_file(
+                        &file.0,
+                        false,
+                        file.1.clone(),
+                        outdir.clone(),
+                        ext.clone(),
+                        frame_number,
+                        force_8bit,
+                        force_16bit,
+                        unwrap,
+                        verbose,
+                    )
+                    .unwrap();
+                });
+            }
+            false => {
+                let file =
+                    open_file(file).with_context(|_| ReadFileSnafu { path: file.clone() })?;
+
+                convert_single_file(
+                    &file,
+                    output.is_some(),
+                    output.unwrap_or(files[0].clone()),
+                    outdir,
+                    ext,
+                    frame_number,
+                    force_8bit,
+                    force_16bit,
+                    unwrap,
+                    verbose,
+                )?;
+            }
+        }
+    } else {
+        files.iter().for_each(|file| {
+            let dicom_file = open_file(file)
+                .with_context(|_| ReadFileSnafu { path: file.clone() })
+                .unwrap();
+            convert_single_file(
+                &dicom_file,
+                false,
+                file.clone(),
+                outdir.clone(),
+                ext.clone(),
+                frame_number,
+                force_8bit,
+                force_16bit,
+                unwrap,
+                verbose,
+            )
+            .unwrap();
+        });
+    }
+
+    Ok(())
+}
+
+fn convert_single_file(
+    file: &FileDicomObject<InMemDicomObject>,
+    output_is_set: bool,
+    mut output: PathBuf,
+    outdir: Option<PathBuf>,
+    ext: Option<String>,
+    frame_number: u32,
+    force_8bit: bool,
+    force_16bit: bool,
+    unwrap: bool,
+    verbose: bool,
+) -> Result<(), Error> {
+    // check if there is a .dcm extension, otherwise, add it
+    if output.extension() != Some("dcm".as_ref()) && !output_is_set {
+        let pathstr = output.to_str().unwrap();
+        // it is impossible to use set_extension here since dicom file names commonly have dots in
+        // them which would be interpreted as file extensions
+        output = PathBuf::from_str(&format!("{}.dcm", pathstr)).unwrap();
+    }
+
+    if let Some(outdir) = outdir {
+        output = outdir.join(output.file_name().unwrap());
+    }
 
     if unwrap {
-        let output = output.unwrap_or_else(|| {
-            let mut path = file.clone();
-
-            // try to identify a better extension for this file
-            // based on transfer syntax
-            match obj.meta().transfer_syntax() {
+        if !output_is_set {
+            match file.meta().transfer_syntax() {
                 uids::JPEG_BASELINE8_BIT
                 | uids::JPEG_EXTENDED12_BIT
                 | uids::JPEG_LOSSLESS
                 | uids::JPEG_LOSSLESS_SV1 => {
-                    path.set_extension("jpg");
+                    output.set_extension("jpg");
                 }
                 uids::JPEG2000
                 | uids::JPEG2000MC
                 | uids::JPEG2000MC_LOSSLESS
                 | uids::JPEG2000_LOSSLESS => {
-                    path.set_extension("jp2");
+                    output.set_extension("jp2");
                 }
                 _ => {
-                    path.set_extension("data");
+                    output.set_extension("data");
                 }
             }
-            path
-        });
+        }
 
-        let pixeldata = obj.get(tags::PIXEL_DATA).unwrap_or_else(|| {
+        let pixeldata = file.get(tags::PIXEL_DATA).unwrap_or_else(|| {
             error!("DICOM file has no pixel data");
             std::process::exit(-2);
         });
 
         let out_data = match pixeldata.value() {
             DicomValue::PixelSequence(seq) => {
-                let number_of_frames = match obj.get(tags::NUMBER_OF_FRAMES) {
+                let number_of_frames = match file.get(tags::NUMBER_OF_FRAMES) {
                     Some(elem) => elem.to_int::<u32>().unwrap_or_else(|e| {
                         tracing::warn!("Invalid Number of Frames: {}", e);
                         1
@@ -232,7 +345,7 @@ fn run(args: App) -> Result<(), Error> {
                 // grab the intended slice based on image properties
 
                 let get_int_property = |tag, name| {
-                    obj.get(tag)
+                    file.get(tag)
                         .context(MissingPropertySnafu { name })?
                         .to_int::<usize>()
                         .context(InvalidPropertyValueSnafu { name })
@@ -266,16 +379,18 @@ fn run(args: App) -> Result<(), Error> {
                 return UnexpectedPixelDataSnafu.fail();
             }
         };
-
+        std::fs::create_dir_all(output.parent().unwrap()).unwrap();
         std::fs::write(output, out_data).context(SaveDataSnafu)?;
     } else {
-        let output = output.unwrap_or_else(|| {
-            let mut path = file.clone();
-            path.set_extension("png");
-            path
-        });
+        if !output_is_set {
+            if let Some(extension) = ext {
+                output.set_extension(extension);
+            } else {
+                output.set_extension("png");
+            }
+        }
 
-        let pixel = obj
+        let pixel = file
             .decode_pixel_data_frame(frame_number)
             .context(DecodePixelDataSnafu)?;
 
@@ -301,6 +416,8 @@ fn run(args: App) -> Result<(), Error> {
             .to_dynamic_image_with_options(0, &options)
             .context(ConvertImageSnafu)?;
 
+        std::fs::create_dir_all(output.parent().unwrap()).unwrap();
+
         image.save(&output).context(SaveImageSnafu)?;
 
         if verbose {
@@ -309,6 +426,43 @@ fn run(args: App) -> Result<(), Error> {
     }
 
     Ok(())
+}
+
+fn collect_dicom_files(
+    file: &PathBuf,
+    recursive: bool,
+) -> Result<Vec<(FileDicomObject<InMemDicomObject>, PathBuf)>, Error> {
+    let mut dicoms = Vec::new();
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    let entries = std::fs::read_dir(file).with_context(|_| ReadDirSnafu)?;
+    entries.for_each(|entry| match entry {
+        Ok(entry) => {
+            let path = entry.path();
+            if path.is_dir() {
+                dirs.push(path);
+            } else {
+                let obj = match open_file(&path) {
+                    Ok(obj) => obj,
+                    Err(e) => {
+                        warn!("Error reading file {:?}: {}", path, e);
+                        return;
+                    }
+                };
+                dicoms.push((obj, path));
+            }
+        }
+        Err(e) => {
+            error!("Error reading directory: {}", e);
+        }
+    });
+    if recursive {
+        dirs.iter()
+            .for_each(|dir| match collect_dicom_files(dir, recursive) {
+                Ok(mut d) => dicoms.append(&mut d),
+                Err(e) => error!("Error reading directory {:?}: {}", dir, e),
+            });
+    }
+    Ok(dicoms)
 }
 
 #[cfg(test)]
