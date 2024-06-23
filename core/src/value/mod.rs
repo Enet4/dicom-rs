@@ -151,6 +151,27 @@ impl<I, P> Value<I, P> {
         }
     }
 
+    /// Produce a shallow clone of the value,
+    /// leaving the items and pixel data fragments as references.
+    /// 
+    /// If the value is primitive,
+    /// the entire value will be copied.
+    /// Otherwise, the item or fragment sequences
+    /// will hold references to the original data.
+    pub fn shallow_clone<'a>(&'a self) -> Value<&'a I, &'a P> {
+        match self {
+            Value::Primitive(v) => Value::Primitive(v.clone()),
+            Value::Sequence(v) => Value::Sequence(DataSetSequence {
+                items: v.items.iter().collect(),
+                length: v.length,
+            }),
+            Value::PixelSequence(v) => Value::PixelSequence(PixelFragmentSequence {
+                offset_table: v.offset_table.iter().copied().collect(),
+                fragments: v.fragments.iter().collect(),
+            }),
+        }
+    }
+
     /// Gets a mutable reference to the primitive value.
     pub fn primitive_mut(&mut self) -> Option<&mut PrimitiveValue> {
         match self {
@@ -314,6 +335,12 @@ impl<I, P> HasLength for Value<I, P> {
     }
 }
 
+impl<I, P> HasLength for &Value<I, P> {
+    fn length(&self) -> Length {
+        HasLength::length(*self)
+    }
+}
+
 impl<I, P> DicomValueType for Value<I, P> {
     fn value_type(&self) -> ValueType {
         match self {
@@ -329,6 +356,16 @@ impl<I, P> DicomValueType for Value<I, P> {
             Value::Sequence(DataSetSequence { items, .. }) => items.len(),
             Value::PixelSequence { .. } => 1,
         }
+    }
+}
+
+impl<I, P> DicomValueType for &Value<I, P> {
+    fn value_type(&self) -> ValueType {
+        DicomValueType::value_type(*self)
+    }
+
+    fn cardinality(&self) -> usize {
+        DicomValueType::cardinality(*self)
     }
 }
 
