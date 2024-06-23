@@ -179,7 +179,7 @@ pub use crate::mem::InMemDicomObject;
 pub use crate::collector::{DicomCollectorOptions, DicomCollector};
 pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
 use dicom_core::ops::AttributeSelector;
-use dicom_core::value::DicomValueType;
+use dicom_core::value::{DicomValueType, ValueType};
 pub use dicom_core::Tag;
 use dicom_core::{DataDictionary, DicomValue};
 use dicom_dictionary_std::uids;
@@ -231,13 +231,13 @@ pub enum AttributeError {
     },
 
     /// the value is not a data set sequence
-    NotADataSetSequence,
+    NotDataSet,
 
     /// the requested item index does not exist
     DataSetItemOutOfBounds,
 
     /// the value is not a pixel data element
-    NotAPixelDataElement,
+    NotPixelData,
 
     /// the requested pixel data fragment index does not exist
     FragmentOutOfBounds,
@@ -258,7 +258,7 @@ pub trait DicomAttributeValue: DicomValueType {
     where
         Self: 'a;
 
-    /// The data type of a pixel data element
+    /// The data type of a single contiguous pixel data fragment
     type PixelData<'a>
     where
         Self: 'a;
@@ -274,6 +274,30 @@ pub trait DicomAttributeValue: DicomValueType {
     ///
     /// Returns an error if the attribute is not a sequence.
     fn item(&self, index: u32) -> Result<Self::Item<'_>, AttributeError>;
+
+    /// Obtain the number of data set items or pixel data fragments,
+    /// if the attribute value represents a data set sequence or pixel data.
+    /// Returns `None` otherwise.
+    fn num_items(&self) -> Option<u32>;
+
+    /// Obtain one of the fragments in the attribute,
+    /// if the attribute value represents a pixel data fragment sequence.
+    ///
+    /// Returns an error if the attribute is not a pixel data sequence.
+    fn fragment(&self, index: u32) -> Result<Self::PixelData<'_>, AttributeError>;
+
+    /// Obtain the number of pixel data fragments,
+    /// if the attribute value represents pixel data.
+    ///
+    /// It should equivalent to `num_items`,
+    /// save for returning `None` if the attribute is a data set sequence.
+    fn num_fragments(&self) -> Option<u32> {
+        if DicomValueType::value_type(self) == ValueType::PixelSequence {
+            self.num_items()
+        } else {
+            None
+        }
+    }
 
     /// Obtain the attribute's value as a string,
     /// converting it if necessary.
@@ -335,10 +359,12 @@ pub trait DicomObject {
     where
         Self: 'a;
 
-    /// Retrieve a particular DICOM attribute by its tag.
+    /// Retrieve a particular DICOM attribute
+    /// by looking up the given tag at the object's root.
     ///
     /// `Ok(None)` is returned when the object was successfully looked up
     /// but the element is not present.
+    /// This is not a recursive search.
     fn get_opt<'a>(&'a self, tag: Tag) -> Result<Option<Self::Attribute<'a>>, AccessError>;
 
     /// Retrieve a particular DICOM element by its name (keyword).
@@ -353,7 +379,8 @@ pub trait DicomObject {
         name: &str,
     ) -> Result<Option<Self::Attribute<'a>>, AccessByNameError>;
 
-    /// Retrieve a particular DICOM element by its tag.
+    /// Retrieve a particular DICOM attribute
+    /// by looking up the given tag at the object's root.
     ///
     /// Unlike [`get_opt`](Self::get_opt),
     /// this method returns an error if the element is not present.
@@ -393,23 +420,47 @@ where
     type PixelData<'a> = &'a P
     where Self: 'a, P: 'a;
 
+    #[inline]
     fn to_dicom_value<'a>(
         &'a self,
     ) -> Result<DicomValue<Self::Item<'a>, Self::PixelData<'a>>, AttributeError> {
         Ok(self.shallow_clone())
     }
 
+    #[inline]
     fn item(&self, index: u32) -> Result<&O, AttributeError> {
-        let items = self.items()
-            .context(NotADataSetSequenceSnafu)?;
-        Ok(items.get(index as usize)
+        let items = self.items().context(NotDataSetSnafu)?;
+        Ok(items
+            .get(index as usize)
             .context(DataSetItemOutOfBoundsSnafu)?)
     }
 
+    #[inline]
+    fn num_items(&self) -> Option<u32> {
+        match self {
+            DicomValue::PixelSequence(seq) => Some(seq.fragments().len() as u32),
+            DicomValue::Sequence(seq) => Some(seq.multiplicity()),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    fn fragment(&self, index: u32) -> Result<Self::PixelData<'_>, AttributeError> {
+        match self {
+            DicomValue::PixelSequence(seq) => Ok(seq
+                .fragments()
+                .get(index as usize)
+                .context(FragmentOutOfBoundsSnafu)?),
+            _ => Err(AttributeError::NotPixelData),
+        }
+    }
+
+    #[inline]
     fn to_str<'a>(&'a self) -> Result<Cow<'a, str>, AttributeError> {
         DicomValue::to_str(&self).context(ConvertValueSnafu)
     }
 
+    #[inline]
     fn to_bytes<'a>(&'a self) -> Result<Cow<'a, [u8]>, AttributeError> {
         DicomValue::to_bytes(&self).context(ConvertValueSnafu)
     }
@@ -418,32 +469,64 @@ where
 impl<'b, O, P> DicomAttributeValue for &'b DicomValue<O, P>
 where
     O: HasLength,
+    &'b O: HasLength,
     O: Clone,
     P: Clone,
 {
-    type Item<'a> = O
+    type Item<'a> = &'b O
     where Self: 'a, O: 'a;
-    type PixelData<'a> = P
+    type PixelData<'a> = &'b P
     where Self: 'a, P: 'a;
 
+    #[inline]
     fn to_dicom_value<'a>(
         &'a self,
     ) -> Result<DicomValue<Self::Item<'a>, Self::PixelData<'a>>, AttributeError> {
-        Ok((*self).clone())
+        Ok(self.shallow_clone())
     }
 
-    fn item(&self, index: u32) -> Result<O, AttributeError> {
-        let items = self.items()
-            .context(NotADataSetSequenceSnafu)?;
-        Ok(items.get(index as usize)
-            .context(DataSetItemOutOfBoundsSnafu)?
-            .clone())
+    #[inline]
+    fn item(&self, index: u32) -> Result<Self::Item<'_>, AttributeError> {
+        let items = self.items().context(NotDataSetSnafu)?;
+        items
+            .get(index as usize)
+            .context(DataSetItemOutOfBoundsSnafu)
     }
 
+    #[inline]
+    fn num_items(&self) -> Option<u32> {
+        match self {
+            DicomValue::PixelSequence(seq) => Some(seq.fragments().len() as u32),
+            DicomValue::Sequence(seq) => Some(seq.multiplicity()),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    fn fragment(&self, index: u32) -> Result<Self::PixelData<'_>, AttributeError> {
+        match self {
+            DicomValue::PixelSequence(seq) => seq
+                .fragments()
+                .get(index as usize)
+                .context(FragmentOutOfBoundsSnafu),
+            _ => Err(AttributeError::NotPixelData),
+        }
+    }
+
+    #[inline]
+    fn num_fragments(&self) -> Option<u32> {
+        match self {
+            DicomValue::PixelSequence(seq) => Some(seq.fragments().len() as u32),
+            _ => None,
+        }
+    }
+
+    #[inline]
     fn to_str<'a>(&'a self) -> Result<Cow<'a, str>, AttributeError> {
         DicomValue::to_str(&self).context(ConvertValueSnafu)
     }
 
+    #[inline]
     fn to_bytes<'a>(&'a self) -> Result<Cow<'a, [u8]>, AttributeError> {
         DicomValue::to_bytes(&self).context(ConvertValueSnafu)
     }
@@ -1242,5 +1325,50 @@ mod tests {
             obj.meta().receiving_application_entity_title.as_deref(),
             Some("SOMETHING"),
         );
+    }
+
+    #[test]
+    fn attribute_api_on_primitive_values() {
+        use crate::DicomAttributeValue;
+        use dicom_dictionary_std::tags;
+
+        let obj = InMemDicomObject::from_element_iter([
+            DataElement::new(tags::PATIENT_NAME, VR::PN, PrimitiveValue::from("Doe^John")),
+            DataElement::new(tags::INSTANCE_NUMBER, VR::IS, PrimitiveValue::from("5")),
+        ]);
+
+        let patient_name = obj.get(tags::PATIENT_NAME).unwrap().value();
+
+        // can get string using DICOM attribute API
+
+        assert_eq!(
+            &DicomAttributeValue::to_str(patient_name).unwrap(),
+            "Doe^John"
+        );
+
+        // can get integer from Instance Number
+
+        let instance_number = obj.get(tags::INSTANCE_NUMBER).unwrap().value();
+        assert_eq!(DicomAttributeValue::to_u32(instance_number).unwrap(), 5);
+
+        // cannot get items
+
+        assert_eq!(patient_name.num_items(), None);
+        assert_eq!(patient_name.num_fragments(), None);
+        assert!(matches!(
+            patient_name.item(0),
+            Err(crate::AttributeError::NotDataSet)
+        ));
+
+        assert_eq!(instance_number.num_items(), None);
+        assert_eq!(instance_number.num_fragments(), None);
+        assert!(matches!(
+            patient_name.item(0),
+            Err(crate::AttributeError::NotDataSet)
+        ));
+        assert!(matches!(
+            instance_number.item(0),
+            Err(crate::AttributeError::NotDataSet)
+        ));
     }
 }
