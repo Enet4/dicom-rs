@@ -123,35 +123,45 @@ impl<D> HasLength for InMemDicomObject<D> {
     }
 }
 
+impl<D> HasLength for &InMemDicomObject<D> {
+    fn length(&self) -> Length {
+        self.len
+    }
+}
+
 impl<D> DicomObject for InMemDicomObject<D>
 where
     D: DataDictionary,
     D: Clone,
 {
-    type Element<'a> = &'a InMemElement<D>
+    type Attribute<'a> = &'a Value<InMemDicomObject<D>, InMemFragment>
             where Self: 'a;
 
     #[inline]
-    fn element_opt(&self, tag: Tag) -> Result<Option<Self::Element<'_>>> {
-        InMemDicomObject::element_opt(self, tag)
+    fn get_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>> {
+        let elem = InMemDicomObject::element_opt(self, tag)?;
+        Ok(elem.map(|e| e.value()))
     }
 
     #[inline]
-    fn element_by_name_opt(
+    fn get_by_name_opt(
         &self,
         name: &str,
-    ) -> Result<Option<Self::Element<'_>>, AccessByNameError> {
-        InMemDicomObject::element_by_name_opt(self, name)
+    ) -> Result<Option<Self::Attribute<'_>>, AccessByNameError> {
+        let elem = InMemDicomObject::element_by_name_opt(self, name)?;
+        Ok(elem.map(|e| e.value()))
     }
 
     #[inline]
-    fn element(&self, tag: Tag) -> Result<Self::Element<'_>> {
-        InMemDicomObject::element(self, tag)
+    fn get(&self, tag: Tag) -> Result<Self::Attribute<'_>> {
+        let elem = InMemDicomObject::element(self, tag)?;
+        Ok(elem.value())
     }
 
     #[inline]
-    fn element_by_name(&self, name: &str) -> Result<Self::Element<'_>, AccessByNameError> {
-        InMemDicomObject::element_by_name(self, name)
+    fn get_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
+        let elem = InMemDicomObject::element_by_name(self, name)?;
+        Ok(elem.value())
     }
 }
 
@@ -160,30 +170,35 @@ where
     D: DataDictionary,
     D: Clone,
 {
-    type Element<'a> = &'a InMemElement<D>
-        where 's: 'a;
+    type Attribute<'a> = &'a Value<InMemDicomObject<D>, InMemFragment>
+        where Self: 'a,
+        's: 'a;
 
     #[inline]
-    fn element_opt(&self, tag: Tag) -> Result<Option<Self::Element<'_>>> {
-        InMemDicomObject::element_opt(*self, tag)
+    fn get_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>> {
+        let elem = InMemDicomObject::element_opt(*self, tag)?;
+        Ok(elem.map(|e| e.value()))
     }
 
     #[inline]
-    fn element_by_name_opt(
+    fn get_by_name_opt(
         &self,
         name: &str,
-    ) -> Result<Option<Self::Element<'_>>, AccessByNameError> {
-        InMemDicomObject::element_by_name_opt(*self, name)
+    ) -> Result<Option<Self::Attribute<'_>>, AccessByNameError> {
+        let elem = InMemDicomObject::element_by_name_opt(*self, name)?;
+        Ok(elem.map(|e| e.value()))
     }
 
     #[inline]
-    fn element(&self, tag: Tag) -> Result<Self::Element<'_>> {
-        InMemDicomObject::element(*self, tag)
+    fn get(&self, tag: Tag) -> Result<Self::Attribute<'_>> {
+        let elem = InMemDicomObject::element(*self, tag)?;
+        Ok(elem.value())
     }
 
     #[inline]
-    fn element_by_name(&self, name: &str) -> Result<Self::Element<'_>, AccessByNameError> {
-        InMemDicomObject::element_by_name(*self, name)
+    fn get_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
+        let elem = InMemDicomObject::element_by_name(*self, name)?;
+        Ok(elem.value())
     }
 }
 
@@ -2248,7 +2263,7 @@ fn even_len(l: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::open_file;
+    use crate::{open_file, DicomAttributeValue as _};
     use byteordered::Endianness;
     use dicom_core::chrono::FixedOffset;
     use dicom_core::value::{DicomDate, DicomDateTime, DicomTime};
@@ -3185,13 +3200,18 @@ mod tests {
 
         let obj = dicom_dataset();
         let elem1 = obj
-            .element_by_name_opt("PatientName")
+            .get_by_name_opt("PatientName")
             .unwrap()
             .expect("PatientName should be present");
-        assert_eq!(elem1.tag(), tags::PATIENT_NAME);
+        assert_eq!(
+            &elem1
+                .to_str()
+                .expect("should be able to retrieve patient name as string"),
+            "Doe^John"
+        );
 
         // try a missing element, should return None
-        assert!(obj.element_opt(tags::PATIENT_ID).unwrap().is_none());
+        assert!(obj.get_opt(tags::PATIENT_ID).unwrap().is_none());
     }
 
     /// Test attribute operations on in-memory DICOM objects.
