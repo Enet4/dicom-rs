@@ -345,15 +345,15 @@ impl DicomDate {
 impl TryFrom<&NaiveDate> for DicomDate {
     type Error = Error;
     fn try_from(date: &NaiveDate) -> Result<Self> {
-        let year: u16 = date.year().try_into().context(ConversionSnafu {
+        let year: u16 = date.year().try_into().with_context(|_| ConversionSnafu {
             value: date.year().to_string(),
             component: DateComponent::Year,
         })?;
-        let month: u8 = date.month().try_into().context(ConversionSnafu {
+        let month: u8 = date.month().try_into().with_context(|_| ConversionSnafu {
             value: date.month().to_string(),
             component: DateComponent::Month,
         })?;
-        let day: u8 = date.day().try_into().context(ConversionSnafu {
+        let day: u8 = date.day().try_into().with_context(|_| ConversionSnafu {
             value: date.day().to_string(),
             component: DateComponent::Day,
         })?;
@@ -542,15 +542,15 @@ impl DicomTime {
 impl TryFrom<&NaiveTime> for DicomTime {
     type Error = Error;
     fn try_from(time: &NaiveTime) -> Result<Self> {
-        let hour: u8 = time.hour().try_into().context(ConversionSnafu {
+        let hour: u8 = time.hour().try_into().with_context(|_| ConversionSnafu {
             value: time.hour().to_string(),
             component: DateComponent::Hour,
         })?;
-        let minute: u8 = time.minute().try_into().context(ConversionSnafu {
+        let minute: u8 = time.minute().try_into().with_context(|_| ConversionSnafu {
             value: time.minute().to_string(),
             component: DateComponent::Minute,
         })?;
-        let second: u8 = time.second().try_into().context(ConversionSnafu {
+        let second: u8 = time.second().try_into().with_context(|_| ConversionSnafu {
             value: time.second().to_string(),
             component: DateComponent::Second,
         })?;
@@ -700,27 +700,27 @@ impl DicomDateTime {
 impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
     type Error = Error;
     fn try_from(dt: &DateTime<FixedOffset>) -> Result<Self> {
-        let year: u16 = dt.year().try_into().context(ConversionSnafu {
+        let year: u16 = dt.year().try_into().with_context(|_| ConversionSnafu {
             value: dt.year().to_string(),
             component: DateComponent::Year,
         })?;
-        let month: u8 = dt.month().try_into().context(ConversionSnafu {
+        let month: u8 = dt.month().try_into().with_context(|_| ConversionSnafu {
             value: dt.month().to_string(),
             component: DateComponent::Month,
         })?;
-        let day: u8 = dt.day().try_into().context(ConversionSnafu {
+        let day: u8 = dt.day().try_into().with_context(|_| ConversionSnafu {
             value: dt.day().to_string(),
             component: DateComponent::Day,
         })?;
-        let hour: u8 = dt.hour().try_into().context(ConversionSnafu {
+        let hour: u8 = dt.hour().try_into().with_context(|_| ConversionSnafu {
             value: dt.hour().to_string(),
             component: DateComponent::Hour,
         })?;
-        let minute: u8 = dt.minute().try_into().context(ConversionSnafu {
+        let minute: u8 = dt.minute().try_into().with_context(|_| ConversionSnafu {
             value: dt.minute().to_string(),
             component: DateComponent::Minute,
         })?;
-        let second: u8 = dt.second().try_into().context(ConversionSnafu {
+        let second: u8 = dt.second().try_into().with_context(|_| ConversionSnafu {
             value: dt.second().to_string(),
             component: DateComponent::Second,
         })?;
@@ -743,27 +743,27 @@ impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
 impl TryFrom<&NaiveDateTime> for DicomDateTime {
     type Error = Error;
     fn try_from(dt: &NaiveDateTime) -> Result<Self> {
-        let year: u16 = dt.year().try_into().context(ConversionSnafu {
+        let year: u16 = dt.year().try_into().with_context(|_| ConversionSnafu {
             value: dt.year().to_string(),
             component: DateComponent::Year,
         })?;
-        let month: u8 = dt.month().try_into().context(ConversionSnafu {
+        let month: u8 = dt.month().try_into().with_context(|_| ConversionSnafu {
             value: dt.month().to_string(),
             component: DateComponent::Month,
         })?;
-        let day: u8 = dt.day().try_into().context(ConversionSnafu {
+        let day: u8 = dt.day().try_into().with_context(|_| ConversionSnafu {
             value: dt.day().to_string(),
             component: DateComponent::Day,
         })?;
-        let hour: u8 = dt.hour().try_into().context(ConversionSnafu {
+        let hour: u8 = dt.hour().try_into().with_context(|_| ConversionSnafu {
             value: dt.hour().to_string(),
             component: DateComponent::Hour,
         })?;
-        let minute: u8 = dt.minute().try_into().context(ConversionSnafu {
+        let minute: u8 = dt.minute().try_into().with_context(|_| ConversionSnafu {
             value: dt.minute().to_string(),
             component: DateComponent::Minute,
         })?;
-        let second: u8 = dt.second().try_into().context(ConversionSnafu {
+        let second: u8 = dt.second().try_into().with_context(|_| ConversionSnafu {
             value: dt.second().to_string(),
             component: DateComponent::Second,
         })?;
