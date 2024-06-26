@@ -2482,13 +2482,15 @@ mod tests {
     mod not_gdcm {
         #[cfg(feature = "ndarray")]
         use crate::PixelDecoder;
-        #[cfg(any(feature = "transfer-syntax-registry/rle", feature = "image"))]
+        #[cfg(any(feature = "rle", feature = "image"))]
         #[cfg(feature = "image")]
         use rstest::rstest;
 
-        #[cfg(feature = "transfer-syntax-registry/rle")]
+        #[cfg(feature = "rle")]
         #[test]
         fn test_native_decoding_pixel_data_rle_8bit_1frame_vec() {
+            use crate::{ConvertOptions, ModalityLutOption, PixelDecoder as _};
+
             let path = dicom_test_files::path("pydicom/SC_rgb_rle.dcm")
                 .expect("test DICOM file should exist");
             let object = dicom_object::open_file(&path).unwrap();
