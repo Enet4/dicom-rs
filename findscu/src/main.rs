@@ -268,6 +268,17 @@ fn run() -> Result<(), Error> {
 
         match rsp_pdu {
             Pdu::PData { data } => {
+                if data.is_empty() {
+                    error!("Empty PData response");
+                    break;
+                } else if ![1, 2].contains(&data.len()) {
+                    warn!(
+                        "Unexpected number of PDataValue parts: {} (allowed 1 or 2)",
+                        data.len()
+                    );
+                    break;
+                }
+
                 let data_value = &data[0];
 
                 let cmd_obj = InMemDicomObject::read_dataset_with_ts(
@@ -300,8 +311,12 @@ fn run() -> Result<(), Error> {
                     }
 
                     // fetch DICOM data
-
-                    let dcm = {
+                    // Some worklist servers sends both command and data in the same PData
+                    // So there is no need to download another PData
+                    let dcm = if let Some(second_pdata) = data.get(1) {
+                        InMemDicomObject::read_dataset_with_ts(second_pdata.data.as_slice(), ts)
+                            .whatever_context("Could not read response data set")?
+                    } else {
                         let mut rsp = scu.receive_pdata();
                         let mut response_data = Vec::new();
                         rsp.read_to_end(&mut response_data)
