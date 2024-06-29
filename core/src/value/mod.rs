@@ -23,6 +23,8 @@ pub use self::primitive::{
     ValueType,
 };
 
+pub use either::Either;
+
 /// An aggregation of one or more elements in a value.
 pub type C<T> = SmallVec<[T; 2]>;
 
@@ -41,6 +43,39 @@ pub trait DicomValueType: HasLength {
     /// Otherwise, the output is the number of elements effectively encoded
     /// in the value.
     fn cardinality(&self) -> usize;
+}
+
+impl<L, R> HasLength for Either<L, R>
+where
+    L: HasLength,
+    R: HasLength,
+{
+    fn length(&self) -> Length {
+        match self {
+            Either::Left(l) => l.length(),
+            Either::Right(r) => r.length(),
+        }
+    }
+}
+
+impl<L, R> DicomValueType for Either<L, R>
+where
+    L: DicomValueType,
+    R: DicomValueType,
+{
+    fn value_type(&self) -> ValueType {
+        match self {
+            Either::Left(l) => l.value_type(),
+            Either::Right(r) => r.value_type(),
+        }
+    }
+
+    fn cardinality(&self) -> usize {
+        match self {
+            Either::Left(l) => l.cardinality(),
+            Either::Right(r) => r.cardinality(),
+        }
+    }
 }
 
 /// Representation of a full DICOM value, which may be either primitive or
