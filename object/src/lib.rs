@@ -181,7 +181,7 @@ pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
 use dicom_core::ops::AttributeSelector;
 use dicom_core::value::{DicomValueType, ValueType};
 pub use dicom_core::Tag;
-use dicom_core::{DataDictionary, DicomValue};
+use dicom_core::{DataDictionary, DicomValue, PrimitiveValue};
 use dicom_dictionary_std::uids;
 pub use dicom_dictionary_std::StandardDataDictionary;
 
@@ -194,6 +194,8 @@ use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_encoding::Codec;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
+use itertools::Either;
+use meta::FileMetaAttribute;
 use smallvec::SmallVec;
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::borrow::Cow;
@@ -217,12 +219,18 @@ pub const IMPLEMENTATION_VERSION_NAME: &str = "DICOM-rs 0.8.1";
 
 /// An error which occurs when fetching a value
 #[derive(Debug, Snafu)]
+#[non_exhaustive]
 pub enum AttributeError {
-    /// could not fetch value behind attribute {tag}
-    FetchValue {
-        tag: Tag,
-        keyword: Option<Cow<'static, str>>,
-        source: dicom_core::value::ConvertValueError,
+    /// A custom error when encoding fails.
+    /// Read the `message` and the underlying `source`
+    /// for more details.
+    #[snafu(whatever, display("{}", message))]
+    Custom {
+        /// The error message.
+        message: String,
+        /// The underlying error cause, if any.
+        #[snafu(source(from(Box<dyn std::error::Error + Send + Sync + 'static>, Some)))]
+        source: Option<Box<dyn std::error::Error + Send + Sync + 'static>>,
     },
 
     /// the value cannot be converted to the requested type
@@ -261,11 +269,12 @@ pub trait DicomAttribute: DicomValueType {
     where
         Self: 'a;
 
-    /// Obtain an in-memory representation of the value,
-    /// cloning the value one level deep if necessary.
-    fn to_dicom_value<'a>(
-        &'a self,
-    ) -> Result<DicomValue<Self::Item<'a>, Self::PixelData<'a>>, AttributeError>;
+    /// Obtain an in-memory representation of the primitive value,
+    /// cloning the value if necessary.
+    ///
+    /// An error is returned if the value is a data set sequence or
+    /// an encapsulated pixel data fragment sequence.
+    fn to_primitive_value(&self) -> Result<PrimitiveValue, AttributeError>;
 
     /// Obtain one of the items in the attribute,
     /// if the attribute value represents a data set sequence.
@@ -300,36 +309,37 @@ pub trait DicomAttribute: DicomValueType {
     /// Obtain the attribute's value as a string,
     /// converting it if necessary.
     fn to_str<'a>(&'a self) -> Result<Cow<'a, str>, AttributeError> {
-        Ok(Cow::Owned(
-            self.to_dicom_value()?
-                .to_str()
-                .context(ConvertValueSnafu)?
-                .to_string(),
-        ))
+        Ok(Cow::Owned(self.to_primitive_value()?.to_str().to_string()))
     }
 
     /// Obtain the attribute's value as a 16-bit unsigned integer,
     /// converting it if necessary.
     fn to_u16(&self) -> Result<u16, AttributeError> {
-        self.to_dicom_value()?.to_int().context(ConvertValueSnafu)
+        self.to_primitive_value()?
+            .to_int()
+            .context(ConvertValueSnafu)
     }
 
     /// Obtain the attribute's value as a 32-bit signed integer,
     /// converting it if necessary.
     fn to_i32(&self) -> Result<i32, AttributeError> {
-        self.to_dicom_value()?.to_int().context(ConvertValueSnafu)
+        self.to_primitive_value()?
+            .to_int()
+            .context(ConvertValueSnafu)
     }
 
     /// Obtain the attribute's value as a 32-bit unsigned integer,
     /// converting it if necessary.
     fn to_u32(&self) -> Result<u32, AttributeError> {
-        self.to_dicom_value()?.to_int().context(ConvertValueSnafu)
+        self.to_primitive_value()?
+            .to_int()
+            .context(ConvertValueSnafu)
     }
 
     /// Obtain the attribute's value as a 32-bit floating-point number,
     /// converting it if necessary.
     fn to_f32(&self) -> Result<f32, AttributeError> {
-        self.to_dicom_value()?
+        self.to_primitive_value()?
             .to_float32()
             .context(ConvertValueSnafu)
     }
@@ -337,7 +347,7 @@ pub trait DicomAttribute: DicomValueType {
     /// Obtain the attribute's value as a 64-bit floating-point number,
     /// converting it if necessary.
     fn to_f64(&self) -> Result<f64, AttributeError> {
-        self.to_dicom_value()?
+        self.to_primitive_value()?
             .to_float64()
             .context(ConvertValueSnafu)
     }
@@ -345,12 +355,7 @@ pub trait DicomAttribute: DicomValueType {
     /// Obtain the attribute's value as bytes,
     /// converting it if necessary.
     fn to_bytes<'a>(&'a self) -> Result<Cow<'a, [u8]>, AttributeError> {
-        Ok(Cow::Owned(
-            self.to_dicom_value()?
-                .to_bytes()
-                .context(ConvertValueSnafu)?
-                .to_vec(),
-        ))
+        Ok(Cow::Owned(self.to_primitive_value()?.to_bytes().to_vec()))
     }
 }
 
@@ -418,10 +423,17 @@ where
     where Self: 'a, P: 'a;
 
     #[inline]
-    fn to_dicom_value<'a>(
-        &'a self,
-    ) -> Result<DicomValue<Self::Item<'a>, Self::PixelData<'a>>, AttributeError> {
-        Ok(self.shallow_clone())
+    fn to_primitive_value<'a>(&'a self) -> Result<PrimitiveValue, AttributeError> {
+        match self {
+            DicomValue::Primitive(value) => Ok(value.clone()),
+            _ => Err(AttributeError::ConvertValue {
+                source: dicom_core::value::ConvertValueError {
+                    requested: "primitive",
+                    original: self.value_type(),
+                    cause: None,
+                },
+            }),
+        }
     }
 
     #[inline]
@@ -476,10 +488,17 @@ where
     where Self: 'a, P: 'a;
 
     #[inline]
-    fn to_dicom_value<'a>(
-        &'a self,
-    ) -> Result<DicomValue<Self::Item<'a>, Self::PixelData<'a>>, AttributeError> {
-        Ok(self.shallow_clone())
+    fn to_primitive_value(&self) -> Result<PrimitiveValue, AttributeError> {
+        match self {
+            DicomValue::Primitive(value) => Ok(value.clone()),
+            _ => Err(AttributeError::ConvertValue {
+                source: dicom_core::value::ConvertValueError {
+                    requested: "primitive",
+                    original: self.value_type(),
+                    cause: None,
+                },
+            }),
+        }
     }
 
     #[inline]
@@ -933,16 +952,65 @@ impl<O> ::std::ops::DerefMut for FileDicomObject<O> {
     }
 }
 
+impl<L, R> DicomAttribute for Either<L, R>
+where
+    L: DicomAttribute,
+    R: DicomAttribute,
+{
+    type Item<'a> = Either<L::Item<'a>, R::Item<'a>>
+        where Self: 'a;
+    type PixelData<'a> = Either<L::PixelData<'a>, R::PixelData<'a>>
+        where Self: 'a;
+
+    fn to_primitive_value<'a>(&'a self) -> Result<PrimitiveValue, AttributeError> {
+        match self {
+            Either::Left(l) => l.to_primitive_value(),
+            Either::Right(r) => r.to_primitive_value(),
+        }
+    }
+
+    fn item(&self, index: u32) -> Result<Self::Item<'_>, AttributeError> {
+        match self {
+            Either::Left(l) => l.item(index).map(Either::Left),
+            Either::Right(r) => r.item(index).map(Either::Right),
+        }
+    }
+
+    fn num_items(&self) -> Option<u32> {
+        match self {
+            Either::Left(l) => l.num_items(),
+            Either::Right(r) => r.num_items(),
+        }
+    }
+
+    fn fragment(&self, index: u32) -> Result<Self::PixelData<'_>, AttributeError> {
+        match self {
+            Either::Left(l) => l.fragment(index).map(Either::Left),
+            Either::Right(r) => r.fragment(index).map(Either::Right),
+        }
+    }
+}
+
 impl<O> DicomObject for FileDicomObject<O>
 where
     O: DicomObject,
 {
-    type Attribute<'a> = <O as DicomObject>::Attribute<'a>
-        where O: 'a;
+    type Attribute<'a> = Either<FileMetaAttribute<'a>, O::Attribute<'a>>
+        where Self: 'a,
+              O: 'a;
 
     #[inline]
     fn get_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>, AccessError> {
-        self.obj.get_opt(tag)
+        match tag {
+            Tag(0x0002, _) => {
+                let attr = self.meta.get_opt(tag)?;
+                Ok(attr.map(Either::Left))
+            }
+            _ => {
+                let attr = self.obj.get_opt(tag)?;
+                Ok(attr.map(Either::Right))
+            }
+        }
     }
 
     #[inline]
@@ -950,17 +1018,41 @@ where
         &self,
         name: &str,
     ) -> Result<Option<Self::Attribute<'_>>, AccessByNameError> {
-        self.obj.get_by_name_opt(name)
+        match name {
+            "FileMetaInformationGroupLength"
+            | "FileMetaInformationVersion"
+            | "MediaStorageSOPClassUID"
+            | "MediaStorageSOPInstanceUID"
+            | "TransferSyntaxUID"
+            | "ImplementationClassUID"
+            | "ImplementationVersionName"
+            | "SourceApplicationEntityTitle"
+            | "SendingApplicationEntityTitle"
+            | "ReceivingApplicationEntityTitle"
+            | "PrivateInformationCreatorUID"
+            | "PrivateInformation" => {
+                let attr = self.meta.get_by_name_opt(name)?;
+                Ok(attr.map(Either::Left))
+            }
+            _ => {
+                let attr = self.obj.get_by_name_opt(name)?;
+                Ok(attr.map(Either::Right))
+            }
+        }
     }
 
     #[inline]
     fn get(&self, tag: Tag) -> Result<Self::Attribute<'_>, AccessError> {
-        self.obj.get(tag)
-    }
-
-    #[inline]
-    fn get_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
-        self.obj.get_by_name(name)
+        match tag {
+            Tag(0x0002, _) => {
+                let attr = self.meta.get(tag)?;
+                Ok(Either::Left(attr))
+            }
+            _ => {
+                let attr = self.obj.get(tag)?;
+                Ok(Either::Right(attr))
+            }
+        }
     }
 }
 
@@ -1162,6 +1254,7 @@ where
 #[cfg(test)]
 mod tests {
     use dicom_core::{DataElement, PrimitiveValue, VR};
+    use dicom_dictionary_std::{tags, uids};
 
     use crate::meta::FileMetaTableBuilder;
     use crate::{AccessError, FileDicomObject, InMemDicomObject};
@@ -1297,6 +1390,7 @@ mod tests {
         assert_eq!(iter.next(), None);
     }
 
+    /// Can access file meta properties via the DicomObject trait
     #[test]
     pub fn file_dicom_can_update_meta() {
         let meta = FileMetaTableBuilder::new()
@@ -1321,7 +1415,46 @@ mod tests {
     }
 
     #[test]
-    fn attribute_api_on_primitive_values() {
+    fn dicom_object_api_on_file_dicom_object() {
+        use crate::{DicomAttribute as _, DicomObject as _};
+
+        let meta = FileMetaTableBuilder::new()
+            .transfer_syntax(uids::RLE_LOSSLESS)
+            .media_storage_sop_class_uid(uids::ENHANCED_MR_IMAGE_STORAGE)
+            .media_storage_sop_instance_uid("2.25.94766187067244888884745908966163363746")
+            .build()
+            .unwrap();
+        let obj = FileDicomObject::new_empty_with_meta(meta);
+
+        assert_eq!(
+            obj.get(tags::TRANSFER_SYNTAX_UID)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            uids::RLE_LOSSLESS
+        );
+
+        let sop_class_uid = obj
+            .get_opt(tags::MEDIA_STORAGE_SOP_CLASS_UID)
+            .unwrap();
+        let sop_class_uid = sop_class_uid.as_ref()
+            .map(|v| v.to_str().unwrap());
+        assert_eq!(
+            sop_class_uid.as_deref(),
+            Some(uids::ENHANCED_MR_IMAGE_STORAGE)
+        );
+
+        assert_eq!(
+            obj.get_by_name("MediaStorageSOPInstanceUID")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "2.25.94766187067244888884745908966163363746"
+        );
+    }
+
+    #[test]
+    fn operations_api_on_primitive_values() {
         use crate::DicomAttribute;
         use dicom_dictionary_std::tags;
 

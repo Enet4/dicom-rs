@@ -3,7 +3,9 @@ use byteordered::byteorder::{ByteOrder, LittleEndian};
 use dicom_core::dicom_value;
 use dicom_core::header::{DataElement, EmptyObject, HasLength, Header};
 use dicom_core::ops::{ApplyOp, AttributeAction, AttributeOp, AttributeSelectorStep};
-use dicom_core::value::{PrimitiveValue, Value, ValueType};
+use dicom_core::value::{
+    ConvertValueError, DicomValueType, InMemFragment, PrimitiveValue, Value, ValueType,
+};
 use dicom_core::{Length, Tag, VR};
 use dicom_dictionary_std::tags;
 use dicom_encoding::decode::{self, DecodeFrom};
@@ -13,13 +15,17 @@ use dicom_encoding::text::{self, TextCodec};
 use dicom_encoding::TransferSyntax;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
+use std::borrow::Cow;
 use std::io::{Read, Write};
 
 use crate::ops::{
     ApplyError, ApplyResult, IllegalExtendSnafu, IncompatibleTypesSnafu, MandatorySnafu,
     UnsupportedActionSnafu, UnsupportedAttributeSnafu,
 };
-use crate::{IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME};
+use crate::{
+    AttributeError, DicomAttribute, DicomObject, IMPLEMENTATION_CLASS_UID,
+    IMPLEMENTATION_VERSION_NAME,
+};
 
 const DICM_MAGIC_CODE: [u8; 4] = [b'D', b'I', b'C', b'M'];
 
@@ -106,7 +112,7 @@ pub enum Error {
     },
 }
 
-type Result<T> = std::result::Result<T, Error>;
+type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// DICOM File Meta Information Table.
 ///
@@ -791,6 +797,307 @@ impl FileMetaTable {
     }
 }
 
+/// An attribute selector for a file meta information table.
+#[derive(Debug)]
+pub struct FileMetaAttribute<'a> {
+    meta: &'a FileMetaTable,
+    tag_e: u16,
+}
+
+impl HasLength for FileMetaAttribute<'_> {
+    fn length(&self) -> Length {
+        match Tag(0x0002, self.tag_e) {
+            tags::FILE_META_INFORMATION_GROUP_LENGTH => Length(4),
+            tags::MEDIA_STORAGE_SOP_CLASS_UID => {
+                Length(self.meta.media_storage_sop_class_uid.len() as u32)
+            }
+            tags::MEDIA_STORAGE_SOP_INSTANCE_UID => {
+                Length(self.meta.media_storage_sop_instance_uid.len() as u32)
+            }
+            tags::IMPLEMENTATION_CLASS_UID => {
+                Length(self.meta.implementation_class_uid.len() as u32)
+            }
+            tags::IMPLEMENTATION_VERSION_NAME => Length(
+                self.meta
+                    .implementation_version_name
+                    .as_ref()
+                    .map(|s| s.len() as u32)
+                    .unwrap_or(0),
+            ),
+            tags::SOURCE_APPLICATION_ENTITY_TITLE => Length(
+                self.meta
+                    .source_application_entity_title
+                    .as_ref()
+                    .map(|s| s.len() as u32)
+                    .unwrap_or(0),
+            ),
+            tags::SENDING_APPLICATION_ENTITY_TITLE => Length(
+                self.meta
+                    .sending_application_entity_title
+                    .as_ref()
+                    .map(|s| s.len() as u32)
+                    .unwrap_or(0),
+            ),
+            tags::TRANSFER_SYNTAX_UID => Length(self.meta.transfer_syntax.len() as u32),
+            tags::PRIVATE_INFORMATION_CREATOR_UID => Length(
+                self.meta
+                    .private_information_creator_uid
+                    .as_ref()
+                    .map(|s| s.len() as u32)
+                    .unwrap_or(0),
+            ),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl DicomValueType for FileMetaAttribute<'_> {
+    fn value_type(&self) -> ValueType {
+        match Tag(0x0002, self.tag_e) {
+            tags::MEDIA_STORAGE_SOP_CLASS_UID
+            | tags::MEDIA_STORAGE_SOP_INSTANCE_UID
+            | tags::TRANSFER_SYNTAX_UID
+            | tags::IMPLEMENTATION_CLASS_UID
+            | tags::IMPLEMENTATION_VERSION_NAME
+            | tags::SOURCE_APPLICATION_ENTITY_TITLE
+            | tags::SENDING_APPLICATION_ENTITY_TITLE
+            | tags::RECEIVING_APPLICATION_ENTITY_TITLE
+            | tags::PRIVATE_INFORMATION_CREATOR_UID => ValueType::Str,
+            tags::FILE_META_INFORMATION_GROUP_LENGTH => ValueType::U32,
+            tags::FILE_META_INFORMATION_VERSION => ValueType::U8,
+            tags::PRIVATE_INFORMATION => ValueType::U8,
+            _ => unreachable!(),
+        }
+    }
+
+    fn cardinality(&self) -> usize {
+        match Tag(0x0002, self.tag_e) {
+            tags::MEDIA_STORAGE_SOP_CLASS_UID
+            | tags::MEDIA_STORAGE_SOP_INSTANCE_UID
+            | tags::SOURCE_APPLICATION_ENTITY_TITLE
+            | tags::SENDING_APPLICATION_ENTITY_TITLE
+            | tags::RECEIVING_APPLICATION_ENTITY_TITLE
+            | tags::TRANSFER_SYNTAX_UID
+            | tags::IMPLEMENTATION_CLASS_UID
+            | tags::IMPLEMENTATION_VERSION_NAME
+            | tags::PRIVATE_INFORMATION_CREATOR_UID => 1,
+            tags::FILE_META_INFORMATION_GROUP_LENGTH => 1,
+            tags::PRIVATE_INFORMATION => 1,
+            tags::FILE_META_INFORMATION_VERSION => 2,
+            _ => 1,
+        }
+    }
+}
+
+impl<'a> DicomAttribute for FileMetaAttribute<'a> {
+    type Item<'b> = EmptyObject
+        where Self: 'b;
+    type PixelData<'b> = InMemFragment
+        where Self: 'b;
+
+    fn to_primitive_value<'b>(
+        &'b self,
+    ) -> Result<PrimitiveValue, AttributeError> {
+        Ok(match Tag(0x0002, self.tag_e) {
+            tags::FILE_META_INFORMATION_GROUP_LENGTH => {
+                PrimitiveValue::from(self.meta.information_group_length)
+            }
+            tags::FILE_META_INFORMATION_VERSION => {
+                PrimitiveValue::from(self.meta.information_version)
+            }
+            tags::MEDIA_STORAGE_SOP_CLASS_UID => {
+                PrimitiveValue::from(self.meta.media_storage_sop_class_uid.clone())
+            }
+            tags::MEDIA_STORAGE_SOP_INSTANCE_UID => {
+                PrimitiveValue::from(self.meta.media_storage_sop_instance_uid.clone())
+            }
+            tags::SOURCE_APPLICATION_ENTITY_TITLE => {
+                PrimitiveValue::from(self.meta.source_application_entity_title.clone().unwrap())
+            }
+            tags::SENDING_APPLICATION_ENTITY_TITLE => {
+                PrimitiveValue::from(self.meta.sending_application_entity_title.clone().unwrap())
+            }
+            tags::RECEIVING_APPLICATION_ENTITY_TITLE => PrimitiveValue::from(
+                self.meta
+                    .receiving_application_entity_title
+                    .clone()
+                    .unwrap(),
+            ),
+            tags::TRANSFER_SYNTAX_UID => PrimitiveValue::from(self.meta.transfer_syntax.clone()),
+            tags::IMPLEMENTATION_CLASS_UID => {
+                PrimitiveValue::from(self.meta.implementation_class_uid.clone())
+            }
+            tags::IMPLEMENTATION_VERSION_NAME => {
+                PrimitiveValue::from(self.meta.implementation_version_name.clone().unwrap())
+            }
+            tags::PRIVATE_INFORMATION_CREATOR_UID => {
+                PrimitiveValue::from(self.meta.private_information_creator_uid.clone().unwrap())
+            }
+            tags::PRIVATE_INFORMATION => {
+                PrimitiveValue::from(self.meta.private_information.clone().unwrap())
+            }
+            _ => unreachable!(),
+        })
+    }
+
+    fn to_str<'b>(&'b self) -> std::result::Result<std::borrow::Cow<'b, str>, AttributeError> {
+        match Tag(0x0002, self.tag_e) {
+            tags::FILE_META_INFORMATION_GROUP_LENGTH => {
+                Ok(self.meta.information_group_length.to_string().into())
+            }
+            tags::FILE_META_INFORMATION_VERSION => Ok(format!(
+                "{:02X}{:02X}",
+                self.meta.information_version[0], self.meta.information_version[1]
+            )
+            .into()),
+            tags::MEDIA_STORAGE_SOP_CLASS_UID => {
+                Ok(Cow::Borrowed(self.meta.media_storage_sop_class_uid()))
+            }
+            tags::MEDIA_STORAGE_SOP_INSTANCE_UID => {
+                Ok(Cow::Borrowed(self.meta.media_storage_sop_instance_uid()))
+            }
+            tags::TRANSFER_SYNTAX_UID => Ok(Cow::Borrowed(self.meta.transfer_syntax())),
+            tags::IMPLEMENTATION_CLASS_UID => {
+                Ok(Cow::Borrowed(self.meta.implementation_class_uid()))
+            }
+            tags::IMPLEMENTATION_VERSION_NAME => Ok(self
+                .meta
+                .implementation_version_name
+                .as_deref()
+                .map(Cow::Borrowed)
+                .unwrap_or_default()),
+            tags::SOURCE_APPLICATION_ENTITY_TITLE => Ok(self
+                .meta
+                .source_application_entity_title
+                .as_deref()
+                .map(Cow::Borrowed)
+                .unwrap_or_default()),
+            tags::SENDING_APPLICATION_ENTITY_TITLE => Ok(self
+                .meta
+                .sending_application_entity_title
+                .as_deref()
+                .map(Cow::Borrowed)
+                .unwrap_or_default()),
+            tags::RECEIVING_APPLICATION_ENTITY_TITLE => Ok(self
+                .meta
+                .receiving_application_entity_title
+                .as_deref()
+                .map(Cow::Borrowed)
+                .unwrap_or_default()),
+            tags::PRIVATE_INFORMATION_CREATOR_UID => Ok(self
+                .meta
+                .private_information_creator_uid
+                .as_deref()
+                .map(|v| {
+                    Cow::Borrowed(v.trim_end_matches(|c: char| c.is_whitespace() || c == '\0'))
+                })
+                .unwrap_or_default()),
+            tags::PRIVATE_INFORMATION => Err(AttributeError::ConvertValue {
+                source: ConvertValueError {
+                    cause: None,
+                    original: ValueType::U8,
+                    requested: "str",
+                },
+            }),
+            _ => unreachable!(),
+        }
+    }
+
+    fn item(&self, _index: u32) -> Result<Self::Item<'_>, AttributeError> {
+        Err(AttributeError::NotDataSet)
+    }
+
+    fn num_items(&self) -> Option<u32> {
+        None
+    }
+
+    fn fragment(&self, _index: u32) -> Result<Self::PixelData<'_>, AttributeError> {
+        Err(AttributeError::NotPixelData)
+    }
+
+    fn num_fragments(&self) -> Option<u32> {
+        None
+    }
+}
+
+impl DicomObject for FileMetaTable {
+    type Attribute<'a> = FileMetaAttribute<'a>
+    where
+        Self: 'a;
+
+    fn get_opt<'a>(
+        &'a self,
+        tag: Tag,
+    ) -> std::result::Result<Option<Self::Attribute<'a>>, crate::AccessError> {
+        // check that the attribute value is in the table,
+        // then return a suitable `FileMetaAttribute`
+
+        if match tag {
+            // mandatory attributes
+            tags::FILE_META_INFORMATION_GROUP_LENGTH
+            | tags::FILE_META_INFORMATION_VERSION
+            | tags::MEDIA_STORAGE_SOP_CLASS_UID
+            | tags::MEDIA_STORAGE_SOP_INSTANCE_UID
+            | tags::TRANSFER_SYNTAX_UID
+            | tags::IMPLEMENTATION_CLASS_UID
+            | tags::IMPLEMENTATION_VERSION_NAME => true,
+            // optional attributes
+            tags::SOURCE_APPLICATION_ENTITY_TITLE
+                if self.source_application_entity_title.is_some() =>
+            {
+                true
+            }
+            tags::SENDING_APPLICATION_ENTITY_TITLE
+                if self.sending_application_entity_title.is_some() =>
+            {
+                true
+            }
+            tags::RECEIVING_APPLICATION_ENTITY_TITLE
+                if self.receiving_application_entity_title.is_some() =>
+            {
+                true
+            }
+            tags::PRIVATE_INFORMATION_CREATOR_UID
+                if self.private_information_creator_uid.is_some() =>
+            {
+                true
+            }
+            tags::PRIVATE_INFORMATION if self.private_information.is_some() => true,
+            _ => false,
+        } {
+            Ok(Some(FileMetaAttribute {
+                meta: self,
+                tag_e: tag.element(),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn get_by_name_opt<'a>(
+        &'a self,
+        name: &str,
+    ) -> std::result::Result<Option<Self::Attribute<'a>>, crate::AccessByNameError> {
+        let tag = match name {
+            "FileMetaInformationGroupLength" => tags::FILE_META_INFORMATION_GROUP_LENGTH,
+            "FileMetaInformationVersion" => tags::FILE_META_INFORMATION_VERSION,
+            "MediaStorageSOPClassUID" => tags::MEDIA_STORAGE_SOP_CLASS_UID,
+            "MediaStorageSOPInstanceUID" => tags::MEDIA_STORAGE_SOP_INSTANCE_UID,
+            "TransferSyntaxUID" => tags::TRANSFER_SYNTAX_UID,
+            "ImplementationClassUID" => tags::IMPLEMENTATION_CLASS_UID,
+            "ImplementationVersionName" => tags::IMPLEMENTATION_VERSION_NAME,
+            "SourceApplicationEntityTitle" => tags::SOURCE_APPLICATION_ENTITY_TITLE,
+            "SendingApplicationEntityTitle" => tags::SENDING_APPLICATION_ENTITY_TITLE,
+            "ReceivingApplicationEntityTitle" => tags::RECEIVING_APPLICATION_ENTITY_TITLE,
+            "PrivateInformationCreatorUID" => tags::PRIVATE_INFORMATION_CREATOR_UID,
+            "PrivateInformation" => tags::PRIVATE_INFORMATION,
+            _ => return Ok(None),
+        };
+        self.get_opt(tag)
+            .map_err(|_| crate::NoSuchAttributeNameSnafu { name }.build())
+    }
+}
+
 impl ApplyOp for FileMetaTable {
     type Err = ApplyError;
 
@@ -1417,5 +1724,45 @@ mod tests {
             .expect("Should not fail to read the table from the written data");
 
         assert_eq!(table.information_group_length, table2.information_group_length);
+    }
+
+    /// Can access file meta properties via the DicomObject trait
+    #[test]
+    fn dicom_object_api() {
+        use crate::{DicomAttribute as _, DicomObject as _};
+        use dicom_dictionary_std::uids;
+
+        let meta = FileMetaTableBuilder::new()
+            .transfer_syntax(uids::RLE_LOSSLESS)
+            .media_storage_sop_class_uid(uids::ENHANCED_MR_IMAGE_STORAGE)
+            .media_storage_sop_instance_uid("2.25.94766187067244888884745908966163363746")
+            .implementation_version_name("RUSTY_DICOM_269")
+            .build()
+            .unwrap();
+
+        assert_eq!(
+            meta.get(tags::TRANSFER_SYNTAX_UID)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            uids::RLE_LOSSLESS
+        );
+
+        let sop_class_uid = meta.get_opt(tags::MEDIA_STORAGE_SOP_CLASS_UID).unwrap();
+        let sop_class_uid = sop_class_uid.as_ref().map(|v| v.to_str().unwrap());
+        assert_eq!(
+            sop_class_uid.as_deref(),
+            Some(uids::ENHANCED_MR_IMAGE_STORAGE)
+        );
+
+        assert_eq!(
+            meta.get_by_name("MediaStorageSOPInstanceUID")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "2.25.94766187067244888884745908966163363746"
+        );
+
+        assert!(meta.get_opt(tags::PRIVATE_INFORMATION).unwrap().is_none());
     }
 }
