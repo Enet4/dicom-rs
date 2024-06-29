@@ -405,17 +405,6 @@ pub trait DicomObject {
         self.get_by_name_opt(name)?
             .context(NoSuchAttributeNameSnafu { name })
     }
-
-    /// Retrieve the processed meta information table,
-    /// if available at this level.
-    ///
-    /// This table will generally only be reachable from the root of a DICOM object,
-    /// either from opening a file or collecting the data set from a known source.
-    /// Attempts to retrieve file meta information
-    /// from nested data sets will likely fail.
-    fn meta(&self) -> Option<&FileMetaTable> {
-        None
-    }
 }
 
 impl<O, P> DicomAttribute for DicomValue<O, P>
@@ -972,10 +961,6 @@ where
     #[inline]
     fn get_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
         self.obj.get_by_name(name)
-    }
-
-    fn meta(&self) -> Option<&FileMetaTable> {
-        Some(&self.meta)
     }
 }
 
