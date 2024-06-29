@@ -250,9 +250,7 @@ pub enum AttributeError {
 /// which can then be converted into a more usable form.
 ///
 /// Both [`DicomValue`] and references to it implement this trait.
-///
-/// This trait interface is experimental and prone to sudden changes.
-pub trait DicomAttributeValue: DicomValueType {
+pub trait DicomAttribute: DicomValueType {
     /// The data type of an item in a data set sequence
     type Item<'a>: HasLength
     where
@@ -310,12 +308,22 @@ pub trait DicomAttributeValue: DicomValueType {
         ))
     }
 
+    /// Obtain the attribute's value as a 16-bit unsigned integer,
+    /// converting it if necessary.
+    fn to_u16(&self) -> Result<u16, AttributeError> {
+        self.to_dicom_value()?.to_int().context(ConvertValueSnafu)
+    }
+
+    /// Obtain the attribute's value as a 32-bit signed integer,
+    /// converting it if necessary.
+    fn to_i32(&self) -> Result<i32, AttributeError> {
+        self.to_dicom_value()?.to_int().context(ConvertValueSnafu)
+    }
+
     /// Obtain the attribute's value as a 32-bit unsigned integer,
     /// converting it if necessary.
     fn to_u32(&self) -> Result<u32, AttributeError> {
-        self.to_dicom_value()?
-            .to_int::<u32>()
-            .context(ConvertValueSnafu)
+        self.to_dicom_value()?.to_int().context(ConvertValueSnafu)
     }
 
     /// Obtain the attribute's value as a 32-bit floating-point number,
@@ -355,7 +363,7 @@ pub trait DicomAttributeValue: DicomValueType {
 pub trait DicomObject {
     /// The type representing a DICOM attribute in the object
     /// and/or the necessary means to retrieve the value from it.
-    type Attribute<'a>: DicomAttributeValue
+    type Attribute<'a>: DicomAttribute
     where
         Self: 'a;
 
@@ -410,7 +418,7 @@ pub trait DicomObject {
     }
 }
 
-impl<O, P> DicomAttributeValue for DicomValue<O, P>
+impl<O, P> DicomAttribute for DicomValue<O, P>
 where
     O: HasLength,
     for<'a> &'a O: HasLength,
@@ -466,7 +474,7 @@ where
     }
 }
 
-impl<'b, O, P> DicomAttributeValue for &'b DicomValue<O, P>
+impl<'b, O, P> DicomAttribute for &'b DicomValue<O, P>
 where
     O: HasLength,
     &'b O: HasLength,
@@ -1329,7 +1337,7 @@ mod tests {
 
     #[test]
     fn attribute_api_on_primitive_values() {
-        use crate::DicomAttributeValue;
+        use crate::DicomAttribute;
         use dicom_dictionary_std::tags;
 
         let obj = InMemDicomObject::from_element_iter([
@@ -1341,15 +1349,12 @@ mod tests {
 
         // can get string using DICOM attribute API
 
-        assert_eq!(
-            &DicomAttributeValue::to_str(patient_name).unwrap(),
-            "Doe^John"
-        );
+        assert_eq!(&DicomAttribute::to_str(patient_name).unwrap(), "Doe^John");
 
         // can get integer from Instance Number
 
         let instance_number = obj.get(tags::INSTANCE_NUMBER).unwrap().value();
-        assert_eq!(DicomAttributeValue::to_u32(instance_number).unwrap(), 5);
+        assert_eq!(DicomAttribute::to_u32(instance_number).unwrap(), 5);
 
         // cannot get items
 

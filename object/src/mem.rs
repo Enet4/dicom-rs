@@ -2263,7 +2263,7 @@ fn even_len(l: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{open_file, DicomAttributeValue as _};
+    use crate::{open_file, DicomAttribute as _};
     use byteordered::Endianness;
     use dicom_core::chrono::FixedOffset;
     use dicom_core::value::{DicomDate, DicomDateTime, DicomTime};
