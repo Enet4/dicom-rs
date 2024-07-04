@@ -28,13 +28,6 @@ use super::{
     uid::trim_uid,
 };
 
-#[derive(Debug)]
-pub enum ConnectOp {
-    Connect,
-    SetReadTimeout,
-    SetWriteTimeout
-}
-
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum Error {
@@ -43,7 +36,18 @@ pub enum Error {
 
     /// could not connect to server
     Connect {
-        op: ConnectOp,
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
+    
+    /// Could not set tcp read timeout
+    SetReadTimeout{
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
+
+    /// Could not set tcp write timeout
+    SetWriteTimeout{
         source: std::io::Error,
         backtrace: Backtrace,
     },
@@ -543,11 +547,11 @@ impl<'a> ClientAssociationOptions<'a> {
         });
 
         let mut socket = std::net::TcpStream::connect(ae_address)
-            .context(ConnectSnafu{op: ConnectOp::Connect})?;
+            .context(ConnectSnafu)?;
         socket.set_read_timeout(read_timeout)
-            .context(ConnectSnafu{op: ConnectOp::SetReadTimeout})?;
+            .context(SetReadTimeoutSnafu)?;
         socket.set_write_timeout(write_timeout)
-            .context(ConnectSnafu{op: ConnectOp::SetWriteTimeout})?;
+            .context(SetWriteTimeoutSnafu)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         // send request
 
