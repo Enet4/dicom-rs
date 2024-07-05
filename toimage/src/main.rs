@@ -68,7 +68,6 @@ struct ImageOptions {
     unwrap: bool,
 }
 
-
 #[derive(Debug, Snafu)]
 enum Error {
     #[snafu(display("could not read DICOM file {}", path.display()))]
@@ -184,12 +183,18 @@ fn run(args: App) -> Result<(), Error> {
                 }
 
                 dicoms.iter().for_each(|file| {
-                    convert_single_file(
-                        &file.0,
+                    let output = build_output_path(
                         false,
                         file.1.clone(),
                         outdir.clone(),
                         ext.clone(),
+                        image_options.unwrap,
+                    );
+
+                    convert_single_file(
+                        &file.0,
+                        false,
+                        output,
                         frame_number,
                         image_options,
                         verbose,
@@ -201,12 +206,19 @@ fn run(args: App) -> Result<(), Error> {
                 let file =
                     open_file(file).with_context(|_| ReadFileSnafu { path: file.clone() })?;
 
+                let output_is_set = output.is_some();
+                let output = build_output_path(
+                    output_is_set,
+                    output.unwrap_or(files[0].clone()),
+                    outdir.clone(),
+                    ext.clone(),
+                    image_options.unwrap,
+                );
+
                 convert_single_file(
                     &file,
-                    output.is_some(),
-                    output.unwrap_or(files[0].clone()),
-                    outdir,
-                    ext,
+                    output_is_set,
+                    output,
                     frame_number,
                     image_options,
                     verbose,
@@ -218,12 +230,19 @@ fn run(args: App) -> Result<(), Error> {
             let dicom_file = open_file(file)
                 .with_context(|_| ReadFileSnafu { path: file.clone() })
                 .unwrap();
-            convert_single_file(
-                &dicom_file,
+
+            let output = build_output_path(
                 false,
                 file.clone(),
                 outdir.clone(),
                 ext.clone(),
+                image_options.unwrap,
+            );
+
+            convert_single_file(
+                &dicom_file,
+                false,
+                output,
                 frame_number,
                 image_options,
                 verbose,
@@ -235,12 +254,40 @@ fn run(args: App) -> Result<(), Error> {
     Ok(())
 }
 
-fn convert_single_file(
-    file: &FileDicomObject<InMemDicomObject>,
+fn build_output_path(
     output_is_set: bool,
     mut output: PathBuf,
     outdir: Option<PathBuf>,
     ext: Option<String>,
+    unwrap: bool,
+) -> PathBuf {
+    // check if there is a .dcm extension, otherwise, add it
+    if output.extension() != Some("dcm".as_ref()) && !output_is_set {
+        let pathstr = output.to_str().unwrap();
+        // it is impossible to use set_extension here since dicom file names commonly have dots in
+        // them which would be interpreted as file extensions
+        output = PathBuf::from_str(&format!("{}.dcm", pathstr)).unwrap();
+    }
+
+    if let Some(outdir) = outdir {
+        output = outdir.join(output.file_name().unwrap());
+    }
+
+    if !unwrap && !output_is_set {
+        if let Some(extension) = ext {
+            output.set_extension(extension);
+        } else {
+            output.set_extension("png");
+        }
+    }
+
+    output
+}
+
+fn convert_single_file(
+    file: &FileDicomObject<InMemDicomObject>,
+    output_is_set: bool,
+    mut output: PathBuf,
     frame_number: u32,
     image_options: ImageOptions,
     verbose: bool,
@@ -257,10 +304,6 @@ fn convert_single_file(
         // it is impossible to use set_extension here since dicom file names commonly have dots in
         // them which would be interpreted as file extensions
         output = PathBuf::from_str(&format!("{}.dcm", pathstr)).unwrap();
-    }
-
-    if let Some(outdir) = outdir {
-        output = outdir.join(output.file_name().unwrap());
     }
 
     if unwrap {
@@ -386,14 +429,6 @@ fn convert_single_file(
         std::fs::create_dir_all(output.parent().unwrap()).unwrap();
         std::fs::write(output, out_data).context(SaveDataSnafu)?;
     } else {
-        if !output_is_set {
-            if let Some(extension) = ext {
-                output.set_extension(extension);
-            } else {
-                output.set_extension("png");
-            }
-        }
-
         let pixel = file
             .decode_pixel_data_frame(frame_number)
             .context(DecodePixelDataSnafu)?;
