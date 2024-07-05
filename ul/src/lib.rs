@@ -7,15 +7,15 @@
 //! and service class providers (SCPs).
 //!
 //! - The [`address`] module
-//! provides an abstraction for working with compound addresses
-//! referring to application entities in a network.
+//!   provides an abstraction for working with compound addresses
+//!   referring to application entities in a network.
 //! - The [`pdu`] module
-//! provides data structures representing _protocol data units_,
-//! which are passed around as part of the DICOM network communication support.
+//!   provides data structures representing _protocol data units_,
+//!   which are passed around as part of the DICOM network communication support.
 //! - The [`association`] module
-//! comprises abstractions for establishing and negotiating associations
-//! between application entities,
-//! via the upper layer protocol by TCP.
+//!   comprises abstractions for establishing and negotiating associations
+//!   between application entities,
+//!   via the upper layer protocol by TCP.
 
 pub mod address;
 pub mod association;
