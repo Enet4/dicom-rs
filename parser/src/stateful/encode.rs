@@ -171,7 +171,7 @@ where
     /// (always with zeros)
     /// to ensure that the encoded value has an even number of bytes.
     pub fn write_bytes(&mut self, bytes: &[u8]) -> Result<()> {
-        debug_assert!(bytes.len() < u32::max_value() as usize);
+        debug_assert!(bytes.len() < u32::MAX as usize);
         self.to.write_all(bytes).context(WriteValueDataSnafu {
             position: self.bytes_written,
         })?;
