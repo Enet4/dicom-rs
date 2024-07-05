@@ -40,6 +40,17 @@ struct App {
     #[arg(short = 'F', long = "frame", default_value = "0")]
     frame_number: u32,
 
+    #[clap(flatten)]
+    image_options: ImageOptions,
+
+    /// Print more information about the image and the output file
+    #[arg(short = 'v', long = "verbose")]
+    verbose: bool,
+}
+
+/// Options related to image output and conversion steps
+#[derive(Debug, Copy, Clone, Parser)]
+struct ImageOptions {
     /// Force output bit depth to 8 bits per sample
     #[arg(long = "8bit", conflicts_with = "force_16bit")]
     force_8bit: bool,
@@ -55,11 +66,8 @@ struct App {
         conflicts_with = "force_16bit"
     )]
     unwrap: bool,
-
-    /// Print more information about the image and the output file
-    #[arg(short = 'v', long = "verbose")]
-    verbose: bool,
 }
+
 
 #[derive(Debug, Snafu)]
 enum Error {
@@ -156,9 +164,7 @@ fn run(args: App) -> Result<(), Error> {
         output,
         ext,
         frame_number,
-        force_8bit,
-        force_16bit,
-        unwrap,
+        image_options,
         verbose,
     } = args;
 
@@ -185,9 +191,7 @@ fn run(args: App) -> Result<(), Error> {
                         outdir.clone(),
                         ext.clone(),
                         frame_number,
-                        force_8bit,
-                        force_16bit,
-                        unwrap,
+                        image_options,
                         verbose,
                     )
                     .unwrap();
@@ -204,9 +208,7 @@ fn run(args: App) -> Result<(), Error> {
                     outdir,
                     ext,
                     frame_number,
-                    force_8bit,
-                    force_16bit,
-                    unwrap,
+                    image_options,
                     verbose,
                 )?;
             }
@@ -223,9 +225,7 @@ fn run(args: App) -> Result<(), Error> {
                 outdir.clone(),
                 ext.clone(),
                 frame_number,
-                force_8bit,
-                force_16bit,
-                unwrap,
+                image_options,
                 verbose,
             )
             .unwrap();
@@ -242,11 +242,15 @@ fn convert_single_file(
     outdir: Option<PathBuf>,
     ext: Option<String>,
     frame_number: u32,
-    force_8bit: bool,
-    force_16bit: bool,
-    unwrap: bool,
+    image_options: ImageOptions,
     verbose: bool,
 ) -> Result<(), Error> {
+    let ImageOptions {
+        force_8bit,
+        force_16bit,
+        unwrap,
+    } = image_options;
+
     // check if there is a .dcm extension, otherwise, add it
     if output.extension() != Some("dcm".as_ref()) && !output_is_set {
         let pathstr = output.to_str().unwrap();
