@@ -304,11 +304,7 @@ where
     /// is insufficient. Otherwise, please use [`open_file_with_dict`] instead.
     ///
     /// [`open_file_with_dict`]: #method.open_file_with_dict
-    pub fn open_file_with<P: AsRef<Path>, R>(
-        path: P,
-        dict: D,
-        ts_index: R,
-    ) -> Result<Self, ReadError>
+    pub fn open_file_with<P, R>(path: P, dict: D, ts_index: R) -> Result<Self, ReadError>
     where
         P: AsRef<Path>,
         R: TransferSyntaxIndex,
@@ -341,7 +337,7 @@ where
         Ok(ReadPreamble::Auto)
     }
 
-    pub(crate) fn open_file_with_all_options<P: AsRef<Path>, R>(
+    pub(crate) fn open_file_with_all_options<P, R>(
         path: P,
         dict: D,
         ts_index: R,
@@ -420,15 +416,15 @@ where
     /// is insufficient. Otherwise, please use [`from_reader_with_dict`] instead.
     ///
     /// [`from_reader_with_dict`]: #method.from_reader_with_dict
-    pub fn from_reader_with<'s, S: 's, R>(src: S, dict: D, ts_index: R) -> Result<Self, ReadError>
+    pub fn from_reader_with<'s, S, R>(src: S, dict: D, ts_index: R) -> Result<Self, ReadError>
     where
-        S: Read,
+        S: Read + 's,
         R: TransferSyntaxIndex,
     {
         Self::from_reader_with_all_options(src, dict, ts_index, None, ReadPreamble::Auto)
     }
 
-    pub(crate) fn from_reader_with_all_options<'s, S: 's, R>(
+    pub(crate) fn from_reader_with_all_options<'s, S, R>(
         src: S,
         dict: D,
         ts_index: R,
@@ -436,7 +432,7 @@ where
         mut read_preamble: ReadPreamble,
     ) -> Result<Self, ReadError>
     where
-        S: Read,
+        S: Read + 's,
         R: TransferSyntaxIndex,
     {
         let mut file = BufReader::new(src);
@@ -1814,7 +1810,7 @@ where
     // private methods
 
     /// Build an object by consuming a data set parser.
-    fn build_object<I: ?Sized>(
+    fn build_object<I>(
         dataset: &mut I,
         dict: D,
         in_item: bool,
@@ -1822,7 +1818,7 @@ where
         read_until: Option<Tag>,
     ) -> Result<Self, ReadError>
     where
-        I: Iterator<Item = ParserResult<DataToken>>,
+        I: ?Sized + Iterator<Item = ParserResult<DataToken>>,
     {
         let mut entries: BTreeMap<Tag, InMemElement<D>> = BTreeMap::new();
         // perform a structured parsing of incoming tokens
@@ -1954,14 +1950,14 @@ where
     }
 
     /// Build a DICOM sequence by consuming a data set parser.
-    fn build_sequence<I: ?Sized>(
+    fn build_sequence<I>(
         _tag: Tag,
         _len: Length,
         dataset: &mut I,
         dict: &D,
     ) -> Result<C<InMemDicomObject<D>>, ReadError>
     where
-        I: Iterator<Item = ParserResult<DataToken>>,
+        I: ?Sized + Iterator<Item = ParserResult<DataToken>>,
     {
         let mut items: C<_> = SmallVec::new();
         while let Some(token) = dataset.next() {

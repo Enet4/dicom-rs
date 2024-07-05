@@ -165,9 +165,9 @@ pub struct FileMetaTable {
 }
 
 /// Utility function for reading the body of the DICOM element as a UID.
-fn read_str_body<'s, S: 's, T>(source: &'s mut S, text: &T, len: u32) -> Result<String>
+fn read_str_body<'s, S, T>(source: &'s mut S, text: &T, len: u32) -> Result<String>
 where
-    S: Read,
+    S: Read + 's,
     T: TextCodec,
 {
     let mut v = Vec::new();
