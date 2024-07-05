@@ -56,10 +56,9 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-/** Decode a single DICOM Date (DA) into a `chrono::NaiveDate` value.
-  * As per standard, a full 8 byte representation (YYYYMMDD) is required,
-  otherwise, the operation fails.
-*/
+/// Decode a single DICOM Date (DA) into a `chrono::NaiveDate` value.
+/// As per standard, a full 8 byte representation (YYYYMMDD) is required,
+/// otherwise, the operation fails.
 pub fn parse_date(buf: &[u8]) -> Result<NaiveDate> {
     match buf.len() {
         4 => IncompleteValueSnafu {
