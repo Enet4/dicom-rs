@@ -600,10 +600,10 @@ impl<D, R, W> TransferSyntax<D, R, W> {
     /// and the given writer type (this method is not object safe).
     /// Can yield none if encoding is not supported. The resulting encoder does not
     /// consider pixel data encapsulation or data set compression rules.
-    pub fn encoder_for<'w, T: 'w>(&self) -> Option<DynEncoder<'w, T>>
+    pub fn encoder_for<'w, T>(&self) -> Option<DynEncoder<'w, T>>
     where
         Self: Sized,
-        T: ?Sized + Write,
+        T: ?Sized + Write + 'w,
     {
         match (self.byte_order, self.explicit_vr) {
             (Endianness::Little, false) => Some(Box::new(EncoderFor::new(
