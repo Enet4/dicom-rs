@@ -283,6 +283,27 @@ impl<I, P> From<String> for Value<I, P> {
     }
 }
 
+impl<I, P> From<DicomDate> for Value<I, P> {
+    /// Converts the DICOM date into a primitive value.
+    fn from(value: DicomDate) -> Self {
+        Value::Primitive(PrimitiveValue::from(value))
+    }
+}
+
+impl<I, P> From<DicomTime> for Value<I, P> {
+    /// Converts the DICOM time into a primitive value.
+    fn from(value: DicomTime) -> Self {
+        Value::Primitive(PrimitiveValue::from(value))
+    }
+}
+
+impl<I, P> From<DicomDateTime> for Value<I, P> {
+    /// Converts the DICOM date-time into a primitive value.
+    fn from(value: DicomDateTime) -> Self {
+        Value::Primitive(PrimitiveValue::from(value))
+    }
+}
+
 impl<I, P> HasLength for Value<I, P> {
     fn length(&self) -> Length {
         match self {
