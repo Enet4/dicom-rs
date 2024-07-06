@@ -10,24 +10,25 @@ use dicom_pixeldata::{ConvertOptions, PixelDecoder};
 use snafu::{OptionExt, Report, ResultExt, Snafu, Whatever};
 use tracing::{error, warn, Level};
 
-/// Convert a DICOM file into an image file
+/// Convert DICOM files into image files
 #[derive(Debug, Parser)]
 #[command(version)]
 struct App {
-    /// Path to the DICOM file to convert
+    /// A directory or multiple paths to the DICOM files to convert
+    #[arg(required(true))]
     files: Vec<PathBuf>,
 
-    /// Parse directory recursively
+    /// Parse the given directory recursively
     #[arg(short = 'r', long = "recursive")]
     recursive: bool,
 
-    /// Path to the output image, this should include the file extension
-    /// (default is to replace input extension with `.png`)
+    /// Path to the output image, including file extension
+    /// (replaces input extension with `.png` by default)
     #[arg(short = 'o', long = "out")]
     output: Option<PathBuf>,
 
-    /// Path to the output directory if multiple files are given
-    /// Conflicts with `output`
+    /// Path to the output directory in bulk conversion mode,
+    /// conflicts with `output`
     #[arg(short = 'd', long = "outdir", conflicts_with = "output")]
     outdir: Option<PathBuf>,
 
@@ -42,6 +43,10 @@ struct App {
 
     #[clap(flatten)]
     image_options: ImageOptions,
+
+    /// Stop on the first failed conversion
+    #[arg(long)]
+    fail_first: bool,
 
     /// Print more information about the image and the output file
     #[arg(short = 'v', long = "verbose")]
@@ -67,7 +72,6 @@ struct ImageOptions {
     )]
     unwrap: bool,
 }
-
 
 #[derive(Debug, Snafu)]
 enum Error {
@@ -165,6 +169,7 @@ fn run(args: App) -> Result<(), Error> {
         ext,
         frame_number,
         image_options,
+        fail_first,
         verbose,
     } = args;
 
@@ -184,73 +189,97 @@ fn run(args: App) -> Result<(), Error> {
                 }
 
                 dicoms.iter().for_each(|file| {
-                    convert_single_file(
-                        &file.0,
+                    let output = build_output_path(
                         false,
                         file.1.clone(),
                         outdir.clone(),
                         ext.clone(),
+                        image_options.unwrap,
+                    );
+
+                    convert_single_file(
+                        &file.0,
+                        false,
+                        output,
                         frame_number,
                         image_options,
                         verbose,
                     )
-                    .unwrap();
+                    .unwrap_or_else(|_| {
+                        if fail_first {
+                            std::process::exit(-2);
+                        }
+                    });
                 });
             }
             false => {
                 let file =
                     open_file(file).with_context(|_| ReadFileSnafu { path: file.clone() })?;
 
+                let output_is_set = output.is_some();
+                let output = build_output_path(
+                    output_is_set,
+                    output.unwrap_or(files[0].clone()),
+                    outdir.clone(),
+                    ext.clone(),
+                    image_options.unwrap,
+                );
+
                 convert_single_file(
                     &file,
-                    output.is_some(),
-                    output.unwrap_or(files[0].clone()),
-                    outdir,
-                    ext,
+                    output_is_set,
+                    output,
                     frame_number,
                     image_options,
                     verbose,
-                )?;
+                )
+                .or_else(|e| if fail_first { Err(e) } else { Ok(()) })?;
             }
         }
     } else {
-        files.iter().for_each(|file| {
-            let dicom_file = open_file(file)
-                .with_context(|_| ReadFileSnafu { path: file.clone() })
-                .unwrap();
-            convert_single_file(
-                &dicom_file,
+        for file in files.iter() {
+            let dicom_file =
+                match open_file(file).with_context(|_| ReadFileSnafu { path: file.clone() }) {
+                    Ok(file) => file,
+                    Err(e) => {
+                        if fail_first {
+                            return Err(e);
+                        } else {
+                            continue;
+                        }
+                    }
+                };
+
+            let output = build_output_path(
                 false,
                 file.clone(),
                 outdir.clone(),
                 ext.clone(),
+                image_options.unwrap,
+            );
+
+            convert_single_file(
+                &dicom_file,
+                false,
+                output,
                 frame_number,
                 image_options,
                 verbose,
             )
-            .unwrap();
-        });
+            .or_else(|e| if fail_first { Err(e) } else { Ok(()) })?;
+        }
     }
 
     Ok(())
 }
 
-fn convert_single_file(
-    file: &FileDicomObject<InMemDicomObject>,
+fn build_output_path(
     output_is_set: bool,
     mut output: PathBuf,
     outdir: Option<PathBuf>,
     ext: Option<String>,
-    frame_number: u32,
-    image_options: ImageOptions,
-    verbose: bool,
-) -> Result<(), Error> {
-    let ImageOptions {
-        force_8bit,
-        force_16bit,
-        unwrap,
-    } = image_options;
-
+    unwrap: bool,
+) -> PathBuf {
     // check if there is a .dcm extension, otherwise, add it
     if output.extension() != Some("dcm".as_ref()) && !output_is_set {
         let pathstr = output.to_str().unwrap();
@@ -262,6 +291,31 @@ fn convert_single_file(
     if let Some(outdir) = outdir {
         output = outdir.join(output.file_name().unwrap());
     }
+
+    if !unwrap && !output_is_set {
+        if let Some(extension) = ext {
+            output.set_extension(extension);
+        } else {
+            output.set_extension("png");
+        }
+    }
+
+    output
+}
+
+fn convert_single_file(
+    file: &FileDicomObject<InMemDicomObject>,
+    output_is_set: bool,
+    mut output: PathBuf,
+    frame_number: u32,
+    image_options: ImageOptions,
+    verbose: bool,
+) -> Result<(), Error> {
+    let ImageOptions {
+        force_8bit,
+        force_16bit,
+        unwrap,
+    } = image_options;
 
     if unwrap {
         if !output_is_set {
@@ -284,10 +338,10 @@ fn convert_single_file(
             }
         }
 
-        let pixeldata = file.get(tags::PIXEL_DATA).unwrap_or_else(|| {
-            error!("DICOM file has no pixel data");
-            std::process::exit(-2);
-        });
+        let pixeldata = file.get(tags::PIXEL_DATA).with_context(|| {
+            error!("{}: DICOM file has no pixel data", output.display());
+            MissingPropertySnafu { name: "PixelData" }
+        })?;
 
         let out_data = match pixeldata.value() {
             DicomValue::PixelSequence(seq) => {
@@ -306,10 +360,14 @@ fn convert_single_file(
                     let fragment =
                         seq.fragments()
                             .get(frame_number as usize)
-                            .unwrap_or_else(|| {
-                                error!("Frame number {} is out of range", frame_number);
-                                std::process::exit(-2);
-                            });
+                            .with_context(|| {
+                                error!(
+                                    "{}: Frame number {} is out of range",
+                                    output.display(),
+                                    frame_number
+                                );
+                                FrameOutOfBoundsSnafu { frame_number }
+                            })?;
 
                     Cow::Borrowed(&fragment[..])
                 } else {
@@ -386,14 +444,6 @@ fn convert_single_file(
         std::fs::create_dir_all(output.parent().unwrap()).unwrap();
         std::fs::write(output, out_data).context(SaveDataSnafu)?;
     } else {
-        if !output_is_set {
-            if let Some(extension) = ext {
-                output.set_extension(extension);
-            } else {
-                output.set_extension("png");
-            }
-        }
-
         let pixel = file
             .decode_pixel_data_frame(frame_number)
             .context(DecodePixelDataSnafu)?;
