@@ -13,7 +13,7 @@ use dicom_ul::{
 };
 use query::parse_queries;
 use snafu::prelude::*;
-use std::io::{stderr, Read};
+use std::io::{stderr, BufRead as _, Read};
 use std::path::PathBuf;
 use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
@@ -28,7 +28,10 @@ struct App {
     addr: String,
     /// a DICOM file representing the query object
     file: Option<PathBuf>,
-    /// sequence of queries
+    /// a file containing lines of queries
+    #[arg(long)]
+    query_file: Option<PathBuf>,
+    /// a sequence of queries
     #[arg(short('q'))]
     query: Vec<String>,
 
@@ -94,13 +97,14 @@ enum Error {
 
 fn build_query(
     file: Option<PathBuf>,
+    query_file: Option<PathBuf>,
     q: Vec<String>,
     patient: bool,
     study: bool,
     verbose: bool,
 ) -> Result<InMemDicomObject, Error> {
     // read query file if provided
-    let (base_query_obj, has_base) = if let Some(file) = file {
+    let (base_query_obj, mut has_base) = if let Some(file) = file {
         if verbose {
             info!("Opening file '{}'...", file.display());
         }
@@ -113,14 +117,37 @@ fn build_query(
         (InMemDicomObject::new_empty(), false)
     };
 
-    // read query options
+    // read queries from query text file
+    let mut obj = base_query_obj;
+    if let Some(query_file) = query_file {
+        // read text file line by line
+        let mut queries = Vec::new();
+        let file = std::fs::File::open(query_file).whatever_context("Could not open query file")?;
+        let reader = std::io::BufReader::new(file);
+        for line in reader.lines() {
+            let line = line.whatever_context("Could not read line from query file")?;
+            {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+            }
+            queries.push(line);
+        }
+
+        obj = parse_queries(obj, &queries)
+            .whatever_context("Could not build query object from query file")?;
+        has_base = true;
+    }
+
+    // read query options from command line
 
     if q.is_empty() && !has_base {
         whatever!("Query not specified");
     }
 
-    let mut obj = parse_queries(base_query_obj, &q)
-        .whatever_context("Could not build query object from terms")?;
+    let mut obj =
+        parse_queries(obj, &q).whatever_context("Could not build query object from terms")?;
 
     // try to infer query retrieve level if not defined by the user
     if obj.get(tags::QUERY_RETRIEVE_LEVEL).is_none() {
@@ -144,6 +171,8 @@ fn run() -> Result<(), Error> {
     let App {
         addr,
         file,
+        query_file,
+        query,
         verbose,
         calling_ae_title,
         called_ae_title,
@@ -151,7 +180,6 @@ fn run() -> Result<(), Error> {
         patient,
         study,
         mwl,
-        query,
     } = App::parse();
 
     tracing::subscriber::set_global_default(
@@ -163,7 +191,7 @@ fn run() -> Result<(), Error> {
         error!("{}", snafu::Report::from_error(e));
     });
 
-    let dcm_query = build_query(file, query, patient, study, verbose)?;
+    let dcm_query = build_query(file, query_file, query, patient, study, verbose)?;
 
     let abstract_syntax = match (patient, study, mwl) {
         // Patient Root Query/Retrieve Information Model - FIND

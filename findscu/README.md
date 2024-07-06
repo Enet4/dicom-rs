@@ -21,11 +21,13 @@ The following query/retrieve information models are supported at the moment:
 - **`-P`**: Patient Root Query/Retrieve Information Model - FIND
 - **`-W`**: Modality Worklist Information Model – FIND
 
-There are two _non-exclusive_ ways to specify a DICOM query:
+There are three _non-exclusive_ ways to specify a DICOM query:
 
 ### Passing a DICOM query object file
 
-You may optionally start by providing a DICOM query object as a file.
+You may optionally provide a path to a DICOM query object file
+to bootstrap your query object,
+otherwise you start with an empty one.
 There are currently no tools in DICOM-rs
 to assist in the process of creating these objects,
 but one can convert DCMTK DICOM data dumps
@@ -33,21 +35,47 @@ into compatible DICOM query objects,
 or write these tools yourself.
 
 ```sh
-# query is defined in file
+# query is defined in query.dcm
 dicom-findscu PACS@pacs.example.com:1045 --study query.dcm
 ```
 
-### Using the multi-value `-q` option
+### Passing a query text file
 
-Each value is a text of the form `«field_path»=«field_value»`, where:
+An easier approach to specifying queries is
+through the command line argument `--query-file «file»`.
+The text file should contain a sequence of lines,
+each of the form `«field_path»=«field_value»`, where:
 
-- `field_path` is a data element selector path;
+- `field_path` is a data element selector path
+  (see the element selector syntax below);
 - and `field_value` is the respective value or pattern to match
   against the value of the specified DICOM attribute.
   It can be empty, which in that case the `=` may also be left out.
 
-If a path to a DICOM query file is passed,
-these options will extend or override the query object from the file.
+For example, given the file `query.txt`:
+
+```none
+# comments are supported
+AccessionNumber
+# declare sequence items before setting nested elements
+ScheduledProcedureStepSequence
+ScheduledProcedureStepSequence.Modality=MR
+ScheduledProcedureStepSequence.ScheduledProcedureStepStartDate=20240703
+```
+
+You can do:
+
+```sh
+dicom-findscu PACS@pacs.example.com:1045 -W --query-file query.txt
+```
+
+### Using the multi-value `-q` option
+
+Finally, the `-q` option accepts multiple query values
+of the same form as in `--query-file`.
+See more examples below.
+
+Each of these forms will extend and override the query object in this order.
 
 #### Selector syntax
 
