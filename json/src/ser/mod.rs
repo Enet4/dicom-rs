@@ -32,7 +32,7 @@ pub fn to_value<T>(data: T) -> Result<serde_json::Value, serde_json::Error>
 where
     DicomJson<T>: From<T> + Serialize,
 {
-    serde_json::to_value(&DicomJson::from(data))
+    serde_json::to_value(DicomJson::from(data))
 }
 
 /// Serialize a piece of DICOM data to a vector of bytes.

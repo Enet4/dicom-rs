@@ -1047,6 +1047,7 @@ impl AmbiguousDtRangeParser for IgnoreTimeZone {
 /// - two very short date-times in the form of YYYY are presented (YYYY-YYYY)
 /// - both YYYY values can be exchanged for a valid west UTC offset, meaning year <= 1200 e.g. (1000-1100)
 /// - only one west UTC offset is presented. e.g. (1000-1100-0100)
+///
 /// In such cases, two '-' characters are present and the parser will favor the first one as a range separator,
 /// if it produces a valid `DateTimeRange`. Otherwise, it tries the second one.
 pub fn parse_datetime_range(buf: &[u8]) -> Result<DateTimeRange> {
