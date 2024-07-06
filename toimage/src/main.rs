@@ -10,25 +10,25 @@ use dicom_pixeldata::{ConvertOptions, PixelDecoder};
 use snafu::{OptionExt, Report, ResultExt, Snafu, Whatever};
 use tracing::{error, warn, Level};
 
-/// Convert a DICOM file into an image file
+/// Convert DICOM files into image files
 #[derive(Debug, Parser)]
 #[command(version)]
 struct App {
-    /// Path to the DICOM file to convert
+    /// A directory or multiple paths to the DICOM files to convert
     #[arg(required(true))]
     files: Vec<PathBuf>,
 
-    /// Parse directory recursively
+    /// Parse the given directory recursively
     #[arg(short = 'r', long = "recursive")]
     recursive: bool,
 
-    /// Path to the output image, this should include the file extension
-    /// (default is to replace input extension with `.png`)
+    /// Path to the output image, including file extension
+    /// (replaces input extension with `.png` by default)
     #[arg(short = 'o', long = "out")]
     output: Option<PathBuf>,
 
-    /// Path to the output directory if multiple files are given
-    /// Conflicts with `output`
+    /// Path to the output directory in bulk conversion mode,
+    /// conflicts with `output`
     #[arg(short = 'd', long = "outdir", conflicts_with = "output")]
     outdir: Option<PathBuf>,
 
