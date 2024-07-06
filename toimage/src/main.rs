@@ -44,6 +44,10 @@ struct App {
     #[clap(flatten)]
     image_options: ImageOptions,
 
+    /// Stop on the first failed conversion
+    #[arg(long)]
+    fail_first: bool,
+
     /// Print more information about the image and the output file
     #[arg(short = 'v', long = "verbose")]
     verbose: bool,
@@ -165,6 +169,7 @@ fn run(args: App) -> Result<(), Error> {
         ext,
         frame_number,
         image_options,
+        fail_first,
         verbose,
     } = args;
 
@@ -200,7 +205,11 @@ fn run(args: App) -> Result<(), Error> {
                         image_options,
                         verbose,
                     )
-                    .unwrap();
+                    .unwrap_or_else(|_| {
+                        if fail_first {
+                            std::process::exit(-2);
+                        }
+                    });
                 });
             }
             false => {
@@ -223,14 +232,23 @@ fn run(args: App) -> Result<(), Error> {
                     frame_number,
                     image_options,
                     verbose,
-                )?;
+                )
+                .or_else(|e| if fail_first { Err(e) } else { Ok(()) })?;
             }
         }
     } else {
-        files.iter().for_each(|file| {
-            let dicom_file = open_file(file)
-                .with_context(|_| ReadFileSnafu { path: file.clone() })
-                .unwrap();
+        for file in files.iter() {
+            let dicom_file =
+                match open_file(file).with_context(|_| ReadFileSnafu { path: file.clone() }) {
+                    Ok(file) => file,
+                    Err(e) => {
+                        if fail_first {
+                            return Err(e);
+                        } else {
+                            continue;
+                        }
+                    }
+                };
 
             let output = build_output_path(
                 false,
@@ -248,8 +266,8 @@ fn run(args: App) -> Result<(), Error> {
                 image_options,
                 verbose,
             )
-            .unwrap();
-        });
+            .or_else(|e| if fail_first { Err(e) } else { Ok(()) })?;
+        }
     }
 
     Ok(())
@@ -299,14 +317,6 @@ fn convert_single_file(
         unwrap,
     } = image_options;
 
-    // check if there is a .dcm extension, otherwise, add it
-    if output.extension() != Some("dcm".as_ref()) && !output_is_set {
-        let pathstr = output.to_str().unwrap();
-        // it is impossible to use set_extension here since dicom file names commonly have dots in
-        // them which would be interpreted as file extensions
-        output = PathBuf::from_str(&format!("{}.dcm", pathstr)).unwrap();
-    }
-
     if unwrap {
         if !output_is_set {
             match file.meta().transfer_syntax() {
@@ -328,10 +338,10 @@ fn convert_single_file(
             }
         }
 
-        let pixeldata = file.get(tags::PIXEL_DATA).unwrap_or_else(|| {
-            error!("DICOM file has no pixel data");
-            std::process::exit(-2);
-        });
+        let pixeldata = file.get(tags::PIXEL_DATA).with_context(|| {
+            error!("{}: DICOM file has no pixel data", output.display());
+            MissingPropertySnafu { name: "PixelData" }
+        })?;
 
         let out_data = match pixeldata.value() {
             DicomValue::PixelSequence(seq) => {
@@ -350,10 +360,14 @@ fn convert_single_file(
                     let fragment =
                         seq.fragments()
                             .get(frame_number as usize)
-                            .unwrap_or_else(|| {
-                                error!("Frame number {} is out of range", frame_number);
-                                std::process::exit(-2);
-                            });
+                            .with_context(|| {
+                                error!(
+                                    "{}: Frame number {} is out of range",
+                                    output.display(),
+                                    frame_number
+                                );
+                                FrameOutOfBoundsSnafu { frame_number }
+                            })?;
 
                     Cow::Borrowed(&fragment[..])
                 } else {

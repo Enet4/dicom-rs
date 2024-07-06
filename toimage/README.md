@@ -25,6 +25,7 @@ Options:
       --8bit                  Force output bit depth to 8 bits per sample
       --16bit                 Force output bit depth to 16 bits per sample
       --unwrap                Output the raw pixel data instead of decoding it
+      --fail-first            Stop on the first failed conversion
   -v, --verbose               Print more information about the image and the output file
   -h, --help                  Print help
   -V, --version               Print version
