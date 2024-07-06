@@ -15,6 +15,7 @@ use tracing::{error, warn, Level};
 #[command(version)]
 struct App {
     /// Path to the DICOM file to convert
+    #[arg(required(true))]
     files: Vec<PathBuf>,
 
     /// Parse directory recursively
