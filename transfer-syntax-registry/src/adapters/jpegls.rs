@@ -1,9 +1,7 @@
 //! Support for JPEG 2000 image decoding.
 
 use charls_sys::CharLS;
-use dicom_encoding::adapters::{
-    decode_error, DecodeError, DecodeResult, PixelDataObject, PixelDataReader,
-};
+use dicom_encoding::adapters::{decode_error, DecodeResult, PixelDataObject, PixelDataReader};
 use dicom_encoding::snafu::prelude::*;
 use std::borrow::Cow;
 
@@ -85,13 +83,10 @@ impl PixelDataReader for JpegLSAdapter {
             Cow::Owned(fragments)
         };
 
-        let mut image =
-            CharLS::default()
-                .decode(&frame_data, 0)
-                .map_err(|error| DecodeError::Custom {
-                    source: None,
-                    message: error.to_string(),
-                })?;
+        let mut image = CharLS::default()
+            .decode(&frame_data, 0)
+            .map_err(|error| error.to_string())
+            .with_whatever_context(|error| error.to_string())?;
 
         dst.append(&mut image);
 
