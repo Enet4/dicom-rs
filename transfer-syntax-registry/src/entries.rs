@@ -278,25 +278,27 @@ const fn create_ts_jpegls(uid: &'static str, name: &'static str) -> JpegLSTs {
     )
 }
 
-/// **Stub descriptor:** JPEG-LS Lossless Image Compression
+/// **Decoder Implementation:** JPEG-LS Lossless Image Compression
 #[cfg(feature = "charls")]
 pub const JPEG_LS_LOSSLESS_IMAGE_COMPRESSION: JpegLSTs = create_ts_jpegls(
     "1.2.840.10008.1.2.4.80",
     "JPEG-LS Lossless Image Compression",
 );
 
+/// **Stub descriptor:** JPEG-LS Lossless Image Compression
 #[cfg(not(feature = "charls"))]
 pub const JPEG_LS_LOSSLESS_IMAGE_COMPRESSION: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.80",
     "JPEG-LS Lossless Image Compression",
 );
-/// **Stub descriptor:** JPEG-LS Lossy (Near-Lossless) Image Compression
+/// **Decoder Implementation:** JPEG-LS Lossy (Near-Lossless) Image Compression
 #[cfg(feature = "charls")]
 pub const JPEG_LS_LOSSY_IMAGE_COMPRESSION: JpegLSTs = create_ts_jpegls(
     "1.2.840.10008.1.2.4.81",
     "JPEG-LS Lossy (Near-Lossless) Image Compression",
 );
 
+/// **Stub descriptor:** JPEG-LS Lossy (Near-Lossless) Image Compression
 #[cfg(not(feature = "charls"))]
 pub const JPEG_LS_LOSSY_IMAGE_COMPRESSION: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.81",
