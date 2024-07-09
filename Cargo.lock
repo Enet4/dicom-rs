@@ -176,6 +176,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "charls-sys"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c7829b14dd474ed3df2874218db193c42c972a23ee6830c4af3a80c1a59eb35"
+dependencies = [
+ "cmake",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -592,6 +601,7 @@ name = "dicom-transfer-syntax-registry"
 version = "0.7.0"
 dependencies = [
  "byteordered",
+ "charls-sys",
  "dicom-core",
  "dicom-encoding",
  "dicom-test-files",

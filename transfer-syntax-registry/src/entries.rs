@@ -34,6 +34,8 @@ use dicom_encoding::NeverPixelAdapter;
 use crate::adapters::jpeg::JpegAdapter;
 #[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
 use crate::adapters::jpeg2k::Jpeg2000Adapter;
+#[cfg(feature = "charls")]
+use crate::adapters::jpegls::JpegLSAdapter;
 #[cfg(feature = "rle")]
 use crate::adapters::rle_lossless::RleLosslessAdapter;
 
@@ -262,12 +264,40 @@ pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION: Ts = create_ts_stub
 
 // --- partially supported transfer syntaxes, pixel data encapsulation not supported ---
 
+/// An alias for a transfer syntax specifier with [`JpegLSAdapter`]
+#[cfg(feature = "charls")]
+type JpegLSTs<R = JpegLSAdapter, W = NeverPixelAdapter> = TransferSyntax<NeverAdapter, R, W>;
+
+/// Create JPEG-LS TransferSyntax
+#[cfg(feature = "charls")]
+const fn create_ts_jpegls(uid: &'static str, name: &'static str) -> JpegLSTs {
+    TransferSyntax::new_ele(
+        uid,
+        name,
+        Codec::EncapsulatedPixelData(Some(JpegLSAdapter), None),
+    )
+}
+
 /// **Stub descriptor:** JPEG-LS Lossless Image Compression
+#[cfg(feature = "charls")]
+pub const JPEG_LS_LOSSLESS_IMAGE_COMPRESSION: JpegLSTs = create_ts_jpegls(
+    "1.2.840.10008.1.2.4.80",
+    "JPEG-LS Lossless Image Compression",
+);
+
+#[cfg(not(feature = "charls"))]
 pub const JPEG_LS_LOSSLESS_IMAGE_COMPRESSION: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.80",
     "JPEG-LS Lossless Image Compression",
 );
 /// **Stub descriptor:** JPEG-LS Lossy (Near-Lossless) Image Compression
+#[cfg(feature = "charls")]
+pub const JPEG_LS_LOSSY_IMAGE_COMPRESSION: JpegLSTs = create_ts_jpegls(
+    "1.2.840.10008.1.2.4.81",
+    "JPEG-LS Lossy (Near-Lossless) Image Compression",
+);
+
+#[cfg(not(feature = "charls"))]
 pub const JPEG_LS_LOSSY_IMAGE_COMPRESSION: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.81",
     "JPEG-LS Lossy (Near-Lossless) Image Compression",
