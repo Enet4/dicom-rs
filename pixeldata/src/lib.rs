@@ -1934,7 +1934,7 @@ impl ImagingProperties {
         let rescale_intercept = rescale_intercept(obj);
         let rescale_slope = rescale_slope(obj);
         let number_of_frames = number_of_frames(obj).context(GetAttributeSnafu)?;
-        let voi_lut_function = voi_lut_function(obj).context(GetAttributeSnafu)?;
+        let voi_lut_function = voi_lut_function(obj).unwrap_or(None);
         let voi_lut_function: Option<Vec<VoiLutFunction>> = voi_lut_function.and_then(|fns| {
             fns.iter()
                 .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
