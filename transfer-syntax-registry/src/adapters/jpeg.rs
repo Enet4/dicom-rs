@@ -67,7 +67,7 @@ impl PixelDataReader for JpegAdapter {
         let mut dst_offset = base_offset;
 
         let mut i: u32 = 0;
-        loop {
+        for _ in 0..nr_frames {
             let mut decoder = Decoder::new(&mut cursor);
             let decoded = decoder
                 .decode()
