@@ -2714,11 +2714,12 @@ mod tests {
             case("pydicom/JPEG2000.dcm", 1)
         )]
         //
-        // jpeg-ls encoding not supported
-        #[should_panic(expected = "UnsupportedTransferSyntax { ts: \"1.2.840.10008.1.2.4.80\"")]
-        #[case("pydicom/emri_small_jpeg_ls_lossless.dcm", 10)]
-        #[should_panic(expected = "UnsupportedTransferSyntax { ts: \"1.2.840.10008.1.2.4.80\"")]
-        #[case("pydicom/MR_small_jpeg_ls_lossless.dcm", 1)]
+        // jpeg-ls encoding
+        #[cfg_attr(
+            feature = "charls",
+            case("pydicom/emri_small_jpeg_ls_lossless.dcm", 10)
+        )]
+        #[cfg_attr(feature = "charls", case("pydicom/MR_small_jpeg_ls_lossless.dcm", 1))]
         //
         // sample precision of 12 not supported yet
         #[should_panic(expected = "Unsupported(SamplePrecision(12))")]
@@ -2775,6 +2776,8 @@ mod tests {
         #[case("pydicom/SC_rgb_rle_2frame.dcm", 0)]
         #[case("pydicom/SC_rgb_rle_2frame.dcm", 1)]
         #[case("pydicom/JPEG2000_UNC.dcm", 0)]
+        #[cfg_attr(feature = "charls", case("pydicom/emri_small_jpeg_ls_lossless.dcm", 5))]
+        #[cfg_attr(feature = "charls", case("pydicom/MR_small_jpeg_ls_lossless.dcm", 0))]
         fn test_decode_pixel_data_individual_frames(#[case] value: &str, #[case] frame: u32) {
             use crate::PixelDecoder as _;
             use std::path::Path;
