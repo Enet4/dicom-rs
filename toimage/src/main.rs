@@ -240,6 +240,7 @@ fn run(args: App) -> Result<(), Error> {
                         if fail_first {
                             return Err(e);
                         } else {
+                            error!("{}", Report::from_error(e));
                             continue;
                         }
                     }
