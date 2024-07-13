@@ -188,12 +188,12 @@ impl<I, P> Value<I, P> {
 
     /// Produce a shallow clone of the value,
     /// leaving the items and pixel data fragments as references.
-    /// 
+    ///
     /// If the value is primitive,
     /// the entire value will be copied.
     /// Otherwise, the item or fragment sequences
     /// will hold references to the original data.
-    pub fn shallow_clone<'a>(&'a self) -> Value<&'a I, &'a P> {
+    pub fn shallow_clone(&self) -> Value<&I, &P> {
         match self {
             Value::Primitive(v) => Value::Primitive(v.clone()),
             Value::Sequence(v) => Value::Sequence(DataSetSequence {
