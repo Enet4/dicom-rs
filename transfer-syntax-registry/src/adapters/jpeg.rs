@@ -66,8 +66,7 @@ impl PixelDataReader for JpegAdapter {
         let mut cursor = Cursor::new(fragments);
         let mut dst_offset = base_offset;
 
-        let mut i: u32 = 0;
-        loop {
+        for i in 0..nr_frames {
             let mut decoder = Decoder::new(&mut cursor);
             let decoded = decoder
                 .decode()
@@ -77,12 +76,16 @@ impl PixelDataReader for JpegAdapter {
             let decoded_len = decoded.len();
             dst[dst_offset..(dst_offset + decoded_len)].copy_from_slice(&decoded);
             dst_offset += decoded_len;
-            i += 1;
 
             if next_even(cursor.position()) >= next_even(fragments_len) {
                 break;
             }
 
+            // stop if there aren't enough bytes to continue
+            if cursor.position() + 2 >= fragments_len {
+                break;
+            }
+            
             // DICOM fragments should always have an even length,
             // filling this spacing with padding if it is odd.
             // Some implementations might add this padding,
@@ -224,6 +227,11 @@ impl PixelDataReader for JpegAdapter {
             dst_offset += decoded_len;
 
             if next_even(cursor.position()) >= next_even(fragme_data_len) {
+                break;
+            }
+
+            // stop if there aren't enough bytes to continue
+            if cursor.position() + 2 >= fragme_data_len {
                 break;
             }
 
