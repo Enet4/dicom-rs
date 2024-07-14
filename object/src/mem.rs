@@ -58,8 +58,8 @@ use crate::{
     CreatePrinterSnafu, DicomObject, ElementNotFoundSnafu, FileDicomObject, InvalidGroupSnafu,
     MissingElementValueSnafu, MissingLeafElementSnafu, NoSpaceSnafu, NoSuchAttributeNameSnafu,
     NoSuchDataElementAliasSnafu, NoSuchDataElementTagSnafu, NotASequenceSnafu, OpenFileSnafu,
-    ParseMetaDataSetSnafu, PrematureEndSnafu, PrepareMetaTableSnafu, PrintDataSetSnafu,
-    PrivateCreatorNotFoundSnafu, PrivateElementError, ReadError, ReadFileSnafu,
+    ParseMetaDataSetSnafu, ParseSopAttributesSnafu, PrematureEndSnafu, PrepareMetaTableSnafu,
+    PrintDataSetSnafu, PrivateCreatorNotFoundSnafu, PrivateElementError, ReadError, ReadFileSnafu,
     ReadPreambleBytesSnafu, ReadTokenSnafu, ReadUnsupportedTransferSyntaxSnafu,
     UnexpectedTokenSnafu, WithMetaError, WriteError,
 };
@@ -365,22 +365,42 @@ where
         }
 
         // read metadata header
-        let meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSetSnafu)?;
+        let mut meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSetSnafu)?;
 
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let mut dataset = DataSetReader::new_with_ts(file, ts).context(CreateParserSnafu)?;
+            let obj = InMemDicomObject::build_object(
+                &mut dataset,
+                dict,
+                false,
+                Length::UNDEFINED,
+                read_until,
+            )?;
 
-            Ok(FileDicomObject {
-                meta,
-                obj: InMemDicomObject::build_object(
-                    &mut dataset,
-                    dict,
-                    false,
-                    Length::UNDEFINED,
-                    read_until,
-                )?,
-            })
+            // if Media Storage SOP Class UID is empty attempt to infer from SOP Class UID
+            if meta.media_storage_sop_class_uid().is_empty() {
+                if let Some(elem) = obj.get(tags::SOP_CLASS_UID) {
+                    meta.media_storage_sop_class_uid = elem
+                        .value()
+                        .to_str()
+                        .context(ParseSopAttributesSnafu)?
+                        .to_string();
+                }
+            }
+
+            // if Media Storage SOP Instance UID is empty attempt to infer from SOP Instance UID
+            if meta.media_storage_sop_instance_uid().is_empty() {
+                if let Some(elem) = obj.get(tags::SOP_INSTANCE_UID) {
+                    meta.media_storage_sop_instance_uid = elem
+                        .value()
+                        .to_str()
+                        .context(ParseSopAttributesSnafu)?
+                        .to_string();
+                }
+            }
+
+            Ok(FileDicomObject { meta, obj })
         } else {
             ReadUnsupportedTransferSyntaxSnafu {
                 uid: meta.transfer_syntax,
@@ -2445,6 +2465,54 @@ mod tests {
         obj.put(another_patient_name.clone());
         let elem1 = (&obj).element(Tag(0x0010, 0x0010)).unwrap();
         assert_eq!(elem1, &another_patient_name);
+    }
+
+    #[test]
+    fn infer_media_sop_from_dataset_sop_elements() {
+        let sop_instance_uid = "1.4.645.313131";
+        let sop_class_uid = "1.2.840.10008.5.1.4.1.1.2";
+        let mut obj = InMemDicomObject::new_empty();
+
+        obj.put(DataElement::new(
+            Tag(0x0008, 0x0018),
+            VR::UI,
+            dicom_value!(Strs, [sop_instance_uid]),
+        ));
+        obj.put(DataElement::new(
+            Tag(0x0008, 0x0016),
+            VR::UI,
+            dicom_value!(Strs, [sop_class_uid]),
+        ));
+
+        let file_object = obj.with_exact_meta(
+            FileMetaTableBuilder::default()
+                .transfer_syntax("1.2.840.10008.1.2.1")
+                // Media Storage SOP Class and Instance UIDs are missing and set to an empty string
+                .media_storage_sop_class_uid("")
+                .media_storage_sop_instance_uid("")
+                .build()
+                .unwrap(),
+        );
+
+        // create temporary file path and write object to that file
+        let dir = tempfile::tempdir().unwrap();
+        let mut file_path = dir.into_path();
+        file_path.push(format!("{}.dcm", sop_instance_uid));
+
+        file_object.write_to_file(&file_path).unwrap();
+
+        // read the file back to validate the outcome
+        let saved_object = open_file(file_path).unwrap();
+
+        // verify that the empty string media storage sop instance and class UIDs have been inferred from the sop instance and class UID
+        assert_eq!(
+            saved_object.meta().media_storage_sop_instance_uid(),
+            sop_instance_uid
+        );
+        assert_eq!(
+            saved_object.meta().media_storage_sop_class_uid(),
+            sop_class_uid
+        );
     }
 
     #[test]
