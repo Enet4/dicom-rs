@@ -1,9 +1,10 @@
+use std::future::Future;
+
 /// PDU writer module
 use crate::pdu::*;
-use byteordered::byteorder::{BigEndian, WriteBytesExt};
 use dicom_encoding::text::TextCodec;
 use snafu::{Backtrace, ResultExt, Snafu};
-use std::io::Write;
+use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 pub type Result<T> = std::result::Result<T, WriteError>;
 
@@ -26,47 +27,49 @@ pub enum WriteChunkError {
     },
 }
 
-fn write_chunk_u32<F>(writer: &mut dyn Write, func: F) -> std::result::Result<(), WriteChunkError>
+async fn write_chunk_u32<W, F, Fut>(
+    writer: &mut W,
+    func: F,
+) -> std::result::Result<(), WriteChunkError>
 where
-    F: FnOnce(&mut Vec<u8>) -> Result<()>,
+    W: AsyncWrite + Unpin,
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = Result<Vec<u8>>> + Send,
 {
-    let mut data = vec![];
-    func(&mut data)
-        .map_err(Box::from)
-        .context(BuildChunkSnafu)?;
+    let data = func().await.map_err(Box::from).context(BuildChunkSnafu)?;
 
     let length = data.len() as u32;
-    writer
-        .write_u32::<BigEndian>(length)
-        .context(WriteLengthSnafu)?;
+    writer.write_u32(length).await.context(WriteLengthSnafu)?;
 
-    writer.write_all(&data).context(WriteDataSnafu)?;
+    writer.write_all(&data).await.context(WriteDataSnafu)?;
 
     Ok(())
 }
 
-fn write_chunk_u16<F>(writer: &mut dyn Write, func: F) -> std::result::Result<(), WriteChunkError>
+async fn write_chunk_u16<W, F, Fut>(
+    writer: &mut W,
+    func: F,
+) -> std::result::Result<(), WriteChunkError>
 where
-    F: FnOnce(&mut Vec<u8>) -> Result<()>,
+    W: AsyncWrite + Unpin,
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = Result<Vec<u8>>> + Send,
 {
-    let mut data = vec![];
-    func(&mut data)
-        .map_err(Box::from)
-        .context(BuildChunkSnafu)?;
+    // NOTE: If I kept the original design, i,e F: FnOnce(&mut Vec<u8>) -> Box<dyn Future<Output = Result<()>> + Send + Unpin>,
+    // I ended up with lifetime issues, but I don't with this. Not sure how to fix those lifetime issues so I just went with this for now
+    let data = func().await.map_err(Box::from).context(BuildChunkSnafu)?;
 
     let length = data.len() as u16;
-    writer
-        .write_u16::<BigEndian>(length)
-        .context(WriteLengthSnafu)?;
+    writer.write_u16(length).await.context(WriteLengthSnafu)?;
 
-    writer.write_all(&data).context(WriteDataSnafu)?;
+    writer.write_all(&data).await.context(WriteDataSnafu)?;
 
     Ok(())
 }
 
-pub fn write_pdu<W>(writer: &mut W, pdu: &Pdu) -> Result<()>
+pub async fn write_pdu<W>(writer: &mut W, pdu: &Pdu) -> Result<()>
 where
-    W: Write,
+    W: AsyncWrite + Unpin,
 {
     let codec = dicom_encoding::text::DefaultCharacterSetCodec;
     match pdu {
@@ -83,22 +86,26 @@ where
             // 1 - PDU-type - 01H
             writer
                 .write_u8(0x01)
+                .await
                 .context(WriteFieldSnafu { field: "PDU-type" })?;
 
             // 2 - Reserved - This reserved field shall be sent with a value 00H but not
             // tested to this value when received.
             writer
                 .write_u8(0x00)
+                .await
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-            write_chunk_u32(writer, |writer| {
+            write_chunk_u32(writer, || async {
                 // 7-8  Protocol-version - This two byte field shall use one bit to identify
                 // each version of the DICOM UL protocol supported by the calling end-system.
                 // This is Version 1 and shall be identified with bit 0 set. A receiver of this
                 // PDU implementing only this version of the DICOM UL protocol shall only test
                 // that bit 0 is set.
+                let mut writer = vec![];
                 writer
-                    .write_u16::<BigEndian>(*protocol_version)
+                    .write_u16(*protocol_version)
+                    .await
                     .context(WriteFieldSnafu {
                         field: "Protocol-version",
                     })?;
@@ -106,7 +113,8 @@ where
                 // 9-10 - Reserved - This reserved field shall be sent with a value 0000H but
                 // not tested to this value when received.
                 writer
-                    .write_u16::<BigEndian>(0x00)
+                    .write_u16(0x00)
+                    .await
                     .context(WriteReservedSnafu { bytes: 2_u32 })?;
 
                 // 11-26 - Called-AE-title - Destination DICOM Application Name. It shall be
@@ -119,9 +127,12 @@ where
                         field: "Called-AE-title",
                     })?;
                 ae_title_bytes.resize(16, b' ');
-                writer.write_all(&ae_title_bytes).context(WriteFieldSnafu {
-                    field: "Called-AE-title",
-                })?;
+                writer
+                    .write_all(&ae_title_bytes)
+                    .await
+                    .context(WriteFieldSnafu {
+                        field: "Called-AE-title",
+                    })?;
 
                 // 27-42 - Calling-AE-title - Source DICOM Application Name. It shall be encoded
                 // as 16 characters as defined by the ISO 646:1990-Basic G0 Set with leading and
@@ -133,34 +144,41 @@ where
                         field: "Calling-AE-title",
                     })?;
                 ae_title_bytes.resize(16, b' ');
-                writer.write_all(&ae_title_bytes).context(WriteFieldSnafu {
-                    field: "Called-AE-title",
-                })?;
+                writer
+                    .write_all(&ae_title_bytes)
+                    .await
+                    .context(WriteFieldSnafu {
+                        field: "Called-AE-title",
+                    })?;
 
                 // 43-74 - Reserved - This reserved field shall be sent with a value 00H for all
                 // bytes but not tested to this value when received
                 writer
                     .write_all(&[0; 32])
+                    .await
                     .context(WriteReservedSnafu { bytes: 32_u32 })?;
 
                 write_pdu_variable_application_context_name(
-                    writer,
+                    &mut writer,
                     application_context_name,
                     &codec,
-                )?;
+                )
+                .await?;
 
                 for presentation_context in presentation_contexts {
                     write_pdu_variable_presentation_context_proposed(
-                        writer,
+                        &mut writer,
                         presentation_context,
                         &codec,
-                    )?;
+                    )
+                    .await?;
                 }
 
-                write_pdu_variable_user_variables(writer, user_variables, &codec)?;
+                write_pdu_variable_user_variables(&mut writer, user_variables, &codec).await?;
 
-                Ok(())
+                Ok(writer)
             })
+            .await
             .context(WriteChunkSnafu {
                 name: "A-ASSOCIATE-RQ",
             })?;
@@ -180,22 +198,26 @@ where
             // 1 - PDU-type - 02H
             writer
                 .write_u8(0x02)
+                .await
                 .context(WriteFieldSnafu { field: "PDU-type" })?;
 
             // 2 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
             writer
                 .write_u8(0x00)
+                .await
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-            write_chunk_u32(writer, |writer| {
+            write_chunk_u32(writer, || async {
                 // 7-8 - Protocol-version - This two byte field shall use one bit to identify each
                 // version of the DICOM UL protocol supported by the calling end-system. This is
                 // Version 1 and shall be identified with bit 0 set. A receiver of this PDU
                 // implementing only this version of the DICOM UL protocol shall only test that bit
                 // 0 is set.
+                let mut writer = vec![];
                 writer
-                    .write_u16::<BigEndian>(*protocol_version)
+                    .write_u16(*protocol_version)
+                    .await
                     .context(WriteFieldSnafu {
                         field: "Protocol-version",
                     })?;
@@ -203,7 +225,8 @@ where
                 // 9-10 - Reserved - This reserved field shall be sent with a value 0000H but not
                 // tested to this value when received.
                 writer
-                    .write_u16::<BigEndian>(0x00)
+                    .write_u16(0x00)
+                    .await
                     .context(WriteReservedSnafu { bytes: 2_u32 })?;
 
                 // 11-26 - Reserved - This reserved field shall be sent with a value identical to
@@ -214,9 +237,12 @@ where
                         field: "Called-AE-title",
                     })?;
                 ae_title_bytes.resize(16, b' ');
-                writer.write_all(&ae_title_bytes).context(WriteFieldSnafu {
-                    field: "Called-AE-title",
-                })?;
+                writer
+                    .write_all(&ae_title_bytes)
+                    .await
+                    .context(WriteFieldSnafu {
+                        field: "Called-AE-title",
+                    })?;
                 // 27-42 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received.
@@ -225,15 +251,19 @@ where
                         field: "Calling-AE-title",
                     })?;
                 ae_title_bytes.resize(16, b' ');
-                writer.write_all(&ae_title_bytes).context(WriteFieldSnafu {
-                    field: "Calling-AE-title",
-                })?;
+                writer
+                    .write_all(&ae_title_bytes)
+                    .await
+                    .context(WriteFieldSnafu {
+                        field: "Calling-AE-title",
+                    })?;
 
                 // 43-74 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received.
                 writer
                     .write_all(&[0; 32])
+                    .await
                     .context(WriteReservedSnafu { bytes: 32_u32 })?;
 
                 // 75-xxx - Variable items - This variable field shall contain the following items:
@@ -241,23 +271,26 @@ where
                 // User Information Item. For a complete description of these items see Section
                 // 7.1.1.2, Section 7.1.1.14, and Section 7.1.1.6.
                 write_pdu_variable_application_context_name(
-                    writer,
+                    &mut writer,
                     application_context_name,
                     &codec,
-                )?;
+                )
+                .await?;
 
                 for presentation_context in presentation_contexts {
                     write_pdu_variable_presentation_context_result(
-                        writer,
+                        &mut writer,
                         presentation_context,
                         &codec,
-                    )?;
+                    )
+                    .await?;
                 }
 
-                write_pdu_variable_user_variables(writer, user_variables, &codec)?;
+                write_pdu_variable_user_variables(&mut writer, user_variables, &codec).await?;
 
-                Ok(())
+                Ok(writer)
             })
+            .await
             .context(WriteChunkSnafu {
                 name: "A-ASSOCIATE-AC",
             })
@@ -266,16 +299,22 @@ where
             // 1 - PDU-type - 03H
             writer
                 .write_u8(0x03)
+                .await
                 .context(WriteFieldSnafu { field: "PDU-type" })?;
 
             // 2 - Reserved - This reserved field shall be sent with a value 00H but not tested to this value when received.
             writer
                 .write_u8(0x00)
+                .await
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-            write_chunk_u32(writer, |writer| {
+            write_chunk_u32(writer, || async {
+                let mut writer = vec![];
                 // 7 - Reserved - This reserved field shall be sent with a value 00H but not tested to this value when received.
-                writer.write_u8(0x00).context(WriteReservedSnafu { bytes: 1_u32 })?;
+                writer
+                    .write_u8(0x00)
+                    .await
+                    .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
                 // 8 - Result - This Result field shall contain an integer value encoded as an unsigned binary number. One of the following values shall be used:
                 // - 1 - rejected-permanent
@@ -287,7 +326,9 @@ where
                     AssociationRJResult::Transient => {
                         0x02
                     }
-                }).context(WriteFieldSnafu { field: "AssociationRJResult" })?;
+                })
+                .await
+                .context(WriteFieldSnafu { field: "AssociationRJResult" })?;
 
                 // 9 - Source - This Source field shall contain an integer value encoded as an unsigned binary number. One of the following values shall be used:
                 // - 1 - DICOM UL service-user
@@ -311,7 +352,7 @@ where
                 // 3-7 - reserved
                 match source {
                     AssociationRJSource::ServiceUser(reason) => {
-                        writer.write_u8(0x01).context(WriteFieldSnafu { field: "AssociationRJServiceUserReason" })?;
+                        writer.write_u8(0x01).await.context(WriteFieldSnafu { field: "AssociationRJServiceUserReason" })?;
                         writer.write_u8(match reason {
                             AssociationRJServiceUserReason::NoReasonGiven => {
                                 0x01
@@ -328,10 +369,10 @@ where
                             AssociationRJServiceUserReason::Reserved(data) => {
                                 *data
                             }
-                        }).context(WriteFieldSnafu { field: "AssociationRJServiceUserReason (2)" })?;
+                        }).await.context(WriteFieldSnafu { field: "AssociationRJServiceUserReason (2)" })?;
                     }
                     AssociationRJSource::ServiceProviderASCE(reason) => {
-                        writer.write_u8(0x02).context(WriteFieldSnafu { field: "AssociationRJServiceProvider" })?;
+                        writer.write_u8(0x02).await.context(WriteFieldSnafu { field: "AssociationRJServiceProvider" })?;
                         writer.write_u8(match reason {
                             AssociationRJServiceProviderASCEReason::NoReasonGiven => {
                                 0x01
@@ -339,10 +380,10 @@ where
                             AssociationRJServiceProviderASCEReason::ProtocolVersionNotSupported => {
                                 0x02
                             }
-                        }).context(WriteFieldSnafu { field: "AssociationRJServiceProvider (2)" })?;
+                        }).await.context(WriteFieldSnafu { field: "AssociationRJServiceProvider (2)" })?;
                     }
                     AssociationRJSource::ServiceProviderPresentation(reason) => {
-                        writer.write_u8(0x03).context(WriteFieldSnafu { field: "AssociationRJServiceProviderPresentationReason" })?;
+                        writer.write_u8(0x03).await.context(WriteFieldSnafu { field: "AssociationRJServiceProviderPresentationReason" })?;
                         writer.write_u8(match reason {
                             AssociationRJServiceProviderPresentationReason::TemporaryCongestion => {
                                 0x01
@@ -353,12 +394,12 @@ where
                             AssociationRJServiceProviderPresentationReason::Reserved(data) => {
                                 *data
                             }
-                        }).context(WriteFieldSnafu { field: "AssociationRJServiceProviderPresentationReason (2)" })?;
+                        }).await.context(WriteFieldSnafu { field: "AssociationRJServiceProviderPresentationReason (2)" })?;
                     }
                 }
 
-                Ok(())
-            }).context(WriteChunkSnafu { name: "AssociationRJ" })?;
+                Ok(writer)
+            }).await.context(WriteChunkSnafu { name: "AssociationRJ" })?;
 
             Ok(())
         }
@@ -366,21 +407,25 @@ where
             // 1 - PDU-type - 04H
             writer
                 .write_u8(0x04)
+                .await
                 .context(WriteFieldSnafu { field: "PDU-type" })?;
 
             // 2 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
             writer
                 .write_u8(0x00)
+                .await
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-            write_chunk_u32(writer, |writer| {
+            write_chunk_u32(writer, || async {
+                let mut writer = vec![];
                 // 7-xxx - Presentation-data-value Item(s) - This variable data field shall contain
                 // one or more Presentation-data-value Items(s). For a complete description of the
                 // use of this field see Section 9.3.5.1
 
                 for presentation_data_value in data {
-                    write_chunk_u32(writer, |writer| {
+                    write_chunk_u32(&mut writer, || async {
+                        let mut writer = vec![];
                         // 5 - Presentation-context-ID - Presentation-context-ID values shall be odd
                         // integers between 1 and 255, encoded as an unsigned binary number. For a
                         // complete description of the use of this field see Section 7.1.1.13.
@@ -414,33 +459,39 @@ where
                         // Message fragment
                         writer.extend(&presentation_data_value.data);
 
-                        Ok(())
+                        Ok(writer)
                     })
+                    .await
                     .context(WriteChunkSnafu {
                         name: "Presentation-data-value item",
                     })?;
                 }
 
-                Ok(())
+                Ok(writer)
             })
+            .await
             .context(WriteChunkSnafu { name: "PData" })
         }
         Pdu::ReleaseRQ => {
             // 1 - PDU-type - 05H
             writer
                 .write_u8(0x05)
+                .await
                 .context(WriteFieldSnafu { field: "PDU-type" })?;
 
             // 2 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
             writer
                 .write_u8(0x00)
+                .await
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-            write_chunk_u32(writer, |writer| {
+            write_chunk_u32(writer, || async {
+                let mut writer = vec![];
                 writer.extend([0u8; 4]);
-                Ok(())
+                Ok(writer)
             })
+            .await
             .context(WriteChunkSnafu { name: "ReleaseRQ" })?;
 
             Ok(())
@@ -449,18 +500,22 @@ where
             // 1 - PDU-type - 06H
             writer
                 .write_u8(0x06)
+                .await
                 .context(WriteFieldSnafu { field: "PDU-type" })?;
 
             // 2 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
             writer
                 .write_u8(0x00)
+                .await
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-            write_chunk_u32(writer, |writer| {
+            write_chunk_u32(writer, || async {
+                let mut writer = vec![];
                 writer.extend([0u8; 4]);
-                Ok(())
+                Ok(writer)
             })
+            .await
             .context(WriteChunkSnafu { name: "ReleaseRP" })?;
 
             Ok(())
@@ -469,15 +524,18 @@ where
             // 1 - PDU-type - 07H
             writer
                 .write_u8(0x07)
+                .await
                 .context(WriteFieldSnafu { field: "PDU-type" })?;
 
             // 2 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
             writer
                 .write_u8(0x00)
+                .await
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-            write_chunk_u32(writer, |writer| {
+            write_chunk_u32(writer, || async {
+                let mut writer = vec![];
                 // 7 - Reserved - This reserved field shall be sent with a value 00H but not tested
                 // to this value when received.
                 writer.push(0);
@@ -517,8 +575,9 @@ where
                 };
                 writer.extend(source_word);
 
-                Ok(())
+                Ok(writer)
             })
+            .await
             .context(WriteChunkSnafu { name: "AbortRQ" })?;
 
             Ok(())
@@ -527,18 +586,22 @@ where
             // 1 - PDU-type - XXH
             writer
                 .write_u8(*pdu_type)
+                .await
                 .context(WriteFieldSnafu { field: "PDU-type" })?;
 
             // 2 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
             writer
                 .write_u8(0x00)
+                .await
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-            write_chunk_u32(writer, |writer| {
+            write_chunk_u32(writer, || async {
+                let mut writer = vec![];
                 writer.extend(data);
-                Ok(())
+                Ok(writer)
             })
+            .await
             .context(WriteChunkSnafu { name: "Unknown" })?;
 
             Ok(())
@@ -546,41 +609,50 @@ where
     }
 }
 
-fn write_pdu_variable_application_context_name(
-    writer: &mut dyn Write,
+async fn write_pdu_variable_application_context_name<W, C>(
+    writer: &mut W,
     application_context_name: &str,
-    codec: &dyn TextCodec,
-) -> Result<()> {
+    codec: &C,
+) -> Result<()>
+where
+    W: AsyncWrite + Unpin,
+    C: TextCodec + Send + Sync,
+{
     // Application Context Item Structure
     // 1 - Item-type - 10H
     writer
         .write_u8(0x10)
+        .await
         .context(WriteFieldSnafu { field: "Item-type" })?;
 
     // 2 - Reserved - This reserved field shall be sent with a value 00H but not
     // tested to this value when received.
     writer
         .write_u8(0x00)
+        .await
         .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-    write_chunk_u16(writer, |writer| {
+    write_chunk_u16(writer, || async move {
         // 5-xxx - Application-context-name -A valid Application-context-name shall
         // be encoded as defined in Annex F. For a description of the use of this
         // field see Section 7.1.1.2. Application-context-names are structured as
         // UIDs as defined in PS3.5 (see Annex A for an overview of this concept).
         // DICOM Application-context-names are registered in PS3.7.
-        writer
-            .write_all(
-                &codec
-                    .encode(application_context_name)
-                    .context(EncodeFieldSnafu {
-                        field: "Application-context-name",
-                    })?,
-            )
-            .context(WriteFieldSnafu {
-                field: "Application-context-name",
-            })
+        let mut w = vec![];
+        w.write_all(
+            &codec
+                .encode(application_context_name)
+                .context(EncodeFieldSnafu {
+                    field: "Application-context-name",
+                })?,
+        )
+        .await
+        .context(WriteFieldSnafu {
+            field: "Application-context-name",
+        });
+        Ok(w)
     })
+    .await
     .context(WriteChunkSnafu {
         name: "Application Context Item",
     })?;
@@ -588,30 +660,38 @@ fn write_pdu_variable_application_context_name(
     Ok(())
 }
 
-fn write_pdu_variable_presentation_context_proposed(
-    writer: &mut dyn Write,
+async fn write_pdu_variable_presentation_context_proposed<W, TC>(
+    writer: &mut W,
     presentation_context: &PresentationContextProposed,
-    codec: &dyn TextCodec,
-) -> Result<()> {
+    codec: &TC,
+) -> Result<()>
+where
+    W: AsyncWrite + Unpin,
+    TC: TextCodec + Send + Sync,
+{
     // Presentation Context Item Structure
     // 1 - tem-type - 20H
     writer
         .write_u8(0x20)
+        .await
         .context(WriteFieldSnafu { field: "Item-type" })?;
 
     // 2 - Reserved - This reserved field shall be sent with a value 00H but not
     // tested to this value when received.
     writer
         .write_u8(0x00)
+        .await
         .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-    write_chunk_u16(writer, |writer| {
+    write_chunk_u16(writer, || async {
         // 5 - Presentation-context-ID - Presentation-context-ID values shall be
         // odd integers between 1 and 255, encoded as an unsigned binary number.
         // For a complete description of the use of this field see Section
         // 7.1.1.13.
+        let mut writer = vec![];
         writer
             .write_u8(presentation_context.id)
+            .await
             .context(WriteFieldSnafu {
                 field: "Presentation-context-ID",
             })?;
@@ -620,18 +700,21 @@ fn write_pdu_variable_presentation_context_proposed(
         // not tested to this value when received.
         writer
             .write_u8(0x00)
+            .await
             .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
         // 7 - Reserved - This reserved field shall be sent with a value 00H but
         // not tested to this value when received
         writer
             .write_u8(0x00)
+            .await
             .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
         // 8 - Reserved - This reserved field shall be sent with a value 00H but
         // not tested to this value when received.
         writer
             .write_u8(0x00)
+            .await
             .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
         // 9-xxx - Abstract/Transfer Syntax Sub-Items - This variable field
@@ -644,6 +727,7 @@ fn write_pdu_variable_presentation_context_proposed(
         // 1 - Item-type 30H
         writer
             .write_u8(0x30)
+            .await
             .context(WriteFieldSnafu { field: "Item-type" })?;
 
         // 2 - Reserved - This reserved field shall be sent with a value 00H
@@ -651,9 +735,11 @@ fn write_pdu_variable_presentation_context_proposed(
         // received.
         writer
             .write_u8(0x00)
+            .await
             .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-        write_chunk_u16(writer, |writer| {
+        write_chunk_u16(&mut writer, || async {
+            let mut writer = vec![];
             // 5-xxx - Abstract-syntax-name - This variable field shall
             // contain
             // the Abstract-syntax-name related to the proposed presentation
@@ -672,10 +758,13 @@ fn write_pdu_variable_presentation_context_proposed(
                             field: "Abstract-syntax-name",
                         })?,
                 )
+                .await
                 .context(WriteFieldSnafu {
                     field: "Abstract-syntax-name",
-                })
+                })?;
+            Ok(writer)
         })
+        .await
         .context(WriteChunkSnafu {
             name: "Abstract Syntax Item",
         })?;
@@ -683,7 +772,7 @@ fn write_pdu_variable_presentation_context_proposed(
         for transfer_syntax in &presentation_context.transfer_syntaxes {
             // Transfer Syntax Sub-Item Structure
             // 1 - Item-type - 40H
-            writer.write_u8(0x40).context(WriteFieldSnafu {
+            writer.write_u8(0x40).await.context(WriteFieldSnafu {
                 field: "Presentation-context Item-type",
             })?;
 
@@ -691,9 +780,11 @@ fn write_pdu_variable_presentation_context_proposed(
             // but not tested to this value when received.
             writer
                 .write_u8(0x00)
+                .await
                 .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-            write_chunk_u16(writer, |writer| {
+            write_chunk_u16(&mut writer, || async {
+                let mut writer = vec![];
                 // 5-xxx - Transfer-syntax-name(s) - This variable field shall
                 // contain the Transfer-syntax-name proposed for this
                 // presentation context. A valid Transfer-syntax-name shall be
@@ -706,17 +797,21 @@ fn write_pdu_variable_presentation_context_proposed(
                     .write_all(&codec.encode(transfer_syntax).context(EncodeFieldSnafu {
                         field: "Transfer-syntax-name",
                     })?)
+                    .await
                     .context(WriteFieldSnafu {
                         field: "Transfer-syntax-name",
-                    })
+                    })?;
+                Ok(writer)
             })
+            .await
             .context(WriteChunkSnafu {
                 name: "Transfer Syntax Sub-Item",
             })?;
         }
 
-        Ok(())
+        Ok(writer)
     })
+    .await
     .context(WriteChunkSnafu {
         name: "Presentation Context Item",
     })?;
@@ -724,28 +819,36 @@ fn write_pdu_variable_presentation_context_proposed(
     Ok(())
 }
 
-fn write_pdu_variable_presentation_context_result(
-    writer: &mut dyn Write,
+async fn write_pdu_variable_presentation_context_result<W, TC>(
+    writer: &mut W,
     presentation_context: &PresentationContextResult,
-    codec: &dyn TextCodec,
-) -> Result<()> {
+    codec: &TC,
+) -> Result<()>
+where
+    W: AsyncWrite + Unpin,
+    TC: TextCodec + Send + Sync,
+{
     // 1 - Item-type - 21H
     writer
         .write_u8(0x21)
+        .await
         .context(WriteFieldSnafu { field: "Item-type" })?;
 
     // 2 - Reserved - This reserved field shall be sent with a value 00H but not tested to this
     // value when received.
     writer
         .write_u8(0x00)
+        .await
         .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-    write_chunk_u16(writer, |writer| {
+    write_chunk_u16(writer, || async {
+        let mut writer = vec![];
         // 5 - Presentation-context-ID - Presentation-context-ID values shall be odd integers
         // between 1 and 255, encoded as an unsigned binary number. For a complete description of
         // the use of this field see Section 7.1.1.13.
         writer
             .write_u8(presentation_context.id)
+            .await
             .context(WriteFieldSnafu {
                 field: "Presentation-context-ID",
             })?;
@@ -754,6 +857,7 @@ fn write_pdu_variable_presentation_context_result(
         // value when received.
         writer
             .write_u8(0x00)
+            .await
             .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
         // 7 - Result/Reason - This Result/Reason field shall contain an integer value encoded as an
@@ -771,6 +875,7 @@ fn write_pdu_variable_presentation_context_result(
                 PresentationContextResultReason::AbstractSyntaxNotSupported => 3,
                 PresentationContextResultReason::TransferSyntaxesNotSupported => 4,
             })
+            .await
             .context(WriteFieldSnafu {
                 field: "Presentation Context Result/Reason",
             })?;
@@ -779,6 +884,7 @@ fn write_pdu_variable_presentation_context_result(
         // value when received.
         writer
             .write_u8(0x00)
+            .await
             .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
         // 9-xxx - Transfer syntax sub-item - This variable field shall contain one Transfer Syntax
@@ -789,15 +895,18 @@ fn write_pdu_variable_presentation_context_result(
         // 1 - Item-type - 40H
         writer
             .write_u8(0x40)
+            .await
             .context(WriteFieldSnafu { field: "Item-type" })?;
 
         // 2 - Reserved - This reserved field shall be sent with a value 00H but not tested to this
         // value when received.
         writer
             .write_u8(0x40)
+            .await
             .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-        write_chunk_u16(writer, |writer| {
+        write_chunk_u16(&mut writer, || async {
+            let mut writer = vec![];
             // 5-xxx - Transfer-syntax-name - This variable field shall contain the
             // Transfer-syntax-name proposed for this presentation context. A valid
             // Transfer-syntax-name shall be encoded as defined in Annex F. For a description of the
@@ -812,28 +921,35 @@ fn write_pdu_variable_presentation_context_result(
                             field: "Transfer-syntax-name",
                         })?,
                 )
+                .await
                 .context(WriteFieldSnafu {
                     field: "Transfer-syntax-name",
                 })?;
 
-            Ok(())
+            Ok(writer)
         })
+        .await
         .context(WriteChunkSnafu {
             name: "Transfer Syntax sub-item",
         })?;
 
-        Ok(())
+        Ok(writer)
     })
+    .await
     .context(WriteChunkSnafu {
         name: "Presentation-context",
     })
 }
 
-fn write_pdu_variable_user_variables(
-    writer: &mut dyn Write,
+async fn write_pdu_variable_user_variables<W, TC>(
+    writer: &mut W,
     user_variables: &[UserVariableItem],
-    codec: &dyn TextCodec,
-) -> Result<()> {
+    codec: &TC,
+) -> Result<()>
+where
+    W: AsyncWrite + Unpin,
+    TC: TextCodec + Send + Sync,
+{
     if user_variables.is_empty() {
         return Ok(());
     }
@@ -841,15 +957,18 @@ fn write_pdu_variable_user_variables(
     // 1 - Item-type - 50H
     writer
         .write_u8(0x50)
+        .await
         .context(WriteFieldSnafu { field: "Item-type" })?;
 
     // 2 - Reserved - This reserved field shall be sent with a value 00H but not tested to this
     // value when received.
     writer
         .write_u8(0x00)
+        .await
         .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-    write_chunk_u16(writer, |writer| {
+    write_chunk_u16(writer, || async {
+        let mut writer = vec![];
         // 5-xxx - User-data - This variable field shall contain User-data sub-items as defined by
         // the DICOM Application Entity. The structure and content of these sub-items is defined in
         // Annex D.
@@ -859,15 +978,18 @@ fn write_pdu_variable_user_variables(
                     // 1 - Item-type - 51H
                     writer
                         .write_u8(0x51)
+                        .await
                         .context(WriteFieldSnafu { field: "Item-type" })?;
 
                     // 2 - Reserved - This reserved field shall be sent with a value 00H but not
                     // tested to this value when received.
                     writer
                         .write_u8(0x00)
+                        .await
                         .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-                    write_chunk_u16(writer, |writer| {
+                    write_chunk_u16(&mut writer, || async {
+                        let mut writer = vec![];
                         // 5-8 - Maximum-length-received - This parameter allows the
                         // association-requestor to restrict the maximum length of the variable
                         // field of the P-DATA-TF PDUs sent by the acceptor on the association once
@@ -878,11 +1000,14 @@ fn write_pdu_variable_user_variables(
                         // received by the association-requestor. Otherwise, it shall be a protocol
                         // error.
                         writer
-                            .write_u32::<BigEndian>(*max_length)
+                            .write_u32(*max_length)
+                            .await
                             .context(WriteFieldSnafu {
                                 field: "Maximum-length-received",
-                            })
+                            })?;
+                        Ok(writer)
                     })
+                    .await
                     .context(WriteChunkSnafu {
                         name: "Maximum-length-received",
                     })?;
@@ -891,15 +1016,18 @@ fn write_pdu_variable_user_variables(
                     // 1 - Item-type - 55H
                     writer
                         .write_u8(0x55)
+                        .await
                         .context(WriteFieldSnafu { field: "Item-type" })?;
 
                     // 2 - Reserved - This reserved field shall be sent with a value 00H but not
                     // tested to this value when received.
                     writer
                         .write_u8(0x00)
+                        .await
                         .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-                    write_chunk_u16(writer, |writer| {
+                    write_chunk_u16(&mut writer, || async {
+                        let mut writer = vec![];
                         // 5 - xxx - Implementation-version-name - This variable field shall contain
                         // the Implementation-version-name of the Association-acceptor as defined in
                         // Section D.3.3.2. It shall be encoded as a string of 1 to 16 ISO 646:1990
@@ -910,10 +1038,13 @@ fn write_pdu_variable_user_variables(
                                     field: "Implementation-version-name",
                                 },
                             )?)
+                            .await
                             .context(WriteFieldSnafu {
                                 field: "Implementation-version-name",
-                            })
+                            })?;
+                        Ok(writer)
                     })
+                    .await
                     .context(WriteChunkSnafu {
                         name: "Implementation-version-name",
                     })?;
@@ -922,15 +1053,18 @@ fn write_pdu_variable_user_variables(
                     // 1 - Item-type - 52H
                     writer
                         .write_u8(0x52)
+                        .await
                         .context(WriteFieldSnafu { field: "Item-type" })?;
 
                     // 2 - Reserved - This reserved field shall be sent with a value 00H but not
                     // tested to this value when received.
                     writer
                         .write_u8(0x00)
+                        .await
                         .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-                    write_chunk_u16(writer, |writer| {
+                    write_chunk_u16(&mut writer, || async {
+                        let mut writer = vec![];
                         //5 - xxx - Implementation-class-uid - This variable field shall contain
                         // the Implementation-class-uid of the Association-acceptor as defined in
                         // Section D.3.3.2. The Implementation-class-uid field is structured as a
@@ -941,10 +1075,13 @@ fn write_pdu_variable_user_variables(
                                     field: "Implementation-class-uid",
                                 },
                             )?)
+                            .await
                             .context(WriteFieldSnafu {
                                 field: "Implementation-class-uid",
-                            })
+                            })?;
+                        Ok(writer)
                     })
+                    .await
                     .context(WriteChunkSnafu {
                         name: "Implementation-class-uid",
                     })?;
@@ -953,15 +1090,19 @@ fn write_pdu_variable_user_variables(
                     // 1 - Item-type - 56H
                     writer
                         .write_u8(0x56)
+                        .await
                         .context(WriteFieldSnafu { field: "Item-type" })?;
                     // 2 - Reserved - This reserved field shall be sent with a value 00H but not
                     // tested to this value when received.
                     writer
                         .write_u8(0x00)
+                        .await
                         .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-                    write_chunk_u16(writer, |writer| {
-                        write_chunk_u16(writer, |writer| {
+                    write_chunk_u16(&mut writer, || async {
+                        let mut writer = vec![];
+                        write_chunk_u16(&mut writer, || async {
+                            let mut writer = vec![];
                             //  7-xxx - The SOP Class or Meta SOP Class identifier encoded as a UID
                             //  as defined in Section 9 “Unique Identifiers (UIDs)” in PS3.5.
                             writer
@@ -970,46 +1111,58 @@ fn write_pdu_variable_user_variables(
                                         field: "SOP-class-uid",
                                     },
                                 )?)
+                                .await
                                 .context(WriteFieldSnafu {
                                     field: "SOP-class-uid",
-                                })
+                                })?;
+                            Ok(writer)
                         })
+                        .await
                         .context(WriteChunkSnafu {
                             name: "SOP-class-uid",
                         })?;
 
-                        write_chunk_u16(writer, |writer| {
+                        write_chunk_u16(&mut writer, || async {
+                            let mut writer = vec![];
                             // xxx-xxx Service-class-application-information - This field shall contain
                             // the application information specific to the Service Class specification
                             // identified by the SOP-class-uid. The semantics and value of this field is
                             // defined in the identified Service Class specification.
-                            writer.write_all(data).context(WriteFieldSnafu {
+                            writer.write_all(data).await.context(WriteFieldSnafu {
                                 field: "Service-class-application-information",
-                            })
+                            })?;
+                            Ok(writer)
                         })
+                        .await
                         .context(WriteChunkSnafu {
                             name: "Service-class-application-information",
-                        })
+                        })?;
+                        Ok(writer)
                     })
+                    .await
                     .context(WriteChunkSnafu { name: "Sub-item" })?;
                 }
                 UserVariableItem::UserIdentityItem(user_identity) => {
                     // 1 - Item-type - 58H
                     writer
                         .write_u8(0x58)
+                        .await
                         .context(WriteFieldSnafu { field: "Item-type" })?;
 
                     // 2 - Reserved - This reserved field shall be sent with a value 00H but not
                     // tested to this value when received.
                     writer
                         .write_u8(0x00)
+                        .await
                         .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
                     // 3-4 - Item-length
-                    write_chunk_u16(writer, |writer| {
+                    write_chunk_u16(&mut writer, || async {
+                        let mut writer = vec![];
                         // 5 - User-Identity-Type
                         writer
                             .write_u8(user_identity.identity_type().to_u8())
+                            .await
                             .context(WriteFieldSnafu {
                                 field: "User-Identity-Type",
                             })?;
@@ -1021,38 +1174,49 @@ fn write_pdu_variable_user_variables(
                             } else {
                                 0
                             };
-                        writer.write_u8(positive_response_requested_out).context(
-                            WriteFieldSnafu {
+                        writer
+                            .write_u8(positive_response_requested_out)
+                            .await
+                            .context(WriteFieldSnafu {
                                 field: "Positive-response-requested",
-                            },
-                        )?;
+                            })?;
 
                         // 7-8 - Primary-field-length
-                        write_chunk_u16(writer, |writer| {
+                        write_chunk_u16(&mut writer, || async {
+                            let mut writer = vec![];
                             // 9-n - Primary-field
                             writer
                                 .write_all(user_identity.primary_field().as_slice())
+                                .await
                                 .context(WriteFieldSnafu {
                                     field: "Primary-field",
-                                })
+                                })?;
+                            Ok(writer)
                         })
+                        .await
                         .context(WriteChunkSnafu {
                             name: "Primary-field",
                         })?;
 
                         // n+1-n+2 - Secondary-field-length
-                        write_chunk_u16(writer, |writer| {
+                        write_chunk_u16(&mut writer, || async {
+                            let mut writer = vec![];
                             // n+3-m - Secondary-field
                             writer
                                 .write_all(user_identity.secondary_field().as_slice())
+                                .await
                                 .context(WriteFieldSnafu {
                                     field: "Secondary-field",
-                                })
+                                })?;
+                            Ok(writer)
                         })
+                        .await
                         .context(WriteChunkSnafu {
                             name: "Secondary-field",
-                        })
+                        })?;
+                        Ok(writer)
                     })
+                    .await
                     .context(WriteChunkSnafu {
                         name: "Item-length",
                     })?;
@@ -1060,24 +1224,30 @@ fn write_pdu_variable_user_variables(
                 UserVariableItem::Unknown(item_type, data) => {
                     writer
                         .write_u8(*item_type)
+                        .await
                         .context(WriteFieldSnafu { field: "Item-type" })?;
 
                     writer
                         .write_u8(0x00)
+                        .await
                         .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
-                    write_chunk_u16(writer, |writer| {
-                        writer.write_all(data).context(WriteFieldSnafu {
+                    write_chunk_u16(&mut writer, || async {
+                        let mut writer = vec![];
+                        writer.write_all(data).await.context(WriteFieldSnafu {
                             field: "Unknown Data",
-                        })
+                        })?;
+                        Ok(writer)
                     })
+                    .await
                     .context(WriteChunkSnafu { name: "Unknown" })?;
                 }
             }
         }
 
-        Ok(())
+        Ok(writer)
     })
+    .await
     .context(WriteChunkSnafu { name: "User-data" })
 }
 

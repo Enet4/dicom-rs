@@ -1,16 +1,16 @@
 /// PDU reader module
 use crate::pdu::*;
-use byteordered::byteorder::{BigEndian, ReadBytesExt};
 use dicom_encoding::text::{DefaultCharacterSetCodec, TextCodec};
-use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
-use std::io::{Cursor, ErrorKind, Read, Seek, SeekFrom};
+use snafu::{ensure, OptionExt, ResultExt};
+use std::io::{Cursor, ErrorKind, Seek, SeekFrom};
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tracing::warn;
 
 pub type Result<T> = std::result::Result<T, ReadError>;
 
-pub fn read_pdu<R>(reader: &mut R, max_pdu_length: u32, strict: bool) -> Result<Pdu>
+pub async fn read_pdu<R>(reader: &mut R, max_pdu_length: u32, strict: bool) -> Result<Pdu>
 where
-    R: Read,
+    R: AsyncRead + Unpin,
 {
     ensure!(
         (MINIMUM_PDU_SIZE..=MAXIMUM_PDU_SIZE).contains(&max_pdu_length),
@@ -23,14 +23,15 @@ where
     // want to know if we had trouble even beginning to read a PDU. We still return
     // UnexpectedEof if we get after we have already began reading a PDU message.
     let mut bytes = [0; 2];
-    if let Err(e) = reader.read_exact(&mut bytes) {
+    if let Err(e) = reader.read_exact(&mut bytes).await {
         ensure!(e.kind() != ErrorKind::UnexpectedEof, NoPduAvailableSnafu);
         return Err(e).context(ReadPduFieldSnafu { field: "type" });
     }
 
     let pdu_type = bytes[0];
     let pdu_length = reader
-        .read_u32::<BigEndian>()
+        .read_u32()
+        .await
         .context(ReadPduFieldSnafu { field: "length" })?;
 
     // Check max_pdu_length
@@ -57,7 +58,9 @@ where
         );
     }
 
-    let bytes = read_n(reader, pdu_length as usize).context(ReadPduSnafu)?;
+    let bytes = read_n(reader, pdu_length as usize)
+        .await
+        .context(ReadPduSnafu)?;
     let mut cursor = Cursor::new(bytes);
     let codec = DefaultCharacterSetCodec;
 
@@ -74,14 +77,15 @@ where
             // Version 1 and shall be identified with bit 0 set. A receiver of this PDU
             // implementing only this version of the DICOM UL protocol shall only test that bit
             // 0 is set.
-            let protocol_version = cursor.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
+            let protocol_version = cursor.read_u16().await.context(ReadPduFieldSnafu {
                 field: "Protocol-version",
             })?;
 
             // 9-10 - Reserved - This reserved field shall be sent with a value 0000H but not
             // tested to this value when received.
             cursor
-                .read_u16::<BigEndian>()
+                .read_u16()
+                .await
                 .context(ReadReservedSnafu { bytes: 2_u32 })?;
 
             // 11-26 - Called-AE-title - Destination DICOM Application Name. It shall be encoded
@@ -92,6 +96,7 @@ where
             let mut ae_bytes = [0; 16];
             cursor
                 .read_exact(&mut ae_bytes)
+                .await
                 .context(ReadPduFieldSnafu {
                     field: "Called-AE-title",
                 })?;
@@ -111,6 +116,7 @@ where
             let mut ae_bytes = [0; 16];
             cursor
                 .read_exact(&mut ae_bytes)
+                .await
                 .context(ReadPduFieldSnafu {
                     field: "Calling-AE-title",
                 })?;
@@ -133,7 +139,7 @@ where
             // Information Item. For a complete description of the use of these items see
             // Section 7.1.1.2, Section 7.1.1.13, and Section 7.1.1.6.
             while cursor.position() < cursor.get_ref().len() as u64 {
-                match read_pdu_variable(&mut cursor, &codec)? {
+                match read_pdu_variable(&mut cursor, &codec).await? {
                     PduVariableItem::ApplicationContext(val) => {
                         application_context_name = Some(val);
                     }
@@ -171,14 +177,15 @@ where
             // Version 1 and shall be identified with bit 0 set. A receiver of this PDU
             // implementing only this version of the DICOM UL protocol shall only test that bit
             // 0 is set.
-            let protocol_version = cursor.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
+            let protocol_version = cursor.read_u16().await.context(ReadPduFieldSnafu {
                 field: "Protocol-version",
             })?;
 
             // 9-10 - Reserved - This reserved field shall be sent with a value 0000H but not
             // tested to this value when received.
             cursor
-                .read_u16::<BigEndian>()
+                .read_u16()
+                .await
                 .context(ReadReservedSnafu { bytes: 2_u32 })?;
 
             // 11-26 - Reserved - This reserved field shall be sent with a value identical to
@@ -187,6 +194,7 @@ where
             let mut ae_bytes = [0; 16];
             cursor
                 .read_exact(&mut ae_bytes)
+                .await
                 .context(ReadPduFieldSnafu {
                     field: "Called-AE-title",
                 })?;
@@ -204,6 +212,7 @@ where
             let mut ae_bytes = [0; 16];
             cursor
                 .read_exact(&mut ae_bytes)
+                .await
                 .context(ReadPduFieldSnafu {
                     field: "Calling-AE-title",
                 })?;
@@ -227,7 +236,7 @@ where
             // User Information Item. For a complete description of these items see Section
             // 7.1.1.2, Section 7.1.1.14, and Section 7.1.1.6.
             while cursor.position() < cursor.get_ref().len() as u64 {
-                match read_pdu_variable(&mut cursor, &codec)? {
+                match read_pdu_variable(&mut cursor, &codec).await? {
                     PduVariableItem::ApplicationContext(val) => {
                         application_context_name = Some(val);
                     }
@@ -260,6 +269,7 @@ where
             // this value when received.
             cursor
                 .read_u8()
+                .await
                 .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
             // 8 - Result - This Result field shall contain an integer value encoded as an unsigned
@@ -269,6 +279,7 @@ where
             let result = AssociationRJResult::from(
                 cursor
                     .read_u8()
+                    .await
                     .context(ReadPduFieldSnafu { field: "Result" })?,
             )
             .context(InvalidRejectSourceOrReasonSnafu)?;
@@ -297,8 +308,9 @@ where
             let source = AssociationRJSource::from(
                 cursor
                     .read_u8()
+                    .await
                     .context(ReadPduFieldSnafu { field: "Source" })?,
-                cursor.read_u8().context(ReadPduFieldSnafu {
+                cursor.read_u8().await.context(ReadPduFieldSnafu {
                     field: "Reason/Diag.",
                 })?,
             )
@@ -319,7 +331,7 @@ where
                 // 1-4 - Item-length - This Item-length shall be the number of bytes from the first
                 // byte of the following field to the last byte of the Presentation-data-value
                 // field. It shall be encoded as an unsigned binary number.
-                let item_length = cursor.read_u32::<BigEndian>().context(ReadPduFieldSnafu {
+                let item_length = cursor.read_u32().await.context(ReadPduFieldSnafu {
                     field: "Item-Length",
                 })?;
 
@@ -333,9 +345,10 @@ where
                 // 5 - Presentation-context-ID - Presentation-context-ID values shall be odd
                 // integers between 1 and 255, encoded as an unsigned binary number. For a complete
                 // description of the use of this field see Section 7.1.1.13.
-                let presentation_context_id = cursor.read_u8().context(ReadPduFieldSnafu {
-                    field: "Presentation-context-ID",
-                })?;
+                let presentation_context_id =
+                    cursor.read_u8().await.context(ReadPduFieldSnafu {
+                        field: "Presentation-context-ID",
+                    })?;
 
                 // 6-xxx - Presentation-data-value - This Presentation-data-value field shall
                 // contain DICOM message information (command and/or data set) with a message
@@ -350,7 +363,7 @@ where
                 // following fragment shall contain the last fragment of a Message Data Set or of a
                 // Message Command. If bit 1 is set to 0, the following fragment
                 // does not contain the last fragment of a Message Data Set or of a Message Command.
-                let header = cursor.read_u8().context(ReadPduFieldSnafu {
+                let header = cursor.read_u8().await.context(ReadPduFieldSnafu {
                     field: "Message Control Header",
                 })?;
 
@@ -361,8 +374,9 @@ where
                 };
                 let is_last = (header & 0x02) > 0;
 
-                let data =
-                    read_n(&mut cursor, (item_length - 2) as usize).context(ReadPduFieldSnafu {
+                let data = read_n(&mut cursor, (item_length - 2) as usize)
+                    .await
+                    .context(ReadPduFieldSnafu {
                         field: "Presentation-data-value",
                     })?;
 
@@ -408,6 +422,7 @@ where
             let mut buf = [0u8; 2];
             cursor
                 .read_exact(&mut buf)
+                .await
                 .context(ReadReservedSnafu { bytes: 2_u32 })?;
 
             // 9 - Source - This Source field shall contain an integer value encoded as an unsigned
@@ -427,8 +442,9 @@ where
             let source = AbortRQSource::from(
                 cursor
                     .read_u8()
+                    .await
                     .context(ReadPduFieldSnafu { field: "Source" })?,
-                cursor.read_u8().context(ReadPduFieldSnafu {
+                cursor.read_u8().await.context(ReadPduFieldSnafu {
                     field: "Reason/Diag",
                 })?,
             )
@@ -438,41 +454,49 @@ where
         }
         _ => {
             let data = read_n(&mut cursor, pdu_length as usize)
+                .await
                 .context(ReadPduFieldSnafu { field: "Unknown" })?;
             Ok(Pdu::Unknown { pdu_type, data })
         }
     }
 }
 
-fn read_n<R>(reader: &mut R, bytes_to_read: usize) -> std::io::Result<Vec<u8>>
+async fn read_n<R>(reader: &mut R, bytes_to_read: usize) -> std::io::Result<Vec<u8>>
 where
-    R: Read,
+    R: AsyncRead + Unpin,
 {
     let mut result = Vec::new();
-    reader.take(bytes_to_read as u64).read_to_end(&mut result)?;
+    reader
+        .take(bytes_to_read as u64)
+        .read_to_end(&mut result)
+        .await?;
     Ok(result)
 }
 
-fn read_pdu_variable<R>(reader: &mut R, codec: &dyn TextCodec) -> Result<PduVariableItem>
+async fn read_pdu_variable<R>(reader: &mut R, codec: &dyn TextCodec) -> Result<PduVariableItem>
 where
-    R: Read,
+    R: AsyncRead + Unpin,
 {
     // 1 - Item-type - XXH
     let item_type = reader
         .read_u8()
+        .await
         .context(ReadPduFieldSnafu { field: "Item-type" })?;
 
     // 2 - Reserved
     reader
         .read_u8()
+        .await
         .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
     // 3-4 - Item-length
-    let item_length = reader.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
+    let item_length = reader.read_u16().await.context(ReadPduFieldSnafu {
         field: "Item-length",
     })?;
 
-    let bytes = read_n(reader, item_length as usize).context(ReadPduItemSnafu)?;
+    let bytes = read_n(reader, item_length as usize)
+        .await
+        .context(ReadPduItemSnafu)?;
     let mut cursor = Cursor::new(bytes);
 
     match item_type {
@@ -500,7 +524,7 @@ where
             // 5 - Presentation-context-ID - Presentation-context-ID values shall be odd integers
             // between 1 and 255, encoded as an unsigned binary number. For a complete description
             // of the use of this field see Section 7.1.1.13.
-            let presentation_context_id = cursor.read_u8().context(ReadPduFieldSnafu {
+            let presentation_context_id = cursor.read_u8().await.context(ReadPduFieldSnafu {
                 field: "Presentation-context-ID",
             })?;
 
@@ -508,18 +532,21 @@ where
             // this value when received.
             cursor
                 .read_u8()
+                .await
                 .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
             // 7 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
             cursor
                 .read_u8()
+                .await
                 .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
             // 8 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
             cursor
                 .read_u8()
+                .await
                 .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
             // 9-xxx - Abstract/Transfer Syntax Sub-Items - This variable field shall contain the
@@ -530,16 +557,18 @@ where
                 // 1 - Item-type - XXH
                 let item_type = cursor
                     .read_u8()
+                    .await
                     .context(ReadPduFieldSnafu { field: "Item-type" })?;
 
                 // 2 - Reserved - This reserved field shall be sent with a value 00H but not tested
                 // to this value when received.
                 cursor
                     .read_u8()
+                    .await
                     .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
                 // 3-4 - Item-length
-                let item_length = cursor.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
+                let item_length = cursor.read_u16().await.context(ReadPduFieldSnafu {
                     field: "Item-length",
                 })?;
 
@@ -556,7 +585,7 @@ where
                         // registered in PS3.4.
                         abstract_syntax = Some(
                             codec
-                                .decode(&read_n(&mut cursor, item_length as usize).context(
+                                .decode(&read_n(&mut cursor, item_length as usize).await.context(
                                     ReadPduFieldSnafu {
                                         field: "Abstract-syntax-name",
                                     },
@@ -580,7 +609,7 @@ where
                         // registered in PS3.5.
                         transfer_syntaxes.push(
                             codec
-                                .decode(&read_n(&mut cursor, item_length as usize).context(
+                                .decode(&read_n(&mut cursor, item_length as usize).await.context(
                                     ReadPduFieldSnafu {
                                         field: "Transfer-syntax-name",
                                     },
@@ -614,7 +643,7 @@ where
             // 5 - Presentation-context-ID - Presentation-context-ID values shall be odd integers
             // between 1 and 255, encoded as an unsigned binary number. For a complete description
             // of the use of this field see Section 7.1.1.13.
-            let presentation_context_id = cursor.read_u8().context(ReadPduFieldSnafu {
+            let presentation_context_id = cursor.read_u8().await.context(ReadPduFieldSnafu {
                 field: "Presentation-context-ID",
             })?;
 
@@ -622,6 +651,7 @@ where
             // this value when received.
             cursor
                 .read_u8()
+                .await
                 .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
             // 7 - Result/Reason - This Result/Reason field shall contain an integer value encoded
@@ -631,7 +661,7 @@ where
             //   2 - no-reason (provider rejection)
             //   3 - abstract-syntax-not-supported (provider rejection)
             //   4 - transfer-syntaxes-not-supported (provider rejection)
-            let reason = PresentationContextResultReason::from(cursor.read_u8().context(
+            let reason = PresentationContextResultReason::from(cursor.read_u8().await.context(
                 ReadPduFieldSnafu {
                     field: "Result/Reason",
                 },
@@ -642,6 +672,7 @@ where
             // this value when received.
             cursor
                 .read_u8()
+                .await
                 .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
             // 9-xxx - Transfer syntax sub-item - This variable field shall contain one Transfer
@@ -653,16 +684,18 @@ where
                 // 1 - Item-type - XXH
                 let item_type = cursor
                     .read_u8()
+                    .await
                     .context(ReadPduFieldSnafu { field: "Item-type" })?;
 
                 // 2 - Reserved - This reserved field shall be sent with a value 00H but not tested
                 // to this value when received.
                 cursor
                     .read_u8()
+                    .await
                     .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
                 // 3-4 - Item-length
-                let item_length = cursor.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
+                let item_length = cursor.read_u16().await.context(ReadPduFieldSnafu {
                     field: "Item-length",
                 })?;
 
@@ -686,11 +719,11 @@ where
                                 transfer_syntax = Some(
                                     codec
                                         .decode(
-                                            &read_n(&mut cursor, item_length as usize).context(
-                                                ReadPduFieldSnafu {
+                                            &read_n(&mut cursor, item_length as usize)
+                                                .await
+                                                .context(ReadPduFieldSnafu {
                                                     field: "Transfer-syntax-name",
-                                                },
-                                            )?,
+                                                })?,
                                         )
                                         .context(DecodeTextSnafu {
                                             field: "Transfer-syntax-name",
@@ -727,15 +760,17 @@ where
                 // 1 - Item-type - XXH
                 let item_type = cursor
                     .read_u8()
+                    .await
                     .context(ReadPduFieldSnafu { field: "Item-type" })?;
 
                 // 2 - Reserved
                 cursor
                     .read_u8()
+                    .await
                     .context(ReadReservedSnafu { bytes: 1_u32 })?;
 
                 // 3-4 - Item-length
-                let item_length = cursor.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
+                let item_length = cursor.read_u16().await.context(ReadPduFieldSnafu {
                     field: "Item-length",
                 })?;
 
@@ -753,7 +788,7 @@ where
                         // received by the association-requestor. Otherwise, it shall be a protocol
                         // error.
                         user_variables.push(UserVariableItem::MaxLength(
-                            cursor.read_u32::<BigEndian>().context(ReadPduFieldSnafu {
+                            cursor.read_u32().await.context(ReadPduFieldSnafu {
                                 field: "Maximum-length-received",
                             })?,
                         ));
@@ -766,7 +801,7 @@ where
                         // Section D.3.3.2. The Implementation-class-uid field is structured as a
                         // UID as defined in PS3.5.
                         let implementation_class_uid = codec
-                            .decode(&read_n(&mut cursor, item_length as usize).context(
+                            .decode(&read_n(&mut cursor, item_length as usize).await.context(
                                 ReadPduFieldSnafu {
                                     field: "Implementation-class-uid",
                                 },
@@ -788,7 +823,7 @@ where
                         // Section D.3.3.2. It shall be encoded as a string of 1 to 16 ISO 646:1990
                         // (basic G0 set) characters.
                         let implementation_version_name = codec
-                            .decode(&read_n(&mut cursor, item_length as usize).context(
+                            .decode(&read_n(&mut cursor, item_length as usize).await.context(
                                 ReadPduFieldSnafu {
                                     field: "Implementation-version-name",
                                 },
@@ -809,34 +844,35 @@ where
                         // of bytes from the first byte of the following field to the last byte of the
                         // SOP-class-uid field. It shall be encoded as an unsigned binary number.
                         let sop_class_uid_length =
-                            cursor.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
+                            cursor.read_u16().await.context(ReadPduFieldSnafu {
                                 field: "SOP-class-uid-length",
                             })?;
 
                         // 7 - xxx - SOP-class-uid - The SOP Class or Meta SOP Class identifier
                         // encoded as a UID as defined in Section 9 “Unique Identifiers (UIDs)” in PS3.5.
                         let sop_class_uid = codec
-                            .decode(&read_n(&mut cursor, sop_class_uid_length as usize).context(
-                                ReadPduFieldSnafu {
-                                    field: "SOP-class-uid",
-                                },
-                            )?)
+                            .decode(
+                                &read_n(&mut cursor, sop_class_uid_length as usize)
+                                    .await
+                                    .context(ReadPduFieldSnafu {
+                                        field: "SOP-class-uid",
+                                    })?,
+                            )
                             .context(DecodeTextSnafu {
                                 field: "SOP-class-uid",
                             })?
                             .trim()
                             .to_string();
 
-                        let data_length =
-                            cursor.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
-                                field: "Service-class-application-information-length",
-                            })?;
+                        let data_length = cursor.read_u16().await.context(ReadPduFieldSnafu {
+                            field: "Service-class-application-information-length",
+                        })?;
 
                         // xxx-xxx - Service-class-application-information -This field shall contain
                         // the application information specific to the Service Class specification
                         // identified by the SOP-class-uid. The semantics and value of this field
                         // is defined in the identified Service Class specification.
-                        let data = read_n(&mut cursor, data_length as usize).context(
+                        let data = read_n(&mut cursor, data_length as usize).await.context(
                             ReadPduFieldSnafu {
                                 field: "Service-class-application-information",
                             },
@@ -851,24 +887,26 @@ where
                         // User Identity Negotiation
 
                         // 5 - User Identity Type
-                        let user_identity_type = cursor.read_u8().context(ReadPduFieldSnafu {
-                            field: "User-Identity-type",
-                        })?;
+                        let user_identity_type =
+                            cursor.read_u8().await.context(ReadPduFieldSnafu {
+                                field: "User-Identity-type",
+                            })?;
 
                         // 6 - Positive-response-requested
                         let positive_response_requested =
-                            cursor.read_u8().context(ReadPduFieldSnafu {
+                            cursor.read_u8().await.context(ReadPduFieldSnafu {
                                 field: "User-Identity-positive-response-requested",
                             })?;
 
                         // 7-8 - Primary Field Length
                         let primary_field_length =
-                            cursor.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
+                            cursor.read_u16().await.context(ReadPduFieldSnafu {
                                 field: "User-Identity-primary-field-length",
                             })?;
 
                         // 9-n - Primary Field
                         let primary_field = read_n(&mut cursor, primary_field_length as usize)
+                            .await
                             .context(ReadPduFieldSnafu {
                                 field: "User-Identity-primary-field",
                             })?;
@@ -876,12 +914,13 @@ where
                         // n+1-n+2 - Secondary Field Length
                         // Only non-zero if user identity type is 2 (username and password)
                         let secondary_field_length =
-                            cursor.read_u16::<BigEndian>().context(ReadPduFieldSnafu {
+                            cursor.read_u16().await.context(ReadPduFieldSnafu {
                                 field: "User-Identity-secondary-field-length",
                             })?;
 
                         // n+3-m - Secondary Field
                         let secondary_field = read_n(&mut cursor, secondary_field_length as usize)
+                            .await
                             .context(ReadPduFieldSnafu {
                                 field: "User-Identity-secondary-field",
                             })?;
@@ -906,6 +945,7 @@ where
                         user_variables.push(UserVariableItem::Unknown(
                             item_type,
                             read_n(&mut cursor, item_length as usize)
+                                .await
                                 .context(ReadPduFieldSnafu { field: "Unknown" })?,
                         ));
                     }

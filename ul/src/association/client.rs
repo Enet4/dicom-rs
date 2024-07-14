@@ -4,27 +4,30 @@
 //! in which this application entity is the one requesting the association.
 //! See [`ClientAssociationOptions`]
 //! for details and examples on how to create an association.
+use std::{borrow::Cow, convert::TryInto, net::ToSocketAddrs, time::Duration};
+#[cfg(not(feature = "tokio"))]
 use std::{
-    borrow::Cow,
-    convert::TryInto,
     io::Write,
-    net::{TcpStream, ToSocketAddrs}, time::Duration,
+    net::{TcpStream, ToSocketAddrs},
+};
+#[cfg(feature = "tokio")]
+use tokio::{
+    io::{AsyncRead, AsyncWriteExt},
+    net::TcpStream,
 };
 
 use crate::{
     pdu::{
-        reader::{read_pdu, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE},
-        writer::write_pdu,
-        AbortRQSource, AssociationAC, AssociationRJ, AssociationRQ, Pdu,
+        read_pdu, write_pdu, AbortRQSource, AssociationAC, AssociationRJ, AssociationRQ, Pdu,
         PresentationContextProposed, PresentationContextResult, PresentationContextResultReason,
-        UserIdentity, UserIdentityType, UserVariableItem,
+        UserIdentity, UserIdentityType, UserVariableItem, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE,
     },
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
 use snafu::{ensure, Backtrace, ResultExt, Snafu};
 
 use super::{
-    pdata::{PDataReader, PDataWriter},
+    //pdata::{PDataReader, PDataWriter},
     uid::trim_uid,
 };
 
@@ -39,15 +42,15 @@ pub enum Error {
         source: std::io::Error,
         backtrace: Backtrace,
     },
-    
+
     /// Could not set tcp read timeout
-    SetReadTimeout{
+    SetReadTimeout {
         source: std::io::Error,
         backtrace: Backtrace,
     },
 
     /// Could not set tcp write timeout
-    SetWriteTimeout{
+    SetWriteTimeout {
         source: std::io::Error,
         backtrace: Backtrace,
     },
@@ -55,13 +58,13 @@ pub enum Error {
     /// failed to send association request
     SendRequest {
         #[snafu(backtrace)]
-        source: crate::pdu::writer::Error,
+        source: crate::pdu::WriteError,
     },
 
     /// failed to receive association response
     ReceiveResponse {
         #[snafu(backtrace)]
-        source: crate::pdu::reader::Error,
+        source: crate::pdu::ReadError,
     },
 
     #[snafu(display("unexpected response from server `{:?}`", pdu))]
@@ -98,7 +101,7 @@ pub enum Error {
     #[non_exhaustive]
     Send {
         #[snafu(backtrace)]
-        source: crate::pdu::writer::Error,
+        source: crate::pdu::WriteError,
     },
 
     /// failed to send PDU message on wire
@@ -119,7 +122,7 @@ pub enum Error {
     #[non_exhaustive]
     Receive {
         #[snafu(backtrace)]
-        source: crate::pdu::reader::Error,
+        source: crate::pdu::ReadError,
     },
 }
 
@@ -189,10 +192,8 @@ pub struct ClientAssociationOptions<'a> {
     saml_assertion: Option<Cow<'a, str>>,
     /// User identity JWT
     jwt: Option<Cow<'a, str>>,
-    /// TCP read timeout
-    read_timeout: Option<Duration>,
-    /// TCP write timeout
-    write_timeout: Option<Duration>,
+    /// Timeout for individual send/receive operations
+    timeout: Option<Duration>,
 }
 
 impl<'a> Default for ClientAssociationOptions<'a> {
@@ -207,15 +208,14 @@ impl<'a> Default for ClientAssociationOptions<'a> {
             // the list of requested presentation contexts
             presentation_contexts: Vec::new(),
             protocol_version: 1,
-            max_pdu_length: crate::pdu::reader::DEFAULT_MAX_PDU,
+            max_pdu_length: DEFAULT_MAX_PDU,
             strict: true,
             username: None,
             password: None,
             kerberos_service_ticket: None,
             saml_assertion: None,
             jwt: None,
-            read_timeout: None,
-            write_timeout: None,
+            timeout: None,
         }
     }
 }
@@ -412,6 +412,7 @@ impl<'a> ClientAssociationOptions<'a> {
         self
     }
 
+    #[cfg(not(feature = "tokio"))]
     /// Initiate the TCP connection to the given address
     /// and request a new DICOM association,
     /// negotiating the presentation contexts in the process.
@@ -419,6 +420,15 @@ impl<'a> ClientAssociationOptions<'a> {
         self.establish_impl(AeAddr::new_socket_addr(address))
     }
 
+    #[cfg(feature = "tokio")]
+    /// Initiate the TCP connection to the given address
+    /// and request a new DICOM association,
+    /// negotiating the presentation contexts in the process.
+    pub async fn establish<A: ToSocketAddrs>(self, address: A) -> Result<ClientAssociation> {
+        self.establish_impl(AeAddr::new_socket_addr(address)).await
+    }
+
+    #[cfg(not(feature = "tokio"))]
     /// Initiate the TCP connection to the given address
     /// and request a new DICOM association,
     /// negotiating the presentation contexts in the process.
@@ -449,22 +459,49 @@ impl<'a> ClientAssociationOptions<'a> {
         }
     }
 
+    #[cfg(feature = "tokio")]
+    /// Initiate the TCP connection to the given address
+    /// and request a new DICOM association,
+    /// negotiating the presentation contexts in the process.
+    ///
+    /// This method allows you to specify the called AE title
+    /// alongside with the socket address.
+    /// See [AeAddr](`crate::AeAddr`) for more details.
+    /// However, the AE title in this parameter
+    /// is overridden by any `called_ae_title` option
+    /// previously received.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use dicom_ul::association::client::ClientAssociationOptions;
+    /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+    /// let association = ClientAssociationOptions::new()
+    ///     .with_abstract_syntax("1.2.840.10008.1.1")
+    ///     // called AE title in address
+    ///     .establish_with("MY-STORAGE@10.0.0.100:104")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn establish_with(self, ae_address: &str) -> Result<ClientAssociation> {
+        match ae_address.try_into() {
+            Ok(ae_address) => self.establish_impl(ae_address).await,
+            Err(_) => {
+                self.establish_impl(AeAddr::new_socket_addr(ae_address))
+                    .await
+            }
+        }
+    }
+
     /// Set the read timeout for the underlying TCP socket
-    pub fn read_timeout(self, timeout: Duration) -> Self {
+    pub fn timeout(self, timeout: Duration) -> Self {
         Self {
-            read_timeout: Some(timeout),
+            timeout: Some(timeout),
             ..self
         }
     }
 
-    /// Set the write timeout for the underlying TCP socket
-    pub fn write_timeout(self, timeout: Duration) -> Self {
-        Self {
-            write_timeout: Some(timeout),
-            ..self
-        }
-    }
-
+    #[cfg(not(feature = "tokio"))]
     fn establish_impl<T>(self, ae_address: AeAddr<T>) -> Result<ClientAssociation>
     where
         T: ToSocketAddrs,
@@ -483,7 +520,7 @@ impl<'a> ClientAssociationOptions<'a> {
             saml_assertion,
             jwt,
             read_timeout,
-            write_timeout
+            write_timeout,
         } = self;
 
         // fail if no presentation contexts were provided: they represent intent,
@@ -546,11 +583,12 @@ impl<'a> ClientAssociationOptions<'a> {
             user_variables,
         });
 
-        let mut socket = std::net::TcpStream::connect(ae_address)
-            .context(ConnectSnafu)?;
-        socket.set_read_timeout(read_timeout)
+        let mut socket = std::net::TcpStream::connect(ae_address).context(ConnectSnafu)?;
+        socket
+            .set_read_timeout(read_timeout)
             .context(SetReadTimeoutSnafu)?;
-        socket.set_write_timeout(write_timeout)
+        socket
+            .set_write_timeout(write_timeout)
             .context(SetWriteTimeoutSnafu)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         // send request
@@ -649,6 +687,191 @@ impl<'a> ClientAssociationOptions<'a> {
         }
     }
 
+    #[cfg(feature = "tokio")]
+    async fn establish_impl<T>(self, ae_address: AeAddr<T>) -> Result<ClientAssociation>
+    where
+        T: ToSocketAddrs,
+    {
+        let ClientAssociationOptions {
+            calling_ae_title,
+            called_ae_title,
+            application_context_name,
+            presentation_contexts,
+            protocol_version,
+            max_pdu_length,
+            strict,
+            username,
+            password,
+            kerberos_service_ticket,
+            saml_assertion,
+            jwt,
+            timeout,
+        } = self;
+
+        // fail if no presentation contexts were provided: they represent intent,
+        // should not be omitted by the user
+        ensure!(
+            !presentation_contexts.is_empty(),
+            MissingAbstractSyntaxSnafu
+        );
+
+        // choose called AE title
+        let called_ae_title: &str = match (&called_ae_title, ae_address.ae_title()) {
+            (Some(aec), Some(_)) => {
+                tracing::warn!(
+                    "Option `called_ae_title` overrides the AE title to `{}`",
+                    aec
+                );
+                aec
+            }
+            (Some(aec), None) => aec,
+            (None, Some(aec)) => aec,
+            (None, None) => "ANY-SCP",
+        };
+
+        let presentation_contexts: Vec<_> = presentation_contexts
+            .into_iter()
+            .enumerate()
+            .map(|(i, presentation_context)| PresentationContextProposed {
+                id: (i + 1) as u8,
+                abstract_syntax: presentation_context.0.to_string(),
+                transfer_syntaxes: presentation_context
+                    .1
+                    .iter()
+                    .map(|uid| uid.to_string())
+                    .collect(),
+            })
+            .collect();
+
+        let mut user_variables = vec![
+            UserVariableItem::MaxLength(max_pdu_length),
+            UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
+            UserVariableItem::ImplementationVersionName(IMPLEMENTATION_VERSION_NAME.to_string()),
+        ];
+
+        if let Some(user_identity) = Self::determine_user_identity(
+            username,
+            password,
+            kerberos_service_ticket,
+            saml_assertion,
+            jwt,
+        ) {
+            user_variables.push(UserVariableItem::UserIdentityItem(user_identity));
+        }
+
+        let msg = Pdu::AssociationRQ(AssociationRQ {
+            protocol_version,
+            calling_ae_title: calling_ae_title.to_string(),
+            called_ae_title: called_ae_title.to_string(),
+            application_context_name: application_context_name.to_string(),
+            presentation_contexts,
+            user_variables,
+        });
+        let socket_addrs: Vec<_> = ae_address.to_socket_addrs().unwrap().collect();
+
+        let mut socket = TcpStream::connect(socket_addrs.as_slice())
+            .await
+            .context(ConnectSnafu)?;
+        let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
+        // send request
+
+        write_pdu(&mut buffer, &msg)
+            .await
+            .context(SendRequestSnafu)?;
+        socket.write_all(&buffer).await.context(WireSendSnafu)?;
+        buffer.clear();
+        // receive response
+        let msg = read_pdu(&mut socket, MAXIMUM_PDU_SIZE, self.strict)
+            .await
+            .context(ReceiveResponseSnafu)?;
+
+        match msg {
+            Pdu::AssociationAC(AssociationAC {
+                protocol_version: protocol_version_scp,
+                application_context_name: _,
+                presentation_contexts: presentation_contexts_scp,
+                calling_ae_title: _,
+                called_ae_title: _,
+                user_variables,
+            }) => {
+                ensure!(
+                    protocol_version == protocol_version_scp,
+                    ProtocolVersionMismatchSnafu {
+                        expected: protocol_version,
+                        got: protocol_version_scp,
+                    }
+                );
+
+                let acceptor_max_pdu_length = user_variables
+                    .iter()
+                    .find_map(|item| match item {
+                        UserVariableItem::MaxLength(len) => Some(*len),
+                        _ => None,
+                    })
+                    .unwrap_or(DEFAULT_MAX_PDU);
+
+                // treat 0 as the maximum size admitted by the standard
+                let acceptor_max_pdu_length = if acceptor_max_pdu_length == 0 {
+                    MAXIMUM_PDU_SIZE
+                } else {
+                    acceptor_max_pdu_length
+                };
+
+                let presentation_contexts: Vec<_> = presentation_contexts_scp
+                    .into_iter()
+                    .filter(|c| c.reason == PresentationContextResultReason::Acceptance)
+                    .collect();
+                if presentation_contexts.is_empty() {
+                    // abort connection
+                    let _ = write_pdu(
+                        &mut buffer,
+                        &Pdu::AbortRQ {
+                            source: AbortRQSource::ServiceUser,
+                        },
+                    );
+                    let _ = socket.write_all(&buffer);
+                    buffer.clear();
+                    return NoAcceptedPresentationContextsSnafu.fail();
+                }
+                Ok(ClientAssociation {
+                    presentation_contexts,
+                    requestor_max_pdu_length: max_pdu_length,
+                    acceptor_max_pdu_length,
+                    socket,
+                    buffer,
+                    strict,
+                    timeout,
+                })
+            }
+            Pdu::AssociationRJ(association_rj) => RejectedSnafu { association_rj }.fail(),
+            pdu @ Pdu::AbortRQ { .. }
+            | pdu @ Pdu::ReleaseRQ { .. }
+            | pdu @ Pdu::AssociationRQ { .. }
+            | pdu @ Pdu::PData { .. }
+            | pdu @ Pdu::ReleaseRP { .. } => {
+                // abort connection
+                let _ = write_pdu(
+                    &mut buffer,
+                    &Pdu::AbortRQ {
+                        source: AbortRQSource::ServiceUser,
+                    },
+                );
+                let _ = socket.write_all(&buffer);
+                UnexpectedResponseSnafu { pdu }.fail()
+            }
+            pdu @ Pdu::Unknown { .. } => {
+                // abort connection
+                let _ = write_pdu(
+                    &mut buffer,
+                    &Pdu::AbortRQ {
+                        source: AbortRQSource::ServiceUser,
+                    },
+                );
+                let _ = socket.write_all(&buffer);
+                UnknownResponseSnafu { pdu }.fail()
+            }
+        }
+    }
     fn determine_user_identity<T>(
         username: Option<T>,
         password: Option<T>,
@@ -736,6 +959,8 @@ pub struct ClientAssociation {
     buffer: Vec<u8>,
     /// whether to receive PDUs in strict mode
     strict: bool,
+    /// Send/Receive operation timeout
+    timeout: Option<Duration>,
 }
 
 impl ClientAssociation {
@@ -760,6 +985,7 @@ impl ClientAssociation {
         self.requestor_max_pdu_length
     }
 
+    #[cfg(not(feature = "tokio"))]
     /// Send a PDU message to the other intervenient.
     pub fn send(&mut self, msg: &Pdu) -> Result<()> {
         self.buffer.clear();
@@ -773,11 +999,37 @@ impl ClientAssociation {
         self.socket.write_all(&self.buffer).context(WireSendSnafu)
     }
 
+    #[cfg(feature = "tokio")]
+    /// Send a PDU message to the other intervenient.
+    pub async fn send(&mut self, msg: &Pdu) -> Result<()> {
+        self.buffer.clear();
+        write_pdu(&mut self.buffer, msg).await.context(SendSnafu)?;
+        if self.buffer.len() > self.acceptor_max_pdu_length as usize {
+            return SendTooLongPduSnafu {
+                length: self.buffer.len(),
+            }
+            .fail();
+        }
+        self.socket
+            .write_all(&self.buffer)
+            .await
+            .context(WireSendSnafu)
+    }
+
+    #[cfg(not(feature = "tokio"))]
     /// Read a PDU message from the other intervenient.
     pub fn receive(&mut self) -> Result<Pdu> {
         read_pdu(&mut self.socket, self.requestor_max_pdu_length, self.strict).context(ReceiveSnafu)
     }
+    #[cfg(feature = "tokio")]
+    /// Read a PDU message from the other intervenient.
+    pub async fn receive(&mut self) -> Result<Pdu> {
+        read_pdu(&mut self.socket, self.requestor_max_pdu_length, self.strict)
+            .await
+            .context(ReceiveSnafu)
+    }
 
+    #[cfg(not(feature = "tokio"))]
     /// Gracefully terminate the association by exchanging release messages
     /// and then shutting down the TCP connection.
     pub fn release(mut self) -> Result<()> {
@@ -786,6 +1038,16 @@ impl ClientAssociation {
         out
     }
 
+    #[cfg(feature = "tokio")]
+    /// Gracefully terminate the association by exchanging release messages
+    /// and then shutting down the TCP connection.
+    pub async fn release(mut self) -> Result<()> {
+        let out = self.release_impl().await;
+        let _ = self.socket.shutdown().await;
+        out
+    }
+
+    #[cfg(not(feature = "tokio"))]
     /// Send an abort message and shut down the TCP connection,
     /// terminating the association.
     pub fn abort(mut self) -> Result<()> {
@@ -794,6 +1056,18 @@ impl ClientAssociation {
         };
         let out = self.send(&pdu);
         let _ = self.socket.shutdown(std::net::Shutdown::Both);
+        out
+    }
+
+    #[cfg(feature = "tokio")]
+    /// Send an abort message and shut down the TCP connection,
+    /// terminating the association.
+    pub async fn abort(mut self) -> Result<()> {
+        let pdu = Pdu::AbortRQ {
+            source: AbortRQSource::ServiceUser,
+        };
+        let out = self.send(&pdu).await;
+        let _ = self.socket.shutdown().await;
         out
     }
 
@@ -815,23 +1089,24 @@ impl ClientAssociation {
     ///
     /// Returns a writer which automatically
     /// splits the inner data into separate PDUs if necessary.
-    pub fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut TcpStream> {
-        PDataWriter::new(
-            &mut self.socket,
-            presentation_context_id,
-            self.acceptor_max_pdu_length,
-        )
-    }
+    // pub fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut TcpStream> {
+    //     PDataWriter::new(
+    //         &mut self.socket,
+    //         presentation_context_id,
+    //         self.acceptor_max_pdu_length,
+    //     )
+    // }
 
     /// Prepare a P-Data reader for receiving
     /// one or more data item PDUs.
     ///
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
-    pub fn receive_pdata(&mut self) -> PDataReader<&mut TcpStream> {
-        PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
-    }
+    // pub fn receive_pdata(&mut self) -> PDataReader<&mut TcpStream> {
+    //     PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
+    // }
 
+    #[cfg(not(feature = "tokio"))]
     /// Release implementation function,
     /// which tries to send a release request and receive a release response.
     /// This is in a separate private function because
@@ -855,12 +1130,50 @@ impl ClientAssociation {
         }
         Ok(())
     }
+
+    #[cfg(feature = "tokio")]
+    /// Release implementation function,
+    /// which tries to send a release request and receive a release response.
+    /// This is in a separate private function because
+    /// terminating a connection should still close the connection
+    /// if the exchange fails.
+    async fn release_impl(&mut self) -> Result<()> {
+        let pdu = Pdu::ReleaseRQ;
+        self.send(&pdu).await?;
+        let pdu = read_pdu(&mut self.socket, self.requestor_max_pdu_length, self.strict)
+            .await
+            .context(ReceiveSnafu)?;
+
+        match pdu {
+            Pdu::ReleaseRP => {}
+            pdu @ Pdu::AbortRQ { .. }
+            | pdu @ Pdu::AssociationAC { .. }
+            | pdu @ Pdu::AssociationRJ { .. }
+            | pdu @ Pdu::AssociationRQ { .. }
+            | pdu @ Pdu::PData { .. }
+            | pdu @ Pdu::ReleaseRQ { .. } => return UnexpectedResponseSnafu { pdu }.fail(),
+            pdu @ Pdu::Unknown { .. } => return UnknownResponseSnafu { pdu }.fail(),
+        }
+        Ok(())
+    }
 }
 
+#[cfg(not(feature = "tokio"))]
 /// Automatically release the association and shut down the connection.
 impl Drop for ClientAssociation {
     fn drop(&mut self) {
         let _ = self.release_impl();
         let _ = self.socket.shutdown(std::net::Shutdown::Both);
+    }
+}
+
+#[cfg(feature = "tokio")]
+/// Automatically release the association and shut down the connection.
+impl Drop for ClientAssociation {
+    fn drop(&mut self) {
+        async {
+            let _ = self.release_impl().await;
+            let _ = self.socket.shutdown().await;
+        };
     }
 }

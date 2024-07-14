@@ -7,13 +7,13 @@
 //! The syntax is `«ae_title»@«network_address»:«port»`,
 //! which works not only with IPv4 and IPv6 addresses,
 //! but also with domain names.
+#[cfg(feature = "tokio")]
+use snafu::{ensure, AsErrorSource, ResultExt, Snafu};
 use std::{
     convert::TryFrom,
     net::{SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs},
     str::FromStr,
 };
-
-use snafu::{ensure, AsErrorSource, ResultExt, Snafu};
 
 /// A specification for a full address to the target SCP:
 /// an application entity title, plus a generic  address,

@@ -1,6 +1,7 @@
 use std::{
-    net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream},
+    net::{Ipv4Addr, SocketAddrV4},
     path::PathBuf,
+    sync::Arc,
 };
 
 use clap::Parser;
@@ -47,7 +48,7 @@ struct App {
     port: u16,
 }
 
-fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
+async fn run(scu_stream: tokio::net::TcpStream, args: &App) -> Result<(), Whatever> {
     let App {
         verbose,
         calling_ae_title,
@@ -90,6 +91,7 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
 
     let mut association = options
         .establish(scu_stream)
+        .await
         .whatever_context("could not establish association")?;
 
     info!("New association from {}", association.client_ae_title());
@@ -99,7 +101,7 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
     );
 
     loop {
-        match association.receive() {
+        match association.receive().await {
             Ok(mut pdu) => {
                 if verbose {
                     debug!("scu ----> scp: {}", pdu.short_description());
@@ -153,7 +155,7 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
                                             data: cecho_data,
                                         }],
                                     };
-                                    association.send(&pdu_response).whatever_context(
+                                    association.send(&pdu_response).await.whatever_context(
                                         "failed to send C-ECHO response object to SCU",
                                     )?;
                                 } else {
@@ -254,13 +256,14 @@ fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
                                 };
                                 association
                                     .send(&pdu_response)
+                                    .await
                                     .whatever_context("failed to send response object to SCU")?;
                             }
                         }
                     }
                     Pdu::ReleaseRQ => {
                         buffer.clear();
-                        association.send(&Pdu::ReleaseRP).unwrap_or_else(|e| {
+                        association.send(&Pdu::ReleaseRP).await.unwrap_or_else(|e| {
                             warn!(
                                 "Failed to send association release message to SCU: {}",
                                 snafu::Report::from_error(e)
@@ -355,8 +358,9 @@ fn create_cecho_response(message_id: u16) -> InMemDicomObject<StandardDataDictio
     ])
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = App::parse();
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = Arc::new(App::parse());
 
     tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()
@@ -380,23 +384,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), args.port);
-    let listener = TcpListener::bind(listen_addr)?;
+    let listener = tokio::net::TcpListener::bind(listen_addr).await?;
     info!(
         "{} listening on: tcp://{}",
         &args.calling_ae_title, listen_addr
     );
 
-    for stream in listener.incoming() {
-        match stream {
-            Ok(scu_stream) => {
-                if let Err(e) = run(scu_stream, &args) {
-                    error!("{}", snafu::Report::from_error(e));
-                }
-            }
-            Err(e) => {
+    loop {
+        let (socket, _addr) = listener.accept().await?;
+        let args = args.clone();
+        tokio::task::spawn(async move {
+            if let Err(e) = run(socket, &args).await {
                 error!("{}", snafu::Report::from_error(e));
             }
-        }
+        });
     }
 
     Ok(())

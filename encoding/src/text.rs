@@ -65,7 +65,7 @@ type DecodeResult<T> = Result<T, DecodeTextError>;
 
 /// A holder of encoding and decoding mechanisms for text in DICOM content,
 /// which according to the standard, depends on the specific character set.
-pub trait TextCodec {
+pub trait TextCodec: Send + Sync {
     /// Obtain the defined term (unique name) of the text encoding,
     /// which may be used as the value of a
     /// Specific Character Set (0008, 0005) element to refer to this codec.

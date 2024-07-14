@@ -5,7 +5,7 @@ use std::{
 
 use tracing::warn;
 
-use crate::{pdu::reader::PDU_HEADER_SIZE, read_pdu, Pdu};
+use crate::{pdu::PDU_HEADER_SIZE, read_pdu, Pdu};
 
 /// A P-Data value writer.
 ///
@@ -322,8 +322,7 @@ mod tests {
     use std::collections::VecDeque;
     use std::io::{Read, Write};
 
-    use crate::pdu::reader::{read_pdu, MINIMUM_PDU_SIZE, PDU_HEADER_SIZE};
-    use crate::pdu::Pdu;
+    use crate::pdu::{read_pdu, MINIMUM_PDU_SIZE, PDU_HEADER_SIZE, Pdu};
     use crate::pdu::{PDataValue, PDataValueType};
     use crate::write_pdu;
 
