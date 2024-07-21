@@ -47,7 +47,7 @@ byteordered = "0.6"
 tracing = "0.1.34"
 
 [dependencies.jpeg2k]
-version = "0.7"
+version = "0.9.1"
 optional = true
 default-features = false
 
