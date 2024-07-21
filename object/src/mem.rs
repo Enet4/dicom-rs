@@ -58,7 +58,7 @@ use crate::{
     CreatePrinterSnafu, DicomObject, ElementNotFoundSnafu, FileDicomObject, InvalidGroupSnafu,
     MissingElementValueSnafu, MissingLeafElementSnafu, NoSpaceSnafu, NoSuchAttributeNameSnafu,
     NoSuchDataElementAliasSnafu, NoSuchDataElementTagSnafu, NotASequenceSnafu, OpenFileSnafu,
-    ParseMetaDataSetSnafu, ParseSopAttributesSnafu, PrematureEndSnafu, PrepareMetaTableSnafu,
+    ParseMetaDataSetSnafu, ParseSopAttributeSnafu, PrematureEndSnafu, PrepareMetaTableSnafu,
     PrintDataSetSnafu, PrivateCreatorNotFoundSnafu, PrivateElementError, ReadError, ReadFileSnafu,
     ReadPreambleBytesSnafu, ReadTokenSnafu, ReadUnsupportedTransferSyntaxSnafu,
     UnexpectedTokenSnafu, WithMetaError, WriteError,
@@ -384,7 +384,7 @@ where
                     meta.media_storage_sop_class_uid = elem
                         .value()
                         .to_str()
-                        .context(ParseSopAttributesSnafu)?
+                        .context(ParseSopAttributeSnafu)?
                         .to_string();
                 }
             }
@@ -395,7 +395,7 @@ where
                     meta.media_storage_sop_instance_uid = elem
                         .value()
                         .to_str()
-                        .context(ParseSopAttributesSnafu)?
+                        .context(ParseSopAttributeSnafu)?
                         .to_string();
                 }
             }
