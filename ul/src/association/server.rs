@@ -91,6 +91,9 @@ pub enum Error {
     ))]
     #[non_exhaustive]
     SendTooLongPdu { length: usize, backtrace: Backtrace },
+    Other{
+        msg: String
+    }
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -539,10 +542,21 @@ where
         );
 
         let max_pdu_length = self.max_pdu_length;
+        use bytes::BytesMut;
+        use tokio::io::AsyncReadExt;
+        let mut read_buffer = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
 
-        let pdu = read_pdu(&mut socket, max_pdu_length, self.strict)
-            .await
-            .context(ReceiveRequestSnafu)?;
+        let pdu = loop {
+            match read_pdu(&mut read_buffer, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveRequestSnafu)? {
+                Some(pdu) => break pdu,
+                None => {}
+            }
+            if 0 == socket.read_buf(&mut read_buffer).await.unwrap() {
+                println!("Here {}", read_buffer.len());
+                return OtherSnafu{msg: "Connection closed by peer"}.fail();
+            }
+        };
+
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         match pdu {
             Pdu::AssociationRQ(AssociationRQ {
@@ -563,7 +577,6 @@ where
                             ),
                         }),
                     )
-                    .await
                     .context(SendResponseSnafu)?;
                     socket.write_all(&buffer).await.context(WireSendSnafu)?;
                     return RejectedSnafu.fail();
@@ -579,13 +592,12 @@ where
                             ),
                         }),
                     )
-                    .await
                     .context(SendResponseSnafu)?;
                     socket.write_all(&buffer).await.context(WireSendSnafu)?;
                     return RejectedSnafu.fail();
                 }
 
-                self.ae_access_control
+                match self.ae_access_control
                     .check_access(
                         &self.ae_title,
                         &calling_ae_title,
@@ -598,10 +610,9 @@ where
                                 }
                                 _ => None,
                             }),
-                    )
-                    .map(Ok)
-                    .unwrap_or_else(|reason| {
-                        async {
+                    ){
+                        Ok(()) => {},
+                        Err(reason) => {
                             write_pdu(
                                 &mut buffer,
                                 &Pdu::AssociationRJ(AssociationRJ {
@@ -609,13 +620,12 @@ where
                                     source: AssociationRJSource::ServiceUser(reason),
                                 }),
                             )
-                            .await
                             .context(SendResponseSnafu)?;
                             socket.write_all(&buffer).await.context(WireSendSnafu)?;
-                            return Err::<(), Error>(RejectedSnafu.build());
-                        };
-                        Ok(())
-                    })?;
+                            return Err(RejectedSnafu.build());
+
+                        }
+                    }
 
                 // fetch requested maximum PDU length
                 let requestor_max_pdu_length = user_variables
@@ -685,7 +695,6 @@ where
                         ],
                     }),
                 )
-                .await
                 .context(SendResponseSnafu)?;
                 socket.write_all(&buffer).await.context(WireSendSnafu)?;
 
@@ -697,11 +706,11 @@ where
                     client_ae_title: calling_ae_title,
                     buffer,
                     strict: self.strict,
+                    read_buffer: bytes::BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize)
                 })
             }
             Pdu::ReleaseRQ => {
                 write_pdu(&mut buffer, &Pdu::ReleaseRP)
-                    .await
                     .context(SendResponseSnafu)?;
                 socket.write_all(&buffer).await.context(WireSendSnafu)?;
                 AbortedSnafu.fail()
@@ -769,6 +778,8 @@ pub struct ServerAssociation {
     buffer: Vec<u8>,
     /// whether to receive PDUs in strict mode
     strict: bool,
+    /// Read buffer from the socket
+    read_buffer: bytes::BytesMut
 }
 
 impl ServerAssociation {
@@ -800,7 +811,7 @@ impl ServerAssociation {
     /// Send a PDU message to the other intervenient.
     pub async fn send(&mut self, msg: &Pdu) -> Result<()> {
         self.buffer.clear();
-        write_pdu(&mut self.buffer, msg).await.context(SendSnafu)?;
+        write_pdu(&mut self.buffer, msg).context(SendSnafu)?;
         if self.buffer.len() > self.requestor_max_pdu_length as usize {
             return SendTooLongPduSnafu {
                 length: self.buffer.len(),
@@ -813,18 +824,41 @@ impl ServerAssociation {
             .context(WireSendSnafu)
     }
 
-    #[cfg(not(feature = "tokio"))]
     /// Read a PDU message from the other intervenient.
+    #[cfg(not(feature = "tokio"))]
     pub fn receive(&mut self) -> Result<Pdu> {
-        read_pdu(&mut self.socket, self.acceptor_max_pdu_length, self.strict).context(ReceiveSnafu)
+        match read_pdu(&mut self.socket, self.acceptor_max_pdu_length, self.strict).context(ReceiveSnafu){
+            Ok(Some(pdu)) => Ok(pdu),
+            Ok(None) => self.receive(),
+            Err(e) => Err(e)
+        }
     }
 
     #[cfg(feature = "tokio")]
     /// Read a PDU message from the other intervenient.
-    pub async fn receive(&mut self) -> Result<Pdu> {
-        read_pdu(&mut self.socket, self.acceptor_max_pdu_length, self.strict)
-            .await
-            .context(ReceiveSnafu)
+    pub async fn receive_async(&mut self) -> Result<Pdu> {
+        use std::io::Cursor;
+
+        use bytes::Buf;
+        use tokio::io::AsyncReadExt;
+
+        loop {
+            let mut buf = Cursor::new(&self.read_buffer[..]);
+            match read_pdu(&mut buf, self.requestor_max_pdu_length, self.strict).context(ReceiveRequestSnafu)? {
+                Some(pdu) => {
+                    self.read_buffer.advance(buf.position() as usize);
+                    return Ok(pdu)
+                },
+                None => {
+                    // Reset position
+                    buf.set_position(0)
+                }
+            }
+            let recv = self.socket.read_buf(&mut self.read_buffer).await.unwrap();
+            if recv == 0 {
+                return OtherSnafu{msg: "Connection closed by peer"}.fail();
+            }
+        }
     }
 
     /// Send a provider initiated abort message
@@ -853,7 +887,7 @@ impl ServerAssociation {
             ),
         };
         let out = self.send(&pdu).await;
-        let _ = self.socket.shutdown().await;
+        let _ = self.socket.pubshutdown().await;
         out
     }
 

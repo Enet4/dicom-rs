@@ -10,6 +10,7 @@ use std::{
     io::Write,
     net::{TcpStream, ToSocketAddrs},
 };
+use bytes::BytesMut;
 #[cfg(feature = "tokio")]
 use tokio::{
     io::{AsyncRead, AsyncWriteExt},
@@ -124,6 +125,10 @@ pub enum Error {
         #[snafu(backtrace)]
         source: crate::pdu::ReadError,
     },
+    #[snafu(display("Other error: {}", msg))]
+    Other{
+        msg: String
+    }
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -776,14 +781,21 @@ impl<'a> ClientAssociationOptions<'a> {
         // send request
 
         write_pdu(&mut buffer, &msg)
-            .await
             .context(SendRequestSnafu)?;
         socket.write_all(&buffer).await.context(WireSendSnafu)?;
         buffer.clear();
         // receive response
-        let msg = read_pdu(&mut socket, MAXIMUM_PDU_SIZE, self.strict)
-            .await
-            .context(ReceiveResponseSnafu)?;
+        use tokio::io::AsyncReadExt;
+        let mut read_buffer = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
+
+        let msg = loop {
+            if let Ok(Some(pdu)) = read_pdu(&mut read_buffer, MAXIMUM_PDU_SIZE, self.strict) {
+                break pdu
+            }
+            if 0 == socket.read_buf(&mut read_buffer).await.unwrap() {
+                return OtherSnafu{msg: "Connection closed by peer"}.fail();
+            }
+        };
 
         match msg {
             Pdu::AssociationAC(AssociationAC {
@@ -841,6 +853,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     buffer,
                     strict,
                     timeout,
+                    read_buffer: BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize),
                 })
             }
             Pdu::AssociationRJ(association_rj) => RejectedSnafu { association_rj }.fail(),
@@ -961,6 +974,8 @@ pub struct ClientAssociation {
     strict: bool,
     /// Send/Receive operation timeout
     timeout: Option<Duration>,
+    /// Buffer to assemble PDU before parsing
+    read_buffer: BytesMut
 }
 
 impl ClientAssociation {
@@ -1003,7 +1018,7 @@ impl ClientAssociation {
     /// Send a PDU message to the other intervenient.
     pub async fn send(&mut self, msg: &Pdu) -> Result<()> {
         self.buffer.clear();
-        write_pdu(&mut self.buffer, msg).await.context(SendSnafu)?;
+        write_pdu(&mut self.buffer, msg).context(SendSnafu)?;
         if self.buffer.len() > self.acceptor_max_pdu_length as usize {
             return SendTooLongPduSnafu {
                 length: self.buffer.len(),
@@ -1024,9 +1039,28 @@ impl ClientAssociation {
     #[cfg(feature = "tokio")]
     /// Read a PDU message from the other intervenient.
     pub async fn receive(&mut self) -> Result<Pdu> {
-        read_pdu(&mut self.socket, self.requestor_max_pdu_length, self.strict)
-            .await
-            .context(ReceiveSnafu)
+        use std::io::Cursor;
+
+        use bytes::Buf;
+        use tokio::io::AsyncReadExt;
+
+        loop {
+            let mut buf = Cursor::new(&self.read_buffer[..]);
+            match read_pdu(&mut buf, self.requestor_max_pdu_length, self.strict).context(ReceiveRequestSnafu)? {
+                Some(pdu) => {
+                    self.read_buffer.advance(buf.position() as usize);
+                    return Ok(pdu)
+                },
+                None => {
+                    // Reset position
+                    buf.set_position(0)
+                }
+            }
+            let recv = self.socket.read_buf(&mut self.read_buffer).await.unwrap();
+            if recv == 0 {
+                return OtherSnafu{msg: "Connection closed by peer"}.fail();
+            }
+        }
     }
 
     #[cfg(not(feature = "tokio"))]
@@ -1140,10 +1174,17 @@ impl ClientAssociation {
     async fn release_impl(&mut self) -> Result<()> {
         let pdu = Pdu::ReleaseRQ;
         self.send(&pdu).await?;
-        let pdu = read_pdu(&mut self.socket, self.requestor_max_pdu_length, self.strict)
-            .await
-            .context(ReceiveSnafu)?;
+        use tokio::io::AsyncReadExt;
+        let mut read_buffer = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
 
+        let pdu = loop {
+            if let Ok(Some(pdu)) = read_pdu(&mut read_buffer, MAXIMUM_PDU_SIZE, self.strict) {
+                break pdu
+            }
+            if 0 == self.socket.read_buf(&mut read_buffer).await.unwrap() {
+                return OtherSnafu{msg: "Connection closed by peer"}.fail();
+            }
+        };
         match pdu {
             Pdu::ReleaseRP => {}
             pdu @ Pdu::AbortRQ { .. }

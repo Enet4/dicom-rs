@@ -4,26 +4,14 @@
 //! protocol data units (PDUs) according to
 //! the standard message exchange mechanisms,
 //! as well as readers and writers of PDUs from arbitrary data sources.
-#[cfg(not(feature = "tokio"))]
 pub mod reader;
-#[cfg(feature = "tokio")]
-pub mod reader_nonblocking;
-#[cfg(not(feature = "tokio"))]
 pub mod writer;
-#[cfg(feature = "tokio")]
-pub mod writer_nonblocking;
 
 use std::fmt::Display;
 
-#[cfg(not(feature = "tokio"))]
 pub use reader::read_pdu;
-#[cfg(feature = "tokio")]
-pub use reader_nonblocking::read_pdu;
+pub use writer::{write_pdu, WriteChunkError};
 use snafu::{Backtrace, Snafu};
-#[cfg(not(feature = "tokio"))]
-pub use writer::write_pdu;
-#[cfg(feature = "tokio")]
-pub use writer_nonblocking::{write_pdu, WriteChunkError};
 
 /// The default maximum PDU size
 pub const DEFAULT_MAX_PDU: u32 = 16_384;
