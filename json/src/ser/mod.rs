@@ -6,7 +6,10 @@ use crate::DicomJson;
 use dicom_core::{header::Header, DicomValue, PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_object::{mem::InMemElement, DefaultDicomObject, InMemDicomObject};
-use serde::{ser::SerializeMap, Serialize, Serializer};
+use serde::{
+    ser::{Error as _, SerializeMap},
+    Serialize, Serializer,
+};
 
 use self::value::{AsNumbers, AsPersonNames, AsStrings, InlineBinary};
 mod value;
@@ -217,7 +220,9 @@ impl<D> Serialize for DicomJson<&'_ InMemElement<D>> {
                 serializer.serialize_entry("Value", &DicomJson(seq.items()))?;
             }
             DicomValue::PixelSequence(_seq) => {
-                panic!("serialization of encapsulated pixel data is not supported")
+                return Err(S::Error::custom(
+                    "serialization of encapsulated pixel data is not supported",
+                ));
             }
             DicomValue::Primitive(PrimitiveValue::Empty) => {
                 // no-op
