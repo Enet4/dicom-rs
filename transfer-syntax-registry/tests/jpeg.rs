@@ -270,3 +270,46 @@ fn write_and_read_jpeg_baseline() {
         );
     }
 }
+
+#[test]
+fn test_decode_jpeg_trailing_bytes() {
+
+    let test_file = dicom_test_files::path("pydicom/SC_rgb_jpeg_lossy_gdcm.dcm").unwrap();
+
+    // manually fetch the pixel data fragment from the file
+
+    // single fragment found in file data offset 0x6b8, 3314 bytes
+    let mut buf = read_data_piece(test_file, 0x6b8, 3314);
+
+    // extend the buffer with some trailing bytes
+    buf.resize(buf.len() + 3, 0);
+
+    // create test object
+    let obj = TestDataObject {
+        // JPEG baseline (Process 1)
+        ts_uid: "1.2.840.10008.1.2.4.50".to_string(),
+        rows: 100,
+        columns: 100,
+        bits_allocated: 8,
+        bits_stored: 8,
+        samples_per_pixel: 3,
+        photometric_interpretation: "RGB",
+        number_of_frames: 1,
+        flat_pixel_data: None,
+        pixel_data_sequence: Some(PixelFragmentSequence::new(vec![], vec![buf])),
+    };
+
+    // instantiate JpegAdapter and call decode_frame
+
+    let Codec::EncapsulatedPixelData(Some(adapter), _) = JPEG_BASELINE.codec() else {
+        panic!("JPEG pixel data reader not found")
+    };
+
+    let mut dest = vec![];
+
+    adapter
+        .decode_frame(&obj, 0, &mut dest)
+        .expect("JPEG frame decoding failed");
+
+    assert_eq!(dest.len(), 30_000);
+}
