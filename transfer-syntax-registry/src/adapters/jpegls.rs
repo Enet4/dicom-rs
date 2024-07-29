@@ -1,6 +1,6 @@
 //! Support for JPEG 2000 image decoding.
 
-use charls_sys::CharLS;
+use charls::CharLS;
 use dicom_encoding::adapters::{decode_error, DecodeResult, PixelDataObject, PixelDataReader};
 use dicom_encoding::snafu::prelude::*;
 use std::borrow::Cow;
