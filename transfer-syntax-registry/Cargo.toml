@@ -36,7 +36,7 @@ simd = ["jpeg-encoder?/simd"]
 openjpeg-sys = ["dep:jpeg2k", "jpeg2k/openjpeg-sys"]
 
 # jpeg LS support via charls bindings
-charls = ["dep:charls-sys"]
+charls = ["dep:charls-rs"]
 
 # build OpenJPEG with multithreading,
 # implies "rayon"
@@ -62,8 +62,8 @@ optional = true
 version = "0.6"
 optional = true
 
-[dependencies.charls-sys]
-version = "0.1"
+[dependencies.charls-rs]
+version = "0.2"
 optional = true
 
 [package.metadata.docs.rs]

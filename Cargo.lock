@@ -176,10 +176,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "charls-sys"
-version = "0.1.3"
+name = "charls-rs"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d0fad55b85da4c098fa1cded8bb53e7b4d4e4b12c8d217278d46ddd6882c839"
+checksum = "ba1298140196ae575b89e9e58e781b35ac42b700ed276ed51a8b0cd3bf20c03f"
+dependencies = [
+ "charls-sys",
+]
+
+[[package]]
+name = "charls-sys"
+version = "2.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63d9445022ff0c7b9016e7035bb5291bdbf6eacc993b25d1378844c0f0a7c82f"
 dependencies = [
  "cmake",
 ]
@@ -601,7 +610,7 @@ name = "dicom-transfer-syntax-registry"
 version = "0.7.0"
 dependencies = [
  "byteordered",
- "charls-sys",
+ "charls-rs",
  "dicom-core",
  "dicom-encoding",
  "dicom-test-files",
