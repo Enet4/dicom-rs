@@ -7,7 +7,7 @@ use dicom_core::{header::Header, value::PixelFragmentSequence, DicomValue, Primi
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_object::{mem::InMemElement, DefaultDicomObject, InMemDicomObject};
 use serde::{
-    ser::{Error as _, SerializeMap},
+    ser::SerializeMap,
     Serialize, Serializer,
 };
 
