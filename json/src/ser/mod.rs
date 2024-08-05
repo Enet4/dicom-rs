@@ -3,7 +3,7 @@
 use std::io::Write;
 
 use crate::DicomJson;
-use dicom_core::{header::Header, DicomValue, PrimitiveValue, Tag, VR};
+use dicom_core::{header::Header, value::PixelFragmentSequence, DicomValue, PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_object::{mem::InMemElement, DefaultDicomObject, InMemDicomObject};
 use serde::{ser::SerializeMap, Serialize, Serializer};
@@ -216,8 +216,8 @@ impl<D> Serialize for DicomJson<&'_ InMemElement<D>> {
             DicomValue::Sequence(seq) => {
                 serializer.serialize_entry("Value", &DicomJson(seq.items()))?;
             }
-            DicomValue::PixelSequence(_seq) => {
-                panic!("serialization of encapsulated pixel data is not supported")
+            DicomValue::PixelSequence(seq) => {
+                serializer.serialize_entry("Value", &DicomJson(seq))?;
             }
             DicomValue::Primitive(PrimitiveValue::Empty) => {
                 // no-op
@@ -278,6 +278,20 @@ impl<D> Serialize for DicomJson<InMemElement<D>> {
         S: Serializer,
     {
         DicomJson(&self.0).serialize(serializer)
+    }
+}
+
+impl Serialize for DicomJson<&PixelFragmentSequence<Vec<u8>>> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let offset_table = self.inner().offset_table();
+        let fragments = self.inner().fragments();
+        let mut map = serializer.serialize_map(Some(2))?;
+        map.serialize_entry("Offset Table", offset_table)?;
+        map.serialize_entry("Pixel Fragments", fragments)?;
+        map.end()
     }
 }
 
