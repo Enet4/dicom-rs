@@ -2,13 +2,13 @@
 //!
 //! The module provides an abstraction for a DICOM association
 //! in which this application entity is the one requesting the association.
-//! See [`ClientAssociationOptions`](self::ClientAssociationOptions)
+//! See [`ClientAssociationOptions`]
 //! for details and examples on how to create an association.
 use std::{
     borrow::Cow,
     convert::TryInto,
     io::Write,
-    net::{TcpStream, ToSocketAddrs},
+    net::{TcpStream, ToSocketAddrs}, time::Duration,
 };
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
         writer::write_pdu,
         AbortRQSource, AssociationAC, AssociationRJ, AssociationRQ, Pdu,
         PresentationContextProposed, PresentationContextResult, PresentationContextResultReason,
-        UserVariableItem,
+        UserIdentity, UserIdentityType, UserVariableItem,
     },
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
@@ -36,6 +36,18 @@ pub enum Error {
 
     /// could not connect to server
     Connect {
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
+    
+    /// Could not set tcp read timeout
+    SetReadTimeout{
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
+
+    /// Could not set tcp write timeout
+    SetWriteTimeout{
         source: std::io::Error,
         backtrace: Backtrace,
     },
@@ -167,6 +179,20 @@ pub struct ClientAssociationOptions<'a> {
     max_pdu_length: u32,
     /// whether to receive PDUs in strict mode
     strict: bool,
+    /// User identity username
+    username: Option<Cow<'a, str>>,
+    /// User identity password
+    password: Option<Cow<'a, str>>,
+    /// User identity Kerberos service ticket
+    kerberos_service_ticket: Option<Cow<'a, str>>,
+    /// User identity SAML assertion
+    saml_assertion: Option<Cow<'a, str>>,
+    /// User identity JWT
+    jwt: Option<Cow<'a, str>>,
+    /// TCP read timeout
+    read_timeout: Option<Duration>,
+    /// TCP write timeout
+    write_timeout: Option<Duration>,
 }
 
 impl<'a> Default for ClientAssociationOptions<'a> {
@@ -183,6 +209,13 @@ impl<'a> Default for ClientAssociationOptions<'a> {
             protocol_version: 1,
             max_pdu_length: crate::pdu::reader::DEFAULT_MAX_PDU,
             strict: true,
+            username: None,
+            password: None,
+            kerberos_service_ticket: None,
+            saml_assertion: None,
+            jwt: None,
+            read_timeout: None,
+            write_timeout: None,
         }
     }
 }
@@ -270,6 +303,115 @@ impl<'a> ClientAssociationOptions<'a> {
         self
     }
 
+    /// Sets the user identity username
+    pub fn username<T>(mut self, username: T) -> Self
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        let username = username.into();
+        if username.is_empty() {
+            self.username = None;
+        } else {
+            self.username = Some(username);
+            self.saml_assertion = None;
+            self.jwt = None;
+            self.kerberos_service_ticket = None;
+        }
+        self
+    }
+
+    /// Sets the user identity password
+    pub fn password<T>(mut self, password: T) -> Self
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        let password = password.into();
+        if password.is_empty() {
+            self.password = None;
+        } else {
+            self.password = Some(password);
+            self.saml_assertion = None;
+            self.jwt = None;
+            self.kerberos_service_ticket = None;
+        }
+        self
+    }
+
+    /// Sets the user identity username and password
+    pub fn username_password<T, U>(mut self, username: T, password: U) -> Self
+    where
+        T: Into<Cow<'a, str>>,
+        U: Into<Cow<'a, str>>,
+    {
+        let username = username.into();
+        let password = password.into();
+        if username.is_empty() {
+            self.username = None;
+            self.password = None;
+        } else {
+            self.username = Some(username);
+            self.password = Some(password);
+            self.saml_assertion = None;
+            self.jwt = None;
+            self.kerberos_service_ticket = None;
+        }
+        self
+    }
+
+    /// Sets the user identity Kerberos service ticket
+    pub fn kerberos_service_ticket<T>(mut self, kerberos_service_ticket: T) -> Self
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        let kerberos_service_ticket = kerberos_service_ticket.into();
+        if kerberos_service_ticket.is_empty() {
+            self.kerberos_service_ticket = None;
+        } else {
+            self.kerberos_service_ticket = Some(kerberos_service_ticket);
+            self.username = None;
+            self.password = None;
+            self.saml_assertion = None;
+            self.jwt = None;
+        }
+        self
+    }
+
+    /// Sets the user identity SAML assertion
+    pub fn saml_assertion<T>(mut self, saml_assertion: T) -> Self
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        let saml_assertion = saml_assertion.into();
+        if saml_assertion.is_empty() {
+            self.saml_assertion = None;
+        } else {
+            self.saml_assertion = Some(saml_assertion);
+            self.username = None;
+            self.password = None;
+            self.jwt = None;
+            self.kerberos_service_ticket = None;
+        }
+        self
+    }
+
+    /// Sets the user identity JWT
+    pub fn jwt<T>(mut self, jwt: T) -> Self
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        let jwt = jwt.into();
+        if jwt.is_empty() {
+            self.jwt = None;
+        } else {
+            self.jwt = Some(jwt);
+            self.username = None;
+            self.password = None;
+            self.saml_assertion = None;
+            self.kerberos_service_ticket = None;
+        }
+        self
+    }
+
     /// Initiate the TCP connection to the given address
     /// and request a new DICOM association,
     /// negotiating the presentation contexts in the process.
@@ -307,6 +449,22 @@ impl<'a> ClientAssociationOptions<'a> {
         }
     }
 
+    /// Set the read timeout for the underlying TCP socket
+    pub fn read_timeout(self, timeout: Duration) -> Self {
+        Self {
+            read_timeout: Some(timeout),
+            ..self
+        }
+    }
+
+    /// Set the write timeout for the underlying TCP socket
+    pub fn write_timeout(self, timeout: Duration) -> Self {
+        Self {
+            write_timeout: Some(timeout),
+            ..self
+        }
+    }
+
     fn establish_impl<T>(self, ae_address: AeAddr<T>) -> Result<ClientAssociation>
     where
         T: ToSocketAddrs,
@@ -319,6 +477,13 @@ impl<'a> ClientAssociationOptions<'a> {
             protocol_version,
             max_pdu_length,
             strict,
+            username,
+            password,
+            kerberos_service_ticket,
+            saml_assertion,
+            jwt,
+            read_timeout,
+            write_timeout
         } = self;
 
         // fail if no presentation contexts were provided: they represent intent,
@@ -355,22 +520,38 @@ impl<'a> ClientAssociationOptions<'a> {
                     .collect(),
             })
             .collect();
+
+        let mut user_variables = vec![
+            UserVariableItem::MaxLength(max_pdu_length),
+            UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
+            UserVariableItem::ImplementationVersionName(IMPLEMENTATION_VERSION_NAME.to_string()),
+        ];
+
+        if let Some(user_identity) = Self::determine_user_identity(
+            username,
+            password,
+            kerberos_service_ticket,
+            saml_assertion,
+            jwt,
+        ) {
+            user_variables.push(UserVariableItem::UserIdentityItem(user_identity));
+        }
+
         let msg = Pdu::AssociationRQ(AssociationRQ {
             protocol_version,
             calling_ae_title: calling_ae_title.to_string(),
             called_ae_title: called_ae_title.to_string(),
             application_context_name: application_context_name.to_string(),
             presentation_contexts,
-            user_variables: vec![
-                UserVariableItem::MaxLength(max_pdu_length),
-                UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
-                UserVariableItem::ImplementationVersionName(
-                    IMPLEMENTATION_VERSION_NAME.to_string(),
-                ),
-            ],
+            user_variables,
         });
 
-        let mut socket = std::net::TcpStream::connect(ae_address).context(ConnectSnafu)?;
+        let mut socket = std::net::TcpStream::connect(ae_address)
+            .context(ConnectSnafu)?;
+        socket.set_read_timeout(read_timeout)
+            .context(SetReadTimeoutSnafu)?;
+        socket.set_write_timeout(write_timeout)
+            .context(SetWriteTimeoutSnafu)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         // send request
 
@@ -467,6 +648,64 @@ impl<'a> ClientAssociationOptions<'a> {
             }
         }
     }
+
+    fn determine_user_identity<T>(
+        username: Option<T>,
+        password: Option<T>,
+        kerberos_service_ticket: Option<T>,
+        saml_assertion: Option<T>,
+        jwt: Option<T>,
+    ) -> Option<UserIdentity>
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        if let Some(username) = username {
+            if let Some(password) = password {
+                return Some(UserIdentity::new(
+                    false,
+                    UserIdentityType::UsernamePassword,
+                    username.into().as_bytes().to_vec(),
+                    password.into().as_bytes().to_vec(),
+                ));
+            } else {
+                return Some(UserIdentity::new(
+                    false,
+                    UserIdentityType::Username,
+                    username.into().as_bytes().to_vec(),
+                    vec![],
+                ));
+            }
+        }
+
+        if let Some(kerberos_service_ticket) = kerberos_service_ticket {
+            return Some(UserIdentity::new(
+                false,
+                UserIdentityType::KerberosServiceTicket,
+                kerberos_service_ticket.into().as_bytes().to_vec(),
+                vec![],
+            ));
+        }
+
+        if let Some(saml_assertion) = saml_assertion {
+            return Some(UserIdentity::new(
+                false,
+                UserIdentityType::SamlAssertion,
+                saml_assertion.into().as_bytes().to_vec(),
+                vec![],
+            ));
+        }
+
+        if let Some(jwt) = jwt {
+            return Some(UserIdentity::new(
+                false,
+                UserIdentityType::Jwt,
+                jwt.into().as_bytes().to_vec(),
+                vec![],
+            ));
+        }
+
+        None
+    }
 }
 
 /// A DICOM upper level association from the perspective
@@ -547,11 +786,6 @@ impl ClientAssociation {
         out
     }
 
-    /// Release implementation function,
-    /// which tries to send a release request and receive a release response.
-    /// This is in a separate private function because
-    /// terminating a connection should still close the connection
-    /// if the exchange fails.
     /// Send an abort message and shut down the TCP connection,
     /// terminating the association.
     pub fn abort(mut self) -> Result<()> {
@@ -598,6 +832,11 @@ impl ClientAssociation {
         PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
     }
 
+    /// Release implementation function,
+    /// which tries to send a release request and receive a release response.
+    /// This is in a separate private function because
+    /// terminating a connection should still close the connection
+    /// if the exchange fails.
     fn release_impl(&mut self) -> Result<()> {
         let pdu = Pdu::ReleaseRQ;
         self.send(&pdu)?;

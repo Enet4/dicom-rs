@@ -54,7 +54,7 @@ pub enum Error {
     /// the text in one of its data elements.
     #[snafu(display("Could not decode text in {}", name))]
     DecodeText {
-        name: &'static str,
+        name: std::borrow::Cow<'static, str>,
         #[snafu(backtrace)]
         source: dicom_encoding::text::DecodeTextError,
     },
@@ -114,14 +114,13 @@ type Result<T> = std::result::Result<T, Error>;
 /// as specified in [part 6, chapter 7][1] of the standard.
 ///
 /// Creating a new file meta table from scratch
-/// is more easily done using a [`FileMetaTableBuilder`][2].
+/// is more easily done using a [`FileMetaTableBuilder`].
 /// When modifying the struct's public fields,
 /// it is possible to update the information group length
-/// through method [`update_information_group_length`][3].
+/// through method [`update_information_group_length`][2].
 ///
 /// [1]: http://dicom.nema.org/medical/dicom/current/output/chtml/part06/chapter_7.html
-/// [2]: crate::meta::FileMetaTableBuilder
-/// [3]: FileMetaTable::update_information_group_length
+/// [2]: FileMetaTable::update_information_group_length
 #[derive(Debug, Clone, PartialEq)]
 pub struct FileMetaTable {
     /// File Meta Information Group Length
@@ -166,9 +165,9 @@ pub struct FileMetaTable {
 }
 
 /// Utility function for reading the body of the DICOM element as a UID.
-fn read_str_body<'s, S: 's, T>(source: &'s mut S, text: &T, len: u32) -> Result<String>
+fn read_str_body<'s, S, T>(source: &'s mut S, text: &T, len: u32) -> Result<String>
 where
-    S: Read,
+    S: Read + 's,
     T: TextCodec,
 {
     let mut v = Vec::new();
@@ -227,15 +226,10 @@ impl FileMetaTable {
     /// Set the file meta table's transfer syntax
     /// according to the given transfer syntax descriptor.
     ///
-    /// Extra padding to even length is trimmed.
-    ///
-    /// Note that the field `information_group_length` is _not_ updated
-    /// to consider the length of the new transfer syntax.
-    /// Should you wish to keep the field up to date,
-    /// call [`update_information_group_length`][1] afterwards.
-    ///
-    /// [1]: FileMetaTable::update_information_group_length
-    pub fn set_transfer_syntax<D, P>(&mut self, ts: &TransferSyntax<D, P>) {
+    /// This replaces the table's transfer syntax UID
+    /// to the given transfer syntax, without padding to even length.
+    /// The information group length field is automatically recalculated.
+    pub fn set_transfer_syntax<D, R, W>(&mut self, ts: &TransferSyntax<D, R, W>) {
         self.transfer_syntax = ts
             .uid()
             .trim_end_matches(|c: char| c.is_whitespace() || c == '\0')
@@ -781,6 +775,8 @@ impl FileMetaTable {
             writer,
             EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
         );
+        //There are no sequences in the `FileMetaTable`, so the value of `invalidate_sq_len` is
+        //not important
         dset.write_sequence(
             self.clone()
                 .into_element_iter()
@@ -976,16 +972,17 @@ impl FileMetaTableBuilder {
             // Missing information version, will assume (00H, 01H). See #28
             [0, 1],
         );
-        let media_storage_sop_class_uid =
-            self.media_storage_sop_class_uid
-                .context(MissingElementSnafu {
-                    alias: "MediaStorageSOPClassUID",
-                })?;
+        let media_storage_sop_class_uid = self.media_storage_sop_class_uid.unwrap_or_else(|| {
+            tracing::warn!("MediaStorageSOPClassUID is missing. Defaulting to empty string.");
+            String::default()
+        });
         let media_storage_sop_instance_uid =
-            self.media_storage_sop_instance_uid
-                .context(MissingElementSnafu {
-                    alias: "MediaStorageSOPInstanceUID",
-                })?;
+            self.media_storage_sop_instance_uid.unwrap_or_else(|| {
+                tracing::warn!(
+                    "MediaStorageSOPInstanceUID is missing. Defaulting to empty string."
+                );
+                String::default()
+            });
         let transfer_syntax = self.transfer_syntax.context(MissingElementSnafu {
             alias: "TransferSyntax",
         })?;
@@ -1197,9 +1194,8 @@ mod tests {
             156 + dicom_len(IMPLEMENTATION_CLASS_UID) + dicom_len(IMPLEMENTATION_VERSION_NAME)
         );
 
-        // Note (#409): erased is required due to a missing type parameter in the setter
         table.set_transfer_syntax(
-            &dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
+            &dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN,
         );
         assert_eq!(
             table.information_group_length,

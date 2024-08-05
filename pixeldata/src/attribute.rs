@@ -24,6 +24,8 @@ pub enum AttributeName {
     PixelData,
     PixelRepresentation,
     PlanarConfiguration,
+    RescaleSlope,
+    RescaleIntercept,
     SamplesPerPixel,
     VoiLutFunction,
     WindowCenter,
@@ -93,25 +95,35 @@ pub fn rows<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>
 /// Get the VOILUTFunction from the DICOM object
 pub fn voi_lut_function<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> Result<Option<String>> {
-    let elem = if let Some(elem) =
-        obj.element_opt(tags::VOILUT_FUNCTION)
-            .context(RetrieveSnafu {
-                name: AttributeName::VoiLutFunction,
-            })? {
-        elem
+) -> Result<Option<Vec<String>>> {
+    let elems = obj
+        .element(tags::VOILUT_FUNCTION)
+        .ok()
+        .map(|v| vec![v])
+        .or_else(|| {
+            get_from_shared(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::VOILUT_FUNCTION])
+                .map(|inner| inner.collect())
+        })
+        .or_else(|| {
+            get_from_per_frame(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::VOILUT_FUNCTION])
+                .map(|inner| inner.collect())
+        });
+    if let Some(elems_inner) = elems {
+        let res = elems_inner
+            .iter()
+            .map(|el| {
+                (*el)
+                    .string()
+                    .context(CastValueSnafu {
+                        name: AttributeName::VoiLutFunction,
+                    })
+                    .map(|v| v.trim().to_string())
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Some(res))
     } else {
-        return Ok(None);
-    };
-
-    let value = elem
-        .string()
-        .context(CastValueSnafu {
-            name: AttributeName::VoiLutFunction,
-        })?
-        .trim()
-        .to_string();
-    Ok(Some(value))
+        Ok(Some(vec!["LINEAR".to_string()]))
+    }
 }
 
 /// Get the SamplesPerPixel from the DICOM object
@@ -152,20 +164,104 @@ pub fn pixel_data<D: DataDictionary + Clone>(
         .context(MissingRequiredSnafu { name })
 }
 
+fn get_from_shared<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+    selector: [Tag; 2],
+) -> Option<impl Iterator<Item = &InMemElement<D>>> {
+    obj.get(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE)?
+        .items()?
+        .first()?
+        .get(selector[0])
+        .and_then(|inner| inner.items()?.first()?.get(selector[1]))
+        // Sometimes the tag is not in the properly nested sequence, but just flat in the first
+        // element of the SharedFunctionalGroupsSequence
+        .or_else(|| {
+            obj.get(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE)?
+                .items()?
+                .first()?
+                .get(selector[1])
+        })
+        .map(std::iter::once)
+}
+
+fn get_from_per_frame<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+    selector: [Tag; 2],
+) -> Option<impl Iterator<Item = &InMemElement<D>>> {
+    Some(
+        obj.get(tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE)?
+            .items()?
+            .iter()
+            .filter_map(move |item| item.get(selector[0])?.items()?.first()?.get(selector[1])),
+    )
+}
+
 /// Get the RescaleIntercept from the DICOM object or returns 0
 pub fn rescale_intercept<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> f64 {
+) -> Vec<f64> {
     obj.element(tags::RESCALE_INTERCEPT)
-        .map_or(Ok(0.), |e| e.to_float64())
-        .unwrap_or(0.)
+        .ok()
+        .and_then(|e| {
+            vec![e.to_float64().ok()]
+                .into_iter()
+                .collect::<Option<Vec<f64>>>()
+        })
+        .or_else(|| {
+            get_from_per_frame(
+                obj,
+                [
+                    tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
+                    tags::RESCALE_INTERCEPT,
+                ],
+            )
+            .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+        })
+        .or_else(|| {
+            get_from_shared(
+                obj,
+                [
+                    tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
+                    tags::RESCALE_INTERCEPT,
+                ],
+            )
+            .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+        })
+        .unwrap_or(vec![0.])
 }
 
 /// Get the RescaleSlope from the DICOM object or returns 1.0
-pub fn rescale_slope<D: DataDictionary + Clone>(obj: &FileDicomObject<InMemDicomObject<D>>) -> f64 {
+pub fn rescale_slope<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+) -> Vec<f64> {
     obj.element(tags::RESCALE_SLOPE)
-        .map_or(Ok(1.0), |e| e.to_float64())
-        .unwrap_or(1.0)
+        .ok()
+        .and_then(|e| {
+            vec![e.to_float64().ok()]
+                .into_iter()
+                .collect::<Option<Vec<f64>>>()
+        })
+        .or_else(|| {
+            get_from_per_frame(
+                obj,
+                [
+                    tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
+                    tags::RESCALE_SLOPE,
+                ],
+            )
+            .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+        })
+        .or_else(|| {
+            get_from_shared(
+                obj,
+                [
+                    tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
+                    tags::RESCALE_SLOPE,
+                ],
+            )
+            .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+        })
+        .unwrap_or(vec![1.0])
 }
 
 /// Get the NumberOfFrames from the DICOM object,
@@ -199,15 +295,45 @@ pub fn number_of_frames<D: DataDictionary + Clone>(
 /// Retrieve the WindowCenter from the DICOM object if it exists.
 pub fn window_center<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> Result<Option<f64>> {
-    retrieve_optional_to_f64(obj, tags::WINDOW_CENTER, AttributeName::WindowCenter)
+) -> Option<Vec<f64>> {
+    let wc = obj
+        .get(tags::WINDOW_CENTER)
+        .and_then(|e| {
+            vec![e.to_float64().ok()]
+                .into_iter()
+                .collect::<Option<Vec<f64>>>()
+        })
+        .or_else(|| {
+            get_from_per_frame(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_CENTER])
+                .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+        })
+        .or_else(|| {
+            get_from_shared(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_CENTER])
+                .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+        });
+    wc
 }
 
 /// Retrieve the WindowWidth from the DICOM object if it exists.
 pub fn window_width<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
-) -> Result<Option<f64>> {
-    retrieve_optional_to_f64(obj, tags::WINDOW_WIDTH, AttributeName::WindowWidth)
+) -> Option<Vec<f64>> {
+    let ww = obj
+        .get(tags::WINDOW_WIDTH)
+        .and_then(|e| {
+            vec![e.to_float64().ok()]
+                .into_iter()
+                .collect::<Option<Vec<f64>>>()
+        })
+        .or_else(|| {
+            get_from_per_frame(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_WIDTH])
+                .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+        })
+        .or_else(|| {
+            get_from_shared(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_WIDTH])
+                .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+        });
+    ww
 }
 
 #[inline]
@@ -224,21 +350,6 @@ where
         .context(MissingRequiredSnafu { name })?
         .uint16()
         .context(CastValueSnafu { name })
-}
-
-#[inline]
-fn retrieve_optional_to_f64<D>(
-    obj: &FileDicomObject<InMemDicomObject<D>>,
-    tag: Tag,
-    name: AttributeName,
-) -> Result<Option<f64>>
-where
-    D: DataDictionary + Clone,
-{
-    match obj.element_opt(tag).context(RetrieveSnafu { name })? {
-        Some(e) => e.to_float64().context(ConvertValueSnafu { name }).map(Some),
-        None => Ok(None),
-    }
 }
 
 /// A decoded representation of the DICOM _Pixel Representation_ attribute.
@@ -497,14 +608,145 @@ pub fn photometric_interpretation<D: DataDictionary + Clone>(
 
 #[cfg(test)]
 mod tests {
+    use super::rescale_intercept;
+    use dicom_core::{
+        dicom_value,
+        ops::{ApplyOp, AttributeAction, AttributeOp},
+        value::DataSetSequence,
+        DataElement, PrimitiveValue, VR,
+    };
+    use dicom_dictionary_std::{tags, uids};
+    use dicom_object::{
+        DefaultDicomObject, FileDicomObject, FileMetaTableBuilder, InMemDicomObject,
+    };
 
     #[test]
     fn errors_are_not_too_large() {
         let size = std::mem::size_of::<super::GetAttributeError>();
         assert!(
-            size <= 64,
-            "GetAttributeError size is too large ({} > 64)",
+            size <= 80,
+            "GetAttributeError size is too large ({} > 80)",
             size
         );
+    }
+
+    fn dummy_dicom() -> DefaultDicomObject {
+        FileDicomObject::new_empty_with_meta(
+            FileMetaTableBuilder::new()
+                .transfer_syntax(uids::EXPLICIT_VR_LITTLE_ENDIAN)
+                .media_storage_sop_class_uid(uids::ENHANCED_MR_IMAGE_STORAGE)
+                .media_storage_sop_instance_uid("2.25.145929179730251416957282651365760465911")
+                .build()
+                .unwrap(),
+        )
+    }
+
+    #[test]
+    fn get_required_field_from_top_level_dataset() {
+        let mut dcm = dummy_dicom();
+        // Returns vec![0.] if not present
+        assert_eq!(rescale_intercept(&dcm), vec![0.]);
+
+        // Finds the correct value from top level dataset
+        dcm.put_element(DataElement::new(
+            tags::RESCALE_INTERCEPT,
+            VR::DS,
+            dicom_value!(F64, 1.0),
+        ));
+        assert_eq!(rescale_intercept(&dcm), vec![1.0]);
+    }
+
+    #[test]
+    fn get_required_field_from_shared_fn_groups() {
+        let mut dcm = dummy_dicom();
+        // Add shared functional groups sequence
+        dcm.apply(AttributeOp::new(
+            tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
+            AttributeAction::SetIfMissing(PrimitiveValue::Empty),
+        ))
+        .unwrap();
+        // Check the fn still returns nothing.
+        assert_eq!(rescale_intercept(&dcm), vec![0.0]);
+
+        // Add the PixelValueTransformationSequence entry
+        dcm.apply(AttributeOp::new(
+            (
+                tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
+                0,
+                tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
+            ),
+            AttributeAction::Set(PrimitiveValue::Empty),
+        ))
+        .unwrap();
+
+        // Check the fn still returns nothing.
+        assert_eq!(rescale_intercept(&dcm), vec![0.0]);
+        dcm.apply(AttributeOp::new(
+            (
+                tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
+                0,
+                tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
+                0,
+                tags::RESCALE_INTERCEPT,
+            ),
+            AttributeAction::Set(dicom_value!(F64, 3.0)),
+        ))
+        .unwrap();
+        // Check value is returned correctly
+        assert_eq!(rescale_intercept(&dcm), vec![3.0]);
+    }
+
+    #[test]
+    fn get_required_field_from_shared_fn_groups_improper_placement() {
+        let mut dcm = dummy_dicom();
+        // Add shared functional groups sequence
+        dcm.apply(AttributeOp::new(
+            tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
+            AttributeAction::SetIfMissing(PrimitiveValue::Empty),
+        ))
+        .unwrap();
+        // Check the fn still returns nothing.
+        assert_eq!(rescale_intercept(&dcm), vec![0.0]);
+
+        // Add rescale intercept at top level of SharedFunctionalGroupsSequence
+        dcm.apply(AttributeOp::new(
+            (
+                tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
+                0,
+                tags::RESCALE_INTERCEPT,
+            ),
+            AttributeAction::Set(dicom_value!(F64, 3.0)),
+        ))
+        .unwrap();
+        // Check value is returned correctly
+        assert_eq!(rescale_intercept(&dcm), vec![3.0]);
+    }
+
+    #[test]
+    fn get_required_field_from_per_frame_fns() {
+        let mut dcm = dummy_dicom();
+        let rescale = |v| {
+            DataElement::new(
+                tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
+                VR::SQ,
+                DataSetSequence::from(vec![InMemDicomObject::from_element_iter([
+                    DataElement::new(tags::RESCALE_INTERCEPT, VR::DS, dicom_value!(F64, v)),
+                ])]),
+            )
+        };
+
+        let exp = vec![1.0, 3.0, 5.0];
+
+        let els = exp
+            .iter()
+            .map(|v| InMemDicomObject::from_element_iter([rescale(*v)]))
+            .collect::<Vec<_>>();
+
+        dcm.put(DataElement::new(
+            tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE,
+            VR::SQ,
+            DataSetSequence::from(els),
+        ));
+        assert_eq!(rescale_intercept(&dcm), exp);
     }
 }

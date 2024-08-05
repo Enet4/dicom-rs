@@ -1,6 +1,6 @@
 [package]
 name = "dicom-dictionary-std"
-version = "0.6.1"
+version = "0.7.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "Standard DICOM attribute dictionary"
 edition = "2018"
@@ -27,5 +27,5 @@ ldap-oid = []
 synchronization-frame-of-reference = []
 
 [dependencies]
-dicom-core = { path = "../core", version = "0.6.3" }
+dicom-core = { path = "../core", version = "0.7.0" }
 once_cell = "1.18.0"

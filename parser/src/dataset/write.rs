@@ -6,9 +6,9 @@
 //! to a writer.
 //! In this process, the writer will also adapt values
 //! to the necessary DICOM encoding rules.
-use crate::dataset::*;
+use crate::dataset::{DataToken, SeqTokenType};
 use crate::stateful::encode::StatefulEncoder;
-use dicom_core::{DataElementHeader, Length, VR};
+use dicom_core::{DataElementHeader, Length, Tag, VR};
 use dicom_encoding::encode::EncodeTo;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::DynEncoder;
@@ -95,6 +95,27 @@ impl<'w, W: 'w> DataSetWriter<W, DynEncoder<'w, W>>
 where
     W: Write,
 {
+    /// Create a new data set writer
+    /// with the given transfer syntax specifier.
+    pub fn with_ts(to: W, ts: &TransferSyntax) -> Result<Self> {
+        let encoder = ts.encoder_for().context(UnsupportedTransferSyntaxSnafu {
+            ts_uid: ts.uid(),
+            ts_alias: ts.name(),
+        })?;
+        Ok(DataSetWriter::new_with_codec(
+            to,
+            encoder,
+            SpecificCharacterSet::default(),
+        ))
+    }
+
+    /// Create a new data set writer
+    /// with the given transfer syntax specifier
+    /// and the specific character set to assume by default.
+    ///
+    /// Note that the data set being written
+    /// can override the character set with the presence of a
+    /// _Specific Character Set_ data element.
     pub fn with_ts_cs(to: W, ts: &TransferSyntax, charset: SpecificCharacterSet) -> Result<Self> {
         let encoder = ts.encoder_for().context(UnsupportedTransferSyntaxSnafu {
             ts_uid: ts.uid(),
@@ -107,7 +128,7 @@ where
 impl<W, E> DataSetWriter<W, E> {
     pub fn new(to: W, encoder: E) -> Self {
         DataSetWriter {
-            printer: StatefulEncoder::new(to, encoder, SpecificCharacterSet::Default),
+            printer: StatefulEncoder::new(to, encoder, SpecificCharacterSet::default()),
             seq_tokens: Vec::new(),
             last_de: None,
         }

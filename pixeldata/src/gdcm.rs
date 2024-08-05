@@ -1,15 +1,22 @@
 //! Decode pixel data using GDCM when the default features are enabled.
 
-use crate::*;
+use crate::{
+    DecodePixelDataSnafu, DecodedPixelData, GetAttributeSnafu, InvalidPixelDataSnafu,
+    LengthMismatchRescaleSnafu, LengthMismatchWindowLevelSnafu, PixelDecoder, Rescale, Result,
+    UnknownTransferSyntaxSnafu, UnsupportedPhotometricInterpretationSnafu,
+    UnsupportedTransferSyntaxSnafu, VoiLutFunction, WindowLevel,
+};
+use dicom_core::{DataDictionary, DicomValue};
 use dicom_dictionary_std::tags;
-use dicom_encoding::adapters::DecodeError;
-use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
+use dicom_encoding::{adapters::DecodeError, transfer_syntax::TransferSyntaxIndex};
+use dicom_object::{FileDicomObject, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use gdcm_rs::{
     decode_multi_frame_compressed, decode_single_frame_compressed, Error as GDCMError,
     GDCMPhotometricInterpretation, GDCMTransferSyntax,
 };
-use std::{convert::TryFrom, str::FromStr};
+use snafu::{ensure, OptionExt, ResultExt};
+use std::{borrow::Cow, convert::TryFrom, iter::zip, str::FromStr};
 
 impl<D> PixelDecoder for FileDicomObject<InMemDicomObject<D>>
 where
@@ -58,11 +65,23 @@ where
         let rescale_intercept = rescale_intercept(self);
         let rescale_slope = rescale_slope(self);
         let number_of_frames = number_of_frames(self).context(GetAttributeSnafu)?;
-        let voi_lut_function = voi_lut_function(self).context(GetAttributeSnafu)?;
-        let voi_lut_function = voi_lut_function.and_then(|v| VoiLutFunction::try_from(&*v).ok());
+        let voi_lut_function: Option<Vec<VoiLutFunction>> =
+            voi_lut_function(self).unwrap_or(None).and_then(|fns| {
+                fns.iter()
+                    .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
+                    .collect()
+            });
+
+        ensure!(
+            rescale_intercept.len() == rescale_slope.len(),
+            LengthMismatchRescaleSnafu {
+                slope_vm: rescale_slope.len() as u32,
+                intercept_vm: rescale_intercept.len() as u32,
+            }
+        );
 
         let decoded_pixel_data = match pixel_data.value() {
-            Value::PixelSequence(v) => {
+            DicomValue::PixelSequence(v) => {
                 let fragments = v.fragments();
                 let gdcm_error_mapper = |source: GDCMError| DecodeError::Custom {
                     message: source.to_string(),
@@ -104,11 +123,11 @@ where
                     .to_vec()
                 }
             }
-            Value::Primitive(p) => {
+            DicomValue::Primitive(p) => {
                 // Non-encoded, just return the pixel data of the first frame
                 p.to_bytes().to_vec()
             }
-            Value::Sequence(_) => InvalidPixelDataSnafu.fail()?,
+            DicomValue::Sequence(_) => InvalidPixelDataSnafu.fail()?,
         };
 
         // pixels are already interpreted,
@@ -119,13 +138,34 @@ where
             _ => photometric_interpretation,
         };
 
-        let window = if let Some(window_center) = window_center(self).context(GetAttributeSnafu)? {
-            let window_width = window_width(self).context(GetAttributeSnafu)?;
-
-            window_width.map(|width| WindowLevel {
-                center: window_center,
-                width,
+        let rescale = zip(&rescale_intercept, &rescale_slope)
+            .map(|(intercept, slope)| Rescale {
+                intercept: *intercept,
+                slope: *slope,
             })
+            .collect();
+
+        let window = if let Some(wcs) = window_center(&self) {
+            let width = window_width(&self);
+            if let Some(wws) = width {
+                ensure!(
+                    wcs.len() == wws.len(),
+                    LengthMismatchWindowLevelSnafu {
+                        wc_vm: wcs.len() as u32,
+                        ww_vm: wws.len() as u32,
+                    }
+                );
+                Some(
+                    zip(wcs, wws)
+                        .map(|(wc, ww)| WindowLevel {
+                            center: wc,
+                            width: ww,
+                        })
+                        .collect(),
+                )
+            } else {
+                None
+            }
         } else {
             None
         };
@@ -142,10 +182,10 @@ where
             bits_stored,
             high_bit,
             pixel_representation,
-            rescale_intercept,
-            rescale_slope,
+            rescale,
             voi_lut_function,
             window,
+            enforce_frame_fg_vm_match: false,
         })
     }
 
@@ -197,11 +237,15 @@ where
         let rescale_intercept = rescale_intercept(self);
         let rescale_slope = rescale_slope(self);
         let number_of_frames = number_of_frames(self).context(GetAttributeSnafu)?;
-        let voi_lut_function = voi_lut_function(self).context(GetAttributeSnafu)?;
-        let voi_lut_function = voi_lut_function.and_then(|v| VoiLutFunction::try_from(&*v).ok());
+        let voi_lut_function: Option<Vec<VoiLutFunction>> =
+            voi_lut_function(self).unwrap_or(None).and_then(|fns| {
+                fns.iter()
+                    .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
+                    .collect()
+            });
 
         let decoded_pixel_data = match pixel_data.value() {
-            Value::PixelSequence(v) => {
+            DicomValue::PixelSequence(v) => {
                 let fragments = v.fragments();
                 let gdcm_error_mapper = |source: GDCMError| DecodeError::Custom {
                     message: source.to_string(),
@@ -246,7 +290,7 @@ where
                     }
                 }
             }
-            Value::Primitive(p) => {
+            DicomValue::Primitive(p) => {
                 // Uncompressed data
                 let frame_size = cols as usize
                     * rows as usize
@@ -258,7 +302,7 @@ where
                     .map(|frame| frame.to_vec())
                     .unwrap_or_default()
             }
-            Value::Sequence(_) => InvalidPixelDataSnafu.fail()?,
+            DicomValue::Sequence(_) => InvalidPixelDataSnafu.fail()?,
         };
 
         // Convert to PlanarConfiguration::Standard
@@ -273,13 +317,36 @@ where
             decoded_pixel_data
         };
 
-        let window = match (
-            window_center(self).context(GetAttributeSnafu)?,
-            window_width(self).context(GetAttributeSnafu)?,
-        ) {
-            (Some(center), Some(width)) => Some(WindowLevel { center, width }),
-            _ => None,
+        let window = if let Some(wcs) = window_center(self) {
+            let width = window_width(self);
+            if let Some(wws) = width {
+                ensure!(
+                    wcs.len() == wws.len(),
+                    LengthMismatchWindowLevelSnafu {
+                        wc_vm: wcs.len() as u32,
+                        ww_vm: wws.len() as u32,
+                    }
+                );
+                Some(
+                    zip(wcs, wws)
+                        .map(|(wc, ww)| WindowLevel {
+                            center: wc,
+                            width: ww,
+                        })
+                        .collect(),
+                )
+            } else {
+                None
+            }
+        } else {
+            None
         };
+        let rescale = zip(&rescale_intercept, &rescale_slope)
+            .map(|(intercept, slope)| Rescale {
+                intercept: *intercept,
+                slope: *slope,
+            })
+            .collect();
 
         Ok(DecodedPixelData {
             data: Cow::from(decoded_pixel_data),
@@ -293,10 +360,10 @@ where
             bits_stored,
             high_bit,
             pixel_representation,
-            rescale_intercept,
-            rescale_slope,
+            rescale: rescale,
             voi_lut_function,
             window,
+            enforce_frame_fg_vm_match: false,
         })
     }
 }
@@ -431,6 +498,8 @@ mod tests {
     #[cfg(feature = "ndarray")]
     #[test]
     fn test_to_ndarray_signed_word_no_lut() {
+        use crate::{ConvertOptions, ModalityLutOption};
+
         let test_file = dicom_test_files::path("pydicom/JPEG2000.dcm").unwrap();
         let obj = open_file(test_file).unwrap();
         let options = ConvertOptions::new().with_modality_lut(ModalityLutOption::None);

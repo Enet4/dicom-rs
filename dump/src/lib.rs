@@ -830,7 +830,7 @@ fn value_summary(
             }
         }
         (Strs(values), VR::DT) => {
-            match value.to_multi_datetime(dicom_core::chrono::FixedOffset::east_opt(0).unwrap()) {
+            match value.to_multi_datetime() {
                 Ok(values) => {
                     // print as reformatted date
                     DumpValue::DateTime(format_value_list(values, max_characters, false))
@@ -966,7 +966,7 @@ fn cut_str(s: &str, max_characters: u32) -> Cow<str> {
 
 fn determine_width(user_width: Option<u32>) -> u32 {
     user_width
-        .or_else(|| term_size::dimensions().map(|(w, _)| w as u32))
+        .or_else(|| terminal_size::terminal_size().map(|(w, _)| w.0 as u32))
         .unwrap_or(120)
 }
 

@@ -76,26 +76,23 @@ mod test {
     #[test]
     fn test_encode_datetime() {
         let mut data = vec![];
-        let offset = FixedOffset::east_opt(0).unwrap();
         let bytes = encode_datetime(
             &mut data,
             DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(1985, 12, 31).unwrap(),
                 DicomTime::from_hms_micro(23, 59, 48, 123_456).unwrap(),
-                offset,
             )
             .unwrap(),
         )
         .unwrap();
-        // even zero offset gets encoded into string value
-        assert_eq!(from_utf8(&data).unwrap(), "19851231235948.123456+0000");
-        assert_eq!(bytes, 26);
+        assert_eq!(from_utf8(&data).unwrap(), "19851231235948.123456");
+        assert_eq!(bytes, 21);
 
         let mut data = vec![];
         let offset = FixedOffset::east_opt(3600).unwrap();
         let bytes = encode_datetime(
             &mut data,
-            DicomDateTime::from_date_and_time(
+            DicomDateTime::from_date_and_time_with_time_zone(
                 DicomDate::from_ymd(2018, 12, 24).unwrap(),
                 DicomTime::from_h(4).unwrap(),
                 offset,

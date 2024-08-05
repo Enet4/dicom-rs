@@ -10,7 +10,7 @@ use dicom_core::{
 use dicom_object::InMemDicomObject;
 use serde::de::{Deserialize, DeserializeOwned, Error as _, Visitor};
 
-use self::value::{DicomJsonPerson, NumberOrText};
+use self::value::{BulkDataUri, DicomJsonPerson, NumberOrText};
 
 mod value;
 
@@ -72,8 +72,22 @@ where
     {
         let mut obj = InMemDicomObject::<D>::new_empty_with_dict(D::default());
         while let Some(e) = map.next_entry::<DicomJson<Tag>, JsonDataElement<D>>()? {
-            let (DicomJson(tag), JsonDataElement { vr, value }) = e;
-            obj.put(DataElement::new(tag, vr, value));
+            let (
+                DicomJson(tag),
+                JsonDataElement {
+                    vr,
+                    value,
+                    bulk_data_uri,
+                },
+            ) = e;
+            if bulk_data_uri.is_some() {
+                tracing::warn!(
+                    "bulk data URI is not supported for InMemDicomObject; skipping {}",
+                    tag
+                );
+            } else {
+                obj.put(DataElement::new(tag, vr, value));
+            }
         }
         Ok(obj)
     }
@@ -98,6 +112,10 @@ where
 struct JsonDataElement<D> {
     vr: VR,
     value: Value<InMemDicomObject<D>, InMemFragment>,
+    // TODO(#470): we just ignore this when deserializing with
+    // DicomJson<InMemDicomObject>
+    // Handle this properly with a custom deserializer
+    bulk_data_uri: Option<BulkDataUri>,
 }
 
 #[derive(Debug)]
@@ -124,29 +142,20 @@ where
         A: serde::de::MapAccess<'de>,
     {
         let mut values: Option<_> = None;
+        let mut vr = None;
+        let mut value: Option<serde_json::Value> = None;
         let mut inline_binary = None;
-
-        // first field should be "vr"
-        let key: String = map
-            .next_key()?
-            .ok_or_else(|| A::Error::custom("\"vr\" is not set"))?;
-
-        if key != "vr" {
-            eprintln!("First field is \"{}\" instead of \"vr\"", key);
-            return Err(A::Error::custom("expected \"vr\" to be the first field"));
-        }
-
-        // read VR
-        let val: String = map.next_value()?;
-        let vr = VR::from_str(&val).unwrap_or(
-            // unrecognized VR
-            VR::UN,
-        );
+        let mut bulk_data_uri = None;
 
         while let Some(key) = map.next_key::<String>()? {
             match &*key {
                 "vr" => {
-                    return Err(A::Error::custom("\"vr\" should only be set once"));
+                    if vr.is_some() {
+                        return Err(A::Error::custom("\"vr\" should only be set once"));
+                    }
+
+                    let val: String = map.next_value()?;
+                    vr = Some(VR::from_str(&val).unwrap_or(VR::UN));
                 }
                 "Value" => {
                     if inline_binary.is_some() {
@@ -155,132 +164,11 @@ where
                         ));
                     }
 
-                    // deserialize value in different ways
-                    // depending on VR
-                    match vr {
-                        // sequence
-                        VR::SQ => {
-                            let items: Vec<DicomJson<InMemDicomObject<D>>> = map.next_value()?;
-                            let items: Vec<_> =
-                                items.into_iter().map(DicomJson::into_inner).collect();
-                            values = Some(Value::Sequence(items.into()));
-                        }
-                        // always text
-                        VR::AE
-                        | VR::AS
-                        | VR::CS
-                        | VR::DA
-                        | VR::DT
-                        | VR::LO
-                        | VR::LT
-                        | VR::SH
-                        | VR::ST
-                        | VR::UT
-                        | VR::UR
-                        | VR::TM
-                        | VR::UC
-                        | VR::UI => {
-                            let items: Vec<String> = map.next_value()?;
-                            values = Some(PrimitiveValue::Strs(items.into()).into());
-                        }
-
-                        // should always be signed 16-bit integers
-                        VR::SS => {
-                            let items: Vec<i16> = map.next_value()?;
-                            values = Some(PrimitiveValue::I16(items.into()).into());
-                        }
-                        // should always be unsigned 16-bit integers
-                        VR::US | VR::OW => {
-                            let items: Vec<u16> = map.next_value()?;
-                            values = Some(PrimitiveValue::U16(items.into()).into());
-                        }
-                        // should always be signed 32-bit integers
-                        VR::SL => {
-                            let items: Vec<i32> = map.next_value()?;
-                            values = Some(PrimitiveValue::I32(items.into()).into());
-                        }
-                        VR::OB => {
-                            let items: Vec<u8> = map.next_value()?;
-                            values = Some(PrimitiveValue::U8(items.into()).into());
-                        }
-                        // sometimes numbers, sometimes text,
-                        // should parse on the spot
-                        VR::FL | VR::OF => {
-                            let items: Vec<NumberOrText<f32>> = map.next_value()?;
-                            let items: C<f32> = items
-                                .into_iter()
-                                .map(|v| v.to_num())
-                                .collect::<Result<C<f32>, _>>()
-                                .map_err(A::Error::custom)?;
-                            values = Some(PrimitiveValue::F32(items).into());
-                        }
-                        VR::FD | VR::OD => {
-                            let items: Vec<NumberOrText<f64>> = map.next_value()?;
-                            let items: C<f64> = items
-                                .into_iter()
-                                .map(|v| v.to_num())
-                                .collect::<Result<C<f64>, _>>()
-                                .map_err(A::Error::custom)?;
-                            values = Some(PrimitiveValue::F64(items).into());
-                        }
-                        VR::SV => {
-                            let items: Vec<NumberOrText<i64>> = map.next_value()?;
-                            let items: C<i64> = items
-                                .into_iter()
-                                .map(|v| v.to_num())
-                                .collect::<Result<C<i64>, _>>()
-                                .map_err(A::Error::custom)?;
-                            values = Some(PrimitiveValue::I64(items).into());
-                        }
-                        VR::UL | VR::OL => {
-                            let items: Vec<NumberOrText<u32>> = map.next_value()?;
-                            let items: C<u32> = items
-                                .into_iter()
-                                .map(|v| v.to_num())
-                                .collect::<Result<C<u32>, _>>()
-                                .map_err(A::Error::custom)?;
-                            values = Some(PrimitiveValue::U32(items).into());
-                        }
-                        VR::UV | VR::OV => {
-                            let items: Vec<NumberOrText<u64>> = map.next_value()?;
-                            let items: C<u64> = items
-                                .into_iter()
-                                .map(|v| v.to_num())
-                                .collect::<Result<C<u64>, _>>()
-                                .map_err(A::Error::custom)?;
-                            values = Some(PrimitiveValue::U64(items).into());
-                        }
-                        // sometimes numbers, sometimes text,
-                        // but retain string form
-                        VR::DS => {
-                            let items: Vec<NumberOrText<f64>> = map.next_value()?;
-                            let items: C<String> =
-                                items.into_iter().map(|v| v.to_string()).collect();
-                            values = Some(PrimitiveValue::Strs(items).into());
-                        }
-                        VR::IS => {
-                            let items: Vec<NumberOrText<f64>> = map.next_value()?;
-                            let items: C<String> =
-                                items.into_iter().map(|v| v.to_string()).collect();
-                            values = Some(PrimitiveValue::Strs(items).into());
-                        }
-                        // person names
-                        VR::PN => {
-                            let items: Vec<DicomJsonPerson> = map.next_value()?;
-                            let items: C<String> =
-                                items.into_iter().map(|v| v.to_string()).collect();
-                            values = Some(PrimitiveValue::Strs(items).into());
-                        }
-                        // tags
-                        VR::AT => {
-                            let items: Vec<DicomJson<Tag>> = map.next_value()?;
-                            let items: C<Tag> =
-                                items.into_iter().map(DicomJson::into_inner).collect();
-                            values = Some(PrimitiveValue::Tags(items).into());
-                        }
-                        // unknown
-                        VR::UN => return Err(A::Error::custom("can't parse JSON Value in UN")),
+                    if bulk_data_uri.is_some() {
+                        return Err(A::Error::custom("\"Value\" conflicts with \"BulkDataURI\""));
                     }
+
+                    value = Some(map.next_value()?);
                 }
                 "InlineBinary" => {
                     if values.is_some() {
@@ -288,13 +176,179 @@ where
                             "\"InlineBinary\" conflicts with \"Value\"",
                         ));
                     }
+
+                    if bulk_data_uri.is_some() {
+                        return Err(A::Error::custom(
+                            "\"InlineBinary\" conflicts with \"BulkDataURI\"",
+                        ));
+                    }
                     // read value as string
                     let val: String = map.next_value()?;
                     inline_binary = Some(val);
                 }
+                "BulkDataURI" => {
+                    if values.is_some() {
+                        return Err(A::Error::custom("\"BulkDataURI\" conflicts with \"Value\""));
+                    }
+
+                    if inline_binary.is_some() {
+                        return Err(A::Error::custom(
+                            "\"BulkDataURI\" conflicts with \"InlineBinary\"",
+                        ));
+                    }
+
+                    // read value as string
+                    let val: BulkDataUri = map.next_value()?;
+                    bulk_data_uri = Some(val);
+                }
                 _ => {
                     return Err(A::Error::custom("Unrecognized data element field"));
                 }
+            }
+        }
+
+        // ensure that VR is present
+        let Some(vr) = vr else {
+            return Err(A::Error::custom("missing VR field"));
+        };
+
+        if let Some(value) = value {
+            // deserialize value in different ways
+            // depending on VR
+            match vr {
+                // sequence
+                VR::SQ => {
+                    let items: Vec<DicomJson<InMemDicomObject<D>>> =
+                        serde_json::from_value(value).map_err(A::Error::custom)?;
+                    let items: Vec<_> = items.into_iter().map(DicomJson::into_inner).collect();
+                    values = Some(Value::Sequence(items.into()));
+                }
+                // always text
+                VR::AE
+                | VR::AS
+                | VR::CS
+                | VR::DA
+                | VR::DT
+                | VR::LO
+                | VR::LT
+                | VR::SH
+                | VR::ST
+                | VR::UT
+                | VR::UR
+                | VR::TM
+                | VR::UC
+                | VR::UI => {
+                    let items: Vec<Option<String>> =
+                        serde_json::from_value(value).map_err(A::Error::custom)?;
+                    let items: Vec<String> =
+                        items.into_iter().map(|v| v.unwrap_or_default()).collect();
+                    values = Some(PrimitiveValue::Strs(items.into()).into());
+                }
+
+                // should always be signed 16-bit integers
+                VR::SS => {
+                    let items: Vec<i16> =
+                        serde_json::from_value(value).map_err(A::Error::custom)?;
+                    values = Some(PrimitiveValue::I16(items.into()).into());
+                }
+                // should always be unsigned 16-bit integers
+                VR::US | VR::OW => {
+                    let items: Vec<u16> =
+                        serde_json::from_value(value).map_err(A::Error::custom)?;
+                    values = Some(PrimitiveValue::U16(items.into()).into());
+                }
+                // should always be signed 32-bit integers
+                VR::SL => {
+                    let items: Vec<i32> =
+                        serde_json::from_value(value).map_err(A::Error::custom)?;
+                    values = Some(PrimitiveValue::I32(items.into()).into());
+                }
+                VR::OB => {
+                    let items: Vec<u8> = serde_json::from_value(value).map_err(A::Error::custom)?;
+                    values = Some(PrimitiveValue::U8(items.into()).into());
+                }
+                // sometimes numbers, sometimes text,
+                // should parse on the spot
+                VR::FL | VR::OF => {
+                    let items: Vec<NumberOrText<f32>> =
+                        serde_json::from_value(value).map_err(A::Error::custom)?;
+                    let items: C<f32> = items
+                        .into_iter()
+                        .map(|v| v.to_num())
+                        .collect::<Result<C<f32>, _>>()
+                        .map_err(A::Error::custom)?;
+                    values = Some(PrimitiveValue::F32(items).into());
+                }
+                VR::FD | VR::OD => {
+                    let items: Vec<NumberOrText<f64>> =
+                        serde_json::from_value(value).map_err(A::Error::custom)?;
+                    let items: C<f64> = items
+                        .into_iter()
+                        .map(|v| v.to_num())
+                        .collect::<Result<C<f64>, _>>()
+                        .map_err(A::Error::custom)?;
+                    values = Some(PrimitiveValue::F64(items).into());
+                }
+                VR::SV => {
+                    let items: Vec<NumberOrText<i64>> =
+                        serde_json::from_value(value).map_err(A::Error::custom)?;
+                    let items: C<i64> = items
+                        .into_iter()
+                        .map(|v| v.to_num())
+                        .collect::<Result<C<i64>, _>>()
+                        .map_err(A::Error::custom)?;
+                    values = Some(PrimitiveValue::I64(items).into());
+                }
+                VR::UL | VR::OL => {
+                    let items: Vec<NumberOrText<u32>> =
+                        serde_json::from_value(value).map_err(A::Error::custom)?;
+                    let items: C<u32> = items
+                        .into_iter()
+                        .map(|v| v.to_num())
+                        .collect::<Result<C<u32>, _>>()
+                        .map_err(A::Error::custom)?;
+                    values = Some(PrimitiveValue::U32(items).into());
+                }
+                VR::UV | VR::OV => {
+                    let items: Vec<NumberOrText<u64>> =
+                        serde_json::from_value(value).map_err(A::Error::custom)?;
+                    let items: C<u64> = items
+                        .into_iter()
+                        .map(|v| v.to_num())
+                        .collect::<Result<C<u64>, _>>()
+                        .map_err(A::Error::custom)?;
+                    values = Some(PrimitiveValue::U64(items).into());
+                }
+                // sometimes numbers, sometimes text,
+                // but retain string form
+                VR::DS => {
+                    let items: Vec<NumberOrText<f64>> =
+                        serde_json::from_value(value).map_err(A::Error::custom)?;
+                    let items: C<String> = items.into_iter().map(|v| v.to_string()).collect();
+                    values = Some(PrimitiveValue::Strs(items).into());
+                }
+                VR::IS => {
+                    let items: Vec<NumberOrText<f64>> =
+                        serde_json::from_value(value).map_err(A::Error::custom)?;
+                    let items: C<String> = items.into_iter().map(|v| v.to_string()).collect();
+                    values = Some(PrimitiveValue::Strs(items).into());
+                }
+                // person names
+                VR::PN => {
+                    let items: Vec<DicomJsonPerson> =
+                        serde_json::from_value(value).map_err(A::Error::custom)?;
+                    let items: C<String> = items.into_iter().map(|v| v.to_string()).collect();
+                    values = Some(PrimitiveValue::Strs(items).into());
+                }
+                // tags
+                VR::AT => {
+                    let items: Vec<DicomJson<Tag>> =
+                        serde_json::from_value(value).map_err(A::Error::custom)?;
+                    let items: C<Tag> = items.into_iter().map(DicomJson::into_inner).collect();
+                    values = Some(PrimitiveValue::Tags(items).into());
+                }
+                // unknown
+                VR::UN => return Err(A::Error::custom("can't parse JSON Value in UN")),
             }
         }
 
@@ -309,10 +363,14 @@ where
                 PrimitiveValue::from(data).into()
             }
             (Some(values), None) => values,
-            (Some(_), Some(_)) => unreachable!(),
+            _ => unreachable!(),
         };
 
-        Ok(JsonDataElement { vr, value })
+        Ok(JsonDataElement {
+            vr,
+            value,
+            bulk_data_uri,
+        })
     }
 }
 
@@ -362,7 +420,7 @@ impl<'de> Deserialize<'de> for DicomJson<Tag> {
 #[cfg(test)]
 mod tests {
     use super::from_str;
-    use dicom_core::{DataElement, Tag, VR};
+    use dicom_core::{dicom_value, DataElement, Tag, VR};
     use dicom_object::InMemDicomObject;
 
     #[test]
@@ -380,8 +438,8 @@ mod tests {
     fn can_parse_simple_data_sets() {
         let serialized = serde_json::json!({
             "00080005": {
-                "vr": "CS",
-                "Value": [ "ISO_IR 192" ]
+                "Value": [ "ISO_IR 192" ],
+                "vr": "CS"
             },
             "00080020": {
                 "vr": "DA",
@@ -419,5 +477,62 @@ mod tests {
             obj.get(tag),
             Some(&DataElement::new(tag, VR::CS, "ISO_IR 192")),
         )
+    }
+
+    #[test]
+    fn can_parse_null_values() {
+        let serialized = serde_json::json!({
+            "00080008": {
+                "Value": [
+                  "DERIVED",
+                  "PRIMARY",
+                  "POST_PROCESSED",
+                  "RT",
+                  null,
+                  null,
+                  null,
+                  null,
+                  "100000"
+                ],
+                "vr": "CS"
+              }
+        });
+
+        let obj: InMemDicomObject = super::from_value(serialized).unwrap();
+
+        let tag = Tag(0x0008, 0x0008);
+        assert_eq!(
+            obj.get(tag),
+            Some(&DataElement::new(
+                tag,
+                VR::CS,
+                dicom_value!(
+                    Strs,
+                    [
+                        "DERIVED",
+                        "PRIMARY",
+                        "POST_PROCESSED",
+                        "RT",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "100000",
+                    ]
+                )
+            )),
+        )
+    }
+
+    #[test]
+    fn can_resolve_bulk_data() {
+        let serialized = serde_json::json!({
+            "7FE00010": {
+                "vr": "OW",
+                "BulkDataURI": "http://localhost:8042/dicom-web/studies/1.2.276.0.89.300.10035584652.20181014.93645/series/1.2.392.200036.9125.3.1696751121028.64888163108.42362060/instances/1.2.392.200036.9125.9.0.454007928.539582480.1883970570/bulk/7fe00010"
+            }
+        });
+
+        assert!(super::from_value::<InMemDicomObject>(serialized).is_ok());
     }
 }

@@ -11,8 +11,6 @@ use dicom_object::{
     mem::InMemDicomObject,
     open_file,
 };
-use dicom_test_files;
-
 #[test]
 fn test_ob_value_with_unknown_length() {
     let path =
@@ -137,7 +135,7 @@ fn test_expl_vr_le_no_meta() {
     let source = BufReader::new(File::open(path).unwrap());
     let ts = dicom_transfer_syntax_registry::entries::EXPLICIT_VR_LITTLE_ENDIAN.erased();
     let object =
-        InMemDicomObject::read_dataset_with_ts_cs(source, &ts, SpecificCharacterSet::Default)
+        InMemDicomObject::read_dataset_with_ts_cs(source, &ts, SpecificCharacterSet::default())
             .unwrap();
 
     let sop_instance_uid = object.element_by_name("SOPInstanceUID").unwrap();

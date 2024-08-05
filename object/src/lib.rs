@@ -28,7 +28,7 @@
 //! ```
 //!
 //! Elements can be fetched by tag,
-//! either by creating a [`Tag`](dicom_core::Tag)
+//! either by creating a [`Tag`]
 //! or by using one of the [readily available constants][const]
 //! from the [`dicom-dictionary-std`][dictionary-std] crate.
 //!
@@ -139,8 +139,6 @@ pub mod meta;
 pub mod ops;
 pub mod tokens;
 
-mod util;
-
 pub use crate::file::{from_reader, open_file, OpenFileOptions};
 pub use crate::mem::InMemDicomObject;
 pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
@@ -152,9 +150,9 @@ pub use dicom_dictionary_std::StandardDataDictionary;
 /// The default implementation of a root DICOM object.
 pub type DefaultDicomObject<D = StandardDataDictionary> = FileDicomObject<mem::InMemDicomObject<D>>;
 
-use dicom_core::header::Header;
+use dicom_core::header::{GroupNumber, Header};
 use dicom_encoding::adapters::{PixelDataObject, RawPixelData};
-use dicom_encoding::{text::SpecificCharacterSet, transfer_syntax::TransferSyntaxIndex};
+use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use smallvec::SmallVec;
@@ -227,6 +225,12 @@ pub enum ReadError {
         #[snafu(backtrace)]
         source: crate::meta::Error,
     },
+    #[snafu(display("Could not parse sop attribute"))]
+    ParseSopAttribute {
+        #[snafu(source(from(dicom_core::value::ConvertValueError, Box::from)))]
+        source: Box<dicom_core::value::ConvertValueError>,
+        backtrace: Backtrace,
+    },
     #[snafu(display("Could not create data set parser"))]
     CreateParser {
         #[snafu(backtrace)]
@@ -287,6 +291,33 @@ pub enum WriteError {
     },
     #[snafu(display("Unsupported transfer syntax `{}`", uid))]
     WriteUnsupportedTransferSyntax { uid: String, backtrace: Backtrace },
+}
+
+/// An error which may occur during private element look-up or insertion
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum PrivateElementError {
+    /// Group number must be odd
+    #[snafu(display("Group number must be odd, found {:#06x}", group))]
+    InvalidGroup { group: GroupNumber },
+    /// Private creator not found in group
+    #[snafu(display("Private creator {} not found in group {:#06x}", creator, group))]
+    PrivateCreatorNotFound { creator: String, group: GroupNumber },
+    /// Element not found in group
+    #[snafu(display(
+        "Private Creator {} found in group {:#06x}, but elem {:#06x} not found",
+        creator,
+        group,
+        elem
+    ))]
+    ElementNotFound {
+        creator: String,
+        group: GroupNumber,
+        elem: u8,
+    },
+    /// No space available for more private elements in the group
+    #[snafu(display("No space available in group {:#06x}", group))]
+    NoSpace { group: GroupNumber },
 }
 
 /// An error which may occur when looking up a DICOM object's attributes.
@@ -426,10 +457,9 @@ where
             .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             })?;
-        let cs = SpecificCharacterSet::Default;
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
+        let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
 
-        // write object
+        // We use the default options, because only the inner object knows if something needs to change
         dset_writer
             .write_sequence((&self.obj).into_tokens())
             .context(PrintDataSetSnafu)?;
@@ -459,10 +489,9 @@ where
             .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             })?;
-        let cs = SpecificCharacterSet::Default;
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
+        let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
 
-        // write object
+        // We use the default options, because only the inner object knows if something needs to change
         dset_writer
             .write_sequence((&self.obj).into_tokens())
             .context(PrintDataSetSnafu)?;
@@ -490,8 +519,7 @@ where
             .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
                 uid: self.meta.transfer_syntax.clone(),
             })?;
-        let cs = SpecificCharacterSet::Default;
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
+        let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
 
         // write object
         dset_writer
@@ -627,6 +655,13 @@ where
             .ok()
     }
 
+    fn photometric_interpretation(&self) -> Option<&str> {
+        self.get(dicom_dictionary_std::tags::PHOTOMETRIC_INTERPRETATION)?
+            .string()
+            .ok()
+            .map(|s| s.trim_end())
+    }
+
     /// Return the NumberOfFrames attribute or None if it is not set
     fn number_of_frames(&self) -> Option<u32> {
         self.get(dicom_dictionary_std::tags::NUMBER_OF_FRAMES)?
@@ -644,8 +679,8 @@ where
         }
     }
 
-    /// Return a specific encoded pixel fragment by index as Vec<u8>
-    /// or None if no pixel data is found.
+    /// Return a specific encoded pixel fragment by index as a `Vec<u8>`
+    /// or `None` if no pixel data is found.
     ///
     /// Non-encapsulated pixel data can be retrieved by requesting fragment #0.
     ///
@@ -719,7 +754,7 @@ mod tests {
 
     #[test]
     fn errors_not_too_large() {
-        assert_type_not_too_large::<AccessError>(48);
+        assert_type_not_too_large::<AccessError>(56);
     }
 
     #[test]

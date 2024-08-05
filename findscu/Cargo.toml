@@ -1,6 +1,6 @@
 [package]
 name = "dicom-findscu"
-version = "0.2.2"
+version = "0.7.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -11,14 +11,14 @@ keywords = ["dicom", "query", "search"]
 readme = "README.md"
 
 [dependencies]
-dicom-core = { path = '../core', version = "0.6.3" }
-dicom-ul = { path = '../ul', version = "0.5.1" }
-dicom-object = { path = '../object', version = "0.6.3" }
-dicom-encoding = { path = "../encoding/", version = "0.6.1" }
-dicom-dictionary-std = { path = "../dictionary-std/", version = "0.6.1" }
-dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.6.2" }
-dicom-dump = { path = "../dump", default-features = false, version = "0.6.0" }
+dicom-core = { path = '../core', version = "0.7.0" }
+dicom-ul = { path = '../ul', version = "0.7.0" }
+dicom-object = { path = '../object', version = "0.7.0" }
+dicom-encoding = { path = "../encoding/", version = "0.7.0" }
+dicom-dictionary-std = { path = "../dictionary-std/", version = "0.7.0" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.7.0" }
+dicom-dump = { path = "../dump", default-features = false, version = "0.7.0" }
 clap = { version = "4.0.18", features = ["derive"] }
-snafu = "0.7.3"
+snafu = "0.8"
 tracing = "0.1.36"
 tracing-subscriber = "0.3.15"

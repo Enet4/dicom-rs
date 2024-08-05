@@ -6,16 +6,16 @@
 //! enabling the creation of concrete service class users (SCUs)
 //! and service class providers (SCPs).
 //!
-//! - The [`address`](crate::address) module
-//! provides an abstraction for working with compound addresses
-//! referring to application entities in a network.
-//! - The [`pdu`](crate::pdu) module
-//! provides data structures representing _protocol data units_,
-//! which are passed around as part of the DICOM network communication support.
-//! - The [`association`](crate::association) module
-//! comprises abstractions for establishing and negotiating associations
-//! between application entities,
-//! via the upper layer protocol by TCP.
+//! - The [`address`] module
+//!   provides an abstraction for working with compound addresses
+//!   referring to application entities in a network.
+//! - The [`pdu`] module
+//!   provides data structures representing _protocol data units_,
+//!   which are passed around as part of the DICOM network communication support.
+//! - The [`association`] module
+//!   comprises abstractions for establishing and negotiating associations
+//!   between application entities,
+//!   via the upper layer protocol by TCP.
 
 pub mod address;
 pub mod association;

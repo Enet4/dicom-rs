@@ -1,7 +1,11 @@
 //! Implicit VR Big Endian syntax transfer implementation
 
 use crate::decode::basic::LittleEndianBasicDecoder;
-use crate::decode::*;
+use crate::decode::{
+    BadSequenceHeaderSnafu, BasicDecode, DecodeFrom, ReadHeaderTagSnafu, ReadLengthSnafu,
+    ReadTagSnafu, Result,
+};
+use crate::Decode;
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
 use dicom_core::header::{DataElementHeader, Length, SequenceItemHeader};
@@ -94,7 +98,7 @@ where
         } else {
             self.dict
                 .by_tag(tag)
-                .map(|entry| entry.vr())
+                .map(|entry| entry.vr().relaxed())
                 .unwrap_or(VR::UN)
         };
         Ok((DataElementHeader::new(tag, vr, Length(len)), 8))

@@ -14,7 +14,7 @@ pub mod range;
 pub mod serialize;
 
 pub use self::deserialize::Error as DeserializeError;
-pub use self::partial::{DicomDate, DicomDateTime, DicomTime};
+pub use self::partial::{DicomDate, DicomDateTime, DicomTime, PreciseDateTime};
 pub use self::person_name::PersonName;
 pub use self::range::{AsRange, DateRange, DateTimeRange, TimeRange};
 
@@ -22,9 +22,6 @@ pub use self::primitive::{
     CastValueError, ConvertValueError, InvalidValueReadError, ModifyValueError, PrimitiveValue,
     ValueType,
 };
-
-/// re-exported from chrono
-use chrono::FixedOffset;
 
 /// An aggregation of one or more elements in a value.
 pub type C<T> = SmallVec<[T; 2]>;
@@ -252,7 +249,7 @@ impl<I, P> Value<I, P> {
 
     /// Shorten this value by removing trailing elements
     /// to fit the given limit.
-    /// 
+    ///
     /// On primitive values,
     /// elements are counted by the number of individual value items
     /// (note that bytes in a [`PrimitiveValue::U8`]
@@ -282,6 +279,27 @@ impl<I, P> From<&str> for Value<I, P> {
 impl<I, P> From<String> for Value<I, P> {
     /// Converts a string into a primitive textual value.
     fn from(value: String) -> Self {
+        Value::Primitive(PrimitiveValue::from(value))
+    }
+}
+
+impl<I, P> From<DicomDate> for Value<I, P> {
+    /// Converts the DICOM date into a primitive value.
+    fn from(value: DicomDate) -> Self {
+        Value::Primitive(PrimitiveValue::from(value))
+    }
+}
+
+impl<I, P> From<DicomTime> for Value<I, P> {
+    /// Converts the DICOM time into a primitive value.
+    fn from(value: DicomTime) -> Self {
+        Value::Primitive(PrimitiveValue::from(value))
+    }
+}
+
+impl<I, P> From<DicomDateTime> for Value<I, P> {
+    /// Converts the DICOM date-time into a primitive value.
+    fn from(value: DicomDateTime) -> Self {
         Value::Primitive(PrimitiveValue::from(value))
     }
 }
@@ -578,12 +596,9 @@ where
     /// If the value is a primitive, it will be converted into
     /// a `DateTime` as described in [`PrimitiveValue::to_datetime`].
     ///
-    pub fn to_datetime(
-        &self,
-        default_offset: FixedOffset,
-    ) -> Result<DicomDateTime, ConvertValueError> {
+    pub fn to_datetime(&self) -> Result<DicomDateTime, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_datetime(default_offset),
+            Value::Primitive(v) => v.to_datetime(),
             _ => Err(ConvertValueError {
                 requested: "DicomDateTime",
                 original: self.value_type(),
@@ -597,12 +612,9 @@ where
     /// If the value is a primitive, it will be converted into
     /// a vector of `DicomDateTime` as described in [`PrimitiveValue::to_multi_datetime`].
     ///
-    pub fn to_multi_datetime(
-        &self,
-        default_offset: FixedOffset,
-    ) -> Result<Vec<DicomDateTime>, ConvertValueError> {
+    pub fn to_multi_datetime(&self) -> Result<Vec<DicomDateTime>, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_multi_datetime(default_offset),
+            Value::Primitive(v) => v.to_multi_datetime(),
             _ => Err(ConvertValueError {
                 requested: "DicomDateTime",
                 original: self.value_type(),
@@ -648,12 +660,9 @@ where
     /// If the value is a primitive, it will be converted into
     /// a `DateTimeRange` as described in [`PrimitiveValue::to_datetime_range`].
     ///
-    pub fn to_datetime_range(
-        &self,
-        offset: FixedOffset,
-    ) -> Result<DateTimeRange, ConvertValueError> {
+    pub fn to_datetime_range(&self) -> Result<DateTimeRange, ConvertValueError> {
         match self {
-            Value::Primitive(v) => v.to_datetime_range(offset),
+            Value::Primitive(v) => v.to_datetime_range(),
             _ => Err(ConvertValueError {
                 requested: "DateTimeRange",
                 original: self.value_type(),
@@ -673,9 +682,7 @@ where
         }
     }
 
-    /// Retrieves the primitive value as a [`PersonName`][1].
-    ///
-    /// [1]: super::value::person_name::PersonName
+    /// Retrieves the primitive value as a [`PersonName`].
     pub fn to_person_name(&self) -> Result<PersonName<'_>, ConvertValueError> {
         match self {
             Value::Primitive(v) => v.to_person_name(),
@@ -1043,7 +1050,7 @@ impl<P> PixelFragmentSequence<P> {
 
     /// Shorten this sequence by removing trailing fragments
     /// to fit the given limit.
-    /// 
+    ///
     /// Note that this operations does not affect the basic offset table.
     #[inline]
     pub fn truncate(&mut self, limit: usize) {
@@ -1100,7 +1107,6 @@ impl<P> DicomValueType for PixelFragmentSequence<P> {
 mod tests {
     use super::*;
     use crate::dicom_value;
-    use crate::header::EmptyObject;
     use smallvec::smallvec;
 
     #[test]

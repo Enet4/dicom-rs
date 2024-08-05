@@ -8,7 +8,9 @@ use tracing::warn;
 
 // Check jpeg2k backend conflicts
 #[cfg(all(feature = "openjp2", feature = "openjpeg-sys"))]
-compile_error!("feature \"openjp2\" and feature \"openjpeg-sys\" cannot be enabled at the same time");
+compile_error!(
+    "feature \"openjp2\" and feature \"openjpeg-sys\" cannot be enabled at the same time"
+);
 
 /// Pixel data adapter for transfer syntaxes based on JPEG 2000.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]

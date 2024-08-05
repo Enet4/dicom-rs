@@ -289,9 +289,9 @@ where
     ///
     /// The highest bits from the sample after `bits_stored` bits are discarded,
     /// thus silently ignoring them.
-    pub fn get<I: 'static>(&self, sample_value: I) -> T
+    pub fn get<I>(&self, sample_value: I) -> T
     where
-        I: Copy,
+        I: Copy + 'static,
         I: Into<u32>,
     {
         let val = sample_value.into() & self.sample_mask;
@@ -300,12 +300,12 @@ where
 
     /// Adapts an iterator of pixel data sample values
     /// to an iterator of transformed values.
-    pub fn map_iter<'a, I: 'static>(
+    pub fn map_iter<'a, I>(
         &'a self,
         iter: impl IntoIterator<Item = I> + 'a,
     ) -> impl Iterator<Item = T> + 'a
     where
-        I: Copy,
+        I: Copy + 'static,
         I: Into<u32>,
     {
         iter.into_iter().map(move |i| self.get(i))
@@ -314,12 +314,12 @@ where
     /// Adapts a parallel iterator of pixel data sample values
     /// to a parallel iterator of transformed values.
     #[cfg(feature = "rayon")]
-    pub fn map_par_iter<'a, I: 'static>(
+    pub fn map_par_iter<'a, I>(
         &'a self,
         iter: impl ParallelIterator<Item = I> + 'a,
     ) -> impl ParallelIterator<Item = T> + 'a
     where
-        I: Copy,
+        I: Copy + 'static,
         I: Into<u32>,
     {
         iter.map(move |i| self.get(i))

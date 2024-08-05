@@ -2,7 +2,7 @@
 //!
 //! The module provides an abstraction for a DICOM association
 //! in which this application entity listens to incoming association requests.
-//! See [`ServerAssociationOptions`](self::ServerAssociationOptions)
+//! See [`ServerAssociationOptions`]
 //! for details and examples on how to create an association.
 use std::{borrow::Cow, io::Write, net::TcpStream};
 
@@ -16,7 +16,8 @@ use crate::{
         writer::write_pdu,
         AbortRQServiceProviderReason, AbortRQSource, AssociationAC, AssociationRJ,
         AssociationRJResult, AssociationRJServiceUserReason, AssociationRJSource, AssociationRQ,
-        Pdu, PresentationContextResult, PresentationContextResultReason, UserVariableItem,
+        Pdu, PresentationContextResult, PresentationContextResultReason, UserIdentity,
+        UserVariableItem,
     },
     IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
@@ -98,7 +99,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// but users are free to implement their own.
 pub trait AccessControl {
     /// Obtain the decision of whether to accept an incoming association request
-    /// based on the recorded application entity titles.
+    /// based on the recorded application entity titles and/or user identity.
     ///
     /// Returns Ok(()) if the requester node should be given clearance.
     /// Otherwise, a concrete association RJ service user reason is given.
@@ -107,6 +108,7 @@ pub trait AccessControl {
         this_ae_title: &str,
         calling_ae_title: &str,
         called_ae_title: &str,
+        user_identity: Option<&UserIdentity>,
     ) -> Result<(), AssociationRJServiceUserReason>;
 }
 
@@ -120,6 +122,7 @@ impl AccessControl for AcceptAny {
         _this_ae_title: &str,
         _calling_ae_title: &str,
         _called_ae_title: &str,
+        _user_identity: Option<&UserIdentity>,
     ) -> Result<(), AssociationRJServiceUserReason> {
         Ok(())
     }
@@ -136,6 +139,7 @@ impl AccessControl for AcceptCalledAeTitle {
         this_ae_title: &str,
         _calling_ae_title: &str,
         called_ae_title: &str,
+        _user_identity: Option<&UserIdentity>,
     ) -> Result<(), AssociationRJServiceUserReason> {
         if this_ae_title == called_ae_title {
             Ok(())
@@ -215,6 +219,8 @@ pub struct ServerAssociationOptions<'a, A> {
     max_pdu_length: u32,
     /// whether to receive PDUs in strict mode
     strict: bool,
+    /// whether to accept unknown abstract syntaxes
+    promiscuous: bool,
 }
 
 impl<'a> Default for ServerAssociationOptions<'a, AcceptAny> {
@@ -228,6 +234,7 @@ impl<'a> Default for ServerAssociationOptions<'a, AcceptAny> {
             protocol_version: 1,
             max_pdu_length: crate::pdu::reader::DEFAULT_MAX_PDU,
             strict: true,
+            promiscuous: false,
         }
     }
 }
@@ -276,6 +283,7 @@ where
             protocol_version,
             max_pdu_length,
             strict,
+            promiscuous,
             ae_access_control: _,
         } = self;
 
@@ -288,6 +296,7 @@ where
             protocol_version,
             max_pdu_length,
             strict,
+            promiscuous,
         }
     }
 
@@ -337,10 +346,17 @@ where
         self
     }
 
+    /// Override promiscuous mode:
+    /// whether to accept unknown abstract syntaxes.
+    pub fn promiscuous(mut self, promiscuous: bool) -> Self {
+        self.promiscuous = promiscuous;
+        self
+    }
+
     /// Negotiate an association with the given TCP stream.
     pub fn establish(&self, mut socket: TcpStream) -> Result<ServerAssociation> {
         ensure!(
-            !self.abstract_syntax_uids.is_empty(),
+            !self.abstract_syntax_uids.is_empty() || self.promiscuous,
             MissingAbstractSyntaxSnafu
         );
 
@@ -389,7 +405,19 @@ where
                 }
 
                 self.ae_access_control
-                    .check_access(&self.ae_title, &calling_ae_title, &called_ae_title)
+                    .check_access(
+                        &self.ae_title,
+                        &calling_ae_title,
+                        &called_ae_title,
+                        user_variables
+                            .iter()
+                            .find_map(|user_variable| match user_variable {
+                                UserVariableItem::UserIdentityItem(user_identity) => {
+                                    Some(user_identity)
+                                }
+                                _ => None,
+                            }),
+                    )
                     .map(Ok)
                     .unwrap_or_else(|reason| {
                         write_pdu(
@@ -426,6 +454,7 @@ where
                         if !self
                             .abstract_syntax_uids
                             .contains(&trim_uid(Cow::from(pc.abstract_syntax)))
+                            && !self.promiscuous
                         {
                             return PresentationContextResult {
                                 id: pc.id,

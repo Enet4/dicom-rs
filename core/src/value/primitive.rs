@@ -2,12 +2,11 @@
 //!
 //! See [`PrimitiveValue`](./enum.PrimitiveValue.html).
 
-use super::DicomValueType;
+use super::{AsRange, DicomValueType};
 use crate::header::{HasLength, Length, Tag};
-use crate::value::partial::{DateComponent, DicomDate, DicomDateTime, DicomTime, Precision};
+use crate::value::partial::{DateComponent, DicomDate, DicomDateTime, DicomTime};
 use crate::value::person_name::PersonName;
-use crate::value::range::{DateRange, DateTimeRange, TimeRange};
-use chrono::FixedOffset;
+use crate::value::range::{AmbiguousDtRangeParser, DateRange, DateTimeRange, TimeRange};
 use itertools::Itertools;
 use num_traits::NumCast;
 use safe_transmute::to_bytes::transmute_to_bytes;
@@ -155,7 +154,7 @@ pub struct ConvertValueError {
     /// The reason why the conversion was unsuccessful,
     /// or none if a conversion from the given original representation
     /// is not possible
-    pub cause: Option<InvalidValueReadError>,
+    pub cause: Option<Box<InvalidValueReadError>>,
 }
 
 impl Display for ConvertValueError {
@@ -183,7 +182,7 @@ impl std::error::Error for ConvertValueError {
 pub type Result<T, E = InvalidValueReadError> = std::result::Result<T, E>;
 
 // Re-exported from chrono
-pub use chrono::{DateTime, NaiveDate, NaiveTime};
+pub use chrono::{NaiveDate, NaiveTime};
 
 /// An aggregation of one or more elements in a value.
 pub type C<T> = SmallVec<[T; 2]>;
@@ -516,9 +515,10 @@ impl PrimitiveValue {
                 Some(time) => PrimitiveValue::tm_byte_len(time),
                 None => 0,
             }
-            + 5
-        // always return length of UTC offset, as current impl Display for DicomDateTime
-        // always writes the offset, even if it is zero
+            + match datetime.has_time_zone() {
+                true => 5,
+                false => 0,
+            }
     }
 
     /// Convert the primitive value into a string representation.
@@ -915,7 +915,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "integer",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
@@ -925,7 +925,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "integer",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::U8(bytes) if !bytes.is_empty() => {
                 T::from(bytes[0]).ok_or_else(|| ConvertValueError {
@@ -935,7 +935,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: bytes[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -947,7 +948,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -959,7 +961,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -971,7 +974,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -983,7 +987,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -995,7 +1000,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1007,7 +1013,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1075,7 +1082,7 @@ impl PrimitiveValue {
                     ConvertValueError {
                         requested: "integer",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     }
                 })?;
                 Ok(vec![out])
@@ -1087,7 +1094,7 @@ impl PrimitiveValue {
                             ConvertValueError {
                                 requested: "integer",
                                 original: self.value_type(),
-                                cause: Some(err),
+                                cause: Some(Box::from(err)),
                             }
                         })
                     })
@@ -1103,7 +1110,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1118,7 +1126,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1133,7 +1142,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1148,7 +1158,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1163,7 +1174,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1178,7 +1190,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1193,7 +1206,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1248,7 +1262,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "float32",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
@@ -1258,7 +1272,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "float32",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::U8(bytes) if !bytes.is_empty() => {
                 NumCast::from(bytes[0]).ok_or_else(|| ConvertValueError {
@@ -1268,7 +1282,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: bytes[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1280,7 +1295,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1292,7 +1308,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1304,7 +1321,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1316,7 +1334,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1328,7 +1347,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1340,7 +1360,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1353,7 +1374,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1410,7 +1432,7 @@ impl PrimitiveValue {
                         .map_err(|err| ConvertValueError {
                             requested: "float32",
                             original: self.value_type(),
-                            cause: Some(err),
+                            cause: Some(Box::from(err)),
                         })?;
                 Ok(vec![out])
             }
@@ -1423,7 +1445,7 @@ impl PrimitiveValue {
                         .map_err(|err| ConvertValueError {
                             requested: "float32",
                             original: self.value_type(),
-                            cause: Some(err),
+                            cause: Some(Box::from(err)),
                         })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -1437,7 +1459,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1452,7 +1475,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1467,7 +1491,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1482,7 +1507,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1497,7 +1523,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1512,7 +1539,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1527,7 +1555,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1543,7 +1572,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1598,7 +1628,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "float64",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
@@ -1608,7 +1638,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "float64",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::U8(bytes) if !bytes.is_empty() => {
                 NumCast::from(bytes[0]).ok_or_else(|| ConvertValueError {
@@ -1618,7 +1648,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: bytes[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1630,7 +1661,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1642,7 +1674,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1654,7 +1687,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1666,7 +1700,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1678,7 +1713,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1690,7 +1726,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1702,7 +1739,8 @@ impl PrimitiveValue {
                         NarrowConvertSnafu {
                             value: s[0].to_string(),
                         }
-                        .build(),
+                        .build()
+                        .into(),
                     ),
                 })
             }
@@ -1759,7 +1797,7 @@ impl PrimitiveValue {
                         .map_err(|err| ConvertValueError {
                             requested: "float64",
                             original: self.value_type(),
-                            cause: Some(err),
+                            cause: Some(Box::from(err)),
                         })?;
                 Ok(vec![out])
             }
@@ -1772,7 +1810,7 @@ impl PrimitiveValue {
                         .map_err(|err| ConvertValueError {
                             requested: "float64",
                             original: self.value_type(),
-                            cause: Some(err),
+                            cause: Some(Box::from(err)),
                         })
                 })
                 .collect::<Result<Vec<_>, _>>(),
@@ -1786,7 +1824,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1801,7 +1840,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1816,7 +1856,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1831,7 +1872,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1846,7 +1888,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1861,7 +1904,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1876,7 +1920,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1891,7 +1936,8 @@ impl PrimitiveValue {
                             NarrowConvertSnafu {
                                 value: v.to_string(),
                             }
-                            .build(),
+                            .build()
+                            .into(),
                         ),
                     })
                 })
@@ -1906,6 +1952,10 @@ impl PrimitiveValue {
     }
 
     /// Retrieve a single `chrono::NaiveDate` from this value.
+    ///
+    /// Please note, that this is a shortcut to obtain a usable date from a primitive value.
+    /// As per standard, the stored value might not be precise. It is highly recommended to
+    /// use [`.to_date()`](PrimitiveValue::to_date) as the only way to obtain dates.
     ///
     /// If the value is already represented as a precise `DicomDate`, it is converted
     ///  to a `NaiveDate` value. It fails for imprecise values.
@@ -1960,14 +2010,14 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Str(s) => super::deserialize::parse_date(s.as_bytes())
                 .context(ParseDateSnafu)
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => {
                 super::deserialize::parse_date(s.first().map(|s| s.as_bytes()).unwrap_or(&[]))
@@ -1975,7 +2025,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "NaiveDate",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::U8(bytes) => super::deserialize::parse_date(bytes)
@@ -1983,7 +2033,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             _ => Err(ConvertValueError {
                 requested: "NaiveDate",
@@ -1994,6 +2044,10 @@ impl PrimitiveValue {
     }
 
     /// Retrieve the full sequence of `chrono::NaiveDate`s from this value.
+    ///
+    /// Please note, that this is a shortcut to obtain usable dates from a primitive value.
+    /// As per standard, the stored values might not be precise. It is highly recommended to
+    /// use [`.to_multi_date()`](PrimitiveValue::to_multi_date) as the only way to obtain dates.
     ///
     /// If the value is already represented as a sequence of precise `DicomDate` values,
     /// it is converted. It fails for imprecise values.
@@ -2048,7 +2102,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Str(s) => super::deserialize::parse_date(s.trim_end().as_bytes())
                 .map(|date| vec![date])
@@ -2056,7 +2110,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => s
                 .into_iter()
@@ -2066,7 +2120,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
@@ -2076,7 +2130,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             _ => Err(ConvertValueError {
                 requested: "NaiveDate",
@@ -2153,7 +2207,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DicomDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => super::deserialize::parse_date_partial(
                 s.first().map(|s| s.as_bytes()).unwrap_or(&[]),
@@ -2163,7 +2217,7 @@ impl PrimitiveValue {
             .map_err(|err| ConvertValueError {
                 requested: "DicomDate",
                 original: self.value_type(),
-                cause: Some(err),
+                cause: Some(Box::from(err)),
             }),
             PrimitiveValue::U8(bytes) => super::deserialize::parse_date_partial(bytes)
                 .map(|(date, _)| date)
@@ -2171,7 +2225,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DicomDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             _ => Err(ConvertValueError {
                 requested: "DicomDate",
@@ -2214,7 +2268,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "DicomDate",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) => s
@@ -2228,7 +2282,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DicomDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
@@ -2238,7 +2292,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DicomDate",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             _ => Err(ConvertValueError {
                 requested: "DicomDate",
@@ -2250,6 +2304,10 @@ impl PrimitiveValue {
 
     /// Retrieve a single `chrono::NaiveTime` from this value.
     ///
+    /// Please note, that this is a shortcut to obtain a usable time from a primitive value.
+    /// As per standard, the stored value might not be precise. It is highly recommended to
+    /// use [`.to_time()`](PrimitiveValue::to_time) as the only way to obtain times.
+    ///
     /// If the value is represented as a precise `DicomTime`,
     /// it is converted to a `NaiveTime`.
     /// It fails for imprecise values,
@@ -2260,9 +2318,6 @@ impl PrimitiveValue {
     /// If the value is a sequence of U8 bytes, the bytes are
     /// first interpreted as an ASCII character string.
     /// Otherwise, the operation fails.
-    ///
-    /// Users are advised that this method requires at least 1 out of 6 digits of the second
-    /// fraction .F to be present. Otherwise, the operation fails.
     ///
     /// Partial precision times are handled by `DicomTime`,
     /// which can be retrieved by [`.to_time()`](PrimitiveValue::to_time).
@@ -2296,7 +2351,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Str(s) => super::deserialize::parse_time(s.trim_end().as_bytes())
                 .map(|(date, _rest)| date)
@@ -2304,7 +2359,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => super::deserialize::parse_time(
                 s.first().map(|s| s.trim_end().as_bytes()).unwrap_or(&[]),
@@ -2314,7 +2369,7 @@ impl PrimitiveValue {
             .map_err(|err| ConvertValueError {
                 requested: "NaiveTime",
                 original: self.value_type(),
-                cause: Some(err),
+                cause: Some(Box::from(err)),
             }),
             PrimitiveValue::U8(bytes) => {
                 super::deserialize::parse_time(trim_last_whitespace(bytes))
@@ -2323,7 +2378,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "NaiveTime",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             _ => Err(ConvertValueError {
@@ -2335,6 +2390,10 @@ impl PrimitiveValue {
     }
 
     /// Retrieve the full sequence of `chrono::NaiveTime`s from this value.
+    ///
+    /// Please note, that this is a shortcut to obtain a usable time from a primitive value.
+    /// As per standard, the stored values might not be precise. It is highly recommended to
+    /// use [`.to_multi_time()`](PrimitiveValue::to_multi_time) as the only way to obtain times.
     ///
     /// If the value is already represented as a sequence of precise `DicomTime` values,
     /// it is converted to a sequence of `NaiveTime` values. It fails for imprecise values.
@@ -2389,7 +2448,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Str(s) => super::deserialize::parse_time(s.trim_end().as_bytes())
                 .map(|(date, _rest)| vec![date])
@@ -2397,7 +2456,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => s
                 .into_iter()
@@ -2410,7 +2469,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
@@ -2420,7 +2479,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             _ => Err(ConvertValueError {
                 requested: "NaiveTime",
@@ -2513,7 +2572,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "DicomTime",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) => super::deserialize::parse_time_partial(
@@ -2524,7 +2583,7 @@ impl PrimitiveValue {
             .map_err(|err| ConvertValueError {
                 requested: "DicomTime",
                 original: self.value_type(),
-                cause: Some(err),
+                cause: Some(Box::from(err)),
             }),
             PrimitiveValue::U8(bytes) => {
                 super::deserialize::parse_time_partial(trim_last_whitespace(bytes))
@@ -2533,7 +2592,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "DicomTime",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             _ => Err(ConvertValueError {
@@ -2593,7 +2652,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "DicomTime",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) => s
@@ -2607,7 +2666,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DicomTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
@@ -2617,7 +2676,7 @@ impl PrimitiveValue {
                 .map_err(|err| ConvertValueError {
                     requested: "DicomTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             _ => Err(ConvertValueError {
                 requested: "DicomTime",
@@ -2627,227 +2686,10 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve a single `chrono::DateTime` from this value.
-    ///
-    /// If the value is already represented as a precise `DicomDateTime`,
-    /// it is converted to `chrono::DateTime`. Imprecise values fail.
-    /// If the value is a string or sequence of strings,
-    /// the first string is decoded to obtain a date-time,
-    /// potentially failing if the string does not represent a valid time.
-    /// If the value in its textual form does not present a time zone,
-    /// `default_offset` is used.
-    /// If the value is a sequence of U8 bytes, the bytes are
-    /// first interpreted as an ASCII character string.
-    /// Otherwise, the operation fails.
-    ///
-    /// Users of this method are advised to retrieve
-    /// the default time zone offset
-    /// from the same source of the DICOM value.
-    ///
-    /// Users are advised that this method requires at least 1 out of 6 digits of the second
-    /// fraction .F to be present. Otherwise, the operation fails.
-    ///
-    /// Partial precision date-times are handled by `DicomDateTime`,
-    /// which can be retrieved by [`.to_datetime()`](PrimitiveValue::to_datetime).
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use dicom_core::value::{C, PrimitiveValue, DicomDateTime, DicomDate, DicomTime};
-    /// # use smallvec::smallvec;
-    /// # use chrono::{DateTime, FixedOffset, TimeZone};
-    /// # use std::error::Error;
-    /// # fn main() -> Result<(), Box<dyn Error>> {
-    /// let default_offset = FixedOffset::east(0);
-    ///
-    /// // full accuracy `DicomDateTime` can be converted
-    /// assert_eq!(
-    ///     PrimitiveValue::from(
-    ///         DicomDateTime::from_date_and_time(
-    ///         DicomDate::from_ymd(2012, 12, 21)?,
-    ///         DicomTime::from_hms_micro(9, 30, 1, 1)?,
-    ///         default_offset
-    ///         )?
-    ///     ).to_chrono_datetime(default_offset)?,
-    ///     FixedOffset::east(0)
-    ///         .ymd(2012, 12, 21)
-    ///         .and_hms_micro(9, 30, 1, 1)
-    ///     ,
-    /// );
-    ///
-    /// assert_eq!(
-    ///     PrimitiveValue::from("20121221093001.1")
-    ///         .to_chrono_datetime(default_offset).ok(),
-    ///     Some(FixedOffset::east(0)
-    ///         .ymd(2012, 12, 21)
-    ///         .and_hms_micro(9, 30, 1, 100_000)
-    ///     ),
-    /// );
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn to_chrono_datetime(
-        &self,
-        default_offset: FixedOffset,
-    ) -> Result<DateTime<FixedOffset>, ConvertValueError> {
-        match self {
-            PrimitiveValue::DateTime(v) if !v.is_empty() => v[0]
-                .to_chrono_datetime()
-                .context(ParseDateTimeRangeSnafu)
-                .map_err(|err| ConvertValueError {
-                    requested: "DateTime",
-                    original: self.value_type(),
-                    cause: Some(err),
-                }),
-            PrimitiveValue::Str(s) => {
-                super::deserialize::parse_datetime(s.trim_end().as_bytes(), default_offset)
-                    .context(ParseDateTimeSnafu)
-                    .map_err(|err| ConvertValueError {
-                        requested: "DateTime",
-                        original: self.value_type(),
-                        cause: Some(err),
-                    })
-            }
-            PrimitiveValue::Strs(s) => super::deserialize::parse_datetime(
-                s.first().map(|s| s.trim_end().as_bytes()).unwrap_or(&[]),
-                default_offset,
-            )
-            .context(ParseDateTimeSnafu)
-            .map_err(|err| ConvertValueError {
-                requested: "DateTime",
-                original: self.value_type(),
-                cause: Some(err),
-            }),
-            PrimitiveValue::U8(bytes) => {
-                super::deserialize::parse_datetime(trim_last_whitespace(bytes), default_offset)
-                    .context(ParseDateTimeSnafu)
-                    .map_err(|err| ConvertValueError {
-                        requested: "DateTime",
-                        original: self.value_type(),
-                        cause: Some(err),
-                    })
-            }
-            _ => Err(ConvertValueError {
-                requested: "DateTime",
-                original: self.value_type(),
-                cause: None,
-            }),
-        }
-    }
-
-    /// Retrieve the full sequence of `chrono::DateTime`s from this value.
-    ///
-    /// If the value is already represented as a sequence of precise `DicomDateTime` values,
-    /// it is converted to a sequence of `chrono::DateTime` values. Imprecise values fail.
-    /// If the value is a string or sequence of strings,
-    /// the strings are decoded to obtain a date, potentially failing if
-    /// any of the strings does not represent a valid date.
-    /// If the value is a sequence of U8 bytes, the bytes are
-    /// first interpreted as an ASCII character string,
-    /// then as a backslash-separated list of date-times.
-    /// Otherwise, the operation fails.
-    ///
-    /// Users are advised that this method requires at least 1 out of 6 digits of the second
-    /// fraction .F to be present. Otherwise, the operation fails.
-    ///
-    /// Partial precision date-times are handled by `DicomDateTime`,
-    /// which can be retrieved by [`.to_multi_datetime()`](PrimitiveValue::to_multi_datetime).
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use dicom_core::value::{C, PrimitiveValue, DicomDate, DicomTime, DicomDateTime};
-    /// # use smallvec::smallvec;
-    /// # use chrono::{FixedOffset, TimeZone};
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let default_offset = FixedOffset::east(0);
-    ///
-    /// // full accuracy `DicomDateTime` can be converted
-    /// assert_eq!(
-    ///     PrimitiveValue::from(
-    ///         DicomDateTime::from_date_and_time(
-    ///         DicomDate::from_ymd(2012, 12, 21)?,
-    ///         DicomTime::from_hms_micro(9, 30, 1, 123_456)?,
-    ///         default_offset
-    ///         )?
-    ///     ).to_multi_chrono_datetime(default_offset)?,
-    ///     vec![FixedOffset::east(0)
-    ///         .ymd(2012, 12, 21)
-    ///         .and_hms_micro(9, 30, 1, 123_456)
-    ///     ],
-    /// );
-    ///
-    /// assert_eq!(
-    ///     PrimitiveValue::Strs(smallvec![
-    ///         "20121221093001.123".to_string(),
-    ///         "20180102100123.123456".to_string(),
-    ///     ]).to_multi_chrono_datetime(default_offset).ok(),
-    ///     Some(vec![
-    ///         FixedOffset::east(0)
-    ///             .ymd(2012, 12, 21)
-    ///             .and_hms_micro(9, 30, 1, 123_000),
-    ///         FixedOffset::east(0)
-    ///             .ymd(2018, 1, 2)
-    ///             .and_hms_micro(10, 1, 23, 123_456)
-    ///     ]),
-    /// );
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn to_multi_chrono_datetime(
-        &self,
-        default_offset: FixedOffset,
-    ) -> Result<Vec<DateTime<FixedOffset>>, ConvertValueError> {
-        match self {
-            PrimitiveValue::DateTime(v) if !v.is_empty() => v
-                .into_iter()
-                .map(|dt| dt.to_chrono_datetime())
-                .collect::<Result<Vec<_>, _>>()
-                .context(ParseDateTimeRangeSnafu)
-                .map_err(|err| ConvertValueError {
-                    requested: "DateTime",
-                    original: self.value_type(),
-                    cause: Some(err),
-                }),
-            PrimitiveValue::Str(s) => {
-                super::deserialize::parse_datetime(s.trim_end().as_bytes(), default_offset)
-                    .map(|date| vec![date])
-                    .context(ParseDateSnafu)
-                    .map_err(|err| ConvertValueError {
-                        requested: "DateTime",
-                        original: self.value_type(),
-                        cause: Some(err),
-                    })
-            }
-            PrimitiveValue::Strs(s) => s
-                .into_iter()
-                .map(|s| {
-                    super::deserialize::parse_datetime(s.trim_end().as_bytes(), default_offset)
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .context(ParseDateSnafu)
-                .map_err(|err| ConvertValueError {
-                    requested: "DateTime",
-                    original: self.value_type(),
-                    cause: Some(err),
-                }),
-            PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
-                .split(|c| *c == b'\\')
-                .map(|s| super::deserialize::parse_datetime(s, default_offset))
-                .collect::<Result<Vec<_>, _>>()
-                .context(ParseDateSnafu)
-                .map_err(|err| ConvertValueError {
-                    requested: "DateTime",
-                    original: self.value_type(),
-                    cause: Some(err),
-                }),
-            _ => Err(ConvertValueError {
-                requested: "DateTime",
-                original: self.value_type(),
-                cause: None,
-            }),
-        }
-    }
+    #[deprecated(since = "0.7.0", note = "Use `to_datetime` instead")]
+    pub fn to_chrono_datetime(&self) {}
+    #[deprecated(since = "0.7.0", note = "Use `to_multi_datetime` instead")]
+    pub fn to_multi_chrono_datetime(&self) {}
 
     /// Retrieve a single `DicomDateTime` from this value.
     ///
@@ -2869,91 +2711,93 @@ impl PrimitiveValue {
     /// ```
     /// # use dicom_core::value::{C, PrimitiveValue};
     /// # use smallvec::smallvec;
-    /// # use chrono::{DateTime, FixedOffset, TimeZone};
+    /// # use chrono::{DateTime, FixedOffset, TimeZone, NaiveDateTime, NaiveDate, NaiveTime};
     /// # use std::error::Error;
-    /// use dicom_core::value::{DicomDateTime, AsRange, DateTimeRange};
+    /// use dicom_core::value::{DicomDateTime, AsRange, DateTimeRange, PreciseDateTime};
     ///
     /// # fn main() -> Result<(), Box<dyn Error>> {
-    /// let default_offset = FixedOffset::east(0);
     ///
-    /// let dt_value = PrimitiveValue::from("20121221093001.1").to_datetime(default_offset)?;
+    /// // let's parse a date-time text value with 0.1 second precision without a time-zone.
+    /// let dt_value = PrimitiveValue::from("20121221093001.1").to_datetime()?;
     ///
     /// assert_eq!(
     ///     dt_value.earliest()?,
-    ///     FixedOffset::east(0)
-    ///         .ymd(2012, 12, 21)
-    ///         .and_hms_micro(9, 30, 1, 100_000)
+    ///     PreciseDateTime::Naive(NaiveDateTime::new(
+    ///      NaiveDate::from_ymd_opt(2012, 12, 21).unwrap(),
+    ///      NaiveTime::from_hms_micro_opt(9, 30, 1, 100_000).unwrap()
+    ///         ))
     /// );
     /// assert_eq!(
     ///     dt_value.latest()?,
-    ///     FixedOffset::east(0)
-    ///         .ymd(2012, 12, 21)
-    ///         .and_hms_micro(9, 30, 1, 199_999)
+    ///     PreciseDateTime::Naive(NaiveDateTime::new(
+    ///      NaiveDate::from_ymd_opt(2012, 12, 21).unwrap(),
+    ///      NaiveTime::from_hms_micro_opt(9, 30, 1, 199_999).unwrap()
+    ///         ))
     /// );
     ///
-    /// let dt_value = PrimitiveValue::from("20121221093001.123456").to_datetime(default_offset)?;
+    /// let default_offset = FixedOffset::east_opt(3600).unwrap();
+    /// // let's parse a date-time text value with full precision with a time-zone east +01:00.
+    /// let dt_value = PrimitiveValue::from("20121221093001.123456+0100").to_datetime()?;
     ///
     /// // date-time has all components
     /// assert_eq!(dt_value.is_precise(), true);
     ///
-    /// assert!(dt_value.exact().is_ok());
-    ///
-    /// // .to_chrono_datetime() only works for a precise value
     /// assert_eq!(
-    ///     dt_value.to_chrono_datetime()?,
-    ///     dt_value.exact()?
+    ///     dt_value.exact()?,
+    ///     PreciseDateTime::TimeZone(
+    ///     default_offset
+    ///     .ymd_opt(2012, 12, 21).unwrap()
+    ///     .and_hms_micro_opt(9, 30, 1, 123_456).unwrap()
+    ///     )
+    ///        
     /// );
     ///
     /// // ranges are inclusive, for a precise value, two identical values are returned
     /// assert_eq!(
     ///     dt_value.range()?,
-    ///     DateTimeRange::from_start_to_end(
-    ///         FixedOffset::east(0)
-    ///             .ymd(2012, 12, 21)
-    ///             .and_hms_micro(9, 30, 1, 123_456),
-    ///         FixedOffset::east(0)
-    ///             .ymd(2012, 12, 21)
-    ///             .and_hms_micro(9, 30, 1, 123_456))?
+    ///     DateTimeRange::from_start_to_end_with_time_zone(
+    ///         FixedOffset::east_opt(3600).unwrap()
+    ///             .ymd_opt(2012, 12, 21).unwrap()
+    ///             .and_hms_micro_opt(9, 30, 1, 123_456).unwrap(),
+    ///         FixedOffset::east_opt(3600).unwrap()
+    ///             .ymd_opt(2012, 12, 21).unwrap()
+    ///             .and_hms_micro_opt(9, 30, 1, 123_456).unwrap()
+    ///     )?
     ///     
     /// );
     /// # Ok(())
     /// # }
     /// ```
-    pub fn to_datetime(
-        &self,
-        default_offset: FixedOffset,
-    ) -> Result<DicomDateTime, ConvertValueError> {
+    pub fn to_datetime(&self) -> Result<DicomDateTime, ConvertValueError> {
         match self {
             PrimitiveValue::DateTime(v) if !v.is_empty() => Ok(v[0]),
             PrimitiveValue::Str(s) => {
-                super::deserialize::parse_datetime_partial(s.trim_end().as_bytes(), default_offset)
+                super::deserialize::parse_datetime_partial(s.trim_end().as_bytes())
                     .context(ParseDateTimeSnafu)
                     .map_err(|err| ConvertValueError {
                         requested: "DicomDateTime",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) => super::deserialize::parse_datetime_partial(
                 s.first().map(|s| s.trim_end().as_bytes()).unwrap_or(&[]),
-                default_offset,
             )
             .context(ParseDateTimeSnafu)
             .map_err(|err| ConvertValueError {
                 requested: "DicomDateTime",
                 original: self.value_type(),
-                cause: Some(err),
+                cause: Some(Box::from(err)),
             }),
-            PrimitiveValue::U8(bytes) => super::deserialize::parse_datetime_partial(
-                trim_last_whitespace(bytes),
-                default_offset,
-            )
-            .context(ParseDateTimeSnafu)
-            .map_err(|err| ConvertValueError {
-                requested: "DicomDateTime",
-                original: self.value_type(),
-                cause: Some(err),
-            }),
+            PrimitiveValue::U8(bytes) => {
+                super::deserialize::parse_datetime_partial(trim_last_whitespace(bytes))
+                    .context(ParseDateTimeSnafu)
+                    .map_err(|err| ConvertValueError {
+                        requested: "DicomDateTime",
+                        original: self.value_type(),
+                        cause: Some(Box::from(err)),
+                    })
+            }
             _ => Err(ConvertValueError {
                 requested: "DicomDateTime",
                 original: self.value_type(),
@@ -2964,46 +2808,38 @@ impl PrimitiveValue {
 
     /// Retrieve the full sequence of `DicomDateTime`s from this value.
     ///
-    pub fn to_multi_datetime(
-        &self,
-        default_offset: FixedOffset,
-    ) -> Result<Vec<DicomDateTime>, ConvertValueError> {
+    pub fn to_multi_datetime(&self) -> Result<Vec<DicomDateTime>, ConvertValueError> {
         match self {
             PrimitiveValue::DateTime(v) => Ok(v.to_vec()),
             PrimitiveValue::Str(s) => {
-                super::deserialize::parse_datetime_partial(s.trim_end().as_bytes(), default_offset)
+                super::deserialize::parse_datetime_partial(s.trim_end().as_bytes())
                     .map(|date| vec![date])
                     .context(ParseDateSnafu)
                     .map_err(|err| ConvertValueError {
                         requested: "DicomDateTime",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             PrimitiveValue::Strs(s) => s
                 .into_iter()
-                .map(|s| {
-                    super::deserialize::parse_datetime_partial(
-                        s.trim_end().as_bytes(),
-                        default_offset,
-                    )
-                })
+                .map(|s| super::deserialize::parse_datetime_partial(s.trim_end().as_bytes()))
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
                 .map_err(|err| ConvertValueError {
                     requested: "DicomDateTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::U8(bytes) => trim_last_whitespace(bytes)
                 .split(|c| *c == b'\\')
-                .map(|s| super::deserialize::parse_datetime_partial(s, default_offset))
+                .map(super::deserialize::parse_datetime_partial)
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
                 .map_err(|err| ConvertValueError {
                     requested: "DicomDateTime",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             _ => Err(ConvertValueError {
                 requested: "DicomDateTime",
@@ -3014,7 +2850,7 @@ impl PrimitiveValue {
     }
     /// Retrieve a single `DateRange` from this value.
     ///
-    /// If the value is already represented as a `DicomDate`, it is converted into `DateRange` - todo.
+    /// If the value is already represented as a `DicomDate`, it is converted into `DateRange`.
     /// If the value is a string or sequence of strings,
     /// the first string is decoded to obtain a `DateRange`, potentially failing if the
     /// string does not represent a valid `DateRange`.
@@ -3051,12 +2887,20 @@ impl PrimitiveValue {
     /// ```
     pub fn to_date_range(&self) -> Result<DateRange, ConvertValueError> {
         match self {
+            PrimitiveValue::Date(da) if !da.is_empty() => da[0]
+                .range()
+                .context(ParseDateRangeSnafu)
+                .map_err(|err| ConvertValueError {
+                    requested: "DateRange",
+                    original: self.value_type(),
+                    cause: Some(Box::from(err)),
+                }),
             PrimitiveValue::Str(s) => super::range::parse_date_range(s.trim_end().as_bytes())
                 .context(ParseDateRangeSnafu)
                 .map_err(|err| ConvertValueError {
                     requested: "DateRange",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => super::range::parse_date_range(
                 s.first().map(|s| s.trim_end().as_bytes()).unwrap_or(&[]),
@@ -3065,7 +2909,7 @@ impl PrimitiveValue {
             .map_err(|err| ConvertValueError {
                 requested: "DateRange",
                 original: self.value_type(),
-                cause: Some(err),
+                cause: Some(Box::from(err)),
             }),
             PrimitiveValue::U8(bytes) => {
                 super::range::parse_date_range(trim_last_whitespace(bytes))
@@ -3073,7 +2917,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "DateRange",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             _ => Err(ConvertValueError {
@@ -3086,7 +2930,7 @@ impl PrimitiveValue {
 
     /// Retrieve a single `TimeRange` from this value.
     ///
-    /// If the value is already represented as a `DicomTime`, it is converted into `TimeRange` - todo.
+    /// If the value is already represented as a `DicomTime`, it is converted into a `TimeRange`.
     /// If the value is a string or sequence of strings,
     /// the first string is decoded to obtain a `TimeRange`, potentially failing if the
     /// string does not represent a valid `DateRange`.
@@ -3126,12 +2970,20 @@ impl PrimitiveValue {
     /// ```
     pub fn to_time_range(&self) -> Result<TimeRange, ConvertValueError> {
         match self {
+            PrimitiveValue::Time(t) if !t.is_empty() => t[0]
+                .range()
+                .context(ParseTimeRangeSnafu)
+                .map_err(|err| ConvertValueError {
+                    requested: "TimeRange",
+                    original: self.value_type(),
+                    cause: Some(Box::from(err)),
+                }),
             PrimitiveValue::Str(s) => super::range::parse_time_range(s.trim_end().as_bytes())
                 .context(ParseTimeRangeSnafu)
                 .map_err(|err| ConvertValueError {
                     requested: "TimeRange",
                     original: self.value_type(),
-                    cause: Some(err),
+                    cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => super::range::parse_time_range(
                 s.first().map(|s| s.trim_end().as_bytes()).unwrap_or(&[]),
@@ -3140,7 +2992,7 @@ impl PrimitiveValue {
             .map_err(|err| ConvertValueError {
                 requested: "TimeRange",
                 original: self.value_type(),
-                cause: Some(err),
+                cause: Some(Box::from(err)),
             }),
             PrimitiveValue::U8(bytes) => {
                 super::range::parse_time_range(trim_last_whitespace(bytes))
@@ -3148,7 +3000,7 @@ impl PrimitiveValue {
                     .map_err(|err| ConvertValueError {
                         requested: "TimeRange",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
                     })
             }
             _ => Err(ConvertValueError {
@@ -3172,70 +3024,203 @@ impl PrimitiveValue {
     ///
     /// ```
     /// # use dicom_core::value::{C, PrimitiveValue};
-    /// use chrono::{DateTime, FixedOffset, TimeZone};
+    /// use chrono::{DateTime, NaiveDate, NaiveTime, NaiveDateTime, FixedOffset, TimeZone, Local};
     /// # use std::error::Error;
-    /// use dicom_core::value::{DateTimeRange};
+    /// use dicom_core::value::{DateTimeRange, PreciseDateTime};
     ///
     /// # fn main() -> Result<(), Box<dyn Error>> {
     ///
-    /// let offset = FixedOffset::east(3600);
+    /// // let's parse a text representation of a date-time range, where the lower bound is a microsecond
+    /// // precision value with a time-zone (east +05:00) and the upper bound is a minimum precision value
+    /// // with a time-zone
+    /// let dt_range = PrimitiveValue::from("19920101153020.123+0500-1993+0300").to_datetime_range()?;
     ///
-    /// let dt_range = PrimitiveValue::from("19920101153020.123+0500-1993").to_datetime_range(offset)?;
-    ///
-    /// // default offset override with parsed value
+    /// // lower bound of range is parsed into a PreciseDateTimeResult::TimeZone variant
     /// assert_eq!(
     ///     dt_range.start(),
-    ///     Some(&FixedOffset::east(5*3600).ymd(1992, 1, 1)
-    ///         .and_hms_micro(15, 30, 20, 123_000)  
+    ///     Some(PreciseDateTime::TimeZone(
+    ///         FixedOffset::east_opt(5*3600).unwrap().ymd_opt(1992, 1, 1).unwrap()
+    ///         .and_hms_micro_opt(15, 30, 20, 123_000).unwrap()
+    ///         )  
     ///     )
     /// );
     ///
-    /// // null components default to latest possible
+    /// // upper bound of range is parsed into a PreciseDateTimeResult::TimeZone variant
     /// assert_eq!(
     ///     dt_range.end(),
-    ///     Some(&offset.ymd(1993, 12, 31)
-    ///         .and_hms_micro(23, 59, 59, 999_999)  
+    ///     Some(PreciseDateTime::TimeZone(
+    ///         FixedOffset::east_opt(3*3600).unwrap().ymd_opt(1993, 12, 31).unwrap()
+    ///         .and_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+    ///         )  
     ///     )
     /// );
     ///
-    /// let range_from = PrimitiveValue::from("2012-").to_datetime_range(offset)?;
+    /// let lower = PrimitiveValue::from("2012-").to_datetime_range()?;
     ///
-    /// assert!(range_from.end().is_none());
+    /// // range has no upper bound
+    /// assert!(lower.end().is_none());
+    ///
+    /// // One time-zone in a range is missing
+    /// let dt_range = PrimitiveValue::from("1992+0500-1993").to_datetime_range()?;
+    ///
+    /// // It will be replaced with the local clock time-zone offset
+    /// // This can be customized with [to_datetime_range_custom()]
+    /// assert_eq!(
+    ///   dt_range,
+    ///   DateTimeRange::TimeZone{
+    ///         start: Some(FixedOffset::east_opt(5*3600).unwrap()
+    ///             .ymd_opt(1992, 1, 1).unwrap()
+    ///             .and_hms_micro_opt(0, 0, 0, 0).unwrap()
+    ///         ),
+    ///         end: Some(Local::now().offset()
+    ///             .ymd_opt(1993, 12, 31).unwrap()
+    ///             .and_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+    ///         )
+    ///     }
+    /// );
     ///
     /// # Ok(())
     /// # }
     /// ```
-    pub fn to_datetime_range(
-        &self,
-        offset: FixedOffset,
-    ) -> Result<DateTimeRange, ConvertValueError> {
+    pub fn to_datetime_range(&self) -> Result<DateTimeRange, ConvertValueError> {
         match self {
-            PrimitiveValue::Str(s) => {
-                super::range::parse_datetime_range(s.trim_end().as_bytes(), offset)
-                    .context(ParseDateTimeRangeSnafu)
-                    .map_err(|err| ConvertValueError {
-                        requested: "DateTimeRange",
-                        original: self.value_type(),
-                        cause: Some(err),
-                    })
-            }
+            PrimitiveValue::DateTime(dt) if !dt.is_empty() => dt[0]
+                .range()
+                .context(ParseDateTimeRangeSnafu)
+                .map_err(|err| ConvertValueError {
+                    requested: "DateTimeRange",
+                    original: self.value_type(),
+                    cause: Some(Box::from(err)),
+                }),
+            PrimitiveValue::Str(s) => super::range::parse_datetime_range(s.trim_end().as_bytes())
+                .context(ParseDateTimeRangeSnafu)
+                .map_err(|err| ConvertValueError {
+                    requested: "DateTimeRange",
+                    original: self.value_type(),
+                    cause: Some(Box::from(err)),
+                }),
             PrimitiveValue::Strs(s) => super::range::parse_datetime_range(
                 s.first().map(|s| s.trim_end().as_bytes()).unwrap_or(&[]),
-                offset,
             )
             .context(ParseDateTimeRangeSnafu)
             .map_err(|err| ConvertValueError {
                 requested: "DateTimeRange",
                 original: self.value_type(),
-                cause: Some(err),
+                cause: Some(Box::from(err)),
             }),
             PrimitiveValue::U8(bytes) => {
-                super::range::parse_datetime_range(trim_last_whitespace(bytes), offset)
+                super::range::parse_datetime_range(trim_last_whitespace(bytes))
                     .context(ParseDateTimeRangeSnafu)
                     .map_err(|err| ConvertValueError {
                         requested: "DateTimeRange",
                         original: self.value_type(),
-                        cause: Some(err),
+                        cause: Some(Box::from(err)),
+                    })
+            }
+            _ => Err(ConvertValueError {
+                requested: "DateTimeRange",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve a single `DateTimeRange` from this value.
+    ///
+    /// Use a custom ambiguous date-time range parser.
+    ///
+    /// For full description see [PrimitiveValue::to_datetime_range] and [AmbiguousDtRangeParser].
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use std::error::Error;
+    /// use dicom_core::value::range::{AmbiguousDtRangeParser, ToKnownTimeZone, IgnoreTimeZone, FailOnAmbiguousRange, DateTimeRange};
+    /// use chrono::{NaiveDate, NaiveTime, NaiveDateTime};
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    ///
+    /// // The upper bound time-zone is missing
+    /// // the default behavior in this case is to use the local clock time-zone.
+    /// // But we want to use the known (parsed) time-zone from the lower bound instead.
+    /// let dt_range = PrimitiveValue::from("1992+0500-1993")
+    ///     .to_datetime_range_custom::<ToKnownTimeZone>()?;
+    ///
+    /// // values are in the same time-zone
+    /// assert_eq!(
+    ///     dt_range.start().unwrap()
+    ///         .as_datetime().unwrap()
+    ///         .offset(),
+    ///     dt_range.end().unwrap()
+    ///         .as_datetime().unwrap()
+    ///         .offset()
+    /// );
+    ///
+    /// // ignore parsed time-zone, retrieve a time-zone naive range
+    /// let naive_range = PrimitiveValue::from("1992+0599-1993")
+    ///     .to_datetime_range_custom::<IgnoreTimeZone>()?;
+    ///
+    /// assert_eq!(
+    ///     naive_range,
+    ///     DateTimeRange::from_start_to_end(
+    ///         NaiveDateTime::new(
+    ///             NaiveDate::from_ymd_opt(1992, 1, 1).unwrap(),
+    ///             NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
+    ///         ),
+    ///         NaiveDateTime::new(
+    ///             NaiveDate::from_ymd_opt(1993, 12, 31).unwrap(),
+    ///             NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+    ///         )
+    ///     ).unwrap()
+    /// );
+    ///
+    /// // always fail upon parsing an ambiguous DT range
+    /// assert!(
+    /// PrimitiveValue::from("1992+0599-1993")
+    ///     .to_datetime_range_custom::<FailOnAmbiguousRange>().is_err()
+    /// );
+    ///
+    ///
+    ///
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn to_datetime_range_custom<T: AmbiguousDtRangeParser>(
+        &self,
+    ) -> Result<DateTimeRange, ConvertValueError> {
+        match self {
+            PrimitiveValue::DateTime(dt) if !dt.is_empty() => dt[0]
+                .range()
+                .context(ParseDateTimeRangeSnafu)
+                .map_err(|err| ConvertValueError {
+                    requested: "DateTimeRange",
+                    original: self.value_type(),
+                    cause: Some(Box::from(err)),
+                }),
+            PrimitiveValue::Str(s) => {
+                super::range::parse_datetime_range_custom::<T>(s.trim_end().as_bytes())
+                    .context(ParseDateTimeRangeSnafu)
+                    .map_err(|err| ConvertValueError {
+                        requested: "DateTimeRange",
+                        original: self.value_type(),
+                        cause: Some(Box::from(err)),
+                    })
+            }
+            PrimitiveValue::Strs(s) => super::range::parse_datetime_range_custom::<T>(
+                s.first().map(|s| s.trim_end().as_bytes()).unwrap_or(&[]),
+            )
+            .context(ParseDateTimeRangeSnafu)
+            .map_err(|err| ConvertValueError {
+                requested: "DateTimeRange",
+                original: self.value_type(),
+                cause: Some(Box::from(err)),
+            }),
+            PrimitiveValue::U8(bytes) => {
+                super::range::parse_datetime_range_custom::<T>(trim_last_whitespace(bytes))
+                    .context(ParseDateTimeRangeSnafu)
+                    .map_err(|err| ConvertValueError {
+                        requested: "DateTimeRange",
+                        original: self.value_type(),
+                        cause: Some(Box::from(err)),
                     })
             }
             _ => Err(ConvertValueError {
@@ -4098,7 +4083,7 @@ impl PrimitiveValue {
 
     /// Shorten this value by removing trailing elements
     /// to fit the given limit.
-    /// 
+    ///
     /// Elements are counted by the number of individual value items
     /// (note that bytes in a [`PrimitiveValue::U8`]
     /// are treated as individual items).
@@ -4121,8 +4106,7 @@ impl PrimitiveValue {
     /// ```
     pub fn truncate(&mut self, limit: usize) {
         match self {
-            PrimitiveValue::Empty |
-            PrimitiveValue::Str(_) => { /* no-op */ },
+            PrimitiveValue::Empty | PrimitiveValue::Str(_) => { /* no-op */ }
             PrimitiveValue::Strs(l) => l.truncate(limit),
             PrimitiveValue::Tags(l) => l.truncate(limit),
             PrimitiveValue::U8(l) => l.truncate(limit),
@@ -4372,7 +4356,7 @@ mod tests {
     use crate::value::partial::{DicomDate, DicomDateTime, DicomTime};
     use crate::value::range::{DateRange, DateTimeRange, TimeRange};
     use crate::value::{PrimitiveValue, ValueType};
-    use chrono::{FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
+    use chrono::{FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
     use smallvec::smallvec;
 
     #[test]
@@ -4541,8 +4525,8 @@ mod tests {
                 requested: _,
                 original: ValueType::Strs,
                 // would try to parse as an integer and fail
-                cause: Some(InvalidValueReadError::ParseInteger { .. }),
-            })
+                cause: Some(cause),
+            }) if matches!(&*cause, InvalidValueReadError::ParseInteger { .. })
         ));
     }
 
@@ -4582,12 +4566,13 @@ mod tests {
             Err(ConvertValueError {
                 original: ValueType::I32,
                 // the cast from -1_i32 to u32 would fail
-                cause: Some(InvalidValueReadError::NarrowConvert {
-                    value: x,
-                   ..
-                }),
+                cause: Some(cause),
                 ..
-            }) if &x == "-1"
+            }) if matches!(&*cause,
+                InvalidValueReadError::NarrowConvert {
+                value: x,
+               ..
+            } if x == "-1")
         ));
 
         // not even from strings
@@ -4596,9 +4581,9 @@ mod tests {
             Err(ConvertValueError {
                 original: ValueType::Strs,
                 // the conversion from "-1" to u32 would fail
-                cause: Some(InvalidValueReadError::ParseInteger { .. }),
+                cause: Some(cause),
                 ..
-            })
+            }) if matches!(&*cause, InvalidValueReadError::ParseInteger { .. })
         ));
 
         // does not admit strings which are not numbers
@@ -4608,8 +4593,8 @@ mod tests {
                 requested: _,
                 original: ValueType::Strs,
                 // would try to parse as an integer and fail
-                cause: Some(InvalidValueReadError::ParseInteger { .. }),
-            })
+                cause: Some(cause),
+            }) if matches!(&*cause, InvalidValueReadError::ParseInteger { .. })
         ));
     }
 
@@ -4643,8 +4628,8 @@ mod tests {
                 requested: _,
                 original: ValueType::Strs,
                 // would try to parse as a float and fail
-                cause: Some(InvalidValueReadError::ParseFloat { .. }),
-            })
+                cause: Some(cause),
+            }) if matches!(&*cause, InvalidValueReadError::ParseFloat { .. })
         ));
     }
 
@@ -4839,145 +4824,75 @@ mod tests {
     }
 
     #[test]
-    fn primitive_value_to_chrono_datetime() {
-        let this_datetime = FixedOffset::east_opt(1)
-            .unwrap()
-            .with_ymd_and_hms(2012, 12, 21, 11, 9, 26)
-            .unwrap();
-        let this_datetime_frac = FixedOffset::east_opt(1)
-            .unwrap()
-            .from_local_datetime(&NaiveDateTime::new(
-                NaiveDate::from_ymd_opt(2012, 12, 21).unwrap(),
-                NaiveTime::from_hms_micro_opt(11, 9, 26, 380_000).unwrap(),
-            ))
-            .unwrap();
-
-        // from text (Str) - fraction is mandatory even if zero
-        assert_eq!(
-            dicom_value!(Str, "20121221110926.0")
-                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
-                .unwrap(),
-            this_datetime,
-        );
-        // from text with fraction of a second + padding
-        assert_eq!(
-            PrimitiveValue::from("20121221110926.38 ")
-                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
-                .unwrap(),
-            this_datetime_frac,
-        );
-        // from text (Strs) - fraction is mandatory even if zero
-        assert_eq!(
-            dicom_value!(Strs, ["20121221110926.0"])
-                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
-                .unwrap(),
-            this_datetime,
-        );
-        // from text (Strs) with fraction of a second + padding
-        assert_eq!(
-            dicom_value!(Strs, ["20121221110926.38 "])
-                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
-                .unwrap(),
-            this_datetime_frac,
-        );
-        // from bytes with fraction of a second + padding
-        assert_eq!(
-            PrimitiveValue::from(&b"20121221110926.38 "[..])
-                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
-                .unwrap(),
-            this_datetime_frac,
-        );
-
-        // without fraction of a second
-        let this_datetime = FixedOffset::east_opt(1)
-            .unwrap()
-            .with_ymd_and_hms(2012, 12, 21, 11, 9, 26)
-            .unwrap();
-        assert_eq!(
-            dicom_value!(Str, "20121221110926")
-                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap())
-                .unwrap(),
-            this_datetime,
-        );
-
-        // without seconds
-        assert!(matches!(
-            PrimitiveValue::from("201212211109")
-                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap()),
-            Err(ConvertValueError {
-                requested: "DateTime",
-                original: ValueType::Str,
-                ..
-            })
-        ));
-
-        // not a datetime
-        assert!(matches!(
-            PrimitiveValue::from("Smith^John")
-                .to_chrono_datetime(FixedOffset::east_opt(1).unwrap()),
-            Err(ConvertValueError {
-                requested: "DateTime",
-                original: ValueType::Str,
-                ..
-            })
-        ));
-    }
-
-    #[test]
     fn primitive_value_to_dicom_datetime() {
         let offset = FixedOffset::east_opt(1).unwrap();
 
-        // try from chrono::DateTime
+        // try from chrono::DateTime<FixedOffset>
         assert_eq!(
             PrimitiveValue::from(
-                DicomDateTime::from_date_and_time(
+                DicomDateTime::from_date_and_time_with_time_zone(
                     DicomDate::from_ymd(2012, 12, 21).unwrap(),
                     DicomTime::from_hms_micro(11, 9, 26, 000123).unwrap(),
                     offset
                 )
                 .unwrap()
             )
-            .to_datetime(offset)
+            .to_datetime()
             .unwrap(),
-            DicomDateTime::from_date_and_time(
+            DicomDateTime::from_date_and_time_with_time_zone(
                 DicomDate::from_ymd(2012, 12, 21).unwrap(),
                 DicomTime::from_hms_micro(11, 9, 26, 000123).unwrap(),
                 offset
             )
             .unwrap()
         );
+        // try from chrono::NaiveDateTime
+        assert_eq!(
+            PrimitiveValue::from(
+                DicomDateTime::from_date_and_time(
+                    DicomDate::from_ymd(2012, 12, 21).unwrap(),
+                    DicomTime::from_hms_micro(11, 9, 26, 000123).unwrap()
+                )
+                .unwrap()
+            )
+            .to_datetime()
+            .unwrap(),
+            DicomDateTime::from_date_and_time(
+                DicomDate::from_ymd(2012, 12, 21).unwrap(),
+                DicomTime::from_hms_micro(11, 9, 26, 000123).unwrap()
+            )
+            .unwrap()
+        );
         // from text (Str) - minimum allowed is a YYYY
         assert_eq!(
-            dicom_value!(Str, "2012").to_datetime(offset).unwrap(),
-            DicomDateTime::from_date(DicomDate::from_y(2012).unwrap(), offset)
+            dicom_value!(Str, "2012").to_datetime().unwrap(),
+            DicomDateTime::from_date(DicomDate::from_y(2012).unwrap())
         );
         // from text with fraction of a second + padding
         assert_eq!(
             PrimitiveValue::from("20121221110926.38 ")
-                .to_datetime(offset)
+                .to_datetime()
                 .unwrap(),
             DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2012, 12, 21).unwrap(),
-                DicomTime::from_hmsf(11, 9, 26, 38, 2).unwrap(),
-                offset
+                DicomTime::from_hmsf(11, 9, 26, 38, 2).unwrap()
             )
             .unwrap()
         );
         // from text (Strs) with fraction of a second + padding
         assert_eq!(
             dicom_value!(Strs, ["20121221110926.38 "])
-                .to_datetime(offset)
+                .to_datetime()
                 .unwrap(),
             DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2012, 12, 21).unwrap(),
-                DicomTime::from_hmsf(11, 9, 26, 38, 2).unwrap(),
-                offset
+                DicomTime::from_hmsf(11, 9, 26, 38, 2).unwrap()
             )
             .unwrap()
         );
         // not a dicom_datetime
         assert!(matches!(
-            PrimitiveValue::from("Smith^John").to_datetime(offset),
+            PrimitiveValue::from("Smith^John").to_datetime(),
             Err(ConvertValueError {
                 requested: "DicomDateTime",
                 original: ValueType::Str,
@@ -4988,28 +4903,26 @@ mod tests {
 
     #[test]
     fn primitive_value_to_multi_dicom_datetime() {
-        let offset = FixedOffset::east_opt(1).unwrap();
         // from text (Strs)
         assert_eq!(
             dicom_value!(
                 Strs,
                 ["20121221110926.38 ", "1992", "19901010-0500", "1990+0501"]
             )
-            .to_multi_datetime(offset)
+            .to_multi_datetime()
             .unwrap(),
             vec!(
                 DicomDateTime::from_date_and_time(
                     DicomDate::from_ymd(2012, 12, 21).unwrap(),
-                    DicomTime::from_hmsf(11, 9, 26, 38, 2).unwrap(),
-                    offset
+                    DicomTime::from_hmsf(11, 9, 26, 38, 2).unwrap()
                 )
                 .unwrap(),
-                DicomDateTime::from_date(DicomDate::from_y(1992).unwrap(), offset),
-                DicomDateTime::from_date(
+                DicomDateTime::from_date(DicomDate::from_y(1992).unwrap()),
+                DicomDateTime::from_date_with_time_zone(
                     DicomDate::from_ymd(1990, 10, 10).unwrap(),
                     FixedOffset::west_opt(5 * 3600).unwrap()
                 ),
-                DicomDateTime::from_date(
+                DicomDateTime::from_date_with_time_zone(
                     DicomDate::from_y(1990).unwrap(),
                     FixedOffset::east_opt(5 * 3600 + 60).unwrap()
                 )
@@ -5042,39 +4955,48 @@ mod tests {
 
     #[test]
     fn primitive_value_to_datetime_range() {
-        let offset = FixedOffset::west_opt(3600).unwrap();
-
         assert_eq!(
             dicom_value!(Str, "202002-20210228153012.123")
-                .to_datetime_range(offset)
+                .to_datetime_range()
                 .unwrap(),
             DateTimeRange::from_start_to_end(
-                offset.with_ymd_and_hms(2020, 2, 1, 0, 0, 0).unwrap(),
-                offset
-                    .from_local_datetime(&NaiveDateTime::new(
-                        NaiveDate::from_ymd_opt(2021, 2, 28).unwrap(),
-                        NaiveTime::from_hms_micro_opt(15, 30, 12, 123_999).unwrap()
-                    ))
-                    .unwrap()
+                NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2020, 2, 1).unwrap(),
+                    NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+                ),
+                NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2021, 2, 28).unwrap(),
+                    NaiveTime::from_hms_micro_opt(15, 30, 12, 123_999).unwrap()
+                )
             )
             .unwrap()
         );
-        // East UTC offset gets parsed
+        // East UTC offset gets parsed and the missing lower bound time-zone
+        // will be the local clock time-zone offset
         assert_eq!(
             PrimitiveValue::from(&b"2020-2030+0800"[..])
-                .to_datetime_range(offset)
+                .to_datetime_range()
                 .unwrap(),
-            DateTimeRange::from_start_to_end(
-                offset.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap(),
-                FixedOffset::east_opt(8 * 3600)
-                    .unwrap()
-                    .from_local_datetime(&NaiveDateTime::new(
-                        NaiveDate::from_ymd_opt(2030, 12, 31).unwrap(),
-                        NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
-                    ))
-                    .unwrap()
-            )
-            .unwrap()
+            DateTimeRange::TimeZone {
+                start: Some(
+                    Local::now()
+                        .offset()
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
+                            NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+                        ))
+                        .unwrap()
+                ),
+                end: Some(
+                    FixedOffset::east_opt(8 * 3600)
+                        .unwrap()
+                        .from_local_datetime(&NaiveDateTime::new(
+                            NaiveDate::from_ymd_opt(2030, 12, 31).unwrap(),
+                            NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+                        ))
+                        .unwrap()
+                )
+            }
         );
     }
 
@@ -5138,7 +5060,7 @@ mod tests {
         // b"20121221093001+0100 "
         let offset = FixedOffset::east_opt(1 * 3600).unwrap();
         let val = PrimitiveValue::from(
-            DicomDateTime::from_date_and_time(
+            DicomDateTime::from_date_and_time_with_time_zone(
                 DicomDate::from_ymd(2012, 12, 21).unwrap(),
                 DicomTime::from_hms(9, 30, 1).unwrap(),
                 offset,
@@ -5146,6 +5068,17 @@ mod tests {
             .unwrap(),
         );
         assert_eq!(val.calculate_byte_len(), 20);
+
+        // single date-time without time zone, no second fragment
+        // b"20121221093001 "
+        let val = PrimitiveValue::from(
+            DicomDateTime::from_date_and_time(
+                DicomDate::from_ymd(2012, 12, 21).unwrap(),
+                DicomTime::from_hms(9, 30, 1).unwrap(),
+            )
+            .unwrap(),
+        );
+        assert_eq!(val.calculate_byte_len(), 14);
     }
 
     #[test]

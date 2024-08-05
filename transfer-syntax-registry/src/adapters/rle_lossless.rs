@@ -20,7 +20,7 @@ pub struct RleLosslessAdapter;
 impl PixelDataReader for RleLosslessAdapter {
     /// Decode the DICOM image from RLE Lossless completely.
     ///
-    /// See <http://dicom.nema.org/medical/Dicom/2018d/output/chtml/part05/chapter_G.html>
+    /// See <https://dicom.nema.org/medical/dicom/2023e/output/chtml/part05/chapter_G.html>
     fn decode(&self, src: &dyn PixelDataObject, dst: &mut Vec<u8>) -> DecodeResult<()> {
         let cols = src
             .cols()
@@ -99,7 +99,13 @@ impl PixelDataReader for RleLosslessAdapter {
                     // MSB G channel: 5, 11, 17, ...
                     // LSB G channel: 4, 10, 16, ...
                     let frame_start = i * frame_size;
-                    let start = frame_start + sample_number * bytes_per_sample + byte_offset;
+                    let start = frame_start
+                        + if samples_per_pixel == 3 {
+                            sample_number * bytes_per_sample + byte_offset
+                        } else {
+                            sample_number * bytes_per_sample + samples_per_pixel - byte_offset
+                        };
+
                     let end = (i + 1) * frame_size;
                     for (decoded_index, dst_index) in (start..end)
                         .step_by(bytes_per_sample * samples_per_pixel)
@@ -115,7 +121,7 @@ impl PixelDataReader for RleLosslessAdapter {
 
     /// Decode a singe frame of the DICOM image from RLE Lossless.
     ///
-    /// See <http://dicom.nema.org/medical/Dicom/2018d/output/chtml/part05/chapter_G.html>
+    /// See <https://dicom.nema.org/medical/dicom/2023e/output/chtml/part05/chapter_G.html>
     fn decode_frame(
         &self,
         src: &dyn PixelDataObject,
@@ -196,7 +202,12 @@ impl PixelDataReader for RleLosslessAdapter {
                     .unwrap();
 
                 // Interleave pixels as described in the example above.
-                let start = sample_number * bytes_per_sample + byte_offset;
+                let start = if samples_per_pixel == 3 {
+                    sample_number * bytes_per_sample + byte_offset
+                } else {
+                    sample_number * bytes_per_sample + samples_per_pixel - byte_offset
+                };
+
                 let end = frame_size;
                 for (decoded_index, dst_index) in (start..end)
                     .step_by(bytes_per_sample * samples_per_pixel)
@@ -252,7 +263,7 @@ impl PackBitsReader {
                 bytes_read += 1;
             } else if h >= 0 {
                 let num_vals = h as usize + 1;
-                std::io::copy(&mut reader.by_ref().take(num_vals as u64), &mut buffer)?;
+                io::copy(&mut reader.by_ref().take(num_vals as u64), &mut buffer)?;
                 bytes_read += num_vals;
             } else {
                 // h = -128 is a no-op.

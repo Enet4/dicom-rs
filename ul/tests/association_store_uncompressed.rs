@@ -83,7 +83,10 @@ fn scu_scp_association_uncompressed() {
         .called_ae_title(SCP_AE_TITLE)
         .with_presentation_context(MR_IMAGE_STORAGE_RAW, vec![IMPLICIT_VR_LE])
         // MG storage, JPEG baseline
-        .with_presentation_context(DIGITAL_MG_STORAGE_SOP_CLASS_RAW, vec![JPEG_BASELINE, EXPLICIT_VR_LE, IMPLICIT_VR_LE])
+        .with_presentation_context(
+            DIGITAL_MG_STORAGE_SOP_CLASS_RAW,
+            vec![JPEG_BASELINE, EXPLICIT_VR_LE, IMPLICIT_VR_LE],
+        )
         .establish(scp_addr)
         .unwrap();
 

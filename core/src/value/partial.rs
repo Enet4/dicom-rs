@@ -1,7 +1,7 @@
 //! Handling of partial precision of Date, Time and DateTime values.
 
-use crate::value::range::AsRange;
-use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveTime, Timelike};
+use crate::value::AsRange;
+use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
@@ -59,19 +59,29 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 /// Represents components of Date, Time and DateTime values.
 #[derive(Debug, PartialEq, Copy, Clone, Eq, Hash, PartialOrd, Ord)]
 pub enum DateComponent {
+    // year precision
     Year,
+    // month precision
     Month,
+    // day precision
     Day,
+    // hour precision
     Hour,
+    // minute precision
     Minute,
+    // second precision
     Second,
+    // millisecond precision
     Millisecond,
+    // microsecond (full second fraction)
     Fraction,
+    // West UTC time-zone offset
     UtcWest,
+    // East UTC time-zone offset
     UtcEast,
 }
 
-/// Represents a Dicom Date value with a partial precision,
+/// Represents a Dicom date (DA) value with a partial precision,
 /// where some date components may be missing.
 ///
 /// Unlike [chrono::NaiveDate], it does not allow for negative years.
@@ -105,7 +115,7 @@ pub enum DateComponent {
 #[derive(Clone, Copy, PartialEq)]
 pub struct DicomDate(DicomDateImpl);
 
-/// Represents a Dicom Time value with a partial precision,
+/// Represents a Dicom time (TM) value with a partial precision,
 /// where some time components may be missing.
 ///
 /// Unlike [chrono::NaiveTime], this implemenation has only 6 digit precision
@@ -173,42 +183,46 @@ enum DicomTimeImpl {
     Fraction(u8, u8, u8, u32, u8),
 }
 
-/// Represents a Dicom DateTime value with a partial precision,
+/// Represents a Dicom date-time (DT) value with a partial precision,
 /// where some date or time components may be missing.
 ///
-/// `DicomDateTime` is always internally represented by a [DicomDate]
-/// and optionally by a [DicomTime].
+/// `DicomDateTime` is always internally represented by a [DicomDate].
+/// The [DicomTime] and a timezone [FixedOffset] values are optional.
 ///
-/// It implements [AsRange] trait and also holds a [FixedOffset] value, from which corresponding
-/// [datetime][DateTime] values can be retrieved.
+/// It implements [AsRange] trait,
+/// which serves to retrieve a [`PreciseDateTime`]
+/// from values with missing components.
 /// # Example
 /// ```
 /// # use std::error::Error;
 /// # use std::convert::TryFrom;
 /// use chrono::{DateTime, FixedOffset, TimeZone, NaiveDateTime, NaiveDate, NaiveTime};
-/// use dicom_core::value::{DicomDate, DicomTime, DicomDateTime, AsRange};
+/// use dicom_core::value::{DicomDate, DicomTime, DicomDateTime, AsRange, PreciseDateTime};
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
 /// let offset = FixedOffset::east_opt(3600).unwrap();
 ///
-/// // the least precise date-time value possible is a 'YYYY'
-/// let dt = DicomDateTime::from_date(
+/// // lets create the least precise date-time value possible 'YYYY' and make it time-zone aware
+/// let dt = DicomDateTime::from_date_with_time_zone(
 ///     DicomDate::from_y(2020)?,
 ///     offset
 /// );
+/// // the earliest possible value is output as a [PreciseDateTime]
 /// assert_eq!(
-///     Some(dt.earliest()?),
+///     dt.earliest()?,
+///     PreciseDateTime::TimeZone(
 ///     offset.from_local_datetime(&NaiveDateTime::new(
 ///         NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
 ///         NaiveTime::from_hms_opt(0, 0, 0).unwrap()
-///     )).single()
+///     )).single().unwrap())
 /// );
 /// assert_eq!(
-///     Some(dt.latest()?),
+///     dt.latest()?,
+///     PreciseDateTime::TimeZone(
 ///     offset.from_local_datetime(&NaiveDateTime::new(
 ///         NaiveDate::from_ymd_opt(2020, 12, 31).unwrap(),
 ///         NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
-///     )).single()
+///     )).single().unwrap())
 /// );
 ///
 /// let chrono_datetime = offset.from_local_datetime(&NaiveDateTime::new(
@@ -228,7 +242,7 @@ enum DicomTimeImpl {
 pub struct DicomDateTime {
     date: DicomDate,
     time: Option<DicomTime>,
-    offset: FixedOffset,
+    time_zone: Option<FixedOffset>,
 }
 
 /**
@@ -317,20 +331,29 @@ impl DicomDate {
             DicomDate(DicomDateImpl::Day(_, _, d)) => Some(d),
         }
     }
+
+    /** Retrieves the last fully precise `DateComponent` of the value */
+    pub(crate) fn precision(&self) -> DateComponent {
+        match self {
+            DicomDate(DicomDateImpl::Year(..)) => DateComponent::Year,
+            DicomDate(DicomDateImpl::Month(..)) => DateComponent::Month,
+            DicomDate(DicomDateImpl::Day(..)) => DateComponent::Day,
+        }
+    }
 }
 
 impl TryFrom<&NaiveDate> for DicomDate {
     type Error = Error;
     fn try_from(date: &NaiveDate) -> Result<Self> {
-        let year: u16 = date.year().try_into().context(ConversionSnafu {
+        let year: u16 = date.year().try_into().with_context(|_| ConversionSnafu {
             value: date.year().to_string(),
             component: DateComponent::Year,
         })?;
-        let month: u8 = date.month().try_into().context(ConversionSnafu {
+        let month: u8 = date.month().try_into().with_context(|_| ConversionSnafu {
             value: date.month().to_string(),
             component: DateComponent::Month,
         })?;
-        let day: u8 = date.day().try_into().context(ConversionSnafu {
+        let day: u8 = date.day().try_into().with_context(|_| ConversionSnafu {
             value: date.day().to_string(),
             component: DateComponent::Day,
         })?;
@@ -504,20 +527,30 @@ impl DicomTime {
             frac_precision,
         )))
     }
+
+    /** Retrieves the last fully precise `DateComponent` of the value */
+    pub(crate) fn precision(&self) -> DateComponent {
+        match self {
+            DicomTime(DicomTimeImpl::Hour(..)) => DateComponent::Hour,
+            DicomTime(DicomTimeImpl::Minute(..)) => DateComponent::Minute,
+            DicomTime(DicomTimeImpl::Second(..)) => DateComponent::Second,
+            DicomTime(DicomTimeImpl::Fraction(..)) => DateComponent::Fraction,
+        }
+    }
 }
 
 impl TryFrom<&NaiveTime> for DicomTime {
     type Error = Error;
     fn try_from(time: &NaiveTime) -> Result<Self> {
-        let hour: u8 = time.hour().try_into().context(ConversionSnafu {
+        let hour: u8 = time.hour().try_into().with_context(|_| ConversionSnafu {
             value: time.hour().to_string(),
             component: DateComponent::Hour,
         })?;
-        let minute: u8 = time.minute().try_into().context(ConversionSnafu {
+        let minute: u8 = time.minute().try_into().with_context(|_| ConversionSnafu {
             value: time.minute().to_string(),
             component: DateComponent::Minute,
         })?;
-        let second: u8 = time.second().try_into().context(ConversionSnafu {
+        let second: u8 = time.second().try_into().with_context(|_| ConversionSnafu {
             value: time.second().to_string(),
             component: DateComponent::Second,
         })?;
@@ -576,30 +609,37 @@ impl fmt::Debug for DicomTime {
 
 impl DicomDateTime {
     /**
-     * Constructs a new `DicomDateTime` from a `DicomDate` and a given `FixedOffset`.
+     * Constructs a new `DicomDateTime` from a `DicomDate` and a timezone `FixedOffset`.
      */
-    pub fn from_date(date: DicomDate, offset: FixedOffset) -> DicomDateTime {
+    pub fn from_date_with_time_zone(date: DicomDate, time_zone: FixedOffset) -> DicomDateTime {
         DicomDateTime {
             date,
             time: None,
-            offset,
+            time_zone: Some(time_zone),
         }
     }
 
     /**
-     * Constructs a new `DicomDateTime` from a `DicomDate`, `DicomTime` and a given `FixedOffset`,
+     * Constructs a new `DicomDateTime` from a `DicomDate` .
+     */
+    pub fn from_date(date: DicomDate) -> DicomDateTime {
+        DicomDateTime {
+            date,
+            time: None,
+            time_zone: None,
+        }
+    }
+
+    /**
+     * Constructs a new `DicomDateTime` from a `DicomDate` and a `DicomTime`,
      * providing that `DicomDate` is precise.
      */
-    pub fn from_date_and_time(
-        date: DicomDate,
-        time: DicomTime,
-        offset: FixedOffset,
-    ) -> Result<DicomDateTime> {
+    pub fn from_date_and_time(date: DicomDate, time: DicomTime) -> Result<DicomDateTime> {
         if date.is_precise() {
             Ok(DicomDateTime {
                 date,
                 time: Some(time),
-                offset,
+                time_zone: None,
             })
         } else {
             DateTimeFromPartialsSnafu {
@@ -609,46 +649,121 @@ impl DicomDateTime {
         }
     }
 
-    /** Retrieves a refrence to the internal date value */
+    /**
+     * Constructs a new `DicomDateTime` from a `DicomDate`, `DicomTime` and a timezone `FixedOffset`,
+     * providing that `DicomDate` is precise.
+     */
+    pub fn from_date_and_time_with_time_zone(
+        date: DicomDate,
+        time: DicomTime,
+        time_zone: FixedOffset,
+    ) -> Result<DicomDateTime> {
+        if date.is_precise() {
+            Ok(DicomDateTime {
+                date,
+                time: Some(time),
+                time_zone: Some(time_zone),
+            })
+        } else {
+            DateTimeFromPartialsSnafu {
+                value: date.precision(),
+            }
+            .fail()
+        }
+    }
+
+    /** Retrieves a reference to the internal date value */
     pub fn date(&self) -> &DicomDate {
         &self.date
     }
 
-    /** Retrieves a refrence to the internal time value, if present */
+    /** Retrieves a reference to the internal time value, if present */
     pub fn time(&self) -> Option<&DicomTime> {
         self.time.as_ref()
     }
 
-    /** Retrieves a refrence to the internal offset value */
-    pub fn offset(&self) -> &FixedOffset {
-        &self.offset
+    /** Retrieves a reference to the internal time-zone value, if present */
+    pub fn time_zone(&self) -> Option<&FixedOffset> {
+        self.time_zone.as_ref()
     }
+
+    /** Returns true, if the `DicomDateTime` contains a time-zone */
+    pub fn has_time_zone(&self) -> bool {
+        self.time_zone.is_some()
+    }
+
+    /** Retrieves a reference to the internal offset value */
+    #[deprecated(since = "0.7.0", note = "Use `time_zone` instead")]
+    pub fn offset(&self) {}
 }
 
 impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
     type Error = Error;
     fn try_from(dt: &DateTime<FixedOffset>) -> Result<Self> {
-        let year: u16 = dt.year().try_into().context(ConversionSnafu {
+        let year: u16 = dt.year().try_into().with_context(|_| ConversionSnafu {
             value: dt.year().to_string(),
             component: DateComponent::Year,
         })?;
-        let month: u8 = dt.month().try_into().context(ConversionSnafu {
+        let month: u8 = dt.month().try_into().with_context(|_| ConversionSnafu {
             value: dt.month().to_string(),
             component: DateComponent::Month,
         })?;
-        let day: u8 = dt.day().try_into().context(ConversionSnafu {
+        let day: u8 = dt.day().try_into().with_context(|_| ConversionSnafu {
             value: dt.day().to_string(),
             component: DateComponent::Day,
         })?;
-        let hour: u8 = dt.hour().try_into().context(ConversionSnafu {
+        let hour: u8 = dt.hour().try_into().with_context(|_| ConversionSnafu {
             value: dt.hour().to_string(),
             component: DateComponent::Hour,
         })?;
-        let minute: u8 = dt.minute().try_into().context(ConversionSnafu {
+        let minute: u8 = dt.minute().try_into().with_context(|_| ConversionSnafu {
             value: dt.minute().to_string(),
             component: DateComponent::Minute,
         })?;
-        let second: u8 = dt.second().try_into().context(ConversionSnafu {
+        let second: u8 = dt.second().try_into().with_context(|_| ConversionSnafu {
+            value: dt.second().to_string(),
+            component: DateComponent::Second,
+        })?;
+        let microsecond = dt.nanosecond() / 1000;
+        // leap second correction: convert (59, 1_000_000 + x) to (60, x)
+        let (second, microsecond) = if microsecond >= 1_000_000 && second == 59 {
+            (60, microsecond - 1_000_000)
+        } else {
+            (second, microsecond)
+        };
+
+        DicomDateTime::from_date_and_time_with_time_zone(
+            DicomDate::from_ymd(year, month, day)?,
+            DicomTime::from_hms_micro(hour, minute, second, microsecond)?,
+            *dt.offset(),
+        )
+    }
+}
+
+impl TryFrom<&NaiveDateTime> for DicomDateTime {
+    type Error = Error;
+    fn try_from(dt: &NaiveDateTime) -> Result<Self> {
+        let year: u16 = dt.year().try_into().with_context(|_| ConversionSnafu {
+            value: dt.year().to_string(),
+            component: DateComponent::Year,
+        })?;
+        let month: u8 = dt.month().try_into().with_context(|_| ConversionSnafu {
+            value: dt.month().to_string(),
+            component: DateComponent::Month,
+        })?;
+        let day: u8 = dt.day().try_into().with_context(|_| ConversionSnafu {
+            value: dt.day().to_string(),
+            component: DateComponent::Day,
+        })?;
+        let hour: u8 = dt.hour().try_into().with_context(|_| ConversionSnafu {
+            value: dt.hour().to_string(),
+            component: DateComponent::Hour,
+        })?;
+        let minute: u8 = dt.minute().try_into().with_context(|_| ConversionSnafu {
+            value: dt.minute().to_string(),
+            component: DateComponent::Minute,
+        })?;
+        let second: u8 = dt.second().try_into().with_context(|_| ConversionSnafu {
             value: dt.second().to_string(),
             component: DateComponent::Second,
         })?;
@@ -663,22 +778,21 @@ impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
         DicomDateTime::from_date_and_time(
             DicomDate::from_ymd(year, month, day)?,
             DicomTime::from_hms_micro(hour, minute, second, microsecond)?,
-            *dt.offset(),
         )
     }
 }
 
 impl fmt::Display for DicomDateTime {
     fn fmt(&self, frm: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // as DicomDateTime always contains a FixedOffset, it will always be written,
-        // even if it is zero.
-        // For absolute consistency between deserialized and serialized date-times,
-        // DicomDateTime would have to contain Some(FixedOffset)/None if none was parsed.
-        // storing an Option is useless, since a FixedOffset has to be available
-        // for conversion into chrono values
         match self.time {
-            None => write!(frm, "{} {}", self.date, self.offset),
-            Some(time) => write!(frm, "{} {} {}", self.date, time, self.offset),
+            None => match self.time_zone {
+                Some(offset) => write!(frm, "{} {}", self.date, offset),
+                None => write!(frm, "{}", self.date),
+            },
+            Some(time) => match self.time_zone {
+                Some(offset) => write!(frm, "{} {} {}", self.date, time, offset),
+                None => write!(frm, "{} {}", self.date, time),
+            },
         }
     }
 }
@@ -686,48 +800,23 @@ impl fmt::Display for DicomDateTime {
 impl fmt::Debug for DicomDateTime {
     fn fmt(&self, frm: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.time {
-            None => write!(frm, "{:?} {:?}", self.date, self.offset),
-            Some(time) => write!(frm, "{:?} {:?} {}", self.date, time, self.offset),
+            None => match self.time_zone {
+                Some(offset) => write!(frm, "{:?} {}", self.date, offset),
+                None => write!(frm, "{:?}", self.date),
+            },
+            Some(time) => match self.time_zone {
+                Some(offset) => write!(frm, "{:?} {:?} {}", self.date, time, offset),
+                None => write!(frm, "{:?} {:?}", self.date, time),
+            },
         }
     }
 }
 
-/**
- * This trait is implemented by partial precision
- * Date, Time and DateTime structures.
- * Trait method returns the last fully precise `DateComponent` of the structure.
- */
-pub trait Precision {
-    fn precision(&self) -> DateComponent;
-}
+impl std::str::FromStr for DicomDateTime {
+    type Err = crate::value::DeserializeError;
 
-impl Precision for DicomDate {
-    fn precision(&self) -> DateComponent {
-        match self {
-            DicomDate(DicomDateImpl::Year(..)) => DateComponent::Year,
-            DicomDate(DicomDateImpl::Month(..)) => DateComponent::Month,
-            DicomDate(DicomDateImpl::Day(..)) => DateComponent::Day,
-        }
-    }
-}
-
-impl Precision for DicomTime {
-    fn precision(&self) -> DateComponent {
-        match self {
-            DicomTime(DicomTimeImpl::Hour(..)) => DateComponent::Hour,
-            DicomTime(DicomTimeImpl::Minute(..)) => DateComponent::Minute,
-            DicomTime(DicomTimeImpl::Second(..)) => DateComponent::Second,
-            DicomTime(DicomTimeImpl::Fraction(..)) => DateComponent::Fraction,
-        }
-    }
-}
-
-impl Precision for DicomDateTime {
-    fn precision(&self) -> DateComponent {
-        match self.time {
-            Some(time) => time.precision(),
-            None => self.date.precision(),
-        }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        crate::value::deserialize::parse_datetime_partial(s.as_bytes())
     }
 }
 
@@ -776,17 +865,121 @@ impl DicomDateTime {
      */
     pub fn to_encoded(&self) -> String {
         match self.time {
-            Some(time) => format!(
-                "{}{}{}",
-                self.date.to_encoded(),
-                time.to_encoded(),
-                self.offset.to_string().replace(':', "")
-            ),
-            None => format!(
-                "{}{}",
-                self.date.to_encoded(),
-                self.offset.to_string().replace(':', "")
-            ),
+            Some(time) => match self.time_zone {
+                Some(offset) => format!(
+                    "{}{}{}",
+                    self.date.to_encoded(),
+                    time.to_encoded(),
+                    offset.to_string().replace(':', "")
+                ),
+                None => format!("{}{}", self.date.to_encoded(), time.to_encoded()),
+            },
+            None => match self.time_zone {
+                Some(offset) => format!(
+                    "{}{}",
+                    self.date.to_encoded(),
+                    offset.to_string().replace(':', "")
+                ),
+                None => self.date.to_encoded().to_string(),
+            },
+        }
+    }
+}
+
+/// An encapsulated date-time value which is precise to the microsecond
+/// and can either be time-zone aware or time-zone naive.
+///
+/// It is usually the outcome of converting a precise
+/// [DICOM date-time value](DicomDateTime)
+/// to a [chrono] date-time value.
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
+pub enum PreciseDateTime {
+    /// Naive date-time, with no time zone
+    Naive(NaiveDateTime),
+    /// Date-time with a time zone defined by a fixed offset
+    TimeZone(DateTime<FixedOffset>),
+}
+
+impl PreciseDateTime {
+    /// Retrieves a reference to a [`chrono::DateTime<FixedOffset>`][chrono::DateTime]
+    /// if the result is time-zone aware.
+    pub fn as_datetime(&self) -> Option<&DateTime<FixedOffset>> {
+        match self {
+            PreciseDateTime::Naive(..) => None,
+            PreciseDateTime::TimeZone(value) => Some(value),
+        }
+    }
+
+    /// Retrieves a reference to a [`chrono::NaiveDateTime`]
+    /// only if the result is time-zone naive.
+    pub fn as_naive_datetime(&self) -> Option<&NaiveDateTime> {
+        match self {
+            PreciseDateTime::Naive(value) => Some(value),
+            PreciseDateTime::TimeZone(..) => None,
+        }
+    }
+
+    /// Moves out a [`chrono::DateTime<FixedOffset>`](chrono::DateTime)
+    /// if the result is time-zone aware.
+    pub fn into_datetime(self) -> Option<DateTime<FixedOffset>> {
+        match self {
+            PreciseDateTime::Naive(..) => None,
+            PreciseDateTime::TimeZone(value) => Some(value),
+        }
+    }
+
+    /// Moves out a [`chrono::NaiveDateTime`]
+    /// only if the result is time-zone naive.
+    pub fn into_naive_datetime(self) -> Option<NaiveDateTime> {
+        match self {
+            PreciseDateTime::Naive(value) => Some(value),
+            PreciseDateTime::TimeZone(..) => None,
+        }
+    }
+
+    /// Retrieves the time-zone naive date component
+    /// of the precise date-time value.
+    ///
+    /// # Panics
+    ///
+    /// The time-zone aware variant uses `DateTime`,
+    /// which internally stores the date and time in UTC with a `NaiveDateTime`.
+    /// This method will panic if the offset from UTC would push the local date
+    /// outside of the representable range of a `NaiveDate`.
+    pub fn to_naive_date(&self) -> NaiveDate {
+        match self {
+            PreciseDateTime::Naive(value) => value.date(),
+            PreciseDateTime::TimeZone(value) => value.date_naive(),
+        }
+    }
+
+    /// Retrieves the time component of the precise date-time value.
+    pub fn to_naive_time(&self) -> NaiveTime {
+        match self {
+            PreciseDateTime::Naive(value) => value.time(),
+            PreciseDateTime::TimeZone(value) => value.time(),
+        }
+    }
+
+    /// Returns `true` if the result is time-zone aware.
+    #[inline]
+    pub fn has_time_zone(&self) -> bool {
+        matches!(self, PreciseDateTime::TimeZone(..))
+    }
+}
+
+/// The partial ordering for `PreciseDateTime`
+/// is defined by the partial ordering of matching variants
+/// (`Naive` with `Naive`, `TimeZone` with `TimeZone`).
+///
+/// Any other comparison cannot be defined,
+/// and therefore will always return `None`.
+impl PartialOrd for PreciseDateTime {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (PreciseDateTime::Naive(a), PreciseDateTime::Naive(b)) => a.partial_cmp(b),
+            (PreciseDateTime::TimeZone(a), PreciseDateTime::TimeZone(b)) => a.partial_cmp(b),
+            _ => None,
         }
     }
 }
@@ -794,7 +987,7 @@ impl DicomDateTime {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{NaiveDateTime, TimeZone};
+    use chrono::TimeZone;
 
     #[test]
     fn test_dicom_date() {
@@ -802,6 +995,9 @@ mod tests {
             DicomDate::from_ymd(1944, 2, 29).unwrap(),
             DicomDate(DicomDateImpl::Day(1944, 2, 29))
         );
+
+        // cheap precision check, but date is invalid
+        assert!(DicomDate::from_ymd(1945, 2, 29).unwrap().is_precise());
         assert_eq!(
             DicomDate::from_ym(1944, 2).unwrap(),
             DicomDate(DicomDateImpl::Month(1944, 2))
@@ -881,6 +1077,13 @@ mod tests {
             DicomTime::from_h(1).unwrap(),
             DicomTime(DicomTimeImpl::Hour(1))
         );
+        // cheap precision checks
+        assert!(DicomTime::from_hms_micro(9, 1, 1, 123456)
+            .unwrap()
+            .is_precise());
+        assert!(!DicomTime::from_hms_milli(9, 1, 1, 123)
+            .unwrap()
+            .is_precise());
 
         assert_eq!(
             DicomTime::from_hms_milli(9, 1, 1, 123)
@@ -1027,42 +1230,47 @@ mod tests {
     fn test_dicom_datetime() {
         let default_offset = FixedOffset::east_opt(0).unwrap();
         assert_eq!(
-            DicomDateTime::from_date(DicomDate::from_ymd(2020, 2, 29).unwrap(), default_offset),
+            DicomDateTime::from_date_with_time_zone(
+                DicomDate::from_ymd(2020, 2, 29).unwrap(),
+                default_offset
+            ),
             DicomDateTime {
                 date: DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 time: None,
-                offset: default_offset
+                time_zone: Some(default_offset)
             }
         );
 
         assert_eq!(
-            DicomDateTime::from_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
+            DicomDateTime::from_date(DicomDate::from_ym(2020, 2).unwrap())
                 .earliest()
                 .unwrap(),
-            FixedOffset::east_opt(0)
-                .unwrap()
-                .from_local_datetime(&NaiveDateTime::new(
-                    NaiveDate::from_ymd_opt(2020, 2, 1).unwrap(),
-                    NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
-                ))
-                .unwrap()
+            PreciseDateTime::Naive(NaiveDateTime::new(
+                NaiveDate::from_ymd_opt(2020, 2, 1).unwrap(),
+                NaiveTime::from_hms_micro_opt(0, 0, 0, 0).unwrap()
+            ))
         );
 
         assert_eq!(
-            DicomDateTime::from_date(DicomDate::from_ym(2020, 2).unwrap(), default_offset)
-                .latest()
-                .unwrap(),
-            FixedOffset::east_opt(0)
-                .unwrap()
-                .from_local_datetime(&NaiveDateTime::new(
-                    NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
-                    NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
-                ))
-                .unwrap()
+            DicomDateTime::from_date_with_time_zone(
+                DicomDate::from_ym(2020, 2).unwrap(),
+                default_offset
+            )
+            .latest()
+            .unwrap(),
+            PreciseDateTime::TimeZone(
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                        NaiveTime::from_hms_micro_opt(23, 59, 59, 999_999).unwrap()
+                    ))
+                    .unwrap()
+            )
         );
 
         assert_eq!(
-            DicomDateTime::from_date_and_time(
+            DicomDateTime::from_date_and_time_with_time_zone(
                 DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 DicomTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
@@ -1070,16 +1278,18 @@ mod tests {
             .unwrap()
             .earliest()
             .unwrap(),
-            FixedOffset::east_opt(0)
-                .unwrap()
-                .from_local_datetime(&NaiveDateTime::new(
-                    NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
-                    NaiveTime::from_hms_micro_opt(23, 59, 59, 100_000).unwrap()
-                ))
-                .unwrap()
+            PreciseDateTime::TimeZone(
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                        NaiveTime::from_hms_micro_opt(23, 59, 59, 100_000).unwrap()
+                    ))
+                    .unwrap()
+            )
         );
         assert_eq!(
-            DicomDateTime::from_date_and_time(
+            DicomDateTime::from_date_and_time_with_time_zone(
                 DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 DicomTime::from_hmsf(23, 59, 59, 10, 2).unwrap(),
                 default_offset
@@ -1087,13 +1297,15 @@ mod tests {
             .unwrap()
             .latest()
             .unwrap(),
-            FixedOffset::east_opt(0)
-                .unwrap()
-                .from_local_datetime(&NaiveDateTime::new(
-                    NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
-                    NaiveTime::from_hms_micro_opt(23, 59, 59, 109_999).unwrap()
-                ))
-                .unwrap()
+            PreciseDateTime::TimeZone(
+                FixedOffset::east_opt(0)
+                    .unwrap()
+                    .from_local_datetime(&NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(2020, 2, 29).unwrap(),
+                        NaiveTime::from_hms_micro_opt(23, 59, 59, 109_999).unwrap()
+                    ))
+                    .unwrap()
+            )
         );
 
         assert_eq!(
@@ -1110,7 +1322,7 @@ mod tests {
             DicomDateTime {
                 date: DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 time: Some(DicomTime::from_hms_micro(23, 59, 59, 999_999).unwrap()),
-                offset: default_offset
+                time_zone: Some(default_offset)
             }
         );
 
@@ -1128,7 +1340,7 @@ mod tests {
             DicomDateTime {
                 date: DicomDate::from_ymd(2020, 2, 29).unwrap(),
                 time: Some(DicomTime::from_hms_micro(23, 59, 59, 0).unwrap()),
-                offset: default_offset
+                time_zone: Some(default_offset)
             }
         );
 
@@ -1147,18 +1359,21 @@ mod tests {
             DicomDateTime {
                 date: DicomDate::from_ymd(2023, 12, 31).unwrap(),
                 time: Some(DicomTime::from_hms_micro(23, 59, 60, 0).unwrap()),
-                offset: default_offset
+                time_zone: Some(default_offset)
             }
         );
 
         assert!(matches!(
-            DicomDateTime::from_date(DicomDate::from_ymd(2021, 2, 29).unwrap(), default_offset)
-                .earliest(),
+            DicomDateTime::from_date_with_time_zone(
+                DicomDate::from_ymd(2021, 2, 29).unwrap(),
+                default_offset
+            )
+            .earliest(),
             Err(crate::value::range::Error::InvalidDate { .. })
         ));
 
         assert!(matches!(
-            DicomDateTime::from_date_and_time(
+            DicomDateTime::from_date_and_time_with_time_zone(
                 DicomDate::from_ym(2020, 2).unwrap(),
                 DicomTime::from_hms_milli(23, 59, 59, 999).unwrap(),
                 default_offset
@@ -1169,7 +1384,7 @@ mod tests {
             })
         ));
         assert!(matches!(
-            DicomDateTime::from_date_and_time(
+            DicomDateTime::from_date_and_time_with_time_zone(
                 DicomDate::from_y(1).unwrap(),
                 DicomTime::from_hms_micro(23, 59, 59, 10).unwrap(),
                 default_offset
@@ -1181,7 +1396,7 @@ mod tests {
         ));
 
         assert!(matches!(
-            DicomDateTime::from_date_and_time(
+            DicomDateTime::from_date_and_time_with_time_zone(
                 DicomDate::from_ymd(2000, 1, 1).unwrap(),
                 DicomTime::from_hms_milli(23, 59, 59, 10).unwrap(),
                 default_offset
@@ -1190,5 +1405,23 @@ mod tests {
             .exact(),
             Err(crate::value::range::Error::ImpreciseValue { .. })
         ));
+
+        // simple precision checks
+        assert!(
+            DicomDateTime::from_date_and_time(
+                DicomDate::from_ymd(2000, 1, 1).unwrap(),
+                DicomTime::from_hms_milli(23, 59, 59, 10).unwrap()
+            )
+            .unwrap()
+            .is_precise()
+                == false
+        );
+
+        assert!(DicomDateTime::from_date_and_time(
+            DicomDate::from_ymd(2000, 1, 1).unwrap(),
+            DicomTime::from_hms_micro(23, 59, 59, 654_321).unwrap()
+        )
+        .unwrap()
+        .is_precise());
     }
 }

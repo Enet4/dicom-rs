@@ -124,16 +124,6 @@ impl<'a> PersonName<'a> {
 
         name
     }
-    /// Obtains a person name by interpreting `slice` as a DICOM formatted string.
-    ///
-    /// The DICOM string representation is split by the `'^'` separator
-    /// into its respective components.
-    /// When passing a text value to this function,
-    /// ensure that it contains a single DICOM formatted name.
-    #[deprecated(since = "0.6.0", note = "Use `from_text` instead")]
-    pub fn from_str(slice: &'a str) -> PersonName<'a> {
-        Self::from_text(slice)
-    }
 
     /// Obtains a person name by interpreting `slice` as a DICOM formatted string.
     ///

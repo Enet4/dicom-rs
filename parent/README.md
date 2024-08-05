@@ -44,7 +44,9 @@ for more information.
 The following root modules are behind Cargo features enabled by default:
 
 - [`ul`]: the DICOM upper layer protocol library
-- [`pixeldata`]: the pixel data abstraction library
+- [`pixeldata`]: the pixel data abstraction library.
+  The Cargo features `image`, `ndarray` are re-exported from `dicom-pixeldata`
+  and may be enabled at will through the parent crate.
 
 If you do not intend to use these modules,
 you can disable these features accordingly.

@@ -330,34 +330,148 @@ pub enum UserVariableItem {
     ImplementationClassUID(String),
     ImplementationVersionName(String),
     SopClassExtendedNegotiationSubItem(String, Vec<u8>),
+    UserIdentityItem(UserIdentity),
 }
 
-/// An in-memory representation of a full Protocol Data Unit (PDU)
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+pub struct UserIdentity {
+    positive_response_requested: bool,
+    identity_type: UserIdentityType,
+    primary_field: Vec<u8>,
+    secondary_field: Vec<u8>,
+}
+impl UserIdentity {
+    pub fn new(
+        positive_response_requested: bool,
+        identity_type: UserIdentityType,
+        primary_field: Vec<u8>,
+        secondary_field: Vec<u8>,
+    ) -> Self {
+        UserIdentity {
+            positive_response_requested,
+            identity_type,
+            primary_field,
+            secondary_field,
+        }
+    }
+
+    pub fn positive_response_requested(&self) -> bool {
+        self.positive_response_requested
+    }
+
+    pub fn identity_type(&self) -> UserIdentityType {
+        self.identity_type.clone()
+    }
+
+    pub fn primary_field(&self) -> Vec<u8> {
+        self.primary_field.clone()
+    }
+
+    pub fn secondary_field(&self) -> Vec<u8> {
+        self.secondary_field.clone()
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+#[non_exhaustive]
+pub enum UserIdentityType {
+    Username,
+    UsernamePassword,
+    KerberosServiceTicket,
+    SamlAssertion,
+    Jwt,
+}
+impl UserIdentityType {
+    fn from(user_identity_type: u8) -> Option<Self> {
+        match user_identity_type {
+            1 => Some(Self::Username),
+            2 => Some(Self::UsernamePassword),
+            3 => Some(Self::KerberosServiceTicket),
+            4 => Some(Self::SamlAssertion),
+            5 => Some(Self::Jwt),
+            _ => None,
+        }
+    }
+
+    fn to_u8(&self) -> u8 {
+        match self {
+            Self::Username => 1,
+            Self::UsernamePassword => 2,
+            Self::KerberosServiceTicket => 3,
+            Self::SamlAssertion => 4,
+            Self::Jwt => 5,
+        }
+    }
+}
+
+/// An in-memory representation of a full Protocol Data Unit (PDU).
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Hash)]
 pub enum Pdu {
+    /// Unrecognized PDU type
     Unknown { pdu_type: u8, data: Vec<u8> },
+    /// Association request (A-ASSOCIATION-RQ)
     AssociationRQ(AssociationRQ),
+    /// Association acknowledgement (A-ASSOCIATION-AC)
     AssociationAC(AssociationAC),
+    /// Association rejection (A-ASSOCIATION-RJ)
     AssociationRJ(AssociationRJ),
+    /// P-Data
     PData { data: Vec<PDataValue> },
+    /// Association release request (A-RELEASE-RQ)
     ReleaseRQ,
+    /// Association release reply (A-RELEASE-RP)
     ReleaseRP,
+    /// Association abort request (A-ABORT-RQ)
     AbortRQ { source: AbortRQSource },
 }
 
 impl Pdu {
-    pub fn short_description(&self) -> String {
-        match self {
-            Pdu::Unknown { pdu_type, data: _ } => {
-                format!("Unknown {{pdu_type: {}, data: ...}}", pdu_type)
+    /// Provide a short description of the PDU.
+    pub fn short_description(&self) -> impl std::fmt::Display + '_ {
+        PduShortDescription(self)
+    }
+}
+
+struct PduShortDescription<'a>(&'a Pdu);
+
+impl std::fmt::Display for PduShortDescription<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.0 {
+            Pdu::Unknown { pdu_type, data } => {
+                write!(
+                    f,
+                    "Unknown {{pdu_type: {}, data: {} bytes }}",
+                    pdu_type,
+                    data.len()
+                )
             }
             Pdu::AssociationRQ { .. }
             | Pdu::AssociationAC { .. }
             | Pdu::AssociationRJ { .. }
             | Pdu::ReleaseRQ
             | Pdu::ReleaseRP
-            | Pdu::AbortRQ { .. } => format!("{:?}", self),
-            Pdu::PData { data: _ } => "PData { data: ... }".into(),
+            | Pdu::AbortRQ { .. } => std::fmt::Debug::fmt(self.0, f),
+            Pdu::PData { data } => {
+                if data.len() == 1 {
+                    write!(
+                        f,
+                        "PData [({:?}, {} bytes)]",
+                        data[0].value_type,
+                        data[0].data.len()
+                    )
+                } else if data.len() == 2 {
+                    write!(
+                        f,
+                        "PData [({:?}, {} bytes), ({:?}, {} bytes)]",
+                        data[0].value_type,
+                        data[0].data.len(),
+                        data[1].value_type,
+                        data[1].data.len(),
+                    )
+                } else {
+                    write!(f, "PData [{} p-data values]", data.len())
+                }
+            }
         }
     }
 }
@@ -406,5 +520,36 @@ pub struct AssociationRJ {
 impl From<AssociationRJ> for Pdu {
     fn from(value: AssociationRJ) -> Self {
         Pdu::AssociationRJ(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::pdu::{PDataValue, PDataValueType};
+
+    use super::Pdu;
+
+    #[test]
+    fn pdu_short_description() {
+        let pdu = Pdu::AbortRQ {
+            source: super::AbortRQSource::ServiceUser,
+        };
+        assert_eq!(
+            &pdu.short_description().to_string(),
+            "AbortRQ { source: ServiceUser }",
+        );
+
+        let pdu = Pdu::PData {
+            data: vec![PDataValue {
+                is_last: true,
+                presentation_context_id: 2,
+                value_type: PDataValueType::Data,
+                data: vec![0x55; 384],
+            }],
+        };
+        assert_eq!(
+            &pdu.short_description().to_string(),
+            "PData [(Data, 384 bytes)]",
+        );
     }
 }

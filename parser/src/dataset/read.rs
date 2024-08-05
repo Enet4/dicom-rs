@@ -12,7 +12,6 @@ use dicom_encoding::transfer_syntax::TransferSyntax;
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::cmp::Ordering;
 use std::io::Read;
-use std::iter::Iterator;
 
 use super::{DataToken, SeqTokenType};
 
@@ -65,6 +64,14 @@ pub enum Error {
     },
     #[snafu(display("Unexpected item tag {} while reading element header", tag))]
     UnexpectedItemTag { tag: Tag, backtrace: Backtrace },
+    #[snafu(display(
+        "Unexpected item header outside a dataset sequence at {} bytes",
+        bytes_read
+    ))]
+    UnexpectedItemHeader {
+        bytes_read: u64,
+        backtrace: Backtrace,
+    },
     /// Undefined pixel item length
     UndefinedItemLength,
 }
@@ -172,19 +179,23 @@ pub struct DataSetReader<S> {
 }
 
 impl<R> DataSetReader<DynStatefulDecoder<R>> {
-    /// Creates a new iterator with the given random access source,
-    /// while considering the given transfer syntax and specific character set.
-    #[deprecated(
-        since = "0.5.0",
-        note = "Use `new_with_ts_cs` or `new_with_ts_cs_options` instead"
-    )]
-    pub fn new_with(source: R, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
+    /// Create a new data set token reader with the given byte source,
+    /// while considering the given transfer syntax specifier.
+    #[inline]
+    pub fn new_with_ts(source: R, ts: &TransferSyntax) -> Result<Self>
     where
         R: Read,
     {
-        Self::new_with_ts_cs(source, ts, cs)
+        Self::new_with_ts_cs_options(source, ts, Default::default(), Default::default())
     }
 
+    /// Create a new data set token reader with the given byte source,
+    /// while considering the given transfer syntax specifier
+    /// and the specific character set to assume by default.
+    ///
+    /// Note that the data set being read
+    /// can override the character set with the presence of a
+    /// _Specific Character Set_ data element.
     #[inline]
     pub fn new_with_ts_cs(source: R, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
     where
@@ -274,12 +285,23 @@ where
                         SequenceItemHeader::Item { len } => {
                             // entered a new item
                             self.in_sequence = false;
+
+                            let last_delimiter = match self.seq_delimiters.last() {
+                                Some(d) => d,
+                                None => {
+                                    return Some(
+                                        UnexpectedItemHeaderSnafu {
+                                            bytes_read: self.parser.position(),
+                                        }
+                                        .fail(),
+                                    )
+                                }
+                            };
                             self.push_sequence_token(
                                 SeqTokenType::Item,
                                 len,
-                                self.seq_delimiters.last()
-                                    .expect("item header should be read only inside an existing sequence")
-                                    .pixel_data);
+                                last_delimiter.pixel_data,
+                            );
                             // items can be empty
                             if len == Length(0) {
                                 self.delimiter_check_pending = true;
@@ -594,7 +616,7 @@ mod tests {
             &mut cursor,
             ImplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder::default(),
-            SpecificCharacterSet::Default,
+            SpecificCharacterSet::default(),
         );
 
         validate_dataset_reader(data, parser, ground_truth)
@@ -609,7 +631,7 @@ mod tests {
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder::default(),
-            SpecificCharacterSet::Default,
+            SpecificCharacterSet::default(),
         );
 
         validate_dataset_reader(&data, parser, ground_truth)
@@ -1178,7 +1200,7 @@ mod tests {
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
             LittleEndianBasicDecoder::default(),
-            SpecificCharacterSet::Default,
+            SpecificCharacterSet::default(),
         );
         let mut dset_reader = DataSetReader::new(parser, Default::default());
 
@@ -1220,5 +1242,43 @@ mod tests {
 
         // finished reading, peek should return None
         assert!(iter.peek().unwrap().is_none());
+    }
+
+    #[test]
+    fn read_pixel_sequence_bad_item_end() {
+        #[rustfmt::skip]
+        static DATA: &[u8] = &[
+            0xe0, 0x7f, 0x10, 0x00, // (7FE0, 0010) PixelData
+            b'O', b'B', // VR 
+            0x00, 0x00, // reserved
+            0xff, 0xff, 0xff, 0xff, // length: undefined
+            // -- 12 --
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0x00, 0x00, 0x00, 0x00, // item length: 0
+            // -- 20 --
+            0xfe, 0xff, 0x0d, 0xe0, // item end
+            0x00, 0x00, 0x00, 0x00, // length is always zero
+            // -- 28 --
+            0xfe, 0xff, 0x0d, 0xe0, // another item end (bad)
+            0x00, 0x00, 0x00, 0x00, //
+            // -- 36 --
+            0xfe, 0xff, 0x00, 0xe0, // another item start
+            0x00, 0x00, 0x00, 0x00, // item length: 0
+        ];
+
+        let mut cursor = DATA;
+        let parser = StatefulDecoder::new(
+            &mut cursor,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder::default(),
+            SpecificCharacterSet::default(),
+        );
+        let mut dset_reader = DataSetReader::new(parser, Default::default());
+
+        let token_res = (&mut dset_reader)
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>();
+        dbg!(&token_res);
+        assert!(token_res.is_err());
     }
 }
