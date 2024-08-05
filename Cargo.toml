@@ -35,7 +35,3 @@ opt-level = 2
 # optimize JPEG 2000 decoder to run tests faster
 [profile.dev.package.jpeg2k]
 opt-level = 2
-
-# optimize flate2 to run tests faster
-[profile.dev.package."flate2"]
-opt-level = 2

@@ -4,11 +4,14 @@
 //! in which this application entity listens to incoming association requests.
 //! See [`ServerAssociationOptions`]
 //! for details and examples on how to create an association.
-use std::borrow::Cow;
-#[cfg(not(feature = "tokio"))]
-use std::{io::Write, net::TcpStream};
-#[cfg(feature = "tokio")]
+use std::{borrow::Cow, io::Cursor};
+#[cfg(not(feature = "async"))]
+use std::{io::{Write, Read}, net::TcpStream};
+#[cfg(feature = "async")]
 use tokio::{io::AsyncWriteExt, net::TcpStream};
+
+use bytes::{Buf, BytesMut};
+
 
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
@@ -25,7 +28,7 @@ use crate::{
 };
 
 use super::{
-    //pdata::{PDataReader, PDataWriter},
+    pdata::{PDataReader, PDataWriter},
     uid::trim_uid,
 };
 
@@ -358,9 +361,10 @@ where
         self
     }
 
-    #[cfg(not(feature = "tokio"))]
+    #[cfg(not(feature = "async"))]
     /// Negotiate an association with the given TCP stream.
     pub fn establish(&self, mut socket: TcpStream) -> Result<ServerAssociation> {
+
         ensure!(
             !self.abstract_syntax_uids.is_empty() || self.promiscuous,
             MissingAbstractSyntaxSnafu
@@ -368,10 +372,26 @@ where
 
         let max_pdu_length = self.max_pdu_length;
 
-        let pdu =
-            read_pdu(&mut socket, max_pdu_length, self.strict).context(ReceiveRequestSnafu)?;
+        let mut read_buffer = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
+        let msg = loop{
+            let mut buf = Cursor::new(&read_buffer[..]);
+            match read_pdu(&mut buf, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveRequestSnafu)? {
+                Some(pdu) => {
+                    read_buffer.advance(buf.position() as usize);
+                    break pdu
+                },
+                None => {
+                    // Reset position
+                    buf.set_position(0)
+                }
+            }
+            let recv = socket.read(&mut read_buffer).unwrap();
+            if recv == 0 {
+                return OtherSnafu{msg: "Connection closed by peer"}.fail();
+            }
+        };
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
-        match pdu {
+        match msg {
             Pdu::AssociationRQ(AssociationRQ {
                 protocol_version,
                 calling_ae_title,
@@ -517,6 +537,7 @@ where
                     client_ae_title: calling_ae_title,
                     buffer,
                     strict: self.strict,
+                    read_buffer: BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize),
                 })
             }
             Pdu::ReleaseRQ => {
@@ -533,7 +554,7 @@ where
         }
     }
 
-    #[cfg(feature = "tokio")]
+    #[cfg(feature = "async")]
     /// Negotiate an association with the given TCP stream.
     pub async fn establish(&self, mut socket: TcpStream) -> Result<ServerAssociation> {
         ensure!(
@@ -793,7 +814,7 @@ impl ServerAssociation {
         &self.client_ae_title
     }
 
-    #[cfg(not(feature = "tokio"))]
+    #[cfg(not(feature = "async"))]
     /// Send a PDU message to the other intervenient.
     pub fn send(&mut self, msg: &Pdu) -> Result<()> {
         self.buffer.clear();
@@ -807,7 +828,7 @@ impl ServerAssociation {
         self.socket.write_all(&self.buffer).context(WireSendSnafu)
     }
 
-    #[cfg(feature = "tokio")]
+    #[cfg(feature = "async")]
     /// Send a PDU message to the other intervenient.
     pub async fn send(&mut self, msg: &Pdu) -> Result<()> {
         self.buffer.clear();
@@ -825,16 +846,29 @@ impl ServerAssociation {
     }
 
     /// Read a PDU message from the other intervenient.
-    #[cfg(not(feature = "tokio"))]
+    #[cfg(not(feature = "async"))]
     pub fn receive(&mut self) -> Result<Pdu> {
-        match read_pdu(&mut self.socket, self.acceptor_max_pdu_length, self.strict).context(ReceiveSnafu){
-            Ok(Some(pdu)) => Ok(pdu),
-            Ok(None) => self.receive(),
-            Err(e) => Err(e)
+        loop {
+            let mut buf = Cursor::new(&self.read_buffer[..]);
+            match read_pdu(&mut buf, self.requestor_max_pdu_length, self.strict).context(ReceiveRequestSnafu)? {
+                Some(pdu) => {
+                    self.read_buffer.advance(buf.position() as usize);
+                    return Ok(pdu)
+                },
+                None => {
+                    // Reset position
+                    buf.set_position(0)
+                }
+            }
+            let recv = self.socket.read(&mut self.read_buffer).unwrap();
+            if recv == 0 {
+                return OtherSnafu{msg: "Connection closed by peer"}.fail();
+            }
+
         }
     }
 
-    #[cfg(feature = "tokio")]
+    #[cfg(feature = "async")]
     /// Read a PDU message from the other intervenient.
     pub async fn receive_async(&mut self) -> Result<Pdu> {
         use std::io::Cursor;
@@ -864,7 +898,7 @@ impl ServerAssociation {
     /// Send a provider initiated abort message
     /// and shut down the TCP connection,
     /// terminating the association.
-    #[cfg(not(feature = "tokio"))]
+    #[cfg(not(feature = "async"))]
     pub fn abort(mut self) -> Result<()> {
         let pdu = Pdu::AbortRQ {
             source: AbortRQSource::ServiceProvider(
@@ -879,7 +913,7 @@ impl ServerAssociation {
     /// Send a provider initiated abort message
     /// and shut down the TCP connection,
     /// terminating the association.
-    #[cfg(feature = "tokio")]
+    #[cfg(feature = "async")]
     pub async fn abort(mut self) -> Result<()> {
         let pdu = Pdu::AbortRQ {
             source: AbortRQSource::ServiceProvider(
@@ -896,7 +930,7 @@ impl ServerAssociation {
     ///
     /// Returns a writer which automatically
     /// splits the inner data into separate PDUs if necessary.
-    #[cfg(not(feature = "tokio"))]
+    #[cfg(not(feature = "async"))]
     pub fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut TcpStream> {
         PDataWriter::new(
             &mut self.socket,
@@ -910,7 +944,7 @@ impl ServerAssociation {
     ///
     /// Returns a writer which automatically
     /// splits the inner data into separate PDUs if necessary.
-    // #[cfg(feature = "tokio")]
+    // #[cfg(feature = "async")]
     // pub fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut TcpStream> {
     //     PDataWriter::new(
     //         &mut self.socket,

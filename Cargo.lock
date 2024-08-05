@@ -638,6 +638,7 @@ name = "dicom-ul"
 version = "0.7.0"
 dependencies = [
  "byteordered",
+ "bytes",
  "dicom-encoding",
  "dicom-transfer-syntax-registry",
  "matches",

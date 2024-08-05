@@ -360,7 +360,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             // 8 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
             if bytes.remaining() < 2 { return Ok(None) }
-            let mut buf = bytes.copy_to_bytes(2);
+            let _ = bytes.copy_to_bytes(2);
 
             // 9 - Source - This Source field shall contain an integer value encoded as an unsigned
             // binary number. One of the following values shall be used:

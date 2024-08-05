@@ -5,13 +5,13 @@
 //! See [`ClientAssociationOptions`]
 //! for details and examples on how to create an association.
 use std::{borrow::Cow, convert::TryInto, net::ToSocketAddrs, time::Duration};
-#[cfg(not(feature = "tokio"))]
+#[cfg(not(feature = "async"))]
 use std::{
-    io::Write,
-    net::{TcpStream, ToSocketAddrs},
+    io::{Read, Write},
+    net::TcpStream,
 };
 use bytes::BytesMut;
-#[cfg(feature = "tokio")]
+#[cfg(feature = "async")]
 use tokio::{
     io::{AsyncRead, AsyncWriteExt},
     net::TcpStream,
@@ -26,6 +26,9 @@ use crate::{
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
 use snafu::{ensure, Backtrace, ResultExt, Snafu};
+use std::io::Cursor;
+
+use bytes::Buf;
 
 use super::{
     //pdata::{PDataReader, PDataWriter},
@@ -417,7 +420,7 @@ impl<'a> ClientAssociationOptions<'a> {
         self
     }
 
-    #[cfg(not(feature = "tokio"))]
+    #[cfg(not(feature = "async"))]
     /// Initiate the TCP connection to the given address
     /// and request a new DICOM association,
     /// negotiating the presentation contexts in the process.
@@ -425,7 +428,7 @@ impl<'a> ClientAssociationOptions<'a> {
         self.establish_impl(AeAddr::new_socket_addr(address))
     }
 
-    #[cfg(feature = "tokio")]
+    #[cfg(feature = "async")]
     /// Initiate the TCP connection to the given address
     /// and request a new DICOM association,
     /// negotiating the presentation contexts in the process.
@@ -433,7 +436,7 @@ impl<'a> ClientAssociationOptions<'a> {
         self.establish_impl(AeAddr::new_socket_addr(address)).await
     }
 
-    #[cfg(not(feature = "tokio"))]
+    #[cfg(not(feature = "async"))]
     /// Initiate the TCP connection to the given address
     /// and request a new DICOM association,
     /// negotiating the presentation contexts in the process.
@@ -464,7 +467,7 @@ impl<'a> ClientAssociationOptions<'a> {
         }
     }
 
-    #[cfg(feature = "tokio")]
+    #[cfg(feature = "async")]
     /// Initiate the TCP connection to the given address
     /// and request a new DICOM association,
     /// negotiating the presentation contexts in the process.
@@ -506,7 +509,7 @@ impl<'a> ClientAssociationOptions<'a> {
         }
     }
 
-    #[cfg(not(feature = "tokio"))]
+    #[cfg(not(feature = "async"))]
     fn establish_impl<T>(self, ae_address: AeAddr<T>) -> Result<ClientAssociation>
     where
         T: ToSocketAddrs,
@@ -524,8 +527,7 @@ impl<'a> ClientAssociationOptions<'a> {
             kerberos_service_ticket,
             saml_assertion,
             jwt,
-            read_timeout,
-            write_timeout,
+            timeout,
         } = self;
 
         // fail if no presentation contexts were provided: they represent intent,
@@ -590,10 +592,10 @@ impl<'a> ClientAssociationOptions<'a> {
 
         let mut socket = std::net::TcpStream::connect(ae_address).context(ConnectSnafu)?;
         socket
-            .set_read_timeout(read_timeout)
+            .set_read_timeout(timeout.clone())
             .context(SetReadTimeoutSnafu)?;
         socket
-            .set_write_timeout(write_timeout)
+            .set_write_timeout(timeout)
             .context(SetWriteTimeoutSnafu)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         // send request
@@ -601,9 +603,25 @@ impl<'a> ClientAssociationOptions<'a> {
         write_pdu(&mut buffer, &msg).context(SendRequestSnafu)?;
         socket.write_all(&buffer).context(WireSendSnafu)?;
         buffer.clear();
+        let mut read_buffer = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
         // receive response
-        let msg =
-            read_pdu(&mut socket, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveResponseSnafu)?;
+        let msg = loop{
+            let mut buf = Cursor::new(&read_buffer[..]);
+            match read_pdu(&mut buf, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveResponseSnafu)? {
+                Some(pdu) => {
+                    read_buffer.advance(buf.position() as usize);
+                    break pdu
+                },
+                None => {
+                    // Reset position
+                    buf.set_position(0)
+                }
+            }
+            let recv = socket.read(&mut read_buffer).unwrap();
+            if recv == 0 {
+                return OtherSnafu{msg: "Connection closed by peer"}.fail();
+            }
+        };
 
         match msg {
             Pdu::AssociationAC(AssociationAC {
@@ -660,6 +678,8 @@ impl<'a> ClientAssociationOptions<'a> {
                     socket,
                     buffer,
                     strict,
+                    read_buffer: BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize),
+                    timeout 
                 })
             }
             Pdu::AssociationRJ(association_rj) => RejectedSnafu { association_rj }.fail(),
@@ -692,7 +712,7 @@ impl<'a> ClientAssociationOptions<'a> {
         }
     }
 
-    #[cfg(feature = "tokio")]
+    #[cfg(feature = "async")]
     async fn establish_impl<T>(self, ae_address: AeAddr<T>) -> Result<ClientAssociation>
     where
         T: ToSocketAddrs,
@@ -1000,7 +1020,7 @@ impl ClientAssociation {
         self.requestor_max_pdu_length
     }
 
-    #[cfg(not(feature = "tokio"))]
+    #[cfg(not(feature = "async"))]
     /// Send a PDU message to the other intervenient.
     pub fn send(&mut self, msg: &Pdu) -> Result<()> {
         self.buffer.clear();
@@ -1014,7 +1034,7 @@ impl ClientAssociation {
         self.socket.write_all(&self.buffer).context(WireSendSnafu)
     }
 
-    #[cfg(feature = "tokio")]
+    #[cfg(feature = "async")]
     /// Send a PDU message to the other intervenient.
     pub async fn send(&mut self, msg: &Pdu) -> Result<()> {
         self.buffer.clear();
@@ -1031,12 +1051,29 @@ impl ClientAssociation {
             .context(WireSendSnafu)
     }
 
-    #[cfg(not(feature = "tokio"))]
+    #[cfg(not(feature = "async"))]
     /// Read a PDU message from the other intervenient.
     pub fn receive(&mut self) -> Result<Pdu> {
-        read_pdu(&mut self.socket, self.requestor_max_pdu_length, self.strict).context(ReceiveSnafu)
+        loop {
+            let mut buf = Cursor::new(&self.read_buffer[..]);
+            match read_pdu(&mut buf, self.requestor_max_pdu_length, self.strict).context(ReceiveResponseSnafu)? {
+                Some(pdu) => {
+                    self.read_buffer.advance(buf.position() as usize);
+                    return Ok(pdu)
+                },
+                None => {
+                    // Reset position
+                    buf.set_position(0)
+                }
+            }
+            let recv = self.socket.read(&mut self.read_buffer).unwrap();
+            if recv == 0 {
+                return OtherSnafu{msg: "Connection closed by peer"}.fail();
+            }
+
+        }
     }
-    #[cfg(feature = "tokio")]
+    #[cfg(feature = "async")]
     /// Read a PDU message from the other intervenient.
     pub async fn receive(&mut self) -> Result<Pdu> {
         use std::io::Cursor;
@@ -1046,7 +1083,7 @@ impl ClientAssociation {
 
         loop {
             let mut buf = Cursor::new(&self.read_buffer[..]);
-            match read_pdu(&mut buf, self.requestor_max_pdu_length, self.strict).context(ReceiveRequestSnafu)? {
+            match read_pdu(&mut buf, self.requestor_max_pdu_length, self.strict).context(ReceiveResponseSnafu)? {
                 Some(pdu) => {
                     self.read_buffer.advance(buf.position() as usize);
                     return Ok(pdu)
@@ -1063,7 +1100,7 @@ impl ClientAssociation {
         }
     }
 
-    #[cfg(not(feature = "tokio"))]
+    #[cfg(not(feature = "async"))]
     /// Gracefully terminate the association by exchanging release messages
     /// and then shutting down the TCP connection.
     pub fn release(mut self) -> Result<()> {
@@ -1072,7 +1109,7 @@ impl ClientAssociation {
         out
     }
 
-    #[cfg(feature = "tokio")]
+    #[cfg(feature = "async")]
     /// Gracefully terminate the association by exchanging release messages
     /// and then shutting down the TCP connection.
     pub async fn release(mut self) -> Result<()> {
@@ -1081,7 +1118,7 @@ impl ClientAssociation {
         out
     }
 
-    #[cfg(not(feature = "tokio"))]
+    #[cfg(not(feature = "async"))]
     /// Send an abort message and shut down the TCP connection,
     /// terminating the association.
     pub fn abort(mut self) -> Result<()> {
@@ -1093,7 +1130,7 @@ impl ClientAssociation {
         out
     }
 
-    #[cfg(feature = "tokio")]
+    #[cfg(feature = "async")]
     /// Send an abort message and shut down the TCP connection,
     /// terminating the association.
     pub async fn abort(mut self) -> Result<()> {
@@ -1140,7 +1177,7 @@ impl ClientAssociation {
     //     PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
     // }
 
-    #[cfg(not(feature = "tokio"))]
+    #[cfg(not(feature = "async"))]
     /// Release implementation function,
     /// which tries to send a release request and receive a release response.
     /// This is in a separate private function because
@@ -1149,8 +1186,7 @@ impl ClientAssociation {
     fn release_impl(&mut self) -> Result<()> {
         let pdu = Pdu::ReleaseRQ;
         self.send(&pdu)?;
-        let pdu = read_pdu(&mut self.socket, self.requestor_max_pdu_length, self.strict)
-            .context(ReceiveSnafu)?;
+        let pdu = self.receive()?;
 
         match pdu {
             Pdu::ReleaseRP => {}
@@ -1165,7 +1201,7 @@ impl ClientAssociation {
         Ok(())
     }
 
-    #[cfg(feature = "tokio")]
+    #[cfg(feature = "async")]
     /// Release implementation function,
     /// which tries to send a release request and receive a release response.
     /// This is in a separate private function because
@@ -1199,7 +1235,7 @@ impl ClientAssociation {
     }
 }
 
-#[cfg(not(feature = "tokio"))]
+#[cfg(not(feature = "async"))]
 /// Automatically release the association and shut down the connection.
 impl Drop for ClientAssociation {
     fn drop(&mut self) {
@@ -1208,7 +1244,7 @@ impl Drop for ClientAssociation {
     }
 }
 
-#[cfg(feature = "tokio")]
+#[cfg(feature = "async")]
 /// Automatically release the association and shut down the connection.
 impl Drop for ClientAssociation {
     fn drop(&mut self) {
