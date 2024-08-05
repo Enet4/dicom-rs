@@ -54,7 +54,7 @@ fn spawn_scp() -> Result<(JoinHandle<Result<()>>, SocketAddr)> {
                 // should always pick Explicit VR LE
                 // because JPEG baseline was not explicitly enabled in SCP
                 PresentationContextResult {
-                    id: 2,
+                    id: 3,
                     reason: PresentationContextResultReason::Acceptance,
                     transfer_syntax: EXPLICIT_VR_LE.to_string(),
                 }
@@ -98,7 +98,7 @@ fn scu_scp_association_uncompressed() {
                 assert_eq!(pc.transfer_syntax, IMPLICIT_VR_LE);
             }
             // guaranteed to be MG image storage
-            2 => {
+            3 => {
                 // server picked this one because it did not accept JPEG baseline
                 assert_eq!(pc.transfer_syntax, EXPLICIT_VR_LE);
             }
