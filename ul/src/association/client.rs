@@ -511,7 +511,7 @@ impl<'a> ClientAssociationOptions<'a> {
             .into_iter()
             .enumerate()
             .map(|(i, presentation_context)| PresentationContextProposed {
-                id: (2*i + 1) as u8,
+                id: (2 * i + 1) as u8,
                 abstract_syntax: presentation_context.0.to_string(),
                 transfer_syntaxes: presentation_context
                     .1
