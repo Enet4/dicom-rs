@@ -193,6 +193,13 @@ pub const JPIP_REFERENCED_DEFLATE: Ts = Ts::new_ele(
     Codec::Dataset(None),
 );
 
+/// **Stub descriptor:** JPIP Referenced Deflate
+pub const JPIP_HTJ2K_REFERENCED_DEFLATE: Ts = Ts::new_ele(
+    "1.2.840.10008.1.2.4.205",
+    "JPIP HTJ2K Referenced Deflate",
+    Codec::Dataset(None),
+);
+
 // --- JPEG 2000 support ---
 
 /// An alias for a transfer syntax specifier with [`Jpeg2000Adapter`]
@@ -260,6 +267,45 @@ pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION: Ts = create_ts_stub
     "JPEG 2000 Part 2 Multi-component Image Compression",
 );
 
+/// **Decoder implementation:** High-Throughput JPEG 2000 Image Compression (Lossless Only)
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+pub const HIGH_THROUGHPUT_JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY: Jpeg2000Ts = create_ts_jpeg2k(
+    "1.2.840.10008.1.2.4.201",
+    "High-Throughput JPEG 2000 Image Compression (Lossless Only)",
+);
+/// **Stub descriptor:** High-Throughput JPEG 2000 Image Compression (Lossless Only)
+#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys")))]
+pub const HIGH_THROUGHPUT_JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.201",
+    "High-Throughput JPEG 2000 Image Compression (Lossless Only)",
+);
+
+/// **Decoder implementation:** High-Throughput JPEG 2000 with RPCL Options Image Compression (Lossless Only)
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+pub const HIGH_THROUGHPUT_JPEG_2000_WITH_RPCL_OPTIONS_IMAGE_COMPRESSION_LOSSLESS_ONLY: Jpeg2000Ts = create_ts_jpeg2k(
+    "1.2.840.10008.1.2.4.202",
+    "High-Throughput JPEG 2000 with RPCL Options Image Compression (Lossless Only)",
+);
+/// **Stub descriptor:** High-Throughput JPEG 2000 Image Compression (Lossless Only)
+#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys")))]
+pub const HIGH_THROUGHPUT_JPEG_2000_WITH_RPCL_OPTIONS_IMAGE_COMPRESSION_LOSSLESS_ONLY: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.202",
+    "High-Throughput JPEG 2000 with RPCL Options Image Compression (Lossless Only)",
+);
+
+/// **Decoder implementation:** High-Throughput JPEG 2000 Image Compression
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+pub const HIGH_THROUGHPUT_JPEG_2000_IMAGE_COMPRESSION: Jpeg2000Ts = create_ts_jpeg2k(
+    "1.2.840.10008.1.2.4.203",
+    "High-Throughput JPEG 2000 Image Compression",
+);
+/// **Stub descriptor:** High-Throughput JPEG 2000 Image Compression
+#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys")))]
+pub const HIGH_THROUGHPUT_JPEG_2000_IMAGE_COMPRESSION: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.203",
+    "High-Throughput JPEG 2000 Image Compression",
+);
+
 // --- partially supported transfer syntaxes, pixel data encapsulation not supported ---
 
 /// **Stub descriptor:** JPEG-LS Lossless Image Compression
@@ -275,6 +321,9 @@ pub const JPEG_LS_LOSSY_IMAGE_COMPRESSION: Ts = create_ts_stub(
 
 /// **Stub descriptor:** JPIP Referenced
 pub const JPIP_REFERENCED: Ts = create_ts_stub("1.2.840.10008.1.2.4.94", "JPIP Referenced");
+
+/// **Stub descriptor:** JPIP HT2JK Referenced
+pub const JPIP_HTJ2K_REFERENCED: Ts = create_ts_stub("1.2.840.10008.1.2.4.204", "JPIP HTJ2K Referenced");
 
 /// **Stub descriptor:** MPEG2 Main Profile / Main Level
 pub const MPEG2_MAIN_PROFILE_MAIN_LEVEL: Ts =

@@ -60,6 +60,9 @@
 //! | JPEG 2000                     | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | JPEG 2000 Part 2 Multi-component Image Compression | Cargo feature `openjp2` or `openjpeg-sys` | x |
+//! | High-Throughput JPEG 2000 (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` | x |
+//! | High-Throughput JPEG 2000 with RPCL Options (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` | x |
+//! | High-Throughput JPEG 2000     | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | RLE Lossless                  | Cargo feature `rle` | x |
 //!
 //! Cargo features behind `native` (`jpeg`, `rle`)
@@ -85,7 +88,7 @@
 //! These stubs may also be replaced by separate libraries
 //! if using the inventory-based registry.
 //!
-//! [inventory]: https://docs.rs/inventory/0.3.12/inventory
+//! [inventory]: https://docs.rs/inventory/0.3.15/inventory
 
 use dicom_encoding::transfer_syntax::{
     AdapterFreeTransferSyntax as Ts, Codec, TransferSyntaxIndex,
@@ -222,7 +225,7 @@ lazy_static! {
         };
 
         use self::entries::*;
-        let built_in_ts: [TransferSyntax; 37] = [
+        let built_in_ts: [TransferSyntax; 42] = [
             IMPLICIT_VR_LITTLE_ENDIAN.erased(),
             EXPLICIT_VR_LITTLE_ENDIAN.erased(),
             EXPLICIT_VR_BIG_ENDIAN.erased(),
@@ -231,6 +234,8 @@ lazy_static! {
 
             DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN.erased(),
             JPIP_REFERENCED_DEFLATE.erased(),
+            JPIP_HTJ2K_REFERENCED_DEFLATE.erased(),
+
             JPEG_BASELINE.erased(),
             JPEG_EXTENDED.erased(),
             JPEG_LOSSLESS_NON_HIERARCHICAL.erased(),
@@ -241,7 +246,11 @@ lazy_static! {
             JPEG_2000_IMAGE_COMPRESSION.erased(),
             JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION_LOSSLESS_ONLY.erased(),
             JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION.erased(),
+            HIGH_THROUGHPUT_JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY.erased(),
+            HIGH_THROUGHPUT_JPEG_2000_WITH_RPCL_OPTIONS_IMAGE_COMPRESSION_LOSSLESS_ONLY.erased(),
+            HIGH_THROUGHPUT_JPEG_2000_IMAGE_COMPRESSION.erased(),
             JPIP_REFERENCED.erased(),
+            JPIP_HTJ2K_REFERENCED.erased(),
             MPEG2_MAIN_PROFILE_MAIN_LEVEL.erased(),
             FRAGMENTABLE_MPEG2_MAIN_PROFILE_MAIN_LEVEL.erased(),
             MPEG2_MAIN_PROFILE_HIGH_LEVEL.erased(),
