@@ -198,7 +198,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             // User Information Item. For a complete description of these items see Section
             // 7.1.1.2, Section 7.1.1.14, and Section 7.1.1.6.
             while bytes.has_remaining() {
-                match read_pdu_variable(bytes.clone(), &codec)? {
+                match read_pdu_variable(&mut bytes, &codec)? {
                     Some(PduVariableItem::ApplicationContext(val)) => {
                         application_context_name = Some(val);
                     }

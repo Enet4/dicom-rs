@@ -74,7 +74,7 @@ pub enum ReadError {
     #[snafu(display("No PDU available"))]
     NoPduAvailable { backtrace: Backtrace },
 
-    #[snafu(display("Could not read PDU"))]
+    #[snafu(display("Could not read PDU"),visibility(pub(crate)))]
     ReadPdu {
         source: std::io::Error,
         backtrace: Backtrace,

@@ -4,13 +4,12 @@
 //! in which this application entity listens to incoming association requests.
 //! See [`ServerAssociationOptions`]
 //! for details and examples on how to create an association.
+use bytes::{BytesMut, Buf};
 use std::{borrow::Cow, io::Cursor};
 #[cfg(not(feature = "async"))]
-use std::{io::{Write, Read}, net::TcpStream};
+use std::{io::Write, net::TcpStream};
 #[cfg(feature = "async")]
 use tokio::{io::AsyncWriteExt, net::TcpStream};
-
-use bytes::{Buf, BytesMut};
 
 
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
@@ -364,6 +363,9 @@ where
     #[cfg(not(feature = "async"))]
     /// Negotiate an association with the given TCP stream.
     pub fn establish(&self, mut socket: TcpStream) -> Result<ServerAssociation> {
+        use std::io::{BufRead, BufReader};
+
+        use crate::pdu::ReadPduSnafu;
 
         ensure!(
             !self.abstract_syntax_uids.is_empty() || self.promiscuous,
@@ -373,7 +375,9 @@ where
         let max_pdu_length = self.max_pdu_length;
 
         let mut read_buffer = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
-        let msg = loop{
+        let mut reader = BufReader::new(&mut socket);
+
+        let msg = loop {
             let mut buf = Cursor::new(&read_buffer[..]);
             match read_pdu(&mut buf, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveRequestSnafu)? {
                 Some(pdu) => {
@@ -385,10 +389,14 @@ where
                     buf.set_position(0)
                 }
             }
-            let recv = socket.read(&mut read_buffer).unwrap();
-            if recv == 0 {
+            // Use BufReader to get similar behavior to AsyncRead read_buf
+            let recv = reader.fill_buf().context(ReadPduSnafu).context(ReceiveSnafu)?.to_vec();
+            reader.consume(recv.len());
+            read_buffer.extend_from_slice(&recv);
+            if recv.len() == 0 {
                 return OtherSnafu{msg: "Connection closed by peer"}.fail();
             }
+
         };
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         match msg {
@@ -568,12 +576,19 @@ where
         let mut read_buffer = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
 
         let pdu = loop {
-            match read_pdu(&mut read_buffer, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveRequestSnafu)? {
-                Some(pdu) => break pdu,
-                None => {}
+            let mut buf = Cursor::new(&read_buffer[..]);
+            match read_pdu(&mut buf, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveRequestSnafu)? {
+                Some(pdu) => {
+                    read_buffer.advance(buf.position() as usize);
+                    break pdu
+                },
+                None => {
+                    // Reset position
+                    buf.set_position(0)
+                }
             }
-            if 0 == socket.read_buf(&mut read_buffer).await.unwrap() {
-                println!("Here {}", read_buffer.len());
+            let recv = socket.read_buf(&mut read_buffer).await.unwrap();
+            if recv == 0 {
                 return OtherSnafu{msg: "Connection closed by peer"}.fail();
             }
         };
@@ -848,9 +863,14 @@ impl ServerAssociation {
     /// Read a PDU message from the other intervenient.
     #[cfg(not(feature = "async"))]
     pub fn receive(&mut self) -> Result<Pdu> {
+        use std::io::{BufRead, BufReader, Cursor};
+
+        use crate::pdu::ReadPduSnafu;
+        let mut reader = BufReader::new(&mut self.socket);
+
         loop {
             let mut buf = Cursor::new(&self.read_buffer[..]);
-            match read_pdu(&mut buf, self.requestor_max_pdu_length, self.strict).context(ReceiveRequestSnafu)? {
+            match read_pdu(&mut buf, self.acceptor_max_pdu_length, self.strict).context(ReceiveRequestSnafu)? {
                 Some(pdu) => {
                     self.read_buffer.advance(buf.position() as usize);
                     return Ok(pdu)
@@ -860,8 +880,11 @@ impl ServerAssociation {
                     buf.set_position(0)
                 }
             }
-            let recv = self.socket.read(&mut self.read_buffer).unwrap();
-            if recv == 0 {
+            // Use BufReader to get similar behavior to AsyncRead read_buf
+            let recv = reader.fill_buf().context(ReadPduSnafu).context(ReceiveSnafu)?.to_vec();
+            reader.consume(recv.len());
+            self.read_buffer.extend_from_slice(&recv);
+            if recv.len() == 0 {
                 return OtherSnafu{msg: "Connection closed by peer"}.fail();
             }
 
@@ -870,7 +893,7 @@ impl ServerAssociation {
 
     #[cfg(feature = "async")]
     /// Read a PDU message from the other intervenient.
-    pub async fn receive_async(&mut self) -> Result<Pdu> {
+    pub async fn receive(&mut self) -> Result<Pdu> {
         use std::io::Cursor;
 
         use bytes::Buf;
@@ -921,7 +944,7 @@ impl ServerAssociation {
             ),
         };
         let out = self.send(&pdu).await;
-        let _ = self.socket.pubshutdown().await;
+        let _ = self.socket.shutdown().await;
         out
     }
 
@@ -958,9 +981,9 @@ impl ServerAssociation {
     ///
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
-    // pub fn receive_pdata(&mut self) -> PDataReader<&mut TcpStream> {
-    //     PDataReader::new(&mut self.socket, self.acceptor_max_pdu_length)
-    // }
+    pub fn receive_pdata(&mut self) -> PDataReader<&mut TcpStream> {
+        PDataReader::new(&mut self.socket, self.acceptor_max_pdu_length)
+    }
 
     /// Obtain access to the inner TCP stream
     /// connected to the association acceptor.

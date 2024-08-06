@@ -24,5 +24,4 @@ matches = "0.1.8"
 
 [features]
 async = ["dep:tokio"]
-#default = ["tokio"]
-default = ["async"]
+default = []
