@@ -66,7 +66,7 @@ impl PixelDataReader for JpegAdapter {
         let mut cursor = Cursor::new(fragments);
         let mut dst_offset = base_offset;
 
-        for i in 0..nr_frames {
+        'frame_loop: for i in 0..nr_frames {
             let mut decoder = Decoder::new(&mut cursor);
             let decoded = decoder
                 .decode()
@@ -88,32 +88,39 @@ impl PixelDataReader for JpegAdapter {
             
             // DICOM fragments should always have an even length,
             // filling this spacing with padding if it is odd.
-            // Some implementations might add this padding,
+            // Some implementations might add some padding,
             // whereas other might not.
-            // So we look for the start of the SOI marker
-            // to identify whether the padding is there
-            if cursor.position() % 2 > 0 {
+            // So we check the next 2 bytes
+            // until we find the SOI marker
+            loop {
                 let Some(next_byte_1) = cursor
+                    .get_ref()
+                    .get(cursor.position() as usize)
+                    .copied()
+                else {
+                    // no more frames to read
+                    break 'frame_loop;
+                };
+
+                if next_byte_1 != 0xFF {
+                    cursor.set_position(cursor.position() + 1);
+                    continue;
+                }
+
+                let Some(next_byte_2) = cursor
                     .get_ref()
                     .get(cursor.position() as usize + 1)
                     .copied()
                 else {
                     // no more frames to read
-                    break;
-                };
-                let Some(next_byte_2) = cursor
-                    .get_ref()
-                    .get(cursor.position() as usize + 2)
-                    .copied()
-                else {
-                    // no more frames to read
-                    break;
+                    break 'frame_loop;
                 };
 
-                if [next_byte_1, next_byte_2] == [0xFF, 0xD8] {
-                    // skip padding and continue
-                    cursor.set_position(cursor.position() + 1);
+                if next_byte_2 == 0xD8 {
+                    // next frame found
+                    break;
                 }
+                cursor.set_position(cursor.position() + 1);
             }
         }
 
@@ -211,60 +218,17 @@ impl PixelDataReader for JpegAdapter {
             Cow::Owned(fragments)
         };
 
-        let fragme_data_len = frame_data.len() as u64;
         let mut cursor = Cursor::new(&*frame_data);
-        let mut dst_offset = base_offset;
+        let dst_offset = base_offset;
 
-        loop {
-            let mut decoder = Decoder::new(&mut cursor);
-            let decoded = decoder
-                .decode()
-                .map_err(|e| Box::new(e) as Box<_>)
-                .whatever_context("JPEG decoder failure")?;
+        let mut decoder = Decoder::new(&mut cursor);
+        let decoded = decoder
+            .decode()
+            .map_err(|e| Box::new(e) as Box<_>)
+            .whatever_context("JPEG decoder failure")?;
 
-            let decoded_len = decoded.len();
-            dst[dst_offset..(dst_offset + decoded_len)].copy_from_slice(&decoded);
-            dst_offset += decoded_len;
-
-            if next_even(cursor.position()) >= next_even(fragme_data_len) {
-                break;
-            }
-
-            // stop if there aren't enough bytes to continue
-            if cursor.position() + 2 >= fragme_data_len {
-                break;
-            }
-
-            // DICOM fragments should always have an even length,
-            // filling this spacing with padding if it is odd.
-            // Some implementations might add this padding,
-            // whereas other might not.
-            // So we look for the start of the SOI marker
-            // to identify whether the padding is there
-            if cursor.position() % 2 > 0 {
-                let Some(next_byte_1) = cursor
-                    .get_ref()
-                    .get(cursor.position() as usize + 1)
-                    .copied()
-                else {
-                    // no more frames to read
-                    break;
-                };
-                let Some(next_byte_2) = cursor
-                    .get_ref()
-                    .get(cursor.position() as usize + 2)
-                    .copied()
-                else {
-                    // no more frames to read
-                    break;
-                };
-
-                if [next_byte_1, next_byte_2] == [0xFF, 0xD8] {
-                    // skip padding and continue
-                    cursor.set_position(cursor.position() + 1);
-                }
-            }
-        }
+        let decoded_len = decoded.len();
+        dst[dst_offset..(dst_offset + decoded_len)].copy_from_slice(&decoded);
 
         Ok(())
     }
