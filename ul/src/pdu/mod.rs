@@ -10,8 +10,8 @@ pub mod writer;
 use std::fmt::Display;
 
 pub use reader::read_pdu;
-pub use writer::{write_pdu, WriteChunkError};
 use snafu::{Backtrace, Snafu};
+pub use writer::{write_pdu, WriteChunkError};
 
 /// The default maximum PDU size
 pub const DEFAULT_MAX_PDU: u32 = 16_384;
@@ -74,7 +74,7 @@ pub enum ReadError {
     #[snafu(display("No PDU available"))]
     NoPduAvailable { backtrace: Backtrace },
 
-    #[snafu(display("Could not read PDU"),visibility(pub(crate)))]
+    #[snafu(display("Could not read PDU"), visibility(pub(crate)))]
     ReadPdu {
         source: std::io::Error,
         backtrace: Backtrace,

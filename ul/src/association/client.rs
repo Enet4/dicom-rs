@@ -4,25 +4,19 @@
 //! in which this application entity is the one requesting the association.
 //! See [`ClientAssociationOptions`]
 //! for details and examples on how to create an association.
-use std::{borrow::Cow, io::Cursor, convert::TryInto, net::ToSocketAddrs, time::Duration};
-#[cfg(not(feature = "async"))]
-use std::{
-    io::{Read, Write},
-    net::TcpStream,
-};
 use bytes::BytesMut;
+use std::{borrow::Cow, convert::TryInto, io::Cursor, net::ToSocketAddrs, time::Duration};
+#[cfg(not(feature = "async"))]
+use std::{io::Write, net::TcpStream};
 #[cfg(feature = "async")]
-use tokio::{
-    io::{AsyncRead, AsyncWriteExt},
-    net::TcpStream,
-};
+use tokio::{io::AsyncWriteExt, net::TcpStream};
 
 use crate::{
     pdu::{
         read_pdu, write_pdu, AbortRQSource, AssociationAC, AssociationRJ, AssociationRQ, Pdu,
         PresentationContextProposed, PresentationContextResult, PresentationContextResultReason,
-        UserIdentity, UserIdentityType, UserVariableItem, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE,
-        ReadPduSnafu
+        ReadPduSnafu, UserIdentity, UserIdentityType, UserVariableItem, DEFAULT_MAX_PDU,
+        MAXIMUM_PDU_SIZE,
     },
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
@@ -32,7 +26,9 @@ use bytes::Buf;
 
 use super::{
     //pdata::{PDataReader, PDataWriter},
-    uid::trim_uid, PDataReader, PDataWriter
+    uid::trim_uid,
+    PDataReader,
+    PDataWriter,
 };
 
 #[derive(Debug, Snafu)]
@@ -128,10 +124,8 @@ pub enum Error {
         #[snafu(backtrace)]
         source: crate::pdu::ReadError,
     },
-    #[snafu(display("Other error: {}", msg))]
-    Other{
-        msg: String
-    }
+    #[snafu(display("Connection closed by peer"))]
+    ConnectionClosed,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -516,8 +510,6 @@ impl<'a> ClientAssociationOptions<'a> {
     {
         use std::io::{BufRead, BufReader};
 
-        use crate::pdu::ReadPduSnafu;
-
         let ClientAssociationOptions {
             calling_ae_title,
             called_ae_title,
@@ -617,20 +609,22 @@ impl<'a> ClientAssociationOptions<'a> {
             match read_pdu(&mut buf, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveResponseSnafu)? {
                 Some(pdu) => {
                     read_buffer.advance(buf.position() as usize);
-                    break pdu
-                },
+                    break pdu;
+                }
                 None => {
                     // Reset position
                     buf.set_position(0)
                 }
             }
             // Use BufReader to get similar behavior to AsyncRead read_buf
-            let recv = reader.fill_buf().context(ReadPduSnafu).context(ReceiveSnafu)?.to_vec();
+            let recv = reader
+                .fill_buf()
+                .context(ReadPduSnafu)
+                .context(ReceiveSnafu)?
+                .to_vec();
             reader.consume(recv.len());
             read_buffer.extend_from_slice(&recv);
-            if recv.len() == 0 {
-                return OtherSnafu{msg: "Connection closed by peer"}.fail();
-            }
+            ensure!(recv.len() > 0, ConnectionClosedSnafu);
         };
 
         match msg {
@@ -689,7 +683,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     buffer,
                     strict,
                     read_buffer: BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize),
-                    timeout 
+                    timeout,
                 })
             }
             Pdu::AssociationRJ(association_rj) => RejectedSnafu { association_rj }.fail(),
@@ -810,8 +804,7 @@ impl<'a> ClientAssociationOptions<'a> {
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         // send request
 
-        write_pdu(&mut buffer, &msg)
-            .context(SendRequestSnafu)?;
+        write_pdu(&mut buffer, &msg).context(SendRequestSnafu)?;
         socket.write_all(&buffer).await.context(WireSendSnafu)?;
         buffer.clear();
         // receive response
@@ -823,20 +816,19 @@ impl<'a> ClientAssociationOptions<'a> {
             match read_pdu(&mut buf, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveResponseSnafu)? {
                 Some(pdu) => {
                     read_buffer.advance(buf.position() as usize);
-                    break pdu
-                },
+                    break pdu;
+                }
                 None => {
                     // Reset position
                     buf.set_position(0)
                 }
             }
-            let recv = socket.read_buf(&mut read_buffer)
+            let recv = socket
+                .read_buf(&mut read_buffer)
                 .await
                 .context(ReadPduSnafu)
                 .context(ReceiveSnafu)?;
-            if recv == 0 {
-                return OtherSnafu{msg: "Connection closed by peer"}.fail();
-            }
+            ensure!(recv > 0, ConnectionClosedSnafu);
         };
 
         match msg {
@@ -1017,7 +1009,7 @@ pub struct ClientAssociation {
     /// Send/Receive operation timeout
     timeout: Option<Duration>,
     /// Buffer to assemble PDU before parsing
-    read_buffer: BytesMut
+    read_buffer: BytesMut,
 }
 
 impl ClientAssociation {
@@ -1082,24 +1074,27 @@ impl ClientAssociation {
 
         loop {
             let mut buf = Cursor::new(&self.read_buffer[..]);
-            match read_pdu(&mut buf, self.acceptor_max_pdu_length, self.strict).context(ReceiveResponseSnafu)? {
+            match read_pdu(&mut buf, self.acceptor_max_pdu_length, self.strict)
+                .context(ReceiveResponseSnafu)?
+            {
                 Some(pdu) => {
                     self.read_buffer.advance(buf.position() as usize);
-                    return Ok(pdu)
-                },
+                    return Ok(pdu);
+                }
                 None => {
                     // Reset position
                     buf.set_position(0)
                 }
             }
             // Use BufReader to get similar behavior to AsyncRead read_buf
-            let recv = reader.fill_buf().context(ReadPduSnafu).context(ReceiveSnafu)?.to_vec();
+            let recv = reader
+                .fill_buf()
+                .context(ReadPduSnafu)
+                .context(ReceiveSnafu)?
+                .to_vec();
             reader.consume(recv.len());
             self.read_buffer.extend_from_slice(&recv);
-            if recv.len() == 0 {
-                return OtherSnafu{msg: "Connection closed by peer"}.fail();
-            }
-
+            ensure!(recv.len() > 0, ConnectionClosedSnafu);
         }
     }
     #[cfg(feature = "async")]
@@ -1107,28 +1102,29 @@ impl ClientAssociation {
     pub async fn receive(&mut self) -> Result<Pdu> {
         use std::io::Cursor;
 
-        use bytes::Buf;
         use tokio::io::AsyncReadExt;
 
         loop {
             let mut buf = Cursor::new(&self.read_buffer[..]);
-            match read_pdu(&mut buf, self.requestor_max_pdu_length, self.strict).context(ReceiveResponseSnafu)? {
+            match read_pdu(&mut buf, self.requestor_max_pdu_length, self.strict)
+                .context(ReceiveResponseSnafu)?
+            {
                 Some(pdu) => {
                     self.read_buffer.advance(buf.position() as usize);
-                    return Ok(pdu)
-                },
+                    return Ok(pdu);
+                }
                 None => {
                     // Reset position
                     buf.set_position(0)
                 }
             }
-            let recv = self.socket.read_buf(&mut self.read_buffer)
+            let recv = self
+                .socket
+                .read_buf(&mut self.read_buffer)
                 .await
                 .context(ReadPduSnafu)
                 .context(ReceiveSnafu)?;
-            if recv == 0 {
-                return OtherSnafu{msg: "Connection closed by peer"}.fail();
-            }
+            ensure!(recv > 0, ConnectionClosedSnafu);
         }
     }
 
@@ -1208,7 +1204,6 @@ impl ClientAssociation {
     /// splits the inner data into separate PDUs if necessary.
     #[cfg(feature = "async")]
     pub async fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut TcpStream> {
-
         PDataWriter::new(
             &mut self.socket,
             presentation_context_id,
@@ -1264,11 +1259,15 @@ impl ClientAssociation {
 
         let pdu = loop {
             if let Ok(Some(pdu)) = read_pdu(&mut read_buffer, MAXIMUM_PDU_SIZE, self.strict) {
-                break pdu
+                break pdu;
             }
-            if 0 == self.socket.read_buf(&mut read_buffer).await.unwrap() {
-                return OtherSnafu{msg: "Connection closed by peer"}.fail();
-            }
+            let recv = self
+                .socket
+                .read_buf(&mut read_buffer)
+                .await
+                .context(ReadPduSnafu)
+                .context(ReceiveSnafu)?;
+            ensure!(recv > 0, ConnectionClosedSnafu);
         };
         match pdu {
             Pdu::ReleaseRP => {}

@@ -1,16 +1,21 @@
+#[cfg(not(feature = "async"))]
+use std::io::Write;
 use std::{
-    collections::VecDeque, io::{BufRead, BufReader, Cursor, Read, Write}
+    collections::VecDeque,
+    io::{BufRead, BufReader, Cursor, Read},
 };
 
 use bytes::{Buf, BytesMut};
-use snafu::ResultExt;
+#[cfg(feature = "async")]
+use std::{
+    pin::Pin,
+    task::{Context, Poll},
+};
 #[cfg(feature = "async")]
 use tokio::io::ReadBuf;
-#[cfg(feature = "async")]
-use std::{pin::Pin, task::{Context, Poll}};
 use tracing::warn;
 
-use crate::{pdu::{ReadPduSnafu, PDU_HEADER_SIZE}, read_pdu, Pdu};
+use crate::{pdu::PDU_HEADER_SIZE, read_pdu, Pdu};
 
 #[cfg(feature = "async")]
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
@@ -40,7 +45,6 @@ fn setup_pdata_header(buffer: &mut Vec<u8>, is_last: bool) {
     // message control header
     buffer[11] = if is_last { 0x02 } else { 0x00 };
 }
-
 
 /// A P-Data value writer.
 ///
@@ -85,6 +89,7 @@ fn setup_pdata_header(buffer: &mut Vec<u8>, is_last: bool) {
 /// let pdu_ac = association.receive()?;
 /// # Ok(())
 /// # }
+#[cfg(not(feature = "async"))]
 #[must_use]
 pub struct PDataWriter<W: Write> {
     buffer: Vec<u8>,
@@ -92,6 +97,7 @@ pub struct PDataWriter<W: Write> {
     max_data_len: u32,
 }
 
+#[cfg(not(feature = "async"))]
 impl<W> PDataWriter<W>
 where
     W: Write,
@@ -168,6 +174,7 @@ where
     }
 }
 
+#[cfg(not(feature = "async"))]
 impl<W> Write for PDataWriter<W>
 where
     W: Write,
@@ -199,6 +206,7 @@ where
 /// this `Drop` implementation
 /// will construct and emit the last P-Data fragment PDU
 /// if there is any data left to send.
+#[cfg(not(feature = "async"))]
 impl<W> Drop for PDataWriter<W>
 where
     W: Write,
@@ -329,7 +337,7 @@ where
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
-    ) -> Poll<std::result::Result<usize, std::io::Error>>{
+    ) -> Poll<std::result::Result<usize, std::io::Error>> {
         let total_len = self.max_data_len as usize + 12;
         if self.buffer.len() + buf.len() <= total_len {
             // accumulate into buffer, do nothing
@@ -347,34 +355,32 @@ where
             let data_len = data.len();
             let mut position = 0;
             while position < data_len {
-                let res = Pin::new(&mut self.stream)
-                    .poll_write(cx, &data[position..]);
+                let res = Pin::new(&mut self.stream).poll_write(cx, &data[position..]);
                 match res {
                     Poll::Ready(Ok(n)) => {
                         // Update position
                         position += n;
-                    },
+                    }
                     Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                    Poll::Pending => return Poll::Pending
+                    Poll::Pending => return Poll::Pending,
                 }
             }
             self.buffer = Vec::from(&data[..12]);
-            return Poll::Ready(Ok(position))
+            return Poll::Ready(Ok(position));
         }
-
     }
 
     fn poll_flush(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<std::result::Result<(), std::io::Error>>{
+    ) -> Poll<std::result::Result<(), std::io::Error>> {
         Pin::new(&mut self.stream).poll_flush(cx)
     }
 
     fn poll_shutdown(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<std::result::Result<(), std::io::Error>>{
+    ) -> Poll<std::result::Result<(), std::io::Error>> {
         Pin::new(&mut self.stream).poll_shutdown(cx)
     }
 }
@@ -440,8 +446,7 @@ pub struct PDataReader<R> {
     read_buffer: BytesMut,
 }
 
-impl<R> PDataReader<R>
-{
+impl<R> PDataReader<R> {
     pub fn new(stream: R, max_data_length: u32) -> Self {
         PDataReader {
             buffer: VecDeque::with_capacity(max_data_length as usize),
@@ -476,14 +481,15 @@ where
             }
 
             let mut reader = BufReader::new(&mut self.stream);
-            let msg = loop{
+            let msg = loop {
                 let mut buf = Cursor::new(&self.read_buffer[..]);
                 match read_pdu(&mut buf, self.max_data_length, false)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))? {
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
+                {
                     Some(pdu) => {
-                       self.read_buffer.advance(buf.position() as usize);
-                        break pdu
-                    },
+                        self.read_buffer.advance(buf.position() as usize);
+                        break pdu;
+                    }
                     None => {
                         // Reset position
                         buf.set_position(0)
@@ -494,7 +500,8 @@ where
                 self.read_buffer.extend_from_slice(&recv);
                 if recv.len() == 0 {
                     return Err(std::io::Error::new(
-                        std::io::ErrorKind::Other, "Connection closed by peer"
+                        std::io::ErrorKind::Other,
+                        "Connection closed by peer",
                     ));
                 }
             };
@@ -527,13 +534,16 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<R> AsyncRead for PDataReader<R> where R: AsyncRead + Unpin {
+impl<R> AsyncRead for PDataReader<R>
+where
+    R: AsyncRead + Unpin,
+{
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>>{
-        if self.buffer.is_empty(){
+    ) -> Poll<std::io::Result<()>> {
+        if self.buffer.is_empty() {
             if self.last_pdu {
                 // reached the end of PData stream
                 return Poll::Ready(Ok(()));
@@ -542,28 +552,27 @@ impl<R> AsyncRead for PDataReader<R> where R: AsyncRead + Unpin {
             let msg = loop {
                 let mut buf = Cursor::new(&read_buffer[..]);
                 match read_pdu(&mut buf, self.max_data_length, false)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))? {
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
+                {
                     Some(pdu) => {
                         read_buffer.advance(buf.position() as usize);
-                        break pdu
-                    },
+                        break pdu;
+                    }
                     None => {
                         // Reset position
                         buf.set_position(0)
                     }
                 }
                 // Do the actual read from the socket
-                let recv = Pin::new(&mut self.stream)
-                    .poll_read(cx, &mut ReadBuf::new(&mut read_buffer));
+                let recv =
+                    Pin::new(&mut self.stream).poll_read(cx, &mut ReadBuf::new(&mut read_buffer));
                 match recv {
-                    Poll::Ready(Ok(())) => {
-                        continue
-                    },
+                    Poll::Ready(Ok(())) => continue,
                     Poll::Pending => return Poll::Pending,
-                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e))
+                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                 }
             };
-            
+
             match msg {
                 Pdu::PData { data } => {
                     for pdata_value in data {
@@ -613,7 +622,7 @@ mod tests {
     use std::collections::VecDeque;
     use std::io::{Read, Write};
 
-    use crate::pdu::{read_pdu, MINIMUM_PDU_SIZE, PDU_HEADER_SIZE, Pdu};
+    use crate::pdu::{read_pdu, Pdu, MINIMUM_PDU_SIZE, PDU_HEADER_SIZE};
     use crate::pdu::{PDataValue, PDataValueType};
     use crate::write_pdu;
 
