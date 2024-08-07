@@ -441,7 +441,6 @@ pub struct PDataReader<R> {
 }
 
 impl<R> PDataReader<R>
-where
 {
     pub fn new(stream: R, max_data_length: u32) -> Self {
         PDataReader {
@@ -528,50 +527,77 @@ where
 }
 
 #[cfg(feature = "async")]
-#[must_use]
-pub struct AsyncPDataReader<R> {
-    buffer: VecDeque<u8>,
-    stream: R,
-    presentation_context_id: Option<u8>,
-    max_data_length: u32,
-    last_pdu: bool,
-    read_buffer: BytesMut,
+impl<R> AsyncRead for PDataReader<R> where R: AsyncRead + Unpin {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>>{
+        if self.buffer.is_empty(){
+            if self.last_pdu {
+                // reached the end of PData stream
+                return Poll::Ready(Ok(()));
+            }
+            let mut read_buffer = BytesMut::with_capacity(self.max_data_length as usize);
+            let msg = loop {
+                let mut buf = Cursor::new(&read_buffer[..]);
+                match read_pdu(&mut buf, self.max_data_length, false)
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))? {
+                    Some(pdu) => {
+                        read_buffer.advance(buf.position() as usize);
+                        break pdu
+                    },
+                    None => {
+                        // Reset position
+                        buf.set_position(0)
+                    }
+                }
+                // Do the actual read from the socket
+                let recv = Pin::new(&mut self.stream)
+                    .poll_read(cx, &mut ReadBuf::new(&mut read_buffer));
+                match recv {
+                    Poll::Ready(Ok(())) => {
+                        continue
+                    },
+                    Poll::Pending => return Poll::Pending,
+                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e))
+                }
+            };
+            
+            match msg {
+                Pdu::PData { data } => {
+                    for pdata_value in data {
+                        self.presentation_context_id = match self.presentation_context_id {
+                            None => Some(pdata_value.presentation_context_id),
+                            Some(cid) if cid == pdata_value.presentation_context_id => Some(cid),
+                            Some(cid) => {
+                                warn!("Received PData value of presentation context {}, but should be {}", pdata_value.presentation_context_id, cid);
+                                Some(cid)
+                            }
+                        };
+                        self.buffer.extend(pdata_value.data);
+                        self.last_pdu = pdata_value.is_last;
+                    }
+                }
+                _ => {
+                    return Poll::Ready(Err(std::io::Error::new(
+                        std::io::ErrorKind::UnexpectedEof,
+                        "Unexpected PDU type",
+                    )))
+                }
+            }
+        }
+        // Naive implementation of `Read::read` for VecDeque
+        while let Some(&byte) = self.buffer.front() {
+            if buf.remaining() == 0 {
+                return Poll::Ready(Ok(()));
+            }
+            buf.put_slice(&[byte]);
+            self.buffer.pop_front();
+        }
+        Poll::Ready(Ok(()))
+    }
 }
-// TODO
-// #[cfg(feature = "async")]
-// impl<R> AsyncRead for PDataReader<R> where R: AsyncRead + Unpin {
-//     fn poll_read(
-//         mut self: Pin<&mut Self>,
-//         cx: &mut Context<'_>,
-//         buf: &mut ReadBuf<'_>,
-//     ) -> Poll<std::io::Result<()>>{
-//         let mut read_buffer = BytesMut::with_capacity(self.max_data_length as usize);
-//         let msg = loop{
-//             let mut buf = Cursor::new(&read_buffer[..]);
-//             match read_pdu(&mut buf, self.max_data_length, false)
-//                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))? {
-//                 Some(pdu) => {
-//                     read_buffer.advance(buf.position() as usize);
-//                     break pdu
-//                 },
-//                 None => {
-//                     // Reset position
-//                     buf.set_position(0)
-//                 }
-//             }
-//             match Pin::new(&mut self.stream).poll_read(cx, &mut ReadBuf::new(read_buffer.as_mut())){
-//                 Poll::Pending => return Poll::Pending,
-//                 Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-//                 Poll::Ready(Ok(_)) => return Poll::Ready(Err(std::io::Error::new(
-//                     std::io::ErrorKind::Other, "Connection closed by peer"
-//                 ))),
-//                 Poll::Ready(Ok(_)) => {}
-//             }
-//         }
-//         Poll::Ready(Ok(()))
-//     }
-
-// }
 /// Determine the maximum length of actual PDV data
 /// when encapsulated in a PDU with the given length property.
 /// Does not account for the first 2 bytes (type + reserved).
