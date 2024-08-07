@@ -320,56 +320,64 @@ where
     }
 }
 
-// TODO
-// #[cfg(feature = "async")]
-// impl<W> AsyncWrite for AsyncPDataWriter<W>
-// where
-//     W: AsyncWrite + Unpin,
-// {
-//     fn poll_write(
-//         mut self: Pin<&mut Self>,
-//         cx: &mut Context<'_>,
-//         buf: &[u8],
-//     ) -> Poll<std::result::Result<usize, std::io::Error>>{
-//         let total_len = self.max_data_len as usize + 12;
-//         if self.buffer.len() + buf.len() <= total_len {
-//             // accumulate into buffer, do nothing
-//             self.buffer.extend(buf);
-//             Poll::Ready(Ok(buf.len()))
-//         } else {
-//             // fill in the rest of the buffer, send PDU,
-//             // and leave out the rest for subsequent writes
-//             let buf = &buf[..total_len - self.buffer.len()];
-//             self.buffer.extend(buf);
-//             debug_assert_eq!(self.buffer.len(), total_len);
-//             setup_pdata_header(&mut self.buffer, false);
-//             let res = Pin::new(&mut self.stream).poll_write(cx, &mut self.buffer);
-//             match res {
-//                 Poll::Ready(Ok(_)) => {
-//                     self.buffer.truncate(12);
-//                     Poll::Ready(Ok(buf.len()))
-//                 },
-//                 Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-//                 Poll::Pending => Poll::Pending
-//             }
-//         }
+#[cfg(feature = "async")]
+impl<W> AsyncWrite for AsyncPDataWriter<W>
+where
+    W: AsyncWrite + Unpin,
+{
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::result::Result<usize, std::io::Error>>{
+        let total_len = self.max_data_len as usize + 12;
+        if self.buffer.len() + buf.len() <= total_len {
+            // accumulate into buffer, do nothing
+            self.buffer.extend(buf);
+            Poll::Ready(Ok(buf.len()))
+        } else {
+            // fill in the rest of the buffer, send PDU,
+            // and leave out the rest for subsequent writes
+            let buf = &buf[..total_len - self.buffer.len()];
+            self.buffer.extend(buf);
+            debug_assert_eq!(self.buffer.len(), total_len);
+            setup_pdata_header(&mut self.buffer, false);
+            // Avoid multiple mutable borrows, take self.buffer then return it after poll_write
+            let data = std::mem::take(&mut self.buffer);
+            let data_len = data.len();
+            let mut position = 0;
+            while position < data_len {
+                let res = Pin::new(&mut self.stream)
+                    .poll_write(cx, &data[position..]);
+                match res {
+                    Poll::Ready(Ok(n)) => {
+                        // Update position
+                        position += n;
+                    },
+                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                    Poll::Pending => return Poll::Pending
+                }
+            }
+            self.buffer = Vec::from(&data[..12]);
+            return Poll::Ready(Ok(position))
+        }
 
-//     }
+    }
 
-//     fn poll_flush(
-//         mut self: Pin<&mut Self>,
-//         cx: &mut Context<'_>,
-//     ) -> Poll<std::result::Result<(), std::io::Error>>{
-//         Pin::new(&mut self.stream).poll_flush(cx)
-//     }
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), std::io::Error>>{
+        Pin::new(&mut self.stream).poll_flush(cx)
+    }
 
-//     fn poll_shutdown(
-//         mut self: Pin<&mut Self>,
-//         cx: &mut Context<'_>,
-//     ) -> Poll<std::result::Result<(), std::io::Error>>{
-//         Pin::new(&mut self.stream).poll_shutdown(cx)
-//     }
-// }
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), std::io::Error>>{
+        Pin::new(&mut self.stream).poll_shutdown(cx)
+    }
+}
 
 /// With the P-Data writer dropped,
 /// this `Drop` implementation
@@ -519,6 +527,16 @@ where
     }
 }
 
+#[cfg(feature = "async")]
+#[must_use]
+pub struct AsyncPDataReader<R> {
+    buffer: VecDeque<u8>,
+    stream: R,
+    presentation_context_id: Option<u8>,
+    max_data_length: u32,
+    last_pdu: bool,
+    read_buffer: BytesMut,
+}
 // TODO
 // #[cfg(feature = "async")]
 // impl<R> AsyncRead for PDataReader<R> where R: AsyncRead + Unpin {

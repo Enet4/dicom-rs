@@ -31,7 +31,7 @@ use bytes::Buf;
 
 use super::{
     //pdata::{PDataReader, PDataWriter},
-    uid::trim_uid, PDataReader, PDataWriter,
+    uid::trim_uid, PDataReader, PDataWriter
 };
 
 #[derive(Debug, Snafu)]
@@ -1186,7 +1186,23 @@ impl ClientAssociation {
     ///
     /// Returns a writer which automatically
     /// splits the inner data into separate PDUs if necessary.
+    #[cfg(not(feature = "async"))]
     pub fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut TcpStream> {
+        PDataWriter::new(
+            &mut self.socket,
+            presentation_context_id,
+            self.acceptor_max_pdu_length,
+        )
+    }
+
+    /// Prepare a P-Data writer for sending
+    /// one or more data items.
+    ///
+    /// Returns a writer which automatically
+    /// splits the inner data into separate PDUs if necessary.
+    #[cfg(feature = "async")]
+    pub async fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut TcpStream> {
+
         PDataWriter::new(
             &mut self.socket,
             presentation_context_id,
@@ -1199,6 +1215,7 @@ impl ClientAssociation {
     ///
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
+    #[cfg(not(feature = "async"))]
     pub fn receive_pdata(&mut self) -> PDataReader<&mut TcpStream> {
         PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
     }

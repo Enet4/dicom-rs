@@ -587,6 +587,7 @@ dependencies = [
  "dicom-ul",
  "indicatif",
  "snafu",
+ "tokio",
  "tracing",
  "tracing-subscriber",
  "walkdir",
