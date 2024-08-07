@@ -1,18 +1,17 @@
 #[cfg(not(feature = "async"))]
 use std::io::Write;
 use std::{
-    collections::VecDeque,
-    io::{BufRead, BufReader, Cursor, Read},
+    collections::VecDeque, future::Future, io::{BufRead, BufReader, Cursor, Read}, task::ready
 };
 
-use bytes::{Buf, BytesMut};
+use bytes::{Buf, BufMut, BytesMut};
 #[cfg(feature = "async")]
 use std::{
     pin::Pin,
     task::{Context, Poll},
 };
 #[cfg(feature = "async")]
-use tokio::io::ReadBuf;
+use tokio::io::{ReadBuf, AsyncReadExt};
 use tracing::warn;
 
 use crate::{pdu::PDU_HEADER_SIZE, read_pdu, Pdu};
@@ -326,6 +325,22 @@ where
         }
         Ok(())
     }
+
+    /// Use the current state of the buffer to send new PDUs
+    ///
+    /// Pre-condition:
+    /// buffer must have enough data for one P-Data-tf PDU
+    async fn dispatch_pdu(&mut self) -> std::io::Result<()> {
+        debug_assert!(self.buffer.len() >= 12);
+        // send PDU now
+        setup_pdata_header(&mut self.buffer, false);
+        self.stream.write_all(&self.buffer).await?;
+
+        // back to just the header
+        self.buffer.truncate(12);
+
+        Ok(())
+    }
 }
 
 #[cfg(feature = "async")]
@@ -349,24 +364,13 @@ where
             let buf = &buf[..total_len - self.buffer.len()];
             self.buffer.extend(buf);
             debug_assert_eq!(self.buffer.len(), total_len);
-            setup_pdata_header(&mut self.buffer, false);
-            // Avoid multiple mutable borrows, take self.buffer then return it after poll_write
-            let data = std::mem::take(&mut self.buffer);
-            let data_len = data.len();
-            let mut position = 0;
-            while position < data_len {
-                let res = Pin::new(&mut self.stream).poll_write(cx, &data[position..]);
-                match res {
-                    Poll::Ready(Ok(n)) => {
-                        // Update position
-                        position += n;
-                    }
-                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                    Poll::Pending => return Poll::Pending,
-                }
+            let dispatch = self.dispatch_pdu();
+            tokio::pin!(dispatch);
+            match dispatch.poll(cx){
+                Poll::Ready(Ok(())) => Poll::Ready(Ok(buf.len())),
+                Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
+                Poll::Pending => Poll::Pending,
             }
-            self.buffer = Vec::from(&data[..12]);
-            return Poll::Ready(Ok(position));
         }
     }
 
@@ -534,42 +538,36 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<R> AsyncRead for PDataReader<R>
+impl<R> PDataReader<R> 
 where
     R: AsyncRead + Unpin,
 {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        if self.buffer.is_empty() {
-            if self.last_pdu {
-                // reached the end of PData stream
-                return Poll::Ready(Ok(()));
-            }
-            let mut read_buffer = BytesMut::with_capacity(self.max_data_length as usize);
+    fn poll_fill_buf(&mut self, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        use std::task::ready;
+        use tokio::io::{AsyncBufRead, AsyncBufReadExt};
+        if self.buffer.is_empty() && !self.last_pdu {
+            let mut reader = tokio::io::BufReader::new(&mut self.stream);
             let msg = loop {
-                let mut buf = Cursor::new(&read_buffer[..]);
+                let mut buf = std::io::Cursor::new(&self.read_buffer[..]);
                 match read_pdu(&mut buf, self.max_data_length, false)
                     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
                 {
                     Some(pdu) => {
-                        read_buffer.advance(buf.position() as usize);
+                        self.read_buffer.advance(buf.position() as usize);
                         break pdu;
                     }
                     None => {
-                        // Reset position
-                        buf.set_position(0)
+                        buf.set_position(0);
                     }
                 }
-                // Do the actual read from the socket
-                let recv =
-                    Pin::new(&mut self.stream).poll_read(cx, &mut ReadBuf::new(&mut read_buffer));
-                match recv {
-                    Poll::Ready(Ok(())) => continue,
-                    Poll::Pending => return Poll::Pending,
-                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                let recv = ready!(Pin::new(&mut reader).poll_fill_buf(cx))?.to_vec();
+                reader.consume(recv.len());
+                self.read_buffer.extend_from_slice(&recv);
+                if recv.len() == 0 {
+                    return Poll::Ready(Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "Connection closed by peer",
+                    )));
                 }
             };
 
@@ -592,21 +590,39 @@ where
                     return Poll::Ready(Err(std::io::Error::new(
                         std::io::ErrorKind::UnexpectedEof,
                         "Unexpected PDU type",
-                    )))
+                    )));
                 }
             }
         }
-        // Naive implementation of `Read::read` for VecDeque
-        while let Some(&byte) = self.buffer.front() {
-            if buf.remaining() == 0 {
-                return Poll::Ready(Ok(()));
-            }
-            buf.put_slice(&[byte]);
-            self.buffer.pop_front();
+        Poll::Ready(Ok(()))
+    }
+
+    fn read_buffer(&mut self, buf: &mut ReadBuf<'_>) -> usize {
+        let len = std::cmp::min(self.buffer.len(), buf.remaining());
+        for _ in 0..len {
+            buf.put_u8(self.buffer.pop_front().unwrap());
         }
+        len
+    }
+}
+
+#[cfg(feature = "async")]
+impl<R> AsyncRead for PDataReader<R>
+where
+    R: AsyncRead + Unpin,
+{
+    fn poll_read(
+        mut self: Pin<&mut Self>, 
+        cx: &mut Context<'_>, 
+        buf: &mut ReadBuf
+    ) -> Poll<std::io::Result<()>> {
+        use std::task::ready;
+        ready!(self.poll_fill_buf(cx))?;
+        let _ = self.read_buffer(buf);
         Poll::Ready(Ok(()))
     }
 }
+
 /// Determine the maximum length of actual PDV data
 /// when encapsulated in a PDU with the given length property.
 /// Does not account for the first 2 bytes (type + reserved).
@@ -619,15 +635,19 @@ fn calculate_max_data_len_single(pdu_len: u32) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::VecDeque;
+    #[cfg(feature = "async")]
+    use tokio::{self, io::{AsyncWriteExt, AsyncReadExt}};
+    #[cfg(not(feature = "async"))]
     use std::io::{Read, Write};
 
     use crate::pdu::{read_pdu, Pdu, MINIMUM_PDU_SIZE, PDU_HEADER_SIZE};
     use crate::pdu::{PDataValue, PDataValueType};
     use crate::write_pdu;
+    use crate::association::PDataWriter;
 
-    use super::{PDataReader, PDataWriter};
+    use super::PDataReader;
 
+    #[cfg(not(feature = "async"))]
     #[test]
     fn test_write_pdata_and_finish() {
         let presentation_context_id = 12;
@@ -660,6 +680,42 @@ mod tests {
         assert_eq!(cursor.len(), 0);
     }
 
+    #[cfg(feature = "async")]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_async_write_pdata_and_finish() {
+        use tokio::io::AsyncWriteExt;
+        let presentation_context_id = 12;
+
+        let mut buf = Vec::new();
+        {
+            let mut writer = PDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE);
+            writer.write_all(&(0..64).collect::<Vec<u8>>()).await.unwrap();
+            writer.finish().await.unwrap();
+        }
+
+        let mut cursor = &buf[..];
+        let same_pdu = read_pdu(&mut cursor, MINIMUM_PDU_SIZE, true).unwrap();
+
+        // concatenate data chunks, compare with all data
+
+        match same_pdu.unwrap() {
+            Pdu::PData { data: data_1 } => {
+                let data_1 = &data_1[0];
+
+                // check that this PDU is consistent
+                assert_eq!(data_1.value_type, PDataValueType::Data);
+                assert_eq!(data_1.presentation_context_id, presentation_context_id);
+                assert_eq!(data_1.data.len(), 64);
+                assert_eq!(data_1.data, (0..64).collect::<Vec<u8>>());
+            }
+            pdu => panic!("Expected PData, got {:?}", pdu),
+        }
+
+        assert_eq!(cursor.len(), 0);
+    }
+
+
+    #[cfg(not(feature = "async"))]
     #[test]
     fn test_write_large_pdata_and_finish() {
         let presentation_context_id = 32;
@@ -738,6 +794,86 @@ mod tests {
         assert_eq!(cursor.len(), 0);
     }
 
+    #[cfg(feature = "async")]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_async_write_large_pdata_and_finish() {
+        let presentation_context_id = 32;
+
+        let my_data: Vec<_> = (0..9000).map(|x: u32| x as u8).collect();
+
+        let mut buf = Vec::new();
+        {
+            let mut writer = PDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE);
+            writer.write_all(&my_data).await.unwrap();
+            writer.finish().await.unwrap();
+        }
+
+        let mut cursor = &buf[..];
+        let pdu_1 = read_pdu(&mut cursor, MINIMUM_PDU_SIZE, true).unwrap();
+        let pdu_2 = read_pdu(&mut cursor, MINIMUM_PDU_SIZE, true).unwrap();
+        let pdu_3 = read_pdu(&mut cursor, MINIMUM_PDU_SIZE, true).unwrap();
+
+        // concatenate data chunks, compare with all data
+
+        match (pdu_1.unwrap(), pdu_2.unwrap(), pdu_3.unwrap()) {
+            (
+                Pdu::PData { data: data_1 },
+                Pdu::PData { data: data_2 },
+                Pdu::PData { data: data_3 },
+            ) => {
+                assert_eq!(data_1.len(), 1);
+                let data_1 = &data_1[0];
+                assert_eq!(data_2.len(), 1);
+                let data_2 = &data_2[0];
+                assert_eq!(data_3.len(), 1);
+                let data_3 = &data_3[0];
+
+                // check that these two PDUs are consistent
+                assert_eq!(data_1.value_type, PDataValueType::Data);
+                assert_eq!(data_2.value_type, PDataValueType::Data);
+                assert_eq!(data_1.presentation_context_id, presentation_context_id);
+                assert_eq!(data_2.presentation_context_id, presentation_context_id);
+
+                // check expected lengths
+                assert_eq!(
+                    data_1.data.len(),
+                    (MINIMUM_PDU_SIZE - PDU_HEADER_SIZE) as usize
+                );
+                assert_eq!(
+                    data_2.data.len(),
+                    (MINIMUM_PDU_SIZE - PDU_HEADER_SIZE) as usize
+                );
+                assert_eq!(data_3.data.len(), 820);
+
+                // check data consistency
+                assert_eq!(
+                    &data_1.data[..],
+                    (0..MINIMUM_PDU_SIZE - PDU_HEADER_SIZE)
+                        .map(|x| x as u8)
+                        .collect::<Vec<_>>()
+                );
+                assert_eq!(
+                    data_1.data.len() + data_2.data.len() + data_3.data.len(),
+                    9000
+                );
+
+                let data_1 = &data_1.data;
+                let data_2 = &data_2.data;
+                let data_3 = &data_3.data;
+
+                let mut all_data: Vec<u8> = Vec::new();
+                all_data.extend(data_1);
+                all_data.extend(data_2);
+                all_data.extend(data_3);
+                assert_eq!(all_data, my_data);
+            }
+            x => panic!("Expected 3 PDatas, got {:?}", x),
+        }
+
+        assert_eq!(cursor.len(), 0);
+    }
+
+    #[cfg(not(feature = "async"))]
     #[test]
     fn test_read_large_pdata_and_finish() {
         let presentation_context_id = 32;
@@ -773,6 +909,49 @@ mod tests {
         {
             let mut reader = PDataReader::new(&mut pdu_stream, MINIMUM_PDU_SIZE);
             reader.read_to_end(&mut buf).unwrap();
+        }
+        assert_eq!(buf, my_data);
+    }
+
+    #[cfg(feature = "async")]
+    #[tokio::test]
+    async fn test_async_read_large_pdata_and_finish() {
+
+        let presentation_context_id = 32;
+
+        let my_data: Vec<_> = (0..9000).map(|x: u32| x as u8).collect();
+        let pdata_1 = vec![PDataValue {
+            value_type: PDataValueType::Data,
+            data: my_data[0..3000].to_owned(),
+            presentation_context_id,
+            is_last: false,
+        }];
+        let pdata_2 = vec![PDataValue {
+            value_type: PDataValueType::Data,
+            data: my_data[3000..6000].to_owned(),
+            presentation_context_id,
+            is_last: false,
+        }];
+        let pdata_3 = vec![PDataValue {
+            value_type: PDataValueType::Data,
+            data: my_data[6000..].to_owned(),
+            presentation_context_id,
+            is_last: true,
+        }];
+
+        let mut pdu_stream = std::io::Cursor::new(Vec::new());
+
+        // write some PDUs
+        write_pdu(&mut pdu_stream, &Pdu::PData { data: pdata_1 }).unwrap();
+        write_pdu(&mut pdu_stream, &Pdu::PData { data: pdata_2 }).unwrap();
+        write_pdu(&mut pdu_stream, &Pdu::PData { data: pdata_3 }).unwrap();
+
+        let mut buf = Vec::new();
+        let inner = pdu_stream.into_inner();
+        let mut stream = tokio::io::BufReader::new(inner.as_slice());
+        {
+            let mut reader = PDataReader::new(&mut stream, MINIMUM_PDU_SIZE);
+            reader.read_to_end(&mut buf).await.unwrap();
         }
         assert_eq!(buf, my_data);
     }

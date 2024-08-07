@@ -30,6 +30,7 @@ features = [
 
 [dev-dependencies]
 matches = "0.1.8"
+tokio = { version = "1.38.0", features = ["io-util", "macros", "net", "rt", "rt-multi-thread"] }
 
 [features]
 async = ["dep:tokio"]
