@@ -22,6 +22,7 @@ use crate::{
         read_pdu, write_pdu, AbortRQSource, AssociationAC, AssociationRJ, AssociationRQ, Pdu,
         PresentationContextProposed, PresentationContextResult, PresentationContextResultReason,
         UserIdentity, UserIdentityType, UserVariableItem, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE,
+        ReadPduSnafu
     },
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
@@ -829,7 +830,10 @@ impl<'a> ClientAssociationOptions<'a> {
                     buf.set_position(0)
                 }
             }
-            let recv = socket.read_buf(&mut read_buffer).await.unwrap();
+            let recv = socket.read_buf(&mut read_buffer)
+                .await
+                .context(ReadPduSnafu)
+                .context(ReceiveSnafu)?;
             if recv == 0 {
                 return OtherSnafu{msg: "Connection closed by peer"}.fail();
             }
@@ -1074,7 +1078,6 @@ impl ClientAssociation {
     pub fn receive(&mut self) -> Result<Pdu> {
         use std::io::{BufRead, BufReader, Cursor};
 
-        use crate::pdu::ReadPduSnafu;
         let mut reader = BufReader::new(&mut self.socket);
 
         loop {
@@ -1119,7 +1122,10 @@ impl ClientAssociation {
                     buf.set_position(0)
                 }
             }
-            let recv = self.socket.read_buf(&mut self.read_buffer).await.unwrap();
+            let recv = self.socket.read_buf(&mut self.read_buffer)
+                .await
+                .context(ReadPduSnafu)
+                .context(ReceiveSnafu)?;
             if recv == 0 {
                 return OtherSnafu{msg: "Connection closed by peer"}.fail();
             }

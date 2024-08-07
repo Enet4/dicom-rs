@@ -22,6 +22,7 @@ use crate::{
         AssociationRJ, AssociationRJResult, AssociationRJServiceUserReason, AssociationRJSource,
         AssociationRQ, Pdu, PresentationContextResult, PresentationContextResultReason,
         UserIdentity, UserVariableItem, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE,
+        ReadPduSnafu
     },
     IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
@@ -365,7 +366,6 @@ where
     pub fn establish(&self, mut socket: TcpStream) -> Result<ServerAssociation> {
         use std::io::{BufRead, BufReader};
 
-        use crate::pdu::ReadPduSnafu;
 
         ensure!(
             !self.abstract_syntax_uids.is_empty() || self.promiscuous,
@@ -587,7 +587,10 @@ where
                     buf.set_position(0)
                 }
             }
-            let recv = socket.read_buf(&mut read_buffer).await.unwrap();
+            let recv = socket.read_buf(&mut read_buffer)
+                .await
+                .context(ReadPduSnafu)
+                .context(ReceiveSnafu)?;
             if recv == 0 {
                 return OtherSnafu{msg: "Connection closed by peer"}.fail();
             }
@@ -865,7 +868,6 @@ impl ServerAssociation {
     pub fn receive(&mut self) -> Result<Pdu> {
         use std::io::{BufRead, BufReader, Cursor};
 
-        use crate::pdu::ReadPduSnafu;
         let mut reader = BufReader::new(&mut self.socket);
 
         loop {
@@ -911,7 +913,10 @@ impl ServerAssociation {
                     buf.set_position(0)
                 }
             }
-            let recv = self.socket.read_buf(&mut self.read_buffer).await.unwrap();
+            let recv = self.socket.read_buf(&mut self.read_buffer)
+                .await
+                .context(ReadPduSnafu)
+                .context(ReceiveSnafu)?;
             if recv == 0 {
                 return OtherSnafu{msg: "Connection closed by peer"}.fail();
             }
