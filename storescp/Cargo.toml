@@ -24,5 +24,5 @@ tracing-subscriber = "0.3.15"
 tokio = { version = "1.38.0", features = ["full"], optional = true }
 
 [features]
-deafult = ["async"]
+default = ["async"]
 async = ["dicom-ul/async", "dep:tokio"]

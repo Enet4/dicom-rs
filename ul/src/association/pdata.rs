@@ -1,17 +1,18 @@
 #[cfg(not(feature = "async"))]
 use std::io::Write;
 use std::{
-    collections::VecDeque, future::Future, io::{BufRead, BufReader, Cursor, Read}, task::ready
+    collections::VecDeque,
+    io::{BufRead, BufReader, Cursor, Read},
 };
 
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::{Buf, BytesMut};
 #[cfg(feature = "async")]
 use std::{
     pin::Pin,
     task::{Context, Poll},
 };
 #[cfg(feature = "async")]
-use tokio::io::{ReadBuf, AsyncReadExt};
+use tokio::io::ReadBuf;
 use tracing::warn;
 
 use crate::{pdu::PDU_HEADER_SIZE, read_pdu, Pdu};
@@ -353,6 +354,7 @@ where
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<std::result::Result<usize, std::io::Error>> {
+        use std::future::Future;
         let total_len = self.max_data_len as usize + 12;
         if self.buffer.len() + buf.len() <= total_len {
             // accumulate into buffer, do nothing
@@ -366,7 +368,7 @@ where
             debug_assert_eq!(self.buffer.len(), total_len);
             let dispatch = self.dispatch_pdu();
             tokio::pin!(dispatch);
-            match dispatch.poll(cx){
+            match dispatch.poll(cx) {
                 Poll::Ready(Ok(())) => Poll::Ready(Ok(buf.len())),
                 Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
                 Poll::Pending => Poll::Pending,
@@ -538,7 +540,7 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<R> PDataReader<R> 
+impl<R> PDataReader<R>
 where
     R: AsyncRead + Unpin,
 {
@@ -598,6 +600,7 @@ where
     }
 
     fn read_buffer(&mut self, buf: &mut ReadBuf<'_>) -> usize {
+        use bytes::BufMut;
         let len = std::cmp::min(self.buffer.len(), buf.remaining());
         for _ in 0..len {
             buf.put_u8(self.buffer.pop_front().unwrap());
@@ -612,9 +615,9 @@ where
     R: AsyncRead + Unpin,
 {
     fn poll_read(
-        mut self: Pin<&mut Self>, 
-        cx: &mut Context<'_>, 
-        buf: &mut ReadBuf
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf,
     ) -> Poll<std::io::Result<()>> {
         use std::task::ready;
         ready!(self.poll_fill_buf(cx))?;
@@ -635,15 +638,18 @@ fn calculate_max_data_len_single(pdu_len: u32) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "async")]
-    use tokio::{self, io::{AsyncWriteExt, AsyncReadExt}};
     #[cfg(not(feature = "async"))]
     use std::io::{Read, Write};
+    #[cfg(feature = "async")]
+    use tokio::{
+        self,
+        io::{AsyncReadExt, AsyncWriteExt},
+    };
 
+    use crate::association::PDataWriter;
     use crate::pdu::{read_pdu, Pdu, MINIMUM_PDU_SIZE, PDU_HEADER_SIZE};
     use crate::pdu::{PDataValue, PDataValueType};
     use crate::write_pdu;
-    use crate::association::PDataWriter;
 
     use super::PDataReader;
 
@@ -689,7 +695,10 @@ mod tests {
         let mut buf = Vec::new();
         {
             let mut writer = PDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE);
-            writer.write_all(&(0..64).collect::<Vec<u8>>()).await.unwrap();
+            writer
+                .write_all(&(0..64).collect::<Vec<u8>>())
+                .await
+                .unwrap();
             writer.finish().await.unwrap();
         }
 
@@ -713,7 +722,6 @@ mod tests {
 
         assert_eq!(cursor.len(), 0);
     }
-
 
     #[cfg(not(feature = "async"))]
     #[test]
@@ -916,7 +924,6 @@ mod tests {
     #[cfg(feature = "async")]
     #[tokio::test]
     async fn test_async_read_large_pdata_and_finish() {
-
         let presentation_context_id = 32;
 
         let my_data: Vec<_> = (0..9000).map(|x: u32| x as u8).collect();

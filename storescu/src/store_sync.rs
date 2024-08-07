@@ -4,12 +4,18 @@ use dicom_dictionary_std::tags;
 use dicom_encoding::TransferSyntaxIndex;
 use dicom_object::{open_file, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use dicom_ul::{pdu::{PDataValue, PDataValueType}, ClientAssociation, ClientAssociationOptions, Pdu};
+use dicom_ul::{
+    pdu::{PDataValue, PDataValueType},
+    ClientAssociation, ClientAssociationOptions, Pdu,
+};
 use indicatif::ProgressBar;
 use snafu::{OptionExt, ResultExt};
 use tracing::{debug, error, info, warn};
 
-use crate::{into_ts, store_req_command, CreateCommandSnafu, DicomFile, Error, InitScuSnafu, UnsupportedFileTransferSyntaxSnafu};
+use crate::{
+    into_ts, store_req_command, CreateCommandSnafu, DicomFile, Error, InitScuSnafu,
+    UnsupportedFileTransferSyntaxSnafu,
+};
 
 pub fn get_scu(
     addr: String,
@@ -21,7 +27,7 @@ pub fn get_scu(
     kerberos_service_ticket: Option<String>,
     saml_assertion: Option<String>,
     jwt: Option<String>,
-    presentation_contexts: HashSet<(String, String)>
+    presentation_contexts: HashSet<(String, String)>,
 ) -> Result<ClientAssociation, Error> {
     let mut scu_init = ClientAssociationOptions::new()
         .calling_ae_title(calling_ae_title)
@@ -59,7 +65,12 @@ pub fn get_scu(
 }
 
 pub fn send_file(
-    mut scu: ClientAssociation, file: DicomFile, message_id: u16, progress_bar: Option<&ProgressBar>, verbose: bool, fail_first: bool
+    mut scu: ClientAssociation,
+    file: DicomFile,
+    message_id: u16,
+    progress_bar: Option<&ProgressBar>,
+    verbose: bool,
+    fail_first: bool,
 ) -> Result<ClientAssociation, Error> {
     if let (Some(pc_selected), Some(ts_uid_selected)) = (file.pc_selected, file.ts_selected) {
         if let Some(pb) = &progress_bar {
@@ -159,8 +170,7 @@ pub fn send_file(
 
                 let cmd_obj = InMemDicomObject::read_dataset_with_ts(
                     &data_value.data[..],
-                    &dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN
-                        .erased(),
+                    &dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
                 )
                 .whatever_context("Could not read response from SCP")?;
                 if verbose {
@@ -235,5 +245,4 @@ pub fn send_file(
         pb.inc(1)
     };
     Ok(scu)
-
 }

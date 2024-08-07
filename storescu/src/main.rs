@@ -16,10 +16,10 @@ use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 use walkdir::WalkDir;
 
-#[cfg(not(feature = "async"))]
-mod store_sync;
 #[cfg(feature = "async")]
 mod store_async;
+#[cfg(not(feature = "async"))]
+mod store_sync;
 
 /// DICOM C-STORE SCU
 #[derive(Debug, Parser)]
@@ -149,8 +149,10 @@ async fn main() {
 }
 
 fn check_files(
-    files: Vec<PathBuf>, verbose: bool, never_transcode: bool
-) -> (Vec<DicomFile>, HashSet<(String, String)>){
+    files: Vec<PathBuf>,
+    verbose: bool,
+    never_transcode: bool,
+) -> (Vec<DicomFile>, HashSet<(String, String)>) {
     let mut checked_files: Vec<PathBuf> = vec![];
     let mut dicom_files: Vec<DicomFile> = vec![];
     let mut presentation_contexts = HashSet::new();
@@ -207,13 +209,12 @@ fn check_files(
         eprintln!("No supported files to transfer");
         std::process::exit(-1);
     }
-    return (dicom_files, presentation_contexts)
-
-
+    return (dicom_files, presentation_contexts);
 }
 
 #[cfg(not(feature = "async"))]
 fn run() -> Result<(), Error> {
+    use crate::store_sync::{get_scu, send_file};
     let App {
         addr,
         files,
@@ -251,7 +252,6 @@ fn run() -> Result<(), Error> {
     }
     let (mut dicom_files, presentation_contexts) = check_files(files, verbose, never_transcode);
 
-
     let mut scu = get_scu(
         addr,
         calling_ae_title,
@@ -262,7 +262,7 @@ fn run() -> Result<(), Error> {
         kerberos_service_ticket,
         saml_assertion,
         jwt,
-        presentation_contexts
+        presentation_contexts,
     )?;
 
     if verbose {
@@ -313,7 +313,14 @@ fn run() -> Result<(), Error> {
 
     for file in dicom_files {
         // TODO
-        scu = store_sync::send_file(scu, file, message_id, progress_bar.as_ref(), verbose, fail_first)?;
+        scu = store_sync::send_file(
+            scu,
+            file,
+            message_id,
+            progress_bar.as_ref(),
+            verbose,
+            fail_first,
+        )?;
     }
 
     if let Some(pb) = progress_bar {
@@ -363,10 +370,10 @@ async fn run() -> Result<(), Error> {
     if verbose {
         info!("Establishing association with '{}'...", &addr);
     }
-    let (mut dicom_files, presentation_contexts) = tokio::task::spawn_blocking(
-        move || check_files(files, verbose, never_transcode)
-    ).await.unwrap();
-
+    let (mut dicom_files, presentation_contexts) =
+        tokio::task::spawn_blocking(move || check_files(files, verbose, never_transcode))
+            .await
+            .unwrap();
 
     let mut scu = get_scu(
         addr,
@@ -378,8 +385,9 @@ async fn run() -> Result<(), Error> {
         kerberos_service_ticket,
         saml_assertion,
         jwt,
-        presentation_contexts
-    ).await?;
+        presentation_contexts,
+    )
+    .await?;
 
     if verbose {
         info!("Association established");
@@ -428,15 +436,24 @@ async fn run() -> Result<(), Error> {
     }
 
     for file in dicom_files {
-        // TODO
-        scu = send_file(scu, file, message_id, progress_bar.as_ref(), verbose, fail_first).await?;
+        // TODO: Eventually expose concurrency option, for now, just run sequentially
+        scu = send_file(
+            scu,
+            file,
+            message_id,
+            progress_bar.as_ref(),
+            verbose,
+            fail_first,
+        )
+        .await?;
     }
 
     if let Some(pb) = progress_bar {
         pb.finish_with_message("done")
     };
 
-    scu.release().await
+    scu.release()
+        .await
         .whatever_context("Failed to release SCU association")?;
     Ok(())
 }

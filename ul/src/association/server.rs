@@ -966,14 +966,14 @@ impl ServerAssociation {
     ///
     /// Returns a writer which automatically
     /// splits the inner data into separate PDUs if necessary.
-    // #[cfg(feature = "async")]
-    // pub fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut TcpStream> {
-    //     PDataWriter::new(
-    //         &mut self.socket,
-    //         presentation_context_id,
-    //         self.requestor_max_pdu_length,
-    //     )
-    // }
+    #[cfg(feature = "async")]
+    pub fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut TcpStream> {
+        PDataWriter::new(
+            &mut self.socket,
+            presentation_context_id,
+            self.requestor_max_pdu_length,
+        )
+    }
 
     /// Prepare a P-Data reader for receiving
     /// one or more data item PDUs.

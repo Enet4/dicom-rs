@@ -798,6 +798,7 @@ impl<'a> ClientAssociationOptions<'a> {
         });
         let socket_addrs: Vec<_> = ae_address.to_socket_addrs().unwrap().collect();
 
+        // TODO: add tokio-time flag and set timeouts for this and send/receive
         let mut socket = TcpStream::connect(socket_addrs.as_slice())
             .await
             .context(ConnectSnafu)?;
@@ -1217,6 +1218,16 @@ impl ClientAssociation {
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
     #[cfg(not(feature = "async"))]
+    pub fn receive_pdata(&mut self) -> PDataReader<&mut TcpStream> {
+        PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
+    }
+
+    /// Prepare a P-Data reader for receiving
+    /// one or more data item PDUs.
+    ///
+    /// Returns a reader which automatically
+    /// receives more data PDUs once the bytes collected are consumed.
+    #[cfg(feature = "async")]
     pub fn receive_pdata(&mut self) -> PDataReader<&mut TcpStream> {
         PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
     }
