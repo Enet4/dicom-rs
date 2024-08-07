@@ -219,8 +219,8 @@ impl<D> Serialize for DicomJson<&'_ InMemElement<D>> {
             DicomValue::Sequence(seq) => {
                 serializer.serialize_entry("Value", &DicomJson(seq.items()))?;
             }
-            DicomValue::PixelSequence(seq) => {
-                serializer.serialize_entry("Value", &DicomJson(seq))?;
+            DicomValue::PixelSequence(_seq) => {
+                //serializer.serialize_entry("Value", &DicomJson(seq))?;
             }
             DicomValue::Primitive(PrimitiveValue::Empty) => {
                 // no-op

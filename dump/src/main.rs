@@ -1,6 +1,7 @@
 //! A CLI tool for inspecting the contents of a DICOM file
 //! by printing it in a human readable format.
 use clap::Parser;
+use dicom_dictionary_std::tags;
 use dicom_dump::{ColorMode, DumpOptions, DumpFormat};
 use dicom_object::open_file;
 use snafu::{Report, Whatever};
@@ -47,7 +48,7 @@ struct App {
     /// Output format
     #[arg(value_enum)]
     #[clap(short = 'f', long = "format", default_value = "text")]
-    format: DumpFormat
+    format: DumpFormat,
 }
 
 fn is_terminal() -> bool {
@@ -98,7 +99,16 @@ fn run() -> Result<(), Whatever> {
                 }
                 errors += 1;
             }
-            Ok(obj) => {
+            Ok(mut obj) => {
+                if options.format == DumpFormat::Json {
+                    // JSON output doesn't currently support encapsulated pixel data
+                    if let Ok(elem) = obj.element(tags::PIXEL_DATA){
+                        if let dicom_core::value::Value::PixelSequence(_) = elem.value(){
+                            eprintln!("[WARN] Encapsulated pixel data not supported in JSON output, skipping");
+                            obj.remove_element(tags::PIXEL_DATA);
+                        }
+                    }
+                }
                 if let Err(ref e) = options.dump_file(&obj) {
                     if e.kind() == ErrorKind::BrokenPipe {
                         // handle broken pipe separately with a no-op
