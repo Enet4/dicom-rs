@@ -32,6 +32,8 @@
 //! options.width(100).dump_file(&obj)?;
 //! # Result::<(), Box<dyn std::error::Error>>::Ok(())
 //! ```
+#[cfg(feature = "cli")]
+use clap::ValueEnum;
 #[cfg(feature = "sop-class")]
 use dicom_core::dictionary::UidDictionary;
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
@@ -41,6 +43,7 @@ use dicom_core::VR;
 #[cfg(feature = "sop-class")]
 use dicom_dictionary_std::StandardSopClassDictionary;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
+use dicom_json::DicomJson;
 use dicom_object::mem::{InMemDicomObject, InMemElement};
 use dicom_object::{FileDicomObject, FileMetaTable, StandardDataDictionary};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
@@ -50,12 +53,11 @@ use std::fmt::{self, Display, Formatter};
 use std::io::{stdout, Result as IoResult, Write};
 use std::str::FromStr;
 
-/// An enum of all supported output formats for dumping DICOM data.
-#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
-#[non_exhaustive]
+#[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "cli", derive(ValueEnum))]
 pub enum DumpFormat {
-    /// The main DICOM dump format adopted by the project.
-    ///
+    /// Text dump of DICOM file
+    /// 
     /// It is primarily designed to be human readable,
     /// although its output can be used to recover the original object
     /// in its uncut form (no limit width).
@@ -64,15 +66,13 @@ pub enum DumpFormat {
     ///
     /// Note that this format is not stabilized,
     /// and may change with subsequent versions of the crate.
-    Main,
+    #[default]
+    Text,
+    /// DICOM part 18 chapter F JSON format,
+    /// provided via [`dicom_json`]
+    Json,
 }
 
-/// The [main output format](DumpFormat::Main) is used by default.
-impl Default for DumpFormat {
-    fn default() -> Self {
-        DumpFormat::Main
-    }
-}
 
 /// Options and flags to configure how to dump a DICOM file or object.
 ///
@@ -227,14 +227,23 @@ impl DumpOptions {
         } else {
             (true, true)
         };
+        match self.format {
+            DumpFormat::Text => {
+                meta_dump(&mut to, meta, if no_limit { u32::MAX } else { width })?;
 
-        meta_dump(&mut to, meta, if no_limit { u32::MAX } else { width })?;
+                writeln!(to, "{:-<58}", "")?;
 
-        writeln!(to, "{:-<58}", "")?;
+                dump(&mut to, obj, width, 0, no_text_limit, no_limit)?;
 
-        dump(&mut to, obj, width, 0, no_text_limit, no_limit)?;
+                Ok(())
+            },
+            DumpFormat::Json => {
+                let json_obj = DicomJson::from(obj);
+                serde_json::to_writer_pretty(stdout(), &json_obj)?;
+                Ok(())
+            }
+        }
 
-        Ok(())
     }
 
     /// Dump the contents of a DICOM object to standard output.
@@ -264,24 +273,33 @@ impl DumpOptions {
     where
         D: DataDictionary,
     {
-        match (self.color, to_stdout) {
-            (ColorMode::Never, _) => colored::control::set_override(false),
-            (ColorMode::Always, _) => colored::control::set_override(true),
-            (ColorMode::Auto, false) => colored::control::set_override(false),
-            (ColorMode::Auto, true) => colored::control::unset_override(),
+        match self.format {
+            DumpFormat::Text => {
+                match (self.color, to_stdout) {
+                    (ColorMode::Never, _) => colored::control::set_override(false),
+                    (ColorMode::Always, _) => colored::control::set_override(true),
+                    (ColorMode::Auto, false) => colored::control::set_override(false),
+                    (ColorMode::Auto, true) => colored::control::unset_override(),
+                }
+
+                let width = determine_width(self.width);
+
+                let (no_text_limit, no_limit) = if to_stdout {
+                    (self.no_text_limit, self.no_limit)
+                } else {
+                    (true, true)
+                };
+
+                dump(&mut to, obj, width, 0, no_text_limit, no_limit)?;
+
+                Ok(())
+            }
+            DumpFormat::Json => {
+                let json_obj = DicomJson::from(obj);
+                serde_json::to_writer_pretty(to, &json_obj)?;
+                Ok(())
+            }
         }
-
-        let width = determine_width(self.width);
-
-        let (no_text_limit, no_limit) = if to_stdout {
-            (self.no_text_limit, self.no_limit)
-        } else {
-            (true, true)
-        };
-
-        dump(&mut to, obj, width, 0, no_text_limit, no_limit)?;
-
-        Ok(())
     }
 }
 
@@ -1095,5 +1113,34 @@ mod tests {
             assert_eq!(&parts[..3], &[expected.0, expected.1, expected.2]);
             assert_eq!(value, expected.3);
         }
+    }
+
+    #[test]
+    fn dump_json() {
+        // create object
+        let obj = InMemDicomObject::from_element_iter(vec![DataElement::new(
+            tags::SOP_INSTANCE_UID,
+            VR::UI,
+            PrimitiveValue::from("1.2.888.123"),
+        )]);
+
+        let mut out = Vec::new();
+        DumpOptions::new()
+            .color_mode(ColorMode::Never)
+            .format(crate::DumpFormat::Json)
+            .dump_object_to(&mut out, &obj)
+            .unwrap();
+
+        let json = std::str::from_utf8(&out).expect("output is not valid UTF-8");
+        assert_eq!(
+            json,
+            r#"{
+  "00080018": {
+    "vr": "UI",
+    "Value": [
+      "1.2.888.123"
+    ]
+  }
+}"#);
     }
 }

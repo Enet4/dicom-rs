@@ -378,9 +378,11 @@ dependencies = [
  "dicom-core",
  "dicom-dictionary-std",
  "dicom-encoding",
+ "dicom-json",
  "dicom-object",
  "dicom-transfer-syntax-registry",
  "owo-colors",
+ "serde_json",
  "snafu",
  "terminal_size",
 ]
