@@ -2,7 +2,7 @@
 use std::io::Write;
 use std::{
     collections::VecDeque,
-    io::{BufRead, BufReader, Cursor, Read},
+    io::{BufRead, BufReader, Cursor, Read}
 };
 
 use bytes::{Buf, BytesMut};
@@ -540,31 +540,46 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<R> PDataReader<R>
+impl<R> AsyncRead for PDataReader<R>
 where
     R: AsyncRead + Unpin,
 {
-    fn poll_fill_buf(&mut self, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf,
+    ) -> Poll<std::io::Result<()>> {
+        use tokio::io::{BufReader, AsyncBufRead, AsyncBufReadExt};
+        use bytes::BufMut;
         use std::task::ready;
-        use tokio::io::{AsyncBufRead, AsyncBufReadExt};
-        if self.buffer.is_empty() && !self.last_pdu {
-            let mut reader = tokio::io::BufReader::new(&mut self.stream);
+        if self.buffer.is_empty(){
+            if self.last_pdu {
+                return Poll::Ready(Ok(()));
+            }
+            let Self {
+                ref mut stream,
+                ref mut read_buffer,
+                ref max_data_length,
+                ..
+            } = &mut *self;
+            let mut reader = BufReader::new(stream);
             let msg = loop {
-                let mut buf = std::io::Cursor::new(&self.read_buffer[..]);
-                match read_pdu(&mut buf, self.max_data_length, false)
+                let mut buf = Cursor::new(&read_buffer[..]);
+                match read_pdu(&mut buf, *max_data_length, false)
                     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
                 {
                     Some(pdu) => {
-                        self.read_buffer.advance(buf.position() as usize);
+                        read_buffer.advance(buf.position() as usize);
                         break pdu;
                     }
                     None => {
-                        buf.set_position(0);
+                        // Reset position
+                        buf.set_position(0)
                     }
                 }
                 let recv = ready!(Pin::new(&mut reader).poll_fill_buf(cx))?.to_vec();
                 reader.consume(recv.len());
-                self.read_buffer.extend_from_slice(&recv);
+                read_buffer.extend_from_slice(&recv);
                 if recv.len() == 0 {
                     return Poll::Ready(Err(std::io::Error::new(
                         std::io::ErrorKind::Other,
@@ -572,7 +587,6 @@ where
                     )));
                 }
             };
-
             match msg {
                 Pdu::PData { data } => {
                     for pdata_value in data {
@@ -592,39 +606,19 @@ where
                     return Poll::Ready(Err(std::io::Error::new(
                         std::io::ErrorKind::UnexpectedEof,
                         "Unexpected PDU type",
-                    )));
+                    )))
                 }
+
             }
         }
-        Poll::Ready(Ok(()))
-    }
-
-    fn read_buffer(&mut self, buf: &mut ReadBuf<'_>) -> usize {
-        use bytes::BufMut;
         let len = std::cmp::min(self.buffer.len(), buf.remaining());
         for _ in 0..len {
             buf.put_u8(self.buffer.pop_front().unwrap());
         }
-        len
-    }
-}
-
-#[cfg(feature = "async")]
-impl<R> AsyncRead for PDataReader<R>
-where
-    R: AsyncRead + Unpin,
-{
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf,
-    ) -> Poll<std::io::Result<()>> {
-        use std::task::ready;
-        ready!(self.poll_fill_buf(cx))?;
-        let _ = self.read_buffer(buf);
         Poll::Ready(Ok(()))
     }
 }
+
 
 /// Determine the maximum length of actual PDV data
 /// when encapsulated in a PDU with the given length property.
@@ -884,6 +878,7 @@ mod tests {
     #[cfg(not(feature = "async"))]
     #[test]
     fn test_read_large_pdata_and_finish() {
+        use std::collections::VecDeque;
         let presentation_context_id = 32;
 
         let my_data: Vec<_> = (0..9000).map(|x: u32| x as u8).collect();
