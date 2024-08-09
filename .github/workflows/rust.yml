@@ -33,6 +33,7 @@ jobs:
       - run: cargo test -p dicom-pixeldata --features gdcm
       # test dicom-pixeldata without default features
       - run: cargo test -p dicom-pixeldata --no-default-features
+      - run: cargo test -p dicom-ul --features async
       # run Clippy with stable toolchain
       - if: matrix.rust == 'stable'
         run: cargo clippy

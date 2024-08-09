@@ -10,7 +10,139 @@ pub mod writer;
 use std::fmt::Display;
 
 pub use reader::read_pdu;
-pub use writer::write_pdu;
+use snafu::{Backtrace, Snafu};
+pub use writer::{write_pdu, WriteChunkError};
+
+/// The default maximum PDU size
+pub const DEFAULT_MAX_PDU: u32 = 16_384;
+
+/// The minimum PDU size,
+/// as specified by the standard
+pub const MINIMUM_PDU_SIZE: u32 = 4_096;
+
+/// The maximum PDU size,
+/// as specified by the standard
+pub const MAXIMUM_PDU_SIZE: u32 = 131_072;
+
+/// The length of the PDU header in bytes,
+/// comprising the PDU type (1 byte),
+/// reserved byte (1 byte),
+/// and PDU length (4 bytes).
+pub const PDU_HEADER_SIZE: u32 = 6;
+
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum WriteError {
+    #[snafu(display("Could not write chunk of {} PDU structure", name))]
+    WriteChunk {
+        /// the name of the PDU structure
+        name: &'static str,
+        source: WriteChunkError,
+    },
+
+    #[snafu(display("Could not write field `{}`", field))]
+    WriteField {
+        field: &'static str,
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+
+    #[snafu(display("Could not write {} reserved bytes", bytes))]
+    WriteReserved {
+        bytes: u32,
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
+
+    #[snafu(display("Could not write field `{}`", field))]
+    EncodeField {
+        field: &'static str,
+        #[snafu(backtrace)]
+        source: dicom_encoding::text::EncodeTextError,
+    },
+}
+
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum ReadError {
+    #[snafu(display("Invalid max PDU length {}", max_pdu_length))]
+    InvalidMaxPdu {
+        max_pdu_length: u32,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("No PDU available"))]
+    NoPduAvailable { backtrace: Backtrace },
+
+    #[snafu(display("Could not read PDU"), visibility(pub(crate)))]
+    ReadPdu {
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Could not read PDU item"))]
+    ReadPduItem {
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Could not read PDU field `{}`", field))]
+    ReadPduField {
+        field: &'static str,
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Invalid item length {} (must be >=2)", length))]
+    InvalidItemLength { length: u32 },
+
+    #[snafu(display("Could not read {} reserved bytes", bytes))]
+    ReadReserved {
+        bytes: u32,
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display(
+        "Incoming pdu was too large: length {}, maximum is {}",
+        pdu_length,
+        max_pdu_length
+    ))]
+    PduTooLarge {
+        pdu_length: u32,
+        max_pdu_length: u32,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("PDU contained an invalid value {:?}", var_item))]
+    InvalidPduVariable {
+        var_item: PduVariableItem,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("Multiple transfer syntaxes were accepted"))]
+    MultipleTransferSyntaxesAccepted { backtrace: Backtrace },
+    #[snafu(display("Invalid reject source or reason"))]
+    InvalidRejectSourceOrReason { backtrace: Backtrace },
+    #[snafu(display("Invalid abort service provider"))]
+    InvalidAbortSourceOrReason { backtrace: Backtrace },
+    #[snafu(display("Invalid presentation context result reason"))]
+    InvalidPresentationContextResultReason { backtrace: Backtrace },
+    #[snafu(display("invalid transfer syntax sub-item"))]
+    InvalidTransferSyntaxSubItem { backtrace: Backtrace },
+    #[snafu(display("unknown presentation context sub-item"))]
+    UnknownPresentationContextSubItem { backtrace: Backtrace },
+    #[snafu(display("Could not decode text field `{}`", field))]
+    DecodeText {
+        field: &'static str,
+        #[snafu(backtrace)]
+        source: dicom_encoding::text::DecodeTextError,
+    },
+    #[snafu(display("Missing application context name"))]
+    MissingApplicationContextName { backtrace: Backtrace },
+    #[snafu(display("Missing abstract syntax"))]
+    MissingAbstractSyntax { backtrace: Backtrace },
+    #[snafu(display("Missing transfer syntax"))]
+    MissingTransferSyntax { backtrace: Backtrace },
+}
 
 /// Message component for a proposed presentation context.
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]

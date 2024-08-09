@@ -21,3 +21,8 @@ dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", versio
 snafu = "0.8"
 tracing = "0.1.36"
 tracing-subscriber = "0.3.15"
+tokio = { version = "1.38.0", features = ["full"], optional = true }
+
+[features]
+default = ["async"]
+async = ["dicom-ul/async", "dep:tokio"]
