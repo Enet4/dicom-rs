@@ -1,10 +1,10 @@
 use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
-use dicom_object::{FileMetaTableBuilder, InMemDicomObject, StandardDataDictionary};
+use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{pdu::PDataValueType, Pdu};
 use snafu::{OptionExt, Report, ResultExt, Whatever};
-use tracing::{debug, error, info, warn, Level};
+use tracing::{debug, info, warn};
 
 use crate::{transfer::ABSTRACT_SYNTAXES, App, create_cecho_response, create_cstore_response};
 pub async fn run(scu_stream: tokio::net::TcpStream, args: &App) -> Result<(), Whatever> {

@@ -7,9 +7,9 @@
 use bytes::BytesMut;
 use std::{borrow::Cow, convert::TryInto, io::Cursor, net::ToSocketAddrs, time::Duration};
 #[cfg(not(feature = "async"))]
-use std::{io::Write, net::TcpStream};
+use std::{io::{Write, Read, BufReader, BufRead}, net::TcpStream};
 #[cfg(feature = "async")]
-use tokio::{io::AsyncWriteExt, net::TcpStream};
+use tokio::{io::{AsyncRead, AsyncWriteExt}, net::TcpStream};
 
 use crate::{
     pdu::{
@@ -129,6 +129,67 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+
+#[cfg(not(feature = "async"))]
+pub fn get_client_pdu<R: Read>(reader: &mut R, max_pdu_length: u32, strict: bool) -> Result<Pdu>{
+    // Receive response
+
+    let mut read_buffer = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
+    let mut reader = BufReader::new(reader);
+
+    let msg = loop {
+        let mut buf = Cursor::new(&read_buffer[..]);
+        match read_pdu(&mut buf, max_pdu_length, strict).context(ReceiveResponseSnafu)? {
+            Some(pdu) => {
+                read_buffer.advance(buf.position() as usize);
+                break pdu;
+            }
+            None => {
+                // Reset position
+                buf.set_position(0)
+            }
+        }
+        // Use BufReader to get similar behavior to AsyncRead read_buf
+        let recv = reader
+            .fill_buf()
+            .context(ReadPduSnafu)
+            .context(ReceiveSnafu)?
+            .to_vec();
+        reader.consume(recv.len());
+        read_buffer.extend_from_slice(&recv);
+        ensure!(recv.len() > 0, ConnectionClosedSnafu);
+    };
+    Ok(msg)
+}
+
+#[cfg(feature = "async")]
+pub async fn get_client_pdu<R: AsyncRead + Unpin>(reader: &mut R, max_pdu_length: u32, strict: bool) -> Result<Pdu>{
+    // receive response
+    use tokio::io::AsyncReadExt;
+    let mut read_buffer = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
+
+    let msg = loop {
+        let mut buf = Cursor::new(&read_buffer[..]);
+        match read_pdu(&mut buf, max_pdu_length, strict).context(ReceiveResponseSnafu)? {
+            Some(pdu) => {
+                read_buffer.advance(buf.position() as usize);
+                break pdu;
+            }
+            None => {
+                // Reset position
+                buf.set_position(0)
+            }
+        }
+        let recv = reader
+            .read_buf(&mut read_buffer)
+            .await
+            .context(ReadPduSnafu)
+            .context(ReceiveSnafu)?;
+        ensure!(recv > 0, ConnectionClosedSnafu);
+    };
+    Ok(msg)
+}
 
 /// A DICOM association builder for a client node.
 /// The final outcome is a [`ClientAssociation`].
@@ -514,8 +575,6 @@ impl<'a> ClientAssociationOptions<'a> {
     where
         T: ToSocketAddrs,
     {
-        use std::io::{BufRead, BufReader};
-
         let ClientAssociationOptions {
             calling_ae_title,
             called_ae_title,
@@ -606,32 +665,7 @@ impl<'a> ClientAssociationOptions<'a> {
         socket.write_all(&buffer).context(WireSendSnafu)?;
         buffer.clear();
 
-        // Receive response
-        let mut read_buffer = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
-        let mut reader = BufReader::new(&mut socket);
-
-        let msg = loop {
-            let mut buf = Cursor::new(&read_buffer[..]);
-            match read_pdu(&mut buf, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveResponseSnafu)? {
-                Some(pdu) => {
-                    read_buffer.advance(buf.position() as usize);
-                    break pdu;
-                }
-                None => {
-                    // Reset position
-                    buf.set_position(0)
-                }
-            }
-            // Use BufReader to get similar behavior to AsyncRead read_buf
-            let recv = reader
-                .fill_buf()
-                .context(ReadPduSnafu)
-                .context(ReceiveSnafu)?
-                .to_vec();
-            reader.consume(recv.len());
-            read_buffer.extend_from_slice(&recv);
-            ensure!(recv.len() > 0, ConnectionClosedSnafu);
-        };
+        let msg = get_client_pdu(&mut socket, MAXIMUM_PDU_SIZE, self.strict)?;
 
         match msg {
             Pdu::AssociationAC(AssociationAC {
@@ -814,29 +848,10 @@ impl<'a> ClientAssociationOptions<'a> {
         write_pdu(&mut buffer, &msg).context(SendRequestSnafu)?;
         socket.write_all(&buffer).await.context(WireSendSnafu)?;
         buffer.clear();
-        // receive response
-        use tokio::io::AsyncReadExt;
-        let mut read_buffer = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
 
-        let msg = loop {
-            let mut buf = Cursor::new(&read_buffer[..]);
-            match read_pdu(&mut buf, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveResponseSnafu)? {
-                Some(pdu) => {
-                    read_buffer.advance(buf.position() as usize);
-                    break pdu;
-                }
-                None => {
-                    // Reset position
-                    buf.set_position(0)
-                }
-            }
-            let recv = socket
-                .read_buf(&mut read_buffer)
-                .await
-                .context(ReadPduSnafu)
-                .context(ReceiveSnafu)?;
-            ensure!(recv > 0, ConnectionClosedSnafu);
-        };
+        // receive response
+        let msg = get_client_pdu(&mut socket, MAXIMUM_PDU_SIZE, self.strict)
+            .await?;
 
         match msg {
             Pdu::AssociationAC(AssociationAC {
@@ -1020,6 +1035,10 @@ pub struct ClientAssociation {
 }
 
 impl ClientAssociation {
+    /// Retrieve timeout for the association
+    pub fn timeout(&self) -> Option<Duration> {
+        self.timeout
+    }
     /// Retrieve the list of negotiated presentation contexts.
     pub fn presentation_contexts(&self) -> &[PresentationContextResult] {
         &self.presentation_contexts
