@@ -83,12 +83,10 @@ impl PixelDataReader for JpegLSAdapter {
             Cow::Owned(fragments)
         };
 
-        let mut image = CharLS::default()
-            .decode(&frame_data, 0)
+        CharLS::default()
+            .decode(&frame_data, dst)
             .map_err(|error| error.to_string())
             .with_whatever_context(|error| error.to_string())?;
-
-        dst.append(&mut image);
 
         Ok(())
     }
