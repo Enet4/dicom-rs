@@ -37,7 +37,6 @@ openjpeg-sys = ["dep:jpeg2k", "jpeg2k/openjpeg-sys"]
 
 # jpeg LS support via charls bindings
 charls = ["dep:charls"]
-charls-static = ["charls", "charls/static"]
 
 # build OpenJPEG with multithreading,
 # implies "rayon"
@@ -66,6 +65,7 @@ optional = true
 [dependencies.charls]
 version = "0.2"
 optional = true
+features = ["static"]
 
 [package.metadata.docs.rs]
 features = ["native"]
