@@ -313,7 +313,7 @@ fn run() -> Result<(), Error> {
 
     for file in dicom_files {
         // TODO
-        scu = store_sync::send_file(
+        scu = send_file(
             scu,
             file,
             message_id,
@@ -436,7 +436,8 @@ async fn run() -> Result<(), Error> {
     }
 
     for file in dicom_files {
-        // TODO: Eventually expose concurrency option, for now, just run sequentially
+        // TODO: Eventually expose concurrency option to sping up multiple
+        // worker tasks to send files in parallel
         scu = send_file(
             scu,
             file,
