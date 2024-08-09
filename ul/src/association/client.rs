@@ -139,6 +139,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// # Example
 ///
+#[cfg_attr(not(feature = "async"),doc=r##"
 /// ```no_run
 /// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
@@ -148,6 +149,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// # Ok(())
 /// # }
 /// ```
+"##)]
 ///
 /// At least one presentation context must be specified,
 /// using the method [`with_presentation_context`](Self::with_presentation_context)
@@ -159,6 +161,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// in the resulting presentation context.
 /// # Example
 ///
+#[cfg_attr(not(feature = "async"),doc=r##"
 /// ```no_run
 /// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
@@ -168,6 +171,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// # Ok(())
 /// # }
 /// ```
+"##)]
 #[derive(Debug, Clone)]
 pub struct ClientAssociationOptions<'a> {
     /// the calling AE title
@@ -477,11 +481,13 @@ impl<'a> ClientAssociationOptions<'a> {
     ///
     /// ```no_run
     /// # use dicom_ul::association::client::ClientAssociationOptions;
-    /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+    /// #[tokio::main]
+    /// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
     /// let association = ClientAssociationOptions::new()
     ///     .with_abstract_syntax("1.2.840.10008.1.1")
     ///     // called AE title in address
-    ///     .establish_with("MY-STORAGE@10.0.0.100:104")?;
+    ///     .establish_with("MY-STORAGE@10.0.0.100:104")
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```

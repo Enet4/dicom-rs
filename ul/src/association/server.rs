@@ -164,6 +164,7 @@ impl AccessControl for AcceptCalledAeTitle {
 ///
 /// # Example
 ///
+#[cfg_attr(not(feature = "async"),doc=r##"
 /// ```no_run
 /// # use std::net::TcpListener;
 /// # use dicom_ul::association::server::ServerAssociationOptions;
@@ -178,6 +179,7 @@ impl AccessControl for AcceptCalledAeTitle {
 /// # Ok(())
 /// # }
 /// ```
+"##)]
 ///
 /// The SCP will by default accept all transfer syntaxes
 /// supported by the main [transfer syntax registry][1],

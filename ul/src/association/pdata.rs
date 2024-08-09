@@ -231,13 +231,16 @@ where
 ///
 /// ```no_run
 /// # use std::io::Write;
+/// use tokio::io::AsyncWriteExt;
 /// # use dicom_ul::association::{ClientAssociationOptions, PDataWriter};
 /// # use dicom_ul::pdu::{Pdu, PDataValue, PDataValueType};
 /// # fn command_data() -> Vec<u8> { unimplemented!() }
 /// # fn dicom_data() -> &'static [u8] { unimplemented!() }
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// #[tokio::main]
+/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let mut association = ClientAssociationOptions::new()
-///    .establish("129.168.0.5:104")?;
+///    .establish("129.168.0.5:104")
+///    .await?;
 ///
 /// let presentation_context_id = association.presentation_contexts()[0].id;
 ///
@@ -249,16 +252,17 @@ where
 ///         is_last: true,
 ///         data: command_data(),
 ///     }],
-/// });
+/// }).await;
 ///
 /// // then send a DICOM object which may be split into multiple PDUs
-/// let mut pdata = association.send_pdata(presentation_context_id);
-/// pdata.write_all(dicom_data())?;
-/// pdata.finish()?;
+/// let mut pdata = association.send_pdata(presentation_context_id).await;
+/// pdata.write_all(dicom_data()).await?;
+/// pdata.finish().await?;
 ///
-/// let pdu_ac = association.receive()?;
+/// let pdu_ac = association.receive().await?;
 /// # Ok(())
 /// # }
+/// ```
 #[cfg(feature = "async")]
 #[must_use]
 pub struct AsyncPDataWriter<W: AsyncWrite + Unpin> {
@@ -423,6 +427,7 @@ where
 /// Use an association's `receive_pdata` method
 /// to create a new P-Data value reader.
 ///
+#[cfg_attr(not(feature = "async"),doc=r##"
 /// ```no_run
 /// # use std::io::Read;
 /// # use dicom_ul::association::{ClientAssociationOptions, PDataReader};
@@ -442,6 +447,8 @@ where
 /// };
 /// # Ok(())
 /// # }
+/// ```
+"##)]
 #[must_use]
 pub struct PDataReader<R> {
     buffer: VecDeque<u8>,
@@ -664,8 +671,8 @@ mod tests {
 
         // concatenate data chunks, compare with all data
 
-        match same_pdu.unwrap() {
-            Pdu::PData { data: data_1 } => {
+        match same_pdu {
+            Some(Pdu::PData { data: data_1 }) => {
                 let data_1 = &data_1[0];
 
                 // check that this PDU is consistent
@@ -701,8 +708,8 @@ mod tests {
 
         // concatenate data chunks, compare with all data
 
-        match same_pdu.unwrap() {
-            Pdu::PData { data: data_1 } => {
+        match same_pdu {
+            Some(Pdu::PData { data: data_1 }) => {
                 let data_1 = &data_1[0];
 
                 // check that this PDU is consistent
@@ -738,11 +745,11 @@ mod tests {
 
         // concatenate data chunks, compare with all data
 
-        match (pdu_1.unwrap(), pdu_2.unwrap(), pdu_3.unwrap()) {
+        match (pdu_1, pdu_2, pdu_3) {
             (
-                Pdu::PData { data: data_1 },
-                Pdu::PData { data: data_2 },
-                Pdu::PData { data: data_3 },
+                Some(Pdu::PData { data: data_1 }),
+                Some(Pdu::PData { data: data_2 }),
+                Some(Pdu::PData { data: data_3 }),
             ) => {
                 assert_eq!(data_1.len(), 1);
                 let data_1 = &data_1[0];
@@ -817,11 +824,11 @@ mod tests {
 
         // concatenate data chunks, compare with all data
 
-        match (pdu_1.unwrap(), pdu_2.unwrap(), pdu_3.unwrap()) {
+        match (pdu_1, pdu_2, pdu_3) {
             (
-                Pdu::PData { data: data_1 },
-                Pdu::PData { data: data_2 },
-                Pdu::PData { data: data_3 },
+                Some(Pdu::PData { data: data_1 }),
+                Some(Pdu::PData { data: data_2 }),
+                Some(Pdu::PData { data: data_3 }),
             ) => {
                 assert_eq!(data_1.len(), 1);
                 let data_1 = &data_1[0];
