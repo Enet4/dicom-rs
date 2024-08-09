@@ -27,6 +27,8 @@
 pub mod jpeg;
 #[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
 pub mod jpeg2k;
+#[cfg(feature = "charls")]
+pub mod jpegls;
 #[cfg(feature = "rle")]
 pub mod rle_lossless;
 
@@ -46,3 +48,8 @@ pub mod jpeg2k {}
 /// Enable the `rle` feature to use this module.
 #[cfg(not(feature = "rle"))]
 pub mod rle {}
+
+/// **Note:** This module is a stub.
+/// Enable the `charls` feature to use this module.
+#[cfg(not(feature = "charls"))]
+pub mod jpegls {}
