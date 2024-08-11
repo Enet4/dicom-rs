@@ -21,7 +21,7 @@ use crate::{pdu::PDU_HEADER_SIZE, read_pdu, Pdu};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
 /// Set up the P-Data PDU header for sending.
-fn setup_pdata_header(buffer: &mut Vec<u8>, is_last: bool) {
+fn setup_pdata_header(buffer: &mut [u8], is_last: bool) {
     let data_len = (buffer.len() - 12) as u32;
 
     // full PDU length (minus PDU type and reserved byte)
@@ -511,7 +511,7 @@ where
                 let recv = reader.fill_buf()?.to_vec();
                 reader.consume(recv.len());
                 self.read_buffer.extend_from_slice(&recv);
-                if recv.len() == 0 {
+                if recv.is_empty() {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::Other,
                         "Connection closed by peer",
@@ -587,7 +587,7 @@ where
                 let recv = ready!(Pin::new(&mut reader).poll_fill_buf(cx))?.to_vec();
                 reader.consume(recv.len());
                 read_buffer.extend_from_slice(&recv);
-                if recv.len() == 0 {
+                if recv.is_empty() {
                     return Poll::Ready(Err(std::io::Error::new(
                         std::io::ErrorKind::Other,
                         "Connection closed by peer",

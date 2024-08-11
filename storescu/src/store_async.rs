@@ -18,6 +18,7 @@ use crate::{
     UnsupportedFileTransferSyntaxSnafu,
 };
 
+#[allow(clippy::too_many_arguments)]
 pub async fn get_scu(
     addr: String,
     calling_ae_title: String,
@@ -62,7 +63,7 @@ pub async fn get_scu(
         scu_init = scu_init.jwt(jwt);
     }
 
-    Ok(scu_init.establish_with(&addr).await.context(InitScuSnafu)?)
+    scu_init.establish_with(&addr).await.context(InitScuSnafu)
 }
 
 pub async fn send_file(
@@ -216,7 +217,7 @@ pub async fn send_file(
                             storage_sop_instance_uid
                         );
                         if fail_first {
-                            let _ = scu.abort();
+                            let _ = scu.abort().await;
                             std::process::exit(-2);
                         }
                     }
@@ -226,7 +227,7 @@ pub async fn send_file(
                             storage_sop_instance_uid, status
                         );
                         if fail_first {
-                            let _ = scu.abort();
+                            let _ = scu.abort().await;
                             std::process::exit(-2);
                         }
                     }
@@ -241,7 +242,7 @@ pub async fn send_file(
             | pdu @ Pdu::ReleaseRP
             | pdu @ Pdu::AbortRQ { .. } => {
                 error!("Unexpected SCP response: {:?}", pdu);
-                let _ = scu.abort();
+                let _ = scu.abort().await;
                 std::process::exit(-2);
             }
         }

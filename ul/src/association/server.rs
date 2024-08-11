@@ -392,7 +392,7 @@ where
                 .to_vec();
             reader.consume(recv.len());
             read_buffer.extend_from_slice(&recv);
-            ensure!(recv.len() > 0, ConnectionClosedSnafu);
+            ensure!(!recv.is_empty(), ConnectionClosedSnafu);
         };
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         match msg {
@@ -883,7 +883,7 @@ impl ServerAssociation {
                 .to_vec();
             reader.consume(recv.len());
             self.read_buffer.extend_from_slice(&recv);
-            ensure!(recv.len() > 0, ConnectionClosedSnafu);
+            ensure!(!recv.is_empty(), ConnectionClosedSnafu);
         }
     }
 

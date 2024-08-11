@@ -17,6 +17,7 @@ use crate::{
     UnsupportedFileTransferSyntaxSnafu,
 };
 
+#[allow(clippy::too_many_arguments)]
 pub fn get_scu(
     addr: String,
     calling_ae_title: String,
@@ -61,7 +62,7 @@ pub fn get_scu(
         scu_init = scu_init.jwt(jwt);
     }
 
-    Ok(scu_init.establish_with(&addr).context(InitScuSnafu)?)
+    scu_init.establish_with(&addr).context(InitScuSnafu)
 }
 
 pub fn send_file(

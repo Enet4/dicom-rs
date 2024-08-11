@@ -209,7 +209,7 @@ fn check_files(
         eprintln!("No supported files to transfer");
         std::process::exit(-1);
     }
-    return (dicom_files, presentation_contexts);
+    (dicom_files, presentation_contexts)
 }
 
 #[cfg(not(feature = "async"))]
@@ -413,7 +413,7 @@ async fn run() -> Result<(), Error> {
             Err(e) => {
                 error!("{}", Report::from_error(e));
                 if fail_first {
-                    let _ = scu.abort();
+                    let _ = scu.abort().await;
                     std::process::exit(-2);
                 }
             }

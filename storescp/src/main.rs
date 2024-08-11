@@ -147,8 +147,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(not(feature = "async"))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use std::io::Read;
-
     let args = App::parse();
 
     tracing::subscriber::set_global_default(

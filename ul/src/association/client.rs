@@ -158,7 +158,7 @@ pub fn get_client_pdu<R: Read>(reader: &mut R, max_pdu_length: u32, strict: bool
             .to_vec();
         reader.consume(recv.len());
         read_buffer.extend_from_slice(&recv);
-        ensure!(recv.len() > 0, ConnectionClosedSnafu);
+        ensure!(!recv.is_empty(), ConnectionClosedSnafu);
     };
     Ok(msg)
 }
@@ -653,7 +653,7 @@ impl<'a> ClientAssociationOptions<'a> {
 
         let mut socket = std::net::TcpStream::connect(ae_address).context(ConnectSnafu)?;
         socket
-            .set_read_timeout(timeout.clone())
+            .set_read_timeout(timeout)
             .context(SetReadTimeoutSnafu)?;
         socket
             .set_write_timeout(timeout)
@@ -897,7 +897,7 @@ impl<'a> ClientAssociationOptions<'a> {
                             source: AbortRQSource::ServiceUser,
                         },
                     );
-                    let _ = socket.write_all(&buffer);
+                    let _ = socket.write_all(&buffer).await;
                     buffer.clear();
                     return NoAcceptedPresentationContextsSnafu.fail();
                 }
@@ -925,7 +925,7 @@ impl<'a> ClientAssociationOptions<'a> {
                         source: AbortRQSource::ServiceUser,
                     },
                 );
-                let _ = socket.write_all(&buffer);
+                let _ = socket.write_all(&buffer).await;
                 UnexpectedResponseSnafu { pdu }.fail()
             }
             pdu @ Pdu::Unknown { .. } => {
@@ -936,7 +936,7 @@ impl<'a> ClientAssociationOptions<'a> {
                         source: AbortRQSource::ServiceUser,
                     },
                 );
-                let _ = socket.write_all(&buffer);
+                let _ = socket.write_all(&buffer).await;
                 UnknownResponseSnafu { pdu }.fail()
             }
         }
@@ -1120,7 +1120,7 @@ impl ClientAssociation {
                 .to_vec();
             reader.consume(recv.len());
             self.read_buffer.extend_from_slice(&recv);
-            ensure!(recv.len() > 0, ConnectionClosedSnafu);
+            ensure!(!recv.is_empty(), ConnectionClosedSnafu);
         }
     }
     #[cfg(feature = "async")]

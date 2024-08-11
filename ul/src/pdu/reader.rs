@@ -452,7 +452,7 @@ fn read_pdu_variable(mut buf: impl Buf, codec: &dyn TextCodec) -> Result<Option<
             // 7.1.1.2. Application-context-names are structured as UIDs as defined in PS3.5 (see
             // Annex A for an overview of this concept). DICOM Application-context-names are
             // registered in PS3.7.
-            let val = codec.decode(&bytes.as_ref()).context(DecodeTextSnafu {
+            let val = codec.decode(bytes.as_ref()).context(DecodeTextSnafu {
                 field: "Application-context-name",
             })?;
             Ok(Some(PduVariableItem::ApplicationContext(val)))
