@@ -17,7 +17,7 @@ required-features = ["cli"]
 
 [dependencies]
 dicom-object = { path = "../object", version = "0.7.0" }
-dicom-core = { path = "../core", version = "0.7.0" }
+dicom-core = { path = "../core", version = "0.7.1" }
 dicom-encoding = { path = "../encoding", version = "0.7.0" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.7.0" }
 dicom-dictionary-std = { path = "../dictionary-std", version = "0.7.0" }
