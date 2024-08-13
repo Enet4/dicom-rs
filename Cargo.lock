@@ -482,7 +482,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-parser"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "chrono",
  "dicom-core",
