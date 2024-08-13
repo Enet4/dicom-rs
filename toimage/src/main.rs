@@ -71,6 +71,9 @@ struct ImageOptions {
         conflicts_with = "force_16bit"
     )]
     unwrap: bool,
+    /// Decode all pixel data frames instead of just the one intended
+    #[arg(hide(true), long)]
+    decode_all: bool,
 }
 
 #[derive(Debug, Snafu)]
@@ -319,6 +322,7 @@ fn convert_single_file(
         force_8bit,
         force_16bit,
         unwrap,
+        decode_all,
     } = image_options;
 
     if unwrap {
@@ -448,9 +452,12 @@ fn convert_single_file(
         std::fs::create_dir_all(output.parent().unwrap()).unwrap();
         std::fs::write(output, out_data).context(SaveDataSnafu)?;
     } else {
-        let pixel = file
-            .decode_pixel_data_frame(frame_number)
-            .context(DecodePixelDataSnafu)?;
+        let pixel = if decode_all {
+            file.decode_pixel_data().context(DecodePixelDataSnafu)?
+        } else {
+            file.decode_pixel_data_frame(frame_number)
+                .context(DecodePixelDataSnafu)?
+        };
 
         if verbose {
             println!(
@@ -470,8 +477,10 @@ fn convert_single_file(
             options = options.force_8bit();
         }
 
+        // the effective frame number
+        let frame_num = if decode_all { frame_number } else { 0 };
         let image = pixel
-            .to_dynamic_image_with_options(0, &options)
+            .to_dynamic_image_with_options(frame_num, &options)
             .context(ConvertImageSnafu)?;
 
         std::fs::create_dir_all(output.parent().unwrap()).unwrap();
