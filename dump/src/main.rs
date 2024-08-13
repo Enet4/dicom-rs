@@ -1,16 +1,18 @@
 //! A CLI tool for inspecting the contents of a DICOM file
 //! by printing it in a human readable format.
 use clap::Parser;
-use dicom_dump::{ColorMode, DumpOptions};
+use dicom_dictionary_std::tags;
+use dicom_dump::{ColorMode, DumpOptions, DumpFormat};
 use dicom_object::open_file;
 use snafu::{Report, Whatever};
-use std::io::ErrorKind;
+use std::io::{ErrorKind, IsTerminal};
 use std::path::PathBuf;
 
 /// Exit code for when an error emerged while reading the DICOM file.
 const ERROR_READ: i32 = -2;
 /// Exit code for when an error emerged while dumping the file.
 const ERROR_PRINT: i32 = -3;
+
 
 /// Dump the contents of DICOM files
 #[derive(Debug, Parser)]
@@ -20,7 +22,10 @@ struct App {
     #[clap(required = true)]
     files: Vec<PathBuf>,
     /// Print text values to the end
-    /// (limited to `width` by default)
+    /// (limited to `width` by default).
+    /// 
+    /// Does not apply if output is not a tty 
+    /// or if output type is json
     #[clap(long = "no-text-limit")]
     no_text_limit: bool,
     /// Print all values to the end
@@ -28,7 +33,10 @@ struct App {
     #[clap(long = "no-limit")]
     no_limit: bool,
     /// The width of the display
-    /// (default is to check automatically)
+    /// (default is to check automatically).
+    /// 
+    /// Does not apply if output is not a tty 
+    /// or if output type is json
     #[clap(short = 'w', long = "width")]
     width: Option<u32>,
     /// The color mode
@@ -37,6 +45,14 @@ struct App {
     /// Fail if any errors are encountered
     #[clap(long = "fail-first")]
     fail_first: bool,
+    /// Output format
+    #[arg(value_enum)]
+    #[clap(short = 'f', long = "format", default_value = "text")]
+    format: DumpFormat,
+}
+
+fn is_terminal() -> bool {
+    std::io::stdout().is_terminal()
 }
 
 fn main() {
@@ -54,6 +70,7 @@ fn run() -> Result<(), Whatever> {
         width,
         color,
         fail_first,
+        format,
     } = App::parse();
 
     let width = width
@@ -63,14 +80,17 @@ fn run() -> Result<(), Whatever> {
     let mut options = DumpOptions::new();
     options
         .no_text_limit(no_text_limit)
-        .no_limit(no_limit)
+        // No limit when output is not a terminal
+        .no_limit(if !is_terminal() { true } else {no_limit})
         .width(width)
-        .color_mode(color);
+        .color_mode(color)
+        .format(format);
     let fail_first = filenames.len() == 1 || fail_first;
     let mut errors: i32 = 0;
 
     for filename in &filenames {
-        println!("{}: ", filename.display());
+        // Write filename to stderr to make piping easier, i.e. dicom-dump -o json file.dcm | jq
+        eprintln!("{}: ", filename.display());
         match open_file(filename) {
             Err(e) => {
                 eprintln!("{}", Report::from_error(e));
@@ -79,7 +99,16 @@ fn run() -> Result<(), Whatever> {
                 }
                 errors += 1;
             }
-            Ok(obj) => {
+            Ok(mut obj) => {
+                if options.format == DumpFormat::Json {
+                    // JSON output doesn't currently support encapsulated pixel data
+                    if let Ok(elem) = obj.element(tags::PIXEL_DATA){
+                        if let dicom_core::value::Value::PixelSequence(_) = elem.value(){
+                            eprintln!("[WARN] Encapsulated pixel data not supported in JSON output, skipping");
+                            obj.remove_element(tags::PIXEL_DATA);
+                        }
+                    }
+                }
                 if let Err(ref e) = options.dump_file(&obj) {
                     if e.kind() == ErrorKind::BrokenPipe {
                         // handle broken pipe separately with a no-op
