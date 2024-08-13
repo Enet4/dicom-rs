@@ -35,4 +35,4 @@ dicom-dictionary-std = { path = "../dictionary-std/", version = "0.7.0" }
 owo-colors = { version = "4.0.0-rc.1", features = ["supports-colors"] }
 serde_json = "1.0.108"
 terminal_size = "0.3.0"
-dicom-json = { version = "0.7.0", path = "../json" }
+dicom-json = { version = "0.7.1", path = "../json" }
