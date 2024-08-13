@@ -41,7 +41,7 @@ openjpeg-sys-threads = ["rayon", "jpeg2k?/threads"]
 
 [dependencies]
 dicom-core = { path = "../core", version = "0.7.1" }
-dicom-encoding = { path = "../encoding", version = "0.7.0" }
+dicom-encoding = { path = "../encoding", version = "0.7.1" }
 lazy_static = "1.2.0"
 byteordered = "0.6"
 tracing = "0.1.34"
