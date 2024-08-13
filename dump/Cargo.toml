@@ -1,6 +1,6 @@
 [package]
 name = "dicom-dump"
-version = "0.7.0"
+version = "0.7.1"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A CLI tool for inspecting DICOM files"
 edition = "2018"
