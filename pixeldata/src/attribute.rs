@@ -122,7 +122,7 @@ pub fn voi_lut_function<D: DataDictionary + Clone>(
             .collect::<Result<Vec<_>>>()?;
         Ok(Some(res))
     } else {
-        Ok(None)
+        Ok(Some(vec!["LINEAR".to_string()]))
     }
 }
 

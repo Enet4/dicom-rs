@@ -225,6 +225,12 @@ pub enum ReadError {
         #[snafu(backtrace)]
         source: crate::meta::Error,
     },
+    #[snafu(display("Could not parse sop attribute"))]
+    ParseSopAttribute {
+        #[snafu(source(from(dicom_core::value::ConvertValueError, Box::from)))]
+        source: Box<dicom_core::value::ConvertValueError>,
+        backtrace: Backtrace,
+    },
     #[snafu(display("Could not create data set parser"))]
     CreateParser {
         #[snafu(backtrace)]

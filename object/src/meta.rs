@@ -972,16 +972,17 @@ impl FileMetaTableBuilder {
             // Missing information version, will assume (00H, 01H). See #28
             [0, 1],
         );
-        let media_storage_sop_class_uid =
-            self.media_storage_sop_class_uid
-                .context(MissingElementSnafu {
-                    alias: "MediaStorageSOPClassUID",
-                })?;
+        let media_storage_sop_class_uid = self.media_storage_sop_class_uid.unwrap_or_else(|| {
+            tracing::warn!("MediaStorageSOPClassUID is missing. Defaulting to empty string.");
+            String::default()
+        });
         let media_storage_sop_instance_uid =
-            self.media_storage_sop_instance_uid
-                .context(MissingElementSnafu {
-                    alias: "MediaStorageSOPInstanceUID",
-                })?;
+            self.media_storage_sop_instance_uid.unwrap_or_else(|| {
+                tracing::warn!(
+                    "MediaStorageSOPInstanceUID is missing. Defaulting to empty string."
+                );
+                String::default()
+            });
         let transfer_syntax = self.transfer_syntax.context(MissingElementSnafu {
             alias: "TransferSyntax",
         })?;

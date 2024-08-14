@@ -726,7 +726,7 @@ where
 
         if header.tag == Tag(0x0028, 0x0103) {
             //Pixel Representation is not 0, so 2s complement (signed)
-            self.signed_pixeldata = Some(vec[0] != 0);
+            self.signed_pixeldata = vec.first().map(|rep| *rep != 0);
         }
 
         Ok(PrimitiveValue::U16(vec))

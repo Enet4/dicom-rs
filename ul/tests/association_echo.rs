@@ -40,7 +40,7 @@ fn spawn_scp() -> Result<(std::thread::JoinHandle<Result<()>>, SocketAddr)> {
                     transfer_syntax: IMPLICIT_VR_LE.to_string(),
                 },
                 PresentationContextResult {
-                    id: 2,
+                    id: 3,
                     reason: PresentationContextResultReason::AbstractSyntaxNotSupported,
                     transfer_syntax: IMPLICIT_VR_LE.to_string(),
                 }

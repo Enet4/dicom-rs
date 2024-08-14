@@ -1,6 +1,6 @@
 [package]
 name = "dicom-transfer-syntax-registry"
-version = "0.7.0"
+version = "0.7.1"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A registry of DICOM transfer syntaxes"
 edition = "2018"
@@ -40,14 +40,14 @@ openjpeg-sys = ["dep:jpeg2k", "jpeg2k/openjpeg-sys"]
 openjpeg-sys-threads = ["rayon", "jpeg2k?/threads"]
 
 [dependencies]
-dicom-core = { path = "../core", version = "0.7.0" }
-dicom-encoding = { path = "../encoding", version = "0.7.0" }
+dicom-core = { path = "../core", version = "0.7.1" }
+dicom-encoding = { path = "../encoding", version = "0.7.1" }
 lazy_static = "1.2.0"
 byteordered = "0.6"
 tracing = "0.1.34"
 
 [dependencies.jpeg2k]
-version = "0.7"
+version = "0.9.1"
 optional = true
 default-features = false
 

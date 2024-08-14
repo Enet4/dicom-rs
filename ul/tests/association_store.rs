@@ -43,7 +43,7 @@ fn spawn_scp() -> Result<(std::thread::JoinHandle<Result<()>>, SocketAddr)> {
                     transfer_syntax: IMPLICIT_VR_LE.to_string(),
                 },
                 PresentationContextResult {
-                    id: 2,
+                    id: 3,
                     reason: PresentationContextResultReason::Acceptance,
                     transfer_syntax: JPEG_BASELINE.to_string(),
                 }
@@ -123,7 +123,7 @@ fn scu_scp_association_test() {
                 // guaranteed to be MR image storage
                 assert_eq!(pc.transfer_syntax, IMPLICIT_VR_LE);
             }
-            2 => {
+            3 => {
                 // guaranteed to be MG image storage
                 assert_eq!(pc.transfer_syntax, JPEG_BASELINE);
             }

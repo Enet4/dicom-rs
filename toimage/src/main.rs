@@ -71,6 +71,9 @@ struct ImageOptions {
         conflicts_with = "force_16bit"
     )]
     unwrap: bool,
+    /// Decode all pixel data frames instead of just the one intended
+    #[arg(hide(true), long)]
+    decode_all: bool,
 }
 
 #[derive(Debug, Snafu)]
@@ -179,64 +182,59 @@ fn run(args: App) -> Result<(), Error> {
 
     if files.len() == 1 {
         let file = &files[0];
-        match file.is_dir() {
-            true => {
-                let dicoms: Vec<(FileDicomObject<InMemDicomObject>, PathBuf)> =
-                    collect_dicom_files(file, recursive)?;
+        if file.is_dir() {
+            // single directory
+            let dicoms: Vec<(FileDicomObject<InMemDicomObject>, PathBuf)> =
+                collect_dicom_files(file, recursive)?;
 
-                if dicoms.is_empty() {
-                    return Err(Error::NoFiles);
-                }
-
-                dicoms.iter().for_each(|file| {
-                    let output = build_output_path(
-                        false,
-                        file.1.clone(),
-                        outdir.clone(),
-                        ext.clone(),
-                        image_options.unwrap,
-                    );
-
-                    convert_single_file(
-                        &file.0,
-                        false,
-                        output,
-                        frame_number,
-                        image_options,
-                        verbose,
-                    )
-                    .unwrap_or_else(|_| {
-                        if fail_first {
-                            std::process::exit(-2);
-                        }
-                    });
-                });
+            if dicoms.is_empty() {
+                return Err(Error::NoFiles);
             }
-            false => {
-                let file =
-                    open_file(file).with_context(|_| ReadFileSnafu { path: file.clone() })?;
 
-                let output_is_set = output.is_some();
+            for file in dicoms.iter() {
                 let output = build_output_path(
-                    output_is_set,
-                    output.unwrap_or(files[0].clone()),
+                    false,
+                    file.1.clone(),
                     outdir.clone(),
                     ext.clone(),
                     image_options.unwrap,
                 );
 
-                convert_single_file(
-                    &file,
-                    output_is_set,
-                    output,
-                    frame_number,
-                    image_options,
-                    verbose,
-                )
-                .or_else(|e| if fail_first { Err(e) } else { Ok(()) })?;
+                convert_single_file(&file.0, false, output, frame_number, image_options, verbose)
+                    .or_else(|e| {
+                    if fail_first {
+                        Err(e)
+                    } else {
+                        let report = Report::from_error(e);
+                        error!("Converting {}: {}", file.1.display(), report);
+                        Ok(())
+                    }
+                })?;
             }
+        } else {
+            // single DICOM file
+            let dcm = open_file(file).with_context(|_| ReadFileSnafu { path: file.clone() })?;
+
+            let output_is_set = output.is_some();
+            let output = build_output_path(
+                output_is_set,
+                output.unwrap_or(files[0].clone()),
+                outdir.clone(),
+                ext.clone(),
+                image_options.unwrap,
+            );
+
+            convert_single_file(
+                &dcm,
+                output_is_set,
+                output,
+                frame_number,
+                image_options,
+                verbose,
+            )?;
         }
     } else {
+        // multiple DICOM files
         for file in files.iter() {
             let dicom_file =
                 match open_file(file).with_context(|_| ReadFileSnafu { path: file.clone() }) {
@@ -245,6 +243,7 @@ fn run(args: App) -> Result<(), Error> {
                         if fail_first {
                             return Err(e);
                         } else {
+                            error!("{}", Report::from_error(e));
                             continue;
                         }
                     }
@@ -266,7 +265,15 @@ fn run(args: App) -> Result<(), Error> {
                 image_options,
                 verbose,
             )
-            .or_else(|e| if fail_first { Err(e) } else { Ok(()) })?;
+            .or_else(|e| {
+                if fail_first {
+                    Err(e)
+                } else {
+                    let report = Report::from_error(e);
+                    error!("Converting {}: {}", file.display(), report);
+                    Ok(())
+                }
+            })?;
         }
     }
 
@@ -315,6 +322,7 @@ fn convert_single_file(
         force_8bit,
         force_16bit,
         unwrap,
+        decode_all,
     } = image_options;
 
     if unwrap {
@@ -444,9 +452,12 @@ fn convert_single_file(
         std::fs::create_dir_all(output.parent().unwrap()).unwrap();
         std::fs::write(output, out_data).context(SaveDataSnafu)?;
     } else {
-        let pixel = file
-            .decode_pixel_data_frame(frame_number)
-            .context(DecodePixelDataSnafu)?;
+        let pixel = if decode_all {
+            file.decode_pixel_data().context(DecodePixelDataSnafu)?
+        } else {
+            file.decode_pixel_data_frame(frame_number)
+                .context(DecodePixelDataSnafu)?
+        };
 
         if verbose {
             println!(
@@ -466,8 +477,10 @@ fn convert_single_file(
             options = options.force_8bit();
         }
 
+        // the effective frame number
+        let frame_num = if decode_all { frame_number } else { 0 };
         let image = pixel
-            .to_dynamic_image_with_options(0, &options)
+            .to_dynamic_image_with_options(frame_num, &options)
             .context(ConvertImageSnafu)?;
 
         std::fs::create_dir_all(output.parent().unwrap()).unwrap();
