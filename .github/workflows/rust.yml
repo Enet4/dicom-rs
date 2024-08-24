@@ -27,8 +27,8 @@ jobs:
       - run: cargo test --features image,ndarray,sop-class,rle,cli
       # test dicom-pixeldata with openjp2
       - run: cargo test -p dicom-pixeldata --features openjp2
-      # test dicom-pixeldata with openjpeg-sys
-      - run: cargo test -p dicom-pixeldata --features openjpeg-sys
+      # test dicom-pixeldata with openjpeg-sys and charls
+      - run: cargo test -p dicom-pixeldata --features openjpeg-sys,charls
       # test dicom-pixeldata with gdcm-rs
       - run: cargo test -p dicom-pixeldata --features gdcm
       # test dicom-pixeldata without default features
