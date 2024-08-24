@@ -1,4 +1,4 @@
-//! Support for JPEG 2000 image decoding.
+//! Support for JPEG-LS image decoding.
 
 use charls::CharLS;
 use dicom_encoding::adapters::{decode_error, DecodeResult, PixelDataObject, PixelDataReader};
@@ -10,7 +10,7 @@ use std::borrow::Cow;
 pub struct JpegLSAdapter;
 
 impl PixelDataReader for JpegLSAdapter {
-    /// Decode a single frame in JPEG 2000 from a DICOM object.
+    /// Decode a single frame in JPEG-LS from a DICOM object.
     fn decode_frame(
         &self,
         src: &dyn PixelDataObject,
