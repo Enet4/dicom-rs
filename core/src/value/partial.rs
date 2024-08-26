@@ -844,16 +844,7 @@ impl DicomTime {
             DicomTime(DicomTimeImpl::Second(h, m, s)) => format!("{:02}{:02}{:02}", h, m, s),
             DicomTime(DicomTimeImpl::Fraction(h, m, s, f, fp)) => {
                 let sfrac = (u32::pow(10, *fp as u32) + f).to_string();
-                format!(
-                    "{:02}{:02}{:02}.{}",
-                    h,
-                    m,
-                    s,
-                    match f {
-                        0 => "0",
-                        _ => sfrac.get(1..).unwrap(),
-                    }
-                )
+                format!("{:02}{:02}{:02}.{}", h, m, s, sfrac.get(1..).unwrap())
             }
         }
     }
@@ -1159,10 +1150,26 @@ mod tests {
             DicomTime::from_hmsf(7, 55, 1, 1, 5).unwrap().to_encoded(),
             "075501.00001"
         );
-        // any precision for zero is just one zero
+        // the number of trailing zeros always complies with precision
+        assert_eq!(
+            DicomTime::from_hmsf(9, 1, 1, 0, 2).unwrap().to_encoded(),
+            "090101.00"
+        );
+        assert_eq!(
+            DicomTime::from_hmsf(9, 1, 1, 0, 3).unwrap().to_encoded(),
+            "090101.000"
+        );
+        assert_eq!(
+            DicomTime::from_hmsf(9, 1, 1, 0, 4).unwrap().to_encoded(),
+            "090101.0000"
+        );
+        assert_eq!(
+            DicomTime::from_hmsf(9, 1, 1, 0, 5).unwrap().to_encoded(),
+            "090101.00000"
+        );
         assert_eq!(
             DicomTime::from_hmsf(9, 1, 1, 0, 6).unwrap().to_encoded(),
-            "090101.0"
+            "090101.000000"
         );
 
         // leap second allowed here
@@ -1178,7 +1185,7 @@ mod tests {
             DicomTime::try_from(&NaiveTime::from_hms_micro_opt(16, 31, 59, 1_000_000).unwrap())
                 .unwrap()
                 .to_encoded(),
-            "163160.0",
+            "163160.000000",
         );
 
         // sub-second precision after leap second from NaiveTime is admitted
@@ -1188,6 +1195,38 @@ mod tests {
                 .to_encoded(),
             "163160.012345",
         );
+
+
+        // time specifically with 0 microseconds
+        assert_eq!(
+            DicomTime::try_from(&NaiveTime::from_hms_micro_opt(16, 31, 59, 0).unwrap())
+                .unwrap()
+                .to_encoded(),
+            "163159.000000",
+        );
+
+        // specific date-time from chrono
+        let date_time: DateTime<_> = DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+            NaiveDateTime::new(
+                NaiveDate::from_ymd_opt(2024, 8, 9).unwrap(),
+                NaiveTime::from_hms_opt(9, 9, 39).unwrap(),
+            ),
+            chrono::Utc,
+        ).with_timezone(&FixedOffset::east_opt(0).unwrap());
+        let dicom_date_time = DicomDateTime::try_from(&date_time).unwrap();
+        assert!(dicom_date_time.has_time_zone());
+        assert!(dicom_date_time.is_precise());
+        let dicom_time = dicom_date_time.time().unwrap();
+        assert_eq!(
+            dicom_time.fraction_and_precision(),
+            Some((&0, &6)),
+        );
+        assert_eq!(
+            dicom_date_time.to_encoded(),
+            "20240809090939.000000+0000"
+        );
+
+        // bad inputs
 
         assert!(matches!(
             DicomTime::from_hmsf(9, 1, 1, 1, 7),
