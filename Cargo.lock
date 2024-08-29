@@ -177,9 +177,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "charls"
-version = "0.2.2"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0bce516a3d50105c7b265e672b1dc3e33baa088f78c6d387d0d357f35eddd5f"
+checksum = "bab83a34f8145921567f034416dd9d0396956aff3c53eb7a32998d4e0a25ac9e"
 dependencies = [
  "charls-sys",
 ]
