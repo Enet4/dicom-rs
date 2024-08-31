@@ -171,7 +171,7 @@ use self::BasicEncoder::{BE, LE};
 /// Handle multiple encoding tasks with the expected endianness. The parameter `$e`
 /// will either yield a `LittleEndianBasicEncoder` or a `BigEndianBasicEncoder`. When
 /// the specific basic encoder is still unknown in compile-time, this macro can be used
-/// to resolve the endianess only once.
+/// to resolve the endianness only once.
 macro_rules! for_both {
     ($endianness: expr, |$e: ident| $f: expr) => {
         match *$endianness {

@@ -1,5 +1,5 @@
 //! Independent test for submission of a dummy TS implementation
-//! withour adapters.
+//! without adapters.
 //!
 //! Only applicable to the inventory-based registry.
 #![cfg(feature = "inventory-registry")]

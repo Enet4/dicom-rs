@@ -119,7 +119,7 @@ impl PixelDataReader for RleLosslessAdapter {
         Ok(())
     }
 
-    /// Decode a singe frame of the DICOM image from RLE Lossless.
+    /// Decode a single frame of the DICOM image from RLE Lossless.
     ///
     /// See <https://dicom.nema.org/medical/dicom/2023e/output/chtml/part05/chapter_G.html>
     fn decode_frame(

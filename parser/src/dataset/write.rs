@@ -2,7 +2,7 @@
 //!
 //! This module contains a mid-level abstraction for printing DICOM data sets
 //! sequentially.
-//! The [`DataSetWriter`] receieves data tokens to be encoded and written
+//! The [`DataSetWriter`] receives data tokens to be encoded and written
 //! to a writer.
 //! In this process, the writer will also adapt values
 //! to the necessary DICOM encoding rules.

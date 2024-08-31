@@ -118,7 +118,7 @@ pub struct DicomDate(DicomDateImpl);
 /// Represents a Dicom time (TM) value with a partial precision,
 /// where some time components may be missing.
 ///
-/// Unlike [chrono::NaiveTime], this implemenation has only 6 digit precision
+/// Unlike [chrono::NaiveTime], this implementation has only 6 digit precision
 /// for fraction of a second.
 ///
 /// `DicomTime` implements [AsRange] trait, enabling to retrieve specific

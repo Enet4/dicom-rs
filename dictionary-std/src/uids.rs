@@ -1420,10 +1420,10 @@ pub const IMPLANT_TEMPLATE_GROUP_INFORMATION_MODEL_MOVE: &str = "1.2.840.10008.5
 /// SOP Class: Implant Template Group Information Model - GET
 #[rustfmt::skip]
 pub const IMPLANT_TEMPLATE_GROUP_INFORMATION_MODEL_GET: &str = "1.2.840.10008.5.1.4.45.4";
-/// Application Hosting Modle: Native DICOM Model
+/// Application Hosting Model: Native DICOM Model
 #[rustfmt::skip]
 pub const NATIVE_DICOM_MODEL: &str = "1.2.840.10008.7.1.1";
-/// Application Hosting Modle: Abstract Multi-Dimensional Image Model
+/// Application Hosting Model: Abstract Multi-Dimensional Image Model
 #[rustfmt::skip]
 pub const ABSTRACT_MULTI_DIMENSIONAL_IMAGE_MODEL: &str = "1.2.840.10008.7.1.2";
 /// Mapping Resource: DICOM Content Mapping Resource

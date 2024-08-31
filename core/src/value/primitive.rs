@@ -716,7 +716,7 @@ impl PrimitiveValue {
     /// }
     /// ```
     pub fn to_multi_str(&self) -> Cow<[String]> {
-        /// Auxillary function for turning a sequence of values
+        /// Auxiliary function for turning a sequence of values
         /// into a sequence of strings.
         fn seq_to_str<I>(iter: I) -> Vec<String>
         where
@@ -4128,7 +4128,7 @@ impl PrimitiveValue {
 /// The output of this method is equivalent to calling the method `to_str`
 impl Display for PrimitiveValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        /// Auxillary function for turning a sequence of values
+        /// Auxiliary function for turning a sequence of values
         /// into a backslash-delimited string.
         fn seq_to_str<I>(iter: I) -> String
         where

@@ -1,4 +1,4 @@
-//! Convertion of DICOM objects into tokens.
+//! Conversion of DICOM objects into tokens.
 use crate::mem::InMemDicomObject;
 use dicom_core::DataElement;
 use dicom_parser::dataset::{DataToken, IntoTokens, IntoTokensOptions};

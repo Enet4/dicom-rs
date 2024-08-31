@@ -156,7 +156,7 @@ impl std::fmt::Display for UidType {
             UidType::CodingScheme => "Coding Scheme",
             UidType::ApplicationContextName => "Application Context Name",
             UidType::ServiceClass => "Service Class",
-            UidType::ApplicationHostingModel => "Application Hosting Modle",
+            UidType::ApplicationHostingModel => "Application Hosting Model",
             UidType::MappingResource => "Mapping Resource",
             UidType::LdapOid => "LDAP OID",
             UidType::SynchronizationFrameOfReference => "Synchronization Frame of Reference",
