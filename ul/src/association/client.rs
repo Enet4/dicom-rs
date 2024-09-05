@@ -166,17 +166,17 @@ pub fn get_client_pdu<R: Read>(reader: &mut R, max_pdu_length: u32, strict: bool
 /// This is the standard way of requesting and establishing
 /// an association with another DICOM node,
 /// that one usually taking the role of a service class provider (SCP).
-/// 
+///
 /// You can create either a blocking or non-blocking client by calling either
 /// `establish` or `establish_async` respectively.
 ///
 /// > **⚠️ Warning:** It is highly recommended to set `timeout` to a reasonable value for the
 /// > async client since there is _no_ default timeout on
 /// > [`tokio::net::TcpStream`]
-/// 
+///
 /// ## Basic usage
 ///
-/// ### Sync 
+/// ### Sync
 ///
 /// ```no_run
 /// # use dicom_ul::association::client::ClientAssociationOptions;
@@ -189,8 +189,8 @@ pub fn get_client_pdu<R: Read>(reader: &mut R, max_pdu_length: u32, strict: bool
 /// # Ok(())
 /// # }
 /// ```
-/// 
-/// ### Async 
+///
+/// ### Async
 ///
 /// ```no_run
 /// # use dicom_ul::association::client::ClientAssociationOptions;
@@ -204,7 +204,7 @@ pub fn get_client_pdu<R: Read>(reader: &mut R, max_pdu_length: u32, strict: bool
 /// # Ok(())
 /// # }
 /// ```
-/// 
+///
 ///
 /// At least one presentation context must be specified,
 /// using the method [`with_presentation_context`](Self::with_presentation_context)
@@ -946,7 +946,7 @@ where
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
     pub fn receive_pdata(&mut self) -> PDataReader<&mut TcpStream> {
-        PDataReader::new(&mut self.socket, self.requestor_max_pdu_length, self.timeout)
+        PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
     }
 
     /// Release implementation function,
@@ -997,7 +997,7 @@ pub mod non_blocking {
                 ReceiveResponseSnafu, ReceiveSnafu, RejectedSnafu, SendRequestSnafu,
                 UnexpectedResponseSnafu, UnknownResponseSnafu,
             },
-            pdata::non_blocking::{PDataReader, AsyncPDataWriter}
+            pdata::non_blocking::{AsyncPDataWriter, PDataReader},
         },
         pdu::{
             AbortRQSource, AssociationAC, AssociationRQ, PresentationContextProposed,
@@ -1249,7 +1249,6 @@ pub mod non_blocking {
                 warn!("No timeout set. It is highly recommended to set a timeout.");
                 task.await
             }
-
         }
 
         /// Initiate the TCP connection to the given address
@@ -1328,7 +1327,6 @@ pub mod non_blocking {
                     .await
                     .map_err(|err| std::io::Error::new(std::io::ErrorKind::TimedOut, err))
                     .context(WireSendSnafu)?
-
             } else {
                 task.await
             }
@@ -1367,7 +1365,6 @@ pub mod non_blocking {
                     .map_err(|err| std::io::Error::new(std::io::ErrorKind::TimedOut, err))
                     .context(ReadPduSnafu)
                     .context(ReceiveSnafu)?
-
             } else {
                 task.await
             }
@@ -1427,7 +1424,6 @@ pub mod non_blocking {
                 &mut self.socket,
                 presentation_context_id,
                 self.acceptor_max_pdu_length,
-                self.timeout
             )
         }
 
@@ -1438,7 +1434,7 @@ pub mod non_blocking {
         /// receives more data PDUs once the bytes collected are consumed.
         #[cfg(feature = "async")]
         pub fn receive_pdata(&mut self) -> PDataReader<&mut TcpStream> {
-            PDataReader::new(&mut self.socket, self.requestor_max_pdu_length, self.timeout)
+            PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
         }
 
         /// Release implementation function,

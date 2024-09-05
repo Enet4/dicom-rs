@@ -1,6 +1,6 @@
 use std::{
     collections::VecDeque,
-    io::{BufRead, BufReader, Cursor, Read, Write}, time::Duration
+    io::{BufRead, BufReader, Cursor, Read, Write},
 };
 
 use bytes::{Buf, BytesMut};
@@ -242,11 +242,10 @@ pub struct PDataReader<R> {
     max_data_length: u32,
     last_pdu: bool,
     read_buffer: BytesMut,
-    timeout: Option<Duration>
 }
 
 impl<R> PDataReader<R> {
-    pub fn new(stream: R, max_data_length: u32, timeout: Option<Duration>) -> Self {
+    pub fn new(stream: R, max_data_length: u32) -> Self {
         PDataReader {
             buffer: VecDeque::with_capacity(max_data_length as usize),
             stream,
@@ -254,7 +253,6 @@ impl<R> PDataReader<R> {
             max_data_length,
             last_pdu: false,
             read_buffer: BytesMut::with_capacity(max_data_length as usize),
-            timeout
         }
     }
 
@@ -333,7 +331,6 @@ where
     }
 }
 
-
 /// Determine the maximum length of actual PDV data
 /// when encapsulated in a PDU with the given length property.
 /// Does not account for the first 2 bytes (type + reserved).
@@ -346,16 +343,23 @@ fn calculate_max_data_len_single(pdu_len: u32) -> u32 {
 
 #[cfg(feature = "async")]
 pub mod non_blocking {
-    use std::{io::Cursor, pin::Pin, task::{ready, Context, Poll}, time::Duration};
+    use std::{
+        future::Future,
+        io::Cursor,
+        pin::Pin,
+        task::{ready, Context, Poll},
+    };
 
     use bytes::{Buf, BufMut};
-    use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, ReadBuf };
+    use tokio::io::{
+        AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, ReadBuf,
+    };
     use tracing::warn;
 
     use crate::{pdu::PDU_HEADER_SIZE, read_pdu, Pdu};
 
-    use super::{calculate_max_data_len_single, setup_pdata_header};
     pub use super::PDataReader;
+    use super::{calculate_max_data_len_single, setup_pdata_header};
 
     /// A P-Data async value writer.
     ///
@@ -409,7 +413,6 @@ pub mod non_blocking {
         buffer: Vec<u8>,
         stream: W,
         max_data_len: u32,
-        timeout: Option<Duration>
     }
 
     #[cfg(feature = "async")]
@@ -420,7 +423,7 @@ pub mod non_blocking {
         /// Construct a new P-Data value writer.
         ///
         /// `max_pdu_length` is the maximum value of the PDU-length property.
-        pub(crate) fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32, timeout: Option<Duration>) -> Self {
+        pub(crate) fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32) -> Self {
             let max_data_length = calculate_max_data_len_single(max_pdu_length);
             let mut buffer = Vec::with_capacity((max_data_length + PDU_HEADER_SIZE) as usize);
             // initial buffer set up
@@ -448,7 +451,6 @@ pub mod non_blocking {
                 stream,
                 max_data_len: max_data_length,
                 buffer,
-                timeout
             }
         }
 
@@ -500,7 +502,6 @@ pub mod non_blocking {
             cx: &mut Context<'_>,
             buf: &[u8],
         ) -> Poll<std::result::Result<usize, std::io::Error>> {
-            use std::future::Future;
             let total_len = self.max_data_len as usize + 12;
             if self.buffer.len() + buf.len() <= total_len {
                 // accumulate into buffer, do nothing
@@ -563,7 +564,7 @@ pub mod non_blocking {
             cx: &mut Context<'_>,
             buf: &mut ReadBuf,
         ) -> Poll<std::io::Result<()>> {
-            if self.buffer.is_empty(){
+            if self.buffer.is_empty() {
                 if self.last_pdu {
                     return Poll::Ready(Ok(()));
                 }
@@ -603,7 +604,9 @@ pub mod non_blocking {
                         for pdata_value in data {
                             self.presentation_context_id = match self.presentation_context_id {
                                 None => Some(pdata_value.presentation_context_id),
-                                Some(cid) if cid == pdata_value.presentation_context_id => Some(cid),
+                                Some(cid) if cid == pdata_value.presentation_context_id => {
+                                    Some(cid)
+                                }
                                 Some(cid) => {
                                     warn!("Received PData value of presentation context {}, but should be {}", pdata_value.presentation_context_id, cid);
                                     Some(cid)
@@ -619,7 +622,6 @@ pub mod non_blocking {
                             "Unexpected PDU type",
                         )))
                     }
-
                 }
             }
             let len = std::cmp::min(self.buffer.len(), buf.remaining());
@@ -629,9 +631,7 @@ pub mod non_blocking {
             Poll::Ready(Ok(()))
         }
     }
-
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -686,7 +686,8 @@ mod tests {
 
         let mut buf = Vec::new();
         {
-            let mut writer = AsyncPDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE, None);
+            let mut writer =
+                AsyncPDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE, None);
             writer
                 .write_all(&(0..64).collect::<Vec<u8>>())
                 .await
@@ -801,7 +802,8 @@ mod tests {
 
         let mut buf = Vec::new();
         {
-            let mut writer = AsyncPDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE, None);
+            let mut writer =
+                AsyncPDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE, None);
             writer.write_all(&my_data).await.unwrap();
             writer.finish().await.unwrap();
         }

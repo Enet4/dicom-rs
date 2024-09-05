@@ -24,7 +24,10 @@ use crate::{
     IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
 
-use super::{pdata::{PDataReader, PDataWriter}, uid::trim_uid};
+use super::{
+    pdata::{PDataReader, PDataWriter},
+    uid::trim_uid,
+};
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -50,7 +53,7 @@ pub enum Error {
         source: crate::pdu::WriteError,
     },
     /// Failed to read from the wire
-    WireRead{
+    WireRead {
         source: std::io::Error,
         backtrace: Backtrace,
     },
@@ -254,7 +257,7 @@ impl<'a> Default for ServerAssociationOptions<'a, AcceptAny> {
             max_pdu_length: DEFAULT_MAX_PDU,
             strict: true,
             promiscuous: false,
-            timeout: None
+            timeout: None,
         }
     }
 }
@@ -318,7 +321,7 @@ where
             max_pdu_length,
             strict,
             promiscuous,
-            timeout
+            timeout,
         }
     }
 
@@ -385,7 +388,6 @@ where
 
     /// Negotiate an association with the given TCP stream.
     pub fn establish(&self, mut socket: TcpStream) -> Result<ServerAssociation<TcpStream>> {
-
         ensure!(
             !self.abstract_syntax_uids.is_empty() || self.promiscuous,
             MissingAbstractSyntaxSnafu
@@ -572,7 +574,7 @@ where
                     buffer,
                     strict: self.strict,
                     read_buffer: BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize),
-                    timeout: self.timeout
+                    timeout: self.timeout,
                 })
             }
             Pdu::ReleaseRQ => {
@@ -628,7 +630,7 @@ where
 /// When the value falls out of scope,
 /// the program will shut down the underlying TCP connection.
 #[derive(Debug)]
-pub struct ServerAssociation<S>{
+pub struct ServerAssociation<S> {
     /// The accorded presentation contexts
     presentation_contexts: Vec<PresentationContextResult>,
     /// The maximum PDU length that the remote application entity accepts
@@ -661,8 +663,7 @@ impl<S> ServerAssociation<S> {
     }
 }
 
-impl ServerAssociation<TcpStream>{
-
+impl ServerAssociation<TcpStream> {
     /// Send a PDU message to the other intervenient.
     pub fn send(&mut self, msg: &Pdu) -> Result<()> {
         self.buffer.clear();
@@ -722,7 +723,6 @@ impl ServerAssociation<TcpStream>{
         out
     }
 
-
     /// Prepare a P-Data writer for sending
     /// one or more data item PDUs.
     ///
@@ -742,7 +742,7 @@ impl ServerAssociation<TcpStream>{
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
     pub fn receive_pdata(&mut self) -> PDataReader<&mut TcpStream> {
-        PDataReader::new(&mut self.socket, self.acceptor_max_pdu_length, self.timeout)
+        PDataReader::new(&mut self.socket, self.acceptor_max_pdu_length)
     }
 
     /// Obtain access to the inner TCP stream
@@ -816,37 +816,62 @@ where
     it.into_iter().find(|ts| is_supported(ts.as_ref()))
 }
 
-
 #[cfg(feature = "async")]
-pub mod non_blocking{
+pub mod non_blocking {
     use std::{borrow::Cow, io::Cursor};
 
     use bytes::{Buf, BytesMut};
     use snafu::{ensure, ResultExt};
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpStream};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpStream,
+    };
 
-    use crate::{association::{server::{AbortedSnafu, ConnectionClosedSnafu, MissingAbstractSyntaxSnafu, ReceiveRequestSnafu, ReceiveSnafu, RejectedSnafu, SendResponseSnafu, UnexpectedRequestSnafu, UnknownRequestSnafu, WireReadSnafu}, uid::trim_uid}, pdu::{AbortRQServiceProviderReason, AbortRQSource, AssociationAC, AssociationRJ, AssociationRJResult, AssociationRJServiceUserReason, AssociationRJSource, AssociationRQ, PresentationContextResult, PresentationContextResultReason, ReadPduSnafu, UserVariableItem, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE}, read_pdu, write_pdu, Pdu, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME};
-    use super::{AccessControl, Result, SendSnafu, SendTooLongPduSnafu, ServerAssociation, ServerAssociationOptions, WireSendSnafu};
+    use super::{
+        AccessControl, Result, SendSnafu, SendTooLongPduSnafu, ServerAssociation,
+        ServerAssociationOptions, WireSendSnafu,
+    };
+    use crate::{
+        association::{
+            server::{
+                AbortedSnafu, ConnectionClosedSnafu, MissingAbstractSyntaxSnafu,
+                ReceiveRequestSnafu, ReceiveSnafu, RejectedSnafu, SendResponseSnafu,
+                UnexpectedRequestSnafu, UnknownRequestSnafu, WireReadSnafu,
+            },
+            uid::trim_uid,
+        },
+        pdu::{
+            AbortRQServiceProviderReason, AbortRQSource, AssociationAC, AssociationRJ,
+            AssociationRJResult, AssociationRJServiceUserReason, AssociationRJSource,
+            AssociationRQ, PresentationContextResult, PresentationContextResultReason,
+            ReadPduSnafu, UserVariableItem, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE,
+        },
+        read_pdu, write_pdu, Pdu, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
+    };
 
     impl<'a, A> ServerAssociationOptions<'a, A>
     where
         A: AccessControl,
     {
         /// Negotiate an association with the given TCP stream.
-        pub async fn establish_async(&self, mut socket: TcpStream) -> Result<ServerAssociation<TcpStream>> {
+        pub async fn establish_async(
+            &self,
+            mut socket: TcpStream,
+        ) -> Result<ServerAssociation<TcpStream>> {
             ensure!(
                 !self.abstract_syntax_uids.is_empty() || self.promiscuous,
                 MissingAbstractSyntaxSnafu
             );
             let timeout = self.timeout;
             let task = async {
-
                 let max_pdu_length = self.max_pdu_length;
                 let mut read_buffer = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
 
                 let pdu = loop {
                     let mut buf = Cursor::new(&read_buffer[..]);
-                    match read_pdu(&mut buf, MAXIMUM_PDU_SIZE, self.strict).context(ReceiveRequestSnafu)? {
+                    match read_pdu(&mut buf, MAXIMUM_PDU_SIZE, self.strict)
+                        .context(ReceiveRequestSnafu)?
+                    {
                         Some(pdu) => {
                             read_buffer.advance(buf.position() as usize);
                             break pdu;
@@ -1012,7 +1037,7 @@ pub mod non_blocking{
                             buffer,
                             strict: self.strict,
                             read_buffer: BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize),
-                            timeout
+                            timeout,
                         })
                     }
                     Pdu::ReleaseRQ => {
@@ -1028,19 +1053,18 @@ pub mod non_blocking{
                     pdu @ Pdu::Unknown { .. } => UnknownRequestSnafu { pdu }.fail(),
                 }
             };
-        if let Some(timeout) = timeout {
-            tokio::time::timeout(timeout, task)
-                .await
-                .map_err(|err| std::io::Error::new(std::io::ErrorKind::TimedOut, err))
-                .context(WireReadSnafu)?
-        } else {
-            task.await
+            if let Some(timeout) = timeout {
+                tokio::time::timeout(timeout, task)
+                    .await
+                    .map_err(|err| std::io::Error::new(std::io::ErrorKind::TimedOut, err))
+                    .context(WireReadSnafu)?
+            } else {
+                task.await
+            }
         }
-
     }
-}
 
-    impl ServerAssociation<TcpStream>{
+    impl ServerAssociation<TcpStream> {
         /// Send a PDU message to the other intervenient.
         pub async fn send(&mut self, msg: &Pdu) -> Result<()> {
             let timeout = self.timeout;
@@ -1063,7 +1087,6 @@ pub mod non_blocking{
                     .await
                     .map_err(|err| std::io::Error::new(std::io::ErrorKind::TimedOut, err))
                     .context(WireSendSnafu)?
-
             } else {
                 task.await
             }
@@ -1071,7 +1094,6 @@ pub mod non_blocking{
 
         /// Read a PDU message from the other intervenient.
         pub async fn receive(&mut self) -> Result<Pdu> {
-
             let timeout = self.timeout;
             let task = async {
                 loop {
@@ -1103,7 +1125,6 @@ pub mod non_blocking{
                     .map_err(|err| std::io::Error::new(std::io::ErrorKind::TimedOut, err))
                     .context(ReadPduSnafu)
                     .context(ReceiveSnafu)?
-
             } else {
                 task.await
             }
@@ -1138,7 +1159,6 @@ pub mod non_blocking{
             &mut self.socket
         }
     }
-
 }
 
 #[cfg(test)]

@@ -12,7 +12,6 @@ const IMPLICIT_VR_LE: &str = "1.2.840.10008.1.2";
 const MR_IMAGE_STORAGE_RAW: &str = "1.2.840.10008.5.1.4.1.1.4\0";
 const ULTRASOUND_IMAGE_STORAGE_RAW: &str = "1.2.840.10008.5.1.4.1.1.6.1\0";
 
-#[cfg(not(feature = "async"))]
 fn spawn_scp(
     abstract_syntax_uids: &'static [&str],
     promiscuous: bool,
@@ -50,8 +49,7 @@ fn spawn_scp(
     Ok((handle, addr))
 }
 
-#[cfg(feature = "async")]
-async fn spawn_scp(
+async fn spawn_scp_async(
     abstract_syntax_uids: &'static [&str],
     promiscuous: bool,
 ) -> Result<(tokio::task::JoinHandle<Result<()>>, SocketAddr)> {
@@ -68,7 +66,7 @@ async fn spawn_scp(
 
     let handle = tokio::spawn(async move {
         let (stream, _addr) = listener.accept().await?;
-        let mut association = options.establish(stream).await?;
+        let mut association = options.establish_async(stream).await?;
         assert_eq!(
             association.presentation_contexts(),
             &[PresentationContextResult {
@@ -88,7 +86,6 @@ async fn spawn_scp(
     Ok((handle, addr))
 }
 
-#[cfg(not(feature = "async"))]
 #[test]
 fn scu_scp_association_promiscuous_enabled() {
     // SCP is set to promiscuous mode - all abstract syntaxes are accepted
@@ -111,17 +108,16 @@ fn scu_scp_association_promiscuous_enabled() {
         .expect("Error at the SCP");
 }
 
-#[cfg(feature = "async")]
 #[tokio::test(flavor = "multi_thread")]
-async fn scu_scp_association_promiscuous_enabled() {
+async fn scu_scp_association_promiscuous_enabled_async() {
     // SCP is set to promiscuous mode - all abstract syntaxes are accepted
-    let (scp_handle, scp_addr) = spawn_scp(&[], true).await.unwrap();
+    let (scp_handle, scp_addr) = spawn_scp_async(&[], true).await.unwrap();
 
     let association = ClientAssociationOptions::new()
         .calling_ae_title(SCU_AE_TITLE)
         .called_ae_title(SCP_AE_TITLE)
         .with_presentation_context(MR_IMAGE_STORAGE_RAW, vec![IMPLICIT_VR_LE])
-        .establish(scp_addr)
+        .establish_async(scp_addr)
         .await
         .unwrap();
 
@@ -136,7 +132,6 @@ async fn scu_scp_association_promiscuous_enabled() {
         .expect("Error at the SCP");
 }
 
-#[cfg(not(feature = "async"))]
 #[test]
 fn scu_scp_association_promiscuous_disabled() {
     // SCP only accepts Ultrasound Image Storage
@@ -155,17 +150,18 @@ fn scu_scp_association_promiscuous_disabled() {
     ));
 }
 
-#[cfg(feature = "async")]
 #[tokio::test(flavor = "multi_thread")]
-async fn scu_scp_association_promiscuous_disabled() {
+async fn scu_scp_association_promiscuous_disabled_async() {
     // SCP only accepts Ultrasound Image Storage
-    let (_scu_handle, scp_addr) = spawn_scp(&[ULTRASOUND_IMAGE_STORAGE_RAW], false).await.unwrap();
+    let (_scu_handle, scp_addr) = spawn_scp_async(&[ULTRASOUND_IMAGE_STORAGE_RAW], false)
+        .await
+        .unwrap();
 
     let association = ClientAssociationOptions::new()
         .calling_ae_title(SCU_AE_TITLE)
         .called_ae_title(SCP_AE_TITLE)
         .with_presentation_context(MR_IMAGE_STORAGE_RAW, vec![IMPLICIT_VR_LE])
-        .establish(scp_addr)
+        .establish_async(scp_addr)
         .await;
 
     // Assert that no presentation context was accepted

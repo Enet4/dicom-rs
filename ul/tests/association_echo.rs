@@ -18,7 +18,6 @@ static JPEG_BASELINE: &str = "1.2.840.10008.1.2.4.50";
 static VERIFICATION_SOP_CLASS: &str = "1.2.840.10008.1.1";
 static DIGITAL_MG_STORAGE_SOP_CLASS: &str = "1.2.840.10008.5.1.4.1.1.1.2";
 
-#[cfg(not(feature = "async"))]
 fn spawn_scp() -> Result<(std::thread::JoinHandle<Result<()>>, SocketAddr)> {
     let listener = std::net::TcpListener::bind("localhost:0")?;
     let addr = listener.local_addr()?;
@@ -57,8 +56,7 @@ fn spawn_scp() -> Result<(std::thread::JoinHandle<Result<()>>, SocketAddr)> {
     Ok((h, addr))
 }
 
-#[cfg(feature = "async")]
-async fn spawn_scp() -> Result<(tokio::task::JoinHandle<Result<()>>, SocketAddr)> {
+async fn spawn_scp_async() -> Result<(tokio::task::JoinHandle<Result<()>>, SocketAddr)> {
     let listener = tokio::net::TcpListener::bind("localhost:0").await?;
     let addr = listener.local_addr()?;
     let scp = ServerAssociationOptions::new()
@@ -68,7 +66,7 @@ async fn spawn_scp() -> Result<(tokio::task::JoinHandle<Result<()>>, SocketAddr)
 
     let h = tokio::spawn(async move {
         let (stream, _addr) = listener.accept().await?;
-        let mut association = scp.establish(stream).await?;
+        let mut association = scp.establish_async(stream).await?;
 
         assert_eq!(
             association.presentation_contexts(),
@@ -97,7 +95,6 @@ async fn spawn_scp() -> Result<(tokio::task::JoinHandle<Result<()>>, SocketAddr)
 }
 
 /// Run an SCP and an SCU concurrently, negotiate an association and release it.
-#[cfg(not(feature = "async"))]
 #[test]
 fn scu_scp_association_test() {
     let (scp_handle, scp_addr) = spawn_scp().unwrap();
@@ -123,10 +120,9 @@ fn scu_scp_association_test() {
         .expect("Error at the SCP");
 }
 
-#[cfg(feature = "async")]
 #[tokio::test(flavor = "multi_thread")]
-async fn scu_scp_asociation_test(){
-    let (scp_handle, scp_addr) = spawn_scp().await.unwrap();
+async fn scu_scp_asociation_test() {
+    let (scp_handle, scp_addr) = spawn_scp_async().await.unwrap();
 
     let association = ClientAssociationOptions::new()
         .calling_ae_title(SCU_AE_TITLE)
@@ -136,7 +132,7 @@ async fn scu_scp_asociation_test(){
             DIGITAL_MG_STORAGE_SOP_CLASS,
             vec![IMPLICIT_VR_LE, EXPLICIT_VR_LE, JPEG_BASELINE],
         )
-        .establish(scp_addr)
+        .establish_async(scp_addr)
         .await
         .unwrap();
 
