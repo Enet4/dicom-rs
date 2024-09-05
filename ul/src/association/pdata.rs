@@ -49,7 +49,7 @@ fn setup_pdata_header(buffer: &mut [u8], is_last: bool) {
 ///
 /// ```no_run
 /// # use std::io::Write;
-/// # use dicom_ul::association::{ClientAssociationOptions, PDataWriter};
+/// # use dicom_ul::association::{ClientAssociationOptions, pdata::PDataWriter};
 /// # use dicom_ul::pdu::{Pdu, PDataValue, PDataValueType};
 /// # fn command_data() -> Vec<u8> { unimplemented!() }
 /// # fn dicom_data() -> &'static [u8] { unimplemented!() }
@@ -216,7 +216,7 @@ where
 ///
 /// ```no_run
 /// # use std::io::Read;
-/// # use dicom_ul::association::{ClientAssociationOptions, PDataReader};
+/// # use dicom_ul::association::{ClientAssociationOptions, pdata::PDataReader};
 /// # use dicom_ul::pdu::{Pdu, PDataValue, PDataValueType};
 /// # fn command_data() -> Vec<u8> { unimplemented!() }
 /// # fn dicom_data() -> &'static [u8] { unimplemented!() }
@@ -377,14 +377,14 @@ pub mod non_blocking {
     /// ```no_run
     /// # use std::io::Write;
     /// use tokio::io::AsyncWriteExt;
-    /// # use dicom_ul::association::{ClientAssociationOptions, PDataWriter};
+    /// # use dicom_ul::association::{ClientAssociationOptions, pdata::non_blocking::AsyncPDataWriter};
     /// # use dicom_ul::pdu::{Pdu, PDataValue, PDataValueType};
     /// # fn command_data() -> Vec<u8> { unimplemented!() }
     /// # fn dicom_data() -> &'static [u8] { unimplemented!() }
     /// #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut association = ClientAssociationOptions::new()
-    ///    .establish("129.168.0.5:104")
+    ///    .establish_async("129.168.0.5:104")
     ///    .await?;
     ///
     /// let presentation_context_id = association.presentation_contexts()[0].id;
@@ -687,7 +687,7 @@ mod tests {
         let mut buf = Vec::new();
         {
             let mut writer =
-                AsyncPDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE, None);
+                AsyncPDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE);
             writer
                 .write_all(&(0..64).collect::<Vec<u8>>())
                 .await
@@ -803,7 +803,7 @@ mod tests {
         let mut buf = Vec::new();
         {
             let mut writer =
-                AsyncPDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE, None);
+                AsyncPDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE);
             writer.write_all(&my_data).await.unwrap();
             writer.finish().await.unwrap();
         }
@@ -907,7 +907,7 @@ mod tests {
 
         let mut buf = Vec::new();
         {
-            let mut reader = PDataReader::new(&mut pdu_stream, MINIMUM_PDU_SIZE, None);
+            let mut reader = PDataReader::new(&mut pdu_stream, MINIMUM_PDU_SIZE);
             reader.read_to_end(&mut buf).unwrap();
         }
         assert_eq!(buf, my_data);
@@ -950,7 +950,7 @@ mod tests {
         let inner = pdu_stream.into_inner();
         let mut stream = tokio::io::BufReader::new(inner.as_slice());
         {
-            let mut reader = PDataReader::new(&mut stream, MINIMUM_PDU_SIZE, None);
+            let mut reader = PDataReader::new(&mut stream, MINIMUM_PDU_SIZE);
             reader.read_to_end(&mut buf).await.unwrap();
         }
         assert_eq!(buf, my_data);

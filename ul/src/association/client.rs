@@ -195,7 +195,8 @@ pub fn get_client_pdu<R: Read>(reader: &mut R, max_pdu_length: u32, strict: bool
 /// ```no_run
 /// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # use std::time::Duration;
-/// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// #[tokio::main]
+/// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// let association = ClientAssociationOptions::new()
 ///    .with_presentation_context("1.2.840.10008.1.1", vec!["1.2.840.10008.1.2.1", "1.2.840.10008.1.2"])
 ///    .timeout(Duration::from_secs(60))

@@ -93,7 +93,7 @@ async fn spawn_scp_async() -> Result<(tokio::task::JoinHandle<Result<()>>, Socke
                 // should always pick Explicit VR LE
                 // because JPEG baseline was not explicitly enabled in SCP
                 PresentationContextResult {
-                    id: 2,
+                    id: 3,
                     reason: PresentationContextResultReason::Acceptance,
                     transfer_syntax: EXPLICIT_VR_LE.to_string(),
                 }
@@ -180,7 +180,7 @@ async fn scu_scp_association_uncompressed_async() {
                 assert_eq!(pc.transfer_syntax, IMPLICIT_VR_LE);
             }
             // guaranteed to be MG image storage
-            2 => {
+            3 => {
                 // server picked this one because it did not accept JPEG baseline
                 assert_eq!(pc.transfer_syntax, EXPLICIT_VR_LE);
             }

@@ -77,7 +77,7 @@ async fn spawn_scp_async() -> Result<(tokio::task::JoinHandle<Result<()>>, Socke
                     transfer_syntax: IMPLICIT_VR_LE.to_string(),
                 },
                 PresentationContextResult {
-                    id: 2,
+                    id: 3,
                     reason: PresentationContextResultReason::AbstractSyntaxNotSupported,
                     transfer_syntax: IMPLICIT_VR_LE.to_string(),
                 }

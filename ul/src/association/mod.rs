@@ -20,7 +20,7 @@ pub mod server;
 
 mod uid;
 
-pub(crate) mod pdata;
+pub mod pdata;
 
 pub use client::{ClientAssociation, ClientAssociationOptions};
 pub use server::{ServerAssociation, ServerAssociationOptions};
