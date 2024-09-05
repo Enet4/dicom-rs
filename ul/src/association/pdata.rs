@@ -1,24 +1,12 @@
-#[cfg(not(feature = "async"))]
-use std::io::Write;
 use std::{
     collections::VecDeque,
-    io::{BufRead, BufReader, Cursor, Read}
+    io::{BufRead, BufReader, Cursor, Read, Write}, time::Duration
 };
 
 use bytes::{Buf, BytesMut};
-#[cfg(feature = "async")]
-use std::{
-    pin::Pin,
-    task::{Context, Poll},
-};
-#[cfg(feature = "async")]
-use tokio::io::ReadBuf;
 use tracing::warn;
 
 use crate::{pdu::PDU_HEADER_SIZE, read_pdu, Pdu};
-
-#[cfg(feature = "async")]
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
 /// Set up the P-Data PDU header for sending.
 fn setup_pdata_header(buffer: &mut [u8], is_last: bool) {
@@ -89,7 +77,6 @@ fn setup_pdata_header(buffer: &mut [u8], is_last: bool) {
 /// let pdu_ac = association.receive()?;
 /// # Ok(())
 /// # }
-#[cfg(not(feature = "async"))]
 #[must_use]
 pub struct PDataWriter<W: Write> {
     buffer: Vec<u8>,
@@ -97,7 +84,6 @@ pub struct PDataWriter<W: Write> {
     max_data_len: u32,
 }
 
-#[cfg(not(feature = "async"))]
 impl<W> PDataWriter<W>
 where
     W: Write,
@@ -174,7 +160,6 @@ where
     }
 }
 
-#[cfg(not(feature = "async"))]
 impl<W> Write for PDataWriter<W>
 where
     W: Write,
@@ -206,210 +191,12 @@ where
 /// this `Drop` implementation
 /// will construct and emit the last P-Data fragment PDU
 /// if there is any data left to send.
-#[cfg(not(feature = "async"))]
 impl<W> Drop for PDataWriter<W>
 where
     W: Write,
 {
     fn drop(&mut self) {
         let _ = self.finish_impl();
-    }
-}
-
-/// A P-Data async value writer.
-///
-/// This exposes an API to iteratively construct and send Data messages
-/// to another node.
-/// Using this as a [standard writer](std::io::Write)
-/// will automatically split the incoming bytes
-/// into separate PDUs if they do not fit in a single one.
-///
-/// # Example
-///
-/// Use an association's `send_pdata` method
-/// to create a new P-Data value writer.
-///
-/// ```no_run
-/// # use std::io::Write;
-/// use tokio::io::AsyncWriteExt;
-/// # use dicom_ul::association::{ClientAssociationOptions, PDataWriter};
-/// # use dicom_ul::pdu::{Pdu, PDataValue, PDataValueType};
-/// # fn command_data() -> Vec<u8> { unimplemented!() }
-/// # fn dicom_data() -> &'static [u8] { unimplemented!() }
-/// #[tokio::main]
-/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let mut association = ClientAssociationOptions::new()
-///    .establish("129.168.0.5:104")
-///    .await?;
-///
-/// let presentation_context_id = association.presentation_contexts()[0].id;
-///
-/// // send a command first
-/// association.send(&Pdu::PData {
-///     data: vec![PDataValue {
-///     presentation_context_id,
-///     value_type: PDataValueType::Command,
-///         is_last: true,
-///         data: command_data(),
-///     }],
-/// }).await;
-///
-/// // then send a DICOM object which may be split into multiple PDUs
-/// let mut pdata = association.send_pdata(presentation_context_id).await;
-/// pdata.write_all(dicom_data()).await?;
-/// pdata.finish().await?;
-///
-/// let pdu_ac = association.receive().await?;
-/// # Ok(())
-/// # }
-/// ```
-#[cfg(feature = "async")]
-#[must_use]
-pub struct AsyncPDataWriter<W: AsyncWrite + Unpin> {
-    buffer: Vec<u8>,
-    stream: W,
-    max_data_len: u32,
-}
-
-#[cfg(feature = "async")]
-impl<W> AsyncPDataWriter<W>
-where
-    W: AsyncWrite + Unpin,
-{
-    /// Construct a new P-Data value writer.
-    ///
-    /// `max_pdu_length` is the maximum value of the PDU-length property.
-    pub(crate) fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32) -> Self {
-        let max_data_length = calculate_max_data_len_single(max_pdu_length);
-        let mut buffer = Vec::with_capacity((max_data_length + PDU_HEADER_SIZE) as usize);
-        // initial buffer set up
-        buffer.extend([
-            // PDU-type + reserved byte
-            0x04,
-            0x00,
-            // full PDU length, unknown at this point
-            0xFF,
-            0xFF,
-            0xFF,
-            0xFF,
-            // presentation data length, unknown at this point
-            0xFF,
-            0xFF,
-            0xFF,
-            0xFF,
-            // presentation context id
-            presentation_context_id,
-            // message control header, unknown at this point
-            0xFF,
-        ]);
-
-        AsyncPDataWriter {
-            stream,
-            max_data_len: max_data_length,
-            buffer,
-        }
-    }
-
-    /// Declare to have finished sending P-Data fragments,
-    /// thus emitting the last P-Data fragment PDU.
-    ///
-    /// This is also done automatically once the P-Data writer is dropped.
-    pub async fn finish(mut self) -> std::io::Result<()> {
-        self.finish_impl().await?;
-        Ok(())
-    }
-
-    async fn finish_impl(&mut self) -> std::io::Result<()> {
-        if !self.buffer.is_empty() {
-            // send last PDU
-            setup_pdata_header(&mut self.buffer, true);
-            self.stream.write_all(&self.buffer[..]).await?;
-            // clear buffer so that subsequent calls to `finish_impl`
-            // do not send any more PDUs
-            self.buffer.clear();
-        }
-        Ok(())
-    }
-
-    /// Use the current state of the buffer to send new PDUs
-    ///
-    /// Pre-condition:
-    /// buffer must have enough data for one P-Data-tf PDU
-    async fn dispatch_pdu(&mut self) -> std::io::Result<()> {
-        debug_assert!(self.buffer.len() >= 12);
-        // send PDU now
-        setup_pdata_header(&mut self.buffer, false);
-        self.stream.write_all(&self.buffer).await?;
-
-        // back to just the header
-        self.buffer.truncate(12);
-
-        Ok(())
-    }
-}
-
-#[cfg(feature = "async")]
-impl<W> AsyncWrite for AsyncPDataWriter<W>
-where
-    W: AsyncWrite + Unpin,
-{
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<std::result::Result<usize, std::io::Error>> {
-        use std::future::Future;
-        let total_len = self.max_data_len as usize + 12;
-        if self.buffer.len() + buf.len() <= total_len {
-            // accumulate into buffer, do nothing
-            self.buffer.extend(buf);
-            Poll::Ready(Ok(buf.len()))
-        } else {
-            // fill in the rest of the buffer, send PDU,
-            // and leave out the rest for subsequent writes
-            let buf = &buf[..total_len - self.buffer.len()];
-            self.buffer.extend(buf);
-            debug_assert_eq!(self.buffer.len(), total_len);
-            let dispatch = self.dispatch_pdu();
-            tokio::pin!(dispatch);
-            match dispatch.poll(cx) {
-                Poll::Ready(Ok(())) => Poll::Ready(Ok(buf.len())),
-                Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-                Poll::Pending => Poll::Pending,
-            }
-        }
-    }
-
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::result::Result<(), std::io::Error>> {
-        Pin::new(&mut self.stream).poll_flush(cx)
-    }
-
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::result::Result<(), std::io::Error>> {
-        Pin::new(&mut self.stream).poll_shutdown(cx)
-    }
-}
-
-/// With the P-Data writer dropped,
-/// this `Drop` implementation
-/// will construct and emit the last P-Data fragment PDU
-/// if there is any data left to send.
-#[cfg(feature = "async")]
-impl<W> Drop for AsyncPDataWriter<W>
-where
-    W: AsyncWrite + Unpin,
-{
-    fn drop(&mut self) {
-        tokio::task::block_in_place(move || {
-            tokio::runtime::Handle::current().block_on(async move {
-                let _ = self.finish_impl().await;
-            })
-        })
     }
 }
 
@@ -427,7 +214,6 @@ where
 /// Use an association's `receive_pdata` method
 /// to create a new P-Data value reader.
 ///
-#[cfg_attr(not(feature = "async"),doc=r##"
 /// ```no_run
 /// # use std::io::Read;
 /// # use dicom_ul::association::{ClientAssociationOptions, PDataReader};
@@ -448,7 +234,6 @@ where
 /// # Ok(())
 /// # }
 /// ```
-"##)]
 #[must_use]
 pub struct PDataReader<R> {
     buffer: VecDeque<u8>,
@@ -457,10 +242,11 @@ pub struct PDataReader<R> {
     max_data_length: u32,
     last_pdu: bool,
     read_buffer: BytesMut,
+    timeout: Option<Duration>
 }
 
 impl<R> PDataReader<R> {
-    pub fn new(stream: R, max_data_length: u32) -> Self {
+    pub fn new(stream: R, max_data_length: u32, timeout: Option<Duration>) -> Self {
         PDataReader {
             buffer: VecDeque::with_capacity(max_data_length as usize),
             stream,
@@ -468,6 +254,7 @@ impl<R> PDataReader<R> {
             max_data_length,
             last_pdu: false,
             read_buffer: BytesMut::with_capacity(max_data_length as usize),
+            timeout
         }
     }
 
@@ -546,86 +333,6 @@ where
     }
 }
 
-#[cfg(feature = "async")]
-impl<R> AsyncRead for PDataReader<R>
-where
-    R: AsyncRead + Unpin,
-{
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf,
-    ) -> Poll<std::io::Result<()>> {
-        use tokio::io::{BufReader, AsyncBufRead, AsyncBufReadExt};
-        use bytes::BufMut;
-        use std::task::ready;
-        if self.buffer.is_empty(){
-            if self.last_pdu {
-                return Poll::Ready(Ok(()));
-            }
-            let Self {
-                ref mut stream,
-                ref mut read_buffer,
-                ref max_data_length,
-                ..
-            } = &mut *self;
-            let mut reader = BufReader::new(stream);
-            let msg = loop {
-                let mut buf = Cursor::new(&read_buffer[..]);
-                match read_pdu(&mut buf, *max_data_length, false)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
-                {
-                    Some(pdu) => {
-                        read_buffer.advance(buf.position() as usize);
-                        break pdu;
-                    }
-                    None => {
-                        // Reset position
-                        buf.set_position(0)
-                    }
-                }
-                let recv = ready!(Pin::new(&mut reader).poll_fill_buf(cx))?.to_vec();
-                reader.consume(recv.len());
-                read_buffer.extend_from_slice(&recv);
-                if recv.is_empty() {
-                    return Poll::Ready(Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "Connection closed by peer",
-                    )));
-                }
-            };
-            match msg {
-                Pdu::PData { data } => {
-                    for pdata_value in data {
-                        self.presentation_context_id = match self.presentation_context_id {
-                            None => Some(pdata_value.presentation_context_id),
-                            Some(cid) if cid == pdata_value.presentation_context_id => Some(cid),
-                            Some(cid) => {
-                                warn!("Received PData value of presentation context {}, but should be {}", pdata_value.presentation_context_id, cid);
-                                Some(cid)
-                            }
-                        };
-                        self.buffer.extend(pdata_value.data);
-                        self.last_pdu = pdata_value.is_last;
-                    }
-                }
-                _ => {
-                    return Poll::Ready(Err(std::io::Error::new(
-                        std::io::ErrorKind::UnexpectedEof,
-                        "Unexpected PDU type",
-                    )))
-                }
-
-            }
-        }
-        let len = std::cmp::min(self.buffer.len(), buf.remaining());
-        for _ in 0..len {
-            buf.put_u8(self.buffer.pop_front().unwrap());
-        }
-        Poll::Ready(Ok(()))
-    }
-}
-
 
 /// Determine the maximum length of actual PDV data
 /// when encapsulated in a PDU with the given length property.
@@ -637,24 +344,310 @@ fn calculate_max_data_len_single(pdu_len: u32) -> u32 {
     pdu_len - 4 - 2
 }
 
+#[cfg(feature = "async")]
+pub mod non_blocking {
+    use std::{io::Cursor, pin::Pin, task::{ready, Context, Poll}, time::Duration};
+
+    use bytes::{Buf, BufMut};
+    use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, ReadBuf };
+    use tracing::warn;
+
+    use crate::{pdu::PDU_HEADER_SIZE, read_pdu, Pdu};
+
+    use super::{calculate_max_data_len_single, setup_pdata_header};
+    pub use super::PDataReader;
+
+    /// A P-Data async value writer.
+    ///
+    /// This exposes an API to iteratively construct and send Data messages
+    /// to another node.
+    /// Using this as a [standard writer](std::io::Write)
+    /// will automatically split the incoming bytes
+    /// into separate PDUs if they do not fit in a single one.
+    ///
+    /// # Example
+    ///
+    /// Use an association's `send_pdata` method
+    /// to create a new P-Data value writer.
+    ///
+    /// ```no_run
+    /// # use std::io::Write;
+    /// use tokio::io::AsyncWriteExt;
+    /// # use dicom_ul::association::{ClientAssociationOptions, PDataWriter};
+    /// # use dicom_ul::pdu::{Pdu, PDataValue, PDataValueType};
+    /// # fn command_data() -> Vec<u8> { unimplemented!() }
+    /// # fn dicom_data() -> &'static [u8] { unimplemented!() }
+    /// #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut association = ClientAssociationOptions::new()
+    ///    .establish("129.168.0.5:104")
+    ///    .await?;
+    ///
+    /// let presentation_context_id = association.presentation_contexts()[0].id;
+    ///
+    /// // send a command first
+    /// association.send(&Pdu::PData {
+    ///     data: vec![PDataValue {
+    ///     presentation_context_id,
+    ///     value_type: PDataValueType::Command,
+    ///         is_last: true,
+    ///         data: command_data(),
+    ///     }],
+    /// }).await;
+    ///
+    /// // then send a DICOM object which may be split into multiple PDUs
+    /// let mut pdata = association.send_pdata(presentation_context_id).await;
+    /// pdata.write_all(dicom_data()).await?;
+    /// pdata.finish().await?;
+    ///
+    /// let pdu_ac = association.receive().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub struct AsyncPDataWriter<W: AsyncWrite + Unpin> {
+        buffer: Vec<u8>,
+        stream: W,
+        max_data_len: u32,
+        timeout: Option<Duration>
+    }
+
+    #[cfg(feature = "async")]
+    impl<W> AsyncPDataWriter<W>
+    where
+        W: AsyncWrite + Unpin,
+    {
+        /// Construct a new P-Data value writer.
+        ///
+        /// `max_pdu_length` is the maximum value of the PDU-length property.
+        pub(crate) fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32, timeout: Option<Duration>) -> Self {
+            let max_data_length = calculate_max_data_len_single(max_pdu_length);
+            let mut buffer = Vec::with_capacity((max_data_length + PDU_HEADER_SIZE) as usize);
+            // initial buffer set up
+            buffer.extend([
+                // PDU-type + reserved byte
+                0x04,
+                0x00,
+                // full PDU length, unknown at this point
+                0xFF,
+                0xFF,
+                0xFF,
+                0xFF,
+                // presentation data length, unknown at this point
+                0xFF,
+                0xFF,
+                0xFF,
+                0xFF,
+                // presentation context id
+                presentation_context_id,
+                // message control header, unknown at this point
+                0xFF,
+            ]);
+
+            AsyncPDataWriter {
+                stream,
+                max_data_len: max_data_length,
+                buffer,
+                timeout
+            }
+        }
+
+        /// Declare to have finished sending P-Data fragments,
+        /// thus emitting the last P-Data fragment PDU.
+        ///
+        /// This is also done automatically once the P-Data writer is dropped.
+        pub async fn finish(mut self) -> std::io::Result<()> {
+            self.finish_impl().await?;
+            Ok(())
+        }
+
+        async fn finish_impl(&mut self) -> std::io::Result<()> {
+            if !self.buffer.is_empty() {
+                // send last PDU
+                setup_pdata_header(&mut self.buffer, true);
+                self.stream.write_all(&self.buffer[..]).await?;
+                // clear buffer so that subsequent calls to `finish_impl`
+                // do not send any more PDUs
+                self.buffer.clear();
+            }
+            Ok(())
+        }
+
+        /// Use the current state of the buffer to send new PDUs
+        ///
+        /// Pre-condition:
+        /// buffer must have enough data for one P-Data-tf PDU
+        async fn dispatch_pdu(&mut self) -> std::io::Result<()> {
+            debug_assert!(self.buffer.len() >= 12);
+            // send PDU now
+            setup_pdata_header(&mut self.buffer, false);
+            self.stream.write_all(&self.buffer).await?;
+
+            // back to just the header
+            self.buffer.truncate(12);
+
+            Ok(())
+        }
+    }
+
+    #[cfg(feature = "async")]
+    impl<W> AsyncWrite for AsyncPDataWriter<W>
+    where
+        W: AsyncWrite + Unpin,
+    {
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<std::result::Result<usize, std::io::Error>> {
+            use std::future::Future;
+            let total_len = self.max_data_len as usize + 12;
+            if self.buffer.len() + buf.len() <= total_len {
+                // accumulate into buffer, do nothing
+                self.buffer.extend(buf);
+                Poll::Ready(Ok(buf.len()))
+            } else {
+                // fill in the rest of the buffer, send PDU,
+                // and leave out the rest for subsequent writes
+                let buf = &buf[..total_len - self.buffer.len()];
+                self.buffer.extend(buf);
+                debug_assert_eq!(self.buffer.len(), total_len);
+                let dispatch = self.dispatch_pdu();
+                tokio::pin!(dispatch);
+                match dispatch.poll(cx) {
+                    Poll::Ready(Ok(())) => Poll::Ready(Ok(buf.len())),
+                    Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
+                    Poll::Pending => Poll::Pending,
+                }
+            }
+        }
+
+        fn poll_flush(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<std::result::Result<(), std::io::Error>> {
+            Pin::new(&mut self.stream).poll_flush(cx)
+        }
+
+        fn poll_shutdown(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<std::result::Result<(), std::io::Error>> {
+            Pin::new(&mut self.stream).poll_shutdown(cx)
+        }
+    }
+
+    /// With the P-Data writer dropped,
+    /// this `Drop` implementation
+    /// will construct and emit the last P-Data fragment PDU
+    /// if there is any data left to send.
+    impl<W> Drop for AsyncPDataWriter<W>
+    where
+        W: AsyncWrite + Unpin,
+    {
+        fn drop(&mut self) {
+            tokio::task::block_in_place(move || {
+                tokio::runtime::Handle::current().block_on(async move {
+                    let _ = self.finish_impl().await;
+                })
+            })
+        }
+    }
+
+    impl<R> AsyncRead for PDataReader<R>
+    where
+        R: AsyncRead + Unpin,
+    {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &mut ReadBuf,
+        ) -> Poll<std::io::Result<()>> {
+            if self.buffer.is_empty(){
+                if self.last_pdu {
+                    return Poll::Ready(Ok(()));
+                }
+                let Self {
+                    ref mut stream,
+                    ref mut read_buffer,
+                    ref max_data_length,
+                    ..
+                } = &mut *self;
+                let mut reader = BufReader::new(stream);
+                let msg = loop {
+                    let mut buf = Cursor::new(&read_buffer[..]);
+                    match read_pdu(&mut buf, *max_data_length, false)
+                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
+                    {
+                        Some(pdu) => {
+                            read_buffer.advance(buf.position() as usize);
+                            break pdu;
+                        }
+                        None => {
+                            // Reset position
+                            buf.set_position(0)
+                        }
+                    }
+                    let recv = ready!(Pin::new(&mut reader).poll_fill_buf(cx))?.to_vec();
+                    reader.consume(recv.len());
+                    read_buffer.extend_from_slice(&recv);
+                    if recv.is_empty() {
+                        return Poll::Ready(Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "Connection closed by peer",
+                        )));
+                    }
+                };
+                match msg {
+                    Pdu::PData { data } => {
+                        for pdata_value in data {
+                            self.presentation_context_id = match self.presentation_context_id {
+                                None => Some(pdata_value.presentation_context_id),
+                                Some(cid) if cid == pdata_value.presentation_context_id => Some(cid),
+                                Some(cid) => {
+                                    warn!("Received PData value of presentation context {}, but should be {}", pdata_value.presentation_context_id, cid);
+                                    Some(cid)
+                                }
+                            };
+                            self.buffer.extend(pdata_value.data);
+                            self.last_pdu = pdata_value.is_last;
+                        }
+                    }
+                    _ => {
+                        return Poll::Ready(Err(std::io::Error::new(
+                            std::io::ErrorKind::UnexpectedEof,
+                            "Unexpected PDU type",
+                        )))
+                    }
+
+                }
+            }
+            let len = std::cmp::min(self.buffer.len(), buf.remaining());
+            for _ in 0..len {
+                buf.put_u8(self.buffer.pop_front().unwrap());
+            }
+            Poll::Ready(Ok(()))
+        }
+    }
+
+}
+
+
 #[cfg(test)]
 mod tests {
-    #[cfg(not(feature = "async"))]
     use std::io::{Read, Write};
-    #[cfg(feature = "async")]
-    use tokio::{
-        self,
-        io::{AsyncReadExt, AsyncWriteExt},
-    };
 
-    use crate::association::PDataWriter;
+    use crate::association::pdata::PDataWriter;
     use crate::pdu::{read_pdu, Pdu, MINIMUM_PDU_SIZE, PDU_HEADER_SIZE};
     use crate::pdu::{PDataValue, PDataValueType};
     use crate::write_pdu;
 
     use super::PDataReader;
 
-    #[cfg(not(feature = "async"))]
+    use tokio::io::AsyncWriteExt;
+
+    use crate::association::pdata::non_blocking::AsyncPDataWriter;
+
     #[test]
     fn test_write_pdata_and_finish() {
         let presentation_context_id = 12;
@@ -687,15 +680,13 @@ mod tests {
         assert_eq!(cursor.len(), 0);
     }
 
-    #[cfg(feature = "async")]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_async_write_pdata_and_finish() {
-        use tokio::io::AsyncWriteExt;
         let presentation_context_id = 12;
 
         let mut buf = Vec::new();
         {
-            let mut writer = PDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE);
+            let mut writer = AsyncPDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE, None);
             writer
                 .write_all(&(0..64).collect::<Vec<u8>>())
                 .await
@@ -724,7 +715,6 @@ mod tests {
         assert_eq!(cursor.len(), 0);
     }
 
-    #[cfg(not(feature = "async"))]
     #[test]
     fn test_write_large_pdata_and_finish() {
         let presentation_context_id = 32;
@@ -803,7 +793,6 @@ mod tests {
         assert_eq!(cursor.len(), 0);
     }
 
-    #[cfg(feature = "async")]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_async_write_large_pdata_and_finish() {
         let presentation_context_id = 32;
@@ -812,7 +801,7 @@ mod tests {
 
         let mut buf = Vec::new();
         {
-            let mut writer = PDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE);
+            let mut writer = AsyncPDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE, None);
             writer.write_all(&my_data).await.unwrap();
             writer.finish().await.unwrap();
         }
@@ -882,7 +871,6 @@ mod tests {
         assert_eq!(cursor.len(), 0);
     }
 
-    #[cfg(not(feature = "async"))]
     #[test]
     fn test_read_large_pdata_and_finish() {
         use std::collections::VecDeque;
@@ -917,15 +905,16 @@ mod tests {
 
         let mut buf = Vec::new();
         {
-            let mut reader = PDataReader::new(&mut pdu_stream, MINIMUM_PDU_SIZE);
+            let mut reader = PDataReader::new(&mut pdu_stream, MINIMUM_PDU_SIZE, None);
             reader.read_to_end(&mut buf).unwrap();
         }
         assert_eq!(buf, my_data);
     }
 
-    #[cfg(feature = "async")]
     #[tokio::test]
     async fn test_async_read_large_pdata_and_finish() {
+        use tokio::io::AsyncReadExt;
+
         let presentation_context_id = 32;
 
         let my_data: Vec<_> = (0..9000).map(|x: u32| x as u8).collect();
@@ -959,7 +948,7 @@ mod tests {
         let inner = pdu_stream.into_inner();
         let mut stream = tokio::io::BufReader::new(inner.as_slice());
         {
-            let mut reader = PDataReader::new(&mut stream, MINIMUM_PDU_SIZE);
+            let mut reader = PDataReader::new(&mut stream, MINIMUM_PDU_SIZE, None);
             reader.read_to_end(&mut buf).await.unwrap();
         }
         assert_eq!(buf, my_data);

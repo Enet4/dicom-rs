@@ -17,14 +17,10 @@
 //! [1]: std::net::TcpStream
 pub mod client;
 pub mod server;
+
 mod uid;
 
 pub(crate) mod pdata;
 
 pub use client::{ClientAssociation, ClientAssociationOptions};
-#[cfg(feature = "async")]
-pub use pdata::AsyncPDataWriter as PDataWriter;
-pub use pdata::PDataReader;
-#[cfg(not(feature = "async"))]
-pub use pdata::PDataWriter;
 pub use server::{ServerAssociation, ServerAssociationOptions};

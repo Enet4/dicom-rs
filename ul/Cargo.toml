@@ -25,7 +25,8 @@ features = [
     "rt",
     "rt-multi-thread",
     "net",
-    "io-util"
+    "io-util",
+    "time"
 ]
 
 [dev-dependencies]
@@ -34,4 +35,4 @@ tokio = { version = "^1.38", features = ["io-util", "macros", "net", "rt", "rt-m
 
 [features]
 async = ["dep:tokio"]
-default = []
+default = ["async"]
