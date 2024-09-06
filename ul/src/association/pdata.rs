@@ -177,6 +177,7 @@ where
             self.buffer.extend(buf);
             debug_assert_eq!(self.buffer.len(), total_len);
             self.dispatch_pdu()?;
+            println!("{:?}", buf.len());
             Ok(buf.len())
         }
     }
@@ -413,6 +414,8 @@ pub mod non_blocking {
         buffer: Vec<u8>,
         stream: W,
         max_data_len: u32,
+        msg: u32,
+        writing: bool,
     }
 
     #[cfg(feature = "async")]
@@ -451,6 +454,8 @@ pub mod non_blocking {
                 stream,
                 max_data_len: max_data_length,
                 buffer,
+                msg: 0,
+                writing: false,
             }
         }
 
@@ -464,30 +469,17 @@ pub mod non_blocking {
         }
 
         async fn finish_impl(&mut self) -> std::io::Result<()> {
+            println!("Finish, {}", self.msg);
             if !self.buffer.is_empty() {
                 // send last PDU
                 setup_pdata_header(&mut self.buffer, true);
-                self.stream.write_all(&self.buffer[..]).await?;
+                if let Err(e) = self.stream.write_all(&self.buffer[..]).await {
+                    println!("Error: {:?}", e);
+                }
                 // clear buffer so that subsequent calls to `finish_impl`
                 // do not send any more PDUs
                 self.buffer.clear();
             }
-            Ok(())
-        }
-
-        /// Use the current state of the buffer to send new PDUs
-        ///
-        /// Pre-condition:
-        /// buffer must have enough data for one P-Data-tf PDU
-        async fn dispatch_pdu(&mut self) -> std::io::Result<()> {
-            debug_assert!(self.buffer.len() >= 12);
-            // send PDU now
-            setup_pdata_header(&mut self.buffer, false);
-            self.stream.write_all(&self.buffer).await?;
-
-            // back to just the header
-            self.buffer.truncate(12);
-
             Ok(())
         }
     }
@@ -502,6 +494,26 @@ pub mod non_blocking {
             cx: &mut Context<'_>,
             buf: &[u8],
         ) -> Poll<std::result::Result<usize, std::io::Error>> {
+            // If we're still writing (i.e. last write was pending), continue writing
+            if self.writing {
+                let this = self.get_mut();
+                let buffer = &this.buffer;
+                let mut stream = Pin::new(&mut this.stream);
+                // Each call to `poll_write` may or may not write the whole of `self.buffer`
+                let write_all = stream.write_all(buffer);
+                tokio::pin!(write_all);
+                match write_all.poll(cx) {
+                    Poll::Ready(Ok(_)) => {
+                        this.writing = false;
+                        println!("{:?}", this.msg);
+                        this.msg += 1;
+                        this.buffer.truncate(12);
+                        return Poll::Ready(Ok(buf.len()));
+                    }
+                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                    Poll::Pending => return Poll::Pending,
+                }
+            }
             let total_len = self.max_data_len as usize + 12;
             if self.buffer.len() + buf.len() <= total_len {
                 // accumulate into buffer, do nothing
@@ -513,12 +525,24 @@ pub mod non_blocking {
                 let buf = &buf[..total_len - self.buffer.len()];
                 self.buffer.extend(buf);
                 debug_assert_eq!(self.buffer.len(), total_len);
-                let dispatch = self.dispatch_pdu();
-                tokio::pin!(dispatch);
-                match dispatch.poll(cx) {
-                    Poll::Ready(Ok(())) => Poll::Ready(Ok(buf.len())),
+                setup_pdata_header(&mut self.buffer, false);
+                let this = self.get_mut();
+                let buffer = &this.buffer;
+                let mut stream = Pin::new(&mut this.stream);
+                // Each call to `poll_write` may or may not write the whole of `self.buffer`
+                let write_all = stream.write_all(buffer);
+                tokio::pin!(write_all);
+                match write_all.poll(cx) {
+                    Poll::Ready(Ok(_)) => {
+                        this.msg += 1;
+                        this.buffer.truncate(12);
+                        Poll::Ready(Ok(buf.len()))
+                    }
                     Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-                    Poll::Pending => Poll::Pending,
+                    Poll::Pending => {
+                        this.writing = true;
+                        Poll::Pending
+                    }
                 }
             }
         }
