@@ -64,6 +64,8 @@ rle = ["dicom-transfer-syntax-registry/rle"]
 openjpeg-sys = ["dicom-transfer-syntax-registry/openjpeg-sys"]
 # JPEG 2000 decoding via Rust port of OpenJPEG
 openjp2 = ["dicom-transfer-syntax-registry/openjp2"]
+# JpegLS via CharLS
+charls = ["dicom-transfer-syntax-registry/charls"]
 
 # replace pixel data decoding to use GDCM
 gdcm = ["gdcm-rs"]

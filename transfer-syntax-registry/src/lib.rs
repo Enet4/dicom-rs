@@ -56,6 +56,8 @@
 //! | JPEG Extended (Process 2 & 4) | Cargo feature `jpeg` | x |
 //! | JPEG Lossless, Non-Hierarchical (Process 14) | Cargo feature `jpeg` | x |
 //! | JPEG Lossless, Non-Hierarchical, First-Order Prediction (Process 14 [Selection Value 1]) | Cargo feature `jpeg` | x |
+//! | JPEG-LS Lossless              | Cargo feature `charls` | x |
+//! | JPEG-LS Lossy (Near-Lossless) | Cargo feature `charls` | x |
 //! | JPEG 2000 (Lossless Only)     | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | JPEG 2000                     | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` | x |
@@ -68,6 +70,10 @@
 //! However, a native implementation might not always be available,
 //! or alternative implementations may be preferred:
 //!
+//! - `charls` provides support for JPEG-LS
+//!   by linking to the CharLS reference implementation,
+//!   which is written in C++.
+//!   No alternative JPEG-LS implementations are available at the moment. 
 //! - `openjpeg-sys` provides a binding to the OpenJPEG reference implementation,
 //!   which is written in C and is statically linked.
 //!   It may offer better performance than the pure Rust implementation,
