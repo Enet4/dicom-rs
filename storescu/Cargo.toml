@@ -14,7 +14,6 @@ readme = "README.md"
 default = ["transcode"]
 # support DICOM transcoding
 transcode = ["dep:dicom-pixeldata"]
-async = ["dicom-ul/async", "dep:tokio"]
 
 [dependencies]
 clap = { version  = "4.0.18", features = ["derive"] }
@@ -24,7 +23,7 @@ dicom-encoding = { path = "../encoding/", version = "0.7.1" }
 dicom-object = { path = '../object', version = "0.7.1" }
 dicom-pixeldata = { version = "0.7.1", path = "../pixeldata", optional = true }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.7.1" }
-dicom-ul = { path = '../ul', version = "0.7.1" }
+dicom-ul = { path = '../ul', version = "0.7.1", features = ["async"] }
 walkdir = "2.3.2"
 indicatif = "0.17.0"
 tracing = "0.1.34"
@@ -34,4 +33,3 @@ snafu = "0.8"
 [dependencies.tokio]
 version = "1.38.0"
 features = ["rt", "rt-multi-thread", "macros"]
-optional = true

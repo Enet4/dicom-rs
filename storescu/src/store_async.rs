@@ -10,7 +10,7 @@ use dicom_ul::{
 };
 use indicatif::ProgressBar;
 use snafu::{OptionExt, ResultExt};
-use tokio::io::AsyncWriteExt;
+use tokio::{io::AsyncWriteExt, net::TcpStream};
 use tracing::{debug, error, info, warn};
 
 use crate::{
@@ -30,7 +30,7 @@ pub async fn get_scu(
     saml_assertion: Option<String>,
     jwt: Option<String>,
     presentation_contexts: HashSet<(String, String)>,
-) -> Result<ClientAssociation, Error> {
+) -> Result<ClientAssociation<TcpStream>, Error> {
     let mut scu_init = ClientAssociationOptions::new()
         .calling_ae_title(calling_ae_title)
         .max_pdu_length(max_pdu_length);
@@ -63,17 +63,20 @@ pub async fn get_scu(
         scu_init = scu_init.jwt(jwt);
     }
 
-    scu_init.establish_with(&addr).await.context(InitScuSnafu)
+    scu_init
+        .establish_with_async(&addr)
+        .await
+        .context(InitScuSnafu)
 }
 
 pub async fn send_file(
-    mut scu: ClientAssociation,
+    mut scu: ClientAssociation<TcpStream>,
     file: DicomFile,
     message_id: u16,
     progress_bar: Option<&ProgressBar>,
     verbose: bool,
     fail_first: bool,
-) -> Result<ClientAssociation, Error> {
+) -> Result<ClientAssociation<TcpStream>, Error> {
     if let (Some(pc_selected), Some(ts_uid_selected)) = (file.pc_selected, file.ts_selected) {
         if let Some(pb) = &progress_bar {
             pb.set_message(file.sop_instance_uid.clone());
@@ -154,10 +157,8 @@ pub async fn send_file(
 
             {
                 let mut pdata = scu.send_pdata(pc_selected.id).await;
-                pdata
-                    .write_all(&object_data)
-                    .await
-                    .whatever_context("Failed to send C-STORE-RQ P-Data")?;
+                pdata.write_all(&object_data).await.unwrap();
+                //.whatever_context("Failed to send C-STORE-RQ P-Data")?;
             }
         }
 

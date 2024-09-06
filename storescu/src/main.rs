@@ -16,9 +16,7 @@ use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 use walkdir::WalkDir;
 
-#[cfg(feature = "async")]
 mod store_async;
-#[cfg(not(feature = "async"))]
 mod store_sync;
 
 /// DICOM C-STORE SCU
@@ -91,6 +89,9 @@ struct App {
         conflicts_with("saml_assertion")
     )]
     jwt: Option<String>,
+
+    #[arg(long = "blocking")]
+    blocking: bool,
 }
 
 struct DicomFile {
@@ -131,21 +132,25 @@ enum Error {
     },
 }
 
-#[cfg(not(feature = "async"))]
 fn main() {
-    run().unwrap_or_else(|e| {
-        error!("{}", Report::from_error(e));
-        std::process::exit(-2);
-    });
-}
-
-#[cfg(feature = "async")]
-#[tokio::main]
-async fn main() {
-    run().await.unwrap_or_else(|e| {
-        error!("{}", Report::from_error(e));
-        std::process::exit(-2);
-    });
+    let app = App::parse();
+    if !app.blocking {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(async move {
+                run_async().await.unwrap_or_else(|e| {
+                    error!("{}", Report::from_error(e));
+                    std::process::exit(-2);
+                });
+            });
+    } else {
+        run(app).unwrap_or_else(|e| {
+            error!("{}", Report::from_error(e));
+            std::process::exit(-2);
+        });
+    }
 }
 
 fn check_files(
@@ -212,8 +217,7 @@ fn check_files(
     (dicom_files, presentation_contexts)
 }
 
-#[cfg(not(feature = "async"))]
-fn run() -> Result<(), Error> {
+fn run(app: App) -> Result<(), Error> {
     use crate::store_sync::{get_scu, send_file};
     let App {
         addr,
@@ -230,7 +234,8 @@ fn run() -> Result<(), Error> {
         kerberos_service_ticket,
         saml_assertion,
         jwt,
-    } = App::parse();
+        blocking: _,
+    } = app;
 
     // never transcode if the feature is disabled
     if cfg!(not(feature = "transcode")) {
@@ -332,8 +337,7 @@ fn run() -> Result<(), Error> {
     Ok(())
 }
 
-#[cfg(feature = "async")]
-async fn run() -> Result<(), Error> {
+async fn run_async() -> Result<(), Error> {
     use crate::store_async::{get_scu, send_file};
     let App {
         addr,
@@ -350,6 +354,7 @@ async fn run() -> Result<(), Error> {
         kerberos_service_ticket,
         saml_assertion,
         jwt,
+        blocking: _,
     } = App::parse();
 
     // never transcode if the feature is disabled

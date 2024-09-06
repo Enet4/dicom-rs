@@ -1,4 +1,4 @@
-use std::{collections::HashSet, io::Write};
+use std::{collections::HashSet, io::Write, net::TcpStream};
 
 use dicom_dictionary_std::tags;
 use dicom_encoding::TransferSyntaxIndex;
@@ -29,7 +29,7 @@ pub fn get_scu(
     saml_assertion: Option<String>,
     jwt: Option<String>,
     presentation_contexts: HashSet<(String, String)>,
-) -> Result<ClientAssociation, Error> {
+) -> Result<ClientAssociation<TcpStream>, Error> {
     let mut scu_init = ClientAssociationOptions::new()
         .calling_ae_title(calling_ae_title)
         .max_pdu_length(max_pdu_length);
@@ -66,13 +66,13 @@ pub fn get_scu(
 }
 
 pub fn send_file(
-    mut scu: ClientAssociation,
+    mut scu: ClientAssociation<TcpStream>,
     file: DicomFile,
     message_id: u16,
     progress_bar: Option<&ProgressBar>,
     verbose: bool,
     fail_first: bool,
-) -> Result<ClientAssociation, Error> {
+) -> Result<ClientAssociation<TcpStream>, Error> {
     if let (Some(pc_selected), Some(ts_uid_selected)) = (file.pc_selected, file.ts_selected) {
         if let Some(pb) = &progress_bar {
             pb.set_message(file.sop_instance_uid.clone());
