@@ -501,6 +501,7 @@ impl<'a> ClientAssociationOptions<'a> {
     /// # Ok(())
     /// # }
     /// ```
+    #[allow(unreachable_patterns)]
     pub fn establish_with(self, ae_address: &str) -> Result<ClientAssociation<TcpStream>> {
         match ae_address.try_into() {
             Ok(ae_address) => self.establish_impl(ae_address),
@@ -1288,6 +1289,7 @@ pub mod non_blocking {
         /// # Ok(())
         /// # }
         /// ```
+        #[allow(unreachable_patterns)]
         pub async fn establish_with_async(
             self,
             ae_address: &str,
