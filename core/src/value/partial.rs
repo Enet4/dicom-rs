@@ -281,7 +281,7 @@ where
 impl DicomDate {
     /**
      * Constructs a new `DicomDate` with year precision
-     * (YYYY)
+     * (`YYYY`)
      */
     pub fn from_y(year: u16) -> Result<DicomDate> {
         check_component(DateComponent::Year, &year)?;
@@ -289,7 +289,7 @@ impl DicomDate {
     }
     /**
      * Constructs a new `DicomDate` with year and month precision
-     * (YYYYMM)
+     * (`YYYYMM`)
      */
     pub fn from_ym(year: u16, month: u8) -> Result<DicomDate> {
         check_component(DateComponent::Year, &year)?;
@@ -298,7 +298,7 @@ impl DicomDate {
     }
     /**
      * Constructs a new `DicomDate` with a year, month and day precision
-     * (YYYYMMDD)
+     * (`YYYYMMDD`)
      */
     pub fn from_ymd(year: u16, month: u8, day: u8) -> Result<DicomDate> {
         check_component(DateComponent::Year, &year)?;
@@ -307,7 +307,7 @@ impl DicomDate {
         Ok(DicomDate(DicomDateImpl::Day(year, month, day)))
     }
 
-    // Retrievies the year from a date as a reference
+    /// Retrieves the year from a date as a reference
     pub fn year(&self) -> &u16 {
         match self {
             DicomDate(DicomDateImpl::Year(y)) => y,
@@ -315,7 +315,7 @@ impl DicomDate {
             DicomDate(DicomDateImpl::Day(y, _, _)) => y,
         }
     }
-    // Retrievies the month from a date as a reference
+    /// Retrieves the month from a date as a reference
     pub fn month(&self) -> Option<&u8> {
         match self {
             DicomDate(DicomDateImpl::Year(_)) => None,
@@ -323,7 +323,7 @@ impl DicomDate {
             DicomDate(DicomDateImpl::Day(_, m, _)) => Some(m),
         }
     }
-    // Retrievies the day from a date as a reference
+    /// Retrieves the day from a date as a reference
     pub fn day(&self) -> Option<&u8> {
         match self {
             DicomDate(DicomDateImpl::Year(_)) => None,
@@ -384,7 +384,7 @@ impl fmt::Debug for DicomDate {
 impl DicomTime {
     /**
      * Constructs a new `DicomTime` with hour precision
-     * (HH).
+     * (`HH`).
      */
     pub fn from_h(hour: u8) -> Result<DicomTime> {
         check_component(DateComponent::Hour, &hour)?;
@@ -393,7 +393,7 @@ impl DicomTime {
 
     /**
      * Constructs a new `DicomTime` with hour and minute precision
-     * (HHMM).
+     * (`HHMM`).
      */
     pub fn from_hm(hour: u8, minute: u8) -> Result<DicomTime> {
         check_component(DateComponent::Hour, &hour)?;
@@ -403,7 +403,7 @@ impl DicomTime {
 
     /**
      * Constructs a new `DicomTime` with hour, minute and second precision
-     * (HHMMSS).
+     * (`HHMMSS`).
      */
     pub fn from_hms(hour: u8, minute: u8, second: u8) -> Result<DicomTime> {
         check_component(DateComponent::Hour, &hour)?;
@@ -413,7 +413,7 @@ impl DicomTime {
     }
     /**
      * Constructs a new `DicomTime` from an hour, minute, second and millisecond value,
-     * which leads to a (HHMMSS.FFF) precision. Millisecond cannot exceed `999`.
+     * which leads to the precision `HHMMSS.FFF`. Millisecond cannot exceed `999`.
      */
     pub fn from_hms_milli(hour: u8, minute: u8, second: u8, millisecond: u32) -> Result<DicomTime> {
         check_component(DateComponent::Millisecond, &millisecond)?;
@@ -427,7 +427,7 @@ impl DicomTime {
     }
 
     /// Constructs a new `DicomTime` from an hour, minute, second and microsecond value,
-    /// which leads to full (`HHMMSS.FFFFFF`) precision.
+    /// which leads to the full precision `HHMMSS.FFFFFF`.
     ///
     /// Microsecond cannot exceed `999_999`.
     /// Instead, leap seconds can be represented by setting `second` to 60.
@@ -441,7 +441,7 @@ impl DicomTime {
             6,
         )))
     }
-    /** Retrievies the hour from a time as a reference */
+    /** Retrieves the hour from a time as a reference */
     pub fn hour(&self) -> &u8 {
         match self {
             DicomTime(DicomTimeImpl::Hour(h)) => h,
@@ -450,7 +450,7 @@ impl DicomTime {
             DicomTime(DicomTimeImpl::Fraction(h, _, _, _, _)) => h,
         }
     }
-    /** Retrievies the minute from a time as a reference */
+    /** Retrieves the minute from a time as a reference */
     pub fn minute(&self) -> Option<&u8> {
         match self {
             DicomTime(DicomTimeImpl::Hour(_)) => None,
@@ -459,7 +459,7 @@ impl DicomTime {
             DicomTime(DicomTimeImpl::Fraction(_, m, _, _, _)) => Some(m),
         }
     }
-    /** Retrievies the minute from a time as a reference */
+    /** Retrieves the minute from a time as a reference */
     pub fn second(&self) -> Option<&u8> {
         match self {
             DicomTime(DicomTimeImpl::Hour(_)) => None,
@@ -468,7 +468,7 @@ impl DicomTime {
             DicomTime(DicomTimeImpl::Fraction(_, _, s, _, _)) => Some(s),
         }
     }
-    /** Retrievies the fraction of a second as a reference, if it has full (microsecond) precision. */
+    /** Retrieves the fraction of a second as a reference, if it has full (microsecond) precision. */
     pub fn fraction(&self) -> Option<&u32> {
         match self {
             DicomTime(DicomTimeImpl::Hour(_)) => None,
@@ -480,7 +480,7 @@ impl DicomTime {
             },
         }
     }
-    /** Retrievies the fraction of a second and it's precision from a time as a reference */
+    /** Retrieves the fraction of a second and it's precision from a time as a reference */
     pub(crate) fn fraction_and_precision(&self) -> Option<(&u32, &u8)> {
         match self {
             DicomTime(DicomTimeImpl::Hour(_)) => None,
@@ -844,16 +844,7 @@ impl DicomTime {
             DicomTime(DicomTimeImpl::Second(h, m, s)) => format!("{:02}{:02}{:02}", h, m, s),
             DicomTime(DicomTimeImpl::Fraction(h, m, s, f, fp)) => {
                 let sfrac = (u32::pow(10, *fp as u32) + f).to_string();
-                format!(
-                    "{:02}{:02}{:02}.{}",
-                    h,
-                    m,
-                    s,
-                    match f {
-                        0 => "0",
-                        _ => sfrac.get(1..).unwrap(),
-                    }
-                )
+                format!("{:02}{:02}{:02}.{}", h, m, s, sfrac.get(1..).unwrap())
             }
         }
     }
@@ -1159,10 +1150,26 @@ mod tests {
             DicomTime::from_hmsf(7, 55, 1, 1, 5).unwrap().to_encoded(),
             "075501.00001"
         );
-        // any precision for zero is just one zero
+        // the number of trailing zeros always complies with precision
+        assert_eq!(
+            DicomTime::from_hmsf(9, 1, 1, 0, 2).unwrap().to_encoded(),
+            "090101.00"
+        );
+        assert_eq!(
+            DicomTime::from_hmsf(9, 1, 1, 0, 3).unwrap().to_encoded(),
+            "090101.000"
+        );
+        assert_eq!(
+            DicomTime::from_hmsf(9, 1, 1, 0, 4).unwrap().to_encoded(),
+            "090101.0000"
+        );
+        assert_eq!(
+            DicomTime::from_hmsf(9, 1, 1, 0, 5).unwrap().to_encoded(),
+            "090101.00000"
+        );
         assert_eq!(
             DicomTime::from_hmsf(9, 1, 1, 0, 6).unwrap().to_encoded(),
-            "090101.0"
+            "090101.000000"
         );
 
         // leap second allowed here
@@ -1178,7 +1185,7 @@ mod tests {
             DicomTime::try_from(&NaiveTime::from_hms_micro_opt(16, 31, 59, 1_000_000).unwrap())
                 .unwrap()
                 .to_encoded(),
-            "163160.0",
+            "163160.000000",
         );
 
         // sub-second precision after leap second from NaiveTime is admitted
@@ -1188,6 +1195,38 @@ mod tests {
                 .to_encoded(),
             "163160.012345",
         );
+
+
+        // time specifically with 0 microseconds
+        assert_eq!(
+            DicomTime::try_from(&NaiveTime::from_hms_micro_opt(16, 31, 59, 0).unwrap())
+                .unwrap()
+                .to_encoded(),
+            "163159.000000",
+        );
+
+        // specific date-time from chrono
+        let date_time: DateTime<_> = DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+            NaiveDateTime::new(
+                NaiveDate::from_ymd_opt(2024, 8, 9).unwrap(),
+                NaiveTime::from_hms_opt(9, 9, 39).unwrap(),
+            ),
+            chrono::Utc,
+        ).with_timezone(&FixedOffset::east_opt(0).unwrap());
+        let dicom_date_time = DicomDateTime::try_from(&date_time).unwrap();
+        assert!(dicom_date_time.has_time_zone());
+        assert!(dicom_date_time.is_precise());
+        let dicom_time = dicom_date_time.time().unwrap();
+        assert_eq!(
+            dicom_time.fraction_and_precision(),
+            Some((&0, &6)),
+        );
+        assert_eq!(
+            dicom_date_time.to_encoded(),
+            "20240809090939.000000+0000"
+        );
+
+        // bad inputs
 
         assert!(matches!(
             DicomTime::from_hmsf(9, 1, 1, 1, 7),

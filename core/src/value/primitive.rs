@@ -5079,6 +5079,15 @@ mod tests {
             .unwrap(),
         );
         assert_eq!(val.calculate_byte_len(), 14);
+
+        // very precise date time, 0 microseconds
+        let dicom_date_time = DicomDateTime::from_date_and_time_with_time_zone(
+            DicomDate::from_ymd(2024, 8, 26).unwrap(),
+            DicomTime::from_hms_micro(19, 41, 38, 0).unwrap(),
+            FixedOffset::west_opt(0).unwrap(),
+        ).unwrap();
+        let val = PrimitiveValue::from(dicom_date_time);
+        assert_eq!(val.calculate_byte_len(), 26);
     }
 
     #[test]
