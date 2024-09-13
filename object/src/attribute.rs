@@ -8,7 +8,7 @@ pub trait Attribute<'a> {
     type Item: 'a;
     type ItemIter: IntoIterator<Item = Self::Item>;
 
-    /// Retrive the header information of this attribute.
+    /// Retrieve the header information of this attribute.
     fn header(&self) -> DataElementHeader;
 
     /// Retrieve the value representation.

@@ -6,7 +6,7 @@
 //! Run the application with one of the following subcommands:
 //!
 //! - **`data-element`** or **`tags`**: DICOM data element dictionary
-//! - **`uid`** or **`uids`**: DICOM unique identifers dictionary
+//! - **`uid`** or **`uids`**: DICOM unique identifiers dictionary
 //!
 //! It will automatically retrieve dictionary specifications
 //! from a credible source and output the result as a Rust code file

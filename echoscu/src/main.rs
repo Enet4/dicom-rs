@@ -79,7 +79,7 @@ fn run() -> Result<(), Whatever> {
         debug!("Association with {} successful", addr);
     }
 
-    // commands are always in implict VR LE
+    // commands are always in implicit VR LE
     let ts = dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased();
 
     let obj = create_echo_command(message_id);

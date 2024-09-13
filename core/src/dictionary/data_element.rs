@@ -386,7 +386,7 @@ pub trait DataDictionary {
 /// The data element dictionary entry type,
 /// representing a DICOM attribute.
 pub trait DataDictionaryEntry {
-    /// The full possible tag range of the atribute,
+    /// The full possible tag range of the attribute,
     /// which this dictionary entry can represent.
     fn tag_range(&self) -> TagRange;
 

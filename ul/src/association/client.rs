@@ -242,7 +242,7 @@ impl<'a> ClientAssociationOptions<'a> {
     /// which refers to the target DICOM node.
     ///
     /// The default is `ANY-SCP`.
-    /// Passing an emoty string resets the AE title to the default
+    /// Passing an empty string resets the AE title to the default
     /// (or to the one passed via [`establish_with`](ClientAssociationOptions::establish_with)).
     pub fn called_ae_title<T>(mut self, called_ae_title: T) -> Self
     where

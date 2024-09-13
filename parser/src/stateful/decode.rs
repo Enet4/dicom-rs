@@ -312,7 +312,7 @@ where
     /// Create a new DICOM stateful decoder from its parts,
     /// while assuming a base reading position.
     ///
-    /// `position` should be calculatd with care.
+    /// `position` should be calculated with care.
     /// Decoding or parsing errors may occur
     /// if this position does not match the real position of the reader.
     #[inline]

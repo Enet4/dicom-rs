@@ -370,7 +370,7 @@ pub enum VoiLutOption {
     Identity,
 }
 
-/// Output iamge bit depth specifier.
+/// Output image bit depth specifier.
 ///
 /// Note that this is only applied
 /// when converting to an image.
@@ -439,7 +439,7 @@ pub struct DecodedPixelData<'a> {
     /// the window level specified via width and center
     window: Option<Vec<WindowLevel>>,
 
-    /// Enforce frame funcional groups VMs match `number_of_frames`
+    /// Enforce frame functional groups VMs match `number_of_frames`
     enforce_frame_fg_vm_match: bool,
 }
 
