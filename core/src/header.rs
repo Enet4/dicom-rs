@@ -253,7 +253,7 @@ impl<I, P> DataElement<I, P> {
     /// - if the value is a data set sequence,
     ///   the VR is set to `SQ` and the length is reset to undefined;
     /// - if the value is a pixel data fragment sequence,
-    ///   the VR is set to `OB` and the lenght is reset to undefined;
+    ///   the VR is set to `OB` and the length is reset to undefined;
     /// - if the value is primitive,
     ///   the length is recalculated, leaving the VR as is.
     ///
@@ -1140,7 +1140,7 @@ fn parse_tag_part(s: &str) -> Result<(u16, &str), ParseTagError> {
 /// assert_ne!(Length::UNDEFINED, Length::UNDEFINED);
 /// ```
 ///
-/// Any addition or substraction with at least one undefined
+/// Any addition or subtraction with at least one undefined
 /// length results in an undefined length.
 ///
 /// ```

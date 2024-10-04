@@ -7,18 +7,15 @@ use clap::Parser;
 use dicom_core::{dicom_value, DataElement, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{InMemDicomObject, StandardDataDictionary};
+use snafu::Report;
 use tracing::{error, info, Level};
 
 
 mod transfer;
-#[cfg(feature = "async")]
 mod store_async;
-#[cfg(feature = "async")]
-use store_async::run;
-#[cfg(not(feature = "async"))]
 mod store_sync;
-#[cfg(not(feature = "async"))]
-use store_sync::run;
+use store_async::run_store_async;
+use store_sync::run_store_sync;
 
 /// DICOM C-STORE SCP
 #[derive(Debug, Parser)]
@@ -48,9 +45,9 @@ struct App {
     /// Which port to listen on
     #[arg(short, default_value = "11111")]
     port: u16,
+    #[arg(short, long, default_value = "true")]
+    blocking: bool
 }
-
-
 
 fn create_cstore_response(
     message_id: u16,
@@ -100,12 +97,30 @@ fn create_cecho_response(message_id: u16) -> InMemDicomObject<StandardDataDictio
     ])
 }
 
-#[cfg(feature = "async")]
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use std::sync::Arc;
-    let args = Arc::new(App::parse());
+fn main() {
+    let app = App::parse();
+    if !app.blocking {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(async move {
+                run_async(app).await.unwrap_or_else(|e| {
+                    error!("{:?}", e);
+                    std::process::exit(-2);
+                });
+            });
+    } else {
+        run_sync(app).unwrap_or_else(|e| {
+            error!("{:?}", e);
+            std::process::exit(-2);
+        });
+    }
+}
 
+async fn run_async(args: App) -> Result<(), Box<dyn std::error::Error>> {
+    use std::sync::Arc;
+    let args = Arc::new(args);
     tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()
             .with_max_level(if args.verbose {
@@ -138,16 +153,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (socket, _addr) = listener.accept().await?;
         let args = args.clone();
         tokio::task::spawn(async move {
-            if let Err(e) = run(socket, &args).await {
-                error!("{}", snafu::Report::from_error(e));
+            if let Err(e) = run_store_async(socket, &args).await {
+                error!("{}", Report::from_error(e));
             }
         });
     }
 }
 
-#[cfg(not(feature = "async"))]
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = App::parse();
+fn run_sync(args: App) -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()
@@ -180,7 +193,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for stream in listener.incoming() {
         match stream {
             Ok(scu_stream) => {
-                if let Err(e) = run(scu_stream, &args) {
+                if let Err(e) = run_store_sync(scu_stream, &args) {
                     error!("{}", snafu::Report::from_error(e));
                 }
             }

@@ -246,7 +246,7 @@ impl InMemDicomObject<StandardDataDictionary> {
     ///
     /// The default character set is assumed
     /// until _Specific Character Set_ is found in the encoded data,
-    /// after which the text decoder will be overriden accordingly.
+    /// after which the text decoder will be overridden accordingly.
     #[inline]
     pub fn read_dataset_with_ts<S>(from: S, ts: &TransferSyntax) -> Result<Self, ReadError>
     where
@@ -1822,7 +1822,7 @@ where
         self.into_iter()
     }
 
-    /// Obtain an iteartor over the tags of the object's elements.
+    /// Obtain an iterator over the tags of the object's elements.
     pub fn tags(&self) -> impl Iterator<Item = Tag> + '_ {
         self.entries.keys().copied()
     }
