@@ -6,10 +6,7 @@
 //! for details and examples on how to create an association.
 use bytes::BytesMut;
 use std::{borrow::Cow, convert::TryInto, io::Cursor, net::ToSocketAddrs, time::Duration};
-use std::{
-    io::{BufRead, BufReader, Read, Write},
-    net::TcpStream,
-};
+use std::io::{BufRead, BufReader, Read, Write};
 
 use crate::{
     pdu::{
@@ -129,6 +126,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Helper function to get a PDU from a reader 
 pub fn get_client_pdu<R: Read>(reader: &mut R, max_pdu_length: u32, strict: bool) -> Result<Pdu> {
     // Receive response
 
@@ -172,7 +170,7 @@ pub fn get_client_pdu<R: Read>(reader: &mut R, max_pdu_length: u32, strict: bool
 ///
 /// > **⚠️ Warning:** It is highly recommended to set `timeout` to a reasonable value for the
 /// > async client since there is _no_ default timeout on
-/// > [`tokio::net::TcpStream`]
+/// > [`tokio::net::TcpStream`], see the [`ClientAssociationOptions::timeout`] method for details.
 ///
 /// ## Basic usage
 ///
@@ -474,7 +472,7 @@ impl<'a> ClientAssociationOptions<'a> {
     /// Initiate the TCP connection to the given address
     /// and request a new DICOM association,
     /// negotiating the presentation contexts in the process.
-    pub fn establish<A: ToSocketAddrs>(self, address: A) -> Result<ClientAssociation<TcpStream>> {
+    pub fn establish<A: ToSocketAddrs>(self, address: A) -> Result<ClientAssociation<std::net::TcpStream>> {
         self.establish_impl(AeAddr::new_socket_addr(address))
     }
 
@@ -502,7 +500,7 @@ impl<'a> ClientAssociationOptions<'a> {
     /// # }
     /// ```
     #[allow(unreachable_patterns)]
-    pub fn establish_with(self, ae_address: &str) -> Result<ClientAssociation<TcpStream>> {
+    pub fn establish_with(self, ae_address: &str) -> Result<ClientAssociation<std::net::TcpStream>> {
         match ae_address.try_into() {
             Ok(ae_address) => self.establish_impl(ae_address),
             Err(_) => self.establish_impl(AeAddr::new_socket_addr(ae_address)),
@@ -510,6 +508,8 @@ impl<'a> ClientAssociationOptions<'a> {
     }
 
     /// Set the read timeout for the underlying TCP socket
+    /// 
+    /// This is used to set both the read and write timeout.
     pub fn timeout(self, timeout: Duration) -> Self {
         Self {
             timeout: Some(timeout),
@@ -517,7 +517,7 @@ impl<'a> ClientAssociationOptions<'a> {
         }
     }
 
-    fn establish_impl<T>(self, ae_address: AeAddr<T>) -> Result<ClientAssociation<TcpStream>>
+    fn establish_impl<T>(self, ae_address: AeAddr<T>) -> Result<ClientAssociation<std::net::TcpStream>>
     where
         T: ToSocketAddrs,
     {
@@ -761,20 +761,23 @@ impl<'a> ClientAssociationOptions<'a> {
     }
 }
 
+/// Trait to close underlying socket
 pub trait CloseSocket {
     fn close(&mut self) -> std::io::Result<()>;
 }
 
-impl CloseSocket for TcpStream {
+impl CloseSocket for std::net::TcpStream {
     fn close(&mut self) -> std::io::Result<()> {
         self.shutdown(std::net::Shutdown::Both)
     }
 }
+
+/// Trait to release association
 pub trait Release {
     fn release(&mut self) -> Result<()>;
 }
 
-impl Release for ClientAssociation<TcpStream> {
+impl Release for ClientAssociation<std::net::TcpStream> {
     fn release(&mut self) -> Result<()> {
         self.release_impl()
     }
@@ -793,6 +796,9 @@ impl Release for ClientAssociation<TcpStream> {
 /// the program will automatically try to gracefully release the association
 /// through a standard C-RELEASE message exchange,
 /// then shut down the underlying TCP connection.
+/// 
+/// This may either be sync or async depending on which method was called to
+/// establish the association.
 #[derive(Debug)]
 pub struct ClientAssociation<S>
 where
@@ -848,9 +854,9 @@ where
     }
 }
 
-impl ClientAssociation<TcpStream>
+impl ClientAssociation<std::net::TcpStream>
 where
-    ClientAssociation<TcpStream>: Release,
+    ClientAssociation<std::net::TcpStream>: Release,
 {
     /// Send a PDU message to the other intervenient.
     pub fn send(&mut self, msg: &Pdu) -> Result<()> {
@@ -925,7 +931,7 @@ where
     /// **Note:** reading and writing should be done with care
     /// to avoid inconsistencies in the association state.
     /// Do not call `send` and `receive` while not in a PDU boundary.
-    pub fn inner_stream(&mut self) -> &mut TcpStream {
+    pub fn inner_stream(&mut self) -> &mut std::net::TcpStream {
         &mut self.socket
     }
 
@@ -934,7 +940,7 @@ where
     ///
     /// Returns a writer which automatically
     /// splits the inner data into separate PDUs if necessary.
-    pub fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut TcpStream> {
+    pub fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut std::net::TcpStream> {
         PDataWriter::new(
             &mut self.socket,
             presentation_context_id,
@@ -947,7 +953,7 @@ where
     ///
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
-    pub fn receive_pdata(&mut self) -> PDataReader<&mut TcpStream> {
+    pub fn receive_pdata(&mut self) -> PDataReader<&mut std::net::TcpStream> {
         PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
     }
 
@@ -1015,10 +1021,7 @@ pub mod non_blocking {
     };
     use bytes::{Buf, BytesMut};
     use snafu::{ensure, ResultExt};
-    use tokio::{
-        io::{AsyncRead, AsyncReadExt, AsyncWriteExt},
-        net::TcpStream,
-    };
+    use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
     use tracing::warn;
 
     pub async fn get_client_pdu_async<R: AsyncRead + Unpin>(
@@ -1141,7 +1144,7 @@ pub mod non_blocking {
                 });
                 let socket_addrs: Vec<_> = ae_address.to_socket_addrs().unwrap().collect();
 
-                let mut socket = TcpStream::connect(socket_addrs.as_slice())
+                let mut socket = tokio::net::TcpStream::connect(socket_addrs.as_slice())
                     .await
                     .context(ConnectSnafu)?;
                 let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
@@ -1259,7 +1262,7 @@ pub mod non_blocking {
         pub async fn establish_async<A: ToSocketAddrs>(
             self,
             address: A,
-        ) -> Result<ClientAssociation<TcpStream>> {
+        ) -> Result<ClientAssociation<tokio::net::TcpStream>> {
             self.establish_impl_async(AeAddr::new_socket_addr(address))
                 .await
         }
@@ -1293,20 +1296,19 @@ pub mod non_blocking {
         pub async fn establish_with_async(
             self,
             ae_address: &str,
-        ) -> Result<ClientAssociation<TcpStream>> {
+        ) -> Result<ClientAssociation<tokio::net::TcpStream>> {
             match ae_address.try_into() {
                 Ok(ae_address) => self.establish_impl_async(ae_address).await,
                 Err(_) => {
-                    self.establish_impl_async(AeAddr::new_socket_addr(ae_address))
-                        .await
+                    self.establish_impl_async(AeAddr::new_socket_addr(ae_address)).await
                 }
             }
         }
     }
 
-    impl ClientAssociation<TcpStream>
+    impl ClientAssociation<tokio::net::TcpStream>
     where
-        ClientAssociation<TcpStream>: Release,
+        ClientAssociation<tokio::net::TcpStream>: Release,
     {
         /// Send a PDU message to the other intervenient.
         pub async fn send(&mut self, msg: &Pdu) -> Result<()> {
@@ -1422,7 +1424,7 @@ pub mod non_blocking {
         pub async fn send_pdata(
             &mut self,
             presentation_context_id: u8,
-        ) -> AsyncPDataWriter<&mut TcpStream> {
+        ) -> AsyncPDataWriter<&mut tokio::net::TcpStream> {
             AsyncPDataWriter::new(
                 &mut self.socket,
                 presentation_context_id,
@@ -1436,7 +1438,7 @@ pub mod non_blocking {
         /// Returns a reader which automatically
         /// receives more data PDUs once the bytes collected are consumed.
         #[cfg(feature = "async")]
-        pub fn receive_pdata(&mut self) -> PDataReader<&mut TcpStream> {
+        pub fn receive_pdata(&mut self) -> PDataReader<&mut tokio::net::TcpStream> {
             PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
         }
 
@@ -1484,12 +1486,12 @@ pub mod non_blocking {
         /// **Note:** reading and writing should be done with care
         /// to avoid inconsistencies in the association state.
         /// Do not call `send` and `receive` while not in a PDU boundary.
-        pub fn inner_stream(&mut self) -> &mut TcpStream {
+        pub fn inner_stream(&mut self) -> &mut tokio::net::TcpStream {
             &mut self.socket
         }
     }
 
-    impl Release for ClientAssociation<TcpStream> {
+    impl Release for ClientAssociation<tokio::net::TcpStream> {
         fn release(&mut self) -> super::Result<()> {
             tokio::task::block_in_place(move || {
                 tokio::runtime::Handle::current().block_on(async move { self.release_impl().await })
@@ -1497,7 +1499,7 @@ pub mod non_blocking {
         }
     }
     /// Automatically release the association and shut down the connection.
-    impl CloseSocket for TcpStream {
+    impl CloseSocket for tokio::net::TcpStream {
         fn close(&mut self) -> std::io::Result<()> {
             tokio::task::block_in_place(move || {
                 tokio::runtime::Handle::current().block_on(async move { self.shutdown().await })
