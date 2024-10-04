@@ -9,7 +9,7 @@ use snafu::{OptionExt, Report, ResultExt, Whatever};
 use tracing::{debug, info, warn};
 
 use crate::{create_cecho_response, create_cstore_response, transfer::ABSTRACT_SYNTAXES, App};
-pub fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
+pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
     let App {
         verbose,
         calling_ae_title,
@@ -19,6 +19,7 @@ pub fn run(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
         max_pdu_length,
         out_dir,
         port: _,
+        blocking: _,
     } = args;
     let verbose = *verbose;
 

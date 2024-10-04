@@ -7,7 +7,7 @@ use snafu::{OptionExt, Report, ResultExt, Whatever};
 use tracing::{debug, info, warn};
 
 use crate::{transfer::ABSTRACT_SYNTAXES, App, create_cecho_response, create_cstore_response};
-pub async fn run(scu_stream: tokio::net::TcpStream, args: &App) -> Result<(), Whatever> {
+pub async fn run_store_async(scu_stream: tokio::net::TcpStream, args: &App) -> Result<(), Whatever> {
     let App {
         verbose,
         calling_ae_title,
@@ -17,6 +17,7 @@ pub async fn run(scu_stream: tokio::net::TcpStream, args: &App) -> Result<(), Wh
         max_pdu_length,
         out_dir,
         port: _,
+        blocking: _,
     } = args;
     let verbose = *verbose;
 
@@ -49,7 +50,7 @@ pub async fn run(scu_stream: tokio::net::TcpStream, args: &App) -> Result<(), Wh
     }
 
     let mut association = options
-        .establish(scu_stream)
+        .establish_async(scu_stream)
         .await
         .whatever_context("could not establish association")?;
 
