@@ -39,6 +39,7 @@
 use dicom_core::ops::{
     ApplyOp, AttributeAction, AttributeOp, AttributeSelector, AttributeSelectorStep,
 };
+use dicom_parser::dataset::read::{DataSetReaderOptions, OddLengthStrategy};
 use itertools::Itertools;
 use smallvec::SmallVec;
 use snafu::{ensure, OptionExt, ResultExt};
@@ -309,7 +310,14 @@ where
         P: AsRef<Path>,
         R: TransferSyntaxIndex,
     {
-        Self::open_file_with_all_options(path, dict, ts_index, None, ReadPreamble::Auto)
+        Self::open_file_with_all_options(
+            path,
+            dict,
+            ts_index,
+            None,
+            ReadPreamble::Auto,
+            Default::default(),
+        )
     }
 
     // detect the presence of a preamble
@@ -343,6 +351,7 @@ where
         ts_index: R,
         read_until: Option<Tag>,
         mut read_preamble: ReadPreamble,
+        odd_length: OddLengthStrategy,
     ) -> Result<Self, ReadError>
     where
         P: AsRef<Path>,
@@ -369,7 +378,15 @@ where
 
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
-            let mut dataset = DataSetReader::new_with_ts(file, ts).context(CreateParserSnafu)?;
+            let mut options = DataSetReaderOptions::default();
+            options.odd_length = odd_length;
+            let mut dataset = DataSetReader::new_with_ts_cs_options(
+                file,
+                ts,
+                SpecificCharacterSet::default(),
+                options,
+            )
+            .context(CreateParserSnafu)?;
             let obj = InMemDicomObject::build_object(
                 &mut dataset,
                 dict,
@@ -441,7 +458,14 @@ where
         S: Read + 's,
         R: TransferSyntaxIndex,
     {
-        Self::from_reader_with_all_options(src, dict, ts_index, None, ReadPreamble::Auto)
+        Self::from_reader_with_all_options(
+            src,
+            dict,
+            ts_index,
+            None,
+            ReadPreamble::Auto,
+            Default::default(),
+        )
     }
 
     pub(crate) fn from_reader_with_all_options<'s, S, R>(
@@ -450,6 +474,7 @@ where
         ts_index: R,
         read_until: Option<Tag>,
         mut read_preamble: ReadPreamble,
+        odd_length: OddLengthStrategy,
     ) -> Result<Self, ReadError>
     where
         S: Read + 's,
@@ -473,7 +498,14 @@ where
 
         // read rest of data according to metadata, feed it to object
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
-            let mut dataset = DataSetReader::new_with_ts(file, ts).context(CreateParserSnafu)?;
+            let mut options = DataSetReaderOptions::default();
+            options.odd_length = odd_length;
+            let mut dataset = DataSetReader::new_with_ts_options(
+                file,
+                ts,
+                options,
+            )
+            .context(CreateParserSnafu)?;
             let obj = InMemDicomObject::build_object(
                 &mut dataset,
                 dict,
