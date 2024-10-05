@@ -3,6 +3,9 @@ use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
+// re-export from dicom_parser
+pub use dicom_parser::dataset::read::OddLengthStrategy;
+
 use crate::{DefaultDicomObject, ReadError};
 use std::io::Read;
 use std::path::Path;
@@ -58,6 +61,7 @@ pub struct OpenFileOptions<D = StandardDataDictionary, T = TransferSyntaxRegistr
     ts_index: T,
     read_until: Option<Tag>,
     read_preamble: ReadPreamble,
+    odd_length: OddLengthStrategy,
 }
 
 impl OpenFileOptions {
@@ -92,6 +96,12 @@ impl<D, T> OpenFileOptions<D, T> {
         self
     }
 
+    /// Set how data elements with an odd length should be handled.
+    pub fn odd_length_strategy(mut self, option: OddLengthStrategy) -> Self {
+        self.odd_length = option;
+        self
+    }
+
     /// Set the transfer syntax index to use when reading the file.
     pub fn tranfer_syntax_index<Tr>(self, ts_index: Tr) -> OpenFileOptions<D, Tr>
     where
@@ -102,6 +112,7 @@ impl<D, T> OpenFileOptions<D, T> {
             read_until: self.read_until,
             read_preamble: self.read_preamble,
             ts_index,
+            odd_length: self.odd_length,
         }
     }
 
@@ -116,6 +127,7 @@ impl<D, T> OpenFileOptions<D, T> {
             read_until: self.read_until,
             read_preamble: self.read_preamble,
             ts_index: self.ts_index,
+            odd_length: self.odd_length,
         }
     }
 
@@ -133,6 +145,7 @@ impl<D, T> OpenFileOptions<D, T> {
             self.ts_index,
             self.read_until,
             self.read_preamble,
+            self.odd_length,
         )
     }
 
@@ -154,6 +167,7 @@ impl<D, T> OpenFileOptions<D, T> {
             self.ts_index,
             self.read_until,
             self.read_preamble,
+            self.odd_length,
         )
     }
 }
