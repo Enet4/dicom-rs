@@ -447,32 +447,32 @@ impl FileMetaTable {
             + self
                 .implementation_version_name
                 .as_ref()
-                .map(|s| 8 + s.len() as u32)
+                .map(|s| 8 + dicom_len(s))
                 .unwrap_or(0)
             + self
                 .source_application_entity_title
                 .as_ref()
-                .map(|s| 8 + s.len() as u32)
+                .map(|s| 8 + dicom_len(s))
                 .unwrap_or(0)
             + self
                 .sending_application_entity_title
                 .as_ref()
-                .map(|s| 8 + s.len() as u32)
+                .map(|s| 8 + dicom_len(s))
                 .unwrap_or(0)
             + self
                 .receiving_application_entity_title
                 .as_ref()
-                .map(|s| 8 + s.len() as u32)
+                .map(|s| 8 + dicom_len(s))
                 .unwrap_or(0)
             + self
                 .private_information_creator_uid
                 .as_ref()
-                .map(|s| 8 + s.len() as u32)
+                .map(|s| 8 + dicom_len(s))
                 .unwrap_or(0)
             + self
                 .private_information
                 .as_ref()
-                .map(|x| 12 + x.len() as u32)
+                .map(|x| 12 + ((x.len() as u32 + 1) & !1))
                 .unwrap_or(0)
     }
 
@@ -1382,5 +1382,35 @@ mod tests {
             table.media_storage_sop_class_uid(),
             "1.2.840.10008.5.1.4.1.1.7",
         );
+    }
+
+    /// writing file meta information and reading it back
+    /// should not fail and the the group length should be the same
+    #[test]
+    fn write_read_does_not_fail() {
+        let mut table = FileMetaTable {
+            information_group_length: 0,
+            information_version: [0u8, 1u8],
+            media_storage_sop_class_uid: "1.2.840.10008.5.1.4.1.1.7".to_owned(),
+            media_storage_sop_instance_uid: "2.25.137731752600317795446120660167595746868".to_owned(),
+            transfer_syntax: "1.2.840.10008.1.2.4.91".to_owned(),
+            implementation_class_uid: "2.25.305828488182831875890203105390285383139".to_owned(),
+            implementation_version_name: Some("MYTOOL100".to_owned()),
+            source_application_entity_title: Some("RUSTY".to_owned()),
+            receiving_application_entity_title: None,
+            sending_application_entity_title: None,
+            private_information_creator_uid: None,
+            private_information: None,
+        };
+
+        table.update_information_group_length();
+
+        let mut buf = vec![b'D', b'I', b'C', b'M'];
+        table.write(&mut buf).unwrap();
+
+        let table2 = FileMetaTable::from_reader(&mut buf.as_slice())
+            .expect("Should not fail to read the table from the written data");
+
+        assert_eq!(table.information_group_length, table2.information_group_length);
     }
 }
