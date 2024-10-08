@@ -22,7 +22,7 @@ use crate::{
     },
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
-use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
+use snafu::{ensure, Backtrace, ResultExt, Snafu};
 
 use super::{
     pdata::{PDataReader, PDataWriter},
@@ -44,7 +44,7 @@ pub enum Error {
     /// converted SocketAddrs iterator did not yield
     #[snafu(display("not a single tcp addreess provided"))]
     #[non_exhaustive]
-    NoAddress {},
+    NoAddress { backtrace: Backtrace },
 
     /// could not connect to server
     Connect {
@@ -570,17 +570,23 @@ impl<'a> ClientAssociationOptions<'a> {
             user_variables,
         });
 
-        let mut socket: TcpStream = if let Some(timeout) = connection_timeout {
-            let address = ae_address
-                .to_socket_addrs()
-                .context(ToAddresssSnafu)?
-                .next()
-                .context(NoAddressSnafu)?;
-            std::net::TcpStream::connect_timeout(&address, timeout).context(ConnectSnafu)?
+        let conn_result: Result<TcpStream> = if let Some(timeout) = connection_timeout {
+            let addresses = ae_address.to_socket_addrs().context(ToAddresssSnafu)?;
+
+            let mut res: Result<TcpStream> = NoAddressSnafu {}.fail();
+
+            for address in addresses {
+                res = std::net::TcpStream::connect_timeout(&address, timeout).context(ConnectSnafu);
+                if res.is_ok() {
+                    break;
+                }
+            }
+            res
         } else {
-            std::net::TcpStream::connect(ae_address).context(ConnectSnafu)?
+            std::net::TcpStream::connect(ae_address).context(ConnectSnafu)
         };
 
+        let mut socket = conn_result?;
         socket
             .set_read_timeout(read_timeout)
             .context(SetReadTimeoutSnafu)?;
