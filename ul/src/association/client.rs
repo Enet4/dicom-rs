@@ -36,7 +36,7 @@ pub enum Error {
     MissingAbstractSyntax { backtrace: Backtrace },
 
     /// could not convert to socket address
-    ToAddresss {
+    ToAddress {
         source: std::io::Error,
         backtrace: Backtrace,
     },
@@ -571,7 +571,7 @@ impl<'a> ClientAssociationOptions<'a> {
         });
 
         let conn_result: Result<TcpStream> = if let Some(timeout) = connection_timeout {
-            let addresses = ae_address.to_socket_addrs().context(ToAddresssSnafu)?;
+            let addresses = ae_address.to_socket_addrs().context(ToAddressSnafu)?;
 
             let mut res: Result<TcpStream> = NoAddressSnafu {}.fail();
 
