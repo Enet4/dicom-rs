@@ -8,10 +8,12 @@ use std::{
     borrow::Cow,
     convert::TryInto,
     io::Write,
-    net::{TcpStream, ToSocketAddrs}, time::Duration,
+    net::{TcpStream, ToSocketAddrs},
+    time::Duration,
 };
 
 use crate::{
+    address,
     pdu::{
         reader::{read_pdu, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE},
         writer::write_pdu,
@@ -21,7 +23,7 @@ use crate::{
     },
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
-use snafu::{ensure, Backtrace, ResultExt, Snafu};
+use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 
 use super::{
     pdata::{PDataReader, PDataWriter},
@@ -34,20 +36,31 @@ pub enum Error {
     /// missing abstract syntax to begin negotiation
     MissingAbstractSyntax { backtrace: Backtrace },
 
+    /// could not convert to socket address
+    ToAddresss {
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
+
+    /// converted SocketAddrs iterator did not yield
+    #[snafu(display("not a single tcp addreess provided"))]
+    #[non_exhaustive]
+    NoAddress {},
+
     /// could not connect to server
     Connect {
         source: std::io::Error,
         backtrace: Backtrace,
     },
-    
+
     /// Could not set tcp read timeout
-    SetReadTimeout{
+    SetReadTimeout {
         source: std::io::Error,
         backtrace: Backtrace,
     },
 
     /// Could not set tcp write timeout
-    SetWriteTimeout{
+    SetWriteTimeout {
         source: std::io::Error,
         backtrace: Backtrace,
     },
@@ -193,6 +206,8 @@ pub struct ClientAssociationOptions<'a> {
     read_timeout: Option<Duration>,
     /// TCP write timeout
     write_timeout: Option<Duration>,
+    /// TCP connection timeout
+    connection_timeout: Option<Duration>,
 }
 
 impl<'a> Default for ClientAssociationOptions<'a> {
@@ -216,6 +231,7 @@ impl<'a> Default for ClientAssociationOptions<'a> {
             jwt: None,
             read_timeout: None,
             write_timeout: None,
+            connection_timeout: None,
         }
     }
 }
@@ -465,6 +481,14 @@ impl<'a> ClientAssociationOptions<'a> {
         }
     }
 
+    /// Set the connection timeout for the underlying TCP socket
+    pub fn connection_timeout(self, timeout: Duration) -> Self {
+        Self {
+            connection_timeout: Some(timeout),
+            ..self
+        }
+    }
+
     fn establish_impl<T>(self, ae_address: AeAddr<T>) -> Result<ClientAssociation>
     where
         T: ToSocketAddrs,
@@ -483,7 +507,8 @@ impl<'a> ClientAssociationOptions<'a> {
             saml_assertion,
             jwt,
             read_timeout,
-            write_timeout
+            write_timeout,
+            connection_timeout,
         } = self;
 
         // fail if no presentation contexts were provided: they represent intent,
@@ -546,11 +571,22 @@ impl<'a> ClientAssociationOptions<'a> {
             user_variables,
         });
 
-        let mut socket = std::net::TcpStream::connect(ae_address)
-            .context(ConnectSnafu)?;
-        socket.set_read_timeout(read_timeout)
+        let mut socket: TcpStream = if let Some(timeout) = connection_timeout {
+            let address = ae_address
+                .to_socket_addrs()
+                .context(ToAddresssSnafu)?
+                .next()
+                .context(NoAddressSnafu)?;
+            std::net::TcpStream::connect_timeout(&address, timeout).context(ConnectSnafu)?
+        } else {
+            std::net::TcpStream::connect(ae_address).context(ConnectSnafu)?
+        };
+
+        socket
+            .set_read_timeout(read_timeout)
             .context(SetReadTimeoutSnafu)?;
-        socket.set_write_timeout(write_timeout)
+        socket
+            .set_write_timeout(write_timeout)
             .context(SetWriteTimeoutSnafu)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
         // send request
