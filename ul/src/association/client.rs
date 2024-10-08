@@ -13,7 +13,6 @@ use std::{
 };
 
 use crate::{
-    address,
     pdu::{
         reader::{read_pdu, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE},
         writer::write_pdu,
