@@ -22,7 +22,7 @@ use crate::{
     },
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
-use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
+use snafu::{ensure, Backtrace, ResultExt, Snafu};
 
 use super::{
     pdata::{PDataReader, PDataWriter},
@@ -571,19 +571,22 @@ impl<'a> ClientAssociationOptions<'a> {
         });
 
         let conn_result: Result<TcpStream> = if let Some(timeout) = connection_timeout {
-            let addresses = ae_address.to_socket_addrs().context(ToAddressSnafu)?;
+            let mut addresses = ae_address.to_socket_addrs().context(ToAddressSnafu)?;
 
-            let mut results: Vec<Result<TcpStream, std::io::Error>> = Vec::new();
+            if addresses.by_ref().count() == 0 {
+                return NoAddressSnafu.fail();
+            }
+
+            let mut result: Result<TcpStream, std::io::Error> =
+                Result::Err(std::io::Error::from(std::io::ErrorKind::NotConnected));
 
             for address in addresses {
-                let res = std::net::TcpStream::connect_timeout(&address, timeout);
-                let res_is_ok = res.is_ok();
-                results.push(res);
-                if res_is_ok {
+                result = std::net::TcpStream::connect_timeout(&address, timeout);
+                if result.is_ok() {
                     break;
                 }
             }
-            results.pop().context(NoAddressSnafu)?.context(ConnectSnafu)
+            result.context(ConnectSnafu)
         } else {
             std::net::TcpStream::connect(ae_address).context(ConnectSnafu)
         };
