@@ -41,11 +41,6 @@ pub enum Error {
         backtrace: Backtrace,
     },
 
-    /// converted SocketAddrs iterator did not yield
-    #[snafu(display("not a single tcp addreess provided"))]
-    #[non_exhaustive]
-    NoAddress { backtrace: Backtrace },
-
     /// could not connect to server
     Connect {
         source: std::io::Error,
@@ -571,14 +566,10 @@ impl<'a> ClientAssociationOptions<'a> {
         });
 
         let conn_result: Result<TcpStream> = if let Some(timeout) = connection_timeout {
-            let mut addresses = ae_address.to_socket_addrs().context(ToAddressSnafu)?;
-
-            if addresses.by_ref().count() == 0 {
-                return NoAddressSnafu.fail();
-            }
+            let addresses = ae_address.to_socket_addrs().context(ToAddressSnafu)?;
 
             let mut result: Result<TcpStream, std::io::Error> =
-                Result::Err(std::io::Error::from(std::io::ErrorKind::NotConnected));
+                Result::Err(std::io::Error::from(std::io::ErrorKind::AddrNotAvailable));
 
             for address in addresses {
                 result = std::net::TcpStream::connect_timeout(&address, timeout);
