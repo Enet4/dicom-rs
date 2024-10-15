@@ -130,13 +130,6 @@ where
             DicomValue::Sequence(_) => InvalidPixelDataSnafu.fail()?,
         };
 
-        // pixels are already interpreted,
-        // set new photometric interpretation
-        let new_pi = match samples_per_pixel {
-            1 => PhotometricInterpretation::Monochrome2,
-            3 => PhotometricInterpretation::Rgb,
-            _ => photometric_interpretation,
-        };
 
         let rescale = zip(&rescale_intercept, &rescale_slope)
             .map(|(intercept, slope)| Rescale {
@@ -175,7 +168,7 @@ where
             cols: cols.into(),
             rows: rows.into(),
             number_of_frames,
-            photometric_interpretation: new_pi,
+            photometric_interpretation,
             samples_per_pixel,
             planar_configuration: PlanarConfiguration::Standard,
             bits_allocated,

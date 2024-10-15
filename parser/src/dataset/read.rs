@@ -65,14 +65,18 @@ pub enum Error {
     #[snafu(display("Unexpected item tag {} while reading element header", tag))]
     UnexpectedItemTag { tag: Tag, backtrace: Backtrace },
     #[snafu(display(
-        "Unexpected item header outside a dataset sequence at {} bytes",
+        "Unexpected item header outside a dataset sequence at {:#x}",
         bytes_read
     ))]
     UnexpectedItemHeader {
         bytes_read: u64,
         backtrace: Backtrace,
     },
-    /// Undefined pixel item length
+    /// Invalid data element length {len:04X} of {tag} at {bytes_read:#x}
+    InvalidElementLength { tag: Tag, len: u32, bytes_read: u64 },
+    /// Invalid sequence item length {len:04X} at {bytes_read:#x}
+    InvalidItemLength { len: u32, bytes_read: u64 },
+    /// Undefined pixel data item length
     UndefinedItemLength,
 }
 
@@ -130,13 +134,32 @@ pub enum ValueReadStrategy {
     Raw,
 }
 
+/// A strategy for when the parser finds a data element with an odd number
+/// in the _length_ header field.
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum OddLengthStrategy {
+    /// Accept elements with an odd length as is,
+    /// continuing data set reading normally.
+    #[default]
+    Accept,
+    /// Assume that the real length is `length + 1`,
+    /// as in the next even number.
+    NextEven,
+    /// Raise an error instead
+    Fail,
+}
+
 /// The set of options for the data set reader.
 #[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub struct DataSetReaderOptions {
-    /// the value reading strategy
+    /// The value reading strategy
     pub value_read: ValueReadStrategy,
-    /// the position of the reader as received at building time
+    /// The strategy for handling odd length data elements
+    pub odd_length: OddLengthStrategy,
+    /// The position of the reader as received at building time in bytes.
+    /// Defaults to 0.
     pub base_offset: u64,
 }
 
@@ -187,6 +210,19 @@ impl<R> DataSetReader<DynStatefulDecoder<R>> {
         R: Read,
     {
         Self::new_with_ts_cs_options(source, ts, Default::default(), Default::default())
+    }
+
+    /// Create a new iterator with the given transfer syntax and options.
+    #[inline]
+    pub fn new_with_ts_options(
+        source: R,
+        ts: &TransferSyntax,
+        options: DataSetReaderOptions,
+    ) -> Result<Self>
+    where
+        R: Read,
+    {
+        Self::new_with_ts_cs_options(source, ts, SpecificCharacterSet::default(), options)
     }
 
     /// Create a new data set token reader with the given byte source,
@@ -283,6 +319,18 @@ where
                 Ok(header) => {
                     match header {
                         SequenceItemHeader::Item { len } => {
+                            let len = match self.sanitize_length(len) {
+                                Some(len) => len,
+                                None => {
+                                    return Some(
+                                        InvalidItemLengthSnafu {
+                                            bytes_read: self.parser.position(),
+                                            len: len.0,
+                                        }
+                                        .fail(),
+                                    )
+                                }
+                            };
                             // entered a new item
                             self.in_sequence = false;
 
@@ -380,6 +428,19 @@ where
                 match self.parser.decode_item_header() {
                     Ok(header) => match header {
                         SequenceItemHeader::Item { len } => {
+                            let len = match self.sanitize_length(len) {
+                                Some(len) => len,
+                                None => {
+                                    return Some(
+                                        InvalidItemLengthSnafu {
+                                            bytes_read: self.parser.position(),
+                                            len: len.0,
+                                        }
+                                        .fail(),
+                                    )
+                                }
+                            };
+
                             // entered a new item
                             self.in_sequence = false;
                             self.push_sequence_token(SeqTokenType::Item, len, true);
@@ -433,6 +494,20 @@ where
                     vr: VR::SQ,
                     len,
                 }) => {
+                    let len = match self.sanitize_length(len) {
+                        Some(len) => len,
+                        None => {
+                            return Some(
+                                InvalidElementLengthSnafu {
+                                    tag,
+                                    len: len.0,
+                                    bytes_read: self.parser.position(),
+                                }
+                                .fail(),
+                            )
+                        }
+                    };
+
                     self.in_sequence = true;
                     self.push_sequence_token(SeqTokenType::Sequence, len, false);
 
@@ -485,7 +560,21 @@ where
 
                     Some(Ok(DataToken::SequenceStart { tag, len }))
                 }
-                Ok(header) => {
+                Ok(mut header) => {
+                    match self.sanitize_length(header.len) {
+                        Some(len) => header.len = len,
+                        None => {
+                            return Some(
+                                InvalidElementLengthSnafu {
+                                    tag: header.tag,
+                                    len: header.len.0,
+                                    bytes_read: self.parser.position(),
+                                }
+                                .fail(),
+                            )
+                        }
+                    };
+
                     // save it for the next step
                     self.last_header = Some(header);
                     Some(Ok(DataToken::ElementHeader(header)))
@@ -592,11 +681,27 @@ where
             tag: header.tag,
         })
     }
+
+    /// Check for a non-compliant length
+    /// and handle it according to the current strategy.
+    /// Returns `None` if the length cannot or should not be resolved.
+    fn sanitize_length(&self, length: Length) -> Option<Length> {
+        if length.is_defined() && length.0 & 1 != 0 {
+            match self.options.odd_length {
+                OddLengthStrategy::Accept => Some(length),
+                OddLengthStrategy::NextEven => Some(length + 1),
+                OddLengthStrategy::Fail => None,
+            }
+        } else {
+            Some(length)
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{DataSetReader, DataToken, StatefulDecode};
+    use crate::dataset::read::{DataSetReaderOptions, OddLengthStrategy};
     use crate::stateful::decode::StatefulDecoder;
     use dicom_core::header::{DataElementHeader, Length};
     use dicom_core::value::PrimitiveValue;
@@ -607,7 +712,7 @@ mod tests {
     };
     use dicom_encoding::text::SpecificCharacterSet;
 
-    fn validate_dataset_reader_implicit_vr<I>(data: &[u8], ground_truth: I)
+    fn validate_read_data_implicit_vr<I>(data: &[u8], ground_truth: I)
     where
         I: IntoIterator<Item = DataToken>,
     {
@@ -619,10 +724,10 @@ mod tests {
             SpecificCharacterSet::default(),
         );
 
-        validate_dataset_reader(data, parser, ground_truth)
+        validate_read_data(data, parser, ground_truth)
     }
 
-    fn validate_dataset_reader_explicit_vr<I>(data: &[u8], ground_truth: I)
+    fn validate_read_data_explicit_vr<I>(data: &[u8], ground_truth: I)
     where
         I: IntoIterator<Item = DataToken>,
     {
@@ -634,16 +739,26 @@ mod tests {
             SpecificCharacterSet::default(),
         );
 
-        validate_dataset_reader(&data, parser, ground_truth)
+        validate_read_data(&data, parser, ground_truth)
     }
 
-    fn validate_dataset_reader<I, D>(data: &[u8], parser: D, ground_truth: I)
+    fn validate_read_data<I, D>(data: &[u8], parser: D, ground_truth: I)
     where
         I: IntoIterator<Item = DataToken>,
         D: StatefulDecode,
     {
-        let mut dset_reader = DataSetReader::new(parser, Default::default());
+        let dset_reader = DataSetReader::new(parser, Default::default());
+        validate_data_set_reader(data, dset_reader, ground_truth);
+    }
 
+    fn validate_data_set_reader<S, I>(
+        data: &[u8],
+        mut dset_reader: DataSetReader<S>,
+        ground_truth: I,
+    ) where
+        S: StatefulDecode,
+        I: IntoIterator<Item = DataToken>,
+    {
         let iter = (&mut dset_reader).into_iter();
         let mut ground_truth = ground_truth.into_iter();
 
@@ -735,7 +850,7 @@ mod tests {
             DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
         ];
 
-        validate_dataset_reader_explicit_vr(DATA, ground_truth);
+        validate_read_data_explicit_vr(DATA, ground_truth);
     }
 
     #[test]
@@ -811,7 +926,7 @@ mod tests {
             )),
         ];
 
-        validate_dataset_reader_explicit_vr(DATA, ground_truth);
+        validate_read_data_explicit_vr(DATA, ground_truth);
     }
 
     #[test]
@@ -832,7 +947,7 @@ mod tests {
             DataToken::SequenceEnd,
         ];
 
-        validate_dataset_reader_explicit_vr(DATA, ground_truth);
+        validate_read_data_explicit_vr(DATA, ground_truth);
     }
 
     /// Gracefully ignore a stray item end tag in the data set.
@@ -855,7 +970,7 @@ mod tests {
             // no item end
         ];
 
-        validate_dataset_reader_explicit_vr(DATA, ground_truth);
+        validate_read_data_explicit_vr(DATA, ground_truth);
     }
 
     #[test]
@@ -929,7 +1044,7 @@ mod tests {
             DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
         ];
 
-        validate_dataset_reader_explicit_vr(DATA, ground_truth);
+        validate_read_data_explicit_vr(DATA, ground_truth);
     }
 
     #[test]
@@ -962,7 +1077,7 @@ mod tests {
             DataToken::SequenceEnd,
         ];
 
-        validate_dataset_reader_implicit_vr(DATA, ground_truth);
+        validate_read_data_implicit_vr(DATA, ground_truth);
     }
 
     #[test]
@@ -1011,7 +1126,7 @@ mod tests {
             DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into())),
         ];
 
-        validate_dataset_reader_explicit_vr(DATA, ground_truth);
+        validate_read_data_explicit_vr(DATA, ground_truth);
     }
 
     #[test]
@@ -1063,7 +1178,7 @@ mod tests {
             DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into())),
         ];
 
-        validate_dataset_reader_explicit_vr(DATA, ground_truth);
+        validate_read_data_explicit_vr(DATA, ground_truth);
     }
 
     #[test]
@@ -1163,7 +1278,7 @@ mod tests {
             DataToken::SequenceEnd,
         ];
 
-        validate_dataset_reader_implicit_vr(DATA, ground_truth);
+        validate_read_data_implicit_vr(DATA, ground_truth);
     }
 
     #[test]
@@ -1280,5 +1395,74 @@ mod tests {
             .collect::<Result<Vec<_>, _>>();
         dbg!(&token_res);
         assert!(token_res.is_err());
+    }
+
+    #[test]
+    fn read_odd_length_element() {
+        #[rustfmt::skip]
+        static DATA: &[u8] = &[
+            0x08, 0x00, 0x16, 0x00, // (0008,0016) SOPClassUID
+            b'U', b'I', // VR
+            0x0b, 0x00, // len = 11
+            b'1', b'.', b'2', b'.', b'8', b'4', b'0', b'.', b'1', b'0', b'0',
+            0x00, // padding
+        ];
+
+        let ground_truth = vec![
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0008, 0x0016),
+                vr: VR::UI,
+                len: Length(12),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::from("1.2.840.100\0")),
+        ];
+
+        // strategy: assume next even
+
+        let mut cursor = DATA;
+        let parser = StatefulDecoder::new(
+            &mut cursor,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder::default(),
+            SpecificCharacterSet::default(),
+        );
+        let dset_reader = DataSetReader::new(
+            parser,
+            DataSetReaderOptions {
+                odd_length: OddLengthStrategy::NextEven,
+                ..Default::default()
+            },
+        );
+
+        validate_data_set_reader(DATA, dset_reader, ground_truth);
+
+        // strategy: fail
+
+        let mut cursor = DATA;
+        let parser = StatefulDecoder::new(
+            &mut cursor,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder::default(),
+            SpecificCharacterSet::default(),
+        );
+        let dset_reader = DataSetReader::new(
+            parser,
+            DataSetReaderOptions {
+                odd_length: OddLengthStrategy::Fail,
+                ..Default::default()
+            },
+        );
+
+        let mut tokens = dset_reader.into_iter();
+        let token = tokens.next();
+
+        assert!(matches!(
+            token,
+            Some(Err(super::Error::InvalidElementLength {
+                tag: Tag(0x0008, 0x0016),
+                len: 11,
+                bytes_read: 8,
+            })),
+        ), "got: {:?}", token);
     }
 }
