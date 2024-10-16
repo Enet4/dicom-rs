@@ -63,7 +63,7 @@ pub fn get_scu(
         scu_init = scu_init.jwt(jwt);
     }
 
-    scu_init.establish_with(&addr).context(ScuSnafu)
+    scu_init.establish_with(&addr).map_err(Box::from).context(ScuSnafu)
 }
 
 pub fn send_file(
@@ -89,9 +89,11 @@ pub fn send_file(
         .context(CreateCommandSnafu)?;
 
         let mut object_data = Vec::with_capacity(2048);
-        let dicom_file = open_file(&file.file).context(ReadFilePathSnafu {
-            path: file.file.display().to_string(),
-        })?;
+        let dicom_file = open_file(&file.file)
+            .map_err(Box::from)
+            .context(ReadFilePathSnafu {
+                path: file.file.display().to_string(),
+            })?;
         let ts_selected = TransferSyntaxRegistry
             .get(&ts_uid_selected)
             .with_context(|| UnsupportedFileTransferSyntaxSnafu {
@@ -103,6 +105,7 @@ pub fn send_file(
 
         dicom_file
             .write_dataset_with_ts(&mut object_data, ts_selected)
+            .map_err(Box::from)
             .context(WriteDatasetSnafu)?;
 
         let nbytes = cmd_data.len() + object_data.len();
@@ -136,7 +139,7 @@ pub fn send_file(
                 ],
             };
 
-            scu.send(&pdu).context(ScuSnafu)?;
+            scu.send(&pdu).map_err(Box::from).context(ScuSnafu)?;
         } else {
             let pdu = Pdu::PData {
                 data: vec![PDataValue {
@@ -147,7 +150,7 @@ pub fn send_file(
                 }],
             };
 
-            scu.send(&pdu).context(ScuSnafu)?;
+            scu.send(&pdu).map_err(Box::from).context(ScuSnafu)?;
 
             {
                 let mut pdata = scu.send_pdata(pc_selected.id);
@@ -159,7 +162,7 @@ pub fn send_file(
             debug!("Awaiting response...");
         }
 
-        let rsp_pdu = scu.receive().context(ScuSnafu)?;
+        let rsp_pdu = scu.receive().map_err(Box::from).context(ScuSnafu)?;
 
         match rsp_pdu {
             Pdu::PData { data } => {

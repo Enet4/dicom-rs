@@ -115,7 +115,7 @@ struct DicomFile {
 enum Error {
     /// Could not initialize SCU
     Scu {
-        source: dicom_ul::association::client::Error,
+        source: Box<dicom_ul::association::client::Error>,
     },
 
     /// Could not construct DICOM command
@@ -134,7 +134,7 @@ enum Error {
     /// Error reading a file
     ReadFilePath {
         path: String,
-        source: dicom_object::ReadError,
+        source: Box<dicom_object::ReadError>,
     },
     /// No matching presentation contexts
     NoPresentationContext,
@@ -146,7 +146,7 @@ enum Error {
     },
     /// Error writing dicom file to buffer
     WriteDataset {
-        source: dicom_object::WriteError,
+        source: Box<dicom_object::WriteError>,
     },
     ReadDataset {
         source: dicom_object::ReadError,
@@ -365,7 +365,7 @@ fn run(app: App) -> Result<(), Error> {
         pb.finish_with_message("done")
     };
 
-    scu.release().context(ScuSnafu)?;
+    scu.release().map_err(Box::from).context(ScuSnafu)?;
     Ok(())
 }
 
@@ -553,6 +553,7 @@ fn check_file(file: &Path) -> Result<DicomFile, Error> {
     let dicom_file = dicom_object::OpenFileOptions::new()
         .read_until(Tag(0x0001, 0x000))
         .open_file(file)
+        .map_err(Box::from)
         .context(ReadFilePathSnafu {
             path: file.display().to_string(),
         })?;

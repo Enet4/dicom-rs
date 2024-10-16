@@ -64,7 +64,7 @@ pub async fn get_scu(
         scu_init = scu_init.jwt(jwt);
     }
 
-    scu_init.establish_with_async(&addr).await.context(ScuSnafu)
+    scu_init.establish_with_async(&addr).await.map_err(Box::from).context(ScuSnafu)
 }
 
 pub async fn send_file(
@@ -87,9 +87,11 @@ pub async fn send_file(
         .context(CreateCommandSnafu)?;
 
         let mut object_data = Vec::with_capacity(2048);
-        let dicom_file = open_file(&file.file).context(ReadFilePathSnafu {
-            path: file.file.display().to_string(),
-        })?;
+        let dicom_file = open_file(&file.file)
+            .map_err(Box::from)
+            .context(ReadFilePathSnafu {
+                path: file.file.display().to_string(),
+            })?;
         let ts_selected = TransferSyntaxRegistry
             .get(&ts_uid_selected)
             .with_context(|| UnsupportedFileTransferSyntaxSnafu {
@@ -101,6 +103,7 @@ pub async fn send_file(
 
         dicom_file
             .write_dataset_with_ts(&mut object_data, ts_selected)
+            .map_err(Box::from)
             .context(WriteDatasetSnafu)?;
 
         let nbytes = cmd_data.len() + object_data.len();
@@ -134,7 +137,7 @@ pub async fn send_file(
                 ],
             };
 
-            scu.send(&pdu).await.context(ScuSnafu)?;
+            scu.send(&pdu).await.map_err(Box::from).context(ScuSnafu)?;
         } else {
             let pdu = Pdu::PData {
                 data: vec![PDataValue {
@@ -145,7 +148,7 @@ pub async fn send_file(
                 }],
             };
 
-            scu.send(&pdu).await.context(ScuSnafu)?;
+            scu.send(&pdu).await.map_err(Box::from).context(ScuSnafu)?;
 
             {
                 let mut pdata = scu.send_pdata(pc_selected.id).await;
@@ -158,7 +161,7 @@ pub async fn send_file(
             debug!("Awaiting response...");
         }
 
-        let rsp_pdu = scu.receive().await.context(ScuSnafu)?;
+        let rsp_pdu = scu.receive().await.map_err(Box::from).context(ScuSnafu)?;
 
         match rsp_pdu {
             Pdu::PData { data } => {
