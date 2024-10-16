@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 use dicom_dictionary_std::tags;
 use dicom_encoding::TransferSyntaxIndex;
@@ -14,8 +14,9 @@ use tokio::{io::AsyncWriteExt, net::TcpStream};
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    into_ts, store_req_command, CreateCommandSnafu, DicomFile, Error, InitScuSnafu,
-    UnsupportedFileTransferSyntaxSnafu,
+    into_ts, store_req_command, ConvertFieldSnafu, CreateCommandSnafu, DicomFile, Error,
+    MissingAttributeSnafu, ReadDatasetSnafu, ReadFilePathSnafu, ScuSnafu,
+    UnsupportedFileTransferSyntaxSnafu, WriteDatasetSnafu,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -63,24 +64,18 @@ pub async fn get_scu(
         scu_init = scu_init.jwt(jwt);
     }
 
-    scu_init
-        .establish_with_async(&addr)
-        .await
-        .context(InitScuSnafu)
+    scu_init.establish_with_async(&addr).await.context(ScuSnafu)
 }
 
 pub async fn send_file(
     mut scu: ClientAssociation<TcpStream>,
     file: DicomFile,
     message_id: u16,
-    progress_bar: Option<&ProgressBar>,
+    progress_bar: Option<&Arc<tokio::sync::Mutex<ProgressBar>>>,
     verbose: bool,
     fail_first: bool,
 ) -> Result<ClientAssociation<TcpStream>, Error> {
     if let (Some(pc_selected), Some(ts_uid_selected)) = (file.pc_selected, file.ts_selected) {
-        if let Some(pb) = &progress_bar {
-            pb.set_message(file.sop_instance_uid.clone());
-        }
         let cmd = store_req_command(&file.sop_class_uid, &file.sop_instance_uid, message_id);
 
         let mut cmd_data = Vec::with_capacity(128);
@@ -92,8 +87,9 @@ pub async fn send_file(
         .context(CreateCommandSnafu)?;
 
         let mut object_data = Vec::with_capacity(2048);
-        let dicom_file =
-            open_file(&file.file).whatever_context("Could not open listed DICOM file")?;
+        let dicom_file = open_file(&file.file).context(ReadFilePathSnafu {
+            path: file.file.display().to_string(),
+        })?;
         let ts_selected = TransferSyntaxRegistry
             .get(&ts_uid_selected)
             .with_context(|| UnsupportedFileTransferSyntaxSnafu {
@@ -105,7 +101,7 @@ pub async fn send_file(
 
         dicom_file
             .write_dataset_with_ts(&mut object_data, ts_selected)
-            .whatever_context("Could not write object dataset")?;
+            .context(WriteDatasetSnafu)?;
 
         let nbytes = cmd_data.len() + object_data.len();
 
@@ -138,9 +134,7 @@ pub async fn send_file(
                 ],
             };
 
-            scu.send(&pdu)
-                .await
-                .whatever_context("Failed to send C-STORE-RQ")?;
+            scu.send(&pdu).await.context(ScuSnafu)?;
         } else {
             let pdu = Pdu::PData {
                 data: vec![PDataValue {
@@ -151,9 +145,7 @@ pub async fn send_file(
                 }],
             };
 
-            scu.send(&pdu)
-                .await
-                .whatever_context("Failed to send C-STORE-RQ command")?;
+            scu.send(&pdu).await.context(ScuSnafu)?;
 
             {
                 let mut pdata = scu.send_pdata(pc_selected.id).await;
@@ -166,10 +158,7 @@ pub async fn send_file(
             debug!("Awaiting response...");
         }
 
-        let rsp_pdu = scu
-            .receive()
-            .await
-            .whatever_context("Failed to receive C-STORE-RSP")?;
+        let rsp_pdu = scu.receive().await.context(ScuSnafu)?;
 
         match rsp_pdu {
             Pdu::PData { data } => {
@@ -179,15 +168,15 @@ pub async fn send_file(
                     &data_value.data[..],
                     &dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
                 )
-                .whatever_context("Could not read response from SCP")?;
+                .context(ReadDatasetSnafu)?;
                 if verbose {
                     debug!("Full response: {:?}", cmd_obj);
                 }
                 let status = cmd_obj
                     .element(tags::STATUS)
-                    .whatever_context("Could not find status code in response")?
+                    .context(MissingAttributeSnafu { tag: tags::STATUS })?
                     .to_int::<u16>()
-                    .whatever_context("Status code in response is not a valid integer")?;
+                    .context(ConvertFieldSnafu { tag: tags::STATUS })?;
                 let storage_sop_instance_uid = file
                     .sop_instance_uid
                     .trim_end_matches(|c: char| c.is_whitespace() || c == '\0');
@@ -249,7 +238,7 @@ pub async fn send_file(
         }
     }
     if let Some(pb) = progress_bar.as_ref() {
-        pb.inc(1)
+        pb.lock().await.inc(1)
     };
     Ok(scu)
 }

@@ -11,7 +11,9 @@ use snafu::{Report, Whatever};
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 use walkdir::WalkDir;
@@ -89,9 +91,8 @@ struct App {
         conflicts_with("saml_assertion")
     )]
     jwt: Option<String>,
-
-    #[arg(long = "blocking")]
-    blocking: bool,
+    #[arg(short = 'c', long = "concurrency")]
+    concurrency: Option<usize>,
 }
 
 struct DicomFile {
@@ -112,7 +113,7 @@ struct DicomFile {
 #[derive(Debug, Snafu)]
 enum Error {
     /// Could not initialize SCU
-    InitScu {
+    Scu {
         source: dicom_ul::association::client::Error,
     },
 
@@ -122,34 +123,67 @@ enum Error {
     },
 
     /// Unsupported file transfer syntax {uid}
-    UnsupportedFileTransferSyntax { uid: std::borrow::Cow<'static, str> },
+    UnsupportedFileTransferSyntax {
+        uid: std::borrow::Cow<'static, str>,
+    },
 
-    #[snafu(whatever, display("{}", message))]
-    Other {
-        message: String,
-        #[snafu(source(from(Box<dyn std::error::Error + 'static>, Some)))]
-        source: Option<Box<dyn std::error::Error + 'static>>,
+    /// Unsupported file
+    FileNotSupported,
+
+    /// Error reading a file
+    ReadFilePath {
+        path: String,
+        source: dicom_object::ReadError,
+    },
+    /// No matching presentation contexts
+    NoPresentationContext,
+    /// No TransferSyntax
+    NoNegotiatedTransferSyntax,
+    /// Transcoding error
+    Transcode {
+        source: dicom_pixeldata::TranscodeError,
+    },
+    /// Error writing dicom file to buffer
+    WriteDataset {
+        source: dicom_object::WriteError,
+    },
+    ReadDataset {
+        source: dicom_object::ReadError,
+    },
+    MissingAttribute {
+        tag: Tag,
+        source: dicom_object::AccessError,
+    },
+    ConvertField {
+        tag: Tag,
+        source: dicom_core::value::ConvertValueError,
+    },
+    WriteIO {
+        source: std::io::Error,
     },
 }
 
 fn main() {
     let app = App::parse();
-    if !app.blocking {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(async move {
-                run_async().await.unwrap_or_else(|e| {
-                    error!("{}", Report::from_error(e));
-                    std::process::exit(-2);
-                });
+    match app.concurrency {
+        Some(0) | None => {
+            run(app).unwrap_or_else(|e| {
+                error!("{}", Report::from_error(e));
+                std::process::exit(-2);
             });
-    } else {
-        run(app).unwrap_or_else(|e| {
-            error!("{}", Report::from_error(e));
-            std::process::exit(-2);
-        });
+        }
+        Some(_concurrency) => {
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(async move {
+                    run_async().await.unwrap_or_else(|e| {
+                        error!("{}", Report::from_error(e));
+                        std::process::exit(-2);
+                    });
+                });
+        }
     }
 }
 
@@ -234,7 +268,7 @@ fn run(app: App) -> Result<(), Error> {
         kerberos_service_ticket,
         saml_assertion,
         jwt,
-        blocking: _,
+        concurrency: _,
     } = app;
 
     // never transcode if the feature is disabled
@@ -277,8 +311,7 @@ fn run(app: App) -> Result<(), Error> {
     for file in &mut dicom_files {
         // identify the right transfer syntax to use
         let r: Result<_, Error> =
-            check_presentation_contexts(file, scu.presentation_contexts(), never_transcode)
-                .whatever_context::<_, _>("Could not choose a transfer syntax");
+            check_presentation_contexts(file, scu.presentation_contexts(), never_transcode);
         match r {
             Ok((pc, ts)) => {
                 if verbose {
@@ -317,7 +350,6 @@ fn run(app: App) -> Result<(), Error> {
     }
 
     for file in dicom_files {
-        // TODO
         scu = send_file(
             scu,
             file,
@@ -332,8 +364,7 @@ fn run(app: App) -> Result<(), Error> {
         pb.finish_with_message("done")
     };
 
-    scu.release()
-        .whatever_context("Failed to release SCU association")?;
+    scu.release().context(ScuSnafu)?;
     Ok(())
 }
 
@@ -354,7 +385,7 @@ async fn run_async() -> Result<(), Error> {
         kerberos_service_ticket,
         saml_assertion,
         jwt,
-        blocking: _,
+        concurrency,
     } = App::parse();
 
     // never transcode if the feature is disabled
@@ -375,92 +406,109 @@ async fn run_async() -> Result<(), Error> {
     if verbose {
         info!("Establishing association with '{}'...", &addr);
     }
-    let (mut dicom_files, presentation_contexts) =
+    let (dicom_files, presentation_contexts) =
         tokio::task::spawn_blocking(move || check_files(files, verbose, never_transcode))
             .await
             .unwrap();
-
-    let mut scu = get_scu(
-        addr,
-        calling_ae_title,
-        called_ae_title,
-        max_pdu_length,
-        username,
-        password,
-        kerberos_service_ticket,
-        saml_assertion,
-        jwt,
-        presentation_contexts,
-    )
-    .await?;
-
-    if verbose {
-        info!("Association established");
-    }
-
-    for file in &mut dicom_files {
-        // identify the right transfer syntax to use
-        let r: Result<_, Error> =
-            check_presentation_contexts(file, scu.presentation_contexts(), never_transcode)
-                .whatever_context::<_, _>("Could not choose a transfer syntax");
-        match r {
-            Ok((pc, ts)) => {
-                if verbose {
-                    debug!(
-                        "{}: Selected presentation context: {:?}",
-                        file.file.display(),
-                        pc
-                    );
-                }
-                file.pc_selected = Some(pc);
-                file.ts_selected = Some(ts);
-            }
-            Err(e) => {
-                error!("{}", Report::from_error(e));
-                if fail_first {
-                    let _ = scu.abort().await;
-                    std::process::exit(-2);
-                }
-            }
-        }
-    }
+    let num_files = dicom_files.len();
+    let dicom_files = Arc::new(Mutex::new(dicom_files));
+    let mut tasks = tokio::task::JoinSet::new();
 
     let progress_bar;
     if !verbose {
-        progress_bar = Some(ProgressBar::new(dicom_files.len() as u64));
+        progress_bar = Some(Arc::new(Mutex::new(ProgressBar::new(num_files as u64))));
         if let Some(pb) = progress_bar.as_ref() {
-            pb.set_style(
+            let bar = pb.lock().await;
+            bar.set_style(
                 ProgressStyle::default_bar()
                     .template("[{elapsed_precise}] {bar:40} {pos}/{len} {wide_msg}")
                     .expect("Invalid progress bar template"),
             );
-            pb.enable_steady_tick(Duration::new(0, 480_000_000));
+            bar.enable_steady_tick(Duration::new(0, 480_000_000));
         };
     } else {
         progress_bar = None;
     }
 
-    for file in dicom_files {
-        // TODO: Eventually expose concurrency option to sping up multiple
-        // worker tasks to send files in parallel
-        scu = send_file(
-            scu,
-            file,
-            message_id,
-            progress_bar.as_ref(),
-            verbose,
-            fail_first,
-        )
-        .await?;
+    for _ in 0..concurrency.unwrap_or(1) {
+        let pbx = progress_bar.clone();
+        let d_files = dicom_files.clone();
+        let pc = presentation_contexts.clone();
+        let addr = addr.clone();
+        let jwt = jwt.clone();
+        let saml_assertion = saml_assertion.clone();
+        let kerberos_service_ticket = kerberos_service_ticket.clone();
+        let username = username.clone();
+        let password = password.clone();
+        let called_ae_title = called_ae_title.clone();
+        let calling_ae_title = calling_ae_title.clone();
+        tasks.spawn(async move {
+            let mut scu = get_scu(
+                addr,
+                calling_ae_title,
+                called_ae_title,
+                max_pdu_length,
+                username,
+                password,
+                kerberos_service_ticket,
+                saml_assertion,
+                jwt,
+                pc,
+            )
+            .await?;
+            loop {
+                let file = {
+                    let mut files = d_files.lock().await;
+                    files.pop()
+                };
+                let mut file = match file {
+                    Some(file) => file,
+                    None => break,
+                };
+                let r: Result<_, Error> = check_presentation_contexts(
+                    &file,
+                    scu.presentation_contexts(),
+                    never_transcode,
+                );
+                match r {
+                    Ok((pc, ts)) => {
+                        if verbose {
+                            debug!(
+                                "{}: Selected presentation context: {:?}",
+                                file.file.display(),
+                                pc
+                            );
+                        }
+                        file.pc_selected = Some(pc);
+                        file.ts_selected = Some(ts);
+                    }
+                    Err(e) => {
+                        error!("{}", Report::from_error(e));
+                        if fail_first {
+                            let _ = scu.abort().await;
+                            std::process::exit(-2);
+                        }
+                    }
+                }
+                scu = send_file(scu, file, message_id, pbx.as_ref(), verbose, fail_first).await?;
+            }
+            let _ = scu.release().await;
+            Ok::<(), Error>(())
+        });
+    }
+    while let Some(result) = tasks.join_next().await {
+        if let Err(e) = result {
+            error!("{}", Report::from_error(e));
+            if fail_first {
+                std::process::exit(-2);
+            }
+        }
     }
 
     if let Some(pb) = progress_bar {
-        pb.finish_with_message("done")
+        pb.lock().await.finish_with_message("done")
     };
 
-    scu.release()
-        .await
-        .whatever_context("Failed to release SCU association")?;
     Ok(())
 }
 fn store_req_command(
@@ -500,11 +548,13 @@ fn check_file(file: &Path) -> Result<DicomFile, Error> {
     // Ignore DICOMDIR files until better support is added
     let _ = (file.file_name() != Some(OsStr::new("DICOMDIR")))
         .then_some(false)
-        .whatever_context("DICOMDIR file not supported")?;
+        .context(FileNotSupportedSnafu)?;
     let dicom_file = dicom_object::OpenFileOptions::new()
         .read_until(Tag(0x0001, 0x000))
         .open_file(file)
-        .with_whatever_context(|_| format!("Could not open DICOM file {}", file.display()))?;
+        .context(ReadFilePathSnafu {
+            path: file.display().to_string(),
+        })?;
 
     let meta = dicom_file.meta();
 
@@ -562,7 +612,7 @@ fn check_presentation_contexts(
         Some(pc) => pc,
         None => {
             if never_transcode || !file_ts.can_decode_all() {
-                whatever!("No presentation context acceptable");
+                NoPresentationContextSnafu.fail()?
             }
 
             // Else, if transcoding is possible, we go for it.
@@ -573,14 +623,13 @@ fn check_presentation_contexts(
                 // accept implicit VR little endian
                 pcs.iter()
                     .find(|pc| pc.transfer_syntax == uids::IMPLICIT_VR_LITTLE_ENDIAN))
-                // welp
-                .whatever_context("No presentation context acceptable")?
+                .context(NoPresentationContextSnafu)?
         }
     };
 
     let ts = TransferSyntaxRegistry
         .get(&pc.transfer_syntax)
-        .whatever_context("Poorly negotiated transfer syntax")?;
+        .context(NoNegotiatedTransferSyntaxSnafu)?;
 
     Ok((pc.clone(), String::from(ts.uid())))
 }
@@ -603,8 +652,7 @@ fn into_ts(
                 ts_selected.uid()
             );
         }
-        file.transcode(ts_selected)
-            .whatever_context("Failed to transcode file")?;
+        file.transcode(ts_selected).context(TranscodeSnafu)?;
         Ok(file)
     } else {
         Ok(dicom_file)

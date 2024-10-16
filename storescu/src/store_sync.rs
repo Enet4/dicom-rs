@@ -13,8 +13,9 @@ use snafu::{OptionExt, ResultExt};
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    into_ts, store_req_command, CreateCommandSnafu, DicomFile, Error, InitScuSnafu,
-    UnsupportedFileTransferSyntaxSnafu,
+    into_ts, store_req_command, ConvertFieldSnafu, CreateCommandSnafu, DicomFile, Error,
+    MissingAttributeSnafu, ReadDatasetSnafu, ReadFilePathSnafu, ScuSnafu,
+    UnsupportedFileTransferSyntaxSnafu, WriteDatasetSnafu, WriteIOSnafu,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -62,7 +63,7 @@ pub fn get_scu(
         scu_init = scu_init.jwt(jwt);
     }
 
-    scu_init.establish_with(&addr).context(InitScuSnafu)
+    scu_init.establish_with(&addr).context(ScuSnafu)
 }
 
 pub fn send_file(
@@ -88,8 +89,9 @@ pub fn send_file(
         .context(CreateCommandSnafu)?;
 
         let mut object_data = Vec::with_capacity(2048);
-        let dicom_file =
-            open_file(&file.file).whatever_context("Could not open listed DICOM file")?;
+        let dicom_file = open_file(&file.file).context(ReadFilePathSnafu {
+            path: file.file.display().to_string(),
+        })?;
         let ts_selected = TransferSyntaxRegistry
             .get(&ts_uid_selected)
             .with_context(|| UnsupportedFileTransferSyntaxSnafu {
@@ -101,7 +103,7 @@ pub fn send_file(
 
         dicom_file
             .write_dataset_with_ts(&mut object_data, ts_selected)
-            .whatever_context("Could not write object dataset")?;
+            .context(WriteDatasetSnafu)?;
 
         let nbytes = cmd_data.len() + object_data.len();
 
@@ -134,8 +136,7 @@ pub fn send_file(
                 ],
             };
 
-            scu.send(&pdu)
-                .whatever_context("Failed to send C-STORE-RQ")?;
+            scu.send(&pdu).context(ScuSnafu)?;
         } else {
             let pdu = Pdu::PData {
                 data: vec![PDataValue {
@@ -146,14 +147,11 @@ pub fn send_file(
                 }],
             };
 
-            scu.send(&pdu)
-                .whatever_context("Failed to send C-STORE-RQ command")?;
+            scu.send(&pdu).context(ScuSnafu)?;
 
             {
                 let mut pdata = scu.send_pdata(pc_selected.id);
-                pdata
-                    .write_all(&object_data)
-                    .whatever_context("Failed to send C-STORE-RQ P-Data")?;
+                pdata.write_all(&object_data).context(WriteIOSnafu)?;
             }
         }
 
@@ -161,9 +159,7 @@ pub fn send_file(
             debug!("Awaiting response...");
         }
 
-        let rsp_pdu = scu
-            .receive()
-            .whatever_context("Failed to receive C-STORE-RSP")?;
+        let rsp_pdu = scu.receive().context(ScuSnafu)?;
 
         match rsp_pdu {
             Pdu::PData { data } => {
@@ -173,15 +169,15 @@ pub fn send_file(
                     &data_value.data[..],
                     &dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased(),
                 )
-                .whatever_context("Could not read response from SCP")?;
+                .context(ReadDatasetSnafu)?;
                 if verbose {
                     debug!("Full response: {:?}", cmd_obj);
                 }
                 let status = cmd_obj
                     .element(tags::STATUS)
-                    .whatever_context("Could not find status code in response")?
+                    .context(MissingAttributeSnafu { tag: tags::STATUS })?
                     .to_int::<u16>()
-                    .whatever_context("Status code in response is not a valid integer")?;
+                    .context(ConvertFieldSnafu { tag: tags::STATUS })?;
                 let storage_sop_instance_uid = file
                     .sop_instance_uid
                     .trim_end_matches(|c: char| c.is_whitespace() || c == '\0');
