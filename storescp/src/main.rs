@@ -44,7 +44,8 @@ struct App {
     /// Which port to listen on
     #[arg(short, default_value = "11111")]
     port: u16,
-    #[arg(short, long, default_value = "false")]
+    /// Run in non-blocking mode (spins up an async task to handle each incoming stream)
+    #[arg(short, long)]
     non_blocking: bool,
 }
 
