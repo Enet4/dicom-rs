@@ -190,7 +190,8 @@ pub fn get_client_pdu<R: Read>(reader: &mut R, max_pdu_length: u32, strict: bool
 /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// let association = ClientAssociationOptions::new()
 ///    .with_presentation_context("1.2.840.10008.1.1", vec!["1.2.840.10008.1.2.1", "1.2.840.10008.1.2"])
-///    .timeout(Duration::from_secs(60))
+///    .read_timeout(Duration::from_secs(60))
+///    .write_timeout(Duration::from_secs(60))
 ///    .establish("129.168.0.5:104")?;
 /// # Ok(())
 /// # }
@@ -205,7 +206,8 @@ pub fn get_client_pdu<R: Read>(reader: &mut R, max_pdu_length: u32, strict: bool
 /// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// let association = ClientAssociationOptions::new()
 ///    .with_presentation_context("1.2.840.10008.1.1", vec!["1.2.840.10008.1.2.1", "1.2.840.10008.1.2"])
-///    .timeout(Duration::from_secs(60))
+///    .read_timeout(Duration::from_secs(60))
+///    .write_timeout(Duration::from_secs(60))
 ///    .establish_async("129.168.0.5:104")
 ///    .await?;
 /// # Ok(())

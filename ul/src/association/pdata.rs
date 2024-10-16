@@ -49,7 +49,7 @@ fn setup_pdata_header(buffer: &mut [u8], is_last: bool) {
 ///
 /// ```no_run
 /// # use std::io::Write;
-/// # use dicom_ul::association::{ClientAssociationOptions, pdata::PDataWriter};
+/// # use dicom_ul::association::ClientAssociationOptions;
 /// # use dicom_ul::pdu::{Pdu, PDataValue, PDataValueType};
 /// # fn command_data() -> Vec<u8> { unimplemented!() }
 /// # fn dicom_data() -> &'static [u8] { unimplemented!() }
@@ -216,7 +216,7 @@ where
 ///
 /// ```no_run
 /// # use std::io::Read;
-/// # use dicom_ul::association::{ClientAssociationOptions, pdata::PDataReader};
+/// # use dicom_ul::association::ClientAssociationOptions;
 /// # use dicom_ul::pdu::{Pdu, PDataValue, PDataValueType};
 /// # fn command_data() -> Vec<u8> { unimplemented!() }
 /// # fn dicom_data() -> &'static [u8] { unimplemented!() }
@@ -377,7 +377,7 @@ pub mod non_blocking {
     /// ```no_run
     /// # use std::io::Write;
     /// use tokio::io::AsyncWriteExt;
-    /// # use dicom_ul::association::{ClientAssociationOptions, pdata::non_blocking::AsyncPDataWriter};
+    /// # use dicom_ul::association::ClientAssociationOptions;
     /// # use dicom_ul::pdu::{Pdu, PDataValue, PDataValueType};
     /// # fn command_data() -> Vec<u8> { unimplemented!() }
     /// # fn dicom_data() -> &'static [u8] { unimplemented!() }
