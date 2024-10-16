@@ -10,10 +10,9 @@ use dicom_object::{InMemDicomObject, StandardDataDictionary};
 use snafu::Report;
 use tracing::{error, info, Level};
 
-
-mod transfer;
 mod store_async;
 mod store_sync;
+mod transfer;
 use store_async::run_store_async;
 use store_sync::run_store_sync;
 
@@ -45,8 +44,8 @@ struct App {
     /// Which port to listen on
     #[arg(short, default_value = "11111")]
     port: u16,
-    #[arg(short, long, default_value = "true")]
-    blocking: bool
+    #[arg(short, long, default_value = "false")]
+    non_blocking: bool,
 }
 
 fn create_cstore_response(
@@ -99,7 +98,7 @@ fn create_cecho_response(message_id: u16) -> InMemDicomObject<StandardDataDictio
 
 fn main() {
     let app = App::parse();
-    if !app.blocking {
+    if app.non_blocking {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
@@ -161,7 +160,6 @@ async fn run_async(args: App) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn run_sync(args: App) -> Result<(), Box<dyn std::error::Error>> {
-
     tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()
             .with_max_level(if args.verbose {

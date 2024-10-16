@@ -19,7 +19,7 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
         max_pdu_length,
         out_dir,
         port: _,
-        blocking: _,
+        non_blocking: _,
     } = args;
     let verbose = *verbose;
 

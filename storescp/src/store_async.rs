@@ -6,8 +6,11 @@ use dicom_ul::{pdu::PDataValueType, Pdu};
 use snafu::{OptionExt, Report, ResultExt, Whatever};
 use tracing::{debug, info, warn};
 
-use crate::{transfer::ABSTRACT_SYNTAXES, App, create_cecho_response, create_cstore_response};
-pub async fn run_store_async(scu_stream: tokio::net::TcpStream, args: &App) -> Result<(), Whatever> {
+use crate::{create_cecho_response, create_cstore_response, transfer::ABSTRACT_SYNTAXES, App};
+pub async fn run_store_async(
+    scu_stream: tokio::net::TcpStream,
+    args: &App,
+) -> Result<(), Whatever> {
     let App {
         verbose,
         calling_ae_title,
@@ -17,7 +20,7 @@ pub async fn run_store_async(scu_stream: tokio::net::TcpStream, args: &App) -> R
         max_pdu_length,
         out_dir,
         port: _,
-        blocking: _,
+        non_blocking: _,
     } = args;
     let verbose = *verbose;
 
