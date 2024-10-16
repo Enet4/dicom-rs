@@ -91,6 +91,7 @@ struct App {
         conflicts_with("saml_assertion")
     )]
     jwt: Option<String>,
+    /// Dispatch these many service users to send files in parallel
     #[arg(short = 'c', long = "concurrency")]
     concurrency: Option<usize>,
 }
