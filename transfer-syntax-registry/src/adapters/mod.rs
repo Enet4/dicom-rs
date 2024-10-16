@@ -17,6 +17,8 @@
 //!   to statically link to the OpenJPEG reference implementation.
 //!   `openjp2` is enabled by the feature `native`.
 //!   To build on Windows, enable `native_windows` instead.
+//! - [`jpegxl`](jpegxl) provides JPEG XL decoding and encoding,
+//!   through `jxl-oxide` and `zune-jpegxl`, respectively.
 //! - [`rle_lossless`](rle_lossless) provides native RLE lossless decoding.
 //!   Requires the `rle` feature,
 //!   enabled by default.
@@ -29,6 +31,8 @@ pub mod jpeg;
 pub mod jpeg2k;
 #[cfg(feature = "charls")]
 pub mod jpegls;
+#[cfg(feature = "jpegxl")]
+pub mod jpegxl;
 #[cfg(feature = "rle")]
 pub mod rle_lossless;
 
@@ -53,3 +57,8 @@ pub mod rle {}
 /// Enable the `charls` feature to use this module.
 #[cfg(not(feature = "charls"))]
 pub mod jpegls {}
+
+/// **Note:** This module is a stub.
+/// Enable the `jpegxl` feature to use this module.
+#[cfg(not(feature = "jpegxl"))]
+pub mod jpegxl {}
