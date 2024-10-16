@@ -16,7 +16,7 @@
 //!   comprises abstractions for establishing and negotiating associations
 //!   between application entities,
 //!   via the upper layer protocol by TCP.
-//! 
+//!
 //! ## Features
 //! * `async`: Enables a fully async implementation of the upper layer protocol.
 //!   See [`ClientAssociationOptions`] and [`ServerAssociationOptions`] for details

@@ -181,9 +181,9 @@ impl AccessControl for AcceptCalledAeTitle {
 /// [`ClientAssociationOptions`]: crate::association::ClientAssociationOptions
 ///
 /// ## Basic Usage
-/// 
+///
 /// ### Sync
-/// 
+///
 /// Spawn a single sync thread to listen for incoming requests.
 /// ```no_run
 /// # use std::net::TcpListener;
@@ -199,11 +199,11 @@ impl AccessControl for AcceptCalledAeTitle {
 /// # Ok(())
 /// # }
 /// ```
-/// 
+///
 /// ### Async
-/// 
+///
 /// Spawn an async task for each incoming association request.
-/// 
+///
 /// ```no_run
 /// # #[tokio::main]
 /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {

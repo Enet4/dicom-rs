@@ -13,7 +13,7 @@
 //! usually taking the role of a service class provider (SCP),
 //! a newly created [TCP stream][1] can be passed to
 //! a previously prepared [`ServerAssociationOptions`].
-//! 
+//!
 //!
 //! [1]: std::net::TcpStream
 pub mod client;
@@ -21,7 +21,7 @@ pub mod server;
 
 mod uid;
 
-pub mod pdata;
+pub(crate) mod pdata;
 
 pub use client::{ClientAssociation, ClientAssociationOptions};
 pub use server::{ServerAssociation, ServerAssociationOptions};

@@ -8,7 +8,7 @@ use bytes::BytesMut;
 use std::{
     borrow::Cow,
     convert::TryInto,
-    io::{Read, Write, BufRead, BufReader, Cursor},
+    io::{BufRead, BufReader, Cursor, Read, Write},
     net::{TcpStream, ToSocketAddrs},
     time::Duration,
 };
@@ -105,9 +105,7 @@ pub enum Error {
 
     /// failed to send PDU message
     #[non_exhaustive]
-    Send {
-        source: std::io::Error,
-    },
+    Send { source: std::io::Error },
 
     /// failed to send PDU message on wire
     #[non_exhaustive]
@@ -136,7 +134,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Helper function to get a PDU from a reader 
+/// Helper function to get a PDU from a reader
 pub fn get_client_pdu<R: Read>(reader: &mut R, max_pdu_length: u32, strict: bool) -> Result<Pdu> {
     // Receive response
 
@@ -488,7 +486,10 @@ impl<'a> ClientAssociationOptions<'a> {
     /// Initiate the TCP connection to the given address
     /// and request a new DICOM association,
     /// negotiating the presentation contexts in the process.
-    pub fn establish<A: ToSocketAddrs>(self, address: A) -> Result<ClientAssociation<std::net::TcpStream>> {
+    pub fn establish<A: ToSocketAddrs>(
+        self,
+        address: A,
+    ) -> Result<ClientAssociation<std::net::TcpStream>> {
         self.establish_impl(AeAddr::new_socket_addr(address))
     }
 
@@ -516,7 +517,10 @@ impl<'a> ClientAssociationOptions<'a> {
     /// # }
     /// ```
     #[allow(unreachable_patterns)]
-    pub fn establish_with(self, ae_address: &str) -> Result<ClientAssociation<std::net::TcpStream>> {
+    pub fn establish_with(
+        self,
+        ae_address: &str,
+    ) -> Result<ClientAssociation<std::net::TcpStream>> {
         match ae_address.try_into() {
             Ok(ae_address) => self.establish_impl(ae_address),
             Err(_) => self.establish_impl(AeAddr::new_socket_addr(ae_address)),
@@ -524,7 +528,7 @@ impl<'a> ClientAssociationOptions<'a> {
     }
 
     /// Set the read timeout for the underlying TCP socket
-    /// 
+    ///
     /// This is used to set both the read and write timeout.
     pub fn read_timeout(self, timeout: Duration) -> Self {
         Self {
@@ -549,7 +553,10 @@ impl<'a> ClientAssociationOptions<'a> {
         }
     }
 
-    fn establish_impl<T>(self, ae_address: AeAddr<T>) -> Result<ClientAssociation<std::net::TcpStream>>
+    fn establish_impl<T>(
+        self,
+        ae_address: AeAddr<T>,
+    ) -> Result<ClientAssociation<std::net::TcpStream>>
     where
         T: ToSocketAddrs,
     {
@@ -848,7 +855,7 @@ impl Release for ClientAssociation<std::net::TcpStream> {
 /// the program will automatically try to gracefully release the association
 /// through a standard C-RELEASE message exchange,
 /// then shut down the underlying TCP connection.
-/// 
+///
 /// This may either be sync or async depending on which method was called to
 /// establish the association.
 #[derive(Debug)]
@@ -1000,7 +1007,10 @@ where
     ///
     /// Returns a writer which automatically
     /// splits the inner data into separate PDUs if necessary.
-    pub fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut std::net::TcpStream> {
+    pub fn send_pdata(
+        &mut self,
+        presentation_context_id: u8,
+    ) -> PDataWriter<&mut std::net::TcpStream> {
         PDataWriter::new(
             &mut self.socket,
             presentation_context_id,
@@ -1060,7 +1070,10 @@ pub mod non_blocking {
     use crate::{
         association::{
             client::{
-                ConnectSnafu, ConnectionClosedSnafu, MissingAbstractSyntaxSnafu, NoAcceptedPresentationContextsSnafu, ProtocolVersionMismatchSnafu, ReceiveResponseSnafu, ReceiveSnafu, RejectedSnafu, SendRequestSnafu, ToAddressSnafu, UnexpectedResponseSnafu, UnknownResponseSnafu
+                ConnectSnafu, ConnectionClosedSnafu, MissingAbstractSyntaxSnafu,
+                NoAcceptedPresentationContextsSnafu, ProtocolVersionMismatchSnafu,
+                ReceiveResponseSnafu, ReceiveSnafu, RejectedSnafu, SendRequestSnafu,
+                ToAddressSnafu, UnexpectedResponseSnafu, UnknownResponseSnafu,
             },
             pdata::non_blocking::{AsyncPDataWriter, PDataReader},
         },
@@ -1074,7 +1087,7 @@ pub mod non_blocking {
 
     use super::{
         ClientAssociation, ClientAssociationOptions, CloseSocket, Release, Result, SendSnafu,
-        SendTooLongPduSnafu, TimeoutSnafu
+        SendTooLongPduSnafu, TimeoutSnafu,
     };
     use bytes::{Buf, BytesMut};
     use snafu::{ensure, ResultExt};
@@ -1112,11 +1125,15 @@ pub mod non_blocking {
     }
 
     // Helper function to perform an operation with timeout
-    async fn timeout<T>(timeout: Option<Duration>, block: impl Future<Output = Result<T>>) -> Result<T> {
+    async fn timeout<T>(
+        timeout: Option<Duration>,
+        block: impl Future<Output = Result<T>>,
+    ) -> Result<T> {
         if let Some(timeout) = timeout {
             tokio::time::timeout(timeout, block)
                 .await
-                .map_err(|_| std::io::Error::from(std::io::ErrorKind::TimedOut)).context(TimeoutSnafu)?
+                .map_err(|_| std::io::Error::from(std::io::ErrorKind::TimedOut))
+                .context(TimeoutSnafu)?
         } else {
             block.await
         }
@@ -1145,7 +1162,7 @@ pub mod non_blocking {
                 jwt,
                 read_timeout,
                 write_timeout,
-                connection_timeout
+                connection_timeout,
             } = self;
 
             // fail if no presentation contexts were provided: they represent intent,
@@ -1209,27 +1226,35 @@ pub mod non_blocking {
                 presentation_contexts,
                 user_variables,
             });
-            let conn_result: Result<tokio::net::TcpStream> = if let Some(timeout) = connection_timeout {
-                let addresses = tokio::net::lookup_host(ae_address.socket_addr()).await.context(ToAddressSnafu)?;
+            let conn_result: Result<tokio::net::TcpStream> =
+                if let Some(timeout) = connection_timeout {
+                    let addresses = tokio::net::lookup_host(ae_address.socket_addr())
+                        .await
+                        .context(ToAddressSnafu)?;
 
-                let mut result: Result<tokio::net::TcpStream, std::io::Error> =
-                    Result::Err(std::io::Error::from(std::io::ErrorKind::AddrNotAvailable));
+                    let mut result: Result<tokio::net::TcpStream, std::io::Error> =
+                        Result::Err(std::io::Error::from(std::io::ErrorKind::AddrNotAvailable));
 
-                for address in addresses {
-                    result = match tokio::time::timeout(
-                        timeout, tokio::net::TcpStream::connect(&address)
-                    ).await {
-                        Ok(inner) => inner,
-                        Err(_) => result
-                    };
-                    if result.is_ok() {
-                        break;
+                    for address in addresses {
+                        result = match tokio::time::timeout(
+                            timeout,
+                            tokio::net::TcpStream::connect(&address),
+                        )
+                        .await
+                        {
+                            Ok(inner) => inner,
+                            Err(_) => result,
+                        };
+                        if result.is_ok() {
+                            break;
+                        }
                     }
-                }
-                result.context(ConnectSnafu)
-            } else {
-                tokio::net::TcpStream::connect(ae_address.socket_addr()).await.context(ConnectSnafu)
-            };
+                    result.context(ConnectSnafu)
+                } else {
+                    tokio::net::TcpStream::connect(ae_address.socket_addr())
+                        .await
+                        .context(ConnectSnafu)
+                };
 
             let mut socket = conn_result?;
             let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
@@ -1239,11 +1264,13 @@ pub mod non_blocking {
             timeout(write_timeout, async {
                 socket.write_all(&buffer).await.context(SendSnafu)?;
                 Ok(())
-            }).await?;
+            })
+            .await?;
             buffer.clear();
             let msg = timeout(read_timeout, async {
                 get_client_pdu_async(&mut socket, MAXIMUM_PDU_SIZE, strict).await
-            }).await?;
+            })
+            .await?;
 
             match msg {
                 Pdu::AssociationAC(AssociationAC {
@@ -1291,7 +1318,8 @@ pub mod non_blocking {
                         );
                         let _ = timeout(write_timeout, async {
                             socket.write_all(&buffer).await.context(SendSnafu)
-                        }).await;
+                        })
+                        .await;
                         buffer.clear();
                         return NoAcceptedPresentationContextsSnafu.fail();
                     }
@@ -1322,7 +1350,8 @@ pub mod non_blocking {
                     );
                     let _ = timeout(write_timeout, async {
                         socket.write_all(&buffer).await.context(SendSnafu)
-                    }).await;
+                    })
+                    .await;
                     UnexpectedResponseSnafu { pdu }.fail()
                 }
                 pdu @ Pdu::Unknown { .. } => {
@@ -1335,7 +1364,8 @@ pub mod non_blocking {
                     );
                     let _ = timeout(write_timeout, async {
                         socket.write_all(&buffer).await.context(SendSnafu)
-                    }).await;
+                    })
+                    .await;
                     UnknownResponseSnafu { pdu }.fail()
                 }
             }
@@ -1385,7 +1415,8 @@ pub mod non_blocking {
             match ae_address.try_into() {
                 Ok(ae_address) => self.establish_impl_async(ae_address).await,
                 Err(_) => {
-                    self.establish_impl_async(AeAddr::new_socket_addr(ae_address)).await
+                    self.establish_impl_async(AeAddr::new_socket_addr(ae_address))
+                        .await
                 }
             }
         }
@@ -1406,11 +1437,9 @@ pub mod non_blocking {
                 .fail();
             }
             timeout(self.write_timeout, async {
-                self.socket
-                    .write_all(&self.buffer)
-                    .await
-                    .context(SendSnafu)
-            }).await
+                self.socket.write_all(&self.buffer).await.context(SendSnafu)
+            })
+            .await
         }
 
         /// Read a PDU message from the other intervenient.
@@ -1438,7 +1467,8 @@ pub mod non_blocking {
                         .context(ReceiveSnafu)?;
                     ensure!(recv > 0, ConnectionClosedSnafu);
                 }
-            }).await
+            })
+            .await
         }
 
         /// Gracefully terminate the association by exchanging release messages
@@ -1448,7 +1478,8 @@ pub mod non_blocking {
                 let out = self.release_impl().await;
                 let _ = self.socket.shutdown().await;
                 out
-            }).await
+            })
+            .await
         }
 
         /// Send an abort message and shut down the TCP connection,
@@ -1461,7 +1492,8 @@ pub mod non_blocking {
                 let out = self.send(&pdu).await;
                 let _ = self.socket.shutdown().await;
                 out
-            }).await
+            })
+            .await
         }
 
         /// Prepare a P-Data writer for sending
