@@ -180,7 +180,7 @@ pub fn get_client_pdu<R: Read>(reader: &mut R, max_pdu_length: u32, strict: bool
 ///
 /// > **⚠️ Warning:** It is highly recommended to set `timeout` to a reasonable value for the
 /// > async client since there is _no_ default timeout on
-/// > [`tokio::net::TcpStream`], see the [`ClientAssociationOptions::timeout`] method for details.
+/// > [`tokio::net::TcpStream`]
 ///
 /// ## Basic usage
 ///

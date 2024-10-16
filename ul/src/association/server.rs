@@ -180,8 +180,11 @@ impl AccessControl for AcceptCalledAeTitle {
 ///
 /// [`ClientAssociationOptions`]: crate::association::ClientAssociationOptions
 ///
-/// # Example
-///
+/// ## Basic Usage
+/// 
+/// ### Sync
+/// 
+/// Spawn a single sync thread to listen for incoming requests.
 /// ```no_run
 /// # use std::net::TcpListener;
 /// # use dicom_ul::association::server::ServerAssociationOptions;
@@ -193,6 +196,38 @@ impl AccessControl for AcceptCalledAeTitle {
 ///
 /// let (stream, _address) = tcp_listener.accept()?;
 /// scp_options.establish(stream)?;
+/// # Ok(())
+/// # }
+/// ```
+/// 
+/// ### Async
+/// 
+/// Spawn an async task for each incoming association request.
+/// 
+/// ```no_run
+/// # #[tokio::main]
+/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), args.port);
+/// let listener = tokio::net::TcpListener::bind(listen_addr).await?;
+/// loop {
+///     let (socket, _addr) = listener.accept().await?;
+///     let args = args.clone();
+///     tokio::task::spawn(async move {
+///         let scp = ServerAssociationOptions::new()
+///             .accept_any()
+///             .with_abstract_syntax("1.2.840.10008.1.1")
+///             .with_transfer_syntax("1.2.840.10008.1.2.1");
+///             .establish_async(socket)
+///             .await?;
+///         loop {
+///             match scp.receive().await {
+///                 Ok(pdu) => {
+///                     // Handle pdu
+///                 }
+///             }
+///         }
+///     });
+/// }
 /// # Ok(())
 /// # }
 /// ```

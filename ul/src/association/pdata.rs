@@ -177,7 +177,6 @@ where
             self.buffer.extend(buf);
             debug_assert_eq!(self.buffer.len(), total_len);
             self.dispatch_pdu()?;
-            println!("{:?}", buf.len());
             Ok(buf.len())
         }
     }
@@ -469,7 +468,6 @@ pub mod non_blocking {
         }
 
         async fn finish_impl(&mut self) -> std::io::Result<()> {
-            println!("Finish, {}", self.msg);
             if !self.buffer.is_empty() {
                 // send last PDU
                 setup_pdata_header(&mut self.buffer, true);
@@ -505,7 +503,6 @@ pub mod non_blocking {
                 match write_all.poll(cx) {
                     Poll::Ready(Ok(_)) => {
                         this.writing = false;
-                        println!("{:?}", this.msg);
                         this.msg += 1;
                         this.buffer.truncate(12);
                         return Poll::Ready(Ok(buf.len()));
