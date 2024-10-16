@@ -64,7 +64,11 @@ pub async fn get_scu(
         scu_init = scu_init.jwt(jwt);
     }
 
-    scu_init.establish_with_async(&addr).await.map_err(Box::from).context(ScuSnafu)
+    scu_init
+        .establish_with_async(&addr)
+        .await
+        .map_err(Box::from)
+        .context(ScuSnafu)
 }
 
 pub async fn send_file(

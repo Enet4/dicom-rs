@@ -63,7 +63,10 @@ pub fn get_scu(
         scu_init = scu_init.jwt(jwt);
     }
 
-    scu_init.establish_with(&addr).map_err(Box::from).context(ScuSnafu)
+    scu_init
+        .establish_with(&addr)
+        .map_err(Box::from)
+        .context(ScuSnafu)
 }
 
 pub fn send_file(
