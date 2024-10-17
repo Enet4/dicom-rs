@@ -58,6 +58,8 @@ image = ["dep:image"]
 native = ["dicom-transfer-syntax-registry/native", "jpeg", "rle"]
 # native JPEG codec implementation
 jpeg = ["dicom-transfer-syntax-registry/jpeg"]
+# native JPEG XL codec implementation
+jpegxl = ["dicom-transfer-syntax-registry/jpegxl"]
 # native RLE lossless codec implementation
 rle = ["dicom-transfer-syntax-registry/rle"]
 # JPEG 2000 decoding via OpenJPEG static linking
