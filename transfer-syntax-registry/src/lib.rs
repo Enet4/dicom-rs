@@ -233,7 +233,7 @@ lazy_static! {
         };
 
         use self::entries::*;
-        let built_in_ts: [TransferSyntax; 37] = [
+        let built_in_ts: [TransferSyntax; 40] = [
             IMPLICIT_VR_LITTLE_ENDIAN.erased(),
             EXPLICIT_VR_LITTLE_ENDIAN.erased(),
             EXPLICIT_VR_BIG_ENDIAN.erased(),
@@ -252,6 +252,9 @@ lazy_static! {
             JPEG_2000_IMAGE_COMPRESSION.erased(),
             JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION_LOSSLESS_ONLY.erased(),
             JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION.erased(),
+            JPEG_XL_LOSSLESS.erased(),
+            JPEG_XL_RECOMPRESSION.erased(),
+            JPEG_XL.erased(),
             JPIP_REFERENCED.erased(),
             MPEG2_MAIN_PROFILE_MAIN_LEVEL.erased(),
             FRAGMENTABLE_MPEG2_MAIN_PROFILE_MAIN_LEVEL.erased(),
