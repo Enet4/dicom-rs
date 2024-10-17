@@ -102,6 +102,7 @@
 //! including the default behavior for each method.
 //!
 
+use attribute::VoiLut;
 use byteorder::{ByteOrder, NativeEndian};
 #[cfg(not(feature = "gdcm"))]
 use dicom_core::{DataDictionary, DicomValue};
@@ -245,6 +246,16 @@ pub enum InnerError {
         ww_vm: u32,
         backtrace: Backtrace,
     },
+    #[snafu(display(
+        "Value multiplicity of VOI LUT must match the number of frames. Expected `{:?}`, found `{:?}`",
+        nr_frames,
+        vm
+    ))]
+    LengthMismatchVoiLut {
+        vm: u32,
+        nr_frames: u32,
+        backtrace: Backtrace,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -355,6 +366,9 @@ pub enum VoiLutOption {
     /// only when converting to an image;
     /// no VOI LUT function is performed
     /// when converting to an ndarray or to bare pixel values.
+    ///
+    /// If both a VOI LUT table and window values are present in the pixel data,
+    /// use the VOI LUT table.
     #[default]
     Default,
     /// Apply the first VOI LUT function transformation
@@ -440,6 +454,8 @@ pub struct DecodedPixelData<'a> {
     voi_lut_function: Option<Vec<VoiLutFunction>>,
     /// the window level specified via width and center
     window: Option<Vec<WindowLevel>>,
+    /// the explicit VOI LUTs
+    voi_lut_sequence: Option<Vec<VoiLut>>,
 
     /// Enforce frame functional groups VMs match `number_of_frames`
     enforce_frame_fg_vm_match: bool,
@@ -639,6 +655,36 @@ impl DecodedPixelData<'_> {
                 }
             };
             res
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn voi_lut_sequence(&self) -> Result<Option<&[VoiLut]>> {
+        if let Some(inner) = &self.voi_lut_sequence {
+            match &inner.len() {
+                0 => Ok(None),
+                1 => Ok(Some(inner.as_slice())),
+                len => {
+                    if *len == self.number_of_frames as usize {
+                        Ok(Some(inner.as_slice()))
+                    } else {
+                        if self.enforce_frame_fg_vm_match {
+                            LengthMismatchVoiLutSnafu {
+                                vm: *len as u32,
+                                nr_frames: self.number_of_frames(),
+                            }
+                            .fail()?
+                        }
+                        tracing::warn!(
+                            "Expected `{:?}` VOI LUTs, found `{:?}`, using first value for all",
+                            self.number_of_frames,
+                            len
+                        );
+                        Ok(Some(&inner[0..0]))
+                    }
+                }
+            }
         } else {
             Ok(None)
         }
@@ -891,6 +937,8 @@ impl DecodedPixelData<'_> {
 
     #[cfg(feature = "image")]
     fn build_monochrome_image(&self, frame: u32, options: &ConvertOptions) -> Result<DynamicImage> {
+        use transform::VoiLutTransform;
+
         let ConvertOptions {
             modality_lut,
             voi_lut,
@@ -921,11 +969,30 @@ impl DecodedPixelData<'_> {
 
                         let signed = self.pixel_representation == PixelRepresentation::Signed;
 
-                        let lut: Lut<u8> = match (voi_lut, self.window()?) {
-                            (VoiLutOption::Identity, _) => {
+                        let lut: Lut<u8> = match (voi_lut, self.window()?, self.voi_lut_sequence()?)
+                        {
+                            (VoiLutOption::Identity, _, _) => {
                                 Lut::new_rescale(8, false, rescale).context(CreateLutSnafu)?
                             }
-                            (VoiLutOption::Default | VoiLutOption::First, Some(window)) => {
+                            (
+                                VoiLutOption::Default | VoiLutOption::First,
+                                _,
+                                Some(voi_lut_sequence),
+                            ) => Lut::new_rescale_and_lut(
+                                8,
+                                signed,
+                                rescale,
+                                VoiLutTransform::new(
+                                    if voi_lut_sequence.len() > 1 {
+                                        &voi_lut_sequence[frame as usize]
+                                    } else {
+                                        &voi_lut_sequence[0]
+                                    },
+                                    8,
+                                ),
+                            )
+                            .context(CreateLutSnafu)?,
+                            (VoiLutOption::Default | VoiLutOption::First, Some(window), _) => {
                                 Lut::new_rescale_and_window(
                                     8,
                                     signed,
@@ -950,8 +1017,10 @@ impl DecodedPixelData<'_> {
                                 )
                                 .context(CreateLutSnafu)?
                             }
-                            (VoiLutOption::Default | VoiLutOption::First, None) => {
-                                tracing::warn!("Could not find window level for object");
+                            (VoiLutOption::Default | VoiLutOption::First, None, None) => {
+                                tracing::warn!(
+                                    "Could find neither VOI LUT nor window level for object"
+                                );
                                 Lut::new_rescale_and_normalize(
                                     8,
                                     signed,
@@ -960,7 +1029,7 @@ impl DecodedPixelData<'_> {
                                 )
                                 .context(CreateLutSnafu)?
                             }
-                            (VoiLutOption::Custom(window), _) => Lut::new_rescale_and_window(
+                            (VoiLutOption::Custom(window), _, _) => Lut::new_rescale_and_window(
                                 8,
                                 signed,
                                 rescale,
@@ -979,7 +1048,7 @@ impl DecodedPixelData<'_> {
                                 ),
                             )
                             .context(CreateLutSnafu)?,
-                            (VoiLutOption::CustomWithFunction(window, function), _) => {
+                            (VoiLutOption::CustomWithFunction(window, function), _, _) => {
                                 Lut::new_rescale_and_window(
                                     8,
                                     signed,
@@ -988,7 +1057,7 @@ impl DecodedPixelData<'_> {
                                 )
                                 .context(CreateLutSnafu)?
                             }
-                            (VoiLutOption::Normalize, _) => Lut::new_rescale_and_normalize(
+                            (VoiLutOption::Normalize, _, _) => Lut::new_rescale_and_normalize(
                                 8,
                                 signed,
                                 rescale,
@@ -1071,78 +1140,100 @@ impl DecodedPixelData<'_> {
                         let samples = self.frame_data_ow(frame)?;
 
                         // use 16-bit precision to prevent possible loss of precision in image
-                        let lut: Lut<u16> = match (voi_lut, self.window()?) {
-                            (VoiLutOption::Identity, _) => {
-                                Lut::new_rescale(self.bits_stored, signed, rescale)
-                            }
-                            (VoiLutOption::Default | VoiLutOption::First, Some(window)) => {
-                                Lut::new_rescale_and_window(
+                        let lut: Lut<u16> =
+                            match (voi_lut, self.window()?, self.voi_lut_sequence()?) {
+                                (VoiLutOption::Identity, _, _) => {
+                                    Lut::new_rescale(self.bits_stored, signed, rescale)
+                                }
+                                (
+                                    VoiLutOption::Default | VoiLutOption::First,
+                                    _,
+                                    Some(voi_lut_sequence),
+                                ) => Lut::new_rescale_and_lut(
                                     self.bits_stored,
                                     signed,
                                     rescale,
-                                    WindowLevelTransform::new(
-                                        match self.voi_lut_function()? {
-                                            Some(lut) => {
-                                                if lut.len() > 1 {
-                                                    lut[frame as usize]
-                                                } else {
-                                                    lut[0]
-                                                }
-                                            }
-                                            None => VoiLutFunction::Linear,
-                                        },
-                                        if window.len() > 1 {
-                                            window[frame as usize]
+                                    VoiLutTransform::new(
+                                        if voi_lut_sequence.len() > 1 {
+                                            &voi_lut_sequence[frame as usize]
                                         } else {
-                                            window[0]
+                                            &voi_lut_sequence[0]
                                         },
+                                        self.bits_stored,
                                     ),
-                                )
-                            }
-                            (VoiLutOption::Default | VoiLutOption::First, None) => {
-                                tracing::warn!("Could not find window level for object");
+                                ),
+                                (VoiLutOption::Default | VoiLutOption::First, Some(window), _) => {
+                                    Lut::new_rescale_and_window(
+                                        self.bits_stored,
+                                        signed,
+                                        rescale,
+                                        WindowLevelTransform::new(
+                                            match self.voi_lut_function()? {
+                                                Some(lut) => {
+                                                    if lut.len() > 1 {
+                                                        lut[frame as usize]
+                                                    } else {
+                                                        lut[0]
+                                                    }
+                                                }
+                                                None => VoiLutFunction::Linear,
+                                            },
+                                            if window.len() > 1 {
+                                                window[frame as usize]
+                                            } else {
+                                                window[0]
+                                            },
+                                        ),
+                                    )
+                                }
+                                (VoiLutOption::Default | VoiLutOption::First, None, None) => {
+                                    tracing::warn!(
+                                        "Could find neither VOI LUT nor window level for object"
+                                    );
 
-                                Lut::new_rescale_and_normalize(
+                                    Lut::new_rescale_and_normalize(
+                                        self.bits_stored,
+                                        signed,
+                                        rescale,
+                                        samples.iter().copied(),
+                                    )
+                                }
+                                (VoiLutOption::Custom(window), _, _) => {
+                                    Lut::new_rescale_and_window(
+                                        self.bits_stored,
+                                        signed,
+                                        rescale,
+                                        WindowLevelTransform::new(
+                                            match self.voi_lut_function()? {
+                                                Some(lut) => {
+                                                    if lut.len() > 1 {
+                                                        lut[frame as usize]
+                                                    } else {
+                                                        lut[0]
+                                                    }
+                                                }
+                                                None => VoiLutFunction::Linear,
+                                            },
+                                            *window,
+                                        ),
+                                    )
+                                }
+                                (VoiLutOption::CustomWithFunction(window, function), _, _) => {
+                                    Lut::new_rescale_and_window(
+                                        self.bits_stored,
+                                        signed,
+                                        rescale,
+                                        WindowLevelTransform::new(*function, *window),
+                                    )
+                                }
+                                (VoiLutOption::Normalize, _, _) => Lut::new_rescale_and_normalize(
                                     self.bits_stored,
                                     signed,
                                     rescale,
                                     samples.iter().copied(),
-                                )
-                            }
-                            (VoiLutOption::Custom(window), _) => Lut::new_rescale_and_window(
-                                self.bits_stored,
-                                signed,
-                                rescale,
-                                WindowLevelTransform::new(
-                                    match self.voi_lut_function()? {
-                                        Some(lut) => {
-                                            if lut.len() > 1 {
-                                                lut[frame as usize]
-                                            } else {
-                                                lut[0]
-                                            }
-                                        }
-                                        None => VoiLutFunction::Linear,
-                                    },
-                                    *window,
                                 ),
-                            ),
-                            (VoiLutOption::CustomWithFunction(window, function), _) => {
-                                Lut::new_rescale_and_window(
-                                    self.bits_stored,
-                                    signed,
-                                    rescale,
-                                    WindowLevelTransform::new(*function, *window),
-                                )
                             }
-                            (VoiLutOption::Normalize, _) => Lut::new_rescale_and_normalize(
-                                self.bits_stored,
-                                signed,
-                                rescale,
-                                samples.iter().copied(),
-                            ),
-                        }
-                        .context(CreateLutSnafu)?;
+                            .context(CreateLutSnafu)?;
 
                         #[cfg(feature = "rayon")]
                         {
@@ -1776,6 +1867,7 @@ impl DecodedPixelData<'_> {
             rescale: self.rescale.to_vec(),
             voi_lut_function: self.voi_lut_function.clone(),
             window: self.window.clone(),
+            voi_lut_sequence: self.voi_lut_sequence.clone(),
             enforce_frame_fg_vm_match: self.enforce_frame_fg_vm_match,
         }
     }
@@ -1962,6 +2054,7 @@ pub(crate) struct ImagingProperties {
     pub(crate) number_of_frames: u32,
     pub(crate) voi_lut_function: Option<Vec<VoiLutFunction>>,
     pub(crate) window: Option<Vec<WindowLevel>>,
+    pub(crate) voi_lut_sequence: Option<Vec<VoiLut>>,
 }
 
 #[cfg(not(feature = "gdcm"))]
@@ -1992,6 +2085,7 @@ impl ImagingProperties {
                 .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
                 .collect()
         });
+        let voi_lut_sequence = voi_lut_sequence(obj);
 
         ensure!(
             rescale_intercept.len() == rescale_slope.len(),
@@ -2041,6 +2135,7 @@ impl ImagingProperties {
             number_of_frames,
             voi_lut_function,
             window,
+            voi_lut_sequence,
         })
     }
 }
@@ -2068,6 +2163,7 @@ where
             number_of_frames,
             voi_lut_function,
             window,
+            voi_lut_sequence,
         } = ImagingProperties::from_obj(self)?;
 
         let transfer_syntax = &self.meta().transfer_syntax;
@@ -2120,6 +2216,7 @@ where
                 rescale,
                 voi_lut_function,
                 window,
+                voi_lut_sequence,
                 enforce_frame_fg_vm_match: false,
             });
         }
@@ -2152,6 +2249,7 @@ where
             rescale,
             voi_lut_function,
             window,
+            voi_lut_sequence,
             enforce_frame_fg_vm_match: false,
         })
     }
@@ -2174,6 +2272,7 @@ where
             number_of_frames,
             voi_lut_function,
             window,
+            voi_lut_sequence,
         } = ImagingProperties::from_obj(self)?;
 
         let transfer_syntax = &self.meta().transfer_syntax;
@@ -2204,23 +2303,21 @@ where
             .map(|inner| vec![inner])
             .unwrap_or_default();
 
-        let window = window
-            .and_then(|inner| {
-                inner
-                    .get(frame as usize)
-                    .or(inner.first())
-                    .copied()
-                    .map(|el| vec![el])
-            });
+        let window = window.and_then(|inner| {
+            inner
+                .get(frame as usize)
+                .or(inner.first())
+                .copied()
+                .map(|el| vec![el])
+        });
 
-        let voi_lut_function = voi_lut_function
-            .and_then(|inner| {
-                inner
-                    .get(frame as usize)
-                    .or(inner.first())
-                    .copied()
-                    .map(|el| vec![el])
-            });
+        let voi_lut_function = voi_lut_function.and_then(|inner| {
+            inner
+                .get(frame as usize)
+                .or(inner.first())
+                .copied()
+                .map(|el| vec![el])
+        });
 
         // Try decoding it using a registered pixel data decoder
         if let Codec::EncapsulatedPixelData(Some(decoder), _) = ts.codec() {
@@ -2251,6 +2348,7 @@ where
                 rescale,
                 voi_lut_function,
                 window,
+                voi_lut_sequence,
                 enforce_frame_fg_vm_match: false,
             });
         }
@@ -2298,6 +2396,7 @@ where
             rescale,
             voi_lut_function,
             window,
+            voi_lut_sequence,
             enforce_frame_fg_vm_match: false,
         })
     }

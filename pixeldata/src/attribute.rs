@@ -30,6 +30,9 @@ pub enum AttributeName {
     VoiLutFunction,
     WindowCenter,
     WindowWidth,
+    LutDescriptor,
+    LutData,
+    LutExplanation,
 }
 
 impl std::fmt::Display for AttributeName {
@@ -616,6 +619,153 @@ pub fn photometric_interpretation<D: DataDictionary + Clone>(
         .context(CastValueSnafu { name })?
         .trim_matches(|c: char| c.is_whitespace() || c == '\0')
         .into())
+}
+
+/// A decoded representation of the
+/// DICOM _VOI LUT Sequence_ attribute.
+///
+/// See [section C.8.11.3.1.5][1] of the standard for more details.
+///
+/// [1]: https://dicom.nema.org/dicom/2013/output/chtml/part03/sect_C.8.html#sect_C.8.11.3.1.5
+#[derive(Clone, Debug)]
+pub struct VoiLut {
+    /// Minimum pixel value to be mapped. All values below this should be mapped
+    /// to the first entry of the table.
+    ///
+    /// The value can either be a signed or an unsigned 16-bit integer, an i32
+    /// accomodates both.
+    pub min_pixel_value: i32,
+    /// Number of bits stored for each LUT entry
+    pub bits_stored: u8,
+    /// LUT data. Pixels with value min_pixel_value or below get mapped to the
+    /// first entry, pixels with value min_pixel_value+1 to the second entry,
+    /// and so forth. Pixels with value higher or equal to min_pixel_value +
+    /// data.len() get mapped to the last entry.
+    pub data: Vec<u16>,
+    ///  Free form text explanation of the meaning of the LUT.
+    pub explanation: Option<String>,
+}
+
+fn parse_voi_lut_entry<D: DataDictionary + Clone>(entry: &InMemDicomObject<D>) -> Result<VoiLut> {
+    let descriptor_elements: Vec<i32> = entry
+        .element_opt(tags::LUT_DESCRIPTOR)
+        .context(RetrieveSnafu {
+            name: AttributeName::LutDescriptor,
+        })?
+        .context(MissingRequiredSnafu {
+            name: AttributeName::LutDescriptor,
+        })?
+        .to_multi_int()
+        .context(ConvertValueSnafu {
+            name: AttributeName::LutDescriptor,
+        })?;
+    ensure!(
+        descriptor_elements.len() == 3,
+        InvalidValueSnafu {
+            name: AttributeName::LutDescriptor,
+            value: format!("value with multiplicity {}", descriptor_elements.len()),
+        }
+    );
+    ensure!(
+        descriptor_elements[0] > 0,
+        InvalidValueSnafu {
+            name: AttributeName::LutDescriptor,
+            value: format!("value with LUT length {}", descriptor_elements[0]),
+        }
+    );
+    let expected_lut_len: usize = descriptor_elements[0] as usize;
+
+    let min_pixel_value = descriptor_elements[1];
+
+    ensure!(
+        descriptor_elements[2] >= 0 && descriptor_elements[2] <= 16,
+        InvalidValueSnafu {
+            name: AttributeName::LutDescriptor,
+            value: format!("value with bits stored {}", descriptor_elements[2])
+        }
+    );
+    let bits_stored = descriptor_elements[2] as u8;
+
+    let lut_data = entry
+        .element_opt(tags::LUT_DATA)
+        .context(RetrieveSnafu {
+            name: AttributeName::LutData,
+        })?
+        .context(MissingRequiredSnafu {
+            name: AttributeName::LutData,
+        })?
+        .uint16_slice()
+        .context(CastValueSnafu {
+            name: AttributeName::LutData,
+        })?;
+    ensure!(
+        expected_lut_len == lut_data.len(),
+        InvalidValueSnafu {
+            name: AttributeName::LutData,
+            value: format!(
+                "sequence with {} elements (expected {expected_lut_len})",
+                lut_data.len()
+            ),
+        }
+    );
+
+    let explanation = if let Some(val) =
+        entry
+            .element_opt(tags::LUT_EXPLANATION)
+            .context(RetrieveSnafu {
+                name: AttributeName::LutExplanation,
+            })? {
+        Some(
+            val.string()
+                .context(CastValueSnafu {
+                    name: AttributeName::LutExplanation,
+                })?
+                .to_string(),
+        )
+    } else {
+        None
+    };
+
+    Ok(VoiLut {
+        min_pixel_value,
+        bits_stored,
+        data: lut_data.to_vec(),
+        explanation,
+    })
+}
+
+pub fn voi_lut_sequence<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+) -> Option<Vec<VoiLut>> {
+    obj.get(tags::VOILUT_SEQUENCE)
+        .and_then(|e| {
+            e.items().and_then(|items| {
+                items
+                    .iter()
+                    .map(|e| parse_voi_lut_entry(e).ok())
+                    .collect::<Option<Vec<VoiLut>>>()
+            })
+        })
+        .or_else(|| {
+            get_from_per_frame(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::VOILUT_SEQUENCE]).and_then(
+                |v| {
+                    v.into_iter()
+                        .flat_map(|el| el.items())
+                        .flat_map(|items| items.iter().map(|e| parse_voi_lut_entry(e).ok()))
+                        .collect()
+                },
+            )
+        })
+        .or_else(|| {
+            get_from_shared(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::VOILUT_SEQUENCE]).and_then(
+                |v| {
+                    v.into_iter()
+                        .flat_map(|el| el.items())
+                        .flat_map(|items| items.iter().map(|e| parse_voi_lut_entry(e).ok()))
+                        .collect()
+                },
+            )
+        })
 }
 
 #[cfg(test)]
