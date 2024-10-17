@@ -224,11 +224,22 @@ impl AccessControl for AcceptCalledAeTitle {
 ///             .expect("Could not establish association on socket");
 ///         loop {
 ///             match scp.receive().await {
-///                 Ok(pdu) => {
-///                     // Handle pdu
-///                     todo!()
+///                 Ok(dicom_ul::Pdu::PData { data }) => {
+///                     // read P-Data here
 ///                 },
-///                 Err(_) => todo!(),
+///                 Ok(dicom_ul::Pdu::ReleaseRP) => {
+///                     break;
+///                 },
+///                 Ok(dicom_ul::Pdu::AbortRQ { source }) => {
+///                     eprintln!("Association aborted: {source:?}");
+///                     break;
+///                 },
+///                 Ok(pdu) => {
+///                     eprintln!("Unexpected PDU");
+///                 },
+///                 Err(e) => {
+///                     eprintln!("Oops! {e}");
+///                 },
 ///             }
 ///         }
 ///     });
