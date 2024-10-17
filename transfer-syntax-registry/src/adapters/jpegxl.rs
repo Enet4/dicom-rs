@@ -201,8 +201,6 @@ impl PixelDataWriter for JpegXlAdapter {
             .map_err(|e| format!("{e:?}"))
             .whatever_context("Failed to encode JPEG XL data")?;
 
-        eprintln!("JXL size: {}", jxl.len());
-
         dst.extend_from_slice(&jxl);
 
         // provide attribute changes
