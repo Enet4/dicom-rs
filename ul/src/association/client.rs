@@ -217,6 +217,7 @@ pub fn get_client_pdu<R: Read>(reader: &mut R, max_pdu_length: u32, strict: bool
 /// fn main() {}
 /// ```
 ///
+/// ### Presentation contexts
 ///
 /// At least one presentation context must be specified,
 /// using the method [`with_presentation_context`](Self::with_presentation_context)
