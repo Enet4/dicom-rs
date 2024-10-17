@@ -5,46 +5,14 @@ use dicom_encoding::text::TextCodec;
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::io::Write;
 
-#[derive(Debug, Snafu)]
-#[non_exhaustive]
-pub enum Error {
-    #[snafu(display("Could not write chunk of {} PDU structure", name))]
-    WriteChunk {
-        /// the name of the PDU structure
-        name: &'static str,
-        source: WriteChunkError,
-    },
-
-    #[snafu(display("Could not write field `{}`", field))]
-    WriteField {
-        field: &'static str,
-        backtrace: Backtrace,
-        source: std::io::Error,
-    },
-
-    #[snafu(display("Could not write {} reserved bytes", bytes))]
-    WriteReserved {
-        bytes: u32,
-        backtrace: Backtrace,
-        source: std::io::Error,
-    },
-
-    #[snafu(display("Could not write field `{}`", field))]
-    EncodeField {
-        field: &'static str,
-        #[snafu(backtrace)]
-        source: dicom_encoding::text::EncodeTextError,
-    },
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, WriteError>;
 
 #[derive(Debug, Snafu)]
 pub enum WriteChunkError {
     #[snafu(display("Failed to build chunk"))]
     BuildChunk {
         #[snafu(backtrace)]
-        source: Box<Error>,
+        source: Box<WriteError>,
     },
     #[snafu(display("Failed to write chunk length"))]
     WriteLength {
