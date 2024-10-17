@@ -11,7 +11,7 @@ keywords = ["cli", "dicom", "image", "image-conversion"]
 readme = "README.md"
 
 [features]
-default = ['dicom-object/inventory-registry', 'dicom-pixeldata/native']
+default = ['dicom-object/inventory-registry', 'dicom-pixeldata/native', 'dicom-pixeldata/jpegxl']
 
 [dependencies]
 clap = { version  = "4.0.18", features = ["derive"] }
