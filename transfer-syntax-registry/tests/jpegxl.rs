@@ -117,8 +117,8 @@ fn read_jpeg_xl_1() {
 
 #[test]
 #[ignore]
-fn read_jpeg_lossless_1() {
-    let test_file = dicom_test_files::path("pydicom/SC_rgb_jpeg_gdcm.dcm").unwrap();
+fn read_jpeg_xl_lossless_1() {
+    let test_file = dicom_test_files::path("???.dcm").unwrap();
 
     // manually fetch the pixel data fragment from the file
 
@@ -171,8 +171,8 @@ fn read_jpeg_lossless_1() {
 /// writing to JPEG XL lossless and back should yield exactly the same pixel data
 #[test]
 fn write_and_read_jpeg_xl() {
-    let rows: u16 = 64;
-    let columns: u16 = 128;
+    let rows: u16 = 128;
+    let columns: u16 = 256;
 
     // build some random RGB image
     let mut samples = vec![0; rows as usize * columns as usize * 3];
