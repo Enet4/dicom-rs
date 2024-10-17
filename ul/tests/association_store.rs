@@ -59,6 +59,7 @@ fn spawn_scp() -> Result<(std::thread::JoinHandle<Result<()>>, SocketAddr)> {
     Ok((h, addr))
 }
 
+#[cfg(feature = "async")]
 async fn spawn_scp_async() -> Result<(tokio::task::JoinHandle<Result<()>>, SocketAddr)> {
     let listener = tokio::net::TcpListener::bind("localhost:0").await?;
     let addr = listener.local_addr()?;
@@ -138,6 +139,7 @@ fn scu_scp_association_test() {
         .expect("Error at the SCP");
 }
 
+#[cfg(feature = "async")]
 #[tokio::test(flavor = "multi_thread")]
 async fn scu_scp_association_test_async() {
     let (scp_handle, scp_addr) = spawn_scp_async().await.unwrap();

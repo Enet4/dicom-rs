@@ -207,6 +207,7 @@ impl AccessControl for AcceptCalledAeTitle {
 /// ```no_run
 /// # use std::net::{Ipv4Addr, SocketAddrV4};
 /// # use dicom_ul::association::server::ServerAssociationOptions;
+/// # #[cfg(feature = "async")]
 /// # #[tokio::main]
 /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), 11111);
@@ -234,6 +235,8 @@ impl AccessControl for AcceptCalledAeTitle {
 /// }
 /// # Ok(())
 /// # }
+/// # #[cfg(not(feature = "async"))]
+/// fn main() {}
 /// ```
 ///
 /// The SCP will by default accept all transfer syntaxes

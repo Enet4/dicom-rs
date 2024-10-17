@@ -665,8 +665,10 @@ mod tests {
 
     use super::PDataReader;
 
+    #[cfg(feature = "async")]
     use tokio::io::AsyncWriteExt;
 
+    #[cfg(feature = "async")]
     use crate::association::pdata::non_blocking::AsyncPDataWriter;
 
     #[test]
@@ -701,6 +703,7 @@ mod tests {
         assert_eq!(cursor.len(), 0);
     }
 
+    #[cfg(feature = "async")]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_async_write_pdata_and_finish() {
         let presentation_context_id = 12;
@@ -815,6 +818,7 @@ mod tests {
         assert_eq!(cursor.len(), 0);
     }
 
+    #[cfg(feature = "async")]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_async_write_large_pdata_and_finish() {
         let presentation_context_id = 32;
@@ -934,6 +938,7 @@ mod tests {
         assert_eq!(buf, my_data);
     }
 
+    #[cfg(feature = "async")]
     #[tokio::test]
     async fn test_async_read_large_pdata_and_finish() {
         use tokio::io::AsyncReadExt;

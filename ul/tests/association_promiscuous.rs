@@ -49,6 +49,7 @@ fn spawn_scp(
     Ok((handle, addr))
 }
 
+#[cfg(feature = "async")]
 async fn spawn_scp_async(
     abstract_syntax_uids: &'static [&str],
     promiscuous: bool,
@@ -108,6 +109,7 @@ fn scu_scp_association_promiscuous_enabled() {
         .expect("Error at the SCP");
 }
 
+#[cfg(feature = "async")]
 #[tokio::test(flavor = "multi_thread")]
 async fn scu_scp_association_promiscuous_enabled_async() {
     // SCP is set to promiscuous mode - all abstract syntaxes are accepted
@@ -150,6 +152,7 @@ fn scu_scp_association_promiscuous_disabled() {
     ));
 }
 
+#[cfg(feature = "async")]
 #[tokio::test(flavor = "multi_thread")]
 async fn scu_scp_association_promiscuous_disabled_async() {
     // SCP only accepts Ultrasound Image Storage
