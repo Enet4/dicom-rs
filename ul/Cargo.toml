@@ -35,4 +35,4 @@ tokio = { version = "^1.38", features = ["io-util", "macros", "net", "rt", "rt-m
 
 [features]
 async = ["dep:tokio"]
-default = ["async"]
+default = []
