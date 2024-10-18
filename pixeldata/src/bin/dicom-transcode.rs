@@ -160,6 +160,7 @@ fn run() -> Result<(), Whatever> {
             dicom_object::IMPLEMENTATION_CLASS_UID.to_string();
         obj.meta_mut().implementation_version_name =
             Some(dicom_object::IMPLEMENTATION_VERSION_NAME.to_string());
+        obj.meta_mut().update_information_group_length();
     }
 
     // write to file
