@@ -56,8 +56,8 @@
 //! | JPEG Extended (Process 2 & 4) | Cargo feature `jpeg` | x |
 //! | JPEG Lossless, Non-Hierarchical (Process 14) | Cargo feature `jpeg` | x |
 //! | JPEG Lossless, Non-Hierarchical, First-Order Prediction (Process 14 [Selection Value 1]) | Cargo feature `jpeg` | x |
-//! | JPEG-LS Lossless              | Cargo feature `charls` | x |
-//! | JPEG-LS Lossy (Near-Lossless) | Cargo feature `charls` | x |
+//! | JPEG-LS Lossless              | Cargo feature `charls` | ✓ |
+//! | JPEG-LS Lossy (Near-Lossless) | Cargo feature `charls` | ✓ |
 //! | JPEG 2000 (Lossless Only)     | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | JPEG 2000                     | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` | x |
