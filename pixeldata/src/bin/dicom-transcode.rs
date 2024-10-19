@@ -156,11 +156,11 @@ fn run() -> Result<(), Whatever> {
 
     // override implementation class UID and version name
     if !retain_implementation {
-        obj.meta_mut().implementation_class_uid =
-            dicom_object::IMPLEMENTATION_CLASS_UID.to_string();
-        obj.meta_mut().implementation_version_name =
-            Some(dicom_object::IMPLEMENTATION_VERSION_NAME.to_string());
-        obj.meta_mut().update_information_group_length();
+        obj.update_meta(|meta| {
+            meta.implementation_class_uid = dicom_object::IMPLEMENTATION_CLASS_UID.to_string();
+            meta.implementation_version_name =
+                Some(dicom_object::IMPLEMENTATION_VERSION_NAME.to_string());
+        });
     }
 
     // write to file
