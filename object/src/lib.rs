@@ -417,8 +417,24 @@ impl<O> FileDicomObject<O> {
     ///
     /// Considerable care should be taken when modifying this table,
     /// as it may influence object reading and writing operations.
+    /// When modifying the table through this method,
+    /// the user is responsible for updating the meta information group length as well,
+    /// which can be done by calling
+    /// [`update_information_group_length`](FileMetaTable::update_information_group_length).
+    ///
+    /// See also [`update_meta`](Self::update_meta).
     pub fn meta_mut(&mut self) -> &mut FileMetaTable {
         &mut self.meta
+    }
+
+    /// Update the processed meta header table through a function.
+    ///
+    /// Considerable care should be taken when modifying this table,
+    /// as it may influence object reading and writing operations.
+    /// The meta information group length is updated automatically.
+    pub fn update_meta(&mut self, f: impl FnOnce(&mut FileMetaTable)) {
+        f(&mut self.meta);
+        self.meta.update_information_group_length();
     }
 
     /// Retrieve the inner DICOM object structure, discarding the meta table.
@@ -869,5 +885,28 @@ mod tests {
             dicom_dictionary_std::tags::PATIENT_NAME
         );
         assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    pub fn file_dicom_can_update_meta() {
+        let meta = FileMetaTableBuilder::new()
+            .transfer_syntax(
+                dicom_transfer_syntax_registry::entries::EXPLICIT_VR_LITTLE_ENDIAN.uid(),
+            )
+            .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1")
+            .media_storage_sop_instance_uid("2.25.280986007517028771599125034987786349815")
+            .implementation_class_uid("1.2.345.6.7890.1.234")
+            .build()
+            .unwrap();
+        let mut obj = FileDicomObject::new_empty_with_meta(meta);
+
+        obj.update_meta(|meta| {
+            meta.receiving_application_entity_title = Some("SOMETHING".to_string());
+        });
+
+        assert_eq!(
+            obj.meta().receiving_application_entity_title.as_deref(),
+            Some("SOMETHING"),
+        );
     }
 }
