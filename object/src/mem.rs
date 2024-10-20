@@ -1335,19 +1335,40 @@ where
                 AttributeSelectorStep::Tag(tag) => return obj.apply_leaf(*tag, action),
                 // navigate further down
                 AttributeSelectorStep::Nested { tag, item } => {
-                    let e =
-                        obj.entries
-                            .get_mut(tag)
-                            .ok_or_else(|| ApplyError::MissingSequence {
+                    if !obj.entries.contains_key(tag) {
+                        // missing sequence, create it if action is constructive
+                        if action.is_constructive() {
+                            let vr = dict
+                                .by_tag(*tag)
+                                .and_then(|entry| entry.vr().exact())
+                                .unwrap_or(VR::UN);
+
+                            if vr != VR::SQ && vr != VR::UN {
+                                return Err(ApplyError::NotASequence {
+                                    selector: selector.clone(),
+                                    step_index: i as u32,
+                                });
+                            }
+
+                            obj.put(DataElement::new(*tag, vr, DataSetSequence::empty()));
+                        } else {
+                            return Err(ApplyError::MissingSequence {
                                 selector: selector.clone(),
                                 step_index: i as u32,
-                            })?;
+                            });
+                        }
+                    };
 
                     // get items
-                    let items = e.items_mut().ok_or_else(|| ApplyError::NotASequence {
-                        selector: selector.clone(),
-                        step_index: i as u32,
-                    })?;
+                    let items = obj
+                        .entries
+                        .get_mut(tag)
+                        .expect("sequence element should exist at this point")
+                        .items_mut()
+                        .ok_or_else(|| ApplyError::NotASequence {
+                            selector: selector.clone(),
+                            step_index: i as u32,
+                        })?;
 
                     // if item.length == i and action is a constructive action, append new item
                     obj = if items.len() == *item as usize && action.is_constructive() {
@@ -3369,6 +3390,43 @@ mod tests {
                     .map(|items| items.len()),
                 Some(1),
             );
+        }
+    }
+
+    /// Test that operations on in-memory DICOM objects
+    /// can create deeply nested attributes from scratch.
+    #[test]
+    fn inmem_ops_can_create_nested_attribute() {
+        let mut obj = InMemDicomObject::new_empty();
+
+        obj.apply(AttributeOp::new(
+            (
+                tags::SEQUENCE_OF_ULTRASOUND_REGIONS,
+                tags::REGION_SPATIAL_FORMAT,
+            ),
+            AttributeAction::Set(1_u16.into()),
+        ))
+        .unwrap();
+
+        {
+            // should create a sequence with a single item
+            assert_eq!(
+                obj.get(tags::SEQUENCE_OF_ULTRASOUND_REGIONS)
+                    .unwrap()
+                    .items()
+                    .map(|items| items.len()),
+                Some(1),
+            );
+
+            // item should have Region Spatial Format
+            assert_eq!(
+                obj.value_at((
+                    tags::SEQUENCE_OF_ULTRASOUND_REGIONS,
+                    tags::REGION_SPATIAL_FORMAT
+                ))
+                .unwrap(),
+                &PrimitiveValue::from(1_u16).into(),
+            )
         }
     }
 
