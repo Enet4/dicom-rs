@@ -57,8 +57,6 @@ For example, given the file `query.txt`:
 ```none
 # comments are supported
 AccessionNumber
-# declare sequence items before setting nested elements
-ScheduledProcedureStepSequence
 ScheduledProcedureStepSequence.Modality=MR
 ScheduledProcedureStepSequence.ScheduledProcedureStepStartDate=20240703
 ```
@@ -85,10 +83,7 @@ specified by a standard DICOM tag
 or a tag keyword name such as `PatientName`.
 To specify a sequence, use multiple of these separated by a dot
 (e.g. `ScheduledProcedureStepSequence.0040,0020`).
-When writing nested attributes,
-you currently need to declare the sequence in a separate query option,
-and _only then_ define the attribute inside it, in this order.
-See the examples below for clarity.
+Nested attributes will automatically construct intermediate sequences as needed.
 
 #### Examples
 
@@ -105,6 +100,5 @@ dicom-findscu PACS@pacs.example.com:1045 -S -q "StudyInstanceUID=*"
 # retrieve the modality worklist information
 # for scheduled procedures where the patient has arrived
 dicom-findscu INFO@pacs.example.com:1045 --mwl \
-    -q ScheduledProcedureStepSequence \
     -q ScheduledProcedureStepSequence.ScheduledProcedureStepStatus=ARRIVED
 ```
