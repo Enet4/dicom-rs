@@ -344,7 +344,6 @@ fn calculate_max_data_len_single(pdu_len: u32) -> u32 {
 #[cfg(feature = "async")]
 pub mod non_blocking {
     use std::{
-        future::Future,
         io::Cursor,
         pin::Pin,
         task::{ready, Context, Poll},
@@ -421,7 +420,6 @@ pub mod non_blocking {
         buffer: Vec<u8>,
         stream: W,
         max_data_len: u32,
-        msg: u32,
         state: WriteState,
     }
 
@@ -458,65 +456,9 @@ pub mod non_blocking {
             ]);
 
             AsyncPDataWriter {
-                stream, // fn poll_write(
-                //     mut self: Pin<&mut Self>,
-                //     cx: &mut Context<'_>,
-                //     buf: &[u8],
-                // ) -> Poll<std::result::Result<usize, std::io::Error>> {
-                //     // If we're still writing (i.e. last write was pending), continue writing
-                //     if self.writing {
-                //         let this = self.get_mut();
-                //         let buffer = &this.buffer;
-                //         let mut stream = Pin::new(&mut this.stream);
-                //         // Each call to `poll_write` may or may not write the whole of `self.buffer`
-                //         let write_all = stream.write_all(buffer);
-                //         tokio::pin!(write_all);
-                //         match write_all.poll(cx) {
-                //             Poll::Ready(Ok(_)) => {
-                //                 this.writing = false;
-                //                 this.msg += 1;
-                //                 this.buffer.truncate(12);
-                //                 return Poll::Ready(Ok(buf.len()));
-                //             }
-                //             Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                //             Poll::Pending => return Poll::Pending,
-                //         }
-                //     }
-                //     let total_len = self.max_data_len as usize + 12;
-                //     if self.buffer.len() + buf.len() <= total_len {
-                //         // accumulate into buffer, do nothing
-                //         self.buffer.extend(buf);
-                //         Poll::Ready(Ok(buf.len()))
-                //     } else {
-                //         // fill in the rest of the buffer, send PDU,
-                //         // and leave out the rest for subsequent writes
-                //         let buf = &buf[..total_len - self.buffer.len()];
-                //         self.buffer.extend(buf);
-                //         debug_assert_eq!(self.buffer.len(), total_len);
-                //         setup_pdata_header(&mut self.buffer, false);
-                //         let this = self.get_mut();
-                //         let buffer = &this.buffer;
-                //         let mut stream = Pin::new(&mut this.stream);
-                //         // Each call to `poll_write` may or may not write the whole of `self.buffer`
-                //         let write_all = stream.write_all(buffer);
-                //         tokio::pin!(write_all);
-                //         match write_all.poll(cx) {
-                //             Poll::Ready(Ok(_)) => {
-                //                 this.msg += 1;
-                //                 this.buffer.truncate(12);
-                //                 Poll::Ready(Ok(buf.len()))
-                //             }
-                //             Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-                //             Poll::Pending => {
-                //                 this.writing = true;
-                //                 Poll::Pending
-                //             }
-                //         }
-                //     }
-                // }
+                stream,
                 max_data_len: max_data_length,
                 buffer,
-                msg: 0,
                 state: WriteState::Ready,
             }
         }
