@@ -1,6 +1,6 @@
 //! Utility module for fetching key attributes from a DICOM object.
 
-use dicom_core::{DataDictionary, Tag};
+use dicom_core::{header::HasLength, DataDictionary, Tag};
 use dicom_dictionary_std::tags;
 use dicom_object::{mem::InMemElement, FileDicomObject, InMemDicomObject};
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
@@ -278,6 +278,10 @@ pub fn number_of_frames<D: DataDictionary + Clone>(
     } else {
         return Ok(1);
     };
+
+    if elem.is_empty() {
+        return Ok(1);
+    }
 
     let integer = elem.to_int::<i32>().context(ConvertValueSnafu { name })?;
 
