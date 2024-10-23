@@ -192,7 +192,15 @@ impl PixelDataWriter for JpegXlAdapter {
             _ => ColorSpace::Unknown,
         };
         let options = EncoderOptions::new(cols as usize, rows as usize, color_space, bit_depth);
-        let quality = quality.unwrap_or(85);
+        let mut quality = quality.unwrap_or(85);
+
+        let pmi = src.photometric_interpretation();
+
+        if pmi == Some("PALETTE COLOR") {
+            // force lossless compression for palette color
+            quality = 100;
+        }
+
         options.set_quality(quality);
         options.set_effort(effort.map(|e| e + 27).unwrap_or(64));
         let encoder = JxlSimpleEncoder::new(frame_data, options);
@@ -221,12 +229,10 @@ impl PixelDataWriter for JpegXlAdapter {
             vec![]
         };
 
-        let pmi = src.photometric_interpretation();
-
         if samples_per_pixel == 1 {
             // set Photometric Interpretation to Monochrome2
             // if it was neither of the expected monochromes
-            if pmi != Some("MONOCHROME1") && pmi != Some("MONOCHROME2") {
+            if pmi != Some("MONOCHROME1") && pmi != Some("MONOCHROME2") && pmi != Some("PALETTE COLOR") {
                 changes.push(AttributeOp::new(
                     Tag(0x0028, 0x0004),
                     AttributeAction::SetStr("MONOCHROME2".into()),
