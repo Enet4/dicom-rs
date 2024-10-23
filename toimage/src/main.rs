@@ -340,6 +340,10 @@ fn convert_single_file(
                 | uids::JPEG2000_LOSSLESS => {
                     output.set_extension("jp2");
                 }
+                uids::JPEGLS_LOSSLESS
+                | uids::JPEGLS_NEAR_LOSSLESS => {
+                    output.set_extension("jls");
+                }
                 _ => {
                     output.set_extension("data");
                 }
