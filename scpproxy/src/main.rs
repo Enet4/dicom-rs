@@ -1,7 +1,7 @@
 use clap::{crate_version, value_parser, Arg, ArgAction, Command};
-use dicom_ul::pdu::reader::read_pdu;
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::Pdu;
+use dicom_ul::association::client::get_client_pdu;
 use snafu::{Backtrace, OptionExt, Report, ResultExt, Snafu, Whatever};
 use std::io::Write;
 use std::net::{Shutdown, TcpListener, TcpStream};
@@ -63,11 +63,11 @@ pub enum ThreadMessage {
     },
     ReadErr {
         from: ProviderType,
-        err: dicom_ul::pdu::reader::Error,
+        err: dicom_ul::association::client::Error,
     },
     WriteErr {
         from: ProviderType,
-        err: dicom_ul::pdu::writer::Error,
+        err: dicom_ul::pdu::WriteError,
     },
     Shutdown {
         initiator: ProviderType,
@@ -96,7 +96,7 @@ fn run(
                 let message_tx = message_tx.clone();
                 scu_reader_thread = thread::spawn(move || {
                     loop {
-                        match read_pdu(&mut reader, max_pdu_length, strict) {
+                        match get_client_pdu(&mut reader, max_pdu_length, strict) {
                             Ok(pdu) => {
                                 message_tx
                                     .send(ThreadMessage::SendPdu {
@@ -105,7 +105,7 @@ fn run(
                                     })
                                     .context(SendMessageSnafu)?;
                             }
-                            Err(dicom_ul::pdu::reader::Error::NoPduAvailable { .. }) => {
+                            Err(dicom_ul::association::client::Error::ReceiveResponse{ .. }) => {
                                 message_tx
                                     .send(ThreadMessage::Shutdown {
                                         initiator: ProviderType::Scu,
@@ -133,7 +133,7 @@ fn run(
                 let mut reader = scp_stream.try_clone().context(CloneSocketSnafu)?;
                 scp_reader_thread = thread::spawn(move || {
                     loop {
-                        match read_pdu(&mut reader, max_pdu_length, strict) {
+                        match get_client_pdu(&mut reader, max_pdu_length, strict) {
                             Ok(pdu) => {
                                 message_tx
                                     .send(ThreadMessage::SendPdu {
@@ -142,7 +142,7 @@ fn run(
                                     })
                                     .context(SendMessageSnafu)?;
                             }
-                            Err(dicom_ul::pdu::reader::Error::NoPduAvailable { .. }) => {
+                            Err(dicom_ul::association::client::Error::ReceiveResponse{ .. }) => {
                                 message_tx
                                     .send(ThreadMessage::Shutdown {
                                         initiator: ProviderType::Scp,

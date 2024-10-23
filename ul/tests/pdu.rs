@@ -1,8 +1,8 @@
-use dicom_ul::pdu::reader::{read_pdu, DEFAULT_MAX_PDU};
+use dicom_ul::pdu::reader::read_pdu;
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::{
     AssociationRQ, PDataValue, PDataValueType, Pdu, PresentationContextProposed, UserIdentity,
-    UserIdentityType, UserVariableItem,
+    UserIdentityType, UserVariableItem, DEFAULT_MAX_PDU,
 };
 use matches::matches;
 use std::io::Cursor;
@@ -46,7 +46,7 @@ fn can_read_write_associate_rq() -> Result<(), Box<dyn std::error::Error>> {
     let mut bytes = vec![0u8; 0];
     write_pdu(&mut bytes, &association_rq.into())?;
 
-    let result = read_pdu(&mut Cursor::new(&bytes), DEFAULT_MAX_PDU, true)?;
+    let result = read_pdu(&mut Cursor::new(&bytes), DEFAULT_MAX_PDU, true)?.unwrap();
 
     if let Pdu::AssociationRQ(AssociationRQ {
         protocol_version,
@@ -134,7 +134,7 @@ fn can_read_write_primary_field_only_user_identity() -> Result<(), Box<dyn std::
     let mut bytes = vec![0u8; 0];
     write_pdu(&mut bytes, &association_rq.into())?;
 
-    let result = read_pdu(&mut Cursor::new(&bytes), DEFAULT_MAX_PDU, true)?;
+    let result = read_pdu(&mut Cursor::new(&bytes), DEFAULT_MAX_PDU, true)?.unwrap();
 
     if let Pdu::AssociationRQ(AssociationRQ {
         protocol_version,
@@ -199,7 +199,7 @@ fn can_read_write_pdata() -> Result<(), Box<dyn std::error::Error>> {
     let mut bytes = Vec::new();
     write_pdu(&mut bytes, &pdata_rq)?;
 
-    let result = read_pdu(&mut Cursor::new(&bytes), DEFAULT_MAX_PDU, true)?;
+    let result = read_pdu(&mut Cursor::new(&bytes), DEFAULT_MAX_PDU, true)?.unwrap();
 
     if let Pdu::PData { data } = result {
         assert_eq!(data.len(), 1);
