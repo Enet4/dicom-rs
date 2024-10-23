@@ -166,7 +166,14 @@ impl PixelDataWriter for JpegLsAdapter {
         };
 
         // prefer lossless encoding by default
-        let quality = options.quality.map(|q| q.clamp(0, 100)).unwrap_or(100);
+        let mut quality = options.quality.map(|q| q.clamp(0, 100)).unwrap_or(100);
+
+        let pmi = src.photometric_interpretation();
+
+        if pmi == Some("PALETTE COLOR") {
+            // force lossless encoding of palette color samples
+            quality = 100;
+        }
 
         // calculate the maximum acceptable error range
         // based on the requested quality and bit depth
@@ -201,12 +208,10 @@ impl PixelDataWriter for JpegLsAdapter {
             ]
         };
 
-        let pmi = src.photometric_interpretation();
-
         if samples_per_pixel == 1 {
-            // set Photometric Interpretation to Monochrome2
-            // if it was neither of the expected monochromes
-            if pmi != Some("MONOCHROME1") && pmi != Some("MONOCHROME2") {
+            // set Photometric Interpretation to MONOCHROME2
+            // if it was neither of the expected 1-channel formats
+            if pmi != Some("MONOCHROME1") && pmi != Some("MONOCHROME2") && pmi != Some("PALETTE COLOR") {
                 changes.push(AttributeOp::new(
                     Tag(0x0028, 0x0004),
                     AttributeAction::SetStr("MONOCHROME2".into()),
