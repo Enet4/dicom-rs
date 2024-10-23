@@ -16,9 +16,15 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use dicom_core::{value::PrimitiveValue, DataElement, VR};
+use dicom_core::{
+    value::{PixelFragmentSequence, PrimitiveValue},
+    DataElement, DicomValue, VR,
+};
 use dicom_dictionary_std::tags;
-use dicom_object::{open_file, FileMetaTableBuilder};
+use dicom_object::{open_file, DefaultDicomObject, FileMetaTableBuilder};
+use image::DynamicImage;
+
+type Result<T, E = snafu::Whatever> = std::result::Result<T, E>;
 
 /// Convert and replace a DICOM file's image with another image
 #[derive(Debug, Parser)]
@@ -32,6 +38,13 @@ struct App {
     /// (default is to replace input extension with `.new.dcm`)
     #[arg(short = 'o', long = "out")]
     output: Option<PathBuf>,
+    /// Override the transfer syntax UID (pixel data is not converted)
+    #[arg(long = "transfer-syntax")]
+    transfer_syntax: Option<String>,
+    /// Encapsulate the image file raw data in a fragment sequence
+    /// instead of writing native pixel data
+    #[arg(long)]
+    encapsulate: bool,
     /// Retain the implementation class UID and version name from base DICOM
     #[arg(long)]
     retain_implementation: bool,
@@ -50,6 +63,8 @@ fn main() {
         dcm_file,
         img_file,
         output,
+        encapsulate,
+        transfer_syntax,
         retain_implementation,
         verbose,
     } = App::parse();
@@ -65,11 +80,147 @@ fn main() {
         std::process::exit(-1);
     });
 
-    let img = image::open(img_file).unwrap_or_else(|e| {
+    if encapsulate {
+        inject_encapsulated(&mut obj, img_file, verbose)
+    } else {
+        inject_image(&mut obj, img_file, verbose)
+    }
+    .unwrap_or_else(|e| {
+        tracing::error!("{}", snafu::Report::from_error(e));
+        std::process::exit(-2);
+    });
+
+    let class_uid = obj.meta().media_storage_sop_class_uid.clone();
+
+    let mut meta_builder = FileMetaTableBuilder::new()
+        // currently the tool will always decode the image's pixel data,
+        // so encode it as Explicit VR Little Endian
+        .transfer_syntax("1.2.840.10008.1.2.1")
+        .media_storage_sop_class_uid(class_uid);
+
+    if let Some(ts) = transfer_syntax {
+        meta_builder = meta_builder.transfer_syntax(ts);
+    }
+
+    // recover implementation class UID and version name from base object
+    if retain_implementation {
+        let implementation_class_uid = &obj.meta().implementation_class_uid;
+        meta_builder = meta_builder.implementation_class_uid(implementation_class_uid);
+
+        if let Some(implementation_version_name) = obj.meta().implementation_version_name.as_ref() {
+            meta_builder = meta_builder.implementation_version_name(implementation_version_name);
+        }
+    }
+
+    let obj = obj
+        .into_inner()
+        .with_meta(meta_builder)
+        .unwrap_or_else(|e| {
+            tracing::error!("{}", snafu::Report::from_error(e));
+            std::process::exit(-3);
+        });
+
+    obj.write_to_file(&output).unwrap_or_else(|e| {
+        tracing::error!("{}", snafu::Report::from_error(e));
+        std::process::exit(-4);
+    });
+
+    if verbose {
+        println!("DICOM file saved to {}", output.display());
+    }
+}
+
+fn inject_image(obj: &mut DefaultDicomObject, img_file: PathBuf, verbose: bool) -> Result<()> {
+    let image_reader = image::ImageReader::open(img_file).unwrap_or_else(|e| {
         tracing::error!("{}", snafu::Report::from_error(e));
         std::process::exit(-1);
     });
 
+    let img = image_reader.decode().unwrap_or_else(|e| {
+        tracing::error!("{}", snafu::Report::from_error(e));
+        std::process::exit(-1);
+    });
+
+    let color = img.color();
+
+    let bits_stored: u16 = match color {
+        image::ColorType::L8 => 8,
+        image::ColorType::L16 => 16,
+        image::ColorType::Rgb8 => 8,
+        image::ColorType::Rgb16 => 16,
+        _ => {
+            eprintln!("Unsupported image format {:?}", color);
+            std::process::exit(-2);
+        }
+    };
+
+    update_from_img(obj, &img, verbose);
+
+    for tag in [
+        tags::NUMBER_OF_FRAMES,
+        tags::PIXEL_ASPECT_RATIO,
+        tags::SMALLEST_IMAGE_PIXEL_VALUE,
+        tags::LARGEST_IMAGE_PIXEL_VALUE,
+        tags::PIXEL_PADDING_RANGE_LIMIT,
+        tags::RED_PALETTE_COLOR_LOOKUP_TABLE_DATA,
+        tags::RED_PALETTE_COLOR_LOOKUP_TABLE_DESCRIPTOR,
+        tags::GREEN_PALETTE_COLOR_LOOKUP_TABLE_DATA,
+        tags::GREEN_PALETTE_COLOR_LOOKUP_TABLE_DESCRIPTOR,
+        tags::BLUE_PALETTE_COLOR_LOOKUP_TABLE_DATA,
+        tags::BLUE_PALETTE_COLOR_LOOKUP_TABLE_DESCRIPTOR,
+        tags::ICC_PROFILE,
+        tags::COLOR_SPACE,
+        tags::PIXEL_DATA_PROVIDER_URL,
+        tags::EXTENDED_OFFSET_TABLE,
+        tags::EXTENDED_OFFSET_TABLE_LENGTHS,
+    ] {
+        obj.remove_element(tag);
+    }
+
+    let pixeldata = img.into_bytes();
+
+    obj.put(DataElement::new(
+        tags::PIXEL_DATA,
+        if bits_stored == 8 { VR::OB } else { VR::OW },
+        PrimitiveValue::from(pixeldata),
+    ));
+
+    Ok(())
+}
+
+fn inject_encapsulated(
+    dcm: &mut DefaultDicomObject,
+    img_file: PathBuf,
+    verbose: bool,
+) -> Result<()> {
+    let image_reader = image::ImageReader::open(&img_file).unwrap_or_else(|e| {
+        tracing::error!("{}", snafu::Report::from_error(e));
+        std::process::exit(-1);
+    });
+
+    // collect img file data
+    let all_data = std::fs::read(img_file).unwrap_or_else(|e| {
+        tracing::error!("{}", snafu::Report::from_error(e));
+        std::process::exit(-2);
+    });
+
+    if let Ok(img) = image_reader.decode() {
+        // insert attributes but not pixel data
+
+        update_from_img(&mut *dcm, &img, verbose);
+    }
+
+    // insert pixel data in a sequence
+    dcm.put(DataElement::new(
+        tags::PIXEL_DATA,
+        VR::OB,
+        DicomValue::PixelSequence(PixelFragmentSequence::new_fragments(vec![all_data])),
+    ));
+
+    Ok(())
+}
+
+fn update_from_img(obj: &mut DefaultDicomObject, img: &DynamicImage, verbose: bool) {
     let width = img.width();
     let height = img.height();
     let color = img.color();
@@ -84,8 +235,6 @@ fn main() {
             std::process::exit(-2);
         }
     };
-
-    let pixeldata = img.into_bytes();
 
     if verbose {
         println!("{}x{} {:?} image", width, height, color);
@@ -151,68 +300,6 @@ fn main() {
         VR::US,
         PrimitiveValue::from(0_u16),
     ));
-
-    for tag in [
-        tags::NUMBER_OF_FRAMES,
-        tags::PIXEL_ASPECT_RATIO,
-        tags::SMALLEST_IMAGE_PIXEL_VALUE,
-        tags::LARGEST_IMAGE_PIXEL_VALUE,
-        tags::PIXEL_PADDING_RANGE_LIMIT,
-        tags::RED_PALETTE_COLOR_LOOKUP_TABLE_DATA,
-        tags::RED_PALETTE_COLOR_LOOKUP_TABLE_DESCRIPTOR,
-        tags::GREEN_PALETTE_COLOR_LOOKUP_TABLE_DATA,
-        tags::GREEN_PALETTE_COLOR_LOOKUP_TABLE_DESCRIPTOR,
-        tags::BLUE_PALETTE_COLOR_LOOKUP_TABLE_DATA,
-        tags::BLUE_PALETTE_COLOR_LOOKUP_TABLE_DESCRIPTOR,
-        tags::ICC_PROFILE,
-        tags::COLOR_SPACE,
-        tags::PIXEL_DATA_PROVIDER_URL,
-        tags::EXTENDED_OFFSET_TABLE,
-        tags::EXTENDED_OFFSET_TABLE_LENGTHS,
-    ] {
-        obj.remove_element(tag);
-    }
-
-    obj.put(DataElement::new(
-        tags::PIXEL_DATA,
-        if bits_stored == 8 { VR::OB } else { VR::OW },
-        PrimitiveValue::from(pixeldata),
-    ));
-
-    let class_uid = obj.meta().media_storage_sop_class_uid.clone();
-
-    let mut meta_builder = FileMetaTableBuilder::new()
-        // currently the tool will always decode the image's pixel data,
-        // so encode it as Explicit VR Little Endian
-        .transfer_syntax("1.2.840.10008.1.2.1")
-        .media_storage_sop_class_uid(class_uid);
-
-    // recover implementation class UID and version name from base object
-    if retain_implementation {
-        let implementation_class_uid = &obj.meta().implementation_class_uid;
-        meta_builder = meta_builder.implementation_class_uid(implementation_class_uid);
-
-        if let Some(implementation_version_name) = obj.meta().implementation_version_name.as_ref() {
-            meta_builder = meta_builder.implementation_version_name(implementation_version_name);
-        }
-    }
-
-    let obj = obj
-        .into_inner()
-        .with_meta(meta_builder)
-        .unwrap_or_else(|e| {
-            tracing::error!("{}", snafu::Report::from_error(e));
-            std::process::exit(-3);
-        });
-
-    obj.write_to_file(&output).unwrap_or_else(|e| {
-        tracing::error!("{}", snafu::Report::from_error(e));
-        std::process::exit(-4);
-    });
-
-    if verbose {
-        println!("DICOM file saved to {}", output.display());
-    }
 }
 
 #[cfg(test)]
