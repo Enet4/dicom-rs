@@ -710,6 +710,9 @@ pub const REFERENCED_INSTANCE_SEQUENCE: Tag = Tag(0x0008, 0x114A);
 /// ReferencedRealWorldValueMappingInstanceSequence (0008,114B) SQ 1 DICOM
 #[rustfmt::skip]
 pub const REFERENCED_REAL_WORLD_VALUE_MAPPING_INSTANCE_SEQUENCE: Tag = Tag(0x0008, 0x114B);
+/// ReferencedSegmentationSequence (0008,114C) SQ 1 DICOM
+#[rustfmt::skip]
+pub const REFERENCED_SEGMENTATION_SEQUENCE: Tag = Tag(0x0008, 0x114C);
 /// ReferencedSOPClassUID (0008,1150) UI 1 DICOM
 #[rustfmt::skip]
 pub const REFERENCED_SOP_CLASS_UID: Tag = Tag(0x0008, 0x1150);
@@ -1058,6 +1061,9 @@ pub const PATIENT_TELECOM_INFORMATION: Tag = Tag(0x0010, 0x2155);
 /// EthnicGroup (0010,2160) SH 1 DICOM
 #[rustfmt::skip]
 pub const ETHNIC_GROUP: Tag = Tag(0x0010, 0x2160);
+/// EthnicGroupCodeSequence (0010,2161) SQ 1 DICOM
+#[rustfmt::skip]
+pub const ETHNIC_GROUP_CODE_SEQUENCE: Tag = Tag(0x0010, 0x2161);
 /// Occupation (0010,2180) SH 1 DICOM
 #[rustfmt::skip]
 pub const OCCUPATION: Tag = Tag(0x0010, 0x2180);
@@ -1811,6 +1817,282 @@ pub const WEDGE_CURVE: Tag = Tag(0x0014, 0x511E);
 /// RadiusAlongWedge (0014,511F) DS 1 DICOM/DICONDE
 #[rustfmt::skip]
 pub const RADIUS_ALONG_WEDGE: Tag = Tag(0x0014, 0x511F);
+/// ThermalCameraSettingsSequence (0014,6001) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const THERMAL_CAMERA_SETTINGS_SEQUENCE: Tag = Tag(0x0014, 0x6001);
+/// AcquisitionFrameRate (0014,6002) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const ACQUISITION_FRAME_RATE: Tag = Tag(0x0014, 0x6002);
+/// IntegrationTime (0014,6003) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const INTEGRATION_TIME: Tag = Tag(0x0014, 0x6003);
+/// NumberOfCalibrationFrames (0014,6004) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const NUMBER_OF_CALIBRATION_FRAMES: Tag = Tag(0x0014, 0x6004);
+/// NumberOfRowsInFullAcquisitionImage (0014,6005) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const NUMBER_OF_ROWS_IN_FULL_ACQUISITION_IMAGE: Tag = Tag(0x0014, 0x6005);
+/// NumberOfColumnsInFullAcquisitionImage (0014,6006) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const NUMBER_OF_COLUMNS_IN_FULL_ACQUISITION_IMAGE: Tag = Tag(0x0014, 0x6006);
+/// ThermalSourceSettingsSequence (0014,6007) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const THERMAL_SOURCE_SETTINGS_SEQUENCE: Tag = Tag(0x0014, 0x6007);
+/// SourceHorizontalPitch (0014,6008) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const SOURCE_HORIZONTAL_PITCH: Tag = Tag(0x0014, 0x6008);
+/// SourceVerticalPitch (0014,6009) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const SOURCE_VERTICAL_PITCH: Tag = Tag(0x0014, 0x6009);
+/// SourceHorizontalScanSpeed (0014,600A) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const SOURCE_HORIZONTAL_SCAN_SPEED: Tag = Tag(0x0014, 0x600A);
+/// ThermalSourceModulationFrequency (0014,600B) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const THERMAL_SOURCE_MODULATION_FREQUENCY: Tag = Tag(0x0014, 0x600B);
+/// InductionSourceSettingSequence (0014,600C) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const INDUCTION_SOURCE_SETTING_SEQUENCE: Tag = Tag(0x0014, 0x600C);
+/// CoilFrequency (0014,600D) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const COIL_FREQUENCY: Tag = Tag(0x0014, 0x600D);
+/// CurrentAmplitudeAcrossCoil (0014,600E) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const CURRENT_AMPLITUDE_ACROSS_COIL: Tag = Tag(0x0014, 0x600E);
+/// FlashSourceSettingSequence (0014,600F) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const FLASH_SOURCE_SETTING_SEQUENCE: Tag = Tag(0x0014, 0x600F);
+/// FlashDuration (0014,6010) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const FLASH_DURATION: Tag = Tag(0x0014, 0x6010);
+/// FlashFrameNumber (0014,6011) DS 1-n DICOM/DICONDE
+#[rustfmt::skip]
+pub const FLASH_FRAME_NUMBER: Tag = Tag(0x0014, 0x6011);
+/// LaserSourceSettingSequence (0014,6012) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const LASER_SOURCE_SETTING_SEQUENCE: Tag = Tag(0x0014, 0x6012);
+/// HorizontalLaserSpotDimension (0014,6013) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const HORIZONTAL_LASER_SPOT_DIMENSION: Tag = Tag(0x0014, 0x6013);
+/// VerticalLaserSpotDimension (0014,6014) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const VERTICAL_LASER_SPOT_DIMENSION: Tag = Tag(0x0014, 0x6014);
+/// LaserWavelength (0014,6015) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const LASER_WAVELENGTH: Tag = Tag(0x0014, 0x6015);
+/// LaserPower (0014,6016) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const LASER_POWER: Tag = Tag(0x0014, 0x6016);
+/// ForcedGasSettingSequence (0014,6017) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const FORCED_GAS_SETTING_SEQUENCE: Tag = Tag(0x0014, 0x6017);
+/// VibrationSourceSettingSequence (0014,6018) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const VIBRATION_SOURCE_SETTING_SEQUENCE: Tag = Tag(0x0014, 0x6018);
+/// VibrationExcitationFrequency (0014,6019) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const VIBRATION_EXCITATION_FREQUENCY: Tag = Tag(0x0014, 0x6019);
+/// VibrationExcitationVoltage (0014,601A) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const VIBRATION_EXCITATION_VOLTAGE: Tag = Tag(0x0014, 0x601A);
+/// ThermographyDataCaptureMethod (0014,601B) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const THERMOGRAPHY_DATA_CAPTURE_METHOD: Tag = Tag(0x0014, 0x601B);
+/// ThermalTechnique (0014,601C) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const THERMAL_TECHNIQUE: Tag = Tag(0x0014, 0x601C);
+/// ThermalCameraCoreSequence (0014,601D) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const THERMAL_CAMERA_CORE_SEQUENCE: Tag = Tag(0x0014, 0x601D);
+/// DetectorWavelengthRange (0014,601E) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const DETECTOR_WAVELENGTH_RANGE: Tag = Tag(0x0014, 0x601E);
+/// ThermalCameraCalibrationType (0014,601F) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const THERMAL_CAMERA_CALIBRATION_TYPE: Tag = Tag(0x0014, 0x601F);
+/// AcquisitionImageCounter (0014,6020) UV 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const ACQUISITION_IMAGE_COUNTER: Tag = Tag(0x0014, 0x6020);
+/// FrontPanelTemperature (0014,6021) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const FRONT_PANEL_TEMPERATURE: Tag = Tag(0x0014, 0x6021);
+/// AirGapTemperature (0014,6022) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const AIR_GAP_TEMPERATURE: Tag = Tag(0x0014, 0x6022);
+/// VerticalPixelSize (0014,6023) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const VERTICAL_PIXEL_SIZE: Tag = Tag(0x0014, 0x6023);
+/// HorizontalPixelSize (0014,6024) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const HORIZONTAL_PIXEL_SIZE: Tag = Tag(0x0014, 0x6024);
+/// DataStreamingProtocol (0014,6025) ST 1-n DICOM/DICONDE
+#[rustfmt::skip]
+pub const DATA_STREAMING_PROTOCOL: Tag = Tag(0x0014, 0x6025);
+/// LensSequence (0014,6026) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const LENS_SEQUENCE: Tag = Tag(0x0014, 0x6026);
+/// FieldOfView (0014,6027) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const FIELD_OF_VIEW: Tag = Tag(0x0014, 0x6027);
+/// LensFilterManufacturer (0014,6028) LO 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const LENS_FILTER_MANUFACTURER: Tag = Tag(0x0014, 0x6028);
+/// CutoffFilterType (0014,6029) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const CUTOFF_FILTER_TYPE: Tag = Tag(0x0014, 0x6029);
+/// LensFilterCutOffWavelength (0014,602A) DS 1-n DICOM/DICONDE
+#[rustfmt::skip]
+pub const LENS_FILTER_CUT_OFF_WAVELENGTH: Tag = Tag(0x0014, 0x602A);
+/// ThermalSourceSequence (0014,602B) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const THERMAL_SOURCE_SEQUENCE: Tag = Tag(0x0014, 0x602B);
+/// ThermalSourceMotionState (0014,602C) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const THERMAL_SOURCE_MOTION_STATE: Tag = Tag(0x0014, 0x602C);
+/// ThermalSourceMotionType (0014,602D) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const THERMAL_SOURCE_MOTION_TYPE: Tag = Tag(0x0014, 0x602D);
+/// InductionHeatingSequence (0014,602E) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const INDUCTION_HEATING_SEQUENCE: Tag = Tag(0x0014, 0x602E);
+/// CoilConfigurationID (0014,602F) ST 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const COIL_CONFIGURATION_ID: Tag = Tag(0x0014, 0x602F);
+/// NumberOfTurnsInCoil (0014,6030) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const NUMBER_OF_TURNS_IN_COIL: Tag = Tag(0x0014, 0x6030);
+/// ShapeOfIndividualTurn (0014,6031) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const SHAPE_OF_INDIVIDUAL_TURN: Tag = Tag(0x0014, 0x6031);
+/// SizeOfIndividualTurn (0014,6032) DS 1-n DICOM/DICONDE
+#[rustfmt::skip]
+pub const SIZE_OF_INDIVIDUAL_TURN: Tag = Tag(0x0014, 0x6032);
+/// DistanceBetweenTurns (0014,6033) DS 1-n DICOM/DICONDE
+#[rustfmt::skip]
+pub const DISTANCE_BETWEEN_TURNS: Tag = Tag(0x0014, 0x6033);
+/// FlashHeatingSequence (0014,6034) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const FLASH_HEATING_SEQUENCE: Tag = Tag(0x0014, 0x6034);
+/// NumberOfLamps (0014,6035) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const NUMBER_OF_LAMPS: Tag = Tag(0x0014, 0x6035);
+/// FlashSynchronizationProtocol (0014,6036) ST 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const FLASH_SYNCHRONIZATION_PROTOCOL: Tag = Tag(0x0014, 0x6036);
+/// FlashModificationStatus (0014,6037) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const FLASH_MODIFICATION_STATUS: Tag = Tag(0x0014, 0x6037);
+/// LaserHeatingSequence (0014,6038) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const LASER_HEATING_SEQUENCE: Tag = Tag(0x0014, 0x6038);
+/// LaserManufacturer (0014,6039) LO 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const LASER_MANUFACTURER: Tag = Tag(0x0014, 0x6039);
+/// LaserModelNumber (0014,603A) LO 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const LASER_MODEL_NUMBER: Tag = Tag(0x0014, 0x603A);
+/// LaserTypeDescription (0014,603B) ST 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const LASER_TYPE_DESCRIPTION: Tag = Tag(0x0014, 0x603B);
+/// ForcedGasHeatingSequence (0014,603C) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const FORCED_GAS_HEATING_SEQUENCE: Tag = Tag(0x0014, 0x603C);
+/// GasUsedForHeatingCoolingPart (0014,603D) LO 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const GAS_USED_FOR_HEATING_COOLING_PART: Tag = Tag(0x0014, 0x603D);
+/// VibrationSonicHeatingSequence (0014,603E) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const VIBRATION_SONIC_HEATING_SEQUENCE: Tag = Tag(0x0014, 0x603E);
+/// ProbeManufacturer (0014,603F) LO 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const PROBE_MANUFACTURER: Tag = Tag(0x0014, 0x603F);
+/// ProbeModelNumber (0014,6040) LO 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const PROBE_MODEL_NUMBER: Tag = Tag(0x0014, 0x6040);
+/// ApertureSize (0014,6041) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const APERTURE_SIZE: Tag = Tag(0x0014, 0x6041);
+/// ProbeResonantFrequency (0014,6042) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const PROBE_RESONANT_FREQUENCY: Tag = Tag(0x0014, 0x6042);
+/// HeatSourceDescription (0014,6043) UT 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const HEAT_SOURCE_DESCRIPTION: Tag = Tag(0x0014, 0x6043);
+/// SurfacePreparationWithOpticalCoating (0014,6044) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const SURFACE_PREPARATION_WITH_OPTICAL_COATING: Tag = Tag(0x0014, 0x6044);
+/// OpticalCoatingType (0014,6045) ST 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const OPTICAL_COATING_TYPE: Tag = Tag(0x0014, 0x6045);
+/// ThermalConductivityOfExposedSurface (0014,6046) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const THERMAL_CONDUCTIVITY_OF_EXPOSED_SURFACE: Tag = Tag(0x0014, 0x6046);
+/// MaterialDensity (0014,6047) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const MATERIAL_DENSITY: Tag = Tag(0x0014, 0x6047);
+/// SpecificHeatOfInspectionSurface (0014,6048) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const SPECIFIC_HEAT_OF_INSPECTION_SURFACE: Tag = Tag(0x0014, 0x6048);
+/// EmissivityOfInspectionSurface (0014,6049) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const EMISSIVITY_OF_INSPECTION_SURFACE: Tag = Tag(0x0014, 0x6049);
+/// ElectromagneticClassificationOfInspectionSurface (0014,604A) CS 1-n DICOM/DICONDE
+#[rustfmt::skip]
+pub const ELECTROMAGNETIC_CLASSIFICATION_OF_INSPECTION_SURFACE: Tag = Tag(0x0014, 0x604A);
+/// MovingWindowSize (0014,604C) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const MOVING_WINDOW_SIZE: Tag = Tag(0x0014, 0x604C);
+/// MovingWindowType (0014,604D) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const MOVING_WINDOW_TYPE: Tag = Tag(0x0014, 0x604D);
+/// MovingWindowWeights (0014,604E) DS 1-n DICOM/DICONDE
+#[rustfmt::skip]
+pub const MOVING_WINDOW_WEIGHTS: Tag = Tag(0x0014, 0x604E);
+/// MovingWindowPitch (0014,604F) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const MOVING_WINDOW_PITCH: Tag = Tag(0x0014, 0x604F);
+/// MovingWindowPaddingScheme (0014,6050) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const MOVING_WINDOW_PADDING_SCHEME: Tag = Tag(0x0014, 0x6050);
+/// MovingWindowPaddingLength (0014,6051) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const MOVING_WINDOW_PADDING_LENGTH: Tag = Tag(0x0014, 0x6051);
+/// SpatialFilteringParametersSequence (0014,6052) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const SPATIAL_FILTERING_PARAMETERS_SEQUENCE: Tag = Tag(0x0014, 0x6052);
+/// SpatialFilteringScheme (0014,6053) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const SPATIAL_FILTERING_SCHEME: Tag = Tag(0x0014, 0x6053);
+/// HorizontalMovingWindowSize (0014,6056) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const HORIZONTAL_MOVING_WINDOW_SIZE: Tag = Tag(0x0014, 0x6056);
+/// VerticalMovingWindowSize (0014,6057) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const VERTICAL_MOVING_WINDOW_SIZE: Tag = Tag(0x0014, 0x6057);
+/// PolynomialFittingSequence (0014,6059) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const POLYNOMIAL_FITTING_SEQUENCE: Tag = Tag(0x0014, 0x6059);
+/// FittingDataType (0014,605A) CS 1-n DICOM/DICONDE
+#[rustfmt::skip]
+pub const FITTING_DATA_TYPE: Tag = Tag(0x0014, 0x605A);
+/// OperationOnTimeAxisBeforeFitting (0014,605B) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const OPERATION_ON_TIME_AXIS_BEFORE_FITTING: Tag = Tag(0x0014, 0x605B);
+/// OperationOnPixelIntensityBeforeFitting (0014,605C) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const OPERATION_ON_PIXEL_INTENSITY_BEFORE_FITTING: Tag = Tag(0x0014, 0x605C);
+/// OrderOfPolynomial (0014,605D) DS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const ORDER_OF_POLYNOMIAL: Tag = Tag(0x0014, 0x605D);
+/// IndependentVariableForPolynomialFit (0014,605E) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const INDEPENDENT_VARIABLE_FOR_POLYNOMIAL_FIT: Tag = Tag(0x0014, 0x605E);
+/// PolynomialCoefficients (0014,605F) DS 1-n DICOM/DICONDE
+#[rustfmt::skip]
+pub const POLYNOMIAL_COEFFICIENTS: Tag = Tag(0x0014, 0x605F);
+/// ThermographyPixelDataUnit (0014,6060) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const THERMOGRAPHY_PIXEL_DATA_UNIT: Tag = Tag(0x0014, 0x6060);
 /// WhitePoint (0016,0001) DS 1 DICOM
 #[rustfmt::skip]
 pub const WHITE_POINT: Tag = Tag(0x0016, 0x0001);
@@ -5498,9 +5780,15 @@ pub const OPHTHALMIC_ANATOMIC_REFERENCE_POINT_X_COORDINATE: Tag = Tag(0x0022, 0x
 /// OphthalmicAnatomicReferencePointYCoordinate (0022,1626) FL 1 DICOM
 #[rustfmt::skip]
 pub const OPHTHALMIC_ANATOMIC_REFERENCE_POINT_Y_COORDINATE: Tag = Tag(0x0022, 0x1626);
+/// OphthalmicEnFaceVolumeDescriptorSequence (0022,1627) SQ 1 DICOM
+#[rustfmt::skip]
+pub const OPHTHALMIC_EN_FACE_VOLUME_DESCRIPTOR_SEQUENCE: Tag = Tag(0x0022, 0x1627);
 /// OphthalmicEnFaceImageQualityRatingSequence (0022,1628) SQ 1 DICOM
 #[rustfmt::skip]
 pub const OPHTHALMIC_EN_FACE_IMAGE_QUALITY_RATING_SEQUENCE: Tag = Tag(0x0022, 0x1628);
+/// OphthalmicEnFaceVolumeDescriptorScope (0022,1629) CS 1 DICOM
+#[rustfmt::skip]
+pub const OPHTHALMIC_EN_FACE_VOLUME_DESCRIPTOR_SCOPE: Tag = Tag(0x0022, 0x1629);
 /// QualityThreshold (0022,1630) DS 1 DICOM
 #[rustfmt::skip]
 pub const QUALITY_THRESHOLD: Tag = Tag(0x0022, 0x1630);
@@ -8342,6 +8630,9 @@ pub const SURFACE_NUMBER: Tag = Tag(0x0066, 0x0003);
 /// SurfaceComments (0066,0004) LT 1 DICOM
 #[rustfmt::skip]
 pub const SURFACE_COMMENTS: Tag = Tag(0x0066, 0x0004);
+/// SurfaceOffset (0066,0005) FL 1 DICOM
+#[rustfmt::skip]
+pub const SURFACE_OFFSET: Tag = Tag(0x0066, 0x0005);
 /// SurfaceProcessing (0066,0009) CS 1 DICOM
 #[rustfmt::skip]
 pub const SURFACE_PROCESSING: Tag = Tag(0x0066, 0x0009);
@@ -10739,6 +11030,9 @@ pub const MAXIMUM_CUMULATIVE_METERSET_EXPOSURE: Tag = Tag(0x3002, 0x0134);
 /// AcquisitionInitiationSequence (3002,0135) SQ 1 DICOM
 #[rustfmt::skip]
 pub const ACQUISITION_INITIATION_SEQUENCE: Tag = Tag(0x3002, 0x0135);
+/// RTConeBeamImagingGeometrySequence (3002,0136) SQ 1 DICOM
+#[rustfmt::skip]
+pub const RT_CONE_BEAM_IMAGING_GEOMETRY_SEQUENCE: Tag = Tag(0x3002, 0x0136);
 /// DVHType (3004,0001) CS 1 DICOM
 #[rustfmt::skip]
 pub const DVH_TYPE: Tag = Tag(0x3004, 0x0001);
@@ -11396,6 +11690,9 @@ pub const TABLE_TOP_LONGITUDINAL_POSITION_TOLERANCE: Tag = Tag(0x300A, 0x0052);
 /// TableTopLateralPositionTolerance (300A,0053) DS 1 DICOM
 #[rustfmt::skip]
 pub const TABLE_TOP_LATERAL_POSITION_TOLERANCE: Tag = Tag(0x300A, 0x0053);
+/// TableTopPositionAlignmentUID (300A,0054) UI 1 DICOM
+#[rustfmt::skip]
+pub const TABLE_TOP_POSITION_ALIGNMENT_UID: Tag = Tag(0x300A, 0x0054);
 /// RTPlanRelationship (300A,0055) CS 1 DICOM
 #[rustfmt::skip]
 pub const RT_PLAN_RELATIONSHIP: Tag = Tag(0x300A, 0x0055);
@@ -13073,6 +13370,15 @@ pub const DISPLACEMENT_REFERENCE_LOCATION_CODE_SEQUENCE: Tag = Tag(0x300A, 0x079
 /// RTRadiationSetDeliveryUsage (300A,079E) CS 1 DICOM
 #[rustfmt::skip]
 pub const RT_RADIATION_SET_DELIVERY_USAGE: Tag = Tag(0x300A, 0x079E);
+/// PatientTreatmentPreparationSequence (300A,079F) SQ 1 DICOM
+#[rustfmt::skip]
+pub const PATIENT_TREATMENT_PREPARATION_SEQUENCE: Tag = Tag(0x300A, 0x079F);
+/// PatientToEquipmentRelationshipSequence (300A,07A0) SQ 1 DICOM
+#[rustfmt::skip]
+pub const PATIENT_TO_EQUIPMENT_RELATIONSHIP_SEQUENCE: Tag = Tag(0x300A, 0x07A0);
+/// ImagingEquipmentToTreatmentDeliveryDeviceRelationshipSequence (300A,07A1) SQ 1 DICOM
+#[rustfmt::skip]
+pub const IMAGING_EQUIPMENT_TO_TREATMENT_DELIVERY_DEVICE_RELATIONSHIP_SEQUENCE: Tag = Tag(0x300A, 0x07A1);
 /// ReferencedRTPlanSequence (300C,0002) SQ 1 DICOM
 #[rustfmt::skip]
 pub const REFERENCED_RT_PLAN_SEQUENCE: Tag = Tag(0x300C, 0x0002);
@@ -16236,6 +16542,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(REFERENCED_IMAGE_SEQUENCE), alias: "ReferencedImageSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(REFERENCED_INSTANCE_SEQUENCE), alias: "ReferencedInstanceSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(REFERENCED_REAL_WORLD_VALUE_MAPPING_INSTANCE_SEQUENCE), alias: "ReferencedRealWorldValueMappingInstanceSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(REFERENCED_SEGMENTATION_SEQUENCE), alias: "ReferencedSegmentationSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(REFERENCED_SOP_CLASS_UID), alias: "ReferencedSOPClassUID", vr: Exact(UI) }, // DICOM
     E { tag: Single(REFERENCED_SOP_INSTANCE_UID), alias: "ReferencedSOPInstanceUID", vr: Exact(UI) }, // DICOM
     E { tag: Single(DEFINITION_SOURCE_SEQUENCE), alias: "DefinitionSourceSequence", vr: Exact(SQ) }, // DICOM
@@ -16352,6 +16659,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(PATIENT_TELEPHONE_NUMBERS), alias: "PatientTelephoneNumbers", vr: Exact(SH) }, // DICOM
     E { tag: Single(PATIENT_TELECOM_INFORMATION), alias: "PatientTelecomInformation", vr: Exact(LT) }, // DICOM
     E { tag: Single(ETHNIC_GROUP), alias: "EthnicGroup", vr: Exact(SH) }, // DICOM
+    E { tag: Single(ETHNIC_GROUP_CODE_SEQUENCE), alias: "EthnicGroupCodeSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(OCCUPATION), alias: "Occupation", vr: Exact(SH) }, // DICOM
     E { tag: Single(SMOKING_STATUS), alias: "SmokingStatus", vr: Exact(CS) }, // DICOM
     E { tag: Single(ADDITIONAL_PATIENT_HISTORY), alias: "AdditionalPatientHistory", vr: Exact(LT) }, // DICOM
@@ -16603,6 +16911,98 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(WEDGE_CHAMFER_HEIGHT), alias: "WedgeChamferHeight", vr: Exact(DS) }, // DICOM/DICONDE
     E { tag: Single(WEDGE_CURVE), alias: "WedgeCurve", vr: Exact(CS) }, // DICOM/DICONDE
     E { tag: Single(RADIUS_ALONG_WEDGE), alias: "RadiusAlongWedge", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(THERMAL_CAMERA_SETTINGS_SEQUENCE), alias: "ThermalCameraSettingsSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(ACQUISITION_FRAME_RATE), alias: "AcquisitionFrameRate", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(INTEGRATION_TIME), alias: "IntegrationTime", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(NUMBER_OF_CALIBRATION_FRAMES), alias: "NumberOfCalibrationFrames", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(NUMBER_OF_ROWS_IN_FULL_ACQUISITION_IMAGE), alias: "NumberOfRowsInFullAcquisitionImage", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(NUMBER_OF_COLUMNS_IN_FULL_ACQUISITION_IMAGE), alias: "NumberOfColumnsInFullAcquisitionImage", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(THERMAL_SOURCE_SETTINGS_SEQUENCE), alias: "ThermalSourceSettingsSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(SOURCE_HORIZONTAL_PITCH), alias: "SourceHorizontalPitch", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(SOURCE_VERTICAL_PITCH), alias: "SourceVerticalPitch", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(SOURCE_HORIZONTAL_SCAN_SPEED), alias: "SourceHorizontalScanSpeed", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(THERMAL_SOURCE_MODULATION_FREQUENCY), alias: "ThermalSourceModulationFrequency", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(INDUCTION_SOURCE_SETTING_SEQUENCE), alias: "InductionSourceSettingSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(COIL_FREQUENCY), alias: "CoilFrequency", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(CURRENT_AMPLITUDE_ACROSS_COIL), alias: "CurrentAmplitudeAcrossCoil", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(FLASH_SOURCE_SETTING_SEQUENCE), alias: "FlashSourceSettingSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(FLASH_DURATION), alias: "FlashDuration", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(FLASH_FRAME_NUMBER), alias: "FlashFrameNumber", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(LASER_SOURCE_SETTING_SEQUENCE), alias: "LaserSourceSettingSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(HORIZONTAL_LASER_SPOT_DIMENSION), alias: "HorizontalLaserSpotDimension", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(VERTICAL_LASER_SPOT_DIMENSION), alias: "VerticalLaserSpotDimension", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(LASER_WAVELENGTH), alias: "LaserWavelength", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(LASER_POWER), alias: "LaserPower", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(FORCED_GAS_SETTING_SEQUENCE), alias: "ForcedGasSettingSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(VIBRATION_SOURCE_SETTING_SEQUENCE), alias: "VibrationSourceSettingSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(VIBRATION_EXCITATION_FREQUENCY), alias: "VibrationExcitationFrequency", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(VIBRATION_EXCITATION_VOLTAGE), alias: "VibrationExcitationVoltage", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(THERMOGRAPHY_DATA_CAPTURE_METHOD), alias: "ThermographyDataCaptureMethod", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(THERMAL_TECHNIQUE), alias: "ThermalTechnique", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(THERMAL_CAMERA_CORE_SEQUENCE), alias: "ThermalCameraCoreSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(DETECTOR_WAVELENGTH_RANGE), alias: "DetectorWavelengthRange", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(THERMAL_CAMERA_CALIBRATION_TYPE), alias: "ThermalCameraCalibrationType", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(ACQUISITION_IMAGE_COUNTER), alias: "AcquisitionImageCounter", vr: Exact(UV) }, // DICOM/DICONDE
+    E { tag: Single(FRONT_PANEL_TEMPERATURE), alias: "FrontPanelTemperature", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(AIR_GAP_TEMPERATURE), alias: "AirGapTemperature", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(VERTICAL_PIXEL_SIZE), alias: "VerticalPixelSize", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(HORIZONTAL_PIXEL_SIZE), alias: "HorizontalPixelSize", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(DATA_STREAMING_PROTOCOL), alias: "DataStreamingProtocol", vr: Exact(ST) }, // DICOM/DICONDE
+    E { tag: Single(LENS_SEQUENCE), alias: "LensSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(FIELD_OF_VIEW), alias: "FieldOfView", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(LENS_FILTER_MANUFACTURER), alias: "LensFilterManufacturer", vr: Exact(LO) }, // DICOM/DICONDE
+    E { tag: Single(CUTOFF_FILTER_TYPE), alias: "CutoffFilterType", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(LENS_FILTER_CUT_OFF_WAVELENGTH), alias: "LensFilterCutOffWavelength", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(THERMAL_SOURCE_SEQUENCE), alias: "ThermalSourceSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(THERMAL_SOURCE_MOTION_STATE), alias: "ThermalSourceMotionState", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(THERMAL_SOURCE_MOTION_TYPE), alias: "ThermalSourceMotionType", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(INDUCTION_HEATING_SEQUENCE), alias: "InductionHeatingSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(COIL_CONFIGURATION_ID), alias: "CoilConfigurationID", vr: Exact(ST) }, // DICOM/DICONDE
+    E { tag: Single(NUMBER_OF_TURNS_IN_COIL), alias: "NumberOfTurnsInCoil", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(SHAPE_OF_INDIVIDUAL_TURN), alias: "ShapeOfIndividualTurn", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(SIZE_OF_INDIVIDUAL_TURN), alias: "SizeOfIndividualTurn", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(DISTANCE_BETWEEN_TURNS), alias: "DistanceBetweenTurns", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(FLASH_HEATING_SEQUENCE), alias: "FlashHeatingSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(NUMBER_OF_LAMPS), alias: "NumberOfLamps", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(FLASH_SYNCHRONIZATION_PROTOCOL), alias: "FlashSynchronizationProtocol", vr: Exact(ST) }, // DICOM/DICONDE
+    E { tag: Single(FLASH_MODIFICATION_STATUS), alias: "FlashModificationStatus", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(LASER_HEATING_SEQUENCE), alias: "LaserHeatingSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(LASER_MANUFACTURER), alias: "LaserManufacturer", vr: Exact(LO) }, // DICOM/DICONDE
+    E { tag: Single(LASER_MODEL_NUMBER), alias: "LaserModelNumber", vr: Exact(LO) }, // DICOM/DICONDE
+    E { tag: Single(LASER_TYPE_DESCRIPTION), alias: "LaserTypeDescription", vr: Exact(ST) }, // DICOM/DICONDE
+    E { tag: Single(FORCED_GAS_HEATING_SEQUENCE), alias: "ForcedGasHeatingSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(GAS_USED_FOR_HEATING_COOLING_PART), alias: "GasUsedForHeatingCoolingPart", vr: Exact(LO) }, // DICOM/DICONDE
+    E { tag: Single(VIBRATION_SONIC_HEATING_SEQUENCE), alias: "VibrationSonicHeatingSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(PROBE_MANUFACTURER), alias: "ProbeManufacturer", vr: Exact(LO) }, // DICOM/DICONDE
+    E { tag: Single(PROBE_MODEL_NUMBER), alias: "ProbeModelNumber", vr: Exact(LO) }, // DICOM/DICONDE
+    E { tag: Single(APERTURE_SIZE), alias: "ApertureSize", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(PROBE_RESONANT_FREQUENCY), alias: "ProbeResonantFrequency", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(HEAT_SOURCE_DESCRIPTION), alias: "HeatSourceDescription", vr: Exact(UT) }, // DICOM/DICONDE
+    E { tag: Single(SURFACE_PREPARATION_WITH_OPTICAL_COATING), alias: "SurfacePreparationWithOpticalCoating", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(OPTICAL_COATING_TYPE), alias: "OpticalCoatingType", vr: Exact(ST) }, // DICOM/DICONDE
+    E { tag: Single(THERMAL_CONDUCTIVITY_OF_EXPOSED_SURFACE), alias: "ThermalConductivityOfExposedSurface", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(MATERIAL_DENSITY), alias: "MaterialDensity", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(SPECIFIC_HEAT_OF_INSPECTION_SURFACE), alias: "SpecificHeatOfInspectionSurface", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(EMISSIVITY_OF_INSPECTION_SURFACE), alias: "EmissivityOfInspectionSurface", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(ELECTROMAGNETIC_CLASSIFICATION_OF_INSPECTION_SURFACE), alias: "ElectromagneticClassificationOfInspectionSurface", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(MOVING_WINDOW_SIZE), alias: "MovingWindowSize", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(MOVING_WINDOW_TYPE), alias: "MovingWindowType", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(MOVING_WINDOW_WEIGHTS), alias: "MovingWindowWeights", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(MOVING_WINDOW_PITCH), alias: "MovingWindowPitch", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(MOVING_WINDOW_PADDING_SCHEME), alias: "MovingWindowPaddingScheme", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(MOVING_WINDOW_PADDING_LENGTH), alias: "MovingWindowPaddingLength", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(SPATIAL_FILTERING_PARAMETERS_SEQUENCE), alias: "SpatialFilteringParametersSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(SPATIAL_FILTERING_SCHEME), alias: "SpatialFilteringScheme", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(HORIZONTAL_MOVING_WINDOW_SIZE), alias: "HorizontalMovingWindowSize", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(VERTICAL_MOVING_WINDOW_SIZE), alias: "VerticalMovingWindowSize", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(POLYNOMIAL_FITTING_SEQUENCE), alias: "PolynomialFittingSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(FITTING_DATA_TYPE), alias: "FittingDataType", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(OPERATION_ON_TIME_AXIS_BEFORE_FITTING), alias: "OperationOnTimeAxisBeforeFitting", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(OPERATION_ON_PIXEL_INTENSITY_BEFORE_FITTING), alias: "OperationOnPixelIntensityBeforeFitting", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(ORDER_OF_POLYNOMIAL), alias: "OrderOfPolynomial", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(INDEPENDENT_VARIABLE_FOR_POLYNOMIAL_FIT), alias: "IndependentVariableForPolynomialFit", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(POLYNOMIAL_COEFFICIENTS), alias: "PolynomialCoefficients", vr: Exact(DS) }, // DICOM/DICONDE
+    E { tag: Single(THERMOGRAPHY_PIXEL_DATA_UNIT), alias: "ThermographyPixelDataUnit", vr: Exact(CS) }, // DICOM/DICONDE
     E { tag: Single(WHITE_POINT), alias: "WhitePoint", vr: Exact(DS) }, // DICOM
     E { tag: Single(PRIMARY_CHROMATICITIES), alias: "PrimaryChromaticities", vr: Exact(DS) }, // DICOM
     E { tag: Single(BATTERY_LEVEL), alias: "BatteryLevel", vr: Exact(UT) }, // DICOM
@@ -17832,7 +18232,9 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(OPHTHALMIC_VOLUMETRIC_PROPERTIES_FLAG), alias: "OphthalmicVolumetricPropertiesFlag", vr: Exact(CS) }, // DICOM
     E { tag: Single(OPHTHALMIC_ANATOMIC_REFERENCE_POINT_X_COORDINATE), alias: "OphthalmicAnatomicReferencePointXCoordinate", vr: Exact(FL) }, // DICOM
     E { tag: Single(OPHTHALMIC_ANATOMIC_REFERENCE_POINT_Y_COORDINATE), alias: "OphthalmicAnatomicReferencePointYCoordinate", vr: Exact(FL) }, // DICOM
+    E { tag: Single(OPHTHALMIC_EN_FACE_VOLUME_DESCRIPTOR_SEQUENCE), alias: "OphthalmicEnFaceVolumeDescriptorSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(OPHTHALMIC_EN_FACE_IMAGE_QUALITY_RATING_SEQUENCE), alias: "OphthalmicEnFaceImageQualityRatingSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(OPHTHALMIC_EN_FACE_VOLUME_DESCRIPTOR_SCOPE), alias: "OphthalmicEnFaceVolumeDescriptorScope", vr: Exact(CS) }, // DICOM
     E { tag: Single(QUALITY_THRESHOLD), alias: "QualityThreshold", vr: Exact(DS) }, // DICOM
     E { tag: Single(OCT_BSCAN_ANALYSIS_ACQUISITION_PARAMETERS_SEQUENCE), alias: "OCTBscanAnalysisAcquisitionParametersSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(NUMBER_OF_BSCANS_PER_FRAME), alias: "NumberOfBscansPerFrame", vr: Exact(UL) }, // DICOM
@@ -18780,6 +19182,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(SURFACE_SEQUENCE), alias: "SurfaceSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(SURFACE_NUMBER), alias: "SurfaceNumber", vr: Exact(UL) }, // DICOM
     E { tag: Single(SURFACE_COMMENTS), alias: "SurfaceComments", vr: Exact(LT) }, // DICOM
+    E { tag: Single(SURFACE_OFFSET), alias: "SurfaceOffset", vr: Exact(FL) }, // DICOM
     E { tag: Single(SURFACE_PROCESSING), alias: "SurfaceProcessing", vr: Exact(CS) }, // DICOM
     E { tag: Single(SURFACE_PROCESSING_RATIO), alias: "SurfaceProcessingRatio", vr: Exact(FL) }, // DICOM
     E { tag: Single(SURFACE_PROCESSING_DESCRIPTION), alias: "SurfaceProcessingDescription", vr: Exact(LO) }, // DICOM
@@ -19579,6 +19982,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(ENERGY_DERIVATION_CODE_SEQUENCE), alias: "EnergyDerivationCodeSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(MAXIMUM_CUMULATIVE_METERSET_EXPOSURE), alias: "MaximumCumulativeMetersetExposure", vr: Exact(FD) }, // DICOM
     E { tag: Single(ACQUISITION_INITIATION_SEQUENCE), alias: "AcquisitionInitiationSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(RT_CONE_BEAM_IMAGING_GEOMETRY_SEQUENCE), alias: "RTConeBeamImagingGeometrySequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(DVH_TYPE), alias: "DVHType", vr: Exact(CS) }, // DICOM
     E { tag: Single(DOSE_UNITS), alias: "DoseUnits", vr: Exact(CS) }, // DICOM
     E { tag: Single(DOSE_TYPE), alias: "DoseType", vr: Exact(CS) }, // DICOM
@@ -19798,6 +20202,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(TABLE_TOP_VERTICAL_POSITION_TOLERANCE), alias: "TableTopVerticalPositionTolerance", vr: Exact(DS) }, // DICOM
     E { tag: Single(TABLE_TOP_LONGITUDINAL_POSITION_TOLERANCE), alias: "TableTopLongitudinalPositionTolerance", vr: Exact(DS) }, // DICOM
     E { tag: Single(TABLE_TOP_LATERAL_POSITION_TOLERANCE), alias: "TableTopLateralPositionTolerance", vr: Exact(DS) }, // DICOM
+    E { tag: Single(TABLE_TOP_POSITION_ALIGNMENT_UID), alias: "TableTopPositionAlignmentUID", vr: Exact(UI) }, // DICOM
     E { tag: Single(RT_PLAN_RELATIONSHIP), alias: "RTPlanRelationship", vr: Exact(CS) }, // DICOM
     E { tag: Single(FRACTION_GROUP_SEQUENCE), alias: "FractionGroupSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(FRACTION_GROUP_NUMBER), alias: "FractionGroupNumber", vr: Exact(IS) }, // DICOM
@@ -20357,6 +20762,9 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(PATIENT_SUPPORT_DISPLACEMENT_SEQUENCE), alias: "PatientSupportDisplacementSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(DISPLACEMENT_REFERENCE_LOCATION_CODE_SEQUENCE), alias: "DisplacementReferenceLocationCodeSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(RT_RADIATION_SET_DELIVERY_USAGE), alias: "RTRadiationSetDeliveryUsage", vr: Exact(CS) }, // DICOM
+    E { tag: Single(PATIENT_TREATMENT_PREPARATION_SEQUENCE), alias: "PatientTreatmentPreparationSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(PATIENT_TO_EQUIPMENT_RELATIONSHIP_SEQUENCE), alias: "PatientToEquipmentRelationshipSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(IMAGING_EQUIPMENT_TO_TREATMENT_DELIVERY_DEVICE_RELATIONSHIP_SEQUENCE), alias: "ImagingEquipmentToTreatmentDeliveryDeviceRelationshipSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(REFERENCED_RT_PLAN_SEQUENCE), alias: "ReferencedRTPlanSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(REFERENCED_BEAM_SEQUENCE), alias: "ReferencedBeamSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(REFERENCED_BEAM_NUMBER), alias: "ReferencedBeamNumber", vr: Exact(IS) }, // DICOM

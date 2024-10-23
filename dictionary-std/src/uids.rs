@@ -70,6 +70,15 @@ pub const HEVCMP51: &str = "1.2.840.10008.1.2.4.107";
 /// Transfer Syntax: HEVC/H.265 Main 10 Profile / Level 5.1
 #[rustfmt::skip]
 pub const HEVCM10P51: &str = "1.2.840.10008.1.2.4.108";
+/// Transfer Syntax: JPEG XL Lossless
+#[rustfmt::skip]
+pub const JPEGXL_LOSSLESS: &str = "1.2.840.10008.1.2.4.110";
+/// Transfer Syntax: JPEG XL JPEG Recompression
+#[rustfmt::skip]
+pub const JPEGXLJPEG_RECOMPRESSION: &str = "1.2.840.10008.1.2.4.111";
+/// Transfer Syntax: JPEG XL
+#[rustfmt::skip]
+pub const JPEGXL: &str = "1.2.840.10008.1.2.4.112";
 /// Transfer Syntax: High-Throughput JPEG 2000 Image Compression (Lossless Only)
 #[rustfmt::skip]
 pub const HTJ2K_LOSSLESS: &str = "1.2.840.10008.1.2.4.201";
@@ -922,6 +931,12 @@ pub const EDDY_CURRENT_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.601.1";
 /// SOP Class: Eddy Current Multi-frame Image Storage
 #[rustfmt::skip]
 pub const EDDY_CURRENT_MULTI_FRAME_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.601.2";
+/// SOP Class: Thermography Image Storage
+#[rustfmt::skip]
+pub const THERMOGRAPHY_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.601.3";
+/// SOP Class: Thermography Multi-frame Image Storage
+#[rustfmt::skip]
+pub const THERMOGRAPHY_MULTI_FRAME_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.601.4";
 /// SOP Class: Raw Data Storage
 #[rustfmt::skip]
 pub const RAW_DATA_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.66";
@@ -943,6 +958,12 @@ pub const SURFACE_SEGMENTATION_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.66.5";
 /// SOP Class: Tractography Results Storage
 #[rustfmt::skip]
 pub const TRACTOGRAPHY_RESULTS_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.66.6";
+/// SOP Class: Label Map Segmentation Storage
+#[rustfmt::skip]
+pub const LABEL_MAP_SEGMENTATION_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.66.7";
+/// SOP Class: Height Map Segmentation Storage
+#[rustfmt::skip]
+pub const HEIGHT_MAP_SEGMENTATION_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.66.8";
 /// SOP Class: Real World Value Mapping Storage
 #[rustfmt::skip]
 pub const REAL_WORLD_VALUE_MAPPING_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.67";
@@ -1145,6 +1166,9 @@ pub const PERFORMED_IMAGING_AGENT_ADMINISTRATION_SR_STORAGE: &str = "1.2.840.100
 /// SOP Class: Enhanced X-Ray Radiation Dose SR Storage
 #[rustfmt::skip]
 pub const ENHANCED_X_RAY_RADIATION_DOSE_SR_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.88.76";
+/// SOP Class: Waveform Annotation SR Storage
+#[rustfmt::skip]
+pub const WAVEFORM_ANNOTATION_SR_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.88.77";
 /// SOP Class: Standalone Curve Storage (Retired)
 #[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
@@ -1586,6 +1610,8 @@ pub(crate) const SOP_CLASSES: &[E] = &[
     E::new("1.2.840.10008.5.1.4.1.1.6.3", "Photoacoustic Image Storage", "PhotoacousticImageStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.601.1", "Eddy Current Image Storage", "EddyCurrentImageStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.601.2", "Eddy Current Multi-frame Image Storage", "EddyCurrentMultiFrameImageStorage", SopClass, false),
+    E::new("1.2.840.10008.5.1.4.1.1.601.3", "Thermography Image Storage", "ThermographyImageStorage", SopClass, false),
+    E::new("1.2.840.10008.5.1.4.1.1.601.4", "Thermography Multi-frame Image Storage", "ThermographyMultiFrameImageStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.66", "Raw Data Storage", "RawDataStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.66.1", "Spatial Registration Storage", "SpatialRegistrationStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.66.2", "Spatial Fiducials Storage", "SpatialFiducialsStorage", SopClass, false),
@@ -1593,6 +1619,8 @@ pub(crate) const SOP_CLASSES: &[E] = &[
     E::new("1.2.840.10008.5.1.4.1.1.66.4", "Segmentation Storage", "SegmentationStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.66.5", "Surface Segmentation Storage", "SurfaceSegmentationStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.66.6", "Tractography Results Storage", "TractographyResultsStorage", SopClass, false),
+    E::new("1.2.840.10008.5.1.4.1.1.66.7", "Label Map Segmentation Storage", "LabelMapSegmentationStorage", SopClass, false),
+    E::new("1.2.840.10008.5.1.4.1.1.66.8", "Height Map Segmentation Storage", "HeightMapSegmentationStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.67", "Real World Value Mapping Storage", "RealWorldValueMappingStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.68.1", "Surface Scan Mesh Storage", "SurfaceScanMeshStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.68.2", "Surface Scan Point Cloud Storage", "SurfaceScanPointCloudStorage", SopClass, false),
@@ -1658,6 +1686,7 @@ pub(crate) const SOP_CLASSES: &[E] = &[
     E::new("1.2.840.10008.5.1.4.1.1.88.74", "Planned Imaging Agent Administration SR Storage", "PlannedImagingAgentAdministrationSRStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.88.75", "Performed Imaging Agent Administration SR Storage", "PerformedImagingAgentAdministrationSRStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.88.76", "Enhanced X-Ray Radiation Dose SR Storage", "EnhancedXRayRadiationDoseSRStorage", SopClass, false),
+    E::new("1.2.840.10008.5.1.4.1.1.88.77", "Waveform Annotation SR Storage", "WaveformAnnotationSRStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.9", "Standalone Curve Storage (Retired)", "StandaloneCurveStorage", SopClass, true),
     E::new("1.2.840.10008.5.1.4.1.1.9.1", "Waveform Storage - Trial (Retired)", "WaveformStorageTrial", SopClass, true),
     E::new("1.2.840.10008.5.1.4.1.1.9.1.1", "12-lead ECG Waveform Storage", "TwelveLeadECGWaveformStorage", SopClass, false),
@@ -1765,6 +1794,9 @@ pub(crate) const TRANSFER_SYNTAXES: &[E] = &[
     E::new("1.2.840.10008.1.2.4.106.1", "Fragmentable MPEG-4 AVC/H.264 Stereo High Profile / Level 4.2", "MPEG4HP42STEREOF", TransferSyntax, false),
     E::new("1.2.840.10008.1.2.4.107", "HEVC/H.265 Main Profile / Level 5.1", "HEVCMP51", TransferSyntax, false),
     E::new("1.2.840.10008.1.2.4.108", "HEVC/H.265 Main 10 Profile / Level 5.1", "HEVCM10P51", TransferSyntax, false),
+    E::new("1.2.840.10008.1.2.4.110", "JPEG XL Lossless", "JPEGXLLossless", TransferSyntax, false),
+    E::new("1.2.840.10008.1.2.4.111", "JPEG XL JPEG Recompression", "JPEGXLJPEGRecompression", TransferSyntax, false),
+    E::new("1.2.840.10008.1.2.4.112", "JPEG XL", "JPEGXL", TransferSyntax, false),
     E::new("1.2.840.10008.1.2.4.201", "High-Throughput JPEG 2000 Image Compression (Lossless Only)", "HTJ2KLossless", TransferSyntax, false),
     E::new("1.2.840.10008.1.2.4.202", "High-Throughput JPEG 2000 with RPCL Options Image Compression (Lossless Only)", "HTJ2KLosslessRPCL", TransferSyntax, false),
     E::new("1.2.840.10008.1.2.4.203", "High-Throughput JPEG 2000 Image Compression", "HTJ2K", TransferSyntax, false),
