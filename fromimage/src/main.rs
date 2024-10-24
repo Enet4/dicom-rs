@@ -39,7 +39,7 @@ struct App {
     #[arg(short = 'o', long = "out")]
     output: Option<PathBuf>,
     /// Override the transfer syntax UID (pixel data is not converted)
-    #[arg(long = "transfer-syntax")]
+    #[arg(long = "transfer-syntax", alias = "ts")]
     transfer_syntax: Option<String>,
     /// Encapsulate the image file raw data in a fragment sequence
     /// instead of writing native pixel data
