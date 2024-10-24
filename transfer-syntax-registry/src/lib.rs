@@ -62,13 +62,17 @@
 //! | JPEG 2000                     | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | JPEG 2000 Part 2 Multi-component Image Compression | Cargo feature `openjp2` or `openjpeg-sys` | x |
+//! | JPEG XL Lossless              | Cargo feature `jpegxl` | ✓ |
+//! | JPEG XL Recompression         | Cargo feature `jpegxl` | x |
+//! | JPEG XL                       | Cargo feature `jpegxl` | ✓ |
 //! | RLE Lossless                  | Cargo feature `rle` | x |
 //!
-//! Cargo features behind `native` (`jpeg`, `rle`)
-//! provide implementations that are written in pure Rust
-//! and are likely available in all supported platforms.
-//! However, a native implementation might not always be available,
-//! or alternative implementations may be preferred:
+//! Cargo features behind `native` (`jpeg`, `rle`) are added by default.
+//! They provide implementations that are written in pure Rust
+//! and are likely available in all supported platforms without issues.
+//! Additional codecs are opt-in by enabling Cargo features,
+//! for scenarios where a native implementation is not available,
+//! or alternative implementations are available.
 //!
 //! - `charls` provides support for JPEG-LS
 //!   by linking to the CharLS reference implementation,
@@ -81,7 +85,9 @@
 //!   Include `openjpeg-sys-threads` to build OpenJPEG with multithreading.
 //! - `openjp2` provides a binding to a computer-translated Rust port of OpenJPEG.
 //!   Due to the nature of this crate,
-//!   it does not work on all supported platforms.
+//!   it might not work on all modern platforms.
+//! - `jpegxl` adds JPEG XL support using `jxl-oxide` for decoding
+//!   and `zune-jpegxl` for encoding.
 //!
 //! Transfer syntaxes which are not supported,
 //! either due to being unable to read the data set
@@ -92,7 +98,6 @@
 //! if using the inventory-based registry.
 //!
 //! [inventory]: https://docs.rs/inventory/0.3.12/inventory
-
 use dicom_encoding::transfer_syntax::{
     AdapterFreeTransferSyntax as Ts, Codec, TransferSyntaxIndex,
 };
@@ -228,7 +233,7 @@ lazy_static! {
         };
 
         use self::entries::*;
-        let built_in_ts: [TransferSyntax; 37] = [
+        let built_in_ts: [TransferSyntax; 40] = [
             IMPLICIT_VR_LITTLE_ENDIAN.erased(),
             EXPLICIT_VR_LITTLE_ENDIAN.erased(),
             EXPLICIT_VR_BIG_ENDIAN.erased(),
@@ -247,6 +252,9 @@ lazy_static! {
             JPEG_2000_IMAGE_COMPRESSION.erased(),
             JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION_LOSSLESS_ONLY.erased(),
             JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION.erased(),
+            JPEG_XL_LOSSLESS.erased(),
+            JPEG_XL_RECOMPRESSION.erased(),
+            JPEG_XL.erased(),
             JPIP_REFERENCED.erased(),
             MPEG2_MAIN_PROFILE_MAIN_LEVEL.erased(),
             FRAGMENTABLE_MPEG2_MAIN_PROFILE_MAIN_LEVEL.erased(),

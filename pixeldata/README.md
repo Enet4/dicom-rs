@@ -18,7 +18,9 @@ You can use it to transcode a DICOM file to another transfer syntax,
 transforming pixel data along the way.
 
 ```none
-Usage: dicom-transcode [OPTIONS] <--ts <TS>|--expl-vr-le|--impl-vr-le|--jpeg-baseline> <FILE>
+Transcode a DICOM file
+
+Usage: dicom-transcode [OPTIONS] <--ts <TS>|--expl-vr-le|--impl-vr-le|--jpeg-baseline|--jpeg-ls-lossless|--jpeg-ls|--jpeg-xl-lossless|--jpeg-xl> <FILE>
 
 Arguments:
   <FILE>  
@@ -31,6 +33,10 @@ Options:
       --expl-vr-le             Transcode to Explicit VR Little Endian
       --impl-vr-le             Transcode to Implicit VR Little Endian
       --jpeg-baseline          Transcode to JPEG baseline (8-bit)
+      --jpeg-ls-lossless       Transcode to JPEG-LS lossless
+      --jpeg-ls                Transcode to JPEG-LS near-lossless
+      --jpeg-xl-lossless       Transcode to JPEG XL lossless
+      --jpeg-xl                Transcode to JPEG XL
       --retain-implementation  Retain the original implementation class UID and version name
   -v, --verbose                Verbose mode
   -h, --help                   Print help

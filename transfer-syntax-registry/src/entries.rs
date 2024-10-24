@@ -36,6 +36,8 @@ use crate::adapters::jpeg::JpegAdapter;
 use crate::adapters::jpeg2k::Jpeg2000Adapter;
 #[cfg(feature = "charls")]
 use crate::adapters::jpegls::{JpegLsAdapter, JpegLsLosslessWriter};
+#[cfg(feature = "jpegxl")]
+use crate::adapters::jpegxl::{JpegXlAdapter, JpegXlLosslessEncoder};
 #[cfg(feature = "rle")]
 use crate::adapters::rle_lossless::RleLosslessAdapter;
 
@@ -262,7 +264,7 @@ pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION: Ts = create_ts_stub
     "JPEG 2000 Part 2 Multi-component Image Compression",
 );
 
-// --- partially supported transfer syntaxes, pixel data encapsulation not supported ---
+// --- JPEG-LS ---
 
 /// An alias for a transfer syntax specifier with [`JpegLSAdapter`] as the decoder
 /// and an arbitrary encoder (since two impls are available)
@@ -290,6 +292,57 @@ pub const JPEG_LS_LOSSY_IMAGE_COMPRESSION: JpegLSTs<JpegLsAdapter> = TransferSyn
     "1.2.840.10008.1.2.4.81",
     "JPEG-LS Lossy (Near-Lossless) Image Compression",
     Codec::EncapsulatedPixelData(Some(JpegLsAdapter), Some(JpegLsAdapter)),
+);
+
+// --- JPEG XL support ---
+
+/// An alias for a transfer syntax specifier with [`JpegXLAdapter`]
+#[cfg(feature = "jpegxl")]
+type JpegXlTs<R = JpegXlAdapter, W = JpegXlAdapter> = TransferSyntax<NeverAdapter, R, W>;
+
+/// **Implemented:** JPEG XL Lossless
+#[cfg(feature = "jpegxl")]
+pub const JPEG_XL_LOSSLESS: JpegXlTs<JpegXlAdapter, JpegXlLosslessEncoder> = TransferSyntax::new_ele(
+    "1.2.840.10008.1.2.4.110",
+    "JPEG XL Lossless",
+    Codec::EncapsulatedPixelData(Some(JpegXlAdapter), Some(JpegXlLosslessEncoder)),
+);
+
+/// **Stub descriptor:** JPEG XL Lossless
+#[cfg(not(feature = "jpegxl"))]
+pub const JPEG_XL_LOSSLESS: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.110",
+    "JPEG XL Lossless"
+);
+
+/// **Decoder Implementation:** JPEG XL Recompression
+#[cfg(feature = "jpegxl")]
+pub const JPEG_XL_RECOMPRESSION: JpegXlTs = TransferSyntax::new_ele(
+    "1.2.840.10008.1.2.4.111",
+    "JPEG XL Recompression",
+    Codec::EncapsulatedPixelData(Some(JpegXlAdapter), None),
+);
+
+/// **Stub descriptor:** JPEG XL Recompression
+#[cfg(not(feature = "jpegxl"))]
+pub const JPEG_XL_RECOMPRESSION: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.111",
+    "JPEG XL Recompression"
+);
+
+/// **Implemented:** JPEG XL
+#[cfg(feature = "jpegxl")]
+pub const JPEG_XL: JpegXlTs = TransferSyntax::new_ele(
+    "1.2.840.10008.1.2.4.112",
+    "JPEG XL",
+    Codec::EncapsulatedPixelData(Some(JpegXlAdapter), Some(JpegXlAdapter)),
+);
+
+/// **Stub descriptor:** JPEG XL
+#[cfg(not(feature = "jpegxl"))]
+pub const JPEG_XL: Ts = create_ts_stub(
+    "1.2.840.10008.1.2.4.112",
+    "JPEG XL"
 );
 
 /// **Stub descriptor:** JPEG-LS Lossy (Near-Lossless) Image Compression

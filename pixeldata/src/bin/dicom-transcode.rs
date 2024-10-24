@@ -51,7 +51,7 @@ struct App {
 
 /// Specifier for the target transfer syntax
 #[derive(Debug, Parser)]
-#[group(required = true, multiple = false)]
+#[group(required = true, multiple = false, id = "transfer_syntax")]
 struct TargetTransferSyntax {
     /// Transcode to the Transfer Syntax indicated by UID
     #[clap(long = "ts")]
@@ -66,41 +66,105 @@ struct TargetTransferSyntax {
     implicit_vr_le: bool,
 
     /// Transcode to JPEG baseline (8-bit)
+    #[cfg(feature = "jpeg")]
     #[clap(long = "jpeg-baseline")]
     jpeg_baseline: bool,
+
+    /// Transcode to JPEG-LS lossless
+    #[cfg(feature = "charls")]
+    #[clap(long = "jpeg-ls-lossless")]
+    jpeg_ls_lossless: bool,
+
+    /// Transcode to JPEG-LS near-lossless
+    #[cfg(feature = "charls")]
+    #[clap(long = "jpeg-ls")]
+    jpeg_ls: bool,
+
+    /// Transcode to JPEG XL lossless
+    #[cfg(feature = "jpegxl")]
+    #[clap(long = "jpeg-xl-lossless")]
+    jpeg_xl_lossless: bool,
+
+    /// Transcode to JPEG XL
+    #[cfg(feature = "jpegxl")]
+    #[clap(long = "jpeg-xl")]
+    jpeg_xl: bool,
 }
 
 impl TargetTransferSyntax {
     fn resolve(&self) -> Result<&'static TransferSyntax, Whatever> {
-        // explicit VR little endian
-        if self.explicit_vr_le {
-            return Ok(TransferSyntaxRegistry
+        match self {
+            // none specified
+            TargetTransferSyntax {
+                ts: None,
+                explicit_vr_le: false,
+                implicit_vr_le: false,
+                #[cfg(feature = "jpeg")]
+                    jpeg_baseline: false,
+                #[cfg(feature = "charls")]
+                    jpeg_ls_lossless: false,
+                #[cfg(feature = "charls")]
+                    jpeg_ls: false,
+                #[cfg(feature = "jpegxl")]
+                    jpeg_xl_lossless: false,
+                #[cfg(feature = "jpegxl")]
+                    jpeg_xl: false,
+            } => snafu::whatever!("No target transfer syntax specified"),
+            // explicit VR little endian
+            TargetTransferSyntax {
+                explicit_vr_le: true,
+                ..
+            } => Ok(TransferSyntaxRegistry
                 .get(uids::EXPLICIT_VR_LITTLE_ENDIAN)
-                .expect("Explicit VR Little Endian is missing???"));
-        }
-
-        // implicit VR little endian
-        if self.implicit_vr_le {
-            return Ok(TransferSyntaxRegistry
+                .expect("Explicit VR Little Endian is missing???")),
+            // implicit VR little endian
+            TargetTransferSyntax {
+                implicit_vr_le: true,
+                ..
+            } => Ok(TransferSyntaxRegistry
                 .get(uids::IMPLICIT_VR_LITTLE_ENDIAN)
-                .expect("Implicit VR Little Endian is missing???"));
-        }
-
-        // JPEG baseline
-        if self.jpeg_baseline {
-            return TransferSyntaxRegistry
+                .expect("Implicit VR Little Endian is missing???")),
+            // JPEG baseline
+            #[cfg(feature = "jpeg")]
+            TargetTransferSyntax {
+                jpeg_baseline: true,
+                ..
+            } => TransferSyntaxRegistry
                 .get(uids::JPEG_BASELINE8_BIT)
-                .whatever_context("Missing specifier for JPEG Baseline (8-bit)");
+                .whatever_context("Missing specifier for JPEG Baseline (8-bit)"),
+            // JPEG-LS lossless
+            #[cfg(feature = "charls")]
+            TargetTransferSyntax {
+                jpeg_ls_lossless: true,
+                ..
+            } => TransferSyntaxRegistry
+                .get(uids::JPEGLS_LOSSLESS)
+                .whatever_context("Missing specifier for JPEG-LS Lossless"),
+            // JPEG-LS near-lossless
+            #[cfg(feature = "charls")]
+            TargetTransferSyntax {
+                jpeg_ls: true,
+                ..
+            } => TransferSyntaxRegistry
+                .get(uids::JPEGLS_NEAR_LOSSLESS)
+                .whatever_context("Missing specifier for JPEG-LS Near-Lossless"),
+            // JPEG XL lossless
+            #[cfg(feature = "jpegxl")]
+            TargetTransferSyntax {
+                jpeg_xl_lossless: true,
+                ..
+            } => TransferSyntaxRegistry
+                .get(uids::JPEGXL_LOSSLESS)
+                .whatever_context("Missing specifier for JPEG XL Lossless"),
+            // JPEG XL
+            #[cfg(feature = "jpegxl")]
+            TargetTransferSyntax { jpeg_xl: true, .. } => TransferSyntaxRegistry
+                .get(uids::JPEGXL)
+                .whatever_context("Missing specifier for JPEG XL"),
+            TargetTransferSyntax { ts: Some(ts), .. } => TransferSyntaxRegistry
+                .get(ts)
+                .whatever_context("Unknown transfer syntax"),
         }
-
-        // by TS UID
-        let Some(ts) = &self.ts else {
-            snafu::whatever!("No target transfer syntax specified");
-        };
-
-        TransferSyntaxRegistry
-            .get(ts)
-            .whatever_context("Unknown transfer syntax")
     }
 }
 

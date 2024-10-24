@@ -24,7 +24,7 @@ jobs:
           components: clippy
           cache: true
       # test project with default + extra features
-      - run: cargo test --features image,ndarray,sop-class,rle,cli
+      - run: cargo test --features image,ndarray,sop-class,rle,cli,jpegxl
       # test dicom-pixeldata with openjp2
       - run: cargo test -p dicom-pixeldata --features openjp2
       # test dicom-pixeldata with openjpeg-sys and charls
