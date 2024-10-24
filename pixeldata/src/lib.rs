@@ -692,19 +692,14 @@ impl DecodedPixelData<'_> {
             3 => {
                 // Modality LUT and VOI LUT
                 // are currently ignored in this case
-                if self.planar_configuration != PlanarConfiguration::Standard {
-                    // TODO #129
-                    return UnsupportedOtherSnafu {
-                        name: "PlanarConfiguration",
-                        value: self.planar_configuration.to_string(),
-                    }
-                    .fail()?;
-                }
 
                 // RGB, YBR_FULL or YBR_FULL_422 colors
                 match self.bits_allocated {
                     8 => {
-                        let mut pixel_array = self.frame_data(frame)?.to_vec();
+                        let mut pixel_array = match self.planar_configuration {
+                            PlanarConfiguration::Standard => self.frame_data(frame)?.to_vec(),
+                            PlanarConfiguration::PixelFirst => interleave(self.frame_data(frame)?),
+                        };
 
                         // Convert YBR_FULL or YBR_FULL_422 to RGB
                         let pixel_array = match &self.photometric_interpretation {
@@ -721,7 +716,14 @@ impl DecodedPixelData<'_> {
                         self.rgb_image_with_extend(pixel_array, options.bit_depth)
                     }
                     16 => {
-                        let mut pixel_array: Vec<u16> = self.frame_data_ow(frame)?;
+                        let mut pixel_array: Vec<u16> = match self.planar_configuration {
+                            PlanarConfiguration::Standard => self.frame_data_ow(frame)?,
+                            PlanarConfiguration::PixelFirst => {
+                                // Would there be a way to avoid copying the data twice
+                                // here (once in frame_data_ow and once in interleave)?
+                                interleave(&(self.frame_data_ow(frame)?))
+                            }
+                        };
 
                         // Convert YBR_FULL or YBR_FULL_422 to RGB
                         let pixel_array = match &self.photometric_interpretation {
@@ -1782,6 +1784,20 @@ fn convert_colorspace_u8(i: &mut [u8]) {
     });
 }
 
+#[cfg(feature = "image")]
+fn interleave<T: Copy>(data: &[T]) -> Vec<T> {
+    debug_assert_eq!(data.len() % 3, 0);
+    let component_len = data.len() / 3;
+    let r = &data[..component_len];
+    let g = &data[component_len..2 * component_len];
+    let b = &data[2 * component_len..];
+    r.iter()
+        .zip(g.iter())
+        .zip(b.iter())
+        .flat_map(|((r, g), b)| [*r, *g, *b])
+        .collect()
+}
+
 // Convert u16 pixel array from YBR_FULL or YBR_FULL_422 to RGB
 // Every pixel is replaced with an RGB value
 #[cfg(feature = "image")]
@@ -2816,5 +2832,17 @@ mod tests {
             pixel_data.photometric_interpretation(),
             &PhotometricInterpretation::Monochrome1
         );
+    }
+
+    #[cfg(feature = "image")]
+    #[test]
+    fn test_interleave() {
+        let planar: Vec<u8> = vec![
+            1, 2, 3, 4, // R
+            5, 6, 7, 8, // G
+            9, 10, 11, 12, // B
+        ];
+        let interleaved: Vec<u8> = vec![1, 5, 9, 2, 6, 10, 3, 7, 11, 4, 8, 12];
+        assert_eq!(interleave(&planar), interleaved);
     }
 }
