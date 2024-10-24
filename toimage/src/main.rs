@@ -344,6 +344,11 @@ fn convert_single_file(
                 | uids::JPEGLS_NEAR_LOSSLESS => {
                     output.set_extension("jls");
                 }
+                uids::JPEGXL
+                | uids::JPEGXLJPEG_RECOMPRESSION
+                | uids::JPEGXL_LOSSLESS => {
+                    output.set_extension("jxl");
+                }
                 _ => {
                     output.set_extension("data");
                 }
