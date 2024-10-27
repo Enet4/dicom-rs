@@ -214,7 +214,7 @@ impl<'a> PersonNameBuilder<'a> {
     }
 }
 
-impl<'a> Default for PersonNameBuilder<'a> {
+impl Default for PersonNameBuilder<'_> {
     fn default() -> Self {
         Self::new()
     }

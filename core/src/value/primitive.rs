@@ -336,7 +336,7 @@ impl From<&[u8]> for PrimitiveValue {
     }
 }
 
-impl<'a> From<PersonName<'a>> for PrimitiveValue {
+impl From<PersonName<'_>> for PrimitiveValue {
     fn from(p: PersonName) -> Self {
         PrimitiveValue::Str(p.to_dicom_string())
     }
@@ -578,16 +578,16 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Empty => Cow::from(""),
             PrimitiveValue::Str(values) => {
-                Cow::from(values.trim_end_matches(|c| c == ' ' || c == '\u{0}'))
+                Cow::from(values.trim_end_matches([' ', '\u{0}']))
             }
             PrimitiveValue::Strs(values) => {
                 if values.len() == 1 {
-                    Cow::from(values[0].trim_end_matches(|c| c == ' ' || c == '\u{0}'))
+                    Cow::from(values[0].trim_end_matches([' ', '\u{0}']))
                 } else {
                     Cow::Owned(
                         values
                             .iter()
-                            .map(|s| s.trim_end_matches(|c| c == ' ' || c == '\u{0}'))
+                            .map(|s| s.trim_end_matches([' ', '\u{0}']))
                             .join("\\"),
                     )
                 }

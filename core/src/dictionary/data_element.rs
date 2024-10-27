@@ -441,7 +441,7 @@ pub struct DataDictionaryEntryRef<'a> {
     pub vr: VirtualVr,
 }
 
-impl<'a> DataDictionaryEntry for DataDictionaryEntryRef<'a> {
+impl DataDictionaryEntry for DataDictionaryEntryRef<'_> {
     fn tag_range(&self) -> TagRange {
         self.tag
     }
