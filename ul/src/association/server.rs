@@ -298,7 +298,7 @@ pub struct ServerAssociationOptions<'a, A> {
     timeout: Option<std::time::Duration>,
 }
 
-impl<'a> Default for ServerAssociationOptions<'a, AcceptAny> {
+impl Default for ServerAssociationOptions<'_, AcceptAny> {
     fn default() -> Self {
         ServerAssociationOptions {
             ae_access_control: AcceptAny,
@@ -315,7 +315,7 @@ impl<'a> Default for ServerAssociationOptions<'a, AcceptAny> {
     }
 }
 
-impl<'a> ServerAssociationOptions<'a, AcceptAny> {
+impl ServerAssociationOptions<'_, AcceptAny> {
     /// Create a new set of options for establishing an association.
     pub fn new() -> Self {
         Self::default()

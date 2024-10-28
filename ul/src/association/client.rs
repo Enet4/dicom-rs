@@ -271,7 +271,7 @@ pub struct ClientAssociationOptions<'a> {
     connection_timeout: Option<Duration>,
 }
 
-impl<'a> Default for ClientAssociationOptions<'a> {
+impl Default for ClientAssociationOptions<'_> {
     fn default() -> Self {
         ClientAssociationOptions {
             // the calling AE title
