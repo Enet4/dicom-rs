@@ -1569,8 +1569,9 @@ impl DecodedPixelData<'_> {
     /// To change this behavior,
     /// see [`to_ndarray_with_options`](Self::to_ndarray_with_options).
     #[cfg(feature = "ndarray")]
-    pub fn to_ndarray<T: 'static>(&self) -> Result<Array<T, Ix4>>
+    pub fn to_ndarray<T>(&self) -> Result<Array<T, Ix4>>
     where
+        T: 'static,
         T: NumCast,
         T: Copy,
         T: Send + Sync,
@@ -1603,11 +1604,9 @@ impl DecodedPixelData<'_> {
     /// Note that certain options may be ignored
     /// if they do not apply.
     #[cfg(feature = "ndarray")]
-    pub fn to_ndarray_with_options<T: 'static>(
-        &self,
-        options: &ConvertOptions,
-    ) -> Result<Array<T, Ix4>>
+    pub fn to_ndarray_with_options<T>(&self, options: &ConvertOptions) -> Result<Array<T, Ix4>>
     where
+        T: 'static,
         T: NumCast,
         T: Copy,
         T: Send + Sync,
@@ -1647,8 +1646,9 @@ impl DecodedPixelData<'_> {
     /// To change this behavior,
     /// see [`to_ndarray_frame_with_options`](Self::to_ndarray_frame_with_options).
     #[cfg(feature = "ndarray")]
-    pub fn to_ndarray_frame<T: 'static>(&self, frame: u32) -> Result<Array<T, Ix3>>
+    pub fn to_ndarray_frame<T>(&self, frame: u32) -> Result<Array<T, Ix3>>
     where
+        T: 'static,
         T: NumCast,
         T: Copy,
         T: Send + Sync,
@@ -1680,12 +1680,13 @@ impl DecodedPixelData<'_> {
     /// Note that certain options may be ignored
     /// if they do not apply.
     #[cfg(feature = "ndarray")]
-    pub fn to_ndarray_frame_with_options<T: 'static>(
+    pub fn to_ndarray_frame_with_options<T>(
         &self,
         frame: u32,
         options: &ConvertOptions,
     ) -> Result<Array<T, Ix3>>
     where
+        T: 'static,
         T: NumCast,
         T: Copy,
         T: Send + Sync,
