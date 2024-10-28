@@ -940,11 +940,10 @@ where
     /// reporting whether it was present.
     pub fn remove_element_by_name(&mut self, name: &str) -> Result<bool, AccessByNameError> {
         let tag = self.lookup_name(name)?;
-        Ok(self.entries.remove(&tag).is_some()).map(|removed| {
+        Ok(self.entries.remove(&tag).is_some()).inspect(|&removed| {
             if removed {
                 self.len = Length::UNDEFINED;
             }
-            removed
         })
     }
 
@@ -952,9 +951,8 @@ where
     pub fn take_element(&mut self, tag: Tag) -> Result<InMemElement<D>> {
         self.entries
             .remove(&tag)
-            .map(|e| {
+            .inspect(|_| {
                 self.len = Length::UNDEFINED;
-                e
             })
             .context(NoSuchDataElementTagSnafu { tag })
     }
@@ -963,9 +961,8 @@ where
     /// if it is present,
     /// returns `None` otherwise.
     pub fn take(&mut self, tag: Tag) -> Option<InMemElement<D>> {
-        self.entries.remove(&tag).map(|e| {
+        self.entries.remove(&tag).inspect(|_| {
             self.len = Length::UNDEFINED;
-            e
         })
     }
 
@@ -977,9 +974,8 @@ where
         let tag = self.lookup_name(name)?;
         self.entries
             .remove(&tag)
-            .map(|e| {
+            .inspect(|_| {
                 self.len = Length::UNDEFINED;
-                e
             })
             .with_context(|| NoSuchDataElementAliasSnafu {
                 tag,
