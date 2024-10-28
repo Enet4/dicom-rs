@@ -348,7 +348,7 @@ pub type DynDataRWAdapter = Box<
         + Sync,
 >;
 
-impl<'a, T, R, W> DataRWAdapter<R, W> for &'a T
+impl<T, R, W> DataRWAdapter<R, W> for &'_ T
 where
     T: DataRWAdapter<R, W>,
     R: Read,

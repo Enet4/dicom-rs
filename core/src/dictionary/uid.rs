@@ -75,7 +75,7 @@ impl<'a> UidDictionaryEntryRef<'a> {
     }
 }
 
-impl<'a> UidDictionaryEntry for UidDictionaryEntryRef<'a> {
+impl UidDictionaryEntry for UidDictionaryEntryRef<'_> {
     fn uid(&self) -> &str {
         self.uid
     }

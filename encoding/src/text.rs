@@ -103,7 +103,7 @@ where
     }
 }
 
-impl<'a, T: ?Sized> TextCodec for &'a T
+impl<T: ?Sized> TextCodec for &'_ T
 where
     T: TextCodec,
 {

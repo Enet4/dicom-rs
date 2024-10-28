@@ -138,7 +138,7 @@ impl DataDictionary for StandardDataDictionary {
     }
 }
 
-impl<'a> DataDictionary for &'a StandardDataDictionary {
+impl DataDictionary for &'_ StandardDataDictionary {
     type Entry = DataDictionaryEntryRef<'static>;
 
     fn by_name(&self, name: &str) -> Option<&'static DataDictionaryEntryRef<'static>> {

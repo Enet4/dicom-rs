@@ -396,7 +396,7 @@ where
                     position: self.bytes_written,
                 })?;
                 let len = if textual_value.len() % 2 == 1 {
-                    self.to.write_all(&[b' ']).context(WriteValueDataSnafu {
+                    self.to.write_all(b" ").context(WriteValueDataSnafu {
                         position: self.bytes_written,
                     })?;
                     textual_value.len() as u64 + 1

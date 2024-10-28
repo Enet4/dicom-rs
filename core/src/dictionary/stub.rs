@@ -18,7 +18,7 @@ impl DataDictionary for StubDataDictionary {
     }
 }
 
-impl<'a> DataDictionary for &'a StubDataDictionary {
+impl DataDictionary for &'_ StubDataDictionary {
     type Entry = DataDictionaryEntryRef<'static>;
     fn by_name(&self, _: &str) -> Option<&DataDictionaryEntryRef<'static>> {
         None

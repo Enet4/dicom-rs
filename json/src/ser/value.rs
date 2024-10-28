@@ -21,7 +21,7 @@ impl<'a> From<&'a PrimitiveValue> for AsStrings<'a> {
     }
 }
 
-impl<'a> Serialize for AsStrings<'a> {
+impl Serialize for AsStrings<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -49,7 +49,7 @@ impl<'a> From<&'a PrimitiveValue> for AsNumbers<'a> {
     }
 }
 
-impl<'a> Serialize for AsNumbers<'a> {
+impl Serialize for AsNumbers<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -137,7 +137,7 @@ impl<'a> From<&'a PrimitiveValue> for InlineBinary<'a> {
     }
 }
 
-impl<'a> Serialize for InlineBinary<'a> {
+impl Serialize for InlineBinary<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -164,7 +164,7 @@ impl<'a> From<&'a PrimitiveValue> for AsPersonNames<'a> {
     }
 }
 
-impl<'a> Serialize for AsPersonNames<'a> {
+impl Serialize for AsPersonNames<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,

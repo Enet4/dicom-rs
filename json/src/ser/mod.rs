@@ -164,7 +164,7 @@ impl<'a, D> From<&'a [InMemDicomObject<D>]> for DicomJson<&'a [InMemDicomObject<
     }
 }
 
-impl<'a, D> Serialize for DicomJson<&'a [InMemDicomObject<D>]> {
+impl<D> Serialize for DicomJson<&'_ [InMemDicomObject<D>]> {
     /// Serializes the sequence of DICOM objects into a JSON array.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

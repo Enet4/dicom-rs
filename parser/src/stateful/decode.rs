@@ -819,7 +819,7 @@ where
     }
 }
 
-impl<'a, D> StatefulDecode for &'a mut D
+impl<D> StatefulDecode for &'_ mut D
 where
     D: StatefulDecode,
 {
@@ -913,9 +913,8 @@ where
             .context(DecodeItemHeaderSnafu {
                 position: self.position,
             })
-            .map(|header| {
+            .inspect(|_| {
                 self.position += 8;
-                header
             })
             .map_err(From::from)
     }

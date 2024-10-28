@@ -176,21 +176,21 @@ impl<I, P> HasLength for &DataElement<I, P> {
     }
 }
 
-impl<'a, I, P> Header for &'a DataElement<I, P> {
+impl<I, P> Header for &'_ DataElement<I, P> {
     #[inline]
     fn tag(&self) -> Tag {
         (**self).tag()
     }
 }
 
-impl<'v, I, P> HasLength for DataElementRef<'v, I, P> {
+impl<I, P> HasLength for DataElementRef<'_, I, P> {
     #[inline]
     fn length(&self) -> Length {
         self.header.length()
     }
 }
 
-impl<'v, I, P> Header for DataElementRef<'v, I, P> {
+impl<I, P> Header for DataElementRef<'_, I, P> {
     #[inline]
     fn tag(&self) -> Tag {
         self.header.tag()

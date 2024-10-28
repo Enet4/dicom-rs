@@ -372,7 +372,7 @@ where
     }
 }
 
-impl<'a, T: ?Sized> BasicDecode for &'a T
+impl<T: ?Sized> BasicDecode for &'_ T
 where
     T: BasicDecode,
 {
@@ -560,7 +560,7 @@ where
     }
 }
 
-impl<'a, T: ?Sized> Decode for &'a T
+impl<T: ?Sized> Decode for &'_ T
 where
     T: Decode,
 {
