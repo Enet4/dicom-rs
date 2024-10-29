@@ -5,6 +5,8 @@ use dicom_encoding::text::TextCodec;
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::io::Write;
 
+pub type Error = crate::pdu::WriteError;
+
 pub type Result<T> = std::result::Result<T, WriteError>;
 
 #[derive(Debug, Snafu)]
