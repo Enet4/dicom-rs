@@ -72,12 +72,12 @@ pub enum Error {
         bytes_read: u64,
         backtrace: Backtrace,
     },
+    /// Undefined pixel data item length
+    UndefinedItemLength,
     /// Invalid data element length {len:04X} of {tag} at {bytes_read:#x}
     InvalidElementLength { tag: Tag, len: u32, bytes_read: u64 },
     /// Invalid sequence item length {len:04X} at {bytes_read:#x}
     InvalidItemLength { len: u32, bytes_read: u64 },
-    /// Undefined pixel data item length
-    UndefinedItemLength,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
