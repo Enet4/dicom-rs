@@ -101,6 +101,9 @@ no other development dependencies are necessary
 unless certain extensions are included via Cargo features.
 Consult each crate for guidelines on selecting features to suit your needs.
 
+Minimum supported Rust version is 1.72.0 and only applies to the library crates with default features.  
+Binary crates and extra features may require a newer version of Rust.
+
 ## Roadmap & Contributing
 
 This project is under active development.

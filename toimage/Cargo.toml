@@ -2,6 +2,7 @@
 name = "dicom-toimage"
 version = "0.7.1"
 edition = "2018"
+rust-version = "1.72.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A CLI tool for converting DICOM files into general purpose image files"
 license = "MIT OR Apache-2.0"

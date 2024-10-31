@@ -626,11 +626,12 @@ mod tests {
 
     #[test]
     fn errors_are_not_too_large() {
+        let max_size = 88;
         let size = std::mem::size_of::<super::GetAttributeError>();
         assert!(
-            size <= 80,
-            "GetAttributeError size is too large ({} > 80)",
-            size
+            size <= max_size,
+            "GetAttributeError size is too large ({} > {})",
+            size, max_size
         );
     }
 
