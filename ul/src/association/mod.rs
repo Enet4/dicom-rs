@@ -24,7 +24,4 @@ mod uid;
 pub(crate) mod pdata;
 
 pub use client::{ClientAssociation, ClientAssociationOptions};
-pub use pdata::{PDataReader, PDataWriter};
-#[cfg(feature = "async")]
-pub use pdata::non_blocking::AsyncPDataWriter;
 pub use server::{ServerAssociation, ServerAssociationOptions};

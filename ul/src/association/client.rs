@@ -103,21 +103,11 @@ pub enum Error {
     /// no presentation contexts accepted by the server
     NoAcceptedPresentationContexts { backtrace: Backtrace },
 
-    /// failed to write PDU message
+    /// failed to send PDU message
     #[non_exhaustive]
-    Send {
-        #[snafu(backtrace)]
-        source: crate::pdu::writer::Error,
-    },
+    Send { source: std::io::Error },
 
     /// failed to send PDU message on wire
-    #[non_exhaustive]
-    WireSend {
-        source: std::io::Error,
-        backtrace: Backtrace,
-    },
-
-    /// Operation timed out
     #[non_exhaustive]
     Timeout {
         source: std::io::Error,
@@ -682,7 +672,7 @@ impl<'a> ClientAssociationOptions<'a> {
         // send request
 
         write_pdu(&mut buffer, &msg).context(SendRequestSnafu)?;
-        socket.write_all(&buffer).context(WireSendSnafu)?;
+        socket.write_all(&buffer).context(SendSnafu)?;
         buffer.clear();
 
         let msg = get_client_pdu(&mut socket, MAXIMUM_PDU_SIZE, self.strict)?;
@@ -951,7 +941,7 @@ where
             }
             .fail();
         }
-        self.socket.write_all(&self.buffer).context(WireSendSnafu)
+        self.socket.write_all(&self.buffer).context(SendSnafu)
     }
 
     /// Read a PDU message from the other intervenient.
@@ -1089,7 +1079,7 @@ pub mod non_blocking {
                 ConnectSnafu, ConnectionClosedSnafu, MissingAbstractSyntaxSnafu,
                 NoAcceptedPresentationContextsSnafu, ProtocolVersionMismatchSnafu,
                 ReceiveResponseSnafu, ReceiveSnafu, RejectedSnafu, SendRequestSnafu,
-                ToAddressSnafu, UnexpectedResponseSnafu, UnknownResponseSnafu, WireSendSnafu,
+                ToAddressSnafu, UnexpectedResponseSnafu, UnknownResponseSnafu,
             },
             pdata::non_blocking::{AsyncPDataWriter, PDataReader},
         },
@@ -1102,7 +1092,7 @@ pub mod non_blocking {
     };
 
     use super::{
-        ClientAssociation, ClientAssociationOptions, CloseSocket, Release, Result,
+        ClientAssociation, ClientAssociationOptions, CloseSocket, Release, Result, SendSnafu,
         SendTooLongPduSnafu, TimeoutSnafu,
     };
     use bytes::{Buf, BytesMut};
@@ -1278,7 +1268,7 @@ pub mod non_blocking {
             // send request
             write_pdu(&mut buffer, &msg).context(SendRequestSnafu)?;
             timeout(write_timeout, async {
-                socket.write_all(&buffer).await.context(WireSendSnafu)?;
+                socket.write_all(&buffer).await.context(SendSnafu)?;
                 Ok(())
             })
             .await?;
@@ -1333,7 +1323,7 @@ pub mod non_blocking {
                             },
                         );
                         let _ = timeout(write_timeout, async {
-                            socket.write_all(&buffer).await.context(WireSendSnafu)
+                            socket.write_all(&buffer).await.context(SendSnafu)
                         })
                         .await;
                         buffer.clear();
@@ -1365,7 +1355,7 @@ pub mod non_blocking {
                         },
                     );
                     let _ = timeout(write_timeout, async {
-                        socket.write_all(&buffer).await.context(WireSendSnafu)
+                        socket.write_all(&buffer).await.context(SendSnafu)
                     })
                     .await;
                     UnexpectedResponseSnafu { pdu }.fail()
@@ -1379,7 +1369,7 @@ pub mod non_blocking {
                         },
                     );
                     let _ = timeout(write_timeout, async {
-                        socket.write_all(&buffer).await.context(WireSendSnafu)
+                        socket.write_all(&buffer).await.context(SendSnafu)
                     })
                     .await;
                     UnknownResponseSnafu { pdu }.fail()
@@ -1453,10 +1443,7 @@ pub mod non_blocking {
                 .fail();
             }
             timeout(self.write_timeout, async {
-                self.socket
-                    .write_all(&self.buffer)
-                    .await
-                    .context(WireSendSnafu)
+                self.socket.write_all(&self.buffer).await.context(SendSnafu)
             })
             .await
         }
