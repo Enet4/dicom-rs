@@ -144,15 +144,19 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Helper function to get a PDU from a reader
-pub fn get_client_pdu<R: Read>(reader: &mut R, max_pdu_length: u32, strict: bool) -> Result<Pdu> {
-    // Receive response
-
-    let mut read_buffer = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
+/// Helper function to get a PDU from a reader.
+/// 
+/// Chunks of data are read into `read_buffer`,
+/// which should be passed in subsequent calls
+/// to receive more PDUs from the same stream.
+pub fn get_client_pdu<R>(reader: &mut R, read_buffer: &mut BytesMut, max_pdu_length: u32, strict: bool) -> Result<Pdu>
+where
+    R: Read,
+{
     let mut reader = BufReader::new(reader);
-
     let msg = loop {
         let mut buf = Cursor::new(&read_buffer[..]);
+        // try to read a PDU according to what's in the buffer
         match read_pdu(&mut buf, max_pdu_length, strict).context(ReceiveResponseSnafu)? {
             Some(pdu) => {
                 read_buffer.advance(buf.position() as usize);
@@ -685,7 +689,14 @@ impl<'a> ClientAssociationOptions<'a> {
         socket.write_all(&buffer).context(WireSendSnafu)?;
         buffer.clear();
 
-        let msg = get_client_pdu(&mut socket, MAXIMUM_PDU_SIZE, self.strict)?;
+        // !!!(#589) Soundness issue: if the SCP sends more PDUs in quick succession,
+        // more data may live in `buf` which may be lost,
+        // corrupting the PDU reader stream.
+        let mut buf = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
+        let msg = get_client_pdu(&mut socket, &mut buf, MAXIMUM_PDU_SIZE, self.strict)?;
+        if !buf.is_empty() {
+            tracing::warn!("Received more data than expected in the first PDU, further issues may arise");
+        }
 
         match msg {
             Pdu::AssociationAC(AssociationAC {

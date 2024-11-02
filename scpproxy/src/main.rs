@@ -1,7 +1,8 @@
+use bytes::BytesMut;
 use clap::{crate_version, value_parser, Arg, ArgAction, Command};
+use dicom_ul::association::client::get_client_pdu;
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::Pdu;
-use dicom_ul::association::client::get_client_pdu;
 use snafu::{Backtrace, OptionExt, Report, ResultExt, Snafu, Whatever};
 use std::io::Write;
 use std::net::{Shutdown, TcpListener, TcpStream};
@@ -93,10 +94,11 @@ fn run(
 
             {
                 let mut reader = scu_stream.try_clone().context(CloneSocketSnafu)?;
+                let mut buf = BytesMut::with_capacity(max_pdu_length as usize);
                 let message_tx = message_tx.clone();
                 scu_reader_thread = thread::spawn(move || {
                     loop {
-                        match get_client_pdu(&mut reader, max_pdu_length, strict) {
+                        match get_client_pdu(&mut reader, &mut buf, max_pdu_length, strict) {
                             Ok(pdu) => {
                                 message_tx
                                     .send(ThreadMessage::SendPdu {
@@ -131,9 +133,10 @@ fn run(
 
             {
                 let mut reader = scp_stream.try_clone().context(CloneSocketSnafu)?;
+                let mut buf = BytesMut::with_capacity(max_pdu_length as usize);
                 scp_reader_thread = thread::spawn(move || {
                     loop {
-                        match get_client_pdu(&mut reader, max_pdu_length, strict) {
+                        match get_client_pdu(&mut reader, &mut buf, max_pdu_length, strict) {
                             Ok(pdu) => {
                                 message_tx
                                     .send(ThreadMessage::SendPdu {
