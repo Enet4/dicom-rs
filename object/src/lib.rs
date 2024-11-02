@@ -18,7 +18,7 @@
 //!   See the [`mem`] module for more details.
 //! - Loading a DICOM file can be done with ease via the function [`open_file`].
 //!   For additional file reading options, use [`OpenFileOptions`].
-//!   These are all available in the [`file`] module.
+//!   These are all available in the [`mod@file`] module.
 //! - Other implementations of a DICOM object may exist
 //!   to better serve other use cases.
 //!   If generic support for any DICOM object implementation is a requirement,
