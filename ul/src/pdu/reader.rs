@@ -10,26 +10,27 @@ pub type Error = crate::pdu::ReadError;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// The default maximum PDU size
-#[deprecated(since = "0.7.2", note = "Use dicom_ul::pdu::DEFAULT_MAX_PDU instead")]
+#[deprecated(since = "0.8.0", note = "Use dicom_ul::pdu::DEFAULT_MAX_PDU instead")]
 pub const DEFAULT_MAX_PDU: u32 = crate::pdu::DEFAULT_MAX_PDU;
 
 /// The minimum PDU size,
 /// as specified by the standard
-#[deprecated(since = "0.7.2", note = "Use dicom_ul::pdu::MINIMUM_PDU_SIZE instead")]
+#[deprecated(since = "0.8.0", note = "Use dicom_ul::pdu::MINIMUM_PDU_SIZE instead")]
 pub const MINIMUM_PDU_SIZE: u32 = crate::pdu::MINIMUM_PDU_SIZE;
 
 /// The maximum PDU size,
 /// as specified by the standard
-#[deprecated(since = "0.7.2", note = "Use dicom_ul::pdu::MAXIMUM_PDU_SIZE instead")]
+#[deprecated(since = "0.8.0", note = "Use dicom_ul::pdu::MAXIMUM_PDU_SIZE instead")]
 pub const MAXIMUM_PDU_SIZE: u32 = crate::pdu::MAXIMUM_PDU_SIZE;
 
 /// The length of the PDU header in bytes,
 /// comprising the PDU type (1 byte),
 /// reserved byte (1 byte),
 /// and PDU length (4 bytes).
-#[deprecated(since = "0.7.2", note = "Use dicom_ul::pdu::PDU_HEADER_SIZE instead")]
+#[deprecated(since = "0.8.0", note = "Use dicom_ul::pdu::PDU_HEADER_SIZE instead")]
 pub const PDU_HEADER_SIZE: u32 = crate::pdu::PDU_HEADER_SIZE;
 
+/// Read a PDU from the given byte buffer.
 pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<Option<Pdu>> {
     ensure!(
         (super::MINIMUM_PDU_SIZE..=super::MAXIMUM_PDU_SIZE).contains(&max_pdu_length),

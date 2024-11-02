@@ -103,13 +103,6 @@ pub enum Error {
     /// no presentation contexts accepted by the server
     NoAcceptedPresentationContexts { backtrace: Backtrace },
 
-    /// failed to write PDU message
-    #[non_exhaustive]
-    Send {
-        #[snafu(backtrace)]
-        source: crate::pdu::writer::Error,
-    },
-
     /// failed to send PDU message on wire
     #[non_exhaustive]
     WireSend {
