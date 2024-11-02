@@ -575,6 +575,7 @@ dependencies = [
 name = "dicom-scpproxy"
 version = "0.7.0"
 dependencies = [
+ "bytes",
  "clap",
  "dicom-dictionary-std",
  "dicom-ul",
