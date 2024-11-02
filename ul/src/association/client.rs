@@ -145,7 +145,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Helper function to get a PDU from a reader.
-/// 
+///
 /// Chunks of data are read into `read_buffer`,
 /// which should be passed in subsequent calls
 /// to receive more PDUs from the same stream.
@@ -171,11 +171,11 @@ where
         let recv = reader
             .fill_buf()
             .context(ReadPduSnafu)
-            .context(ReceiveSnafu)?
-            .to_vec();
-        reader.consume(recv.len());
+            .context(ReceiveSnafu)?;
+        let bytes_read = recv.len();
         read_buffer.extend_from_slice(&recv);
-        ensure!(!recv.is_empty(), ConnectionClosedSnafu);
+        reader.consume(bytes_read);
+        ensure!(bytes_read != 0, ConnectionClosedSnafu);
     };
     Ok(msg)
 }
