@@ -270,10 +270,12 @@ pub trait PixelDataReader {
     /// If the image has 3 samples per pixel,
     /// the output must be in RGB with each pixel contiguous in memory
     /// (planar configuration of 0).
-    /// However, if the image is monochrome,
-    /// the output should retain the photometric interpretation of the source object
-    /// (so that images in _MONOCHROME1_ continue to be in _MONOCHROME1_
-    /// and images in _MONOCHROME2_ continue to be in _MONOCHROME2_).
+    /// For pixel data with a single sample per pixel,
+    /// the output shall retain the photometric interpretation
+    /// declared in the original object
+    /// if it is one of _MONOCHROME1_, _MONOCHROME2_, or _PALETTE COLOR_.
+    /// For any other photometric interpretation,
+    /// the output shall be assumed to be in _MONOCHROME2_.
     fn decode_frame(
         &self,
         src: &dyn PixelDataObject,
