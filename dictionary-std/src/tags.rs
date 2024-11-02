@@ -6932,9 +6932,9 @@ pub const FILTER_LOW_FREQUENCY_CHARACTERISTICS_SEQUENCE: Tag = Tag(0x003A, 0x031
 /// FilterHighFrequencyCharacteristicsSequence (003A,0319) SQ 1 DICOM
 #[rustfmt::skip]
 pub const FILTER_HIGH_FREQUENCY_CHARACTERISTICS_SEQUENCE: Tag = Tag(0x003A, 0x0319);
-/// SummarizedFilterLookupTable (003A,0320) SQ 1 DICOM
+/// SummarizedFilterLookupTableSequence (003A,0320) SQ 1 DICOM
 #[rustfmt::skip]
-pub const SUMMARIZED_FILTER_LOOKUP_TABLE: Tag = Tag(0x003A, 0x0320);
+pub const SUMMARIZED_FILTER_LOOKUP_TABLE_SEQUENCE: Tag = Tag(0x003A, 0x0320);
 /// NotchFilterCharacteristicsSequence (003A,0321) SQ 1 DICOM
 #[rustfmt::skip]
 pub const NOTCH_FILTER_CHARACTERISTICS_SEQUENCE: Tag = Tag(0x003A, 0x0321);
@@ -6947,9 +6947,9 @@ pub const ANALOG_FILTER_CHARACTERISTICS_SEQUENCE: Tag = Tag(0x003A, 0x0323);
 /// AnalogFilterRollOff (003A,0324) DS 1 DICOM
 #[rustfmt::skip]
 pub const ANALOG_FILTER_ROLL_OFF: Tag = Tag(0x003A, 0x0324);
-/// AnalogFilterType (003A,0325) SQ 1 DICOM
+/// AnalogFilterTypeCodeSequence (003A,0325) SQ 1 DICOM
 #[rustfmt::skip]
-pub const ANALOG_FILTER_TYPE: Tag = Tag(0x003A, 0x0325);
+pub const ANALOG_FILTER_TYPE_CODE_SEQUENCE: Tag = Tag(0x003A, 0x0325);
 /// DigitalFilterCharacteristicsSequence (003A,0326) SQ 1 DICOM
 #[rustfmt::skip]
 pub const DIGITAL_FILTER_CHARACTERISTICS_SEQUENCE: Tag = Tag(0x003A, 0x0326);
@@ -18616,12 +18616,12 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(WAVEFORM_AMPLIFIER_TYPE), alias: "WaveformAmplifierType", vr: Exact(CS) }, // DICOM
     E { tag: Single(FILTER_LOW_FREQUENCY_CHARACTERISTICS_SEQUENCE), alias: "FilterLowFrequencyCharacteristicsSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(FILTER_HIGH_FREQUENCY_CHARACTERISTICS_SEQUENCE), alias: "FilterHighFrequencyCharacteristicsSequence", vr: Exact(SQ) }, // DICOM
-    E { tag: Single(SUMMARIZED_FILTER_LOOKUP_TABLE), alias: "SummarizedFilterLookupTable", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(SUMMARIZED_FILTER_LOOKUP_TABLE_SEQUENCE), alias: "SummarizedFilterLookupTableSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(NOTCH_FILTER_CHARACTERISTICS_SEQUENCE), alias: "NotchFilterCharacteristicsSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(WAVEFORM_FILTER_TYPE), alias: "WaveformFilterType", vr: Exact(CS) }, // DICOM
     E { tag: Single(ANALOG_FILTER_CHARACTERISTICS_SEQUENCE), alias: "AnalogFilterCharacteristicsSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(ANALOG_FILTER_ROLL_OFF), alias: "AnalogFilterRollOff", vr: Exact(DS) }, // DICOM
-    E { tag: Single(ANALOG_FILTER_TYPE), alias: "AnalogFilterType", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(ANALOG_FILTER_TYPE_CODE_SEQUENCE), alias: "AnalogFilterTypeCodeSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(DIGITAL_FILTER_CHARACTERISTICS_SEQUENCE), alias: "DigitalFilterCharacteristicsSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(DIGITAL_FILTER_ORDER), alias: "DigitalFilterOrder", vr: Exact(IS) }, // DICOM
     E { tag: Single(DIGITAL_FILTER_TYPE_CODE_SEQUENCE), alias: "DigitalFilterTypeCodeSequence", vr: Exact(SQ) }, // DICOM
