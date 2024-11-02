@@ -897,9 +897,7 @@ impl<'a> DicomAttribute for FileMetaAttribute<'a> {
     type PixelData<'b> = InMemFragment
         where Self: 'b;
 
-    fn to_primitive_value<'b>(
-        &'b self,
-    ) -> Result<PrimitiveValue, AttributeError> {
+    fn to_primitive_value(&self) -> Result<PrimitiveValue, AttributeError> {
         Ok(match Tag(0x0002, self.tag_e) {
             tags::FILE_META_INFORMATION_GROUP_LENGTH => {
                 PrimitiveValue::from(self.meta.information_group_length)
@@ -942,7 +940,7 @@ impl<'a> DicomAttribute for FileMetaAttribute<'a> {
         })
     }
 
-    fn to_str<'b>(&'b self) -> std::result::Result<std::borrow::Cow<'b, str>, AttributeError> {
+    fn to_str(&self) -> std::result::Result<std::borrow::Cow<'_, str>, AttributeError> {
         match Tag(0x0002, self.tag_e) {
             tags::FILE_META_INFORMATION_GROUP_LENGTH => {
                 Ok(self.meta.information_group_length.to_string().into())
@@ -1027,10 +1025,10 @@ impl DicomObject for FileMetaTable {
     where
         Self: 'a;
 
-    fn get_opt<'a>(
-        &'a self,
+    fn get_opt(
+        &self,
         tag: Tag,
-    ) -> std::result::Result<Option<Self::Attribute<'a>>, crate::AccessError> {
+    ) -> std::result::Result<Option<Self::Attribute<'_>>, crate::AccessError> {
         // check that the attribute value is in the table,
         // then return a suitable `FileMetaAttribute`
 
