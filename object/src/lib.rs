@@ -6,10 +6,23 @@
 //! The end user should prefer using this abstraction when dealing with DICOM
 //! objects.
 //!
-//! Loading a DICOM file can be done with ease via the function [`open_file`].
-//! For additional file reading options, use [`OpenFileOptions`].
-//! New DICOM instances can be built from scratch using [`InMemDicomObject`]
-//! (see the [`mem`] module for more details).
+//!
+//! ## Overview
+//!
+//! - Most interactions with DICOM objects
+//!   will involve in-memory representations of the data set,
+//!   through the type [`InMemDicomObject`].
+//!   New DICOM instances can also be built from scratch using this type.
+//!   A wide assortment of methods are available
+//!   for reading and manipulating the data set.
+//!   See the [`mem`] module for more details.
+//! - Loading a DICOM file can be done with ease via the function [`open_file`].
+//!   For additional file reading options, use [`OpenFileOptions`].
+//!   These are all available in the [`file`] module.
+//! - Other implementations of a DICOM object may exist
+//!   to better serve other use cases.
+//!   If generic support for any DICOM object implementation is a requirement,
+//!   you can try using the [`DicomObject`] trait.
 //!
 //! # Encodings
 //!
@@ -308,7 +321,7 @@ pub trait DicomAttribute: DicomValueType {
 
     /// Obtain the attribute's value as a string,
     /// converting it if necessary.
-    fn to_str<'a>(&'a self) -> Result<Cow<'a, str>, AttributeError> {
+    fn to_str(&self) -> Result<Cow<'_, str>, AttributeError> {
         Ok(Cow::Owned(self.to_primitive_value()?.to_str().to_string()))
     }
 
@@ -354,7 +367,7 @@ pub trait DicomAttribute: DicomValueType {
 
     /// Obtain the attribute's value as bytes,
     /// converting it if necessary.
-    fn to_bytes<'a>(&'a self) -> Result<Cow<'a, [u8]>, AttributeError> {
+    fn to_bytes(&self) -> Result<Cow<'_, [u8]>, AttributeError> {
         Ok(Cow::Owned(self.to_primitive_value()?.to_bytes().to_vec()))
     }
 }
@@ -378,7 +391,7 @@ pub trait DicomObject {
     /// `Ok(None)` is returned when the object was successfully looked up
     /// but the element is not present.
     /// This is not a recursive search.
-    fn get_opt<'a>(&'a self, tag: Tag) -> Result<Option<Self::Attribute<'a>>, AccessError>;
+    fn get_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>, AccessError>;
 
     /// Retrieve a particular DICOM element by its name (keyword).
     ///
@@ -387,17 +400,17 @@ pub trait DicomObject {
     ///
     /// If the DICOM tag is already known,
     /// prefer calling [`get_opt`](Self::get_opt).
-    fn get_by_name_opt<'a>(
-        &'a self,
+    fn get_by_name_opt(
+        &self,
         name: &str,
-    ) -> Result<Option<Self::Attribute<'a>>, AccessByNameError>;
+    ) -> Result<Option<Self::Attribute<'_>>, AccessByNameError>;
 
     /// Retrieve a particular DICOM attribute
     /// by looking up the given tag at the object's root.
     ///
     /// Unlike [`get_opt`](Self::get_opt),
     /// this method returns an error if the element is not present.
-    fn get<'a>(&'a self, tag: Tag) -> Result<Self::Attribute<'a>, AccessError> {
+    fn get(&self, tag: Tag) -> Result<Self::Attribute<'_>, AccessError> {
         self.get_opt(tag)?
             .context(NoSuchDataElementTagSnafu { tag })
     }
@@ -406,7 +419,7 @@ pub trait DicomObject {
     ///
     /// Unlike [`get_by_name_opt`](Self::get_by_name_opt),
     /// this method returns an error if the element is not present.
-    fn get_by_name<'a>(&'a self, name: &str) -> Result<Self::Attribute<'a>, AccessByNameError> {
+    fn get_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
         self.get_by_name_opt(name)?
             .context(NoSuchAttributeNameSnafu { name })
     }
@@ -423,7 +436,7 @@ where
     where Self: 'a, P: 'a;
 
     #[inline]
-    fn to_primitive_value<'a>(&'a self) -> Result<PrimitiveValue, AttributeError> {
+    fn to_primitive_value(&self) -> Result<PrimitiveValue, AttributeError> {
         match self {
             DicomValue::Primitive(value) => Ok(value.clone()),
             _ => Err(AttributeError::ConvertValue {
@@ -439,9 +452,9 @@ where
     #[inline]
     fn item(&self, index: u32) -> Result<&O, AttributeError> {
         let items = self.items().context(NotDataSetSnafu)?;
-        Ok(items
+        items
             .get(index as usize)
-            .context(DataSetItemOutOfBoundsSnafu)?)
+            .context(DataSetItemOutOfBoundsSnafu)
     }
 
     #[inline]
@@ -465,13 +478,13 @@ where
     }
 
     #[inline]
-    fn to_str<'a>(&'a self) -> Result<Cow<'a, str>, AttributeError> {
-        DicomValue::to_str(&self).context(ConvertValueSnafu)
+    fn to_str(&self) -> Result<Cow<'_, str>, AttributeError> {
+        DicomValue::to_str(self).context(ConvertValueSnafu)
     }
 
     #[inline]
-    fn to_bytes<'a>(&'a self) -> Result<Cow<'a, [u8]>, AttributeError> {
-        DicomValue::to_bytes(&self).context(ConvertValueSnafu)
+    fn to_bytes(&self) -> Result<Cow<'_, [u8]>, AttributeError> {
+        DicomValue::to_bytes(self).context(ConvertValueSnafu)
     }
 }
 
@@ -538,13 +551,13 @@ where
     }
 
     #[inline]
-    fn to_str<'a>(&'a self) -> Result<Cow<'a, str>, AttributeError> {
-        DicomValue::to_str(&self).context(ConvertValueSnafu)
+    fn to_str(&self) -> Result<Cow<'_, str>, AttributeError> {
+        DicomValue::to_str(self).context(ConvertValueSnafu)
     }
 
     #[inline]
-    fn to_bytes<'a>(&'a self) -> Result<Cow<'a, [u8]>, AttributeError> {
-        DicomValue::to_bytes(&self).context(ConvertValueSnafu)
+    fn to_bytes(&self) -> Result<Cow<'_, [u8]>, AttributeError> {
+        DicomValue::to_bytes(self).context(ConvertValueSnafu)
     }
 }
 
@@ -962,7 +975,7 @@ where
     type PixelData<'a> = Either<L::PixelData<'a>, R::PixelData<'a>>
         where Self: 'a;
 
-    fn to_primitive_value<'a>(&'a self) -> Result<PrimitiveValue, AttributeError> {
+    fn to_primitive_value(&self) -> Result<PrimitiveValue, AttributeError> {
         match self {
             Either::Left(l) => l.to_primitive_value(),
             Either::Right(r) => r.to_primitive_value(),

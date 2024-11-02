@@ -895,9 +895,7 @@ impl<'a> DicomAttribute for FileMetaAttribute<'a> {
     type PixelData<'b> = InMemFragment
         where Self: 'b;
 
-    fn to_primitive_value<'b>(
-        &'b self,
-    ) -> Result<PrimitiveValue, AttributeError> {
+    fn to_primitive_value(&self) -> Result<PrimitiveValue, AttributeError> {
         Ok(match Tag(0x0002, self.tag_e) {
             tags::FILE_META_INFORMATION_GROUP_LENGTH => {
                 PrimitiveValue::from(self.meta.information_group_length)
@@ -940,7 +938,7 @@ impl<'a> DicomAttribute for FileMetaAttribute<'a> {
         })
     }
 
-    fn to_str<'b>(&'b self) -> std::result::Result<std::borrow::Cow<'b, str>, AttributeError> {
+    fn to_str(&self) -> std::result::Result<std::borrow::Cow<'_, str>, AttributeError> {
         match Tag(0x0002, self.tag_e) {
             tags::FILE_META_INFORMATION_GROUP_LENGTH => {
                 Ok(self.meta.information_group_length.to_string().into())
@@ -1025,10 +1023,10 @@ impl DicomObject for FileMetaTable {
     where
         Self: 'a;
 
-    fn get_opt<'a>(
-        &'a self,
+    fn get_opt(
+        &self,
         tag: Tag,
-    ) -> std::result::Result<Option<Self::Attribute<'a>>, crate::AccessError> {
+    ) -> std::result::Result<Option<Self::Attribute<'_>>, crate::AccessError> {
         // check that the attribute value is in the table,
         // then return a suitable `FileMetaAttribute`
 
@@ -1704,7 +1702,8 @@ mod tests {
             information_group_length: 0,
             information_version: [0u8, 1u8],
             media_storage_sop_class_uid: "1.2.840.10008.5.1.4.1.1.7".to_owned(),
-            media_storage_sop_instance_uid: "2.25.137731752600317795446120660167595746868".to_owned(),
+            media_storage_sop_instance_uid: "2.25.137731752600317795446120660167595746868"
+                .to_owned(),
             transfer_syntax: "1.2.840.10008.1.2.4.91".to_owned(),
             implementation_class_uid: "2.25.305828488182831875890203105390285383139".to_owned(),
             implementation_version_name: Some("MYTOOL100".to_owned()),
@@ -1723,7 +1722,10 @@ mod tests {
         let table2 = FileMetaTable::from_reader(&mut buf.as_slice())
             .expect("Should not fail to read the table from the written data");
 
-        assert_eq!(table.information_group_length, table2.information_group_length);
+        assert_eq!(
+            table.information_group_length,
+            table2.information_group_length
+        );
     }
 
     /// Can access file meta properties via the DicomObject trait
