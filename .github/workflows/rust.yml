@@ -14,6 +14,7 @@ jobs:
     strategy:
       matrix:
         rust:
+          - 1.72.0
           - stable
           - beta
     steps:
@@ -24,16 +25,39 @@ jobs:
           components: clippy
           cache: true
       # test project with default + extra features
-      - run: cargo test --features image,ndarray,sop-class,rle,cli,jpegxl
+      - if: matrix.rust == 'stable' || matrix.rust == 'beta'
+        run: cargo test --features image,ndarray,sop-class,rle,cli,jpegxl
       # test dicom-pixeldata with openjp2
-      - run: cargo test -p dicom-pixeldata --features openjp2
+      - if: matrix.rust == 'stable' || matrix.rust == 'beta'
+        run: cargo test -p dicom-pixeldata --features openjp2
       # test dicom-pixeldata with openjpeg-sys and charls
-      - run: cargo test -p dicom-pixeldata --features openjpeg-sys,charls
+      - if: matrix.rust == 'stable' || matrix.rust == 'beta'
+        run: cargo test -p dicom-pixeldata --features openjpeg-sys,charls
       # test dicom-pixeldata with gdcm-rs
-      - run: cargo test -p dicom-pixeldata --features gdcm
+      - if: matrix.rust == 'stable' || matrix.rust == 'beta'
+        run: cargo test -p dicom-pixeldata --features gdcm
       # test dicom-pixeldata without default features
-      - run: cargo test -p dicom-pixeldata --no-default-features
-      - run: cargo test -p dicom-ul --features async
+      - if: matrix.rust == 'stable' || matrix.rust == 'beta'
+        run: cargo test -p dicom-pixeldata --no-default-features
+      # test dicom-ul with async feature
+      - if: matrix.rust == 'stable' || matrix.rust == 'beta'
+        run: cargo test -p dicom-ul --features async
+      # test library projects with minimum rust version
+      - if: matrix.rust == '1.72.0'
+        run: |
+          cargo test -p dicom-core
+          cargo test -p dicom-encoding
+          cargo test -p dicom-dictionary-std
+          cargo test -p dicom-parser
+          cargo test -p dicom-transfer-syntax-registry
+          cargo test -p dicom-object
+          cargo test -p dicom-dump --no-default-features --features sop-class
+          cargo test -p dicom-json
+          cargo test -p dicom-ul
+          cargo test -p dicom-pixeldata
+          cargo check -p dicom
+        env:
+          RUSTFLAGS: -W warnings
       # run Clippy with stable toolchain
       - if: matrix.rust == 'stable'
         run: cargo clippy

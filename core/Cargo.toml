@@ -4,6 +4,7 @@ version = "0.7.1"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "Efficient and practical core library for DICOM compliant systems"
 edition = "2018"
+rust-version = "1.72.0"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
 keywords = ["dicom"]
