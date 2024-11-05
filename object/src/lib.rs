@@ -168,13 +168,13 @@ use std::path::Path;
 ///
 /// This UID may change in future versions,
 /// even between patch versions.
-pub const IMPLEMENTATION_CLASS_UID: &str = "2.25.139623901558105915656014294038307328623";
+pub const IMPLEMENTATION_CLASS_UID: &str = "2.25.156227610253341005307660858504280353500";
 
 /// The current implementation version name generically referring to DICOM-rs.
 ///
 /// This name may change in future versions,
 /// even between patch versions.
-pub const IMPLEMENTATION_VERSION_NAME: &str = "DICOM-rs 0.7.2";
+pub const IMPLEMENTATION_VERSION_NAME: &str = "DICOM-rs 0.8.0";
 
 /// Trait type for a DICOM object.
 /// This is a high-level abstraction where an object is accessed and
