@@ -19,7 +19,7 @@ dicom-core = { path = "../core", version = "0.8.0" }
 dicom-encoding = { path = "../encoding", version = "0.8.0" }
 dicom-parser = { path = "../parser", version = "0.8.0" }
 dicom-dictionary-std = { path = "../dictionary-std", version = "0.8.0" }
-dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.7.1" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.8.0" }
 itertools = "0.13"
 byteordered = "0.6"
 smallvec = "1.6.1"
