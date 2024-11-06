@@ -28,5 +28,5 @@ ldap-oid = []
 synchronization-frame-of-reference = []
 
 [dependencies]
-dicom-core = { path = "../core", version = "0.7.1" }
+dicom-core = { path = "../core", version = "0.8.0" }
 once_cell = "1.18.0"

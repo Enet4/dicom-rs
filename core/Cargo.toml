@@ -1,6 +1,6 @@
 [package]
 name = "dicom-core"
-version = "0.7.1"
+version = "0.8.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "Efficient and practical core library for DICOM compliant systems"
 edition = "2018"
