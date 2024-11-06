@@ -1,6 +1,6 @@
 [package]
 name = "dicom-dictionary-builder"
-version = "0.7.0"
+version = "0.8.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A generator of DICOM dictionaries from standard documentation and other sources"
 edition = "2018"
