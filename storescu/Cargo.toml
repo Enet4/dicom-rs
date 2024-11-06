@@ -23,7 +23,7 @@ dicom-encoding = { path = "../encoding/", version = "0.8.0" }
 dicom-object = { path = '../object', version = "0.7.1" }
 dicom-pixeldata = { version = "0.7.1", path = "../pixeldata", optional = true }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.8.0" }
-dicom-ul = { path = '../ul', version = "0.7.1", features = ["async"] }
+dicom-ul = { path = '../ul', version = "0.8.0", features = ["async"] }
 walkdir = "2.3.2"
 indicatif = "0.17.0"
 tracing = "0.1.34"
