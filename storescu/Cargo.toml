@@ -1,6 +1,6 @@
 [package]
 name = "dicom-storescu"
-version = "0.7.1"
+version = "0.8.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -32,4 +32,4 @@ snafu = "0.8"
 
 [dependencies.tokio]
 version = "1.38.0"
-features = ["rt", "rt-multi-thread", "macros"]
+features = ["rt", "rt-multi-thread", "macros", "sync"]
