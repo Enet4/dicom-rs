@@ -51,7 +51,7 @@ zune-jpegxl-threads = ["zune-jpegxl?/threads"]
 
 [dependencies]
 dicom-core = { path = "../core", version = "0.8.0" }
-dicom-encoding = { path = "../encoding", version = "0.7.1" }
+dicom-encoding = { path = "../encoding", version = "0.8.0" }
 lazy_static = "1.2.0"
 byteordered = "0.6"
 tracing = "0.1.34"
