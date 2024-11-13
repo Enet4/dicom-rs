@@ -579,7 +579,7 @@ impl DecodedPixelData<'_> {
                         .fail()?
                     }
                     tracing::warn!("Expected `{:?}` rescale parameters, found `{:?}`, using first value for all", self.number_of_frames, len);
-                    Ok(&self.rescale[0..0])
+                    Ok(&self.rescale[0..1])
                 }
             }
         }
@@ -604,7 +604,7 @@ impl DecodedPixelData<'_> {
                             .fail()?
                         }
                         tracing::warn!("Expected `{:?}` VOI LUT functions, found `{:?}`, using first value for all", self.number_of_frames, len);
-                        Ok(Some(&inner[0..0]))
+                        Ok(Some(&inner[0..1]))
                     }
                 }
             };
@@ -632,7 +632,7 @@ impl DecodedPixelData<'_> {
                             .fail()?
                         }
                         tracing::warn!("Expected `{:?}` Window Levels, found `{:?}`, using first value for all", self.number_of_frames, len);
-                        Ok(Some(&inner[0..0]))
+                        Ok(Some(&inner[0..1]))
                     }
                 }
             };
