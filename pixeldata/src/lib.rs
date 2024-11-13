@@ -2165,7 +2165,7 @@ where
         let rescale = {
             if rescale_data.len() > frame as usize {
                 vec![rescale_data[frame as usize]]
-            } else if rescale_data.len() > 0 {
+            } else if !rescale_data.is_empty() {
                 vec![rescale_data[0]]
             } else {
                 vec![]
@@ -2175,7 +2175,7 @@ where
         let window = window.and_then(|window_vec| {
             if window_vec.len() > frame as usize {
                 Some(vec![window_vec[frame as usize]])
-            } else if window_vec.len() > 0 {
+            } else if !window_vec.is_empty() {
                 Some(vec![window_vec[0]])
             } else {
                 None
@@ -2185,7 +2185,7 @@ where
         let voi_lut_function = voi_lut_function.and_then(|voi_lut| {
             if voi_lut.len() > frame as usize {
                 Some(vec![voi_lut[frame as usize]])
-            } else if voi_lut.len() > 0 {
+            } else if !voi_lut.is_empty() {
                 Some(vec![voi_lut[0]])
             } else {
                 None
