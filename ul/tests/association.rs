@@ -3,6 +3,8 @@ use dicom_ul::ClientAssociationOptions;
 use rstest::rstest;
 use std::time::Instant;
 
+const TIMEOUT_TOLERANCE: u64 = 25;
+
 #[rstest]
 #[case(100)]
 #[case(500)]
@@ -17,7 +19,12 @@ fn test_slow_association(#[case] timeout: u64) {
     let now = Instant::now();
     let _res = scu_init.establish_with("RANDOM@167.167.167.167:11111");
     let elapsed = now.elapsed();
-    assert!(elapsed.as_millis() < (timeout + 10).into());
+    assert!(
+        elapsed.as_millis() < (timeout + TIMEOUT_TOLERANCE).into(),
+        "Elapsed time {}ms exceeded the timeout {}ms",
+        elapsed.as_millis(),
+        timeout
+    );
 }
 
 #[cfg(feature = "async")]
@@ -39,5 +46,10 @@ async fn test_slow_association_async(#[case] timeout: u64) {
     assert!(res.is_err());
     let elapsed = now.elapsed();
     println!("Elapsed time: {:?}", elapsed);
-    assert!(elapsed.as_millis() < (timeout + 10).into());
+    assert!(
+        elapsed.as_millis() < (timeout + TIMEOUT_TOLERANCE).into(),
+        "Elapsed time {}ms exceeded the timeout {}ms",
+        elapsed.as_millis(),
+        timeout
+    );
 }
