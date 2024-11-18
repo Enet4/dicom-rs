@@ -672,9 +672,12 @@ version = "0.8.0"
 dependencies = [
  "byteordered",
  "bytes",
+ "dicom-core",
+ "dicom-dictionary-std",
  "dicom-encoding",
  "dicom-transfer-syntax-registry",
  "matches",
+ "rstest",
  "snafu",
  "tokio",
  "tracing",
