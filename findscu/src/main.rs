@@ -101,6 +101,7 @@ fn build_query(
     q: Vec<String>,
     patient: bool,
     study: bool,
+    mwl: bool,
     verbose: bool,
 ) -> Result<InMemDicomObject, Error> {
     // read query file if provided
@@ -150,7 +151,8 @@ fn build_query(
         parse_queries(obj, &q).whatever_context("Could not build query object from terms")?;
 
     // try to infer query retrieve level if not defined by the user
-    if obj.get(tags::QUERY_RETRIEVE_LEVEL).is_none() {
+    // but only if not using worklist
+    if !mwl && obj.get(tags::QUERY_RETRIEVE_LEVEL).is_none() {
         // (0008,0052) CS QueryRetrieveLevel
         let level = match (patient, study) {
             (true, false) => "PATIENT",
@@ -191,7 +193,7 @@ fn run() -> Result<(), Error> {
         error!("{}", snafu::Report::from_error(e));
     });
 
-    let dcm_query = build_query(file, query_file, query, patient, study, verbose)?;
+    let dcm_query = build_query(file, query_file, query, patient, study, mwl, verbose)?;
 
     let abstract_syntax = match (patient, study, mwl) {
         // Patient Root Query/Retrieve Information Model - FIND
