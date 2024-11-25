@@ -951,7 +951,7 @@ mod tests {
 
         let mut buf = Vec::new();
         {
-            let  mut read_buf = BytesMut::new();
+            let mut read_buf = BytesMut::new();
             let mut reader = PDataReader::new(&mut pdu_stream, MINIMUM_PDU_SIZE, &mut read_buf);
             reader.read_to_end(&mut buf).unwrap();
         }
@@ -996,7 +996,7 @@ mod tests {
         let inner = pdu_stream.into_inner();
         let mut stream = tokio::io::BufReader::new(inner.as_slice());
         {
-            let  mut read_buf = BytesMut::new();
+            let mut read_buf = BytesMut::new();
             let mut reader = PDataReader::new(&mut stream, MINIMUM_PDU_SIZE, &mut read_buf);
             reader.read_to_end(&mut buf).await.unwrap();
         }
