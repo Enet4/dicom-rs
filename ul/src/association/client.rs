@@ -971,6 +971,7 @@ where
             {
                 Some(pdu) => {
                     self.read_buffer.advance(buf.position() as usize);
+                    println!("Read buffer remaining: {:?}", self.read_buffer.len());
                     return Ok(pdu);
                 }
                 None => {
@@ -1044,7 +1045,8 @@ where
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
     pub fn receive_pdata(&mut self) -> PDataReader<&mut std::net::TcpStream> {
-        PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
+        println!("read_buffer: {:x?}", self.read_buffer);
+        PDataReader::new(&mut self.socket, self.requestor_max_pdu_length, &mut self.read_buffer)
     }
 
     /// Release implementation function,
@@ -1542,7 +1544,7 @@ pub mod non_blocking {
         /// receives more data PDUs once the bytes collected are consumed.
         #[cfg(feature = "async")]
         pub fn receive_pdata(&mut self) -> PDataReader<&mut tokio::net::TcpStream> {
-            PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
+            PDataReader::new(&mut self.socket, self.requestor_max_pdu_length, &mut self.read_buffer)
         }
 
         /// Release implementation function,
