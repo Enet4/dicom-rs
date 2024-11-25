@@ -171,7 +171,7 @@ where
             .context(ReadPduSnafu)
             .context(ReceiveSnafu)?;
         let bytes_read = recv.len();
-        read_buffer.extend_from_slice(&recv);
+        read_buffer.extend_from_slice(recv);
         reader.consume(bytes_read);
         ensure!(bytes_read != 0, ConnectionClosedSnafu);
     };
