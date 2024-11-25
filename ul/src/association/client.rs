@@ -978,7 +978,6 @@ where
             {
                 Some(pdu) => {
                     self.read_buffer.advance(buf.position() as usize);
-                    println!("Read buffer remaining: {:?}", self.read_buffer.len());
                     return Ok(pdu);
                 }
                 None => {
@@ -1052,7 +1051,6 @@ where
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
     pub fn receive_pdata(&mut self) -> PDataReader<&mut std::net::TcpStream> {
-        println!("read_buffer: {:x?}", self.read_buffer);
         PDataReader::new(
             &mut self.socket,
             self.requestor_max_pdu_length,
