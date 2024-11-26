@@ -374,6 +374,13 @@ where
                         }
                     }
                 }
+                Err(DecoderError::DecodeItemHeader {
+                    source: dicom_encoding::decode::Error::ReadItemHeader { source, .. },
+                    ..
+                }) if source.kind() == std::io::ErrorKind::UnexpectedEof => {
+                    self.hard_break = true;
+                    None
+                }
                 Err(e) => {
                     self.hard_break = true;
                     Some(Err(e).context(ReadItemHeaderSnafu))
