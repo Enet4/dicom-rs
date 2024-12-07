@@ -538,7 +538,6 @@ dependencies = [
 name = "dicom-parser"
 version = "0.8.0"
 dependencies = [
- "chrono",
  "dicom-core",
  "dicom-dictionary-std",
  "dicom-encoding",
@@ -576,7 +575,6 @@ version = "0.8.0"
 dependencies = [
  "bytes",
  "clap",
- "dicom-dictionary-std",
  "dicom-ul",
  "snafu",
  "tracing",
@@ -671,7 +669,6 @@ version = "0.8.0"
 dependencies = [
  "byteordered",
  "bytes",
- "dicom-core",
  "dicom-dictionary-std",
  "dicom-encoding",
  "dicom-transfer-syntax-registry",
