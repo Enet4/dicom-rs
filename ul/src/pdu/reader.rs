@@ -94,16 +94,13 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             // Version 1 and shall be identified with bit 0 set. A receiver of this PDU
             // implementing only this version of the DICOM UL protocol shall only test that bit
             // 0 is set.
-            if bytes.remaining() < 2 {
+            if bytes.remaining() < 2 + 2 + 16 + 16 + 32 {
                 return Ok(None);
             }
             let protocol_version = bytes.get_u16();
 
             // 9-10 - Reserved - This reserved field shall be sent with a value 0000H but not
             // tested to this value when received.
-            if bytes.remaining() < 2 {
-                return Ok(None);
-            }
             bytes.get_u16();
 
             // 11-26 - Called-AE-title - Destination DICOM Application Name. It shall be encoded
@@ -157,7 +154,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
                         return InvalidPduVariableSnafu { var_item }.fail();
                     }
                     None => {
-                        println!("PDU variable none");
+                        tracing::debug!("PDU variable none");
                         return Ok(None);
                     }
                 }
@@ -185,16 +182,13 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             // Version 1 and shall be identified with bit 0 set. A receiver of this PDU
             // implementing only this version of the DICOM UL protocol shall only test that bit
             // 0 is set.
-            if bytes.remaining() < 2 {
+            if bytes.remaining() < 2 + 2 + 16 + 16 + 32 {
                 return Ok(None);
             }
             let protocol_version = bytes.get_u16();
 
             // 9-10 - Reserved - This reserved field shall be sent with a value 0000H but not
             // tested to this value when received.
-            if bytes.remaining() < 2 {
-                return Ok(None);
-            }
             bytes.get_u16();
 
             // 11-26 - Reserved - This reserved field shall be sent with a value identical to
@@ -263,7 +257,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
 
             // 7 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
-            if bytes.remaining() < 1 {
+            if bytes.remaining() < 1 + 1 + 2 {
                 return Ok(None);
             }
             bytes.get_u8();
@@ -272,9 +266,6 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             // binary number. One of the following values shall be used:
             //   1 - rejected-permanent
             //   2 - rejected-transient
-            if bytes.remaining() < 1 {
-                return Ok(None);
-            }
             let result = AssociationRJResult::from(bytes.get_u8())
                 .context(InvalidRejectSourceOrReasonSnafu)?;
 
@@ -299,9 +290,6 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             //     1 - temporary-congestio
             //     2 - local-limit-exceeded
             //     3-7 - reserved
-            if bytes.remaining() < 2 {
-                return Ok(None);
-            }
             let source = AssociationRJSource::from(bytes.get_u8(), bytes.get_u8())
                 .context(InvalidRejectSourceOrReasonSnafu)?;
 
@@ -320,7 +308,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
                 // 1-4 - Item-length - This Item-length shall be the number of bytes from the first
                 // byte of the following field to the last byte of the Presentation-data-value
                 // field. It shall be encoded as an unsigned binary number.
-                if bytes.remaining() < 4 {
+                if bytes.remaining() < 4 + 1 + 1 {
                     return Ok(None);
                 }
                 let item_length = bytes.get_u32();
@@ -335,9 +323,6 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
                 // 5 - Presentation-context-ID - Presentation-context-ID values shall be odd
                 // integers between 1 and 255, encoded as an unsigned binary number. For a complete
                 // description of the use of this field see Section 7.1.1.13.
-                if bytes.remaining() < 1 {
-                    return Ok(None);
-                }
                 let presentation_context_id = bytes.get_u8();
 
                 // 6-xxx - Presentation-data-value - This Presentation-data-value field shall
@@ -353,9 +338,6 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
                 // following fragment shall contain the last fragment of a Message Data Set or of a
                 // Message Command. If bit 1 is set to 0, the following fragment
                 // does not contain the last fragment of a Message Data Set or of a Message Command.
-                if bytes.remaining() < 1 {
-                    return Ok(None);
-                }
                 let header = bytes.get_u8();
 
                 let value_type = if header & 0x01 > 0 {
@@ -382,6 +364,9 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
 
             // 7-10 - Reserved - This reserved field shall be sent with a value 00000000H but not
             // tested to this value when received.
+            if bytes.remaining() < 4 {
+                return Ok(None);
+            }
             bytes.advance(4);
 
             Ok(Some(Pdu::ReleaseRQ))
@@ -405,7 +390,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             // this value when received.
             // 8 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
-            if bytes.remaining() < 2 {
+            if bytes.remaining() < 2 + 2 {
                 return Ok(None);
             }
             let _ = bytes.copy_to_bytes(2);
@@ -424,9 +409,6 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             // - 4 - unrecognized-PDU parameter
             // - 5 - unexpected-PDU parameter
             // - 6 - invalid-PDU-parameter value
-            if bytes.remaining() < 2 {
-                return Ok(None);
-            }
             let source = AbortRQSource::from(bytes.get_u8(), bytes.get_u8())
                 .context(InvalidAbortSourceOrReasonSnafu)?;
 
