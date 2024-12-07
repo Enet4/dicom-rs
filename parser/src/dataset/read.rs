@@ -378,7 +378,7 @@ where
                     source: dicom_encoding::decode::Error::ReadItemHeader { source, .. },
                     ..
                 }) if source.kind() == std::io::ErrorKind::UnexpectedEof
-                   && self.seq_delimiters.pop().map_or(false, |t| t.pixel_data)
+                   && self.seq_delimiters.pop().is_some_and(|t| t.pixel_data)
                  => {
                     // Note: if `UnexpectedEof` was reached while inside a 
                     // PixelData Sequence, then we assume that

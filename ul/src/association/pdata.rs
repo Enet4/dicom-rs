@@ -267,7 +267,7 @@ impl<'a, R> PDataReader<'a, R> {
     }
 }
 
-impl<'a, R> Read for PDataReader<'a, R>
+impl<R> Read for PDataReader<'_, R>
 where
     R: Read,
 {
@@ -594,7 +594,7 @@ pub mod non_blocking {
         }
     }
 
-    impl<'a, R> AsyncRead for PDataReader<'a, R>
+    impl<R> AsyncRead for PDataReader<'_, R>
     where
         R: AsyncRead + Unpin,
     {
