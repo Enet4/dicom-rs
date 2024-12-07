@@ -2155,12 +2155,37 @@ where
             .fail()?;
         }
 
-        let rescale = zip(&rescale_intercept, &rescale_slope)
+        let rescale_data = zip(&rescale_intercept, &rescale_slope)
             .map(|(intercept, slope)| Rescale {
                 intercept: *intercept,
                 slope: *slope,
             })
-            .collect();
+            .collect::<Vec<Rescale>>();
+
+        let rescale = rescale_data
+            .get(frame as usize)
+            .or(rescale_data.first())
+            .copied()
+            .map(|inner| vec![inner])
+            .unwrap_or_default();
+
+        let window = window
+            .and_then(|inner| {
+                inner
+                    .get(frame as usize)
+                    .or(inner.first())
+                    .copied()
+                    .map(|el| vec![el])
+            });
+
+        let voi_lut_function = voi_lut_function
+            .and_then(|inner| {
+                inner
+                    .get(frame as usize)
+                    .or(inner.first())
+                    .copied()
+                    .map(|el| vec![el])
+            });
 
         // Try decoding it using a registered pixel data decoder
         if let Codec::EncapsulatedPixelData(Some(decoder), _) = ts.codec() {
