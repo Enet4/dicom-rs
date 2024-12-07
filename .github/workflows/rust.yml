@@ -57,12 +57,12 @@ jobs:
           cargo test -p dicom-pixeldata
           cargo check -p dicom
         env:
-          RUSTFLAGS: -W warnings
+          RUSTFLAGS: -A warnings # allows warnings, to not pollute CI with warnings that are no longer valid with stable rust version
       # run Clippy with stable toolchain
       - if: matrix.rust == 'stable'
         run: cargo clippy
         env:
-          RUSTFLAGS: -W warnings
+          RUSTFLAGS: -D warnings
 
   check_windows:
     name: Build (Windows)
