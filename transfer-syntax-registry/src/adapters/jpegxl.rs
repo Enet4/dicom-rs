@@ -87,33 +87,56 @@ impl PixelDataReader for JpegXlAdapter {
 
         let mut stream = frame.stream();
 
-        // write all f32 samples to a buffer
-
-        let mut buffer =
-            vec![
-                0_f32;
-                stream.channels() as usize * stream.width() as usize * stream.height() as usize
-            ];
-
-        let count = stream.write_to_buffer(&mut buffer);
-        buffer.truncate(count);
-
-        // convert samples to the destination buffer depending on bit depth
+        // write and convert samples to the destination buffer depending on bit depth
         match bits_allocated {
             1 => {
                 whatever!("Unsupported bit depth 1 by JPEG XL decoder");
             }
             8 => {
-                for &sample in &buffer {
-                    dst.push((sample * 255.) as u8);
-                }
+                // write directly to dst as u8 samples
+
+                let samples_per_frame = stream.channels() as usize * stream.width() as usize * stream.height() as usize;
+
+                dst.try_reserve(samples_per_frame)
+                    .whatever_context("Failed to reserve heap space for JPEG XL frame")?;
+
+                let offset = dst.len();
+                dst.resize(offset + samples_per_frame, 0);
+
+                let count = stream.write_to_buffer(&mut dst[offset..]);
+                dst.truncate(offset + count);
             }
             16 => {
+                // write all u16 samples to a buffer
+
+                let mut buffer =
+                    vec![
+                        0_u16;
+                        stream.channels() as usize * stream.width() as usize * stream.height() as usize
+                    ];
+
+                let count = stream.write_to_buffer(&mut buffer);
+                buffer.truncate(count);
+
+                // pass them as bytes in native endian
+                
                 for &sample in &buffer {
-                    dst.extend_from_slice(&((sample * 65535.) as u16).to_ne_bytes());
+                    dst.extend_from_slice(&sample.to_ne_bytes());
                 }
             }
             24 => {
+                // write all f32 samples to a buffer
+
+                let mut buffer =
+                    vec![
+                        0_f32;
+                        stream.channels() as usize * stream.width() as usize * stream.height() as usize
+                    ];
+
+                let count = stream.write_to_buffer(&mut buffer);
+                buffer.truncate(count);
+
+                // then convert them to 24-bit integers
                 for &sample in &buffer {
                     let bytes = &((sample * 16777215.) as u32).to_ne_bytes();
                     dst.extend_from_slice(&bytes[..3]);
