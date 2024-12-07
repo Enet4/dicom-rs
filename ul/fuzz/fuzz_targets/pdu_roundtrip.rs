@@ -10,7 +10,9 @@ fuzz_target!(|data: (u32, bool, &[u8])| {
 
 fn fuzz(maxlen: u32, strict: bool, mut data: &[u8]) -> Result<(), Box<dyn Error>> {
     // deserialize random bytes
-    let pdu = dicom_ul::pdu::read_pdu(&mut data, maxlen, strict)?;
+    let Some(pdu) = dicom_ul::pdu::read_pdu(&mut data, maxlen, strict)? else {
+        return Ok(());
+    };
 
     // serialize pdu back to bytes
     let mut bytes = Vec::new();
@@ -18,7 +20,8 @@ fn fuzz(maxlen: u32, strict: bool, mut data: &[u8]) -> Result<(), Box<dyn Error>
 
     // deserialize back to pdu
     let pdu2 = dicom_ul::pdu::read_pdu(&mut bytes.as_slice(), maxlen, strict)
-        .expect("serialized pdu should always deserialize");
+        .expect("serialized pdu should always deserialize")
+        .expect("serialized pdu should exist");
 
     // assert equivalence
     assert_eq!(
