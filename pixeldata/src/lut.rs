@@ -13,7 +13,7 @@ use num_traits::{NumCast, ToPrimitive};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use snafu::{OptionExt, Snafu};
 
-use crate::{Rescale, WindowLevelTransform};
+use crate::{transform::VoiLutTransform, Rescale, WindowLevelTransform};
 
 /// The LUT could not be created:
 /// entry #{index} was mapped to {y_value},
@@ -251,6 +251,39 @@ where
         })
     }
 
+    /// Create a new LUT containing the modality rescale transformation
+    /// and the VOI transformation defined by an explicit VOI LUT.
+    ///
+    /// The amplitude of the output values
+    /// goes from 0 to `2^n - 1`, where `n` is the power of two
+    /// which follows `bits_stored` (or itself if it is a power of two).
+    /// For instance, if `bits_stored` is 12, the output values
+    /// will go from 0 to 65535.
+    ///
+    /// - `bits_stored`:
+    ///   the number of bits effectively used to represent the sample values
+    ///   (the _Bits Stored_ DICOM attribute)
+    /// - `signed`:
+    ///   whether the input sample values are expected to be signed
+    ///   (_Pixel Representation_ = 1)
+    /// - `rescale`: the rescale parameters
+    /// - `voi`: the value of interest (VOI) function and parameters
+    ///
+    /// # Panics
+    ///
+    /// Panics if `bits_stored` is 0 or too large.
+    pub fn new_rescale_and_lut(
+        bits_stored: u16,
+        signed: bool,
+        rescale: Rescale,
+        voi: VoiLutTransform,
+    ) -> Result<Self, CreateLutError> {
+        Self::new_with_fn(bits_stored, signed, |v| {
+            let v = rescale.apply(v);
+            voi.apply(v)
+        })
+    }
+
     /// Create a new LUT containing
     /// a VOI transformation defined by a window level.
     ///
@@ -279,6 +312,34 @@ where
         let bits_allocated = (bits_stored as usize).next_power_of_two();
         let y_max = ((1 << bits_allocated) - 1) as f64;
         Self::new_with_fn(bits_stored, signed, |v| voi.apply(v, y_max))
+    }
+
+    /// Create a new LUT containing a VOI transformation defined by an explicit
+    /// VOI LUT.
+    ///
+    /// The amplitude of the output values
+    /// goes from 0 to `2^n - 1`, where `n` is the power of two
+    /// which follows `bits_stored` (or itself if it is a power of two).
+    /// For instance, if `bits_stored` is 12, the output values
+    /// will go from 0 to 65535.
+    ///
+    /// - `bits_stored`:
+    ///   the number of bits effectively used to represent the sample values
+    ///   (the _Bits Stored_ DICOM attribute)
+    /// - `signed`:
+    ///   whether the input sample values are expected to be signed
+    ///   (_Pixel Representation_ = 1)
+    /// - `voi`: the value of interest (VOI) function and parameters
+    ///
+    /// # Panics
+    ///
+    /// Panics if `bits_stored` is 0 or too large.
+    pub fn new_lut(
+        bits_stored: u16,
+        signed: bool,
+        voi: VoiLutTransform,
+    ) -> Result<Self, CreateLutError> {
+        Self::new_with_fn(bits_stored, signed, |v| voi.apply(v))
     }
 
     /// Apply the transformation to a single pixel sample value.
