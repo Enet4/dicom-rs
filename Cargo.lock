@@ -411,7 +411,6 @@ dependencies = [
  "heck",
  "regex",
  "serde",
- "serde_json",
  "sxd-document",
  "sxd-xpath",
  "ureq",
