@@ -906,7 +906,7 @@ pub mod non_blocking {
         read_pdu, write_pdu, Pdu, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
     };
 
-    impl<'a, A> ServerAssociationOptions<'a, A>
+    impl<A> ServerAssociationOptions<'_, A>
     where
         A: AccessControl,
     {

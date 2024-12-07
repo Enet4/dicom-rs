@@ -1170,7 +1170,7 @@ pub mod non_blocking {
         }
     }
 
-    impl<'a> ClientAssociationOptions<'a> {
+    impl ClientAssociationOptions<'_> {
         async fn establish_impl_async<T>(
             self,
             ae_address: AeAddr<T>,
