@@ -889,7 +889,7 @@ impl DicomValueType for FileMetaAttribute<'_> {
     }
 }
 
-impl<'a> DicomAttribute for FileMetaAttribute<'a> {
+impl DicomAttribute for FileMetaAttribute<'_> {
     type Item<'b> = EmptyObject
         where Self: 'b;
     type PixelData<'b> = InMemFragment
