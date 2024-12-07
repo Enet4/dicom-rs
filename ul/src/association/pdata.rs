@@ -594,7 +594,7 @@ pub mod non_blocking {
         }
     }
 
-    impl<'a, R> AsyncRead for PDataReader<'a, R>
+    impl<R> AsyncRead for PDataReader<'_, R>
     where
         R: AsyncRead + Unpin,
     {
