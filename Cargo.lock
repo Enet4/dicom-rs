@@ -395,6 +395,7 @@ name = "dicom-core"
 version = "0.8.0"
 dependencies = [
  "chrono",
+ "either",
  "itertools",
  "num-traits",
  "safe-transmute",
