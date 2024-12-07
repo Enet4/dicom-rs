@@ -362,6 +362,8 @@ pub enum VoiLutOption {
     First,
     /// Apply a custom window level instead of the one described in the object.
     Custom(WindowLevel),
+    /// Apply a custom window level and a custom function instead of the one described in the object.
+    CustomWithFunction(WindowLevel, VoiLutFunction),
     /// Perform a min-max normalization instead,
     /// so that the lowest value is 0 and
     /// the highest value is the maximum value of the target type.
@@ -977,6 +979,15 @@ impl DecodedPixelData<'_> {
                                 ),
                             )
                             .context(CreateLutSnafu)?,
+                            (VoiLutOption::CustomWithFunction(window, function), _) => {
+                                Lut::new_rescale_and_window(
+                                    8,
+                                    signed,
+                                    rescale,
+                                    WindowLevelTransform::new(*function, *window),
+                                )
+                                .context(CreateLutSnafu)?
+                            }
                             (VoiLutOption::Normalize, _) => Lut::new_rescale_and_normalize(
                                 8,
                                 signed,
@@ -1116,6 +1127,14 @@ impl DecodedPixelData<'_> {
                                     *window,
                                 ),
                             ),
+                            (VoiLutOption::CustomWithFunction(window, function), _) => {
+                                Lut::new_rescale_and_window(
+                                    self.bits_stored,
+                                    signed,
+                                    rescale,
+                                    WindowLevelTransform::new(*function, *window),
+                                )
+                            }
                             (VoiLutOption::Normalize, _) => Lut::new_rescale_and_normalize(
                                 self.bits_stored,
                                 signed,
@@ -1377,6 +1396,14 @@ impl DecodedPixelData<'_> {
                                     *window,
                                 ),
                             ),
+                            (VoiLutOption::CustomWithFunction(window, function), _) => {
+                                Lut::new_rescale_and_window(
+                                    8,
+                                    signed,
+                                    rescale,
+                                    WindowLevelTransform::new(*function, *window),
+                                )
+                            }
                             (VoiLutOption::Normalize, _) => Lut::new_rescale_and_normalize(
                                 8,
                                 signed,
@@ -1484,6 +1511,14 @@ impl DecodedPixelData<'_> {
                                     *window,
                                 ),
                             ),
+                            (VoiLutOption::CustomWithFunction(window, function), _) => {
+                                Lut::new_rescale_and_window(
+                                    self.bits_stored,
+                                    signed,
+                                    rescale,
+                                    WindowLevelTransform::new(*function, *window),
+                                )
+                            }
                             (VoiLutOption::Normalize, _) => Lut::new_rescale_and_normalize(
                                 self.bits_stored,
                                 signed,
