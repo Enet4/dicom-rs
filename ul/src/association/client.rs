@@ -142,7 +142,12 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Chunks of data are read into `read_buffer`,
 /// which should be passed in subsequent calls
 /// to receive more PDUs from the same stream.
-pub fn get_client_pdu<R>(reader: &mut R, read_buffer: &mut BytesMut, max_pdu_length: u32, strict: bool) -> Result<Pdu>
+pub fn get_client_pdu<R>(
+    reader: &mut R,
+    read_buffer: &mut BytesMut,
+    max_pdu_length: u32,
+    strict: bool,
+) -> Result<Pdu>
 where
     R: Read,
 {
@@ -166,7 +171,7 @@ where
             .context(ReadPduSnafu)
             .context(ReceiveSnafu)?;
         let bytes_read = recv.len();
-        read_buffer.extend_from_slice(&recv);
+        read_buffer.extend_from_slice(recv);
         reader.consume(bytes_read);
         ensure!(bytes_read != 0, ConnectionClosedSnafu);
     };
@@ -688,7 +693,9 @@ impl<'a> ClientAssociationOptions<'a> {
         let mut buf = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
         let msg = get_client_pdu(&mut socket, &mut buf, MAXIMUM_PDU_SIZE, self.strict)?;
         if !buf.is_empty() {
-            tracing::warn!("Received more data than expected in the first PDU, further issues may arise");
+            tracing::warn!(
+                "Received more data than expected in the first PDU, further issues may arise"
+            );
         }
 
         match msg {
@@ -1044,7 +1051,11 @@ where
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
     pub fn receive_pdata(&mut self) -> PDataReader<&mut std::net::TcpStream> {
-        PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
+        PDataReader::new(
+            &mut self.socket,
+            self.requestor_max_pdu_length,
+            &mut self.read_buffer,
+        )
     }
 
     /// Release implementation function,
@@ -1542,7 +1553,11 @@ pub mod non_blocking {
         /// receives more data PDUs once the bytes collected are consumed.
         #[cfg(feature = "async")]
         pub fn receive_pdata(&mut self) -> PDataReader<&mut tokio::net::TcpStream> {
-            PDataReader::new(&mut self.socket, self.requestor_max_pdu_length)
+            PDataReader::new(
+                &mut self.socket,
+                self.requestor_max_pdu_length,
+                &mut self.read_buffer,
+            )
         }
 
         /// Release implementation function,

@@ -235,24 +235,24 @@ where
 /// # }
 /// ```
 #[must_use]
-pub struct PDataReader<R> {
+pub struct PDataReader<'a, R> {
     buffer: VecDeque<u8>,
     stream: R,
     presentation_context_id: Option<u8>,
     max_data_length: u32,
     last_pdu: bool,
-    read_buffer: BytesMut,
+    read_buffer: &'a mut BytesMut,
 }
 
-impl<R> PDataReader<R> {
-    pub fn new(stream: R, max_data_length: u32) -> Self {
+impl<'a, R> PDataReader<'a, R> {
+    pub fn new(stream: R, max_data_length: u32, remaining: &'a mut BytesMut) -> Self {
         PDataReader {
             buffer: VecDeque::with_capacity(max_data_length as usize),
             stream,
             presentation_context_id: None,
             max_data_length,
             last_pdu: false,
-            read_buffer: BytesMut::with_capacity(max_data_length as usize),
+            read_buffer: remaining,
         }
     }
 
@@ -267,7 +267,7 @@ impl<R> PDataReader<R> {
     }
 }
 
-impl<R> Read for PDataReader<R>
+impl<'a, R> Read for PDataReader<'a, R>
 where
     R: Read,
 {
@@ -594,7 +594,7 @@ pub mod non_blocking {
         }
     }
 
-    impl<R> AsyncRead for PDataReader<R>
+    impl<'a, R> AsyncRead for PDataReader<'a, R>
     where
         R: AsyncRead + Unpin,
     {
@@ -683,6 +683,7 @@ mod tests {
 
     use super::PDataReader;
 
+    use bytes::BytesMut;
     #[cfg(feature = "async")]
     use tokio::io::AsyncWriteExt;
 
@@ -950,7 +951,8 @@ mod tests {
 
         let mut buf = Vec::new();
         {
-            let mut reader = PDataReader::new(&mut pdu_stream, MINIMUM_PDU_SIZE);
+            let mut read_buf = BytesMut::new();
+            let mut reader = PDataReader::new(&mut pdu_stream, MINIMUM_PDU_SIZE, &mut read_buf);
             reader.read_to_end(&mut buf).unwrap();
         }
         assert_eq!(buf, my_data);
@@ -994,7 +996,8 @@ mod tests {
         let inner = pdu_stream.into_inner();
         let mut stream = tokio::io::BufReader::new(inner.as_slice());
         {
-            let mut reader = PDataReader::new(&mut stream, MINIMUM_PDU_SIZE);
+            let mut read_buf = BytesMut::new();
+            let mut reader = PDataReader::new(&mut stream, MINIMUM_PDU_SIZE, &mut read_buf);
             reader.read_to_end(&mut buf).await.unwrap();
         }
         assert_eq!(buf, my_data);
