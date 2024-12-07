@@ -374,6 +374,18 @@ where
                         }
                     }
                 }
+                Err(DecoderError::DecodeItemHeader {
+                    source: dicom_encoding::decode::Error::ReadItemHeader { source, .. },
+                    ..
+                }) if source.kind() == std::io::ErrorKind::UnexpectedEof
+                   && self.seq_delimiters.pop().map_or(false, |t| t.pixel_data)
+                 => {
+                    // Note: if `UnexpectedEof` was reached while inside a 
+                    // PixelData Sequence, then we assume that
+                    // the end of a DICOM object was reached gracefully.
+                    self.hard_break = true;
+                    None
+                }
                 Err(e) => {
                     self.hard_break = true;
                     Some(Err(e).context(ReadItemHeaderSnafu))
