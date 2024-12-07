@@ -84,6 +84,11 @@ pub fn run(args: DataElementApp) -> Result<()> {
 fn parse_entries<R: BufRead>(source: R) -> Result<Vec<Entry>> {
     let mut result = vec![];
 
+    let regex_tag = Regex::new(r"^\(([0-9A-F]{4}),([0-9A-F]{4})\)$")?;
+    let regex_tag_group100 = Regex::new(r"^\(([0-9A-F]{2})00-[0-9A-F]{2}FF,([0-9A-F]{4})\)$")?;
+    let regex_tag_element100 =
+        Regex::new(r"^\(([0-9A-F]{4}),([0-9A-F]{2})00-[0-9A-F]{2}FF\)$")?;
+
     for line in source.lines() {
         let line = line?;
         if line.starts_with('#') {
@@ -112,11 +117,6 @@ fn parse_entries<R: BufRead>(source: R) -> Result<Vec<Entry>> {
         let alias = alias.to_string();
 
         let tag = parts[0].to_string();
-
-        let regex_tag = Regex::new(r"^\(([0-9A-F]{4}),([0-9A-F]{4})\)$")?;
-        let regex_tag_group100 = Regex::new(r"^\(([0-9A-F]{2})00-[0-9A-F]{2}FF,([0-9A-F]{4})\)$")?;
-        let regex_tag_element100 =
-            Regex::new(r"^\(([0-9A-F]{4}),([0-9A-F]{2})00-[0-9A-F]{2}FF\)$")?;
 
         let cap = regex_tag.captures(tag.as_str());
         let tag_type;
