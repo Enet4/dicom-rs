@@ -252,7 +252,7 @@ impl InMemDicomObject<StandardDataDictionary> {
     #[inline]
     pub fn read_dataset_with_ts<S>(from: S, ts: &TransferSyntax) -> Result<Self, ReadError>
     where
-        S: Read + 'static,
+        S: Read,
     {
         Self::read_dataset_with_dict_ts_cs(
             from,
@@ -662,7 +662,7 @@ where
         ts: &TransferSyntax,
     ) -> Result<Self, ReadError>
     where
-        S: Read + 'static,
+        S: Read,
         D: DataDictionary,
     {
         Self::read_dataset_with_dict_ts_cs(from, dict, ts, SpecificCharacterSet::default())
@@ -682,7 +682,7 @@ where
         cs: SpecificCharacterSet,
     ) -> Result<Self, ReadError>
     where
-        S: Read + 'static,
+        S: Read,
         D: DataDictionary,
     {
         let from = BufReader::new(from);
@@ -1811,7 +1811,7 @@ where
         cs: SpecificCharacterSet,
     ) -> Result<(), WriteError>
     where
-        W: Write + 'static,
+        W: Write,
     {
         if let Codec::Dataset(Some(adapter)) = ts.codec() {
             let adapter = adapter.adapt_writer(Box::new(to));
@@ -1846,7 +1846,7 @@ where
     /// after which the text encoder is overridden accordingly.
     pub fn write_dataset_with_ts<W>(&self, to: W, ts: &TransferSyntax) -> Result<(), WriteError>
     where
-        W: Write + 'static,
+        W: Write,
     {
         self.write_dataset_with_ts_cs(to, ts, SpecificCharacterSet::default())
     }
