@@ -23,6 +23,7 @@ fn test_read_data_deflated() {
 }
 
 #[test]
+#[ignore = "test is unsound"]
 fn write_deflated(){
     let path = dicom_test_files::path("pydicom/image_dfl.dcm").expect("test DICOM file should exist");
     let source = BufReader::new(File::open(path.clone()).unwrap());
