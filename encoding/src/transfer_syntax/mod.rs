@@ -319,57 +319,29 @@ pub enum Codec<D, R, W> {
 pub type AdapterFreeTransferSyntax =
     TransferSyntax<NeverAdapter, NeverPixelAdapter, NeverPixelAdapter>;
 
-/// An adapter of byte read and write streams.
-pub trait DataRWAdapter<R, W> {
-    /// The type of the adapted reader.
-    type Reader: Read;
-    /// The type of the adapted writer.
-    type Writer: Write;
-
+/// A fully dynamic adapter of byte read and write streams.
+pub trait DataRWAdapter {
     /// Adapt a byte reader.
-    fn adapt_reader(&self, reader: R) -> Self::Reader
-    where
-        R: Read;
+    fn adapt_reader<'r>(&self, reader: Box<dyn Read + 'r>) -> Box<dyn Read + 'r>;
 
     /// Adapt a byte writer.
-    fn adapt_writer(&self, writer: W) -> Self::Writer
-    where
-        W: Write;
+    fn adapt_writer<'w>(&self, writer: Box<dyn Write + 'w>) -> Box<dyn Write + 'w>;
 }
 
 /// Alias type for a dynamically dispatched data adapter.
-pub type DynDataRWAdapter = Box<
-    dyn DataRWAdapter<
-            Box<dyn Read>,
-            Box<dyn Write>,
-            Reader = Box<dyn Read>,
-            Writer = Box<dyn Write>,
-        > + Send
-        + Sync,
->;
+pub type DynDataRWAdapter = Box<dyn DataRWAdapter + Send + Sync>;
 
-impl<T, R, W> DataRWAdapter<R, W> for &'_ T
+impl<T> DataRWAdapter for &'_ T
 where
-    T: DataRWAdapter<R, W>,
-    R: Read,
-    W: Write,
+    T: DataRWAdapter,
 {
-    type Reader = <T as DataRWAdapter<R, W>>::Reader;
-    type Writer = <T as DataRWAdapter<R, W>>::Writer;
-
     /// Adapt a byte reader.
-    fn adapt_reader(&self, reader: R) -> Self::Reader
-    where
-        R: Read,
-    {
+    fn adapt_reader<'r>(&self, reader: Box<dyn Read + 'r>) -> Box<dyn Read + 'r> {
         (**self).adapt_reader(reader)
     }
 
     /// Adapt a byte writer.
-    fn adapt_writer(&self, writer: W) -> Self::Writer
-    where
-        W: Write,
-    {
+    fn adapt_writer<'w>(&self, writer: Box<dyn Write + 'w>) -> Box<dyn Write + 'w> {
         (**self).adapt_writer(writer)
     }
 }
@@ -384,21 +356,13 @@ where
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum NeverAdapter {}
 
-impl<R, W> DataRWAdapter<R, W> for NeverAdapter {
-    type Reader = Box<dyn Read>;
-    type Writer = Box<dyn Write>;
+impl DataRWAdapter for NeverAdapter {
 
-    fn adapt_reader(&self, _reader: R) -> Self::Reader
-    where
-        R: Read,
-    {
+    fn adapt_reader<'r>(&self, _reader: Box<dyn Read + 'r>) -> Box<dyn Read + 'r> {
         unreachable!()
     }
 
-    fn adapt_writer(&self, _writer: W) -> Self::Writer
-    where
-        W: Write,
-    {
+    fn adapt_writer<'w>(&self, _writer: Box<dyn Write + 'w>) -> Box<dyn Write + 'w> {
         unreachable!()
     }
 }
@@ -628,12 +592,7 @@ impl<D, R, W> TransferSyntax<D, R, W> {
     pub fn erased(self) -> TransferSyntax
     where
         D: Send + Sync + 'static,
-        D: DataRWAdapter<
-            Box<dyn Read>,
-            Box<dyn Write>,
-            Reader = Box<dyn Read>,
-            Writer = Box<dyn Write>,
-        >,
+        D: DataRWAdapter,
         R: Send + Sync + 'static,
         R: PixelDataReader,
         W: Send + Sync + 'static,
