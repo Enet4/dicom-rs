@@ -5,7 +5,7 @@ use dicom_encoding::transfer_syntax::DataRWAdapter;
 use flate2;
 use flate2::Compression;
 
-/// Immaterial type representing an adapter for deflated data.
+/// An adapter for deflated data.
 #[derive(Debug)]
 pub struct FlateAdapter;
 
