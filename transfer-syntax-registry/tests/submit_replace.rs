@@ -1,8 +1,9 @@
 //! Independent test for submission of a dummy TS implementation
 //! to replace a built-in stub.
 //!
-//! Only applicable to the inventory-based registry.
-#![cfg(feature = "inventory-registry")]
+//! Only applicable to the inventory-based registry,
+//! and only if JPIP Referenced Deflate is not yet supported.
+#![cfg(all(feature = "inventory-registry", not(feature = "deflate")))]
 
 use dicom_encoding::{
     submit_transfer_syntax, Codec, DataRWAdapter, Endianness, NeverPixelAdapter, TransferSyntax,
