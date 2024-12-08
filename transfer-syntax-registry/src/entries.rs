@@ -203,15 +203,36 @@ pub const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN: Ts = Ts::new_ele(
 
 // --- stub transfer syntaxes, known but not supported ---
 
+/// **Implemented**: JPIP Referenced Deflate
+#[cfg(feature = "deflate")]
+pub const JPIP_REFERENCED_DEFLATE: TransferSyntax<FlateAdapter, NeverAdapter, NeverAdapter> = TransferSyntax::new(
+    "1.2.840.10008.1.2.4.95",
+    "JPIP Referenced Deflate",
+    Endianness::Little,
+    true,
+    Codec::Dataset(Some(FlateAdapter)),
+);
 
 /// **Stub descriptor:** JPIP Referenced Deflate
+#[cfg(not(feature = "deflate"))]
 pub const JPIP_REFERENCED_DEFLATE: Ts = Ts::new_ele(
     "1.2.840.10008.1.2.4.95",
     "JPIP Referenced Deflate",
     Codec::Dataset(None),
 );
 
-/// **Stub descriptor:** JPIP Referenced Deflate
+/// **Implemented**: JPIP HTJ2K Referenced Deflate
+#[cfg(feature = "deflate")]
+pub const JPIP_HTJ2K_REFERENCED_DEFLATE: TransferSyntax<FlateAdapter, NeverAdapter, NeverAdapter> = TransferSyntax::new(
+    "1.2.840.10008.1.2.4.205",
+    "JPIP HT2JK Referenced Deflate",
+    Endianness::Little,
+    true,
+    Codec::Dataset(Some(FlateAdapter)),
+);
+
+/// **Stub descriptor:** JPIP HTJ2K Referenced Deflate
+#[cfg(not(feature = "deflate"))]
 pub const JPIP_HTJ2K_REFERENCED_DEFLATE: Ts = Ts::new_ele(
     "1.2.840.10008.1.2.4.205",
     "JPIP HTJ2K Referenced Deflate",
