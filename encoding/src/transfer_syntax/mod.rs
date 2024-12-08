@@ -495,6 +495,13 @@ impl<D, R, W> TransferSyntax<D, R, W> {
         matches!(self.codec, Codec::Dataset(None))
     }
 
+    /// Check whether this transfer syntax expects pixel data to be encapsulated.
+    ///
+    /// This does not imply that the pixel data can be decoded. 
+    pub fn is_encapsulated_pixel_data(&self) -> bool {
+        matches!(self.codec, Codec::EncapsulatedPixelData(..))
+    }
+
     /// Check whether reading and writing the pixel data is unsupported.
     /// If this is `true`, encoding and decoding of the data set may still
     /// be possible, but the pixel data will only be available in its
