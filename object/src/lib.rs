@@ -513,7 +513,7 @@ where
     /// into the given writer.
     /// Preamble, magic code, and file meta group will be included
     /// before the inner object.
-    pub fn write_all<W: Write + 'static>(&self, to: W) -> Result<(), WriteError> {
+    pub fn write_all(&self, to: impl Write) -> Result<(), WriteError> {
         let mut to = BufWriter::new(to);
 
         // write preamble

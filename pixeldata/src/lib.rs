@@ -2662,6 +2662,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "test is unsound"]
     fn test_can_read_deflated(){
         
         let path = dicom_test_files::path("pydicom/image_dfl.dcm").expect("test DICOM file should exist");

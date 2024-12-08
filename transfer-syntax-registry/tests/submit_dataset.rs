@@ -15,22 +15,14 @@ use std::io::{Read, Write};
 #[derive(Debug)]
 struct DummyCodecAdapter;
 
-impl<R: 'static, W: 'static> DataRWAdapter<R, W> for DummyCodecAdapter {
-    type Reader = Box<dyn Read>;
-    type Writer = Box<dyn Write>;
+impl DataRWAdapter for DummyCodecAdapter {
 
-    fn adapt_reader(&self, reader: R) -> Self::Reader
-    where
-        R: Read,
-    {
-        Box::new(reader) as Box<_>
+    fn adapt_reader<'r>(&self, reader: Box<dyn Read + 'r>) -> Box<dyn Read + 'r> {
+        reader
     }
 
-    fn adapt_writer(&self, writer: W) -> Self::Writer
-    where
-        W: Write,
-    {
-        Box::new(writer) as Box<_>
+    fn adapt_writer<'w>(&self, writer: Box<dyn Write + 'w>) -> Box<dyn Write + 'w> {
+        writer
     }
 }
 
