@@ -11,13 +11,13 @@ keywords = ["dicom"]
 readme = "README.md"
 
 [features]
-default = ["rayon", "simd", "flate2"]
+default = ["rayon", "simd", "deflate"]
 
 # inventory for compile time plugin-based transfer syntax registration
 inventory-registry = ['dicom-encoding/inventory-registry']
 
 # Flate2 for Deflate read/write
-flate2 = ["dep:flate2"]
+deflate = ["dep:flate2"]
 # natively implemented image encodings
 native = ["jpeg", "rle"]
 # native implementations that work on Windows
