@@ -40,7 +40,7 @@ use crate::adapters::jpegls::{JpegLsAdapter, JpegLsLosslessWriter};
 use crate::adapters::jpegxl::{JpegXlAdapter, JpegXlLosslessEncoder};
 #[cfg(feature = "rle")]
 use crate::adapters::rle_lossless::RleLosslessAdapter;
-#[cfg(feature = "flate2")]
+#[cfg(feature = "deflate")]
 use crate::deflate::FlateAdapter;
 
 // -- the three base transfer syntaxes, fully supported --
@@ -183,7 +183,7 @@ pub const JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION: Ts = create_ts_
     "JPEG Lossless, Non-Hierarchical, First-Order Prediction",
 );
 
-#[cfg(feature = "flate2")]
+#[cfg(feature = "deflate")]
 /// **Fully implemented**: Deflated Explicit VR Little Endian
 pub const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN: TransferSyntax<FlateAdapter, NeverAdapter, NeverAdapter> = TransferSyntax::new(
     "1.2.840.10008.1.2.1.99",
@@ -193,7 +193,7 @@ pub const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN: TransferSyntax<FlateAdapter, Never
     Codec::Dataset(Some(FlateAdapter)),
 );
 
-#[cfg(not(feature = "flate2"))]
+#[cfg(not(feature = "deflate"))]
 /// **Stub descriptor:** Deflated Explicit VR Little Endian
 pub const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN: Ts = Ts::new_ele(
     "1.2.840.10008.1.2.1.99",
