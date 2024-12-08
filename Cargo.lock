@@ -723,7 +723,6 @@ dependencies = [
  "dicom-core",
  "dicom-encoding",
  "dicom-object",
- "dicom-pixeldata",
  "dicom-test-files",
  "flate2",
  "jpeg-decoder",
