@@ -15,7 +15,7 @@ use crate::FileDicomObject;
 #[non_exhaustive]
 #[snafu(visibility(pub(crate)))]
 pub enum ApplyError {
-    /// Missing itermediate sequence for {selector} at step {step_index}
+    /// Missing intermediate sequence for {selector} at step {step_index}
     MissingSequence {
         selector: AttributeSelector,
         step_index: u32,
