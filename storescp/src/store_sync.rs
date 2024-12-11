@@ -81,7 +81,7 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
                             } else if data_value.value_type == PDataValueType::Command
                                 && data_value.is_last
                             {
-                                // commands are always in implict VR LE
+                                // commands are always in implicit VR LE
                                 let ts =
                                     dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN
                                         .erased();
@@ -191,7 +191,7 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
                                 info!("Stored {}", file_path.display());
 
                                 // send C-STORE-RSP object
-                                // commands are always in implict VR LE
+                                // commands are always in implicit VR LE
                                 let ts =
                                     dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN
                                         .erased();

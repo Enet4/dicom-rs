@@ -351,7 +351,7 @@ impl AccessError {
 #[non_exhaustive]
 #[snafu(visibility(pub(crate)))]
 pub enum AtAccessError {
-    /// Missing itermediate sequence for {selector} at step {step_index}
+    /// Missing intermediate sequence for {selector} at step {step_index}
     MissingSequence {
         selector: AttributeSelector,
         step_index: u32,

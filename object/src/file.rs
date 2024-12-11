@@ -103,7 +103,7 @@ impl<D, T> OpenFileOptions<D, T> {
     }
 
     /// Set the transfer syntax index to use when reading the file.
-    pub fn tranfer_syntax_index<Tr>(self, ts_index: Tr) -> OpenFileOptions<D, Tr>
+    pub fn transfer_syntax_index<Tr>(self, ts_index: Tr) -> OpenFileOptions<D, Tr>
     where
         Tr: TransferSyntaxIndex,
     {
