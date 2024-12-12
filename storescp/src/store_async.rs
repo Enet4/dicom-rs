@@ -83,7 +83,7 @@ pub async fn run_store_async(
                             } else if data_value.value_type == PDataValueType::Command
                                 && data_value.is_last
                             {
-                                // commands are always in implict VR LE
+                                // commands are always in implicit VR LE
                                 let ts =
                                     dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN
                                         .erased();
@@ -193,7 +193,7 @@ pub async fn run_store_async(
                                 info!("Stored {}", file_path.display());
 
                                 // send C-STORE-RSP object
-                                // commands are always in implict VR LE
+                                // commands are always in implicit VR LE
                                 let ts =
                                     dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN
                                         .erased();
