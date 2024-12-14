@@ -1,4 +1,6 @@
 //! DICOM value serialization
+use core::f32;
+
 use dicom_core::PrimitiveValue;
 use serde::ser::SerializeSeq;
 use serde::Serialize;
@@ -102,6 +104,12 @@ impl Serialize for AsNumbers<'_> {
                 for number in numbers {
                     if number.is_finite() {
                         ser.serialize_element(&number)?;
+                    } else if number.is_nan() {
+                        ser.serialize_element(&f32::NAN.to_string())?;
+                    } else if number.is_infinite() && number.is_sign_positive() {
+                        ser.serialize_element(&f32::INFINITY.to_string())?;
+                    } else if number.is_infinite() && number.is_sign_negative() {
+                        ser.serialize_element(&f32::NEG_INFINITY.to_string())?;
                     } else {
                         ser.serialize_element(&Option::<()>::None)?;
                     }
@@ -113,6 +121,12 @@ impl Serialize for AsNumbers<'_> {
                 for number in numbers {
                     if number.is_finite() {
                         ser.serialize_element(&number)?;
+                    } else if number.is_nan() {
+                        ser.serialize_element(&f64::NAN.to_string())?;
+                    } else if number.is_infinite() && number.is_sign_positive() {
+                        ser.serialize_element(&f64::INFINITY.to_string())?;
+                    } else if number.is_infinite() && number.is_sign_negative() {
+                        ser.serialize_element(&f64::NEG_INFINITY.to_string())?;
                     } else {
                         ser.serialize_element(&Option::<()>::None)?;
                     }
@@ -234,6 +248,14 @@ mod tests {
         let v = PrimitiveValue::from(23.5_f64);
         let json = serde_json::to_value(&AsNumbers(&v)).unwrap();
         assert_eq!(json, json!([23.5]),);
+
+        let v = PrimitiveValue::from([f64::NAN, f64::INFINITY, f64::NEG_INFINITY]);
+        let json = serde_json::to_value(&AsNumbers(&v)).unwrap();
+        assert_eq!(json, json!(["NaN", "inf", "-inf"]),);
+
+        let v = PrimitiveValue::from([f32::NAN, f32::INFINITY, f32::NEG_INFINITY]);
+        let json = serde_json::to_value(&AsNumbers(&v)).unwrap();
+        assert_eq!(json, json!(["NaN", "inf", "-inf"]),);
 
         let v = PrimitiveValue::Empty;
         let json = serde_json::to_value(&AsNumbers(&v)).unwrap();

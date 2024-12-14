@@ -535,4 +535,41 @@ mod tests {
 
         assert!(super::from_value::<InMemDicomObject>(serialized).is_ok());
     }
+
+    #[test]
+    fn can_resolve_nan_and_inf_float() {
+        let serialized = serde_json::json!({
+            "00020011": {
+                "vr": "FL",
+                "Value": [
+                    5492.8545,
+                    5462.5205,
+                    "NaN",
+                    "-inf",
+                    "inf"
+                ]
+            }
+        });
+
+        let obj: InMemDicomObject = super::from_value(serialized).unwrap();
+        let tag = Tag(0x0002, 0x0011);
+        let element = obj.get(tag).unwrap();
+
+        // verify NAN, INFINITY, and NEG_INFINITY are correctly deserialized to f32::NAN, f32::INFINITY, and f32::NEG_INFINITY
+        let actual_values = element.float32_slice().unwrap();
+        let expected_values = &[
+            5492.8545,
+            5462.5205,
+            f32::NAN,
+            f32::NEG_INFINITY,
+            f32::INFINITY,
+        ];
+
+        // need special comparison for NAN values since assert_eq will not match
+        assert_eq!(actual_values.len(), expected_values.len());
+        assert!(actual_values
+            .iter()
+            .zip(expected_values.iter())
+            .all(|(&a, &b)| (a == b) || (a.is_nan() && b.is_nan())));
+    }
 }
