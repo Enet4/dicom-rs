@@ -2,7 +2,6 @@
 use std::io::{Read, Write};
 
 use dicom_encoding::transfer_syntax::DataRWAdapter;
-use flate2;
 use flate2::Compression;
 
 /// An adapter for deflated data.
