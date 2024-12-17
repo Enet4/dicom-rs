@@ -445,7 +445,7 @@ where
     /// skipping it when found.
     /// Then it reads the file meta group,
     /// followed by the rest of the data set.
-    pub fn from_reader_with_dict<'s: 'static, S: 's>(src: S, dict: D) -> Result<Self, ReadError>
+    pub fn from_reader_with_dict<S>(src: S, dict: D) -> Result<Self, ReadError>
     where
         S: Read,
     {
@@ -465,9 +465,9 @@ where
     /// is insufficient. Otherwise, please use [`from_reader_with_dict`] instead.
     ///
     /// [`from_reader_with_dict`]: #method.from_reader_with_dict
-    pub fn from_reader_with<'s: 'static, S: 's, R>(src: S, dict: D, ts_index: R) -> Result<Self, ReadError>
+    pub fn from_reader_with<S, R>(src: S, dict: D, ts_index: R) -> Result<Self, ReadError>
     where
-        S: Read + 's,
+        S: Read,
         R: TransferSyntaxIndex,
     {
         Self::from_reader_with_all_options(
@@ -480,7 +480,7 @@ where
         )
     }
 
-    pub(crate) fn from_reader_with_all_options<'s: 'static, S, R>(
+    pub(crate) fn from_reader_with_all_options<S, R>(
         src: S,
         dict: D,
         ts_index: R,
@@ -489,7 +489,7 @@ where
         odd_length: OddLengthStrategy,
     ) -> Result<Self, ReadError>
     where
-        S: Read + 's,
+        S: Read,
         R: TransferSyntaxIndex,
     {
         let mut file = BufReader::new(src);
