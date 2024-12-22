@@ -31,13 +31,13 @@ pub mod pdu;
 ///
 /// This UID may change in future versions,
 /// even between patch versions.
-pub const IMPLEMENTATION_CLASS_UID: &str = "2.25.156227610253341005307660858504280353500";
+pub const IMPLEMENTATION_CLASS_UID: &str = "2.25.262086406829110419931297894772577063974";
 
 /// The current implementation version name generically referring to DICOM-rs.
 ///
 /// This name may change in future versions,
 /// even between patch versions.
-pub const IMPLEMENTATION_VERSION_NAME: &str = "DICOM-rs 0.8.0";
+pub const IMPLEMENTATION_VERSION_NAME: &str = "DICOM-rs 0.8.1";
 
 // re-exports
 
