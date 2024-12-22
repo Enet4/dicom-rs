@@ -1,9 +1,10 @@
 //! DICOM value serialization
-use core::f32;
 
 use dicom_core::PrimitiveValue;
 use serde::ser::SerializeSeq;
 use serde::Serialize;
+
+use crate::{INFINITY, NAN, NEG_INFINITY};
 
 /// Wrapper type for [primitive values][1]
 /// which should always be encoded as strings.
@@ -105,11 +106,11 @@ impl Serialize for AsNumbers<'_> {
                     if number.is_finite() {
                         ser.serialize_element(&number)?;
                     } else if number.is_nan() {
-                        ser.serialize_element(&f32::NAN.to_string())?;
+                        ser.serialize_element(NAN)?;
                     } else if number.is_infinite() && number.is_sign_positive() {
-                        ser.serialize_element(&f32::INFINITY.to_string())?;
+                        ser.serialize_element(INFINITY)?;
                     } else if number.is_infinite() && number.is_sign_negative() {
-                        ser.serialize_element(&f32::NEG_INFINITY.to_string())?;
+                        ser.serialize_element(NEG_INFINITY)?;
                     } else {
                         ser.serialize_element(&Option::<()>::None)?;
                     }
@@ -122,11 +123,11 @@ impl Serialize for AsNumbers<'_> {
                     if number.is_finite() {
                         ser.serialize_element(&number)?;
                     } else if number.is_nan() {
-                        ser.serialize_element(&f64::NAN.to_string())?;
+                        ser.serialize_element(NAN)?;
                     } else if number.is_infinite() && number.is_sign_positive() {
-                        ser.serialize_element(&f64::INFINITY.to_string())?;
+                        ser.serialize_element(INFINITY)?;
                     } else if number.is_infinite() && number.is_sign_negative() {
-                        ser.serialize_element(&f64::NEG_INFINITY.to_string())?;
+                        ser.serialize_element(NEG_INFINITY)?;
                     } else {
                         ser.serialize_element(&Option::<()>::None)?;
                     }

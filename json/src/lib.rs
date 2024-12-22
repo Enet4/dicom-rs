@@ -83,6 +83,13 @@ mod ser;
 pub use crate::de::{from_reader, from_slice, from_str, from_value};
 pub use crate::ser::{to_string, to_string_pretty, to_value, to_vec, to_writer};
 
+/// Represents the serialized representation of "NaN" (Not a Number) for 32-bit float (FL) and 64-bit float (FD) in DICOM JSON.
+pub const NAN: &str = "NaN";
+/// Represents the serialized representation of "inf" (positive infinity) for 32-bit float (FL) and 64-bit float (FD) in DICOM JSON.
+pub const INFINITY: &str = "inf";
+/// Represents the serialized representation of "-inf" (negative infinity) for 32-bit float (FL) and 64-bit float (FD) in DICOM JSON.
+pub const NEG_INFINITY: &str = "-inf";
+
 /// A wrapper type for DICOM JSON serialization using [Serde](serde).
 ///
 /// Serializing this type will yield JSON data according to the standard.
