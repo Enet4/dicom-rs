@@ -103,7 +103,7 @@ impl<D, T> OpenFileOptions<D, T> {
     }
 
     /// Set the transfer syntax index to use when reading the file.
-    pub fn tranfer_syntax_index<Tr>(self, ts_index: Tr) -> OpenFileOptions<D, Tr>
+    pub fn transfer_syntax_index<Tr>(self, ts_index: Tr) -> OpenFileOptions<D, Tr>
     where
         Tr: TransferSyntaxIndex,
     {
@@ -114,6 +114,15 @@ impl<D, T> OpenFileOptions<D, T> {
             ts_index,
             odd_length: self.odd_length,
         }
+    }
+
+    /// Set the transfer syntax index to use when reading the file.
+    #[deprecated(since="0.8.1", note="please use `transfer_syntax_index` instead")]
+    pub fn tranfer_syntax_index<Tr>(self, ts_index: Tr) -> OpenFileOptions<D, Tr>
+    where
+        Tr: TransferSyntaxIndex,
+    {
+        self.transfer_syntax_index(ts_index)
     }
 
     /// Set the data element dictionary to use when reading the file.
