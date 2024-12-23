@@ -422,6 +422,17 @@ mod tests {
     use super::from_str;
     use dicom_core::{dicom_value, DataElement, Tag, VR};
     use dicom_object::InMemDicomObject;
+    use num_traits::Float;
+
+    /// This asserts that two float slices are equal in size and content.
+    /// It needs a special comparison for NAN values since assert_eq will not match.
+    fn assert_float_slice_eq<T: Float>(actual: &[T], expected: &[T]) {
+        assert_eq!(actual.len(), expected.len());
+        assert!(actual
+            .iter()
+            .zip(actual.iter())
+            .all(|(&a, &b)| (a == b) || (a.is_nan() && b.is_nan())));
+    }
 
     #[test]
     fn can_parse_tags() {
@@ -534,5 +545,49 @@ mod tests {
         });
 
         assert!(super::from_value::<InMemDicomObject>(serialized).is_ok());
+    }
+
+    #[test]
+    fn can_resolve_nan_and_inf_float() {
+        let serialized = serde_json::json!({
+            "0018605A": {
+                "vr": "FL",
+                "Value": [
+                    5492.8545,
+                    5462.5205,
+                    "NaN",
+                    "-inf",
+                    "inf"
+                ]
+            }
+        });
+
+        let obj: InMemDicomObject = super::from_value(serialized).unwrap();
+        let tag = Tag(0x0018, 0x605A);
+        let element = obj.get(tag).unwrap();
+
+        // verify NAN, INFINITY, and NEG_INFINITY are correctly deserialized to f32::NAN, f32::INFINITY, and f32::NEG_INFINITY
+        let actual_values = element.float32_slice().unwrap();
+        let expected_values = &[
+            5492.8545,
+            5462.5205,
+            f32::NAN,
+            f32::NEG_INFINITY,
+            f32::INFINITY,
+        ];
+
+        assert_float_slice_eq(&actual_values, expected_values);
+
+        // validate upcasting to float 64, additional precision (5492.8544921875) is expected beyond original (5492.8545) due to upcasting
+        let actual_values_multifloat_64 = element.to_multi_float64().unwrap();
+        let expected_values_multifloat_64 = &[
+            5492.8544921875,
+            5462.5205078125,
+            f64::NAN,
+            f64::NEG_INFINITY,
+            f64::INFINITY,
+        ];
+
+        assert_float_slice_eq(&actual_values_multifloat_64, expected_values_multifloat_64);
     }
 }
