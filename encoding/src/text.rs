@@ -6,23 +6,30 @@
 //! | Character Set                 | decoding support | encoding support |
 //! |-------------------------------|------------------|------------------|
 //! | ISO-IR 6 (default)            | ✓ | ✓ |
+//! | ISO-IR 13 (WINDOWS_31J): The JIS X 0201-1976 character set (Japanese single-byte) | ✓ | ✓ |
+//! | ISO-IR 87 (ISO_2022_JP): The JIS X 0208-1990 character set (Japanese multi-byte) | ✓ | ✓ |
 //! | ISO-IR 100 (ISO-8859-1): Right-hand part of the Latin alphabet no. 1, the Western Europe character set | ✓ | ✓ |
 //! | ISO-IR 101 (ISO-8859-2): Right-hand part of the Latin alphabet no. 2, the Central/Eastern Europe character set | ✓ | ✓ |
 //! | ISO-IR 109 (ISO-8859-3): Right-hand part of the Latin alphabet no. 3, the South Europe character set | ✓ | ✓ |
 //! | ISO-IR 110 (ISO-8859-4): Right-hand part of the Latin alphabet no. 4, the North Europe character set | ✓ | ✓ |
+//! | ISO-IR 126 (ISO-8859-7): The Latin/Greek character set | ✓ | ✓ |
+//! | ISO-IR 127 (ISO-8859-6): The Latin/Arabic character set | ✓ | ✓ |
+//! | ISO-IR 138 (ISO-8859-8): The Latin/Hebrew character set | ✓ | ✓ |
 //! | ISO-IR 144 (ISO-8859-5): The Latin/Cyrillic character set | ✓ | ✓ |
+//! | ISO-IR 148 (ISO-8859-9): Latin no. 5, the Turkish character set  | x | x |
+//! | ISO-IR 149 (WINDOWS_949): The KS X 1001 character set (Korean) | ✓ | ✓ |
+//! | ISO-IR 159: The JIS X 0212-1990 character set (supplementary Japanese characters) | x | x |
+//! | ISO-IR 166 (WINDOWS_874): The TIS 620-2533 character set (Thai) | ✓ | ✓ |
 //! | ISO-IR 192: The Unicode character set based on the UTF-8 encoding | ✓ | ✓ |
 //! | GB18030: The Simplified Chinese character set | ✓ | ✓ |
-//! | JIS X 0201-1976: Code for Information Interchange | x | x |
-//! | JIS X 0208-1990: Code for the Japanese Graphic Character set for information interchange | x | x |
-//! | JIS X 0212-1990: Code of the supplementary Japanese Graphic Character set for information interchange | x | x |
-//! | KS X 1001 (registered as ISO-IR 149) for Korean Language | x | x |
-//! | TIS 620-2533 (1990) Thai Characters Code for Information Interchange | x | x |
 //! | GB2312: Simplified Chinese character set | x | x |
 //!
 //! These capabilities are available through [`SpecificCharacterSet`].
 
-use encoding::all::{GB18030, ISO_8859_1, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5, UTF_8};
+use encoding::all::{
+    GB18030, ISO_2022_JP, ISO_8859_1, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5, ISO_8859_6,
+    ISO_8859_7, ISO_8859_8, UTF_8, WINDOWS_31J, WINDOWS_874, WINDOWS_949,
+};
 use encoding::{DecoderTrap, EncoderTrap, Encoding, RawDecoder, StringWriter};
 use snafu::{Backtrace, Snafu};
 use std::borrow::Cow;
@@ -188,6 +195,10 @@ enum CharsetImpl {
     /// **ISO-IR 6**: the default character set.
     #[default]
     Default,
+    /// **ISO-IR 13**: The Simplified Japanese single byte character set.
+    IsoIr13,
+    /// **ISO-IR 87**: The Simplified Japanese multi byte character set.
+    IsoIr87,
     /// **ISO-IR 100** (ISO-8859-1): Right-hand part of the Latin alphabet no. 1,
     /// the Western Europe character set.
     IsoIr100,
@@ -200,8 +211,18 @@ enum CharsetImpl {
     /// **ISO-IR 110** (ISO-8859-4): Right-hand part of the Latin alphabet no. 4,
     /// the North Europe character set.
     IsoIr110,
+    /// **ISO-IR 126** (ISO-8859-7): The Greek character set.
+    IsoIr126,
+    /// **ISO-IR 127** (ISO-8859-6): The Arabic character set.
+    IsoIr127,
+    /// **ISO-IR 138** (ISO-8859-8): The Hebrew character set.
+    IsoIr138,
     /// **ISO-IR 144** (ISO-8859-5): The Latin/Cyrillic character set.
     IsoIr144,
+    /// **ISO-IR 149**: The Korean character set.
+    IsoIr149,
+    /// **ISO-IR 166**: The Thai character set.
+    IsoIr166,
     /// **ISO-IR 192**: The Unicode character set based on the UTF-8 encoding.
     IsoIr192,
     /// **GB18030**: The Simplified Chinese character set.
@@ -218,11 +239,18 @@ impl CharsetImpl {
         use self::CharsetImpl::*;
         match uid.trim_end() {
             "Default" | "ISO_IR_6" | "ISO_IR 6" | "ISO 2022 IR 6" => Some(Default),
+            "ISO_IR_13" | "ISO_IR 13" | "ISO 2022 IR 13" => Some(IsoIr13),
+            "ISO_IR_87" | "ISO_IR 87" | "ISO 2022 IR 87" => Some(IsoIr87),
             "ISO_IR_100" | "ISO_IR 100" | "ISO 2022 IR 100" => Some(IsoIr100),
             "ISO_IR_101" | "ISO_IR 101" | "ISO 2022 IR 101" => Some(IsoIr101),
             "ISO_IR_109" | "ISO_IR 109" | "ISO 2022 IR 109" => Some(IsoIr109),
             "ISO_IR_110" | "ISO_IR 110" | "ISO 2022 IR 110" => Some(IsoIr110),
+            "ISO_IR_126" | "ISO_IR 126" | "ISO 2022 IR 126" => Some(IsoIr126),
+            "ISO_IR_127" | "ISO_IR 127" | "ISO 2022 IR 127" => Some(IsoIr127),
+            "ISO_IR_138" | "ISO_IR 138" | "ISO 2022 IR 138" => Some(IsoIr138),
             "ISO_IR_144" | "ISO_IR 144" | "ISO 2022 IR 144" => Some(IsoIr144),
+            "ISO_IR_149" | "ISO_IR 149" | "ISO 2022 IR 149" => Some(IsoIr149),
+            "ISO_IR_166" | "ISO_IR 166" | "ISO 2022 IR 166" => Some(IsoIr166),
             "ISO_IR_192" | "ISO_IR 192" => Some(IsoIr192),
             "GB18030" => Some(Gb18030),
             _ => None,
@@ -234,11 +262,18 @@ impl TextCodec for CharsetImpl {
     fn name(&self) -> Cow<'static, str> {
         Cow::Borrowed(match self {
             CharsetImpl::Default => "ISO_IR 6",
+            CharsetImpl::IsoIr13 => "ISO_IR 13",
+            CharsetImpl::IsoIr87 => "ISO_IR 87",
             CharsetImpl::IsoIr100 => "ISO_IR 100",
             CharsetImpl::IsoIr101 => "ISO_IR 101",
             CharsetImpl::IsoIr109 => "ISO_IR 109",
             CharsetImpl::IsoIr110 => "ISO_IR 110",
+            CharsetImpl::IsoIr126 => "ISO_IR 126",
+            CharsetImpl::IsoIr127 => "ISO_IR 127",
+            CharsetImpl::IsoIr138 => "ISO_IR 138",
             CharsetImpl::IsoIr144 => "ISO_IR 144",
+            CharsetImpl::IsoIr149 => "ISO_IR 149",
+            CharsetImpl::IsoIr166 => "ISO_IR 166",
             CharsetImpl::IsoIr192 => "ISO_IR 192",
             CharsetImpl::Gb18030 => "GB18030",
         })
@@ -247,11 +282,18 @@ impl TextCodec for CharsetImpl {
     fn decode(&self, text: &[u8]) -> DecodeResult<String> {
         match self {
             CharsetImpl::Default => DefaultCharacterSetCodec.decode(text),
+            CharsetImpl::IsoIr13 => IsoIr13CharacterSetCodec.decode(text),
+            CharsetImpl::IsoIr87 => IsoIr87CharacterSetCodec.decode(text),
             CharsetImpl::IsoIr100 => IsoIr100CharacterSetCodec.decode(text),
             CharsetImpl::IsoIr101 => IsoIr101CharacterSetCodec.decode(text),
             CharsetImpl::IsoIr109 => IsoIr109CharacterSetCodec.decode(text),
             CharsetImpl::IsoIr110 => IsoIr110CharacterSetCodec.decode(text),
+            CharsetImpl::IsoIr126 => IsoIr126CharacterSetCodec.decode(text),
+            CharsetImpl::IsoIr127 => IsoIr127CharacterSetCodec.decode(text),
+            CharsetImpl::IsoIr138 => IsoIr138CharacterSetCodec.decode(text),
             CharsetImpl::IsoIr144 => IsoIr144CharacterSetCodec.decode(text),
+            CharsetImpl::IsoIr149 => IsoIr149CharacterSetCodec.decode(text),
+            CharsetImpl::IsoIr166 => IsoIr166CharacterSetCodec.decode(text),
             CharsetImpl::IsoIr192 => Utf8CharacterSetCodec.decode(text),
             CharsetImpl::Gb18030 => Gb18030CharacterSetCodec.decode(text),
         }
@@ -260,11 +302,18 @@ impl TextCodec for CharsetImpl {
     fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
         match self {
             CharsetImpl::Default => DefaultCharacterSetCodec.encode(text),
+            CharsetImpl::IsoIr13 => IsoIr13CharacterSetCodec.encode(text),
+            CharsetImpl::IsoIr87 => IsoIr87CharacterSetCodec.encode(text),
             CharsetImpl::IsoIr100 => IsoIr100CharacterSetCodec.encode(text),
             CharsetImpl::IsoIr101 => IsoIr101CharacterSetCodec.encode(text),
             CharsetImpl::IsoIr109 => IsoIr109CharacterSetCodec.encode(text),
             CharsetImpl::IsoIr110 => IsoIr110CharacterSetCodec.encode(text),
+            CharsetImpl::IsoIr126 => IsoIr126CharacterSetCodec.encode(text),
+            CharsetImpl::IsoIr127 => IsoIr127CharacterSetCodec.encode(text),
+            CharsetImpl::IsoIr138 => IsoIr138CharacterSetCodec.encode(text),
             CharsetImpl::IsoIr144 => IsoIr144CharacterSetCodec.encode(text),
+            CharsetImpl::IsoIr149 => IsoIr149CharacterSetCodec.encode(text),
+            CharsetImpl::IsoIr166 => IsoIr166CharacterSetCodec.encode(text),
             CharsetImpl::IsoIr192 => Utf8CharacterSetCodec.encode(text),
             CharsetImpl::Gb18030 => Gb18030CharacterSetCodec.encode(text),
         }
@@ -338,11 +387,18 @@ impl TextCodec for DefaultCharacterSetCodec {
     }
 }
 
+decl_character_set!(IsoIr13CharacterSetCodec, "ISO_IR 13", WINDOWS_31J);
+decl_character_set!(IsoIr87CharacterSetCodec, "ISO_IR 87", ISO_2022_JP);
 decl_character_set!(IsoIr100CharacterSetCodec, "ISO_IR 100", ISO_8859_1);
 decl_character_set!(IsoIr101CharacterSetCodec, "ISO_IR 101", ISO_8859_2);
 decl_character_set!(IsoIr109CharacterSetCodec, "ISO_IR 109", ISO_8859_3);
 decl_character_set!(IsoIr110CharacterSetCodec, "ISO_IR 110", ISO_8859_4);
+decl_character_set!(IsoIr126CharacterSetCodec, "ISO_IR 126", ISO_8859_7);
+decl_character_set!(IsoIr127CharacterSetCodec, "ISO_IR 127", ISO_8859_6);
+decl_character_set!(IsoIr138CharacterSetCodec, "ISO_IR 138", ISO_8859_8);
 decl_character_set!(IsoIr144CharacterSetCodec, "ISO_IR 144", ISO_8859_5);
+decl_character_set!(IsoIr149CharacterSetCodec, "ISO_IR 149", WINDOWS_949);
+decl_character_set!(IsoIr166CharacterSetCodec, "ISO_IR 166", WINDOWS_874);
 decl_character_set!(Utf8CharacterSetCodec, "ISO_IR 192", UTF_8);
 decl_character_set!(Gb18030CharacterSetCodec, "GB18030", GB18030);
 
@@ -437,6 +493,19 @@ mod tests {
     }
 
     #[test]
+    fn iso_ir_13_baseline() {
+        let codec = SpecificCharacterSet(CharsetImpl::IsoIr13);
+        test_codec(codec, "ﾔﾏﾀﾞ^ﾀﾛｳ", b"\xd4\xcf\xc0\xde^\xc0\xdb\xb3");
+    }
+
+    #[test]
+    fn iso_ir_87_baseline() {
+        let codec = SpecificCharacterSet(CharsetImpl::IsoIr87);
+        test_codec(&codec, "山田^太郎", b"\x1b$B;3ED\x1b(B^\x1b$BB@O:");
+        test_codec(&codec, "やまだ^たろう", b"\x1b$B$d$^$@\x1b(B^\x1b$B$?$m$&");
+    }
+
+    #[test]
     fn iso_ir_192_baseline() {
         let codec = SpecificCharacterSet::ISO_IR_192;
         test_codec(&codec, "Simões^John", "Simões^John".as_bytes());
@@ -457,12 +526,83 @@ mod tests {
     }
 
     #[test]
+    fn iso_ir_110_baseline() {
+        let codec = SpecificCharacterSet(CharsetImpl::IsoIr110);
+        test_codec(codec, "ĄĸŖĨĻ§ŠĒĢŦŽĀÁÂÃÄÅÆĮČÉ^ĘËĖÍÎĪĐŅŌĶÔÕÖ×ØŲÚÛÜŨŪß", b"\xA1\xA2\xA3\xA5\xA6\xA7\xA9\xAA\xAB\xAC\xAE\xC0\xC1\xC2\xC3\xC4\xC5\xC6\xC7\xC8\xC9^\xCA\xCB\xCC\xCD\xCE\xCF\xD0\xD1\xD2\xD3\xD4\xD5\xD6\xD7\xD8\xD9\xDA\xDB\xDC\xDD\xDE\xDF");
+    }
+
+    #[test]
+    fn iso_ir_126_baseline() {
+        let codec = SpecificCharacterSet(CharsetImpl::IsoIr126);
+        test_codec(codec, "Διονυσιος", b"\xC4\xE9\xEF\xED\xF5\xF3\xE9\xEF\xF2");
+    }
+
+    #[test]
+    fn iso_ir_127_baseline() {
+        let codec = SpecificCharacterSet(CharsetImpl::IsoIr127);
+        test_codec(
+            codec,
+            "قباني^لنزار",
+            b"\xE2\xC8\xC7\xE6\xEA^\xE4\xE6\xD2\xC7\xD1",
+        );
+    }
+
+    #[test]
+    fn iso_ir_138_baseline() {
+        let codec = SpecificCharacterSet(CharsetImpl::IsoIr138);
+        test_codec(
+            &codec,
+            "מקור השם עברית",
+            b"\xEE\xF7\xE5\xF8\x20\xE4\xF9\xED\x20\xF2\xE1\xF8\xE9\xFA",
+        );
+        test_codec(
+            codec,
+            "שרון^דבורה",
+            b"\xF9\xF8\xE5\xEF^\xE3\xE1\xE5\xF8\xE4",
+        );
+    }
+
+    #[test]
     fn iso_ir_144_baseline() {
         let codec = SpecificCharacterSet(CharsetImpl::IsoIr144);
         test_codec(
-            codec,
+            &codec,
             "Иванков^Андрей",
             b"\xb8\xd2\xd0\xdd\xda\xde\xd2^\xb0\xdd\xd4\xe0\xd5\xd9",
+        );
+        test_codec(
+            &codec,
+            "Гол. мозг стандарт",
+            b"\xB3\xDE\xDB.\x20\xDC\xDE\xD7\xD3\x20\xE1\xE2\xD0\xDD\xD4\xD0\xE0\xE2",
+        );
+        test_codec(&codec, "мозг 2мм", b"\xDC\xDE\xD7\xD3\x202\xDC\xDC");
+    }
+
+    #[test]
+    fn iso_ir_149_baseline() {
+        let codec = SpecificCharacterSet(CharsetImpl::IsoIr149);
+        test_codec(&codec, "김희중", b"\xB1\xE8\xC8\xF1\xC1\xDF");
+        test_codec(
+            codec,
+            "Hong^Gildong=洪^吉洞=홍^길동",
+            b"Hong^Gildong=\xFB\xF3^\xD1\xCE\xD4\xD7=\xC8\xAB^\xB1\xE6\xB5\xBF",
+        );
+    }
+
+    #[test]
+    fn iso_ir_166_baseline() {
+        let codec = SpecificCharacterSet(CharsetImpl::IsoIr166);
+        test_codec(&codec, "ประเทศไทย", b"\xBB\xC3\xD0\xE0\xB7\xC8\xE4\xB7\xC2");
+        test_codec(codec, "รหัสสำหรับอักขระไทยที่ใช้กับคอมพิวเตอร์", b"\xC3\xCB\xD1\xCA\xCA\xD3\xCB\xC3\xD1\xBA\xCD\xD1\xA1\xA2\xC3\xD0\xE4\xB7\xC2\xB7\xD5\xE8\xE3\xAA\xE9\xA1\xD1\xBA\xA4\xCD\xC1\xBE\xD4\xC7\xE0\xB5\xCD\xC3\xEC");
+    }
+
+    #[test]
+    fn gb_18030_baseline() {
+        let codec = SpecificCharacterSet(CharsetImpl::Gb18030);
+        test_codec(
+            &codec,
+            "Wang^XiaoDong=王^小东",
+            b"Wang^XiaoDong=\xCD\xF5^\xD0\xA1\xB6\xAB",
         );
     }
 }
