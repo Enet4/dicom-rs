@@ -756,6 +756,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     read_buffer: BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize),
                     read_timeout,
                     write_timeout,
+                    user_variables,
                 })
             }
             Pdu::AssociationRJ(association_rj) => RejectedSnafu { association_rj }.fail(),
@@ -910,6 +911,8 @@ where
     write_timeout: Option<Duration>,
     /// Buffer to assemble PDU before parsing
     read_buffer: BytesMut,
+    /// User variables that were taken from the server
+    user_variables: Vec<UserVariableItem>,
 }
 
 impl<S: CloseSocket> ClientAssociation<S>
@@ -945,6 +948,14 @@ where
     /// if a larger PDU is received.
     pub fn requestor_max_pdu_length(&self) -> u32 {
         self.requestor_max_pdu_length
+    }
+
+    /// Retrieve the user variables that were taken from the server.
+    ///
+    /// It usually contains the maximum PDU length,
+    /// the implementation class UID, and the implementation version name.
+    pub fn user_variables(&self) -> &[UserVariableItem] {
+        &self.user_variables
     }
 }
 
@@ -1364,6 +1375,7 @@ pub mod non_blocking {
                         read_timeout,
                         write_timeout,
                         read_buffer: BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize),
+                        user_variables
                     })
                 }
                 Pdu::AssociationRJ(association_rj) => RejectedSnafu { association_rj }.fail(),
