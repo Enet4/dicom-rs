@@ -909,7 +909,7 @@ impl PrimitiveValue {
     {
         match self {
             PrimitiveValue::Str(s) => {
-                s.trim_end_matches([' ', '\u{0}'])
+                s.trim_matches(whitespace_or_null)
                     .parse()
                     .context(ParseIntegerSnafu)
                     .map_err(|err| ConvertValueError {
@@ -919,7 +919,7 @@ impl PrimitiveValue {
                     })
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
-                .trim_end_matches([' ', '\u{0}'])
+                .trim_matches(whitespace_or_null)
                 .parse()
                 .context(ParseIntegerSnafu)
                 .map_err(|err| ConvertValueError {
@@ -1078,7 +1078,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Empty => Ok(Vec::new()),
             PrimitiveValue::Str(s) => {
-                let out = s.trim_end_matches([' ', '\u{0}']).parse().context(ParseIntegerSnafu).map_err(|err| {
+                let out = s.trim_matches(whitespace_or_null).parse().context(ParseIntegerSnafu).map_err(|err| {
                     ConvertValueError {
                         requested: "integer",
                         original: self.value_type(),
@@ -1090,7 +1090,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => {
                 s.iter()
                     .map(|v| {
-                        v.trim_end_matches([' ', '\u{0}']).parse().context(ParseIntegerSnafu).map_err(|err| {
+                        v.trim_matches(whitespace_or_null).parse().context(ParseIntegerSnafu).map_err(|err| {
                             ConvertValueError {
                                 requested: "integer",
                                 original: self.value_type(),
@@ -1256,7 +1256,7 @@ impl PrimitiveValue {
     pub fn to_float32(&self) -> Result<f32, ConvertValueError> {
         match self {
             PrimitiveValue::Str(s) => {
-                s.trim_end_matches([' ', '\u{0}'])
+                s.trim_matches(whitespace_or_null)
                     .parse()
                     .context(ParseFloatSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1266,7 +1266,7 @@ impl PrimitiveValue {
                     })
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
-                .trim_end_matches([' ', '\u{0}'])
+                .trim_matches(whitespace_or_null)
                 .parse()
                 .context(ParseFloatSnafu)
                 .map_err(|err| ConvertValueError {
@@ -1426,7 +1426,7 @@ impl PrimitiveValue {
             PrimitiveValue::Empty => Ok(Vec::new()),
             PrimitiveValue::Str(s) => {
                 let out =
-                    s.trim_end_matches([' ', '\u{0}'])
+                    s.trim_matches(whitespace_or_null)
                         .parse()
                         .context(ParseFloatSnafu)
                         .map_err(|err| ConvertValueError {
@@ -1439,7 +1439,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => s
                 .iter()
                 .map(|v| {
-                    v.trim_end_matches([' ', '\u{0}'])
+                    v.trim_matches(whitespace_or_null)
                         .parse()
                         .context(ParseFloatSnafu)
                         .map_err(|err| ConvertValueError {
@@ -1622,7 +1622,7 @@ impl PrimitiveValue {
     pub fn to_float64(&self) -> Result<f64, ConvertValueError> {
         match self {
             PrimitiveValue::Str(s) => {
-                s.trim_end_matches([' ', '\u{0}'])
+                s.trim_matches(whitespace_or_null)
                     .parse()
                     .context(ParseFloatSnafu)
                     .map_err(|err| ConvertValueError {
@@ -1632,7 +1632,7 @@ impl PrimitiveValue {
                     })
             }
             PrimitiveValue::Strs(s) if !s.is_empty() => s[0]
-                .trim_end_matches([' ', '\u{0}'])
+                .trim_matches(whitespace_or_null)
                 .parse()
                 .context(ParseFloatSnafu)
                 .map_err(|err| ConvertValueError {
@@ -1791,7 +1791,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Str(s) => {
                 let out =
-                    s.trim_end_matches([' ', '\u{0}'])
+                    s.trim_matches(whitespace_or_null)
                         .parse()
                         .context(ParseFloatSnafu)
                         .map_err(|err| ConvertValueError {
@@ -1804,7 +1804,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => s
                 .iter()
                 .map(|v| {
-                    v.trim_end_matches([' ', '\u{0}'])
+                    v.trim_matches(whitespace_or_null)
                         .parse()
                         .context(ParseFloatSnafu)
                         .map_err(|err| ConvertValueError {
@@ -2012,7 +2012,7 @@ impl PrimitiveValue {
                     original: self.value_type(),
                     cause: Some(Box::from(err)),
                 }),
-            PrimitiveValue::Str(s) => super::deserialize::parse_date(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+            PrimitiveValue::Str(s) => super::deserialize::parse_date(s.as_bytes())
                 .context(ParseDateSnafu)
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveDate",
@@ -2020,7 +2020,7 @@ impl PrimitiveValue {
                     cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => {
-                super::deserialize::parse_date(s.first().map(|s| s.trim_end_matches([' ', '\u{0}']).as_bytes()).unwrap_or(&[]))
+                super::deserialize::parse_date(s.first().map(|s| s.as_bytes()).unwrap_or(&[]))
                     .context(ParseDateSnafu)
                     .map_err(|err| ConvertValueError {
                         requested: "NaiveDate",
@@ -2028,7 +2028,7 @@ impl PrimitiveValue {
                         cause: Some(Box::from(err)),
                     })
             }
-            PrimitiveValue::U8(bytes) => super::deserialize::parse_date(trim_last_whitespace(bytes))
+            PrimitiveValue::U8(bytes) => super::deserialize::parse_date(bytes)
                 .context(ParseDateSnafu)
                 .map_err(|err| ConvertValueError {
                     requested: "NaiveDate",
@@ -2104,7 +2104,7 @@ impl PrimitiveValue {
                     original: self.value_type(),
                     cause: Some(Box::from(err)),
                 }),
-            PrimitiveValue::Str(s) => super::deserialize::parse_date(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+            PrimitiveValue::Str(s) => super::deserialize::parse_date(s.trim_end_matches(whitespace_or_null).as_bytes())
                 .map(|date| vec![date])
                 .context(ParseDateSnafu)
                 .map_err(|err| ConvertValueError {
@@ -2114,7 +2114,7 @@ impl PrimitiveValue {
                 }),
             PrimitiveValue::Strs(s) => s
                 .into_iter()
-                .map(|s| super::deserialize::parse_date(s.trim_end_matches([' ', '\u{0}']).as_bytes()))
+                .map(|s| super::deserialize::parse_date(s.trim_end_matches(whitespace_or_null).as_bytes()))
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
                 .map_err(|err| ConvertValueError {
@@ -2201,7 +2201,7 @@ impl PrimitiveValue {
     pub fn to_date(&self) -> Result<DicomDate, ConvertValueError> {
         match self {
             PrimitiveValue::Date(d) if !d.is_empty() => Ok(d[0]),
-            PrimitiveValue::Str(s) => super::deserialize::parse_date_partial(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+            PrimitiveValue::Str(s) => super::deserialize::parse_date_partial(s.as_bytes())
                 .map(|(date, _)| date)
                 .context(ParseDateSnafu)
                 .map_err(|err| ConvertValueError {
@@ -2210,7 +2210,7 @@ impl PrimitiveValue {
                     cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => super::deserialize::parse_date_partial(
-                s.first().map(|s| s.trim_end_matches([' ', '\u{0}']).as_bytes()).unwrap_or(&[]),
+                s.first().map(|s| s.as_bytes()).unwrap_or(&[]),
             )
             .map(|(date, _)| date)
             .context(ParseDateSnafu)
@@ -2219,7 +2219,7 @@ impl PrimitiveValue {
                 original: self.value_type(),
                 cause: Some(Box::from(err)),
             }),
-            PrimitiveValue::U8(bytes) => super::deserialize::parse_date_partial(trim_last_whitespace(bytes))
+            PrimitiveValue::U8(bytes) => super::deserialize::parse_date_partial(bytes)
                 .map(|(date, _)| date)
                 .context(ParseDateSnafu)
                 .map_err(|err| ConvertValueError {
@@ -2262,7 +2262,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Date(d) => Ok(d.to_vec()),
             PrimitiveValue::Str(s) => {
-                super::deserialize::parse_date_partial(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+                super::deserialize::parse_date_partial(s.trim_end_matches(whitespace_or_null).as_bytes())
                     .map(|(date, _)| vec![date])
                     .context(ParseDateSnafu)
                     .map_err(|err| ConvertValueError {
@@ -2274,7 +2274,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => s
                 .into_iter()
                 .map(|s| {
-                    super::deserialize::parse_date_partial(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+                    super::deserialize::parse_date_partial(s.trim_end_matches(whitespace_or_null).as_bytes())
                         .map(|(date, _rest)| date)
                 })
                 .collect::<Result<Vec<_>, _>>()
@@ -2353,7 +2353,7 @@ impl PrimitiveValue {
                     original: self.value_type(),
                     cause: Some(Box::from(err)),
                 }),
-            PrimitiveValue::Str(s) => super::deserialize::parse_time(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+            PrimitiveValue::Str(s) => super::deserialize::parse_time(s.trim_end_matches(whitespace_or_null).as_bytes())
                 .map(|(date, _rest)| date)
                 .context(ParseTimeSnafu)
                 .map_err(|err| ConvertValueError {
@@ -2362,7 +2362,7 @@ impl PrimitiveValue {
                     cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => super::deserialize::parse_time(
-                s.first().map(|s| s.trim_end_matches([' ', '\u{0}']).as_bytes()).unwrap_or(&[]),
+                s.first().map(|s| s.trim_end_matches(whitespace_or_null).as_bytes()).unwrap_or(&[]),
             )
             .map(|(date, _rest)| date)
             .context(ParseTimeSnafu)
@@ -2450,7 +2450,7 @@ impl PrimitiveValue {
                     original: self.value_type(),
                     cause: Some(Box::from(err)),
                 }),
-            PrimitiveValue::Str(s) => super::deserialize::parse_time(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+            PrimitiveValue::Str(s) => super::deserialize::parse_time(s.trim_end_matches(whitespace_or_null).as_bytes())
                 .map(|(date, _rest)| vec![date])
                 .context(ParseDateSnafu)
                 .map_err(|err| ConvertValueError {
@@ -2461,7 +2461,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => s
                 .into_iter()
                 .map(|s| {
-                    super::deserialize::parse_time(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+                    super::deserialize::parse_time(s.trim_end_matches(whitespace_or_null).as_bytes())
                         .map(|(date, _rest)| date)
                 })
                 .collect::<Result<Vec<_>, _>>()
@@ -2566,7 +2566,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Time(t) if !t.is_empty() => Ok(t[0]),
             PrimitiveValue::Str(s) => {
-                super::deserialize::parse_time_partial(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+                super::deserialize::parse_time_partial(s.trim_end_matches(whitespace_or_null).as_bytes())
                     .map(|(date, _rest)| date)
                     .context(ParseTimeSnafu)
                     .map_err(|err| ConvertValueError {
@@ -2576,7 +2576,7 @@ impl PrimitiveValue {
                     })
             }
             PrimitiveValue::Strs(s) => super::deserialize::parse_time_partial(
-                s.first().map(|s| s.trim_end_matches([' ', '\u{0}']).as_bytes()).unwrap_or(&[]),
+                s.first().map(|s| s.trim_end_matches(whitespace_or_null).as_bytes()).unwrap_or(&[]),
             )
             .map(|(date, _rest)| date)
             .context(ParseTimeSnafu)
@@ -2646,7 +2646,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::Time(t) => Ok(t.to_vec()),
             PrimitiveValue::Str(s) => {
-                super::deserialize::parse_time_partial(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+                super::deserialize::parse_time_partial(s.trim_end_matches(whitespace_or_null).as_bytes())
                     .map(|(date, _rest)| vec![date])
                     .context(ParseDateSnafu)
                     .map_err(|err| ConvertValueError {
@@ -2658,7 +2658,7 @@ impl PrimitiveValue {
             PrimitiveValue::Strs(s) => s
                 .into_iter()
                 .map(|s| {
-                    super::deserialize::parse_time_partial(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+                    super::deserialize::parse_time_partial(s.trim_end_matches(whitespace_or_null).as_bytes())
                         .map(|(date, _rest)| date)
                 })
                 .collect::<Result<Vec<_>, _>>()
@@ -2772,7 +2772,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::DateTime(v) if !v.is_empty() => Ok(v[0]),
             PrimitiveValue::Str(s) => {
-                super::deserialize::parse_datetime_partial(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+                super::deserialize::parse_datetime_partial(s.trim_end_matches(whitespace_or_null).as_bytes())
                     .context(ParseDateTimeSnafu)
                     .map_err(|err| ConvertValueError {
                         requested: "DicomDateTime",
@@ -2781,7 +2781,7 @@ impl PrimitiveValue {
                     })
             }
             PrimitiveValue::Strs(s) => super::deserialize::parse_datetime_partial(
-                s.first().map(|s| s.trim_end_matches([' ', '\u{0}']).as_bytes()).unwrap_or(&[]),
+                s.first().map(|s| s.trim_end_matches(whitespace_or_null).as_bytes()).unwrap_or(&[]),
             )
             .context(ParseDateTimeSnafu)
             .map_err(|err| ConvertValueError {
@@ -2812,7 +2812,7 @@ impl PrimitiveValue {
         match self {
             PrimitiveValue::DateTime(v) => Ok(v.to_vec()),
             PrimitiveValue::Str(s) => {
-                super::deserialize::parse_datetime_partial(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+                super::deserialize::parse_datetime_partial(s.trim_end_matches(whitespace_or_null).as_bytes())
                     .map(|date| vec![date])
                     .context(ParseDateSnafu)
                     .map_err(|err| ConvertValueError {
@@ -2823,7 +2823,7 @@ impl PrimitiveValue {
             }
             PrimitiveValue::Strs(s) => s
                 .into_iter()
-                .map(|s| super::deserialize::parse_datetime_partial(s.trim_end_matches([' ', '\u{0}']).as_bytes()))
+                .map(|s| super::deserialize::parse_datetime_partial(s.trim_end_matches(whitespace_or_null).as_bytes()))
                 .collect::<Result<Vec<_>, _>>()
                 .context(ParseDateSnafu)
                 .map_err(|err| ConvertValueError {
@@ -2895,7 +2895,7 @@ impl PrimitiveValue {
                     original: self.value_type(),
                     cause: Some(Box::from(err)),
                 }),
-            PrimitiveValue::Str(s) => super::range::parse_date_range(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+            PrimitiveValue::Str(s) => super::range::parse_date_range(s.trim_end_matches(whitespace_or_null).as_bytes())
                 .context(ParseDateRangeSnafu)
                 .map_err(|err| ConvertValueError {
                     requested: "DateRange",
@@ -2903,7 +2903,7 @@ impl PrimitiveValue {
                     cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => super::range::parse_date_range(
-                s.first().map(|s| s.trim_end_matches([' ', '\u{0}']).as_bytes()).unwrap_or(&[]),
+                s.first().map(|s| s.trim_end_matches(whitespace_or_null).as_bytes()).unwrap_or(&[]),
             )
             .context(ParseDateRangeSnafu)
             .map_err(|err| ConvertValueError {
@@ -2978,7 +2978,7 @@ impl PrimitiveValue {
                     original: self.value_type(),
                     cause: Some(Box::from(err)),
                 }),
-            PrimitiveValue::Str(s) => super::range::parse_time_range(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+            PrimitiveValue::Str(s) => super::range::parse_time_range(s.trim_end_matches(whitespace_or_null).as_bytes())
                 .context(ParseTimeRangeSnafu)
                 .map_err(|err| ConvertValueError {
                     requested: "TimeRange",
@@ -2986,7 +2986,7 @@ impl PrimitiveValue {
                     cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => super::range::parse_time_range(
-                s.first().map(|s| s.trim_end_matches([' ', '\u{0}']).as_bytes()).unwrap_or(&[]),
+                s.first().map(|s| s.trim_end_matches(whitespace_or_null).as_bytes()).unwrap_or(&[]),
             )
             .context(ParseTimeRangeSnafu)
             .map_err(|err| ConvertValueError {
@@ -3092,7 +3092,7 @@ impl PrimitiveValue {
                     original: self.value_type(),
                     cause: Some(Box::from(err)),
                 }),
-            PrimitiveValue::Str(s) => super::range::parse_datetime_range(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+            PrimitiveValue::Str(s) => super::range::parse_datetime_range(s.trim_end_matches(whitespace_or_null).as_bytes())
                 .context(ParseDateTimeRangeSnafu)
                 .map_err(|err| ConvertValueError {
                     requested: "DateTimeRange",
@@ -3100,7 +3100,7 @@ impl PrimitiveValue {
                     cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Strs(s) => super::range::parse_datetime_range(
-                s.first().map(|s| s.trim_end_matches([' ', '\u{0}']).as_bytes()).unwrap_or(&[]),
+                s.first().map(|s| s.trim_end_matches(whitespace_or_null).as_bytes()).unwrap_or(&[]),
             )
             .context(ParseDateTimeRangeSnafu)
             .map_err(|err| ConvertValueError {
@@ -3197,7 +3197,7 @@ impl PrimitiveValue {
                     cause: Some(Box::from(err)),
                 }),
             PrimitiveValue::Str(s) => {
-                super::range::parse_datetime_range_custom::<T>(s.trim_end_matches([' ', '\u{0}']).as_bytes())
+                super::range::parse_datetime_range_custom::<T>(s.trim_end_matches(whitespace_or_null).as_bytes())
                     .context(ParseDateTimeRangeSnafu)
                     .map_err(|err| ConvertValueError {
                         requested: "DateTimeRange",
@@ -3206,7 +3206,7 @@ impl PrimitiveValue {
                     })
             }
             PrimitiveValue::Strs(s) => super::range::parse_datetime_range_custom::<T>(
-                s.first().map(|s| s.trim_end_matches([' ', '\u{0}']).as_bytes()).unwrap_or(&[]),
+                s.first().map(|s| s.trim_end_matches(whitespace_or_null).as_bytes()).unwrap_or(&[]),
             )
             .context(ParseDateTimeRangeSnafu)
             .map_err(|err| ConvertValueError {
@@ -4347,6 +4347,11 @@ fn trim_last_whitespace(x: &[u8]) -> &[u8] {
         Some(b' ') | Some(b'\0') => &x[..x.len() - 1],
         _ => x,
     }
+}
+
+#[inline]
+fn whitespace_or_null(c: char) -> bool {
+    c.is_whitespace() || c == '\0'
 }
 
 #[cfg(test)]
