@@ -23,7 +23,6 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
     } = args;
     let verbose = *verbose;
 
-    let mut buffer: Vec<u8> = Vec::with_capacity(*max_pdu_length as usize);
     let mut instance_buffer: Vec<u8> = Vec::with_capacity(1024 * 1024);
     let mut msgid = 1;
     let mut sop_class_uid = "".to_string();
@@ -33,6 +32,7 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
         .accept_any()
         .ae_title(calling_ae_title)
         .strict(*strict)
+        .max_pdu_length(*max_pdu_length)
         .promiscuous(*promiscuous);
 
     if *uncompressed_only {
@@ -222,7 +222,6 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
                         }
                     }
                     Pdu::ReleaseRQ => {
-                        buffer.clear();
                         association.send(&Pdu::ReleaseRP).unwrap_or_else(|e| {
                             warn!(
                                 "Failed to send association release message to SCU: {}",
