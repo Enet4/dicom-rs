@@ -532,10 +532,36 @@ where
 
                 let token = DataToken::from(header);
                 match token {
-                    DataToken::SequenceStart { .. } => {
+                    DataToken::SequenceStart { tag, len } => {
                         // retrieve sequence value, begin item sequence
                         match elem.into_value() {
-                            Value::Primitive(_) | Value::PixelSequence { .. } => unreachable!(),
+                            v @ Value::Primitive(_) => {
+                                // this can only happen in malformed data (wrong VR),
+                                // but we try to handle it gracefully anyway:
+                                // return a header token instead and continue
+                                // as if it were a primitive value
+                                if len.is_defined() {
+                                    tracing::warn!("Unexpected primitive value after header {} with VR SQ", tag);
+                                    let adapted_elem =  DataElement::new_with_len(tag, VR::SQ, len, v);
+                                    (
+                                        Some(DataToken::ElementHeader(*adapted_elem.header())),
+                                        DataElementTokens::Header(Some(adapted_elem)),
+                                    )
+                                } else {
+                                    // without a defined length,
+                                    // it is too risky to provide any tokens
+                                    tracing::warn!("Unexpected primitive value after header {} with VR SQ, ignoring", tag);
+                                    (None, DataElementTokens::End)
+                                }
+                            },
+                            Value::PixelSequence { .. } => {
+                                // this is also invalid because
+                                // this is a data element sequence start,
+                                // not a pixel data fragment sequence start.
+                                // stop here and return nothing
+                                tracing::warn!("Unexpected pixel data fragments after header {} with VR SQ, ignored", tag);
+                                (None, DataElementTokens::End)
+                            },
                             Value::Sequence(seq) => {
                                 let seq = if options.force_invalidate_sq_length {
                                     seq.into_items().into_vec().into()
@@ -981,8 +1007,7 @@ where
 #[cfg(test)]
 mod tests {
     use dicom_core::{
-        dicom_value, header::HasLength, DataElement, DataElementHeader, DicomValue, Length,
-        PrimitiveValue, Tag, VR,
+        dicom_value, header::HasLength, value::PixelFragmentSequence, DataElement, DataElementHeader, DicomValue, Length, PrimitiveValue, Tag, VR
     };
 
     use super::{DataToken, IntoTokens, IntoTokensOptions, LazyDataToken};
@@ -1279,5 +1304,35 @@ mod tests {
         token.skip().unwrap();
 
         assert_eq!(decoder.position(), 6);
+    }
+
+    /// A malformed data element (wrong VR) should not panic
+    /// when converting it to tokens
+    #[test]
+    fn bad_element_to_tokens() {
+        let e: DataElement = DataElement::new_with_len(
+            Tag(0x0008, 0x0080),
+            VR::SQ, // wrong VR
+            Length(6),
+            PrimitiveValue::from("Oops!"),
+        );
+
+        // should not panic
+        let tokens = e.into_tokens().collect::<Vec<_>>();
+        // still expects 2 tokens (header + value)
+        assert_eq!(tokens.len(), 2);
+
+        let e: DataElement = DataElement::new(
+            Tag(0x7FE0, 0x0010),
+            VR::SQ, // wrong VR
+            PixelFragmentSequence::new_fragments(vec![
+                // one fragment
+                vec![0x55; 128]
+            ]),
+        );
+
+        // should not panic,
+        // other than that there are no guarantees about the output
+        let _ = e.into_tokens().collect::<Vec<_>>();
     }
 }
