@@ -45,7 +45,11 @@ struct App {
     #[arg(long = "called-ae-title")]
     called_ae_title: Option<String>,
     /// the maximum PDU length
-    #[arg(long = "max-pdu-length", default_value = "16384")]
+    #[arg(
+        long = "max-pdu-length",
+        default_value = "16384",
+        value_parser(clap::value_parser!(u32).range(4096..=131_072))
+    )]
     max_pdu_length: u32,
 
     /// use patient root information model
