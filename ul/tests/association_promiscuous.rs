@@ -1,7 +1,12 @@
-use dicom_ul::association::client::Error::NoAcceptedPresentationContexts;
-use dicom_ul::pdu::{PresentationContextResult, PresentationContextResultReason};
-use dicom_ul::{ClientAssociationOptions, Pdu, ServerAssociationOptions};
 use std::net::SocketAddr;
+
+use dicom_ul::association::client::Error::NoAcceptedPresentationContexts;
+use dicom_ul::pdu::PresentationContextResultReason::Acceptance;
+use dicom_ul::pdu::{PresentationContextResult, PresentationContextResultReason, UserVariableItem};
+use dicom_ul::{
+    ClientAssociationOptions, Pdu, ServerAssociationOptions, IMPLEMENTATION_CLASS_UID,
+    IMPLEMENTATION_VERSION_NAME,
+};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
@@ -99,6 +104,27 @@ fn scu_scp_association_promiscuous_enabled() {
         .establish(scp_addr)
         .unwrap();
 
+    assert_eq!(
+        association.user_variables(),
+        &[
+            UserVariableItem::MaxLength(16384),
+            UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
+            UserVariableItem::ImplementationVersionName(IMPLEMENTATION_VERSION_NAME.to_string())
+        ]
+    );
+    assert_eq!(
+        association.presentation_contexts(),
+        &[PresentationContextResult {
+            id: 1,
+            reason: Acceptance,
+            transfer_syntax: IMPLICIT_VR_LE.to_string()
+        }]
+    );
+    assert_eq!(association.acceptor_max_pdu_length(), 16384);
+    assert_eq!(association.requestor_max_pdu_length(), 16384);
+    assert_eq!(association.read_timeout(), None);
+    assert_eq!(association.write_timeout(), None);
+
     association
         .release()
         .expect("did not have a peaceful release");
@@ -122,6 +148,27 @@ async fn scu_scp_association_promiscuous_enabled_async() {
         .establish_async(scp_addr)
         .await
         .unwrap();
+
+    assert_eq!(
+        association.user_variables(),
+        &[
+            UserVariableItem::MaxLength(16384),
+            UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
+            UserVariableItem::ImplementationVersionName(IMPLEMENTATION_VERSION_NAME.to_string())
+        ]
+    );
+    assert_eq!(
+        association.presentation_contexts(),
+        &[PresentationContextResult {
+            id: 1,
+            reason: Acceptance,
+            transfer_syntax: IMPLICIT_VR_LE.to_string()
+        }]
+    );
+    assert_eq!(association.acceptor_max_pdu_length(), 16384);
+    assert_eq!(association.requestor_max_pdu_length(), 16384);
+    assert_eq!(association.read_timeout(), None);
+    assert_eq!(association.write_timeout(), None);
 
     association
         .release()
