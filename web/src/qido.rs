@@ -56,15 +56,12 @@ impl QidoRequest {
         let mut request = self.client.client.get(&self.url).query(&query);
 
         // Basic authentication
-        if self.client.username.is_some() {
-            request = request.basic_auth(
-                self.client.username.as_ref().unwrap().to_string(),
-                self.client.password.as_ref(),
-            );
+        if let Some(username) = &self.client.username {
+            request = request.basic_auth(username, self.client.password.as_ref());
         }
         // Bearer token
-        else if self.client.bearer_token.is_some() {
-            request = request.bearer_auth(self.client.bearer_token.as_ref().unwrap());
+        else if let Some(bearer_token) = &self.client.bearer_token {
+            request = request.bearer_auth(bearer_token);
         }
 
         let response = request
@@ -79,15 +76,14 @@ impl QidoRequest {
         }
 
         // Check if the response is a DICOM-JSON
-        let ct = response.headers().get("Content-Type");
-        if ct.is_none() {
+        if let Some(ct) = response.headers().get("Content-Type") {
+            if ct != "application/dicom+json" && ct != "application/json" {
+                return Err(DicomWebError::UnexpectedContentType {
+                    content_type: ct.to_str().unwrap_or_default().to_string(),
+                });
+            }
+        } else {
             return Err(DicomWebError::MissingContentTypeHeader);
-        }
-
-        if ct.unwrap() != "application/dicom+json" && ct.unwrap() != "application/json" {
-            return Err(DicomWebError::UnexpectedContentType {
-                content_type: ct.unwrap().to_str().unwrap().to_string(),
-            });
         }
 
         Ok(response

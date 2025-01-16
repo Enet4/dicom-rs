@@ -243,7 +243,7 @@ mod tests {
             .retrieve_study("1.2.276.0.89.300.10035584652.20181014.93645")
             .run()
             .await;
-        println!("{:?}", result);
+
         assert!(result.is_ok());
     }
 
@@ -256,7 +256,7 @@ mod tests {
             .retrieve_study_metadata("1.2.276.0.89.300.10035584652.20181014.93645")
             .run()
             .await;
-        println!("{:?}", result);
+
         assert!(result.is_ok());
     }
 
@@ -272,7 +272,7 @@ mod tests {
             )
             .run()
             .await;
-        println!("{:?}", result);
+
         assert!(result.is_ok());
     }
 

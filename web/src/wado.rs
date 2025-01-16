@@ -23,23 +23,16 @@ impl WadoMetadataRequest {
     }
 
     pub async fn run(&self) -> Result<Vec<InMemDicomObject>, DicomWebError> {
-        let request = self.client.client.get(&self.url);
+        let mut request = self.client.client.get(&self.url);
 
         // Basic authentication
-        let request = if self.client.username.is_some() {
-            request.basic_auth(
-                self.client.username.as_ref().unwrap().to_string(),
-                self.client.password.as_ref(),
-            )
-        } else {
-            request
-        };
+        if let Some(username) = &self.client.username {
+            request = request.basic_auth(username, self.client.password.as_ref());
+        }
         // Bearer token
-        let request = if self.client.bearer_token.is_some() {
-            request.bearer_auth(self.client.bearer_token.as_ref().unwrap())
-        } else {
-            request
-        };
+        else if let Some(bearer_token) = &self.client.bearer_token {
+            request = request.bearer_auth(bearer_token);
+        }
 
         let response = request
             .send()
@@ -53,15 +46,14 @@ impl WadoMetadataRequest {
         }
 
         // Check if the response is a DICOM-JSON
-        let ct = response.headers().get("Content-Type");
-        if ct.is_none() {
+        if let Some(ct) = response.headers().get("Content-Type") {
+            if ct != "application/dicom+json" {
+                return Err(DicomWebError::UnexpectedContentType {
+                    content_type: ct.to_str().unwrap_or_default().to_string(),
+                });
+            }
+        } else {
             return Err(DicomWebError::MissingContentTypeHeader);
-        }
-
-        if ct.unwrap() != "application/dicom+json" {
-            return Err(DicomWebError::UnexpectedContentType {
-                content_type: ct.unwrap().to_str().unwrap().to_string(),
-            });
         }
 
         Ok(response
@@ -86,23 +78,16 @@ impl WadoFileRequest {
     }
 
     pub async fn run(&self) -> Result<Vec<FileDicomObject<InMemDicomObject>>, DicomWebError> {
-        let request = self.client.client.get(&self.url);
+        let mut request = self.client.client.get(&self.url);
 
         // Basic authentication
-        let request = if self.client.username.is_some() {
-            request.basic_auth(
-                self.client.username.as_ref().unwrap().to_string(),
-                self.client.password.as_ref(),
-            )
-        } else {
-            request
-        };
+        if let Some(username) = &self.client.username {
+            request = request.basic_auth(username, self.client.password.as_ref());
+        }
         // Bearer token
-        let request = if self.client.bearer_token.is_some() {
-            request.bearer_auth(self.client.bearer_token.as_ref().unwrap())
-        } else {
-            request
-        };
+        else if let Some(bearer_token) = &self.client.bearer_token {
+            request = request.bearer_auth(bearer_token);
+        }
 
         let response = request
             .send()
@@ -119,9 +104,9 @@ impl WadoFileRequest {
         let headers: Vec<(String, String)> = response
             .headers()
             .iter()
-            .map(|(k, v)| (k.to_string(), String::from(v.to_str().unwrap_or(""))))
+            .map(|(k, v)| (k.to_string(), String::from(v.to_str().unwrap_or_default())))
             .collect();
-        println!("{:?}", headers);
+
         let stream = response.bytes_stream();
         let mut reader = MultipartReader::from_stream_with_headers(stream, &headers)
             .map_err(|source| DicomWebError::MultipartReaderFailed { source })?;
@@ -182,23 +167,16 @@ impl WadoFramesRequest {
     }
 
     pub async fn run(&self) -> Result<Vec<MultipartItem>, DicomWebError> {
-        let request = self.client.client.get(&self.url);
+        let mut request = self.client.client.get(&self.url);
 
         // Basic authentication
-        let request = if self.client.username.is_some() {
-            request.basic_auth(
-                self.client.username.as_ref().unwrap().to_string(),
-                self.client.password.as_ref(),
-            )
-        } else {
-            request
-        };
+        if let Some(username) = &self.client.username {
+            request = request.basic_auth(username, self.client.password.as_ref());
+        }
         // Bearer token
-        let request = if self.client.bearer_token.is_some() {
-            request.bearer_auth(self.client.bearer_token.as_ref().unwrap())
-        } else {
-            request
-        };
+        else if let Some(bearer_token) = &self.client.bearer_token {
+            request = request.bearer_auth(bearer_token);
+        }
 
         let response = request
             .send()
@@ -215,7 +193,7 @@ impl WadoFramesRequest {
         let headers: Vec<(String, String)> = response
             .headers()
             .iter()
-            .map(|(k, v)| (k.to_string(), String::from(v.to_str().unwrap_or(""))))
+            .map(|(k, v)| (k.to_string(), String::from(v.to_str().unwrap_or_default())))
             .collect();
         let stream = response.bytes_stream();
         let mut reader = MultipartReader::from_stream_with_headers(stream, &headers)
