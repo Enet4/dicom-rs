@@ -22,7 +22,7 @@ impl WadoMetadataRequest {
         WadoMetadataRequest { client, url }
     }
 
-    pub async fn run(self: &Self) -> Result<Vec<InMemDicomObject>, DicomWebError> {
+    pub async fn run(&self) -> Result<Vec<InMemDicomObject>, DicomWebError> {
         let request = self.client.client.get(&self.url);
 
         // Basic authentication
@@ -85,7 +85,7 @@ impl WadoFileRequest {
         WadoFileRequest { client, url }
     }
 
-    pub async fn run(self: &Self) -> Result<Vec<FileDicomObject<InMemDicomObject>>, DicomWebError> {
+    pub async fn run(&self) -> Result<Vec<FileDicomObject<InMemDicomObject>>, DicomWebError> {
         let request = self.client.client.get(&self.url);
 
         // Basic authentication
@@ -163,12 +163,11 @@ pub struct WadoSingleFileRequest {
 }
 
 impl WadoSingleFileRequest {
-    pub async fn run(self: &Self) -> Result<FileDicomObject<InMemDicomObject>, DicomWebError> {
-        return self
-            .request
+    pub async fn run(&self) -> Result<FileDicomObject<InMemDicomObject>, DicomWebError> {
+        self.request
             .run()
             .await
-            .map(|mut v| v.pop().context(EmptyResponseSnafu))?;
+            .map(|mut v| v.pop().context(EmptyResponseSnafu))?
     }
 }
 
@@ -182,7 +181,7 @@ impl WadoFramesRequest {
         WadoFramesRequest { client, url }
     }
 
-    pub async fn run(self: &Self) -> Result<Vec<MultipartItem>, DicomWebError> {
+    pub async fn run(&self) -> Result<Vec<MultipartItem>, DicomWebError> {
         let request = self.client.client.get(&self.url);
 
         // Basic authentication

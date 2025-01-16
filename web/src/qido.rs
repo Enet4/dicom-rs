@@ -31,7 +31,7 @@ impl QidoRequest {
         }
     }
 
-    pub async fn run(self: &Self) -> Result<Vec<InMemDicomObject>, DicomWebError> {
+    pub async fn run(&self) -> Result<Vec<InMemDicomObject>, DicomWebError> {
         let mut query: Vec<(String, String)> = vec![];
         if let Some(limit) = self.limit {
             query.push((String::from("limit"), limit.to_string()));
@@ -99,27 +99,27 @@ impl QidoRequest {
             .collect())
     }
 
-    pub fn with_limit(self: &mut Self, limit: u32) -> &mut Self {
+    pub fn with_limit(&mut self, limit: u32) -> &mut Self {
         self.limit = Some(limit);
         self
     }
 
-    pub fn with_offset(self: &mut Self, offset: u32) -> &mut Self {
+    pub fn with_offset(&mut self, offset: u32) -> &mut Self {
         self.offset = Some(offset);
         self
     }
 
-    pub fn with_includefields(self: &mut Self, includefields: Vec<Tag>) -> &mut Self {
+    pub fn with_includefields(&mut self, includefields: Vec<Tag>) -> &mut Self {
         self.includefields = includefields;
         self
     }
 
-    pub fn with_fuzzymatching(self: &mut Self, fuzzymatching: bool) -> &mut Self {
+    pub fn with_fuzzymatching(&mut self, fuzzymatching: bool) -> &mut Self {
         self.fuzzymatching = Some(fuzzymatching);
         self
     }
 
-    pub fn with_filter(self: &mut Self, tag: Tag, value: String) -> &mut Self {
+    pub fn with_filter(&mut self, tag: Tag, value: String) -> &mut Self {
         self.filters.push((tag, value));
         self
     }
