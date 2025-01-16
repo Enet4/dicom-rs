@@ -88,6 +88,14 @@ impl Fragments {
 
 impl From<Vec<Fragments>> for PixelFragmentSequence<InMemFragment> {
     fn from(value: Vec<Fragments>) -> Self {
+        if value.is_empty() {
+            // return an empty fragment list
+            return PixelFragmentSequence {
+                offset_table: C::new(),
+                fragments: C::new(),
+            };
+        }
+
         let mut offset_table = C::with_capacity(value.len() + 1);
         offset_table.push(0u32);
         let mut current_offset = 0u32;
