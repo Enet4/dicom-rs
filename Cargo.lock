@@ -445,7 +445,7 @@ dependencies = [
 
 [[package]]
 name = "dicom"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "dicom-core",
  "dicom-dictionary-std",
