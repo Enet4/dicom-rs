@@ -17,7 +17,7 @@ dicom-ul = { path = '../ul', version = "0.8.0", features = ["async"] }
 dicom-object = { path = '../object', version = "0.8.0" }
 dicom-encoding = { path = "../encoding/", version = "0.8.1" }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.8.0" }
-dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.8.0" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.8.1" }
 snafu = "0.8"
 tracing = "0.1.36"
 tracing-subscriber = "0.3.15"
