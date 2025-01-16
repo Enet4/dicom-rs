@@ -639,7 +639,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-scpproxy"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "bytes",
  "clap",
