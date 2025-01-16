@@ -17,7 +17,7 @@ inventory-registry = ['dicom-encoding/inventory-registry', 'dicom-transfer-synta
 [dependencies]
 dicom-core = { path = "../core", version = "0.8.1" }
 dicom-encoding = { path = "../encoding", version = "0.8.1" }
-dicom-parser = { path = "../parser", version = "0.8.0" }
+dicom-parser = { path = "../parser", version = "0.8.1" }
 dicom-dictionary-std = { path = "../dictionary-std", version = "0.8.0" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.8.0" }
 itertools = "0.13"
