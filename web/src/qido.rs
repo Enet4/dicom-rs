@@ -13,7 +13,7 @@ pub struct QidoRequest {
 
     limit: Option<u32>,
     offset: Option<u32>,
-    includefields: Option<String>,
+    includefields: Vec<Tag>,
     fuzzymatching: Option<bool>,
     filters: Vec<(Tag, String)>,
 }
@@ -25,7 +25,7 @@ impl QidoRequest {
             url,
             limit: None,
             offset: None,
-            includefields: None,
+            includefields: vec![],
             fuzzymatching: None,
             filters: vec![],
         }
@@ -39,8 +39,15 @@ impl QidoRequest {
         if let Some(offset) = self.offset {
             query.push((String::from("offset"), offset.to_string()));
         }
-        if let Some(includefields) = &self.includefields {
-            query.push((String::from("includefields"), includefields.to_string()));
+        for include_field in self.includefields.iter() {
+            // Convert the tag to a radix string
+            let radix_string = format!(
+                "{:04x}{:04x}",
+                include_field.group(),
+                include_field.element()
+            );
+
+            query.push((String::from("includefield"), radix_string));
         }
         for filter in self.filters.iter() {
             query.push((filter.0.to_string(), filter.1.clone()));
@@ -103,14 +110,7 @@ impl QidoRequest {
     }
 
     pub fn with_includefields(self: &mut Self, includefields: Vec<Tag>) -> &mut Self {
-        self.includefields = Some(
-            includefields
-                .iter()
-                .map(|tag| tag.to_string())
-                .collect::<Vec<String>>()
-                .join(","),
-        );
-
+        self.includefields = includefields;
         self
     }
 
