@@ -237,6 +237,18 @@ impl DicomWebClient {
         WadoFileRequest::new(self.clone(), url)
     }
 
+    pub fn retrieve_series_metadata(
+        &self,
+        study_instance_uid: &str,
+        series_instance_uid: &str,
+    ) -> WadoMetadataRequest {
+        let base_url = &self.wado_url;
+        let url = format!(
+            "{base_url}/studies/{study_instance_uid}/series/{series_instance_uid}/metadata"
+        );
+        WadoMetadataRequest::new(self.clone(), url)
+    }
+
     pub fn retrieve_instance(
         &self,
         study_instance_uid: &str,
@@ -250,6 +262,19 @@ impl DicomWebClient {
         WadoSingleFileRequest {
             request: WadoFileRequest::new(self.clone(), url),
         }
+    }
+
+    pub fn retrieve_instance_metadata(
+        &self,
+        study_instance_uid: &str,
+        series_instance_uid: &str,
+        sop_instance_uid: &str,
+    ) -> WadoMetadataRequest {
+        let base_url = &self.wado_url;
+        let url = format!(
+            "{base_url}/studies/{study_instance_uid}/series/{series_instance_uid}/instances/{sop_instance_uid}/metadata",
+        );
+        WadoMetadataRequest::new(self.clone(), url)
     }
 
     pub fn retrieve_frames(

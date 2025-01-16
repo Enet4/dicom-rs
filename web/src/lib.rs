@@ -139,7 +139,7 @@ mod tests {
             .and(wiremock::matchers::path_regex("^/studies/[0-9.]+$"))
             .respond_with(dcm_multipart_response.clone());
         mock_server.register(mock).await;
-        // STUDIES/{STUDY_UID}/metadata endpoint
+        // STUDIES/{STUDY_UID}/METADATA endpoint
         let mock = wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::header_exists("Accept"))
             .and(wiremock::matchers::path_regex(
@@ -157,6 +157,16 @@ mod tests {
             ))
             .respond_with(dcm_multipart_response.clone());
         mock_server.register(mock).await;
+        // STUDIES/{STUDY_UID}/SERIES/{SERIES_UID}/METADATA endpoint
+        let mock = wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header_exists("Accept"))
+            .and(wiremock::matchers::path_regex(
+                r"^/studies/[0-9.]+/series/[0-9.]+/metadata$",
+            ))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_raw("[]", "application/dicom+json"),
+            );
+        mock_server.register(mock).await;
         // STUDIES/{STUDY_UID}/SERIES/{SERIES_UID}/INSTANCES/{INSTANCE_UID} endpoint
         let mock = wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::header_exists("Accept"))
@@ -164,6 +174,16 @@ mod tests {
                 r"^/studies/[0-9.]+/series/[0-9.]+/instances/[0-9.]+$",
             ))
             .respond_with(dcm_multipart_response.clone());
+        mock_server.register(mock).await;
+        // STUDIES/{STUDY_UID}/SERIES/{SERIES_UID}/INSTANCES/{INSTANCE_UID}/METADATA endpoint
+        let mock = wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header_exists("Accept"))
+            .and(wiremock::matchers::path_regex(
+                r"^/studies/[0-9.]+/series/[0-9.]+/instances/[0-9.]+/metadata$",
+            ))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_raw("[]", "application/dicom+json"),
+            );
         mock_server.register(mock).await;
         // STUDIES/{STUDY_UID}/SERIES/{SERIES_UID}/INSTANCES/{INSTANCE_UID}/frames/{framelist} endpoint
         let mock = wiremock::Mock::given(wiremock::matchers::method("GET"))
@@ -187,7 +207,7 @@ mod tests {
     async fn query_study_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
-        // Perform QIDO-RS requests
+        // Perform QIDO-RS request
         let result = client.query_studies().run().await;
         assert!(result.is_ok());
     }
@@ -196,7 +216,7 @@ mod tests {
     async fn query_series_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
-        // Perform QIDO-RS requests
+        // Perform QIDO-RS request
         let result = client.query_series().run().await;
         assert!(result.is_ok());
     }
@@ -205,7 +225,7 @@ mod tests {
     async fn query_instances_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
-        // Perform QIDO-RS requests
+        // Perform QIDO-RS request
         let result = client.query_instances().run().await;
         assert!(result.is_ok());
     }
@@ -214,7 +234,7 @@ mod tests {
     async fn query_series_in_study_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
-        // Perform QIDO-RS requests
+        // Perform QIDO-RS request
         let result = client
             .query_series_in_study("1.2.276.0.89.300.10035584652.20181014.93645")
             .run()
@@ -226,7 +246,7 @@ mod tests {
     async fn query_instances_in_series_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
-        // Perform QIDO-RS requests
+        // Perform QIDO-RS request
         let result = client
             .query_instances_in_series("1.2.276.0.89.300.10035584652.20181014.93645", "1.1.1.1")
             .run()
@@ -238,7 +258,7 @@ mod tests {
     async fn retrieve_study_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
-        // Perform WADO-RS requests
+        // Perform WADO-RS request
         let result = client
             .retrieve_study("1.2.276.0.89.300.10035584652.20181014.93645")
             .run()
@@ -251,7 +271,7 @@ mod tests {
     async fn retrieve_study_metadata_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
-        // Perform WADO-RS requests
+        // Perform WADO-RS request
         let result = client
             .retrieve_study_metadata("1.2.276.0.89.300.10035584652.20181014.93645")
             .run()
@@ -264,9 +284,25 @@ mod tests {
     async fn retrieve_series_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
-        // Perform WADO-RS requests
+        // Perform WADO-RS request
         let result = client
             .retrieve_series(
+                "1.2.276.0.89.300.10035584652.20181014.93645",
+                "1.2.392.200036.9125.3.1696751121028.64888163108.42362053",
+            )
+            .run()
+            .await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn retrieve_series_metadata_test() {
+        let mock_server = start_dicomweb_mock_server().await;
+        let client = DicomWebClient::with_single_url(&mock_server.uri());
+        // Perform WADO-RS request
+        let result = client
+            .retrieve_series_metadata(
                 "1.2.276.0.89.300.10035584652.20181014.93645",
                 "1.2.392.200036.9125.3.1696751121028.64888163108.42362053",
             )
@@ -280,7 +316,7 @@ mod tests {
     async fn retrieve_instance_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
-        // Perform WADO-RS requests
+        // Perform WADO-RS request
         let result = client
             .retrieve_instance(
                 "1.2.276.0.89.300.10035584652.20181014.93645",
@@ -293,11 +329,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn retrieve_instance_metadata_test() {
+        let mock_server = start_dicomweb_mock_server().await;
+        let client = DicomWebClient::with_single_url(&mock_server.uri());
+        // Perform WADO-RS request
+        let result = client
+            .retrieve_instance_metadata(
+                "1.2.276.0.89.300.10035584652.20181014.93645",
+                "1.2.392.200036.9125.3.1696751121028.64888163108.42362053",
+                "1.2.392.200036.9125.9.0.454007928.521494544.1883970570",
+            )
+            .run()
+            .await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
     async fn retrieve_frames_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let mut client = DicomWebClient::with_single_url(&mock_server.uri());
         client.set_basic_auth("orthanc", "orthanc");
-        // Perform WADO-RS requests
+        // Perform WADO-RS request
         let result = client
             .retrieve_frames(
                 "1.2.276.0.89.300.10035584652.20181014.93645",
