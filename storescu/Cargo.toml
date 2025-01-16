@@ -19,7 +19,7 @@ transcode = ["dep:dicom-pixeldata"]
 clap = { version  = "4.0.18", features = ["derive"] }
 dicom-core = { path = '../core', version = "0.8.1" }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.8.0" }
-dicom-encoding = { path = "../encoding/", version = "0.8.0" }
+dicom-encoding = { path = "../encoding/", version = "0.8.1" }
 dicom-object = { path = '../object', version = "0.8.0" }
 dicom-pixeldata = { version = "0.8.0", path = "../pixeldata", optional = true }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.8.0" }
