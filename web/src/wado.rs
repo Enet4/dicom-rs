@@ -1,7 +1,7 @@
 use dicom_json::DicomJson;
 use dicom_object::{from_reader, FileDicomObject, InMemDicomObject};
 
-use futures_util::StreamExt;
+use futures_util::{Stream, StreamExt};
 use multipart_rs::{MultipartItem, MultipartReader, MultipartType};
 use snafu::{OptionExt, ResultExt};
 
@@ -77,7 +77,12 @@ impl WadoFileRequest {
         WadoFileRequest { client, url }
     }
 
-    pub async fn run(&self) -> Result<Vec<FileDicomObject<InMemDicomObject>>, DicomWebError> {
+    pub async fn run(
+        &self,
+    ) -> Result<
+        impl Stream<Item = Result<FileDicomObject<InMemDicomObject>, DicomWebError>>,
+        DicomWebError,
+    > {
         let mut request = self.client.client.get(&self.url);
 
         // Basic authentication
@@ -108,7 +113,7 @@ impl WadoFileRequest {
             .collect();
 
         let stream = response.bytes_stream();
-        let mut reader = MultipartReader::from_stream_with_headers(stream, &headers)
+        let reader = MultipartReader::from_stream_with_headers(stream, &headers)
             .map_err(|source| DicomWebError::MultipartReaderFailed { source })?;
 
         if reader.multipart_type != MultipartType::Related {
@@ -117,12 +122,10 @@ impl WadoFileRequest {
             });
         }
 
-        let mut dcm_list = vec![];
-
-        while let Some(file) = reader.next().await {
-            let file = file.context(MultipartReaderFailedSnafu)?;
+        Ok(reader.map(|item| {
+            let item = item.context(MultipartReaderFailedSnafu)?;
             // Get the Content-Type header
-            let content_type = file
+            let content_type = item
                 .headers
                 .iter()
                 .find(|(k, _)| k.to_lowercase() == "content-type")
@@ -135,11 +138,8 @@ impl WadoFileRequest {
                 });
             }
 
-            let dcm = from_reader(&*file.data).context(DicomReaderFailedSnafu)?;
-            dcm_list.push(dcm);
-        }
-
-        Ok(dcm_list)
+            from_reader(&*item.data).context(DicomReaderFailedSnafu)
+        }))
     }
 }
 
@@ -149,10 +149,9 @@ pub struct WadoSingleFileRequest {
 
 impl WadoSingleFileRequest {
     pub async fn run(&self) -> Result<FileDicomObject<InMemDicomObject>, DicomWebError> {
-        self.request
-            .run()
-            .await
-            .map(|mut v| v.pop().context(EmptyResponseSnafu))?
+        // Run the request and get the first item of the stream
+        let mut stream = self.request.run().await?;
+        stream.next().await.context(EmptyResponseSnafu)?
     }
 }
 
