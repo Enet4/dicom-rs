@@ -1,3 +1,4 @@
+//! Module for WADO-RS requests
 use dicom_json::DicomJson;
 use dicom_object::{from_reader, FileDicomObject, InMemDicomObject};
 
@@ -11,6 +12,7 @@ use crate::{
     RequestFailedSnafu,
 };
 
+/// A builder type for WADO-RS metadata requests
 #[derive(Debug, Clone)]
 pub struct WadoMetadataRequest {
     client: DicomWebClient,
@@ -66,6 +68,7 @@ impl WadoMetadataRequest {
     }
 }
 
+/// A builder type for WADO-RS file requests
 #[derive(Debug, Clone)]
 pub struct WadoFileRequest {
     client: DicomWebClient,
@@ -143,6 +146,7 @@ impl WadoFileRequest {
     }
 }
 
+/// A builder type for WADO-RS single file requests
 pub struct WadoSingleFileRequest {
     request: WadoFileRequest,
 }
@@ -155,6 +159,7 @@ impl WadoSingleFileRequest {
     }
 }
 
+/// A builder type for WADO-RS frames requests
 pub struct WadoFramesRequest {
     client: DicomWebClient,
     url: String,
@@ -216,16 +221,19 @@ impl WadoFramesRequest {
 }
 
 impl DicomWebClient {
+    /// Create a WADO-RS request to retrieve a specific study
     pub fn retrieve_study(&self, study_instance_uid: &str) -> WadoFileRequest {
         let url = format!("{}/studies/{}", self.wado_url, study_instance_uid);
         WadoFileRequest::new(self.clone(), url)
     }
 
+    /// Create a WADO-RS request to retrieve the metadata of a specific study
     pub fn retrieve_study_metadata(&self, study_instance_uid: &str) -> WadoMetadataRequest {
         let url = format!("{}/studies/{}/metadata", self.wado_url, study_instance_uid);
         WadoMetadataRequest::new(self.clone(), url)
     }
 
+    /// Create a WADO-RS request to retrieve a specific series
     pub fn retrieve_series(
         &self,
         study_instance_uid: &str,
@@ -236,6 +244,7 @@ impl DicomWebClient {
         WadoFileRequest::new(self.clone(), url)
     }
 
+    /// Create a WADO-RS request to retrieve the metadata of a specific series
     pub fn retrieve_series_metadata(
         &self,
         study_instance_uid: &str,
@@ -248,6 +257,7 @@ impl DicomWebClient {
         WadoMetadataRequest::new(self.clone(), url)
     }
 
+    /// Create a WADO-RS request to retrieve a specific instance
     pub fn retrieve_instance(
         &self,
         study_instance_uid: &str,
@@ -263,6 +273,7 @@ impl DicomWebClient {
         }
     }
 
+    /// Create a WADO-RS request to retrieve the metadata of a specific instance
     pub fn retrieve_instance_metadata(
         &self,
         study_instance_uid: &str,
@@ -276,6 +287,7 @@ impl DicomWebClient {
         WadoMetadataRequest::new(self.clone(), url)
     }
 
+    /// Create a WADO-RS request to retrieve specific frames inside an instance
     pub fn retrieve_frames(
         &self,
         study_instance_uid: &str,

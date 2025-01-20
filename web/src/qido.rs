@@ -1,3 +1,4 @@
+//! Module for QIDO-RS requests
 use dicom_core::Tag;
 use dicom_json::DicomJson;
 use dicom_object::InMemDicomObject;
@@ -6,6 +7,8 @@ use snafu::ResultExt;
 
 use crate::{DeserializationFailedSnafu, DicomWebClient, DicomWebError, RequestFailedSnafu};
 
+/// A builder type for QIDO-RS requests
+/// By default, the request is built with no filters, no limit, and no offset.
 #[derive(Debug, Clone)]
 pub struct QidoRequest {
     client: DicomWebClient,
@@ -31,6 +34,7 @@ impl QidoRequest {
         }
     }
 
+    /// Execute the QIDO-RS request
     pub async fn run(&self) -> Result<Vec<InMemDicomObject>, DicomWebError> {
         let mut query: Vec<(String, String)> = vec![];
         if let Some(limit) = self.limit {
@@ -95,26 +99,33 @@ impl QidoRequest {
             .collect())
     }
 
+    /// Set the maximum number of results to return. Will be passed as a query parameter.
+    /// This is useful for pagination.
     pub fn with_limit(&mut self, limit: u32) -> &mut Self {
         self.limit = Some(limit);
         self
     }
 
+    /// Set the offset of the results to return. Will be passed as a query parameter.
+    /// This is useful for pagination.
     pub fn with_offset(&mut self, offset: u32) -> &mut Self {
         self.offset = Some(offset);
         self
     }
 
+    /// Set the tags that should be queried. Will be passed as a query parameter.
     pub fn with_includefields(&mut self, includefields: Vec<Tag>) -> &mut Self {
         self.includefields = includefields;
         self
     }
 
+    /// Set whether fuzzy matching should be used. Will be passed as a query parameter.
     pub fn with_fuzzymatching(&mut self, fuzzymatching: bool) -> &mut Self {
         self.fuzzymatching = Some(fuzzymatching);
         self
     }
 
+    /// Add a filter to the query. Will be passed as a query parameter.
     pub fn with_filter(&mut self, tag: Tag, value: String) -> &mut Self {
         self.filters.push((tag, value));
         self
@@ -122,6 +133,7 @@ impl QidoRequest {
 }
 
 impl DicomWebClient {
+    /// Create a QIDO-RS request to query all studies
     pub fn query_studies(&self) -> QidoRequest {
         let base_url = &self.qido_url;
         let url = format!("{base_url}/studies");
@@ -129,6 +141,7 @@ impl DicomWebClient {
         QidoRequest::new(self.clone(), url)
     }
 
+    /// Create a QIDO-RS request to query all series
     pub fn query_series(&self) -> QidoRequest {
         let base_url = &self.qido_url;
         let url = format!("{base_url}/series");
@@ -136,6 +149,7 @@ impl DicomWebClient {
         QidoRequest::new(self.clone(), url)
     }
 
+    /// Create a QIDO-RS request to query all series in a specific study
     pub fn query_series_in_study(&self, study_instance_uid: &str) -> QidoRequest {
         let base_url = &self.qido_url;
         let url = format!("{base_url}/studies/{study_instance_uid}/series");
@@ -143,6 +157,7 @@ impl DicomWebClient {
         QidoRequest::new(self.clone(), url)
     }
 
+    /// Create a QIDO-RS request to query all instances
     pub fn query_instances(&self) -> QidoRequest {
         let base_url = &self.qido_url;
         let url = format!("{base_url}/instances");
@@ -150,6 +165,7 @@ impl DicomWebClient {
         QidoRequest::new(self.clone(), url)
     }
 
+    /// Create a QIDO-RS request to query all instances in a specific series
     pub fn query_instances_in_series(
         &self,
         study_instance_uid: &str,

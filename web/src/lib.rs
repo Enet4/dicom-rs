@@ -1,3 +1,53 @@
+//! This crate contains a DICOMweb client for querying and retrieving DICOM objects.
+//!
+//! It supports the QIDO-RS and WADO-RS DICOMweb services, which are used to query and retrieve DICOM objects respectively.
+//! As of now, the STOW-RS service is not supported.
+//! The HTTP requests are made using the reqwest crate, which is a high-level HTTP client for Rust.
+//!
+//! # Examples
+//!
+//! Query all studies from a DICOMweb server (with authentication):
+//!
+//! ```no_run
+//! use dicom_dictionary_std::tags;
+//! use dicom_web::DicomWebClient;
+//!
+//! async fn foo()
+//! {
+//!   let mut client = DicomWebClient::with_single_url("http://localhost:8042");
+//!   client.set_basic_auth("orthanc", "orthanc");
+//!
+//!   let studies = client.query_studies().run().await.unwrap();
+//!
+//!   for study in studies {
+//!       let study_instance_uid = study.element(tags::STUDY_INSTANCE_UID).unwrap().to_str().unwrap();
+//!       println!("Study: {}", study_instance_uid);
+//!   }
+//! }
+//! ```
+//!
+//! To retrieve a DICOM study from a DICOMweb server:
+//! ```no_run
+//! use dicom_dictionary_std::tags;
+//! use dicom_web::DicomWebClient;
+//! use futures_util::StreamExt;
+//!
+//! async fn foo()
+//! {
+//!   let mut client = DicomWebClient::with_single_url("http://localhost:8042");
+//!   client.set_basic_auth("orthanc", "orthanc");
+//!   
+//!   let study_instance_uid = "1.2.276.0.89.300.10035584652.20181014.93645";
+//!   
+//!   let mut study_objects = client.retrieve_study(study_instance_uid).run().await.unwrap();
+//!
+//!   while let Some(object) = study_objects.next().await {
+//!       let object = object.unwrap();
+//!       let sop_instance_uid = object.element(tags::SOP_INSTANCE_UID).unwrap().to_str().unwrap();
+//!       println!("Instance: {}", sop_instance_uid);
+//!   }
+//! }
+//! ```
 use multipart_rs::MultipartType;
 use reqwest::StatusCode;
 use snafu::Snafu;
@@ -5,6 +55,8 @@ use snafu::Snafu;
 mod qido;
 mod wado;
 
+/// The DICOMweb client for querying and retrieving DICOM objects.
+/// Can be reused for multiple requests.
 #[derive(Debug, Clone)]
 pub struct DicomWebClient {
     wado_url: String,
@@ -49,17 +101,20 @@ pub enum DicomWebError {
 }
 
 impl DicomWebClient {
+    /// Set the basic authentication for the DICOMWeb client. Will be passed in the Authorization header.
     pub fn set_basic_auth(&mut self, username: &str, password: &str) -> &Self {
         self.username = Some(username.to_string());
         self.password = Some(password.to_string());
         self
     }
 
+    /// Set the bearer token for the DICOMWeb client. Will be passed in the Authorization header.
     pub fn set_bearer_token(&mut self, token: &str) -> &Self {
         self.bearer_token = Some(token.to_string());
         self
     }
 
+    /// Create a new DICOMWeb client with the same URL for all services (WADO-RS, QIDO-RS, STOW-RS).
     pub fn with_single_url(url: &str) -> DicomWebClient {
         DicomWebClient {
             wado_url: url.to_string(),
@@ -72,6 +127,7 @@ impl DicomWebClient {
         }
     }
 
+    /// Create a new DICOMWeb client with separate URLs for each service.
     pub fn with_separate_urls(wado_url: &str, qido_url: &str, stow_url: &str) -> DicomWebClient {
         DicomWebClient {
             wado_url: wado_url.to_string(),
