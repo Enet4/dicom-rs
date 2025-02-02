@@ -631,7 +631,8 @@ mod tests {
         assert!(
             size <= max_size,
             "GetAttributeError size is too large ({} > {})",
-            size, max_size
+            size,
+            max_size
         );
     }
 
@@ -753,5 +754,34 @@ mod tests {
             DataSetSequence::from(els),
         ));
         assert_eq!(rescale_intercept(&dcm), exp);
+    }
+
+    #[test]
+    fn get_required_field_with_fallback() {
+        let mut dcm = dummy_dicom();
+
+        // Set RescaleIntercept under SharedFunctionalGroupsSequence
+        dcm.apply(AttributeOp::new(
+            (
+                tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
+                0,
+                tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
+                0,
+                tags::RESCALE_INTERCEPT,
+            ),
+            AttributeAction::Set(dicom_value!(F64, 3.0)),
+        ))
+        .unwrap();
+        // Check the fn returns the correct value
+        assert_eq!(rescale_intercept(&dcm), vec![3.0]);
+
+        // Add a PerFrameFunctionalGroupsSequence with no entry for RescaleIntercept
+        dcm.put(DataElement::new(
+            tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE,
+            VR::SQ,
+            DataSetSequence::from(vec![]),
+        ));
+        // Check the fn still returns the correct value, falling back to SharedFunctionalGroupsSequence
+        assert_eq!(rescale_intercept(&dcm), vec![3.0]);
     }
 }
