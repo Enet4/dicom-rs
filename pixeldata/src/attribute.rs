@@ -639,8 +639,7 @@ mod tests {
         assert!(
             size <= max_size,
             "GetAttributeError size is too large ({} > {})",
-            size,
-            max_size
+            size, max_size
         );
     }
 
