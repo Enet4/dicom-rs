@@ -183,32 +183,25 @@ fn get_from_shared<D: DataDictionary + Clone>(
                 .get(selector[1])
         })
         .map(std::iter::once);
-    if let Some(items) = items {
+
+    items.and_then(|items| {
         let mut peekable = items.peekable();
-        match peekable.peek() {
-            Some(_) => Some(peekable),
-            None => None,
-        }
-    } else {
-        None
-    }
+        peekable.peek().is_some().then_some(peekable)
+    })
 }
 
 fn get_from_per_frame<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
     selector: [Tag; 2],
 ) -> Option<impl Iterator<Item = &InMemElement<D>>> {
-    let items = obj
+    let mut items = obj
         .get(tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE)?
         .items()?
         .iter()
-        .filter_map(move |item| item.get(selector[0])?.items()?.first()?.get(selector[1]));
+        .filter_map(move |item| item.get(selector[0])?.items()?.first()?.get(selector[1]))
+        .peekable();
 
-    let mut peekable = items.peekable();
-    match peekable.peek() {
-        Some(_) => Some(peekable),
-        None => None,
-    }
+    items.peek().is_some().then_some(items)
 }
 
 /// Get the RescaleIntercept from the DICOM object or returns 0
@@ -646,7 +639,8 @@ mod tests {
         assert!(
             size <= max_size,
             "GetAttributeError size is too large ({} > {})",
-            size, max_size
+            size,
+            max_size
         );
     }
 
