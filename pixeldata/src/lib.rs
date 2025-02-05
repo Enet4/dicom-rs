@@ -2274,7 +2274,11 @@ where
                     * cols as usize;
                 let frame_offset = frame_size * frame as usize;
                 let data = p.to_bytes();
-                data[frame_offset..frame_offset + frame_size].to_vec()
+                data.get(frame_offset..frame_offset + frame_size)
+                    .with_context(|| FrameOutOfRangeSnafu {
+                        frame_number: frame,
+                    })?
+                    .to_vec()
             }
             DicomValue::Sequence(..) => InvalidPixelDataSnafu.fail()?,
         };
