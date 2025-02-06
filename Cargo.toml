@@ -23,6 +23,7 @@ members = [
     "toimage",
     "transfer-syntax-registry",
     "ul",
+    "web",
 ]
 
 # use edition 2021 resolver
