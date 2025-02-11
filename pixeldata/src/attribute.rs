@@ -771,9 +771,7 @@ mod tests {
         dcm.apply(AttributeOp::new(
             (
                 tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
-                0,
                 tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
-                0,
                 tags::RESCALE_INTERCEPT,
             ),
             AttributeAction::Set(dicom_value!(F64, 3.0)),
