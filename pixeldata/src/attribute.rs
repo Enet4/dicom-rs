@@ -168,7 +168,8 @@ fn get_from_shared<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
     selector: [Tag; 2],
 ) -> Option<impl Iterator<Item = &InMemElement<D>>> {
-    obj.get(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE)?
+    let items = obj
+        .get(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE)?
         .items()?
         .first()?
         .get(selector[0])
@@ -181,19 +182,26 @@ fn get_from_shared<D: DataDictionary + Clone>(
                 .first()?
                 .get(selector[1])
         })
-        .map(std::iter::once)
+        .map(std::iter::once);
+
+    items.and_then(|items| {
+        let mut peekable = items.peekable();
+        peekable.peek().is_some().then_some(peekable)
+    })
 }
 
 fn get_from_per_frame<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
     selector: [Tag; 2],
 ) -> Option<impl Iterator<Item = &InMemElement<D>>> {
-    Some(
-        obj.get(tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE)?
-            .items()?
-            .iter()
-            .filter_map(move |item| item.get(selector[0])?.items()?.first()?.get(selector[1])),
-    )
+    let mut items = obj
+        .get(tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE)?
+        .items()?
+        .iter()
+        .filter_map(move |item| item.get(selector[0])?.items()?.first()?.get(selector[1]))
+        .peekable();
+
+    items.peek().is_some().then_some(items)
 }
 
 /// Get the RescaleIntercept from the DICOM object or returns 0
@@ -753,5 +761,32 @@ mod tests {
             DataSetSequence::from(els),
         ));
         assert_eq!(rescale_intercept(&dcm), exp);
+    }
+
+    #[test]
+    fn get_required_field_with_fallback() {
+        let mut dcm = dummy_dicom();
+
+        // Set RescaleIntercept under SharedFunctionalGroupsSequence
+        dcm.apply(AttributeOp::new(
+            (
+                tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
+                tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE,
+                tags::RESCALE_INTERCEPT,
+            ),
+            AttributeAction::Set(dicom_value!(F64, 3.0)),
+        ))
+        .unwrap();
+        // Check the fn returns the correct value
+        assert_eq!(rescale_intercept(&dcm), vec![3.0]);
+
+        // Add a PerFrameFunctionalGroupsSequence with no entry for RescaleIntercept
+        dcm.put(DataElement::new(
+            tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE,
+            VR::SQ,
+            DataSetSequence::from(vec![]),
+        ));
+        // Check the fn still returns the correct value, falling back to SharedFunctionalGroupsSequence
+        assert_eq!(rescale_intercept(&dcm), vec![3.0]);
     }
 }
