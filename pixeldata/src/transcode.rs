@@ -10,7 +10,7 @@ use dicom_core::{
     ops::ApplyOp, value::PixelFragmentSequence, DataDictionary, DataElement, Length,
     PrimitiveValue, VR,
 };
-use dicom_dictionary_std::tags;
+use dicom_dictionary_std::{tags, uids};
 use dicom_encoding::{adapters::EncodeOptions, Codec, TransferSyntax, TransferSyntaxIndex};
 use dicom_object::{FileDicomObject, InMemDicomObject};
 use dicom_transfer_syntax_registry::{entries::EXPLICIT_VR_LITTLE_ENDIAN, TransferSyntaxRegistry};
@@ -134,45 +134,18 @@ where
             }
             (false, true) => {
                 // decode pixel data
-                let decoded_pixeldata = self.decode_pixel_data().context(DecodePixelDataSnafu)?;
-
-                // apply change to pixel data attribute
-                match decoded_pixeldata.bits_allocated {
-                    8 => {
-                        // 8-bit samples
-                        let pixels = decoded_pixeldata.data().to_vec();
-                        self.put(DataElement::new_with_len(
-                            tags::PIXEL_DATA,
-                            VR::OW,
-                            Length::defined(pixels.len() as u32),
-                            PrimitiveValue::from(pixels),
-                        ));
-                    }
-                    16 => {
-                        // 16-bit samples
-                        let pixels = decoded_pixeldata.data_ow();
-                        self.put(DataElement::new_with_len(
-                            tags::PIXEL_DATA,
-                            VR::OW,
-                            Length::defined(pixels.len() as u32 * 2),
-                            PrimitiveValue::U16(pixels.into()),
-                        ));
-                    }
-                    _ => {
-                        return UnsupportedBitsAllocatedSnafu {
-                            bits_allocated: decoded_pixeldata.bits_allocated,
-                        }
-                        .fail()?
-                    }
-                }
-
-                // update transfer syntax
-                self.meta_mut().set_transfer_syntax(ts);
-
+                decode_inline(self, ts)?;
                 Ok(())
             }
-            (_, false) => {
-                // must decode then encode
+            // make some exceptions for transfer syntaxes
+            // which are best transcoded from encapsulated pixel data
+            (false, false)
+                if current_ts.uid() == uids::JPEG_BASELINE8_BIT
+                    && (ts.uid() == uids::JPEGXLJPEG_RECOMPRESSION
+                        || ts.uid() == uids::JPEGXL
+                        || ts.uid() == uids::JPEGXL_LOSSLESS) =>
+            {
+                // start by assuming that the codec can work with it as is
                 let writer = match ts.codec() {
                     Codec::EncapsulatedPixelData(_, Some(writer)) => writer,
                     Codec::EncapsulatedPixelData(..) => {
@@ -186,87 +159,181 @@ where
                     }
                 };
 
-                // decode pixel data
-                let decoded_pixeldata = self.decode_pixel_data().context(DecodePixelDataSnafu)?;
-                let bits_allocated = decoded_pixeldata.bits_allocated();
-
-                // apply change to pixel data attribute
-                match bits_allocated {
-                    8 => {
-                        // 8-bit samples
-                        let pixels = decoded_pixeldata.data().to_vec();
-                        self.put(DataElement::new_with_len(
-                            tags::PIXEL_DATA,
-                            VR::OW,
-                            Length::defined(pixels.len() as u32),
-                            PrimitiveValue::from(pixels),
-                        ));
-                    }
-                    16 => {
-                        // 16-bit samples
-                        let pixels = decoded_pixeldata.data_ow();
-                        self.put(DataElement::new_with_len(
-                            tags::PIXEL_DATA,
-                            VR::OW,
-                            Length::defined(pixels.len() as u32 * 2),
-                            PrimitiveValue::U16(pixels.into()),
-                        ));
-                    }
-                    _ => return UnsupportedBitsAllocatedSnafu { bits_allocated }.fail()?,
-                };
-
-                // change transfer syntax to Explicit VR little endian
-                self.meta_mut()
-                    .set_transfer_syntax(&EXPLICIT_VR_LITTLE_ENDIAN);
-
-                // use RWPixel adapter API
                 let mut offset_table = Vec::new();
                 let mut fragments = Vec::new();
 
-                let ops = writer
-                    .encode(&*self, options, &mut fragments, &mut offset_table)
-                    .context(EncodePixelDataSnafu)?;
+                match writer.encode(&*self, options.clone(), &mut fragments, &mut offset_table) {
+                    Ok(ops) => {
+                        // success!
+                        let num_frames = offset_table.len();
+                        let total_pixeldata_len: u64 =
+                            fragments.iter().map(|f| f.len() as u64).sum();
 
-                let num_frames = offset_table.len();
-                let total_pixeldata_len: u64 = fragments.iter().map(|f| f.len() as u64).sum();
+                        self.put(DataElement::new_with_len(
+                            tags::PIXEL_DATA,
+                            VR::OB,
+                            Length::UNDEFINED,
+                            PixelFragmentSequence::new(offset_table, fragments),
+                        ));
 
-                self.put(DataElement::new_with_len(
-                    tags::PIXEL_DATA,
-                    VR::OB,
-                    Length::UNDEFINED,
-                    PixelFragmentSequence::new(offset_table, fragments),
-                ));
+                        self.put(DataElement::new(
+                            tags::NUMBER_OF_FRAMES,
+                            VR::IS,
+                            num_frames.to_string(),
+                        ));
 
-                self.put(DataElement::new(
-                    tags::NUMBER_OF_FRAMES,
-                    VR::IS,
-                    num_frames.to_string(),
-                ));
+                        // provide Encapsulated Pixel Data Value Total Length
+                        self.put(DataElement::new(
+                            tags::ENCAPSULATED_PIXEL_DATA_VALUE_TOTAL_LENGTH,
+                            VR::UV,
+                            PrimitiveValue::from(total_pixeldata_len),
+                        ));
 
-                // provide Encapsulated Pixel Data Value Total Length
-                self.put(DataElement::new(
-                    tags::ENCAPSULATED_PIXEL_DATA_VALUE_TOTAL_LENGTH,
-                    VR::UV,
-                    PrimitiveValue::from(total_pixeldata_len),
-                ));
-
-                // try to apply operations
-                for (n, op) in ops.into_iter().enumerate() {
-                    match self.apply(op) {
-                        Ok(_) => (),
-                        Err(e) => {
-                            tracing::warn!("Could not apply transcoding step #{}: {}", n, e)
+                        // try to apply operations
+                        for (n, op) in ops.into_iter().enumerate() {
+                            match self.apply(op) {
+                                Ok(_) => (),
+                                Err(e) => {
+                                    tracing::warn!("Could not apply transcoding step #{}: {}", n, e)
+                                }
+                            }
                         }
+
+                        // change transfer syntax
+                        self.meta_mut().set_transfer_syntax(ts);
+
+                        Ok(())
                     }
+                    Err(dicom_encoding::adapters::EncodeError::NotNative) => {
+                        // not supported after all, fall back
+                        return decode_and_encode(self, ts, options);
+                    }
+                    Err(e) => Err(e),
                 }
-
-                // change transfer syntax
-                self.meta_mut().set_transfer_syntax(ts);
-
+                .context(EncodePixelDataSnafu)?;
                 Ok(())
+            }
+            (_, false) => {
+                // must decode then encode
+                decode_and_encode(self, ts, options)
             }
         }
     }
+}
+
+/// decode and override pixel data to native form
+/// (`ts` must be a native pixel data transfer syntax)
+fn decode_inline<D, T, U, V>(
+    obj: &mut FileDicomObject<InMemDicomObject<D>>,
+    ts: &TransferSyntax<T, U, V>,
+) -> Result<()>
+where
+    D: Clone + DataDictionary,
+{
+    // decode pixel data
+    let decoded_pixeldata = obj.decode_pixel_data().context(DecodePixelDataSnafu)?;
+    let bits_allocated = decoded_pixeldata.bits_allocated();
+
+    // apply change to pixel data attribute
+    match bits_allocated {
+        8 => {
+            // 8-bit samples
+            let pixels = decoded_pixeldata.data().to_vec();
+            obj.put(DataElement::new_with_len(
+                tags::PIXEL_DATA,
+                VR::OW,
+                Length::defined(pixels.len() as u32),
+                PrimitiveValue::from(pixels),
+            ));
+        }
+        16 => {
+            // 16-bit samples
+            let pixels = decoded_pixeldata.data_ow();
+            obj.put(DataElement::new_with_len(
+                tags::PIXEL_DATA,
+                VR::OW,
+                Length::defined(pixels.len() as u32 * 2),
+                PrimitiveValue::U16(pixels.into()),
+            ));
+        }
+        _ => return UnsupportedBitsAllocatedSnafu { bits_allocated }.fail()?,
+    };
+
+    // change transfer syntax to Explicit VR little endian
+    obj.meta_mut().set_transfer_syntax(ts);
+
+    Ok(())
+}
+
+/// the impl of transcoding which decodes encapsulated pixel data to native
+/// and then encodes it to the target transfer syntax
+fn decode_and_encode<D>(
+    obj: &mut FileDicomObject<InMemDicomObject<D>>,
+    ts: &TransferSyntax,
+    options: EncodeOptions,
+) -> Result<()>
+where
+    D: Clone + DataDictionary,
+{
+    let writer = match ts.codec() {
+        Codec::EncapsulatedPixelData(_, Some(writer)) => writer,
+        Codec::EncapsulatedPixelData(..) => return UnsupportedTransferSyntaxSnafu.fail()?,
+        Codec::Dataset(None) => return UnsupportedTransferSyntaxSnafu.fail()?,
+        Codec::Dataset(Some(_)) => return UnsupportedTranscodingSnafu.fail()?,
+        Codec::None => {
+            // already tested in `is_codec_free`
+            unreachable!("Unexpected codec from transfer syntax")
+        }
+    };
+
+    // decode pixel data
+    decode_inline(obj, &EXPLICIT_VR_LITTLE_ENDIAN)?;
+
+    // use pixel data writer API
+    let mut offset_table = Vec::new();
+    let mut fragments = Vec::new();
+
+    let ops = writer
+        .encode(&*obj, options, &mut fragments, &mut offset_table)
+        .context(EncodePixelDataSnafu)?;
+
+    let num_frames = offset_table.len();
+    let total_pixeldata_len: u64 = fragments.iter().map(|f| f.len() as u64).sum();
+
+    obj.put(DataElement::new_with_len(
+        tags::PIXEL_DATA,
+        VR::OB,
+        Length::UNDEFINED,
+        PixelFragmentSequence::new(offset_table, fragments),
+    ));
+
+    obj.put(DataElement::new(
+        tags::NUMBER_OF_FRAMES,
+        VR::IS,
+        num_frames.to_string(),
+    ));
+
+    // provide Encapsulated Pixel Data Value Total Length
+    obj.put(DataElement::new(
+        tags::ENCAPSULATED_PIXEL_DATA_VALUE_TOTAL_LENGTH,
+        VR::UV,
+        PrimitiveValue::from(total_pixeldata_len),
+    ));
+
+    // try to apply operations
+    for (n, op) in ops.into_iter().enumerate() {
+        match obj.apply(op) {
+            Ok(_) => (),
+            Err(e) => {
+                tracing::warn!("Could not apply transcoding step #{}: {}", n, e)
+            }
+        }
+    }
+
+    // change transfer syntax
+    obj.meta_mut().set_transfer_syntax(ts);
+
+    Ok(())
 }
 
 #[cfg(test)]
