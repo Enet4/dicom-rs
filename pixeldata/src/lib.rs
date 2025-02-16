@@ -682,7 +682,7 @@ impl DecodedPixelData<'_> {
                             self.number_of_frames,
                             len
                         );
-                        Ok(Some(&inner[0..0]))
+                        Ok(Some(&inner[0..1]))
                     }
                 }
             }
