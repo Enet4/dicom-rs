@@ -626,7 +626,7 @@ pub fn photometric_interpretation<D: DataDictionary + Clone>(
 ///
 /// See [section C.8.11.3.1.5][1] of the standard for more details.
 ///
-/// [1]: https://dicom.nema.org/dicom/2013/output/chtml/part03/sect_C.8.html#sect_C.8.11.3.1.5
+/// [1]: https://dicom.nema.org/medical/dicom/2024d/output/chtml/part03/sect_C.8.11.3.html#sect_C.8.11.3.1.5
 #[derive(Clone, Debug)]
 pub struct VoiLut {
     /// Minimum pixel value to be mapped. All values below this should be mapped
@@ -734,6 +734,11 @@ fn parse_voi_lut_entry<D: DataDictionary + Clone>(entry: &InMemDicomObject<D>) -
     })
 }
 
+/// Get the VOI LUT Sequence from the DICOM object
+///
+/// This function will look for the _VOI LUT Sequence_ (0028,3010) attribute
+/// at the root, then the per frame functional groups,
+/// and then the shared functional group.
 pub fn voi_lut_sequence<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Option<Vec<VoiLut>> {

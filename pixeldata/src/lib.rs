@@ -660,6 +660,7 @@ impl DecodedPixelData<'_> {
         }
     }
 
+    /// Retrieve the VOI LUT sequence defined by the object, if any
     pub fn voi_lut_sequence(&self) -> Result<Option<&[VoiLut]>> {
         if let Some(inner) = &self.voi_lut_sequence {
             match &inner.len() {
