@@ -1,12 +1,14 @@
 //! Handling of DICOM values with the PN (person name) value representation
 //! as per PS3.5 sect 6.2.
+use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
+use std::mem;
 
 /// A DICOM _Person Name_ (PN value representation).
 ///
 /// Values of this type keep
 /// family name, given name, middle name, prefix and suffix
-/// as borrowed values.
+/// as possibly borrowed values.
 /// All name components are optional.
 ///
 /// # Example
@@ -22,13 +24,13 @@ use std::fmt::{Display, Formatter};
 /// assert_eq!(dr_seuss.prefix(), Some("Dr."));
 /// assert_eq!(dr_seuss.given(), Some("Theodor"));
 /// ```
-#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub struct PersonName<'a> {
-    prefix: Option<&'a str>,
-    family: Option<&'a str>,
-    middle: Option<&'a str>,
-    given: Option<&'a str>,
-    suffix: Option<&'a str>,
+    prefix: Option<Cow<'a, str>>,
+    family: Option<Cow<'a, str>>,
+    middle: Option<Cow<'a, str>>,
+    given: Option<Cow<'a, str>>,
+    suffix: Option<Cow<'a, str>>,
 }
 
 /// A builder to construct a [`PersonName`] from its components.
@@ -43,22 +45,22 @@ pub struct PersonName<'a> {
 ///     .build();
 /// assert_eq!(&ivan.to_dicom_string(), "Levanov^Ivan");
 /// ```
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct PersonNameBuilder<'a> {
     person_name: PersonName<'a>,
 }
 
 impl Display for PersonName<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let components: &[Option<&str>] = &[
-            self.prefix,
-            self.given,
-            self.middle,
-            self.family,
-            self.suffix,
+        let components = &[
+            &self.prefix,
+            &self.given,
+            &self.middle,
+            &self.family,
+            &self.suffix,
         ];
 
-        let mut c_iter = components.iter().flatten().peekable();
+        let mut c_iter = components.iter().copied().flatten().peekable();
 
         while let Some(component) = c_iter.next() {
             if c_iter.peek().is_some() {
@@ -74,23 +76,23 @@ impl Display for PersonName<'_> {
 impl<'a> PersonName<'a> {
     /// Retrieve PersonName prefix
     pub fn prefix(&self) -> Option<&str> {
-        self.prefix
+        self.prefix.as_deref()
     }
     /// Retrieve PersonName suffix
     pub fn suffix(&self) -> Option<&str> {
-        self.suffix
+        self.suffix.as_deref()
     }
     /// Retrieve family name from PersonName
     pub fn family(&self) -> Option<&str> {
-        self.family
+        self.family.as_deref()
     }
     /// Retrieve given name from PersonName
     pub fn given(&self) -> Option<&str> {
-        self.given
+        self.given.as_deref()
     }
     /// Retrieve middle name from PersonName
     pub fn middle(&self) -> Option<&str> {
-        self.middle
+        self.middle.as_deref()
     }
     /// Convert the person name into a DICOM formatted string.
     ///
@@ -100,12 +102,12 @@ impl<'a> PersonName<'a> {
     pub fn to_dicom_string(&self) -> String {
         let mut name = String::new();
 
-        let components: &[Option<&str>] = &[
-            self.family,
-            self.given,
-            self.middle,
-            self.prefix,
-            self.suffix,
+        let components = &[
+            &self.family,
+            &self.given,
+            &self.middle,
+            &self.prefix,
+            &self.suffix,
         ];
 
         let mut it = components.iter().rev().peekable();
@@ -138,7 +140,7 @@ impl<'a> PersonName<'a> {
             () => {
                 parts
                     .next()
-                    .and_then(|s| if s.is_empty() { None } else { Some(s) })
+                    .and_then(|s| if s.is_empty() { None } else { Some(s.into()) })
             };
         }
 
@@ -179,38 +181,41 @@ impl<'a> PersonNameBuilder<'a> {
     }
 
     /// Insert or update the family name component.
-    pub fn with_family(&mut self, family_name: &'a str) -> &mut Self {
-        self.person_name.family = Some(family_name);
+    pub fn with_family(&mut self, family_name: impl Into<Cow<'a, str>>) -> &mut Self {
+        self.person_name.family = Some(family_name.into());
         self
     }
 
     /// Insert or update the middle name component.
-    pub fn with_middle(&mut self, middle_name: &'a str) -> &mut Self {
-        self.person_name.middle = Some(middle_name);
+    pub fn with_middle(&mut self, middle_name: impl Into<Cow<'a, str>>) -> &mut Self {
+        self.person_name.middle = Some(middle_name.into());
         self
     }
 
     /// Insert or update the given name component.
-    pub fn with_given(&mut self, given_name: &'a str) -> &mut Self {
-        self.person_name.given = Some(given_name);
+    pub fn with_given(&mut self, given_name: impl Into<Cow<'a, str>>) -> &mut Self {
+        self.person_name.given = Some(given_name.into());
         self
     }
 
     /// Insert or update the prefix component.
-    pub fn with_prefix(&mut self, name_prefix: &'a str) -> &mut Self {
-        self.person_name.prefix = Some(name_prefix);
+    pub fn with_prefix(&mut self, name_prefix: impl Into<Cow<'a, str>>) -> &mut Self {
+        self.person_name.prefix = Some(name_prefix.into());
         self
     }
 
     /// Insert or update the suffix component.
-    pub fn with_suffix(&mut self, name_suffix: &'a str) -> &mut Self {
-        self.person_name.suffix = Some(name_suffix);
+    pub fn with_suffix(&mut self, name_suffix: impl Into<Cow<'a, str>>) -> &mut Self {
+        self.person_name.suffix = Some(name_suffix.into());
         self
     }
 
     /// Builds the person name with the accumulated components.
-    pub fn build(&self) -> PersonName<'a> {
-        self.person_name
+    ///
+    /// This operation consumes the accumulated components, resetting the builder to
+    /// its default state.
+    pub fn build(&mut self) -> PersonName<'a> {
+        mem::take(self).person_name
     }
 }
 
@@ -221,7 +226,7 @@ impl Default for PersonNameBuilder<'_> {
 }
 
 impl<'a> From<PersonNameBuilder<'a>> for PersonName<'a> {
-    fn from(builder: PersonNameBuilder<'a>) -> Self {
+    fn from(mut builder: PersonNameBuilder<'a>) -> Self {
         builder.build()
     }
 }
@@ -249,11 +254,11 @@ mod tests {
         let p = PersonNameBuilder::new().with_suffix("B.A. M.Div.").build();
         assert_eq!(p.to_dicom_string(), "^^^^B.A. M.Div.".to_string());
         let p = PersonName {
-            prefix: Some("Rev."),
-            given: Some("John"),
-            middle: Some("Robert"),
-            family: Some("Adams"),
-            suffix: Some("B.A. M.Div."),
+            prefix: Some("Rev.".into()),
+            given: Some("John".into()),
+            middle: Some("Robert".into()),
+            family: Some("Adams".into()),
+            suffix: Some("B.A. M.Div.".into()),
         };
         assert_eq!(
             p.to_dicom_string(),
@@ -261,28 +266,28 @@ mod tests {
         );
         let p = PersonName {
             prefix: None,
-            given: Some("John"),
-            middle: Some("Robert"),
-            family: Some("Adams"),
-            suffix: Some("B.A. M.Div."),
+            given: Some("John".into()),
+            middle: Some("Robert".into()),
+            family: Some("Adams".into()),
+            suffix: Some("B.A. M.Div.".into()),
         };
         assert_eq!(
             p.to_dicom_string(),
             "Adams^John^Robert^^B.A. M.Div.".to_string()
         );
         let p = PersonName {
-            prefix: Some("Rev."),
-            given: Some("John"),
-            middle: Some("Robert"),
-            family: Some("Adams"),
+            prefix: Some("Rev.".into()),
+            given: Some("John".into()),
+            middle: Some("Robert".into()),
+            family: Some("Adams".into()),
             suffix: None,
         };
         assert_eq!(p.to_dicom_string(), "Adams^John^Robert^Rev.".to_string());
         let p = PersonName {
             prefix: None,
-            given: Some("John"),
-            middle: Some("Robert"),
-            family: Some("Adams"),
+            given: Some("John".into()),
+            middle: Some("Robert".into()),
+            family: Some("Adams".into()),
             suffix: None,
         };
         assert_eq!(p.to_dicom_string(), "Adams^John^Robert".to_string());
@@ -303,11 +308,11 @@ mod tests {
         let p = PersonName::builder().with_suffix("B.A. M.Div.").build();
         assert_eq!(p.to_string(), "B.A. M.Div.".to_string());
         let p = PersonName {
-            prefix: Some("Rev."),
-            given: Some("John"),
-            middle: Some("Robert"),
-            family: Some("Adams"),
-            suffix: Some("B.A. M.Div."),
+            prefix: Some("Rev.".into()),
+            given: Some("John".into()),
+            middle: Some("Robert".into()),
+            family: Some("Adams".into()),
+            suffix: Some("B.A. M.Div.".into()),
         };
         assert_eq!(
             p.to_string(),
@@ -315,25 +320,25 @@ mod tests {
         );
         let p = PersonName {
             prefix: None,
-            given: Some("John"),
-            middle: Some("Robert"),
-            family: Some("Adams"),
-            suffix: Some("B.A. M.Div."),
+            given: Some("John".into()),
+            middle: Some("Robert".into()),
+            family: Some("Adams".into()),
+            suffix: Some("B.A. M.Div.".into()),
         };
         assert_eq!(p.to_string(), "John Robert Adams B.A. M.Div.".to_string());
         let p = PersonName {
-            prefix: Some("Rev."),
-            given: Some("John"),
-            middle: Some("Robert"),
-            family: Some("Adams"),
+            prefix: Some("Rev.".into()),
+            given: Some("John".into()),
+            middle: Some("Robert".into()),
+            family: Some("Adams".into()),
             suffix: None,
         };
         assert_eq!(p.to_string(), "Rev. John Robert Adams".to_string());
         let p = PersonName {
             prefix: None,
-            given: Some("John"),
-            middle: Some("Robert"),
-            family: Some("Adams"),
+            given: Some("John".into()),
+            middle: Some("Robert".into()),
+            family: Some("Adams".into()),
             suffix: None,
         };
         assert_eq!(p.to_string(), "John Robert Adams".to_string());
@@ -378,19 +383,19 @@ mod tests {
             PersonName {
                 prefix: None,
                 given: None,
-                middle: Some("Robert"),
-                family: Some("Adams"),
-                suffix: Some("B.A. M.Div."),
+                middle: Some("Robert".into()),
+                family: Some("Adams".into()),
+                suffix: Some("B.A. M.Div.".into()),
             }
         );
         assert_eq!(
             PersonName::from_text("Adams^John^Robert^Rev.^B.A. M.Div."),
             PersonName {
-                prefix: Some("Rev."),
-                given: Some("John"),
-                middle: Some("Robert"),
-                family: Some("Adams"),
-                suffix: Some("B.A. M.Div."),
+                prefix: Some("Rev.".into()),
+                given: Some("John".into()),
+                middle: Some("Robert".into()),
+                family: Some("Adams".into()),
+                suffix: Some("B.A. M.Div.".into()),
             }
         );
         assert_eq!(
@@ -399,7 +404,7 @@ mod tests {
                 prefix: None,
                 given: None,
                 middle: None,
-                family: Some("Adams"),
+                family: Some("Adams".into()),
                 suffix: None,
             }
         );
