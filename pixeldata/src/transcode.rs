@@ -138,12 +138,16 @@ where
                 Ok(())
             }
             // make some exceptions for transfer syntaxes
-            // which are best transcoded from encapsulated pixel data
+            // which are best transcoded from encapsulated pixel data:
+            // - JPEG baseline -> JPEG XL * (can recompress JPEG)
+            // - JPEG XL recompression -> JPEG baseline (can do lossless conversion)
             (false, false)
-                if current_ts.uid() == uids::JPEG_BASELINE8_BIT
+                if (current_ts.uid() == uids::JPEG_BASELINE8_BIT
                     && (ts.uid() == uids::JPEGXLJPEG_RECOMPRESSION
                         || ts.uid() == uids::JPEGXL
-                        || ts.uid() == uids::JPEGXL_LOSSLESS) =>
+                        || ts.uid() == uids::JPEGXL_LOSSLESS))
+                    || (current_ts.uid() == uids::JPEGXLJPEG_RECOMPRESSION
+                        && ts.uid() == uids::JPEG_BASELINE8_BIT) =>
             {
                 // start by assuming that the codec can work with it as is
                 let writer = match ts.codec() {
