@@ -371,7 +371,7 @@ fn narrow_8bit(frame_data: &[u8], bits_stored: u16) -> EncodeResult<Cow<[u8]>> {
         9..=16 => {
             let mut v = Vec::with_capacity(frame_data.len() / 2);
             for chunk in frame_data.chunks(2) {
-                let b = u16::from(chunk[0]) | u16::from(chunk[1]) << 8;
+                let b = u16::from(chunk[0]) | (u16::from(chunk[1]) << 8);
                 v.push((b >> (bits_stored - 8)) as u8);
             }
             Ok(Cow::Owned(v))

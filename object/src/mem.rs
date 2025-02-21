@@ -890,7 +890,7 @@ where
         let private_creator = self.find_private_creator(group, creator);
         if let Some(tag) = private_creator {
             // Private creator already exists
-            let tag = Tag(group, tag.element() << 8 | (element as u16));
+            let tag = Tag(group, (tag.element() << 8) | element as u16);
             Ok(self.put_element(DataElement::new(tag, vr, value)))
         } else {
             // Find last reserved block of tags.
@@ -906,7 +906,7 @@ where
                 self.put_str(tag, VR::LO, creator);
 
                 // Put private element
-                let tag = Tag(group, next_available << 8 | (element as u16));
+                let tag = Tag(group, (next_available << 8) | element as u16);
                 Ok(self.put_element(DataElement::new(tag, vr, value)))
             } else {
                 NoSpaceSnafu { group }.fail()
