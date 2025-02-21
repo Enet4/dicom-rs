@@ -1,9 +1,10 @@
 //! A CLI tool for inspecting the contents of a DICOM file
 //! by printing it in a human readable format.
 use clap::Parser;
+use dicom_core::Tag;
 use dicom_dictionary_std::tags;
 use dicom_dump::{ColorMode, DumpOptions, DumpFormat};
-use dicom_object::open_file;
+use dicom_object::{OpenFileOptions, StandardDataDictionary};
 use snafu::{Report, Whatever};
 use std::io::{ErrorKind, IsTerminal};
 use std::path::PathBuf;
@@ -21,6 +22,9 @@ struct App {
     /// The DICOM file(s) to read
     #[clap(required = true)]
     files: Vec<PathBuf>,
+    /// Read the file up to this tag
+    #[clap(long = "until", value_parser = parse_tag)]
+    read_until: Option<Tag>,
     /// Print text values to the end
     /// (limited to `width` by default).
     /// 
@@ -51,6 +55,11 @@ struct App {
     format: DumpFormat,
 }
 
+fn parse_tag(s: &str) -> Result<Tag, &'static str> {
+    use dicom_core::dictionary::DataDictionary as _;
+    StandardDataDictionary.parse_tag(s).ok_or("invalid tag")
+}
+
 fn is_terminal() -> bool {
     std::io::stdout().is_terminal()
 }
@@ -65,6 +74,7 @@ fn main() {
 fn run() -> Result<(), Whatever> {
     let App {
         files: filenames,
+        read_until,
         no_text_limit,
         no_limit,
         width,
@@ -91,7 +101,13 @@ fn run() -> Result<(), Whatever> {
     for filename in &filenames {
         // Write filename to stderr to make piping easier, i.e. dicom-dump -o json file.dcm | jq
         eprintln!("{}: ", filename.display());
-        match open_file(filename) {
+
+        let open_options = match read_until {
+            Some(stop_tag) => OpenFileOptions::new().read_until(stop_tag),
+            None => OpenFileOptions::new(),
+        };
+
+        match open_options.open_file(filename) {
             Err(e) => {
                 eprintln!("{}", Report::from_error(e));
                 if fail_first {
