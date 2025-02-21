@@ -204,7 +204,7 @@ where
                         }
 
                         // change transfer syntax
-                        self.meta_mut().set_transfer_syntax(ts);
+                        self.update_meta(|meta| meta.set_transfer_syntax(ts));
 
                         Ok(())
                     }
@@ -264,7 +264,7 @@ where
     };
 
     // change transfer syntax to Explicit VR little endian
-    obj.meta_mut().set_transfer_syntax(ts);
+    obj.update_meta(|meta| meta.set_transfer_syntax(ts));
 
     Ok(())
 }
@@ -335,7 +335,7 @@ where
     }
 
     // change transfer syntax
-    obj.meta_mut().set_transfer_syntax(ts);
+    obj.update_meta(|meta| meta.set_transfer_syntax(ts));
 
     Ok(())
 }
