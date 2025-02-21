@@ -20,128 +20,112 @@ impl BasicDecode for LittleEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::le(source).read_u16().map_err(Into::into)
+        ByteOrdered::le(source).read_u16()
     }
 
     fn decode_us_into<S>(&self, source: S, target: &mut [u16]) -> Result<()>
     where
         S: Read,
     {
-        ByteOrdered::le(source)
-            .read_u16_into(target)
-            .map_err(Into::into)
+        ByteOrdered::le(source).read_u16_into(target)
     }
 
     fn decode_ul<S>(&self, source: S) -> Result<u32>
     where
         S: Read,
     {
-        ByteOrdered::le(source).read_u32().map_err(Into::into)
+        ByteOrdered::le(source).read_u32()
     }
 
     fn decode_ul_into<S>(&self, source: S, target: &mut [u32]) -> Result<()>
     where
         S: Read,
     {
-        ByteOrdered::le(source)
-            .read_u32_into(target)
-            .map_err(Into::into)
+        ByteOrdered::le(source).read_u32_into(target)
     }
 
     fn decode_uv<S>(&self, source: S) -> Result<u64>
     where
         S: Read,
     {
-        ByteOrdered::le(source).read_u64().map_err(Into::into)
+        ByteOrdered::le(source).read_u64()
     }
 
     fn decode_uv_into<S>(&self, source: S, target: &mut [u64]) -> Result<()>
     where
         S: Read,
     {
-        ByteOrdered::le(source)
-            .read_u64_into(target)
-            .map_err(Into::into)
+        ByteOrdered::le(source).read_u64_into(target)
     }
 
     fn decode_ss<S>(&self, source: S) -> Result<i16>
     where
         S: Read,
     {
-        ByteOrdered::le(source).read_i16().map_err(Into::into)
+        ByteOrdered::le(source).read_i16()
     }
 
     fn decode_ss_into<S>(&self, source: S, target: &mut [i16]) -> Result<()>
     where
         S: Read,
     {
-        ByteOrdered::le(source)
-            .read_i16_into(target)
-            .map_err(Into::into)
+        ByteOrdered::le(source).read_i16_into(target)
     }
 
     fn decode_sl<S>(&self, source: S) -> Result<i32>
     where
         S: Read,
     {
-        ByteOrdered::le(source).read_i32().map_err(Into::into)
+        ByteOrdered::le(source).read_i32()
     }
 
     fn decode_sl_into<S>(&self, source: S, target: &mut [i32]) -> Result<()>
     where
         S: Read,
     {
-        ByteOrdered::le(source)
-            .read_i32_into(target)
-            .map_err(Into::into)
+        ByteOrdered::le(source).read_i32_into(target)
     }
 
     fn decode_sv<S>(&self, source: S) -> Result<i64>
     where
         S: Read,
     {
-        ByteOrdered::le(source).read_i64().map_err(Into::into)
+        ByteOrdered::le(source).read_i64()
     }
 
     fn decode_sv_into<S>(&self, source: S, target: &mut [i64]) -> Result<()>
     where
         S: Read,
     {
-        ByteOrdered::le(source)
-            .read_i64_into(target)
-            .map_err(Into::into)
+        ByteOrdered::le(source).read_i64_into(target)
     }
 
     fn decode_fl<S>(&self, source: S) -> Result<f32>
     where
         S: Read,
     {
-        ByteOrdered::le(source).read_f32().map_err(Into::into)
+        ByteOrdered::le(source).read_f32()
     }
 
     fn decode_fl_into<S>(&self, source: S, target: &mut [f32]) -> Result<()>
     where
         S: Read,
     {
-        ByteOrdered::le(source)
-            .read_f32_into(target)
-            .map_err(Into::into)
+        ByteOrdered::le(source).read_f32_into(target)
     }
 
     fn decode_fd<S>(&self, source: S) -> Result<f64>
     where
         S: Read,
     {
-        ByteOrdered::le(source).read_f64().map_err(Into::into)
+        ByteOrdered::le(source).read_f64()
     }
 
     fn decode_fd_into<S>(&self, source: S, target: &mut [f64]) -> Result<()>
     where
         S: Read,
     {
-        ByteOrdered::le(source)
-            .read_f64_into(target)
-            .map_err(Into::into)
+        ByteOrdered::le(source).read_f64_into(target)
     }
 }
 
@@ -158,128 +142,112 @@ impl BasicDecode for BigEndianBasicDecoder {
     where
         S: Read,
     {
-        ByteOrdered::be(source).read_u16().map_err(Into::into)
+        ByteOrdered::be(source).read_u16()
     }
 
     fn decode_us_into<S>(&self, source: S, target: &mut [u16]) -> Result<()>
     where
         S: Read,
     {
-        ByteOrdered::be(source)
-            .read_u16_into(target)
-            .map_err(Into::into)
+        ByteOrdered::be(source).read_u16_into(target)
     }
 
     fn decode_ul<S>(&self, source: S) -> Result<u32>
     where
         S: Read,
     {
-        ByteOrdered::be(source).read_u32().map_err(Into::into)
+        ByteOrdered::be(source).read_u32()
     }
 
     fn decode_ul_into<S>(&self, source: S, target: &mut [u32]) -> Result<()>
     where
         S: Read,
     {
-        ByteOrdered::be(source)
-            .read_u32_into(target)
-            .map_err(Into::into)
+        ByteOrdered::be(source).read_u32_into(target)
     }
 
     fn decode_uv<S>(&self, source: S) -> Result<u64>
     where
         S: Read,
     {
-        ByteOrdered::be(source).read_u64().map_err(Into::into)
+        ByteOrdered::be(source).read_u64()
     }
 
     fn decode_uv_into<S>(&self, source: S, target: &mut [u64]) -> Result<()>
     where
         S: Read,
     {
-        ByteOrdered::be(source)
-            .read_u64_into(target)
-            .map_err(Into::into)
+        ByteOrdered::be(source).read_u64_into(target)
     }
 
     fn decode_ss<S>(&self, source: S) -> Result<i16>
     where
         S: Read,
     {
-        ByteOrdered::be(source).read_i16().map_err(Into::into)
+        ByteOrdered::be(source).read_i16()
     }
 
     fn decode_ss_into<S>(&self, source: S, target: &mut [i16]) -> Result<()>
     where
         S: Read,
     {
-        ByteOrdered::be(source)
-            .read_i16_into(target)
-            .map_err(Into::into)
+        ByteOrdered::be(source).read_i16_into(target)
     }
 
     fn decode_sl<S>(&self, source: S) -> Result<i32>
     where
         S: Read,
     {
-        ByteOrdered::be(source).read_i32().map_err(Into::into)
+        ByteOrdered::be(source).read_i32()
     }
 
     fn decode_sl_into<S>(&self, source: S, target: &mut [i32]) -> Result<()>
     where
         S: Read,
     {
-        ByteOrdered::be(source)
-            .read_i32_into(target)
-            .map_err(Into::into)
+        ByteOrdered::be(source).read_i32_into(target)
     }
 
     fn decode_sv<S>(&self, source: S) -> Result<i64>
     where
         S: Read,
     {
-        ByteOrdered::be(source).read_i64().map_err(Into::into)
+        ByteOrdered::be(source).read_i64()
     }
 
     fn decode_sv_into<S>(&self, source: S, target: &mut [i64]) -> Result<()>
     where
         S: Read,
     {
-        ByteOrdered::be(source)
-            .read_i64_into(target)
-            .map_err(Into::into)
+        ByteOrdered::be(source).read_i64_into(target)
     }
 
     fn decode_fl<S>(&self, source: S) -> Result<f32>
     where
         S: Read,
     {
-        ByteOrdered::be(source).read_f32().map_err(Into::into)
+        ByteOrdered::be(source).read_f32()
     }
 
     fn decode_fl_into<S>(&self, source: S, target: &mut [f32]) -> Result<()>
     where
         S: Read,
     {
-        ByteOrdered::be(source)
-            .read_f32_into(target)
-            .map_err(Into::into)
+        ByteOrdered::be(source).read_f32_into(target)
     }
 
     fn decode_fd<S>(&self, source: S) -> Result<f64>
     where
         S: Read,
     {
-        ByteOrdered::be(source).read_f64().map_err(Into::into)
+        ByteOrdered::be(source).read_f64()
     }
 
     fn decode_fd_into<S>(&self, source: S, target: &mut [f64]) -> Result<()>
     where
         S: Read,
     {
-        ByteOrdered::be(source)
-            .read_f64_into(target)
-            .map_err(Into::into)
+        ByteOrdered::be(source).read_f64_into(target)
     }
 }
 
