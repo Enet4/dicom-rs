@@ -125,14 +125,14 @@ where
                 ts: current_ts_uid.to_string(),
             })?;
 
-        match (current_ts.is_codec_free(), ts.is_codec_free()) {
-            (true, true) => {
+        match (current_ts.is_encapsulated_pixel_data(), ts.is_encapsulated_pixel_data()) {
+            (false, false) => {
                 // no pixel data conversion is necessary:
                 // change transfer syntax and return
                 self.meta_mut().set_transfer_syntax(ts);
                 Ok(())
             }
-            (false, true) => {
+            (true, false) => {
                 // decode pixel data
                 let decoded_pixeldata = self.decode_pixel_data().context(DecodePixelDataSnafu)?;
 
@@ -171,7 +171,7 @@ where
 
                 Ok(())
             }
-            (_, false) => {
+            (_, true) => {
                 // must decode then encode
                 let writer = match ts.codec() {
                     Codec::EncapsulatedPixelData(_, Some(writer)) => writer,
@@ -181,7 +181,7 @@ where
                     Codec::Dataset(None) => return UnsupportedTransferSyntaxSnafu.fail()?,
                     Codec::Dataset(Some(_)) => return UnsupportedTranscodingSnafu.fail()?,
                     Codec::None => {
-                        // already tested in `is_codec_free`
+                        // already tested in `is_encapsulated_pixel_data`
                         unreachable!("Unexpected codec from transfer syntax")
                     }
                 };

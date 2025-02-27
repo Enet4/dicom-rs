@@ -114,6 +114,8 @@ pub use dicom_encoding::TransferSyntax;
 pub mod entries;
 
 mod adapters;
+#[cfg(feature = "deflate")]
+mod deflate;
 
 #[cfg(feature = "inventory-registry")]
 pub use dicom_encoding::inventory;
