@@ -1,0 +1,24 @@
+[package]
+name = "dicom-web"
+version = "0.8.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dicom-core = { path = "../core", version = "0.8.0" }
+dicom-json = { path = "../json/", version = "0.8.0" }
+dicom-object = { path = "../object/", version = "0.8.0" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.8.0" }
+dicom-pixeldata = { path = "../pixeldata/", version = "0.8.0" }
+futures-util = "0.3.30"
+mime = "0.3.17"
+multipart-rs = "0.2.1"
+reqwest = { version = "0.12.12", features = ["json", "stream"] }
+serde_json = { version = "1.0.96", features = ["preserve_order"] }
+snafu = "0.8"
+
+[dev-dependencies]
+dicom-dictionary-std = { path = "../dictionary-std", version = "0.8.0" }
+tokio = { version = "1.36.0", features = ["macros"] }
+wiremock = "0.6.2"
