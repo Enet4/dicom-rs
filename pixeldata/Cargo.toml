@@ -1,6 +1,6 @@
 [package]
 name = "dicom-pixeldata"
-version = "0.8.1"
+version = "0.9.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>", "Peter Evers <pevers90@gmail.com>"]
 edition = "2018"
 rust-version = "1.72.0"
@@ -24,9 +24,9 @@ dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version
 dicom-dictionary-std = { path = "../dictionary-std", version = "0.8.0" }
 snafu = "0.8"
 byteorder = "1.4.3"
-gdcm-rs = { version = "0.6", optional = true }
+gdcm-rs = { git = "https://github.com/JasonTravisAI/gdcm-rs" , optional = true }
 rayon = { version = "1.5.0", optional = true }
-ndarray = { version = "0.15.1", optional = true }
+ndarray = { version = "0.16.1", optional = true }
 num-traits = "0.2.12"
 tracing = "0.1.34"
 
