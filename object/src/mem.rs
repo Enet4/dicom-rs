@@ -40,6 +40,7 @@ use dicom_core::ops::{
     ApplyOp, AttributeAction, AttributeOp, AttributeSelector, AttributeSelectorStep,
 };
 use dicom_parser::dataset::read::{DataSetReaderOptions, OddLengthStrategy};
+use dicom_parser::dataset::write::DataSetWriterOptions;
 use itertools::Itertools;
 use smallvec::SmallVec;
 use snafu::{ensure, OptionExt, ResultExt};
@@ -500,12 +501,8 @@ where
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let mut options = DataSetReaderOptions::default();
             options.odd_length = odd_length;
-            let mut dataset = DataSetReader::new_with_ts_options(
-                file,
-                ts,
-                options,
-            )
-            .context(CreateParserSnafu)?;
+            let mut dataset =
+                DataSetReader::new_with_ts_options(file, ts, options).context(CreateParserSnafu)?;
             let obj = InMemDicomObject::build_object(
                 &mut dataset,
                 dict,
@@ -1744,6 +1741,8 @@ where
     /// until _Specific Character Set_ is found in the data set,
     /// in which then that character set will be used.
     ///
+    /// Uses the default [DataSetWriterOptions] for the writer.
+    ///
     /// Note: [`write_dataset_with_ts`] and [`write_dataset_with_ts_cs`]
     /// may be easier to use.
     ///
@@ -1755,7 +1754,7 @@ where
         E: EncodeTo<W>,
     {
         // prepare data set writer
-        let mut dset_writer = DataSetWriter::new(to, encoder);
+        let mut dset_writer = DataSetWriter::new(to, encoder, DataSetWriterOptions::default());
         let required_options = IntoTokensOptions::new(self.charset_changed);
         // write object
         dset_writer
@@ -1768,6 +1767,9 @@ where
     /// Write this object's data set into the given printer,
     /// with the specified transfer syntax and character set,
     /// without preamble, magic code, nor file meta group.
+    ///
+    /// The default [DataSetWriterOptions] is used for the writer. To change
+    /// that, use [`write_dataset_with_ts_cs_options`](Self::write_dataset_with_ts_cs_options).
     ///
     /// If the attribute _Specific Character Set_ is found in the data set,
     /// the last parameter is overridden accordingly.
@@ -1793,9 +1795,42 @@ where
         Ok(())
     }
 
+    /// Write this object's data set into the given printer,
+    /// with the specified transfer syntax and character set,
+    /// without preamble, magic code, nor file meta group.
+    ///
+    /// If the attribute _Specific Character Set_ is found in the data set,
+    /// the last parameter is overridden accordingly.
+    /// See also [`write_dataset_with_ts`](Self::write_dataset_with_ts).
+    pub fn write_dataset_with_ts_cs_options<W>(
+        &self,
+        to: W,
+        ts: &TransferSyntax,
+        cs: SpecificCharacterSet,
+        options: DataSetWriterOptions,
+    ) -> Result<(), WriteError>
+    where
+        W: Write,
+    {
+        // prepare data set writer
+        let mut dset_writer =
+            DataSetWriter::with_ts_cs_options(to, ts, cs, options).context(CreatePrinterSnafu)?;
+        let required_options = IntoTokensOptions::new(self.charset_changed);
+
+        // write object
+        dset_writer
+            .write_sequence(self.into_tokens_with_options(required_options))
+            .context(PrintDataSetSnafu)?;
+
+        Ok(())
+    }
+
     /// Write this object's data set into the given writer,
     /// with the specified transfer syntax,
     /// without preamble, magic code, nor file meta group.
+    ///
+    /// The default [DataSetWriterOptions] is used for the writer. To change
+    /// that, use [`write_dataset_with_ts_cs_options`](Self::write_dataset_with_ts_cs_options).
     ///
     /// The default character set is assumed
     /// until the _Specific Character Set_ is found in the data set,
@@ -1805,6 +1840,25 @@ where
         W: Write,
     {
         self.write_dataset_with_ts_cs(to, ts, SpecificCharacterSet::default())
+    }
+
+    /// Write this object's data set into the given writer,
+    /// with the specified transfer syntax,
+    /// without preamble, magic code, nor file meta group.
+    ///
+    /// The default character set is assumed
+    /// until the _Specific Character Set_ is found in the data set,
+    /// after which the text encoder is overridden accordingly.
+    pub fn write_dataset_with_ts_options<W>(
+        &self,
+        to: W,
+        ts: &TransferSyntax,
+        options: DataSetWriterOptions,
+    ) -> Result<(), WriteError>
+    where
+        W: Write,
+    {
+        self.write_dataset_with_ts_cs_options(to, ts, SpecificCharacterSet::default(), options)
     }
 
     /// Encapsulate this object to contain a file meta group
