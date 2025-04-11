@@ -88,6 +88,10 @@ struct SeqToken {
 pub enum ExplicitLengthSqItemStrategy {
     /// All explicit length items and sequences are written with Length::UNDEFINED.
     ///
+    /// Be advised that even if you create or read a data set with explicit length
+    /// items / sequences, the resulting output of the writer will have undefined
+    /// lengths for all items and sequences.
+    ///  
     /// For reasons stated in the documentation of the `ExplicitLengthSqItemStrategy`, this
     /// is as of yet, the fastest and safest way to handle explicit length items and sequences
     /// and thus default.
