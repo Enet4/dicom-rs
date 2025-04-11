@@ -1830,7 +1830,7 @@ where
     /// without preamble, magic code, nor file meta group.
     ///
     /// The default [DataSetWriterOptions] is used for the writer. To change
-    /// that, use [`write_dataset_with_ts_cs_options`](Self::write_dataset_with_ts_cs_options).
+    /// that, use [`write_dataset_with_ts_options`](Self::write_dataset_with_ts_options).
     ///
     /// The default character set is assumed
     /// until the _Specific Character Set_ is found in the data set,
