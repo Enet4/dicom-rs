@@ -355,14 +355,6 @@ impl Display for ColorModeError {
 
 impl std::error::Error for ColorModeError {}
 
-/*#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
-pub enum OddLengthTextStrategy {
-    Accept,
-    NextEven,
-    Fail
-}
-*/
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum DumpValue<T>
 where
