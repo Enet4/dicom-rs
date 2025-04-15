@@ -464,8 +464,8 @@ impl PrimitiveValue {
             F32(c) => c.len() * 4,
             F64(c) => c.len() * 8,
             Tags(c) => c.len() * 4,
-            Str(s) => s.as_bytes().len(),
-            Strs(c) => c.iter().map(|s| s.as_bytes().len() + 1).sum::<usize>() & !1,
+            Str(s) => s.len(),
+            Strs(c) => c.iter().map(|s| s.len() + 1).sum::<usize>() & !1,
             Date(c) => {
                 c.iter()
                     .map(|d| PrimitiveValue::da_byte_len(d) + 1)
