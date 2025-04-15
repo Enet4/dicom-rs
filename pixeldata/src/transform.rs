@@ -2,6 +2,8 @@
 
 use snafu::Snafu;
 
+use crate::attribute::VoiLut;
+
 /// Description of a modality rescale function,
 /// defined by a _rescale slope_ and _rescale intercept_.
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -187,6 +189,53 @@ fn window_level_sigmoid(value: f64, window_width: f64, window_center: f64, y_max
     // C.11.2.1.3.1
 
     y_max / (1. + f64::exp(-4. * (value - wc) / ww))
+}
+
+/// A full description of a VOI LUT function transformation
+/// based on an explicit LUT.
+pub struct VoiLutTransform<'a> {
+    lut: &'a VoiLut,
+    shift: u32,
+}
+
+impl<'a> VoiLutTransform<'a> {
+    /// Create a new LUT transformation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `lut.data` is empty, or if `bits_stored` is smaller than
+    /// `lut.bits_stored`.
+    pub fn new(lut: &'a VoiLut, bits_stored: u16) -> Self {
+        if lut.data.is_empty() {
+            // we'll do unchecked accesses to the first and last items in apply()
+            panic!("LUT data is empty");
+        }
+
+        if bits_stored < (lut.bits_stored as u16) {
+            panic!(
+                "LUT with BitsStored {} cannot be used for an image with BitsStored {}",
+                lut.bits_stored, bits_stored
+            );
+        }
+
+        let shift = (bits_stored.next_power_of_two() - (lut.bits_stored as u16)) as u32;
+
+        VoiLutTransform { lut, shift }
+    }
+
+    /// Apply the LUT transformation on a rescaled value.
+    pub fn apply(&self, value: f64) -> f64 {
+        let value_rounded = value.round().clamp(i32::MIN as f64, i32::MAX as f64) as i32;
+        let y = (*(if value_rounded <= self.lut.min_pixel_value {
+            self.lut.data.first().unwrap()
+        } else {
+            self.lut
+                .data
+                .get((value_rounded - self.lut.min_pixel_value) as usize)
+                .unwrap_or(self.lut.data.last().unwrap())
+        })) << self.shift;
+        y as f64
+    }
 }
 
 #[cfg(test)]
