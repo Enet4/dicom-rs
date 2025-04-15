@@ -104,7 +104,6 @@ where
         deserializer
             .deserialize_map(InMemDicomObjectVisitor::default())
             .map(DicomJson::from)
-            .map_err(From::from)
     }
 }
 
