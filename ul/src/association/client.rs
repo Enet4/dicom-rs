@@ -761,10 +761,10 @@ impl<'a> ClientAssociationOptions<'a> {
             }
             Pdu::AssociationRJ(association_rj) => RejectedSnafu { association_rj }.fail(),
             pdu @ Pdu::AbortRQ { .. }
-            | pdu @ Pdu::ReleaseRQ { .. }
+            | pdu @ Pdu::ReleaseRQ
             | pdu @ Pdu::AssociationRQ { .. }
             | pdu @ Pdu::PData { .. }
-            | pdu @ Pdu::ReleaseRP { .. } => {
+            | pdu @ Pdu::ReleaseRP => {
                 // abort connection
                 let _ = write_pdu(
                     &mut buffer,
@@ -1086,7 +1086,7 @@ where
             | pdu @ Pdu::AssociationRJ { .. }
             | pdu @ Pdu::AssociationRQ { .. }
             | pdu @ Pdu::PData { .. }
-            | pdu @ Pdu::ReleaseRQ { .. } => return UnexpectedResponseSnafu { pdu }.fail(),
+            | pdu @ Pdu::ReleaseRQ => return UnexpectedResponseSnafu { pdu }.fail(),
             pdu @ Pdu::Unknown { .. } => return UnknownResponseSnafu { pdu }.fail(),
         }
         Ok(())
@@ -1380,10 +1380,10 @@ pub mod non_blocking {
                 }
                 Pdu::AssociationRJ(association_rj) => RejectedSnafu { association_rj }.fail(),
                 pdu @ Pdu::AbortRQ { .. }
-                | pdu @ Pdu::ReleaseRQ { .. }
+                | pdu @ Pdu::ReleaseRQ
                 | pdu @ Pdu::AssociationRQ { .. }
                 | pdu @ Pdu::PData { .. }
-                | pdu @ Pdu::ReleaseRP { .. } => {
+                | pdu @ Pdu::ReleaseRP => {
                     // abort connection
                     let _ = write_pdu(
                         &mut buffer,
@@ -1602,7 +1602,7 @@ pub mod non_blocking {
                 | pdu @ Pdu::AssociationRJ { .. }
                 | pdu @ Pdu::AssociationRQ { .. }
                 | pdu @ Pdu::PData { .. }
-                | pdu @ Pdu::ReleaseRQ { .. } => return UnexpectedResponseSnafu { pdu }.fail(),
+                | pdu @ Pdu::ReleaseRQ => return UnexpectedResponseSnafu { pdu }.fail(),
                 pdu @ Pdu::Unknown { .. } => return UnknownResponseSnafu { pdu }.fail(),
             }
             Ok(())
