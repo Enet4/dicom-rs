@@ -282,18 +282,18 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "charls"
-version = "0.3.1"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9068bd9f6619c343279045d6e92f814ffd537c8038bb7fa9d8ab5525cbc0ae80"
+checksum = "37303f54e0e57d2e4f2d7a3d722105cd9b981175ce3d2a422a796eb4c1adc8ec"
 dependencies = [
  "charls-sys",
 ]
 
 [[package]]
 name = "charls-sys"
-version = "2.4.2"
+version = "2.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63d9445022ff0c7b9016e7035bb5291bdbf6eacc993b25d1378844c0f0a7c82f"
+checksum = "cc9eeac183226ca6b6d7fb2c02df2f2ce22c40f2d18ba0bf84f7c8ce80f66d60"
 dependencies = [
  "cmake",
 ]
