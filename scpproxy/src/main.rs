@@ -25,7 +25,8 @@ enum Error {
     #[snafu(display("Could not send message"))]
     SendMessage {
         backtrace: Backtrace,
-        source: std::sync::mpsc::SendError<ThreadMessage>,
+        #[snafu(source(from(std::sync::mpsc::SendError<ThreadMessage>, Box::from)))]
+        source: Box<std::sync::mpsc::SendError<ThreadMessage>>,
     },
     #[snafu(display("Could not receive message"))]
     ReceiveMessage {
