@@ -895,8 +895,7 @@ where
             .map(|(header, bytes_read)| {
                 self.position += bytes_read as u64;
                 header
-            })
-            .map_err(From::from)?;
+            })?;
 
         //If we are decoding the PixelPadding element, make sure the VR is the same as the pixel
         //representation (US by default, SS for signed data).
@@ -917,7 +916,6 @@ where
                 self.position += 8;
                 header
             })
-            .map_err(From::from)
     }
 
     fn read_value(&mut self, header: &DataElementHeader) -> Result<PrimitiveValue> {
