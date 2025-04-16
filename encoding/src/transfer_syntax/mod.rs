@@ -226,21 +226,19 @@ macro_rules! submit_transfer_syntax {
 ///     // Name/alias
 ///     "CT Private ELE",
 ///     // pixel data codec
-///     Codec::EncapsulatedPixelData(None, None)
+///     Codec::encapsulated_pixel_data_stub()
 /// );
 /// ```
 ///
-/// With [`Codec::EncapsulatedPixelData(None, None)`][1],
+/// With [`Codec::EncapsulatedPixelData`],
 /// we are indicating that the transfer syntax uses encapsulated pixel data.
 /// albeit without the means to decode or encode it.
 /// See the [`adapters`](crate::adapters) module
 /// to know how to write pixel data encoders and decoders.
-///
-/// [1]: Codec::EncapsulatedPixelData
 macro_rules! submit_ele_transfer_syntax {
     ($uid: expr, $name: expr, $codec: expr) => {
         $crate::submit_transfer_syntax! {
-            $crate::AdapterFreeTransferSyntax::new_ele(
+            $crate::TransferSyntax::new_ele(
                 $uid,
                 $name,
                 $codec
@@ -312,6 +310,29 @@ pub enum Codec<D, R, W> {
     /// This could be used by a stub of
     /// _Deflated Explicit VR Little Endian_, for example.
     Dataset(Option<D>),
+}
+
+impl Codec<NeverAdapter, NeverPixelAdapter, NeverPixelAdapter> {
+    /// Create a stub codec for encapsulated pixel data
+    pub fn encapsulated_pixel_data_stub() -> Self {
+        Codec::EncapsulatedPixelData(None, None)
+    }
+}
+
+impl<R> Codec<NeverAdapter, R, NeverPixelAdapter> {
+    /// Create a codec for encapsulated pixel data
+    /// with a pixel data decoder but not an encoder
+    pub fn encapsulated_pixel_data_reader(reader: R) -> Self {
+        Codec::EncapsulatedPixelData(Some(reader), None)
+    }
+}
+
+impl<R, W> Codec<NeverAdapter, R, W> {
+    /// Create a codec for encapsulated pixel data
+    /// with a pixel data decoder and encoder
+    pub fn encapsulated_pixel_data(reader: R, writer: W) -> Self {
+        Codec::EncapsulatedPixelData(Some(reader), Some(writer))
+    }
 }
 
 /// An alias for a transfer syntax specifier with no pixel data encapsulation
@@ -622,6 +643,28 @@ impl<D, R, W> TransferSyntax<D, R, W> {
     /// Obtain a dynamic basic decoder, based on this transfer syntax' expected endianness.
     pub fn basic_decoder(&self) -> BasicDecoder {
         BasicDecoder::from(self.endianness())
+    }
+
+    /// Obtain a reference to the underlying pixel data reader.
+    ///
+    /// Returns `None` if pixel data is not encapsulated
+    /// or a pixel data decoder implementation is not available.
+    pub fn pixel_data_reader(&self) -> Option<&R> {
+        match &self.codec {
+            Codec::EncapsulatedPixelData(r, _) => r.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// Obtain a reference to the underlying pixel data writer.
+    ///
+    /// Returns `None` if pixel data is not encapsulated
+    /// or a pixel data encoder implementation is not available.
+    pub fn pixel_data_writer(&self) -> Option<&W> {
+        match &self.codec {
+            Codec::EncapsulatedPixelData(_, w) => w.as_ref(),
+            _ => None,
+        }
     }
 
     /// Type-erase the pixel data or data set codec.
