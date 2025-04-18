@@ -33,7 +33,7 @@ struct App {
     /// as in the next even number.
     ///
     /// fail: Raise an error instead
-    #[clap(short = 'o', long = "odd_length_strategy", value_parser = parse_strategy, default_value = "accept")]
+    #[clap(short = 'o', long = "odd-length-strategy", value_parser = parse_strategy, default_value = "accept")]
     odd_length_strategy: OddLengthStrategy,
     /// Print text values to the end
     /// (limited to `width` by default).
