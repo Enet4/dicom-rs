@@ -125,14 +125,14 @@ where
                 ts: current_ts_uid.to_string(),
             })?;
 
-        match (current_ts.is_codec_free(), ts.is_codec_free()) {
-            (true, true) => {
+        match (current_ts.is_encapsulated_pixel_data(), ts.is_encapsulated_pixel_data()) {
+            (false, false) => {
                 // no pixel data conversion is necessary:
                 // change transfer syntax and return
                 self.meta_mut().set_transfer_syntax(ts);
                 Ok(())
             }
-            (false, true) => {
+            (true, false) => {
                 // decode pixel data
                 decode_inline(self, ts)?;
                 Ok(())
@@ -141,7 +141,7 @@ where
             // which are best transcoded from encapsulated pixel data:
             // - JPEG baseline -> JPEG XL * (can recompress JPEG)
             // - JPEG XL recompression -> JPEG baseline (can do lossless conversion)
-            (false, false)
+            (true, true)
                 if (current_ts.uid() == uids::JPEG_BASELINE8_BIT
                     && (ts.uid() == uids::JPEGXLJPEG_RECOMPRESSION
                         || ts.uid() == uids::JPEGXL
@@ -158,7 +158,7 @@ where
                     Codec::Dataset(None) => return UnsupportedTransferSyntaxSnafu.fail()?,
                     Codec::Dataset(Some(_)) => return UnsupportedTranscodingSnafu.fail()?,
                     Codec::None => {
-                        // already tested in `is_codec_free`
+                        // already tested in `is_encapsulated_pixel_data`
                         unreachable!("Unexpected codec from transfer syntax")
                     }
                 };
@@ -217,7 +217,7 @@ where
                 .context(EncodePixelDataSnafu)?;
                 Ok(())
             }
-            (_, false) => {
+            (_, true) => {
                 // must decode then encode
                 decode_and_encode(self, ts, options)
             }
