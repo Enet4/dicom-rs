@@ -15,6 +15,7 @@ use dicom_parser::dataset::write::DataSetWriterOptions;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::io::{Read, Write};
+use std::rc::Rc;
 
 use crate::ops::{
     ApplyError, ApplyResult, IllegalExtendSnafu, IncompatibleTypesSnafu, MandatorySnafu,
@@ -774,7 +775,7 @@ impl FileMetaTable {
     pub fn write<W: Write>(&self, writer: W) -> Result<()> {
         let mut dset = DataSetWriter::new(
             writer,
-            EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
+            Rc::new(EncoderFor::new(ExplicitVRLittleEndianEncoder::default())),
             DataSetWriterOptions::default(),
         );
         //There are no sequences in the `FileMetaTable`, so the value of `invalidate_sq_len` is

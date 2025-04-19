@@ -50,6 +50,7 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+
 /// Also called a printer, this encoder type provides a stateful mid-level
 /// abstraction for writing DICOM content. Unlike `Encode`,
 /// the stateful encoder knows how to write text values and keeps track
@@ -66,8 +67,12 @@ pub struct StatefulEncoder<W, E, T = SpecificCharacterSet> {
 
 pub type DynStatefulEncoder<'w> = StatefulEncoder<Box<dyn Write + 'w>, DynEncoder<'w, dyn Write>>;
 
-impl<W, E, T> StatefulEncoder<W, E, T> {
+impl<W, E, T> StatefulEncoder<W, E, T>
+where
+    E: Clone,
+{
     pub fn new(to: W, encoder: E, text: T) -> Self {
+
         StatefulEncoder {
             to,
             encoder,
@@ -75,6 +80,10 @@ impl<W, E, T> StatefulEncoder<W, E, T> {
             bytes_written: 0,
             buffer: Vec::with_capacity(128),
         }
+    }
+
+    pub fn text_codec(&self) -> &T {
+        &self.text
     }
 }
 
@@ -87,6 +96,7 @@ impl<'s> DynStatefulEncoder<'s> {
         let encoder = ts
             .encoder()
             .context(UnsupportedTransferSyntaxSnafu { ts: ts.uid() })?;
+
         Ok(StatefulEncoder::new(to, encoder, charset))
     }
 }
@@ -431,6 +441,7 @@ mod tests {
         encode::{explicit_le::ExplicitVRLittleEndianEncoder, EncoderFor},
         text::{SpecificCharacterSet, TextCodec},
     };
+    use std::rc::Rc;
 
     use super::StatefulEncoder;
 
@@ -448,7 +459,7 @@ mod tests {
         {
             let mut encoder = StatefulEncoder::new(
                 &mut out,
-                EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
+                Rc::new(EncoderFor::new(ExplicitVRLittleEndianEncoder::default())),
                 SpecificCharacterSet::default(),
             );
 
@@ -483,7 +494,7 @@ mod tests {
         {
             let mut encoder = StatefulEncoder::new(
                 &mut out,
-                EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
+                Rc::new(EncoderFor::new(ExplicitVRLittleEndianEncoder::default())),
                 SpecificCharacterSet::default(),
             );
 
@@ -519,7 +530,7 @@ mod tests {
         {
             let mut encoder = StatefulEncoder::new(
                 &mut out,
-                EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
+                Rc::new(EncoderFor::new(ExplicitVRLittleEndianEncoder::default())),
                 SpecificCharacterSet::default(),
             );
 
@@ -550,7 +561,7 @@ mod tests {
         {
             let mut encoder = StatefulEncoder::new(
                 &mut out,
-                EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
+                Rc::new(EncoderFor::new(ExplicitVRLittleEndianEncoder::default())),
                 SpecificCharacterSet::default(),
             );
 
@@ -577,7 +588,7 @@ mod tests {
         {
             let mut encoder = StatefulEncoder::new(
                 &mut out,
-                EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
+                Rc::new(EncoderFor::new(ExplicitVRLittleEndianEncoder::default())),
                 SpecificCharacterSet::default(),
             );
 
@@ -642,7 +653,7 @@ mod tests {
 
         let mut encoder = StatefulEncoder::new(
             &mut sink,
-            EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
+            Rc::new(EncoderFor::new(ExplicitVRLittleEndianEncoder::default())),
             SpecificCharacterSet::default(),
         );
 

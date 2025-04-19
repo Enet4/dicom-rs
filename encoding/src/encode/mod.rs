@@ -6,6 +6,7 @@ use snafu::{Backtrace, ResultExt, Snafu};
 use std::fmt;
 use std::io::{self, Write};
 use std::marker::PhantomData;
+use std::rc::Rc;
 
 pub mod basic;
 pub mod explicit_be;
@@ -554,6 +555,61 @@ where
 }
 
 impl<T: ?Sized, W: ?Sized> EncodeTo<W> for Box<T>
+where
+    T: EncodeTo<W>,
+{
+    fn encode_tag(&self, to: &mut W, tag: Tag) -> Result<()>
+    where
+        W: Write,
+    {
+        (**self).encode_tag(to, tag)
+    }
+
+    fn encode_element_header(&self, to: &mut W, de: DataElementHeader) -> Result<usize>
+    where
+        W: Write,
+    {
+        (**self).encode_element_header(to, de)
+    }
+
+    fn encode_item_header(&self, to: &mut W, len: u32) -> Result<()>
+    where
+        W: Write,
+    {
+        (**self).encode_item_header(to, len)
+    }
+
+    fn encode_item_delimiter(&self, to: &mut W) -> Result<()>
+    where
+        W: Write,
+    {
+        (**self).encode_item_delimiter(to)
+    }
+
+    fn encode_sequence_delimiter(&self, to: &mut W) -> Result<()>
+    where
+        W: Write,
+    {
+        (**self).encode_sequence_delimiter(to)
+    }
+
+    /// Encode and write a primitive DICOM value to the given destination.
+    fn encode_primitive(&self, to: &mut W, value: &PrimitiveValue) -> Result<usize>
+    where
+        W: Write,
+    {
+        (**self).encode_primitive(to, value)
+    }
+
+    fn encode_offset_table(&self, to: &mut W, offset_table: &[u32]) -> Result<usize>
+    where
+        W: Write,
+    {
+        (**self).encode_offset_table(to, offset_table)
+    }
+}
+
+impl<T: ?Sized, W: ?Sized> EncodeTo<W> for Rc<T>
 where
     T: EncodeTo<W>,
 {

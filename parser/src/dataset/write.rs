@@ -137,9 +137,12 @@ impl DataSetWriterOptions {
 #[derive(Debug)]
 pub struct DataSetWriter<W, E, T = SpecificCharacterSet> {
     printer: StatefulEncoder<W, E, T>,
+    //mem_printer: StatefulEncoder<W, E, T>,
     seq_tokens: Vec<SeqToken>,
     last_de: Option<DataElementHeader>,
     options: DataSetWriterOptions,
+    in_mem_printer: StatefulEncoder<Vec<u8>, E, T>,
+    in_mem_buffer: Vec<u8>,
 }
 
 impl<'w, W: 'w> DataSetWriter<W, DynEncoder<'w, W>>
@@ -200,24 +203,49 @@ where
     }
 }
 
-impl<W, E> DataSetWriter<W, E> {
+impl<W, E> DataSetWriter<W, E>
+where
+    E: Clone,
+{
     pub fn new(to: W, encoder: E, options: DataSetWriterOptions) -> Self {
+        let printer = StatefulEncoder::new(to, encoder.clone(), SpecificCharacterSet::default());
+
+        let in_mem_printer =
+            StatefulEncoder::new(vec![], encoder.clone(), SpecificCharacterSet::default());
+
         DataSetWriter {
-            printer: StatefulEncoder::new(to, encoder, SpecificCharacterSet::default()),
+            printer,
+            //printer: StatefulEncoder::new(to, encoder.clone(), SpecificCharacterSet::default()),
+            //mem_printer: StatefulEncoder::new(std::io::sink(), encoder, SpecificCharacterSet::default()),
             seq_tokens: Vec::new(),
             last_de: None,
             options,
+            in_mem_printer,
+            in_mem_buffer: Vec::new(),
         }
     }
 }
 
-impl<W, E, T> DataSetWriter<W, E, T> {
+impl<W, E, T> DataSetWriter<W, E, T>
+where
+    E: Clone,
+    T: Clone,
+{
     pub fn new_with_codec(to: W, encoder: E, text: T, options: DataSetWriterOptions) -> Self {
+        let printer = StatefulEncoder::new(to, encoder.clone(), text);
+        let in_mem_printer = StatefulEncoder::new(
+            Vec::<u8>::new(),
+            encoder.clone(),
+            printer.text_codec().clone(),
+        );
+
         DataSetWriter {
-            printer: StatefulEncoder::new(to, encoder, text),
+            printer,
             seq_tokens: Vec::new(),
             last_de: None,
             options,
+            in_mem_printer,
+            in_mem_buffer: Vec::new(),
         }
     }
 }
@@ -391,6 +419,7 @@ mod tests {
         Tag, VR,
     };
     use dicom_encoding::encode::{explicit_le::ExplicitVRLittleEndianEncoder, EncoderFor};
+    use std::rc::Rc;
 
     fn validate_dataset_writer<I>(
         tokens: I,
@@ -400,7 +429,7 @@ mod tests {
         I: IntoIterator<Item = DataToken>,
     {
         let mut raw_out: Vec<u8> = vec![];
-        let encoder = EncoderFor::new(ExplicitVRLittleEndianEncoder::default());
+        let encoder = Rc::new(EncoderFor::new(ExplicitVRLittleEndianEncoder::default()));
         let mut dset_writer = DataSetWriter::new(&mut raw_out, encoder, writer_options);
 
         dset_writer.write_sequence(tokens).unwrap();

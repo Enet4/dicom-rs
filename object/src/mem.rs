@@ -1751,7 +1751,7 @@ where
     pub fn write_dataset<W, E>(&self, to: W, encoder: E) -> Result<(), WriteError>
     where
         W: Write,
-        E: EncodeTo<W>,
+        E: EncodeTo<W> + Clone,
     {
         // prepare data set writer
         let mut dset_writer = DataSetWriter::new(to, encoder, DataSetWriterOptions::default());
@@ -2208,6 +2208,7 @@ mod tests {
         // assumes that Undefined lengths are equal.
         assert_eq!(format!("{:?}", obj1), format!("{:?}", obj2))
     }
+    use std::rc::Rc;
 
     #[test]
     fn inmem_object_compare() {
@@ -2324,7 +2325,7 @@ mod tests {
 
         let mut out = Vec::new();
 
-        let printer = EncoderFor::new(ImplicitVRLittleEndianEncoder::default());
+        let printer = Rc::new(EncoderFor::new(ImplicitVRLittleEndianEncoder::default()));
 
         obj.write_dataset(&mut out, printer).unwrap();
 

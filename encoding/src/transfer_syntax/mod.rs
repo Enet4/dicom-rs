@@ -33,6 +33,7 @@ use crate::encode::{
     implicit_le::ImplicitVRLittleEndianEncoder, EncodeTo, EncoderFor,
 };
 use std::io::{Read, Write};
+use std::rc::Rc;
 
 pub use byteordered::Endianness;
 
@@ -40,7 +41,7 @@ pub use byteordered::Endianness;
 pub type DynDecoder<S> = Box<dyn DecodeFrom<S>>;
 
 /// An encoder with its type erased.
-pub type DynEncoder<'w, W> = Box<dyn EncodeTo<W> + 'w>;
+pub type DynEncoder<'w, W> = Rc<dyn EncodeTo<W> + 'w>;
 
 /// A DICOM transfer syntax specifier.
 ///
@@ -606,13 +607,13 @@ impl<D, R, W> TransferSyntax<D, R, W> {
         T: ?Sized + Write + 'w,
     {
         match (self.byte_order, self.explicit_vr) {
-            (Endianness::Little, false) => Some(Box::new(EncoderFor::new(
+            (Endianness::Little, false) => Some(Rc::new(EncoderFor::new(
                 ImplicitVRLittleEndianEncoder::default(),
             ))),
-            (Endianness::Little, true) => Some(Box::new(EncoderFor::new(
+            (Endianness::Little, true) => Some(Rc::new(EncoderFor::new(
                 ExplicitVRLittleEndianEncoder::default(),
             ))),
-            (Endianness::Big, true) => Some(Box::new(EncoderFor::new(
+            (Endianness::Big, true) => Some(Rc::new(EncoderFor::new(
                 ExplicitVRBigEndianEncoder::default(),
             ))),
             _ => None,
