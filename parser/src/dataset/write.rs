@@ -141,7 +141,9 @@ pub struct DataSetWriter<W, E, T = SpecificCharacterSet> {
     seq_tokens: Vec<SeqToken>,
     last_de: Option<DataElementHeader>,
     options: DataSetWriterOptions,
+    #[allow(dead_code)]
     in_mem_printer: StatefulEncoder<Vec<u8>, E, T>,
+    #[allow(dead_code)]
     in_mem_buffer: Vec<u8>,
 }
 
