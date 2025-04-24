@@ -70,7 +70,7 @@ version = "0.6"
 optional = true
 
 [dependencies.charls]
-version = "0.4.1"
+version = "0.4.2"
 optional = true
 features = ["static"]
 
