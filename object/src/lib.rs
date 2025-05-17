@@ -191,7 +191,7 @@ pub use crate::file::{from_reader, open_file, OpenFileOptions};
 pub use crate::mem::InMemDicomObject;
 pub use crate::collector::{DicomCollectorOptions, DicomCollector};
 pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
-use dicom_core::ops::AttributeSelector;
+use dicom_core::ops::{AttributeSelector, AttributeSelectorStep};
 use dicom_core::value::{DicomValueType, ValueType};
 pub use dicom_core::Tag;
 use dicom_core::{DataDictionary, DicomValue, PrimitiveValue};
@@ -379,7 +379,7 @@ pub trait DicomAttribute: DicomValueType {
 /// turn may contain a DICOM object.
 ///
 /// ## Examples
-/// 
+///
 /// You can use this trait when operating on DICOM data sets
 /// when the exact type is not known.
 ///
@@ -389,7 +389,7 @@ pub trait DicomAttribute: DicomValueType {
 /// # use dicom_object::mem::InMemDicomObject;
 /// use dicom_object::DicomObject;
 /// use dicom_object::DicomAttribute as _;
-/// 
+///
 /// fn my_data() -> impl DicomObject {
 ///     InMemDicomObject::from_element_iter([
 ///         DataElement::new(
@@ -409,7 +409,7 @@ pub trait DicomAttribute: DicomValueType {
 /// # Ok(())
 /// }
 /// ```
-/// 
+///
 /// It works for in-memory data sets, file meta groups,
 /// and other similar structures.
 /// When operating on DICOM file objects,
@@ -417,13 +417,14 @@ pub trait DicomAttribute: DicomValueType {
 /// depending on the attribute requested.
 ///
 /// ```no_run
-/// use dicom_object::open_file;
-/// 
+/// # use dicom_dictionary_std::tags;
+/// use dicom_object::{DicomObject as _, open_file};
+///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// open_file("00001.dcm")?;
 /// todo!();
 /// let file = open_file("00001.dcm")?;
-/// 
+///
 /// let Some(media_storage_sop_class_uid) = file.get_opt(tags::MEDIA_STORAGE_SOP_CLASS_UID)? else {
 ///     panic!("DICOM file should have a Media Storage SOP Class UID");
 /// };
@@ -433,7 +434,20 @@ pub trait DicomAttribute: DicomValueType {
 pub trait DicomObject {
     /// The type representing a DICOM attribute in the object
     /// and/or the necessary means to retrieve the value from it.
+    ///
+    /// This is the outcome of a shallow look-up
+    /// using the methods [`get`](DicomObject::get)
+    /// or [`get_opt`](DicomObject::get_opt).
     type Attribute<'a>: DicomAttribute
+    where
+        Self: 'a;
+
+    /// The type representing a DICOM leaf attribute in the object
+    /// and/or the necessary means to retrieve the value from it.
+    ///
+    /// This is the outcome of a potentially deep look-up
+    /// using the method [`at`](DicomObject::at).
+    type LeafAttribute<'a>: DicomAttribute
     where
         Self: 'a;
 
@@ -452,10 +466,8 @@ pub trait DicomObject {
     ///
     /// If the DICOM tag is already known,
     /// prefer calling [`get_opt`](Self::get_opt).
-    fn get_by_name_opt(
-        &self,
-        name: &str,
-    ) -> Result<Option<Self::Attribute<'_>>, AccessByNameError>;
+    fn get_by_name_opt(&self, name: &str)
+        -> Result<Option<Self::Attribute<'_>>, AccessByNameError>;
 
     /// Retrieve a particular DICOM attribute
     /// by looking up the given tag at the object's root.
@@ -466,6 +478,15 @@ pub trait DicomObject {
         self.get_opt(tag)?
             .context(NoSuchDataElementTagSnafu { tag })
     }
+
+    /// Retrieve a particular DICOM attribute
+    /// with a potentially look-up by attribute selector.
+    ///
+    /// This method returns an error if the element is not present.
+    fn at(
+        &self,
+        selector: impl Into<AttributeSelector>,
+    ) -> Result<Self::LeafAttribute<'_>, AtAccessError>;
 
     /// Retrieve a particular DICOM element by its name (keyword).
     ///
@@ -482,10 +503,16 @@ where
     O: HasLength,
     for<'a> &'a O: HasLength,
 {
-    type Item<'a> = &'a O
-    where Self: 'a, O: 'a;
-    type PixelData<'a> = &'a P
-    where Self: 'a, P: 'a;
+    type Item<'a>
+        = &'a O
+    where
+        Self: 'a,
+        O: 'a;
+    type PixelData<'a>
+        = &'a P
+    where
+        Self: 'a,
+        P: 'a;
 
     #[inline]
     fn to_primitive_value(&self) -> Result<PrimitiveValue, AttributeError> {
@@ -547,10 +574,16 @@ where
     O: Clone,
     P: Clone,
 {
-    type Item<'a> = &'b O
-    where Self: 'a, O: 'a;
-    type PixelData<'a> = &'b P
-    where Self: 'a, P: 'a;
+    type Item<'a>
+        = &'b O
+    where
+        Self: 'a,
+        O: 'a;
+    type PixelData<'a>
+        = &'b P
+    where
+        Self: 'a,
+        P: 'a;
 
     #[inline]
     fn to_primitive_value(&self) -> Result<PrimitiveValue, AttributeError> {
@@ -837,7 +870,7 @@ pub enum WithMetaError {
 /// A root DICOM object retrieved from a standard DICOM file,
 /// containing additional information from the file meta group
 /// in a separate table value.
-/// 
+///
 /// **Note:** This type implements `Deref` towards the inner object,
 /// meaning that most method calls will be directed
 /// as if the call was performed directly on the main data set.
@@ -1032,10 +1065,14 @@ where
     L: DicomAttribute,
     R: DicomAttribute,
 {
-    type Item<'a> = Either<L::Item<'a>, R::Item<'a>>
-        where Self: 'a;
-    type PixelData<'a> = Either<L::PixelData<'a>, R::PixelData<'a>>
-        where Self: 'a;
+    type Item<'a>
+        = Either<L::Item<'a>, R::Item<'a>>
+    where
+        Self: 'a;
+    type PixelData<'a>
+        = Either<L::PixelData<'a>, R::PixelData<'a>>
+    where
+        Self: 'a;
 
     fn to_primitive_value(&self) -> Result<PrimitiveValue, AttributeError> {
         match self {
@@ -1070,9 +1107,17 @@ impl<O> DicomObject for FileDicomObject<O>
 where
     O: DicomObject,
 {
-    type Attribute<'a> = Either<FileMetaAttribute<'a>, O::Attribute<'a>>
-        where Self: 'a,
-              O: 'a;
+    type Attribute<'a>
+        = Either<FileMetaAttribute<'a>, O::Attribute<'a>>
+    where
+        Self: 'a,
+        O: 'a;
+
+    type LeafAttribute<'a>
+        = Either<FileMetaAttribute<'a>, O::LeafAttribute<'a>>
+    where
+        Self: 'a,
+        O: 'a;
 
     #[inline]
     fn get_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>, AccessError> {
@@ -1129,18 +1174,47 @@ where
             }
         }
     }
+
+    fn at(
+        &self,
+        selector: impl Into<AttributeSelector>,
+    ) -> Result<Self::LeafAttribute<'_>, AtAccessError> {
+        let selector: AttributeSelector = selector.into();
+        match selector.first_step() {
+            AttributeSelectorStep::Tag(tag @ Tag(0x0002, _)) => {
+                let attr = self
+                    .meta
+                    .get(*tag)
+                    .map_err(|_| AtAccessError::MissingLeafElement { selector })?;
+                Ok(Either::Left(attr))
+            }
+            _ => {
+                let attr = self.obj.at(selector)?;
+                Ok(Either::Right(attr))
+            }
+        }
+    }
 }
 
 impl<'s, O: 's> DicomObject for &'s FileDicomObject<O>
 where
     O: DicomObject,
 {
-    type Attribute<'a> = <O as DicomObject>::Attribute<'a>
-        where 's: 'a;
+    type Attribute<'a>
+        = Either<FileMetaAttribute<'a>, O::Attribute<'a>>
+    where
+        Self: 'a,
+        O: 'a;
+
+    type LeafAttribute<'a>
+        = Either<FileMetaAttribute<'a>, O::LeafAttribute<'a>>
+    where
+        Self: 'a,
+        O: 'a;
 
     #[inline]
     fn get_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>, AccessError> {
-        self.obj.get_opt(tag)
+        (**self).get_opt(tag)
     }
 
     #[inline]
@@ -1148,17 +1222,25 @@ where
         &self,
         name: &str,
     ) -> Result<Option<Self::Attribute<'_>>, AccessByNameError> {
-        self.obj.get_by_name_opt(name)
+        (**self).get_by_name_opt(name)
     }
 
     #[inline]
     fn get(&self, tag: Tag) -> Result<Self::Attribute<'_>, AccessError> {
-        self.obj.get(tag)
+        (**self).get(tag)
     }
 
     #[inline]
     fn get_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
-        self.obj.get_by_name(name)
+        (**self).get_by_name(name)
+    }
+
+    #[inline]
+    fn at(
+        &self,
+        selector: impl Into<AttributeSelector>,
+    ) -> Result<Self::LeafAttribute<'_>, AtAccessError> {
+        (**self).at(selector)
     }
 }
 
@@ -1332,7 +1414,7 @@ mod tests {
     use dicom_dictionary_std::{tags, uids};
 
     use crate::meta::FileMetaTableBuilder;
-    use crate::{AccessError, FileDicomObject, InMemDicomObject};
+    use crate::{AccessError, DicomAttribute as _, DicomObject, FileDicomObject, InMemDicomObject};
 
     fn assert_type_not_too_large<T>(max_size: usize) {
         let size = std::mem::size_of::<T>();
@@ -1398,7 +1480,7 @@ mod tests {
 
         // contains patient name
         assert_eq!(
-            obj.element(dicom_dictionary_std::tags::PATIENT_NAME)
+            obj.element(tags::PATIENT_NAME)
                 .unwrap()
                 .value()
                 .to_str()
@@ -1406,12 +1488,20 @@ mod tests {
             "John Doe",
         );
 
+        // same result using DicomObject
+        assert_eq!(
+            DicomObject::get(&obj, tags::PATIENT_NAME)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "John Doe",
+        );
+
         // can be removed with take
-        obj.take_element(dicom_dictionary_std::tags::PATIENT_NAME)
-            .unwrap();
+        obj.take_element(tags::PATIENT_NAME).unwrap();
 
         assert!(matches!(
-            obj.element(dicom_dictionary_std::tags::PATIENT_NAME),
+            obj.element(tags::PATIENT_NAME),
             Err(AccessError::NoSuchDataElementTag { .. }),
         ));
     }
@@ -1509,11 +1599,8 @@ mod tests {
             uids::RLE_LOSSLESS
         );
 
-        let sop_class_uid = obj
-            .get_opt(tags::MEDIA_STORAGE_SOP_CLASS_UID)
-            .unwrap();
-        let sop_class_uid = sop_class_uid.as_ref()
-            .map(|v| v.to_str().unwrap());
+        let sop_class_uid = obj.get_opt(tags::MEDIA_STORAGE_SOP_CLASS_UID).unwrap();
+        let sop_class_uid = sop_class_uid.as_ref().map(|v| v.to_str().unwrap());
         assert_eq!(
             sop_class_uid.as_deref(),
             Some(uids::ENHANCED_MR_IMAGE_STORAGE)
@@ -1521,6 +1608,14 @@ mod tests {
 
         assert_eq!(
             obj.get_by_name("MediaStorageSOPInstanceUID")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "2.25.94766187067244888884745908966163363746"
+        );
+
+        assert_eq!(
+            obj.at(tags::MEDIA_STORAGE_SOP_INSTANCE_UID)
                 .unwrap()
                 .to_str()
                 .unwrap(),

@@ -2,7 +2,9 @@
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 use dicom_core::dicom_value;
 use dicom_core::header::{DataElement, EmptyObject, HasLength, Header};
-use dicom_core::ops::{ApplyOp, AttributeAction, AttributeOp, AttributeSelectorStep};
+use dicom_core::ops::{
+    ApplyOp, AttributeAction, AttributeOp, AttributeSelector, AttributeSelectorStep,
+};
 use dicom_core::value::{
     ConvertValueError, DicomValueType, InMemFragment, PrimitiveValue, Value, ValueType,
 };
@@ -23,7 +25,7 @@ use crate::ops::{
     UnsupportedActionSnafu, UnsupportedAttributeSnafu,
 };
 use crate::{
-    AttributeError, DicomAttribute, DicomObject, IMPLEMENTATION_CLASS_UID,
+    AtAccessError, AttributeError, DicomAttribute, DicomObject, IMPLEMENTATION_CLASS_UID,
     IMPLEMENTATION_VERSION_NAME,
 };
 
@@ -890,10 +892,14 @@ impl DicomValueType for FileMetaAttribute<'_> {
 }
 
 impl DicomAttribute for FileMetaAttribute<'_> {
-    type Item<'b> = EmptyObject
-        where Self: 'b;
-    type PixelData<'b> = InMemFragment
-        where Self: 'b;
+    type Item<'b>
+        = EmptyObject
+    where
+        Self: 'b;
+    type PixelData<'b>
+        = InMemFragment
+    where
+        Self: 'b;
 
     fn to_primitive_value(&self) -> Result<PrimitiveValue, AttributeError> {
         Ok(match Tag(0x0002, self.tag_e) {
@@ -1019,7 +1025,13 @@ impl DicomAttribute for FileMetaAttribute<'_> {
 }
 
 impl DicomObject for FileMetaTable {
-    type Attribute<'a> = FileMetaAttribute<'a>
+    type Attribute<'a>
+        = FileMetaAttribute<'a>
+    where
+        Self: 'a;
+
+    type LeafAttribute<'a>
+        = FileMetaAttribute<'a>
     where
         Self: 'a;
 
@@ -1093,6 +1105,24 @@ impl DicomObject for FileMetaTable {
         };
         self.get_opt(tag)
             .map_err(|_| crate::NoSuchAttributeNameSnafu { name }.build())
+    }
+
+    fn at(
+        &self,
+        selector: impl Into<AttributeSelector>,
+    ) -> Result<Self::LeafAttribute<'_>, crate::AtAccessError> {
+        let selector: AttributeSelector = selector.into();
+        match selector.split_first() {
+            (AttributeSelectorStep::Tag(tag), None) => self
+                .get(tag)
+                .map_err(|_| AtAccessError::MissingLeafElement { selector }),
+            (_, Some(_)) => crate::NotASequenceSnafu {
+                selector,
+                step_index: 0_u32,
+            }
+            .fail(),
+            (_, None) => unreachable!("broken invariant: nested step at end of selector"),
+        }
     }
 }
 

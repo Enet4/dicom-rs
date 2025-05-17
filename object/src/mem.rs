@@ -137,6 +137,9 @@ where
     type Attribute<'a> = &'a Value<InMemDicomObject<D>, InMemFragment>
             where Self: 'a;
 
+    type LeafAttribute<'a> = &'a Value<InMemDicomObject<D>, InMemFragment>
+            where Self: 'a;
+
     #[inline]
     fn get_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>> {
         let elem = InMemDicomObject::element_opt(self, tag)?;
@@ -163,6 +166,11 @@ where
         let elem = InMemDicomObject::element_by_name(self, name)?;
         Ok(elem.value())
     }
+
+    #[inline]
+    fn at(&self, selector: impl Into<AttributeSelector>) -> Result<Self::LeafAttribute<'_>, AtAccessError> {
+        InMemDicomObject::value_at(&self, selector)
+    }
 }
 
 impl<'s, D: 's> DicomObject for &'s InMemDicomObject<D>
@@ -171,6 +179,10 @@ where
     D: Clone,
 {
     type Attribute<'a> = &'a Value<InMemDicomObject<D>, InMemFragment>
+        where Self: 'a,
+        's: 'a;
+
+    type LeafAttribute<'a> = &'a Value<InMemDicomObject<D>, InMemFragment>
         where Self: 'a,
         's: 'a;
 
@@ -199,6 +211,11 @@ where
     fn get_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
         let elem = InMemDicomObject::element_by_name(*self, name)?;
         Ok(elem.value())
+    }
+
+    #[inline]
+    fn at(&self, selector: impl Into<AttributeSelector>) -> Result<Self::LeafAttribute<'_>, AtAccessError> {
+        self.value_at(selector)
     }
 }
 
@@ -3582,7 +3599,17 @@ mod tests {
                 ))
                 .unwrap(),
                 &PrimitiveValue::from(1_u16).into(),
-            )
+            );
+
+            // same result when using `DicomObject::at`
+            assert_eq!(
+                DicomObject::at(&obj, (
+                    tags::SEQUENCE_OF_ULTRASOUND_REGIONS,
+                    tags::REGION_SPATIAL_FORMAT
+                ))
+                .unwrap(),
+                &PrimitiveValue::from(1_u16).into(),
+            );
         }
     }
 
