@@ -134,7 +134,7 @@ impl From<(Tag, u32)> for AttributeSelectorStep {
 
 impl std::fmt::Display for AttributeSelectorStep {
     /// Displays the attribute selector step:
-    /// `(GGGG,EEEE)` if `Tag`,,
+    /// `(GGGG,EEEE)` if `Tag`,
     /// `(GGGG,EEEE)[i]` if `Nested`
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -323,6 +323,7 @@ impl AttributeSelector {
     /// [1]: AttributeSelectorStep::Tag
     pub fn new(steps: impl IntoIterator<Item = AttributeSelectorStep>) -> Option<Self> {
         let mut steps: SmallVec<_> = steps.into_iter().collect();
+        debug_assert!(steps.len() < 256);
         let (last, rest) = steps.split_last_mut()?;
         if matches!(last, AttributeSelectorStep::Nested { .. }) {
             return None;
@@ -334,6 +335,29 @@ impl AttributeSelector {
             }
         }
         Some(AttributeSelector(steps))
+    }
+
+    /// Split this attribute selector into the first step
+    /// and its remainder.
+    ///
+    /// If the first part of the tuple is the last step of the selector,
+    /// the first item will be of the variant [`Tag`](AttributeSelectorStep::Tag)
+    /// and the second item of the tuple will be `None`.
+    /// Otherwise,
+    /// the first item is guaranteed to be of the variant
+    /// [`Nested`](AttributeSelectorStep::Nested).
+    pub fn split_first(&self) -> (AttributeSelectorStep, Option<AttributeSelector>) {
+        match self.0.split_first() {
+            Some((first, rest)) => {
+                let rest = if rest.is_empty() {
+                    None
+                } else {
+                    Some(AttributeSelector(rest.into()))
+                };
+                (first.clone(), rest)
+            }
+            None => unreachable!("invariant broken: attribute selector should have at least one step"),
+        }
     }
 
     /// Return a non-empty iterator over the steps of attribute selection.
@@ -370,6 +394,14 @@ impl AttributeSelector {
             AttributeSelectorStep::Tag(tag) => *tag,
             _ => unreachable!("invariant broken: last attribute selector step should be Tag"),
         }
+    }
+
+    /// Obtain the number of steps of the selector.
+    ///
+    /// Since selectors cannot be empty,
+    /// the number of steps is always larger than zero.
+    pub fn len(&self) -> u32 {
+        self.0.len() as u32
     }
 }
 
@@ -674,17 +706,46 @@ pub trait ApplyOp {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ops::AttributeSelector, Tag};
+    use crate::{ops::{AttributeSelector, AttributeSelectorStep}, Tag};
 
     #[test]
     fn display_selectors() {
         let selector: AttributeSelector = Tag(0x0014, 0x5100).into();
-        assert_eq!(selector.to_string(), "(0014,5100)",);
+        assert_eq!(selector.to_string(), "(0014,5100)");
 
         let selector: AttributeSelector = (Tag(0x0018, 0x6011), 2, Tag(0x0018, 0x6012)).into();
-        assert_eq!(selector.to_string(), "(0018,6011)[2].(0018,6012)",);
+        assert_eq!(selector.to_string(), "(0018,6011)[2].(0018,6012)");
 
         let selector = AttributeSelector::from((Tag(0x0040, 0xA730), 1, Tag(0x0040, 0xA730)));
-        assert_eq!(selector.to_string(), "(0040,A730)[1].(0040,A730)",);
+        assert_eq!(selector.to_string(), "(0040,A730)[1].(0040,A730)");
+    }
+
+    #[test]
+    fn split_selectors() {
+        let selector: AttributeSelector = Tag(0x0014, 0x5100).into();
+        assert_eq!(
+            selector.split_first(),
+            (AttributeSelectorStep::Tag(Tag(0x0014, 0x5100)), None)
+        );
+
+        let selector: AttributeSelector = (Tag(0x0018, 0x6011), 2, Tag(0x0018, 0x6012)).into();
+        assert_eq!(
+            selector.split_first(),
+            (
+                AttributeSelectorStep::Nested { tag: Tag(0x0018, 0x6011), item: 2 },
+                Some(Tag(0x0018, 0x6012).into())
+            )
+        );
+
+        // selector constructor automatically turns the first entry into `Nested`
+        let selector = AttributeSelector::from((Tag(0x0040, 0xA730), Tag(0x0040, 0xA730)));
+        assert_eq!(
+            selector.split_first(),
+            (
+                AttributeSelectorStep::Nested { tag: Tag(0x0040, 0xA730), item: 0 },
+                Some(Tag(0x0040, 0xA730).into())
+            )
+        );
+
     }
 }
