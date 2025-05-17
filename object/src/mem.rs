@@ -171,7 +171,7 @@ where
 
     #[inline]
     fn at(&self, selector: impl Into<AttributeSelector>) -> Result<Self::LeafAttribute<'_>, AtAccessError> {
-        InMemDicomObject::value_at(&self, selector)
+        self.value_at(selector)
     }
 }
 
