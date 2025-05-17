@@ -307,7 +307,7 @@ pub trait DicomAttribute: DicomValueType {
     fn fragment(&self, index: u32) -> Result<Self::PixelData<'_>, AttributeError>;
 
     /// Obtain the number of pixel data fragments,
-    /// if the attribute value represents pixel data.
+    /// if the attribute value represents encapsulated pixel data.
     ///
     /// It should equivalent to `num_items`,
     /// save for returning `None` if the attribute is a data set sequence.
@@ -372,12 +372,64 @@ pub trait DicomAttribute: DicomValueType {
     }
 }
 
-/// Trait type for a DICOM object.
+/// Trait type for a generalized interpretation of a DICOM object.
+///
 /// This is a high-level abstraction where an object is accessed and
-/// manipulated as dictionary of entries indexed by tags, which in
+/// manipulated as a dictionary of entries indexed by tags, which in
 /// turn may contain a DICOM object.
 ///
-/// This trait interface is experimental and prone to sudden changes.
+/// ## Examples
+/// 
+/// You can use this trait when operating on DICOM data sets
+/// when the exact type is not known.
+///
+/// ```
+/// # use dicom_core::prelude::*;
+/// # use dicom_dictionary_std::tags;
+/// # use dicom_object::mem::InMemDicomObject;
+/// use dicom_object::DicomObject;
+/// use dicom_object::DicomAttribute as _;
+/// 
+/// fn my_data() -> impl DicomObject {
+///     InMemDicomObject::from_element_iter([
+///         DataElement::new(
+///             tags::SOP_INSTANCE_UID,
+///             VR::UI,
+///             "2.25.60131396312732822704775296119377475501",
+///         ),
+///     ])
+/// }
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let obj = my_data();
+/// assert_eq!(
+///     obj.get(tags::SOP_INSTANCE_UID)?.to_str()?,
+///    "2.25.60131396312732822704775296119377475501"
+/// );
+/// # Ok(())
+/// }
+/// ```
+/// 
+/// It works for in-memory data sets, file meta groups,
+/// and other similar structures.
+/// When operating on DICOM file objects,
+/// the look-up will be directed to the right group
+/// depending on the attribute requested.
+///
+/// ```no_run
+/// use dicom_object::open_file;
+/// 
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// open_file("00001.dcm")?;
+/// todo!();
+/// let file = open_file("00001.dcm")?;
+/// 
+/// let Some(media_storage_sop_class_uid) = file.get_opt(tags::MEDIA_STORAGE_SOP_CLASS_UID)? else {
+///     panic!("DICOM file should have a Media Storage SOP Class UID");
+/// };
+/// # Ok(())
+/// # }
+/// ```
 pub trait DicomObject {
     /// The type representing a DICOM attribute in the object
     /// and/or the necessary means to retrieve the value from it.
@@ -785,6 +837,16 @@ pub enum WithMetaError {
 /// A root DICOM object retrieved from a standard DICOM file,
 /// containing additional information from the file meta group
 /// in a separate table value.
+/// 
+/// **Note:** This type implements `Deref` towards the inner object,
+/// meaning that most method calls will be directed
+/// as if the call was performed directly on the main data set.
+/// While this is convenient,
+/// it also means that data elements from the file meta group
+/// cannot be accessed without explicitly taking a reference
+/// first through [`meta()`](FileDicomObject::meta).
+/// To abstract this away,
+/// see the [`DicomObject`] trait.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FileDicomObject<O> {
     meta: FileMetaTable,
