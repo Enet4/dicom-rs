@@ -354,7 +354,7 @@ impl AttributeSelector {
                 } else {
                     Some(AttributeSelector(rest.into()))
                 };
-                (first.clone(), rest)
+                (*first, rest)
             }
             None => unreachable!("invariant broken: attribute selector should have at least one step"),
         }
@@ -400,7 +400,7 @@ impl AttributeSelector {
     ///
     /// Since selectors cannot be empty,
     /// the number of steps is always larger than zero.
-    pub fn len(&self) -> u32 {
+    pub fn num_steps(&self) -> u32 {
         self.0.len() as u32
     }
 }
