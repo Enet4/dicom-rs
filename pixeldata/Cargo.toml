@@ -69,6 +69,8 @@ openjpeg-sys = ["dicom-transfer-syntax-registry/openjpeg-sys"]
 openjp2 = ["dicom-transfer-syntax-registry/openjp2"]
 # JpegLS via CharLS
 charls = ["dicom-transfer-syntax-registry/charls"]
+# use vcpkg to build CharLS
+charls-vcpkg = ["dicom-transfer-syntax-registry/charls-vcpkg"]
 
 # replace pixel data decoding to use GDCM
 gdcm = ["gdcm-rs"]
