@@ -42,6 +42,9 @@ openjpeg-sys = ["dep:jpeg2k", "jpeg2k/openjpeg-sys"]
 # jpeg LS support via charls bindings
 charls = ["dep:charls"]
 
+# use vcpkg to build CharLS
+charls-vcpkg = ["charls?/vcpkg"]
+
 # build OpenJPEG with multithreading,
 # implies "rayon"
 openjpeg-sys-threads = ["rayon", "jpeg2k?/threads"]
@@ -70,7 +73,7 @@ version = "0.6"
 optional = true
 
 [dependencies.charls]
-version = "0.3"
+version = "0.4.2"
 optional = true
 features = ["static"]
 
