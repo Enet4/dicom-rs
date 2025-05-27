@@ -55,7 +55,7 @@ pub fn run(args: DataElementApp) -> Result<()> {
         println!("Downloading DICOM dictionary ...");
         let resp = ureq::get(&src).call()?;
         let mut data = vec![];
-        std::io::copy(&mut resp.into_reader(), &mut data)?;
+        std::io::copy(&mut resp.into_body().as_reader(), &mut data)?;
 
         let notice = data
             .split(|&b| b == b'\n')

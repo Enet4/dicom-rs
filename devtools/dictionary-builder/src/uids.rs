@@ -66,7 +66,7 @@ pub fn run(app: UidApp) -> Result<()> {
         // read from URL
         println!("Downloading DICOM dictionary ...");
         let resp = ureq::get(&src).call()?;
-        resp.into_string()?
+        resp.into_body().read_to_string()?
     } else {
         // read from File
         println!("Reading from file {}", src);
