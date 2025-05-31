@@ -468,7 +468,7 @@ impl DecodedPixelData<'_> {
     /// Retrieve a slice of a frame's raw pixel data samples as bytes,
     /// irrespective of the expected size of each sample.
     pub fn frame_data(&self, frame: u32) -> Result<&[u8]> {
-        let bytes_per_sample = self.bits_allocated as usize / 8;
+        let bytes_per_sample = self.bits_allocated as usize + 7 / 8;
         let frame_length = self.rows as usize
             * self.cols as usize
             * self.samples_per_pixel as usize
@@ -1156,6 +1156,10 @@ impl DecodedPixelData<'_> {
                         }
                     }
                 }
+            }
+            1 => {
+                let data = self.frame_data(frame)?;
+                self.mono_image_with_extend(data.iter().copied(), *bit_depth)?
             }
             _ => InvalidBitsAllocatedSnafu.fail()?,
         };
@@ -2268,17 +2272,26 @@ where
             }
             DicomValue::Primitive(p) => {
                 // Non-encoded, just return the pixel data for a single frame
-                let frame_size = ((bits_allocated + 7) / 8) as usize
-                    * samples_per_pixel as usize
-                    * rows as usize
-                    * cols as usize;
-                let frame_offset = frame_size * frame as usize;
+                let frame_bits = rows as usize * cols as usize;
+                let frame_bytes = (frame_bits + 7) / 8; // Number of bytes required to store the bits
+                let frame_offset = frame_bytes * frame as usize; // Byte offset for the current frame
+
                 let data = p.to_bytes();
-                data.get(frame_offset..frame_offset + frame_size)
-                    .with_context(|| FrameOutOfRangeSnafu {
+
+                let frame_data = data
+                    .get(frame_offset..frame_offset + frame_bytes)
+                    .ok_or_else(|| FrameOutOfRangeSnafu {
                         frame_number: frame,
-                    })?
-                    .to_vec()
+                    })
+                    .unwrap();
+
+                let unpacked_pixel_data = frame_data
+                    .iter()
+                    .flat_map(|&byte| (0..8).rev().map(move |bit| ((byte >> bit) & 1) * 255))
+                    .take(frame_bits)
+                    .collect();
+
+                unpacked_pixel_data
             }
             DicomValue::Sequence(..) => InvalidPixelDataSnafu.fail()?,
         };
