@@ -2419,7 +2419,7 @@ mod tests {
 
         // create temporary file path and write object to that file
         let dir = tempfile::tempdir().unwrap();
-        let mut file_path = dir.into_path();
+        let mut file_path = dir.keep();
         file_path.push(format!("{}.dcm", sop_uid));
 
         file_object.write_to_file(&file_path).unwrap();
@@ -2497,7 +2497,7 @@ mod tests {
 
         // create temporary file path and write object to that file
         let dir = tempfile::tempdir().unwrap();
-        let mut file_path = dir.into_path();
+        let mut file_path = dir.keep();
         file_path.push(format!("{}.dcm", sop_uid));
 
         file_object.write_to_file(&file_path).unwrap();
@@ -2549,7 +2549,7 @@ mod tests {
 
         // create temporary file path and write object to that file
         let dir = tempfile::tempdir().unwrap();
-        let mut file_path = dir.into_path();
+        let mut file_path = dir.keep();
         file_path.push(format!("{}.dcm", sop_instance_uid));
 
         file_object.write_to_file(&file_path).unwrap();

@@ -18,7 +18,7 @@ path = "src/main.rs"
 clap = { version = "4.0.18", features = ["cargo", "derive"] }
 serde = { version = "1.0.55", features = ["derive"] }
 heck = "0.5.0"
-ureq = "2.4.0"
+ureq = "3.0.11"
 sxd-document = "0.3.2"
 eyre = "0.6.12"
 sxd-xpath = "0.4.2"
