@@ -2274,8 +2274,11 @@ where
                 // Non-encoded, just return the pixel data for a single frame
                 let frame_pixels = (rows as usize) * (cols as usize);
                 let frame_samples = frame_pixels * (samples_per_pixel as usize);
-                let bytes_per_sample = ((bits_allocated + 7) / 8) as usize;
-                let frame_size = frame_samples * bytes_per_sample;
+                let frame_size = if bits_allocated == 1 {
+                    frame_samples / 8 as usize
+                } else {
+                    frame_samples * ((bits_allocated + 7) / 8) as usize
+                };
                 let frame_offset = frame_size * (frame as usize);
 
                 let data = p.to_bytes();
@@ -2296,6 +2299,7 @@ where
                 } else {
                     frame_data.to_vec()
                 };
+
                 pixel_data
             }
             DicomValue::Sequence(..) => InvalidPixelDataSnafu.fail()?,
