@@ -2293,7 +2293,7 @@ where
                     // Map every bit in each byte to a separate byte of either 0 or 255
                     frame_data
                         .iter()
-                        .flat_map(|&byte| (0..8).rev().map(move |bit| ((byte >> bit) & 1) * 255))
+                        .flat_map(|&byte| (0..8).map(move |bit| ((byte >> bit) & 1) * 255))
                         .take(frame_pixels)
                         .collect()
                 } else {
