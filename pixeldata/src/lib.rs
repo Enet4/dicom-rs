@@ -2272,26 +2272,31 @@ where
             }
             DicomValue::Primitive(p) => {
                 // Non-encoded, just return the pixel data for a single frame
-                let frame_bits = rows as usize * cols as usize;
-                let frame_bytes = (frame_bits + 7) / 8; // Number of bytes required to store the bits
-                let frame_offset = frame_bytes * frame as usize; // Byte offset for the current frame
+                let frame_pixels = (rows as usize) * (cols as usize);
+                let frame_samples = frame_pixels * (samples_per_pixel as usize);
+                let bytes_per_sample = ((bits_allocated + 7) / 8) as usize;
+                let frame_size = frame_samples * bytes_per_sample;
+                let frame_offset = frame_size * (frame as usize);
 
                 let data = p.to_bytes();
 
-                let frame_data = data
-                    .get(frame_offset..frame_offset + frame_bytes)
-                    .ok_or_else(|| FrameOutOfRangeSnafu {
+                let frame_data = data.get(frame_offset..frame_offset + frame_size).context(
+                    FrameOutOfRangeSnafu {
                         frame_number: frame,
-                    })
-                    .unwrap();
+                    },
+                )?;
 
-                let unpacked_pixel_data = frame_data
-                    .iter()
-                    .flat_map(|&byte| (0..8).rev().map(move |bit| ((byte >> bit) & 1) * 255))
-                    .take(frame_bits)
-                    .collect();
-
-                unpacked_pixel_data
+                let pixel_data = if bits_allocated == 1 {
+                    // Map every bit in each byte to a separate byte of either 0 or 255
+                    frame_data
+                        .iter()
+                        .flat_map(|&byte| (0..8).rev().map(move |bit| ((byte >> bit) & 1) * 255))
+                        .take(frame_pixels)
+                        .collect()
+                } else {
+                    frame_data.to_vec()
+                };
+                pixel_data
             }
             DicomValue::Sequence(..) => InvalidPixelDataSnafu.fail()?,
         };
