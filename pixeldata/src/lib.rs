@@ -468,7 +468,7 @@ impl DecodedPixelData<'_> {
     /// Retrieve a slice of a frame's raw pixel data samples as bytes,
     /// irrespective of the expected size of each sample.
     pub fn frame_data(&self, frame: u32) -> Result<&[u8]> {
-        let bytes_per_sample = self.bits_allocated as usize + 7 / 8;
+        let bytes_per_sample = (self.bits_allocated as usize + 7) / 8;
         let frame_length = self.rows as usize
             * self.cols as usize
             * self.samples_per_pixel as usize
