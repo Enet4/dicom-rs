@@ -169,7 +169,7 @@ pub enum InnerError {
     #[snafu(display("PixelData attribute is not a primitive value or pixel sequence"))]
     InvalidPixelData { backtrace: Backtrace },
 
-    #[snafu(display("Invalid BitsAllocated, must be 8 or 16"))]
+    #[snafu(display("Invalid BitsAllocated, must be 1, 8 or 16"))]
     InvalidBitsAllocated { backtrace: Backtrace },
 
     #[snafu(display("Unsupported PhotometricInterpretation `{}`", pi))]
@@ -2931,5 +2931,35 @@ mod tests {
         ];
         let interleaved: Vec<u8> = vec![1, 5, 9, 2, 6, 10, 3, 7, 11, 4, 8, 12];
         assert_eq!(interleave(&planar), interleaved);
+    }
+
+    #[cfg(feature = "image")]
+    #[test]
+    fn test_1bit_image_decoding() {
+        use crate::PixelDecoder as _;
+        use std::path::Path;
+
+        let test_file =
+            dicom_test_files::path("pydicom/liver.dcm").expect("test DICOM file should exist");
+        println!("Parsing pixel data for {}", test_file.display());
+        let obj = dicom_object::open_file(test_file).unwrap();
+        let pixel_data = obj.decode_pixel_data_frame(0).unwrap();
+        let output_dir =
+            Path::new("../target/dicom_test_files/_out/test_1bit_image_decoding");
+        std::fs::create_dir_all(output_dir).unwrap();
+
+        assert_eq!(pixel_data.number_of_frames(), 1, "expected 1 frame only");
+
+        let image = pixel_data.to_dynamic_image(0).unwrap();
+        let image_path = output_dir.join(format!(
+            "{}-{}.png",
+            Path::new("pydicom/liver.dcm")
+                .file_stem()
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            0,
+        ));
+        image.save(image_path).unwrap();
     }
 }
