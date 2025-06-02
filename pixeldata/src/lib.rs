@@ -2277,7 +2277,7 @@ where
                 let frame_size = if bits_allocated == 1 {
                     frame_samples / 8
                 } else {
-                    frame_samples * ((bits_allocated + 7) / 8) as usize
+                    frame_samples * ((bits_allocated as usize + 7) / 8)
                 };
                 let frame_offset = frame_size * (frame as usize);
 
