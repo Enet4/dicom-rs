@@ -2275,7 +2275,7 @@ where
                 let frame_pixels = (rows as usize) * (cols as usize);
                 let frame_samples = frame_pixels * (samples_per_pixel as usize);
                 let frame_size = if bits_allocated == 1 {
-                    frame_samples / 8 as usize
+                    frame_samples / 8
                 } else {
                     frame_samples * ((bits_allocated + 7) / 8) as usize
                 };
