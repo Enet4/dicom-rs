@@ -39,6 +39,7 @@
 use dicom_core::ops::{
     ApplyOp, AttributeAction, AttributeOp, AttributeSelector, AttributeSelectorStep,
 };
+use dicom_encoding::Codec;
 use dicom_parser::dataset::read::{DataSetReaderOptions, OddLengthStrategy};
 use itertools::Itertools;
 use smallvec::SmallVec;
@@ -161,7 +162,7 @@ impl FileDicomObject<InMemDicomObject<StandardDataDictionary>> {
     /// followed by the rest of the data set.
     pub fn from_reader<S>(src: S) -> Result<Self, ReadError>
     where
-        S: Read,
+        S: Read + 'static,
     {
         Self::from_reader_with_dict(src, StandardDataDictionary)
     }
@@ -237,7 +238,7 @@ impl InMemDicomObject<StandardDataDictionary> {
         cs: SpecificCharacterSet,
     ) -> Result<Self, ReadError>
     where
-        S: Read,
+        S: Read + 'static,
     {
         Self::read_dataset_with_dict_ts_cs(from, StandardDataDictionary, ts, cs)
     }
@@ -380,20 +381,31 @@ where
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let mut options = DataSetReaderOptions::default();
             options.odd_length = odd_length;
-            let mut dataset = DataSetReader::new_with_ts_cs_options(
-                file,
-                ts,
-                SpecificCharacterSet::default(),
-                options,
-            )
-            .context(CreateParserSnafu)?;
-            let obj = InMemDicomObject::build_object(
-                &mut dataset,
-                dict,
-                false,
-                Length::UNDEFINED,
-                read_until,
-            )?;
+
+            let obj = if let Codec::Dataset(Some(adapter)) = ts.codec() {
+                let adapter = adapter.adapt_reader(Box::new(file));
+                let mut dataset =
+                    DataSetReader::new_with_ts(adapter, ts).context(CreateParserSnafu)?;
+
+                InMemDicomObject::build_object(
+                    &mut dataset,
+                    dict,
+                    false,
+                    Length::UNDEFINED,
+                    read_until,
+                )?
+            } else {
+                let mut dataset =
+                    DataSetReader::new_with_ts(file, ts).context(CreateParserSnafu)?;
+
+                InMemDicomObject::build_object(
+                    &mut dataset,
+                    dict,
+                    false,
+                    Length::UNDEFINED,
+                    read_until,
+                )?
+            };
 
             // if Media Storage SOP Class UID is empty attempt to infer from SOP Class UID
             if meta.media_storage_sop_class_uid().is_empty() {
@@ -453,9 +465,9 @@ where
     /// is insufficient. Otherwise, please use [`from_reader_with_dict`] instead.
     ///
     /// [`from_reader_with_dict`]: #method.from_reader_with_dict
-    pub fn from_reader_with<'s, S, R>(src: S, dict: D, ts_index: R) -> Result<Self, ReadError>
+    pub fn from_reader_with<S, R>(src: S, dict: D, ts_index: R) -> Result<Self, ReadError>
     where
-        S: Read + 's,
+        S: Read,
         R: TransferSyntaxIndex,
     {
         Self::from_reader_with_all_options(
@@ -468,7 +480,7 @@ where
         )
     }
 
-    pub(crate) fn from_reader_with_all_options<'s, S, R>(
+    pub(crate) fn from_reader_with_all_options<S, R>(
         src: S,
         dict: D,
         ts_index: R,
@@ -477,7 +489,7 @@ where
         odd_length: OddLengthStrategy,
     ) -> Result<Self, ReadError>
     where
-        S: Read + 's,
+        S: Read,
         R: TransferSyntaxIndex,
     {
         let mut file = BufReader::new(src);
@@ -500,20 +512,31 @@ where
         if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
             let mut options = DataSetReaderOptions::default();
             options.odd_length = odd_length;
-            let mut dataset = DataSetReader::new_with_ts_options(
-                file,
-                ts,
-                options,
-            )
-            .context(CreateParserSnafu)?;
-            let obj = InMemDicomObject::build_object(
-                &mut dataset,
-                dict,
-                false,
-                Length::UNDEFINED,
-                read_until,
-            )?;
-            Ok(FileDicomObject { meta, obj })
+
+            if let Codec::Dataset(Some(adapter)) = ts.codec() {
+                let adapter = adapter.adapt_reader(Box::new(file));
+                let mut dataset =
+                    DataSetReader::new_with_ts_options(adapter, ts, options).context(CreateParserSnafu)?;
+                let obj = InMemDicomObject::build_object(
+                    &mut dataset,
+                    dict,
+                    false,
+                    Length::UNDEFINED,
+                    read_until,
+                )?;
+                Ok(FileDicomObject { meta, obj })
+            } else {
+                let mut dataset =
+                    DataSetReader::new_with_ts_options(file, ts, options).context(CreateParserSnafu)?;
+                let obj = InMemDicomObject::build_object(
+                    &mut dataset,
+                    dict,
+                    false,
+                    Length::UNDEFINED,
+                    read_until,
+                )?;
+                Ok(FileDicomObject { meta, obj })
+            }
         } else {
             ReadUnsupportedTransferSyntaxSnafu {
                 uid: meta.transfer_syntax,
@@ -663,8 +686,15 @@ where
         D: DataDictionary,
     {
         let from = BufReader::new(from);
-        let mut dataset = DataSetReader::new_with_ts_cs(from, ts, cs).context(CreateParserSnafu)?;
-        InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
+        if let Codec::Dataset(Some(adapter)) = ts.codec() {
+            let adapter = adapter.adapt_reader(Box::new(from));
+            let mut dataset =
+                DataSetReader::new_with_ts_cs(adapter, ts, cs).context(CreateParserSnafu)?;
+            InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
+        } else {
+            let mut dataset = DataSetReader::new_with_ts_cs(from, ts, cs).context(CreateParserSnafu)?;
+            InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
+        }
     }
 
     // Standard methods follow. They are not placed as a trait implementation
@@ -1745,7 +1775,9 @@ where
     /// in which then that character set will be used.
     ///
     /// Note: [`write_dataset_with_ts`] and [`write_dataset_with_ts_cs`]
-    /// may be easier to use.
+    /// may be easier to use and _will_ apply a dataset adapter (such as
+    /// DeflatedExplicitVRLittleEndian (1.2.840.10008.1.2.99)) whereas this
+    /// method will _not_
     ///
     /// [`write_dataset_with_ts`]: #method.write_dataset_with_ts
     /// [`write_dataset_with_ts_cs`]: #method.write_dataset_with_ts_cs
@@ -1781,16 +1813,28 @@ where
     where
         W: Write,
     {
-        // prepare data set writer
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
-        let required_options = IntoTokensOptions::new(self.charset_changed);
+        if let Codec::Dataset(Some(adapter)) = ts.codec() {
+            let adapter = adapter.adapt_writer(Box::new(to));
+            // prepare data set writer
+            let mut dset_writer = DataSetWriter::with_ts(adapter, ts).context(CreatePrinterSnafu)?;
 
-        // write object
-        dset_writer
-            .write_sequence(self.into_tokens_with_options(required_options))
-            .context(PrintDataSetSnafu)?;
+            // write object
+            dset_writer
+                .write_sequence(self.into_tokens())
+                .context(PrintDataSetSnafu)?;
 
-        Ok(())
+            Ok(())
+        } else {
+            // prepare data set writer
+            let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
+
+            // write object
+            dset_writer
+                .write_sequence(self.into_tokens())
+                .context(PrintDataSetSnafu)?;
+
+            Ok(())
+        }
     }
 
     /// Write this object's data set into the given writer,
