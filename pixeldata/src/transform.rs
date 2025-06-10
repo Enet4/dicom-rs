@@ -211,14 +211,16 @@ impl<'a> VoiLutTransform<'a> {
             panic!("LUT data is empty");
         }
 
-        if bits_stored < (lut.bits_stored as u16) {
+        let next_pow_bits = bits_stored.next_power_of_two();
+
+        if next_pow_bits < (lut.bits_stored as u16) {
             panic!(
                 "LUT with BitsStored {} cannot be used for an image with BitsStored {}",
                 lut.bits_stored, bits_stored
             );
         }
 
-        let shift = (bits_stored.next_power_of_two() - (lut.bits_stored as u16)) as u32;
+        let shift = (next_pow_bits - (lut.bits_stored as u16)) as u32;
 
         VoiLutTransform { lut, shift }
     }
@@ -240,6 +242,8 @@ impl<'a> VoiLutTransform<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::Lut;
+
     use super::*;
 
     /// Applying a common rescale function to a value
@@ -313,5 +317,26 @@ mod tests {
         // x inbetween
         let y = window_level_transform.apply(50., y_max);
         assert!(y > 127. && y < 129.);
+    }
+
+    #[test]
+    fn voi_lut_transform() {
+        let voi_data = (0..256).map(|x| x * 4).collect();
+        let voi = VoiLut {
+            min_pixel_value: 0,
+            bits_stored: 8,
+            data: voi_data,
+            explanation: None,
+        };
+        let rescale = Rescale::new(1., 0.);
+        let lut: Lut<u16> =
+            Lut::new_rescale_and_lut(8, false, rescale, VoiLutTransform::new(&voi, 8)).unwrap();
+
+        // test some values
+
+        assert_eq!(lut.get(0_u16), 0);
+        assert_eq!(lut.get(1_u16), 4);
+        assert_eq!(lut.get(2_u16), 8);
+        assert_eq!(lut.get(255_u16), 1020);
     }
 }
