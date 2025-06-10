@@ -71,6 +71,7 @@ where
                     .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
                     .collect()
             });
+        let voi_lut_sequence = voi_lut_sequence(self);
 
         ensure!(
             rescale_intercept.len() == rescale_slope.len(),
@@ -178,6 +179,7 @@ where
             rescale,
             voi_lut_function,
             window,
+            voi_lut_sequence,
             enforce_frame_fg_vm_match: false,
         })
     }
@@ -236,6 +238,7 @@ where
                     .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
                     .collect()
             });
+        let voi_lut_sequence = voi_lut_sequence(self);
 
         let decoded_pixel_data = match pixel_data.value() {
             DicomValue::PixelSequence(v) => {
@@ -356,6 +359,7 @@ where
             rescale: rescale,
             voi_lut_function,
             window,
+            voi_lut_sequence,
             enforce_frame_fg_vm_match: false,
         })
     }
