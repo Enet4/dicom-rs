@@ -18,7 +18,7 @@ pub type Result<T, E = ReadError> = std::result::Result<T, E>;
 /// preamble: file meta group, followed by the rest of the data set.
 pub fn from_reader<F>(file: F) -> Result<DefaultDicomObject>
 where
-    F: Read + 'static,
+    F: Read,
 {
     OpenFileOptions::new().from_reader(file)
 }

@@ -162,7 +162,7 @@ impl FileDicomObject<InMemDicomObject<StandardDataDictionary>> {
     /// followed by the rest of the data set.
     pub fn from_reader<S>(src: S) -> Result<Self, ReadError>
     where
-        S: Read + 'static,
+        S: Read,
     {
         Self::from_reader_with_dict(src, StandardDataDictionary)
     }
@@ -238,7 +238,7 @@ impl InMemDicomObject<StandardDataDictionary> {
         cs: SpecificCharacterSet,
     ) -> Result<Self, ReadError>
     where
-        S: Read + 'static,
+        S: Read,
     {
         Self::read_dataset_with_dict_ts_cs(from, StandardDataDictionary, ts, cs)
     }
