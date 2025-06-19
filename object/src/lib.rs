@@ -565,7 +565,7 @@ where
     /// without preamble, magic code, nor file meta group.
     ///
     /// The transfer syntax is selected from the file meta table.
-    pub fn write_dataset<W: Write + 'static>(&self, to: W) -> Result<(), WriteError> {
+    pub fn write_dataset<W: Write>(&self, to: W) -> Result<(), WriteError> {
         let to = BufWriter::new(to);
 
         // prepare encoder
