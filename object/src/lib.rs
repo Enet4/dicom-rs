@@ -480,33 +480,7 @@ where
         // write meta group
         self.meta.write(&mut to).context(PrintMetaDataSetSnafu)?;
 
-        // prepare encoder
-        let ts = TransferSyntaxRegistry
-            .get(&self.meta.transfer_syntax)
-            .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
-                uid: self.meta.transfer_syntax.clone(),
-            })?;
-        if let Codec::Dataset(Some(adapter))= ts.codec() {
-            let adapter = adapter.adapt_writer(Box::new(to));
-            let mut dset_writer = DataSetWriter::with_ts(adapter, ts).context(CreatePrinterSnafu)?;
-
-            // write object
-            dset_writer
-                .write_sequence((&self.obj).into_tokens())
-                .context(PrintDataSetSnafu)?;
-
-            Ok(())
-
-        } else {
-            let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
-
-            // write object
-            dset_writer
-                .write_sequence((&self.obj).into_tokens())
-                .context(PrintDataSetSnafu)?;
-
-            Ok(())
-        }
+        self.write_dataset_impl(to)
     }
 
     /// Write the entire object as a DICOM file
@@ -525,33 +499,7 @@ where
         // write meta group
         self.meta.write(&mut to).context(PrintMetaDataSetSnafu)?;
 
-        // prepare encoder
-        let ts = TransferSyntaxRegistry
-            .get(&self.meta.transfer_syntax)
-            .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
-                uid: self.meta.transfer_syntax.clone(),
-            })?;
-        if let Codec::Dataset(Some(adapter))= ts.codec() {
-            let adapter = adapter.adapt_writer(Box::new(to));
-            let mut dset_writer = DataSetWriter::with_ts(adapter, ts).context(CreatePrinterSnafu)?;
-
-            // write object
-            dset_writer
-                .write_sequence((&self.obj).into_tokens())
-                .context(PrintDataSetSnafu)?;
-
-            Ok(())
-
-        } else {
-            let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
-
-            // write object
-            dset_writer
-                .write_sequence((&self.obj).into_tokens())
-                .context(PrintDataSetSnafu)?;
-
-            Ok(())
-        }
+        self.write_dataset_impl(to)
     }
 
     /// Write the file meta group set into the given writer.
@@ -568,6 +516,14 @@ where
     pub fn write_dataset<W: Write>(&self, to: W) -> Result<(), WriteError> {
         let to = BufWriter::new(to);
 
+        self.write_dataset_impl(to)
+    }
+
+    /// Helper function for writing the DICOM data set in this file DICOM object
+    /// with the right transfer syntax.
+    /// Automatically retrieves a data set adapter if required and available,
+    /// returns an error if the transfer syntax is not supported for data set writing.
+    fn write_dataset_impl(&self, to: impl Write) -> Result<(), WriteError> {
         // prepare encoder
         let ts = TransferSyntaxRegistry
             .get(&self.meta.transfer_syntax)
