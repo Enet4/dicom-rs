@@ -62,14 +62,14 @@ use crate::{
     NoSuchDataElementAliasSnafu, NoSuchDataElementTagSnafu, NotASequenceSnafu, OpenFileSnafu,
     ParseMetaDataSetSnafu, ParseSopAttributeSnafu, PrematureEndSnafu, PrepareMetaTableSnafu,
     PrintDataSetSnafu, PrivateCreatorNotFoundSnafu, PrivateElementError, ReadError, ReadFileSnafu,
-    ReadPreambleBytesSnafu, ReadTokenSnafu, ReadUnsupportedTransferSyntaxSnafu,
-    UnexpectedTokenSnafu, WithMetaError, WriteError,
+    ReadPreambleBytesSnafu, ReadTokenSnafu, ReadUnrecognizedTransferSyntaxSnafu, ReadUnsupportedTransferSyntaxSnafu,
+    ReadUnsupportedTransferSyntaxWithSuggestionSnafu, UnexpectedTokenSnafu, WithMetaError, WriteError,
 };
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
 use dicom_core::header::{GroupNumber, HasLength, Header};
 use dicom_core::value::{DataSetSequence, PixelFragmentSequence, Value, ValueType, C};
 use dicom_core::{DataElement, Length, PrimitiveValue, Tag, VR};
-use dicom_dictionary_std::{tags, StandardDataDictionary};
+use dicom_dictionary_std::{tags, uids, StandardDataDictionary};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_encoding::{encode::EncodeTo, text::SpecificCharacterSet, TransferSyntax};
 use dicom_parser::dataset::{DataSetReader, DataToken, IntoTokensOptions};
@@ -431,7 +431,7 @@ where
 
             Ok(FileDicomObject { meta, obj })
         } else {
-            ReadUnsupportedTransferSyntaxSnafu {
+            ReadUnrecognizedTransferSyntaxSnafu {
                 uid: meta.transfer_syntax,
             }
             .fail()
@@ -508,38 +508,58 @@ where
         // read metadata header
         let meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSetSnafu)?;
 
+        let ts_uid = meta.transfer_syntax();
         // read rest of data according to metadata, feed it to object
-        if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
+        if let Some(ts) = ts_index.get(&ts_uid) {
             let mut options = DataSetReaderOptions::default();
             options.odd_length = odd_length;
 
-            if let Codec::Dataset(Some(adapter)) = ts.codec() {
-                let adapter = adapter.adapt_reader(Box::new(file));
-                let mut dataset =
-                    DataSetReader::new_with_ts_options(adapter, ts, options).context(CreateParserSnafu)?;
-                let obj = InMemDicomObject::build_object(
-                    &mut dataset,
-                    dict,
-                    false,
-                    Length::UNDEFINED,
-                    read_until,
-                )?;
-                Ok(FileDicomObject { meta, obj })
-            } else {
-                let mut dataset =
-                    DataSetReader::new_with_ts_options(file, ts, options).context(CreateParserSnafu)?;
-                let obj = InMemDicomObject::build_object(
-                    &mut dataset,
-                    dict,
-                    false,
-                    Length::UNDEFINED,
-                    read_until,
-                )?;
-                Ok(FileDicomObject { meta, obj })
+            match ts.codec() {
+                Codec::Dataset(Some(adapter)) => {
+                    let adapter = adapter.adapt_reader(Box::new(file));
+                    let mut dataset =
+                        DataSetReader::new_with_ts_options(adapter, ts, options).context(CreateParserSnafu)?;
+                    let obj = InMemDicomObject::build_object(
+                        &mut dataset,
+                        dict,
+                        false,
+                        Length::UNDEFINED,
+                        read_until,
+                    )?;
+                    Ok(FileDicomObject { meta, obj })
+                }
+                Codec::Dataset(None) => {
+                    if ts_uid == uids::DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN
+                        || ts_uid == uids::JPIP_REFERENCED_DEFLATE
+                        || ts_uid == uids::JPIPHTJ2K_REFERENCED_DEFLATE {
+                        return ReadUnsupportedTransferSyntaxWithSuggestionSnafu {
+                            uid: ts.uid(),
+                            name: ts.name(),
+                            feature_name: "dicom-transfer-syntax-registry/deflate",
+                        }.fail();
+                    }
+
+                    ReadUnsupportedTransferSyntaxSnafu {
+                        uid: ts.uid(),
+                        name: ts.name(),
+                    }.fail()
+                }
+                Codec::None | Codec::EncapsulatedPixelData(..) => {
+                    let mut dataset =
+                        DataSetReader::new_with_ts_options(file, ts, options).context(CreateParserSnafu)?;
+                    let obj = InMemDicomObject::build_object(
+                        &mut dataset,
+                        dict,
+                        false,
+                        Length::UNDEFINED,
+                        read_until,
+                    )?;
+                    Ok(FileDicomObject { meta, obj })
+                }
             }
         } else {
-            ReadUnsupportedTransferSyntaxSnafu {
-                uid: meta.transfer_syntax,
+            ReadUnrecognizedTransferSyntaxSnafu {
+                uid: ts_uid.to_string(),
             }
             .fail()
         }
