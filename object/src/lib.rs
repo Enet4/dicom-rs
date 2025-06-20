@@ -549,7 +549,7 @@ where
     fn write_dataset_impl(&self, to: impl Write) -> Result<(), WriteError> {
         let ts_uid = self.meta.transfer_syntax();
         // prepare encoder
-        let ts = if let Some(ts) = TransferSyntaxRegistry.get(&ts_uid) {
+        let ts = if let Some(ts) = TransferSyntaxRegistry.get(ts_uid) {
             ts
         } else {
             return WriteUnrecognizedTransferSyntaxSnafu {
@@ -582,11 +582,11 @@ where
                     }
                     .fail();
                 }
-                return WriteUnsupportedTransferSyntaxSnafu {
+                WriteUnsupportedTransferSyntaxSnafu {
                     uid: ts.uid(),
                     name: ts.name(),
                 }
-                .fail();
+                .fail()
             }
             Codec::None | Codec::EncapsulatedPixelData(..) => {
                 // no dataset adapter needed
