@@ -510,7 +510,7 @@ where
 
         let ts_uid = meta.transfer_syntax();
         // read rest of data according to metadata, feed it to object
-        if let Some(ts) = ts_index.get(&ts_uid) {
+        if let Some(ts) = ts_index.get(ts_uid) {
             let mut options = DataSetReaderOptions::default();
             options.odd_length = odd_length;
 
