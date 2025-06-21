@@ -63,9 +63,11 @@
 //! | JPEG 2000                     | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | JPEG 2000 Part 2 Multi-component Image Compression | Cargo feature `openjp2` or `openjpeg-sys` | x |
+//! | JPIP Referenced Deflate       | Cargo feature `deflate` | ✓ |
 //! | High-Throughput JPEG 2000 (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | High-Throughput JPEG 2000 with RPCL Options (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | High-Throughput JPEG 2000     | Cargo feature `openjp2` or `openjpeg-sys` | x |
+//! | JPIP HTJ2K Referenced Deflate | Cargo feature `deflate` | ✓ |
 //! | JPEG XL Lossless              | Cargo feature `jpegxl` | ✓ |
 //! | JPEG XL Recompression         | Cargo feature `jpegxl` | x |
 //! | JPEG XL                       | Cargo feature `jpegxl` | ✓ |
