@@ -259,10 +259,10 @@ pub enum ReadError {
     MissingElementValue { backtrace: Backtrace },
     #[snafu(display("Unrecognized transfer syntax `{}`", uid))]
     ReadUnrecognizedTransferSyntax { uid: String, backtrace: Backtrace },
-    #[snafu(display("Unsupported writing for transfer syntax `{}` ({})", uid, name))]
+    #[snafu(display("Unsupported reading for transfer syntax `{}` ({})", uid, name))]
     ReadUnsupportedTransferSyntax { uid: &'static str, name: &'static str, backtrace: Backtrace },
     #[snafu(display(
-        "Unsupported writing for transfer syntax `{uid}` ({name}, requires enabling Cargo feature `{feature_name}`)"
+        "Unsupported reading for transfer syntax `{uid}` ({name}, try enabling feature `{feature_name}`)"
     ))]
     ReadUnsupportedTransferSyntaxWithSuggestion {
         uid: &'static str,
@@ -319,7 +319,7 @@ pub enum WriteError {
     #[snafu(display("Unsupported transfer syntax `{uid}` ({name})"))]
     WriteUnsupportedTransferSyntax { uid: &'static str, name: &'static str, backtrace: Backtrace },
     #[snafu(display(
-        "Unsupported transfer syntax `{uid}` ({name} requires enabling Cargo feature `{feature_name}`)"
+        "Unsupported transfer syntax `{uid}` ({name}, try enabling feature `{feature_name}`)"
     ))]
     WriteUnsupportedTransferSyntaxWithSuggestion {
         uid: &'static str,
