@@ -39,6 +39,7 @@
 use dicom_core::ops::{
     ApplyOp, AttributeAction, AttributeOp, AttributeSelector, AttributeSelectorStep,
 };
+use dicom_encoding::Codec;
 use dicom_parser::dataset::read::{DataSetReaderOptions, OddLengthStrategy};
 use itertools::Itertools;
 use smallvec::SmallVec;
@@ -61,14 +62,15 @@ use crate::{
     NoSuchDataElementAliasSnafu, NoSuchDataElementTagSnafu, NotASequenceSnafu, OpenFileSnafu,
     ParseMetaDataSetSnafu, ParseSopAttributeSnafu, PrematureEndSnafu, PrepareMetaTableSnafu,
     PrintDataSetSnafu, PrivateCreatorNotFoundSnafu, PrivateElementError, ReadError, ReadFileSnafu,
-    ReadPreambleBytesSnafu, ReadTokenSnafu, ReadUnsupportedTransferSyntaxSnafu,
+    ReadPreambleBytesSnafu, ReadTokenSnafu, ReadUnrecognizedTransferSyntaxSnafu,
+    ReadUnsupportedTransferSyntaxSnafu, ReadUnsupportedTransferSyntaxWithSuggestionSnafu,
     UnexpectedTokenSnafu, WithMetaError, WriteError,
 };
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
 use dicom_core::header::{GroupNumber, HasLength, Header};
 use dicom_core::value::{DataSetSequence, PixelFragmentSequence, Value, ValueType, C};
 use dicom_core::{DataElement, Length, PrimitiveValue, Tag, VR};
-use dicom_dictionary_std::{tags, StandardDataDictionary};
+use dicom_dictionary_std::{tags, uids, StandardDataDictionary};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_encoding::{encode::EncodeTo, text::SpecificCharacterSet, TransferSyntax};
 use dicom_parser::dataset::{DataSetReader, DataToken, IntoTokensOptions};
@@ -320,31 +322,6 @@ where
         )
     }
 
-    // detect the presence of a preamble
-    // and provide a better `ReadPreamble` option accordingly
-    fn detect_preamble<S>(reader: &mut BufReader<S>) -> std::io::Result<ReadPreamble>
-    where
-        S: Read,
-    {
-        let buf = reader.fill_buf()?;
-        let buflen = buf.len();
-
-        if buflen < 4 {
-            return Err(std::io::ErrorKind::UnexpectedEof.into());
-        }
-
-        if buflen >= 132 && &buf[128..132] == b"DICM" {
-            return Ok(ReadPreamble::Always);
-        }
-
-        if &buf[0..4] == b"DICM" {
-            return Ok(ReadPreamble::Never);
-        }
-
-        // could not detect
-        Ok(ReadPreamble::Auto)
-    }
-
     pub(crate) fn open_file_with_all_options<P, R>(
         path: P,
         dict: D,
@@ -373,57 +350,7 @@ where
                 .with_context(|_| ReadFileSnafu { filename: path })?;
         }
 
-        // read metadata header
-        let mut meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSetSnafu)?;
-
-        // read rest of data according to metadata, feed it to object
-        if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
-            let mut options = DataSetReaderOptions::default();
-            options.odd_length = odd_length;
-            let mut dataset = DataSetReader::new_with_ts_cs_options(
-                file,
-                ts,
-                SpecificCharacterSet::default(),
-                options,
-            )
-            .context(CreateParserSnafu)?;
-            let obj = InMemDicomObject::build_object(
-                &mut dataset,
-                dict,
-                false,
-                Length::UNDEFINED,
-                read_until,
-            )?;
-
-            // if Media Storage SOP Class UID is empty attempt to infer from SOP Class UID
-            if meta.media_storage_sop_class_uid().is_empty() {
-                if let Some(elem) = obj.get(tags::SOP_CLASS_UID) {
-                    meta.media_storage_sop_class_uid = elem
-                        .value()
-                        .to_str()
-                        .context(ParseSopAttributeSnafu)?
-                        .to_string();
-                }
-            }
-
-            // if Media Storage SOP Instance UID is empty attempt to infer from SOP Instance UID
-            if meta.media_storage_sop_instance_uid().is_empty() {
-                if let Some(elem) = obj.get(tags::SOP_INSTANCE_UID) {
-                    meta.media_storage_sop_instance_uid = elem
-                        .value()
-                        .to_str()
-                        .context(ParseSopAttributeSnafu)?
-                        .to_string();
-                }
-            }
-
-            Ok(FileDicomObject { meta, obj })
-        } else {
-            ReadUnsupportedTransferSyntaxSnafu {
-                uid: meta.transfer_syntax,
-            }
-            .fail()
-        }
+        Self::read_parts_with_all_options_impl(file, dict, ts_index, read_until, odd_length)
     }
 
     /// Create a DICOM object by reading from a byte source.
@@ -453,9 +380,9 @@ where
     /// is insufficient. Otherwise, please use [`from_reader_with_dict`] instead.
     ///
     /// [`from_reader_with_dict`]: #method.from_reader_with_dict
-    pub fn from_reader_with<'s, S, R>(src: S, dict: D, ts_index: R) -> Result<Self, ReadError>
+    pub fn from_reader_with<S, R>(src: S, dict: D, ts_index: R) -> Result<Self, ReadError>
     where
-        S: Read + 's,
+        S: Read,
         R: TransferSyntaxIndex,
     {
         Self::from_reader_with_all_options(
@@ -468,7 +395,7 @@ where
         )
     }
 
-    pub(crate) fn from_reader_with_all_options<'s, S, R>(
+    pub(crate) fn from_reader_with_all_options<S, R>(
         src: S,
         dict: D,
         ts_index: R,
@@ -477,7 +404,7 @@ where
         odd_length: OddLengthStrategy,
     ) -> Result<Self, ReadError>
     where
-        S: Read + 's,
+        S: Read,
         R: TransferSyntaxIndex,
     {
         let mut file = BufReader::new(src);
@@ -493,30 +420,132 @@ where
             file.read_exact(&mut buf).context(ReadPreambleBytesSnafu)?;
         }
 
-        // read metadata header
-        let meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSetSnafu)?;
+        Self::read_parts_with_all_options_impl(file, dict, ts_index, read_until, odd_length)
+    }
 
+    // detect the presence of a preamble
+    // and provide a better `ReadPreamble` option accordingly
+    fn detect_preamble<S>(reader: &mut BufReader<S>) -> std::io::Result<ReadPreamble>
+    where
+        S: Read,
+    {
+        let buf = reader.fill_buf()?;
+        let buflen = buf.len();
+
+        if buflen < 4 {
+            return Err(std::io::ErrorKind::UnexpectedEof.into());
+        }
+
+        if buflen >= 132 && &buf[128..132] == b"DICM" {
+            return Ok(ReadPreamble::Always);
+        }
+
+        if &buf[0..4] == b"DICM" {
+            return Ok(ReadPreamble::Never);
+        }
+
+        // could not detect
+        Ok(ReadPreamble::Auto)
+    }
+
+    /// Common implementation for reading the file meta group
+    /// and the main data set (expects no preamble and no magic code),
+    /// according to the file's transfer syntax and the given options.
+    ///
+    /// If Media Storage SOP Class UID or Media Storage SOP Instance UID
+    /// are missing in the file meta group,
+    /// this function will attempt to populate them from the main data set.
+    fn read_parts_with_all_options_impl<S, R>(
+        mut src: BufReader<S>,
+        dict: D,
+        ts_index: R,
+        read_until: Option<Tag>,
+        odd_length: OddLengthStrategy,
+    ) -> Result<Self, ReadError>
+    where
+        S: Read,
+        R: TransferSyntaxIndex,
+    {
+        // read metadata header
+        let mut meta = FileMetaTable::from_reader(&mut src).context(ParseMetaDataSetSnafu)?;
+
+        let ts_uid = meta.transfer_syntax();
         // read rest of data according to metadata, feed it to object
-        if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
+        if let Some(ts) = ts_index.get(ts_uid) {
             let mut options = DataSetReaderOptions::default();
             options.odd_length = odd_length;
-            let mut dataset = DataSetReader::new_with_ts_options(
-                file,
-                ts,
-                options,
-            )
-            .context(CreateParserSnafu)?;
-            let obj = InMemDicomObject::build_object(
-                &mut dataset,
-                dict,
-                false,
-                Length::UNDEFINED,
-                read_until,
-            )?;
+
+            let obj = match ts.codec() {
+                Codec::Dataset(Some(adapter)) => {
+                    let adapter = adapter.adapt_reader(Box::new(src));
+                    let mut dataset = DataSetReader::new_with_ts_options(adapter, ts, options)
+                        .context(CreateParserSnafu)?;
+                    InMemDicomObject::build_object(
+                        &mut dataset,
+                        dict,
+                        false,
+                        Length::UNDEFINED,
+                        read_until,
+                    )?
+                }
+                Codec::Dataset(None) => {
+                    if ts_uid == uids::DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN
+                        || ts_uid == uids::JPIP_REFERENCED_DEFLATE
+                        || ts_uid == uids::JPIPHTJ2K_REFERENCED_DEFLATE
+                    {
+                        return ReadUnsupportedTransferSyntaxWithSuggestionSnafu {
+                            uid: ts.uid(),
+                            name: ts.name(),
+                            feature_name: "dicom-transfer-syntax-registry/deflate",
+                        }
+                        .fail();
+                    }
+
+                    return ReadUnsupportedTransferSyntaxSnafu {
+                        uid: ts.uid(),
+                        name: ts.name(),
+                    }
+                    .fail();
+                }
+                Codec::None | Codec::EncapsulatedPixelData(..) => {
+                    let mut dataset = DataSetReader::new_with_ts_options(src, ts, options)
+                        .context(CreateParserSnafu)?;
+                    InMemDicomObject::build_object(
+                        &mut dataset,
+                        dict,
+                        false,
+                        Length::UNDEFINED,
+                        read_until,
+                    )?
+                }
+            };
+
+            // if Media Storage SOP Class UID is empty attempt to infer from SOP Class UID
+            if meta.media_storage_sop_class_uid().is_empty() {
+                if let Some(elem) = obj.get(tags::SOP_CLASS_UID) {
+                    meta.media_storage_sop_class_uid = elem
+                        .value()
+                        .to_str()
+                        .context(ParseSopAttributeSnafu)?
+                        .to_string();
+                }
+            }
+
+            // if Media Storage SOP Instance UID is empty attempt to infer from SOP Instance UID
+            if meta.media_storage_sop_instance_uid().is_empty() {
+                if let Some(elem) = obj.get(tags::SOP_INSTANCE_UID) {
+                    meta.media_storage_sop_instance_uid = elem
+                        .value()
+                        .to_str()
+                        .context(ParseSopAttributeSnafu)?
+                        .to_string();
+                }
+            }
+
             Ok(FileDicomObject { meta, obj })
         } else {
-            ReadUnsupportedTransferSyntaxSnafu {
-                uid: meta.transfer_syntax,
+            ReadUnrecognizedTransferSyntaxSnafu {
+                uid: ts_uid.to_string(),
             }
             .fail()
         }
@@ -663,8 +692,37 @@ where
         D: DataDictionary,
     {
         let from = BufReader::new(from);
-        let mut dataset = DataSetReader::new_with_ts_cs(from, ts, cs).context(CreateParserSnafu)?;
-        InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
+
+        match ts.codec() {
+            Codec::Dataset(Some(adapter)) => {
+                let adapter = adapter.adapt_reader(Box::new(from));
+                let mut dataset =
+                    DataSetReader::new_with_ts_cs(adapter, ts, cs).context(CreateParserSnafu)?;
+                InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
+            }
+            Codec::Dataset(None) => {
+                let uid = ts.uid();
+                if uid == uids::DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN
+                    || uid == uids::JPIP_REFERENCED_DEFLATE
+                    || uid == uids::JPIPHTJ2K_REFERENCED_DEFLATE
+                {
+                    return ReadUnsupportedTransferSyntaxWithSuggestionSnafu {
+                        uid,
+                        name: ts.name(),
+                        feature_name: "dicom-transfer-syntax-registry/deflate",
+                    }.fail();
+                }
+
+                ReadUnsupportedTransferSyntaxSnafu {
+                    uid,
+                    name: ts.name(),
+                }.fail()
+            }
+            Codec::None | Codec::EncapsulatedPixelData(..) => {
+                let mut dataset = DataSetReader::new_with_ts_cs(from, ts, cs).context(CreateParserSnafu)?;
+                InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
+            }
+        }
     }
 
     // Standard methods follow. They are not placed as a trait implementation
@@ -1745,7 +1803,9 @@ where
     /// in which then that character set will be used.
     ///
     /// Note: [`write_dataset_with_ts`] and [`write_dataset_with_ts_cs`]
-    /// may be easier to use.
+    /// may be easier to use and _will_ apply a dataset adapter (such as
+    /// DeflatedExplicitVRLittleEndian (1.2.840.10008.1.2.99)) whereas this
+    /// method will _not_
     ///
     /// [`write_dataset_with_ts`]: #method.write_dataset_with_ts
     /// [`write_dataset_with_ts_cs`]: #method.write_dataset_with_ts_cs
@@ -1781,16 +1841,28 @@ where
     where
         W: Write,
     {
-        // prepare data set writer
-        let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
-        let required_options = IntoTokensOptions::new(self.charset_changed);
+        if let Codec::Dataset(Some(adapter)) = ts.codec() {
+            let adapter = adapter.adapt_writer(Box::new(to));
+            // prepare data set writer
+            let mut dset_writer = DataSetWriter::with_ts(adapter, ts).context(CreatePrinterSnafu)?;
 
-        // write object
-        dset_writer
-            .write_sequence(self.into_tokens_with_options(required_options))
-            .context(PrintDataSetSnafu)?;
+            // write object
+            dset_writer
+                .write_sequence(self.into_tokens())
+                .context(PrintDataSetSnafu)?;
 
-        Ok(())
+            Ok(())
+        } else {
+            // prepare data set writer
+            let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
+
+            // write object
+            dset_writer
+                .write_sequence(self.into_tokens())
+                .context(PrintDataSetSnafu)?;
+
+            Ok(())
+        }
     }
 
     /// Write this object's data set into the given writer,
