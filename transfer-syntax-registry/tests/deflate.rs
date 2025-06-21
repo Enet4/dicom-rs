@@ -1,3 +1,6 @@
+//! Test suite for deflated data set reading and writing
+#![cfg(feature = "deflate")]
+
 use std::{fs::File, io::BufReader};
 
 use dicom_core::Tag;
