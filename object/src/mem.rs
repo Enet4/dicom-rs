@@ -62,8 +62,9 @@ use crate::{
     NoSuchDataElementAliasSnafu, NoSuchDataElementTagSnafu, NotASequenceSnafu, OpenFileSnafu,
     ParseMetaDataSetSnafu, ParseSopAttributeSnafu, PrematureEndSnafu, PrepareMetaTableSnafu,
     PrintDataSetSnafu, PrivateCreatorNotFoundSnafu, PrivateElementError, ReadError, ReadFileSnafu,
-    ReadPreambleBytesSnafu, ReadTokenSnafu, ReadUnrecognizedTransferSyntaxSnafu, ReadUnsupportedTransferSyntaxSnafu,
-    ReadUnsupportedTransferSyntaxWithSuggestionSnafu, UnexpectedTokenSnafu, WithMetaError, WriteError,
+    ReadPreambleBytesSnafu, ReadTokenSnafu, ReadUnrecognizedTransferSyntaxSnafu,
+    ReadUnsupportedTransferSyntaxSnafu, ReadUnsupportedTransferSyntaxWithSuggestionSnafu,
+    UnexpectedTokenSnafu, WithMetaError, WriteError,
 };
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
 use dicom_core::header::{GroupNumber, HasLength, Header};
@@ -321,31 +322,6 @@ where
         )
     }
 
-    // detect the presence of a preamble
-    // and provide a better `ReadPreamble` option accordingly
-    fn detect_preamble<S>(reader: &mut BufReader<S>) -> std::io::Result<ReadPreamble>
-    where
-        S: Read,
-    {
-        let buf = reader.fill_buf()?;
-        let buflen = buf.len();
-
-        if buflen < 4 {
-            return Err(std::io::ErrorKind::UnexpectedEof.into());
-        }
-
-        if buflen >= 132 && &buf[128..132] == b"DICM" {
-            return Ok(ReadPreamble::Always);
-        }
-
-        if &buf[0..4] == b"DICM" {
-            return Ok(ReadPreamble::Never);
-        }
-
-        // could not detect
-        Ok(ReadPreamble::Auto)
-    }
-
     pub(crate) fn open_file_with_all_options<P, R>(
         path: P,
         dict: D,
@@ -374,68 +350,7 @@ where
                 .with_context(|_| ReadFileSnafu { filename: path })?;
         }
 
-        // read metadata header
-        let mut meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSetSnafu)?;
-
-        // read rest of data according to metadata, feed it to object
-        if let Some(ts) = ts_index.get(&meta.transfer_syntax) {
-            let mut options = DataSetReaderOptions::default();
-            options.odd_length = odd_length;
-
-            let obj = if let Codec::Dataset(Some(adapter)) = ts.codec() {
-                let adapter = adapter.adapt_reader(Box::new(file));
-                let mut dataset =
-                    DataSetReader::new_with_ts(adapter, ts).context(CreateParserSnafu)?;
-
-                InMemDicomObject::build_object(
-                    &mut dataset,
-                    dict,
-                    false,
-                    Length::UNDEFINED,
-                    read_until,
-                )?
-            } else {
-                let mut dataset =
-                    DataSetReader::new_with_ts(file, ts).context(CreateParserSnafu)?;
-
-                InMemDicomObject::build_object(
-                    &mut dataset,
-                    dict,
-                    false,
-                    Length::UNDEFINED,
-                    read_until,
-                )?
-            };
-
-            // if Media Storage SOP Class UID is empty attempt to infer from SOP Class UID
-            if meta.media_storage_sop_class_uid().is_empty() {
-                if let Some(elem) = obj.get(tags::SOP_CLASS_UID) {
-                    meta.media_storage_sop_class_uid = elem
-                        .value()
-                        .to_str()
-                        .context(ParseSopAttributeSnafu)?
-                        .to_string();
-                }
-            }
-
-            // if Media Storage SOP Instance UID is empty attempt to infer from SOP Instance UID
-            if meta.media_storage_sop_instance_uid().is_empty() {
-                if let Some(elem) = obj.get(tags::SOP_INSTANCE_UID) {
-                    meta.media_storage_sop_instance_uid = elem
-                        .value()
-                        .to_str()
-                        .context(ParseSopAttributeSnafu)?
-                        .to_string();
-                }
-            }
-
-            Ok(FileDicomObject { meta, obj })
-        } else {
-            ReadUnrecognizedTransferSyntaxSnafu {
-                uid: meta.transfer_syntax,
-            }
-            .fail()
-        }
+        Self::read_parts_with_all_options_impl(file, dict, ts_index, read_until, odd_length)
     }
 
     /// Create a DICOM object by reading from a byte source.
@@ -505,8 +420,54 @@ where
             file.read_exact(&mut buf).context(ReadPreambleBytesSnafu)?;
         }
 
+        Self::read_parts_with_all_options_impl(file, dict, ts_index, read_until, odd_length)
+    }
+
+    // detect the presence of a preamble
+    // and provide a better `ReadPreamble` option accordingly
+    fn detect_preamble<S>(reader: &mut BufReader<S>) -> std::io::Result<ReadPreamble>
+    where
+        S: Read,
+    {
+        let buf = reader.fill_buf()?;
+        let buflen = buf.len();
+
+        if buflen < 4 {
+            return Err(std::io::ErrorKind::UnexpectedEof.into());
+        }
+
+        if buflen >= 132 && &buf[128..132] == b"DICM" {
+            return Ok(ReadPreamble::Always);
+        }
+
+        if &buf[0..4] == b"DICM" {
+            return Ok(ReadPreamble::Never);
+        }
+
+        // could not detect
+        Ok(ReadPreamble::Auto)
+    }
+
+    /// Common implementation for reading the file meta group
+    /// and the main data set (expects no preamble and no magic code),
+    /// according to the file's transfer syntax and the given options.
+    ///
+    /// If Media Storage SOP Class UID or Media Storage SOP Instance UID
+    /// are missing in the file meta group,
+    /// this function will attempt to populate them from the main data set.
+    fn read_parts_with_all_options_impl<S, R>(
+        mut src: BufReader<S>,
+        dict: D,
+        ts_index: R,
+        read_until: Option<Tag>,
+        odd_length: OddLengthStrategy,
+    ) -> Result<Self, ReadError>
+    where
+        S: Read,
+        R: TransferSyntaxIndex,
+    {
         // read metadata header
-        let meta = FileMetaTable::from_reader(&mut file).context(ParseMetaDataSetSnafu)?;
+        let mut meta = FileMetaTable::from_reader(&mut src).context(ParseMetaDataSetSnafu)?;
 
         let ts_uid = meta.transfer_syntax();
         // read rest of data according to metadata, feed it to object
@@ -514,49 +475,74 @@ where
             let mut options = DataSetReaderOptions::default();
             options.odd_length = odd_length;
 
-            match ts.codec() {
+            let obj = match ts.codec() {
                 Codec::Dataset(Some(adapter)) => {
-                    let adapter = adapter.adapt_reader(Box::new(file));
-                    let mut dataset =
-                        DataSetReader::new_with_ts_options(adapter, ts, options).context(CreateParserSnafu)?;
-                    let obj = InMemDicomObject::build_object(
+                    let adapter = adapter.adapt_reader(Box::new(src));
+                    let mut dataset = DataSetReader::new_with_ts_options(adapter, ts, options)
+                        .context(CreateParserSnafu)?;
+                    InMemDicomObject::build_object(
                         &mut dataset,
                         dict,
                         false,
                         Length::UNDEFINED,
                         read_until,
-                    )?;
-                    Ok(FileDicomObject { meta, obj })
+                    )?
                 }
                 Codec::Dataset(None) => {
                     if ts_uid == uids::DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN
                         || ts_uid == uids::JPIP_REFERENCED_DEFLATE
-                        || ts_uid == uids::JPIPHTJ2K_REFERENCED_DEFLATE {
+                        || ts_uid == uids::JPIPHTJ2K_REFERENCED_DEFLATE
+                    {
                         return ReadUnsupportedTransferSyntaxWithSuggestionSnafu {
                             uid: ts.uid(),
                             name: ts.name(),
                             feature_name: "dicom-transfer-syntax-registry/deflate",
-                        }.fail();
+                        }
+                        .fail();
                     }
 
-                    ReadUnsupportedTransferSyntaxSnafu {
+                    return ReadUnsupportedTransferSyntaxSnafu {
                         uid: ts.uid(),
                         name: ts.name(),
-                    }.fail()
+                    }
+                    .fail();
                 }
                 Codec::None | Codec::EncapsulatedPixelData(..) => {
-                    let mut dataset =
-                        DataSetReader::new_with_ts_options(file, ts, options).context(CreateParserSnafu)?;
-                    let obj = InMemDicomObject::build_object(
+                    let mut dataset = DataSetReader::new_with_ts_options(src, ts, options)
+                        .context(CreateParserSnafu)?;
+                    InMemDicomObject::build_object(
                         &mut dataset,
                         dict,
                         false,
                         Length::UNDEFINED,
                         read_until,
-                    )?;
-                    Ok(FileDicomObject { meta, obj })
+                    )?
+                }
+            };
+
+            // if Media Storage SOP Class UID is empty attempt to infer from SOP Class UID
+            if meta.media_storage_sop_class_uid().is_empty() {
+                if let Some(elem) = obj.get(tags::SOP_CLASS_UID) {
+                    meta.media_storage_sop_class_uid = elem
+                        .value()
+                        .to_str()
+                        .context(ParseSopAttributeSnafu)?
+                        .to_string();
                 }
             }
+
+            // if Media Storage SOP Instance UID is empty attempt to infer from SOP Instance UID
+            if meta.media_storage_sop_instance_uid().is_empty() {
+                if let Some(elem) = obj.get(tags::SOP_INSTANCE_UID) {
+                    meta.media_storage_sop_instance_uid = elem
+                        .value()
+                        .to_str()
+                        .context(ParseSopAttributeSnafu)?
+                        .to_string();
+                }
+            }
+
+            Ok(FileDicomObject { meta, obj })
         } else {
             ReadUnrecognizedTransferSyntaxSnafu {
                 uid: ts_uid.to_string(),
