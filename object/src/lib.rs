@@ -15,11 +15,28 @@
 //! To read DICOM data sets in smaller portions,
 //! use the [DICOM collector API](collector).
 //!
+//! # Encodings
+//!
+//! By default, `dicom-object` supports reading and writing DICOM files
+//! in any transfer syntax without data set compression.
+//! This includes _Explicit VR Little Endian_
+//! (with or without encapsulated pixel data),
+//! _Implicit VR Little Endian_,
+//! and _Explicit VR Big Endian_ (retired).
+//! To enable support for reading and writing deflated data sets
+//! (such as _Deflated Explicit VR Little Endian_),
+//! enable **Cargo feature `deflated`**.
+//! 
+//! When working with imaging data,
+//! consider using the [`dicom-pixeldata`] crate,
+//! which offers methods to convert pixel data from objects
+//! into images or multi-dimensional arrays.
+//!
 //! # Examples
 //!
 //! ### Reading DICOM
 //!
-//! Read an object and fetch some attributes:
+//! Read an object from a DICOM file and inspect some attributes:
 //!
 //! ```no_run
 //! use dicom_dictionary_std::tags;
@@ -71,10 +88,11 @@
 //! 
 //! ### Writing DICOM
 //!
-//! **Note:** if you need to decode the pixel data first,
-//! see the [dicom-pixeldata] crate.
+//! **Note:** the code above will only work if you are fetching native pixel data.
+//! If you are potentially working with encapsulated pixel data,
+//! see the [`dicom-pixeldata`] crate.
 //!
-//! [dicom-pixeldata]: https://docs.rs/dicom-pixeldata
+//! [`dicom-pixeldata`]: https://docs.rs/dicom-pixeldata
 //!
 //! Finally, DICOM objects can be serialized back into DICOM encoded bytes.
 //! A method is provided for writing a file DICOM object into a new DICOM file.

@@ -56,7 +56,9 @@ ndarray = ["dep:ndarray"]
 image = ["dep:image"]
 
 # Rust native image codec implementations
-native = ["dicom-transfer-syntax-registry/native", "jpeg", "rle"]
+native = ["dicom-transfer-syntax-registry/native", "jpeg", "rle", "deflate"]
+# deflated transfer syntax reading and writing via flate2
+deflate = ['dicom-object/deflate', 'dicom-transfer-syntax-registry/deflate']
 # native JPEG codec implementation
 jpeg = ["dicom-transfer-syntax-registry/jpeg"]
 # native JPEG XL codec implementation
