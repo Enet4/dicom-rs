@@ -52,6 +52,7 @@
 //!
 //! | transfer syntax               | decoding support     | encoding support |
 //! |-------------------------------|----------------------|------------------|
+//! | Deflated Explicit VR Little Endian | Cargo feature `deflate` | ✓ |
 //! | JPEG Baseline (Process 1)     | Cargo feature `jpeg` | ✓ |
 //! | JPEG Extended (Process 2 & 4) | Cargo feature `jpeg` | x |
 //! | JPEG Lossless, Non-Hierarchical (Process 14) | Cargo feature `jpeg` | x |

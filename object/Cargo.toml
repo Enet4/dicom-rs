@@ -12,6 +12,7 @@ readme = "README.md"
 
 [features]
 default = []
+deflate = ['dicom-transfer-syntax-registry/deflate']
 inventory-registry = ['dicom-encoding/inventory-registry', 'dicom-transfer-syntax-registry/inventory-registry']
 
 [dependencies]
