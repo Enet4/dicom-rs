@@ -692,14 +692,36 @@ where
         D: DataDictionary,
     {
         let from = BufReader::new(from);
-        if let Codec::Dataset(Some(adapter)) = ts.codec() {
-            let adapter = adapter.adapt_reader(Box::new(from));
-            let mut dataset =
-                DataSetReader::new_with_ts_cs(adapter, ts, cs).context(CreateParserSnafu)?;
-            InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
-        } else {
-            let mut dataset = DataSetReader::new_with_ts_cs(from, ts, cs).context(CreateParserSnafu)?;
-            InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
+
+        match ts.codec() {
+            Codec::Dataset(Some(adapter)) => {
+                let adapter = adapter.adapt_reader(Box::new(from));
+                let mut dataset =
+                    DataSetReader::new_with_ts_cs(adapter, ts, cs).context(CreateParserSnafu)?;
+                InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
+            }
+            Codec::Dataset(None) => {
+                let uid = ts.uid();
+                if uid == uids::DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN
+                    || uid == uids::JPIP_REFERENCED_DEFLATE
+                    || uid == uids::JPIPHTJ2K_REFERENCED_DEFLATE
+                {
+                    return ReadUnsupportedTransferSyntaxWithSuggestionSnafu {
+                        uid,
+                        name: ts.name(),
+                        feature_name: "dicom-transfer-syntax-registry/deflate",
+                    }.fail();
+                }
+
+                ReadUnsupportedTransferSyntaxSnafu {
+                    uid,
+                    name: ts.name(),
+                }.fail()
+            }
+            Codec::None | Codec::EncapsulatedPixelData(..) => {
+                let mut dataset = DataSetReader::new_with_ts_cs(from, ts, cs).context(CreateParserSnafu)?;
+                InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
+            }
         }
     }
 
