@@ -1,0 +1,24 @@
+[package]
+name = "dicom-movescu"
+version = "0.8.1"
+authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Enet4/dicom-rs"
+description = "A DICOM C-FIND command line interface"
+categories = ["command-line-utilities"]
+keywords = ["dicom", "query", "search"]
+readme = "README.md"
+
+[dependencies]
+dicom-core = { path = '../core', version = "0.8.1" }
+dicom-ul = { path = '../ul', version = "0.8.1" }
+dicom-object = { path = '../object', version = "0.8.1" }
+dicom-encoding = { path = "../encoding/", version = "0.8.1" }
+dicom-dictionary-std = { path = "../dictionary-std/", version = "0.8.0" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.8.1" }
+dicom-dump = { path = "../dump", default-features = false, version = "0.8.0" }
+clap = { version = "4.0.18", features = ["derive"] }
+snafu = "0.8"
+tracing = "0.1.36"
+tracing-subscriber = "0.3.15"
