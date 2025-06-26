@@ -241,7 +241,7 @@ fn run() -> Result<(), Error> {
         debug!("Transfer Syntax: {}", ts.name());
     }
 
-    let cmd = Move_req_command(abstract_syntax, 1);
+    let cmd = move_req_command(abstract_syntax, "DICOMWEB_PACS", 1);
 
     let mut cmd_data = Vec::with_capacity(128);
     cmd.write_dataset_with_ts(&mut cmd_data, &entries::IMPLICIT_VR_LITTLE_ENDIAN.erased())
@@ -395,8 +395,9 @@ fn run() -> Result<(), Error> {
     Ok(())
 }
 
-fn Move_req_command(
+fn move_req_command(
     sop_class_uid: &str,
+    move_destination: &str,
     message_id: u16,
 ) -> InMemDicomObject<StandardDataDictionary> {
     InMemDicomObject::command_from_element_iter([
@@ -427,6 +428,12 @@ fn Move_req_command(
             tags::COMMAND_DATA_SET_TYPE,
             VR::US,
             dicom_value!(U16, [0x0001]),
+        ),
+                // data set type
+        DataElement::new(
+            tags::MOVE_DESTINATION,
+            VR::AE,
+            PrimitiveValue::from(move_destination),
         ),
     ])
 }
