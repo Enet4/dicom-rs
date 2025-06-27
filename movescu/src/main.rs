@@ -114,6 +114,7 @@ fn main() {
     });
 
     if !app.no_scp {
+        info!("starting store-scp");
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
@@ -126,7 +127,8 @@ fn main() {
             });
 
             // make sure the async runtime is running
-            thread::sleep(time::Duration::from_millis(3_000));
+            info!("waiting...");
+            thread::sleep(time::Duration::from_millis(5_000));
     }
 
 
