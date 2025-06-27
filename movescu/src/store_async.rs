@@ -118,6 +118,7 @@ pub async fn run_store_async(
         patient: _,
         study: _,
         mwl: _,
+        move_destination: _,
     } = args;
     let verbose = *verbose;
 
