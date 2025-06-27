@@ -43,11 +43,15 @@ struct App {
     #[arg(short = 'v', long = "verbose")]
     verbose: bool,
     /// the calling AE title
-    #[arg(long = "calling-ae-title", default_value = "MOVE-SCU")]
+    #[arg(long = "calling-ae-title", default_value = "STORE-SCP")]
     calling_ae_title: String,
     /// the called AE title
     #[arg(long = "called-ae-title")]
     called_ae_title: Option<String>,
+    /// the C-MOVE destination AE title
+    #[arg(long = "move-destination", default_value = "CONQUESTSRV1")]
+    move_destination: String,
+
     /// the maximum PDU length
     #[arg(
         long = "max-pdu-length",
@@ -253,6 +257,7 @@ fn run_move_scu(app: App) -> Result<(), Error> {
         calling_ae_title,
         called_ae_title,
         max_pdu_length,
+        move_destination,
         patient,
         study,
         mwl,
@@ -314,7 +319,7 @@ fn run_move_scu(app: App) -> Result<(), Error> {
         debug!("Transfer Syntax: {}", ts.name());
     }
 
-    let cmd = move_req_command(abstract_syntax, "DICOMWEB_PACS", 1);
+    let cmd = move_req_command(abstract_syntax, move_destination.as_str(), 1);
 
     let mut cmd_data = Vec::with_capacity(128);
     cmd.write_dataset_with_ts(&mut cmd_data, &entries::IMPLICIT_VR_LITTLE_ENDIAN.erased())
