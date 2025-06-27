@@ -178,14 +178,14 @@ pub trait BasicEncode {
                 // Note: this will always print in UTF-8. Consumers should
                 // intercept string primitive values and encode them according
                 // to the expected character set.
-                write!(to, "{}", s).context(WriteStringSnafu)?;
+                write!(to, "{s}").context(WriteStringSnafu)?;
                 Ok(s.len())
             }
             Strs(s) => encode_collection_delimited(&mut to, s, |to, s| {
                 // Note: this will always print in UTF-8. Consumers should
                 // intercept string primitive values and encode them according
                 // to the expected character set.
-                write!(to, "{}", s)?;
+                write!(to, "{s}")?;
                 Ok(s.len())
             })
             .context(WriteStringSnafu),
