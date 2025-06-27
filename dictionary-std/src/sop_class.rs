@@ -108,7 +108,7 @@ mod tests {
     // were well installed into the dictionary index
     #[test]
     fn can_fetch_sop_classes() {
-        let dict = StandardSopClassDictionary::default();
+        let dict = StandardSopClassDictionary;
 
         let entry = dict.by_uid("1.2.840.10008.1.1");
         assert_eq!(

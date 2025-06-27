@@ -180,7 +180,7 @@ mod tests {
     // were well installed into the crate
     #[test]
     fn smoke_test() {
-        let dict = StandardDataDictionary::default();
+        let dict = StandardDataDictionary;
 
         assert_eq!(
             dict.by_name("PatientName"),
@@ -284,7 +284,7 @@ mod tests {
         assert_eq!(COMMAND_GROUP_LENGTH, Tag(0x0000, 0x0000));
         assert_eq!(FILE_META_INFORMATION_GROUP_LENGTH, Tag(0x0002, 0x0000));
 
-        let dict = StandardDataDictionary::default();
+        let dict = StandardDataDictionary;
 
         assert_eq!(
             dict.by_tag(FILE_META_INFORMATION_GROUP_LENGTH),
@@ -327,7 +327,7 @@ mod tests {
 
     #[test]
     fn has_private_creator() {
-        let dict = StandardDataDictionary::default();
+        let dict = StandardDataDictionary;
 
         let private_creator = DataDictionaryEntryRef {
             tag: PrivateCreator,
