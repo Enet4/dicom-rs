@@ -292,6 +292,7 @@ where
     }
 }
 
+#[allow(unknown_lints)]
 #[allow(clippy::infallible_try_from)]
 impl<'a> TryFrom<&'a str> for AeAddr<String> {
     type Error = <AeAddr<String> as FromStr>::Err;
