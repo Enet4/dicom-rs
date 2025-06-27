@@ -171,11 +171,11 @@ pub trait PixelDataObject {
     /// by requesting fragment number 0.
     ///
     /// [1]: std::borrow::Cow
-    fn fragment(&self, fragment: usize) -> Option<Cow<[u8]>>;
+    fn fragment(&self, fragment: usize) -> Option<Cow<'_, [u8]>>;
 
     /// Return the object's offset table,
     /// or `None` if no offset table is available.
-    fn offset_table(&self) -> Option<Cow<[u32]>>;
+    fn offset_table(&self) -> Option<Cow<'_, [u32]>>;
 
     /// Should return either a byte slice/vector if the pixel data is native
     /// or the list of byte fragments and offset table if encapsulated.

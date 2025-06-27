@@ -574,7 +574,7 @@ impl PrimitiveValue {
     /// Ok(())
     /// }
     /// ```
-    pub fn to_str(&self) -> Cow<str> {
+    pub fn to_str(&self) -> Cow<'_, str> {
         match self {
             PrimitiveValue::Empty => Cow::from(""),
             PrimitiveValue::Str(values) => {
@@ -643,7 +643,7 @@ impl PrimitiveValue {
     ///     "DERIVED\\ PRIMARY \\WHOLE BODY\\EMISSION ",
     /// );
     /// ```
-    pub fn to_raw_str(&self) -> Cow<str> {
+    pub fn to_raw_str(&self) -> Cow<'_, str> {
         match self {
             PrimitiveValue::Empty => Cow::from(""),
             PrimitiveValue::Str(values) => Cow::from(values.as_str()),
@@ -715,7 +715,7 @@ impl PrimitiveValue {
     /// Ok(())
     /// }
     /// ```
-    pub fn to_multi_str(&self) -> Cow<[String]> {
+    pub fn to_multi_str(&self) -> Cow<'_, [String]> {
         /// Auxiliary function for turning a sequence of values
         /// into a sequence of strings.
         fn seq_to_str<I>(iter: I) -> Vec<String>
@@ -832,7 +832,7 @@ impl PrimitiveValue {
     /// Ok(())
     /// }
     /// ```
-    pub fn to_bytes(&self) -> Cow<[u8]> {
+    pub fn to_bytes(&self) -> Cow<'_, [u8]> {
         match self {
             PrimitiveValue::Empty => Cow::from(&[][..]),
             PrimitiveValue::U8(values) => Cow::from(&values[..]),

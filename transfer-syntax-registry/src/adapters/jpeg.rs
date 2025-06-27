@@ -364,7 +364,7 @@ fn next_even(l: u64) -> u64 {
 
 /// reduce data precision to 8 bits if necessary
 /// data loss is possible
-fn narrow_8bit(frame_data: &[u8], bits_stored: u16) -> EncodeResult<Cow<[u8]>> {
+fn narrow_8bit(frame_data: &[u8], bits_stored: u16) -> EncodeResult<Cow<'_, [u8]>> {
     debug_assert!(bits_stored >= 8);
     match bits_stored {
         8 => Ok(Cow::Borrowed(frame_data)),

@@ -949,7 +949,7 @@ where
     }
 }
 
-fn cut_str(s: &str, max_characters: u32) -> Cow<str> {
+fn cut_str(s: &str, max_characters: u32) -> Cow<'_, str> {
     let max = (max_characters.saturating_sub(3)) as usize;
     let len = s.chars().count();
 

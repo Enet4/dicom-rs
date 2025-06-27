@@ -1061,7 +1061,7 @@ where
     ///
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
-    pub fn receive_pdata(&mut self) -> PDataReader<&mut std::net::TcpStream> {
+    pub fn receive_pdata(&mut self) -> PDataReader<'_, &mut std::net::TcpStream> {
         PDataReader::new(
             &mut self.socket,
             self.requestor_max_pdu_length,
@@ -1564,7 +1564,7 @@ pub mod non_blocking {
         /// Returns a reader which automatically
         /// receives more data PDUs once the bytes collected are consumed.
         #[cfg(feature = "async")]
-        pub fn receive_pdata(&mut self) -> PDataReader<&mut tokio::net::TcpStream> {
+        pub fn receive_pdata(&mut self) -> PDataReader<'_, &mut tokio::net::TcpStream> {
             PDataReader::new(
                 &mut self.socket,
                 self.requestor_max_pdu_length,
