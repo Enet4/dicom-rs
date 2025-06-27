@@ -59,7 +59,7 @@ impl PixelDataObject for TestDataObject {
         self.pixel_data_sequence.as_ref().map(|v| v.fragments().len() as u32)
     }
 
-    fn fragment(&self, fragment: usize) -> Option<Cow<[u8]>> {
+    fn fragment(&self, fragment: usize) -> Option<Cow<'_, [u8]>> {
         match (&self.flat_pixel_data, &self.pixel_data_sequence) {
             (Some(_), Some(_)) => {
                 panic!("Invalid pixel data object (both flat and fragment sequence)")
@@ -79,7 +79,7 @@ impl PixelDataObject for TestDataObject {
         }
     }
 
-    fn offset_table(&self) -> Option<Cow<[u32]>> {
+    fn offset_table(&self) -> Option<Cow<'_, [u32]>> {
         match &self.pixel_data_sequence {
             Some(v) => Some(Cow::Borrowed(v.offset_table())),
             _ => None,
