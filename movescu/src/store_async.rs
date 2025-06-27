@@ -119,6 +119,7 @@ pub async fn run_store_async(
         study: _,
         mwl: _,
         move_destination: _,
+        no_scp: _,
     } = args;
     let verbose = *verbose;
 

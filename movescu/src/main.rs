@@ -17,6 +17,7 @@ use snafu::Report;
 use std::io::{stderr, BufRead as _, Read};
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::path::PathBuf;
+use std::{thread, time};
 use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 
@@ -49,7 +50,7 @@ struct App {
     #[arg(long = "called-ae-title")]
     called_ae_title: Option<String>,
     /// the C-MOVE destination AE title
-    #[arg(long = "move-destination", default_value = "CONQUESTSRV1")]
+    #[arg(long = "move-destination", default_value = "STORE-SCP")]
     move_destination: String,
 
     /// the maximum PDU length
@@ -90,31 +91,44 @@ struct App {
     /// Accept unknown SOP classes
     #[arg(long)]
     promiscuous: bool,
+
+    /// Don't use built-in scp
+    #[arg(long = "no-scp", default_value = "false")]
+    no_scp: bool,
 }
 
 fn main() {
-
     let app = App::parse();
 
     tracing::subscriber::set_global_default(
         tracing_subscriber::FmtSubscriber::builder()
-            .with_max_level(if app.verbose { Level::DEBUG } else { Level::INFO })
+            .with_max_level(if app.verbose {
+                Level::DEBUG
+            } else {
+                Level::INFO
+            })
             .finish(),
     )
     .unwrap_or_else(|e| {
         error!("{}", snafu::Report::from_error(e));
     });
 
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .spawn(async move {
-            run_async(App::parse()).await.unwrap_or_else(|e| {
-                error!("{:?}", e);
-                std::process::exit(-2);
+    if !app.no_scp {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .spawn(async move {
+                run_async(app).await.unwrap_or_else(|e| {
+                    error!("{:?}", e);
+                    std::process::exit(-2);
+                });
             });
-        });
+
+            // make sure the async runtime is running
+            thread::sleep(time::Duration::from_millis(3_000));
+    }
+
 
     run_move_scu(App::parse()).unwrap_or_else(|err| {
         error!("{}", snafu::Report::from_error(err));
@@ -266,14 +280,12 @@ fn run_move_scu(app: App) -> Result<(), Error> {
         strict: _,
         uncompressed_only: _,
         promiscuous: _,
+        no_scp: _,
     } = app;
 
     info!("verbose mode: {}", verbose);
 
-    info!(
-        "sending c_move request to: {}",
-        addr
-    );
+    info!("sending c_move request to: {}", addr);
 
     let dcm_query = build_query(file, query_file, query, patient, study, mwl, verbose)?;
 
@@ -489,7 +501,7 @@ fn move_req_command(
         DataElement::new(
             tags::COMMAND_FIELD,
             VR::US,
-            // 0020H: C-MOVE-RQ message
+            // 0021H: C-MOVE-RQ message  --> suggestion to create constants for these
             dicom_value!(U16, [0x0021]),
         ),
         // message ID
