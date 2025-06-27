@@ -13,12 +13,16 @@ use dicom_ul::{
 };
 use query::parse_queries;
 use snafu::prelude::*;
+use snafu::Report;
 use std::io::{stderr, BufRead as _, Read};
+use std::net::{Ipv4Addr, SocketAddrV4};
 use std::path::PathBuf;
 use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 
 mod query;
+mod store_async;
+use store_async::run_store_async;
 
 /// DICOM C-MOVE SCU
 #[derive(Debug, Parser)]
@@ -51,6 +55,12 @@ struct App {
         value_parser(clap::value_parser!(u32).range(4096..=131_072))
     )]
     max_pdu_length: u32,
+    /// Output directory for incoming objects
+    #[arg(short = 'o', default_value = ".")]
+    out_dir: PathBuf,
+    /// Which port to listen on
+    #[arg(short, default_value = "11111")]
+    port: u16,
 
     /// use patient root information model
     #[arg(short = 'P', long, conflicts_with = "study", conflicts_with = "mwl")]
@@ -66,13 +76,73 @@ struct App {
         conflicts_with = "patient"
     )]
     mwl: bool,
+
+    /// Enforce max pdu length
+    #[arg(short = 's', long = "strict")]
+    strict: bool,
+    /// Only accept native/uncompressed transfer syntaxes
+    #[arg(long)]
+    uncompressed_only: bool,
+    /// Accept unknown SOP classes
+    #[arg(long)]
+    promiscuous: bool,
 }
 
 fn main() {
-    run().unwrap_or_else(|err| {
+
+    let app = App::parse();
+
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(if app.verbose { Level::DEBUG } else { Level::INFO })
+            .finish(),
+    )
+    .unwrap_or_else(|e| {
+        error!("{}", snafu::Report::from_error(e));
+    });
+
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .spawn(async move {
+            run_async(App::parse()).await.unwrap_or_else(|e| {
+                error!("{:?}", e);
+                std::process::exit(-2);
+            });
+        });
+
+    run_move_scu(App::parse()).unwrap_or_else(|err| {
         error!("{}", snafu::Report::from_error(err));
         std::process::exit(-2);
     });
+}
+
+async fn run_async(args: App) -> Result<(), Box<dyn std::error::Error>> {
+    use std::sync::Arc;
+    let args = Arc::new(args);
+
+    std::fs::create_dir_all(&args.out_dir).unwrap_or_else(|e| {
+        error!("Could not create output directory: {}", e);
+        std::process::exit(-2);
+    });
+
+    let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), args.port);
+    let listener = tokio::net::TcpListener::bind(listen_addr).await?;
+    info!(
+        "{} listening on: tcp://{}",
+        &args.calling_ae_title, listen_addr
+    );
+
+    loop {
+        let (socket, _addr) = listener.accept().await?;
+        let args = args.clone();
+        tokio::task::spawn(async move {
+            if let Err(e) = run_store_async(socket, &args).await {
+                error!("{}", Report::from_error(e));
+            }
+        });
+    }
 }
 
 #[derive(Debug, Snafu)]
@@ -173,7 +243,7 @@ fn build_query(
     Ok(obj)
 }
 
-fn run() -> Result<(), Error> {
+fn run_move_scu(app: App) -> Result<(), Error> {
     let App {
         addr,
         file,
@@ -186,16 +256,19 @@ fn run() -> Result<(), Error> {
         patient,
         study,
         mwl,
-    } = App::parse();
+        out_dir: _,
+        port: _,
+        strict: _,
+        uncompressed_only: _,
+        promiscuous: _,
+    } = app;
 
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::FmtSubscriber::builder()
-            .with_max_level(if verbose { Level::DEBUG } else { Level::INFO })
-            .finish(),
-    )
-    .unwrap_or_else(|e| {
-        error!("{}", snafu::Report::from_error(e));
-    });
+    info!("verbose mode: {}", verbose);
+
+    info!(
+        "sending c_move request to: {}",
+        addr
+    );
 
     let dcm_query = build_query(file, query_file, query, patient, study, mwl, verbose)?;
 
@@ -429,7 +502,7 @@ fn move_req_command(
             VR::US,
             dicom_value!(U16, [0x0001]),
         ),
-                // data set type
+        // data set type
         DataElement::new(
             tags::MOVE_DESTINATION,
             VR::AE,
