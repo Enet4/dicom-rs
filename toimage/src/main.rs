@@ -292,7 +292,7 @@ fn build_output_path(
         let pathstr = output.to_str().unwrap();
         // it is impossible to use set_extension here since dicom file names commonly have dots in
         // them which would be interpreted as file extensions
-        output = PathBuf::from_str(&format!("{}.dcm", pathstr)).unwrap();
+        output = PathBuf::from_str(&format!("{pathstr}.dcm")).unwrap();
     }
 
     if let Some(outdir) = outdir {
