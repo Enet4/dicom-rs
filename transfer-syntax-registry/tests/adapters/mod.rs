@@ -48,7 +48,7 @@ impl PixelDataObject for TestDataObject {
     }
 
     fn photometric_interpretation(&self) -> Option<&str> {
-        Some(&self.photometric_interpretation)
+        Some(self.photometric_interpretation)
     }
 
     fn number_of_frames(&self) -> Option<u32> {
@@ -56,10 +56,7 @@ impl PixelDataObject for TestDataObject {
     }
 
     fn number_of_fragments(&self) -> Option<u32> {
-        match &self.pixel_data_sequence {
-            Some(v) => Some(v.fragments().len() as u32),
-            _ => None,
-        }
+        self.pixel_data_sequence.as_ref().map(|v| v.fragments().len() as u32)
     }
 
     fn fragment(&self, fragment: usize) -> Option<Cow<[u8]>> {

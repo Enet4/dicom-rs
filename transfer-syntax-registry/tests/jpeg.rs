@@ -31,8 +31,7 @@ fn check_rgb_pixel(pixels: &[u8], columns: u16, x: u16, y: u16, expected_pixel: 
     let got = [pixels[i], pixels[i + 1], pixels[i + 2]];
     assert_eq!(
         got, expected_pixel,
-        "pixel mismatch at ({}, {}): {:?} vs {:?}",
-        x, y, got, expected_pixel
+        "pixel mismatch at ({x}, {y}): {got:?} vs {expected_pixel:?}"
     );
 }
 

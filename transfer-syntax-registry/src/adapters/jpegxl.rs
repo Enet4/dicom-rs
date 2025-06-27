@@ -75,7 +75,7 @@ impl PixelDataReader for JpegXlAdapter {
             raw.fragments
                 .get(frame as usize)
                 .with_whatever_context(|| {
-                    format!("Missing fragment #{} for the frame requested", frame)
+                    format!("Missing fragment #{frame} for the frame requested")
                 })?;
 
         let image = JxlImage::builder()
@@ -238,7 +238,7 @@ impl PixelDataWriter for JpegXlAdapter {
         let mut changes = if quality != 100 {
             let compressed_frame_size = dst.len() - len_before;
             let compression_ratio = frame_size as f64 / compressed_frame_size as f64;
-            let compression_ratio = format!("{:.6}", compression_ratio);
+            let compression_ratio = format!("{compression_ratio:.6}");
             vec![
                 // lossy image compression
                 AttributeOp::new(Tag(0x0028, 0x2110), AttributeAction::SetStr("01".into())),
