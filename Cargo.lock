@@ -597,6 +597,7 @@ dependencies = [
  "dicom-transfer-syntax-registry",
  "dicom-ul",
  "snafu",
+ "tokio",
  "tracing",
  "tracing-subscriber",
 ]
