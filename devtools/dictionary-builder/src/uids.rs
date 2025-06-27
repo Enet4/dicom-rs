@@ -69,7 +69,7 @@ pub fn run(app: UidApp) -> Result<()> {
         resp.into_body().read_to_string()?
     } else {
         // read from File
-        println!("Reading from file {}", src);
+        println!("Reading from file {src}");
         std::fs::read_to_string(src)?
     };
 
