@@ -148,7 +148,7 @@ mod tests {
     //  Length: 20
     //  Value: "1.2.840.10008.1.2.1" (w 1 padding '\0') == ExplicitVRLittleEndian
     // --
-    const RAW: &'static [u8; 62] = &[
+    const RAW: &[u8; 62] = &[
         0x00, 0x02, 0x00, 0x02, 0x55, 0x49, 0x00, 0x1a, 0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34, 0x30,
         0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x35, 0x2e, 0x31, 0x2e, 0x34, 0x2e, 0x31, 0x2e,
         0x31, 0x2e, 0x31, 0x00, 0x00, 0x02, 0x00, 0x10, 0x55, 0x49, 0x00, 0x14, 0x31, 0x2e, 0x32,
@@ -175,7 +175,7 @@ mod tests {
             assert_eq!(&buffer, b"1.2.840.10008".as_ref());
         }
         // cursor should now be @ #21 (there is no automatic skipping)
-        assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 21);
+        assert_eq!(cursor.stream_position().unwrap(), 21);
         // cursor should now be @ #34 after skipping
         assert_eq!(cursor.seek(SeekFrom::Current(13)).unwrap(), 34);
         {
@@ -208,7 +208,7 @@ mod tests {
     //  Tag: (FFFE,E0DD) Sequence Delimitation Item
     //  Length: 0
     // --
-    const RAW_SEQUENCE_ITEMS: &'static [u8] = &[
+    const RAW_SEQUENCE_ITEMS: &[u8] = &[
         0x00, 0x08, 0x10, 0x3F, b'S', b'Q', 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE, 0xE0,
         0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE, 0xE0, 0x0D, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFE,
         0xE0, 0xDD, 0x00, 0x00, 0x00, 0x00,
@@ -228,7 +228,7 @@ mod tests {
             assert!(elem.length().is_undefined());
         }
         // cursor should now be @ #12
-        assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 12);
+        assert_eq!(cursor.stream_position().unwrap(), 12);
         {
             let elem = dec
                 .decode_item_header(&mut cursor)
@@ -238,7 +238,7 @@ mod tests {
             assert!(elem.length().is_undefined());
         }
         // cursor should now be @ #20
-        assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 20);
+        assert_eq!(cursor.stream_position().unwrap(), 20);
         {
             let elem = dec
                 .decode_item_header(&mut cursor)
@@ -248,7 +248,7 @@ mod tests {
             assert_eq!(elem.length(), Length(0));
         }
         // cursor should now be @ #28
-        assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 28);
+        assert_eq!(cursor.stream_position().unwrap(), 28);
         {
             let elem = dec
                 .decode_item_header(&mut cursor)

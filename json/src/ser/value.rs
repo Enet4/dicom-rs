@@ -218,18 +218,18 @@ mod tests {
     #[test]
     fn serialize_primitive_value_as_strings() {
         let v = PrimitiveValue::from("Test Hospital");
-        let json = serde_json::to_value(&AsStrings(&v)).unwrap();
+        let json = serde_json::to_value(AsStrings(&v)).unwrap();
         assert_eq!(
             json,
             Value::Array(vec![Value::String("Test Hospital".to_string())]),
         );
 
         let v = PrimitiveValue::Empty;
-        let json = serde_json::to_value(&AsStrings(&v)).unwrap();
+        let json = serde_json::to_value(AsStrings(&v)).unwrap();
         assert_eq!(json, json!([]));
 
         let v = dicom_value!(U16, [20, 40, 60]);
-        let json = serde_json::to_value(&AsStrings(&v)).unwrap();
+        let json = serde_json::to_value(AsStrings(&v)).unwrap();
         assert_eq!(
             json,
             Value::Array(vec![
@@ -239,40 +239,40 @@ mod tests {
             ]),
         );
 
-        let v = dicom_value!(Date, [DicomDate::from_ymd(2023, 06, 13).unwrap()]);
-        let json = serde_json::to_value(&AsStrings(&v)).unwrap();
+        let v = dicom_value!(Date, [DicomDate::from_ymd(2023, 6, 13).unwrap()]);
+        let json = serde_json::to_value(AsStrings(&v)).unwrap();
         assert_eq!(json, Value::Array(vec![Value::from("20230613")]));
     }
 
     #[test]
     fn serialize_primitive_value_as_numbers() {
         let v = PrimitiveValue::from(23.5_f64);
-        let json = serde_json::to_value(&AsNumbers(&v)).unwrap();
+        let json = serde_json::to_value(AsNumbers(&v)).unwrap();
         assert_eq!(json, json!([23.5]),);
 
         let v = PrimitiveValue::from([f64::NAN, f64::INFINITY, f64::NEG_INFINITY]);
-        let json = serde_json::to_value(&AsNumbers(&v)).unwrap();
+        let json = serde_json::to_value(AsNumbers(&v)).unwrap();
         assert_eq!(json, json!(["NaN", "inf", "-inf"]),);
 
         let v = PrimitiveValue::from([f32::NAN, f32::INFINITY, f32::NEG_INFINITY]);
-        let json = serde_json::to_value(&AsNumbers(&v)).unwrap();
+        let json = serde_json::to_value(AsNumbers(&v)).unwrap();
         assert_eq!(json, json!(["NaN", "inf", "-inf"]),);
 
         let v = PrimitiveValue::Empty;
-        let json = serde_json::to_value(&AsNumbers(&v)).unwrap();
+        let json = serde_json::to_value(AsNumbers(&v)).unwrap();
         assert_eq!(json, json!([]));
 
         let v = PrimitiveValue::from("5");
-        let json = serde_json::to_value(&AsNumbers(&v)).unwrap();
+        let json = serde_json::to_value(AsNumbers(&v)).unwrap();
         assert_eq!(json, json!(["5"]),);
 
         let v = dicom_value!(U16, [20, 40, 60]);
-        let json = serde_json::to_value(&AsNumbers(&v)).unwrap();
+        let json = serde_json::to_value(AsNumbers(&v)).unwrap();
         assert_eq!(json, json!([20, 40, 60]));
 
         // too large for a 32-bit integer
         let v = dicom_value!(U64, [876543245678]);
-        let json = serde_json::to_value(&AsNumbers(&v)).unwrap();
+        let json = serde_json::to_value(AsNumbers(&v)).unwrap();
         assert_eq!(json, json!(["876543245678"]),);
     }
 }

@@ -392,7 +392,7 @@ where
                     len: Length(even_len(textual_value.len() as u32)),
                 })?;
 
-                write!(self.to, "{}", textual_value).context(WriteValueDataSnafu {
+                write!(self.to, "{textual_value}").context(WriteValueDataSnafu {
                     position: self.bytes_written,
                 })?;
                 let len = if textual_value.len() % 2 == 1 {
@@ -624,7 +624,7 @@ mod tests {
     /// with a supported text encoding.
     #[test]
     fn update_character_set() {
-        const GT: &'static [u8; 54] = &[
+        const GT: &[u8; 54] = &[
             // Tag: (0008,0005) Specific Character Set
             0x08, 0x00, 0x05, 0x00, // VR: CS
             b'C', b'S', // Length: 10

@@ -202,7 +202,7 @@ fn run(
                     }
                     ThreadMessage::Shutdown { initiator } => {
                         if verbose {
-                            println!("shutdown initiated from: {:?}", initiator);
+                            println!("shutdown initiated from: {initiator:?}");
                         }
                         break;
                     }
@@ -299,13 +299,13 @@ fn main() {
     let verbose = matches.get_flag("verbose");
     let max_pdu_length: u32 = *matches.get_one("max-pdu-length").unwrap();
 
-    let listen_addr = format!("0.0.0.0:{}", listen_port);
-    let destination_addr = format!("{}:{}", destination_host, destination_port);
+    let listen_addr = format!("0.0.0.0:{listen_port}");
+    let destination_addr = format!("{destination_host}:{destination_port}");
 
     let listener = TcpListener::bind(&listen_addr).unwrap();
     if verbose {
-        println!("listening on: {}", listen_addr);
-        println!("forwarding to: {}", destination_addr);
+        println!("listening on: {listen_addr}");
+        println!("forwarding to: {destination_addr}");
     }
 
     for mut stream in listener.incoming() {

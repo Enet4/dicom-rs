@@ -321,7 +321,7 @@ fn run() -> Result<(), Error> {
                 )
                 .context(ReadCommandSnafu)?;
                 if verbose {
-                    eprintln!("Match #{} Response command:", i);
+                    eprintln!("Match #{i} Response command:");
                     DumpOptions::new()
                         .dump_object_to(stderr(), &cmd_obj)
                         .context(DumpOutputSnafu)?;
@@ -361,8 +361,7 @@ fn run() -> Result<(), Error> {
                     };
 
                     println!(
-                        "------------------------ Match #{} ------------------------",
-                        i
+                        "------------------------ Match #{i} ------------------------"
                     );
                     DumpOptions::new()
                         .dump_object(&dcm)

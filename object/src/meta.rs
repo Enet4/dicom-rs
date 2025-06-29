@@ -1029,7 +1029,7 @@ mod tests {
     use dicom_core::{dicom_value, DataElement, PrimitiveValue, Tag, VR};
     use dicom_dictionary_std::tags;
 
-    const TEST_META_1: &'static [u8] = &[
+    const TEST_META_1: &[u8] = &[
         // magic code
         b'D', b'I', b'C', b'M',
         // File Meta Information Group Length: (0000,0002) ; UL ; 4 ; 200

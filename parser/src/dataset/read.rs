@@ -732,7 +732,7 @@ mod tests {
         let parser = StatefulDecoder::new(
             &mut cursor,
             ImplicitVRLittleEndianDecoder::default(),
-            LittleEndianBasicDecoder::default(),
+            LittleEndianBasicDecoder,
             SpecificCharacterSet::default(),
         );
 
@@ -747,11 +747,11 @@ mod tests {
         let parser = StatefulDecoder::new(
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
-            LittleEndianBasicDecoder::default(),
+            LittleEndianBasicDecoder,
             SpecificCharacterSet::default(),
         );
 
-        validate_read_data(&data, parser, ground_truth)
+        validate_read_data(data, parser, ground_truth)
     }
 
     fn validate_read_data<I, D>(data: &[u8], parser: D, ground_truth: I)
@@ -771,19 +771,18 @@ mod tests {
         S: StatefulDecode,
         I: IntoIterator<Item = DataToken>,
     {
-        let iter = (&mut dset_reader).into_iter();
-        let mut ground_truth = ground_truth.into_iter();
+        let iter = &mut dset_reader;
+        let ground_truth = ground_truth.into_iter();
 
-        while let Some(gt_token) = ground_truth.next() {
+        for gt_token in ground_truth {
             let token = iter
                 .next()
                 .expect("expecting more tokens from reader")
                 .expect("should fetch the next token without an error");
-            eprintln!("Next token: {:2?} ; Expected: {:2?}", token, gt_token);
+            eprintln!("Next token: {token:2?} ; Expected: {gt_token:2?}");
             assert_eq!(
                 token, gt_token,
-                "Got token {:2?} ; but expected {:2?}",
-                token, gt_token
+                "Got token {token:2?} ; but expected {gt_token:2?}"
             );
         }
 
@@ -791,8 +790,7 @@ mod tests {
         assert_eq!(
             extra.len(), // we have already read all of them
             0,
-            "extraneous tokens remaining: {:?}",
-            extra,
+            "extraneous tokens remaining: {extra:?}",
         );
         assert_eq!(
             dset_reader.parser.position(),
@@ -1196,7 +1194,7 @@ mod tests {
     #[test]
     fn read_dataset_in_dataset() {
         #[rustfmt::skip]
-        const DATA: &'static [u8; 138] = &[
+        const DATA: &[u8; 138] = &[
             // 0: (2001, 9000) private sequence
             0x01, 0x20, 0x00, 0x90, //
             // length: undefined
@@ -1326,12 +1324,12 @@ mod tests {
         let parser = StatefulDecoder::new(
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
-            LittleEndianBasicDecoder::default(),
+            LittleEndianBasicDecoder,
             SpecificCharacterSet::default(),
         );
         let mut dset_reader = DataSetReader::new(parser, Default::default());
 
-        let iter = (&mut dset_reader).into_iter();
+        let iter = &mut dset_reader;
 
         // peek at first token
         let token = iter.peek().expect("should peek first token OK");
@@ -1397,13 +1395,12 @@ mod tests {
         let parser = StatefulDecoder::new(
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
-            LittleEndianBasicDecoder::default(),
+            LittleEndianBasicDecoder,
             SpecificCharacterSet::default(),
         );
         let mut dset_reader = DataSetReader::new(parser, Default::default());
 
         let token_res = (&mut dset_reader)
-            .into_iter()
             .collect::<Result<Vec<_>, _>>();
         dbg!(&token_res);
         assert!(token_res.is_err());
@@ -1435,7 +1432,7 @@ mod tests {
         let parser = StatefulDecoder::new(
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
-            LittleEndianBasicDecoder::default(),
+            LittleEndianBasicDecoder,
             SpecificCharacterSet::default(),
         );
         let dset_reader = DataSetReader::new(
@@ -1454,7 +1451,7 @@ mod tests {
         let parser = StatefulDecoder::new(
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
-            LittleEndianBasicDecoder::default(),
+            LittleEndianBasicDecoder,
             SpecificCharacterSet::default(),
         );
         let dset_reader = DataSetReader::new(

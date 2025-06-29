@@ -877,21 +877,21 @@ mod tests {
             parse_datetime_partial(b"20171130-0135").unwrap(),
             DicomDateTime::from_date_with_time_zone(
                 DicomDate::from_ymd(2017, 11, 30).unwrap(),
-                FixedOffset::west_opt(1 * 3600 + 35 * 60).unwrap()
+                FixedOffset::west_opt(3600 + 35 * 60).unwrap()
             )
         );
         assert_eq!(
             parse_datetime_partial(b"201711-0135").unwrap(),
             DicomDateTime::from_date_with_time_zone(
                 DicomDate::from_ym(2017, 11).unwrap(),
-                FixedOffset::west_opt(1 * 3600 + 35 * 60).unwrap()
+                FixedOffset::west_opt(3600 + 35 * 60).unwrap()
             )
         );
         assert_eq!(
             parse_datetime_partial(b"2017-0135").unwrap(),
             DicomDateTime::from_date_with_time_zone(
                 DicomDate::from_y(2017).unwrap(),
-                FixedOffset::west_opt(1 * 3600 + 35 * 60).unwrap()
+                FixedOffset::west_opt(3600 + 35 * 60).unwrap()
             )
         );
 

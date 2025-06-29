@@ -125,13 +125,13 @@ fn parse_entries<R: BufRead>(source: R) -> Result<Vec<Entry>> {
             let group = cap.get(1).expect("capture group 1: group").as_str();
             let elem = cap.get(2).expect("capture group 2: element").as_str();
             tag_type = TagType::Single;
-            format!("Tag(0x{}, 0x{})", group, elem)
+            format!("Tag(0x{group}, 0x{elem})")
         } else if let Some(cap) = regex_tag_group100.captures(tag.as_str()) {
             // tag range over groups: (ggxx, eeee)
             let group = cap.get(1).expect("capture group 1: group portion").as_str();
             let elem = cap.get(2).expect("capture group 2: element").as_str();
             tag_type = TagType::Group100;
-            format!("Tag(0x{}00, 0x{})", group, elem)
+            format!("Tag(0x{group}00, 0x{elem})")
         } else if let Some(cap) = regex_tag_element100.captures(tag.as_str()) {
             // tag range over elements: (gggg, eexx)
             let group = cap.get(1).expect("capture group 1: group").as_str();
@@ -140,7 +140,7 @@ fn parse_entries<R: BufRead>(source: R) -> Result<Vec<Entry>> {
                 .expect("capture group 2: element portion")
                 .as_str();
             tag_type = TagType::Element100;
-            format!("Tag(0x{}, 0x{}00)", group, elem)
+            format!("Tag(0x{group}, 0x{elem}00)")
         } else {
             panic!("invalid tag: {}", alias);
         };
@@ -205,7 +205,7 @@ where
     f.write_all(b"//! Data element tag declarations\n//!\n")?;
 
     for line in preamble.split('\n') {
-        writeln!(f, "//! {}\\", line)?;
+        writeln!(f, "//! {line}\\")?;
     }
     f.write_all(b"// Automatically generated. Edit at your own risk.\n")?;
 

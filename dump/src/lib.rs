@@ -376,9 +376,9 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fn write_value_with_width(value: impl fmt::Display, f: &mut fmt::Formatter) -> fmt::Result {
             if let Some(width) = f.width() {
-                write!(f, "{:width$}", value, width = width)
+                write!(f, "{value:width$}")
             } else {
-                write!(f, "{}", value)
+                write!(f, "{value}")
             }
         }
 
@@ -572,7 +572,7 @@ where
             to,
             "{}: {}",
             "Private Information".if_supports_color(Stream::Stdout, |v| v.bold()),
-            format_value_list(v.iter().map(|n| format!("{:02X}", n)), Some(width), false)
+            format_value_list(v.iter().map(|n| format!("{n:02X}")), Some(width), false)
         )?;
     }
 
@@ -793,13 +793,13 @@ fn value_summary(
         (U64(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
         (I16(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
         (U16(values), VR::OW) => DumpValue::Num(format_value_list(
-            values.into_iter().map(|n| format!("{:02X}", n)),
+            values.into_iter().map(|n| format!("{n:02X}")),
             max_characters,
             false,
         )),
         (U16(values), _) => DumpValue::Num(format_value_list(values, max_characters, false)),
         (U8(values), VR::OB) | (U8(values), VR::UN) => DumpValue::Num(format_value_list(
-            values.into_iter().map(|n| format!("{:02X}", n)),
+            values.into_iter().map(|n| format!("{n:02X}")),
             max_characters,
             false,
         )),
@@ -877,7 +877,7 @@ fn value_summary(
 
 fn item_value_summary(data: &[u8], max_characters: Option<u32>) -> DumpValue<String> {
     DumpValue::Num(format_value_list(
-        data.iter().map(|n| format!("{:02X}", n)),
+        data.iter().map(|n| format!("{n:02X}")),
         max_characters,
         false,
     ))
@@ -888,7 +888,7 @@ fn offset_table_summary(data: &[u32], max_characters: Option<u32>) -> String {
         format!("{}", "(empty)".italic())
     } else {
         format_value_list(
-            data.iter().map(|n| format!("{:04X}", n)),
+            data.iter().map(|n| format!("{n:04X}")),
             max_characters,
             false,
         )
@@ -949,7 +949,7 @@ where
     }
 }
 
-fn cut_str(s: &str, max_characters: u32) -> Cow<str> {
+fn cut_str(s: &str, max_characters: u32) -> Cow<'_, str> {
     let max = (max_characters.saturating_sub(3)) as usize;
     let len = s.chars().count();
 

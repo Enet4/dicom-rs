@@ -450,7 +450,7 @@ mod tests {
         let parser = StatefulDecoder::new(
             &mut cursor,
             ImplicitVRLittleEndianDecoder::default(),
-            LittleEndianBasicDecoder::default(),
+            LittleEndianBasicDecoder,
             SpecificCharacterSet::default(),
         );
 
@@ -465,11 +465,11 @@ mod tests {
         let parser = StatefulDecoder::new(
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
-            LittleEndianBasicDecoder::default(),
+            LittleEndianBasicDecoder,
             SpecificCharacterSet::default(),
         );
 
-        validate_dataset_reader(&data, parser, ground_truth)
+        validate_dataset_reader(data, parser, ground_truth)
     }
 
     fn validate_dataset_reader<I, D>(data: &[u8], parser: D, ground_truth: I)
@@ -712,7 +712,7 @@ mod tests {
     #[test]
     fn lazy_read_dataset_in_dataset() {
         #[rustfmt::skip]
-        const DATA: &'static [u8; 138] = &[
+        const DATA: &[u8; 138] = &[
             // 0: (2001, 9000) private sequence
             0x01, 0x20, 0x00, 0x90, //
             // length: undefined
@@ -1020,7 +1020,7 @@ mod tests {
         let parser = StatefulDecoder::new(
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
-            LittleEndianBasicDecoder::default(),
+            LittleEndianBasicDecoder,
             SpecificCharacterSet::default(),
         );
 
@@ -1062,7 +1062,7 @@ mod tests {
         //  Length: 20
         //  Value: "1.2.840.10008.1.2.1\0" == ExplicitVRLittleEndian
         // --
-        const RAW: &'static [u8; 62] = &[
+        const RAW: &[u8; 62] = &[
             0x02, 0x00, 0x02, 0x00, 0x55, 0x49, 0x1a, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34,
             0x30, 0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x35, 0x2e, 0x31, 0x2e, 0x34, 0x2e,
             0x31, 0x2e, 0x31, 0x2e, 0x31, 0x00, 0x02, 0x00, 0x10, 0x00, 0x55, 0x49, 0x14, 0x00,
@@ -1073,7 +1073,7 @@ mod tests {
         let parser = StatefulDecoder::new(
             &mut cursor,
             ExplicitVRLittleEndianDecoder::default(),
-            LittleEndianBasicDecoder::default(),
+            LittleEndianBasicDecoder,
             SpecificCharacterSet::default(),
         );
 

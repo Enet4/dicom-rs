@@ -794,7 +794,7 @@ impl ServerAssociation<TcpStream> {
     ///
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
-    pub fn receive_pdata(&mut self) -> PDataReader<&mut TcpStream> {
+    pub fn receive_pdata(&mut self) -> PDataReader<'_, &mut TcpStream> {
         PDataReader::new(
             &mut self.socket,
             self.acceptor_max_pdu_length,

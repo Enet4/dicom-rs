@@ -21,22 +21,22 @@ impl fmt::Display for DicomJsonPerson {
                 alphabetic,
                 ideographic: None,
                 phonetic: None,
-            } => write!(f, "{}", alphabetic),
+            } => write!(f, "{alphabetic}"),
             DicomJsonPerson {
                 alphabetic,
                 ideographic: Some(ideographic),
                 phonetic: None,
-            } => write!(f, "{}={}", alphabetic, ideographic),
+            } => write!(f, "{alphabetic}={ideographic}"),
             DicomJsonPerson {
                 alphabetic,
                 ideographic: None,
                 phonetic: Some(phonetic),
-            } => write!(f, "{}=={}", alphabetic, phonetic),
+            } => write!(f, "{alphabetic}=={phonetic}"),
             DicomJsonPerson {
                 alphabetic,
                 ideographic: Some(ideographic),
                 phonetic: Some(phonetic),
-            } => write!(f, "{}={}={}", alphabetic, ideographic, phonetic),
+            } => write!(f, "{alphabetic}={ideographic}={phonetic}"),
         }
     }
 }
