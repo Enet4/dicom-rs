@@ -80,23 +80,6 @@ fn create_cstore_response(
     ])
 }
 
-fn create_cecho_response(message_id: u16) -> InMemDicomObject<StandardDataDictionary> {
-    InMemDicomObject::command_from_element_iter([
-        DataElement::new(tags::COMMAND_FIELD, VR::US, dicom_value!(U16, [0x8030])),
-        DataElement::new(
-            tags::MESSAGE_ID_BEING_RESPONDED_TO,
-            VR::US,
-            dicom_value!(U16, [message_id]),
-        ),
-        DataElement::new(
-            tags::COMMAND_DATA_SET_TYPE,
-            VR::US,
-            dicom_value!(U16, [0x0101]),
-        ),
-        DataElement::new(tags::STATUS, VR::US, dicom_value!(U16, [0x0000])),
-    ])
-}
-
 pub async fn run_store_async(
     scu_stream: tokio::net::TcpStream,
     args: &App,
@@ -189,58 +172,30 @@ pub async fn run_store_async(
 
                                 let obj = InMemDicomObject::read_dataset_with_ts(v.as_slice(), &ts)
                                     .whatever_context("failed to read incoming DICOM command")?;
-                                let command_field = obj
-                                    .element(tags::COMMAND_FIELD)
+                                obj.element(tags::COMMAND_FIELD)
                                     .whatever_context("Missing Command Field")?
                                     .uint16()
                                     .whatever_context("Command Field is not an integer")?;
 
-                                if command_field == 0x0030 {
-                                    // Handle C-ECHO-RQ
-                                    let cecho_response = create_cecho_response(msgid);
-                                    let mut cecho_data = Vec::new();
-
-                                    cecho_response
-                                        .write_dataset_with_ts(&mut cecho_data, &ts)
-                                        .whatever_context(
-                                            "could not write C-ECHO response object",
-                                        )?;
-
-                                    let pdu_response = Pdu::PData {
-                                        data: vec![dicom_ul::pdu::PDataValue {
-                                            presentation_context_id: data_value
-                                                .presentation_context_id,
-                                            value_type: PDataValueType::Command,
-                                            is_last: true,
-                                            data: cecho_data,
-                                        }],
-                                    };
-                                    association.send(&pdu_response).await.whatever_context(
-                                        "failed to send C-ECHO response object to SCU",
-                                    )?;
-                                } else {
-                                    msgid = obj
-                                        .element(tags::MESSAGE_ID)
-                                        .whatever_context("Missing Message ID")?
-                                        .to_int()
-                                        .whatever_context("Message ID is not an integer")?;
-                                    sop_class_uid = obj
-                                        .element(tags::AFFECTED_SOP_CLASS_UID)
-                                        .whatever_context("missing Affected SOP Class UID")?
-                                        .to_str()
-                                        .whatever_context(
-                                            "could not retrieve Affected SOP Class UID",
-                                        )?
-                                        .to_string();
-                                    sop_instance_uid = obj
-                                        .element(tags::AFFECTED_SOP_INSTANCE_UID)
-                                        .whatever_context("missing Affected SOP Instance UID")?
-                                        .to_str()
-                                        .whatever_context(
-                                            "could not retrieve Affected SOP Instance UID",
-                                        )?
-                                        .to_string();
-                                }
+                                msgid = obj
+                                    .element(tags::MESSAGE_ID)
+                                    .whatever_context("Missing Message ID")?
+                                    .to_int()
+                                    .whatever_context("Message ID is not an integer")?;
+                                sop_class_uid = obj
+                                    .element(tags::AFFECTED_SOP_CLASS_UID)
+                                    .whatever_context("missing Affected SOP Class UID")?
+                                    .to_str()
+                                    .whatever_context("could not retrieve Affected SOP Class UID")?
+                                    .to_string();
+                                sop_instance_uid = obj
+                                    .element(tags::AFFECTED_SOP_INSTANCE_UID)
+                                    .whatever_context("missing Affected SOP Instance UID")?
+                                    .to_str()
+                                    .whatever_context(
+                                        "could not retrieve Affected SOP Instance UID",
+                                    )?
+                                    .to_string();
                                 instance_buffer.clear();
                             } else if data_value.value_type == PDataValueType::Data
                                 && data_value.is_last
