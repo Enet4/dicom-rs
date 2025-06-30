@@ -602,7 +602,7 @@ where
 
     fn guessed_ts(&mut self) -> Option<&'t TransferSyntax> {
         if self.ts_hint.is_some() {
-            return self.ts_hint.clone();
+            return self.ts_hint;
         }
         if let Some(meta) = self.file_meta.as_ref() {
             self.ts_hint = TransferSyntaxRegistry.get(meta.transfer_syntax());
