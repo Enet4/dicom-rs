@@ -150,15 +150,13 @@ async fn run_async(args: App) -> Result<(), Box<dyn std::error::Error>> {
         &args.calling_ae_title, listen_addr
     );
 
-    loop {
-        let (socket, _addr) = listener.accept().await?;
-        let args = args.clone();
-        tokio::task::spawn(async move {
-            if let Err(e) = run_store_async(socket, &args).await {
-                error!("{}", Report::from_error(e));
-            }
-        });
+    let (socket, _addr) = listener.accept().await?;
+    let args = args.clone();
+    if let Err(e) = run_store_async(socket, &args).await {
+            error!("{}", Report::from_error(e));
     }
+
+    Ok(())
 }
 
 #[derive(Debug, Snafu)]
