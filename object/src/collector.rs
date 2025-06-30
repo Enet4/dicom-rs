@@ -607,7 +607,7 @@ where
         if let Some(meta) = self.file_meta.as_ref() {
             self.ts_hint = TransferSyntaxRegistry.get(meta.transfer_syntax());
         }
-        self.ts_hint.clone()
+        self.ts_hint
     }
 
     fn skip_until(&mut self, mut pred: impl FnMut(&LazyDataToken<&mut StatefulDecoder<Box<(dyn DecodeFrom<BufReader<S>> + 'static)>, BufReader<S>>>) -> bool) -> Result<bool> {
