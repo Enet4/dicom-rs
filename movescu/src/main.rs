@@ -464,7 +464,6 @@ fn run_move_scu(app: App) -> Result<(), Error> {
         }
     }
     let _ = scu.release();
-
     Ok(())
 }
 
