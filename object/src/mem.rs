@@ -1976,10 +1976,6 @@ where
         // continue fetching tokens to retrieve:
         // - the offset table
         // - the various compressed fragments
-        //
-        // Note: as there is still no standard way to represent this in memory,
-        // this code will currently flatten all compressed fragments into a
-        // single vector.
 
         let mut offset_table = None;
 
