@@ -571,7 +571,7 @@ where
         // proceed with fetching tokens,
         // return the first fragment data found
         while let Some(token) = parser.advance() {
-            match dbg!(token.context(ReadTokenSnafu)?) {
+            match token.context(ReadTokenSnafu)? {
                 // native pixel data
                 LazyDataToken::LazyValue { header, decoder } => {
                     debug_assert!(header.length().is_defined());
