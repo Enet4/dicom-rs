@@ -25,7 +25,7 @@ mod store_async;
 use store_async::run_store_async;
 
 /// DICOM C-MOVE SCU
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 #[command(version)]
 struct App {
     /// socket address to MOVE SCP (example: "127.0.0.1:1045")
@@ -43,13 +43,13 @@ struct App {
     #[arg(short = 'v', long = "verbose")]
     verbose: bool,
     /// the calling AE title
-    #[arg(long = "calling-ae-title", default_value = "STORESCP")]
+    #[arg(long = "calling-ae-title", default_value = "STORE-SCP")]
     calling_ae_title: String,
     /// the called AE title
     #[arg(long = "called-ae-title")]
     called_ae_title: Option<String>,
     /// the C-MOVE destination AE title
-    #[arg(long = "move-destination", default_value = "STORESCP")]
+    #[arg(long = "move-destination", default_value = "STORE-SCP")]
     move_destination: String,
 
     /// the maximum PDU length
@@ -67,20 +67,12 @@ struct App {
     port: u16,
 
     /// use patient root information model
-    #[arg(short = 'P', long, conflicts_with = "study", conflicts_with = "mwl")]
+    #[arg(short = 'P', long, conflicts_with = "study")]
     patient: bool,
     /// use study root information model (default)
-    #[arg(short = 'S', long, conflicts_with = "patient", conflicts_with = "mwl")]
+    #[arg(short = 'S', long, conflicts_with = "patient")]
     study: bool,
-    /// use modality worklist information model
-    #[arg(
-        short = 'W',
-        long,
-        conflicts_with = "study",
-        conflicts_with = "patient"
-    )]
-    mwl: bool,
-
+   
     /// Enforce max pdu length
     #[arg(short = 's', long = "strict")]
     strict: bool,
@@ -90,10 +82,6 @@ struct App {
     /// Accept unknown SOP classes
     #[arg(long)]
     promiscuous: bool,
-
-    /// Don't use built-in scp
-    #[arg(long = "no-scp", default_value = "false")]
-    no_scp: bool,
 }
 
 fn main() {
@@ -112,8 +100,8 @@ fn main() {
         error!("{}", snafu::Report::from_error(e));
     });
 
-    if app.no_scp {
-        run_move_scu(App::parse()).unwrap_or_else(|err| {
+    if Some(app.move_destination.clone()) != Some(app.calling_ae_title.clone()) {
+        run_move_scu(app.clone()).unwrap_or_else(|err| {
             error!("{}", snafu::Report::from_error(err));
             std::process::exit(-2);
         });
@@ -125,14 +113,15 @@ fn main() {
         .build()
         .unwrap();
 
+    let app_for_async = app.clone();
     let handle = runtime.spawn(async move {
-        run_async(app).await.unwrap_or_else(|e| {
+        run_async(app_for_async).await.unwrap_or_else(|e| {
             error!("{:?}", e);
             std::process::exit(-2);
         });
     });
 
-    run_move_scu(App::parse()).unwrap_or_else(|err| {
+    run_move_scu(app).unwrap_or_else(|err| {
         error!("{}", snafu::Report::from_error(err));
         std::process::exit(-2);
     });
@@ -200,9 +189,6 @@ fn build_query(
     file: Option<PathBuf>,
     query_file: Option<PathBuf>,
     q: Vec<String>,
-    patient: bool,
-    study: bool,
-    mwl: bool,
     verbose: bool,
 ) -> Result<InMemDicomObject, Error> {
     // read query file if provided
@@ -248,24 +234,8 @@ fn build_query(
         whatever!("Query not specified");
     }
 
-    let mut obj =
+    let obj =
         parse_queries(obj, &q).whatever_context("Could not build query object from terms")?;
-
-    // try to infer query retrieve level if not defined by the user
-    // but only if not using worklist
-    if !mwl && obj.get(tags::QUERY_RETRIEVE_LEVEL).is_none() {
-        // (0008,0052) CS QueryRetrieveLevel
-        let level = match (patient, study) {
-            (true, false) => "PATIENT",
-            (false, true) | (false, false) => "STUDY",
-            _ => unreachable!(),
-        };
-        obj.put(DataElement::new(
-            tags::QUERY_RETRIEVE_LEVEL,
-            VR::CS,
-            PrimitiveValue::from(level),
-        ));
-    }
 
     Ok(obj)
 }
@@ -283,22 +253,26 @@ fn run_move_scu(app: App) -> Result<(), Error> {
         move_destination,
         patient,
         study,
-        mwl,
         out_dir: _,
         port: _,
         strict: _,
         uncompressed_only: _,
         promiscuous: _,
-        no_scp: _,
     } = app;
-
-    info!("verbose mode: {}", verbose);
 
     info!("sending c_move request to: {}", addr);
 
-    let dcm_query = build_query(file, query_file, query, patient, study, mwl, verbose)?;
+    let dcm_query = build_query(file, query_file, query, verbose)?;
 
-    let abstract_syntax = uids::STUDY_ROOT_QUERY_RETRIEVE_INFORMATION_MODEL_MOVE;
+    let abstract_syntax = match (patient, study) {
+        // Patient Root Query/Retrieve Information Model - MOVE
+        (true, false) => uids::PATIENT_ROOT_QUERY_RETRIEVE_INFORMATION_MODEL_MOVE,
+        // Study Root Query/Retrieve Information Model – MOVE (default)
+        (false, false) | (false, true) => {
+            uids::STUDY_ROOT_QUERY_RETRIEVE_INFORMATION_MODEL_MOVE
+        }
+        _ => unreachable!("Unexpected flag combination"),
+    };
 
     if verbose {
         info!("Establishing association with '{}'...", &addr);
