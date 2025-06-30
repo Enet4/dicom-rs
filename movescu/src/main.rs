@@ -17,7 +17,6 @@ use snafu::Report;
 use std::io::{stderr, BufRead as _, Read};
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::path::PathBuf;
-use std::{thread, time};
 use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 
@@ -44,13 +43,13 @@ struct App {
     #[arg(short = 'v', long = "verbose")]
     verbose: bool,
     /// the calling AE title
-    #[arg(long = "calling-ae-title", default_value = "STORE-SCP")]
+    #[arg(long = "calling-ae-title", default_value = "STORESCP")]
     calling_ae_title: String,
     /// the called AE title
     #[arg(long = "called-ae-title")]
     called_ae_title: Option<String>,
     /// the C-MOVE destination AE title
-    #[arg(long = "move-destination", default_value = "STORE-SCP")]
+    #[arg(long = "move-destination", default_value = "STORESCP")]
     move_destination: String,
 
     /// the maximum PDU length
@@ -113,29 +112,37 @@ fn main() {
         error!("{}", snafu::Report::from_error(e));
     });
 
-    if !app.no_scp {
-        info!("starting store-scp");
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .spawn(async move {
-                run_async(app).await.unwrap_or_else(|e| {
-                    error!("{:?}", e);
-                    std::process::exit(-2);
-                });
-            });
-
-            // make sure the async runtime is running
-            info!("waiting...");
-            thread::sleep(time::Duration::from_millis(5_000));
+    if app.no_scp {
+        run_move_scu(App::parse()).unwrap_or_else(|err| {
+            error!("{}", snafu::Report::from_error(err));
+            std::process::exit(-2);
+        });
+        return;
     }
 
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+
+    let handle = runtime.spawn(async move {
+        run_async(app).await.unwrap_or_else(|e| {
+            error!("{:?}", e);
+            std::process::exit(-2);
+        });
+    });
 
     run_move_scu(App::parse()).unwrap_or_else(|err| {
         error!("{}", snafu::Report::from_error(err));
         std::process::exit(-2);
     });
+
+    runtime.block_on(async {
+        handle.await.unwrap_or_else(|e| {
+            error!("Failed to run async task: {}", snafu::Report::from_error(e));
+        });
+    });
+
 }
 
 async fn run_async(args: App) -> Result<(), Box<dyn std::error::Error>> {
