@@ -83,7 +83,7 @@ fn create_cstore_response(
 pub async fn run_store_async(
     scu_stream: tokio::net::TcpStream,
     args: &App,
-) -> Result<(), Whatever> {
+) -> Result<bool, Whatever> {
     let App {
         verbose,
         calling_ae_title,
@@ -321,5 +321,5 @@ pub async fn run_store_async(
         info!("Dropping connection with {}", association.client_ae_title());
     }
 
-    Ok(())
+    Ok(true)
 }
