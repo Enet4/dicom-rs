@@ -56,7 +56,7 @@ For example, given the file `query.txt`:
 # comments are supported
 QueryRetrieveLevel=SERIES
 StudyInstanceUID=1.3.46.670589.5.2.10.2156913941.892665384.993397
-SeriesInstanceUID=1.3.46.670589.5.2.10.2156913941.892665339.718742
+SeriesInstanceUID=1.3.46.670589.5.2.10.2156913941.892665339.860724
 ```
 
 You can do:
@@ -87,7 +87,7 @@ or a tag keyword name such as `StudyInstanceUID`.
 dicom-movescu PACS@pacs.example.com:1045 -q QueryRetrieveLevel=STUDY -q StudyInstanceUID=1.3.46.670589.5.2.10.2156913941.892665384.993397 --move-destination=STORE-SCP
 
 # retrieve series from application entity PACS with StudyInstanceUID and SeriesInstanceUID
-dicom-movescu PACS@pacs.example.com:1045 -q QueryRetrieveLevel=SERIES -q StudyInstanceUID=1.3.46.670589.5.2.10.2156913941.892665384.993397 -q SeriesInstanceUID=1.3.46.670589.5.2.10.2156913941.892665384.993397 --move-destination=STORE-SCP
+dicom-movescu PACS@pacs.example.com:1045 -q QueryRetrieveLevel=SERIES -q StudyInstanceUID=1.3.46.670589.5.2.10.2156913941.892665384.993397 -q SeriesInstanceUID=1.3.46.670589.5.2.10.2156913941.892665339.860724 --move-destination=STORE-SCP
 
 # transfer study from application entity PACS to AE STORAGE
 dicom-movescu PACS@pacs.example.com:1045 -q QueryRetrieveLevel=STUDY -q StudyInstanceUID=1.3.46.670589.5.2.10.2156913941.892665384.993397 --move-destination=STORAGE
