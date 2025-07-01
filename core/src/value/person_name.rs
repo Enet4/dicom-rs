@@ -62,9 +62,9 @@ impl Display for PersonName<'_> {
 
         while let Some(component) = c_iter.next() {
             if c_iter.peek().is_some() {
-                write!(f, "{} ", component)?
+                write!(f, "{component} ")?
             } else {
-                write!(f, "{}", component)?
+                write!(f, "{component}")?
             }
         }
         Ok(())

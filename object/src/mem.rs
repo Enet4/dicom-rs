@@ -2152,7 +2152,7 @@ mod tests {
     {
         // debug representation because it makes a stricter comparison and
         // assumes that Undefined lengths are equal.
-        assert_eq!(format!("{:?}", obj1), format!("{:?}", obj2))
+        assert_eq!(format!("{obj1:?}"), format!("{:?}", obj2))
     }
 
     #[test]
@@ -2214,7 +2214,7 @@ mod tests {
         let obj = InMemDicomObject::read_dataset_with_dict_ts_cs(
             &mut cursor,
             StandardDataDictionary,
-            &ts,
+            ts,
             cs,
         )
         .unwrap();
@@ -2252,7 +2252,7 @@ mod tests {
         let mut cursor = &data_in[..];
 
         let obj =
-            InMemDicomObject::read_dataset_with_dict_ts(&mut cursor, StandardDataDictionary, &ts)
+            InMemDicomObject::read_dataset_with_dict_ts(&mut cursor, StandardDataDictionary, ts)
                 .unwrap();
 
         let physician_name = obj.element(Tag(0x0008, 0x0090)).unwrap();
@@ -2296,7 +2296,7 @@ mod tests {
 
         let ts = TransferSyntaxRegistry.get("1.2.840.10008.1.2.1").unwrap();
 
-        obj.write_dataset_with_ts(&mut out, &ts).unwrap();
+        obj.write_dataset_with_ts(&mut out, ts).unwrap();
 
         assert_eq!(
             out,
@@ -2322,7 +2322,7 @@ mod tests {
         let ts = TransferSyntaxRegistry.get("1.2.840.10008.1.2").unwrap();
         let cs = SpecificCharacterSet::default();
 
-        obj.write_dataset_with_ts_cs(&mut out, &ts, cs).unwrap();
+        obj.write_dataset_with_ts_cs(&mut out, ts, cs).unwrap();
 
         assert_eq!(
             out,
@@ -2348,7 +2348,7 @@ mod tests {
         // add a date time
         let dt = DicomDateTime::from_date_and_time_with_time_zone(
             DicomDate::from_ymd(2022, 11, 22).unwrap(),
-            DicomTime::from_hms(18, 09, 35).unwrap(),
+            DicomTime::from_hms(18, 9, 35).unwrap(),
             FixedOffset::east_opt(3600).unwrap(),
         )
         .unwrap();
@@ -2360,7 +2360,7 @@ mod tests {
         let ts = TransferSyntaxRegistry.get("1.2.840.10008.1.2.1").unwrap();
 
         let mut out = Vec::new();
-        obj.write_dataset_with_ts(&mut out, &ts)
+        obj.write_dataset_with_ts(&mut out, ts)
             .expect("should write DICOM data without errors");
 
         assert_eq!(
@@ -2420,7 +2420,7 @@ mod tests {
         // create temporary file path and write object to that file
         let dir = tempfile::tempdir().unwrap();
         let mut file_path = dir.keep();
-        file_path.push(format!("{}.dcm", sop_uid));
+        file_path.push(format!("{sop_uid}.dcm"));
 
         file_object.write_to_file(&file_path).unwrap();
 
@@ -2457,8 +2457,8 @@ mod tests {
 
         assert_eq!(
             meta.media_storage_sop_instance_uid
-                .trim_end_matches(|c| c == '\0'),
-            sop_uid.trim_end_matches(|c| c == '\0'),
+                .trim_end_matches('\0'),
+            sop_uid.trim_end_matches('\0'),
         );
     }
 
@@ -2498,7 +2498,7 @@ mod tests {
         // create temporary file path and write object to that file
         let dir = tempfile::tempdir().unwrap();
         let mut file_path = dir.keep();
-        file_path.push(format!("{}.dcm", sop_uid));
+        file_path.push(format!("{sop_uid}.dcm"));
 
         file_object.write_to_file(&file_path).unwrap();
 
@@ -2516,7 +2516,7 @@ mod tests {
         );
         let mut obj = InMemDicomObject::new_empty();
         obj.put(another_patient_name.clone());
-        let elem1 = (&obj).element(Tag(0x0010, 0x0010)).unwrap();
+        let elem1 = obj.element(Tag(0x0010, 0x0010)).unwrap();
         assert_eq!(elem1, &another_patient_name);
     }
 
@@ -2550,7 +2550,7 @@ mod tests {
         // create temporary file path and write object to that file
         let dir = tempfile::tempdir().unwrap();
         let mut file_path = dir.keep();
-        file_path.push(format!("{}.dcm", sop_instance_uid));
+        file_path.push(format!("{sop_instance_uid}.dcm"));
 
         file_object.write_to_file(&file_path).unwrap();
 
@@ -2593,7 +2593,7 @@ mod tests {
         );
         let mut obj = InMemDicomObject::new_empty();
         obj.put(another_patient_name.clone());
-        let elem1 = (&obj).element_by_name("PatientName").unwrap();
+        let elem1 = obj.element_by_name("PatientName").unwrap();
         assert_eq!(elem1, &another_patient_name);
     }
 
@@ -2663,7 +2663,7 @@ mod tests {
         let mut obj = InMemDicomObject::new_empty();
         obj.put(another_patient_name.clone());
         assert!(obj.remove_element(Tag(0x0010, 0x0010)));
-        assert_eq!(obj.remove_element(Tag(0x0010, 0x0010)), false);
+        assert!(!obj.remove_element(Tag(0x0010, 0x0010)));
     }
 
     #[test]
@@ -2676,7 +2676,7 @@ mod tests {
         let mut obj = InMemDicomObject::new_empty();
         obj.put(another_patient_name.clone());
         assert!(obj.remove_element_by_name("PatientName").unwrap());
-        assert_eq!(obj.remove_element_by_name("PatientName").unwrap(), false);
+        assert!(!obj.remove_element_by_name("PatientName").unwrap());
     }
 
     /// Elements are traversed in tag order.
@@ -3369,7 +3369,7 @@ mod tests {
 
             assert_eq!(sequence_ultrasound.vr(), VR::SQ);
 
-            assert_eq!(sequence_ultrasound.items().as_deref(), Some(&[][..]),);
+            assert_eq!(sequence_ultrasound.items(), Some(&[][..]),);
         }
 
         obj.apply(AttributeOp::new(
@@ -3459,7 +3459,7 @@ mod tests {
             let sequence_ultrasound = obj
                 .get(tags::SEQUENCE_OF_ULTRASOUND_REGIONS)
                 .expect("should have sequence element");
-            assert_eq!(sequence_ultrasound.items().as_deref(), Some(&[][..]),);
+            assert_eq!(sequence_ultrasound.items(), Some(&[][..]),);
         }
 
         // remove one of the fragments
@@ -3770,11 +3770,10 @@ mod tests {
             Some(Length(0)),
         );
 
-        assert_eq!(
-            obj.update_value(tags::BURNED_IN_ANNOTATION, |_value| {
+        assert!(
+            !obj.update_value(tags::BURNED_IN_ANNOTATION, |_value| {
                 panic!("should not be called")
             }),
-            false,
         );
 
         let o = obj.update_value(tags::ANATOMIC_REGION_SEQUENCE, |value| {
@@ -3786,7 +3785,7 @@ mod tests {
                 PrimitiveValue::from(1),
             )]));
         });
-        assert_eq!(o, true);
+        assert!(o);
 
         assert!(obj
             .get(tags::ANATOMIC_REGION_SEQUENCE)
@@ -3999,7 +3998,6 @@ mod tests {
     fn private_element_group_full() {
         let mut ds = InMemDicomObject::from_element_iter(
             (0..=0x00FFu16)
-                .into_iter()
                 .map(|i| {
                     DataElement::new(Tag(0x0009, i), VR::LO, PrimitiveValue::from("CREATOR 1"))
                 })

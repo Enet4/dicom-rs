@@ -1119,7 +1119,7 @@ mod tests {
     //  Length: 20
     //  Value: "1.2.840.10008.1.2.1\0" == ExplicitVRLittleEndian
     // --
-    const RAW: &'static [u8; 62] = &[
+    const RAW: &[u8; 62] = &[
         0x02, 0x00, 0x02, 0x00, 0x55, 0x49, 0x1a, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34, 0x30,
         0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x35, 0x2e, 0x31, 0x2e, 0x34, 0x2e, 0x31, 0x2e,
         0x31, 0x2e, 0x31, 0x00, 0x02, 0x00, 0x10, 0x00, 0x55, 0x49, 0x14, 0x00, 0x31, 0x2e, 0x32,
@@ -1200,7 +1200,7 @@ mod tests {
     /// with a supported text encoding.
     #[test]
     fn update_character_set() {
-        const RAW: &'static [u8; 18] = &[
+        const RAW: &[u8; 18] = &[
             // Tag: (0008,0005) Specific Character Set
             0x08, 0x00, 0x05, 0x00, // VR: CS
             b'C', b'S', // Length: 10
@@ -1312,7 +1312,7 @@ mod tests {
 
     #[test]
     fn decode_nested_datasets() {
-        const RAW: &'static [u8; 138] = &[
+        const RAW: &[u8; 138] = &[
             // 0: (2001, 9000) private sequence
             0x01, 0x20, 0x00, 0x90, //
             // length: undefined
@@ -1517,7 +1517,7 @@ mod tests {
 
     #[test]
     fn decode_and_use_pixel_representation() {
-        const RAW: &'static [u8; 20] = &[
+        const RAW: &[u8; 20] = &[
             0x28, 0x00, 0x03, 0x01, // Tag: (0023,0103) PixelRepresentation
             0x02, 0x00, 0x00, 0x00, // Length: 2
             0x01, 0x00, // Value: "1",

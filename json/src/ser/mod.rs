@@ -312,7 +312,7 @@ impl Serialize for DicomJson<Tag> {
         S: Serializer,
     {
         let Tag(g, e) = self.0;
-        serializer.serialize_str(&format!("{:04X}{:04X}", g, e))
+        serializer.serialize_str(&format!("{g:04X}{e:04X}"))
     }
 }
 

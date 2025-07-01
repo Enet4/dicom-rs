@@ -575,7 +575,7 @@ mod tests {
             f32::INFINITY,
         ];
 
-        assert_float_slice_eq(&actual_values, expected_values);
+        assert_float_slice_eq(actual_values, expected_values);
 
         // validate upcasting to float 64, additional precision (5492.8544921875) is expected beyond original (5492.8545) due to upcasting
         let actual_values_multifloat_64 = element.to_multi_float64().unwrap();

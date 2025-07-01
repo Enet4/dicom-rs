@@ -37,7 +37,7 @@ where
 {
     let value = dt.to_encoded();
     let len = value.len();
-    write!(to, "{}", value)?;
+    write!(to, "{value}")?;
     Ok(len)
 }
 
@@ -51,7 +51,7 @@ mod test {
     fn test_encode_date() {
         let mut data = vec![];
         encode_date(&mut data, DicomDate::from_ym(1985, 12).unwrap()).unwrap();
-        assert_eq!(&data, &*b"198512");
+        assert_eq!(&data, b"198512");
     }
 
     #[test]
@@ -62,15 +62,15 @@ mod test {
             DicomTime::from_hms_micro(23, 59, 48, 123456).unwrap(),
         )
         .unwrap();
-        assert_eq!(&data, &*b"235948.123456");
+        assert_eq!(&data, b"235948.123456");
 
         let mut data = vec![];
         encode_time(&mut data, DicomTime::from_hms(12, 0, 30).unwrap()).unwrap();
-        assert_eq!(&data, &*b"120030");
+        assert_eq!(&data, b"120030");
 
         let mut data = vec![];
         encode_time(&mut data, DicomTime::from_h(9).unwrap()).unwrap();
-        assert_eq!(&data, &*b"09");
+        assert_eq!(&data, b"09");
     }
 
     #[test]

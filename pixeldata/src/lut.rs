@@ -410,11 +410,11 @@ mod tests {
         // 10-bit precision input, signed output
         let lut: Lut<i16> = Lut::new_rescale(10, true, Rescale::new(2., -1024.)).unwrap();
 
-        assert_eq!(lut.get(0 as u16), -1024);
-        assert_eq!(lut.get(1 as u16), -1022);
+        assert_eq!(lut.get(0_u16), -1024);
+        assert_eq!(lut.get(1_u16), -1022);
         assert_eq!(lut.get(-1_i16 as u16), -1026);
         assert_eq!(lut.get(-2_i16 as u16), -1028);
-        assert_eq!(lut.get(500 as u16), -24);
+        assert_eq!(lut.get(500_u16), -24);
 
         // input is truncated to fit
         // (bit #10 won't fit in a 10-bit LUT)

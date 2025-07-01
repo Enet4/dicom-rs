@@ -149,7 +149,7 @@ fn inject_image(obj: &mut DefaultDicomObject, img_file: PathBuf, verbose: bool) 
         image::ColorType::Rgb8 => 8,
         image::ColorType::Rgb16 => 16,
         _ => {
-            eprintln!("Unsupported image format {:?}", color);
+            eprintln!("Unsupported image format {color:?}");
             std::process::exit(-2);
         }
     };
@@ -231,13 +231,13 @@ fn update_from_img(obj: &mut DefaultDicomObject, img: &DynamicImage, verbose: bo
         image::ColorType::Rgb8 => ("RGB", 3, 8),
         image::ColorType::Rgb16 => ("RGB", 3, 16),
         _ => {
-            eprintln!("Unsupported image format {:?}", color);
+            eprintln!("Unsupported image format {color:?}");
             std::process::exit(-2);
         }
     };
 
     if verbose {
-        println!("{}x{} {:?} image", width, height, color);
+        println!("{width}x{height} {color:?} image");
     }
 
     // override attributes at DICOM object

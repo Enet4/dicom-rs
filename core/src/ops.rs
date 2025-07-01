@@ -139,7 +139,7 @@ impl std::fmt::Display for AttributeSelectorStep {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AttributeSelectorStep::Tag(tag) => std::fmt::Display::fmt(tag, f),
-            AttributeSelectorStep::Nested { tag, item } => write!(f, "{}[{}]", tag, item),
+            AttributeSelectorStep::Nested { tag, item } => write!(f, "{tag}[{item}]"),
         }
     }
 }

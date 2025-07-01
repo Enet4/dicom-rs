@@ -176,7 +176,7 @@ fn can_read_write_primary_field_only_user_identity() -> Result<(), Box<dyn std::
             if !user_identity.positive_response_requested() &&
             user_identity.identity_type() == UserIdentityType::Username &&
             user_identity.primary_field() == [77,121,85,115,101,114,110,97,109,101] &&
-            user_identity.secondary_field() == []
+            user_identity.secondary_field().is_empty()
         ));
     } else {
         panic!("invalid pdu type");
@@ -204,11 +204,11 @@ fn can_read_write_pdata() -> Result<(), Box<dyn std::error::Error>> {
     if let Pdu::PData { data } = result {
         assert_eq!(data.len(), 1);
         assert_eq!(data[0].presentation_context_id, 3);
-        matches!(data[0].value_type, PDataValueType::Command);
-        matches!(data[0].is_last, true);
+        assert!(matches!(data[0].value_type, PDataValueType::Command));
+        assert!(data[0].is_last);
         assert_eq!(data[0].data, vec![0, 0, 0, 0])
     } else {
-        assert!(false, "invalid pdu type");
+        panic!("invalid pdu type");
     }
 
     Ok(())

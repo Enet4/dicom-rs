@@ -477,7 +477,7 @@ pub mod non_blocking {
                 // send last PDU
                 setup_pdata_header(&mut self.buffer, true);
                 if let Err(e) = self.stream.write_all(&self.buffer[..]).await {
-                    println!("Error: {:?}", e);
+                    println!("Error: {e:?}");
                 }
                 // clear buffer so that subsequent calls to `finish_impl`
                 // do not send any more PDUs

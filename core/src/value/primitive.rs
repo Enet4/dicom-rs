@@ -165,7 +165,7 @@ impl Display for ConvertValueError {
             self.original, self.requested
         )?;
         if let Some(cause) = &self.cause {
-            write!(f, "{}", cause)?;
+            write!(f, "{cause}")?;
         } else {
             write!(f, "conversion not possible")?;
         }
@@ -574,7 +574,7 @@ impl PrimitiveValue {
     /// Ok(())
     /// }
     /// ```
-    pub fn to_str(&self) -> Cow<str> {
+    pub fn to_str(&self) -> Cow<'_, str> {
         match self {
             PrimitiveValue::Empty => Cow::from(""),
             PrimitiveValue::Str(values) => {
@@ -643,7 +643,7 @@ impl PrimitiveValue {
     ///     "DERIVED\\ PRIMARY \\WHOLE BODY\\EMISSION ",
     /// );
     /// ```
-    pub fn to_raw_str(&self) -> Cow<str> {
+    pub fn to_raw_str(&self) -> Cow<'_, str> {
         match self {
             PrimitiveValue::Empty => Cow::from(""),
             PrimitiveValue::Str(values) => Cow::from(values.as_str()),
@@ -715,7 +715,7 @@ impl PrimitiveValue {
     /// Ok(())
     /// }
     /// ```
-    pub fn to_multi_str(&self) -> Cow<[String]> {
+    pub fn to_multi_str(&self) -> Cow<'_, [String]> {
         /// Auxiliary function for turning a sequence of values
         /// into a sequence of strings.
         fn seq_to_str<I>(iter: I) -> Vec<String>
@@ -832,7 +832,7 @@ impl PrimitiveValue {
     /// Ok(())
     /// }
     /// ```
-    pub fn to_bytes(&self) -> Cow<[u8]> {
+    pub fn to_bytes(&self) -> Cow<'_, [u8]> {
         match self {
             PrimitiveValue::Empty => Cow::from(&[][..]),
             PrimitiveValue::U8(values) => Cow::from(&values[..]),
@@ -4402,8 +4402,8 @@ mod tests {
         assert_eq!(&value.to_str(), "ONE\\TWO\\THREE\\SIX");
 
         // maintains the leading whitespace on a string and removes at the end
-        let value = PrimitiveValue::from("\01.2.345\0".to_string());
-        assert_eq!(&value.to_str(), "\01.2.345");
+        let value = PrimitiveValue::from("\x001.2.345\0".to_string());
+        assert_eq!(&value.to_str(), "\x001.2.345");
 
         // maintains the leading whitespace on multiple strings and removes at the end
         let value = dicom_value!(Strs, [" ONE", "TWO", "THREE", " SIX "]);
@@ -4421,8 +4421,8 @@ mod tests {
         assert_eq!(&value.to_raw_str(), "ONE\\TWO\\THREE\\SIX ");
 
         // maintains the leading whitespace on a string and maintains at the end
-        let value = PrimitiveValue::from("\01.2.345\0".to_string());
-        assert_eq!(&value.to_raw_str(), "\01.2.345\0");
+        let value = PrimitiveValue::from("\x001.2.345\0".to_string());
+        assert_eq!(&value.to_raw_str(), "\x001.2.345\0");
 
         // maintains the leading whitespace on multiple strings and maintains at the end
         let value = dicom_value!(Strs, [" ONE", "TWO", "THREE", " SIX "]);
@@ -4731,7 +4731,7 @@ mod tests {
         );
         // from text with fraction of a second + padding
         assert_eq!(
-            PrimitiveValue::from(&"110926.38 "[..])
+            PrimitiveValue::from("110926.38 ")
                 .to_naive_time()
                 .unwrap(),
             NaiveTime::from_hms_milli_opt(11, 9, 26, 380).unwrap(),
@@ -4749,7 +4749,7 @@ mod tests {
         );
 
         // absence of seconds is considered to be an incomplete value
-        assert!(PrimitiveValue::from(&"1109"[..]).to_naive_time().is_err(),);
+        assert!(PrimitiveValue::from("1109").to_naive_time().is_err(),);
         assert!(dicom_value!(Strs, ["1109"]).to_naive_time().is_err());
         assert!(dicom_value!(Strs, ["11"]).to_naive_time().is_err());
 
@@ -4794,7 +4794,7 @@ mod tests {
         );
         // from text with fraction of a second + padding
         assert_eq!(
-            PrimitiveValue::from(&"110926.38 "[..]).to_time().unwrap(),
+            PrimitiveValue::from("110926.38 ").to_time().unwrap(),
             DicomTime::from_hmsf(11, 9, 26, 38, 2).unwrap(),
         );
         // from text (Strs)
@@ -4837,7 +4837,7 @@ mod tests {
             PrimitiveValue::from(
                 DicomDateTime::from_date_and_time_with_time_zone(
                     DicomDate::from_ymd(2012, 12, 21).unwrap(),
-                    DicomTime::from_hms_micro(11, 9, 26, 000123).unwrap(),
+                    DicomTime::from_hms_micro(11, 9, 26, /* 000 */ 123).unwrap(),
                     offset
                 )
                 .unwrap()
@@ -4846,7 +4846,7 @@ mod tests {
             .unwrap(),
             DicomDateTime::from_date_and_time_with_time_zone(
                 DicomDate::from_ymd(2012, 12, 21).unwrap(),
-                DicomTime::from_hms_micro(11, 9, 26, 000123).unwrap(),
+                DicomTime::from_hms_micro(11, 9, 26, /* 000 */ 123).unwrap(),
                 offset
             )
             .unwrap()
@@ -4856,7 +4856,7 @@ mod tests {
             PrimitiveValue::from(
                 DicomDateTime::from_date_and_time(
                     DicomDate::from_ymd(2012, 12, 21).unwrap(),
-                    DicomTime::from_hms_micro(11, 9, 26, 000123).unwrap()
+                    DicomTime::from_hms_micro(11, 9, 26, /* 000 */ 123).unwrap()
                 )
                 .unwrap()
             )
@@ -4864,7 +4864,7 @@ mod tests {
             .unwrap(),
             DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2012, 12, 21).unwrap(),
-                DicomTime::from_hms_micro(11, 9, 26, 000123).unwrap()
+                DicomTime::from_hms_micro(11, 9, 26, /* 000 */ 123).unwrap()
             )
             .unwrap()
         );
@@ -5063,7 +5063,7 @@ mod tests {
 
         // single date-time with time zone, no second fragment
         // b"20121221093001+0100 "
-        let offset = FixedOffset::east_opt(1 * 3600).unwrap();
+        let offset = FixedOffset::east_opt(3600).unwrap();
         let val = PrimitiveValue::from(
             DicomDateTime::from_date_and_time_with_time_zone(
                 DicomDate::from_ymd(2012, 12, 21).unwrap(),

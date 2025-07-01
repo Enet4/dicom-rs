@@ -48,7 +48,7 @@ impl PixelDataObject for TestDataObject {
     }
 
     fn photometric_interpretation(&self) -> Option<&str> {
-        Some(&self.photometric_interpretation)
+        Some(self.photometric_interpretation)
     }
 
     fn number_of_frames(&self) -> Option<u32> {
@@ -56,13 +56,10 @@ impl PixelDataObject for TestDataObject {
     }
 
     fn number_of_fragments(&self) -> Option<u32> {
-        match &self.pixel_data_sequence {
-            Some(v) => Some(v.fragments().len() as u32),
-            _ => None,
-        }
+        self.pixel_data_sequence.as_ref().map(|v| v.fragments().len() as u32)
     }
 
-    fn fragment(&self, fragment: usize) -> Option<Cow<[u8]>> {
+    fn fragment(&self, fragment: usize) -> Option<Cow<'_, [u8]>> {
         match (&self.flat_pixel_data, &self.pixel_data_sequence) {
             (Some(_), Some(_)) => {
                 panic!("Invalid pixel data object (both flat and fragment sequence)")
@@ -82,7 +79,7 @@ impl PixelDataObject for TestDataObject {
         }
     }
 
-    fn offset_table(&self) -> Option<Cow<[u32]>> {
+    fn offset_table(&self) -> Option<Cow<'_, [u32]>> {
         match &self.pixel_data_sequence {
             Some(v) => Some(Cow::Borrowed(v.offset_table())),
             _ => None,

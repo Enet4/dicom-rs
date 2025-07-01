@@ -346,7 +346,7 @@ where
     /// into an owned string.
     ///
     /// Returns an error if the value is not primitive.
-    pub fn to_str(&self) -> Result<Cow<str>, ConvertValueError> {
+    pub fn to_str(&self) -> Result<Cow<'_, str>, ConvertValueError> {
         match self {
             Value::Primitive(prim) => Ok(prim.to_str()),
             _ => Err(ConvertValueError {
@@ -365,7 +365,7 @@ where
     /// into an owned string.
     ///
     /// Returns an error if the value is not primitive.
-    pub fn to_raw_str(&self) -> Result<Cow<str>, ConvertValueError> {
+    pub fn to_raw_str(&self) -> Result<Cow<'_, str>, ConvertValueError> {
         match self {
             Value::Primitive(prim) => Ok(prim.to_raw_str()),
             _ => Err(ConvertValueError {
@@ -384,7 +384,7 @@ where
     /// Returns an error if the value is not primitive.
     ///
     /// [`PrimitiveValue::to_multi_str`]: ../enum.PrimitiveValue.html#to_multi_str
-    pub fn to_multi_str(&self) -> Result<Cow<[String]>, CastValueError> {
+    pub fn to_multi_str(&self) -> Result<Cow<'_, [String]>, CastValueError> {
         match self {
             Value::Primitive(prim) => Ok(prim.to_multi_str()),
             _ => Err(CastValueError {
@@ -400,7 +400,7 @@ where
     /// are provided in UTF-8.
     ///
     /// Returns an error if the value is not primitive.
-    pub fn to_bytes(&self) -> Result<Cow<[u8]>, ConvertValueError> {
+    pub fn to_bytes(&self) -> Result<Cow<'_, [u8]>, ConvertValueError> {
         match self {
             Value::Primitive(prim) => Ok(prim.to_bytes()),
             _ => Err(ConvertValueError {

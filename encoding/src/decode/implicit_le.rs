@@ -169,7 +169,7 @@ mod tests {
     //   Length: 20
     //   Value: "1.2.840.10008.1.2.1" (w 1 padding '\0') == ExplicitVRLittleEndian
     // --
-    const RAW: &'static [u8; 62] = &[
+    const RAW: &[u8; 62] = &[
         0x02, 0x00, 0x02, 0x00, 0x1a, 0x00, 0x00, 0x00, 0x31, 0x2e, 0x32, 0x2e, 0x38, 0x34, 0x30,
         0x2e, 0x31, 0x30, 0x30, 0x30, 0x38, 0x2e, 0x35, 0x2e, 0x31, 0x2e, 0x34, 0x2e, 0x31, 0x2e,
         0x31, 0x2e, 0x31, 0x00, 0x02, 0x00, 0x10, 0x00, 0x14, 0x00, 0x00, 0x00, 0x31, 0x2e, 0x32,
@@ -177,7 +177,7 @@ mod tests {
         0x31, 0x00,
     ];
 
-    const DICT: &'static StubDataDictionary = &StubDataDictionary;
+    const DICT: &StubDataDictionary = &StubDataDictionary;
 
     #[test]
     fn implicit_vr_le() {
@@ -193,15 +193,14 @@ mod tests {
             assert_eq!(elem.length(), Length(26));
             assert_eq!(bytes_read, 8);
             // read only half of the data
-            let mut buffer: Vec<u8> = Vec::with_capacity(13);
-            buffer.resize(13, 0);
+            let mut buffer: Vec<u8> = vec![0; 13];
             cursor
                 .read_exact(buffer.as_mut_slice())
                 .expect("should read it fine");
             assert_eq!(buffer.as_slice(), b"1.2.840.10008".as_ref());
         }
         // cursor should now be @ #21 (there is no automatic skipping)
-        assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 21);
+        assert_eq!(cursor.stream_position().unwrap(), 21);
         // cursor should now be @ #34 after skipping
         assert_eq!(cursor.seek(SeekFrom::Current(13)).unwrap(), 34);
         {
@@ -213,8 +212,7 @@ mod tests {
             assert_eq!(elem.vr(), VR::UN);
             assert_eq!(elem.length(), Length(20));
             // read all data
-            let mut buffer: Vec<u8> = Vec::with_capacity(20);
-            buffer.resize(20, 0);
+            let mut buffer: Vec<u8> = vec![0; 20];
             cursor
                 .read_exact(buffer.as_mut_slice())
                 .expect("should read it fine");
@@ -235,7 +233,7 @@ mod tests {
             assert_eq!(elem.vr(), VR::UI);
             assert_eq!(elem.length(), Length(26));
             // cursor should be @ #8
-            assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 8);
+            assert_eq!(cursor.stream_position().unwrap(), 8);
             // don't read any data, just skip
             // cursor should be @ #34 after skipping
             assert_eq!(
@@ -254,8 +252,7 @@ mod tests {
             assert_eq!(elem.vr(), VR::UI);
             assert_eq!(elem.length(), Length(20));
             // read all data
-            let mut buffer: Vec<u8> = Vec::with_capacity(20);
-            buffer.resize(20, 0);
+            let mut buffer: Vec<u8> = vec![0; 20];
             cursor
                 .read_exact(buffer.as_mut_slice())
                 .expect("should read it fine");
@@ -278,7 +275,7 @@ mod tests {
     //  Tag: (FFFE,E0DD) Sequence Delimitation Item
     //  Length: 0
     // --
-    const RAW_SEQUENCE_ITEMS: &'static [u8] = &[
+    const RAW_SEQUENCE_ITEMS: &[u8] = &[
         0x08, 0x00, 0x3F, 0x10, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE, 0xFF, 0x00, 0xE0, 0xFF, 0xFF, 0xFF,
         0xFF, 0xFE, 0xFF, 0x0D, 0xE0, 0x00, 0x00, 0x00, 0x00, 0xFE, 0xFF, 0xDD, 0xE0, 0x00, 0x00,
         0x00, 0x00,
@@ -299,7 +296,7 @@ mod tests {
             assert_eq!(bytes_read, 8);
         }
         // cursor should now be @ #8
-        assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 8);
+        assert_eq!(cursor.stream_position().unwrap(), 8);
         {
             let elem = dec
                 .decode_item_header(&mut cursor)
@@ -309,7 +306,7 @@ mod tests {
             assert!(elem.length().is_undefined());
         }
         // cursor should now be @ #16
-        assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 16);
+        assert_eq!(cursor.stream_position().unwrap(), 16);
         {
             let elem = dec
                 .decode_item_header(&mut cursor)
@@ -319,7 +316,7 @@ mod tests {
             assert_eq!(elem.length(), Length(0));
         }
         // cursor should now be @ #24
-        assert_eq!(cursor.seek(SeekFrom::Current(0)).unwrap(), 24);
+        assert_eq!(cursor.stream_position().unwrap(), 24);
         {
             let elem = dec
                 .decode_item_header(&mut cursor)

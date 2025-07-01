@@ -24,6 +24,6 @@ fn registry_has_stub_ts_by_default() {
         Codec::Dataset(None) | Codec::EncapsulatedPixelData(None, None)
     ));
 
-    assert_eq!(ts.can_decode_dataset(), false);
-    assert_eq!(ts.can_decode_all(), false);
+    assert!(!ts.can_decode_dataset());
+    assert!(!ts.can_decode_all());
 }

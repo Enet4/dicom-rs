@@ -331,7 +331,7 @@ where
     /// with no trailing whitespace.
     ///
     /// Returns an error if the value is not primitive.
-    pub fn to_str(&self) -> Result<Cow<str>, ConvertValueError> {
+    pub fn to_str(&self) -> Result<Cow<'_, str>, ConvertValueError> {
         self.value.to_str()
     }
 
@@ -339,7 +339,7 @@ where
     /// with trailing whitespace kept.
     ///
     /// Returns an error if the value is not primitive.
-    pub fn to_raw_str(&self) -> Result<Cow<str>, ConvertValueError> {
+    pub fn to_raw_str(&self) -> Result<Cow<'_, str>, ConvertValueError> {
         self.value.to_raw_str()
     }
 
@@ -349,7 +349,7 @@ where
     /// are provided in UTF-8.
     ///
     /// Returns an error if the value is not primitive.
-    pub fn to_bytes(&self) -> Result<Cow<[u8]>, ConvertValueError> {
+    pub fn to_bytes(&self) -> Result<Cow<'_, [u8]>, ConvertValueError> {
         self.value.to_bytes()
     }
 
@@ -361,7 +361,7 @@ where
     /// Returns an error if the value is not primitive.
     ///
     /// [`PrimitiveValue::to_multi_str`]: ../enum.PrimitiveValue.html#to_multi_str
-    pub fn to_multi_str(&self) -> Result<Cow<[String]>, CastValueError> {
+    pub fn to_multi_str(&self) -> Result<Cow<'_, [String]>, CastValueError> {
         self.value().to_multi_str()
     }
 

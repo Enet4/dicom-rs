@@ -364,9 +364,9 @@ impl TryFrom<&NaiveDate> for DicomDate {
 impl fmt::Display for DicomDate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DicomDate(DicomDateImpl::Year(y)) => write!(f, "{:04}", y),
-            DicomDate(DicomDateImpl::Month(y, m)) => write!(f, "{:04}-{:02}", y, m),
-            DicomDate(DicomDateImpl::Day(y, m, d)) => write!(f, "{:04}-{:02}-{:02}", y, m, d),
+            DicomDate(DicomDateImpl::Year(y)) => write!(f, "{y:04}"),
+            DicomDate(DicomDateImpl::Month(y, m)) => write!(f, "{y:04}-{m:02}"),
+            DicomDate(DicomDateImpl::Day(y, m, d)) => write!(f, "{y:04}-{m:02}-{d:02}"),
         }
     }
 }
@@ -374,9 +374,9 @@ impl fmt::Display for DicomDate {
 impl fmt::Debug for DicomDate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DicomDate(DicomDateImpl::Year(y)) => write!(f, "{:04}-MM-DD", y),
-            DicomDate(DicomDateImpl::Month(y, m)) => write!(f, "{:04}-{:02}-DD", y, m),
-            DicomDate(DicomDateImpl::Day(y, m, d)) => write!(f, "{:04}-{:02}-{:02}", y, m, d),
+            DicomDate(DicomDateImpl::Year(y)) => write!(f, "{y:04}-MM-DD"),
+            DicomDate(DicomDateImpl::Month(y, m)) => write!(f, "{y:04}-{m:02}-DD"),
+            DicomDate(DicomDateImpl::Day(y, m, d)) => write!(f, "{y:04}-{m:02}-{d:02}"),
         }
     }
 }
@@ -569,19 +569,16 @@ impl TryFrom<&NaiveTime> for DicomTime {
 impl fmt::Display for DicomTime {
     fn fmt(&self, frm: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DicomTime(DicomTimeImpl::Hour(h)) => write!(frm, "{:02}", h),
-            DicomTime(DicomTimeImpl::Minute(h, m)) => write!(frm, "{:02}:{:02}", h, m),
+            DicomTime(DicomTimeImpl::Hour(h)) => write!(frm, "{h:02}"),
+            DicomTime(DicomTimeImpl::Minute(h, m)) => write!(frm, "{h:02}:{m:02}"),
             DicomTime(DicomTimeImpl::Second(h, m, s)) => {
-                write!(frm, "{:02}:{:02}:{:02}", h, m, s)
+                write!(frm, "{h:02}:{m:02}:{s:02}")
             }
             DicomTime(DicomTimeImpl::Fraction(h, m, s, f, fp)) => {
                 let sfrac = (u32::pow(10, *fp as u32) + f).to_string();
                 write!(
                     frm,
-                    "{:02}:{:02}:{:02}.{}",
-                    h,
-                    m,
-                    s,
+                    "{h:02}:{m:02}:{s:02}.{}",
                     match f {
                         0 => "0",
                         _ => sfrac.get(1..).unwrap(),
@@ -595,13 +592,13 @@ impl fmt::Display for DicomTime {
 impl fmt::Debug for DicomTime {
     fn fmt(&self, frm: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DicomTime(DicomTimeImpl::Hour(h)) => write!(frm, "{:02}:mm:ss.FFFFFF", h),
-            DicomTime(DicomTimeImpl::Minute(h, m)) => write!(frm, "{:02}:{:02}:ss.FFFFFF", h, m),
+            DicomTime(DicomTimeImpl::Hour(h)) => write!(frm, "{h:02}:mm:ss.FFFFFF"),
+            DicomTime(DicomTimeImpl::Minute(h, m)) => write!(frm, "{h:02}:{m:02}:ss.FFFFFF"),
             DicomTime(DicomTimeImpl::Second(h, m, s)) => {
-                write!(frm, "{:02}:{:02}:{:02}.FFFFFF", h, m, s)
+                write!(frm, "{h:02}:{m:02}:{s:02}.FFFFFF")
             }
             DicomTime(DicomTimeImpl::Fraction(h, m, s, f, _fp)) => {
-                write!(frm, "{:02}:{:02}:{:02}.{:F<6}", h, m, s, f)
+                write!(frm, "{h:02}:{m:02}:{s:02}.{f:F<6}")
             }
         }
     }
@@ -826,9 +823,9 @@ impl DicomDate {
      */
     pub fn to_encoded(&self) -> String {
         match self {
-            DicomDate(DicomDateImpl::Year(y)) => format!("{:04}", y),
-            DicomDate(DicomDateImpl::Month(y, m)) => format!("{:04}{:02}", y, m),
-            DicomDate(DicomDateImpl::Day(y, m, d)) => format!("{:04}{:02}{:02}", y, m, d),
+            DicomDate(DicomDateImpl::Year(y)) => format!("{y:04}"),
+            DicomDate(DicomDateImpl::Month(y, m)) => format!("{y:04}{m:02}"),
+            DicomDate(DicomDateImpl::Day(y, m, d)) => format!("{y:04}{m:02}{d:02}"),
         }
     }
 }
@@ -839,12 +836,12 @@ impl DicomTime {
      */
     pub fn to_encoded(&self) -> String {
         match self {
-            DicomTime(DicomTimeImpl::Hour(h)) => format!("{:02}", h),
-            DicomTime(DicomTimeImpl::Minute(h, m)) => format!("{:02}{:02}", h, m),
-            DicomTime(DicomTimeImpl::Second(h, m, s)) => format!("{:02}{:02}{:02}", h, m, s),
+            DicomTime(DicomTimeImpl::Hour(h)) => format!("{h:02}"),
+            DicomTime(DicomTimeImpl::Minute(h, m)) => format!("{h:02}{m:02}"),
+            DicomTime(DicomTimeImpl::Second(h, m, s)) => format!("{h:02}{m:02}{s:02}"),
             DicomTime(DicomTimeImpl::Fraction(h, m, s, f, fp)) => {
                 let sfrac = (u32::pow(10, *fp as u32) + f).to_string();
-                format!("{:02}{:02}{:02}.{}", h, m, s, sfrac.get(1..).unwrap())
+                format!("{h:02}{m:02}{s:02}.{}", sfrac.get(1..).unwrap())
             }
         }
     }
@@ -998,9 +995,9 @@ mod tests {
             DicomDate(DicomDateImpl::Year(1944))
         );
 
-        assert_eq!(DicomDate::from_ymd(1944, 2, 29).unwrap().is_precise(), true);
-        assert_eq!(DicomDate::from_ym(1944, 2).unwrap().is_precise(), false);
-        assert_eq!(DicomDate::from_y(1944).unwrap().is_precise(), false);
+        assert!(DicomDate::from_ymd(1944, 2, 29).unwrap().is_precise());
+        assert!(!DicomDate::from_ym(1944, 2).unwrap().is_precise());
+        assert!(!DicomDate::from_y(1944).unwrap().is_precise());
         assert_eq!(
             DicomDate::from_ymd(1944, 2, 29)
                 .unwrap()
@@ -1096,21 +1093,20 @@ mod tests {
                 .unwrap()
                 .earliest()
                 .unwrap(),
-            NaiveTime::from_hms_micro_opt(9, 1, 1, 002000).unwrap()
+            NaiveTime::from_hms_micro_opt(9, 1, 1, /* 00 */ 2000).unwrap()
         );
         assert_eq!(
             DicomTime::from_hms_milli(9, 1, 1, 2)
                 .unwrap()
                 .latest()
                 .unwrap(),
-            NaiveTime::from_hms_micro_opt(9, 1, 1, 002999).unwrap()
+            NaiveTime::from_hms_micro_opt(9, 1, 1, /* 00 */ 2999).unwrap()
         );
 
-        assert_eq!(
+        assert!(
             DicomTime::from_hms_micro(9, 1, 1, 123456)
                 .unwrap()
-                .is_precise(),
-            true
+                .is_precise()
         );
 
         assert_eq!(
@@ -1125,12 +1121,12 @@ mod tests {
 
         assert_eq!(
             DicomTime::try_from(&NaiveTime::from_hms_micro_opt(16, 31, 28, 123).unwrap()).unwrap(),
-            DicomTime(DicomTimeImpl::Fraction(16, 31, 28, 000123, 6))
+            DicomTime(DicomTimeImpl::Fraction(16, 31, 28, /* 000 */ 123, 6))
         );
 
         assert_eq!(
             DicomTime::try_from(&NaiveTime::from_hms_micro_opt(16, 31, 28, 1234).unwrap()).unwrap(),
-            DicomTime(DicomTimeImpl::Fraction(16, 31, 28, 001234, 6))
+            DicomTime(DicomTimeImpl::Fraction(16, 31, 28, /* 00 */ 1234, 6))
         );
 
         assert_eq!(
@@ -1447,13 +1443,12 @@ mod tests {
 
         // simple precision checks
         assert!(
-            DicomDateTime::from_date_and_time(
+            !DicomDateTime::from_date_and_time(
                 DicomDate::from_ymd(2000, 1, 1).unwrap(),
                 DicomTime::from_hms_milli(23, 59, 59, 10).unwrap()
             )
             .unwrap()
             .is_precise()
-                == false
         );
 
         assert!(DicomDateTime::from_date_and_time(

@@ -45,7 +45,7 @@ async fn test_slow_association_async(#[case] timeout: u64) {
         .await;
     assert!(res.is_err());
     let elapsed = now.elapsed();
-    println!("Elapsed time: {:?}", elapsed);
+    println!("Elapsed time: {elapsed:?}");
     assert!(
         elapsed.as_millis() < (timeout + TIMEOUT_TOLERANCE).into(),
         "Elapsed time {}ms exceeded the timeout {}ms",

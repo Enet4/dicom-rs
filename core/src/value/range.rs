@@ -1211,35 +1211,35 @@ mod tests {
     #[test]
     fn test_time_range() {
         assert_eq!(
-            TimeRange::from_start(NaiveTime::from_hms_opt(05, 05, 05).unwrap()).start(),
-            Some(&NaiveTime::from_hms_opt(05, 05, 05).unwrap())
+            TimeRange::from_start(NaiveTime::from_hms_opt(5, 5, 5).unwrap()).start(),
+            Some(&NaiveTime::from_hms_opt(5, 5, 5).unwrap())
         );
         assert_eq!(
-            TimeRange::from_end(NaiveTime::from_hms_opt(05, 05, 05).unwrap()).end(),
-            Some(&NaiveTime::from_hms_opt(05, 05, 05).unwrap())
+            TimeRange::from_end(NaiveTime::from_hms_opt(5, 5, 5).unwrap()).end(),
+            Some(&NaiveTime::from_hms_opt(5, 5, 5).unwrap())
         );
         assert_eq!(
             TimeRange::from_start_to_end(
-                NaiveTime::from_hms_opt(05, 05, 05).unwrap(),
-                NaiveTime::from_hms_opt(05, 05, 06).unwrap()
+                NaiveTime::from_hms_opt(5, 5, 5).unwrap(),
+                NaiveTime::from_hms_opt(5, 5, 6).unwrap()
             )
             .unwrap()
             .start(),
-            Some(&NaiveTime::from_hms_opt(05, 05, 05).unwrap())
+            Some(&NaiveTime::from_hms_opt(5, 5, 5).unwrap())
         );
         assert_eq!(
             TimeRange::from_start_to_end(
-                NaiveTime::from_hms_opt(05, 05, 05).unwrap(),
-                NaiveTime::from_hms_opt(05, 05, 06).unwrap()
+                NaiveTime::from_hms_opt(5, 5, 5).unwrap(),
+                NaiveTime::from_hms_opt(5, 5, 6).unwrap()
             )
             .unwrap()
             .end(),
-            Some(&NaiveTime::from_hms_opt(05, 05, 06).unwrap())
+            Some(&NaiveTime::from_hms_opt(5, 5, 6).unwrap())
         );
         assert!(matches!(
             TimeRange::from_start_to_end(
-                NaiveTime::from_hms_micro_opt(05, 05, 05, 123_456).unwrap(),
-                NaiveTime::from_hms_micro_opt(05, 05, 05, 123_450).unwrap()
+                NaiveTime::from_hms_micro_opt(5, 5, 5, 123_456).unwrap(),
+                NaiveTime::from_hms_micro_opt(5, 5, 5, 123_450).unwrap()
             ),
             Err(Error::RangeInversion {
                 start, end ,.. }) if start == "05:05:05.123456" && end == "05:05:05.123450"
@@ -1518,7 +1518,7 @@ mod tests {
             parse_time_range(b"-01 ").ok(),
             Some(TimeRange {
                 start: None,
-                end: Some(NaiveTime::from_hms_micro_opt(01, 59, 59, 999_999).unwrap())
+                end: Some(NaiveTime::from_hms_micro_opt(1, 59, 59, 999_999).unwrap())
             })
         );
         assert_eq!(

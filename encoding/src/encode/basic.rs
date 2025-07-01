@@ -285,18 +285,18 @@ mod tests {
                     .map(|s| s.to_string())
                     .collect(),
             ),
-            &*b"one\\more\\time",
+            b"one\\more\\time",
         );
 
         test_one_primitive_le(
             PrimitiveValue::Date(
                 vec![
-                    DicomDate::from_ymd(2016, 12, 01).unwrap(),
+                    DicomDate::from_ymd(2016, 12, 1).unwrap(),
                     DicomDate::from_ymd(2123, 9, 13).unwrap(),
                 ]
                 .into(),
             ),
-            &*b"20161201\\21230913",
+            b"20161201\\21230913",
         );
 
         test_one_primitive_le(
@@ -322,18 +322,18 @@ mod tests {
                     .map(|s| s.to_string())
                     .collect(),
             ),
-            &*b"one\\more\\time",
+            b"one\\more\\time",
         );
 
         test_one_primitive_be(
             PrimitiveValue::Date(
                 vec![
-                    DicomDate::from_ymd(2016, 12, 01).unwrap(),
+                    DicomDate::from_ymd(2016, 12, 1).unwrap(),
                     DicomDate::from_ym(2123, 9).unwrap(),
                 ]
                 .into(),
             ),
-            &*b"20161201\\212309",
+            b"20161201\\212309",
         );
 
         test_one_primitive_be(

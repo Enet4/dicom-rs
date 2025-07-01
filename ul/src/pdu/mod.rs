@@ -317,7 +317,7 @@ impl Display for AssociationRJServiceUserReason {
             AssociationRJServiceUserReason::CalledAETitleNotRecognized => {
                 f.write_str("called AE title not recognized")
             }
-            AssociationRJServiceUserReason::Reserved(code) => write!(f, "reserved code {}", code),
+            AssociationRJServiceUserReason::Reserved(code) => write!(f, "reserved code {code}"),
         }
     }
 }
@@ -356,7 +356,7 @@ impl Display for AssociationRJServiceProviderPresentationReason {
                 f.write_str("local limit exceeded")
             }
             AssociationRJServiceProviderPresentationReason::Reserved(code) => {
-                write!(f, "reserved code {}", code)
+                write!(f, "reserved code {code}")
             }
         }
     }

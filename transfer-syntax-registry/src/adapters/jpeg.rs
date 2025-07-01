@@ -71,7 +71,7 @@ impl PixelDataReader for JpegAdapter {
             let decoded = decoder
                 .decode()
                 .map_err(|e| Box::new(e) as Box<_>)
-                .with_whatever_context(|_| format!("JPEG decoding failure on frame {}", i))?;
+                .with_whatever_context(|_| format!("JPEG decoding failure on frame {i}"))?;
 
             let decoded_len = decoded.len();
             dst[dst_offset..(dst_offset + decoded_len)].copy_from_slice(&decoded);
@@ -180,7 +180,7 @@ impl PixelDataReader for JpegAdapter {
                 raw.fragments
                     .get(frame as usize)
                     .with_whatever_context(|| {
-                        format!("Missing fragment #{} for the frame requested", frame)
+                        format!("Missing fragment #{frame} for the frame requested")
                     })?,
             )
         } else {
@@ -194,7 +194,7 @@ impl PixelDataReader for JpegAdapter {
                 base_offset.unwrap_or(0) as usize
             } else {
                 base_offset
-                    .with_whatever_context(|| format!("Missing offset for frame #{}", frame))?
+                    .with_whatever_context(|| format!("Missing offset for frame #{frame}"))?
                     as usize
             };
             let next_offset = raw.offset_table.get(frame as usize + 1);
@@ -304,7 +304,7 @@ impl PixelDataWriter for JpegAdapter {
         let compressed_frame_size = dst.len() - len_before;
 
         let compression_ratio = frame_size as f64 / compressed_frame_size as f64;
-        let compression_ratio = format!("{:.6}", compression_ratio);
+        let compression_ratio = format!("{compression_ratio:.6}");
 
         // provide attribute changes
         let mut changes = vec![
@@ -364,7 +364,7 @@ fn next_even(l: u64) -> u64 {
 
 /// reduce data precision to 8 bits if necessary
 /// data loss is possible
-fn narrow_8bit(frame_data: &[u8], bits_stored: u16) -> EncodeResult<Cow<[u8]>> {
+fn narrow_8bit(frame_data: &[u8], bits_stored: u16) -> EncodeResult<Cow<'_, [u8]>> {
     debug_assert!(bits_stored >= 8);
     match bits_stored {
         8 => Ok(Cow::Borrowed(frame_data)),

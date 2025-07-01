@@ -47,7 +47,7 @@ mod tests {
         assert_eq!(it.len(), 5);
         let mut k = 0;
         for v in it {
-            assert_eq!(v, ());
+            let () = v;
             k += 1;
         }
         assert_eq!(k, 5);

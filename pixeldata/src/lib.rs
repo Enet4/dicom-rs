@@ -2150,7 +2150,7 @@ impl<D> PixelDecoder for FileDicomObject<InMemDicomObject<D>>
 where
     D: DataDictionary + Clone,
 {
-    fn decode_pixel_data(&self) -> Result<DecodedPixelData> {
+    fn decode_pixel_data(&self) -> Result<DecodedPixelData<'_>> {
         let pixel_data = attribute::pixel_data(self).context(GetAttributeSnafu)?;
 
         let ImagingProperties {
