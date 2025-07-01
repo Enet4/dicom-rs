@@ -95,6 +95,6 @@ dicom-movescu PACS@pacs.example.com:1045 -q QueryRetrieveLevel=STUDY -q StudyIns
 
 #### Limitations
 
-Currently Instance (image) level C-Move does not work for local store-scp but should work when performing a C-MOVE to other archives
-The movescu tool makes no attempt to prevent incorrect queries. In particular, the query keys of a C-MOVE request should only contain the QueryRetrieveLevel attribute and one or more of the so-called "unique key attributes" (PatientID, StudyInstanceUID, SeriesInstanceUID and SOPInstanceUID).
+- Currently Instance (image) level C-Move does not work for local store-scp but should work when performing a C-MOVE to other archives
+- The movescu tool makes no attempt to prevent incorrect queries. In particular, the query keys of a C-MOVE request should only contain the QueryRetrieveLevel attribute and one or more of the so-called "unique key attributes" (PatientID, StudyInstanceUID, SeriesInstanceUID and SOPInstanceUID).
 
