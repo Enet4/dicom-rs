@@ -1,10 +1,10 @@
 # DICOM-rs `movescu`
 
-[![CratesIO](https://img.shields.io/crates/v/dicom-movescu.svg)](https://crates.io/crates/dicom-movescu)
-[![Documentation](https://docs.rs/dicom-movescu/badge.svg)](https://docs.rs/dicom-movescu)
-
-This is an implementation of the DICOM Find SCU (C-FIND),
-which can be used to search for study and patient records in a DICOM archive.
+This is an implementation of the DICOM Move SCU (C-MOVE),
+which can be used to transfer images to an C-STORE archive.
+For ease of use it automatically starts a STORE-SCP when performing 
+a move operation to itself (c-move destination identical to calling-aet) 
+and stores the received files in the current directory
 
 This tool is part of the [DICOM-rs](https://github.com/Enet4/dicom-rs) project.
 
@@ -14,12 +14,10 @@ Note that this tool is not necessarily a drop-in replacement
 for `movescu` tools in other DICOM software toolkits.
 Run `dicom-movescu --help`  for more details.
 
-Basic usage includes searching for a study or patient by a certain attribute.
 The following query/retrieve information models are supported at the moment:
 
-- **`-S`**: Study Root Query/Retrieve Information Model – FIND (default)
-- **`-P`**: Patient Root Query/Retrieve Information Model - FIND
-- **`-W`**: Modality Worklist Information Model – FIND
+- **`-S`**: Study Root Query/Retrieve Information Model – MOVE (default)
+- **`-P`**: Patient Root Query/Retrieve Information Model - MOVE
 
 There are three _non-exclusive_ ways to specify a DICOM query:
 
@@ -56,15 +54,15 @@ For example, given the file `query.txt`:
 
 ```none
 # comments are supported
-AccessionNumber
-ScheduledProcedureStepSequence.Modality=MR
-ScheduledProcedureStepSequence.ScheduledProcedureStepStartDate=20240703
+QueryRetrieveLevel=SERIES
+StudyInstanceUID=1.3.46.670589.5.2.10.2156913941.892665384.993397
+SeriesInstanceUID=1.3.46.670589.5.2.10.2156913941.892665339.718742
 ```
 
 You can do:
 
 ```sh
-dicom-movescu PACS@pacs.example.com:1045 -W --query-file query.txt
+dicom-movescu PACS@pacs.example.com:1045 -S --query-file query.txt
 ```
 
 ### Using the multi-value `-q` option
@@ -80,25 +78,23 @@ Each of these forms will extend and override the query object in this order.
 Simple attribute selectors comprise a single data element key,
 specified by a standard DICOM tag
 (in one of the forms `(gggg,eeee)`, `gggg,eeee`, or `ggggeeee`)
-or a tag keyword name such as `PatientName`.
-To specify a sequence, use multiple of these separated by a dot
-(e.g. `ScheduledProcedureStepSequence.0040,0020`).
-Nested attributes will automatically construct intermediate sequences as needed.
+or a tag keyword name such as `StudyInstanceUID`.
 
 #### Examples
 
 ```sh
-# query application entity STORAGE for a study with the accession number A123
-dicom-movescu STORAGE@pacs.example.com:1045 --study -q AccessionNumber=A123
+# retrieve study from application entity PACS with StudyInstanceUID
+dicom-movescu PACS@pacs.example.com:1045 -q QueryRetrieveLevel=STUDY -q StudyInstanceUID=1.3.46.670589.5.2.10.2156913941.892665384.993397 --move-destination=STORE-SCP
 
-# query application entity PACS for patients born in 1990-12-25
-dicom-movescu PACS@pacs.example.com:1045 --patient -q PatientBirthDate=19901225
+# retrieve series from application entity PACS with StudyInstanceUID and SeriesInstanceUID
+dicom-movescu PACS@pacs.example.com:1045 -q QueryRetrieveLevel=SERIES -q StudyInstanceUID=1.3.46.670589.5.2.10.2156913941.892665384.993397 -q SeriesInstanceUID=1.3.46.670589.5.2.10.2156913941.892665384.993397 --move-destination=STORE-SCP
 
-# wild-card query: grab a list of all study instance UIDs
-dicom-movescu PACS@pacs.example.com:1045 -S -q "StudyInstanceUID=*"
-
-# retrieve the modality worklist information
-# for scheduled procedures where the patient has arrived
-dicom-movescu INFO@pacs.example.com:1045 --mwl \
-    -q ScheduledProcedureStepSequence.ScheduledProcedureStepStatus=ARRIVED
+# transfer study from application entity PACS to AE STORAGE
+dicom-movescu PACS@pacs.example.com:1045 -q QueryRetrieveLevel=STUDY -q StudyInstanceUID=1.3.46.670589.5.2.10.2156913941.892665384.993397 --move-destination=STORAGE
 ```
+
+#### Limitations
+
+Currently Instance (image) level C-Move does not work for local store-scp but should work when performing a C-MOVE to other archives
+The movescu tool makes no attempt to prevent incorrect queries. In particular, the query keys of a C-MOVE request should only contain the QueryRetrieveLevel attribute and one or more of the so-called "unique key attributes" (PatientID, StudyInstanceUID, SeriesInstanceUID and SOPInstanceUID).
+
