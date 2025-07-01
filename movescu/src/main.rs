@@ -72,7 +72,7 @@ struct App {
     /// use study root information model (default)
     #[arg(short = 'S', long, conflicts_with = "patient")]
     study: bool,
-   
+
     /// Enforce max pdu length
     #[arg(short = 's', long = "strict")]
     strict: bool,
@@ -121,17 +121,20 @@ fn main() {
         });
     });
 
-    run_move_scu(app).unwrap_or_else(|err| {
+    let move_success = run_move_scu(app).unwrap_or_else(|err| {
         error!("{}", snafu::Report::from_error(err));
         std::process::exit(-2);
     });
 
-    runtime.block_on(async {
-        handle.await.unwrap_or_else(|e| {
-            error!("Failed to run async task: {}", snafu::Report::from_error(e));
+    if move_success {
+        runtime.block_on(async {
+            handle.await.unwrap_or_else(|e| {
+                error!("Failed to run async task: {}", snafu::Report::from_error(e));
+            });
         });
-    });
-
+    } else {
+        handle.abort();
+    }
 }
 
 async fn run_async(args: App) -> Result<(), Box<dyn std::error::Error>> {
@@ -153,7 +156,7 @@ async fn run_async(args: App) -> Result<(), Box<dyn std::error::Error>> {
     let (socket, _addr) = listener.accept().await?;
     let args = args.clone();
     if let Err(e) = run_store_async(socket, &args).await {
-            error!("{}", Report::from_error(e));
+        error!("{}", Report::from_error(e));
     }
 
     Ok(())
@@ -232,13 +235,12 @@ fn build_query(
         whatever!("Query not specified");
     }
 
-    let obj =
-        parse_queries(obj, &q).whatever_context("Could not build query object from terms")?;
+    let obj = parse_queries(obj, &q).whatever_context("Could not build query object from terms")?;
 
     Ok(obj)
 }
 
-fn run_move_scu(app: App) -> Result<(), Error> {
+fn run_move_scu(app: App) -> Result<bool, Error> {
     let App {
         addr,
         file,
@@ -266,9 +268,7 @@ fn run_move_scu(app: App) -> Result<(), Error> {
         // Patient Root Query/Retrieve Information Model - MOVE
         (true, false) => uids::PATIENT_ROOT_QUERY_RETRIEVE_INFORMATION_MODEL_MOVE,
         // Study Root Query/Retrieve Information Model – MOVE (default)
-        (false, false) | (false, true) => {
-            uids::STUDY_ROOT_QUERY_RETRIEVE_INFORMATION_MODEL_MOVE
-        }
+        (false, false) | (false, true) => uids::STUDY_ROOT_QUERY_RETRIEVE_INFORMATION_MODEL_MOVE,
         _ => unreachable!("Unexpected flag combination"),
     };
 
@@ -355,6 +355,7 @@ fn run_move_scu(app: App) -> Result<(), Error> {
     }
 
     let mut i = 0;
+    let mut success = false;
     loop {
         let rsp_pdu = scu
             .receive()
@@ -398,6 +399,7 @@ fn run_move_scu(app: App) -> Result<(), Error> {
                     if i == 0 {
                         info!("No results matching query");
                     }
+                    success = true;
                     break;
                 } else if status == 0xFF00 || status == 0xFF01 {
                     if verbose {
@@ -405,8 +407,6 @@ fn run_move_scu(app: App) -> Result<(), Error> {
                     }
 
                     // fetch DICOM data
-                    // Some worklist servers sends both command and data in the same PData
-                    // So there is no need to download another PData
                     let dcm = if let Some(second_pdata) = data.get(1) {
                         InMemDicomObject::read_dataset_with_ts(second_pdata.data.as_slice(), ts)
                             .whatever_context("Could not read response data set")?
@@ -443,7 +443,28 @@ fn run_move_scu(app: App) -> Result<(), Error> {
 
                     i += 1;
                 } else {
-                    warn!("Operation failed (status code {})", status);
+                    let msg = format!("Operation failed (status code {:x})", status);
+
+                    if status == 0xa701 {
+                        warn!("{} Out of resources (number of matches)", msg);
+                    } else if status == 0xa702 {
+                        warn!("{} Out of resources (sub-operations)", msg);
+                    } else if status == 0x0122 {
+                        warn!("{} SOP class not supported", msg);
+                    } else if status == 0xa801 {
+                        warn!("{} Move destination unknown", msg);
+                    } else if status == 0xa900 {
+                        warn!("{} Identifier does not match SOP class in C-MOVE response", msg);
+                    } else if status == 0xc000 {
+                        warn!("{} Unable to process C-MOVE response", msg);
+                    } else if status == 0xfe00 {
+                        warn!("{} Sub-operations terminated due to cancel indication", msg);
+                    } else if status == 0xb000 {
+                        warn!("{} Sub-operations complete with one or more failures", msg);
+                    } else {
+                        warn!("{} Unknown status code", msg);
+                    }
+
                     break;
                 }
             }
@@ -462,7 +483,7 @@ fn run_move_scu(app: App) -> Result<(), Error> {
         }
     }
     let _ = scu.release();
-    Ok(())
+    Ok(success)
 }
 
 fn move_req_command(
