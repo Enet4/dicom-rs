@@ -605,11 +605,12 @@ impl<'a> ClientAssociationOptions<'a> {
 
         // choose called AE title
         let called_ae_title: &str = match (&called_ae_title, ae_address.ae_title()) {
-            (Some(aec), Some(_)) => {
-                tracing::warn!(
-                    "Option `called_ae_title` overrides the AE title to `{}`",
-                    aec
-                );
+            (Some(aec), Some(aet)) => {
+                if aec != aet {
+                    tracing::warn!(
+                        "Option `called_ae_title` overrides the AE title from `{aet}` to `{aec}`"
+                    );
+                }
                 aec
             }
             (Some(aec), None) => aec,
@@ -1216,11 +1217,12 @@ pub mod non_blocking {
 
             // choose called AE title
             let called_ae_title: &str = match (&called_ae_title, ae_address.ae_title()) {
-                (Some(aec), Some(_)) => {
-                    tracing::warn!(
-                        "Option `called_ae_title` overrides the AE title to `{}`",
-                        aec
-                    );
+                (Some(aec), Some(aet)) => {
+                    if aec != aet {
+                        tracing::warn!(
+                            "Option `called_ae_title` overrides the AE title from `{aet}` to `{aec}`"
+                        );
+                    }
                     aec
                 }
                 (Some(aec), None) => aec,
