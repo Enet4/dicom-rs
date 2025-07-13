@@ -1,6 +1,6 @@
 //! DICOM object reader API
 //!
-//! The DICOM collector API in ([`DicomCollector`])
+//! The DICOM collector API in [`DicomCollector`]
 //! can be used for reading DICOM objects in cohesive chunks,
 //! thus obtaining some meta-data earlier for asynchronous processing
 //! and potentially saving memory.
@@ -72,6 +72,8 @@ pub enum Error {
     IllegalStateStart,
     /// Illegal state for the requested operation: file meta group has already been read
     IllegalStateMeta,
+    /// Illegal state for the requested operation: basic offset table has already been read
+    IllegalStateInPixel,
     /// DICOM value not found after non-empty element header
     MissingElementValue,
     /// Could not guess source transfer syntax
@@ -519,14 +521,35 @@ where
         )
     }
 
+    /// Read a DICOM data set until it reaches the object's pixel data.
+    /// 
+    /// This is equivalent to `collector.read_dataset_up_to(tags::PIXEL_DATA, to)`.
+    #[inline]
+    pub fn read_dataset_up_to_pixeldata(
+        &mut self,
+        to: &mut InMemDicomObject<D>,
+    ) -> Result<()> {
+        self.read_dataset_up_to(dicom_dictionary_std::tags::PIXEL_DATA, to)
+    }
+
     /// Read the DICOM data set until it reaches the pixel data
     /// (if it has not done so yet)
     /// and collects the next pixel data fragment,
     /// appending the bytes into the given destination.
+    /// Returns the number of bytes of the fragment retrieved.
     ///
     /// If the data set contains native pixel data,
     /// the entire value data in the _Pixel Data_ attribute
     /// is interpreted as a single fragment.
+    /// 
+    /// The basic offset table is treated as a fragment,
+    /// which means that the first call to `read_next_fragment`
+    /// on a DICOM object with encapsulated pixel data
+    /// will push the byte values of the basic offset table
+    /// in little endian.
+    /// To retrieve the offset table as a sequence of 32-bit length values,
+    /// use [`read_basic_offset_table`](Self::read_basic_offset_table)
+    /// before reading any fragment.
     pub fn read_next_fragment(&mut self, to: &mut Vec<u8>) -> Result<Option<u32>> {
         if self.state == CollectorState::Start || self.state == CollectorState::Preamble {
             // read file meta information group
@@ -582,6 +605,89 @@ where
                 // fragment item data
                 LazyDataToken::LazyItemValue { len, decoder } => {
                     decoder.read_to_vec(len, to).context(ReadItemSnafu)?;
+                    return Ok(Some(len))
+                }
+                // empty item
+                // (must be accounted for even though it yields no value token)
+                LazyDataToken::ItemStart { len: Length(0) } => {
+                    return Ok(Some(0))
+                }
+                _ => {
+                    // no-op
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Read the DICOM data set until it reaches the pixel data
+    /// (if it has not done so yet)
+    /// and collects the basic offset table.
+    ///
+    /// Returns the byte length of the basic offset table
+    /// on success.
+    /// Returns `Ok(None)` if the DICOM object has no pixel data
+    /// or has native pixel data,
+    /// in which case there is no basic offset table.
+    /// Returns an error if the collector has alread read too far
+    /// to obtain the basic offset table.
+    pub fn read_basic_offset_table(&mut self, to: &mut Vec<u32>) -> Result<Option<u32>> {
+        if self.state == CollectorState::InPixelData {
+            return IllegalStateInPixelSnafu.fail();
+        }
+
+        if self.state == CollectorState::Start || self.state == CollectorState::Preamble {
+            // read file meta information group
+            self.read_file_meta()?;
+        }
+
+        // initialize parser if necessary
+        if !self.source.has_parser() {
+            let ts = self.guessed_ts().context(GuessTransferSyntaxSnafu)?;
+            self.source.set_parser_with_ts(ts)?;
+        } else {
+            self.source.parser();
+        }
+
+        if self.state != CollectorState::InPixelData {
+            // skip until we reach the pixel data
+
+            self.skip_until(|token| {
+                match token {
+                    // catch either native pixel data
+                    LazyDataToken::ElementHeader(header) if header.tag == tags::PIXEL_DATA && header.length().is_defined() => {
+                        true
+                    },
+                    // or start of pixel data sequencce
+                    LazyDataToken::PixelSequenceStart => {
+                        true
+                    },
+                    _ => false,
+                }
+            })?;
+
+            self.state = CollectorState::InPixelData;
+        }
+
+        let parser = if !self.source.has_parser() {
+            let ts = self.guessed_ts().context(GuessTransferSyntaxSnafu)?;
+            self.source.set_parser_with_ts(ts)?
+        } else {
+            self.source.parser()
+        };
+
+        // proceed with fetching tokens,
+        // return the first fragment data found
+        while let Some(token) = parser.advance() {
+            match token.context(ReadTokenSnafu)? {
+                // native pixel data, no offset table
+                LazyDataToken::LazyValue { .. } => {
+                    return Ok(None);
+                }
+                // fragment item data
+                LazyDataToken::LazyItemValue { len, decoder } => {
+                    decoder.read_u32_to_vec(len, to).context(ReadItemSnafu)?;
                     return Ok(Some(len))
                 }
                 // empty item
@@ -1131,8 +1237,7 @@ mod tests {
 
         assert_eq!(fmi.transfer_syntax(), uids::JPEG_EXTENDED12_BIT);
 
-        // collect the basic offset table
-        // (currently exists as a regular fragment in this API)
+        // collect the basic offset table as a regular fragment
 
         let mut bot = Vec::new();
         let len = collector
@@ -1185,5 +1290,66 @@ mod tests {
         }
 
         assert_eq!(remaining, 0);
+    }
+
+    /// read the fragments of a DICOM file after reading the basic offset table
+    #[test]
+    fn test_read_bot_and_fragments() {
+        let filename = dicom_test_files::path("pydicom/SC_rgb_rle_2frame.dcm").unwrap();
+
+        let mut collector = DicomCollector::open_file(filename).unwrap();
+
+        let fmi = collector.read_file_meta().unwrap();
+
+        assert_eq!(fmi.transfer_syntax(), uids::RLE_LOSSLESS);
+
+        // collect the basic offset table
+        let mut bot = Vec::new();
+        let len = collector
+            .read_basic_offset_table(&mut bot)
+            .expect("should read basic offset table successfully")
+            .expect("should have basic offset table fragment");
+        assert_eq!(len, 8);
+        assert_eq!(&bot, &[0x0000, 0x02A0]);
+
+        // can't read the basic offset table twice
+        assert!(matches!(
+            collector.read_basic_offset_table(&mut bot),
+            Err(super::Error::IllegalStateInPixel),
+        ));
+
+        // collect the other fragments
+
+        let mut fragment = Vec::with_capacity(2048);
+
+        let len = collector
+            .read_next_fragment(&mut fragment)
+            .expect("should read fragment successfully")
+            .expect("should have fragment #0");
+        assert_eq!(len, 664);
+
+        // inspect a few bytes just to be sure
+        assert_eq!(&fragment[0..5], &[0x03, 0x00, 0x00, 0x00, 0x40]);
+
+        // read one more
+
+        let len = collector
+            .read_next_fragment(&mut fragment)
+            .expect("should read fragment successfully")
+            .expect("should have fragment #1");
+        assert_eq!(len, 664);
+
+        // accumulates
+        assert_eq!(fragment.len(), 664 + 664);
+
+        // inspect a few bytes
+        assert_eq!(&fragment[0..5], &[0x03, 0x00, 0x00, 0x00, 0x40]);
+        assert_eq!(&fragment[664 + 659..], &[0x00, 0x9D, 0x00, 0x9D, 0x00]);
+
+        // no more fragments
+        assert!(collector
+            .read_next_fragment(&mut fragment)
+            .expect("attempt to read the next fragment should not have failed")
+            .is_none());
     }
 }
