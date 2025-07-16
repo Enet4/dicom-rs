@@ -285,9 +285,11 @@ enum CollectorState {
     InPixelData,
 }
 
+/// A set of options for the DICOM collector
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct DicomCollectorOptions {
-    read_preamble: ReadPreamble,
+    /// Whether to read the 128-byte DICOM file preamble
+    pub read_preamble: ReadPreamble,
 }
 
 impl<'t, D, S> fmt::Debug for DicomCollector<'t, D, S>
