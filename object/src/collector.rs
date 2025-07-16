@@ -13,7 +13,9 @@ use std::{
 };
 
 use dicom_core::{
-    header::HasLength, value::{PixelFragmentSequence, C}, DataDictionary, DataElement, DicomValue, Length, Tag, VR
+    header::HasLength,
+    value::{PixelFragmentSequence, C},
+    DataDictionary, DataElement, DicomValue, Length, Tag, VR,
 };
 use dicom_dictionary_std::{tags, StandardDataDictionary};
 use dicom_encoding::{decode::DecodeFrom, TransferSyntax, TransferSyntaxIndex};
@@ -33,6 +35,7 @@ use crate::{
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// An error which may occur when using the DICOM collector
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum Error {
@@ -69,13 +72,13 @@ pub enum Error {
         source: dicom_parser::dataset::lazy_read::Error,
     },
     /// Illegal state for the requested operation: preamble has already been read
-    IllegalStateStart,
+    IllegalStateStart { backtrace: Backtrace },
     /// Illegal state for the requested operation: file meta group has already been read
-    IllegalStateMeta,
+    IllegalStateMeta { backtrace: Backtrace },
     /// Illegal state for the requested operation: basic offset table has already been read
-    IllegalStateInPixel,
+    IllegalStateInPixel { backtrace: Backtrace },
     /// DICOM value not found after non-empty element header
-    MissingElementValue,
+    MissingElementValue { backtrace: Backtrace },
     /// Could not guess source transfer syntax
     GuessTransferSyntax { backtrace: Backtrace },
     #[snafu(display("Unsupported transfer syntax `{}`", uid))]
@@ -461,9 +464,8 @@ where
     /// and fail on the first data set reading request.
     ///
     /// If the file meta information has already been collected,
-    /// the previously saved file meta table is returned. 
+    /// the previously saved file meta table is returned.
     pub fn read_file_meta(&mut self) -> Result<&FileMetaTable> {
-
         // check if we are in good position to read the FMI,
         // or if we need to collect other things first
 
@@ -473,7 +475,6 @@ where
         }
 
         if self.state == CollectorState::Preamble {
-
             let reader = self.source.raw_reader_mut();
             self.file_meta = Some(FileMetaTable::from_reader(reader).context(BuildMetaTableSnafu)?);
 
@@ -522,13 +523,10 @@ where
     }
 
     /// Read a DICOM data set until it reaches the object's pixel data.
-    /// 
+    ///
     /// This is equivalent to `collector.read_dataset_up_to(tags::PIXEL_DATA, to)`.
     #[inline]
-    pub fn read_dataset_up_to_pixeldata(
-        &mut self,
-        to: &mut InMemDicomObject<D>,
-    ) -> Result<()> {
+    pub fn read_dataset_up_to_pixeldata(&mut self, to: &mut InMemDicomObject<D>) -> Result<()> {
         self.read_dataset_up_to(dicom_dictionary_std::tags::PIXEL_DATA, to)
     }
 
@@ -541,7 +539,7 @@ where
     /// If the data set contains native pixel data,
     /// the entire value data in the _Pixel Data_ attribute
     /// is interpreted as a single fragment.
-    /// 
+    ///
     /// The basic offset table is treated as a fragment,
     /// which means that the first call to `read_next_fragment`
     /// on a DICOM object with encapsulated pixel data
@@ -570,13 +568,13 @@ where
             self.skip_until(|token| {
                 match token {
                     // catch either native pixel data
-                    LazyDataToken::ElementHeader(header) if header.tag == tags::PIXEL_DATA && header.length().is_defined() => {
+                    LazyDataToken::ElementHeader(header)
+                        if header.tag == tags::PIXEL_DATA && header.length().is_defined() =>
+                    {
                         true
-                    },
+                    }
                     // or start of pixel data sequencce
-                    LazyDataToken::PixelSequenceStart => {
-                        true
-                    },
+                    LazyDataToken::PixelSequenceStart => true,
                     _ => false,
                 }
             })?;
@@ -605,13 +603,11 @@ where
                 // fragment item data
                 LazyDataToken::LazyItemValue { len, decoder } => {
                     decoder.read_to_vec(len, to).context(ReadItemSnafu)?;
-                    return Ok(Some(len))
+                    return Ok(Some(len));
                 }
                 // empty item
                 // (must be accounted for even though it yields no value token)
-                LazyDataToken::ItemStart { len: Length(0) } => {
-                    return Ok(Some(0))
-                }
+                LazyDataToken::ItemStart { len: Length(0) } => return Ok(Some(0)),
                 _ => {
                     // no-op
                 }
@@ -656,13 +652,13 @@ where
             self.skip_until(|token| {
                 match token {
                     // catch either native pixel data
-                    LazyDataToken::ElementHeader(header) if header.tag == tags::PIXEL_DATA && header.length().is_defined() => {
+                    LazyDataToken::ElementHeader(header)
+                        if header.tag == tags::PIXEL_DATA && header.length().is_defined() =>
+                    {
                         true
-                    },
+                    }
                     // or start of pixel data sequencce
-                    LazyDataToken::PixelSequenceStart => {
-                        true
-                    },
+                    LazyDataToken::PixelSequenceStart => true,
                     _ => false,
                 }
             })?;
@@ -688,13 +684,11 @@ where
                 // fragment item data
                 LazyDataToken::LazyItemValue { len, decoder } => {
                     decoder.read_u32_to_vec(len, to).context(ReadItemSnafu)?;
-                    return Ok(Some(len))
+                    return Ok(Some(len));
                 }
                 // empty item
                 // (must be accounted for even though it yields no value token)
-                LazyDataToken::ItemStart { len: Length(0) } => {
-                    return Ok(Some(0))
-                }
+                LazyDataToken::ItemStart { len: Length(0) } => return Ok(Some(0)),
                 _ => {
                     // no-op
                 }
@@ -716,7 +710,14 @@ where
         self.ts_hint
     }
 
-    fn skip_until(&mut self, mut pred: impl FnMut(&LazyDataToken<&mut StatefulDecoder<Box<(dyn DecodeFrom<BufReader<S>> + 'static)>, BufReader<S>>>) -> bool) -> Result<bool> {
+    fn skip_until(
+        &mut self,
+        mut pred: impl FnMut(
+            &LazyDataToken<
+                &mut StatefulDecoder<Box<(dyn DecodeFrom<BufReader<S>> + 'static)>, BufReader<S>>,
+            >,
+        ) -> bool,
+    ) -> Result<bool> {
         let parser = self.source.parser();
         while let Some(token) = parser.advance() {
             let token = token.context(ReadTokenSnafu)?;
@@ -1315,7 +1316,7 @@ mod tests {
         // can't read the basic offset table twice
         assert!(matches!(
             collector.read_basic_offset_table(&mut bot),
-            Err(super::Error::IllegalStateInPixel),
+            Err(super::Error::IllegalStateInPixel { .. }),
         ));
 
         // collect the other fragments
