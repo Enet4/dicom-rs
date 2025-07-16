@@ -199,7 +199,7 @@ where
 /// ```
 ///
 /// But at the moment,
-/// this will be no different from using the regular file opening API.
+/// this example will be no different from using the regular file opening API.
 /// To benefit from the collector,
 /// read smaller portions of the dataset at a time.
 /// For instance, you can first read patient/study attributes
