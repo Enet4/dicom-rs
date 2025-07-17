@@ -1,9 +1,13 @@
-//! DICOM object reader API
+//! Chunked DICOM object reader API
 //!
-//! The DICOM collector API in [`DicomCollector`]
+//! The DICOM collector API
 //! can be used for reading DICOM objects in cohesive chunks,
 //! thus obtaining some meta-data earlier for asynchronous processing
 //! and potentially saving memory.
+//!
+//! Use either [`DicomCollectorOptions`]
+//! or one of the constructor functions in [`DicomCollector`]
+//! to create a DICOM collector.
 
 use std::{
     fmt,
@@ -20,7 +24,11 @@ use dicom_core::{
 use dicom_dictionary_std::{tags, StandardDataDictionary};
 use dicom_encoding::{decode::DecodeFrom, TransferSyntax, TransferSyntaxIndex};
 use dicom_parser::{
-    dataset::{lazy_read::LazyDataSetReader, DataToken, LazyDataToken},
+    dataset::{
+        lazy_read::{LazyDataSetReader, LazyDataSetReaderOptions},
+        read::OddLengthStrategy,
+        DataToken, LazyDataToken,
+    },
     DynStatefulDecoder, StatefulDecode, StatefulDecoder,
 };
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
@@ -118,8 +126,145 @@ pub enum Error {
     },
 }
 
+/// A builder type for setting up a DICOM collector.
+///
+/// # Example
+///
+/// ```no_run
+/// # use dicom_object::{DicomCollectorOptions, InMemDicomObject};
+/// let mut collector = DicomCollectorOptions::new()
+///     .read_preamble(dicom_object::file::ReadPreamble::Always)
+///     .odd_length_strategy(dicom_object::file::OddLengthStrategy::Fail)
+///     .open_file("path/to/file.dcm")?;
+/// let mut metadata = InMemDicomObject::new_empty();
+/// collector.read_dataset_up_to_pixeldata(&mut metadata)?;
+/// # Result::<(), Box<dyn std::error::Error>>::Ok(())
+/// ```
+#[derive(Debug, Default)]
+pub struct DicomCollectorOptions<D = StandardDataDictionary> {
+    /// Data element dictionary
+    dict: D,
+    /// Whether to read the 128-byte DICOM file preamble
+    read_preamble: ReadPreamble,
+    /// How to handle odd-lengthed data elements
+    odd_length: OddLengthStrategy,
+}
+
+impl DicomCollectorOptions<StandardDataDictionary> {
+    /// Create a new DICOM collector builder.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<D> DicomCollectorOptions<D> {
+    /// Override the data element dictionary with the one given,
+    /// potentially replacing the dictionary type.
+    ///
+    /// When not working with custom data dictionaries,
+    /// this method does not have to be called
+    /// (defaults to [`StandardDataDictionary`], which is zero sized).
+    pub fn dict<D2>(self, dict: D2) -> DicomCollectorOptions<D2> {
+        DicomCollectorOptions {
+            dict,
+            read_preamble: self.read_preamble,
+            odd_length: self.odd_length,
+        }
+    }
+
+    /// Set whether to read the 128-byte DICOM file preamble.
+    pub fn read_preamble(mut self, option: ReadPreamble) -> Self {
+        self.read_preamble = option;
+        self
+    }
+
+    /// Set how data elements with an odd length should be handled
+    pub fn odd_length_strategy(mut self, option: OddLengthStrategy) -> Self {
+        self.odd_length = option;
+        self
+    }
+
+    /// Proceed with opening a file for DICOM collecting.
+    pub fn open_file<'t>(
+        self,
+        filename: impl AsRef<Path>,
+    ) -> Result<DicomCollector<'t, D, BufReader<File>>> {
+        let filename = filename.as_ref();
+        let reader = BufReader::new(File::open(filename).context(OpenFileSnafu { filename })?);
+
+        Ok(DicomCollector {
+            source: CollectionSource::new(reader, self.odd_length),
+            dictionary: self.dict,
+            ts_hint: None,
+            file_meta: None,
+            read_preamble: self.read_preamble,
+            state: Default::default(),
+        })
+    }
+
+    /// Proceed with opening a file for DICOM collecting,
+    /// while expecting a specific transfer syntax for the main data set.
+    pub fn open_file_with_ts<'t>(
+        self,
+        filename: impl AsRef<Path>,
+        ts: &'t TransferSyntax,
+    ) -> Result<DicomCollector<'t, D, BufReader<File>>> {
+        let filename = filename.as_ref();
+        let reader = BufReader::new(File::open(filename).context(OpenFileSnafu { filename })?);
+
+        Ok(DicomCollector {
+            source: CollectionSource::new(reader, self.odd_length),
+            dictionary: self.dict,
+            ts_hint: Some(ts),
+            file_meta: None,
+            read_preamble: self.read_preamble,
+            state: Default::default(),
+        })
+    }
+
+    /// Create a DICOM collector which will read from the given source.
+    pub fn from_reader<'t, S>(self, reader: BufReader<S>) -> DicomCollector<'t, D, BufReader<S>>
+    where
+        S: Read + Seek,
+    {
+        DicomCollector {
+            source: CollectionSource::new(reader, self.odd_length),
+            dictionary: self.dict,
+            ts_hint: None,
+            file_meta: None,
+            read_preamble: self.read_preamble,
+            state: Default::default(),
+        }
+    }
+
+    /// Create a DICOM collector which will read from the given source,
+    /// expecting a specific transfer syntax.
+    pub fn from_reader_with_ts<'t, S>(
+        self,
+        reader: BufReader<S>,
+        ts: &'t TransferSyntax,
+    ) -> DicomCollector<'t, D, BufReader<S>>
+    where
+        S: Read + Seek,
+    {
+        DicomCollector {
+            source: CollectionSource::new(reader, self.odd_length),
+            dictionary: self.dict,
+            ts_hint: Some(ts),
+            file_meta: None,
+            read_preamble: self.read_preamble,
+            state: Default::default(),
+        }
+    }
+}
+
 enum CollectionSource<T> {
-    Raw(Option<T>),
+    Raw {
+        reader: Option<T>,
+        /// the strategy for reading odd-lengthed data elements
+        /// (needs to be retained until a parser is constructed)
+        odd_length: OddLengthStrategy,
+    },
     Parser(LazyDataSetReader<DynStatefulDecoder<T>>),
 }
 
@@ -127,8 +272,11 @@ impl<S> CollectionSource<S>
 where
     S: Read + Seek,
 {
-    fn new(raw_source: S) -> Self {
-        CollectionSource::Raw(Some(raw_source))
+    fn new(raw_source: S, odd_length: OddLengthStrategy) -> Self {
+        CollectionSource::Raw {
+            reader: Some(raw_source),
+            odd_length,
+        }
     }
 
     fn has_parser(&self) -> bool {
@@ -137,7 +285,7 @@ where
 
     fn raw_reader_mut(&mut self) -> &mut S {
         match self {
-            CollectionSource::Raw(reader) => reader.as_mut().unwrap(),
+            CollectionSource::Raw { reader, .. } => reader.as_mut().unwrap(),
             CollectionSource::Parser(_) => {
                 panic!("cannot retrieve raw reader after setting parser")
             }
@@ -149,10 +297,16 @@ where
         ts: &TransferSyntax,
     ) -> Result<&mut LazyDataSetReader<DynStatefulDecoder<S>>> {
         match self {
-            CollectionSource::Raw(src) => {
+            CollectionSource::Raw {
+                reader: src,
+                odd_length,
+            } => {
                 let src = src.take().unwrap();
+                let mut options = LazyDataSetReaderOptions::default();
+                options.odd_length = *odd_length;
                 *self = CollectionSource::Parser(
-                    LazyDataSetReader::new_with_ts(src, ts).context(CreateParserSnafu)?,
+                    LazyDataSetReader::new_with_ts_options(src, ts, options)
+                        .context(CreateParserSnafu)?,
                 );
                 let CollectionSource::Parser(parser) = self else {
                     unreachable!();
@@ -165,7 +319,7 @@ where
 
     fn parser(&mut self) -> &mut LazyDataSetReader<DynStatefulDecoder<S>> {
         match self {
-            CollectionSource::Raw(_) => panic!("parser transfer syntax not set"),
+            CollectionSource::Raw { .. } => panic!("parser transfer syntax not set"),
             CollectionSource::Parser(parser) => parser,
         }
     }
@@ -261,7 +415,10 @@ pub struct DicomCollector<'t, D, S> {
     ts_hint: Option<&'t TransferSyntax>,
     /// file meta table
     file_meta: Option<FileMetaTable>,
-    options: DicomCollectorOptions,
+    /// Whether to read the 128-byte DICOM file preamble
+    /// (needs to be retained until the preamble is read)
+    read_preamble: ReadPreamble,
+    /// the state of the collector so as to keep track of what's been read
     state: CollectorState,
 }
 
@@ -285,13 +442,6 @@ enum CollectorState {
     InPixelData,
 }
 
-/// A set of options for the DICOM collector
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct DicomCollectorOptions {
-    /// Whether to read the 128-byte DICOM file preamble
-    pub read_preamble: ReadPreamble,
-}
-
 impl<'t, D, S> fmt::Debug for DicomCollector<'t, D, S>
 where
     D: fmt::Debug,
@@ -300,6 +450,15 @@ where
         f.debug_struct("DicomCollector")
             .field("dictionary", &self.dictionary)
             .field("ts_hint", &self.ts_hint.as_ref().map(|ts| ts.uid()))
+            .field(
+                "file_meta",
+                if self.file_meta.is_some() {
+                    &"Some(...)"
+                } else {
+                    &"None"
+                },
+            )
+            .field("read_preamble", &self.read_preamble)
             .field("state", &self.state)
             .finish()
     }
@@ -312,10 +471,17 @@ where
     /// Create a new DICOM dataset collector
     /// which reads from a buffered reader.
     ///
-    /// The standard data dictionary is used.
+    /// The standard data dictionary and standard transfer syntax registry are used.
     /// The transfer syntax is guessed from the file meta group data set.
     pub fn new(reader: BufReader<S>) -> Self {
-        Self::new_with_dict(reader, StandardDataDictionary)
+        DicomCollector {
+            source: CollectionSource::new(reader, Default::default()),
+            dictionary: StandardDataDictionary,
+            ts_hint: None,
+            file_meta: None,
+            read_preamble: Default::default(),
+            state: Default::default(),
+        }
     }
 
     /// Create a new DICOM dataset collector
@@ -324,7 +490,14 @@ where
     ///
     /// The standard data dictionary is used.
     pub fn new_with_ts(reader: BufReader<S>, transfer_syntax: &'t TransferSyntax) -> Self {
-        Self::new_with_dict_ts(reader, StandardDataDictionary, transfer_syntax)
+        DicomCollector {
+            source: CollectionSource::new(reader, Default::default()),
+            dictionary: StandardDataDictionary,
+            ts_hint: Some(transfer_syntax),
+            file_meta: None,
+            read_preamble: Default::default(),
+            state: Default::default(),
+        }
     }
 }
 
@@ -346,8 +519,8 @@ where
     /// Create a new DICOM dataset collector
     /// which reads from a standard DICOM file.
     ///
-    /// The standard data dictionary is used.
     /// The transfer syntax is guessed from the file meta group data set.
+    /// The standard transfer syntax registry is used.
     pub fn open_file_with_dict(filename: impl AsRef<Path>, dict: D) -> Result<Self> {
         let filename = filename.as_ref();
         let reader = BufReader::new(File::open(filename).context(OpenFileSnafu { filename })?);
@@ -362,44 +535,19 @@ where
 {
     // --- constructors ---
 
-    pub fn new_with_dict(reader: BufReader<S>, dictionary: D) -> Self {
+    /// Create a new DICOM dataset collector
+    /// using the given data element dictionary,
+    /// which reads from a buffered reader.
+    ///
+    /// The transfer syntax is guessed from the file meta group data set.
+    /// The standard transfer syntax registry is used.
+    fn new_with_dict(reader: BufReader<S>, dictionary: D) -> Self {
         DicomCollector {
-            source: CollectionSource::new(reader),
+            source: CollectionSource::new(reader, Default::default()),
             dictionary,
             ts_hint: None,
             file_meta: None,
-            options: Default::default(),
-            state: Default::default(),
-        }
-    }
-
-    pub fn new_with_dict_ts(
-        reader: BufReader<S>,
-        dictionary: D,
-        transfer_syntax: &'t TransferSyntax,
-    ) -> Self {
-        DicomCollector {
-            source: CollectionSource::new(reader),
-            dictionary,
-            ts_hint: Some(transfer_syntax),
-            file_meta: None,
-            options: Default::default(),
-            state: Default::default(),
-        }
-    }
-
-    pub fn new_with_dict_options(
-        reader: BufReader<S>,
-        dictionary: D,
-        transfer_syntax: &'t TransferSyntax,
-        options: DicomCollectorOptions,
-    ) -> Self {
-        DicomCollector {
-            source: CollectionSource::new(reader),
-            dictionary,
-            ts_hint: Some(transfer_syntax),
-            file_meta: None,
-            options,
+            read_preamble: Default::default(),
             state: Default::default(),
         }
     }
@@ -414,14 +562,14 @@ where
     pub fn read_preamble(&mut self) -> Result<Option<[u8; 128]>> {
         ensure!(self.state == CollectorState::Start, IllegalStateStartSnafu);
 
-        if self.options.read_preamble == ReadPreamble::Never {
+        if self.read_preamble == ReadPreamble::Never {
             self.state = CollectorState::Preamble;
             return Ok(None);
         }
 
         let reader = self.source.raw_reader_mut();
         let preamble = {
-            if self.options.read_preamble == ReadPreamble::Always {
+            if self.read_preamble == ReadPreamble::Always {
                 // always assume that there is a preamble
                 let mut buf = [0; 128];
                 reader
@@ -950,9 +1098,10 @@ mod tests {
     use dicom_core::{prelude::*, value::DataSetSequence, PrimitiveValue};
     use dicom_dictionary_std::{tags, uids, StandardDataDictionary};
     use dicom_encoding::TransferSyntaxIndex;
+    use dicom_parser::dataset::read::OddLengthStrategy;
     use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
-    use crate::{FileMetaTableBuilder, InMemDicomObject};
+    use crate::{file::ReadPreamble, DicomCollectorOptions, FileMetaTableBuilder, InMemDicomObject};
 
     use super::DicomCollector;
 
@@ -1182,7 +1331,10 @@ mod tests {
 
         let reader = BufReader::new(std::io::Cursor::new(&encoded));
 
-        let mut collector = DicomCollector::new_with_ts(reader, ts_expl_vr_le);
+        let mut collector = DicomCollectorOptions::new()
+            .read_preamble(ReadPreamble::Never)
+            .odd_length_strategy(OddLengthStrategy::Fail)
+            .from_reader_with_ts(reader, ts_expl_vr_le);
 
         // read one part of the data set
         let mut dset1 = InMemDicomObject::new_empty();
