@@ -12,6 +12,7 @@
 //! - skip the value altogether, by reading into a sink;
 //! - copying the bytes of the value into another writer,
 //!   such as a previously allocated buffer.
+use crate::dataset::read::OddLengthStrategy;
 use crate::stateful::decode::{DynStatefulDecoder, Error as DecoderError, StatefulDecode};
 use crate::util::ReadSeek;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
@@ -74,6 +75,21 @@ pub enum Error {
         backtrace: Backtrace,
     },
 
+    /// Invalid data element length {len:04X} of {tag} at {bytes_read:#x}
+    InvalidElementLength {
+        tag: Tag,
+        len: u32,
+        bytes_read: u64,
+        backtrace: Backtrace,
+    },
+
+    /// Invalid sequence item length {len:04X} at {bytes_read:#x}
+    InvalidItemLength {
+        len: u32,
+        bytes_read: u64,
+        backtrace: Backtrace,
+    },
+
     #[snafu(display("Attempted to inspect a header at {} bytes", bytes_read))]
     Peek {
         bytes_read: u64,
@@ -107,6 +123,8 @@ struct SeqToken {
 pub struct LazyDataSetReader<S> {
     /// the stateful decoder
     parser: S,
+    /// data set reading options
+    options: LazyDataSetReaderOptions,
     /// whether the reader is expecting an item next (or a sequence delimiter)
     in_sequence: bool,
     /// whether a check for a sequence or item delimitation is pending
@@ -121,10 +139,19 @@ pub struct LazyDataSetReader<S> {
     peek: Option<DataToken>,
 }
 
+/// The set of options for the lazy data set reader.
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub struct LazyDataSetReaderOptions {
+    /// The strategy for handling odd length data elements
+    pub odd_length: OddLengthStrategy,
+}
+
 impl<R> LazyDataSetReader<DynStatefulDecoder<R>> {
     /// Create a new lazy data set reader
-    /// with the given random access source and element dictionary,
-    /// while considering the given transfer syntax and specific character set.
+    /// expecting the given transfer syntax
+    /// that reads from the given random access source.
+    #[inline]
     pub fn new_with_ts(source: R, ts: &TransferSyntax) -> Result<Self>
     where
         R: ReadSeek,
@@ -135,10 +162,38 @@ impl<R> LazyDataSetReader<DynStatefulDecoder<R>> {
     /// Create a new lazy data set reader
     /// with the given random access source and element dictionary,
     /// while considering the given transfer syntax and specific character set.
-    pub fn new_with_ts_cs(
+    #[inline]
+    pub fn new_with_ts_cs(source: R, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
+    where
+        R: ReadSeek,
+    {
+        Self::new_with_ts_cs_options(source, ts, cs, Default::default())
+    }
+
+    /// Create a new lazy data set reader
+    /// expecting the given transfer syntax
+    /// that reads from the given random access source,
+    /// with extra parsing options.
+    #[inline]
+    pub fn new_with_ts_options(
+        source: R,
+        ts: &TransferSyntax,
+        options: LazyDataSetReaderOptions,
+    ) -> Result<Self>
+    where
+        R: ReadSeek,
+    {
+        Self::new_with_ts_cs_options(source, ts, SpecificCharacterSet::default(), options)
+    }
+
+    /// Create a new lazy data set reader
+    /// with the given random access source and element dictionary,
+    /// while considering the given transfer syntax and specific character set.
+    pub fn new_with_ts_cs_options(
         mut source: R,
         ts: &TransferSyntax,
         cs: SpecificCharacterSet,
+        options: LazyDataSetReaderOptions,
     ) -> Result<Self>
     where
         R: ReadSeek,
@@ -149,6 +204,7 @@ impl<R> LazyDataSetReader<DynStatefulDecoder<R>> {
 
         Ok(LazyDataSetReader {
             parser,
+            options,
             seq_delimiters: Vec::new(),
             delimiter_check_pending: false,
             in_sequence: false,
@@ -164,9 +220,21 @@ where
     S: StatefulDecode,
 {
     /// Create a new iterator with the given stateful decoder.
+    #[inline]
     pub fn new(parser: S) -> Self {
+        LazyDataSetReader::new_with_options(parser, Default::default())
+    }
+
+    /// Create a new lazy data set reader
+    /// using the given stateful decoder,
+    /// with extra parsing options.
+    pub fn new_with_options(parser: S, options: LazyDataSetReaderOptions) -> Self
+    where
+        S: StatefulDecode,
+    {
         LazyDataSetReader {
             parser,
+            options,
             seq_delimiters: Vec::new(),
             delimiter_check_pending: false,
             in_sequence: false,
@@ -278,6 +346,18 @@ where
                 Ok(header) => {
                     match header {
                         SequenceItemHeader::Item { len } => {
+
+                            // sanitize length
+                            let Some(len) = self.sanitize_length(len) else {
+                                return Some(
+                                    InvalidItemLengthSnafu {
+                                        len: len.0,
+                                        bytes_read: self.parser.position(),
+                                    }
+                                    .fail(),
+                                )
+                            };
+
                             // entered a new item
                             self.in_sequence = false;
                             self.push_sequence_token(
@@ -291,7 +371,7 @@ where
                                 self.delimiter_check_pending = true;
                             }
                             Some(Ok(LazyDataToken::ItemStart { len }))
-                        }
+                        },
                         SequenceItemHeader::ItemDelimiter => {
                             // closed an item
                             self.seq_delimiters.pop();
@@ -324,6 +404,16 @@ where
         {
             // item value
 
+            let Some(len) = self.sanitize_length(*len) else {
+                return Some(
+                    InvalidItemLengthSnafu {
+                        len: len.0,
+                        bytes_read: self.parser.position(),
+                    }
+                    .fail(),
+                );
+            };
+
             let len = match len
                 .get()
                 .with_context(|| UndefinedLengthSnafu { bytes_read })
@@ -347,6 +437,18 @@ where
                 match self.parser.decode_item_header() {
                     Ok(header) => match header {
                         SequenceItemHeader::Item { len } => {
+
+                            // sanitize length
+                            let Some(len) = self.sanitize_length(len) else {
+                                return Some(
+                                    InvalidItemLengthSnafu {
+                                        len: len.0,
+                                        bytes_read: self.parser.position(),
+                                    }
+                                    .fail(),
+                                );
+                            };
+
                             // entered a new item
                             self.in_sequence = false;
                             self.push_sequence_token(SeqTokenType::Item, len, true);
@@ -392,6 +494,17 @@ where
                     vr: VR::SQ,
                     len,
                 }) => {
+                    let Some(len) = self.sanitize_length(len) else {
+                        return Some(
+                            InvalidElementLengthSnafu {
+                                tag,
+                                len: len.0,
+                                bytes_read: self.parser.position(),
+                            }
+                            .fail(),
+                        );
+                    };
+
                     self.in_sequence = true;
                     self.push_sequence_token(SeqTokenType::Sequence, len, false);
 
@@ -432,7 +545,20 @@ where
 
                     Some(Ok(LazyDataToken::SequenceStart { tag, len }))
                 }
-                Ok(header) => {
+                Ok(mut header) => {
+                    // sanitize length
+                    let Some(len) = self.sanitize_length(header.len) else {
+                        return Some(
+                            InvalidElementLengthSnafu {
+                                tag: header.tag,
+                                len: header.len.0,
+                                bytes_read: self.parser.position(),
+                            }
+                            .fail(),
+                        );
+                    };
+                    header.len = len;
+
                     // save it for the next step
                     self.last_header = Some(header);
                     Some(Ok(LazyDataToken::ElementHeader(header)))
@@ -500,13 +626,30 @@ where
         }
         Ok(self.peek.as_ref())
     }
+
+    /// Check for a non-compliant length
+    /// and handle it according to the current strategy.
+    /// Returns `None` if the length cannot or should not be resolved.
+    fn sanitize_length(&self, length: Length) -> Option<Length> {
+        if length.is_defined() && length.0 & 1 != 0 {
+            match self.options.odd_length {
+                OddLengthStrategy::Accept => Some(length),
+                OddLengthStrategy::NextEven => Some(length + 1),
+                OddLengthStrategy::Fail => None,
+            }
+        } else {
+            Some(length)
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{LazyDataSetReader, StatefulDecode};
     use crate::{
-        dataset::{DataToken, LazyDataToken},
+        dataset::{
+            lazy_read::LazyDataSetReaderOptions, read::OddLengthStrategy, DataToken, LazyDataToken,
+        },
         StatefulDecoder,
     };
     use dicom_core::value::PrimitiveValue;
@@ -1324,5 +1467,84 @@ mod tests {
 
         // finished reading, peek should return None
         assert!(dset_reader.peek().unwrap().is_none());
+    }
+
+    #[test]
+    fn read_odd_length_element() {
+        #[rustfmt::skip]
+        static DATA: &[u8] = &[
+            0x08, 0x00, 0x16, 0x00, // (0008,0016) SOPClassUID
+            b'U', b'I', // VR
+            0x0b, 0x00, // len = 11
+            b'1', b'.', b'2', b'.', b'8', b'4', b'0', b'.', b'1', b'0', b'0',
+            0x00, // padding
+        ];
+
+        let ground_truth = vec![
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0008, 0x0016),
+                vr: VR::UI,
+                len: Length(12),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::from("1.2.840.100\0")),
+        ];
+
+        // strategy: assume next even
+
+        let mut cursor = DATA;
+        let parser = StatefulDecoder::new(
+            &mut cursor,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            SpecificCharacterSet::default(),
+        );
+        let mut dset_reader = LazyDataSetReader::new_with_options(
+            parser,
+            LazyDataSetReaderOptions {
+                odd_length: OddLengthStrategy::NextEven,
+                ..Default::default()
+            },
+        );
+
+        // read next
+        let token = dset_reader
+            .advance()
+            .expect("expected token")
+            .expect("should read token OK");
+
+        assert_eq!(&token.into_owned().unwrap(), &ground_truth[0],);
+
+        // strategy: fail
+
+        let mut cursor = DATA;
+        let parser = StatefulDecoder::new(
+            &mut cursor,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            SpecificCharacterSet::default(),
+        );
+        let mut dset_reader = LazyDataSetReader::new_with_options(
+            parser,
+            LazyDataSetReaderOptions {
+                odd_length: OddLengthStrategy::Fail,
+                ..Default::default()
+            },
+        );
+
+        let token = dset_reader.advance();
+
+        assert!(
+            matches!(
+                token,
+                Some(Err(super::Error::InvalidElementLength {
+                    tag: Tag(0x0008, 0x0016),
+                    len: 11,
+                    bytes_read: 8,
+                    ..
+                })),
+            ),
+            "got: {:?}",
+            token
+        );
     }
 }
