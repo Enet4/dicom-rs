@@ -364,7 +364,6 @@ where
 /// # use dicom_object::collector::DicomCollector;
 /// # use dicom_object::meta::FileMetaTable;
 /// use dicom_core::Tag;
-/// use dicom_dictionary_std::tags;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let mut collector = DicomCollector::open_file("file.dcm")?;
@@ -374,7 +373,7 @@ where
 /// collector.read_dataset_up_to(Tag(0x0028, 0x0000), &mut dset)?; // read everything before the image pixel group
 ///
 /// let mut pixel_image_dset = InMemDicomObject::new_empty();
-/// collector.read_dataset_up_to(tags::PIXEL_DATA, &mut pixel_image_dset)?; // read from image pixel group to pixel data (excluding)
+/// collector.read_dataset_up_to_pixeldata(&mut pixel_image_dset)?; // read from image pixel group to pixel data (excluding)
 /// # Ok(())
 /// # }
 /// ```
@@ -388,13 +387,12 @@ where
 /// # use dicom_object::collector::DicomCollector;
 /// # use dicom_object::meta::FileMetaTable;
 /// # use dicom_core::Tag;
-/// # use dicom_dictionary_std::tags;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// # let mut collector = DicomCollector::open_file("file.dcm")?;
 ///
 /// # let _fmi: &FileMetaTable = collector.read_file_meta()?;
 /// # let mut dset = InMemDicomObject::new_empty();
-/// # collector.read_dataset_up_to(tags::PIXEL_DATA, &mut dset)?;
+/// # collector.read_dataset_up_to_pixeldata(&mut dset)?;
 /// let mut buf = Vec::new();
 /// while let Some(len) = collector.read_next_fragment(&mut buf)? {
 ///    // should now have some data
