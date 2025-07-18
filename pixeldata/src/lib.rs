@@ -174,12 +174,14 @@ enum InnerError {
     #[snafu(display("Invalid BitsAllocated, must be 1, 8 or 16"))]
     InvalidBitsAllocated { backtrace: Backtrace },
 
+    #[cfg(any(feature = "image", feature = "gdcm"))]
     #[snafu(display("Unsupported PhotometricInterpretation `{pi}`"))]
     UnsupportedPhotometricInterpretation {
         pi: PhotometricInterpretation,
         backtrace: Backtrace,
     },
 
+    #[cfg(feature = "image")]
     #[snafu(display("Unsupported SamplesPerPixel `{spp}`"))]
     UnsupportedSamplesPerPixel { spp: u16, backtrace: Backtrace },
 
@@ -199,6 +201,7 @@ enum InnerError {
     #[snafu(display("Unsupported TransferSyntax `{ts}`"))]
     UnsupportedTransferSyntax { ts: String, backtrace: Backtrace },
 
+    #[cfg(feature = "image")]
     #[snafu(display("Invalid buffer when constructing ImageBuffer"))]
     InvalidImageBuffer { backtrace: Backtrace },
 
