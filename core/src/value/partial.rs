@@ -481,6 +481,21 @@ impl DicomTime {
         }
     }
 
+    /// Retrieves the fraction of a second in milliseconds.
+    ///
+    /// Only returns `Some(_)` if the time is precise to the millisecond or more.
+    /// Any precision beyond the millisecond is discarded.
+    pub fn millisecond(&self) -> Option<u32> {
+        self.fraction_and_precision().and_then(|(f, fp)| match fp {
+            0 ..= 2 => None,
+            3 => Some(f),
+            4 => Some(f / 10),
+            5 => Some(f / 100),
+            6 => Some(f / 1_000),
+            _ => unreachable!("fp outside expected range 0..=6"),
+        })
+    }
+
     /// Retrieves the fraction of a second and its precision from a time as a reference.
     ///
     /// Returns a pair containing
@@ -1189,13 +1204,15 @@ mod tests {
         );
 
         // sub-second precision after leap second from NaiveTime is admitted
-        assert_eq!(
-            DicomTime::try_from(&NaiveTime::from_hms_micro_opt(16, 31, 59, 1_012_345).unwrap())
-                .unwrap()
-                .to_encoded(),
-            "163160.012345",
-        );
+        {
+            let time =
+                DicomTime::try_from(&NaiveTime::from_hms_micro_opt(16, 31, 59, 1_012_345).unwrap())
+                    .unwrap();
+            assert_eq!(time.to_encoded(), "163160.012345");
 
+            assert_eq!(time.fraction(), Some(&12_345));
+            assert_eq!(time.millisecond(), Some(12));
+        }
 
         // time specifically with 0 microseconds
         assert_eq!(
@@ -1224,6 +1241,11 @@ mod tests {
         assert_eq!(
             dicom_date_time.to_encoded(),
             "20240809090939.000000+0000"
+        );
+
+        assert_eq!(
+            dicom_date_time.time().map(|t| t.millisecond()),
+            Some(Some(0)),
         );
 
         // bad inputs
