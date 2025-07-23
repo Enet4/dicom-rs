@@ -421,8 +421,7 @@ fn run_move_scu(app: App) -> Result<bool, Error> {
                     };
 
                     println!(
-                        "------------------------ Match #{} ------------------------",
-                        i
+                        "------------------------ Match #{i} ------------------------"
                     );
                     DumpOptions::new()
                         .dump_object(&dcm)
