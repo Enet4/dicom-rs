@@ -480,13 +480,17 @@ impl DicomTime {
             },
         }
     }
-    /** Retrieves the fraction of a second and it's precision from a time as a reference */
-    pub(crate) fn fraction_and_precision(&self) -> Option<(&u32, &u8)> {
+
+    /// Retrieves the fraction of a second and its precision from a time as a reference.
+    ///
+    /// Returns a pair containing
+    /// the duration and the precision of that duration.
+    pub(crate) fn fraction_and_precision(&self) -> Option<(u32, u8)> {
         match self {
             DicomTime(DicomTimeImpl::Hour(_)) => None,
             DicomTime(DicomTimeImpl::Minute(_, _)) => None,
             DicomTime(DicomTimeImpl::Second(_, _, _)) => None,
-            DicomTime(DicomTimeImpl::Fraction(_, _, _, f, fp)) => Some((f, fp)),
+            DicomTime(DicomTimeImpl::Fraction(_, _, _, f, fp)) => Some((*f, *fp)),
         }
     }
     /**
@@ -1215,7 +1219,7 @@ mod tests {
         let dicom_time = dicom_date_time.time().unwrap();
         assert_eq!(
             dicom_time.fraction_and_precision(),
-            Some((&0, &6)),
+            Some((0, 6)),
         );
         assert_eq!(
             dicom_date_time.to_encoded(),
