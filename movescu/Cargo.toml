@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
 description = "A DICOM C-MOVE command line interface"
 categories = ["command-line-utilities"]
-keywords = ["dicom", "query", "search"]
+keywords = ["dicom", "query", "search", "move"]
 readme = "README.md"
 
 [dependencies]
