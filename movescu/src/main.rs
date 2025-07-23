@@ -443,7 +443,7 @@ fn run_move_scu(app: App) -> Result<bool, Error> {
 
                     i += 1;
                 } else {
-                    let msg = format!("Operation failed (status code {:x})", status);
+                    let msg = format!("Operation failed (status code {status:x})");
 
                     if status == 0xa701 {
                         warn!("{} Out of resources (number of matches)", msg);
