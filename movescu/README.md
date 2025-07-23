@@ -1,10 +1,10 @@
 # DICOM-rs `movescu`
 
 This is an implementation of the DICOM Move SCU (C-MOVE),
-which can be used to transfer images to an C-STORE archive.
+which can be used to transfer images to a C-STORE archive.
 For ease of use it automatically starts a STORE-SCP when performing 
-a move operation to itself (c-move destination identical to calling-aet) 
-and stores the received files in the current directory
+a move operation to itself (namely when the C-MOVE destination is identical to `calling-aet`)
+and stores the received files in a directory.
 
 This tool is part of the [DICOM-rs](https://github.com/Enet4/dicom-rs) project.
 
