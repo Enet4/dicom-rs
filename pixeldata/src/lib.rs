@@ -246,16 +246,6 @@ pub enum InnerError {
         ww_vm: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display(
-        "Value multiplicity of VOI LUT must match the number of frames. Expected `{:?}`, found `{:?}`",
-        nr_frames,
-        vm
-    ))]
-    LengthMismatchVoiLut {
-        vm: u32,
-        nr_frames: u32,
-        backtrace: Backtrace,
-    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -671,7 +661,7 @@ impl DecodedPixelData<'_> {
                         Ok(Some(inner.as_slice()))
                     } else {
                         if self.enforce_frame_fg_vm_match {
-                            LengthMismatchVoiLutSnafu {
+                            LengthMismatchVoiLutFunctionSnafu {
                                 vm: *len as u32,
                                 nr_frames: self.number_of_frames(),
                             }
