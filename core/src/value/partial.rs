@@ -496,7 +496,7 @@ impl DicomTime {
         })
     }
 
-    /// Retrieves the fraction of a second and its precision from a time as a reference.
+    /// Retrieves the fraction of a second and its precision.
     ///
     /// Returns a pair containing
     /// the duration and the precision of that duration.
