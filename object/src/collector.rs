@@ -64,13 +64,19 @@ pub(crate) enum InnerError {
     },
     /// Could not create data set parser
     CreateParser {
-        #[snafu(backtrace)]
-        source: dicom_parser::dataset::lazy_read::Error,
+        #[snafu(
+            backtrace,
+            source(from(dicom_parser::dataset::lazy_read::Error, Box::from))
+        )]
+        source: Box<dicom_parser::dataset::lazy_read::Error>,
     },
     /// Could not read data set token
     ReadToken {
-        #[snafu(backtrace)]
-        source: dicom_parser::dataset::lazy_read::Error,
+        #[snafu(
+            backtrace,
+            source(from(dicom_parser::dataset::lazy_read::Error, Box::from))
+        )]
+        source: Box<dicom_parser::dataset::lazy_read::Error>,
     },
     /// Illegal state for the requested operation: preamble has already been read
     IllegalStateStart { backtrace: Backtrace },
@@ -95,20 +101,23 @@ pub(crate) enum InnerError {
     #[snafu(display("Could not collect data in {tag}"))]
     CollectDataValue {
         tag: Tag,
-        #[snafu(backtrace)]
-        source: dicom_parser::dataset::Error,
+        #[snafu(backtrace, source(from(dicom_parser::dataset::Error, Box::from)))]
+        source: Box<dicom_parser::dataset::Error>,
     },
     /// Premature data set end
     PrematureEnd { backtrace: Backtrace },
     /// Could not build file meta table
     BuildMetaTable {
-        #[snafu(backtrace)]
-        source: crate::meta::Error,
+        #[snafu(backtrace, source(from(crate::meta::Error, Box::new)))]
+        source: Box<crate::meta::Error>,
     },
     /// Could not read item
     ReadItem {
-        #[snafu(backtrace)]
-        source: dicom_parser::stateful::decode::Error,
+        #[snafu(
+            backtrace,
+            source(from(dicom_parser::stateful::decode::Error, Box::from))
+        )]
+        source: Box<dicom_parser::stateful::decode::Error>,
     },
 }
 
