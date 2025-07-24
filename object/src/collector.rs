@@ -45,16 +45,14 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// An error which may occur when using the DICOM collector
 #[derive(Debug, Snafu)]
+pub struct Error(InnerError);
+
+/// Inner error type for collector API
+#[derive(Debug, Snafu)]
 #[non_exhaustive]
-pub enum Error {
+pub(crate) enum InnerError {
     #[snafu(display("Could not open file '{}'", filename.display()))]
     OpenFile {
-        filename: std::path::PathBuf,
-        backtrace: Backtrace,
-        source: std::io::Error,
-    },
-    #[snafu(display("Could not read from file '{}'", filename.display()))]
-    ReadFile {
         filename: std::path::PathBuf,
         backtrace: Backtrace,
         source: std::io::Error,
@@ -64,17 +62,12 @@ pub enum Error {
         backtrace: Backtrace,
         source: std::io::Error,
     },
-    #[snafu(display("Could not parse meta group data set"))]
-    ParseMetaDataSet {
-        #[snafu(backtrace)]
-        source: crate::meta::Error,
-    },
-    #[snafu(display("Could not create data set parser"))]
+    /// Could not create data set parser
     CreateParser {
         #[snafu(backtrace)]
         source: dicom_parser::dataset::lazy_read::Error,
     },
-    #[snafu(display("Could not read data set token"))]
+    /// Could not read data set token
     ReadToken {
         #[snafu(backtrace)]
         source: dicom_parser::dataset::lazy_read::Error,
@@ -89,35 +82,28 @@ pub enum Error {
     MissingElementValue { backtrace: Backtrace },
     /// Could not guess source transfer syntax
     GuessTransferSyntax { backtrace: Backtrace },
-    #[snafu(display("Unsupported transfer syntax `{}`", uid))]
-    UnsupportedTransferSyntax { uid: String, backtrace: Backtrace },
-    #[snafu(display("Unexpected token {:?}", token))]
+    #[snafu(display("Unexpected token {token:?}"))]
     UnexpectedToken {
         token: dicom_parser::dataset::LazyDataTokenRepr,
         backtrace: Backtrace,
     },
-    #[snafu(display("Unexpected data token {:?}", token))]
+    #[snafu(display("Unexpected data token {token:?}"))]
     UnexpectedDataToken {
         token: dicom_parser::dataset::DataToken,
         backtrace: Backtrace,
     },
-    #[snafu(display("Could not collect data in {}", tag))]
+    #[snafu(display("Could not collect data in {tag}"))]
     CollectDataValue {
         tag: Tag,
         #[snafu(backtrace)]
         source: dicom_parser::dataset::Error,
     },
-    #[snafu(display("Premature data set end"))]
+    /// Premature data set end
     PrematureEnd { backtrace: Backtrace },
     /// Could not build file meta table
     BuildMetaTable {
         #[snafu(backtrace)]
         source: crate::meta::Error,
-    },
-    /// Could not prepare file meta table
-    PrepareMetaTable {
-        source: dicom_core::value::CastValueError,
-        backtrace: Backtrace,
     },
     /// Could not read item
     ReadItem {
@@ -578,7 +564,7 @@ where
                 // fill the buffer and try to identify where the magic code is
                 let buf = reader.fill_buf().context(ReadPreambleBytesSnafu)?;
                 if buf.len() < 4 {
-                    return PrematureEndSnafu.fail();
+                    return PrematureEndSnafu.fail().map_err(From::from);
                 }
 
                 if buf.len() >= 128 + 4 && &buf[128..132] == b"DICM" {
@@ -629,7 +615,10 @@ where
             self.state = CollectorState::FileMeta;
         }
 
-        self.file_meta.as_ref().context(IllegalStateMetaSnafu)
+        self.file_meta
+            .as_ref()
+            .context(IllegalStateMetaSnafu)
+            .map_err(From::from)
     }
 
     /// Read a DICOM data set until it finds its end,
@@ -778,7 +767,7 @@ where
     /// to obtain the basic offset table.
     pub fn read_basic_offset_table(&mut self, to: &mut Vec<u32>) -> Result<Option<u32>> {
         if self.state == CollectorState::InPixelData {
-            return IllegalStateInPixelSnafu.fail();
+            return IllegalStateInPixelSnafu.fail().map_err(From::from);
         }
 
         if self.state == CollectorState::Start || self.state == CollectorState::Preamble {
@@ -950,7 +939,7 @@ where
                             )
                         }
                         token => {
-                            return UnexpectedTokenSnafu { token }.fail();
+                            return UnexpectedTokenSnafu { token }.fail().map_err(From::from);
                         }
                     }
                 }
@@ -990,6 +979,7 @@ where
                         token: token.clone(),
                     }
                     .fail()
+                    .map_err(From::from)
                 }
             };
             to.push(elem);
@@ -1050,7 +1040,7 @@ where
                 | token @ LazyDataToken::SequenceStart { .. }
                 | token @ LazyDataToken::LazyValue { .. }
                 | token => {
-                    return UnexpectedTokenSnafu { token }.fail();
+                    return UnexpectedTokenSnafu { token }.fail().map_err(From::from);
                 }
             }
         }
@@ -1080,12 +1070,12 @@ where
                 LazyDataToken::SequenceEnd => {
                     return Ok(());
                 }
-                token => return UnexpectedTokenSnafu { token }.fail(),
+                token => return UnexpectedTokenSnafu { token }.fail().map_err(From::from),
             };
         }
 
         // iterator fully consumed without a sequence delimiter
-        PrematureEndSnafu.fail()
+        PrematureEndSnafu.fail().map_err(From::from)
     }
 }
 
@@ -1099,7 +1089,9 @@ mod tests {
     use dicom_parser::dataset::read::OddLengthStrategy;
     use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
-    use crate::{file::ReadPreamble, DicomCollectorOptions, FileMetaTableBuilder, InMemDicomObject};
+    use crate::{
+        file::ReadPreamble, DicomCollectorOptions, FileMetaTableBuilder, InMemDicomObject,
+    };
 
     use super::DicomCollector;
 
@@ -1468,7 +1460,7 @@ mod tests {
         // can't read the basic offset table twice
         assert!(matches!(
             collector.read_basic_offset_table(&mut bot),
-            Err(super::Error::IllegalStateInPixel { .. }),
+            Err(super::Error(super::InnerError::IllegalStateInPixel { .. })),
         ));
 
         // collect the other fragments
