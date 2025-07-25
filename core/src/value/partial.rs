@@ -468,14 +468,24 @@ impl DicomTime {
             DicomTime(DicomTimeImpl::Fraction(_, _, s, _, _)) => Some(s),
         }
     }
-    /** Retrieves the fraction of a second as a reference, if it has full (microsecond) precision. */
+    /** 
+     * Retrieves the fraction of a second as a reference,
+     * if it matches the expected number of digits for the given precision.
+     * 
+     * This ensures that leading zeros are preserved and the fraction is semantically correct.
+     */
     pub fn fraction(&self) -> Option<&u32> {
         match self {
             DicomTime(DicomTimeImpl::Hour(_)) => None,
             DicomTime(DicomTimeImpl::Minute(_, _)) => None,
             DicomTime(DicomTimeImpl::Second(_, _, _)) => None,
-            DicomTime(DicomTimeImpl::Fraction(_, _, _, f, fp)) => match fp {
-                6 => Some(f),
+            DicomTime(DicomTimeImpl::Fraction(_, _, _, f, fp)) => match (fp, f) {
+                (6, 100_000..=999_999)  => Some(f),
+                (5, 10_000..=99_999) => Some(f),
+                (4, 1_000..=9_999) => Some(f),
+                (3, 100..=999) => Some(f),
+                (2, 10..=99) => Some(f),
+                (1, 1..=9) => Some(f),
                 _ => None,
             },
         }
@@ -508,6 +518,16 @@ impl DicomTime {
             DicomTime(DicomTimeImpl::Fraction(_, _, _, f, fp)) => Some((*f, *fp)),
         }
     }
+
+    /** Retrieves the fraction of a second as a string, if it has full (microsecond) precision. */
+    pub fn fraction_str(&self) -> Option<String> {
+        if let Some(fraction) = self.to_encoded().split(".").nth(1) {
+            Some(fraction.to_string())
+        } else {
+            None
+        }
+    } 
+
     /**
      * Constructs a new `DicomTime` from an hour, minute, second, second fraction
      * and fraction precision value (1-6). Function used for parsing only.
@@ -1285,6 +1305,30 @@ mod tests {
             DicomTime::from_hmsf(9, 1, 1, 12345, 5).unwrap().exact(),
             Err(crate::value::range::Error::ImpreciseValue { .. })
         ));
+
+        // test fraction and precision - valid cases
+        for (frac, frac_precision) in [
+            (1, 1),
+            (12, 2),
+            (123, 3),
+            (1234, 4),
+            (12345, 5),
+            (123456, 6),
+        ] {
+            assert_eq!(
+                DicomTime::from_hmsf(9, 1, 1, frac, frac_precision)
+                    .unwrap()
+                    .fraction(),
+                Some(&frac)
+            );
+        }
+        // test fraction and precision - mismatch would return a wrong fraction, so it returns None    
+        assert_eq!(
+                DicomTime::from_hmsf(9, 1, 1, 1_234, 5)
+                    .unwrap()
+                    .fraction(),
+                    None
+            );
     }
 
     #[test]
