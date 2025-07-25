@@ -503,7 +503,7 @@ impl PrimitiveValue {
             DateComponent::Second => 6,
             DateComponent::Fraction => match time.fraction_and_precision() {
                 None => panic!("DicomTime has fraction precision but no fraction can be retrieved"),
-                Some((_, fp)) => 7 + *fp as usize, // 1 is for the '.'
+                Some((_, fp)) => 7 + fp as usize, // 1 is for the '.'
             },
             _ => panic!("Impossible precision for a Dicomtime"),
         }

@@ -259,7 +259,7 @@ impl AsRange for DicomTime {
     type Range = TimeRange;
 
     fn is_precise(&self) -> bool {
-        matches!(self.fraction_and_precision(), Some((_fr_, precision)) if precision == &6)
+        matches!(self.fraction_and_precision(), Some((_fr_, precision)) if precision == 6)
     }
 
     fn earliest(&self) -> Result<Self::PreciseValue> {
@@ -269,7 +269,7 @@ impl AsRange for DicomTime {
             self.second().unwrap_or(&0),
             match self.fraction_and_precision() {
                 None => 0,
-                Some((f, fp)) => *f * u32::pow(10, 6 - <u32>::from(*fp)),
+                Some((f, fp)) => f * u32::pow(10, 6 - <u32>::from(fp)),
             },
         );
 
@@ -290,7 +290,7 @@ impl AsRange for DicomTime {
             match self.fraction_and_precision() {
                 None => 999_999,
                 Some((f, fp)) => {
-                    (*f * u32::pow(10, 6 - u32::from(*fp))) + (u32::pow(10, 6 - u32::from(*fp))) - 1
+                    (f * u32::pow(10, 6 - u32::from(fp))) + (u32::pow(10, 6 - u32::from(fp))) - 1
                 }
             },
         );
