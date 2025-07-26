@@ -690,6 +690,44 @@ where
             .map_err(From::from)
     }
 
+    /// Take the file meta information group table saved in this collector,
+    /// if this information has already been read.
+    ///
+    /// This table will only be available
+    /// after first reading the file meta group
+    /// via [`read_file_meta`](Self::read_file_meta).
+    /// Moreover, main data set reading may be compromised
+    /// if the transfer syntax was not resolved first
+    /// by calling one of the data set reading methods beforehand
+    /// (which triggers a transfer syntax resolution).
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use dicom_object::{DicomCollector, FileMetaTable, InMemDicomObject};
+    /// let mut collector = DicomCollector::open_file("file.dcm")?;
+    /// 
+    /// // read_file_meta() only returns a reference
+    /// let _: &FileMetaTable  = collector.read_file_meta()?;
+    /// // read some data from the main data set
+    /// let mut main_dataset = InMemDicomObject::new_empty();
+    /// collector.read_dataset_up_to_pixeldata(&mut main_dataset)?; 
+    /// 
+    /// // take the table out of the collector,
+    /// // as it is no longer needed
+    /// let file_meta: FileMetaTable = collector.take_file_meta()
+    ///     .expect("should have file meta information");
+    ///
+    /// // can still read more data afterwards
+    /// let mut fragment_data = Vec::new();
+    /// collector.read_next_fragment(&mut fragment_data)?;
+    /// # Result::<(), Box<dyn std::error::Error>>::Ok(())
+    /// ```
+    #[inline]
+    pub fn take_file_meta(&mut self) -> Option<FileMetaTable> {
+        self.file_meta.take()
+    }
+
     /// Read a DICOM data set until it finds its end,
     /// accumulating the elements into an in-memory object.
     pub fn read_dataset_to_end(&mut self, to: &mut InMemDicomObject<D>) -> Result<()> {
@@ -1192,7 +1230,7 @@ mod tests {
     use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
     use crate::{
-        file::ReadPreamble, DicomCollectorOptions, FileMetaTableBuilder, InMemDicomObject,
+        file::ReadPreamble, DicomCollectorOptions, FileMetaTable, FileMetaTableBuilder, InMemDicomObject
     };
 
     use super::DicomCollector;
@@ -1300,6 +1338,74 @@ mod tests {
         collector.read_dataset_to_end(&mut dset).unwrap();
 
         assert_eq!(dset, dataset1);
+    }
+
+    /// read some data and then take off the file meta table from the collector
+    #[test]
+    fn test_take_file_meta() {
+        let dataset1 = InMemDicomObject::<StandardDataDictionary>::from_element_iter([
+            DataElement::new(
+                tags::SOP_INSTANCE_UID,
+                VR::UI,
+                "2.25.248821220596756482508841578490676982546",
+            ),
+            DataElement::new(
+                tags::SOP_CLASS_UID,
+                VR::UI,
+                uids::NUCLEAR_MEDICINE_IMAGE_STORAGE,
+            ),
+            DataElement::new(tags::PATIENT_NAME, VR::PN, "Doe^John"),
+            DataElement::new(tags::STUDY_DESCRIPTION, VR::LO, "Test study"),
+            DataElement::new(tags::ROWS, VR::US, PrimitiveValue::from(64_u16)),
+            DataElement::new(tags::COLUMNS, VR::US, PrimitiveValue::from(64_u16)),
+            DataElement::new(tags::SAMPLES_PER_PIXEL, VR::US, PrimitiveValue::from(1_u16)),
+            DataElement::new(tags::BITS_ALLOCATED, VR::US, PrimitiveValue::from(8_u16)),
+            DataElement::new(tags::BITS_STORED, VR::US, PrimitiveValue::from(8_u16)),
+            DataElement::new(tags::HIGH_BIT, VR::US, PrimitiveValue::from(7_u16)),
+            DataElement::new(
+                tags::PIXEL_DATA,
+                VR::OB,
+                PrimitiveValue::from(vec![0x55u8; 64 * 64]),
+            ),
+        ]);
+
+        let file_dataset1 = dataset1
+            .clone()
+            .with_meta(FileMetaTableBuilder::new().transfer_syntax(uids::EXPLICIT_VR_LITTLE_ENDIAN))
+            .unwrap();
+
+        // write FMI and dataset to the buffer
+        let mut encoded = Vec::new();
+        encoded.write_all(b"DICM").unwrap();
+        file_dataset1.meta().write(&mut encoded).unwrap();
+        file_dataset1
+            .write_dataset_with_ts(
+                &mut encoded,
+                TransferSyntaxRegistry
+                    .get(uids::EXPLICIT_VR_LITTLE_ENDIAN)
+                    .unwrap(),
+            )
+            .unwrap();
+
+        let reader = BufReader::new(std::io::Cursor::new(&encoded));
+        let mut collector = DicomCollector::new(reader);
+        
+        // read_file_meta() only returns a reference
+        let _: &FileMetaTable  = collector.read_file_meta().unwrap();
+        // read some data from the main data set
+        let mut main_dataset = InMemDicomObject::new_empty();
+        collector.read_dataset_up_to_pixeldata(&mut main_dataset).unwrap(); 
+        
+        // can reliably take the table out of the collector
+        let file_meta: FileMetaTable = collector.take_file_meta()
+            .expect("should have file meta info");
+        assert_eq!(file_meta.media_storage_sop_instance_uid(), "2.25.248821220596756482508841578490676982546");
+
+        // can still read more data afterwards
+        let mut fragment_data = Vec::new();
+        let bytes_read = collector.read_next_fragment(&mut fragment_data).unwrap();
+        assert_eq!(bytes_read, Some(64 * 64));
+        assert_eq!(fragment_data.len(), bytes_read.unwrap() as usize);
     }
 
     /// read a DICOM data set with nested sequences
