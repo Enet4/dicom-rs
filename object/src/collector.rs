@@ -263,6 +263,21 @@ enum CollectionSource<T> {
     Parser(LazyDataSetReader<DynStatefulDecoder<T>>),
 }
 
+impl<T> fmt::Debug for CollectionSource<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CollectionSource::Raw {
+                reader: _,
+                odd_length,
+            } => f
+                .debug_struct("Raw")
+                .field("odd_length", odd_length)
+                .finish_non_exhaustive(),
+            CollectionSource::Parser(_) => f.debug_tuple("Parser").finish_non_exhaustive(),
+        }
+    }
+}
+
 impl<S> CollectionSource<S>
 where
     S: Read + Seek,
@@ -441,6 +456,7 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DicomCollector")
+            .field("source", &self.source)
             .field("dictionary", &self.dictionary)
             .field("ts_hint", &self.ts_hint.as_ref().map(|ts| ts.uid()))
             .field(
