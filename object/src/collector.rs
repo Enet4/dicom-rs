@@ -145,6 +145,8 @@ pub(crate) enum InnerError {
 pub struct DicomCollectorOptions<D = StandardDataDictionary> {
     /// Data element dictionary
     dict: D,
+    /// UID of transfer syntax suggestion
+    ts_hint: Option<Cow<'static, str>>,
     /// Whether to read the 128-byte DICOM file preamble
     read_preamble: ReadPreamble,
     /// How to handle odd-lengthed data elements
@@ -168,9 +170,22 @@ impl<D> DicomCollectorOptions<D> {
     pub fn dict<D2>(self, dict: D2) -> DicomCollectorOptions<D2> {
         DicomCollectorOptions {
             dict,
+            ts_hint: self.ts_hint,
             read_preamble: self.read_preamble,
             odd_length: self.odd_length,
         }
+    }
+
+    /// Set the UID of the transfer syntax expected from the source.
+    pub fn expected_ts(mut self, ts_uid: impl Into<Cow<'static, str>>) -> Self {
+        self.ts_hint = Some(ts_uid.into());
+        self
+    }
+
+    /// Unset the UID of the transfer syntax expected from the source.
+    pub fn unset_expected_ts(mut self) -> Self {
+        self.ts_hint = None;
+        self
     }
 
     /// Set whether to read the 128-byte DICOM file preamble.
@@ -196,27 +211,7 @@ impl<D> DicomCollectorOptions<D> {
         Ok(DicomCollector {
             source: CollectionSource::new(reader, self.odd_length),
             dictionary: self.dict,
-            ts_hint: None,
-            file_meta: None,
-            read_preamble: self.read_preamble,
-            state: Default::default(),
-        })
-    }
-
-    /// Proceed with opening a file for DICOM collecting,
-    /// while expecting a specific transfer syntax for the main data set.
-    pub fn open_file_with_ts(
-        self,
-        filename: impl AsRef<Path>,
-        ts: impl Into<Cow<'static, str>>,
-    ) -> Result<DicomCollector<D, BufReader<File>>> {
-        let filename = filename.as_ref();
-        let reader = BufReader::new(File::open(filename).context(OpenFileSnafu { filename })?);
-
-        Ok(DicomCollector {
-            source: CollectionSource::new(reader, self.odd_length),
-            dictionary: self.dict,
-            ts_hint: Some(ts.into()),
+            ts_hint: self.ts_hint,
             file_meta: None,
             read_preamble: self.read_preamble,
             state: Default::default(),
@@ -231,27 +226,7 @@ impl<D> DicomCollectorOptions<D> {
         DicomCollector {
             source: CollectionSource::new(reader, self.odd_length),
             dictionary: self.dict,
-            ts_hint: None,
-            file_meta: None,
-            read_preamble: self.read_preamble,
-            state: Default::default(),
-        }
-    }
-
-    /// Create a DICOM collector which will read from the given source,
-    /// expecting a specific transfer syntax.
-    pub fn from_reader_with_ts<S>(
-        self,
-        reader: BufReader<S>,
-        ts: impl Into<Cow<'static, str>>,
-    ) -> DicomCollector<D, BufReader<S>>
-    where
-        S: Read + Seek,
-    {
-        DicomCollector {
-            source: CollectionSource::new(reader, self.odd_length),
-            dictionary: self.dict,
-            ts_hint: Some(ts.into()),
+            ts_hint: self.ts_hint,
             file_meta: None,
             read_preamble: self.read_preamble,
             state: Default::default(),
@@ -1397,9 +1372,10 @@ mod tests {
         let reader = BufReader::new(std::io::Cursor::new(&encoded));
 
         let mut collector = DicomCollectorOptions::new()
+            .expected_ts(uids::EXPLICIT_VR_LITTLE_ENDIAN)
             .read_preamble(ReadPreamble::Never)
             .odd_length_strategy(OddLengthStrategy::Fail)
-            .from_reader_with_ts(reader, uids::EXPLICIT_VR_LITTLE_ENDIAN);
+            .from_reader(reader);
 
         // read one part of the data set
         let mut dset1 = InMemDicomObject::new_empty();
