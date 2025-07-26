@@ -10,6 +10,7 @@
 //! to create a DICOM collector.
 
 use std::{
+    borrow::Cow,
     fmt,
     fs::File,
     io::{BufRead, BufReader, Read, Seek},
@@ -22,7 +23,7 @@ use dicom_core::{
     DataDictionary, DataElement, DicomValue, Length, Tag, VR,
 };
 use dicom_dictionary_std::{tags, StandardDataDictionary};
-use dicom_encoding::{decode::DecodeFrom, TransferSyntax, TransferSyntaxIndex};
+use dicom_encoding::{decode::DecodeFrom, TransferSyntaxIndex};
 use dicom_parser::{
     dataset::{
         lazy_read::{LazyDataSetReader, LazyDataSetReaderOptions},
@@ -86,6 +87,11 @@ pub(crate) enum InnerError {
     IllegalStateInPixel { backtrace: Backtrace },
     /// DICOM value not found after non-empty element header
     MissingElementValue { backtrace: Backtrace },
+    /// Unrecognized transfer syntax {ts_uid}
+    UnrecognizedTransferSyntax {
+        ts_uid: String,
+        backtrace: Backtrace,
+    },
     /// Could not guess source transfer syntax
     GuessTransferSyntax { backtrace: Backtrace },
     #[snafu(display("Unexpected token {token:?}"))]
@@ -180,10 +186,10 @@ impl<D> DicomCollectorOptions<D> {
     }
 
     /// Proceed with opening a file for DICOM collecting.
-    pub fn open_file<'t>(
+    pub fn open_file(
         self,
         filename: impl AsRef<Path>,
-    ) -> Result<DicomCollector<'t, D, BufReader<File>>> {
+    ) -> Result<DicomCollector<D, BufReader<File>>> {
         let filename = filename.as_ref();
         let reader = BufReader::new(File::open(filename).context(OpenFileSnafu { filename })?);
 
@@ -199,18 +205,18 @@ impl<D> DicomCollectorOptions<D> {
 
     /// Proceed with opening a file for DICOM collecting,
     /// while expecting a specific transfer syntax for the main data set.
-    pub fn open_file_with_ts<'t>(
+    pub fn open_file_with_ts(
         self,
         filename: impl AsRef<Path>,
-        ts: &'t TransferSyntax,
-    ) -> Result<DicomCollector<'t, D, BufReader<File>>> {
+        ts: impl Into<Cow<'static, str>>,
+    ) -> Result<DicomCollector<D, BufReader<File>>> {
         let filename = filename.as_ref();
         let reader = BufReader::new(File::open(filename).context(OpenFileSnafu { filename })?);
 
         Ok(DicomCollector {
             source: CollectionSource::new(reader, self.odd_length),
             dictionary: self.dict,
-            ts_hint: Some(ts),
+            ts_hint: Some(ts.into()),
             file_meta: None,
             read_preamble: self.read_preamble,
             state: Default::default(),
@@ -218,7 +224,7 @@ impl<D> DicomCollectorOptions<D> {
     }
 
     /// Create a DICOM collector which will read from the given source.
-    pub fn from_reader<'t, S>(self, reader: BufReader<S>) -> DicomCollector<'t, D, BufReader<S>>
+    pub fn from_reader<S>(self, reader: BufReader<S>) -> DicomCollector<D, BufReader<S>>
     where
         S: Read + Seek,
     {
@@ -234,18 +240,18 @@ impl<D> DicomCollectorOptions<D> {
 
     /// Create a DICOM collector which will read from the given source,
     /// expecting a specific transfer syntax.
-    pub fn from_reader_with_ts<'t, S>(
+    pub fn from_reader_with_ts<S>(
         self,
         reader: BufReader<S>,
-        ts: &'t TransferSyntax,
-    ) -> DicomCollector<'t, D, BufReader<S>>
+        ts: impl Into<Cow<'static, str>>,
+    ) -> DicomCollector<D, BufReader<S>>
     where
         S: Read + Seek,
     {
         DicomCollector {
             source: CollectionSource::new(reader, self.odd_length),
             dictionary: self.dict,
-            ts_hint: Some(ts),
+            ts_hint: Some(ts.into()),
             file_meta: None,
             read_preamble: self.read_preamble,
             state: Default::default(),
@@ -304,7 +310,7 @@ where
 
     fn set_parser_with_ts(
         &mut self,
-        ts: &TransferSyntax,
+        ts_uid: &str,
     ) -> Result<&mut LazyDataSetReader<DynStatefulDecoder<S>>> {
         match self {
             CollectionSource::Raw {
@@ -312,6 +318,14 @@ where
                 odd_length,
             } => {
                 let src = src.take().unwrap();
+
+                // look up transfer syntax
+                let ts = TransferSyntaxRegistry.get(ts_uid).context(
+                    UnrecognizedTransferSyntaxSnafu {
+                        ts_uid: ts_uid.to_string(),
+                    },
+                )?;
+
                 let mut options = LazyDataSetReaderOptions::default();
                 options.odd_length = *odd_length;
                 *self = CollectionSource::Parser(
@@ -414,14 +428,14 @@ where
 /// # Ok(())
 /// # }
 /// ```
-pub struct DicomCollector<'t, D, S> {
+pub struct DicomCollector<D, S> {
     /// the source of byte data to read from
     source: CollectionSource<S>,
     /// data dictionary
     dictionary: D,
-    /// transfer syntax suggestion
-    ts_hint: Option<&'t TransferSyntax>,
-    /// file meta table
+    /// UID of transfer syntax suggestion
+    ts_hint: Option<Cow<'static, str>>,
+    /// file meta group information table
     file_meta: Option<FileMetaTable>,
     /// Whether to read the 128-byte DICOM file preamble
     /// (needs to be retained until the preamble is read)
@@ -450,7 +464,7 @@ enum CollectorState {
     InPixelData,
 }
 
-impl<'t, D, S> fmt::Debug for DicomCollector<'t, D, S>
+impl<D, S> fmt::Debug for DicomCollector<D, S>
 where
     D: fmt::Debug,
 {
@@ -458,7 +472,7 @@ where
         f.debug_struct("DicomCollector")
             .field("source", &self.source)
             .field("dictionary", &self.dictionary)
-            .field("ts_hint", &self.ts_hint.as_ref().map(|ts| ts.uid()))
+            .field("ts_hint", &self.ts_hint)
             .field(
                 "file_meta",
                 if self.file_meta.is_some() {
@@ -473,7 +487,7 @@ where
     }
 }
 
-impl<'t, S> DicomCollector<'t, StandardDataDictionary, BufReader<S>>
+impl<S> DicomCollector<StandardDataDictionary, BufReader<S>>
 where
     S: Read + Seek,
 {
@@ -498,11 +512,14 @@ where
     /// and expects the given transfer syntax.
     ///
     /// The standard data dictionary is used.
-    pub fn new_with_ts(reader: BufReader<S>, transfer_syntax: &'t TransferSyntax) -> Self {
+    pub fn new_with_ts(
+        reader: BufReader<S>,
+        transfer_syntax: impl Into<Cow<'static, str>>,
+    ) -> Self {
         DicomCollector {
             source: CollectionSource::new(reader, Default::default()),
             dictionary: StandardDataDictionary,
-            ts_hint: Some(transfer_syntax),
+            ts_hint: Some(transfer_syntax.into()),
             file_meta: None,
             read_preamble: Default::default(),
             state: Default::default(),
@@ -510,7 +527,7 @@ where
     }
 }
 
-impl<'t> DicomCollector<'t, StandardDataDictionary, BufReader<File>> {
+impl DicomCollector<StandardDataDictionary, BufReader<File>> {
     /// Create a new DICOM dataset collector
     /// which reads from a standard DICOM file.
     ///
@@ -521,7 +538,7 @@ impl<'t> DicomCollector<'t, StandardDataDictionary, BufReader<File>> {
     }
 }
 
-impl<'t, D> DicomCollector<'t, D, BufReader<File>>
+impl<D> DicomCollector<D, BufReader<File>>
 where
     D: DataDictionary + Clone,
 {
@@ -537,7 +554,7 @@ where
     }
 }
 
-impl<'t, D, S> DicomCollector<'t, D, BufReader<S>>
+impl<D, S> DicomCollector<D, BufReader<S>>
 where
     D: DataDictionary + Clone,
     S: Read + Seek,
@@ -650,7 +667,13 @@ where
     /// accumulating the elements into an in-memory object.
     pub fn read_dataset_to_end(&mut self, to: &mut InMemDicomObject<D>) -> Result<()> {
         let parser = if !self.source.has_parser() {
-            let ts = self.guessed_ts().context(GuessTransferSyntaxSnafu)?;
+            let ts = {
+                if self.ts_hint.is_none() {
+                    self.populate_ts_hint();
+                }
+                self.ts_hint.as_deref()
+            }
+            .context(GuessTransferSyntaxSnafu)?;
             self.source.set_parser_with_ts(ts)?
         } else {
             self.source.parser()
@@ -668,7 +691,13 @@ where
         to: &mut InMemDicomObject<D>,
     ) -> Result<()> {
         let parser = if !self.source.has_parser() {
-            let ts = self.guessed_ts().context(GuessTransferSyntaxSnafu)?;
+            let ts = {
+                if self.ts_hint.is_none() {
+                    self.populate_ts_hint();
+                }
+                self.ts_hint.as_deref()
+            }
+            .context(GuessTransferSyntaxSnafu)?;
             self.source.set_parser_with_ts(ts)?
         } else {
             self.source.parser()
@@ -718,7 +747,13 @@ where
 
         // initialize parser if necessary
         if !self.source.has_parser() {
-            let ts = self.guessed_ts().context(GuessTransferSyntaxSnafu)?;
+            let ts = {
+                if self.ts_hint.is_none() {
+                    self.populate_ts_hint();
+                }
+                self.ts_hint.as_deref()
+            }
+            .context(GuessTransferSyntaxSnafu)?;
             self.source.set_parser_with_ts(ts)?;
         } else {
             self.source.parser();
@@ -745,7 +780,13 @@ where
         }
 
         let parser = if !self.source.has_parser() {
-            let ts = self.guessed_ts().context(GuessTransferSyntaxSnafu)?;
+            let ts = {
+                if self.ts_hint.is_none() {
+                    self.populate_ts_hint();
+                }
+                self.ts_hint.as_deref()
+            }
+            .context(GuessTransferSyntaxSnafu)?;
             self.source.set_parser_with_ts(ts)?
         } else {
             self.source.parser()
@@ -802,7 +843,13 @@ where
 
         // initialize parser if necessary
         if !self.source.has_parser() {
-            let ts = self.guessed_ts().context(GuessTransferSyntaxSnafu)?;
+            let ts = {
+                if self.ts_hint.is_none() {
+                    self.populate_ts_hint();
+                }
+                self.ts_hint.as_deref()
+            }
+            .context(GuessTransferSyntaxSnafu)?;
             self.source.set_parser_with_ts(ts)?;
         } else {
             self.source.parser();
@@ -829,7 +876,13 @@ where
         }
 
         let parser = if !self.source.has_parser() {
-            let ts = self.guessed_ts().context(GuessTransferSyntaxSnafu)?;
+            let ts = {
+                if self.ts_hint.is_none() {
+                    self.populate_ts_hint();
+                }
+                self.ts_hint.as_deref()
+            }
+            .context(GuessTransferSyntaxSnafu)?;
             self.source.set_parser_with_ts(ts)?
         } else {
             self.source.parser()
@@ -862,14 +915,11 @@ where
 
     // --- private methods ---
 
-    fn guessed_ts(&mut self) -> Option<&'t TransferSyntax> {
-        if self.ts_hint.is_some() {
-            return self.ts_hint;
-        }
+    #[inline]
+    fn populate_ts_hint(&mut self) {
         if let Some(meta) = self.file_meta.as_ref() {
-            self.ts_hint = TransferSyntaxRegistry.get(meta.transfer_syntax());
+            self.ts_hint = Some(Cow::Owned(meta.transfer_syntax().to_string()));
         }
-        self.ts_hint
     }
 
     fn skip_until(
@@ -1159,7 +1209,7 @@ mod tests {
             .unwrap();
 
         let reader = BufReader::new(std::io::Cursor::new(&encoded));
-        let mut collector = DicomCollector::new_with_ts(reader, ts_expl_vr_le);
+        let mut collector = DicomCollector::new_with_ts(reader, uids::EXPLICIT_VR_LITTLE_ENDIAN);
 
         let mut dset = InMemDicomObject::new_empty();
         collector.read_dataset_to_end(&mut dset).unwrap();
@@ -1282,7 +1332,7 @@ mod tests {
 
         let reader = BufReader::new(std::io::Cursor::new(&encoded));
 
-        let mut collector = DicomCollector::new_with_ts(reader, ts_expl_vr_le);
+        let mut collector = DicomCollector::new_with_ts(reader, uids::EXPLICIT_VR_LITTLE_ENDIAN);
 
         let mut dset = InMemDicomObject::new_empty();
         collector.read_dataset_to_end(&mut dset).unwrap();
@@ -1349,7 +1399,7 @@ mod tests {
         let mut collector = DicomCollectorOptions::new()
             .read_preamble(ReadPreamble::Never)
             .odd_length_strategy(OddLengthStrategy::Fail)
-            .from_reader_with_ts(reader, ts_expl_vr_le);
+            .from_reader_with_ts(reader, uids::EXPLICIT_VR_LITTLE_ENDIAN);
 
         // read one part of the data set
         let mut dset1 = InMemDicomObject::new_empty();
