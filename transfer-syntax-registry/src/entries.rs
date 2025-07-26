@@ -195,6 +195,9 @@ pub const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN: TransferSyntax<FlateAdapter, Never
 
 #[cfg(not(feature = "deflate"))]
 /// **Stub descriptor:** Deflated Explicit VR Little Endian
+///
+/// A native implementation is available
+/// by enabling the `deflate` Cargo feature.
 pub const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN: Ts = Ts::new_ele(
     "1.2.840.10008.1.2.1.99",
     "Deflated Explicit VR Little Endian",
@@ -214,6 +217,9 @@ pub const JPIP_REFERENCED_DEFLATE: TransferSyntax<FlateAdapter, NeverAdapter, Ne
 );
 
 /// **Stub descriptor:** JPIP Referenced Deflate
+///
+/// A native implementation is available
+/// by enabling the `deflate` Cargo feature.
 #[cfg(not(feature = "deflate"))]
 pub const JPIP_REFERENCED_DEFLATE: Ts = Ts::new_ele(
     "1.2.840.10008.1.2.4.95",
@@ -232,6 +238,9 @@ pub const JPIP_HTJ2K_REFERENCED_DEFLATE: TransferSyntax<FlateAdapter, NeverAdapt
 );
 
 /// **Stub descriptor:** JPIP HTJ2K Referenced Deflate
+///
+/// A native implementation is available
+/// by enabling the `deflate` Cargo feature.
 #[cfg(not(feature = "deflate"))]
 pub const JPIP_HTJ2K_REFERENCED_DEFLATE: Ts = Ts::new_ele(
     "1.2.840.10008.1.2.4.205",
