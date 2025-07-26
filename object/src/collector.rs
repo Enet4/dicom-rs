@@ -269,7 +269,7 @@ impl<D, R> DicomCollectorOptions<D, R> {
     pub fn ts_index<R2>(self, ts_index: R2) -> DicomCollectorOptions<D, R2> {
         DicomCollectorOptions {
             dict: self.dict,
-            ts_index: ts_index,
+            ts_index,
             ts_hint: self.ts_hint,
             read_preamble: self.read_preamble,
             odd_length: self.odd_length,
