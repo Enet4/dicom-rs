@@ -223,7 +223,7 @@ impl<D, R> DicomCollectorOptions<D, R> {
     pub fn open_file(
         self,
         filename: impl AsRef<Path>,
-    ) -> Result<DicomCollector<D, BufReader<File>, R>>
+    ) -> Result<DicomCollector<BufReader<File>, D, R>>
     where
         R: TransferSyntaxIndex,
     {
@@ -241,7 +241,7 @@ impl<D, R> DicomCollectorOptions<D, R> {
     }
 
     /// Create a DICOM collector which will read from the given source.
-    pub fn from_reader<S>(self, reader: BufReader<S>) -> DicomCollector<D, BufReader<S>, R>
+    pub fn from_reader<S>(self, reader: BufReader<S>) -> DicomCollector<BufReader<S>, D, R>
     where
         S: Read + Seek,
         R: TransferSyntaxIndex,
@@ -437,7 +437,7 @@ where
 /// # Ok(())
 /// # }
 /// ```
-pub struct DicomCollector<D, S, R> {
+pub struct DicomCollector<S, D = StandardDataDictionary, R = TransferSyntaxRegistry> {
     /// the source of byte data to read from
     source: CollectionSource<S, R>,
     /// data dictionary
@@ -473,7 +473,7 @@ enum CollectorState {
     InPixelData,
 }
 
-impl<D, S, R> fmt::Debug for DicomCollector<D, S, R>
+impl<S, D, R> fmt::Debug for DicomCollector<S, D, R>
 where
     D: fmt::Debug,
     R: fmt::Debug,
@@ -497,7 +497,7 @@ where
     }
 }
 
-impl<S> DicomCollector<StandardDataDictionary, BufReader<S>, TransferSyntaxRegistry>
+impl<S> DicomCollector<BufReader<S>>
 where
     S: Read + Seek,
 {
@@ -537,7 +537,7 @@ where
     }
 }
 
-impl DicomCollector<StandardDataDictionary, BufReader<File>, TransferSyntaxRegistry> {
+impl DicomCollector<BufReader<File>> {
     /// Create a new DICOM dataset collector
     /// which reads from a standard DICOM file.
     ///
@@ -548,7 +548,7 @@ impl DicomCollector<StandardDataDictionary, BufReader<File>, TransferSyntaxRegis
     }
 }
 
-impl<D> DicomCollector<D, BufReader<File>, TransferSyntaxRegistry>
+impl<D> DicomCollector<BufReader<File>, D>
 where
     D: DataDictionary + Clone,
 {
@@ -566,7 +566,7 @@ where
     }
 }
 
-impl<D, S> DicomCollector<D, BufReader<S>, TransferSyntaxRegistry>
+impl<S, D> DicomCollector<BufReader<S>, D>
 where
     D: DataDictionary + Clone,
     S: Read + Seek,
@@ -589,7 +589,7 @@ where
     }
 }
 
-impl<D, S, R> DicomCollector<D, BufReader<S>, R>
+impl<S, D, R> DicomCollector<BufReader<S>, D, R>
 where
     D: DataDictionary + Clone,
     S: Read + Seek,
