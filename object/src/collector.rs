@@ -142,9 +142,11 @@ pub(crate) enum InnerError {
 /// # Result::<(), Box<dyn std::error::Error>>::Ok(())
 /// ```
 #[derive(Debug, Default)]
-pub struct DicomCollectorOptions<D = StandardDataDictionary> {
+pub struct DicomCollectorOptions<D = StandardDataDictionary, R = TransferSyntaxRegistry> {
     /// Data element dictionary
     dict: D,
+    /// Transfer syntax index (registry)
+    ts_index: R,
     /// UID of transfer syntax suggestion
     ts_hint: Option<Cow<'static, str>>,
     /// Whether to read the 128-byte DICOM file preamble
@@ -153,23 +155,40 @@ pub struct DicomCollectorOptions<D = StandardDataDictionary> {
     odd_length: OddLengthStrategy,
 }
 
-impl DicomCollectorOptions<StandardDataDictionary> {
+impl DicomCollectorOptions {
     /// Create a new DICOM collector builder.
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<D> DicomCollectorOptions<D> {
+impl<D, R> DicomCollectorOptions<D, R> {
     /// Override the data element dictionary with the one given,
     /// potentially replacing the dictionary type.
     ///
     /// When not working with custom data dictionaries,
     /// this method does not have to be called
     /// (defaults to [`StandardDataDictionary`], which is zero sized).
-    pub fn dict<D2>(self, dict: D2) -> DicomCollectorOptions<D2> {
+    pub fn dict<D2>(self, dict: D2) -> DicomCollectorOptions<D2, R> {
         DicomCollectorOptions {
             dict,
+            ts_index: self.ts_index,
+            ts_hint: self.ts_hint,
+            read_preamble: self.read_preamble,
+            odd_length: self.odd_length,
+        }
+    }
+
+    /// Override the transfer syntax index (also called registry) with the one given,
+    /// potentially replacing the transfer syntax index type.
+    ///
+    /// When not working with custom transfer syntax registries,
+    /// this method does not have to be called
+    /// (defaults to [`TransferSyntaxRegistry`], which is zero sized).
+    pub fn ts_index<R2>(self, ts_index: R2) -> DicomCollectorOptions<D, R2> {
+        DicomCollectorOptions {
+            dict: self.dict,
+            ts_index: ts_index,
             ts_hint: self.ts_hint,
             read_preamble: self.read_preamble,
             odd_length: self.odd_length,
@@ -204,12 +223,15 @@ impl<D> DicomCollectorOptions<D> {
     pub fn open_file(
         self,
         filename: impl AsRef<Path>,
-    ) -> Result<DicomCollector<D, BufReader<File>>> {
+    ) -> Result<DicomCollector<D, BufReader<File>, R>>
+    where
+        R: TransferSyntaxIndex,
+    {
         let filename = filename.as_ref();
         let reader = BufReader::new(File::open(filename).context(OpenFileSnafu { filename })?);
 
         Ok(DicomCollector {
-            source: CollectionSource::new(reader, self.odd_length),
+            source: CollectionSource::new(reader, self.ts_index, self.odd_length),
             dictionary: self.dict,
             ts_hint: self.ts_hint,
             file_meta: None,
@@ -219,12 +241,13 @@ impl<D> DicomCollectorOptions<D> {
     }
 
     /// Create a DICOM collector which will read from the given source.
-    pub fn from_reader<S>(self, reader: BufReader<S>) -> DicomCollector<D, BufReader<S>>
+    pub fn from_reader<S>(self, reader: BufReader<S>) -> DicomCollector<D, BufReader<S>, R>
     where
         S: Read + Seek,
+        R: TransferSyntaxIndex,
     {
         DicomCollector {
-            source: CollectionSource::new(reader, self.odd_length),
+            source: CollectionSource::new(reader, self.ts_index, self.odd_length),
             dictionary: self.dict,
             ts_hint: self.ts_hint,
             file_meta: None,
@@ -234,24 +257,32 @@ impl<D> DicomCollectorOptions<D> {
     }
 }
 
-enum CollectionSource<T> {
+enum CollectionSource<S, R> {
     Raw {
-        reader: Option<T>,
+        /// the actual raw byte data as a reader
+        reader: Option<S>,
+        /// Transfer syntax index (registry)
+        ts_index: R,
         /// the strategy for reading odd-lengthed data elements
         /// (needs to be retained until a parser is constructed)
         odd_length: OddLengthStrategy,
     },
-    Parser(LazyDataSetReader<DynStatefulDecoder<T>>),
+    Parser(LazyDataSetReader<DynStatefulDecoder<S>>),
 }
 
-impl<T> fmt::Debug for CollectionSource<T> {
+impl<S, R> fmt::Debug for CollectionSource<S, R>
+where
+    R: fmt::Debug,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CollectionSource::Raw {
                 reader: _,
+                ts_index,
                 odd_length,
             } => f
                 .debug_struct("Raw")
+                .field("ts_index", ts_index)
                 .field("odd_length", odd_length)
                 .finish_non_exhaustive(),
             CollectionSource::Parser(_) => f.debug_tuple("Parser").finish_non_exhaustive(),
@@ -259,13 +290,15 @@ impl<T> fmt::Debug for CollectionSource<T> {
     }
 }
 
-impl<S> CollectionSource<S>
+impl<S, R> CollectionSource<S, R>
 where
     S: Read + Seek,
+    R: TransferSyntaxIndex,
 {
-    fn new(raw_source: S, odd_length: OddLengthStrategy) -> Self {
+    fn new(raw_source: S, ts_index: R, odd_length: OddLengthStrategy) -> Self {
         CollectionSource::Raw {
             reader: Some(raw_source),
+            ts_index,
             odd_length,
         }
     }
@@ -290,12 +323,13 @@ where
         match self {
             CollectionSource::Raw {
                 reader: src,
+                ts_index,
                 odd_length,
             } => {
                 let src = src.take().unwrap();
 
                 // look up transfer syntax
-                let ts = TransferSyntaxRegistry.get(ts_uid).context(
+                let ts = ts_index.get(ts_uid).context(
                     UnrecognizedTransferSyntaxSnafu {
                         ts_uid: ts_uid.to_string(),
                     },
@@ -403,9 +437,9 @@ where
 /// # Ok(())
 /// # }
 /// ```
-pub struct DicomCollector<D, S> {
+pub struct DicomCollector<D, S, R> {
     /// the source of byte data to read from
-    source: CollectionSource<S>,
+    source: CollectionSource<S, R>,
     /// data dictionary
     dictionary: D,
     /// UID of transfer syntax suggestion
@@ -439,9 +473,10 @@ enum CollectorState {
     InPixelData,
 }
 
-impl<D, S> fmt::Debug for DicomCollector<D, S>
+impl<D, S, R> fmt::Debug for DicomCollector<D, S, R>
 where
     D: fmt::Debug,
+    R: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DicomCollector")
@@ -462,7 +497,7 @@ where
     }
 }
 
-impl<S> DicomCollector<StandardDataDictionary, BufReader<S>>
+impl<S> DicomCollector<StandardDataDictionary, BufReader<S>, TransferSyntaxRegistry>
 where
     S: Read + Seek,
 {
@@ -473,7 +508,7 @@ where
     /// The transfer syntax is guessed from the file meta group data set.
     pub fn new(reader: BufReader<S>) -> Self {
         DicomCollector {
-            source: CollectionSource::new(reader, Default::default()),
+            source: CollectionSource::new(reader, TransferSyntaxRegistry, Default::default()),
             dictionary: StandardDataDictionary,
             ts_hint: None,
             file_meta: None,
@@ -492,7 +527,7 @@ where
         transfer_syntax: impl Into<Cow<'static, str>>,
     ) -> Self {
         DicomCollector {
-            source: CollectionSource::new(reader, Default::default()),
+            source: CollectionSource::new(reader, TransferSyntaxRegistry, Default::default()),
             dictionary: StandardDataDictionary,
             ts_hint: Some(transfer_syntax.into()),
             file_meta: None,
@@ -502,7 +537,7 @@ where
     }
 }
 
-impl DicomCollector<StandardDataDictionary, BufReader<File>> {
+impl DicomCollector<StandardDataDictionary, BufReader<File>, TransferSyntaxRegistry> {
     /// Create a new DICOM dataset collector
     /// which reads from a standard DICOM file.
     ///
@@ -513,10 +548,12 @@ impl DicomCollector<StandardDataDictionary, BufReader<File>> {
     }
 }
 
-impl<D> DicomCollector<D, BufReader<File>>
+impl<D> DicomCollector<D, BufReader<File>, TransferSyntaxRegistry>
 where
     D: DataDictionary + Clone,
 {
+    // --- constructors ---
+
     /// Create a new DICOM dataset collector
     /// which reads from a standard DICOM file.
     ///
@@ -529,13 +566,11 @@ where
     }
 }
 
-impl<D, S> DicomCollector<D, BufReader<S>>
+impl<D, S> DicomCollector<D, BufReader<S>, TransferSyntaxRegistry>
 where
     D: DataDictionary + Clone,
     S: Read + Seek,
 {
-    // --- constructors ---
-
     /// Create a new DICOM dataset collector
     /// using the given data element dictionary,
     /// which reads from a buffered reader.
@@ -544,7 +579,7 @@ where
     /// The standard transfer syntax registry is used.
     fn new_with_dict(reader: BufReader<S>, dictionary: D) -> Self {
         DicomCollector {
-            source: CollectionSource::new(reader, Default::default()),
+            source: CollectionSource::new(reader, TransferSyntaxRegistry, Default::default()),
             dictionary,
             ts_hint: None,
             file_meta: None,
@@ -552,9 +587,14 @@ where
             state: Default::default(),
         }
     }
+}
 
-    // ---
-
+impl<D, S, R> DicomCollector<D, BufReader<S>, R>
+where
+    D: DataDictionary + Clone,
+    S: Read + Seek,
+    R: TransferSyntaxIndex,
+{
     /// Read a DICOM file preamble from the given source.
     ///
     /// Returns the 128 bytes preceding the DICOM magic code,
