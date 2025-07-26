@@ -13,7 +13,7 @@
 //! The current default file DICOM object implementation
 //! loads the file entirely in memory.
 //! To read DICOM data sets in smaller portions,
-//! use the [DICOM collector API](DicomCollector).
+//! use the [DICOM collector API](collector).
 //!
 //! # Examples
 //!

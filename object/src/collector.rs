@@ -1,13 +1,105 @@
-//! Chunked DICOM object reader API
+//! DICOM collector API:
+//! high-level construct for reading DICOM data sets in controlled chunks.
 //!
 //! The DICOM collector API
-//! can be used for reading DICOM objects in cohesive chunks,
-//! thus obtaining some meta-data earlier for asynchronous processing
-//! and potentially saving memory.
+//! can be used for reading DICOM objects in cohesive portions.
+//! Unlike [`open_file`](crate::open_file) or [`OpenFileOptions`](crate::OpenFileOptions),
+//! this API makes it possible to read and process pieces of meta-data
+//! without gathering the entire data set in memory,
+//! making it appealing when working with data sets which are known to be large,
+//! such as multi-frame images.
 //!
-//! Use either [`DicomCollectorOptions`]
-//! or one of the constructor functions in [`DicomCollector`]
-//! to create a DICOM collector.
+//! # Examples
+//!
+//! It is possible to open a DICOM file and collect its file meta information
+//! and main dataset.
+//!
+//! ```no_run
+//! # use dicom_object::InMemDicomObject;
+//! # use dicom_object::collector::DicomCollector;
+//! # use dicom_object::meta::FileMetaTable;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let mut collector = DicomCollector::open_file("file.dcm")?;
+//!
+//! let fmi: &FileMetaTable = collector.read_file_meta()?;
+//! let mut dset = InMemDicomObject::new_empty();
+//! collector.read_dataset_to_end(&mut dset)?; // populate `dset` with all elements
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! But at the moment,
+//! this example will be no different from using the regular file opening API.
+//! To benefit from the collector,
+//! read smaller portions of the dataset at a time.
+//! For instance, you can first read patient/study attributes,
+//! place image pixel attributes in a separate object,
+//! and only then fetch the pixel data.
+//!
+//! ```no_run
+//! # use dicom_object::InMemDicomObject;
+//! # use dicom_object::collector::DicomCollector;
+//! # use dicom_object::meta::FileMetaTable;
+//! use dicom_core::Tag;
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let mut collector = DicomCollector::open_file("file.dcm")?;
+//!
+//! let fmi: &FileMetaTable = collector.read_file_meta()?;
+//! // read everything before the image pixel group
+//! let mut dset = InMemDicomObject::new_empty();
+//! collector.read_dataset_up_to(Tag(0x0028, 0x0000), &mut dset)?;
+//!
+//! // read from image pixel group and stop before the pixel data
+//! let mut pixel_image_dset = InMemDicomObject::new_empty();
+//! collector.read_dataset_up_to_pixeldata(&mut pixel_image_dset)?;
+//!
+//! // ... pixel data would be next
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! Moreover, this API has methods to retrieve
+//! each pixel data fragment independently,
+//! which is a significant memory saver in multi-frame scenarios.
+//!
+//! ```no_run
+//! # use dicom_object::collector::DicomCollector;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # let mut collector = DicomCollector::open_file("file.dcm")?;
+//! // save the basic offset table separately
+//! let mut offset_table = Vec::<u32>::new();
+//! collector.read_basic_offset_table(&mut offset_table)?;
+//!
+//! let mut buf = Vec::new();
+//! while let Some(len) = collector.read_next_fragment(&mut buf)? {
+//!    // should now have the entire fragment data
+//!    assert_eq!(buf.len() as u32, len);
+//!    // process fragment (e.g. accumulate to a frame buffer and save to a file),
+//!    // and clear the buffer when done
+//!    buf.clear();
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! More options for DICOM collecting are available
+//! by using [`DicomCollectorOptions`].
+//!
+//! ```no_run
+//! use dicom_dictionary_std::uids;
+//!
+//! # use dicom_object::{DicomCollectorOptions, InMemDicomObject};
+//! let mut collector = DicomCollectorOptions::new()
+//!     .read_preamble(dicom_object::file::ReadPreamble::Never)
+//!     .odd_length_strategy(dicom_object::file::OddLengthStrategy::Fail)
+//!     .expected_ts(uids::EXPLICIT_VR_LITTLE_ENDIAN)
+//!     .open_file("path/to/file_with_no_meta.dcm")?;
+//!
+//! let mut metadata = InMemDicomObject::new_empty();
+//! collector.read_dataset_up_to_pixeldata(&mut metadata)?;
+//! # Result::<(), Box<dyn std::error::Error>>::Ok(())
+//! ```
 
 use std::{
     borrow::Cow,
@@ -129,18 +221,7 @@ pub(crate) enum InnerError {
 
 /// A builder type for setting up a DICOM collector.
 ///
-/// # Example
-///
-/// ```no_run
-/// # use dicom_object::{DicomCollectorOptions, InMemDicomObject};
-/// let mut collector = DicomCollectorOptions::new()
-///     .read_preamble(dicom_object::file::ReadPreamble::Always)
-///     .odd_length_strategy(dicom_object::file::OddLengthStrategy::Fail)
-///     .open_file("path/to/file.dcm")?;
-/// let mut metadata = InMemDicomObject::new_empty();
-/// collector.read_dataset_up_to_pixeldata(&mut metadata)?;
-/// # Result::<(), Box<dyn std::error::Error>>::Ok(())
-/// ```
+/// See the [module-level documentation](crate::collector) for more details.
 #[derive(Debug, Default)]
 pub struct DicomCollectorOptions<D = StandardDataDictionary, R = TransferSyntaxRegistry> {
     /// Data element dictionary
@@ -329,11 +410,11 @@ where
                 let src = src.take().unwrap();
 
                 // look up transfer syntax
-                let ts = ts_index.get(ts_uid).context(
-                    UnrecognizedTransferSyntaxSnafu {
+                let ts = ts_index
+                    .get(ts_uid)
+                    .context(UnrecognizedTransferSyntaxSnafu {
                         ts_uid: ts_uid.to_string(),
-                    },
-                )?;
+                    })?;
 
                 let mut options = LazyDataSetReaderOptions::default();
                 options.odd_length = *odd_length;
@@ -358,85 +439,9 @@ where
     }
 }
 
-/// A high-level construct for reading DICOM data sets in controlled chunks.
+/// A DICOM collector set up to read from a specific source.
 ///
-/// Unlike [`open_file`](crate::open_file),
-/// this API makes it possible to read and process
-/// multiple data set partitions from the same source in sequence,
-/// making it appealing when working with data sets which are known to be large,
-/// such as multi-frame images.
-///
-/// # Examples
-///
-/// It is possible to open a DICOM file and collect its file meta information
-/// and main dataset.
-///
-/// ```no_run
-/// # use dicom_object::InMemDicomObject;
-/// # use dicom_object::collector::DicomCollector;
-/// # use dicom_object::meta::FileMetaTable;
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let mut collector = DicomCollector::open_file("file.dcm")?;
-///
-/// let fmi: &FileMetaTable = collector.read_file_meta()?;
-/// let mut dset = InMemDicomObject::new_empty();
-/// collector.read_dataset_to_end(&mut dset)?; // populate `dset` with all elements
-/// # Ok(())
-/// # }
-/// ```
-///
-/// But at the moment,
-/// this example will be no different from using the regular file opening API.
-/// To benefit from the collector,
-/// read smaller portions of the dataset at a time.
-/// For instance, you can first read patient/study attributes
-/// and place image pixel attributes in a separate object.
-///
-/// ```no_run
-/// # use dicom_object::InMemDicomObject;
-/// # use dicom_object::collector::DicomCollector;
-/// # use dicom_object::meta::FileMetaTable;
-/// use dicom_core::Tag;
-///
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let mut collector = DicomCollector::open_file("file.dcm")?;
-///
-/// let fmi: &FileMetaTable = collector.read_file_meta()?;
-/// let mut dset = InMemDicomObject::new_empty();
-/// collector.read_dataset_up_to(Tag(0x0028, 0x0000), &mut dset)?; // read everything before the image pixel group
-///
-/// let mut pixel_image_dset = InMemDicomObject::new_empty();
-/// collector.read_dataset_up_to_pixeldata(&mut pixel_image_dset)?; // read from image pixel group to pixel data (excluding)
-/// # Ok(())
-/// # }
-/// ```
-///
-/// Moreover, this API allows you to fetch and process
-/// each pixel data fragment independently,
-/// which is a significant memory saver in multi-frame scenarios.
-///
-/// ```no_run
-/// # use dicom_object::InMemDicomObject;
-/// # use dicom_object::collector::DicomCollector;
-/// # use dicom_object::meta::FileMetaTable;
-/// # use dicom_core::Tag;
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// # let mut collector = DicomCollector::open_file("file.dcm")?;
-///
-/// # let _fmi: &FileMetaTable = collector.read_file_meta()?;
-/// # let mut dset = InMemDicomObject::new_empty();
-/// # collector.read_dataset_up_to_pixeldata(&mut dset)?;
-/// let mut buf = Vec::new();
-/// while let Some(len) = collector.read_next_fragment(&mut buf)? {
-///    // should now have some data
-///    assert_eq!(buf.len() as u32, len);
-///    // process fragment (e.g. accumulate to a frame buffer and save to a file),
-///    // and clear the buffer when done
-///    buf.clear();
-/// }
-/// # Ok(())
-/// # }
-/// ```
+/// See the [module-level documentation](crate::collector) for more details.
 pub struct DicomCollector<S, D = StandardDataDictionary, R = TransferSyntaxRegistry> {
     /// the source of byte data to read from
     source: CollectionSource<S, R>,
