@@ -12,6 +12,7 @@
 //! - skip the value altogether, by reading into a sink;
 //! - copying the bytes of the value into another writer,
 //!   such as a previously allocated buffer.
+use crate::dataset::read::OddLengthStrategy;
 use crate::stateful::decode::{DynStatefulDecoder, Error as DecoderError, StatefulDecode};
 use crate::util::ReadSeek;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
@@ -21,7 +22,7 @@ use dicom_encoding::transfer_syntax::TransferSyntax;
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use std::cmp::Ordering;
 
-use super::{LazyDataToken, SeqTokenType};
+use super::{DataToken, LazyDataToken, SeqTokenType};
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -73,6 +74,27 @@ pub enum Error {
         bytes_read: u64,
         backtrace: Backtrace,
     },
+
+    /// Invalid data element length {len:04X} of {tag} at {bytes_read:#x}
+    InvalidElementLength {
+        tag: Tag,
+        len: u32,
+        bytes_read: u64,
+        backtrace: Backtrace,
+    },
+
+    /// Invalid sequence item length {len:04X} at {bytes_read:#x}
+    InvalidItemLength {
+        len: u32,
+        bytes_read: u64,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Attempted to inspect a header at {} bytes", bytes_read))]
+    Peek {
+        bytes_read: u64,
+        backtrace: Backtrace,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -101,6 +123,8 @@ struct SeqToken {
 pub struct LazyDataSetReader<S> {
     /// the stateful decoder
     parser: S,
+    /// data set reading options
+    options: LazyDataSetReaderOptions,
     /// whether the reader is expecting an item next (or a sequence delimiter)
     in_sequence: bool,
     /// whether a check for a sequence or item delimitation is pending
@@ -111,16 +135,65 @@ pub struct LazyDataSetReader<S> {
     hard_break: bool,
     /// last decoded header
     last_header: Option<DataElementHeader>,
+    /// if a peek was taken, this holds the token peeked
+    peek: Option<DataToken>,
+}
+
+/// The set of options for the lazy data set reader.
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub struct LazyDataSetReaderOptions {
+    /// The strategy for handling odd length data elements
+    pub odd_length: OddLengthStrategy,
 }
 
 impl<R> LazyDataSetReader<DynStatefulDecoder<R>> {
     /// Create a new lazy data set reader
+    /// expecting the given transfer syntax
+    /// that reads from the given random access source.
+    #[inline]
+    pub fn new_with_ts(source: R, ts: &TransferSyntax) -> Result<Self>
+    where
+        R: ReadSeek,
+    {
+        Self::new_with_ts_cs(source, ts, SpecificCharacterSet::default())
+    }
+
+    /// Create a new lazy data set reader
     /// with the given random access source and element dictionary,
     /// while considering the given transfer syntax and specific character set.
-    pub fn new_with_ts_cs(
+    #[inline]
+    pub fn new_with_ts_cs(source: R, ts: &TransferSyntax, cs: SpecificCharacterSet) -> Result<Self>
+    where
+        R: ReadSeek,
+    {
+        Self::new_with_ts_cs_options(source, ts, cs, Default::default())
+    }
+
+    /// Create a new lazy data set reader
+    /// expecting the given transfer syntax
+    /// that reads from the given random access source,
+    /// with extra parsing options.
+    #[inline]
+    pub fn new_with_ts_options(
+        source: R,
+        ts: &TransferSyntax,
+        options: LazyDataSetReaderOptions,
+    ) -> Result<Self>
+    where
+        R: ReadSeek,
+    {
+        Self::new_with_ts_cs_options(source, ts, SpecificCharacterSet::default(), options)
+    }
+
+    /// Create a new lazy data set reader
+    /// with the given random access source and element dictionary,
+    /// while considering the given transfer syntax and specific character set.
+    pub fn new_with_ts_cs_options(
         mut source: R,
         ts: &TransferSyntax,
         cs: SpecificCharacterSet,
+        options: LazyDataSetReaderOptions,
     ) -> Result<Self>
     where
         R: ReadSeek,
@@ -131,11 +204,13 @@ impl<R> LazyDataSetReader<DynStatefulDecoder<R>> {
 
         Ok(LazyDataSetReader {
             parser,
+            options,
             seq_delimiters: Vec::new(),
             delimiter_check_pending: false,
             in_sequence: false,
             hard_break: false,
             last_header: None,
+            peek: None,
         })
     }
 }
@@ -145,14 +220,27 @@ where
     S: StatefulDecode,
 {
     /// Create a new iterator with the given stateful decoder.
+    #[inline]
     pub fn new(parser: S) -> Self {
+        LazyDataSetReader::new_with_options(parser, Default::default())
+    }
+
+    /// Create a new lazy data set reader
+    /// using the given stateful decoder,
+    /// with extra parsing options.
+    pub fn new_with_options(parser: S, options: LazyDataSetReaderOptions) -> Self
+    where
+        S: StatefulDecode,
+    {
         LazyDataSetReader {
             parser,
+            options,
             seq_delimiters: Vec::new(),
             delimiter_check_pending: false,
             in_sequence: false,
             hard_break: false,
             last_header: None,
+            peek: None,
         }
     }
 }
@@ -222,6 +310,20 @@ where
         if self.hard_break {
             return None;
         }
+
+        // if there was a peek, consume peeked token
+        if let Some(peek) = self.peek.take() {
+            let token = match peek {
+                DataToken::ElementHeader(header) => LazyDataToken::ElementHeader(header),
+                DataToken::SequenceStart { tag, len } => LazyDataToken::SequenceStart { tag, len },
+                DataToken::ItemStart { len } => LazyDataToken::ItemStart { len },
+                DataToken::ItemEnd => LazyDataToken::ItemEnd,
+                DataToken::SequenceEnd => LazyDataToken::SequenceEnd,
+                _ => unreachable!("peeked token should not be a value token"),
+            };
+            return Some(Ok(token));
+        }
+
         // record the reading position before any further reading
         let bytes_read = self.parser.position();
 
@@ -244,6 +346,18 @@ where
                 Ok(header) => {
                     match header {
                         SequenceItemHeader::Item { len } => {
+
+                            // sanitize length
+                            let Some(len) = self.sanitize_length(len) else {
+                                return Some(
+                                    InvalidItemLengthSnafu {
+                                        len: len.0,
+                                        bytes_read: self.parser.position(),
+                                    }
+                                    .fail(),
+                                )
+                            };
+
                             // entered a new item
                             self.in_sequence = false;
                             self.push_sequence_token(
@@ -257,7 +371,7 @@ where
                                 self.delimiter_check_pending = true;
                             }
                             Some(Ok(LazyDataToken::ItemStart { len }))
-                        }
+                        },
                         SequenceItemHeader::ItemDelimiter => {
                             // closed an item
                             self.seq_delimiters.pop();
@@ -290,6 +404,16 @@ where
         {
             // item value
 
+            let Some(len) = self.sanitize_length(*len) else {
+                return Some(
+                    InvalidItemLengthSnafu {
+                        len: len.0,
+                        bytes_read: self.parser.position(),
+                    }
+                    .fail(),
+                );
+            };
+
             let len = match len
                 .get()
                 .with_context(|| UndefinedLengthSnafu { bytes_read })
@@ -313,6 +437,18 @@ where
                 match self.parser.decode_item_header() {
                     Ok(header) => match header {
                         SequenceItemHeader::Item { len } => {
+
+                            // sanitize length
+                            let Some(len) = self.sanitize_length(len) else {
+                                return Some(
+                                    InvalidItemLengthSnafu {
+                                        len: len.0,
+                                        bytes_read: self.parser.position(),
+                                    }
+                                    .fail(),
+                                );
+                            };
+
                             // entered a new item
                             self.in_sequence = false;
                             self.push_sequence_token(SeqTokenType::Item, len, true);
@@ -358,6 +494,17 @@ where
                     vr: VR::SQ,
                     len,
                 }) => {
+                    let Some(len) = self.sanitize_length(len) else {
+                        return Some(
+                            InvalidElementLengthSnafu {
+                                tag,
+                                len: len.0,
+                                bytes_read: self.parser.position(),
+                            }
+                            .fail(),
+                        );
+                    };
+
                     self.in_sequence = true;
                     self.push_sequence_token(SeqTokenType::Sequence, len, false);
 
@@ -398,7 +545,20 @@ where
 
                     Some(Ok(LazyDataToken::SequenceStart { tag, len }))
                 }
-                Ok(header) => {
+                Ok(mut header) => {
+                    // sanitize length
+                    let Some(len) = self.sanitize_length(header.len) else {
+                        return Some(
+                            InvalidElementLengthSnafu {
+                                tag: header.tag,
+                                len: header.len.0,
+                                bytes_read: self.parser.position(),
+                            }
+                            .fail(),
+                        );
+                    };
+                    header.len = len;
+
                     // save it for the next step
                     self.last_header = Some(header);
                     Some(Ok(LazyDataToken::ElementHeader(header)))
@@ -422,13 +582,74 @@ where
             }
         }
     }
+
+    /// Peek the next token from the source by
+    /// reading a new token in the first call.
+    /// Subsequent calls to `peek` will return the same token
+    /// until another consumer method is called.
+    ///
+    /// Peeking only works in a data or item element boundary,
+    /// so the returned data token is either an element header or an item header.
+    /// At the moment, a failed peek will result in a hard break,
+    /// preventing further iteration.
+    pub fn peek(&mut self) -> Result<Option<&DataToken>> {
+        if self.peek.is_none() {
+            // try to read the next token
+            match self.advance() {
+                None => return Ok(None),
+                Some(Err(e)) => return Err(e),
+                Some(Ok(token)) => match token {
+                    LazyDataToken::ElementHeader(header) => {
+                        self.peek = Some(DataToken::ElementHeader(header));
+                    }
+                    LazyDataToken::SequenceStart { tag, len } => {
+                        self.peek = Some(DataToken::SequenceStart { tag, len });
+                    }
+                    LazyDataToken::ItemStart { len } => {
+                        self.peek = Some(DataToken::ItemStart { len });
+                    }
+                    LazyDataToken::ItemEnd => {
+                        self.peek = Some(DataToken::ItemEnd);
+                    }
+                    LazyDataToken::SequenceEnd => {
+                        self.peek = Some(DataToken::SequenceEnd);
+                    }
+                    _ => {
+                        self.hard_break = true;
+                        return PeekSnafu {
+                            bytes_read: self.parser.position(),
+                        }
+                        .fail();
+                    }
+                },
+            }
+        }
+        Ok(self.peek.as_ref())
+    }
+
+    /// Check for a non-compliant length
+    /// and handle it according to the current strategy.
+    /// Returns `None` if the length cannot or should not be resolved.
+    fn sanitize_length(&self, length: Length) -> Option<Length> {
+        if length.is_defined() && length.0 & 1 != 0 {
+            match self.options.odd_length {
+                OddLengthStrategy::Accept => Some(length),
+                OddLengthStrategy::NextEven => Some(length + 1),
+                OddLengthStrategy::Fail => None,
+            }
+        } else {
+            Some(length)
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{LazyDataSetReader, StatefulDecode};
     use crate::{
-        dataset::{DataToken, LazyDataToken},
+        dataset::{
+            lazy_read::LazyDataSetReaderOptions, read::OddLengthStrategy, DataToken, LazyDataToken,
+        },
         StatefulDecoder,
     };
     use dicom_core::value::PrimitiveValue;
@@ -1146,6 +1367,184 @@ mod tests {
         assert!(
             dset_reader.advance().is_none(),
             "unexpected number of tokens remaining"
+        );
+    }
+
+    #[test]
+    fn peek_data_elements() {
+        #[rustfmt::skip]
+        static DATA: &[u8] = &[
+            0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
+            b'S', b'Q', // VR
+            0x00, 0x00, // reserved
+            0xff, 0xff, 0xff, 0xff, // length: undefined
+            // -- 12 --
+            0xfe, 0xff, 0xdd, 0xe0, 0x00, 0x00, 0x00, 0x00, // sequence end
+            // -- 20 --
+            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4
+            // -- 28 --
+            b'T', b'E', b'S', b'T', // value = "TEST"
+            // -- 32 --
+        ];
+
+        let ground_truth = vec![
+            DataToken::SequenceStart {
+                tag: Tag(0x0018, 0x6011),
+                len: Length::UNDEFINED,
+            },
+            DataToken::SequenceEnd,
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0020, 0x4000),
+                vr: VR::LT,
+                len: Length(4),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
+        ];
+
+        let mut cursor = DATA;
+        let parser = StatefulDecoder::new(
+            &mut cursor,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder::default(),
+            SpecificCharacterSet::default(),
+        );
+        let mut dset_reader = LazyDataSetReader::new(parser);
+
+        // peek at first token
+        let token = dset_reader.peek().expect("should peek first token OK");
+        assert_eq!(token, Some(&ground_truth[0]));
+
+        assert_eq!(dset_reader.parser.position(), 12);
+
+        // peeking multiple times gives the same result
+        let token = dset_reader
+            .peek()
+            .expect("should peek first token again OK");
+        assert_eq!(token, Some(&ground_truth[0]));
+
+        assert_eq!(dset_reader.parser.position(), 12);
+
+        // Using `advance` give us the same token
+        let token = dset_reader
+            .advance()
+            .expect("expected token")
+            .expect("should read token peeked OK");
+        assert_eq!(&token.into_owned().unwrap(), &ground_truth[0]);
+
+        assert_eq!(dset_reader.parser.position(), 12);
+
+        // sequence end
+        let token = dset_reader
+            .advance()
+            .expect("expected token")
+            .expect("should read token OK");
+        assert_eq!(&token.into_owned().unwrap(), &ground_truth[1]);
+
+        assert_eq!(dset_reader.parser.position(), 20);
+
+        // peek data element header
+        let token = dset_reader.peek().expect("should peek first token OK");
+        assert_eq!(token, Some(&ground_truth[2]));
+
+        assert_eq!(dset_reader.parser.position(), 28);
+
+        // read data element header
+        let token = dset_reader
+            .advance()
+            .expect("expected token")
+            .expect("should read token OK");
+        assert_eq!(&token.into_owned().unwrap(), &ground_truth[2]);
+
+        // should not have read anything else
+        assert_eq!(dset_reader.parser.position(), 28);
+
+        // read string value
+        let token = dset_reader
+            .advance()
+            .expect("expected token")
+            .expect("should read token OK");
+        assert_eq!(&token.into_owned().unwrap(), &ground_truth[3]);
+
+        // finished reading, peek should return None
+        assert!(dset_reader.peek().unwrap().is_none());
+    }
+
+    #[test]
+    fn read_odd_length_element() {
+        #[rustfmt::skip]
+        static DATA: &[u8] = &[
+            0x08, 0x00, 0x16, 0x00, // (0008,0016) SOPClassUID
+            b'U', b'I', // VR
+            0x0b, 0x00, // len = 11
+            b'1', b'.', b'2', b'.', b'8', b'4', b'0', b'.', b'1', b'0', b'0',
+            0x00, // padding
+        ];
+
+        let ground_truth = vec![
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0008, 0x0016),
+                vr: VR::UI,
+                len: Length(12),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::from("1.2.840.100\0")),
+        ];
+
+        // strategy: assume next even
+
+        let mut cursor = DATA;
+        let parser = StatefulDecoder::new(
+            &mut cursor,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            SpecificCharacterSet::default(),
+        );
+        let mut dset_reader = LazyDataSetReader::new_with_options(
+            parser,
+            LazyDataSetReaderOptions {
+                odd_length: OddLengthStrategy::NextEven,
+                ..Default::default()
+            },
+        );
+
+        // read next
+        let token = dset_reader
+            .advance()
+            .expect("expected token")
+            .expect("should read token OK");
+
+        assert_eq!(&token.into_owned().unwrap(), &ground_truth[0],);
+
+        // strategy: fail
+
+        let mut cursor = DATA;
+        let parser = StatefulDecoder::new(
+            &mut cursor,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            SpecificCharacterSet::default(),
+        );
+        let mut dset_reader = LazyDataSetReader::new_with_options(
+            parser,
+            LazyDataSetReaderOptions {
+                odd_length: OddLengthStrategy::Fail,
+                ..Default::default()
+            },
+        );
+
+        let token = dset_reader.advance();
+
+        assert!(
+            matches!(
+                token,
+                Some(Err(super::Error::InvalidElementLength {
+                    tag: Tag(0x0008, 0x0016),
+                    len: 11,
+                    bytes_read: 8,
+                    ..
+                })),
+            ),
+            "got: {:?}",
+            token
         );
     }
 }
