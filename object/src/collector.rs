@@ -358,15 +358,22 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CollectionSource::Raw {
-                reader: _,
+                reader,
                 ts_index,
                 odd_length,
             } => f
                 .debug_struct("Raw")
                 .field("ts_index", ts_index)
                 .field("odd_length", odd_length)
-                .finish_non_exhaustive(),
-            CollectionSource::Parser(_) => f.debug_tuple("Parser").finish_non_exhaustive(),
+                .field(
+                    "reader",
+                    &match reader {
+                        Some(_) => "Some(_)",
+                        None => "None",
+                    },
+                )
+                .finish(),
+            CollectionSource::Parser(_) => f.write_str("Parser(..)"),
         }
     }
 }
