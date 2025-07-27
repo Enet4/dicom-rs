@@ -40,7 +40,7 @@
 //! To enable support for reading and writing deflated data sets
 //! (such as _Deflated Explicit VR Little Endian_),
 //! enable **Cargo feature `deflated`**.
-//! 
+//!
 //! When working with imaging data,
 //! consider using the [`dicom-pixeldata`] crate,
 //! which offers methods to convert pixel data from objects
@@ -105,7 +105,7 @@
 //! # Ok(())
 //! # }
 //! ```
-//! 
+//!
 //! ### Writing DICOM
 //!
 //! **Note:** the code above will only work if you are fetching native pixel data.
@@ -185,16 +185,16 @@
 //! # }
 //! # run().unwrap();
 //! ```
+pub mod collector;
 pub mod file;
 pub mod mem;
 pub mod meta;
 pub mod ops;
-pub mod collector;
 pub mod tokens;
 
+pub use crate::collector::{DicomCollector, DicomCollectorOptions};
 pub use crate::file::{from_reader, open_file, OpenFileOptions};
 pub use crate::mem::InMemDicomObject;
-pub use crate::collector::{DicomCollectorOptions, DicomCollector};
 pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
 use dicom_core::ops::{AttributeSelector, AttributeSelectorStep};
 use dicom_core::value::{DicomValueType, ValueType};
@@ -215,7 +215,7 @@ use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use itertools::Either;
 use meta::FileMetaAttribute;
 use smallvec::SmallVec;
-use snafu::{Backtrace, ResultExt, Snafu};
+use snafu::{prelude::*, Backtrace};
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -698,7 +698,11 @@ pub enum ReadError {
     #[snafu(display("Unrecognized transfer syntax `{}`", uid))]
     ReadUnrecognizedTransferSyntax { uid: String, backtrace: Backtrace },
     #[snafu(display("Unsupported reading for transfer syntax `{}` ({})", uid, name))]
-    ReadUnsupportedTransferSyntax { uid: &'static str, name: &'static str, backtrace: Backtrace },
+    ReadUnsupportedTransferSyntax {
+        uid: &'static str,
+        name: &'static str,
+        backtrace: Backtrace,
+    },
     #[snafu(display(
         "Unsupported reading for transfer syntax `{uid}` ({name}, try enabling feature `{feature_name}`)"
     ))]
@@ -755,7 +759,11 @@ pub enum WriteError {
     #[snafu(display("Unrecognized transfer syntax `{uid}`"))]
     WriteUnrecognizedTransferSyntax { uid: String, backtrace: Backtrace },
     #[snafu(display("Unsupported transfer syntax `{uid}` ({name})"))]
-    WriteUnsupportedTransferSyntax { uid: &'static str, name: &'static str, backtrace: Backtrace },
+    WriteUnsupportedTransferSyntax {
+        uid: &'static str,
+        name: &'static str,
+        backtrace: Backtrace,
+    },
     #[snafu(display(
         "Unsupported transfer syntax `{uid}` ({name}, try enabling feature `{feature_name}`)"
     ))]
@@ -1017,12 +1025,13 @@ where
                     .context(PrintDataSetSnafu)?;
 
                 Ok(())
-            },
+            }
             Codec::Dataset(None) => {
                 // dataset adapter needed, but not provided
                 if ts_uid == uids::DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN
                     || ts_uid == uids::JPIP_REFERENCED_DEFLATE
-                    || ts_uid == uids::JPIPHTJ2K_REFERENCED_DEFLATE {
+                    || ts_uid == uids::JPIPHTJ2K_REFERENCED_DEFLATE
+                {
                     return WriteUnsupportedTransferSyntaxWithSuggestionSnafu {
                         uid: ts.uid(),
                         name: ts.name(),
