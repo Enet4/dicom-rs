@@ -10,8 +10,14 @@
 //! For additional file reading options, use [`OpenFileOptions`].
 //! New DICOM instances can be built from scratch using [`InMemDicomObject`]
 //! (see the [`mem`] module for more details).
+//! The current default file DICOM object implementation
+//! loads the file entirely in memory.
+//! To read DICOM data sets in smaller portions,
+//! use the [DICOM collector API](collector).
 //!
 //! # Examples
+//!
+//! ### Reading DICOM
 //!
 //! Read an object and fetch some attributes:
 //!
@@ -62,6 +68,8 @@
 //! # Ok(())
 //! # }
 //! ```
+//! 
+//! ### Writing DICOM
 //!
 //! **Note:** if you need to decode the pixel data first,
 //! see the [dicom-pixeldata] crate.
@@ -137,10 +145,12 @@ pub mod file;
 pub mod mem;
 pub mod meta;
 pub mod ops;
+pub mod collector;
 pub mod tokens;
 
 pub use crate::file::{from_reader, open_file, OpenFileOptions};
 pub use crate::mem::InMemDicomObject;
+pub use crate::collector::{DicomCollectorOptions, DicomCollector};
 pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
 use dicom_core::ops::AttributeSelector;
 use dicom_core::DataDictionary;
