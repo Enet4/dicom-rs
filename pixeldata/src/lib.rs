@@ -146,7 +146,7 @@ pub mod encapsulation;
 pub(crate) mod transform;
 
 // re-exports
-pub use attribute::{PhotometricInterpretation, PixelRepresentation, PlanarConfiguration};
+pub use attribute::{PhotometricInterpretation, PixelRepresentation, PlanarConfiguration, AttributeName};
 pub use lut::{CreateLutError, Lut};
 pub use transcode::{Error as TranscodeError, Result as TranscodeResult, Transcode};
 pub use transform::{Rescale, VoiLutFunction, WindowLevel, WindowLevelTransform};
@@ -160,8 +160,9 @@ pub struct Error(InnerError);
 
 /// Inner error type
 #[derive(Debug, Snafu)]
-pub enum InnerError {
-    #[snafu(display("Failed to get required DICOM attribute"))]
+#[non_exhaustive]
+enum InnerError {
+    #[snafu(transparent)]
     GetAttribute {
         #[snafu(backtrace)]
         source: attribute::GetAttributeError,
@@ -173,31 +174,34 @@ pub enum InnerError {
     #[snafu(display("Invalid BitsAllocated, must be 1, 8 or 16"))]
     InvalidBitsAllocated { backtrace: Backtrace },
 
-    #[snafu(display("Unsupported PhotometricInterpretation `{}`", pi))]
+    #[cfg(any(feature = "image", feature = "gdcm"))]
+    #[snafu(display("Unsupported PhotometricInterpretation `{pi}`"))]
     UnsupportedPhotometricInterpretation {
         pi: PhotometricInterpretation,
         backtrace: Backtrace,
     },
 
-    #[snafu(display("Unsupported SamplesPerPixel `{}`", spp))]
+    #[cfg(feature = "image")]
+    #[snafu(display("Unsupported SamplesPerPixel `{spp}`"))]
     UnsupportedSamplesPerPixel { spp: u16, backtrace: Backtrace },
 
-    #[snafu(display("Unsupported {} `{}`", name, value))]
+    #[snafu(display("Unsupported {name} `{value}`"))]
     UnsupportedOther {
         name: &'static str,
         value: String,
         backtrace: Backtrace,
     },
 
-    #[snafu(display("Unknown transfer syntax `{}`", ts_uid))]
+    #[snafu(display("Unknown transfer syntax `{ts_uid}`"))]
     UnknownTransferSyntax {
         ts_uid: String,
         backtrace: Backtrace,
     },
 
-    #[snafu(display("Unsupported TransferSyntax `{}`", ts))]
+    #[snafu(display("Unsupported TransferSyntax `{ts}`"))]
     UnsupportedTransferSyntax { ts: String, backtrace: Backtrace },
 
+    #[cfg(feature = "image")]
     #[snafu(display("Invalid buffer when constructing ImageBuffer"))]
     InvalidImageBuffer { backtrace: Backtrace },
 
@@ -217,38 +221,47 @@ pub enum InnerError {
     #[snafu(display("Invalid data type for ndarray element"))]
     InvalidDataType { backtrace: Backtrace },
 
-    #[snafu(display("Unsupported color space"))]
-    UnsupportedColorSpace { backtrace: Backtrace },
-
     #[snafu(display("Could not decode pixel data"))]
     DecodePixelData { source: DecodeError },
 
-    #[snafu(display("Frame #{} is out of range", frame_number))]
+    #[snafu(display("Frame #{frame_number} is out of range"))]
     FrameOutOfRange {
         frame_number: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display("Value multiplicity of VOI LUT Function must match the number of frames. Expected `{:?}`, found `{:?}`", nr_frames, vm))]
+    #[snafu(display("Value multiplicity of VOI LUT Function must match the number of frames. Expected `{nr_frames:?}`, found `{vm:?}`"))]
     LengthMismatchVoiLutFunction {
         vm: u32,
         nr_frames: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display("Value multiplicity of Rescale Slope/Intercept must match. Found `{:?}` (slope), `{:?}` (intercept)", slope_vm, intercept_vm))]
+    #[snafu(display("Value multiplicity of Rescale Slope/Intercept must match. Found `{slope_vm:?}` (slope), `{intercept_vm:?}` (intercept)"))]
     LengthMismatchRescale {
         intercept_vm: u32,
         slope_vm: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display("Value multiplicity of Window Center/Width must match. Found `{:?}` (center), `{:?}` (width)", wc_vm, ww_vm))]
+    #[snafu(display("Value multiplicity of Window Center/Width must match. Found `{wc_vm:?}` (center), `{ww_vm:?}` (width)"))]
     LengthMismatchWindowLevel {
         wc_vm: u32,
         ww_vm: u32,
         backtrace: Backtrace,
     },
+    #[snafu(display("Value multiplicity of VOI LUT must match the number of frames. Expected `{nr_frames:?}`, found `{vm:?}`"))]
+    LengthMismatchVoiLut {
+        vm: u32,
+        nr_frames: u32,
+        backtrace: Backtrace,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+impl From<attribute::GetAttributeError> for crate::Error {
+    fn from(source: attribute::GetAttributeError) -> Self {
+        Error(crate::InnerError::GetAttribute { source })
+    }
+}
 
 /// Option set for converting decoded pixel data
 /// into other common data structures,
@@ -661,7 +674,7 @@ impl DecodedPixelData<'_> {
                         Ok(Some(inner.as_slice()))
                     } else {
                         if self.enforce_frame_fg_vm_match {
-                            LengthMismatchVoiLutFunctionSnafu {
+                            LengthMismatchVoiLutSnafu {
                                 vm: *len as u32,
                                 nr_frames: self.number_of_frames(),
                             }
@@ -2061,20 +2074,20 @@ impl ImagingProperties {
         use attribute::*;
         use std::convert::TryFrom;
 
-        let cols = cols(obj).context(GetAttributeSnafu)?;
-        let rows = rows(obj).context(GetAttributeSnafu)?;
+        let cols = cols(obj)?;
+        let rows = rows(obj)?;
         let photometric_interpretation =
-            photometric_interpretation(obj).context(GetAttributeSnafu)?;
-        let samples_per_pixel = samples_per_pixel(obj).context(GetAttributeSnafu)?;
-        let planar_configuration = planar_configuration(obj).context(GetAttributeSnafu)?;
-        let bits_allocated = bits_allocated(obj).context(GetAttributeSnafu)?;
-        let bits_stored = bits_stored(obj).context(GetAttributeSnafu)?;
-        let high_bit = high_bit(obj).context(GetAttributeSnafu)?;
-        let pixel_representation = pixel_representation(obj).context(GetAttributeSnafu)?;
+            photometric_interpretation(obj)?;
+        let samples_per_pixel = samples_per_pixel(obj)?;
+        let planar_configuration = planar_configuration(obj)?;
+        let bits_allocated = bits_allocated(obj)?;
+        let bits_stored = bits_stored(obj)?;
+        let high_bit = high_bit(obj)?;
+        let pixel_representation = pixel_representation(obj)?;
         let rescale_intercept = rescale_intercept(obj);
         let rescale_slope = rescale_slope(obj);
-        let number_of_frames = number_of_frames(obj).context(GetAttributeSnafu)?;
-        let voi_lut_function = voi_lut_function(obj).context(GetAttributeSnafu)?;
+        let number_of_frames = number_of_frames(obj)?;
+        let voi_lut_function = voi_lut_function(obj)?;
         let voi_lut_function: Option<Vec<VoiLutFunction>> = voi_lut_function.and_then(|fns| {
             fns.iter()
                 .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
@@ -2141,7 +2154,7 @@ where
     D: DataDictionary + Clone,
 {
     fn decode_pixel_data(&self) -> Result<DecodedPixelData<'_>> {
-        let pixel_data = attribute::pixel_data(self).context(GetAttributeSnafu)?;
+        let pixel_data = attribute::pixel_data(self)?;
 
         let ImagingProperties {
             cols,
@@ -2250,7 +2263,7 @@ where
     }
 
     fn decode_pixel_data_frame(&self, frame: u32) -> Result<DecodedPixelData<'_>> {
-        let pixel_data = attribute::pixel_data(self).context(GetAttributeSnafu)?;
+        let pixel_data = attribute::pixel_data(self)?;
 
         let ImagingProperties {
             cols,

@@ -1,7 +1,7 @@
 //! Decode pixel data using GDCM when the default features are enabled.
 
 use crate::{
-    DecodePixelDataSnafu, DecodedPixelData, GetAttributeSnafu, InvalidPixelDataSnafu,
+    DecodePixelDataSnafu, DecodedPixelData, InvalidPixelDataSnafu,
     LengthMismatchRescaleSnafu, LengthMismatchWindowLevelSnafu, PixelDecoder, Rescale, Result,
     UnknownTransferSyntaxSnafu, UnsupportedPhotometricInterpretationSnafu,
     UnsupportedTransferSyntaxSnafu, VoiLutFunction, WindowLevel,
@@ -25,13 +25,13 @@ where
     fn decode_pixel_data(&self) -> Result<DecodedPixelData<'_>> {
         use super::attribute::*;
 
-        let pixel_data = pixel_data(self).context(GetAttributeSnafu)?;
+        let pixel_data = pixel_data(self)?;
 
-        let cols = cols(self).context(GetAttributeSnafu)?;
-        let rows = rows(self).context(GetAttributeSnafu)?;
+        let cols = cols(self)?;
+        let rows = rows(self)?;
 
         let photometric_interpretation =
-            photometric_interpretation(self).context(GetAttributeSnafu)?;
+            photometric_interpretation(self)?;
         let pi_type = match photometric_interpretation {
             PhotometricInterpretation::PaletteColor => GDCMPhotometricInterpretation::PALETTE_COLOR,
             _ => GDCMPhotometricInterpretation::from_str(photometric_interpretation.as_str())
@@ -57,14 +57,14 @@ where
             .build()
         })?;
 
-        let samples_per_pixel = samples_per_pixel(self).context(GetAttributeSnafu)?;
-        let bits_allocated = bits_allocated(self).context(GetAttributeSnafu)?;
-        let bits_stored = bits_stored(self).context(GetAttributeSnafu)?;
-        let high_bit = high_bit(self).context(GetAttributeSnafu)?;
-        let pixel_representation = pixel_representation(self).context(GetAttributeSnafu)?;
+        let samples_per_pixel = samples_per_pixel(self)?;
+        let bits_allocated = bits_allocated(self)?;
+        let bits_stored = bits_stored(self)?;
+        let high_bit = high_bit(self)?;
+        let pixel_representation = pixel_representation(self)?;
         let rescale_intercept = rescale_intercept(self);
         let rescale_slope = rescale_slope(self);
-        let number_of_frames = number_of_frames(self).context(GetAttributeSnafu)?;
+        let number_of_frames = number_of_frames(self)?;
         let voi_lut_function: Option<Vec<VoiLutFunction>> =
             voi_lut_function(self).unwrap_or(None).and_then(|fns| {
                 fns.iter()
@@ -187,13 +187,13 @@ where
     fn decode_pixel_data_frame(&self, frame: u32) -> Result<DecodedPixelData<'_>> {
         use super::attribute::*;
 
-        let pixel_data = pixel_data(self).context(GetAttributeSnafu)?;
+        let pixel_data = pixel_data(self)?;
 
-        let cols = cols(self).context(GetAttributeSnafu)?;
-        let rows = rows(self).context(GetAttributeSnafu)?;
+        let cols = cols(self)?;
+        let rows = rows(self)?;
 
         let photometric_interpretation =
-            photometric_interpretation(self).context(GetAttributeSnafu)?;
+            photometric_interpretation(self)?;
         let pi_type = match photometric_interpretation {
             PhotometricInterpretation::PaletteColor => GDCMPhotometricInterpretation::PALETTE_COLOR,
             _ => GDCMPhotometricInterpretation::from_str(photometric_interpretation.as_str())
@@ -219,11 +219,11 @@ where
             .build()
         })?;
 
-        let samples_per_pixel = samples_per_pixel(self).context(GetAttributeSnafu)?;
-        let bits_allocated = bits_allocated(self).context(GetAttributeSnafu)?;
-        let bits_stored = bits_stored(self).context(GetAttributeSnafu)?;
-        let high_bit = high_bit(self).context(GetAttributeSnafu)?;
-        let pixel_representation = pixel_representation(self).context(GetAttributeSnafu)?;
+        let samples_per_pixel = samples_per_pixel(self)?;
+        let bits_allocated = bits_allocated(self)?;
+        let bits_stored = bits_stored(self)?;
+        let high_bit = high_bit(self)?;
+        let pixel_representation = pixel_representation(self)?;
         let planar_configuration = if let Ok(el) = self.element(tags::PLANAR_CONFIGURATION) {
             el.uint16().unwrap_or(0)
         } else {
@@ -231,7 +231,7 @@ where
         };
         let rescale_intercept = rescale_intercept(self);
         let rescale_slope = rescale_slope(self);
-        let number_of_frames = number_of_frames(self).context(GetAttributeSnafu)?;
+        let number_of_frames = number_of_frames(self)?;
         let voi_lut_function: Option<Vec<VoiLutFunction>> =
             voi_lut_function(self).unwrap_or(None).and_then(|fns| {
                 fns.iter()
