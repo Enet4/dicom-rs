@@ -29,4 +29,4 @@ dicom-parser = { path = "../parser", version = "0.8.2" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.8.2" }
 dicom-object = { path = "../object", version = "0.8.2", default-features = false }
 dicom-ul = { optional = true, path = "../ul", version = "0.8.2" }
-dicom-pixeldata = { optional = true, path = "../pixeldata", version = "0.8.1" }
+dicom-pixeldata = { optional = true, path = "../pixeldata", version = "0.8.2" }
