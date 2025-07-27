@@ -16,7 +16,7 @@ default = ['dicom-object/inventory-registry']
 
 [dependencies]
 clap = { version  = "4.0.18", features = ["derive"] }
-dicom-core = { path = "../core", version = "0.8.1" }
+dicom-core = { path = "../core", version = "0.8.2" }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.8.0" }
 dicom-object = { path = "../object/", version = "0.8.1" }
 snafu = "0.8"

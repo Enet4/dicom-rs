@@ -53,7 +53,7 @@ openjpeg-sys-threads = ["rayon", "jpeg2k?/threads"]
 zune-jpegxl-threads = ["zune-jpegxl?/threads"]
 
 [dependencies]
-dicom-core = { path = "../core", version = "0.8.1" }
+dicom-core = { path = "../core", version = "0.8.2" }
 dicom-encoding = { path = "../encoding", version = "0.8.1" }
 lazy_static = "1.2.0"
 byteordered = "0.6"
