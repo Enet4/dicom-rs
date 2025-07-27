@@ -4,20 +4,6 @@
 //! such as JPEG lossless,
 //! and convert it into more usable data structures.
 //!
-//! `dicom-pixeldata` currently supports a small,
-//! but increasing number of DICOM image encodings in pure Rust.
-//! As a way to mitigate the current gap,
-//! this library has an integration with [GDCM bindings]
-//! for an extended range of encodings.
-//! This integration is behind the Cargo feature "gdcm",
-//! which requires CMake and a C++ compiler.
-//!
-//! [GDCM bindings]: https://crates.io/crates/gdcm-rs
-//!
-//! ```toml
-//! dicom-pixeldata = { version = "0.7", features = ["gdcm"] }
-//! ```
-//!
 //! Once the pixel data is decoded,
 //! the decoded data can be converted to:
 //! - a vector of flat pixel data values;
@@ -25,13 +11,46 @@
 //! - or a [dynamic image object](image::DynamicImage), using [`image`].
 //!
 //! This conversion includes
-//! eventual Modality and value of interest (VOI) transformations.
+//! eventual Modality and value of interest (VOI) transformations,
+//! either for further processing or presentation.
+//!
+//! # Encoding support
+//!
+//! The pixel data encodings supported by `dicom-pixeldata`
+//! are backed by the [`dicom-transfer-syntax-registry`][ts-registry] crate.
+//! By default, this crate will consider this set of image encoding implementations written in pure Rust:
+//!
+//! - `jpeg` for JPEG lossy and lossless encodings via `jpeg-decoder` and `jpeg-encoder`;
+//! - `rle` for RLE compressed pixel data;
+//! - `deflate` for deflated data set compression via `flate2`.
+//! 
+//! See the [`dicom-transfer-syntax-registry` documentation][ts-registry]
+//! for an extended list of supported encodings and more details.
+//! 
+//! Alternatively, this library has an integration with [GDCM bindings],
+//! which serves as a different backend.
+//! This allows for decoding pixel data
+//! in transfer syntaxes which are only supported by GDCM.
+//! This integration is behind the Cargo feature "gdcm",
+//! which requires CMake and a C++ compiler.
+//!
+//! [ts-registry]: https://docs.rs/dicom-transfer-syntax-registry
+//! [GDCM bindings]: https://crates.io/crates/gdcm-rs
+//!
+//! ```toml
+//! dicom-pixeldata = { version = "0.8", features = ["gdcm"] }
+//! ```
+//!
+//! # Usage
+//! 
 //!
 //! # WebAssembly support
+//!
 //! This library works in WebAssembly with the following two measures:
 //!  - Ensure that the "gdcm" feature is disabled.
-//!    This allows the crate to be compiled for WebAssembly
-//!    albeit at the cost of supporting a lesser variety of compression algorithms.
+//!    Some Cargo feature referring to encodings
+//!    which depend on bindings to C or C++ libraries
+//!    might also need to be disabled.
 //!  - And either set up [`wasm-bindgen-rayon`][1]
 //!    or disable the `rayon` feature.
 //!
@@ -2672,6 +2691,23 @@ mod tests {
             })) => {}
             _ => panic!("Unexpected positive outcome for out of range access"),
         }
+    }
+
+    #[test]
+    #[ignore = "test is unsound"]
+    fn test_can_read_deflated(){
+        
+        let path = dicom_test_files::path("pydicom/image_dfl.dcm").expect("test DICOM file should exist");
+    
+        // should read preamble even though it's from a reader
+        let obj = open_file(path.clone()).expect("Should read file");
+    
+        let res = obj.decode_pixel_data().expect("Should decode pixel data.");
+        assert_eq!(res.to_vec::<u8>().unwrap().len(), (res.rows() as usize * res.columns() as usize));
+        let mut buf = Vec::<u8>::new();
+        obj.write_all(&mut buf).expect("Should write deflated");
+
+        assert_eq!(std::fs::metadata(path).unwrap().len() as usize, buf.len())
     }
 
     #[cfg(not(feature = "gdcm"))]

@@ -52,6 +52,7 @@
 //!
 //! | transfer syntax               | decoding support     | encoding support |
 //! |-------------------------------|----------------------|------------------|
+//! | Deflated Explicit VR Little Endian | Cargo feature `deflate` | ✓ |
 //! | JPEG Baseline (Process 1)     | Cargo feature `jpeg` | ✓ |
 //! | JPEG Extended (Process 2 & 4) | Cargo feature `jpeg` | x |
 //! | JPEG Lossless, Non-Hierarchical (Process 14) | Cargo feature `jpeg` | x |
@@ -62,9 +63,11 @@
 //! | JPEG 2000                     | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | JPEG 2000 Part 2 Multi-component Image Compression | Cargo feature `openjp2` or `openjpeg-sys` | x |
+//! | JPIP Referenced Deflate       | Cargo feature `deflate` | ✓ |
 //! | High-Throughput JPEG 2000 (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | High-Throughput JPEG 2000 with RPCL Options (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | High-Throughput JPEG 2000     | Cargo feature `openjp2` or `openjpeg-sys` | x |
+//! | JPIP HTJ2K Referenced Deflate | Cargo feature `deflate` | ✓ |
 //! | JPEG XL Lossless              | Cargo feature `jpegxl` | ✓ |
 //! | JPEG XL Recompression         | Cargo feature `jpegxl` | x |
 //! | JPEG XL                       | Cargo feature `jpegxl` | ✓ |
@@ -114,6 +117,8 @@ pub use dicom_encoding::TransferSyntax;
 pub mod entries;
 
 mod adapters;
+#[cfg(feature = "deflate")]
+mod deflate;
 
 #[cfg(feature = "inventory-registry")]
 pub use dicom_encoding::inventory;

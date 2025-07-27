@@ -145,6 +145,7 @@ enum Error {
     /// No TransferSyntax
     NoNegotiatedTransferSyntax,
     /// Transcoding error
+    #[cfg(feature = "transcode")]
     Transcode {
         source: dicom_pixeldata::TranscodeError,
     },

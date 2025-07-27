@@ -4,15 +4,15 @@
 //! Only applicable to the inventory-based registry.
 #![cfg(feature = "inventory-registry")]
 
-use dicom_encoding::{Codec, TransferSyntaxIndex};
-use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-
 /// Assert that this transfer syntax is provided built-in as a stub.
 ///
-/// If this changes, please replace the transfer syntax to test against
-/// and override.
+/// This only applies if Cargo feature "deflate" is disabled.
+#[cfg(not(feature = "deflate"))]
 #[test]
 fn registry_has_stub_ts_by_default() {
+    use dicom_encoding::{Codec, TransferSyntaxIndex};
+    use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
+    
     // this TS is provided by default, but not fully supported
     let ts = TransferSyntaxRegistry.get("1.2.840.10008.1.2.4.95");
     assert!(ts.is_some());

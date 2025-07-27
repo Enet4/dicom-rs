@@ -40,6 +40,8 @@ use crate::adapters::jpegls::{JpegLsAdapter, JpegLsLosslessWriter};
 use crate::adapters::jpegxl::{JpegXlAdapter, JpegXlLosslessEncoder};
 #[cfg(feature = "rle")]
 use crate::adapters::rle_lossless::RleLosslessAdapter;
+#[cfg(feature = "deflate")]
+use crate::deflate::FlateAdapter;
 
 // -- the three base transfer syntaxes, fully supported --
 
@@ -181,23 +183,65 @@ pub const JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION: Ts = create_ts_
     "JPEG Lossless, Non-Hierarchical, First-Order Prediction",
 );
 
-// --- stub transfer syntaxes, known but not supported ---
+#[cfg(feature = "deflate")]
+/// **Fully implemented**: Deflated Explicit VR Little Endian
+pub const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN: TransferSyntax<FlateAdapter, NeverAdapter, NeverAdapter> = TransferSyntax::new(
+    "1.2.840.10008.1.2.1.99",
+    "Deflated Explicit VR Little Endian",
+    Endianness::Little,
+    true,
+    Codec::Dataset(Some(FlateAdapter)),
+);
 
+#[cfg(not(feature = "deflate"))]
 /// **Stub descriptor:** Deflated Explicit VR Little Endian
+///
+/// A native implementation is available
+/// by enabling the `deflate` Cargo feature.
 pub const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN: Ts = Ts::new_ele(
     "1.2.840.10008.1.2.1.99",
     "Deflated Explicit VR Little Endian",
     Codec::Dataset(None),
 );
 
+// --- stub transfer syntaxes, known but not supported ---
+
+/// **Implemented**: JPIP Referenced Deflate
+#[cfg(feature = "deflate")]
+pub const JPIP_REFERENCED_DEFLATE: TransferSyntax<FlateAdapter, NeverAdapter, NeverAdapter> = TransferSyntax::new(
+    "1.2.840.10008.1.2.4.95",
+    "JPIP Referenced Deflate",
+    Endianness::Little,
+    true,
+    Codec::Dataset(Some(FlateAdapter)),
+);
+
 /// **Stub descriptor:** JPIP Referenced Deflate
+///
+/// A native implementation is available
+/// by enabling the `deflate` Cargo feature.
+#[cfg(not(feature = "deflate"))]
 pub const JPIP_REFERENCED_DEFLATE: Ts = Ts::new_ele(
     "1.2.840.10008.1.2.4.95",
     "JPIP Referenced Deflate",
     Codec::Dataset(None),
 );
 
-/// **Stub descriptor:** JPIP Referenced Deflate
+/// **Implemented**: JPIP HTJ2K Referenced Deflate
+#[cfg(feature = "deflate")]
+pub const JPIP_HTJ2K_REFERENCED_DEFLATE: TransferSyntax<FlateAdapter, NeverAdapter, NeverAdapter> = TransferSyntax::new(
+    "1.2.840.10008.1.2.4.205",
+    "JPIP HT2JK Referenced Deflate",
+    Endianness::Little,
+    true,
+    Codec::Dataset(Some(FlateAdapter)),
+);
+
+/// **Stub descriptor:** JPIP HTJ2K Referenced Deflate
+///
+/// A native implementation is available
+/// by enabling the `deflate` Cargo feature.
+#[cfg(not(feature = "deflate"))]
 pub const JPIP_HTJ2K_REFERENCED_DEFLATE: Ts = Ts::new_ele(
     "1.2.840.10008.1.2.4.205",
     "JPIP HTJ2K Referenced Deflate",
