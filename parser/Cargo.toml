@@ -1,6 +1,6 @@
 [package]
 name = "dicom-parser"
-version = "0.8.1"
+version = "0.8.2"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A middle-level parser and printer of DICOM data sets"
 edition = "2018"
