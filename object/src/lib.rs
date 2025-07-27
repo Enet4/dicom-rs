@@ -23,6 +23,11 @@
 //!   to better serve other use cases.
 //!   If generic support for any DICOM object implementation is a requirement,
 //!   you can try using the [`DicomObject`] trait.
+//! - Currently, the default file DICOM object implementation
+//!   loads the complete contents of the file in memory,
+//!   including pixel data.
+//!   To read DICOM data sets in smaller portions,
+//!   you can use the [DICOM collector API](collector).
 //!
 //! # Encodings
 //!
