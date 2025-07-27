@@ -17,7 +17,7 @@ path = "src/bin/dicom-transcode.rs"
 required-features = ["cli"]
 
 [dependencies]
-dicom-object = { path = "../object", version = "0.8.1" }
+dicom-object = { path = "../object", version = "0.8.2" }
 dicom-core = { path = "../core", version = "0.8.2" }
 dicom-encoding = { path = "../encoding", version = "0.8.2" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.8.2" }

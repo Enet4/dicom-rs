@@ -18,7 +18,7 @@ default = ['dicom-object/inventory-registry', 'dicom-pixeldata/native', 'dicom-p
 clap = { version  = "4.0.18", features = ["derive"] }
 dicom-core = { path = "../core", version = "0.8.2" }
 dicom-dictionary-std = { version = "0.8.1", path = "../dictionary-std" }
-dicom-object = { path = "../object/", version = "0.8.1" }
+dicom-object = { path = "../object/", version = "0.8.2" }
 dicom-pixeldata = { path = "../pixeldata/", version = "0.8.1", default-features = false, features = ["image", "rayon"] }
 snafu = "0.8"
 tracing = "0.1.34"
