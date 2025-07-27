@@ -82,8 +82,7 @@ pub struct TransferSyntax<D = DynDataRWAdapter, R = DynPixelDataReader, W = DynP
 /// will usually not interact with it directly.
 /// In order to register a new transfer syntax,
 /// see the macro [`submit_transfer_syntax`](crate::submit_transfer_syntax).
-#[allow(unpredictable_function_pointer_comparisons)]
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub struct TransferSyntaxFactory(pub fn() -> TransferSyntax);
 
 #[cfg(feature = "inventory-registry")]
