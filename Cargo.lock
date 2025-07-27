@@ -572,7 +572,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-json"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "base64",
  "dicom-core",
