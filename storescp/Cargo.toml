@@ -13,7 +13,7 @@ readme = "README.md"
 [dependencies]
 clap = { version = "4.0.18", features = ["derive"] }
 dicom-core = { path = '../core', version = "0.8.2" }
-dicom-ul = { path = '../ul', version = "0.8.1", features = ["async"] }
+dicom-ul = { path = '../ul', version = "0.8.2", features = ["async"] }
 dicom-object = { path = '../object', version = "0.8.1" }
 dicom-encoding = { path = "../encoding/", version = "0.8.2" }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.8.1" }
