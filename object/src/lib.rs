@@ -1367,7 +1367,7 @@ where
     /// Non-encapsulated pixel data can be retrieved by requesting fragment #0.
     ///
     /// Panics if `fragment` is out of bounds for the encapsulated pixel data fragments.
-    fn fragment(&self, fragment: usize) -> Option<Cow<[u8]>> {
+    fn fragment(&self, fragment: usize) -> Option<Cow<'_, [u8]>> {
         let pixel_data = (**self).get(dicom_dictionary_std::tags::PIXEL_DATA)?;
         match pixel_data.value() {
             DicomValue::PixelSequence(v) => Some(Cow::Borrowed(v.fragments()[fragment].as_ref())),
@@ -1376,7 +1376,7 @@ where
         }
     }
 
-    fn offset_table(&self) -> Option<Cow<[u32]>> {
+    fn offset_table(&self) -> Option<Cow<'_, [u32]>> {
         let pixel_data = (**self).get(dicom_dictionary_std::tags::PIXEL_DATA)?;
         match pixel_data.value() {
             DicomValue::Primitive(_) => None,
