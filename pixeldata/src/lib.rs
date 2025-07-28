@@ -3130,7 +3130,7 @@ mod tests {
         let output_dir = Path::new("../target/dicom_test_files/_out/test_1bit_image_decoding");
         std::fs::create_dir_all(output_dir).unwrap();
 
-        assert_eq!(pixel_data.number_of_frames(), 1, "expected 1 frame only");
+        assert_eq!(pixel_data.number_of_frames(), 3, "expected 3 frames");
 
         let image = pixel_data.to_dynamic_image(0).unwrap();
         let image_path = output_dir.join(format!(
