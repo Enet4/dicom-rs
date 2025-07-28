@@ -2256,11 +2256,26 @@ where
             }
             DicomValue::Primitive(p) => {
                 // Non-encoded, just return the pixel data for all frames
-                p.to_bytes().to_vec()
+                let frame_data = p.to_bytes();
+
+                let pixel_data = if bits_allocated == 1 {
+                    let frame_pixels = (rows as usize) * (cols as usize);
+                    // Map every bit in each byte to a separate byte of either 0 or 255
+                    frame_data
+                        .iter()
+                        .flat_map(|&byte| (0..8).map(move |bit| ((byte >> bit) & 1) * 255))
+                        .take(frame_pixels)
+                        .collect()
+                } else {
+                    frame_data.to_vec()
+                };
+
+                pixel_data
             }
             DicomValue::Sequence(..) => InvalidPixelDataSnafu.fail()?,
         };
 
+        println!("asdf data.len() {:?}", decoded_pixel_data.len());
         Ok(DecodedPixelData {
             data: Cow::from(decoded_pixel_data),
             cols: cols.into(),
@@ -3074,7 +3089,7 @@ mod tests {
 
     #[cfg(feature = "image")]
     #[test]
-    fn test_1bit_image_decoding() {
+    fn test_1bit_image_decoding_data_frame() {
         use crate::PixelDecoder as _;
         use std::path::Path;
 
@@ -3083,8 +3098,36 @@ mod tests {
         println!("Parsing pixel data for {}", test_file.display());
         let obj = dicom_object::open_file(test_file).unwrap();
         let pixel_data = obj.decode_pixel_data_frame(0).unwrap();
-        let output_dir =
-            Path::new("../target/dicom_test_files/_out/test_1bit_image_decoding");
+        let output_dir = Path::new("../target/dicom_test_files/_out/test_1bit_image_decoding");
+        std::fs::create_dir_all(output_dir).unwrap();
+
+        assert_eq!(pixel_data.number_of_frames(), 1, "expected 1 frame only");
+
+        let image = pixel_data.to_dynamic_image(0).unwrap();
+        let image_path = output_dir.join(format!(
+            "{}-{}.png",
+            Path::new("pydicom/liver.dcm")
+                .file_stem()
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            0,
+        ));
+        image.save(image_path).unwrap();
+    }
+
+    #[cfg(feature = "image")]
+    #[test]
+    fn test_1bit_image_decoding_data() {
+        use crate::PixelDecoder as _;
+        use std::path::Path;
+
+        let test_file =
+            dicom_test_files::path("pydicom/liver.dcm").expect("test DICOM file should exist");
+        println!("Parsing pixel data for {}", test_file.display());
+        let obj = dicom_object::open_file(test_file).unwrap();
+        let pixel_data = obj.decode_pixel_data().unwrap();
+        let output_dir = Path::new("../target/dicom_test_files/_out/test_1bit_image_decoding");
         std::fs::create_dir_all(output_dir).unwrap();
 
         assert_eq!(pixel_data.number_of_frames(), 1, "expected 1 frame only");
