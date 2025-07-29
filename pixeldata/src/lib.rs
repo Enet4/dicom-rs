@@ -3123,7 +3123,6 @@ mod tests {
 
         let test_file =
             dicom_test_files::path("pydicom/liver.dcm").expect("test DICOM file should exist");
-        println!("Parsing pixel data for {}", test_file.display());
         let obj = dicom_object::open_file(test_file).unwrap();
         let pixel_data = obj.decode_pixel_data().unwrap();
         let output_dir = Path::new("../target/dicom_test_files/_out/test_1bit_image_decoding");
