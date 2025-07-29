@@ -2275,7 +2275,6 @@ where
             DicomValue::Sequence(..) => InvalidPixelDataSnafu.fail()?,
         };
 
-        println!("asdf data.len() {:?}", decoded_pixel_data.len());
         Ok(DecodedPixelData {
             data: Cow::from(decoded_pixel_data),
             cols: cols.into(),
