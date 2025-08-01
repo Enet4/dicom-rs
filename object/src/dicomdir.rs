@@ -1,42 +1,35 @@
 use std::path::Path;
 
-use crate::{DefaultDicomObject, OpenFileOptions, ReadError};
+use dicom_dictionary_std::tags;
 
-pub struct FileSet;
+use crate::{FileDicomObject, InMemDicomObject, OpenFileOptions, ReadError};
+
+pub struct DicomDir {
+    file: FileDicomObject<InMemDicomObject>,
+}
 
 pub type Result<T, E = ReadError> = std::result::Result<T, E>;
 
-impl FileSet {
-    pub fn new<P>(path: P) -> Result<DefaultDicomObject>
+impl DicomDir {
+    pub fn new<P>(path: P) -> Result<DicomDir>
     where
         P: AsRef<Path>,
     {
-        OpenFileOptions::new().open_file(path)
+        let default_dicom_object = OpenFileOptions::new()
+            .open_file(path)
+            .expect("could not load file");
+
+        Ok(Self {
+            file: default_dicom_object,
+        })
     }
-}
 
-#[cfg(test)]
-mod test {
-    use super::FileSet;
-    use dicom_dictionary_std::tags;
-    use std::env;
-
-    #[test]
-    fn test_dicom_dir() {
-        let current_dir = env::current_dir().unwrap();
-        println!("Current directory: {}", current_dir.display());
-        let path = "src/dicomdirtests/DICOMDIR";
-        let file_set_result = FileSet::new(&path);
-        let Ok(file_set) = file_set_result else {
-            println!("asdf not ok");
-            return;
-        };
-        file_set.tags().for_each(|tag| println!("{:?}", tag));
-        let directory_record_sequence = file_set
+    pub fn get_referenced_file_ids(&self) -> Vec<String> {
+        let directory_record_sequence = self.file
             .element(tags::DIRECTORY_RECORD_SEQUENCE)
-            .expect("could not get referenced_file_id")
+            .expect("could not get DIRECTORY_RECORD_SEQUENCE")
             .items()
-            .expect("could not get items of directory_record_sequence");
+            .expect("could not get items of DIRECTORY_RECORD_SEQUENCE");
 
         let referenced_file_ids: Vec<_> = directory_record_sequence
             .iter()
@@ -44,10 +37,31 @@ mod test {
                 item.element(tags::REFERENCED_FILE_ID)
                     .ok()
                     .and_then(|element| element.to_str().ok())
+                    .map(|cow_str| cow_str.into_owned())
             })
             .collect();
+        referenced_file_ids
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::DicomDir;
+    use std::env;
+
+    #[test]
+    fn test_dicom_dir() {
+        let current_dir = env::current_dir().unwrap();
+        println!("Current directory: {}", current_dir.display());
+        let path = "src/dicomdirtests/DICOMDIR";
+        let dicom_dir_result = DicomDir::new(&path);
+        let Ok(dicom_dir) = dicom_dir_result else {
+            println!("could not load dicom_dir");
+            return;
+        };
 
         println!("Referenced File IDs:");
+        let referenced_file_ids = dicom_dir.get_referenced_file_ids();
         for file_id in &referenced_file_ids {
             println!("  {}", file_id);
         }
