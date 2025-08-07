@@ -442,27 +442,18 @@ fn run_move_scu(app: App) -> Result<bool, Error> {
 
                     i += 1;
                 } else {
-                    let msg = format!("Operation failed (status code {status:x})");
-
-                    if status == 0xa701 {
-                        warn!("{} Out of resources (number of matches)", msg);
-                    } else if status == 0xa702 {
-                        warn!("{} Out of resources (sub-operations)", msg);
-                    } else if status == 0x0122 {
-                        warn!("{} SOP class not supported", msg);
-                    } else if status == 0xa801 {
-                        warn!("{} Move destination unknown", msg);
-                    } else if status == 0xa900 {
-                        warn!("{} Identifier does not match SOP class in C-MOVE response", msg);
-                    } else if status == 0xc000 {
-                        warn!("{} Unable to process C-MOVE response", msg);
-                    } else if status == 0xfe00 {
-                        warn!("{} Sub-operations terminated due to cancel indication", msg);
-                    } else if status == 0xb000 {
-                        warn!("{} Sub-operations complete with one or more failures", msg);
-                    } else {
-                        warn!("{} Unknown status code", msg);
-                    }
+                    let msg = match status {
+                        0xa701 => "Out of resources (number of matches)",
+                        0xa702 => "Out of resources (sub-operations)",
+                        0x0122 => "SOP class not supported",
+                        0xa801 => "Move destination unknown",
+                        0xa900 => "Identifier does not match SOP class in C-MOVE response",
+                        0xc000 => "Unable to process C-MOVE response",
+                        0xfe00 => "Sub-operations terminated due to cancel indication",
+                        0xb000 => "Sub-operations complete with one or more failures",
+                        _ => "Unknown status code",
+                    };
+                    warn!("Operation failed (status code {status:x}) {msg}");
 
                     break;
                 }
