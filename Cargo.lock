@@ -587,6 +587,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "dicom-movescu"
+version = "0.8.1"
+dependencies = [
+ "clap",
+ "dicom-core",
+ "dicom-dictionary-std",
+ "dicom-dump",
+ "dicom-encoding",
+ "dicom-object",
+ "dicom-transfer-syntax-registry",
+ "dicom-ul",
+ "snafu",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "dicom-object"
 version = "0.8.2"
 dependencies = [
