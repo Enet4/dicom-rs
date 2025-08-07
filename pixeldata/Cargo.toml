@@ -1,6 +1,6 @@
 [package]
 name = "dicom-pixeldata"
-version = "0.8.1"
+version = "0.8.2"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>", "Peter Evers <pevers90@gmail.com>"]
 edition = "2018"
 rust-version = "1.72.0"
@@ -17,11 +17,11 @@ path = "src/bin/dicom-transcode.rs"
 required-features = ["cli"]
 
 [dependencies]
-dicom-object = { path = "../object", version = "0.8.1" }
-dicom-core = { path = "../core", version = "0.8.1" }
-dicom-encoding = { path = "../encoding", version = "0.8.1" }
-dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.8.1" }
-dicom-dictionary-std = { path = "../dictionary-std", version = "0.8.0" }
+dicom-object = { path = "../object", version = "0.8.2" }
+dicom-core = { path = "../core", version = "0.8.2" }
+dicom-encoding = { path = "../encoding", version = "0.8.2" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.8.2" }
+dicom-dictionary-std = { path = "../dictionary-std", version = "0.8.1" }
 snafu = "0.8"
 byteorder = "1.4.3"
 gdcm-rs = { version = "0.6", optional = true }
@@ -56,7 +56,9 @@ ndarray = ["dep:ndarray"]
 image = ["dep:image"]
 
 # Rust native image codec implementations
-native = ["dicom-transfer-syntax-registry/native", "jpeg", "rle"]
+native = ["dicom-transfer-syntax-registry/native", "jpeg", "rle", "deflate"]
+# deflated transfer syntax reading and writing via flate2
+deflate = ['dicom-object/deflate', 'dicom-transfer-syntax-registry/deflate']
 # native JPEG codec implementation
 jpeg = ["dicom-transfer-syntax-registry/jpeg"]
 # native JPEG XL codec implementation

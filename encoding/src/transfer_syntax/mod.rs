@@ -82,8 +82,7 @@ pub struct TransferSyntax<D = DynDataRWAdapter, R = DynPixelDataReader, W = DynP
 /// will usually not interact with it directly.
 /// In order to register a new transfer syntax,
 /// see the macro [`submit_transfer_syntax`](crate::submit_transfer_syntax).
-#[allow(unpredictable_function_pointer_comparisons)]
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub struct TransferSyntaxFactory(pub fn() -> TransferSyntax);
 
 #[cfg(feature = "inventory-registry")]
@@ -227,21 +226,19 @@ macro_rules! submit_transfer_syntax {
 ///     // Name/alias
 ///     "CT Private ELE",
 ///     // pixel data codec
-///     Codec::EncapsulatedPixelData(None, None)
+///     Codec::encapsulated_pixel_data_stub()
 /// );
 /// ```
 ///
-/// With [`Codec::EncapsulatedPixelData(None, None)`][1],
+/// With [`Codec::EncapsulatedPixelData`],
 /// we are indicating that the transfer syntax uses encapsulated pixel data.
 /// albeit without the means to decode or encode it.
 /// See the [`adapters`](crate::adapters) module
 /// to know how to write pixel data encoders and decoders.
-///
-/// [1]: Codec::EncapsulatedPixelData
 macro_rules! submit_ele_transfer_syntax {
     ($uid: expr, $name: expr, $codec: expr) => {
         $crate::submit_transfer_syntax! {
-            $crate::AdapterFreeTransferSyntax::new_ele(
+            $crate::TransferSyntax::new_ele(
                 $uid,
                 $name,
                 $codec
@@ -315,62 +312,57 @@ pub enum Codec<D, R, W> {
     Dataset(Option<D>),
 }
 
+impl Codec<NeverAdapter, NeverPixelAdapter, NeverPixelAdapter> {
+    /// Create a stub codec for encapsulated pixel data
+    pub fn encapsulated_pixel_data_stub() -> Self {
+        Codec::EncapsulatedPixelData(None, None)
+    }
+}
+
+impl<R> Codec<NeverAdapter, R, NeverPixelAdapter> {
+    /// Create a codec for encapsulated pixel data
+    /// with a pixel data decoder but not an encoder
+    pub fn encapsulated_pixel_data_reader(reader: R) -> Self {
+        Codec::EncapsulatedPixelData(Some(reader), None)
+    }
+}
+
+impl<R, W> Codec<NeverAdapter, R, W> {
+    /// Create a codec for encapsulated pixel data
+    /// with a pixel data decoder and encoder
+    pub fn encapsulated_pixel_data(reader: R, writer: W) -> Self {
+        Codec::EncapsulatedPixelData(Some(reader), Some(writer))
+    }
+}
+
 /// An alias for a transfer syntax specifier with no pixel data encapsulation
 /// nor data set deflating.
 pub type AdapterFreeTransferSyntax =
     TransferSyntax<NeverAdapter, NeverPixelAdapter, NeverPixelAdapter>;
 
-/// An adapter of byte read and write streams.
-pub trait DataRWAdapter<R, W> {
-    /// The type of the adapted reader.
-    type Reader: Read;
-    /// The type of the adapted writer.
-    type Writer: Write;
-
+/// A fully dynamic adapter of byte read and write streams.
+pub trait DataRWAdapter {
     /// Adapt a byte reader.
-    fn adapt_reader(&self, reader: R) -> Self::Reader
-    where
-        R: Read;
+    fn adapt_reader<'r>(&self, reader: Box<dyn Read + 'r>) -> Box<dyn Read + 'r>;
 
     /// Adapt a byte writer.
-    fn adapt_writer(&self, writer: W) -> Self::Writer
-    where
-        W: Write;
+    fn adapt_writer<'w>(&self, writer: Box<dyn Write + 'w>) -> Box<dyn Write + 'w>;
 }
 
 /// Alias type for a dynamically dispatched data adapter.
-pub type DynDataRWAdapter = Box<
-    dyn DataRWAdapter<
-            Box<dyn Read>,
-            Box<dyn Write>,
-            Reader = Box<dyn Read>,
-            Writer = Box<dyn Write>,
-        > + Send
-        + Sync,
->;
+pub type DynDataRWAdapter = Box<dyn DataRWAdapter + Send + Sync>;
 
-impl<T, R, W> DataRWAdapter<R, W> for &'_ T
+impl<T> DataRWAdapter for &'_ T
 where
-    T: DataRWAdapter<R, W>,
-    R: Read,
-    W: Write,
+    T: DataRWAdapter,
 {
-    type Reader = <T as DataRWAdapter<R, W>>::Reader;
-    type Writer = <T as DataRWAdapter<R, W>>::Writer;
-
     /// Adapt a byte reader.
-    fn adapt_reader(&self, reader: R) -> Self::Reader
-    where
-        R: Read,
-    {
+    fn adapt_reader<'r>(&self, reader: Box<dyn Read + 'r>) -> Box<dyn Read + 'r> {
         (**self).adapt_reader(reader)
     }
 
     /// Adapt a byte writer.
-    fn adapt_writer(&self, writer: W) -> Self::Writer
-    where
-        W: Write,
-    {
+    fn adapt_writer<'w>(&self, writer: Box<dyn Write + 'w>) -> Box<dyn Write + 'w> {
         (**self).adapt_writer(writer)
     }
 }
@@ -385,21 +377,13 @@ where
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum NeverAdapter {}
 
-impl<R, W> DataRWAdapter<R, W> for NeverAdapter {
-    type Reader = Box<dyn Read>;
-    type Writer = Box<dyn Write>;
+impl DataRWAdapter for NeverAdapter {
 
-    fn adapt_reader(&self, _reader: R) -> Self::Reader
-    where
-        R: Read,
-    {
+    fn adapt_reader<'r>(&self, _reader: Box<dyn Read + 'r>) -> Box<dyn Read + 'r> {
         unreachable!()
     }
 
-    fn adapt_writer(&self, _writer: W) -> Self::Writer
-    where
-        W: Write,
-    {
+    fn adapt_writer<'w>(&self, _writer: Box<dyn Write + 'w>) -> Box<dyn Write + 'w> {
         unreachable!()
     }
 }
@@ -532,6 +516,13 @@ impl<D, R, W> TransferSyntax<D, R, W> {
         matches!(self.codec, Codec::Dataset(None))
     }
 
+    /// Check whether this transfer syntax expects pixel data to be encapsulated.
+    ///
+    /// This does not imply that the pixel data can be decoded. 
+    pub fn is_encapsulated_pixel_data(&self) -> bool {
+        matches!(self.codec, Codec::EncapsulatedPixelData(..))
+    }
+
     /// Check whether reading and writing the pixel data is unsupported.
     /// If this is `true`, encoding and decoding of the data set may still
     /// be possible, but the pixel data will only be available in its
@@ -625,16 +616,33 @@ impl<D, R, W> TransferSyntax<D, R, W> {
         BasicDecoder::from(self.endianness())
     }
 
+    /// Obtain a reference to the underlying pixel data reader.
+    ///
+    /// Returns `None` if pixel data is not encapsulated
+    /// or a pixel data decoder implementation is not available.
+    pub fn pixel_data_reader(&self) -> Option<&R> {
+        match &self.codec {
+            Codec::EncapsulatedPixelData(r, _) => r.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// Obtain a reference to the underlying pixel data writer.
+    ///
+    /// Returns `None` if pixel data is not encapsulated
+    /// or a pixel data encoder implementation is not available.
+    pub fn pixel_data_writer(&self) -> Option<&W> {
+        match &self.codec {
+            Codec::EncapsulatedPixelData(_, w) => w.as_ref(),
+            _ => None,
+        }
+    }
+
     /// Type-erase the pixel data or data set codec.
     pub fn erased(self) -> TransferSyntax
     where
         D: Send + Sync + 'static,
-        D: DataRWAdapter<
-            Box<dyn Read>,
-            Box<dyn Write>,
-            Reader = Box<dyn Read>,
-            Writer = Box<dyn Write>,
-        >,
+        D: DataRWAdapter,
         R: Send + Sync + 'static,
         R: PixelDataReader,
         W: Send + Sync + 'static,

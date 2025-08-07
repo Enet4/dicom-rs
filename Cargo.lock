@@ -447,7 +447,7 @@ dependencies = [
 
 [[package]]
 name = "dicom"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "dicom-core",
  "dicom-dictionary-std",
@@ -462,7 +462,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-core"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "chrono",
  "itertools 0.14.0",
@@ -474,7 +474,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-dictionary-builder"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "clap",
  "eyre",
@@ -488,7 +488,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-dictionary-std"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "dicom-core",
  "once_cell",
@@ -496,7 +496,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-dump"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "clap",
  "dicom-core",
@@ -529,7 +529,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-encoding"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "byteordered",
  "dicom-core",
@@ -541,7 +541,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-findscu"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "clap",
  "dicom-core",
@@ -572,7 +572,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-json"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "base64",
  "dicom-core",
@@ -606,7 +606,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-object"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "byteordered",
  "dicom-core",
@@ -624,7 +624,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-parser"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "dicom-core",
  "dicom-dictionary-std",
@@ -636,7 +636,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-pixeldata"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "byteorder",
  "clap",
@@ -659,7 +659,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-scpproxy"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "bytes",
  "clap",
@@ -720,7 +720,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-toimage"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "clap",
  "dicom-core",
@@ -734,13 +734,15 @@ dependencies = [
 
 [[package]]
 name = "dicom-transfer-syntax-registry"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "byteordered",
  "charls",
  "dicom-core",
  "dicom-encoding",
+ "dicom-object",
  "dicom-test-files",
+ "flate2",
  "jpeg-decoder",
  "jpeg-encoder",
  "jpeg2k",
@@ -753,7 +755,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-ul"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "byteordered",
  "bytes",
@@ -1419,9 +1421,9 @@ checksum = "b454d911ac55068f53495488d8ccd0646eaa540c033a28ee15b07838afafb01f"
 
 [[package]]
 name = "jpeg2k"
-version = "0.9.1"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5b1c0ab2091b7044e98ec1910d63f68cc51358ec0dfde83f0b1d7aab654adb9"
+checksum = "62d854ec2e8ad8730232d4a615c0b50c435320c9c6d78a2cdba34c967cb88d6c"
 dependencies = [
  "anyhow",
  "log",
@@ -1854,12 +1856,12 @@ checksum = "a4895175b425cb1f87721b59f0f286c2092bd4af812243672510e1ac53e2e0ad"
 
 [[package]]
 name = "openjp2"
-version = "0.5.3"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c582a03232f5f2f2f0107a7327753df3c32f5505a195cd79cad6aa97d6bddf1"
+checksum = "e8940f4ff209130c7b374730e83cc7e31062706520e3960001e7eedc982bc554"
 dependencies = [
  "bitflags 1.3.2",
- "libc",
+ "byteorder",
  "log",
  "smallvec",
  "sprintf",

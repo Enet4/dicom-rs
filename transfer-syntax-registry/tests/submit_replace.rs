@@ -1,8 +1,9 @@
 //! Independent test for submission of a dummy TS implementation
 //! to replace a built-in stub.
 //!
-//! Only applicable to the inventory-based registry.
-#![cfg(feature = "inventory-registry")]
+//! Only applicable to the inventory-based registry,
+//! and only if JPIP Referenced Deflate is not yet supported.
+#![cfg(all(feature = "inventory-registry", not(feature = "deflate")))]
 
 use dicom_encoding::{
     submit_transfer_syntax, Codec, DataRWAdapter, Endianness, NeverPixelAdapter, TransferSyntax,
@@ -15,21 +16,12 @@ use std::io::{Read, Write};
 #[derive(Debug)]
 struct DummyCodecAdapter;
 
-impl<R: 'static, W: 'static> DataRWAdapter<R, W> for DummyCodecAdapter {
-    type Reader = Box<dyn Read>;
-    type Writer = Box<dyn Write>;
-
-    fn adapt_reader(&self, _reader: R) -> Self::Reader
-    where
-        R: Read,
-    {
+impl DataRWAdapter for DummyCodecAdapter {
+    fn adapt_reader<'r>(&self, _reader: Box<dyn Read + 'r>) -> Box<dyn Read + 'r> {
         unimplemented!()
     }
 
-    fn adapt_writer(&self, _writer: W) -> Self::Writer
-    where
-        W: Write,
-    {
+    fn adapt_writer<'w>(&self, _writer: Box<dyn Write + 'w>) -> Box<dyn Write + 'w> {
         unimplemented!()
     }
 }

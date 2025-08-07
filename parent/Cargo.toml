@@ -1,6 +1,6 @@
 [package]
 name = "dicom"
-version = "0.8.1"
+version = "0.8.2"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A pure Rust implementation of the DICOM standard"
 edition = "2018"
@@ -21,12 +21,12 @@ image = ["pixeldata", "dicom-pixeldata/image"]
 ndarray = ["pixeldata", "dicom-pixeldata/ndarray"]
 
 [dependencies]
-dicom-core = { path = "../core", version = "0.8.1" }
-dicom-dictionary-std = { path = "../dictionary-std", version = "0.8.0" }
-dicom-dump = { version = "0.8.0", path = "../dump", default-features = false }
-dicom-encoding = { path = "../encoding", version = "0.8.1" }
-dicom-parser = { path = "../parser", version = "0.8.1" }
-dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.8.1" }
-dicom-object = { path = "../object", version = "0.8.1", default-features = false }
-dicom-ul = { optional = true, path = "../ul", version = "0.8.1" }
-dicom-pixeldata = { optional = true, path = "../pixeldata", version = "0.8.1" }
+dicom-core = { path = "../core", version = "0.8.2" }
+dicom-dictionary-std = { path = "../dictionary-std", version = "0.8.1" }
+dicom-dump = { version = "0.8.1", path = "../dump", default-features = false }
+dicom-encoding = { path = "../encoding", version = "0.8.2" }
+dicom-parser = { path = "../parser", version = "0.8.2" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.8.2" }
+dicom-object = { path = "../object", version = "0.8.2", default-features = false }
+dicom-ul = { optional = true, path = "../ul", version = "0.8.2" }
+dicom-pixeldata = { optional = true, path = "../pixeldata", version = "0.8.2" }

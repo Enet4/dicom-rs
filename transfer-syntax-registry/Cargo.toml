@@ -1,6 +1,6 @@
 [package]
 name = "dicom-transfer-syntax-registry"
-version = "0.8.1"
+version = "0.8.2"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A registry of DICOM transfer syntaxes"
 edition = "2018"
@@ -16,6 +16,8 @@ default = ["rayon", "simd"]
 # inventory for compile time plugin-based transfer syntax registration
 inventory-registry = ['dicom-encoding/inventory-registry']
 
+# deflated transfer syntax reading and writing via flate2
+deflate = ["dep:flate2"]
 # natively implemented image encodings
 native = ["jpeg", "rle"]
 # native implementations that work on Windows
@@ -53,14 +55,18 @@ openjpeg-sys-threads = ["rayon", "jpeg2k?/threads"]
 zune-jpegxl-threads = ["zune-jpegxl?/threads"]
 
 [dependencies]
-dicom-core = { path = "../core", version = "0.8.1" }
-dicom-encoding = { path = "../encoding", version = "0.8.1" }
+dicom-core = { path = "../core", version = "0.8.2" }
+dicom-encoding = { path = "../encoding", version = "0.8.2" }
 lazy_static = "1.2.0"
 byteordered = "0.6"
 tracing = "0.1.34"
 
+[dependencies.flate2]
+version = "1.0.28"
+optional = true
+
 [dependencies.jpeg2k]
-version = "0.9.1"
+version = "0.10"
 optional = true
 default-features = false
 
@@ -97,3 +103,4 @@ features = ["native"]
 
 [dev-dependencies]
 dicom-test-files = "0.3"
+dicom-object = { path = "../object" }
