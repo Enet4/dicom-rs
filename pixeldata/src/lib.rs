@@ -3109,6 +3109,7 @@ mod tests {
         let obj = dicom_object::open_file(test_file).unwrap();
         let output_dir = Path::new("../target/dicom_test_files/_out/test_1bit_image_decoding");
         std::fs::create_dir_all(output_dir).unwrap();
+
         for idx in 0..=2 {
             let pixel_data = obj.decode_pixel_data_frame(idx).unwrap();
 
