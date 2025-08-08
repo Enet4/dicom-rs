@@ -3101,10 +3101,11 @@ mod tests {
             dicom_test_files::path("pydicom/liver.dcm").expect("test DICOM file should exist");
         let obj = dicom_object::open_file(test_file).unwrap();
         let pixel_data = obj.decode_pixel_data().unwrap();
-        let output_dir = Path::new("../target/dicom_test_files/_out/test_1bit_image_decoding");
-        std::fs::create_dir_all(output_dir).unwrap();
 
         assert_eq!(pixel_data.number_of_frames(), 3, "expected 3 frames");
+
+        let output_dir = Path::new("../target/dicom_test_files/_out/test_1bit_image_decoding");
+        std::fs::create_dir_all(output_dir).unwrap();
 
         for idx in 0..=2 {
             let image = pixel_data.to_dynamic_image(idx).unwrap();
