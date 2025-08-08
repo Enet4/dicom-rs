@@ -2262,18 +2262,12 @@ where
                     // Expand 1-bit samples to 0/255 bytes for all frames
                     let frame_pixels = (rows as usize) * (cols as usize);
                     let frame_samples = frame_pixels * (samples_per_pixel as usize);
-                    let frame_size = if bits_allocated == 1 {
-                        frame_samples / 8
-                    } else {
-                        frame_samples * ((bits_allocated as usize + 7) / 8)
-                    };
+                    let frame_size = frame_samples / 8;
                     let frame_size_all = frame_size * (number_of_frames as usize);
 
-                let frame_data = data.get(0..frame_size_all).context(
-                    FrameOutOfRangeSnafu {
+                    let frame_data = data.get(0..frame_size_all).context(FrameOutOfRangeSnafu {
                         frame_number: frame_size_all as u32,
-                    },
-                )?;
+                    })?;
                     // Map every bit in each byte to a separate byte of either 0 or 255
                     frame_data
                         .iter()
