@@ -2256,10 +2256,24 @@ where
             }
             DicomValue::Primitive(p) => {
                 // Non-encoded, just return the pixel data for all frames
-                let frame_data = p.to_bytes();
+                let data = p.to_bytes();
 
-                let pixel_data = if bits_allocated == 1 {
+                if bits_allocated == 1 {
+                    // Expand 1-bit samples to 0/255 bytes for all frames
                     let frame_pixels = (rows as usize) * (cols as usize);
+                    let frame_samples = frame_pixels * (samples_per_pixel as usize);
+                    let frame_size = if bits_allocated == 1 {
+                        frame_samples / 8
+                    } else {
+                        frame_samples * ((bits_allocated as usize + 7) / 8)
+                    };
+                    let frame_size_all = frame_size * (number_of_frames as usize);
+
+                let frame_data = data.get(0..frame_size_all).context(
+                    FrameOutOfRangeSnafu {
+                        frame_number: frame_size_all as u32,
+                    },
+                )?;
                     // Map every bit in each byte to a separate byte of either 0 or 255
                     frame_data
                         .iter()
@@ -2267,14 +2281,11 @@ where
                         .take(frame_pixels)
                         .collect()
                 } else {
-                    frame_data.to_vec()
-                };
-
-                pixel_data
+                    data.to_vec()
+                }
             }
             DicomValue::Sequence(..) => InvalidPixelDataSnafu.fail()?,
         };
-
         Ok(DecodedPixelData {
             data: Cow::from(decoded_pixel_data),
             cols: cols.into(),
@@ -3104,7 +3115,7 @@ mod tests {
 
         let image = pixel_data.to_dynamic_image(0).unwrap();
         let image_path = output_dir.join(format!(
-            "{}-{}.png",
+            "{}-{}-frame0.png",
             Path::new("pydicom/liver.dcm")
                 .file_stem()
                 .unwrap()
