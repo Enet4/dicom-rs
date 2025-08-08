@@ -3143,16 +3143,18 @@ mod tests {
 
         assert_eq!(pixel_data.number_of_frames(), 3, "expected 3 frames");
 
-        let image = pixel_data.to_dynamic_image(0).unwrap();
-        let image_path = output_dir.join(format!(
-            "{}-{}.png",
-            Path::new("pydicom/liver.dcm")
-                .file_stem()
-                .unwrap()
-                .to_str()
-                .unwrap(),
-            0,
-        ));
-        image.save(image_path).unwrap();
+        for idx in 0..=2 {
+            let image = pixel_data.to_dynamic_image(idx).unwrap();
+            let image_path = output_dir.join(format!(
+                "{}-image-{}.png",
+                Path::new("pydicom/liver.dcm")
+                    .file_stem()
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                idx,
+            ));
+            image.save(image_path).unwrap();
+        }
     }
 }
