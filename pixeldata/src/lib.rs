@@ -2278,7 +2278,7 @@ where
                     frame_data
                         .iter()
                         .flat_map(|&byte| (0..8).map(move |bit| ((byte >> bit) & 1) * 255))
-                        .take(frame_pixels)
+                        .take(frame_pixels * number_of_frames as usize)
                         .collect()
                 } else {
                     data.to_vec()
