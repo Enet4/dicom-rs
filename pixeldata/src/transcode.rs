@@ -428,7 +428,7 @@ mod tests {
     /// !!! #674 Decoding via GDCM is buggy
     #[cfg(all(feature = "jpeg", feature = "gdcm"))]
     #[test]
-    #[skip]
+    #[ignore]
     fn transcode_from_jpeg_baseline_to_native_rgb_via_gdcm() {
         transcode_from_jpeg_baseline_to_native_rgb_impl();
     }
