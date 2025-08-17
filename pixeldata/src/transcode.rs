@@ -410,6 +410,7 @@ mod tests {
         assert_eq!(pixels.len(), rows * cols * spp);
     }
 
+    #[cfg(any(feature = "jpeg", feature = "gdcm"))]
     fn assert_sample_eq_approx(description: &str, found: u8, expected: u8) {
         const ERROR_MARGIN: u8 = 8;
 
@@ -419,21 +420,11 @@ mod tests {
         );
     }
 
-    #[cfg(all(feature = "jpeg", not(feature = "gdcm")))]
+    /// !!! #674 Decoding via GDCM is buggy
+    #[cfg(any(feature = "jpeg", feature = "gdcm"))]
+    #[cfg_attr(feature = "gdcm", ignore)]
     #[test]
     fn transcode_from_jpeg_baseline_to_native_rgb() {
-        transcode_from_jpeg_baseline_to_native_rgb_impl();
-    }
-
-    /// !!! #674 Decoding via GDCM is buggy
-    #[cfg(all(feature = "jpeg", feature = "gdcm"))]
-    #[test]
-    #[ignore]
-    fn transcode_from_jpeg_baseline_to_native_rgb_via_gdcm() {
-        transcode_from_jpeg_baseline_to_native_rgb_impl();
-    }
-
-    fn transcode_from_jpeg_baseline_to_native_rgb_impl() {
         let test_file = dicom_test_files::path("pydicom/SC_rgb_jpeg_dcmtk.dcm").unwrap();
         let mut obj = open_file(test_file).unwrap();
 
