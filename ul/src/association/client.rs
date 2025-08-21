@@ -14,13 +14,9 @@ use std::{
 };
 
 use crate::{
-    pdu::{
-        read_pdu, write_pdu, AbortRQSource, AssociationAC, AssociationRJ, AssociationRQ, Pdu,
-        PresentationContextProposed, PresentationContextResult, PresentationContextResultReason,
-        ReadPduSnafu, UserIdentity, UserIdentityType, UserVariableItem, DEFAULT_MAX_PDU,
-        MAXIMUM_PDU_SIZE,
-    },
-    AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
+    association::NegotiatedOptions, pdu::{
+        read_pdu, write_pdu, AbortRQSource, AssociationAC, AssociationRJ, AssociationRQ, Pdu, PresentationContextProposed, PresentationContextResult, PresentationContextResultReason, ReadPduSnafu, UserIdentity, UserIdentityType, UserVariableItem, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE
+    }, AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME
 };
 use snafu::{ensure, Backtrace, ResultExt, Snafu};
 
@@ -188,8 +184,8 @@ where
 /// You can create either a blocking or non-blocking client by calling either
 /// `establish` or `establish_async` respectively.
 ///
-/// > **⚠️ Warning:** It is highly recommended to set `timeout` to a reasonable value for the
-/// > async client since there is _no_ default timeout on
+/// > **⚠️ Warning:** It is highly recommended to set `read_timeout` and `write_timeout` to a reasonable 
+/// > value for the async client since there is _no_ default timeout on
 /// > [`tokio::net::TcpStream`]
 ///
 /// ## Basic usage
@@ -571,13 +567,8 @@ impl<'a> ClientAssociationOptions<'a> {
         }
     }
 
-    fn establish_impl<T>(
-        self,
-        ae_address: AeAddr<T>,
-    ) -> Result<ClientAssociation<std::net::TcpStream>>
-    where
-        T: ToSocketAddrs,
-    {
+    /// Construct the A-ASSOCIATE-RQ PDU given the options and the AE title.
+    fn create_a_associate_req(&'a self, ae_title: Option<&str>) -> Result<Pdu> {
         let ClientAssociationOptions {
             calling_ae_title,
             called_ae_title,
@@ -585,17 +576,13 @@ impl<'a> ClientAssociationOptions<'a> {
             presentation_contexts,
             protocol_version,
             max_pdu_length,
-            strict,
             username,
             password,
             kerberos_service_ticket,
             saml_assertion,
             jwt,
-            read_timeout,
-            write_timeout,
-            connection_timeout,
+            ..
         } = self;
-
         // fail if no presentation contexts were provided: they represent intent,
         // should not be omitted by the user
         ensure!(
@@ -604,7 +591,7 @@ impl<'a> ClientAssociationOptions<'a> {
         );
 
         // choose called AE title
-        let called_ae_title: &str = match (&called_ae_title, ae_address.ae_title()) {
+        let called_ae_title: &str = match (&called_ae_title, ae_title){
             (Some(aec), Some(aet)) => {
                 if aec != aet {
                     tracing::warn!(
@@ -633,71 +620,35 @@ impl<'a> ClientAssociationOptions<'a> {
             .collect();
 
         let mut user_variables = vec![
-            UserVariableItem::MaxLength(max_pdu_length),
+            UserVariableItem::MaxLength(*max_pdu_length),
             UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
             UserVariableItem::ImplementationVersionName(IMPLEMENTATION_VERSION_NAME.to_string()),
         ];
 
         if let Some(user_identity) = Self::determine_user_identity(
-            username,
-            password,
-            kerberos_service_ticket,
-            saml_assertion,
-            jwt,
+            username.as_deref(),
+            password.as_deref(),
+            kerberos_service_ticket.as_deref(),
+            saml_assertion.as_deref(),
+            jwt.as_deref(),
         ) {
             user_variables.push(UserVariableItem::UserIdentityItem(user_identity));
         }
 
-        let msg = Pdu::AssociationRQ(AssociationRQ {
-            protocol_version,
+        Ok(Pdu::AssociationRQ(AssociationRQ {
+            protocol_version: *protocol_version,
             calling_ae_title: calling_ae_title.to_string(),
             called_ae_title: called_ae_title.to_string(),
             application_context_name: application_context_name.to_string(),
             presentation_contexts,
             user_variables,
-        });
+        }))
+    }
 
-        let conn_result: Result<TcpStream> = if let Some(timeout) = connection_timeout {
-            let addresses = ae_address.to_socket_addrs().context(ToAddressSnafu)?;
-
-            let mut result: Result<TcpStream, std::io::Error> =
-                Result::Err(std::io::Error::from(std::io::ErrorKind::AddrNotAvailable));
-
-            for address in addresses {
-                result = std::net::TcpStream::connect_timeout(&address, timeout);
-                if result.is_ok() {
-                    break;
-                }
-            }
-            result.context(ConnectSnafu)
-        } else {
-            std::net::TcpStream::connect(ae_address).context(ConnectSnafu)
-        };
-
-        let mut socket = conn_result?;
-        socket
-            .set_read_timeout(read_timeout)
-            .context(SetReadTimeoutSnafu)?;
-        socket
-            .set_write_timeout(write_timeout)
-            .context(SetWriteTimeoutSnafu)?;
-        let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
-        // send request
-
-        write_pdu(&mut buffer, &msg).context(SendRequestSnafu)?;
-        socket.write_all(&buffer).context(WireSendSnafu)?;
-        buffer.clear();
-
-        // !!!(#589) Soundness issue: if the SCP sends more PDUs in quick succession,
-        // more data may live in `buf` which may be lost,
-        // corrupting the PDU reader stream.
-        let mut buf = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
-        let msg = get_client_pdu(&mut socket, &mut buf, MAXIMUM_PDU_SIZE, self.strict)?;
-        if !buf.is_empty() {
-            tracing::warn!(
-                "Received more data than expected in the first PDU, further issues may arise"
-            );
-        }
+    /// Process the A-ASSOCIATE-AC PDU received from the SCP.
+    /// 
+    /// Returns the negotiated options for the association
+    fn process_a_association_resp(&self, msg: Pdu) -> Result<NegotiatedOptions> {
 
         match msg {
             Pdu::AssociationAC(AssociationAC {
@@ -709,9 +660,9 @@ impl<'a> ClientAssociationOptions<'a> {
                 user_variables,
             }) => {
                 ensure!(
-                    protocol_version == protocol_version_scp,
+                    self.protocol_version == protocol_version_scp,
                     ProtocolVersionMismatchSnafu {
-                        expected: protocol_version,
+                        expected: self.protocol_version,
                         got: protocol_version_scp,
                     }
                 );
@@ -736,27 +687,11 @@ impl<'a> ClientAssociationOptions<'a> {
                     .filter(|c| c.reason == PresentationContextResultReason::Acceptance)
                     .collect();
                 if presentation_contexts.is_empty() {
-                    // abort connection
-                    let _ = write_pdu(
-                        &mut buffer,
-                        &Pdu::AbortRQ {
-                            source: AbortRQSource::ServiceUser,
-                        },
-                    );
-                    let _ = socket.write_all(&buffer);
-                    buffer.clear();
                     return NoAcceptedPresentationContextsSnafu.fail();
                 }
-                Ok(ClientAssociation {
+                Ok(NegotiatedOptions{
                     presentation_contexts,
-                    requestor_max_pdu_length: max_pdu_length,
-                    acceptor_max_pdu_length,
-                    socket,
-                    buffer,
-                    strict,
-                    read_buffer: BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize),
-                    read_timeout,
-                    write_timeout,
+                    peer_max_pdu_length: acceptor_max_pdu_length,
                     user_variables,
                 })
             }
@@ -765,18 +700,64 @@ impl<'a> ClientAssociationOptions<'a> {
             | pdu @ Pdu::ReleaseRQ
             | pdu @ Pdu::AssociationRQ { .. }
             | pdu @ Pdu::PData { .. }
-            | pdu @ Pdu::ReleaseRP => {
-                // abort connection
-                let _ = write_pdu(
-                    &mut buffer,
-                    &Pdu::AbortRQ {
-                        source: AbortRQSource::ServiceUser,
-                    },
-                );
-                let _ = socket.write_all(&buffer);
-                UnexpectedResponseSnafu { pdu }.fail()
+            | pdu @ Pdu::ReleaseRP => UnexpectedResponseSnafu { pdu }.fail(),
+            pdu @ Pdu::Unknown { .. } => UnknownResponseSnafu { pdu }.fail()
+        }
+    }
+
+    /// Establish the association with the given AE address.
+    fn establish_impl<T>(
+        self,
+        ae_address: AeAddr<T>,
+    ) -> Result<ClientAssociation<std::net::TcpStream>>
+    where
+        T: ToSocketAddrs,
+    {
+        let a_associate = self.create_a_associate_req(ae_address.ae_title())?;
+        let conn_result: Result<TcpStream> = if let Some(timeout) = self.connection_timeout {
+            let addresses = ae_address.to_socket_addrs().context(ToAddressSnafu)?;
+
+            let mut result: Result<TcpStream, std::io::Error> =
+                Result::Err(std::io::Error::from(std::io::ErrorKind::AddrNotAvailable));
+
+            for address in addresses {
+                result = std::net::TcpStream::connect_timeout(&address, timeout);
+                if result.is_ok() {
+                    break;
+                }
             }
-            pdu @ Pdu::Unknown { .. } => {
+            result.context(ConnectSnafu)
+        } else {
+            std::net::TcpStream::connect(ae_address).context(ConnectSnafu)
+        };
+
+        let mut socket = conn_result?;
+        socket
+            .set_read_timeout(self.read_timeout)
+            .context(SetReadTimeoutSnafu)?;
+        socket
+            .set_write_timeout(self.write_timeout)
+            .context(SetWriteTimeoutSnafu)?;
+        let mut buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
+        // send request
+
+        write_pdu(&mut buffer, &a_associate).context(SendRequestSnafu)?;
+        socket.write_all(&buffer).context(WireSendSnafu)?;
+        buffer.clear();
+
+        // !!!(#589) Soundness issue: if the SCP sends more PDUs in quick succession,
+        // more data may live in `buf` which may be lost,
+        // corrupting the PDU reader stream.
+        let mut buf = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
+        let resp = get_client_pdu(&mut socket, &mut buf, MAXIMUM_PDU_SIZE, self.strict)?;
+        if !buf.is_empty() {
+            tracing::warn!(
+                "Received more data than expected in the first PDU, further issues may arise"
+            );
+        }
+        let negotiated_options = self.process_a_association_resp(resp);
+        match negotiated_options {
+            Err(e) => {
                 // abort connection
                 let _ = write_pdu(
                     &mut buffer,
@@ -785,7 +766,22 @@ impl<'a> ClientAssociationOptions<'a> {
                     },
                 );
                 let _ = socket.write_all(&buffer);
-                UnknownResponseSnafu { pdu }.fail()
+                buffer.clear();
+                Err(e)
+            },
+            Ok(NegotiatedOptions{presentation_contexts, peer_max_pdu_length, user_variables}) => {
+                Ok(ClientAssociation {
+                    presentation_contexts,
+                    requestor_max_pdu_length: self.max_pdu_length,
+                    acceptor_max_pdu_length: peer_max_pdu_length,
+                    socket,
+                    buffer,
+                    strict: self.strict,
+                    read_buffer: BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize),
+                    read_timeout: self.read_timeout,
+                    write_timeout: self.write_timeout,
+                    user_variables,
+                })
             }
         }
     }
@@ -1113,19 +1109,15 @@ pub mod non_blocking {
     use crate::{
         association::{
             client::{
-                ConnectSnafu, ConnectionClosedSnafu, MissingAbstractSyntaxSnafu,
-                NoAcceptedPresentationContextsSnafu, ProtocolVersionMismatchSnafu,
-                ReceiveResponseSnafu, ReceiveSnafu, RejectedSnafu, SendRequestSnafu,
-                ToAddressSnafu, UnexpectedResponseSnafu, UnknownResponseSnafu, WireSendSnafu,
+                ConnectSnafu, ConnectionClosedSnafu, NegotiatedOptions, ReceiveResponseSnafu, ReceiveSnafu, SendRequestSnafu, ToAddressSnafu, UnexpectedResponseSnafu, UnknownResponseSnafu, WireSendSnafu
             },
             pdata::non_blocking::{AsyncPDataWriter, PDataReader},
         },
         pdu::{
-            AbortRQSource, AssociationAC, AssociationRQ, PresentationContextProposed,
-            PresentationContextResultReason, ReadPduSnafu, UserVariableItem, DEFAULT_MAX_PDU,
+            AbortRQSource, ReadPduSnafu,
             MAXIMUM_PDU_SIZE,
         },
-        read_pdu, write_pdu, AeAddr, Pdu, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
+        read_pdu, write_pdu, AeAddr, Pdu,
     };
 
     use super::{
@@ -1190,88 +1182,9 @@ pub mod non_blocking {
         where
             T: tokio::net::ToSocketAddrs,
         {
-            let ClientAssociationOptions {
-                calling_ae_title,
-                called_ae_title,
-                application_context_name,
-                presentation_contexts,
-                protocol_version,
-                max_pdu_length,
-                strict,
-                username,
-                password,
-                kerberos_service_ticket,
-                saml_assertion,
-                jwt,
-                read_timeout,
-                write_timeout,
-                connection_timeout,
-            } = self;
-
-            // fail if no presentation contexts were provided: they represent intent,
-            // should not be omitted by the user
-            ensure!(
-                !presentation_contexts.is_empty(),
-                MissingAbstractSyntaxSnafu
-            );
-
-            // choose called AE title
-            let called_ae_title: &str = match (&called_ae_title, ae_address.ae_title()) {
-                (Some(aec), Some(aet)) => {
-                    if aec != aet {
-                        tracing::warn!(
-                            "Option `called_ae_title` overrides the AE title from `{aet}` to `{aec}`"
-                        );
-                    }
-                    aec
-                }
-                (Some(aec), None) => aec,
-                (None, Some(aec)) => aec,
-                (None, None) => "ANY-SCP",
-            };
-
-            let presentation_contexts: Vec<_> = presentation_contexts
-                .into_iter()
-                .enumerate()
-                .map(|(i, presentation_context)| PresentationContextProposed {
-                    id: (2 * i + 1) as u8,
-                    abstract_syntax: presentation_context.0.to_string(),
-                    transfer_syntaxes: presentation_context
-                        .1
-                        .iter()
-                        .map(|uid| uid.to_string())
-                        .collect(),
-                })
-                .collect();
-
-            let mut user_variables = vec![
-                UserVariableItem::MaxLength(max_pdu_length),
-                UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
-                UserVariableItem::ImplementationVersionName(
-                    IMPLEMENTATION_VERSION_NAME.to_string(),
-                ),
-            ];
-
-            if let Some(user_identity) = Self::determine_user_identity(
-                username,
-                password,
-                kerberos_service_ticket,
-                saml_assertion,
-                jwt,
-            ) {
-                user_variables.push(UserVariableItem::UserIdentityItem(user_identity));
-            }
-
-            let msg = Pdu::AssociationRQ(AssociationRQ {
-                protocol_version,
-                calling_ae_title: calling_ae_title.to_string(),
-                called_ae_title: called_ae_title.to_string(),
-                application_context_name: application_context_name.to_string(),
-                presentation_contexts,
-                user_variables,
-            });
+            let a_associate = self.create_a_associate_req(ae_address.ae_title())?;
             let conn_result: Result<tokio::net::TcpStream> =
-                if let Some(timeout) = connection_timeout {
+                if let Some(timeout) = self.connection_timeout {
                     let addresses = tokio::net::lookup_host(ae_address.socket_addr())
                         .await
                         .context(ToAddressSnafu)?;
@@ -1301,117 +1214,47 @@ pub mod non_blocking {
                 };
 
             let mut socket = conn_result?;
-            let mut buffer: Vec<u8> = Vec::with_capacity(max_pdu_length as usize);
+            let mut buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
 
             // send request
-            write_pdu(&mut buffer, &msg).context(SendRequestSnafu)?;
-            timeout(write_timeout, async {
+            write_pdu(&mut buffer, &a_associate).context(SendRequestSnafu)?;
+            timeout(self.write_timeout, async {
                 socket.write_all(&buffer).await.context(WireSendSnafu)?;
                 Ok(())
             })
             .await?;
             buffer.clear();
-            let msg = timeout(read_timeout, async {
-                get_client_pdu_async(&mut socket, MAXIMUM_PDU_SIZE, strict).await
+            let resp = timeout(self.read_timeout, async {
+                get_client_pdu_async(&mut socket, MAXIMUM_PDU_SIZE, self.strict).await
             })
             .await?;
-
-            match msg {
-                Pdu::AssociationAC(AssociationAC {
-                    protocol_version: protocol_version_scp,
-                    application_context_name: _,
-                    presentation_contexts: presentation_contexts_scp,
-                    calling_ae_title: _,
-                    called_ae_title: _,
-                    user_variables,
-                }) => {
-                    ensure!(
-                        protocol_version == protocol_version_scp,
-                        ProtocolVersionMismatchSnafu {
-                            expected: protocol_version,
-                            got: protocol_version_scp,
-                        }
+            let negotiated_options = self.process_a_association_resp(resp);
+            match negotiated_options {
+                Err(e) => {
+                    // abort connection
+                    let _ = write_pdu(
+                        &mut buffer,
+                        &Pdu::AbortRQ {
+                            source: AbortRQSource::ServiceUser,
+                        },
                     );
-
-                    let acceptor_max_pdu_length = user_variables
-                        .iter()
-                        .find_map(|item| match item {
-                            UserVariableItem::MaxLength(len) => Some(*len),
-                            _ => None,
-                        })
-                        .unwrap_or(DEFAULT_MAX_PDU);
-
-                    // treat 0 as the maximum size admitted by the standard
-                    let acceptor_max_pdu_length = if acceptor_max_pdu_length == 0 {
-                        MAXIMUM_PDU_SIZE
-                    } else {
-                        acceptor_max_pdu_length
-                    };
-
-                    let presentation_contexts: Vec<_> = presentation_contexts_scp
-                        .into_iter()
-                        .filter(|c| c.reason == PresentationContextResultReason::Acceptance)
-                        .collect();
-                    if presentation_contexts.is_empty() {
-                        // abort connection
-                        let _ = write_pdu(
-                            &mut buffer,
-                            &Pdu::AbortRQ {
-                                source: AbortRQSource::ServiceUser,
-                            },
-                        );
-                        let _ = timeout(write_timeout, async {
-                            socket.write_all(&buffer).await.context(WireSendSnafu)
-                        })
-                        .await;
-                        buffer.clear();
-                        return NoAcceptedPresentationContextsSnafu.fail();
-                    }
+                    let _ = socket.write_all(&buffer);
+                    buffer.clear();
+                    Err(e)
+                },
+                Ok(NegotiatedOptions{presentation_contexts, peer_max_pdu_length, user_variables}) => {
                     Ok(ClientAssociation {
                         presentation_contexts,
-                        requestor_max_pdu_length: max_pdu_length,
-                        acceptor_max_pdu_length,
+                        requestor_max_pdu_length: self.max_pdu_length,
+                        acceptor_max_pdu_length: peer_max_pdu_length,
                         socket,
                         buffer,
-                        strict,
-                        read_timeout,
-                        write_timeout,
+                        strict: self.strict,
                         read_buffer: BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize),
-                        user_variables
+                        read_timeout: self.read_timeout,
+                        write_timeout: self.write_timeout,
+                        user_variables,
                     })
-                }
-                Pdu::AssociationRJ(association_rj) => RejectedSnafu { association_rj }.fail(),
-                pdu @ Pdu::AbortRQ { .. }
-                | pdu @ Pdu::ReleaseRQ
-                | pdu @ Pdu::AssociationRQ { .. }
-                | pdu @ Pdu::PData { .. }
-                | pdu @ Pdu::ReleaseRP => {
-                    // abort connection
-                    let _ = write_pdu(
-                        &mut buffer,
-                        &Pdu::AbortRQ {
-                            source: AbortRQSource::ServiceUser,
-                        },
-                    );
-                    let _ = timeout(write_timeout, async {
-                        socket.write_all(&buffer).await.context(WireSendSnafu)
-                    })
-                    .await;
-                    UnexpectedResponseSnafu { pdu }.fail()
-                }
-                pdu @ Pdu::Unknown { .. } => {
-                    // abort connection
-                    let _ = write_pdu(
-                        &mut buffer,
-                        &Pdu::AbortRQ {
-                            source: AbortRQSource::ServiceUser,
-                        },
-                    );
-                    let _ = timeout(write_timeout, async {
-                        socket.write_all(&buffer).await.context(WireSendSnafu)
-                    })
-                    .await;
-                    UnknownResponseSnafu { pdu }.fail()
                 }
             }
         }

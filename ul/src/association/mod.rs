@@ -28,3 +28,11 @@ pub use client::{ClientAssociation, ClientAssociationOptions};
 pub use pdata::non_blocking::AsyncPDataWriter;
 pub use pdata::{PDataReader, PDataWriter};
 pub use server::{ServerAssociation, ServerAssociationOptions};
+
+use crate::pdu::{PresentationContextResult, UserVariableItem};
+
+pub(crate) struct NegotiatedOptions{
+    peer_max_pdu_length: u32,
+    user_variables: Vec<UserVariableItem>,
+    presentation_contexts: Vec<PresentationContextResult>,
+}
