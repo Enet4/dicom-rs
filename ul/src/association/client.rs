@@ -15,9 +15,9 @@ use std::{
 
 use crate::{
     association::{
-        read_pdu_from_wire, ConnectSnafu, ConnectionClosedSnafu, MissingAbstractSyntaxSnafu, NegotiatedOptions, NoAcceptedPresentationContextsSnafu, ProtocolVersionMismatchSnafu, ReceivePduSnafu, RejectedSnafu, SendPduSnafu, SendTooLongPduSnafu, SetReadTimeoutSnafu, SetWriteTimeoutSnafu, ToAddressSnafu, UnexpectedPduSnafu, UnknownPduSnafu, WireSendSnafu
+        read_pdu_from_wire, ConnectSnafu, MissingAbstractSyntaxSnafu, NegotiatedOptions, NoAcceptedPresentationContextsSnafu, ProtocolVersionMismatchSnafu, RejectedSnafu, SendPduSnafu, SendTooLongPduSnafu, SetReadTimeoutSnafu, SetWriteTimeoutSnafu, ToAddressSnafu, UnexpectedPduSnafu, UnknownPduSnafu, WireSendSnafu
     }, pdu::{
-       write_pdu, AbortRQSource, AssociationAC, AssociationRQ, Pdu, PresentationContextProposed, PresentationContextResult, PresentationContextResultReason, ReadPduSnafu, UserIdentity, UserIdentityType, UserVariableItem, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE
+       write_pdu, AbortRQSource, AssociationAC, AssociationRQ, Pdu, PresentationContextProposed, PresentationContextResult, PresentationContextResultReason, UserIdentity, UserIdentityType, UserVariableItem, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE
     }, AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME
 };
 use snafu::{ensure, ResultExt};
@@ -937,15 +937,15 @@ pub mod non_blocking {
     use crate::{
         association::{
             client::{
-                ConnectSnafu, ConnectionClosedSnafu, NegotiatedOptions, ToAddressSnafu, 
+                ConnectSnafu, NegotiatedOptions, ToAddressSnafu, 
                 WireSendSnafu
-            }, pdata::non_blocking::{AsyncPDataWriter, PDataReader}, read_pdu_from_wire_async, ReceivePduSnafu, SendPduSnafu, UnexpectedPduSnafu, UnknownPduSnafu
+            }, pdata::non_blocking::{AsyncPDataWriter, PDataReader}, read_pdu_from_wire_async, SendPduSnafu, UnexpectedPduSnafu, UnknownPduSnafu
         },
         pdu::{
-            AbortRQSource, ReadPduSnafu,
+            AbortRQSource,
             MAXIMUM_PDU_SIZE,
         },
-        read_pdu, write_pdu, AeAddr, Pdu,
+        write_pdu, AeAddr, Pdu,
     };
     use super::{CloseSocket, Release, Result};
     use crate::association::{
@@ -954,7 +954,7 @@ pub mod non_blocking {
     };
 
     use bytes::BytesMut;
-    use snafu::{ensure, ResultExt};
+    use snafu::ResultExt;
     use tokio::io::AsyncWriteExt;
 
     // Helper function to perform an operation with timeout
@@ -1218,21 +1218,7 @@ pub mod non_blocking {
         async fn release_impl(&mut self) -> Result<()> {
             let pdu = Pdu::ReleaseRQ;
             self.send(&pdu).await?;
-            use tokio::io::AsyncReadExt;
-            let mut read_buffer = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
-
-            let pdu = loop {
-                if let Ok(Some(pdu)) = read_pdu(&mut read_buffer, MAXIMUM_PDU_SIZE, self.strict) {
-                    break pdu;
-                }
-                let recv = self
-                    .socket
-                    .read_buf(&mut read_buffer)
-                    .await
-                    .context(ReadPduSnafu)
-                    .context(ReceivePduSnafu)?;
-                ensure!(recv > 0, ConnectionClosedSnafu);
-            };
+            let pdu = self.receive().await?;
             match pdu {
                 Pdu::ReleaseRP => {}
                 pdu @ Pdu::AbortRQ { .. }

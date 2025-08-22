@@ -241,7 +241,7 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
                     _ => {}
                 }
             }
-            Err(err @ dicom_ul::association::server::Error::Receive { .. }) => {
+            Err(err @ dicom_ul::association::Error::ReceivePdu { .. }) => {
                 if verbose {
                     info!("{}", Report::from_error(err));
                 } else {

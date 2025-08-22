@@ -13,7 +13,7 @@ use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use snafu::{ensure, ResultExt};
 use crate::association::{
-    read_pdu_from_wire, AbortedSnafu, ConnectionClosedSnafu, 
+    read_pdu_from_wire, AbortedSnafu,
     MissingAbstractSyntaxSnafu, RejectedSnafu, SendPduSnafu, 
     SendTooLongPduSnafu, SetReadTimeoutSnafu, SetWriteTimeoutSnafu, 
     UnexpectedPduSnafu, UnknownPduSnafu, WireSendSnafu
