@@ -459,7 +459,7 @@ impl<'a> ClientAssociationOptions<'a> {
         };
 
         let presentation_contexts: Vec<_> = presentation_contexts
-            .into_iter()
+            .iter()
             .enumerate()
             .map(|(i, presentation_context)| PresentationContextProposed {
                 id: (2 * i + 1) as u8,
@@ -1007,7 +1007,7 @@ pub mod non_blocking {
                         .context(ConnectSnafu)
                 };
 
-            Ok(conn_result?)
+            conn_result
 
         }
 
@@ -1046,7 +1046,8 @@ pub mod non_blocking {
                             source: AbortRQSource::ServiceUser,
                         },
                     );
-                    let _ = socket.write_all(&buffer);
+                    socket.write_all(&buffer).await
+                        .context(WireSendSnafu)?;
                     buffer.clear();
                     Err(e)
                 },

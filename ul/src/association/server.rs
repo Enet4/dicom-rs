@@ -389,6 +389,7 @@ where
     /// In the error case, returns
     /// * Pdu to be written back to client
     /// * Error
+    #[allow(clippy::result_large_err)]
     fn process_a_association_rq(&self, msg: Pdu) -> std::result::Result<(Pdu, NegotiatedOptions, String),(Pdu, Error)>{
         match msg {
             Pdu::AssociationRQ(AssociationRQ {
