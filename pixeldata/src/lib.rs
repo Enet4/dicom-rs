@@ -4,20 +4,6 @@
 //! such as JPEG lossless,
 //! and convert it into more usable data structures.
 //!
-//! `dicom-pixeldata` currently supports a small,
-//! but increasing number of DICOM image encodings in pure Rust.
-//! As a way to mitigate the current gap,
-//! this library has an integration with [GDCM bindings]
-//! for an extended range of encodings.
-//! This integration is behind the Cargo feature "gdcm",
-//! which requires CMake and a C++ compiler.
-//!
-//! [GDCM bindings]: https://crates.io/crates/gdcm-rs
-//!
-//! ```toml
-//! dicom-pixeldata = { version = "0.7", features = ["gdcm"] }
-//! ```
-//!
 //! Once the pixel data is decoded,
 //! the decoded data can be converted to:
 //! - a vector of flat pixel data values;
@@ -25,13 +11,46 @@
 //! - or a [dynamic image object](image::DynamicImage), using [`image`].
 //!
 //! This conversion includes
-//! eventual Modality and value of interest (VOI) transformations.
+//! eventual Modality and value of interest (VOI) transformations,
+//! either for further processing or presentation.
+//!
+//! # Encoding support
+//!
+//! The pixel data encodings supported by `dicom-pixeldata`
+//! are backed by the [`dicom-transfer-syntax-registry`][ts-registry] crate.
+//! By default, this crate will consider this set of image encoding implementations written in pure Rust:
+//!
+//! - `jpeg` for JPEG lossy and lossless encodings via `jpeg-decoder` and `jpeg-encoder`;
+//! - `rle` for RLE compressed pixel data;
+//! - `deflate` for deflated data set compression via `flate2`.
+//! 
+//! See the [`dicom-transfer-syntax-registry` documentation][ts-registry]
+//! for an extended list of supported encodings and more details.
+//! 
+//! Alternatively, this library has an integration with [GDCM bindings],
+//! which serves as a different backend.
+//! This allows for decoding pixel data
+//! in transfer syntaxes which are only supported by GDCM.
+//! This integration is behind the Cargo feature "gdcm",
+//! which requires CMake and a C++ compiler.
+//!
+//! [ts-registry]: https://docs.rs/dicom-transfer-syntax-registry
+//! [GDCM bindings]: https://crates.io/crates/gdcm-rs
+//!
+//! ```toml
+//! dicom-pixeldata = { version = "0.8", features = ["gdcm"] }
+//! ```
+//!
+//! # Usage
+//! 
 //!
 //! # WebAssembly support
+//!
 //! This library works in WebAssembly with the following two measures:
 //!  - Ensure that the "gdcm" feature is disabled.
-//!    This allows the crate to be compiled for WebAssembly
-//!    albeit at the cost of supporting a lesser variety of compression algorithms.
+//!    Some Cargo feature referring to encodings
+//!    which depend on bindings to C or C++ libraries
+//!    might also need to be disabled.
 //!  - And either set up [`wasm-bindgen-rayon`][1]
 //!    or disable the `rayon` feature.
 //!
@@ -146,7 +165,7 @@ pub mod encapsulation;
 pub(crate) mod transform;
 
 // re-exports
-pub use attribute::{PhotometricInterpretation, PixelRepresentation, PlanarConfiguration};
+pub use attribute::{PhotometricInterpretation, PixelRepresentation, PlanarConfiguration, AttributeName};
 pub use lut::{CreateLutError, Lut};
 pub use transcode::{Error as TranscodeError, Result as TranscodeResult, Transcode};
 pub use transform::{Rescale, VoiLutFunction, WindowLevel, WindowLevelTransform};
@@ -160,8 +179,9 @@ pub struct Error(InnerError);
 
 /// Inner error type
 #[derive(Debug, Snafu)]
-pub enum InnerError {
-    #[snafu(display("Failed to get required DICOM attribute"))]
+#[non_exhaustive]
+enum InnerError {
+    #[snafu(transparent)]
     GetAttribute {
         #[snafu(backtrace)]
         source: attribute::GetAttributeError,
@@ -173,31 +193,34 @@ pub enum InnerError {
     #[snafu(display("Invalid BitsAllocated, must be 1, 8 or 16"))]
     InvalidBitsAllocated { backtrace: Backtrace },
 
-    #[snafu(display("Unsupported PhotometricInterpretation `{}`", pi))]
+    #[cfg(any(feature = "image", feature = "gdcm"))]
+    #[snafu(display("Unsupported PhotometricInterpretation `{pi}`"))]
     UnsupportedPhotometricInterpretation {
         pi: PhotometricInterpretation,
         backtrace: Backtrace,
     },
 
-    #[snafu(display("Unsupported SamplesPerPixel `{}`", spp))]
+    #[cfg(feature = "image")]
+    #[snafu(display("Unsupported SamplesPerPixel `{spp}`"))]
     UnsupportedSamplesPerPixel { spp: u16, backtrace: Backtrace },
 
-    #[snafu(display("Unsupported {} `{}`", name, value))]
+    #[snafu(display("Unsupported {name} `{value}`"))]
     UnsupportedOther {
         name: &'static str,
         value: String,
         backtrace: Backtrace,
     },
 
-    #[snafu(display("Unknown transfer syntax `{}`", ts_uid))]
+    #[snafu(display("Unknown transfer syntax `{ts_uid}`"))]
     UnknownTransferSyntax {
         ts_uid: String,
         backtrace: Backtrace,
     },
 
-    #[snafu(display("Unsupported TransferSyntax `{}`", ts))]
+    #[snafu(display("Unsupported TransferSyntax `{ts}`"))]
     UnsupportedTransferSyntax { ts: String, backtrace: Backtrace },
 
+    #[cfg(feature = "image")]
     #[snafu(display("Invalid buffer when constructing ImageBuffer"))]
     InvalidImageBuffer { backtrace: Backtrace },
 
@@ -217,38 +240,47 @@ pub enum InnerError {
     #[snafu(display("Invalid data type for ndarray element"))]
     InvalidDataType { backtrace: Backtrace },
 
-    #[snafu(display("Unsupported color space"))]
-    UnsupportedColorSpace { backtrace: Backtrace },
-
     #[snafu(display("Could not decode pixel data"))]
     DecodePixelData { source: DecodeError },
 
-    #[snafu(display("Frame #{} is out of range", frame_number))]
+    #[snafu(display("Frame #{frame_number} is out of range"))]
     FrameOutOfRange {
         frame_number: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display("Value multiplicity of VOI LUT Function must match the number of frames. Expected `{:?}`, found `{:?}`", nr_frames, vm))]
+    #[snafu(display("Value multiplicity of VOI LUT Function must match the number of frames. Expected `{nr_frames:?}`, found `{vm:?}`"))]
     LengthMismatchVoiLutFunction {
         vm: u32,
         nr_frames: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display("Value multiplicity of Rescale Slope/Intercept must match. Found `{:?}` (slope), `{:?}` (intercept)", slope_vm, intercept_vm))]
+    #[snafu(display("Value multiplicity of Rescale Slope/Intercept must match. Found `{slope_vm:?}` (slope), `{intercept_vm:?}` (intercept)"))]
     LengthMismatchRescale {
         intercept_vm: u32,
         slope_vm: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display("Value multiplicity of Window Center/Width must match. Found `{:?}` (center), `{:?}` (width)", wc_vm, ww_vm))]
+    #[snafu(display("Value multiplicity of Window Center/Width must match. Found `{wc_vm:?}` (center), `{ww_vm:?}` (width)"))]
     LengthMismatchWindowLevel {
         wc_vm: u32,
         ww_vm: u32,
         backtrace: Backtrace,
     },
+    #[snafu(display("Value multiplicity of VOI LUT must match the number of frames. Expected `{nr_frames:?}`, found `{vm:?}`"))]
+    LengthMismatchVoiLut {
+        vm: u32,
+        nr_frames: u32,
+        backtrace: Backtrace,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+impl From<attribute::GetAttributeError> for crate::Error {
+    fn from(source: attribute::GetAttributeError) -> Self {
+        Error(crate::InnerError::GetAttribute { source })
+    }
+}
 
 /// Option set for converting decoded pixel data
 /// into other common data structures,
@@ -661,7 +693,7 @@ impl DecodedPixelData<'_> {
                         Ok(Some(inner.as_slice()))
                     } else {
                         if self.enforce_frame_fg_vm_match {
-                            LengthMismatchVoiLutFunctionSnafu {
+                            LengthMismatchVoiLutSnafu {
                                 vm: *len as u32,
                                 nr_frames: self.number_of_frames(),
                             }
@@ -2061,20 +2093,20 @@ impl ImagingProperties {
         use attribute::*;
         use std::convert::TryFrom;
 
-        let cols = cols(obj).context(GetAttributeSnafu)?;
-        let rows = rows(obj).context(GetAttributeSnafu)?;
+        let cols = cols(obj)?;
+        let rows = rows(obj)?;
         let photometric_interpretation =
-            photometric_interpretation(obj).context(GetAttributeSnafu)?;
-        let samples_per_pixel = samples_per_pixel(obj).context(GetAttributeSnafu)?;
-        let planar_configuration = planar_configuration(obj).context(GetAttributeSnafu)?;
-        let bits_allocated = bits_allocated(obj).context(GetAttributeSnafu)?;
-        let bits_stored = bits_stored(obj).context(GetAttributeSnafu)?;
-        let high_bit = high_bit(obj).context(GetAttributeSnafu)?;
-        let pixel_representation = pixel_representation(obj).context(GetAttributeSnafu)?;
+            photometric_interpretation(obj)?;
+        let samples_per_pixel = samples_per_pixel(obj)?;
+        let planar_configuration = planar_configuration(obj)?;
+        let bits_allocated = bits_allocated(obj)?;
+        let bits_stored = bits_stored(obj)?;
+        let high_bit = high_bit(obj)?;
+        let pixel_representation = pixel_representation(obj)?;
         let rescale_intercept = rescale_intercept(obj);
         let rescale_slope = rescale_slope(obj);
-        let number_of_frames = number_of_frames(obj).context(GetAttributeSnafu)?;
-        let voi_lut_function = voi_lut_function(obj).context(GetAttributeSnafu)?;
+        let number_of_frames = number_of_frames(obj)?;
+        let voi_lut_function = voi_lut_function(obj)?;
         let voi_lut_function: Option<Vec<VoiLutFunction>> = voi_lut_function.and_then(|fns| {
             fns.iter()
                 .map(|v| VoiLutFunction::try_from((*v).as_str()).ok())
@@ -2141,7 +2173,7 @@ where
     D: DataDictionary + Clone,
 {
     fn decode_pixel_data(&self) -> Result<DecodedPixelData<'_>> {
-        let pixel_data = attribute::pixel_data(self).context(GetAttributeSnafu)?;
+        let pixel_data = attribute::pixel_data(self)?;
 
         let ImagingProperties {
             cols,
@@ -2224,11 +2256,30 @@ where
             }
             DicomValue::Primitive(p) => {
                 // Non-encoded, just return the pixel data for all frames
-                p.to_bytes().to_vec()
+                let data = p.to_bytes();
+
+                if bits_allocated == 1 {
+                    // Expand 1-bit samples to 0/255 bytes for all frames
+                    let frame_pixels = (rows as usize) * (cols as usize);
+                    let frame_samples = frame_pixels * (samples_per_pixel as usize);
+                    let frame_size = frame_samples / 8;
+                    let frame_size_all = frame_size * (number_of_frames as usize);
+
+                    let frame_data = data.get(0..frame_size_all).context(FrameOutOfRangeSnafu {
+                        frame_number: frame_size_all as u32,
+                    })?;
+                    // Map every bit in each byte to a separate byte of either 0 or 255
+                    frame_data
+                        .iter()
+                        .flat_map(|&byte| (0..8).map(move |bit| ((byte >> bit) & 1) * 255))
+                        .take(frame_pixels * number_of_frames as usize)
+                        .collect()
+                } else {
+                    data.to_vec()
+                }
             }
             DicomValue::Sequence(..) => InvalidPixelDataSnafu.fail()?,
         };
-
         Ok(DecodedPixelData {
             data: Cow::from(decoded_pixel_data),
             cols: cols.into(),
@@ -2250,7 +2301,7 @@ where
     }
 
     fn decode_pixel_data_frame(&self, frame: u32) -> Result<DecodedPixelData<'_>> {
-        let pixel_data = attribute::pixel_data(self).context(GetAttributeSnafu)?;
+        let pixel_data = attribute::pixel_data(self)?;
 
         let ImagingProperties {
             cols,
@@ -2661,6 +2712,23 @@ mod tests {
         }
     }
 
+    #[test]
+    #[ignore = "test is unsound"]
+    fn test_can_read_deflated(){
+        
+        let path = dicom_test_files::path("pydicom/image_dfl.dcm").expect("test DICOM file should exist");
+    
+        // should read preamble even though it's from a reader
+        let obj = open_file(path.clone()).expect("Should read file");
+    
+        let res = obj.decode_pixel_data().expect("Should decode pixel data.");
+        assert_eq!(res.to_vec::<u8>().unwrap().len(), (res.rows() as usize * res.columns() as usize));
+        let mut buf = Vec::<u8>::new();
+        obj.write_all(&mut buf).expect("Should write deflated");
+
+        assert_eq!(std::fs::metadata(path).unwrap().len() as usize, buf.len())
+    }
+
     #[cfg(not(feature = "gdcm"))]
     mod not_gdcm {
         #[cfg(feature = "ndarray")]
@@ -3025,7 +3093,38 @@ mod tests {
 
     #[cfg(feature = "image")]
     #[test]
-    fn test_1bit_image_decoding() {
+    fn test_1bit_image_decoding_data() {
+        use crate::PixelDecoder as _;
+        use std::path::Path;
+
+        let test_file =
+            dicom_test_files::path("pydicom/liver.dcm").expect("test DICOM file should exist");
+        let obj = dicom_object::open_file(test_file).unwrap();
+        let pixel_data = obj.decode_pixel_data().unwrap();
+
+        assert_eq!(pixel_data.number_of_frames(), 3, "expected 3 frames");
+
+        let output_dir = Path::new("../target/dicom_test_files/_out/test_1bit_image_decoding");
+        std::fs::create_dir_all(output_dir).unwrap();
+
+        for idx in 0..=2 {
+            let image = pixel_data.to_dynamic_image(idx).unwrap();
+            let image_path = output_dir.join(format!(
+                "{}-image-{}.png",
+                Path::new("pydicom/liver.dcm")
+                    .file_stem()
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                idx,
+            ));
+            image.save(image_path).unwrap();
+        }
+    }
+
+    #[cfg(feature = "image")]
+    #[test]
+    fn test_1bit_image_decoding_data_frame() {
         use crate::PixelDecoder as _;
         use std::path::Path;
 
@@ -3033,23 +3132,25 @@ mod tests {
             dicom_test_files::path("pydicom/liver.dcm").expect("test DICOM file should exist");
         println!("Parsing pixel data for {}", test_file.display());
         let obj = dicom_object::open_file(test_file).unwrap();
-        let pixel_data = obj.decode_pixel_data_frame(0).unwrap();
-        let output_dir =
-            Path::new("../target/dicom_test_files/_out/test_1bit_image_decoding");
+        let output_dir = Path::new("../target/dicom_test_files/_out/test_1bit_image_decoding");
         std::fs::create_dir_all(output_dir).unwrap();
 
-        assert_eq!(pixel_data.number_of_frames(), 1, "expected 1 frame only");
+        for idx in 0..=2 {
+            let pixel_data = obj.decode_pixel_data_frame(idx).unwrap();
 
-        let image = pixel_data.to_dynamic_image(0).unwrap();
-        let image_path = output_dir.join(format!(
-            "{}-{}.png",
-            Path::new("pydicom/liver.dcm")
-                .file_stem()
-                .unwrap()
-                .to_str()
-                .unwrap(),
-            0,
-        ));
-        image.save(image_path).unwrap();
+            assert_eq!(pixel_data.number_of_frames(), 1, "expected 1 frame only");
+
+            let image = pixel_data.to_dynamic_image(0).unwrap();
+            let image_path = output_dir.join(format!(
+                "{}-frame-{}.png",
+                Path::new("pydicom/liver.dcm")
+                    .file_stem()
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                idx
+            ));
+            image.save(image_path).unwrap();
+        }
     }
 }

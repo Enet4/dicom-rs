@@ -991,7 +991,7 @@ where
         &mut self,
         mut pred: impl FnMut(
             &LazyDataToken<
-                &mut StatefulDecoder<Box<(dyn DecodeFrom<BufReader<S>> + 'static)>, BufReader<S>>,
+                &mut StatefulDecoder<Box<dyn DecodeFrom<BufReader<S>> + 'static>, BufReader<S>>,
             >,
         ) -> bool,
     ) -> Result<bool> {

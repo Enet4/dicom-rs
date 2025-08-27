@@ -15,11 +15,28 @@
 //! To read DICOM data sets in smaller portions,
 //! use the [DICOM collector API](collector).
 //!
+//! # Encodings
+//!
+//! By default, `dicom-object` supports reading and writing DICOM files
+//! in any transfer syntax without data set compression.
+//! This includes _Explicit VR Little Endian_
+//! (with or without encapsulated pixel data),
+//! _Implicit VR Little Endian_,
+//! and _Explicit VR Big Endian_ (retired).
+//! To enable support for reading and writing deflated data sets
+//! (such as _Deflated Explicit VR Little Endian_),
+//! enable **Cargo feature `deflated`**.
+//! 
+//! When working with imaging data,
+//! consider using the [`dicom-pixeldata`] crate,
+//! which offers methods to convert pixel data from objects
+//! into images or multi-dimensional arrays.
+//!
 //! # Examples
 //!
 //! ### Reading DICOM
 //!
-//! Read an object and fetch some attributes:
+//! Read an object from a DICOM file and inspect some attributes:
 //!
 //! ```no_run
 //! use dicom_dictionary_std::tags;
@@ -71,10 +88,11 @@
 //! 
 //! ### Writing DICOM
 //!
-//! **Note:** if you need to decode the pixel data first,
-//! see the [dicom-pixeldata] crate.
+//! **Note:** the code above will only work if you are fetching native pixel data.
+//! If you are potentially working with encapsulated pixel data,
+//! see the [`dicom-pixeldata`] crate.
 //!
-//! [dicom-pixeldata]: https://docs.rs/dicom-pixeldata
+//! [`dicom-pixeldata`]: https://docs.rs/dicom-pixeldata
 //!
 //! Finally, DICOM objects can be serialized back into DICOM encoded bytes.
 //! A method is provided for writing a file DICOM object into a new DICOM file.
@@ -155,6 +173,7 @@ pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
 use dicom_core::ops::AttributeSelector;
 use dicom_core::DataDictionary;
 pub use dicom_core::Tag;
+use dicom_dictionary_std::uids;
 pub use dicom_dictionary_std::StandardDataDictionary;
 
 /// The default implementation of a root DICOM object.
@@ -163,10 +182,11 @@ pub type DefaultDicomObject<D = StandardDataDictionary> = FileDicomObject<mem::I
 use dicom_core::header::{GroupNumber, Header};
 use dicom_encoding::adapters::{PixelDataObject, RawPixelData};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
+use dicom_encoding::Codec;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use smallvec::SmallVec;
-use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
+use snafu::{Backtrace, ResultExt, Snafu};
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -255,8 +275,19 @@ pub enum ReadError {
     },
     #[snafu(display("Missing element value after header token"))]
     MissingElementValue { backtrace: Backtrace },
-    #[snafu(display("Unsupported transfer syntax `{}`", uid))]
-    ReadUnsupportedTransferSyntax { uid: String, backtrace: Backtrace },
+    #[snafu(display("Unrecognized transfer syntax `{}`", uid))]
+    ReadUnrecognizedTransferSyntax { uid: String, backtrace: Backtrace },
+    #[snafu(display("Unsupported reading for transfer syntax `{}` ({})", uid, name))]
+    ReadUnsupportedTransferSyntax { uid: &'static str, name: &'static str, backtrace: Backtrace },
+    #[snafu(display(
+        "Unsupported reading for transfer syntax `{uid}` ({name}, try enabling feature `{feature_name}`)"
+    ))]
+    ReadUnsupportedTransferSyntaxWithSuggestion {
+        uid: &'static str,
+        name: &'static str,
+        feature_name: &'static str,
+        backtrace: Backtrace,
+    },
     #[snafu(display("Unexpected token {:?}", token))]
     UnexpectedToken {
         token: Box<dicom_parser::dataset::DataToken>,
@@ -301,8 +332,19 @@ pub enum WriteError {
         #[snafu(backtrace)]
         source: dicom_parser::dataset::write::Error,
     },
-    #[snafu(display("Unsupported transfer syntax `{}`", uid))]
-    WriteUnsupportedTransferSyntax { uid: String, backtrace: Backtrace },
+    #[snafu(display("Unrecognized transfer syntax `{uid}`"))]
+    WriteUnrecognizedTransferSyntax { uid: String, backtrace: Backtrace },
+    #[snafu(display("Unsupported transfer syntax `{uid}` ({name})"))]
+    WriteUnsupportedTransferSyntax { uid: &'static str, name: &'static str, backtrace: Backtrace },
+    #[snafu(display(
+        "Unsupported transfer syntax `{uid}` ({name}, try enabling feature `{feature_name}`)"
+    ))]
+    WriteUnsupportedTransferSyntaxWithSuggestion {
+        uid: &'static str,
+        name: &'static str,
+        feature_name: &'static str,
+        backtrace: Backtrace,
+    },
 }
 
 /// An error which may occur during private element look-up or insertion
@@ -479,27 +521,14 @@ where
         // write meta group
         self.meta.write(&mut to).context(PrintMetaDataSetSnafu)?;
 
-        // prepare encoder
-        let ts = TransferSyntaxRegistry
-            .get(&self.meta.transfer_syntax)
-            .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
-                uid: self.meta.transfer_syntax.clone(),
-            })?;
-        let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
-
-        // We use the default options, because only the inner object knows if something needs to change
-        dset_writer
-            .write_sequence((&self.obj).into_tokens())
-            .context(PrintDataSetSnafu)?;
-
-        Ok(())
+        self.write_dataset_impl(to)
     }
 
     /// Write the entire object as a DICOM file
     /// into the given writer.
     /// Preamble, magic code, and file meta group will be included
     /// before the inner object.
-    pub fn write_all<W: Write>(&self, to: W) -> Result<(), WriteError> {
+    pub fn write_all(&self, to: impl Write) -> Result<(), WriteError> {
         let mut to = BufWriter::new(to);
 
         // write preamble
@@ -511,20 +540,7 @@ where
         // write meta group
         self.meta.write(&mut to).context(PrintMetaDataSetSnafu)?;
 
-        // prepare encoder
-        let ts = TransferSyntaxRegistry
-            .get(&self.meta.transfer_syntax)
-            .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
-                uid: self.meta.transfer_syntax.clone(),
-            })?;
-        let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
-
-        // We use the default options, because only the inner object knows if something needs to change
-        dset_writer
-            .write_sequence((&self.obj).into_tokens())
-            .context(PrintDataSetSnafu)?;
-
-        Ok(())
+        self.write_dataset_impl(to)
     }
 
     /// Write the file meta group set into the given writer.
@@ -541,20 +557,67 @@ where
     pub fn write_dataset<W: Write>(&self, to: W) -> Result<(), WriteError> {
         let to = BufWriter::new(to);
 
+        self.write_dataset_impl(to)
+    }
+
+    /// Helper function for writing the DICOM data set in this file DICOM object
+    /// with the right transfer syntax.
+    /// Automatically retrieves a data set adapter if required and available,
+    /// returns an error if the transfer syntax is not supported for data set writing.
+    fn write_dataset_impl(&self, to: impl Write) -> Result<(), WriteError> {
+        let ts_uid = self.meta.transfer_syntax();
         // prepare encoder
-        let ts = TransferSyntaxRegistry
-            .get(&self.meta.transfer_syntax)
-            .with_context(|| WriteUnsupportedTransferSyntaxSnafu {
-                uid: self.meta.transfer_syntax.clone(),
-            })?;
-        let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
+        let ts = if let Some(ts) = TransferSyntaxRegistry.get(ts_uid) {
+            ts
+        } else {
+            return WriteUnrecognizedTransferSyntaxSnafu {
+                uid: ts_uid.to_string(),
+            }
+            .fail();
+        };
+        match ts.codec() {
+            Codec::Dataset(Some(adapter)) => {
+                let adapter = adapter.adapt_writer(Box::new(to));
+                let mut dset_writer =
+                    DataSetWriter::with_ts(adapter, ts).context(CreatePrinterSnafu)?;
 
-        // write object
-        dset_writer
-            .write_sequence((&self.obj).into_tokens())
-            .context(PrintDataSetSnafu)?;
+                // write object
+                dset_writer
+                    .write_sequence((&self.obj).into_tokens())
+                    .context(PrintDataSetSnafu)?;
 
-        Ok(())
+                Ok(())
+            },
+            Codec::Dataset(None) => {
+                // dataset adapter needed, but not provided
+                if ts_uid == uids::DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN
+                    || ts_uid == uids::JPIP_REFERENCED_DEFLATE
+                    || ts_uid == uids::JPIPHTJ2K_REFERENCED_DEFLATE {
+                    return WriteUnsupportedTransferSyntaxWithSuggestionSnafu {
+                        uid: ts.uid(),
+                        name: ts.name(),
+                        feature_name: "dicom-transfer-syntax-registry/deflate",
+                    }
+                    .fail();
+                }
+                WriteUnsupportedTransferSyntaxSnafu {
+                    uid: ts.uid(),
+                    name: ts.name(),
+                }
+                .fail()
+            }
+            Codec::None | Codec::EncapsulatedPixelData(..) => {
+                // no dataset adapter needed
+                let mut dset_writer = DataSetWriter::with_ts(to, ts).context(CreatePrinterSnafu)?;
+
+                // write object
+                dset_writer
+                    .write_sequence((&self.obj).into_tokens())
+                    .context(PrintDataSetSnafu)?;
+
+                Ok(())
+            }
+        }
     }
 }
 
