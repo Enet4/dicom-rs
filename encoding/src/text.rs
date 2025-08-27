@@ -227,8 +227,8 @@ enum CharsetImpl {
     IsoIr192,
     /// **GB18030**: The Simplified Chinese character set.
     Gb18030,
-    /// **GBK**: The Simplified Chinese character set.
-    GBK,
+    /// **Gbk**: The Simplified Chinese character set.
+    Gbk,
     // Support for more text encodings is tracked in issue #40.
 }
 
@@ -255,7 +255,7 @@ impl CharsetImpl {
             "ISO_IR_166" | "ISO_IR 166" | "ISO 2022 IR 166" => Some(IsoIr166),
             "ISO_IR_192" | "ISO_IR 192" => Some(IsoIr192),
             "GB18030" => Some(Gb18030),
-            "GBK" | "GB2312" | "ISO 2022 IR 58" => Some(GBK),
+            "GBK" | "GB2312" | "ISO 2022 IR 58" => Some(Gbk),
             _ => None,
         }
     }
@@ -279,7 +279,7 @@ impl TextCodec for CharsetImpl {
             CharsetImpl::IsoIr166 => "ISO_IR 166",
             CharsetImpl::IsoIr192 => "ISO_IR 192",
             CharsetImpl::Gb18030 => "GB18030",
-            CharsetImpl::GBK => "GBK",
+            CharsetImpl::Gbk => "GBK",
         })
     }
 
@@ -300,7 +300,7 @@ impl TextCodec for CharsetImpl {
             CharsetImpl::IsoIr166 => IsoIr166CharacterSetCodec.decode(text),
             CharsetImpl::IsoIr192 => Utf8CharacterSetCodec.decode(text),
             CharsetImpl::Gb18030 => Gb18030CharacterSetCodec.decode(text),
-            CharsetImpl::GBK => GBKCharacterSetCodec.decode(text),
+            CharsetImpl::Gbk => GBKCharacterSetCodec.decode(text),
         }
     }
 
@@ -321,7 +321,7 @@ impl TextCodec for CharsetImpl {
             CharsetImpl::IsoIr166 => IsoIr166CharacterSetCodec.encode(text),
             CharsetImpl::IsoIr192 => Utf8CharacterSetCodec.encode(text),
             CharsetImpl::Gb18030 => Gb18030CharacterSetCodec.encode(text),
-            CharsetImpl::GBK => GBKCharacterSetCodec.encode(text),
+            CharsetImpl::Gbk => GBKCharacterSetCodec.encode(text),
         }
     }
 }
@@ -614,7 +614,7 @@ mod tests {
     }
     #[test]
     fn gb_gbk_baseline() {
-        let codec = SpecificCharacterSet(CharsetImpl::GBK);
+        let codec = SpecificCharacterSet(CharsetImpl::Gbk);
 
         let iso2022_ir58_bytes = vec![
             0xB0, 0xB2, 0xBB, 0xD5, 0xD0, 0xC7, 0xC1, 0xE9, 0xD0, 0xC5, 0xCF, 0xA2, 0xBF, 0xC6,
