@@ -2,7 +2,7 @@
 //! which only accepts uncompressed transfer syntaxes
 
 use dicom_ul::{
-    association::client::ClientAssociationOptions,
+    association::{Association, AsyncAssociation, SyncAssociation, client::ClientAssociationOptions},
     pdu::{Pdu, PresentationContextResult, PresentationContextResultReason},
 };
 use std::net::SocketAddr;

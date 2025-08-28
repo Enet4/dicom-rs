@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use dicom_ul::association::Error::NoAcceptedPresentationContexts;
+use dicom_ul::association::{Association, AsyncAssociation, SyncAssociation, Error::NoAcceptedPresentationContexts};
 use dicom_ul::pdu::PresentationContextResultReason::Acceptance;
 use dicom_ul::pdu::{PresentationContextResult, PresentationContextResultReason, UserVariableItem};
 use dicom_ul::{
@@ -120,8 +120,7 @@ fn scu_scp_association_promiscuous_enabled() {
             transfer_syntax: IMPLICIT_VR_LE.to_string()
         }]
     );
-    assert_eq!(association.acceptor_max_pdu_length(), 16384);
-    assert_eq!(association.requestor_max_pdu_length(), 16384);
+    assert_eq!(association.max_pdu_length(), 16384);
     assert_eq!(association.read_timeout(), None);
     assert_eq!(association.write_timeout(), None);
 
@@ -165,8 +164,7 @@ async fn scu_scp_association_promiscuous_enabled_async() {
             transfer_syntax: IMPLICIT_VR_LE.to_string()
         }]
     );
-    assert_eq!(association.acceptor_max_pdu_length(), 16384);
-    assert_eq!(association.requestor_max_pdu_length(), 16384);
+    assert_eq!(association.max_pdu_length(), 16384);
     assert_eq!(association.read_timeout(), None);
     assert_eq!(association.write_timeout(), None);
 

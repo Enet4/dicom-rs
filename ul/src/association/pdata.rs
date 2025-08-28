@@ -49,7 +49,7 @@ fn setup_pdata_header(buffer: &mut [u8], is_last: bool) {
 ///
 /// ```no_run
 /// # use std::io::Write;
-/// # use dicom_ul::association::ClientAssociationOptions;
+/// # use dicom_ul::association::{ClientAssociationOptions, Association, SyncAssociation};
 /// # use dicom_ul::pdu::{Pdu, PDataValue, PDataValueType};
 /// # fn command_data() -> Vec<u8> { unimplemented!() }
 /// # fn dicom_data() -> &'static [u8] { unimplemented!() }
@@ -216,7 +216,7 @@ where
 ///
 /// ```no_run
 /// # use std::io::Read;
-/// # use dicom_ul::association::ClientAssociationOptions;
+/// # use dicom_ul::association::{ClientAssociationOptions, SyncAssociation};
 /// # use dicom_ul::pdu::{Pdu, PDataValue, PDataValueType};
 /// # fn command_data() -> Vec<u8> { unimplemented!() }
 /// # fn dicom_data() -> &'static [u8] { unimplemented!() }
@@ -384,7 +384,7 @@ pub mod non_blocking {
     /// ```no_run
     /// # use std::io::Write;
     /// use tokio::io::AsyncWriteExt;
-    /// # use dicom_ul::association::ClientAssociationOptions;
+    /// # use dicom_ul::association::{ClientAssociationOptions, Association, AsyncAssociation};
     /// # use dicom_ul::pdu::{Pdu, PDataValue, PDataValueType};
     /// # fn command_data() -> Vec<u8> { unimplemented!() }
     /// # fn dicom_data() -> &'static [u8] { unimplemented!() }
@@ -407,7 +407,7 @@ pub mod non_blocking {
     /// }).await;
     ///
     /// // then send a DICOM object which may be split into multiple PDUs
-    /// let mut pdata = association.send_pdata(presentation_context_id).await;
+    /// let mut pdata = association.send_pdata(presentation_context_id);
     /// pdata.write_all(dicom_data()).await?;
     /// pdata.finish().await?;
     ///
