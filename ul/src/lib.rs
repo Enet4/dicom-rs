@@ -20,6 +20,8 @@
 //! ## Features
 //! * `async`: Enables a fully async implementation of the upper layer protocol.
 //!   See [`ClientAssociationOptions`] and [`ServerAssociationOptions`] for details
+//! * `tls`: Enables TLS support for synchronous associations.
+//! * `async-tls`: Enables TLS support for asynchronous associations.
 
 pub mod address;
 pub mod association;

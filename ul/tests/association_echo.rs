@@ -1,10 +1,12 @@
 use dicom_ul::{
-    association::{client::ClientAssociationOptions, server::ServerAssociationOptions, Error},
+    association::{Association, Error, SyncAssociation, client::ClientAssociationOptions, server::ServerAssociationOptions},
     pdu::{
         PDataValue, PDataValueType, Pdu, PresentationContextNegotiated,
         PresentationContextResultReason,
     },
 };
+#[cfg(feature = "async")]
+use dicom_ul::association::AsyncAssociation;
 
 use std::net::SocketAddr;
 
@@ -132,6 +134,8 @@ async fn spawn_scp_async(
         .with_abstract_syntax(VERIFICATION_SOP_CLASS);
 
     let h = tokio::spawn(async move {
+        use dicom_ul::association::AsyncAssociation;
+
         let (stream, _addr) = listener.accept().await?;
         let mut association = scp.establish_async(stream).await?;
 
@@ -281,6 +285,8 @@ async fn scu_scp_association_test_async() {
 
 #[cfg(feature = "async")]
 async fn run_scu_scp_association_test_async(max_is_client: bool) {
+    use dicom_ul::association::AsyncAssociation;
+
     let (max_client_pdu_len, max_server_pdu_len) = if max_is_client {
         (HI_PDU_LEN, LO_PDU_LEN)
     } else {

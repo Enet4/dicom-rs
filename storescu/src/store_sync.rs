@@ -9,8 +9,7 @@ use dicom_encoding::TransferSyntaxIndex;
 use dicom_object::{open_file, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{
-    pdu::{PDataValue, PDataValueType},
-    ClientAssociation, ClientAssociationOptions, Pdu,
+    ClientAssociation, ClientAssociationOptions, Pdu, association::{Association, SyncAssociation}, pdu::{PDataValue, PDataValueType}
 };
 use indicatif::ProgressBar;
 use snafu::{OptionExt, ResultExt};

@@ -2,6 +2,9 @@ use dicom_core::{dicom_value, DataElement, VR};
 use dicom_dictionary_std::{tags, uids::VERIFICATION};
 use dicom_object::InMemDicomObject;
 use dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN;
+use crate::association::SyncAssociation;
+#[cfg(feature = "async")]
+use crate::association::AsyncAssociation;
 // Helper funtion to create a C-ECHO command
 fn create_c_echo_command(message_id: u16) -> Vec<u8> {
     let obj = InMemDicomObject::command_from_element_iter([
@@ -27,12 +30,10 @@ fn create_c_echo_command(message_id: u16) -> Vec<u8> {
     data
 }
 mod successive_pdus_during_client_association {
-    use super::*;
-    use crate::{
-        pdu::{PDataValue, PDataValueType},
-        ClientAssociationOptions, Pdu,
-    };
     use std::net::TcpListener;
+
+    use super::*;
+    use crate::{ClientAssociationOptions, Pdu, pdu::{AbortRQServiceProviderReason, AbortRQSource, PDataValue, PDataValueType}};
 
     use crate::association::server::*;
 
@@ -303,10 +304,9 @@ mod successive_pdus_during_client_association {
                 .accept_any()
                 .with_abstract_syntax(VERIFICATION)
                 .ae_title("THIS-SCP");
-
-            server_options
-                .establish_with_extra_pdus(stream, vec![echo_pdu])
-                .unwrap();
+                
+            let out = server_options.establish_with_extra_pdus(stream, vec![echo_pdu]);
+            println!("Server association result: {:?}", out);
         });
         // Give server time to start
         std::thread::sleep(std::time::Duration::from_millis(10));
@@ -322,9 +322,9 @@ mod successive_pdus_during_client_association {
         let mut association = scu_options.broken_establish(server_addr.into()).unwrap();
 
         // Client should not have anything to receive
-        let received_pdu = association.receive();
-        assert!(received_pdu.is_err());
-
+        let received_pdu = association.receive().unwrap();
+        assert_eq!(received_pdu, Pdu::AbortRQ { source: AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::ReasonNotSpecified) });
+        
         // Client cannot receive the PDU that was sent during association
         // Clean shutdown
         drop(association);

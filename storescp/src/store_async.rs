@@ -2,7 +2,7 @@ use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use dicom_ul::{Pdu, pdu::{PDataValueType, PresentationContextResultReason}};
+use dicom_ul::{Pdu, association::{Association, AsyncAssociation}, pdu::{PDataValueType, PresentationContextResultReason}};
 use snafu::{OptionExt, Report, ResultExt, Whatever};
 use tracing::{debug, info, warn};
 
@@ -57,7 +57,7 @@ pub async fn run_store_async(
         .await
         .whatever_context("could not establish association")?;
 
-    info!("New association from {}", association.client_ae_title());
+    info!("New association from {}", association.peer_ae_title());
     if args.verbose {
         debug!(
             "> Presentation contexts: {:?}",
@@ -244,7 +244,7 @@ pub async fn run_store_async(
                         });
                         info!(
                             "Released association with {}",
-                            association.client_ae_title()
+                            association.peer_ae_title()
                         );
                         break;
                     }
@@ -273,11 +273,11 @@ pub async fn run_store_async(
     if let Ok(peer_addr) = association.inner_stream().peer_addr() {
         info!(
             "Dropping connection with {} ({})",
-            association.client_ae_title(),
+            association.peer_ae_title(),
             peer_addr
         );
     } else {
-        info!("Dropping connection with {}", association.client_ae_title());
+        info!("Dropping connection with {}", association.peer_ae_title());
     }
 
     Ok(())

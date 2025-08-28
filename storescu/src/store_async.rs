@@ -5,8 +5,7 @@ use dicom_encoding::TransferSyntaxIndex;
 use dicom_object::{open_file, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{
-    pdu::{PDataValue, PDataValueType},
-    ClientAssociation, ClientAssociationOptions, Pdu,
+    ClientAssociationOptions, Pdu, association::{Association, AsyncAssociation, client::AsyncClientAssociation}, pdu::{PDataValue, PDataValueType}
 };
 use indicatif::ProgressBar;
 use snafu::{OptionExt, ResultExt};
@@ -31,7 +30,7 @@ pub async fn get_scu(
     saml_assertion: Option<String>,
     jwt: Option<String>,
     presentation_contexts: HashSet<(String, String)>,
-) -> Result<ClientAssociation<TcpStream>, Error> {
+) -> Result<AsyncClientAssociation<TcpStream>, Error> {
     let mut scu_init = ClientAssociationOptions::new()
         .calling_ae_title(calling_ae_title)
         .max_pdu_length(max_pdu_length);
@@ -72,13 +71,13 @@ pub async fn get_scu(
 }
 
 pub async fn send_file(
-    mut scu: ClientAssociation<TcpStream>,
+    mut scu: AsyncClientAssociation<TcpStream>,
     file: DicomFile,
     message_id: u16,
     progress_bar: Option<&Arc<tokio::sync::Mutex<ProgressBar>>>,
     verbose: bool,
     fail_first: bool,
-) -> Result<ClientAssociation<TcpStream>, Error> {
+) -> Result<AsyncClientAssociation<TcpStream>, Error> {
     if let (Some(pc_selected), Some(ts_uid_selected)) = (file.pc_selected, file.ts_selected) {
         let cmd = store_req_command(&file.sop_class_uid, &file.sop_instance_uid, message_id);
 
@@ -156,7 +155,7 @@ pub async fn send_file(
             scu.send(&pdu).await.map_err(Box::from).context(ScuSnafu)?;
 
             {
-                let mut pdata = scu.send_pdata(pc_selected.id).await;
+                let mut pdata = scu.send_pdata(pc_selected.id);
                 pdata.write_all(&object_data).await.unwrap();
                 //.whatever_context("Failed to send C-STORE-RQ P-Data")?;
             }
