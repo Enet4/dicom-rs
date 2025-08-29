@@ -122,12 +122,14 @@ fn tls_connection<T>(
 /// ```
 ///
 /// ### Async
+/// 
+/// * Make sure you include the `async` feature in your `Cargo.toml`
 ///
 /// ```no_run
 /// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # use std::time::Duration;
-/// #[cfg(feature = "async")]
-/// #[tokio::main]
+/// # #[cfg(feature = "async")]
+/// # #[tokio::main]
 /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let association = ClientAssociationOptions::new()
 ///    .with_presentation_context("1.2.840.10008.1.1", vec!["1.2.840.10008.1.2.1", "1.2.840.10008.1.2"])
@@ -137,11 +139,64 @@ fn tls_connection<T>(
 ///    .await?;
 /// # Ok(())
 /// # }
-/// #[cfg(not(feature = "async"))]
-/// fn main() {}
+/// ```
+/// 
+/// ## TLS Support
+/// 
+/// ### Sync TLS
+/// 
+/// * Make sure you include the `tls` feature in your `Cargo.toml`
+/// 
+/// ### Async TLS
+/// 
+/// * Make sure you include the `async-tls` feature in your `Cargo.toml`
+/// 
+/// > **⚠️ Warning:** Just including the `async` and `tls` features will _not_ work!
+/// 
+/// ### Example
+/// ```
+/// # use dicom_ul::association::client::ClientAssociationOptions;
+/// # use std::time::Duration;
+/// # use std::sync::Arc;
+/// use rustls::{
+///     ClientConfig, RootCertStore,
+///     pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
+/// };
+/// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// // Using a self-signed certificate for demonstration purposes only.
+/// let ca_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/ca.crt").as_ref())
+///     .expect("Failed to load client cert");
+/// 
+/// // Server certificate -- signed by CA
+/// let server_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/server.crt").as_ref())
+///     .expect("Failed to load server cert");
+///
+/// // Client cert and private key -- signed by CA
+/// let client_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/client.crt").as_ref())
+///     .expect("Failed to load client cert");
+/// let client_private_key = PrivateKeyDer::from_pem_slice(include_bytes!("../../assets/client.key").as_ref())
+///     .expect("Failed to load client private key");
+/// 
+/// // Create a root cert store for the client which includes the server certificate
+/// let mut certs = RootCertStore::empty();
+/// certs.add_parsable_certificates(vec![ca_cert.clone()]);
+///
+/// let config = ClientConfig::builder()
+///     .with_root_certificates(certs)
+///     .with_client_auth_cert(vec![client_cert, ca_cert], client_private_key)
+///     .expect("Failed to create client TLS config");
+///
+/// let association = ClientAssociationOptions::new()
+///    .with_presentation_context("1.2.840.10008.1.1", vec!["1.2.840.10008.1.2.1", "1.2.840.10008.1.2"])
+///    .tls_config(config)
+///    .read_timeout(Duration::from_secs(60))
+///    .write_timeout(Duration::from_secs(60))
+///    .establish("129.168.0.5:104")?;
+/// # Ok(())
+/// # }
 /// ```
 ///
-/// ### Presentation contexts
+/// ## Presentation contexts
 ///
 /// At least one presentation context must be specified,
 /// using the method [`with_presentation_context`](Self::with_presentation_context)
@@ -1320,7 +1375,7 @@ impl<S> Drop for AsyncClientAssociation<S>
 where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
 {
     fn drop(&mut self) {
-        let _ = tokio::task::block_in_place(move || {
+        tokio::task::block_in_place(move || {
             tokio::runtime::Handle::current().block_on(async move {
                 let _ = crate::association::private::AsyncAssociationSealed::release(self).await;
             })

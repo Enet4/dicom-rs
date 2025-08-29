@@ -40,14 +40,12 @@ rstest = "0.25"
 tokio = { version = "^1.38", features = ["io-util", "macros", "net", "rt", "rt-multi-thread"] }
 dicom-core = { path = '../core' }
 dicom-object = { path = '../object' }
-rcgen = "0.13"
-time = "0.3"
 
 [features]
 async = ["dep:tokio"]
 tls = ["dep:rustls"]
 async-tls=["async", "tls", "dep:tokio-rustls"]
-default = ["async-tls"]
+default = []
 all = ["async-tls"]
 
 [package.metadata.docs.rs]

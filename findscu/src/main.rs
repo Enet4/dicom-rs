@@ -8,7 +8,7 @@ use dicom_object::{mem::InMemDicomObject, open_file, StandardDataDictionary};
 use dicom_transfer_syntax_registry::{entries, TransferSyntaxRegistry};
 use dicom_ul::pdu::Pdu;
 use dicom_ul::{
-    association::ClientAssociationOptions,
+    association::{Association, ClientAssociationOptions, SyncAssociation},
     pdu::{PDataValue, PDataValueType},
 };
 use query::parse_queries;

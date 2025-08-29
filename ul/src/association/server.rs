@@ -104,6 +104,31 @@ impl AccessControl for AcceptCalledAeTitle {
 /// a value of this type can be reused for multiple connections.
 ///
 /// [`ClientAssociationOptions`]: crate::association::ClientAssociationOptions
+/// 
+/// The SCP will by default accept all transfer syntaxes
+/// supported by the main [transfer syntax registry][1],
+/// unless one or more transfer syntaxes are explicitly indicated
+/// through calls to [`with_transfer_syntax`][2].
+///
+/// Access control logic is also available,
+/// enabling application entities to decide on
+/// whether to accept or reject the association request
+/// based on the _called_ and _calling_ AE titles.
+///
+/// - By default, the application will accept requests from anyone
+///   ([`AcceptAny`])
+/// - To only accept requests with a matching _called_ AE title,
+///   add a call to [`accept_called_ae_title`]
+///   ([`AcceptCalledAeTitle`]).
+/// - Any other policy can be implemented through the [`AccessControl`] trait.
+///
+/// [`accept_called_ae_title`]: Self::accept_called_ae_title
+/// [`AcceptAny`]: AcceptAny
+/// [`AcceptCalledAeTitle`]: AcceptCalledAeTitle
+/// [`AccessControl`]: AccessControl
+///
+/// [1]: dicom_transfer_syntax_registry
+/// [2]: ServerAssociationOptions::with_transfer_syntax
 ///
 /// ## Basic Usage
 ///
@@ -124,7 +149,7 @@ impl AccessControl for AcceptCalledAeTitle {
 /// # Ok(())
 /// # }
 /// ```
-///
+/// 
 /// ### Async
 ///
 /// Spawn an async task for each incoming association request.
@@ -174,31 +199,71 @@ impl AccessControl for AcceptCalledAeTitle {
 /// # #[cfg(not(feature = "async"))]
 /// fn main() {}
 /// ```
+/// 
+/// ## TLS Support
+/// 
+/// ### Sync TLS
+/// 
+/// * Make sure you include the `tls` feature in your `Cargo.toml`
+/// 
+/// ### Async TLS
+/// 
+/// * Make sure you include the `async-tls` feature in your `Cargo.toml`
+/// 
+/// > **⚠️ Warning:** Just including the `async` and `tls` features will _not_ work!
+/// 
+/// ### Example
+/// ```
+/// # use dicom_ul::association::client::ClientAssociationOptions;
+/// # use std::time::Duration;
+/// # use std::sync::Arc;
+/// use rustls::{
+///     ClientConfig, RootCertStore,
+///     pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
+/// };
+/// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// # let tcp_listener: TcpListener = unimplemented!();
+/// // Using a self-signed certificate for demonstration purposes only.
+/// let ca_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/ca.crt").as_ref())
+///     .expect("Failed to load client cert");
+/// 
+/// // Server certificate -- signed by CA
+/// let server_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/server.crt").as_ref())
+///     .expect("Failed to load server cert");
 ///
-/// The SCP will by default accept all transfer syntaxes
-/// supported by the main [transfer syntax registry][1],
-/// unless one or more transfer syntaxes are explicitly indicated
-/// through calls to [`with_transfer_syntax`][2].
+/// // Client cert and private key -- signed by CA
+/// let client_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/client.crt").as_ref())
+///     .expect("Failed to load client cert");
+/// let client_private_key = PrivateKeyDer::from_pem_slice(include_bytes!("../../assets/client.key").as_ref())
+///     .expect("Failed to load client private key");
+/// 
+/// // Create a root cert store for the client which includes the server certificate
+/// let mut certs = RootCertStore::empty();
+/// certs.add_parsable_certificates(vec![ca_cert.clone()]);
 ///
-/// Access control logic is also available,
-/// enabling application entities to decide on
-/// whether to accept or reject the association request
-/// based on the _called_ and _calling_ AE titles.
+/// // Server configuration.
+/// // Creates a server config that requires client authentication (mutual TLS) using 
+/// // webpki for certificate verification.
+/// let server_config = ServerConfig::builder()
+///     .with_client_cert_verifier(
+///         WebPkiClientVerifier::builder(certs.clone())
+///             .build()
+///             .expect("Failed to create client cert verifier")
+///     )
+///     .with_single_cert(vec![server_cert.clone(), ca_cert.clone()], server_private_key)
+///     .expect("Failed to create server TLS config");
+/// 
+/// let (stream, _address) = tcp_listener.accept()?;
 ///
-/// - By default, the application will accept requests from anyone
-///   ([`AcceptAny`])
-/// - To only accept requests with a matching _called_ AE title,
-///   add a call to [`accept_called_ae_title`]
-///   ([`AcceptCalledAeTitle`]).
-/// - Any other policy can be implemented through the [`AccessControl`] trait.
-///
-/// [`accept_called_ae_title`]: Self::accept_called_ae_title
-/// [`AcceptAny`]: AcceptAny
-/// [`AcceptCalledAeTitle`]: AcceptCalledAeTitle
-/// [`AccessControl`]: AccessControl
-///
-/// [1]: dicom_transfer_syntax_registry
-/// [2]: ServerAssociationOptions::with_transfer_syntax
+/// let association = ServerAssociationOptions::new()
+///     .accept_called_ae_title()
+///     .ae_title("TLS-SCP")
+///     .with_abstract_syntax(VERIFICATION)
+///     .tls_config((*server_tls_config).clone())
+///     // .establish_tls(stream);
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Clone)]
 pub struct ServerAssociationOptions<'a, A> {
     /// the application entity access control policy
@@ -677,10 +742,10 @@ where
 /// of an accepting application entity.
 ///
 /// The most common operations of an established association are
-/// [`send`](Association::send)
-/// and [`receive`](Association::receive).
+/// [`send`](SyncAssociation::send)
+/// and [`receive`](SyncAssociation::receive).
 /// Sending large P-Data fragments may be easier through the P-Data sender
-/// abstraction (see [`send_pdata`](Association::send_pdata)).
+/// abstraction (see [`send_pdata`](SyncAssociation::send_pdata)).
 ///
 /// When the value falls out of scope,
 /// the program will shut down the underlying TCP connection.
@@ -921,17 +986,18 @@ where
     }
 }
 
-/// A DICOM upper level association from the perspective
+/// An async DICOM upper level association from the perspective
 /// of an accepting application entity.
 ///
 /// The most common operations of an established association are
-/// [`send`](Self::send)
-/// and [`receive`](Self::receive).
+/// [`send`](crate::association::AsyncAssociation::send)
+/// and [`receive`](crate::association::AsyncAssociation::receive).
 /// Sending large P-Data fragments may be easier through the P-Data sender
-/// abstraction (see [`send_pdata`](Self::send_pdata)).
+/// abstraction (see [`send_pdata`](crate::association::AsyncAssociation::send_pdata)).
 ///
 /// When the value falls out of scope,
 /// the program will shut down the underlying TCP connection.
+#[cfg(feature = "async")]
 #[derive(Debug)]
 pub struct AsyncServerAssociation<S> 
 where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
@@ -1029,7 +1095,11 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
 impl<S> Drop for AsyncServerAssociation<S> 
 where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
     fn drop(&mut self) {
-        let _ = crate::association::private::AsyncAssociationSealed::abort(self);
+        tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async move {
+                let _ = crate::association::private::AsyncAssociationSealed::abort(self).await;
+            })
+        });
     }
 }
 

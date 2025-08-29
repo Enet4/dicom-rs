@@ -7,6 +7,7 @@ use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{
     pdu::{PDataValue, PDataValueType},
     ClientAssociation, ClientAssociationOptions, Pdu,
+    association::{Association, SyncAssociation}
 };
 use indicatif::ProgressBar;
 use snafu::{OptionExt, ResultExt};
@@ -124,7 +125,7 @@ pub fn send_file(
             );
         }
 
-        if nbytes < scu.acceptor_max_pdu_length().saturating_sub(100) as usize {
+        if nbytes < scu.max_pdu_length().saturating_sub(100) as usize {
             let pdu = Pdu::PData {
                 data: vec![
                     PDataValue {

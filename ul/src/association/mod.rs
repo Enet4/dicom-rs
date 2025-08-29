@@ -28,16 +28,18 @@ pub(crate) mod pdata;
 use std::{backtrace::Backtrace, io::{BufRead, BufReader, Cursor, Read}, time::Duration};
 
 use bytes::{Buf, BytesMut};
+pub use pdata::{PDataReader, PDataWriter};
 pub use client::{ClientAssociation, ClientAssociationOptions};
+pub use server::{ServerAssociation, ServerAssociationOptions};
 #[cfg(feature = "async")]
 pub use pdata::non_blocking::AsyncPDataWriter;
-pub use pdata::{PDataReader, PDataWriter};
-#[cfg(feature = "tls")]
-use rustls::pki_types::InvalidDnsNameError;
-pub use server::{ServerAssociation, ServerAssociationOptions};
+#[cfg(feature = "async")]
+pub use server::AsyncServerAssociation;
+#[cfg(feature = "async")]
+pub use client::AsyncClientAssociation;
 use snafu::{ensure, Snafu, ResultExt};
 
-use crate::{Pdu, pdu::{self, AbortRQServiceProviderReason, AbortRQSource, AssociationRJ, PresentationContextResult, ReadPduSnafu, UserVariableItem}, write_pdu};
+use crate::{Pdu, pdu::{self, AssociationRJ, PresentationContextResult, ReadPduSnafu, UserVariableItem}, write_pdu};
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -165,7 +167,7 @@ pub enum Error {
     #[cfg(feature = "tls")]
     #[snafu(display("Invalid server name for TLS connection"))]
     InvalidServerName { 
-        source: InvalidDnsNameError,
+        source: rustls::pki_types::InvalidDnsNameError,
         backtrace: Backtrace 
     },
 

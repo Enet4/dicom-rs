@@ -66,9 +66,7 @@ fn create_test_config() -> (Arc<ServerConfig>, Arc<ClientConfig>) {
 #[cfg(feature = "tls")]
 #[test]
 fn test_tls_connection_sync() {
-    let listener = std::net::TcpListener::bind("127.0.    // Create a root cert store for the server which includes the client certificate
-    let mut server_certs = RootCertStore::empty();
-    server_certs.add_parsable_certificates(vec![ca_cert.clone()]);0.1:0").expect("Failed to bind listener");
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind listener");
     let server_addr = listener.local_addr().expect("Failed to get local address");
     
     // Server configuration
