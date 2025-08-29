@@ -125,7 +125,7 @@ fn tls_connection<T>(
 /// 
 /// * Make sure you include the `async` feature in your `Cargo.toml`
 ///
-/// ```no_run
+/// ```ignore
 /// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # use std::time::Duration;
 /// # #[cfg(feature = "async")]

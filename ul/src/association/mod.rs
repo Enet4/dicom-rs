@@ -306,6 +306,7 @@ mod private {
     /// 
     /// `send` and `receive` implementations are needed in order to provide
     /// the implementation for `release`
+    #[cfg(feature = "async")]
     pub trait AsyncAssociationSealed<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin> {
         fn close(&mut self) -> impl std::future::Future<Output = std::io::Result<()>> + Send
             where Self: Send;

@@ -1,7 +1,9 @@
 use dicom_ul::{
-    association::{Association, AsyncAssociation, SyncAssociation, client::ClientAssociationOptions},
+    association::{Association, SyncAssociation, client::ClientAssociationOptions},
     pdu::{Pdu, PresentationContextResult, PresentationContextResultReason},
 };
+#[cfg(feature = "async")]
+use dicom_ul::association::AsyncAssociation;
 
 use std::net::SocketAddr;
 

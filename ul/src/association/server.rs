@@ -156,10 +156,11 @@ impl AccessControl for AcceptCalledAeTitle {
 ///
 /// ```no_run
 /// # use std::net::{Ipv4Addr, SocketAddrV4};
-/// # use dicom_ul::association::{server::ServerAssociationOptions, AsyncAssociation};
+/// # use dicom_ul::association::{server::ServerAssociationOptions};
 /// # #[cfg(feature = "async")]
 /// # #[tokio::main]
 /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # use dicom_ul::association::AsyncAssociation;
 /// let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), 11111);
 /// let listener = tokio::net::TcpListener::bind(listen_addr).await?;
 /// loop {
@@ -1025,6 +1026,7 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
     user_variables: Vec<UserVariableItem>,
 }
 
+#[cfg(feature = "async")]
 impl<S> Association for AsyncServerAssociation<S> 
 where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
     fn max_pdu_length(&self) -> u32 {

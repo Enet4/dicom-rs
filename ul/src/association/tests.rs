@@ -3,7 +3,9 @@ use dicom_core::{dicom_value, DataElement, VR};
 use dicom_dictionary_std::{tags, uids::VERIFICATION};
 use dicom_object::InMemDicomObject;
 use dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN;
-use crate::association::{AsyncAssociation, SyncAssociation};
+use crate::association::SyncAssociation;
+#[cfg(feature = "async")]
+use crate::association::AsyncAssociation;
 // Helper funtion to create a C-ECHO command
 fn create_c_echo_command(message_id: u16) -> Vec<u8> {
     let obj = InMemDicomObject::command_from_element_iter([
