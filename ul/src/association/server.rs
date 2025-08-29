@@ -213,15 +213,17 @@ impl AccessControl for AcceptCalledAeTitle {
 /// > **⚠️ Warning:** Just including the `async` and `tls` features will _not_ work!
 /// 
 /// ### Example
-/// ```
+/// ```no_compile
+/// # // NOTE: cannot run on CI as assets are missing
 /// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # use std::time::Duration;
 /// # use std::sync::Arc;
+/// # #[cfg(feature = "tls")]
+/// # fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// use rustls::{
 ///     ClientConfig, RootCertStore,
 ///     pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
 /// };
-/// # fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// # let tcp_listener: TcpListener = unimplemented!();
 /// // Using a self-signed certificate for demonstration purposes only.
 /// let ca_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/ca.crt").as_ref())
@@ -259,7 +261,7 @@ impl AccessControl for AcceptCalledAeTitle {
 ///     .accept_called_ae_title()
 ///     .ae_title("TLS-SCP")
 ///     .with_abstract_syntax(VERIFICATION)
-///     .tls_config((*server_tls_config).clone())
+///     .tls_config((*server_tls_config).clone());
 ///     // .establish_tls(stream);
 /// # Ok(())
 /// # }

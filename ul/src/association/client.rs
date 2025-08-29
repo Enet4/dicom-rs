@@ -158,11 +158,12 @@ fn tls_connection<T>(
 /// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # use std::time::Duration;
 /// # use std::sync::Arc;
+/// # #[cfg(feature = "tls")]
+/// # fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// use rustls::{
 ///     ClientConfig, RootCertStore,
 ///     pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
 /// };
-/// # fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// // Using a self-signed certificate for demonstration purposes only.
 /// let ca_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/ca.crt").as_ref())
 ///     .expect("Failed to load client cert");
