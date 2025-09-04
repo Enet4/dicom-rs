@@ -10,7 +10,7 @@ pub mod commands;
 mod generated;
 
 pub use generated::*;
-pub use commands::{Command, CommandField, Priority};
+pub use commands::{Command, CommandField, Priority, DatasetConditionalCommand, DatasetRequiredCommand, DatasetForbiddenCommand};
 
 use std::fmt::Display;
 

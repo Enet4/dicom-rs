@@ -6,7 +6,8 @@ use dicom_dump::DumpOptions;
 use dicom_encoding::transfer_syntax;
 use dicom_object::{mem::InMemDicomObject, open_file, StandardDataDictionary};
 use dicom_transfer_syntax_registry::{entries, TransferSyntaxRegistry};
-use dicom_ul::pdu::Pdu;
+use dicom_ul::pdu::commands::DatasetRequired;
+use dicom_ul::pdu::{CFindRq, CFindRqBuilder, Pdu};
 use dicom_ul::{
     association::ClientAssociationOptions,
     pdu::{PDataValue, PDataValueType},
@@ -252,43 +253,14 @@ fn run() -> Result<(), Error> {
         debug!("Transfer Syntax: {}", ts.name());
     }
 
-    let cmd = find_req_command(abstract_syntax, 1);
-
-    let mut cmd_data = Vec::with_capacity(128);
-    cmd.write_dataset_with_ts(&mut cmd_data, &entries::IMPLICIT_VR_LITTLE_ENDIAN.erased())
-        .whatever_context("Failed to write command")?;
-
-    let mut iod_data = Vec::with_capacity(128);
-    dcm_query
-        .write_dataset_with_ts(&mut iod_data, ts)
-        .whatever_context("failed to write identifier dataset")?;
-
-    let nbytes = cmd_data.len() + iod_data.len();
-
-    if verbose {
-        debug!("Sending query ({} B)...", nbytes);
-    }
-
-    let pdu = Pdu::PData {
-        data: vec![PDataValue {
-            presentation_context_id: pc_selected_id,
-            value_type: PDataValueType::Command,
-            is_last: true,
-            data: cmd_data,
-        }],
-    };
+    let cmd = CFindRq::builder()
+        .affected_sop_class_uid(abstract_syntax)
+        .message_id(1)
+        .build();
+    println!("{:?}", &cmd);
+    let pdu = cmd.pdu_with_dataset(pc_selected_id, dcm_query, ts)
+        .whatever_context("Failed to write PDU")?;
     scu.send(&pdu).whatever_context("Could not send command")?;
-
-    let pdu = Pdu::PData {
-        data: vec![PDataValue {
-            presentation_context_id: pc_selected_id,
-            value_type: PDataValueType::Data,
-            is_last: true,
-            data: iod_data,
-        }],
-    };
-    scu.send(&pdu)
-        .whatever_context("Could not send C-Find request")?;
 
     if verbose {
         debug!("Awaiting response...");

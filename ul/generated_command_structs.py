@@ -133,6 +133,8 @@ def gen():
         # and priority has a fixed field.
         if param in ["Data Set", "Identifier"]:
             return
+        if need == '-':
+            return
         if param == 'Priority':
             struct.append(
                 "/// Priority for the request\n"
@@ -162,18 +164,20 @@ def gen():
                 impl.append(
                     "DE::new(tags::COMMAND_DATA_SET_TYPE,VR::US, value!(0x0001))"
                 )
-                markers.append("DatasetRequired")
+                markers.append("DatasetRequiredCommand")
             elif need[0] in ['U', 'C']:
-                markers.append("DatasetConditional")
-                markers.append("DatasetRequired")
+                markers.append("DatasetConditionalCommand")
+                markers.append("DatasetRequiredCommand")
                 impl.append(
                     "DE::new(tags::COMMAND_DATA_SET_TYPE,VR::US, value!(0x0101))"
                 )
             else:
-                markers.append("DatasetNotAllowed")
+                markers.append("DatasetForbiddenCommand")
                 impl.append(
                     "DE::new(tags::COMMAND_DATA_SET_TYPE,VR::US, value!(0x0101))"
                 )
+            return
+        if need == '-':
             return
         # Convert parameter name to Rust field name (snake_case)
         field_name = param.lower().replace(' ', '_').replace('-', '_')
@@ -237,10 +241,15 @@ def gen():
                 description = row.get(DESCRIPTION_COLUMN, param).replace('\n\r', ' ')  
                 add_field_to_dataset(impl, markers, param, need)
                 add_field_to_struct(struct, param, need, vr, description)
+            # If no marker traits were added, means that Data Set or Identifier was not mentioned
+            # Which means we should implement `DatasetForbiddenCommand`
+            if len(markers) == 0:
+                markers.append("DatasetForbiddenCommand")
+
             
             # Create a struct for this using generated struct name and text
             # representations of all the fields
-            struct_text = f"#[derive(Builder)]\npub struct {struct_name}<'a> {{\n"
+            struct_text = f"#[derive(Builder, Debug)]\npub struct {struct_name}<'a> {{\n"
             struct_text += textwrap.indent(',\n'.join(struct), '    ')
             struct_text += "\n}"
 
@@ -262,15 +271,16 @@ impl<'a> Command for {struct_name}<'a> {{
 
     fn dataset(&self) -> InMemDicomObject {{
         InMemDicomObject::from_element_iter(vec![
+            DE::new(tags::COMMAND_FIELD, VR::US, value!(self.command_field())),
 """
             impl_text += textwrap.indent(',\n'.join(impl), '            ')
             impl_text += "\n        ])\n"
             impl_text += "    }\n"
             impl_text += "}"
-            generated += struct_text + "\n"
-            generated += impl_text + "\n"
-            generated += "\n" + marker_text + "\n"
-            generated += "\n"
+            to_add = struct_text + "\n" + impl_text + "\n\n" + marker_text + "\n\n"
+            if suffix == 'Cncl':
+                to_add = to_add.replace("<'a>", "")
+            generated += to_add
             print(f"Generated struct {struct_name}")
     generated = f"""
 use dicom_core::{{DataElement as DE, VR, dicom_value as value}};
@@ -278,8 +288,8 @@ use dicom_object::{{InMemDicomObject}};
 use bon::Builder;
 use dicom_dictionary_std::tags;
 use crate::pdu::commands::{{
-    CommandField, Priority, Command, DatasetRequired,
-    DatasetConditional, DatasetNotAllowed
+    CommandField, Priority, Command, DatasetRequiredCommand,
+    DatasetConditionalCommand, DatasetForbiddenCommand
 }};
 
 """ + generated

@@ -52,7 +52,7 @@ pub enum CommandField {
 /// 
 /// Only exposes the `pdu_with_dataset` command requiring the user to pass an associated
 /// dataset
-pub trait DatasetRequired: Command {
+pub trait DatasetRequiredCommand: Command {
     /// Create a PDU for the command using the selected presentation context and associated dataset
     ///
     /// NOTE: Panics if the transfer syntax from the presentation context is not found in the registry.
@@ -99,7 +99,11 @@ pub trait DatasetRequired: Command {
 /// is not required by the DIMSE service to contain a dataset, but it _is_ required
 /// by the DIMSE C-GET and C-MOVE service user
 /// 
-pub trait DatasetConditional: DatasetRequired {
+/// 
+/// > **NOTE** Structs implementing this trait will have access to both the
+/// > `pdu` and `pdu_with_dataset`. Users of these structs should take care
+/// > to use the appropriate method based on the standard.
+pub trait DatasetConditionalCommand: DatasetRequiredCommand {
     /// Create a PDU for the command using the selected presentation context
     fn pdu(&self, pc_selected: u8) -> Result<Pdu, Box<WriteError>> {
         Ok(Pdu::PData {
@@ -114,7 +118,7 @@ pub trait DatasetConditional: DatasetRequired {
 }
 
 /// Trait that marks a message as not allowing a dataset.
-pub trait DatasetNotAllowed: Command {
+pub trait DatasetForbiddenCommand: Command {
     /// Create a PDU for the command using the selected presentation context
     fn pdu(&self, pc_selected: u8) -> Result<Pdu, Box<WriteError>> {
         Ok(Pdu::PData {
