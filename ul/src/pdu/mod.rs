@@ -6,6 +6,11 @@
 //! as well as readers and writers of PDUs from arbitrary data sources.
 pub mod reader;
 pub mod writer;
+pub mod commands;
+mod generated;
+
+pub use generated::*;
+pub use commands::{Command, CommandField, Priority};
 
 use std::fmt::Display;
 

@@ -96,6 +96,25 @@ pub use smallvec;
 /// );
 /// ```
 ///
+/// Options with a type that can be converted into a [`PrimitiveValue`],
+/// however if the value is `None`, the  [`PrimitiveValue::Empty`] primitive
+/// value will be returned rather than an "empty" value for that specific type
+///
+/// ```
+/// # use dicom_core::value::PrimitiveValue;
+/// # use dicom_core::dicom_value;
+/// let mut my_option: Option<i32> = Some(4);
+/// let value = dicom_value!(my_option);
+/// assert_eq!(value, PrimitiveValue::I32([4][..].into()));
+///
+/// my_option = None;
+/// let value = dicom_value!(my_option);
+/// assert_eq!(value, PrimitiveValue::Empty);
+/// // NOTE: Even though the type of my_option is `Option<i32>`, the resulting
+/// // primitive value does not indicate that:
+/// assert_ne!(value, PrimitiveValue::I32([][..].into()));
+/// ```
+///
 /// The output is a [`PrimitiveValue`],
 /// which can be converted to a `DicomValue` as long as its type parameters
 /// are specified or inferable.
