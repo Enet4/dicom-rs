@@ -4,22 +4,40 @@ import pandas as pd
 import textwrap
 from pathlib import Path
 
-# Configuration
+# Label of dicom standard column that corresponds to parameter description
 DESCRIPTION_COLUMN = "Description of Field"
+# Label of dicom standard column that corresponds to the message request
 REQ_COLUMN="Req/Ind"
+# Label of dicom standard column that corresponds to the message response
 RESP_COLUMN="Rsp/Conf"
+# Label of dicom standard column that corresponds to the message cancel
 CANCEL_COLUMN="CnclReq/CnclInd"
+# Label of dicom standard column that corresponds to the parameter VR
 VR_COLUMN="VR"
+# Suffix for naming structs that represent Request messages
 REQ_SUFFIX="Rq"
+# Suffix for naming structs that represent Response messages
 RESP_SUFFIX="Rsp"
+# Suffix for naming structs that represent Cancel messages
 CANCEL_SUFFIX="Cncl"
 
+# Mapping from VR types to Rust types
 VR_MAP = {
     "US": "u16",
     "UI": "&'a str",
     "AE": "&'a str"
 }
 
+# Groups for each type of message, contains 
+# * The Message Group name
+# * A list of tables that describe that message group
+# 
+# Each message group has an overview table that describes which
+# fields are required and mandatory for each of the messages,
+# which can either be Request, Response, or Cancel
+#
+# Then there are tables describing the parameters for each of
+# of those messages in the message group
 table_groups = [
     ("C_Store", (
         "table_9.1-1",  # C-STORE overview
@@ -51,6 +69,7 @@ table_groups = [
     ))
 ]
 
+# Download dicom part7 (Message Exchange) and return all tables
 def get_tables():
     url = "https://dicom.nema.org/medical/dicom/current/output/html/part07.html"
     response = requests.get(url)
@@ -58,6 +77,7 @@ def get_tables():
     table_list = soup.find_all("div", {"class", "table"})
     return table_list
 
+# Find a particular table by ID from the list of tablees
 def find_table(table_list, table_id):
     tables = {}
     for table in table_list:
@@ -65,7 +85,7 @@ def find_table(table_list, table_id):
         if table_def.has_attr("id") and table_def['id'] == table_id:
             return table
 
-
+# Convert an html table to a pandas dataframe
 def df_for_table(table):
     data = []
     for row in table.find_all("tr"):
@@ -87,6 +107,8 @@ def df_for_table(table):
     return df
 
 def get_merged_df(table_list, overview_id, *tag_def_ids):
+    """Merge the tables describing each message group (see description of tables above)
+    """
     overview = df_for_table(find_table(table_list, overview_id))
     # Get the definitions for tags for each specific command
     tag_defs = [df_for_table(find_table(table_list, table)) for table in tag_def_ids]
@@ -97,11 +119,15 @@ def get_merged_df(table_list, overview_id, *tag_def_ids):
     full = overview.join(tag_def).reset_index().drop_duplicates(subset=['param'])
     return full
 
+# Generate code
 def gen():
     table_list = get_tables()
     generated = ""
 
+
     def add_field_to_struct(struct, param, need, vr, description):
+        """Add a particular parameter to the struct definition 
+        """
         # Convert parameter name to Rust field name (snake_case)
         field_name = param.lower().replace(' ', '_').replace('-', '_')
         # Exclusions: Don't add dataset/identifier to struct
@@ -115,6 +141,7 @@ def gen():
                 "priority: Priority"
             )
             return
+        # Try to get Rust type given `vr` in the table
         if vr not in VR_MAP:
             raise RuntimeError(f"No type found for VR {vr}: row {row}")
         value_type = VR_MAP.get(vr)
@@ -122,10 +149,13 @@ def gen():
             type_ = f"{value_type}"
         else:
             type_ = f"Option<{value_type}>"
+        # Add field to the struct
         struct.append(f"/// {description}")
         struct.append(f"pub {field_name}: {type_}")
 
-    def add_field_to_impl(impl, param, need):
+    def add_field_dataset(impl, param, need):
+        """Add a particular parameter to the dataset representation of the struct
+        """
         # Exclusion for Data Set and Identifier
         # Used to set Command Dataset Type field
         if param in ["Data Set", "Identifier"]:
@@ -141,6 +171,8 @@ def gen():
             return
         # Convert parameter name to Rust field name (snake_case)
         field_name = param.lower().replace(' ', '_').replace('-', '_')
+        # Add the field to the implementation of the struct
+        # special handling for `Priority` which needs a u16 cast-
         if field_name == "priority":
             impl.append(
                 f"DE::new(tags::{field_name.upper()}, VR::{vr}, value!(self.{field_name} as u16))"
@@ -150,17 +182,24 @@ def gen():
                 f"DE::new(tags::{field_name.upper()}, VR::{vr}, value!(self.{field_name}))"
             )
 
+    # Go through each table group
     for (prefix, (overview, *tag_def_ids)) in table_groups:
+        # Get the merged table describing the group
         merged = get_merged_df(table_list, overview, *tag_def_ids)
+        # Loop through each of the message types (Request, Response, Cancel)
         for (column_name, suffix) in zip(
             [REQ_COLUMN, RESP_COLUMN, CANCEL_COLUMN],
             [REQ_SUFFIX, RESP_SUFFIX, CANCEL_SUFFIX]
         ):
+            # If this message group doesn't have a particular message type
+            # Just skip it, i.e. `c-store` does not have a corresponding cancel 
+            # message type
             if column_name not in merged.columns:
                 continue
 
             struct_name = f"{prefix.replace('_', '')}{suffix}"
             command_field_name = f"{prefix.upper()}_{suffix.upper()}"
+            # Special handling for cancel message names
             if suffix == 'Cncl':
                 struct_name = f"{prefix.replace('_', '')}Cncl"
                 command_field_name = "C_CANCEL_RQ"
@@ -174,6 +213,7 @@ def gen():
             # Add fields from the merged dataframe
             for _, row in merged.iterrows():
                 param = row['param']
+                # Special handling for sub-operation related fields
                 if "Sub-operations" in param:
                     param = param.replace("Sub-operations", "Suboperations")
                 if column_name not in row:
@@ -187,11 +227,21 @@ def gen():
                 # Fall back to param name if no description
                 description = row.get(DESCRIPTION_COLUMN, param).replace('\n\r', ' ')  
                 add_field_to_impl(impl, param, need)
-                add_field_to_struct(struct, param, need, vr, description)
+                add_field_to_dataset(struct, param, need, vr, description)
             
+            # Create a struct for this using generated struct name and text
+            # representations of all the fields
             struct_text = f"#[derive(Builder)]\npub struct {struct_name}<'a> {{\n"
             struct_text += textwrap.indent(',\n'.join(struct), '    ')
             struct_text += "\n}"
+
+            # Create an implementation of the trait `Command` for this struct
+            # Command has two required implementations, 
+            # * `command_field()`: can reference from the enum in `ul/src/pdu/commands.rs`,
+            # * `dataset`: For this, we just need to serialize each property of the struct
+            #   into a InMemDicomObject. For that we can just join the individual data elements
+            #   as text created in `add_field_to_dataset`
+            
             impl_text = f"""
 impl<'a> Command for {struct_name}<'a> {{
     fn command_field(&self) -> u16 {{
