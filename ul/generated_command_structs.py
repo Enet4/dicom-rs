@@ -124,7 +124,6 @@ def gen():
     table_list = get_tables()
     generated = ""
 
-
     def add_field_to_struct(struct, param, need, vr, description):
         """Add a particular parameter to the struct definition 
         """
@@ -153,18 +152,25 @@ def gen():
         struct.append(f"/// {description}")
         struct.append(f"pub {field_name}: {type_}")
 
-    def add_field_dataset(impl, param, need):
+    def add_field_to_dataset(impl, markers, param, need):
         """Add a particular parameter to the dataset representation of the struct
         """
         # Exclusion for Data Set and Identifier
         # Used to set Command Dataset Type field
         if param in ["Data Set", "Identifier"]:
-            need = row.get(column_name)
             if need.startswith('M'):
                 impl.append(
                     "DE::new(tags::COMMAND_DATA_SET_TYPE,VR::US, value!(0x0001))"
                 )
+                markers.append("DatasetRequired")
+            elif need[0] in ['U', 'C']:
+                markers.append("DatasetConditional")
+                markers.append("DatasetRequired")
+                impl.append(
+                    "DE::new(tags::COMMAND_DATA_SET_TYPE,VR::US, value!(0x0101))"
+                )
             else:
+                markers.append("DatasetNotAllowed")
                 impl.append(
                     "DE::new(tags::COMMAND_DATA_SET_TYPE,VR::US, value!(0x0101))"
                 )
@@ -210,6 +216,9 @@ def gen():
             # Generate Command impl for request
             impl = []
 
+            # Generated marker trait implementations
+            markers = []
+
             # Add fields from the merged dataframe
             for _, row in merged.iterrows():
                 param = row['param']
@@ -226,14 +235,17 @@ def gen():
                 # Add field with documentation from description field
                 # Fall back to param name if no description
                 description = row.get(DESCRIPTION_COLUMN, param).replace('\n\r', ' ')  
-                add_field_to_impl(impl, param, need)
-                add_field_to_dataset(struct, param, need, vr, description)
+                add_field_to_dataset(impl, markers, param, need)
+                add_field_to_struct(struct, param, need, vr, description)
             
             # Create a struct for this using generated struct name and text
             # representations of all the fields
             struct_text = f"#[derive(Builder)]\npub struct {struct_name}<'a> {{\n"
             struct_text += textwrap.indent(',\n'.join(struct), '    ')
             struct_text += "\n}"
+
+            # Implement marker trait(s) for struct
+            marker_text = '\n'.join(f"impl<'a> {trait} for {struct_name}<'a> {{}}" for trait in markers)
 
             # Create an implementation of the trait `Command` for this struct
             # Command has two required implementations, 
@@ -248,7 +260,6 @@ impl<'a> Command for {struct_name}<'a> {{
         CommandField::{command_field_name} as u16
     }}
 
-    #[rustfmt::skip]
     fn dataset(&self) -> InMemDicomObject {{
         InMemDicomObject::from_element_iter(vec![
 """
@@ -256,8 +267,9 @@ impl<'a> Command for {struct_name}<'a> {{
             impl_text += "\n        ])\n"
             impl_text += "    }\n"
             impl_text += "}"
-            generated += struct_text
-            generated += impl_text
+            generated += struct_text + "\n"
+            generated += impl_text + "\n"
+            generated += "\n" + marker_text + "\n"
             generated += "\n"
             print(f"Generated struct {struct_name}")
     generated = f"""
@@ -265,8 +277,10 @@ use dicom_core::{{DataElement as DE, VR, dicom_value as value}};
 use dicom_object::{{InMemDicomObject}};
 use bon::Builder;
 use dicom_dictionary_std::tags;
-use crate::pdu::commands::{{CommandField, Priority}};
-use crate::pdu::commands::Command;
+use crate::pdu::commands::{{
+    CommandField, Priority, Command, DatasetRequired,
+    DatasetConditional, DatasetNotAllowed
+}};
 
 """ + generated
     return generated

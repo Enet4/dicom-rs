@@ -4,8 +4,10 @@ use dicom_core::{DataElement as DE, VR, dicom_value as value};
 use dicom_object::{InMemDicomObject};
 use bon::Builder;
 use dicom_dictionary_std::tags;
-use crate::pdu::commands::{CommandField, Priority};
-use crate::pdu::commands::Command;
+use crate::pdu::commands::{
+    CommandField, Priority, Command, DatasetRequired,
+    DatasetConditional, DatasetNotAllowed
+};
 
 #[derive(Builder)]
 pub struct CStoreRq<'a> {
@@ -27,12 +29,12 @@ pub struct CStoreRq<'a> {
     /// The value of this field depends upon the status type. Annex C defines the encoding of the status types defined in the service definition.,
     pub status: Option<u16>
 }
+
 impl<'a> Command for CStoreRq<'a> {
     fn command_field(&self) -> u16 {
         CommandField::C_STORE_RQ as u16
     }
 
-    #[rustfmt::skip]
     fn dataset(&self) -> InMemDicomObject {
         InMemDicomObject::from_element_iter(vec![
             DE::new(tags::MESSAGE_ID, VR::US, value!(self.message_id)),
@@ -47,6 +49,9 @@ impl<'a> Command for CStoreRq<'a> {
         ])
     }
 }
+
+impl<'a> DatasetRequired for CStoreRq<'a> {}
+
 #[derive(Builder)]
 pub struct CStoreRsp<'a> {
     /// Implementation-specific value. It distinguishes this Message from other Messages.,
@@ -67,12 +72,12 @@ pub struct CStoreRsp<'a> {
     /// The value of this field depends upon the status type. Annex C defines the encoding of the status types defined in the service definition.,
     pub status: u16
 }
+
 impl<'a> Command for CStoreRsp<'a> {
     fn command_field(&self) -> u16 {
         CommandField::C_STORE_RSP as u16
     }
 
-    #[rustfmt::skip]
     fn dataset(&self) -> InMemDicomObject {
         InMemDicomObject::from_element_iter(vec![
             DE::new(tags::MESSAGE_ID, VR::US, value!(self.message_id)),
@@ -87,6 +92,9 @@ impl<'a> Command for CStoreRsp<'a> {
         ])
     }
 }
+
+impl<'a> DatasetNotAllowed for CStoreRsp<'a> {}
+
 #[derive(Builder)]
 pub struct CFindRq<'a> {
     /// Implementation-specific value that distinguishes this Message from other Messages.,
@@ -101,12 +109,12 @@ pub struct CFindRq<'a> {
     /// The value of this field depends upon the status type. Annex C defines the encoding of the status types defined in the service definition.,
     pub status: Option<u16>
 }
+
 impl<'a> Command for CFindRq<'a> {
     fn command_field(&self) -> u16 {
         CommandField::C_FIND_RQ as u16
     }
 
-    #[rustfmt::skip]
     fn dataset(&self) -> InMemDicomObject {
         InMemDicomObject::from_element_iter(vec![
             DE::new(tags::MESSAGE_ID, VR::US, value!(self.message_id)),
@@ -118,6 +126,9 @@ impl<'a> Command for CFindRq<'a> {
         ])
     }
 }
+
+impl<'a> DatasetRequired for CFindRq<'a> {}
+
 #[derive(Builder)]
 pub struct CFindRsp<'a> {
     /// Implementation-specific value that distinguishes this Message from other Messages.,
@@ -132,12 +143,12 @@ pub struct CFindRsp<'a> {
     /// The value of this field depends upon the status type. Annex C defines the encoding of the status types defined in the service definition.,
     pub status: u16
 }
+
 impl<'a> Command for CFindRsp<'a> {
     fn command_field(&self) -> u16 {
         CommandField::C_FIND_RSP as u16
     }
 
-    #[rustfmt::skip]
     fn dataset(&self) -> InMemDicomObject {
         InMemDicomObject::from_element_iter(vec![
             DE::new(tags::MESSAGE_ID, VR::US, value!(self.message_id)),
@@ -149,6 +160,10 @@ impl<'a> Command for CFindRsp<'a> {
         ])
     }
 }
+
+impl<'a> DatasetConditional for CFindRsp<'a> {}
+impl<'a> DatasetRequired for CFindRsp<'a> {}
+
 #[derive(Builder)]
 pub struct CFindCncl<'a> {
     /// Implementation-specific value that distinguishes this Message from other Messages.,
@@ -163,12 +178,12 @@ pub struct CFindCncl<'a> {
     /// The value of this field depends upon the status type. Annex C defines the encoding of the status types defined in the service definition.,
     pub status: Option<u16>
 }
+
 impl<'a> Command for CFindCncl<'a> {
     fn command_field(&self) -> u16 {
         CommandField::C_CANCEL_RQ as u16
     }
 
-    #[rustfmt::skip]
     fn dataset(&self) -> InMemDicomObject {
         InMemDicomObject::from_element_iter(vec![
             DE::new(tags::MESSAGE_ID, VR::US, value!(self.message_id)),
@@ -180,6 +195,9 @@ impl<'a> Command for CFindCncl<'a> {
         ])
     }
 }
+
+impl<'a> DatasetNotAllowed for CFindCncl<'a> {}
+
 #[derive(Builder)]
 pub struct CGetRq<'a> {
     /// Implementation-specific value that distinguishes this Message from other Messages.,
@@ -202,12 +220,12 @@ pub struct CGetRq<'a> {
     /// The number of C-STORE sub-operations invoked by this C-GET operation that generated warning responses.,
     pub number_of_warning_suboperations: Option<u16>
 }
+
 impl<'a> Command for CGetRq<'a> {
     fn command_field(&self) -> u16 {
         CommandField::C_GET_RQ as u16
     }
 
-    #[rustfmt::skip]
     fn dataset(&self) -> InMemDicomObject {
         InMemDicomObject::from_element_iter(vec![
             DE::new(tags::MESSAGE_ID, VR::US, value!(self.message_id)),
@@ -223,6 +241,9 @@ impl<'a> Command for CGetRq<'a> {
         ])
     }
 }
+
+impl<'a> DatasetRequired for CGetRq<'a> {}
+
 #[derive(Builder)]
 pub struct CGetRsp<'a> {
     /// Implementation-specific value that distinguishes this Message from other Messages.,
@@ -245,12 +266,12 @@ pub struct CGetRsp<'a> {
     /// The number of C-STORE sub-operations invoked by this C-GET operation that generated warning responses.,
     pub number_of_warning_suboperations: Option<u16>
 }
+
 impl<'a> Command for CGetRsp<'a> {
     fn command_field(&self) -> u16 {
         CommandField::C_GET_RSP as u16
     }
 
-    #[rustfmt::skip]
     fn dataset(&self) -> InMemDicomObject {
         InMemDicomObject::from_element_iter(vec![
             DE::new(tags::MESSAGE_ID, VR::US, value!(self.message_id)),
@@ -266,6 +287,10 @@ impl<'a> Command for CGetRsp<'a> {
         ])
     }
 }
+
+impl<'a> DatasetConditional for CGetRsp<'a> {}
+impl<'a> DatasetRequired for CGetRsp<'a> {}
+
 #[derive(Builder)]
 pub struct CGetCncl<'a> {
     /// Implementation-specific value that distinguishes this Message from other Messages.,
@@ -288,12 +313,12 @@ pub struct CGetCncl<'a> {
     /// The number of C-STORE sub-operations invoked by this C-GET operation that generated warning responses.,
     pub number_of_warning_suboperations: Option<u16>
 }
+
 impl<'a> Command for CGetCncl<'a> {
     fn command_field(&self) -> u16 {
         CommandField::C_CANCEL_RQ as u16
     }
 
-    #[rustfmt::skip]
     fn dataset(&self) -> InMemDicomObject {
         InMemDicomObject::from_element_iter(vec![
             DE::new(tags::MESSAGE_ID, VR::US, value!(self.message_id)),
@@ -309,6 +334,9 @@ impl<'a> Command for CGetCncl<'a> {
         ])
     }
 }
+
+impl<'a> DatasetNotAllowed for CGetCncl<'a> {}
+
 #[derive(Builder)]
 pub struct CMoveRq<'a> {
     /// Implementation-specific value that distinguishes this Message from other Messages.,
@@ -333,12 +361,12 @@ pub struct CMoveRq<'a> {
     /// The number of C-STORE sub-operations invoked by this C-MOVE operation that generated warning responses.,
     pub number_of_warning_suboperations: Option<u16>
 }
+
 impl<'a> Command for CMoveRq<'a> {
     fn command_field(&self) -> u16 {
         CommandField::C_MOVE_RQ as u16
     }
 
-    #[rustfmt::skip]
     fn dataset(&self) -> InMemDicomObject {
         InMemDicomObject::from_element_iter(vec![
             DE::new(tags::MESSAGE_ID, VR::US, value!(self.message_id)),
@@ -355,6 +383,9 @@ impl<'a> Command for CMoveRq<'a> {
         ])
     }
 }
+
+impl<'a> DatasetRequired for CMoveRq<'a> {}
+
 #[derive(Builder)]
 pub struct CMoveRsp<'a> {
     /// Implementation-specific value that distinguishes this Message from other Messages.,
@@ -379,12 +410,12 @@ pub struct CMoveRsp<'a> {
     /// The number of C-STORE sub-operations invoked by this C-MOVE operation that generated warning responses.,
     pub number_of_warning_suboperations: Option<u16>
 }
+
 impl<'a> Command for CMoveRsp<'a> {
     fn command_field(&self) -> u16 {
         CommandField::C_MOVE_RSP as u16
     }
 
-    #[rustfmt::skip]
     fn dataset(&self) -> InMemDicomObject {
         InMemDicomObject::from_element_iter(vec![
             DE::new(tags::MESSAGE_ID, VR::US, value!(self.message_id)),
@@ -401,6 +432,10 @@ impl<'a> Command for CMoveRsp<'a> {
         ])
     }
 }
+
+impl<'a> DatasetConditional for CMoveRsp<'a> {}
+impl<'a> DatasetRequired for CMoveRsp<'a> {}
+
 #[derive(Builder)]
 pub struct CMoveCncl<'a> {
     /// Implementation-specific value that distinguishes this Message from other Messages.,
@@ -425,12 +460,12 @@ pub struct CMoveCncl<'a> {
     /// The number of C-STORE sub-operations invoked by this C-MOVE operation that generated warning responses.,
     pub number_of_warning_suboperations: Option<u16>
 }
+
 impl<'a> Command for CMoveCncl<'a> {
     fn command_field(&self) -> u16 {
         CommandField::C_CANCEL_RQ as u16
     }
 
-    #[rustfmt::skip]
     fn dataset(&self) -> InMemDicomObject {
         InMemDicomObject::from_element_iter(vec![
             DE::new(tags::MESSAGE_ID, VR::US, value!(self.message_id)),
@@ -447,6 +482,9 @@ impl<'a> Command for CMoveCncl<'a> {
         ])
     }
 }
+
+impl<'a> DatasetNotAllowed for CMoveCncl<'a> {}
+
 #[derive(Builder)]
 pub struct CEchoRq<'a> {
     /// Implementation-specific value that distinguishes this Message from other Messages.,
@@ -458,12 +496,12 @@ pub struct CEchoRq<'a> {
     /// Indicates the status of the response. It shall have a value of Success.,
     pub status: Option<u16>
 }
+
 impl<'a> Command for CEchoRq<'a> {
     fn command_field(&self) -> u16 {
         CommandField::C_ECHO_RQ as u16
     }
 
-    #[rustfmt::skip]
     fn dataset(&self) -> InMemDicomObject {
         InMemDicomObject::from_element_iter(vec![
             DE::new(tags::MESSAGE_ID, VR::US, value!(self.message_id)),
@@ -473,6 +511,9 @@ impl<'a> Command for CEchoRq<'a> {
         ])
     }
 }
+
+
+
 #[derive(Builder)]
 pub struct CEchoRsp<'a> {
     /// Implementation-specific value that distinguishes this Message from other Messages.,
@@ -484,12 +525,12 @@ pub struct CEchoRsp<'a> {
     /// Indicates the status of the response. It shall have a value of Success.,
     pub status: u16
 }
+
 impl<'a> Command for CEchoRsp<'a> {
     fn command_field(&self) -> u16 {
         CommandField::C_ECHO_RSP as u16
     }
 
-    #[rustfmt::skip]
     fn dataset(&self) -> InMemDicomObject {
         InMemDicomObject::from_element_iter(vec![
             DE::new(tags::MESSAGE_ID, VR::US, value!(self.message_id)),
@@ -499,3 +540,6 @@ impl<'a> Command for CEchoRsp<'a> {
         ])
     }
 }
+
+
+
