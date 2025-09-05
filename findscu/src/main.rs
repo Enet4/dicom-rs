@@ -1,16 +1,14 @@
 use clap::Parser;
-use dicom_core::dicom_value;
 use dicom_core::{DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::{tags, uids};
 use dicom_dump::DumpOptions;
 use dicom_encoding::transfer_syntax;
-use dicom_object::{mem::InMemDicomObject, open_file, StandardDataDictionary};
+use dicom_object::{mem::InMemDicomObject, open_file};
 use dicom_transfer_syntax_registry::{entries, TransferSyntaxRegistry};
-use dicom_ul::pdu::commands::DatasetRequired;
-use dicom_ul::pdu::{CFindRq, CFindRqBuilder, Pdu};
+use dicom_ul::pdu::commands::DatasetRequiredCommand;
+use dicom_ul::pdu::{CFindRq, Pdu};
 use dicom_ul::{
     association::ClientAssociationOptions,
-    pdu::{PDataValue, PDataValueType},
 };
 use query::parse_queries;
 use snafu::prelude::*;
@@ -375,42 +373,6 @@ fn run() -> Result<(), Error> {
     let _ = scu.release();
 
     Ok(())
-}
-
-fn find_req_command(
-    sop_class_uid: &str,
-    message_id: u16,
-) -> InMemDicomObject<StandardDataDictionary> {
-    InMemDicomObject::command_from_element_iter([
-        // SOP Class UID
-        DataElement::new(
-            tags::AFFECTED_SOP_CLASS_UID,
-            VR::UI,
-            PrimitiveValue::from(sop_class_uid),
-        ),
-        // command field
-        DataElement::new(
-            tags::COMMAND_FIELD,
-            VR::US,
-            // 0020H: C-FIND-RQ message
-            dicom_value!(U16, [0x0020]),
-        ),
-        // message ID
-        DataElement::new(tags::MESSAGE_ID, VR::US, dicom_value!(U16, [message_id])),
-        //priority
-        DataElement::new(
-            tags::PRIORITY,
-            VR::US,
-            // medium
-            dicom_value!(U16, [0x0000]),
-        ),
-        // data set type
-        DataElement::new(
-            tags::COMMAND_DATA_SET_TYPE,
-            VR::US,
-            dicom_value!(U16, [0x0001]),
-        ),
-    ])
 }
 
 #[cfg(test)]

@@ -297,7 +297,7 @@ use crate::pdu::commands::{{
         
         
 def write_rust_file(content, filename="generated.rs"):
-    with open(Path.cwd() / f"src/pdu/{filename}", 'w') as f:
+    with open(Path.cwd().parents[0] / f"src/pdu/{filename}", 'w') as f:
         f.write("// Auto-generated DICOM command structs\n")
         f.write(content)
     print(f"Generated Rust structs written to {filename}")
