@@ -1,5 +1,6 @@
 /rls/
 .vscode/
+.marscode/
 target/
 *.rs.bk
 .idea/

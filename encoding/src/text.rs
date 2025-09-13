@@ -22,13 +22,13 @@
 //! | ISO-IR 166 (WINDOWS_874): The TIS 620-2533 character set (Thai) | ✓ | ✓ |
 //! | ISO-IR 192: The Unicode character set based on the UTF-8 encoding | ✓ | ✓ |
 //! | GB18030: The Simplified Chinese character set | ✓ | ✓ |
-//! | GB2312: Simplified Chinese character set | x | x |
-//!
+//! | GB2312: Simplified Chinese character set | ✓ | ✓ |
+//! | GBK: Simplified Chinese character set | ✓ | ✓ |
 //! These capabilities are available through [`SpecificCharacterSet`].
 
 use encoding::all::{
-    GB18030, ISO_2022_JP, ISO_8859_1, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5, ISO_8859_6,
-    ISO_8859_7, ISO_8859_8, UTF_8, WINDOWS_31J, WINDOWS_874, WINDOWS_949,
+    GB18030, GBK, ISO_2022_JP, ISO_8859_1, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5,
+    ISO_8859_6, ISO_8859_7, ISO_8859_8, UTF_8, WINDOWS_31J, WINDOWS_874, WINDOWS_949,
 };
 use encoding::{DecoderTrap, EncoderTrap, Encoding, RawDecoder, StringWriter};
 use snafu::{Backtrace, Snafu};
@@ -227,6 +227,8 @@ enum CharsetImpl {
     IsoIr192,
     /// **GB18030**: The Simplified Chinese character set.
     Gb18030,
+    /// **Gbk**: The Simplified Chinese character set.
+    Gbk,
     // Support for more text encodings is tracked in issue #40.
 }
 
@@ -253,6 +255,7 @@ impl CharsetImpl {
             "ISO_IR_166" | "ISO_IR 166" | "ISO 2022 IR 166" => Some(IsoIr166),
             "ISO_IR_192" | "ISO_IR 192" => Some(IsoIr192),
             "GB18030" => Some(Gb18030),
+            "GBK" | "GB2312" | "ISO 2022 IR 58" => Some(Gbk),
             _ => None,
         }
     }
@@ -276,6 +279,7 @@ impl TextCodec for CharsetImpl {
             CharsetImpl::IsoIr166 => "ISO_IR 166",
             CharsetImpl::IsoIr192 => "ISO_IR 192",
             CharsetImpl::Gb18030 => "GB18030",
+            CharsetImpl::Gbk => "GBK",
         })
     }
 
@@ -296,6 +300,7 @@ impl TextCodec for CharsetImpl {
             CharsetImpl::IsoIr166 => IsoIr166CharacterSetCodec.decode(text),
             CharsetImpl::IsoIr192 => Utf8CharacterSetCodec.decode(text),
             CharsetImpl::Gb18030 => Gb18030CharacterSetCodec.decode(text),
+            CharsetImpl::Gbk => GBKCharacterSetCodec.decode(text),
         }
     }
 
@@ -316,6 +321,7 @@ impl TextCodec for CharsetImpl {
             CharsetImpl::IsoIr166 => IsoIr166CharacterSetCodec.encode(text),
             CharsetImpl::IsoIr192 => Utf8CharacterSetCodec.encode(text),
             CharsetImpl::Gb18030 => Gb18030CharacterSetCodec.encode(text),
+            CharsetImpl::Gbk => GBKCharacterSetCodec.encode(text),
         }
     }
 }
@@ -401,6 +407,7 @@ decl_character_set!(IsoIr149CharacterSetCodec, "ISO_IR 149", WINDOWS_949);
 decl_character_set!(IsoIr166CharacterSetCodec, "ISO_IR 166", WINDOWS_874);
 decl_character_set!(Utf8CharacterSetCodec, "ISO_IR 192", UTF_8);
 decl_character_set!(Gb18030CharacterSetCodec, "GB18030", GB18030);
+decl_character_set!(GBKCharacterSetCodec, "GBK", GBK);
 
 /// The result of a text validation procedure (please see [`validate_iso_8859`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -604,5 +611,25 @@ mod tests {
             "Wang^XiaoDong=王^小东",
             b"Wang^XiaoDong=\xCD\xF5^\xD0\xA1\xB6\xAB",
         );
+    }
+    #[test]
+    fn gb_gbk_baseline() {
+        let codec = SpecificCharacterSet(CharsetImpl::Gbk);
+
+        let iso2022_ir58_bytes = vec![
+            0xB0, 0xB2, 0xBB, 0xD5, 0xD0, 0xC7, 0xC1, 0xE9, 0xD0, 0xC5, 0xCF, 0xA2, 0xBF, 0xC6,
+            0xBC, 0xBC, 0xD3, 0xD0, 0xCF, 0xDE, 0xB9, 0xAB, 0xCB, 0xBE,
+        ];
+        let rw = codec.decode(&iso2022_ir58_bytes).expect("decoding");
+
+        assert_eq!(rw, "安徽星灵信息科技有限公司");
+
+        let gb2312_bytes = vec![
+            0xCA, 0xB9, 0xC6, 0xE4, 0xD3, 0xEB, 0xD4, 0xAD, 0xCA, 0xBC, 0xB2, 0xD6, 0xBF, 0xE2,
+            0xB1, 0xA3, 0xB3, 0xD6, 0xD2, 0xBB, 0xD6, 0xC2,
+        ];
+        let rw2 = codec.decode(&gb2312_bytes).expect("decoding");
+
+        assert_eq!(rw2, "使其与原始仓库保持一致");
     }
 }
