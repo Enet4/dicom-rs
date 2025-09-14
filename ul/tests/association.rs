@@ -120,7 +120,7 @@ fn test_tls_connection_sync() {
     server_handle.join().expect("Server thread failed");
 }
 
-#[cfg(feature = "async-tls")]
+#[cfg(all(feature = "async", feature = "tls"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_tls_connection_async() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
