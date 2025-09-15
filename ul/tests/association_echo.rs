@@ -1,9 +1,9 @@
 use dicom_ul::{
-    association::{Association, SyncAssociation, client::ClientAssociationOptions},
+    association::{Association, SyncAssociation, client::ClientAssociationOptions, server::ServerAssociation},
     pdu::{Pdu, PresentationContextResult, PresentationContextResultReason},
 };
 #[cfg(feature = "async")]
-use dicom_ul::association::AsyncAssociation;
+use dicom_ul::association::{AsyncAssociation, AsyncServerAssociation};
 
 use std::net::SocketAddr;
 
@@ -20,7 +20,7 @@ static JPEG_BASELINE: &str = "1.2.840.10008.1.2.4.50";
 static VERIFICATION_SOP_CLASS: &str = "1.2.840.10008.1.1";
 static DIGITAL_MG_STORAGE_SOP_CLASS: &str = "1.2.840.10008.5.1.4.1.1.1.2";
 
-fn spawn_scp() -> Result<(std::thread::JoinHandle<Result<()>>, SocketAddr)> {
+fn spawn_scp() -> Result<(std::thread::JoinHandle<Result<ServerAssociation<std::net::TcpStream>>>, SocketAddr)> {
     let listener = std::net::TcpListener::bind("localhost:0")?;
     let addr = listener.local_addr()?;
     let scp = ServerAssociationOptions::new()
@@ -28,7 +28,7 @@ fn spawn_scp() -> Result<(std::thread::JoinHandle<Result<()>>, SocketAddr)> {
         .ae_title(SCP_AE_TITLE)
         .with_abstract_syntax(VERIFICATION_SOP_CLASS);
 
-    let h = std::thread::spawn(move || -> Result<()> {
+    let h = std::thread::spawn(move || -> Result<_> {
         let (stream, _addr) = listener.accept()?;
         let mut association = scp.establish(stream)?;
 
@@ -53,13 +53,13 @@ fn spawn_scp() -> Result<(std::thread::JoinHandle<Result<()>>, SocketAddr)> {
         assert_eq!(pdu, Pdu::ReleaseRQ);
         association.send(&Pdu::ReleaseRP)?;
 
-        Ok(())
+        Ok(association)
     });
     Ok((h, addr))
 }
 
 #[cfg(feature = "async")]
-async fn spawn_scp_async() -> Result<(tokio::task::JoinHandle<Result<()>>, SocketAddr)> {
+async fn spawn_scp_async() -> Result<(tokio::task::JoinHandle<Result<AsyncServerAssociation<tokio::net::TcpStream>>>, SocketAddr)> {
     let listener = tokio::net::TcpListener::bind("localhost:0").await?;
     let addr = listener.local_addr()?;
     let scp = ServerAssociationOptions::new()
@@ -92,7 +92,7 @@ async fn spawn_scp_async() -> Result<(tokio::task::JoinHandle<Result<()>>, Socke
         assert_eq!(pdu, Pdu::ReleaseRQ);
         association.send(&Pdu::ReleaseRP).await?;
 
-        Ok(())
+        Ok(association)
     });
     Ok((h, addr))
 }

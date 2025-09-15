@@ -4,6 +4,57 @@ use rstest::rstest;
 use std::time::Instant;
 
 #[cfg(feature = "tls")]
+fn ensure_test_certs() -> Result<(), Box<dyn std::error::Error>> {
+    use rustls_cert_gen::CertificateBuilder;
+    use rcgen::SanType;
+    use std::{convert::TryInto, net::IpAddr, str::FromStr, path::PathBuf};
+
+    let out_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("certs");
+    let cert_names = vec!["ca.pem", "ca.key.pem", "client.pem", "client.key.pem", "server.pem", "server.key.pem"];
+    if cert_names.iter().all(|path| out_dir.join(path).exists()){
+        println!("All certs exist, exiting");
+        return Ok(());
+    }
+
+    // Create output directory
+    std::fs::create_dir_all(&out_dir)?;
+
+    // Generate Certificate Authority (CA)
+    let ca = CertificateBuilder::new()
+		.certificate_authority()
+		.country_name(&"US")?
+		.organization_name(&"DICOM-RS-CA")
+		.build()?;
+
+    // Write CA certificate and private key to `../certs/ca.pem` and `../certs/ca.key.pem`
+    ca.serialize_pem().write(&out_dir, "ca")?;
+
+    // Generate Client keypair
+    let mut client = CertificateBuilder::new()
+		.end_entity()
+		.common_name(&"DICOM-RS-CLIENT")
+		.subject_alternative_names(vec![SanType::IpAddress(IpAddr::from_str("127.0.0.1")?), SanType::DnsName("localhost".try_into()?)]);
+    client.client_auth();
+
+    client
+        .build(&ca)?
+        .serialize_pem().write(&out_dir, "client")?;
+
+    // Generate Server keypair
+    let mut server = CertificateBuilder::new()
+		.end_entity()
+		.common_name(&"DICOM-RS-SERVER")
+		.subject_alternative_names(vec![SanType::IpAddress(IpAddr::from_str("127.0.0.1")?), SanType::DnsName("localhost".try_into()?)]);
+    server.server_auth();
+
+    server
+        .build(&ca)?
+        .serialize_pem().write(&out_dir, "server")?;
+
+    Ok(())
+}
+
+#[cfg(feature = "tls")]
 use std::sync::Arc;
 #[cfg(feature = "tls")]
 use rustls::{
@@ -22,20 +73,30 @@ const TIMEOUT_TOLERANCE: u64 = 25;
 
 #[cfg(feature = "tls")]
 /// Create a test TLS server configuration
-fn create_test_config() -> (Arc<ServerConfig>, Arc<ClientConfig>) {
+fn create_test_config() -> Result<(Arc<ServerConfig>, Arc<ClientConfig>), Box<dyn std::error::Error>> {
     use rustls::pki_types::pem::PemObject;
+    use std::path::PathBuf;
+    ensure_test_certs()?;
+    
 
-    let ca_cert = CertificateDer::from_pem_slice(include_bytes!("../assets/ca.crt").as_ref())
+    let ca_cert_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("certs/ca.pem");
+    let ca_cert = CertificateDer::from_pem_slice(&std::fs::read(ca_cert_path)?)
+        .expect("Failed to load CA cert");
+
+    let client_cert_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("certs/client.pem");
+    let client_cert = CertificateDer::from_pem_slice(&std::fs::read(client_cert_path)?)
         .expect("Failed to load client cert");
 
-    let client_cert = CertificateDer::from_pem_slice(include_bytes!("../assets/client.crt").as_ref())
-        .expect("Failed to load client cert");
-    let client_private_key = PrivateKeyDer::from_pem_slice(include_bytes!("../assets/client.key").as_ref())
+    let client_key_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("certs/client.key.pem");
+    let client_private_key = PrivateKeyDer::from_pem_slice(&std::fs::read(client_key_path)?)
         .expect("Failed to load client private key");
 
-    let server_cert = CertificateDer::from_pem_slice(include_bytes!("../assets/server.crt").as_ref())
+    let server_cert_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("certs/server.pem");
+    let server_cert = CertificateDer::from_pem_slice(&std::fs::read(server_cert_path)?)
         .expect("Failed to load server cert");
-    let server_private_key = PrivateKeyDer::from_pem_slice(include_bytes!("../assets/server.key").as_ref())
+
+    let server_key_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("certs/server.key.pem");
+    let server_private_key = PrivateKeyDer::from_pem_slice(&std::fs::read(server_key_path)?)
         .expect("Failed to load server private key");
 
     // Create a root cert store for the client which includes the server certificate
@@ -59,18 +120,19 @@ fn create_test_config() -> (Arc<ServerConfig>, Arc<ClientConfig>) {
         .with_root_certificates(certs)
         .with_client_auth_cert(vec![client_cert, ca_cert], client_private_key)
         .expect("Failed to create client TLS config");
-    
-    (Arc::new(server_config), Arc::new(config))
+
+    Ok((Arc::new(server_config), Arc::new(config)))
 }
 
 #[cfg(feature = "tls")]
 #[test]
 fn test_tls_connection_sync() {
+
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind listener");
     let server_addr = listener.local_addr().expect("Failed to get local address");
     
     // Server configuration
-    let (server_tls_config, client_tls_config) = create_test_config();
+    let (server_tls_config, client_tls_config) = create_test_config().expect("Failed to create test config");
     let server_options = ServerAssociationOptions::new()
         .accept_called_ae_title()
         .ae_title("TLS-SCP")
@@ -92,6 +154,7 @@ fn test_tls_connection_sync() {
         if let dicom_ul::Pdu::ReleaseRQ = pdu {
             association.send(&dicom_ul::Pdu::ReleaseRP).expect("Failed to send ReleaseRP");
         }
+        association
     });
     
     // Give server time to start
@@ -108,6 +171,8 @@ fn test_tls_connection_sync() {
     // Establish TLS connection
     let association = client_options.establish_tls(server_addr)
         .expect("Failed to establish TLS association");
+    println!("{:?}", association);
+    println!("{:?}", server_handle);
     
     // Verify association properties
     assert_eq!(association.peer_ae_title(), "TLS-SCP");
@@ -127,7 +192,7 @@ async fn test_tls_connection_async() -> Result<(), Box<dyn std::error::Error + S
     let server_addr = listener.local_addr()?;
     
     // Server configuration
-    let (server_tls_config, client_tls_config) = create_test_config();
+    let (server_tls_config, client_tls_config) = create_test_config().expect("Failed to create test config");
     let server_options = ServerAssociationOptions::new()
         .accept_called_ae_title()
         .ae_title("ASYNC-TLS-SCP")
