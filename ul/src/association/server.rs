@@ -466,7 +466,7 @@ where
     /// Set the TLS configuration for the underlying TCP socket
     #[cfg(feature = "tls")]
     pub fn tls_config(mut self, config: impl Into<std::sync::Arc<rustls::ServerConfig>>) -> Self {
-        self.tls_config = Some(std::sync::Arc::new(config));
+        self.tls_config = Some(config.into());
         self
     }
 

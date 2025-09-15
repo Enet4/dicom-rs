@@ -1,12 +1,11 @@
 use dicom_ul::{
-    association::{Association, Error, SyncAssociation, client::ClientAssociationOptions, server::ServerAssociationOptions},
-    pdu::{
+    ServerAssociation, association::{Association, Error, SyncAssociation, client::ClientAssociationOptions, server::ServerAssociationOptions}, pdu::{
         PDataValue, PDataValueType, Pdu, PresentationContextNegotiated,
         PresentationContextResultReason,
-    },
+    }
 };
 #[cfg(feature = "async")]
-use dicom_ul::association::AsyncAssociation;
+use dicom_ul::association::{AsyncAssociation, AsyncServerAssociation};
 
 use std::net::SocketAddr;
 
@@ -43,7 +42,7 @@ fn bogus_packet(len: usize) -> Pdu {
 fn spawn_scp(
     max_server_pdu_len: usize,
     max_client_pdu_len: usize,
-) -> Result<(std::thread::JoinHandle<Result<()>>, SocketAddr)> {
+) -> Result<(std::thread::JoinHandle<Result<ServerAssociation<std::net::TcpStream>>>, SocketAddr)> {
     let listener = std::net::TcpListener::bind("localhost:0")?;
     let addr = listener.local_addr()?;
     let scp = ServerAssociationOptions::new()
@@ -52,7 +51,7 @@ fn spawn_scp(
         .max_pdu_length(max_server_pdu_len as u32)
         .with_abstract_syntax(VERIFICATION_SOP_CLASS);
 
-    let h = std::thread::spawn(move || -> Result<()> {
+    let h = std::thread::spawn(move || -> Result<_> {
         let (stream, _addr) = listener.accept()?;
         let mut association = scp.establish(stream)?;
 
@@ -115,7 +114,7 @@ fn spawn_scp(
         assert_eq!(pdu, Pdu::ReleaseRQ);
         association.send(&Pdu::ReleaseRP)?;
 
-        Ok(())
+        Ok(association)
     });
     Ok((h, addr))
 }
@@ -124,7 +123,7 @@ fn spawn_scp(
 async fn spawn_scp_async(
     max_server_pdu_len: usize,
     max_client_pdu_len: usize,
-) -> Result<(tokio::task::JoinHandle<Result<()>>, SocketAddr)> {
+) -> Result<(tokio::task::JoinHandle<Result<AsyncServerAssociation<tokio::net::TcpStream>>>, SocketAddr)> {
     let listener = tokio::net::TcpListener::bind("localhost:0").await?;
     let addr = listener.local_addr()?;
     let scp = ServerAssociationOptions::new()
@@ -201,7 +200,7 @@ async fn spawn_scp_async(
         assert_eq!(pdu, Pdu::ReleaseRQ);
         association.send(&Pdu::ReleaseRP).await?;
 
-        Ok(())
+        Ok(association)
     });
     Ok((h, addr))
 }

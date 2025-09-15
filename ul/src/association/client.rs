@@ -474,7 +474,7 @@ impl<'a> ClientAssociationOptions<'a> {
     /// Set the TLS configuration to use for the connection
     #[cfg(feature = "tls")]
     pub fn tls_config(mut self, config: impl Into<std::sync::Arc<rustls::ClientConfig>>) -> Self {
-        self.tls_config = Some(std::sync::Arc::new(config));
+        self.tls_config = Some(config.into());
         self
     }
 

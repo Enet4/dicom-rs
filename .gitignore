@@ -8,3 +8,5 @@ target/
 *.key
 *.csr
 *.srl
+*.pem
+certs/

@@ -40,6 +40,9 @@ rstest = "0.26.1"
 tokio = { version = "^1.38", features = ["io-util", "macros", "net", "rt", "rt-multi-thread"] }
 dicom-core = { path = '../core' }
 dicom-object = { path = '../object' }
+time = "0.3"
+rustls-cert-gen = "0.2.0"
+rcgen = "0.14.4"
 
 [features]
 async = ["dep:tokio"]

@@ -36,6 +36,10 @@ pub use client::{ClientAssociation, ClientAssociationOptions};
 pub use server::{ServerAssociation, ServerAssociationOptions};
 #[cfg(feature = "async")]
 pub use pdata::non_blocking::AsyncPDataWriter;
+#[cfg(feature = "async")]
+pub use client::AsyncClientAssociation;
+#[cfg(feature = "async")]
+pub use server::AsyncServerAssociation;
 use snafu::{ensure, ResultExt, Snafu};
 
 use crate::{Pdu, pdu::{self, AssociationRJ, PresentationContextNegotiated, ReadPduSnafu, UserVariableItem}, write_pdu};
