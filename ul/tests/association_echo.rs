@@ -1,11 +1,19 @@
 use dicom_ul::{
-    association::client::ClientAssociationOptions,
-    pdu::{Pdu, PresentationContextNegotiated, PresentationContextResultReason},
+    association::{Error, client::ClientAssociationOptions},
+    pdu::{Pdu, PDataValue, PDataValueType, PresentationContextNegotiated,
+        PresentationContextResultReason},
 };
 
 use std::net::SocketAddr;
+use rand::Rng;
 
 use dicom_ul::association::server::ServerAssociationOptions;
+
+// Check rather arbitrary maximum PDU lengths, also different for server and client
+const HI_PDU_LEN: usize = 7890;
+const LO_PDU_LEN: usize = 5678;
+const PDU_HDR_LEN: usize = 6;
+const PDV_HDR_LEN: usize = 6;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
@@ -18,12 +26,29 @@ static JPEG_BASELINE: &str = "1.2.840.10008.1.2.4.50";
 static VERIFICATION_SOP_CLASS: &str = "1.2.840.10008.1.1";
 static DIGITAL_MG_STORAGE_SOP_CLASS: &str = "1.2.840.10008.5.1.4.1.1.1.2";
 
-fn spawn_scp() -> Result<(std::thread::JoinHandle<Result<()>>, SocketAddr)> {
+// Return a PData PDU with one PDV which has a payload of the given length.
+// It's a "bogus packet" because the payload is filled with zeros instead of
+// being a valid DICOM object.
+fn bogus_packet(len: usize) -> Pdu {
+    Pdu::PData {
+        data: vec!(PDataValue {
+            presentation_context_id: 1,
+            value_type: PDataValueType::Command,
+            is_last: true,
+            data: vec![0_u8; len],
+        }),
+    }
+}
+
+fn spawn_scp(max_server_pdu_len: usize, max_client_pdu_len: usize)
+    -> Result<(std::thread::JoinHandle<Result<()>>, SocketAddr)>
+{
     let listener = std::net::TcpListener::bind("localhost:0")?;
     let addr = listener.local_addr()?;
     let scp = ServerAssociationOptions::new()
         .accept_called_ae_title()
         .ae_title(SCP_AE_TITLE)
+        .max_pdu_length(max_server_pdu_len as u32)
         .with_abstract_syntax(VERIFICATION_SOP_CLASS);
 
     let h = std::thread::spawn(move || -> Result<()> {
@@ -48,6 +73,41 @@ fn spawn_scp() -> Result<(std::thread::JoinHandle<Result<()>>, SocketAddr)> {
             ],
         );
 
+        assert_eq!(association.requestor_max_pdu_length(), max_client_pdu_len as u32);
+        assert_eq!(association.acceptor_max_pdu_length(), max_server_pdu_len as u32);
+
+        // handle one bogus payload
+        let pdu = association.receive()?;
+        let data = match pdu {
+            Pdu::PData { ref data } => data,
+            other => panic!("Unexpected packet type: {:?}", other)
+        };
+        assert_eq!(data.len(), 1);
+        assert_eq!(
+            data[0].data.len(),
+            max_server_pdu_len - PDU_HDR_LEN - PDV_HDR_LEN
+        );
+
+        // Create a bogus payload which fills the PDU to the max.
+        // Take into account the PDU and PDV header lengths for that purpose.
+        let filler_len = max_client_pdu_len - PDU_HDR_LEN - PDV_HDR_LEN;
+        let mut packet = bogus_packet(filler_len);
+
+        // send one bogus response
+        association
+            .send(&packet)
+            .expect("failed sending packet");
+
+        // Add 1 byte to the payload to exceed maximum length
+        if let Pdu::PData { ref mut data } = packet {
+            data[0].data.push(0);
+        }
+
+        match association.send(&packet) {
+            Err(Error::SendTooLongPdu {..}) => (),
+            e => panic!("Expected SendTooLongPdu but didn't happen: {:?}", e)
+        }
+
         // handle one release request
         let pdu = association.receive()?;
         assert_eq!(pdu, Pdu::ReleaseRQ);
@@ -59,12 +119,15 @@ fn spawn_scp() -> Result<(std::thread::JoinHandle<Result<()>>, SocketAddr)> {
 }
 
 #[cfg(feature = "async")]
-async fn spawn_scp_async() -> Result<(tokio::task::JoinHandle<Result<()>>, SocketAddr)> {
+async fn spawn_scp_async(max_server_pdu_len: usize, max_client_pdu_len: usize)
+    -> Result<(tokio::task::JoinHandle<Result<()>>, SocketAddr)>
+{
     let listener = tokio::net::TcpListener::bind("localhost:0").await?;
     let addr = listener.local_addr()?;
     let scp = ServerAssociationOptions::new()
         .accept_called_ae_title()
         .ae_title(SCP_AE_TITLE)
+        .max_pdu_length(max_server_pdu_len as u32)
         .with_abstract_syntax(VERIFICATION_SOP_CLASS);
 
     let h = tokio::spawn(async move {
@@ -89,6 +152,41 @@ async fn spawn_scp_async() -> Result<(tokio::task::JoinHandle<Result<()>>, Socke
             ],
         );
 
+        assert_eq!(association.requestor_max_pdu_length(), max_client_pdu_len as u32);
+        assert_eq!(association.acceptor_max_pdu_length(), max_server_pdu_len as u32);
+
+        // handle one bogus payload
+        let pdu = association.receive().await?;
+        let data = match pdu {
+            Pdu::PData { ref data } => data,
+            other => panic!("Unexpected packet type: {:?}", other)
+        };
+        assert_eq!(data.len(), 1);
+        assert_eq!(
+            data[0].data.len(),
+            max_server_pdu_len - PDU_HDR_LEN - PDV_HDR_LEN);
+
+        // Create a bogus payload which fills the PDU to the max.
+        // Take into account the PDU and PDV header lengths for that purpose.
+        let filler_len = max_client_pdu_len - PDU_HDR_LEN - PDV_HDR_LEN;
+        let mut packet = bogus_packet(filler_len);
+
+        // send one bogus response
+        association
+            .send(&packet)
+            .await
+            .expect("failed sending packet");
+
+        if let Pdu::PData { ref mut data } = packet {
+            // Add 1 byte to the payload to exceed maximum length
+            data[0].data.push(0);
+        }
+
+        match association.send(&packet).await {
+            Err(Error::SendTooLongPdu {..}) => (),
+            e => panic!("Expected SendTooLongPdu but didn't happen: {:?}", e)
+        }
+
         // handle one release request
         let pdu = association.receive().await?;
         assert_eq!(pdu, Pdu::ReleaseRQ);
@@ -102,9 +200,13 @@ async fn spawn_scp_async() -> Result<(tokio::task::JoinHandle<Result<()>>, Socke
 /// Run an SCP and an SCU concurrently, negotiate an association and release it.
 #[test]
 fn scu_scp_association_test() {
-    let (scp_handle, scp_addr) = spawn_scp().unwrap();
+    let max_is_client: bool = rand::thread_rng().gen();
+    let (max_client_pdu_len, max_server_pdu_len) =
+        if max_is_client { (HI_PDU_LEN, LO_PDU_LEN) } else { (LO_PDU_LEN, HI_PDU_LEN) };
+    let (scp_handle, scp_addr) =
+        spawn_scp(max_server_pdu_len, max_client_pdu_len).unwrap();
 
-    let association = ClientAssociationOptions::new()
+    let mut association = ClientAssociationOptions::new()
         .calling_ae_title(SCU_AE_TITLE)
         .called_ae_title(SCP_AE_TITLE)
         .with_presentation_context(VERIFICATION_SOP_CLASS, vec![IMPLICIT_VR_LE, EXPLICIT_VR_LE])
@@ -112,8 +214,36 @@ fn scu_scp_association_test() {
             DIGITAL_MG_STORAGE_SOP_CLASS,
             vec![IMPLICIT_VR_LE, EXPLICIT_VR_LE, JPEG_BASELINE],
         )
+        .max_pdu_length(max_client_pdu_len as u32)
         .establish(scp_addr)
         .unwrap();
+
+    assert_eq!(association.requestor_max_pdu_length(), max_client_pdu_len as u32);
+    assert_eq!(association.acceptor_max_pdu_length(), max_server_pdu_len as u32);
+
+    // Create a bogus payload which fills the PDU to the max.
+    // Take into account the PDU and PDV header lengths for that purpose.
+    let filler_len = max_server_pdu_len - PDU_HDR_LEN - PDV_HDR_LEN;
+    let mut packet = bogus_packet(filler_len);
+
+    association
+        .send(&packet)
+        .expect("failed sending packet");
+
+    let pdu = association.receive().expect("can't receive response");
+    match pdu {
+        Pdu::PData{..} => (),
+        _ => panic!("unexpected response packet type")
+    }
+
+    // Add 1 byte to the payload to exceed maximum length
+    if let Pdu::PData { ref mut data } = packet {
+        data[0].data.push(0);
+    }
+    match association.send(&packet) {
+        Err(Error::SendTooLongPdu {..}) => (),
+        e => panic!("Expected SendTooLongPdu but didn't happen: {:?}", e)
+    }
 
     association
         .release()
@@ -127,10 +257,14 @@ fn scu_scp_association_test() {
 
 #[cfg(feature = "async")]
 #[tokio::test(flavor = "multi_thread")]
-async fn scu_scp_asociation_test() {
-    let (scp_handle, scp_addr) = spawn_scp_async().await.unwrap();
+async fn scu_scp_association_test_async() {
+    let max_is_client: bool = rand::thread_rng().gen();
+    let (max_client_pdu_len, max_server_pdu_len) =
+        if max_is_client { (HI_PDU_LEN, LO_PDU_LEN) } else { (LO_PDU_LEN, HI_PDU_LEN) };
+    let (scp_handle, scp_addr) =
+        spawn_scp_async(max_server_pdu_len, max_client_pdu_len).await.unwrap();
 
-    let association = ClientAssociationOptions::new()
+    let mut association = ClientAssociationOptions::new()
         .calling_ae_title(SCU_AE_TITLE)
         .called_ae_title(SCP_AE_TITLE)
         .with_presentation_context(VERIFICATION_SOP_CLASS, vec![IMPLICIT_VR_LE, EXPLICIT_VR_LE])
@@ -138,17 +272,46 @@ async fn scu_scp_asociation_test() {
             DIGITAL_MG_STORAGE_SOP_CLASS,
             vec![IMPLICIT_VR_LE, EXPLICIT_VR_LE, JPEG_BASELINE],
         )
+        .max_pdu_length(max_client_pdu_len as u32)
         .establish_async(scp_addr)
         .await
         .unwrap();
 
+    assert_eq!(association.requestor_max_pdu_length(), max_client_pdu_len as u32);
+    assert_eq!(association.acceptor_max_pdu_length(), max_server_pdu_len as u32);
+
+    // Create a bogus payload which fills the PDU to the max.
+    // Take into account the PDU and PDV header lengths for that purpose.
+    let filler_len = max_server_pdu_len - PDU_HDR_LEN - PDV_HDR_LEN;
+    let mut packet = bogus_packet(filler_len);
+
+    association
+        .send(&packet)
+        .await
+        .expect("failed sending packet (async)");
+
+    let pdu = association.receive().await.expect("can't receive response (async)");
+    match pdu {
+        Pdu::PData{..} => (),
+        _ => panic!("unexpected response packet type (async)")
+    }
+
+    // Add 1 byte to the payload to exceed maximum length
+    if let Pdu::PData { ref mut data } = packet {
+        data[0].data.push(0);
+    }
+    match association.send(&packet).await {
+        Err(Error::SendTooLongPdu {..}) => (),
+        e => panic!("Expected SendTooLongPdu but didn't happen (async): {:?}", e)
+    }
+
     association
         .release()
         .await
-        .expect("did not have a peaceful release");
+        .expect("did not have a peaceful release (async)");
 
     scp_handle
         .await
-        .expect("SCP panicked")
-        .expect("Error at the SCP");
+        .expect("SCP panicked (async)")
+        .expect("Error at the SCP (async)");
 }
