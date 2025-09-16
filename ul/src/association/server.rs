@@ -710,6 +710,11 @@ impl<S> ServerAssociation<S> {
         &self.presentation_contexts
     }
 
+    /// Get the maximum PDU length that the peer reports to support.
+    pub fn max_remote_pdu_length(&self) -> u32 {
+        self.requestor_max_pdu_length
+    }
+
     /// Obtain the remote DICOM node's application entity title.
     pub fn client_ae_title(&self) -> &str {
         &self.client_ae_title
