@@ -1155,7 +1155,7 @@ pub mod non_blocking {
             let task = async {
                 loop {
                     let mut buf = Cursor::new(&self.read_buffer[..]);
-                    match read_pdu(&mut buf, self.requestor_max_pdu_length, self.strict)
+                    match read_pdu(&mut buf, self.acceptor_max_pdu_length, self.strict)
                         .context(ReceiveRequestSnafu)?
                     {
                         Some(pdu) => {
