@@ -162,12 +162,12 @@ pub enum Error {
     ConnectionClosed,
 
     /// TLS configuration is missing
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "sync-tls")]
     #[snafu(display("TLS configuration is required but not provided"))]
     TlsConfigMissing { backtrace: Backtrace },
 
     /// Invalid server name for TLS
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "sync-tls")]
     #[snafu(display("Invalid server name for TLS connection"))]
     InvalidServerName { 
         source: rustls::pki_types::InvalidDnsNameError,
@@ -175,7 +175,7 @@ pub enum Error {
     },
 
     /// Failed to establish TLS connection
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "sync-tls")]
     #[snafu(display("Failed to establish TLS connection: {:?}", source))]
     TlsConnection { 
         source: rustls::Error,
@@ -215,14 +215,14 @@ impl CloseSocket for std::net::TcpStream {
     }
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "sync-tls")]
 impl CloseSocket for rustls::StreamOwned<rustls::ClientConnection, std::net::TcpStream>{
     fn close(&mut self) -> std::io::Result<()> {
         self.get_mut().shutdown(std::net::Shutdown::Both)
     }
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "sync-tls")]
 impl CloseSocket for rustls::StreamOwned<rustls::ServerConnection, std::net::TcpStream>{
     fn close(&mut self) -> std::io::Result<()> {
         self.get_mut().shutdown(std::net::Shutdown::Both)

@@ -1,7 +1,5 @@
 use std::{
-    collections::HashSet,
     io::{stderr, Write},
-    net::TcpStream,
 };
 
 use dicom_dictionary_std::tags;
@@ -9,77 +7,25 @@ use dicom_encoding::TransferSyntaxIndex;
 use dicom_object::{open_file, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{
-    ClientAssociation, ClientAssociationOptions, Pdu, association::{Association, SyncAssociation}, pdu::{PDataValue, PDataValueType}
+    ClientAssociation, Pdu, association::{Association, CloseSocket, SyncAssociation}, pdu::{PDataValue, PDataValueType}
 };
 use indicatif::ProgressBar;
-use snafu::{OptionExt, ResultExt};
+use snafu::{OptionExt, Report, ResultExt};
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    into_ts, store_req_command, ConvertFieldSnafu, CreateCommandSnafu, DicomFile, Error,
-    MissingAttributeSnafu, ReadDatasetSnafu, ReadFilePathSnafu, ScuSnafu,
-    UnsupportedFileTransferSyntaxSnafu, WriteDatasetSnafu, WriteIOSnafu,
+    ConvertFieldSnafu, CreateCommandSnafu, DicomFile, Error, MissingAttributeSnafu, ReadDatasetSnafu, ReadFilePathSnafu, ScuSnafu, UnsupportedFileTransferSyntaxSnafu, WriteDatasetSnafu, WriteIOSnafu, check_presentation_contexts, into_ts, store_req_command
 };
 
-#[allow(clippy::too_many_arguments)]
-pub fn get_scu(
-    addr: String,
-    calling_ae_title: String,
-    called_ae_title: Option<String>,
-    max_pdu_length: u32,
-    username: Option<String>,
-    password: Option<String>,
-    kerberos_service_ticket: Option<String>,
-    saml_assertion: Option<String>,
-    jwt: Option<String>,
-    presentation_contexts: HashSet<(String, String)>,
-) -> Result<ClientAssociation<TcpStream>, Error> {
-    let mut scu_init = ClientAssociationOptions::new()
-        .calling_ae_title(calling_ae_title)
-        .max_pdu_length(max_pdu_length);
-
-    for (storage_sop_class_uid, transfer_syntax) in &presentation_contexts {
-        scu_init = scu_init.with_presentation_context(storage_sop_class_uid, vec![transfer_syntax]);
-    }
-
-    if let Some(called_ae_title) = called_ae_title {
-        scu_init = scu_init.called_ae_title(called_ae_title);
-    }
-
-    if let Some(username) = username {
-        scu_init = scu_init.username(username);
-    }
-
-    if let Some(password) = password {
-        scu_init = scu_init.password(password);
-    }
-
-    if let Some(kerberos_service_ticket) = kerberos_service_ticket {
-        scu_init = scu_init.kerberos_service_ticket(kerberos_service_ticket);
-    }
-
-    if let Some(saml_assertion) = saml_assertion {
-        scu_init = scu_init.saml_assertion(saml_assertion);
-    }
-
-    if let Some(jwt) = jwt {
-        scu_init = scu_init.jwt(jwt);
-    }
-
-    scu_init
-        .establish_with(&addr)
-        .map_err(Box::from)
-        .context(ScuSnafu)
-}
-
-pub fn send_file(
-    mut scu: ClientAssociation<TcpStream>,
+pub fn send_file<T>(
+    mut scu: ClientAssociation<T>,
     file: DicomFile,
     message_id: u16,
     progress_bar: Option<&ProgressBar>,
     verbose: bool,
     fail_first: bool,
-) -> Result<ClientAssociation<TcpStream>, Error> {
+) -> Result<ClientAssociation<T>, Error> 
+where T: std::io::Read + std::io::Write + CloseSocket{
     if let (Some(pc_selected), Some(ts_uid_selected)) = (file.pc_selected, file.ts_selected) {
         if let Some(pb) = &progress_bar {
             pb.set_message(file.sop_instance_uid.clone());
@@ -253,4 +199,57 @@ pub fn send_file(
         pb.inc(1)
     };
     Ok(scu)
+}
+
+
+pub fn inner<T>(
+    mut scu: ClientAssociation<T>,
+    d_files: Vec<DicomFile>,
+    pbx: &Option<ProgressBar>,
+    fail_first: bool,
+    verbose: bool,
+    never_transcode: bool,
+    ignore_sop_class: bool,
+) -> Result<(), Error>
+where T: std::io::Read + std::io::Write + CloseSocket{
+    let mut message_id = 1;
+    for mut file in d_files {
+        // identify the right transfer syntax to use
+        let r: Result<_, Error> =
+            check_presentation_contexts(&file, scu.presentation_contexts(), ignore_sop_class, never_transcode);
+        match r {
+            Ok((pc, ts)) => {
+                if verbose {
+                    debug!(
+                        "{}: Selected presentation context: {:?}",
+                        file.file.display(),
+                        pc
+                    );
+                }
+                file.pc_selected = Some(pc);
+                file.ts_selected = Some(ts);
+            }
+            Err(e) => {
+                error!("{}", Report::from_error(e));
+                if fail_first {
+                    let _ = scu.abort();
+                    std::process::exit(-2);
+                }
+            }
+        }
+        scu = send_file(
+            scu,
+            file,
+            message_id,
+            pbx.as_ref(),
+            verbose,
+            fail_first,
+        )?;
+        message_id += 1;
+    }
+    scu.release().map_err(Box::from).context(ScuSnafu)?;
+    if let Some(pb) = pbx {
+        pb.finish_with_message("done")
+    };
+    Ok(())
 }

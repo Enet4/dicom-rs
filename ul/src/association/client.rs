@@ -26,7 +26,7 @@ use super::{
     Result,
 };
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "sync-tls")]
 pub type TlsStream = rustls::StreamOwned<rustls::ClientConnection, std::net::TcpStream>;
 #[cfg(feature = "async-tls")]
 pub type AsyncTlsStream = tokio_rustls::client::TlsStream<tokio::net::TcpStream>;
@@ -66,7 +66,7 @@ fn tcp_connection<T>(
 }
 
 /// Helper function to establish a TLS client connection
-#[cfg(feature = "tls")]
+#[cfg(feature = "sync-tls")]
 fn tls_connection<T>(
     ae_address: &AeAddr<T>,
     server_name: &str,
@@ -241,10 +241,10 @@ pub struct ClientAssociationOptions<'a> {
     /// Socket options for TCP connections
     socket_options: SocketOptions,
     /// TLS configuration to use for the connection
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "sync-tls")]
     tls_config: Option<std::sync::Arc<rustls::ClientConfig>>,
     /// Server name for TLS
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "sync-tls")]
     server_name: Option<String>,
 }
 
@@ -272,9 +272,9 @@ impl Default for ClientAssociationOptions<'_> {
                 write_timeout: None,
                 connection_timeout: None,
             },
-            #[cfg(feature = "tls")]
+            #[cfg(feature = "sync-tls")]
             tls_config: None,
-            #[cfg(feature = "tls")]
+            #[cfg(feature = "sync-tls")]
             server_name: None,
         }
     }
@@ -472,14 +472,14 @@ impl<'a> ClientAssociationOptions<'a> {
     }
 
     /// Set the TLS configuration to use for the connection
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "sync-tls")]
     pub fn tls_config(mut self, config: impl Into<std::sync::Arc<rustls::ClientConfig>>) -> Self {
         self.tls_config = Some(config.into());
         self
     }
 
     /// Set the server name to use for the TLS connection
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "sync-tls")]
     pub fn server_name(mut self, server_name: &str) -> Self {
         self.server_name = Some(server_name.to_string());
         self
@@ -501,7 +501,7 @@ impl<'a> ClientAssociationOptions<'a> {
     /// Initiate simple TCP connection to the given address
     /// and request a new DICOM association,
     /// negotiating the presentation contexts in the process.
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "sync-tls")]
     pub fn establish_tls<A: ToSocketAddrs>(
         self, address: A
     ) -> Result<ClientAssociation<TlsStream>> {
@@ -583,7 +583,7 @@ impl<'a> ClientAssociationOptions<'a> {
     /// # }
     /// ```
     #[allow(unreachable_patterns)]
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "sync-tls")]
     pub fn establish_with_tls(
         self,
         ae_address: &str,

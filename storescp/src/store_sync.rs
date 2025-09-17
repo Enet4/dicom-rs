@@ -1,10 +1,11 @@
 use std::net::TcpStream;
+use std::path::PathBuf;
 
 use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use dicom_ul::{Pdu, association::{Association, SyncAssociation}, pdu::{PDataValueType, PresentationContextResultReason}};
+use dicom_ul::{Pdu, ServerAssociation, association::{Association, CloseSocket, SyncAssociation}, pdu::{PDataValueType, PresentationContextResultReason}};
 use snafu::{OptionExt, Report, ResultExt, Whatever};
 use tracing::{debug, info, warn};
 
@@ -20,13 +21,9 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
         out_dir,
         port: _,
         non_blocking: _,
-    } = args;
-    let verbose = *verbose;
+        tls
+    } = &args;
 
-    let mut instance_buffer: Vec<u8> = Vec::with_capacity(1024 * 1024);
-    let mut msgid = 1;
-    let mut sop_class_uid = "".to_string();
-    let mut sop_instance_uid = "".to_string();
 
     let mut options = dicom_ul::association::ServerAssociationOptions::new()
         .accept_any()
@@ -50,27 +47,80 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
     for uid in ABSTRACT_SYNTAXES {
         options = options.with_abstract_syntax(*uid);
     }
-
-    let mut association = options
-        .establish(scu_stream)
-        .whatever_context("could not establish association")?;
-
-    info!("New association from {}", association.peer_ae_title());
-    if args.verbose {
+    let (peer_addr, peer_title) = if tls.enabled.unwrap_or(false) {
+        let config = tls.server_config().whatever_context("Could not create TLS config")?;
+        options = options.tls_config(config);
+        let peer_addr = scu_stream.peer_addr().ok();
+        let association = options
+            .establish_tls(scu_stream)
+            .whatever_context("could not establish association")?;
+        info!("New association from {}", association.peer_ae_title());
+        info!("New association from {}", association.peer_ae_title());
+        if args.verbose {
+            debug!(
+                "> Presentation contexts: {:?}",
+                association.presentation_contexts()
+            );
+        }
         debug!(
-            "> Presentation contexts: {:?}",
+            "#accepted_presentation_contexts={}, acceptor_max_pdu_length={}, requestor_max_pdu_length={}",
             association.presentation_contexts()
+                .iter()
+                .filter(|pc| pc.reason == PresentationContextResultReason::Acceptance)
+                .count(),
+            association.acceptor_max_pdu_length(),
+            association.requestor_max_pdu_length(),
         );
+        let peer_title = association.peer_ae_title().to_string();
+        inner(association, *verbose, &out_dir)?;
+        (peer_addr, peer_title)
+    } else {
+        let peer_addr = scu_stream.peer_addr().ok();
+        let association = options
+            .establish(scu_stream)
+            .whatever_context("could not establish association")?;
+        info!("New association from {}", association.peer_ae_title());
+        if args.verbose {
+            debug!(
+                "> Presentation contexts: {:?}",
+                association.presentation_contexts()
+            );
+        }
+        debug!(
+            "#accepted_presentation_contexts={}, acceptor_max_pdu_length={}, requestor_max_pdu_length={}",
+            association.presentation_contexts()
+                .iter()
+                .filter(|pc| pc.reason == PresentationContextResultReason::Acceptance)
+                .count(),
+            association.acceptor_max_pdu_length(),
+            association.requestor_max_pdu_length(),
+        );
+        let peer_title = association.peer_ae_title().to_string();
+        inner(association, *verbose, &out_dir)?;
+        (peer_addr, peer_title)
+    };
+
+    if let Some(peer_addr) = peer_addr {
+        info!(
+            "Dropping connection with {} ({})",
+            peer_title,
+            peer_addr
+        );
+    } else {
+        info!("Dropping connection with {}", peer_title);
     }
-    debug!(
-        "#accepted_presentation_contexts={}, acceptor_max_pdu_length={}, requestor_max_pdu_length={}",
-        association.presentation_contexts()
-            .iter()
-            .filter(|pc| pc.reason == PresentationContextResultReason::Acceptance)
-            .count(),
-        association.acceptor_max_pdu_length(),
-        association.requestor_max_pdu_length(),
-    );
+    Ok(())
+
+}
+
+fn inner<T>(mut association: ServerAssociation<T>, verbose: bool, out_dir: &PathBuf) -> Result<(), Whatever>
+where
+    T: std::io::Read + std::io::Write + CloseSocket,
+{
+    let mut instance_buffer: Vec<u8> = Vec::with_capacity(1024 * 1024);
+    let mut msgid = 1;
+    let mut sop_class_uid = "".to_string();
+    let mut sop_instance_uid = "".to_string();
 
     loop {
         match association.receive() {
@@ -266,16 +316,6 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
             }
         }
     }
-
-    if let Ok(peer_addr) = association.inner_stream().peer_addr() {
-        info!(
-            "Dropping connection with {} ({})",
-            association.peer_ae_title(),
-            peer_addr
-        );
-    } else {
-        info!("Dropping connection with {}", association.peer_ae_title());
-    }
-
     Ok(())
+
 }

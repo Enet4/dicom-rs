@@ -1,0 +1,11 @@
+[package]
+name = "app-common"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.47", features = ["derive", "wrap_help"] }
+rustls = "0.23.31"
+rustls-native-certs = "0.8.1"
+snafu = "0.8.9"
+tracing = "0.1.41"

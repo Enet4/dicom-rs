@@ -24,12 +24,15 @@ dicom-encoding = { path = "../encoding/", version = "0.9" }
 dicom-object = { path = '../object', version = "0.9" }
 dicom-pixeldata = { path = "../pixeldata", version = "0.9", optional = true }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.9" }
-dicom-ul = { path = '../ul', version = "0.9", features = ["async"] }
+dicom-ul = { path = '../ul', version = "0.9", features = ["async-tls"] }
 walkdir = "2.3.2"
 indicatif = "0.17.0"
 tracing = "0.1.34"
-tracing-subscriber = "0.3.11"
+tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
 snafu = "0.8"
+app-common = { version = "0.1.0", path = "../app-common" }
+rustls = "0.23.31"
+tokio-rustls = "0.26.3"
 
 [dependencies.tokio]
 version = "1.38.0"

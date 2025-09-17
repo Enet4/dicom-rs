@@ -37,7 +37,7 @@ use super::{
     Error, Result
 };
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "sync-tls")]
 pub type TlsStream = rustls::StreamOwned<rustls::ServerConnection, std::net::TcpStream>;
 #[cfg(feature = "async-tls")]
 pub type AsyncTlsStream = tokio_rustls::server::TlsStream<tokio::net::TcpStream>;
@@ -294,7 +294,7 @@ pub struct ServerAssociationOptions<'a, A> {
     /// Options for the underlying TCP socket
     socket_options: SocketOptions,
     /// TLS configuration for the underlying TCP socket
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "sync-tls")]
     tls_config: Option<std::sync::Arc<rustls::ServerConfig>>,
 }
 
@@ -311,7 +311,7 @@ impl Default for ServerAssociationOptions<'_, AcceptAny> {
             strict: true,
             promiscuous: false,
             socket_options: SocketOptions::default(),
-            #[cfg(feature = "tls")]
+            #[cfg(feature = "sync-tls")]
             tls_config: None,
         }
     }
@@ -364,7 +364,7 @@ where
             promiscuous,
             ae_access_control: _,
             socket_options,
-            #[cfg(feature = "tls")]
+            #[cfg(feature = "sync-tls")]
             tls_config
         } = self;
 
@@ -379,7 +379,7 @@ where
             strict,
             promiscuous,
             socket_options,
-            #[cfg(feature = "tls")]
+            #[cfg(feature = "sync-tls")]
             tls_config
         }
     }
@@ -464,7 +464,7 @@ where
     }
 
     /// Set the TLS configuration for the underlying TCP socket
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "sync-tls")]
     pub fn tls_config(mut self, config: impl Into<std::sync::Arc<rustls::ServerConfig>>) -> Self {
         self.tls_config = Some(config.into());
         self
@@ -692,7 +692,7 @@ where
     }
 
     /// Negotiate an association with the given TCP stream using TLS.
-    #[cfg(feature = "tls")]
+    #[cfg(feature = "sync-tls")]
     pub fn establish_tls(&self, socket: TcpStream) -> Result<ServerAssociation<TlsStream>> {
         ensure!(
             !self.abstract_syntax_uids.is_empty() || self.promiscuous,

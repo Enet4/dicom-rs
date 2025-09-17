@@ -46,10 +46,10 @@ rcgen = "0.14.4"
 
 [features]
 async = ["dep:tokio"]
-tls = ["dep:rustls"]
-async-tls=["async", "tls", "dep:tokio-rustls"]
+sync-tls = ["dep:rustls"]
+async-tls=["async", "sync-tls", "dep:tokio-rustls"]
 default = []
-all = ["async-tls"]
+full = ["async-tls"]
 
 [package.metadata.docs.rs]
-features = ["async"]
+features = ["async", "sync-tls", "async-tls"]

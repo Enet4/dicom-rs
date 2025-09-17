@@ -2,8 +2,11 @@ use dicom_dictionary_std::uids::VERIFICATION;
 use dicom_ul::ClientAssociationOptions;
 use rstest::rstest;
 use std::time::Instant;
+use dicom_ul::association::Association;
+#[cfg(feature = "sync-tls")]
+use std::sync::Arc;
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "sync-tls")]
 fn ensure_test_certs() -> Result<(), Box<dyn std::error::Error>> {
     use rustls_cert_gen::CertificateBuilder;
     use rcgen::SanType;
@@ -54,27 +57,12 @@ fn ensure_test_certs() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(feature = "tls")]
-use std::sync::Arc;
-#[cfg(feature = "tls")]
-use rustls::{
-    ServerConfig, ClientConfig, 
-    pki_types::{CertificateDer, PrivateKeyDer},
-    RootCertStore,
-    server::WebPkiClientVerifier
-};
-#[cfg(feature = "tls")]
-use dicom_ul::association::{server::ServerAssociationOptions, Association, SyncAssociation};
-
-#[cfg(feature = "async-tls")]
-use dicom_ul::association::AsyncAssociation;
-
 const TIMEOUT_TOLERANCE: u64 = 25;
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "sync-tls")]
 /// Create a test TLS server configuration
-fn create_test_config() -> Result<(Arc<ServerConfig>, Arc<ClientConfig>), Box<dyn std::error::Error>> {
-    use rustls::pki_types::pem::PemObject;
+fn create_test_config() -> Result<(Arc<rustls::ServerConfig>, Arc<rustls::ClientConfig>), Box<dyn std::error::Error>> {
+    use rustls::{ClientConfig, RootCertStore, ServerConfig, pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject}, server::WebPkiClientVerifier};
     use std::path::PathBuf;
     ensure_test_certs()?;
     
@@ -124,9 +112,13 @@ fn create_test_config() -> Result<(Arc<ServerConfig>, Arc<ClientConfig>), Box<dy
     Ok((Arc::new(server_config), Arc::new(config)))
 }
 
-#[cfg(feature = "tls")]
+#[cfg(feature = "sync-tls")]
 #[test]
 fn test_tls_connection_sync() {
+    // set up crypto provider -- Just use the default provider which is aws_lc_rs
+
+    use dicom_ul::{ServerAssociationOptions, association::SyncAssociation};
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind listener");
     let server_addr = listener.local_addr().expect("Failed to get local address");
@@ -141,6 +133,8 @@ fn test_tls_connection_sync() {
     
     // Spawn server thread
     let server_handle = std::thread::spawn(move || {
+        use dicom_ul::association::SyncAssociation;
+
         let (stream, _) = listener.accept().expect("Failed to accept connection");
         let mut association = server_options.establish_tls(stream)
             .expect("Failed to establish TLS association");
@@ -185,9 +179,13 @@ fn test_tls_connection_sync() {
     server_handle.join().expect("Server thread failed");
 }
 
-#[cfg(all(feature = "async", feature = "tls"))]
+#[cfg(feature = "async-tls")]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_tls_connection_async() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+    use dicom_ul::{ServerAssociationOptions, association::AsyncAssociation};
+    // set up crypto provider -- Just use the default provider which is aws_lc_rs
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let server_addr = listener.local_addr()?;
     
