@@ -710,8 +710,15 @@ impl<S> ServerAssociation<S> {
         &self.presentation_contexts
     }
 
-    /// Get the maximum PDU length that the peer reports to support.
-    pub fn max_remote_pdu_length(&self) -> u32 {
+    /// Retrieve the maximum PDU length
+    /// admitted by this application entity.
+    pub fn acceptor_max_pdu_length(&self) -> u32 {
+        self.acceptor_max_pdu_length
+    }
+
+    /// Retrieve the maximum PDU length
+    /// that the requestor is expecting to receive.
+    pub fn requestor_max_pdu_length(&self) -> u32 {
         self.requestor_max_pdu_length
     }
 
