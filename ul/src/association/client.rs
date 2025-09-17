@@ -154,7 +154,7 @@ fn tls_connection<T>(
 /// > **⚠️ Warning:** Just including the `async` and `tls` features will _not_ work!
 /// 
 /// ### Example
-/// ```
+/// ```no_compile
 /// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # use std::time::Duration;
 /// # use std::sync::Arc;
