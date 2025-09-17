@@ -18,8 +18,9 @@ use crate::{
     pdu::{
         read_pdu, write_pdu, AbortRQServiceProviderReason, AbortRQSource, AssociationAC,
         AssociationRJ, AssociationRJResult, AssociationRJServiceUserReason, AssociationRJSource,
-        AssociationRQ, Pdu, PresentationContextResult, PresentationContextResultReason,
-        ReadPduSnafu, UserIdentity, UserVariableItem, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE,
+        AssociationRQ, Pdu, PresentationContextResult, PresentationContextNegotiated,
+        PresentationContextResultReason, ReadPduSnafu, UserIdentity, UserVariableItem,
+        DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE,
     },
     IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
@@ -563,18 +564,20 @@ where
                     requestor_max_pdu_length
                 };
 
-                let presentation_contexts: Vec<_> = presentation_contexts
+                let presentation_contexts_negotiated: Vec<_> = presentation_contexts
                     .into_iter()
                     .map(|pc| {
+                        let abstract_syntax = trim_uid(Cow::from(pc.abstract_syntax));
                         if !self
                             .abstract_syntax_uids
-                            .contains(&trim_uid(Cow::from(pc.abstract_syntax)))
+                            .contains(&abstract_syntax)
                             && !self.promiscuous
                         {
-                            return PresentationContextResult {
+                            return PresentationContextNegotiated {
                                 id: pc.id,
                                 reason: PresentationContextResultReason::AbstractSyntaxNotSupported,
                                 transfer_syntax: "1.2.840.10008.1.2".to_string(),
+                                abstract_syntax: abstract_syntax.to_string(),
                             };
                         }
 
@@ -588,10 +591,11 @@ where
                                 )
                             });
 
-                        PresentationContextResult {
+                        PresentationContextNegotiated {
                             id: pc.id,
                             reason,
                             transfer_syntax,
+                            abstract_syntax: abstract_syntax.to_string(),
                         }
                     })
                     .collect();
@@ -601,7 +605,14 @@ where
                     &Pdu::AssociationAC(AssociationAC {
                         protocol_version: self.protocol_version,
                         application_context_name,
-                        presentation_contexts: presentation_contexts.clone(),
+                        presentation_contexts: presentation_contexts_negotiated
+                            .iter()
+                            .map(|pc| PresentationContextResult {
+                                id: pc.id,
+                                reason: pc.reason.clone(),
+                                transfer_syntax: pc.transfer_syntax.clone(),
+                            })
+                            .collect(),
                         calling_ae_title: calling_ae_title.clone(),
                         called_ae_title,
                         user_variables: vec![
@@ -619,7 +630,7 @@ where
                 socket.write_all(&buffer).context(WireSendSnafu)?;
 
                 Ok(ServerAssociation {
-                    presentation_contexts,
+                    presentation_contexts: presentation_contexts_negotiated,
                     requestor_max_pdu_length,
                     acceptor_max_pdu_length: max_pdu_length,
                     socket,
@@ -685,7 +696,7 @@ where
 #[derive(Debug)]
 pub struct ServerAssociation<S> {
     /// The accorded presentation contexts
-    presentation_contexts: Vec<PresentationContextResult>,
+    presentation_contexts: Vec<PresentationContextNegotiated>,
     /// The maximum PDU length that the remote application entity accepts
     requestor_max_pdu_length: u32,
     /// The maximum PDU length that this application entity is expecting to receive
@@ -706,7 +717,7 @@ pub struct ServerAssociation<S> {
 
 impl<S> ServerAssociation<S> {
     /// Obtain a view of the negotiated presentation contexts.
-    pub fn presentation_contexts(&self) -> &[PresentationContextResult] {
+    pub fn presentation_contexts(&self) -> &[PresentationContextNegotiated] {
         &self.presentation_contexts
     }
 
@@ -900,8 +911,9 @@ pub mod non_blocking {
         pdu::{
             AbortRQServiceProviderReason, AbortRQSource, AssociationAC, AssociationRJ,
             AssociationRJResult, AssociationRJServiceUserReason, AssociationRJSource,
-            AssociationRQ, PresentationContextResult, PresentationContextResultReason,
-            ReadPduSnafu, UserVariableItem, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE,
+            AssociationRQ, PresentationContextResult, PresentationContextNegotiated,
+            PresentationContextResultReason, ReadPduSnafu, UserVariableItem,
+            DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE,
         },
         read_pdu, write_pdu, Pdu, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
     };
@@ -1030,18 +1042,20 @@ pub mod non_blocking {
                             requestor_max_pdu_length
                         };
 
-                        let presentation_contexts: Vec<_> = presentation_contexts
+                        let presentation_contexts_negotiated: Vec<_> = presentation_contexts
                             .into_iter()
                             .map(|pc| {
+                                let abstract_syntax = trim_uid(Cow::from(pc.abstract_syntax));
                                 if !self
                                     .abstract_syntax_uids
-                                    .contains(&trim_uid(Cow::from(pc.abstract_syntax)))
+                                    .contains(&abstract_syntax)
                                     && !self.promiscuous
                                 {
-                                    return PresentationContextResult {
+                                    return PresentationContextNegotiated {
                                         id: pc.id,
                                         reason: PresentationContextResultReason::AbstractSyntaxNotSupported,
                                         transfer_syntax: "1.2.840.10008.1.2".to_string(),
+                                        abstract_syntax: abstract_syntax.to_string(),
                                     };
                                 }
 
@@ -1055,10 +1069,11 @@ pub mod non_blocking {
                                         )
                                     });
 
-                                PresentationContextResult {
+                                PresentationContextNegotiated {
                                     id: pc.id,
                                     reason,
                                     transfer_syntax,
+                                    abstract_syntax: abstract_syntax.to_string(),
                                 }
                             })
                             .collect();
@@ -1068,7 +1083,14 @@ pub mod non_blocking {
                             &Pdu::AssociationAC(AssociationAC {
                                 protocol_version: self.protocol_version,
                                 application_context_name,
-                                presentation_contexts: presentation_contexts.clone(),
+                                presentation_contexts: presentation_contexts_negotiated
+                                    .iter()
+                                    .map(|pc| PresentationContextResult {
+                                        id: pc.id,
+                                        reason: pc.reason.clone(),
+                                        transfer_syntax: pc.transfer_syntax.clone(),
+                                    })
+                                    .collect(),
                                 calling_ae_title: calling_ae_title.clone(),
                                 called_ae_title,
                                 user_variables: vec![
@@ -1086,7 +1108,7 @@ pub mod non_blocking {
                         socket.write_all(&buffer).await.context(WireSendSnafu)?;
 
                         Ok(ServerAssociation {
-                            presentation_contexts,
+                            presentation_contexts: presentation_contexts_negotiated,
                             requestor_max_pdu_length,
                             acceptor_max_pdu_length: max_pdu_length,
                             socket,
