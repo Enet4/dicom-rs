@@ -216,6 +216,27 @@ pub type DynStatefulDecoder<S> = StatefulDecoder<DynDecoder<S>, S>;
 /// The initial capacity of the `DicomParser` buffer.
 const PARSER_BUFFER_CAPACITY: usize = 2048;
 
+/// Defines a special override for
+/// how text of certain value representations is decoded.
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum CharacterSetOverride {
+    /// The standard behavior.
+    /// Use the declared character set for
+    /// LO, LT, PN, SH, ST, UC, UT.
+    /// Use the default character repertoire
+    /// for AE, AS, CS.
+    #[default]
+    None,
+
+    /// Use the declared character set to decode text
+    /// for more value representations,
+    /// including CS and UR.
+    ///
+    /// DA, TM, DT, IS, DS, and FD will not be affected by this change.
+    AnyVr,
+}
+
 /// A stateful abstraction for the full DICOM content reading process.
 /// This type encapsulates the necessary codecs in order
 /// to be as autonomous as possible in the DICOM content reading
@@ -230,6 +251,7 @@ pub struct StatefulDecoder<D, S, BD = BasicDecoder, TC = SpecificCharacterSet> {
     decoder: D,
     basic: BD,
     text: TC,
+    charset_override: CharacterSetOverride,
     buffer: Vec<u8>,
     /// the assumed position of the reader source
     position: u64,
@@ -255,6 +277,28 @@ impl<S> StatefulDecoder<DynDecoder<S>, S> {
 
         Ok(StatefulDecoder::new_with_position(
             from, decoder, basic, charset, position,
+        ))
+    }
+
+    /// Create a new DICOM parser for the given transfer syntax,
+    /// character set override, and assumed position of the reader source.
+    pub fn new_with_override(
+        from: S,
+        ts: &TransferSyntax,
+        charset: SpecificCharacterSet,
+        charset_override: CharacterSetOverride,
+        position: u64,
+    ) -> Result<Self>
+    where
+        S: Read,
+    {
+        let basic = ts.basic_decoder();
+        let decoder = ts
+            .decoder_for::<S>()
+            .context(UnsupportedTransferSyntaxSnafu { ts: ts.name() })?;
+
+        Ok(StatefulDecoder::new_with_all_options(
+            from, decoder, basic, charset, charset_override, position,
         ))
     }
 
@@ -291,6 +335,7 @@ where
             basic: LittleEndianBasicDecoder,
             decoder: ExplicitVRLittleEndianDecoder::default(),
             text: DefaultCharacterSetCodec,
+            charset_override: Default::default(),
             buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
             position: 0,
             signed_pixeldata: None,
@@ -317,11 +362,17 @@ where
     /// if this position does not match the real position of the reader.
     #[inline]
     pub fn new_with_position(from: S, decoder: D, basic: BD, text: TC, position: u64) -> Self {
+        Self::new_with_all_options(from, decoder, basic, text, Default::default(), position)
+    }
+
+    #[inline]
+    pub(crate) fn new_with_all_options(from: S, decoder: D, basic: BD, text: TC, charset_override: CharacterSetOverride, position: u64) -> Self {
         Self {
             from,
             basic,
             decoder,
             text,
+            charset_override,
             buffer: Vec::with_capacity(PARSER_BUFFER_CAPACITY),
             position,
             signed_pixeldata: None,
@@ -412,8 +463,24 @@ where
                 position: self.position,
             })?;
 
-        let parts: Result<_> = match header.vr() {
-            VR::AE | VR::CS | VR::AS => self
+        let use_charset_declared = match (self.charset_override, header.vr()) {
+            (CharacterSetOverride::AnyVr, _) => true,
+            (_, VR::AE) | (_, VR::CS) | (_, VR::AS) => false,
+            _ => true,
+        };
+
+        let parts: Result<_> = if use_charset_declared {
+            self
+                .buffer
+                .split(|v| *v == b'\\')
+                .map(|slice| {
+                    self.text.decode(slice).context(DecodeTextSnafu {
+                        position: self.position,
+                    })
+                })
+                .collect()
+        } else {
+            self
                 .buffer
                 .split(|v| *v == b'\\')
                 .map(|slice| {
@@ -423,16 +490,7 @@ where
                             position: self.position,
                         })
                 })
-                .collect(),
-            _ => self
-                .buffer
-                .split(|v| *v == b'\\')
-                .map(|slice| {
-                    self.text.decode(slice).context(DecodeTextSnafu {
-                        position: self.position,
-                    })
-                })
-                .collect(),
+                .collect()
         };
 
         self.position += len as u64;
@@ -1562,6 +1620,57 @@ mod tests {
                 vr: VR::SS,
                 len: Length(2),
             }
+        );
+    }
+
+    #[test]
+    fn decode_text_with_charset_override() {
+        #[rustfmt::skip]
+        const RAW: &[u8; 28] = &[
+            // Tag: (0018,0015) Body Part Examined
+            0x18, 0x00, 0x15, 0x00,
+            // VR: CS
+            b'C', b'S',
+            // Length: 20
+            0x14, 0x00, // Value: "脊柱侧弯-视图" (scoliosis-view)
+            232, 132, 138, 230, 159, 177, 228, 190,
+            167, 229, 188, 175, 45, 232, 167, 134,
+            229, 155, 190, b' '
+        ];
+
+        let mut cursor = &RAW[..];
+
+        let mut decoder = StatefulDecoder::new_with_all_options(
+            &mut cursor,
+            ExplicitVRLittleEndianDecoder::default(),
+            LittleEndianBasicDecoder,
+            SpecificCharacterSet::ISO_IR_192,
+            // use AnyVr so that Body Part Examined
+            super::CharacterSetOverride::AnyVr,
+            0,
+        );
+
+        is_stateful_decoder(&decoder);
+
+        let header_1 = decoder
+            .decode_header()
+            .expect("should find an element header");
+        assert_eq!(
+            header_1,
+            DataElementHeader {
+                tag: Tag(0x0018, 0x0015),
+                vr: VR::CS,
+                len: Length(20),
+            }
+        );
+
+        let val = decoder
+            .read_value(&header_1)
+            .expect("Can read Body Part Examined");
+
+        assert_eq!(
+            val.to_str(),
+            "脊柱侧弯-视图",
         );
     }
 }

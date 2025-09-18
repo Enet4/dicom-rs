@@ -119,10 +119,8 @@ use dicom_encoding::{decode::DecodeFrom, TransferSyntaxIndex};
 use dicom_parser::{
     dataset::{
         lazy_read::{LazyDataSetReader, LazyDataSetReaderOptions},
-        read::OddLengthStrategy,
         DataToken, LazyDataToken,
-    },
-    DynStatefulDecoder, StatefulDecode, StatefulDecoder,
+    }, DynStatefulDecoder, StatefulDecode, StatefulDecoder
 };
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use snafu::prelude::*;
@@ -133,6 +131,10 @@ use crate::{
     mem::{InMemElement, InMemFragment},
     FileMetaTable, InMemDicomObject,
 };
+
+// re-export parsing options in public API
+pub use dicom_parser::dataset::read::OddLengthStrategy;
+pub use dicom_parser::stateful::decode::CharacterSetOverride;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -234,6 +236,8 @@ pub struct DicomCollectorOptions<D = StandardDataDictionary, R = TransferSyntaxR
     read_preamble: ReadPreamble,
     /// How to handle odd-lengthed data elements
     odd_length: OddLengthStrategy,
+    /// Override for how text should be decoded
+    charset_override: CharacterSetOverride,
 }
 
 impl DicomCollectorOptions {
@@ -257,6 +261,7 @@ impl<D, R> DicomCollectorOptions<D, R> {
             ts_hint: self.ts_hint,
             read_preamble: self.read_preamble,
             odd_length: self.odd_length,
+            charset_override: self.charset_override,
         }
     }
 
@@ -273,6 +278,7 @@ impl<D, R> DicomCollectorOptions<D, R> {
             ts_hint: self.ts_hint,
             read_preamble: self.read_preamble,
             odd_length: self.odd_length,
+            charset_override: self.charset_override,
         }
     }
 
@@ -300,6 +306,12 @@ impl<D, R> DicomCollectorOptions<D, R> {
         self
     }
 
+    /// Set how text of specific value representations should be decoded
+    pub fn charset_override(mut self, option: CharacterSetOverride) -> Self {
+        self.charset_override = option;
+        self
+    }
+
     /// Proceed with opening a file for DICOM collecting.
     pub fn open_file(
         self,
@@ -312,7 +324,7 @@ impl<D, R> DicomCollectorOptions<D, R> {
         let reader = BufReader::new(File::open(filename).context(OpenFileSnafu { filename })?);
 
         Ok(DicomCollector {
-            source: CollectionSource::new(reader, self.ts_index, self.odd_length),
+            source: CollectionSource::new(reader, self.ts_index, self.odd_length, self.charset_override),
             dictionary: self.dict,
             ts_hint: self.ts_hint,
             file_meta: None,
@@ -328,7 +340,7 @@ impl<D, R> DicomCollectorOptions<D, R> {
         R: TransferSyntaxIndex,
     {
         DicomCollector {
-            source: CollectionSource::new(reader, self.ts_index, self.odd_length),
+            source: CollectionSource::new(reader, self.ts_index, self.odd_length, self.charset_override),
             dictionary: self.dict,
             ts_hint: self.ts_hint,
             file_meta: None,
@@ -347,6 +359,8 @@ enum CollectionSource<S, R> {
         /// the strategy for reading odd-lengthed data elements
         /// (needs to be retained until a parser is constructed)
         odd_length: OddLengthStrategy,
+        /// override for how text should be decodedf
+        charset_override: CharacterSetOverride,
     },
     Parser(LazyDataSetReader<DynStatefulDecoder<S>>),
 }
@@ -361,10 +375,12 @@ where
                 reader,
                 ts_index,
                 odd_length,
+                charset_override,
             } => f
                 .debug_struct("Raw")
                 .field("ts_index", ts_index)
                 .field("odd_length", odd_length)
+                .field("charset_override", charset_override)
                 .field(
                     "reader",
                     &match reader {
@@ -383,11 +399,12 @@ where
     S: Read + Seek,
     R: TransferSyntaxIndex,
 {
-    fn new(raw_source: S, ts_index: R, odd_length: OddLengthStrategy) -> Self {
+    fn new(raw_source: S, ts_index: R, odd_length: OddLengthStrategy, charset_override: CharacterSetOverride) -> Self {
         CollectionSource::Raw {
             reader: Some(raw_source),
             ts_index,
             odd_length,
+            charset_override,
         }
     }
 
@@ -413,6 +430,7 @@ where
                 reader: src,
                 ts_index,
                 odd_length,
+                charset_override,
             } => {
                 let src = src.take().unwrap();
 
@@ -425,6 +443,7 @@ where
 
                 let mut options = LazyDataSetReaderOptions::default();
                 options.odd_length = *odd_length;
+                options.charset_override = *charset_override;
                 *self = CollectionSource::Parser(
                     LazyDataSetReader::new_with_ts_options(src, ts, options)
                         .context(CreateParserSnafu)?,
@@ -520,7 +539,7 @@ where
     /// The transfer syntax is guessed from the file meta group data set.
     pub fn new(reader: BufReader<S>) -> Self {
         DicomCollector {
-            source: CollectionSource::new(reader, TransferSyntaxRegistry, Default::default()),
+            source: CollectionSource::new(reader, TransferSyntaxRegistry, Default::default(), Default::default()),
             dictionary: StandardDataDictionary,
             ts_hint: None,
             file_meta: None,
@@ -539,7 +558,7 @@ where
         transfer_syntax: impl Into<Cow<'static, str>>,
     ) -> Self {
         DicomCollector {
-            source: CollectionSource::new(reader, TransferSyntaxRegistry, Default::default()),
+            source: CollectionSource::new(reader, TransferSyntaxRegistry, Default::default(), Default::default()),
             dictionary: StandardDataDictionary,
             ts_hint: Some(transfer_syntax.into()),
             file_meta: None,
@@ -591,7 +610,7 @@ where
     /// The standard transfer syntax registry is used.
     fn new_with_dict(reader: BufReader<S>, dictionary: D) -> Self {
         DicomCollector {
-            source: CollectionSource::new(reader, TransferSyntaxRegistry, Default::default()),
+            source: CollectionSource::new(reader, TransferSyntaxRegistry, Default::default(), Default::default()),
             dictionary,
             ts_hint: None,
             file_meta: None,

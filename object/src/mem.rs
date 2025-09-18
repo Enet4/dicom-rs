@@ -41,6 +41,7 @@ use dicom_core::ops::{
 };
 use dicom_encoding::Codec;
 use dicom_parser::dataset::read::{DataSetReaderOptions, OddLengthStrategy};
+use dicom_parser::stateful::decode::CharacterSetOverride;
 use itertools::Itertools;
 use smallvec::SmallVec;
 use snafu::{ensure, OptionExt, ResultExt};
@@ -319,6 +320,7 @@ where
             None,
             ReadPreamble::Auto,
             Default::default(),
+            Default::default(),
         )
     }
 
@@ -329,6 +331,7 @@ where
         read_until: Option<Tag>,
         mut read_preamble: ReadPreamble,
         odd_length: OddLengthStrategy,
+        charset_override: CharacterSetOverride,
     ) -> Result<Self, ReadError>
     where
         P: AsRef<Path>,
@@ -350,7 +353,14 @@ where
                 .with_context(|_| ReadFileSnafu { filename: path })?;
         }
 
-        Self::read_parts_with_all_options_impl(file, dict, ts_index, read_until, odd_length)
+        Self::read_parts_with_all_options_impl(
+            file,
+            dict,
+            ts_index,
+            read_until,
+            odd_length,
+            charset_override,
+        )
     }
 
     /// Create a DICOM object by reading from a byte source.
@@ -392,6 +402,7 @@ where
             None,
             ReadPreamble::Auto,
             Default::default(),
+            Default::default(),
         )
     }
 
@@ -402,6 +413,7 @@ where
         read_until: Option<Tag>,
         mut read_preamble: ReadPreamble,
         odd_length: OddLengthStrategy,
+        charset_override: CharacterSetOverride,
     ) -> Result<Self, ReadError>
     where
         S: Read,
@@ -420,7 +432,14 @@ where
             file.read_exact(&mut buf).context(ReadPreambleBytesSnafu)?;
         }
 
-        Self::read_parts_with_all_options_impl(file, dict, ts_index, read_until, odd_length)
+        Self::read_parts_with_all_options_impl(
+            file,
+            dict,
+            ts_index,
+            read_until,
+            odd_length,
+            charset_override,
+        )
     }
 
     // detect the presence of a preamble
@@ -461,6 +480,7 @@ where
         ts_index: R,
         read_until: Option<Tag>,
         odd_length: OddLengthStrategy,
+        charset_override: CharacterSetOverride,
     ) -> Result<Self, ReadError>
     where
         S: Read,
@@ -474,6 +494,7 @@ where
         if let Some(ts) = ts_index.get(ts_uid) {
             let mut options = DataSetReaderOptions::default();
             options.odd_length = odd_length;
+            options.charset_override = charset_override;
 
             let obj = match ts.codec() {
                 Codec::Dataset(Some(adapter)) => {
