@@ -159,6 +159,7 @@
 //! # }
 //! # run().unwrap();
 //! ```
+pub mod dicomdir;
 pub mod file;
 pub mod mem;
 pub mod meta;
