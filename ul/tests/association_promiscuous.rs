@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use dicom_ul::association::client::Error::NoAcceptedPresentationContexts;
+use dicom_ul::association::Error::NoAcceptedPresentationContexts;
 use dicom_ul::pdu::PresentationContextResultReason::Acceptance;
 use dicom_ul::pdu::{PresentationContextResult, PresentationContextResultReason, UserVariableItem};
 use dicom_ul::{

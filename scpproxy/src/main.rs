@@ -1,6 +1,6 @@
 use bytes::BytesMut;
 use clap::{crate_version, value_parser, Arg, ArgAction, Command};
-use dicom_ul::association::client::get_client_pdu;
+use dicom_ul::association::read_pdu_from_wire;
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::Pdu;
 use snafu::{Backtrace, OptionExt, Report, ResultExt, Snafu, Whatever};
@@ -65,7 +65,7 @@ pub enum ThreadMessage {
     },
     ReadErr {
         from: ProviderType,
-        err: dicom_ul::association::client::Error,
+        err: dicom_ul::association::Error,
     },
     WriteErr {
         from: ProviderType,
@@ -99,7 +99,7 @@ fn run(
                 let message_tx = message_tx.clone();
                 scu_reader_thread = thread::spawn(move || {
                     loop {
-                        match get_client_pdu(&mut reader, &mut buf, max_pdu_length, strict) {
+                        match read_pdu_from_wire(&mut reader, &mut buf, max_pdu_length, strict) {
                             Ok(pdu) => {
                                 message_tx
                                     .send(ThreadMessage::SendPdu {
@@ -108,7 +108,7 @@ fn run(
                                     })
                                     .context(SendMessageSnafu)?;
                             }
-                            Err(dicom_ul::association::client::Error::ConnectionClosed) => {
+                            Err(dicom_ul::association::Error::ConnectionClosed) => {
                                 message_tx
                                     .send(ThreadMessage::Shutdown {
                                         initiator: ProviderType::Scu,
@@ -137,7 +137,7 @@ fn run(
                 let mut buf = BytesMut::with_capacity(max_pdu_length as usize);
                 scp_reader_thread = thread::spawn(move || {
                     loop {
-                        match get_client_pdu(&mut reader, &mut buf, max_pdu_length, strict) {
+                        match read_pdu_from_wire(&mut reader, &mut buf, max_pdu_length, strict) {
                             Ok(pdu) => {
                                 message_tx
                                     .send(ThreadMessage::SendPdu {
@@ -146,7 +146,7 @@ fn run(
                                     })
                                     .context(SendMessageSnafu)?;
                             }
-                            Err(dicom_ul::association::client::Error::ConnectionClosed) => {
+                            Err(dicom_ul::association::Error::ConnectionClosed) => {
                                 message_tx
                                     .send(ThreadMessage::Shutdown {
                                         initiator: ProviderType::Scp,
