@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
@@ -74,7 +74,7 @@ pub async fn run_store_async(
             association.requestor_max_pdu_length(),
         );
         let peer_title = association.peer_ae_title().to_string();
-        inner(association, *verbose, &out_dir).await?;
+        inner(association, *verbose, out_dir).await?;
         (peer_addr, peer_title)
     } else {
         let peer_addr = scu_stream.peer_addr().ok();
@@ -99,7 +99,7 @@ pub async fn run_store_async(
             association.requestor_max_pdu_length(),
         );
         let peer_title = association.peer_ae_title().to_string();
-        inner(association, *verbose, &out_dir).await?;
+        inner(association, *verbose, out_dir).await?;
         (peer_addr, peer_title)
     };
 
@@ -116,7 +116,7 @@ pub async fn run_store_async(
 
 }
 
-async fn inner<T>(mut association: AsyncServerAssociation<T>, verbose: bool, out_dir: &PathBuf) -> Result<(), Whatever>
+async fn inner<T>(mut association: AsyncServerAssociation<T>, verbose: bool, out_dir: &Path) -> Result<(), Whatever>
 where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static{
     let mut instance_buffer: Vec<u8> = Vec::with_capacity(1024 * 1024);
     let mut msgid = 1;
@@ -242,7 +242,7 @@ where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static{
                                 let file_obj = obj.with_exact_meta(file_meta);
 
                                 // write the files to the current directory with their SOPInstanceUID as filenames
-                                let mut file_path = out_dir.clone();
+                                let mut file_path = out_dir.to_path_buf();
                                 file_path.push(
                                     sop_instance_uid.trim_end_matches('\0').to_string() + ".dcm",
                                 );

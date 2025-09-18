@@ -1,5 +1,5 @@
 use std::net::TcpStream;
-use std::path::PathBuf;
+use std::path::Path;
 
 use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
@@ -72,7 +72,7 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
             association.requestor_max_pdu_length(),
         );
         let peer_title = association.peer_ae_title().to_string();
-        inner(association, *verbose, &out_dir)?;
+        inner(association, *verbose, out_dir)?;
         (peer_addr, peer_title)
     } else {
         let peer_addr = scu_stream.peer_addr().ok();
@@ -96,7 +96,7 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
             association.requestor_max_pdu_length(),
         );
         let peer_title = association.peer_ae_title().to_string();
-        inner(association, *verbose, &out_dir)?;
+        inner(association, *verbose, out_dir)?;
         (peer_addr, peer_title)
     };
 
@@ -113,7 +113,7 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
 
 }
 
-fn inner<T>(mut association: ServerAssociation<T>, verbose: bool, out_dir: &PathBuf) -> Result<(), Whatever>
+fn inner<T>(mut association: ServerAssociation<T>, verbose: bool, out_dir: &Path) -> Result<(), Whatever>
 where
     T: std::io::Read + std::io::Write + CloseSocket,
 {
@@ -242,7 +242,7 @@ where
                                 let file_obj = obj.with_exact_meta(file_meta);
 
                                 // write the files to the current directory with their SOPInstanceUID as filenames
-                                let mut file_path = out_dir.clone();
+                                let mut file_path = out_dir.to_path_buf();
                                 file_path.push(
                                     sop_instance_uid.trim_end_matches('\0').to_string() + ".dcm",
                                 );
