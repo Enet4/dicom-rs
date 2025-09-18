@@ -48,7 +48,7 @@ rcgen = "0.14.4"
 async = ["dep:tokio"]
 sync-tls = ["dep:rustls"]
 async-tls=["async", "sync-tls", "dep:tokio-rustls"]
-default = [""]
+default = []
 full = ["async-tls"]
 
 [package.metadata.docs.rs]
