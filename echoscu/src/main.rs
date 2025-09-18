@@ -1,12 +1,11 @@
 use clap::Parser;
-use dicom_core::{dicom_value, DataElement, VR};
 use dicom_dictionary_std::{tags, uids};
-use dicom_object::{mem::InMemDicomObject, StandardDataDictionary};
+use dicom_object::{mem::InMemDicomObject};
 use dicom_ul::{
     association::client::ClientAssociationOptions,
-    pdu::{self, PDataValueType, Pdu},
+    pdu::{CEchoRq, Pdu},
 };
-use pdu::PDataValue;
+use dicom_ul::pdu::DatasetForbiddenCommand;
 use snafu::{prelude::*, Whatever};
 use tracing::{debug, error, info, warn, Level};
 
@@ -82,22 +81,15 @@ fn run() -> Result<(), Whatever> {
     // commands are always in implicit VR LE
     let ts = dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN.erased();
 
-    let obj = create_echo_command(message_id);
-
-    let mut data = Vec::new();
-
-    obj.write_dataset_with_ts(&mut data, &ts)
-        .whatever_context("Failed to construct C-ECHO request")?;
+    let pdu = CEchoRq::builder()
+        .message_id(1)
+        .affected_sop_class_uid(uids::VERIFICATION)
+        .build()
+        .pdu(pc.id)
+        .whatever_context("Could not create PDU")?;
 
     association
-        .send(&Pdu::PData {
-            data: vec![PDataValue {
-                presentation_context_id: pc.id,
-                value_type: PDataValueType::Command,
-                is_last: true,
-                data,
-            }],
-        })
+        .send(&pdu)
         .whatever_context("Failed to send C-ECHO request")?;
 
     if verbose {
@@ -172,23 +164,6 @@ fn run() -> Result<(), Whatever> {
     }
 
     Ok(())
-}
-
-fn create_echo_command(message_id: u16) -> InMemDicomObject<StandardDataDictionary> {
-    InMemDicomObject::command_from_element_iter([
-        // service
-        DataElement::new(tags::AFFECTED_SOP_CLASS_UID, VR::UI, uids::VERIFICATION),
-        // command
-        DataElement::new(tags::COMMAND_FIELD, VR::US, dicom_value!(U16, [0x0030])),
-        // message ID
-        DataElement::new(tags::MESSAGE_ID, VR::US, dicom_value!(U16, [message_id])),
-        // data set type
-        DataElement::new(
-            tags::COMMAND_DATA_SET_TYPE,
-            VR::US,
-            dicom_value!(U16, [0x0101]),
-        ),
-    ])
 }
 
 #[cfg(test)]
