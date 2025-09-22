@@ -22,7 +22,7 @@ members = [
     "storescu",
     "toimage",
     "transfer-syntax-registry",
-    "ul",
+    "ul", "devtools/dimse-message-builder",
 ]
 
 # use edition 2021 resolver
