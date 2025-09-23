@@ -12,9 +12,13 @@ keywords = ["dicom", "network"]
 readme = "README.md"
 
 [dependencies]
+bon = "3.7.2"
 byteordered = "0.6"
 bytes = "^1.6"
+dicom-core = { version = "0.8.2", path = "../core" }
+dicom-dictionary-std = { version = "0.8.1", path = "../dictionary-std" }
 dicom-encoding = { path = "../encoding/", version = "0.8.2" }
+dicom-object = { version = "0.8.2", path = "../object" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.8.2", default-features = false }
 snafu = "0.8"
 tracing = "0.1.34"
