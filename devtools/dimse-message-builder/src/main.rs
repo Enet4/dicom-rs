@@ -106,10 +106,10 @@ fn parse_table(xml: &Package, context: &sxd_xpath::Context<'static>, table_id: &
     let factory = Factory::new();
 
     // Find the table by ID
-    let xpath_expr = factory.build(&format!("//book:table[@xml:id='{}']", table_id))
+    let xpath_expr = factory.build(&format!("//book:table[@xml:id='{table_id}']"))
         .context("Could not compile XPath to table")?
         .context("No path was compiled")?;
-    let table_nodes = xpath_expr.evaluate(&context, document.root())
+    let table_nodes = xpath_expr.evaluate(context, document.root())
         .map_err(|e| eyre!("XPath evaluation failed: {}", e))?;
 
     let table_node = match &table_nodes {
@@ -118,15 +118,14 @@ fn parse_table(xml: &Package, context: &sxd_xpath::Context<'static>, table_id: &
         },
         _ => return Err(eyre!("Table {} not found", table_id)),
     };
-    let table_node = table_node.get(0)
-        .ok_or_else(|| eyre!("Table {} not found", table_id))?
-        .clone();
+    let table_node = table_node.first()
+        .ok_or_else(|| eyre!("Table {} not found", table_id))?;
 
     // Parse headers from th elements
     let header_xpath = factory.build("./book:thead/book:tr/book:td | ./book:thead/book:tr/book:th")
         .context("Could not compile XPath to table")?
         .context("No path was compiled")?;
-    let header_nodes = header_xpath.evaluate(&context, table_node)
+    let header_nodes = header_xpath.evaluate(context, *table_node)
         .map_err(|e| eyre!("XPath evaluation failed: {}", e))?;
 
     let mut headers = Vec::new();
@@ -144,7 +143,7 @@ fn parse_table(xml: &Package, context: &sxd_xpath::Context<'static>, table_id: &
         let first_row_xpath = factory.build("./book:tbody/book:tr[1]/book:td")
             .context("Could not compile XPath to table")?
             .context("No path was compiled")?;
-        let first_row_nodes = first_row_xpath.evaluate(&context, table_node)
+        let first_row_nodes = first_row_xpath.evaluate(context, *table_node)
             .map_err(|e| eyre!("XPath evaluation failed: {}", e))?;
 
         if let sxd_xpath::Value::Nodeset(nodes) = &first_row_nodes {
@@ -159,7 +158,7 @@ fn parse_table(xml: &Package, context: &sxd_xpath::Context<'static>, table_id: &
     let row_xpath = factory.build("./book:tbody/book:tr")
         .context("Could not compile XPath to table")?
         .context("No path was compiled")?;
-    let row_nodes = row_xpath.evaluate(&context, table_node)
+    let row_nodes = row_xpath.evaluate(context, *table_node)
         .map_err(|e| eyre!("XPath evaluation failed: {}", e))?;
 
     let mut rows = Vec::new();
@@ -169,7 +168,7 @@ fn parse_table(xml: &Package, context: &sxd_xpath::Context<'static>, table_id: &
             let cell_xpath = factory.build("./book:td")
                 .context("Could not compile XPath to table")?
                 .context("No path was compiled")?;
-            let cell_nodes = cell_xpath.evaluate(&context, row_node)
+            let cell_nodes = cell_xpath.evaluate(context, row_node)
                 .map_err(|e| eyre!("XPath evaluation failed: {}", e))?;
 
             let mut cells = Vec::new();
@@ -184,7 +183,7 @@ fn parse_table(xml: &Package, context: &sxd_xpath::Context<'static>, table_id: &
                 continue;
             }
 
-            let param = cells.get(0).unwrap_or(&String::new()).clone();
+            let param = cells.first().unwrap_or(&String::new()).clone();
             if param.is_empty() {
                 continue;
             }
@@ -197,7 +196,7 @@ fn parse_table(xml: &Package, context: &sxd_xpath::Context<'static>, table_id: &
             }
 
             // Set param as first column header
-            let param_header = headers.get(0).unwrap_or(&"param".to_string()).clone();
+            let param_header = headers.first().unwrap_or(&"param".to_string()).clone();
             data.insert(param_header, param.clone());
 
             rows.push(TableRow { param, data });
@@ -268,7 +267,7 @@ fn generate_struct_field(param: &str, need: &str, vr: &str, description: &str) -
     let type_tokens: TokenStream = if need.starts_with('M') {
         rust_type.parse().unwrap()
     } else {
-        format!("Option<{}>", rust_type).parse().unwrap()
+        format!("Option<{rust_type}>").parse().unwrap()
     };
 
     Ok(Some(quote! {
@@ -435,7 +434,7 @@ fn generate_all_structs() -> Result<syn::File> {
     let mut generated_structs = Vec::new();
 
     for (prefix, table_ids) in TABLE_GROUPS {
-        println!("Processing message group: {}", prefix);
+        println!("Processing message group: {prefix}");
 
         let overview_id = table_ids[0];
         let tag_def_ids = &table_ids[1..];
@@ -449,7 +448,7 @@ fn generate_all_structs() -> Result<syn::File> {
             match parse_table(&package, &context, tag_id) {
                 Ok(table) => tag_def_tables.push(table),
                 Err(e) => {
-                    println!("Warning: Could not parse table {}: {}", tag_id, e);
+                    println!("Warning: Could not parse table {tag_id}: {e}");
                     continue;
                 }
             }
@@ -478,10 +477,10 @@ fn generate_all_structs() -> Result<syn::File> {
                     } else {
                         format!("{}{}", prefix.replace('_', ""), suffix)
                     };
-                    println!("Generated struct {}", struct_name);
+                    println!("Generated struct {struct_name}");
                 }
                 Err(e) => {
-                    println!("Error generating struct for {}{}: {}", prefix, suffix, e);
+                    println!("Error generating struct for {prefix}{suffix}: {e}",);
                 }
             }
         }
