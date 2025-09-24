@@ -342,6 +342,15 @@ impl DicomDate {
     }
 }
 
+impl std::str::FromStr for DicomDate {
+    type Err = crate::value::DeserializeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (date, _) = crate::value::deserialize::parse_date_partial(s.as_bytes())?;
+        Ok(date)
+    }
+}
+
 impl TryFrom<&NaiveDate> for DicomDate {
     type Error = Error;
     fn try_from(date: &NaiveDate) -> Result<Self> {
@@ -602,6 +611,15 @@ impl TryFrom<&NaiveTime> for DicomTime {
         };
 
         DicomTime::from_hms_micro(hour, minute, second, microsecond)
+    }
+}
+
+impl std::str::FromStr for DicomTime {
+    type Err = crate::value::DeserializeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (time, _) = crate::value::deserialize::parse_time_partial(s.as_bytes())?;
+        Ok(time)
     }
 }
 
@@ -1068,6 +1086,14 @@ mod tests {
             DicomDate(DicomDateImpl::Day(1945, 2, 28))
         );
 
+        // date parsing
+
+        let date: DicomDate = "20240229".parse().unwrap();
+        assert_eq!(date, DicomDate(DicomDateImpl::Day(2024, 2, 29)));
+        assert!(date.is_precise());
+
+        // error cases
+
         assert!(matches!(
             DicomDate::try_from(&NaiveDate::from_ymd_opt(-2000, 2, 28).unwrap()),
             Err(Error::Conversion { .. })
@@ -1268,6 +1294,11 @@ mod tests {
             Some(Some(0)),
         );
 
+        // time parsing
+
+        let time: DicomTime = "211133.7651".parse().unwrap();
+        assert_eq!(time, DicomTime(DicomTimeImpl::Fraction(21, 11, 33, 7651, 4)));
+
         // bad inputs
 
         assert!(matches!(
@@ -1467,6 +1498,21 @@ mod tests {
                 time_zone: Some(default_offset)
             }
         );
+
+        // date-time parsing
+
+        let dt: DicomDateTime = "20240229235959.123456+0000".parse().unwrap();
+        assert_eq!(
+            dt,
+            DicomDateTime {
+                date: DicomDate::from_ymd(2024, 2, 29).unwrap(),
+                time: Some(DicomTime::from_hms_micro(23, 59, 59, 123_456).unwrap()),
+                time_zone: Some(default_offset)
+            }
+        );
+        assert!(dt.is_precise());
+
+        // error cases
 
         assert!(matches!(
             DicomDateTime::from_date_with_time_zone(
