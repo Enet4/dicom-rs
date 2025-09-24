@@ -465,7 +465,7 @@ where
 
         let use_charset_declared = match (self.charset_override, header.vr()) {
             (CharacterSetOverride::AnyVr, _) => true,
-            (_, VR::AE) | (_, VR::CS) | (_, VR::AS) => false,
+            (_, VR::AE) | (_, VR::CS) | (_, VR::AS) | (_, VR::UR) => false,
             _ => true,
         };
 
