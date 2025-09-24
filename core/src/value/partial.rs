@@ -592,7 +592,7 @@ impl DicomTime {
     /// ```
     pub fn fraction_str(&self) -> String {
         match self.fraction_and_precision() {
-            None | Some((_, 0)) => return String::new(),
+            None | Some((_, 0)) => String::new(),
             Some((f, 1)) => format!("{:01}", f),
             Some((f, 2)) => format!("{:02}", f),
             Some((f, 3)) => format!("{:03}", f),
