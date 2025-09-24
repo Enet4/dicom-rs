@@ -477,28 +477,6 @@ impl DicomTime {
             DicomTime(DicomTimeImpl::Fraction(_, _, s, _, _)) => Some(s),
         }
     }
-    /** 
-     * Retrieves the fraction of a second as a reference,
-     * if it matches the expected number of digits for the given precision.
-     * 
-     * This ensures that leading zeros are preserved and the fraction is semantically correct.
-     */
-    pub fn fraction(&self) -> Option<&u32> {
-        match self {
-            DicomTime(DicomTimeImpl::Hour(_)) => None,
-            DicomTime(DicomTimeImpl::Minute(_, _)) => None,
-            DicomTime(DicomTimeImpl::Second(_, _, _)) => None,
-            DicomTime(DicomTimeImpl::Fraction(_, _, _, f, fp)) => match (fp, f) {
-                (6, 100_000..=999_999)  => Some(f),
-                (5, 10_000..=99_999) => Some(f),
-                (4, 1_000..=9_999) => Some(f),
-                (3, 100..=999) => Some(f),
-                (2, 10..=99) => Some(f),
-                (1, 1..=9) => Some(f),
-                _ => None,
-            },
-        }
-    }
 
     /// Retrieves the fraction of a second in milliseconds.
     ///
@@ -515,6 +493,74 @@ impl DicomTime {
         })
     }
 
+    /// Retrieves the total known fraction of a second in microseconds.
+    ///
+    /// Only returns `None` if the time value defines no fraction of a second.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::DicomTime;
+    /// let time: DicomTime = "202346.2500".parse()?;
+    /// assert_eq!(time.fraction_micro(), Some(250_000));
+    ///
+    /// let time: DicomTime = "202346".parse()?;
+    /// assert_eq!(time.fraction_micro(), None);
+    /// # Ok::<(), dicom_core::value::DeserializeError>(())
+    /// ```
+    pub fn fraction_micro(&self) -> Option<u32> {
+        match self.fraction_and_precision() {
+            None => None,
+            Some((f, 1)) => Some(f * 100_000),
+            Some((f, 2)) => Some(f * 10_000),
+            Some((f, 3)) => Some(f * 1_000),
+            Some((f, 4)) => Some(f * 100),
+            Some((f, 5)) => Some(f * 10),
+            Some((f, 6)) => Some(f),
+            Some((_, _)) => unreachable!("fp outside expected range 0..=6"),
+        }
+    }
+
+    /// Retrieves the total known fraction of a second in milliseconds.
+    ///
+    /// This may result in precision loss if
+    /// the time value was more precise than 3 decimal places.
+    ///
+    /// Only returns `None` if the time value defines no fraction of a second.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::DicomTime;
+    /// let time: DicomTime = "202346.2500".parse()?;
+    /// assert_eq!(time.fraction_ms(), Some(250));
+    ///
+    /// let time: DicomTime = "202346".parse()?;
+    /// assert_eq!(time.fraction_ms(), None);
+    /// # Ok::<(), dicom_core::value::DeserializeError>(())
+    /// ```
+    pub fn fraction_ms(&self) -> Option<u32> {
+        match self.fraction_and_precision() {
+            None => None,
+            Some((f, 1)) => Some(f * 100),
+            Some((f, 2)) => Some(f * 10),
+            Some((f, 3)) => Some(f),
+            Some((f, 4)) => Some(f / 10),
+            Some((f, 5)) => Some(f / 100),
+            Some((f, 6)) => Some(f / 1_000),
+            Some((_, _)) => unreachable!("fp outside expected range 0..=6"),
+        }
+    }
+
+    /// Retrieves the precision of the fraction of a second,
+    /// in number of decimal places (in `0..=6`).
+    pub fn fraction_precision(&self) -> u8 {
+        match self.fraction_and_precision() {
+            None => 0,
+            Some((_, fp)) => fp,
+        }
+    }
+
     /// Retrieves the fraction of a second and its precision.
     ///
     /// Returns a pair containing
@@ -528,12 +574,32 @@ impl DicomTime {
         }
     }
 
-    /** Retrieves the fraction of a second as a string, if it has full (microsecond) precision. */
-    pub fn fraction_str(&self) -> Option<String> {
-        if let Some(fraction) = self.to_encoded().split(".").nth(1) {
-            Some(fraction.to_string())
-        } else {
-            None
+    /// Retrieves the fraction of a second encoded as a small string.
+    /// The length of the string matches the number of known decimal places
+    /// in the fraction of a second.
+    /// Returns an empty string if the time value defines no fraction of a second.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::DicomTime;
+    /// let time: DicomTime = "202346.2500".parse()?;
+    /// assert_eq!(&time.fraction_str(), "2500");
+    ///
+    /// let time: DicomTime = "202346".parse()?;
+    /// assert_eq!(&time.fraction_str(), "");
+    /// # Ok::<(), dicom_core::value::DeserializeError>(())
+    /// ```
+    pub fn fraction_str(&self) -> String {
+        match self.fraction_and_precision() {
+            None | Some((_, 0)) => return String::new(),
+            Some((f, 1)) => format!("{:01}", f),
+            Some((f, 2)) => format!("{:02}", f),
+            Some((f, 3)) => format!("{:03}", f),
+            Some((f, 4)) => format!("{:04}", f),
+            Some((f, 5)) => format!("{:05}", f),
+            Some((f, 6)) => format!("{:06}", f),
+            Some((_, _)) => unreachable!("fp outside expected range 0..=6"),
         }
     } 
 
@@ -1256,7 +1322,8 @@ mod tests {
                     .unwrap();
             assert_eq!(time.to_encoded(), "163160.012345");
 
-            assert_eq!(time.fraction(), Some(&12_345));
+            assert_eq!(time.fraction_micro(), Some(12_345));
+            assert_eq!(time.fraction_ms(), Some(12));
             assert_eq!(time.millisecond(), Some(12));
         }
 
@@ -1298,6 +1365,10 @@ mod tests {
 
         let time: DicomTime = "211133.7651".parse().unwrap();
         assert_eq!(time, DicomTime(DicomTimeImpl::Fraction(21, 11, 33, 7651, 4)));
+        assert_eq!(time.fraction_ms(), Some(765));
+        assert_eq!(time.fraction_micro(), Some(765_100));
+        assert_eq!(time.fraction_precision(), 4);
+        assert_eq!(&time.fraction_str(), "7651");
 
         // bad inputs
 
@@ -1338,28 +1409,26 @@ mod tests {
         ));
 
         // test fraction and precision - valid cases
-        for (frac, frac_precision) in [
-            (1, 1),
-            (12, 2),
-            (123, 3),
-            (1234, 4),
-            (12345, 5),
-            (123456, 6),
+        for (frac, frac_precision, microseconds) in [
+            (1, 1, 100_000),
+            (12, 2, 120_000),
+            (123, 3, 123_000),
+            (1234, 4, 123_400),
+            (12345, 5, 123_450),
+            (123456, 6, 123_456),
         ] {
-            assert_eq!(
-                DicomTime::from_hmsf(9, 1, 1, frac, frac_precision)
-                    .unwrap()
-                    .fraction(),
-                Some(&frac)
-            );
+            let time = DicomTime::from_hmsf(9, 1, 1, frac, frac_precision).unwrap();
+            assert_eq!(time.fraction_micro(), Some(microseconds));
+            assert_eq!(time.fraction_precision(), frac_precision);
+            assert_eq!(time.fraction_str(), frac.to_string());
         }
-        // test fraction and precision - mismatch would return a wrong fraction, so it returns None    
+        // test fraction retrieval: without a fraction, it returns None
         assert_eq!(
-                DicomTime::from_hmsf(9, 1, 1, 1_234, 5)
-                    .unwrap()
-                    .fraction(),
-                    None
-            );
+            DicomTime::from_hms(9, 1, 1)
+                .unwrap()
+                .fraction_micro(),
+                None
+        );
     }
 
     #[test]
