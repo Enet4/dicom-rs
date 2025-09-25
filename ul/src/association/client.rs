@@ -14,11 +14,11 @@ use std::{
 };
 
 use crate::{
-    association::{
-        read_pdu_from_wire, ConnectSnafu, MissingAbstractSyntaxSnafu, NegotiatedOptions, NoAcceptedPresentationContextsSnafu, ProtocolVersionMismatchSnafu, RejectedSnafu, SendPduSnafu, SendTooLongPduSnafu, SetReadTimeoutSnafu, SetWriteTimeoutSnafu, ToAddressSnafu, UnexpectedPduSnafu, UnknownPduSnafu, WireSendSnafu
+    AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME, association::{
+        ConnectSnafu, MissingAbstractSyntaxSnafu, NegotiatedOptions, NoAcceptedPresentationContextsSnafu, ProtocolVersionMismatchSnafu, RejectedSnafu, SendPduSnafu, SendTooLongPduSnafu, SetReadTimeoutSnafu, SetWriteTimeoutSnafu, ToAddressSnafu, UnexpectedPduSnafu, UnknownPduSnafu, WireSendSnafu, read_pdu_from_wire
     }, pdu::{
-       write_pdu, AbortRQSource, AssociationAC, AssociationRQ, Pdu, PresentationContextProposed, PresentationContextResult, PresentationContextResultReason, UserIdentity, UserIdentityType, UserVariableItem, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE
-    }, AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME
+       AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE, Pdu, PresentationContextNegotiated, PresentationContextProposed, PresentationContextResultReason, UserIdentity, UserIdentityType, UserVariableItem, write_pdu
+    }
 };
 use snafu::{ensure, ResultExt};
 
@@ -421,7 +421,7 @@ impl<'a> ClientAssociationOptions<'a> {
     }
 
     /// Construct the A-ASSOCIATE-RQ PDU given the options and the AE title.
-    fn create_a_associate_req(&'a self, ae_title: Option<&str>) -> Result<Pdu> {
+    fn create_a_associate_req(&'a self, ae_title: Option<&str>) -> Result<(Vec<PresentationContextProposed>, Pdu)> {
         let ClientAssociationOptions {
             calling_ae_title,
             called_ae_title,
@@ -458,7 +458,7 @@ impl<'a> ClientAssociationOptions<'a> {
             (None, None) => "ANY-SCP",
         };
 
-        let presentation_contexts: Vec<_> = presentation_contexts
+        let presentation_contexts_proposed: Vec<_> = presentation_contexts
             .iter()
             .enumerate()
             .map(|(i, presentation_context)| PresentationContextProposed {
@@ -488,21 +488,20 @@ impl<'a> ClientAssociationOptions<'a> {
             user_variables.push(UserVariableItem::UserIdentityItem(user_identity));
         }
 
-        Ok(Pdu::AssociationRQ(AssociationRQ {
+        Ok((presentation_contexts_proposed.clone(), Pdu::AssociationRQ(AssociationRQ {
             protocol_version: *protocol_version,
             calling_ae_title: calling_ae_title.to_string(),
             called_ae_title: called_ae_title.to_string(),
             application_context_name: application_context_name.to_string(),
-            presentation_contexts,
+            presentation_contexts: presentation_contexts_proposed,
             user_variables,
-        }))
+        })))
     }
 
     /// Process the A-ASSOCIATE-AC PDU received from the SCP.
     /// 
     /// Returns the negotiated options for the association
-    fn process_a_association_resp(&self, msg: Pdu) -> Result<NegotiatedOptions> {
-
+    fn process_a_association_resp(&self, msg: Pdu, presentation_contexts_proposed: &[PresentationContextProposed]) -> Result<NegotiatedOptions> {
         match msg {
             Pdu::AssociationAC(AssociationAC {
                 protocol_version: protocol_version_scp,
@@ -537,7 +536,20 @@ impl<'a> ClientAssociationOptions<'a> {
 
                 let presentation_contexts: Vec<_> = presentation_contexts_scp
                     .into_iter()
-                    .filter(|c| c.reason == PresentationContextResultReason::Acceptance)
+                    .filter(|c| c.reason == PresentationContextResultReason::Acceptance
+                        && presentation_contexts_proposed.iter().any(|p| p.id == c.id))
+                    .map(|c| {
+                        let pcp = presentation_contexts_proposed
+                            .iter()
+                            .find(|pc| pc.id == c.id)
+                            .unwrap();
+                        PresentationContextNegotiated {
+                            id: c.id,
+                            reason: c.reason,
+                            transfer_syntax: c.transfer_syntax,
+                            abstract_syntax: pcp.abstract_syntax.clone(),
+                        }
+                    })
                     .collect();
                 if presentation_contexts.is_empty() {
                     return NoAcceptedPresentationContextsSnafu.fail();
@@ -598,7 +610,7 @@ impl<'a> ClientAssociationOptions<'a> {
     where
         T: ToSocketAddrs,
     {
-        let a_associate = self.create_a_associate_req(ae_address.ae_title())?;
+        let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
         let mut socket = self.simple_tcp_connection(ae_address)?;
         let mut buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
         // send request
@@ -609,7 +621,7 @@ impl<'a> ClientAssociationOptions<'a> {
 
         let mut buf = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
         let resp = read_pdu_from_wire(&mut socket, &mut buf, MAXIMUM_PDU_SIZE, self.strict)?;
-        let negotiated_options = self.process_a_association_resp(resp);
+        let negotiated_options = self.process_a_association_resp(resp, &pc_proposed);
         match negotiated_options {
             Err(e) => {
                 // abort connection
@@ -746,7 +758,7 @@ where
 {
     /// The presentation contexts accorded with the acceptor application entity,
     /// without the rejected ones.
-    presentation_contexts: Vec<PresentationContextResult>,
+    presentation_contexts: Vec<PresentationContextNegotiated>,
     /// The maximum PDU length that this application entity is expecting to receive
     requestor_max_pdu_length: u32,
     /// The maximum PDU length that the remote application entity accepts
@@ -782,7 +794,7 @@ where
     }
 
     /// Retrieve the list of negotiated presentation contexts.
-    pub fn presentation_contexts(&self) -> &[PresentationContextResult] {
+    pub fn presentation_contexts(&self) -> &[PresentationContextNegotiated] {
         &self.presentation_contexts
     }
 
@@ -1018,7 +1030,7 @@ pub mod non_blocking {
         where
             T: tokio::net::ToSocketAddrs,
         {
-            let a_associate = self.create_a_associate_req(ae_address.ae_title())?;
+            let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
             let mut socket = self.async_simple_tcp_connection(ae_address).await?;
             let mut buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
 
@@ -1036,7 +1048,7 @@ pub mod non_blocking {
                 read_pdu_from_wire_async(&mut socket, &mut buf, MAXIMUM_PDU_SIZE, self.strict).await
             })
             .await?;
-            let negotiated_options = self.process_a_association_resp(resp);
+            let negotiated_options = self.process_a_association_resp(resp, &pc_proposed);
             match negotiated_options {
                 Err(e) => {
                     // abort connection
@@ -1279,7 +1291,7 @@ mod tests {
         ) -> Result<ClientAssociation<std::net::TcpStream>> 
         where T: ToSocketAddrs
         {
-            let a_associate = self.create_a_associate_req(ae_address.ae_title())?;
+            let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
             let mut socket = self.simple_tcp_connection(ae_address)?;
             let mut buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
             // send request
@@ -1297,7 +1309,7 @@ mod tests {
                 presentation_contexts,
                 peer_max_pdu_length,
                 user_variables
-            } = self.process_a_association_resp(resp)
+            } = self.process_a_association_resp(resp, &pc_proposed)
                 .expect("Failed to process a associate response");
             Ok(ClientAssociation {
                 presentation_contexts,
@@ -1320,7 +1332,7 @@ mod tests {
         ) -> Result<ClientAssociation<tokio::net::TcpStream>> 
         where T: tokio::net::ToSocketAddrs
         {
-            let a_associate = self.create_a_associate_req(ae_address.ae_title())?;
+            let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
             let mut socket = self.async_simple_tcp_connection(ae_address).await?;
             let mut buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
             // send request
@@ -1338,7 +1350,7 @@ mod tests {
                 presentation_contexts,
                 peer_max_pdu_length,
                 user_variables
-            } = self.process_a_association_resp(resp)
+            } = self.process_a_association_resp(resp, &pc_proposed)
                 .expect("Failed to process a associate response");
             Ok(ClientAssociation {
                 presentation_contexts,
@@ -1361,7 +1373,7 @@ mod tests {
         ) -> Result<ClientAssociation<std::net::TcpStream>>  
         where T: ToSocketAddrs
         {
-            let a_associate = self.create_a_associate_req(ae_address.ae_title())?;
+            let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
             let mut socket = self.simple_tcp_connection(ae_address)?;
             let mut buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
             // send request
@@ -1375,7 +1387,7 @@ mod tests {
                 presentation_contexts,
                 peer_max_pdu_length,
                 user_variables
-            } = self.process_a_association_resp(resp)
+            } = self.process_a_association_resp(resp, &pc_proposed)
                 .expect("Failed to process a associate response");
             Ok(ClientAssociation {
                 presentation_contexts,
@@ -1398,7 +1410,7 @@ mod tests {
         ) -> Result<ClientAssociation<tokio::net::TcpStream>>  
         where T: tokio::net::ToSocketAddrs
         {
-            let a_associate = self.create_a_associate_req(ae_address.ae_title())?;
+            let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
             let mut socket = self.async_simple_tcp_connection(ae_address).await?;
             let mut buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
             // send request
@@ -1412,7 +1424,7 @@ mod tests {
                 presentation_contexts,
                 peer_max_pdu_length,
                 user_variables
-            } = self.process_a_association_resp(resp)
+            } = self.process_a_association_resp(resp, &pc_proposed)
                 .expect("Failed to process a associate response");
             Ok(ClientAssociation {
                 presentation_contexts,

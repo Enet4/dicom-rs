@@ -20,6 +20,7 @@ use crate::association::{
 };
 
 use crate::association::NegotiatedOptions;
+use crate::pdu::PresentationContextNegotiated;
 use crate::{
     pdu::{
         write_pdu, AbortRQServiceProviderReason, AbortRQSource, AssociationAC,
@@ -462,18 +463,20 @@ where
                     requestor_max_pdu_length
                 };
 
-                let presentation_contexts: Vec<_> = presentation_contexts
+                let presentation_contexts_negotiated: Vec<_> = presentation_contexts
                     .into_iter()
                     .map(|pc| {
+                        let abstract_syntax = trim_uid(Cow::from(pc.abstract_syntax));
                         if !self
                             .abstract_syntax_uids
-                            .contains(&trim_uid(Cow::from(pc.abstract_syntax)))
+                            .contains(&abstract_syntax)
                             && !self.promiscuous
                         {
-                            return PresentationContextResult {
+                            return PresentationContextNegotiated {
                                 id: pc.id,
                                 reason: PresentationContextResultReason::AbstractSyntaxNotSupported,
                                 transfer_syntax: "1.2.840.10008.1.2".to_string(),
+                                abstract_syntax: abstract_syntax.to_string(),
                             };
                         }
 
@@ -487,10 +490,11 @@ where
                                 )
                             });
 
-                        PresentationContextResult {
+                        PresentationContextNegotiated {
                             id: pc.id,
                             reason,
                             transfer_syntax,
+                            abstract_syntax: abstract_syntax.to_string(),
                         }
                     })
                     .collect();
@@ -498,7 +502,14 @@ where
                 let pdu = Pdu::AssociationAC(AssociationAC {
                     protocol_version: self.protocol_version,
                     application_context_name,
-                    presentation_contexts: presentation_contexts.clone(),
+                    presentation_contexts: presentation_contexts_negotiated
+                        .iter()
+                        .map(|pc| PresentationContextResult {
+                            id: pc.id,
+                            reason: pc.reason.clone(),
+                            transfer_syntax: pc.transfer_syntax.clone(),
+                        })
+                        .collect(),
                     calling_ae_title: calling_ae_title.clone(),
                     called_ae_title,
                     user_variables: vec![
@@ -514,7 +525,7 @@ where
                 Ok((pdu, NegotiatedOptions{
                     peer_max_pdu_length: requestor_max_pdu_length,
                     user_variables,
-                    presentation_contexts,
+                    presentation_contexts: presentation_contexts_negotiated,
                 }, calling_ae_title))
             },
             Pdu::ReleaseRQ => Err((Pdu::ReleaseRP, AbortedSnafu.build())),
@@ -619,7 +630,7 @@ where
 #[derive(Debug)]
 pub struct ServerAssociation<S> {
     /// The accorded presentation contexts
-    presentation_contexts: Vec<PresentationContextResult>,
+    presentation_contexts: Vec<PresentationContextNegotiated>,
     /// The maximum PDU length that the remote application entity accepts
     requestor_max_pdu_length: u32,
     /// The maximum PDU length that this application entity is expecting to receive
@@ -642,7 +653,7 @@ pub struct ServerAssociation<S> {
 
 impl<S> ServerAssociation<S> {
     /// Obtain a view of the negotiated presentation contexts.
-    pub fn presentation_contexts(&self) -> &[PresentationContextResult] {
+    pub fn presentation_contexts(&self) -> &[PresentationContextNegotiated] {
         &self.presentation_contexts
     }
 
@@ -787,10 +798,7 @@ pub mod non_blocking {
 
     use bytes::BytesMut;
     use snafu::{ensure, ResultExt};
-    use tokio::{
-        io::AsyncWriteExt,
-        net::TcpStream,
-    };
+    use tokio::{io::AsyncWriteExt, net::TcpStream};
 
     use super::{
         AccessControl, Result, SendTooLongPduSnafu, ServerAssociation,

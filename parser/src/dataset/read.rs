@@ -4,7 +4,7 @@
 //! The rest of the crate is used to obtain DICOM element headers and values.
 //! At this level, headers and values are treated as tokens which can be used
 //! to form a syntax tree of a full data set.
-use crate::stateful::decode::{DynStatefulDecoder, Error as DecoderError, StatefulDecode};
+use crate::stateful::decode::{CharacterSetOverride, DynStatefulDecoder, Error as DecoderError, StatefulDecode};
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
 use dicom_core::{PrimitiveValue, Tag, VR};
 use dicom_encoding::text::SpecificCharacterSet;
@@ -156,6 +156,11 @@ pub enum OddLengthStrategy {
 pub struct DataSetReaderOptions {
     /// The value reading strategy
     pub value_read: ValueReadStrategy,
+
+    /// Whether to assume a different character set
+    /// depending on certain conditions
+    pub charset_override: CharacterSetOverride,
+
     /// The strategy for handling odd length data elements
     pub odd_length: OddLengthStrategy,
     /// The position of the reader as received at building time in bytes.
@@ -250,7 +255,7 @@ impl<R> DataSetReader<DynStatefulDecoder<R>> {
     where
         R: Read,
     {
-        let parser = DynStatefulDecoder::new_with(source, ts, cs, 0).context(CreateDecoderSnafu)?;
+        let parser = DynStatefulDecoder::new_with_override(source, ts, cs, options.charset_override, 0).context(CreateDecoderSnafu)?;
 
         is_stateful_decode(&parser);
 

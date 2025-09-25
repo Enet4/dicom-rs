@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use dicom_ul::association::Error::NoAcceptedPresentationContexts;
 use dicom_ul::pdu::PresentationContextResultReason::Acceptance;
-use dicom_ul::pdu::{PresentationContextResult, PresentationContextResultReason, UserVariableItem};
+use dicom_ul::pdu::{PresentationContextNegotiated, PresentationContextResultReason, UserVariableItem};
 use dicom_ul::{
     ClientAssociationOptions, Pdu, ServerAssociationOptions, IMPLEMENTATION_CLASS_UID,
     IMPLEMENTATION_VERSION_NAME,
@@ -14,6 +14,7 @@ const SCU_AE_TITLE: &str = "STORE-SCU";
 const SCP_AE_TITLE: &str = "STORE-SCP";
 
 const IMPLICIT_VR_LE: &str = "1.2.840.10008.1.2";
+const MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4";
 const MR_IMAGE_STORAGE_RAW: &str = "1.2.840.10008.5.1.4.1.1.4\0";
 const ULTRASOUND_IMAGE_STORAGE_RAW: &str = "1.2.840.10008.5.1.4.1.1.6.1\0";
 
@@ -37,10 +38,11 @@ fn spawn_scp(
         let mut association = options.establish(stream)?;
         assert_eq!(
             association.presentation_contexts(),
-            &[PresentationContextResult {
+            &[PresentationContextNegotiated {
                 id: 1,
                 reason: PresentationContextResultReason::Acceptance,
                 transfer_syntax: IMPLICIT_VR_LE.to_string(),
+                abstract_syntax: MR_IMAGE_STORAGE.to_string(),
             }]
         );
 
@@ -75,10 +77,11 @@ async fn spawn_scp_async(
         let mut association = options.establish_async(stream).await?;
         assert_eq!(
             association.presentation_contexts(),
-            &[PresentationContextResult {
+            &[PresentationContextNegotiated {
                 id: 1,
                 reason: PresentationContextResultReason::Acceptance,
                 transfer_syntax: IMPLICIT_VR_LE.to_string(),
+                abstract_syntax: MR_IMAGE_STORAGE.to_string(),
             }]
         );
 
@@ -114,10 +117,11 @@ fn scu_scp_association_promiscuous_enabled() {
     );
     assert_eq!(
         association.presentation_contexts(),
-        &[PresentationContextResult {
+        &[PresentationContextNegotiated {
             id: 1,
             reason: Acceptance,
-            transfer_syntax: IMPLICIT_VR_LE.to_string()
+            transfer_syntax: IMPLICIT_VR_LE.to_string(),
+            abstract_syntax: MR_IMAGE_STORAGE.to_string(),
         }]
     );
     assert_eq!(association.acceptor_max_pdu_length(), 16384);
@@ -159,10 +163,11 @@ async fn scu_scp_association_promiscuous_enabled_async() {
     );
     assert_eq!(
         association.presentation_contexts(),
-        &[PresentationContextResult {
+        &[PresentationContextNegotiated {
             id: 1,
             reason: Acceptance,
-            transfer_syntax: IMPLICIT_VR_LE.to_string()
+            transfer_syntax: IMPLICIT_VR_LE.to_string(),
+            abstract_syntax: MR_IMAGE_STORAGE.to_string(),
         }]
     );
     assert_eq!(association.acceptor_max_pdu_length(), 16384);

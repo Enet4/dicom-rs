@@ -13,7 +13,7 @@
 //! - copying the bytes of the value into another writer,
 //!   such as a previously allocated buffer.
 use crate::dataset::read::OddLengthStrategy;
-use crate::stateful::decode::{DynStatefulDecoder, Error as DecoderError, StatefulDecode};
+use crate::stateful::decode::{CharacterSetOverride, DynStatefulDecoder, Error as DecoderError, StatefulDecode};
 use crate::util::ReadSeek;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
 use dicom_core::{Tag, VR};
@@ -145,6 +145,9 @@ pub struct LazyDataSetReader<S> {
 pub struct LazyDataSetReaderOptions {
     /// The strategy for handling odd length data elements
     pub odd_length: OddLengthStrategy,
+
+    /// Override for how text is decoded
+    pub charset_override: CharacterSetOverride,
 }
 
 impl<R> LazyDataSetReader<DynStatefulDecoder<R>> {
@@ -200,7 +203,7 @@ impl<R> LazyDataSetReader<DynStatefulDecoder<R>> {
     {
         let position = source.stream_position().context(GetPositionSnafu)?;
         let parser =
-            DynStatefulDecoder::new_with(source, ts, cs, position).context(CreateDecoderSnafu)?;
+            DynStatefulDecoder::new_with_override(source, ts, cs, options.charset_override, position).context(CreateDecoderSnafu)?;
 
         Ok(LazyDataSetReader {
             parser,

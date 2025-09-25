@@ -35,12 +35,12 @@ pub use pdata::{PDataReader, PDataWriter};
 pub use server::{ServerAssociation, ServerAssociationOptions};
 use snafu::{ensure, Snafu, ResultExt};
 
-use crate::{pdu::{AssociationRJ, PresentationContextResult, ReadPduSnafu, UserVariableItem, self}, Pdu};
+use crate::{Pdu, pdu::{self, AssociationRJ, PresentationContextNegotiated, ReadPduSnafu, UserVariableItem}};
 
 pub(crate) struct NegotiatedOptions{
     peer_max_pdu_length: u32,
     user_variables: Vec<UserVariableItem>,
-    presentation_contexts: Vec<PresentationContextResult>,
+    presentation_contexts: Vec<PresentationContextNegotiated>,
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
