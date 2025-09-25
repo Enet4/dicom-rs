@@ -1,8 +1,11 @@
+use std::path::Path;
+
 use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{pdu::PDataValueType, Pdu};
+use dicom_ul::association::{Association, AsyncAssociation, AsyncServerAssociation};
 use snafu::{OptionExt, Report, ResultExt, Whatever};
 use tracing::{debug, info, warn};
 
@@ -21,13 +24,9 @@ pub async fn run_store_async(
         out_dir,
         port: _,
         non_blocking: _,
+        tls
     } = args;
-    let verbose = *verbose;
 
-    let mut instance_buffer: Vec<u8> = Vec::with_capacity(1024 * 1024);
-    let mut msgid = 1;
-    let mut sop_class_uid = "".to_string();
-    let mut sop_instance_uid = "".to_string();
 
     let mut options = dicom_ul::association::ServerAssociationOptions::new()
         .accept_any()
@@ -51,18 +50,57 @@ pub async fn run_store_async(
     for uid in ABSTRACT_SYNTAXES {
         options = options.with_abstract_syntax(*uid);
     }
+    let (peer_addr, peer_title) = if tls.enabled.unwrap_or(false) {
+        let config = tls.server_config().whatever_context("Could not create TLS config")?;
+        options = options.tls_config(config);
+        let peer_addr = scu_stream.peer_addr().ok();
+        let association = options
+            .establish_tls_async(scu_stream)
+            .await
+            .whatever_context("could not establish association")?;
+        info!("New association from {}", association.peer_ae_title());
+        debug!(
+            "> Presentation contexts: {:?}",
+            association.presentation_contexts()
+        );
+        let peer_title = association.peer_ae_title().to_string();
+        inner(association, *verbose, out_dir).await?;
+        (peer_addr, peer_title)
+    } else {
+        let peer_addr = scu_stream.peer_addr().ok();
+        let association = options
+            .establish_async(scu_stream)
+            .await
+            .whatever_context("could not establish association")?;
+        info!("New association from {}", association.peer_ae_title());
+        debug!(
+            "> Presentation contexts: {:?}",
+            association.presentation_contexts()
+        );
+        let peer_title = association.peer_ae_title().to_string();
+        inner(association, *verbose, out_dir).await?;
+        (peer_addr, peer_title)
+    };
 
-    let mut association = options
-        .establish_async(scu_stream)
-        .await
-        .whatever_context("could not establish association")?;
+    if let Some(peer_addr) = peer_addr {
+        info!(
+            "Dropping connection with {} ({})",
+            peer_title,
+            peer_addr
+        );
+    } else {
+        info!("Dropping connection with {}", peer_title);
+    }
+    Ok(())
 
-    info!("New association from {}", association.client_ae_title());
-    debug!(
-        "> Presentation contexts: {:?}",
-        association.presentation_contexts()
-    );
+}
 
+async fn inner<T>(mut association: AsyncServerAssociation<T>, verbose: bool, out_dir: &Path) -> Result<(), Whatever>
+where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static{
+    let mut instance_buffer: Vec<u8> = Vec::with_capacity(1024 * 1024);
+    let mut msgid = 1;
+    let mut sop_class_uid = "".to_string();
+    let mut sop_instance_uid = "".to_string();
     loop {
         match association.receive().await {
             Ok(mut pdu) => {
@@ -183,7 +221,7 @@ pub async fn run_store_async(
                                 let file_obj = obj.with_exact_meta(file_meta);
 
                                 // write the files to the current directory with their SOPInstanceUID as filenames
-                                let mut file_path = out_dir.clone();
+                                let mut file_path = out_dir.to_path_buf();
                                 file_path.push(
                                     sop_instance_uid.trim_end_matches('\0').to_string() + ".dcm",
                                 );
@@ -233,7 +271,7 @@ pub async fn run_store_async(
                         });
                         info!(
                             "Released association with {}",
-                            association.client_ae_title()
+                            association.peer_ae_title()
                         );
                         break;
                     }
@@ -244,7 +282,7 @@ pub async fn run_store_async(
                     _ => {}
                 }
             }
-            Err(err @ dicom_ul::association::server::Error::Receive { .. }) => {
+            Err(err @ dicom_ul::association::Error::ReceivePdu { .. }) => {
                 if verbose {
                     info!("{}", Report::from_error(err));
                 } else {
@@ -258,16 +296,5 @@ pub async fn run_store_async(
             }
         }
     }
-
-    if let Ok(peer_addr) = association.inner_stream().peer_addr() {
-        info!(
-            "Dropping connection with {} ({})",
-            association.client_ae_title(),
-            peer_addr
-        );
-    } else {
-        info!("Dropping connection with {}", association.client_ae_title());
-    }
-
     Ok(())
 }
