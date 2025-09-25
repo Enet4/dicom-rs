@@ -16,7 +16,7 @@ use std::{
 use crate::{
     pdu::{
         read_pdu, write_pdu, AbortRQSource, AssociationAC, AssociationRJ, AssociationRQ, Pdu,
-        PresentationContextProposed, PresentationContextResult, PresentationContextResultReason,
+        PresentationContextProposed, PresentationContextNegotiated, PresentationContextResultReason,
         ReadPduSnafu, UserIdentity, UserIdentityType, UserVariableItem, DEFAULT_MAX_PDU,
         MAXIMUM_PDU_SIZE,
     },
@@ -618,7 +618,7 @@ impl<'a> ClientAssociationOptions<'a> {
             (None, None) => "ANY-SCP",
         };
 
-        let presentation_contexts: Vec<_> = presentation_contexts
+        let presentation_contexts_proposed: Vec<_> = presentation_contexts
             .into_iter()
             .enumerate()
             .map(|(i, presentation_context)| PresentationContextProposed {
@@ -653,7 +653,7 @@ impl<'a> ClientAssociationOptions<'a> {
             calling_ae_title: calling_ae_title.to_string(),
             called_ae_title: called_ae_title.to_string(),
             application_context_name: application_context_name.to_string(),
-            presentation_contexts,
+            presentation_contexts: presentation_contexts_proposed.clone(),
             user_variables,
         });
 
@@ -733,7 +733,20 @@ impl<'a> ClientAssociationOptions<'a> {
 
                 let presentation_contexts: Vec<_> = presentation_contexts_scp
                     .into_iter()
-                    .filter(|c| c.reason == PresentationContextResultReason::Acceptance)
+                    .filter(|c| c.reason == PresentationContextResultReason::Acceptance
+                        && presentation_contexts_proposed.iter().any(|p| p.id == c.id))
+                    .map(|c| {
+                        let pcp = presentation_contexts_proposed
+                            .iter()
+                            .find(|pc| pc.id == c.id)
+                            .unwrap();
+                        PresentationContextNegotiated {
+                            id: c.id,
+                            reason: c.reason,
+                            transfer_syntax: c.transfer_syntax,
+                            abstract_syntax: pcp.abstract_syntax.clone(),
+                        }
+                    })
                     .collect();
                 if presentation_contexts.is_empty() {
                     // abort connection
@@ -895,7 +908,7 @@ where
 {
     /// The presentation contexts accorded with the acceptor application entity,
     /// without the rejected ones.
-    presentation_contexts: Vec<PresentationContextResult>,
+    presentation_contexts: Vec<PresentationContextNegotiated>,
     /// The maximum PDU length that this application entity is expecting to receive
     requestor_max_pdu_length: u32,
     /// The maximum PDU length that the remote application entity accepts
@@ -931,7 +944,7 @@ where
     }
 
     /// Retrieve the list of negotiated presentation contexts.
-    pub fn presentation_contexts(&self) -> &[PresentationContextResult] {
+    pub fn presentation_contexts(&self) -> &[PresentationContextNegotiated] {
         &self.presentation_contexts
     }
 
@@ -1122,8 +1135,8 @@ pub mod non_blocking {
         },
         pdu::{
             AbortRQSource, AssociationAC, AssociationRQ, PresentationContextProposed,
-            PresentationContextResultReason, ReadPduSnafu, UserVariableItem, DEFAULT_MAX_PDU,
-            MAXIMUM_PDU_SIZE,
+            PresentationContextNegotiated, PresentationContextResultReason, ReadPduSnafu,
+            UserVariableItem, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE,
         },
         read_pdu, write_pdu, AeAddr, Pdu, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
     };
@@ -1230,7 +1243,7 @@ pub mod non_blocking {
                 (None, None) => "ANY-SCP",
             };
 
-            let presentation_contexts: Vec<_> = presentation_contexts
+            let presentation_contexts_proposed: Vec<_> = presentation_contexts
                 .into_iter()
                 .enumerate()
                 .map(|(i, presentation_context)| PresentationContextProposed {
@@ -1267,7 +1280,7 @@ pub mod non_blocking {
                 calling_ae_title: calling_ae_title.to_string(),
                 called_ae_title: called_ae_title.to_string(),
                 application_context_name: application_context_name.to_string(),
-                presentation_contexts,
+                presentation_contexts: presentation_contexts_proposed.clone(),
                 user_variables,
             });
             let conn_result: Result<tokio::net::TcpStream> =
@@ -1350,7 +1363,20 @@ pub mod non_blocking {
 
                     let presentation_contexts: Vec<_> = presentation_contexts_scp
                         .into_iter()
-                        .filter(|c| c.reason == PresentationContextResultReason::Acceptance)
+                        .filter(|c| c.reason == PresentationContextResultReason::Acceptance
+                            && presentation_contexts_proposed.iter().any(|p| p.id == c.id))
+                        .map(|c| {
+                            let pcp = presentation_contexts_proposed
+                                .iter()
+                                .find(|pc| pc.id == c.id)
+                                .unwrap();
+                            PresentationContextNegotiated {
+                                id: c.id,
+                                reason: c.reason,
+                                transfer_syntax: c.transfer_syntax,
+                                abstract_syntax: pcp.abstract_syntax.clone(),
+                            }
+                        })
                         .collect();
                     if presentation_contexts.is_empty() {
                         // abort connection

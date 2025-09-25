@@ -156,11 +156,22 @@ pub struct PresentationContextProposed {
     pub transfer_syntaxes: Vec<String>,
 }
 
+/// Message component for the result of the presentation context negotiation.
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub struct PresentationContextResult {
     pub id: u8,
     pub reason: PresentationContextResultReason,
     pub transfer_syntax: String,
+}
+
+/// Result of the presentation context negotiation, including the
+/// abstract syntax that corresponds to each presentation context.
+#[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
+pub struct PresentationContextNegotiated {
+    pub id: u8,
+    pub reason: PresentationContextResultReason,
+    pub transfer_syntax: String,
+    pub abstract_syntax: String,
 }
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]

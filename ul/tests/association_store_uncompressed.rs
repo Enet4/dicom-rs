@@ -3,7 +3,7 @@
 
 use dicom_ul::{
     association::client::ClientAssociationOptions,
-    pdu::{Pdu, PresentationContextResult, PresentationContextResultReason},
+    pdu::{Pdu, PresentationContextNegotiated, PresentationContextResultReason},
 };
 use std::net::SocketAddr;
 
@@ -42,17 +42,19 @@ fn spawn_scp() -> Result<(std::thread::JoinHandle<Result<()>>, SocketAddr)> {
         assert_eq!(
             association.presentation_contexts(),
             &[
-                PresentationContextResult {
+                PresentationContextNegotiated {
                     id: 1,
                     reason: PresentationContextResultReason::Acceptance,
                     transfer_syntax: IMPLICIT_VR_LE.to_string(),
+                    abstract_syntax: MR_IMAGE_STORAGE.to_string(),
                 },
                 // should always pick Explicit VR LE
                 // because JPEG baseline was not explicitly enabled in SCP
-                PresentationContextResult {
+                PresentationContextNegotiated {
                     id: 3,
                     reason: PresentationContextResultReason::Acceptance,
                     transfer_syntax: EXPLICIT_VR_LE.to_string(),
+                    abstract_syntax: DIGITAL_MG_STORAGE_SOP_CLASS.to_string(),
                 }
             ],
         );
@@ -86,17 +88,19 @@ async fn spawn_scp_async() -> Result<(tokio::task::JoinHandle<Result<()>>, Socke
         assert_eq!(
             association.presentation_contexts(),
             &[
-                PresentationContextResult {
+                PresentationContextNegotiated {
                     id: 1,
                     reason: PresentationContextResultReason::Acceptance,
                     transfer_syntax: IMPLICIT_VR_LE.to_string(),
+                    abstract_syntax: MR_IMAGE_STORAGE.to_string(),
                 },
                 // should always pick Explicit VR LE
                 // because JPEG baseline was not explicitly enabled in SCP
-                PresentationContextResult {
+                PresentationContextNegotiated {
                     id: 3,
                     reason: PresentationContextResultReason::Acceptance,
                     transfer_syntax: EXPLICIT_VR_LE.to_string(),
+                    abstract_syntax: DIGITAL_MG_STORAGE_SOP_CLASS.to_string(),
                 }
             ],
         );
