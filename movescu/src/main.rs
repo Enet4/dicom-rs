@@ -382,7 +382,7 @@ fn run_move_scu(app: App) -> Result<bool, Error> {
                 )
                 .context(ReadCommandSnafu)?;
                 if verbose {
-                    eprintln!("Match #{i} Response command:");
+                    eprintln!("Response #{i} command:");
                     DumpOptions::new()
                         .dump_object_to(stderr(), &cmd_obj)
                         .context(DumpOutputSnafu)?;
