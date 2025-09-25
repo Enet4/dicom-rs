@@ -396,9 +396,6 @@ fn run_move_scu(app: App) -> Result<bool, Error> {
                     if verbose {
                         debug!("Matching is complete");
                     }
-                    if i == 0 {
-                        info!("No results matching query");
-                    }
                     success = true;
                     break;
                 } else if status == 0xFF00 || status == 0xFF01 {
