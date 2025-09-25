@@ -244,7 +244,7 @@ pub async fn run_store_async(
                     _ => {}
                 }
             }
-            Err(err @ dicom_ul::association::server::Error::Receive { .. }) => {
+            Err(err @ dicom_ul::association::Error::ReceivePdu { .. }) => {
                 if verbose {
                     info!("{}", Report::from_error(err));
                 } else {
