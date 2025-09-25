@@ -123,9 +123,7 @@ impl TLSOptions{
     }
 
     /// Load client certs if provided
-    ///
-    /// Lifetime: Lifetime of the struct is different than the returned references
-    fn certs<'a>(&'a self) -> Result<Option<Vec<CertificateDer<'static>>>, TLSError> {
+    fn certs(&self) -> Result<Option<Vec<CertificateDer<'static>>>, TLSError> {
         // If a certificate is provided, load it as a cert chain
         match self.cert.as_ref() {
             Some(path) => {
@@ -140,7 +138,7 @@ impl TLSOptions{
     }
 
     /// Load CRLs if provided
-    fn crls<'a>(&'a self) -> Result<Option<Vec<CertificateRevocationListDer<'static>>>, TLSError> {
+    fn crls(&self) -> Result<Option<Vec<CertificateRevocationListDer<'static>>>, TLSError> {
         match self.add_crls.as_ref() {
             Some(crls) => {
                 let mut loaded_crls = Vec::new();
@@ -156,9 +154,7 @@ impl TLSOptions{
     }
 
     /// Map selected protocol versions to rustls types
-    /// 
-    /// Lifetime: Lifetime of the struct is different than the returned references
-    fn protocol_versions<'a>(&'a self) -> Vec<&'static SupportedProtocolVersion> {
+    fn protocol_versions(&self) -> Vec<&'static SupportedProtocolVersion> {
         self.protocol_versions.iter().map(|v| match v {
             TLSProtocolVersion::TLS1_2 => &rustls::version::TLS12,
             TLSProtocolVersion::TLS1_3 => &rustls::version::TLS13

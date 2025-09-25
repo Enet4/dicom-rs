@@ -172,7 +172,7 @@ enum Error {
     },
 
     #[snafu(display("TLS error: {}", source))]
-    TLS {
+    Tls {
         source: app_common::TLSError,
     }
 }
@@ -223,7 +223,7 @@ pub fn get_scu_options<'a>(
     if let Some(jwt) = jwt {
         scu_init = scu_init.jwt(jwt);
     }
-    return scu_init;
+    scu_init
 }
 
 fn main() {
@@ -353,7 +353,7 @@ fn run(app: App) -> Result<(), Error> {
     }
     let tls_enabled = tls.enabled.unwrap_or(false);
     let config = tls.client_config()
-        .context(TLSSnafu)?;
+        .context(TlsSnafu)?;
 
     if verbose {
         info!("Establishing association with '{}'...", &addr);
@@ -425,7 +425,7 @@ async fn run_async() -> Result<(), Error> {
 
     let tls_enabled = tls.enabled.unwrap_or(false);
     let config = tls.client_config()
-        .context(TLSSnafu)?;
+        .context(TlsSnafu)?;
 
     if verbose {
         info!("Establishing association with '{}'...", &addr);
