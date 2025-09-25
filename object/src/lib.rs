@@ -485,7 +485,7 @@ pub trait DicomObject {
     }
 
     /// Retrieve a particular DICOM attribute
-    /// with a potentially look-up by attribute selector.
+    /// with a look-up by attribute selector.
     ///
     /// This method returns an error if the element is not present.
     fn at(
@@ -497,6 +497,9 @@ pub trait DicomObject {
     ///
     /// Unlike [`get_by_name_opt`](Self::get_by_name_opt),
     /// this method returns an error if the element is not present.
+    ///
+    /// If the DICOM tag is already known,
+    /// prefer calling [`get`](Self::get).
     fn get_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
         self.get_by_name_opt(name)?
             .context(NoSuchAttributeNameSnafu { name })
