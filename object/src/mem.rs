@@ -1842,7 +1842,7 @@ where
         E: EncodeTo<W>,
     {
         // prepare data set writer
-        let mut dset_writer = DataSetWriter::new(to, encoder, DataSetWriterOptions::default());
+        let mut dset_writer = DataSetWriter::new(to, encoder);
         let required_options = IntoTokensOptions::new(self.charset_changed);
         // write object
         dset_writer

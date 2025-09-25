@@ -175,7 +175,7 @@ where
             ts_uid: ts.uid(),
             ts_alias: ts.name(),
         })?;
-        Ok(DataSetWriter::new_with_codec(
+        Ok(DataSetWriter::new_with_codec_options(
             to,
             encoder,
             SpecificCharacterSet::default(),
@@ -196,12 +196,24 @@ where
             ts_uid: ts.uid(),
             ts_alias: ts.name(),
         })?;
-        Ok(DataSetWriter::new_with_codec(to, encoder, charset, options))
+        Ok(DataSetWriter::new_with_codec_options(
+            to, encoder, charset, options,
+        ))
     }
 }
 
 impl<W, E> DataSetWriter<W, E> {
-    pub fn new(to: W, encoder: E, options: DataSetWriterOptions) -> Self {
+    /// Create a new dataset writer with the given encoder,
+    /// which prints to the given writer.
+    #[inline]
+    pub fn new(to: W, encoder: E) -> Self {
+        DataSetWriter::new_with_options(to, encoder, DataSetWriterOptions::default())
+    }
+
+    /// Create a new dataset writer with the given encoder,
+    /// which prints to the given writer.
+    #[inline]
+    pub fn new_with_options(to: W, encoder: E, options: DataSetWriterOptions) -> Self {
         DataSetWriter {
             printer: StatefulEncoder::new(to, encoder, SpecificCharacterSet::default()),
             seq_tokens: Vec::new(),
@@ -212,7 +224,22 @@ impl<W, E> DataSetWriter<W, E> {
 }
 
 impl<W, E, T> DataSetWriter<W, E, T> {
-    pub fn new_with_codec(to: W, encoder: E, text: T, options: DataSetWriterOptions) -> Self {
+    /// Create a new dataset writer with the given encoder and text codec,
+    /// which prints to the given writer.
+    #[inline]
+    pub fn new_with_codec(to: W, encoder: E, text: T) -> Self {
+        DataSetWriter::new_with_codec_options(to, encoder, text, DataSetWriterOptions::default())
+    }
+
+    /// Create a new dataset writer with the given encoder and text codec,
+    /// which prints to the given writer.
+    #[inline]
+    pub fn new_with_codec_options(
+        to: W,
+        encoder: E,
+        text: T,
+        options: DataSetWriterOptions,
+    ) -> Self {
         DataSetWriter {
             printer: StatefulEncoder::new(to, encoder, text),
             seq_tokens: Vec::new(),
@@ -401,7 +428,8 @@ mod tests {
     {
         let mut raw_out: Vec<u8> = vec![];
         let encoder = EncoderFor::new(ExplicitVRLittleEndianEncoder::default());
-        let mut dset_writer = DataSetWriter::new(&mut raw_out, encoder, writer_options);
+        let mut dset_writer =
+            DataSetWriter::new_with_options(&mut raw_out, encoder, writer_options);
 
         dset_writer.write_sequence(tokens).unwrap();
 

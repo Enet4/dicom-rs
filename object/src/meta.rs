@@ -11,7 +11,6 @@ use dicom_encoding::encode::explicit_le::ExplicitVRLittleEndianEncoder;
 use dicom_encoding::encode::EncoderFor;
 use dicom_encoding::text::{self, TextCodec};
 use dicom_encoding::TransferSyntax;
-use dicom_parser::dataset::write::DataSetWriterOptions;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use std::io::{Read, Write};
@@ -780,7 +779,6 @@ impl FileMetaTable {
         let mut dset = DataSetWriter::new(
             writer,
             EncoderFor::new(ExplicitVRLittleEndianEncoder::default()),
-            DataSetWriterOptions::default(),
         );
         //There are no sequences in the `FileMetaTable`, so the value of `invalidate_sq_len` is
         //not important
