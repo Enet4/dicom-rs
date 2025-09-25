@@ -18,6 +18,7 @@ use crate::association::{
 };
 
 use crate::association::NegotiatedOptions;
+use crate::pdu::PresentationContextNegotiated;
 use crate::{
     pdu::{
         write_pdu, AbortRQServiceProviderReason, AbortRQSource, AssociationAC,
@@ -549,18 +550,20 @@ where
                     requestor_max_pdu_length
                 };
 
-                let presentation_contexts: Vec<_> = presentation_contexts
+                let presentation_contexts_negotiated: Vec<_> = presentation_contexts
                     .into_iter()
                     .map(|pc| {
+                        let abstract_syntax = trim_uid(Cow::from(pc.abstract_syntax));
                         if !self
                             .abstract_syntax_uids
-                            .contains(&trim_uid(Cow::from(pc.abstract_syntax)))
+                            .contains(&abstract_syntax)
                             && !self.promiscuous
                         {
-                            return PresentationContextResult {
+                            return PresentationContextNegotiated {
                                 id: pc.id,
                                 reason: PresentationContextResultReason::AbstractSyntaxNotSupported,
                                 transfer_syntax: "1.2.840.10008.1.2".to_string(),
+                                abstract_syntax: abstract_syntax.to_string(),
                             };
                         }
 
@@ -574,10 +577,11 @@ where
                                 )
                             });
 
-                        PresentationContextResult {
+                        PresentationContextNegotiated {
                             id: pc.id,
                             reason,
                             transfer_syntax,
+                            abstract_syntax: abstract_syntax.to_string(),
                         }
                     })
                     .collect();
@@ -585,7 +589,14 @@ where
                 let pdu = Pdu::AssociationAC(AssociationAC {
                     protocol_version: self.protocol_version,
                     application_context_name,
-                    presentation_contexts: presentation_contexts.clone(),
+                    presentation_contexts: presentation_contexts_negotiated
+                        .iter()
+                        .map(|pc| PresentationContextResult {
+                            id: pc.id,
+                            reason: pc.reason.clone(),
+                            transfer_syntax: pc.transfer_syntax.clone(),
+                        })
+                        .collect(),
                     calling_ae_title: calling_ae_title.clone(),
                     called_ae_title,
                     user_variables: vec![
@@ -601,7 +612,7 @@ where
                 Ok((pdu, NegotiatedOptions{
                     peer_max_pdu_length: requestor_max_pdu_length,
                     user_variables,
-                    presentation_contexts,
+                    presentation_contexts: presentation_contexts_negotiated,
                     peer_ae_title: calling_ae_title
                 }))
             },
@@ -756,7 +767,7 @@ where
 pub struct ServerAssociation<S> 
 where S: std::io::Read + std::io::Write + CloseSocket{
     /// The accorded presentation contexts
-    presentation_contexts: Vec<PresentationContextResult>,
+    presentation_contexts: Vec<PresentationContextNegotiated>,
     /// The negotiated max PDU length
     max_pdu_length: u32,
     /// The TCP stream to the other DICOM node
@@ -781,7 +792,7 @@ where S: std::io::Read + std::io::Write + CloseSocket{
     }
 
     /// Obtain a view of the negotiated presentation contexts.
-    fn presentation_contexts(&self) -> &[PresentationContextResult] {
+    fn presentation_contexts(&self) -> &[PresentationContextNegotiated] {
         &self.presentation_contexts
     }
 
@@ -1005,7 +1016,7 @@ where
 pub struct AsyncServerAssociation<S> 
 where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
     /// The accorded presentation contexts
-    presentation_contexts: Vec<PresentationContextResult>,
+    presentation_contexts: Vec<PresentationContextNegotiated>,
     /// The negotiated max PDU length
     max_pdu_length: u32,
     /// The TCP stream to the other DICOM node
@@ -1034,7 +1045,7 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
     }
 
     /// Obtain a view of the negotiated presentation contexts.
-    fn presentation_contexts(&self) -> &[PresentationContextResult] {
+    fn presentation_contexts(&self) -> &[PresentationContextNegotiated] {
         &self.presentation_contexts
     }
 

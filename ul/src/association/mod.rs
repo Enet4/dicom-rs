@@ -39,7 +39,7 @@ pub use server::AsyncServerAssociation;
 pub use client::AsyncClientAssociation;
 use snafu::{ensure, Snafu, ResultExt};
 
-use crate::{Pdu, pdu::{self, AssociationRJ, PresentationContextResult, ReadPduSnafu, UserVariableItem}, write_pdu};
+use crate::{Pdu, pdu::{self, AssociationRJ, PresentationContextNegotiated,  ReadPduSnafu, UserVariableItem}, write_pdu};
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -186,7 +186,7 @@ pub(crate) struct NegotiatedOptions{
     /// User variables accepted by the peer
     user_variables: Vec<UserVariableItem>,
     /// Presentation contexts accepted by the peer
-    presentation_contexts: Vec<PresentationContextResult>,
+    presentation_contexts: Vec<PresentationContextNegotiated>,
     /// The peer's AE title
     peer_ae_title: String
 }
@@ -240,7 +240,7 @@ pub trait Association {
     fn max_pdu_length(&self) -> u32;
 
     /// Obtain a view of the negotiated presentation contexts.
-    fn presentation_contexts(&self) -> &[PresentationContextResult];
+    fn presentation_contexts(&self) -> &[PresentationContextNegotiated];
 
     /// Retrieve the user variables that were taken from the server.
     ///

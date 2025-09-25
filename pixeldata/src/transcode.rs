@@ -6,6 +6,8 @@
 //! to different transfer syntaxes.
 //!
 //! See the [`Transcode`] trait for more information.
+use std::borrow::Cow;
+
 use dicom_core::{
     ops::ApplyOp, value::PixelFragmentSequence, DataDictionary, DataElement, Length,
     PrimitiveValue, VR,
@@ -40,6 +42,9 @@ pub(crate) enum InnerError {
     EncodePixelData {
         source: dicom_encoding::adapters::EncodeError,
     },
+
+    /// Number of samples per pixel unknown
+    UnknownSamplesPerPixel,
 
     /// Unsupported bits per sample ({bits_allocated})
     UnsupportedBitsAllocated { bits_allocated: u16 },
@@ -263,6 +268,27 @@ where
         _ => return UnsupportedBitsAllocatedSnafu { bits_allocated }.fail()?,
     };
 
+    // correct photometric interpretation if necessary
+    let samples_per_pixel: u16 = obj.get(tags::SAMPLES_PER_PIXEL)
+        .context(UnknownSamplesPerPixelSnafu)?
+        .to_int()
+        .ok()
+        .context(UnknownSamplesPerPixelSnafu)?;
+
+    if samples_per_pixel == 1 {
+        let pmi = obj.get(tags::PHOTOMETRIC_INTERPRETATION).and_then(|e| e.to_str().ok());
+        
+        // set Photometric Interpretation to Monochrome2
+        // if it was neither of the expected monochromes
+        if pmi != Some(Cow::from("MONOCHROME1")) && pmi != Some(Cow::from("MONOCHROME2")) {
+            obj.put(DataElement::new(tags::PHOTOMETRIC_INTERPRETATION, VR::CS, "MONOCHROME2"));
+        }
+    } else if samples_per_pixel == 3 {
+        // force Photometric Interpretation to RGB
+        // as mandated by the pixel data reading interface
+        obj.put(DataElement::new(tags::PHOTOMETRIC_INTERPRETATION, VR::CS, "RGB"));
+    }
+
     // change transfer syntax to Explicit VR little endian
     obj.update_meta(|meta| meta.set_transfer_syntax(ts));
 
@@ -382,6 +408,80 @@ mod tests {
         let spp = 3;
 
         assert_eq!(pixels.len(), rows * cols * spp);
+    }
+
+    #[cfg(any(feature = "jpeg", feature = "gdcm"))]
+    fn assert_sample_eq_approx(description: &str, found: u8, expected: u8) {
+        const ERROR_MARGIN: u8 = 8;
+
+        assert!(
+            found.abs_diff(expected) < ERROR_MARGIN,
+            "mismatch in sample {}: {} vs {}", description, found, expected
+        );
+    }
+
+    /// !!! #674 Decoding via GDCM is buggy
+    #[cfg(any(feature = "jpeg", feature = "gdcm"))]
+    #[cfg_attr(feature = "gdcm", ignore)]
+    #[test]
+    fn transcode_from_jpeg_baseline_to_native_rgb() {
+        let test_file = dicom_test_files::path("pydicom/SC_rgb_jpeg_dcmtk.dcm").unwrap();
+        let mut obj = open_file(test_file).unwrap();
+
+        // pre-condition check: pixel data conversion is needed here
+        assert_eq!(obj.meta().transfer_syntax(), uids::JPEG_BASELINE8_BIT);
+
+        // pre-condition check: photometric interpretation was YBR_FULL
+        assert_eq!(
+            obj.get(tags::PHOTOMETRIC_INTERPRETATION).unwrap().to_str().unwrap(),
+            "YBR_FULL",
+        );
+
+        // transcode to explicit VR little endian
+        obj.transcode(&EXPLICIT_VR_LITTLE_ENDIAN.erased())
+            .expect("Should have transcoded successfully");
+
+        // check transfer syntax
+        assert_eq!(
+            obj.meta().transfer_syntax(),
+            EXPLICIT_VR_LITTLE_ENDIAN.uid()
+        );
+
+        // check that the photometric interpretation
+        // was updated (no longer YBR_FULL)
+        assert_eq!(
+            obj.get(tags::PHOTOMETRIC_INTERPRETATION).unwrap().to_str().unwrap(),
+            "RGB",
+        );
+
+        // check that the pixel data is in its native form
+        // and has the expected size
+        let pixel_data = obj.element(tags::PIXEL_DATA).unwrap();
+        let pixels = pixel_data
+            .to_bytes()
+            .expect("Pixel Data should be in bytes");
+
+        let rows = 100;
+        let cols = 100;
+        let spp = 3;
+
+        assert_eq!(pixels.len(), rows * cols * spp);
+
+        // poke a few pixels
+
+        assert_sample_eq_approx("R0", pixels[0], 255);
+        assert_sample_eq_approx("G0", pixels[1], 0);
+        assert_sample_eq_approx("B0", pixels[2], 0);
+
+        let y = 54;
+        assert_sample_eq_approx("R5400", pixels[cols * spp * y + 0], 128);
+        assert_sample_eq_approx("G5400", pixels[cols * spp * y + 1], 128);
+        assert_sample_eq_approx("G5400", pixels[cols * spp * y + 2], 255);
+
+        assert_sample_eq_approx("R5450", pixels[cols * spp * y + 150], 128);
+        assert_sample_eq_approx("R5450", pixels[cols * spp * y + 151], 128);
+        assert_sample_eq_approx("R5450", pixels[cols * spp * y + 152], 255);
+
     }
 
     #[cfg(feature = "native")]

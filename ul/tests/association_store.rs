@@ -1,5 +1,5 @@
 use dicom_ul::{
-    ServerAssociation, association::{Association, SyncAssociation, client::ClientAssociationOptions}, pdu::{Pdu, PresentationContextResult, PresentationContextResultReason}
+    ServerAssociation, association::{Association, SyncAssociation, client::ClientAssociationOptions}, pdu::{Pdu, PresentationContextNegotiated, PresentationContextResultReason}
 };
 #[cfg(feature = "async")]
 use dicom_ul::association::{AsyncAssociation, AsyncServerAssociation};
@@ -37,15 +37,17 @@ fn spawn_scp() -> Result<(std::thread::JoinHandle<Result<ServerAssociation<std::
         assert_eq!(
             association.presentation_contexts(),
             &[
-                PresentationContextResult {
+                PresentationContextNegotiated {
                     id: 1,
                     reason: PresentationContextResultReason::Acceptance,
                     transfer_syntax: IMPLICIT_VR_LE.to_string(),
+                    abstract_syntax: MR_IMAGE_STORAGE.to_string(),
                 },
-                PresentationContextResult {
+                PresentationContextNegotiated {
                     id: 3,
                     reason: PresentationContextResultReason::Acceptance,
                     transfer_syntax: JPEG_BASELINE.to_string(),
+                    abstract_syntax: DIGITAL_MG_STORAGE_SOP_CLASS.to_string(),
                 }
             ],
         );
@@ -77,15 +79,17 @@ async fn spawn_scp_async() -> Result<(tokio::task::JoinHandle<Result<AsyncServer
         assert_eq!(
             association.presentation_contexts(),
             &[
-                PresentationContextResult {
+                PresentationContextNegotiated {
                     id: 1,
                     reason: PresentationContextResultReason::Acceptance,
                     transfer_syntax: IMPLICIT_VR_LE.to_string(),
+                    abstract_syntax: MR_IMAGE_STORAGE.to_string(),
                 },
-                PresentationContextResult {
+                PresentationContextNegotiated {
                     id: 3,
                     reason: PresentationContextResultReason::Acceptance,
                     transfer_syntax: JPEG_BASELINE.to_string(),
+                    abstract_syntax: DIGITAL_MG_STORAGE_SOP_CLASS.to_string(),
                 }
             ],
         );

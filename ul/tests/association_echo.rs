@@ -1,6 +1,6 @@
 use dicom_ul::{
     association::{Association, SyncAssociation, client::ClientAssociationOptions, server::ServerAssociation},
-    pdu::{Pdu, PresentationContextResult, PresentationContextResultReason},
+    pdu::{Pdu, PresentationContextNegotiated, PresentationContextResultReason},
 };
 #[cfg(feature = "async")]
 use dicom_ul::association::{AsyncAssociation, AsyncServerAssociation};
@@ -35,15 +35,17 @@ fn spawn_scp() -> Result<(std::thread::JoinHandle<Result<ServerAssociation<std::
         assert_eq!(
             association.presentation_contexts(),
             &[
-                PresentationContextResult {
+                PresentationContextNegotiated {
                     id: 1,
                     reason: PresentationContextResultReason::Acceptance,
                     transfer_syntax: IMPLICIT_VR_LE.to_string(),
+                    abstract_syntax: VERIFICATION_SOP_CLASS.to_string(),
                 },
-                PresentationContextResult {
+                PresentationContextNegotiated {
                     id: 3,
                     reason: PresentationContextResultReason::AbstractSyntaxNotSupported,
                     transfer_syntax: IMPLICIT_VR_LE.to_string(),
+                    abstract_syntax: DIGITAL_MG_STORAGE_SOP_CLASS.to_string(),
                 }
             ],
         );
@@ -68,21 +70,25 @@ async fn spawn_scp_async() -> Result<(tokio::task::JoinHandle<Result<AsyncServer
         .with_abstract_syntax(VERIFICATION_SOP_CLASS);
 
     let h = tokio::spawn(async move {
+        use dicom_ul::pdu::PresentationContextNegotiated;
+
         let (stream, _addr) = listener.accept().await?;
         let mut association = scp.establish_async(stream).await?;
 
         assert_eq!(
             association.presentation_contexts(),
             &[
-                PresentationContextResult {
+                PresentationContextNegotiated {
                     id: 1,
                     reason: PresentationContextResultReason::Acceptance,
                     transfer_syntax: IMPLICIT_VR_LE.to_string(),
+                    abstract_syntax: VERIFICATION_SOP_CLASS.to_string(),
                 },
-                PresentationContextResult {
+                PresentationContextNegotiated {
                     id: 3,
                     reason: PresentationContextResultReason::AbstractSyntaxNotSupported,
                     transfer_syntax: IMPLICIT_VR_LE.to_string(),
+                    abstract_syntax: DIGITAL_MG_STORAGE_SOP_CLASS.to_string(),
                 }
             ],
         );

@@ -3,8 +3,9 @@ use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
-// re-export from dicom_parser
+// re-export public options from dicom_parser
 pub use dicom_parser::dataset::read::OddLengthStrategy;
+pub use dicom_parser::stateful::decode::CharacterSetOverride;
 
 use crate::{DefaultDicomObject, ReadError};
 use std::io::Read;
@@ -62,6 +63,7 @@ pub struct OpenFileOptions<D = StandardDataDictionary, T = TransferSyntaxRegistr
     read_until: Option<Tag>,
     read_preamble: ReadPreamble,
     odd_length: OddLengthStrategy,
+    charset_override: CharacterSetOverride,
 }
 
 impl OpenFileOptions {
@@ -102,6 +104,12 @@ impl<D, T> OpenFileOptions<D, T> {
         self
     }
 
+    /// Set an override on how text values are decoded.
+    pub fn charset_override(mut self, option: CharacterSetOverride) -> Self {
+        self.charset_override = option;
+        self
+    }
+
     /// Set the transfer syntax index to use when reading the file.
     pub fn transfer_syntax_index<Tr>(self, ts_index: Tr) -> OpenFileOptions<D, Tr>
     where
@@ -113,6 +121,7 @@ impl<D, T> OpenFileOptions<D, T> {
             read_preamble: self.read_preamble,
             ts_index,
             odd_length: self.odd_length,
+            charset_override: self.charset_override,
         }
     }
 
@@ -137,6 +146,7 @@ impl<D, T> OpenFileOptions<D, T> {
             read_preamble: self.read_preamble,
             ts_index: self.ts_index,
             odd_length: self.odd_length,
+            charset_override: self.charset_override,
         }
     }
 
@@ -155,6 +165,7 @@ impl<D, T> OpenFileOptions<D, T> {
             self.read_until,
             self.read_preamble,
             self.odd_length,
+            self.charset_override,
         )
     }
 
@@ -177,6 +188,7 @@ impl<D, T> OpenFileOptions<D, T> {
             self.read_until,
             self.read_preamble,
             self.odd_length,
+            self.charset_override,
         )
     }
 }

@@ -115,7 +115,7 @@ struct DicomFile {
     /// Transfer Syntax selected
     ts_selected: Option<String>,
     /// Presentation Context selected
-    pc_selected: Option<dicom_ul::pdu::PresentationContextResult>,
+    pc_selected: Option<dicom_ul::pdu::PresentationContextNegotiated>,
 }
 
 #[derive(Debug, Snafu)]
@@ -596,9 +596,9 @@ fn check_file(file: &Path) -> Result<DicomFile, Error> {
 
 fn check_presentation_contexts(
     file: &DicomFile,
-    pcs: &[dicom_ul::pdu::PresentationContextResult],
+    pcs: &[dicom_ul::pdu::PresentationContextNegotiated],
     never_transcode: bool,
-) -> Result<(dicom_ul::pdu::PresentationContextResult, String), Error> {
+) -> Result<(dicom_ul::pdu::PresentationContextNegotiated, String), Error> {
     let file_ts = TransferSyntaxRegistry
         .get(&file.file_transfer_syntax)
         .with_context(|| UnsupportedFileTransferSyntaxSnafu {
