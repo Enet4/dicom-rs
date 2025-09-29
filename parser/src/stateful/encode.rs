@@ -414,6 +414,11 @@ where
             | PrimitiveValue::Str(_) => unreachable!(),
         }
     }
+
+    /// Flush the inner writer
+    pub fn flush(&mut self) -> std::io::Result<()> {
+        self.to.flush()
+    }
 }
 
 #[inline]

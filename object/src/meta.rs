@@ -787,7 +787,9 @@ impl FileMetaTable {
                 .into_element_iter()
                 .flat_map(IntoTokens::into_tokens),
         )
-        .context(WriteSetSnafu)
+        .context(WriteSetSnafu)?;
+
+        dset.flush().context(WriteSetSnafu)
     }
 }
 

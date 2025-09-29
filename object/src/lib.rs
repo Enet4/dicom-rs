@@ -317,6 +317,11 @@ pub enum WriteError {
         backtrace: Backtrace,
         source: std::io::Error,
     },
+    #[snafu(display("Write other I/O error"))]
+    WriteOther{
+        backtrace: Backtrace,
+        source: std::io::Error,
+    },
     #[snafu(display("Could not create data set printer"))]
     CreatePrinter {
         #[snafu(backtrace)]
@@ -586,6 +591,8 @@ where
                     .write_sequence((&self.obj).into_tokens())
                     .context(PrintDataSetSnafu)?;
 
+                dset_writer.flush().context(PrintDataSetSnafu)?;
+
                 Ok(())
             },
             Codec::Dataset(None) => {
@@ -614,6 +621,7 @@ where
                 dset_writer
                     .write_sequence((&self.obj).into_tokens())
                     .context(PrintDataSetSnafu)?;
+                dset_writer.flush().context(PrintDataSetSnafu)?;
 
                 Ok(())
             }
