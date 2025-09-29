@@ -81,6 +81,56 @@ struct SeqToken {
     len: Length,
 }
 
+/// A strategy for writing Sequences and Items if the writer
+/// encounters a Sequence or Item with explicit (defined) length
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum ExplicitLengthSqItemStrategy {
+    /// All explicit length items and sequences are written with Length::UNDEFINED.
+    ///
+    /// Be advised that even if you create or read a data set with explicit length
+    /// items / sequences, the resulting output of the writer will have undefined
+    /// lengths for all items and sequences.
+    ///  
+    /// For reasons stated in the documentation of the `ExplicitLengthSqItemStrategy`, this
+    /// is as of yet, the fastest and safest way to handle explicit length items and sequences
+    /// and thus default.
+    #[default]
+    SetUndefined,
+    /// Explicit length items and sequences are written without any change, left as they were encountered
+    /// in the data set.
+    ///
+    /// Lenghts will not be recalculated !
+    ///
+    /// As a consequence, if the content of a sequence or item with explicit length is manipulated after
+    /// it was created or read from a source ( = possibly changes it's real size), this strategy will not
+    /// update the length of the sequence or item and might produce invalid output.
+    NoChange,
+    // Explicit lenght items and sequences could as well be recalculated, as is the behavior
+    // of some DICOM libraries. Because recalculation is expensive and leaving sequences and items
+    // with length undefined is DICOM compliant, this strategy is not implemented (yet).
+    // Racalculate (todo?),
+}
+
+/// The set of options for the data set writer.
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub struct DataSetWriterOptions {
+    /// What to do with sequences and items with explicit lengths.
+    pub explicit_length_sq_item_strategy: ExplicitLengthSqItemStrategy,
+}
+
+impl DataSetWriterOptions {
+    /// Replace the write strategy for explicit length sequences and items of the options.
+    pub fn explicit_length_sq_item_strategy(
+        mut self,
+        exp_length: ExplicitLengthSqItemStrategy,
+    ) -> Self {
+        self.explicit_length_sq_item_strategy = exp_length;
+        self
+    }
+}
+
 /// A stateful device for printing a DICOM data set in sequential order.
 /// This is analogous to the `DatasetReader` type for converting data
 /// set tokens to bytes.
@@ -89,6 +139,7 @@ pub struct DataSetWriter<W, E, T = SpecificCharacterSet> {
     printer: StatefulEncoder<W, E, T>,
     seq_tokens: Vec<SeqToken>,
     last_de: Option<DataElementHeader>,
+    options: DataSetWriterOptions,
 }
 
 impl<'w, W: 'w> DataSetWriter<W, DynEncoder<'w, W>>
@@ -97,50 +148,103 @@ where
 {
     /// Create a new data set writer
     /// with the given transfer syntax specifier.
+    ///
+    /// Uses the default [DataSetWriterOptions] for the writer.
     pub fn with_ts(to: W, ts: &TransferSyntax) -> Result<Self> {
-        let encoder = ts.encoder_for().context(UnsupportedTransferSyntaxSnafu {
-            ts_uid: ts.uid(),
-            ts_alias: ts.name(),
-        })?;
-        Ok(DataSetWriter::new_with_codec(
-            to,
-            encoder,
-            SpecificCharacterSet::default(),
-        ))
+        Self::with_ts_options(to, ts, DataSetWriterOptions::default())
     }
 
     /// Create a new data set writer
     /// with the given transfer syntax specifier
-    /// and the specific character set to assume by default.
+    /// and the specific character.
     ///
-    /// Note that the data set being written
-    /// can override the character set with the presence of a
-    /// _Specific Character Set_ data element.
+    /// Uses the default [DataSetWriterOptions] for the writer.
     pub fn with_ts_cs(to: W, ts: &TransferSyntax, charset: SpecificCharacterSet) -> Result<Self> {
+        Self::with_ts_cs_options(to, ts, charset, DataSetWriterOptions::default())
+    }
+
+    /// Create a new data set writer
+    /// with the given transfer syntax specifier
+    /// and options.
+    pub fn with_ts_options(
+        to: W,
+        ts: &TransferSyntax,
+        options: DataSetWriterOptions,
+    ) -> Result<Self> {
         let encoder = ts.encoder_for().context(UnsupportedTransferSyntaxSnafu {
             ts_uid: ts.uid(),
             ts_alias: ts.name(),
         })?;
-        Ok(DataSetWriter::new_with_codec(to, encoder, charset))
+        Ok(DataSetWriter::new_with_codec_options(
+            to,
+            encoder,
+            SpecificCharacterSet::default(),
+            options,
+        ))
+    }
+
+    /// Create a new data set writer
+    /// with the given transfer syntax specifier,
+    /// specific character set and options.
+    pub fn with_ts_cs_options(
+        to: W,
+        ts: &TransferSyntax,
+        charset: SpecificCharacterSet,
+        options: DataSetWriterOptions,
+    ) -> Result<Self> {
+        let encoder = ts.encoder_for().context(UnsupportedTransferSyntaxSnafu {
+            ts_uid: ts.uid(),
+            ts_alias: ts.name(),
+        })?;
+        Ok(DataSetWriter::new_with_codec_options(
+            to, encoder, charset, options,
+        ))
     }
 }
 
 impl<W, E> DataSetWriter<W, E> {
+    /// Create a new dataset writer with the given encoder,
+    /// which prints to the given writer.
+    #[inline]
     pub fn new(to: W, encoder: E) -> Self {
+        DataSetWriter::new_with_options(to, encoder, DataSetWriterOptions::default())
+    }
+
+    /// Create a new dataset writer with the given encoder,
+    /// which prints to the given writer.
+    #[inline]
+    pub fn new_with_options(to: W, encoder: E, options: DataSetWriterOptions) -> Self {
         DataSetWriter {
             printer: StatefulEncoder::new(to, encoder, SpecificCharacterSet::default()),
             seq_tokens: Vec::new(),
             last_de: None,
+            options,
         }
     }
 }
 
 impl<W, E, T> DataSetWriter<W, E, T> {
+    /// Create a new dataset writer with the given encoder and text codec,
+    /// which prints to the given writer.
+    #[inline]
     pub fn new_with_codec(to: W, encoder: E, text: T) -> Self {
+        DataSetWriter::new_with_codec_options(to, encoder, text, DataSetWriterOptions::default())
+    }
+
+    /// Create a new dataset writer with the given encoder and text codec,
+    /// which prints to the given writer.
+    #[inline]
+    pub fn new_with_codec_options(
+        to: W,
+        encoder: E,
+        text: T,
+        options: DataSetWriterOptions,
+    ) -> Self {
         DataSetWriter {
             printer: StatefulEncoder::new(to, encoder, text),
             seq_tokens: Vec::new(),
             last_de: None,
+            options,
         }
     }
 }
@@ -165,25 +269,48 @@ where
 
     /// Feed the given data set token for writing the data set.
     pub fn write(&mut self, token: DataToken) -> Result<()> {
-        // adjust the logic of sequence printing:
-        // explicit length sequences or items should not print
-        // the respective delimiter
-
         match token {
-            DataToken::SequenceStart { len, .. } => {
-                self.seq_tokens.push(SeqToken {
-                    typ: SeqTokenType::Sequence,
-                    len,
-                });
-                self.write_impl(&token)?;
+            DataToken::SequenceStart { tag, len, .. } => {
+                match self.options.explicit_length_sq_item_strategy {
+                    ExplicitLengthSqItemStrategy::SetUndefined => {
+                        self.seq_tokens.push(SeqToken {
+                            typ: SeqTokenType::Sequence,
+                            len: Length::UNDEFINED,
+                        });
+                        self.write_impl(&DataToken::SequenceStart {
+                            tag,
+                            len: Length::UNDEFINED,
+                        })?;
+                    }
+                    ExplicitLengthSqItemStrategy::NoChange => {
+                        self.seq_tokens.push(SeqToken {
+                            typ: SeqTokenType::Sequence,
+                            len,
+                        });
+                        self.write_impl(&token)?;
+                    }
+                }
                 Ok(())
             }
             DataToken::ItemStart { len } => {
-                self.seq_tokens.push(SeqToken {
-                    typ: SeqTokenType::Item,
-                    len,
-                });
-                self.write_impl(&token)?;
+                match self.options.explicit_length_sq_item_strategy {
+                    ExplicitLengthSqItemStrategy::SetUndefined => {
+                        self.seq_tokens.push(SeqToken {
+                            typ: SeqTokenType::Item,
+                            len: Length::UNDEFINED,
+                        });
+                        self.write_impl(&DataToken::ItemStart {
+                            len: Length::UNDEFINED,
+                        })?;
+                    }
+                    ExplicitLengthSqItemStrategy::NoChange => {
+                        self.seq_tokens.push(SeqToken {
+                            typ: SeqTokenType::Item,
+                            len,
+                        });
+                        self.write_impl(&token)?;
+                    }
+                }
                 Ok(())
             }
             DataToken::ItemEnd => {
@@ -218,6 +345,7 @@ where
                 });
                 self.write_impl(&token)
             }
+            //DataToken::ItemEnd | DataToken::SequenceEnd => self.write_impl(&token),
             token @ DataToken::ItemValue(_)
             | token @ DataToken::PrimitiveValue(_)
             | token @ DataToken::OffsetTable(_) => self.write_impl(&token),
@@ -283,7 +411,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::super::DataToken;
-    use super::DataSetWriter;
+    use super::{DataSetWriter, DataSetWriterOptions, ExplicitLengthSqItemStrategy};
     use dicom_core::{
         header::{DataElementHeader, Length},
         value::PrimitiveValue,
@@ -291,13 +419,17 @@ mod tests {
     };
     use dicom_encoding::encode::{explicit_le::ExplicitVRLittleEndianEncoder, EncoderFor};
 
-    fn validate_dataset_writer<I>(tokens: I, ground_truth: &[u8])
-    where
+    fn validate_dataset_writer<I>(
+        tokens: I,
+        ground_truth: &[u8],
+        writer_options: DataSetWriterOptions,
+    ) where
         I: IntoIterator<Item = DataToken>,
     {
         let mut raw_out: Vec<u8> = vec![];
         let encoder = EncoderFor::new(ExplicitVRLittleEndianEncoder::default());
-        let mut dset_writer = DataSetWriter::new(&mut raw_out, encoder);
+        let mut dset_writer =
+            DataSetWriter::new_with_options(&mut raw_out, encoder, writer_options);
 
         dset_writer.write_sequence(tokens).unwrap();
 
@@ -343,7 +475,33 @@ mod tests {
         ];
 
         #[rustfmt::skip]
-        static GROUND_TRUTH: &[u8] = &[
+        static GROUND_TRUTH_LENGTH_UNDEFINED: &[u8] = &[
+            0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
+            b'S', b'Q', // VR 
+            0x00, 0x00, // reserved
+            0xff, 0xff, 0xff, 0xff, // seq length: UNDEFINED
+            // -- 12 --
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0xff, 0xff, 0xff, 0xff, // item length: UNDEFINED
+            // -- 20 --
+            0x18, 0x00, 0x12, 0x60, b'U', b'S', 0x02, 0x00, 0x01, 0x00, // (0018, 6012) RegionSpatialformat, len = 2, value = 1
+            // -- 30 --
+            0x18, 0x00, 0x14, 0x60, b'U', b'S', 0x02, 0x00, 0x02, 0x00, // (0018, 6012) RegionDataType, len = 2, value = 2
+            // -- 40 --
+            0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0xff, 0xff, 0xff, 0xff, // item length: UNDEFINED
+            // -- 48 --
+            0x18, 0x00, 0x12, 0x60, b'U', b'S', 0x02, 0x00, 0x04, 0x00, // (0018, 6012) RegionSpatialformat, len = 2, value = 4
+            // -- 58 --
+            0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
+            0xfe, 0xff, 0xdd, 0xe0, 0x00, 0x00, 0x00, 0x00, // sequence end
+            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4  
+            b'T', b'E', b'S', b'T', // value = "TEST"
+        ];
+
+        #[rustfmt::skip]
+        static GROUND_TRUTH_NO_CHANGE: &[u8] = &[
             0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
             b'S', b'Q', // VR 
             0x00, 0x00, // reserved
@@ -365,7 +523,15 @@ mod tests {
             b'T', b'E', b'S', b'T', // value = "TEST"
         ];
 
-        validate_dataset_writer(tokens, GROUND_TRUTH);
+        let no_change = DataSetWriterOptions {
+            explicit_length_sq_item_strategy: ExplicitLengthSqItemStrategy::NoChange,
+        };
+        validate_dataset_writer(tokens.clone(), GROUND_TRUTH_NO_CHANGE, no_change);
+        validate_dataset_writer(
+            tokens,
+            GROUND_TRUTH_LENGTH_UNDEFINED,
+            DataSetWriterOptions::default(),
+        );
     }
 
     #[test]
@@ -402,8 +568,7 @@ mod tests {
             // value = "Simões^João "
             b'S', b'i', b'm', 0xF5, b'e', b's', b'^', b'J', b'o', 0xE3, b'o', b' '
         ];
-
-        validate_dataset_writer(tokens, GROUND_TRUTH);
+        validate_dataset_writer(tokens, GROUND_TRUTH, DataSetWriterOptions::default());
     }
 
     #[test]
@@ -477,7 +642,11 @@ mod tests {
             b'T', b'E', b'S', b'T', // value = "TEST"
         ];
 
-        validate_dataset_writer(tokens, GROUND_TRUTH);
+        let no_change = DataSetWriterOptions {
+            explicit_length_sq_item_strategy: ExplicitLengthSqItemStrategy::NoChange,
+        };
+        validate_dataset_writer(tokens.clone(), GROUND_TRUTH, no_change);
+        validate_dataset_writer(tokens, GROUND_TRUTH, DataSetWriterOptions::default());
     }
 
     #[test]
@@ -523,7 +692,27 @@ mod tests {
         ];
 
         #[rustfmt::skip]
-        static GROUND_TRUTH: &[u8] = &[
+        static GROUND_TRUTH_LENGTH_UNDEFINED: &[u8] = &[
+            0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
+            b'S', b'Q', // VR 
+            0x00, 0x00, // reserved
+            0xff, 0xff, 0xff, 0xff, // length: UNDEFINED
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0xff, 0xff, 0xff, 0xff, // item length: undefined
+            0x18, 0x00, 0x12, 0x60, b'U', b'S', 0x02, 0x00, 0x01, 0x00, // (0018, 6012) RegionSpatialformat, len = 2, value = 1
+            0x18, 0x00, 0x14, 0x60, b'U', b'S', 0x02, 0x00, 0x02, 0x00, // (0018, 6012) RegionDataType, len = 2, value = 2
+            0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0xff, 0xff, 0xff, 0xff, // item length: undefined
+            0x18, 0x00, 0x12, 0x60, b'U', b'S', 0x02, 0x00, 0x04, 0x00, // (0018, 6012) RegionSpatialformat, len = 2, value = 4
+            0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
+            0xfe, 0xff, 0xdd, 0xe0, 0x00, 0x00, 0x00, 0x00, // sequence end
+            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4  
+            b'T', b'E', b'S', b'T', // value = "TEST"
+        ];
+
+        #[rustfmt::skip]
+        static GROUND_TRUTH_NO_CHANGE: &[u8] = &[
             0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
             b'S', b'Q', // VR 
             0x00, 0x00, // reserved
@@ -548,8 +737,16 @@ mod tests {
             0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4  
             b'T', b'E', b'S', b'T', // value = "TEST"
         ];
+        let no_change = DataSetWriterOptions {
+            explicit_length_sq_item_strategy: ExplicitLengthSqItemStrategy::NoChange,
+        };
 
-        validate_dataset_writer(tokens, GROUND_TRUTH);
+        validate_dataset_writer(tokens.clone(), GROUND_TRUTH_NO_CHANGE, no_change);
+        validate_dataset_writer(
+            tokens,
+            GROUND_TRUTH_LENGTH_UNDEFINED,
+            DataSetWriterOptions::default(),
+        );
     }
 
     #[test]
@@ -571,7 +768,35 @@ mod tests {
         ];
 
         #[rustfmt::skip]
-        static GROUND_TRUTH: &[u8] = &[
+        static GROUND_TRUTH_LENGTH_UNDEFINED: &[u8] = &[
+            0xe0, 0x7f, 0x10, 0x00, // (7FE0, 0010) PixelData
+            b'O', b'B', // VR 
+            0x00, 0x00, // reserved
+            0xff, 0xff, 0xff, 0xff, // length: undefined
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0xff, 0xff, 0xff, 0xff, // item length: UNDEFINED
+            0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
+            0xfe, 0xff, 0x00, 0xe0, // item start tag
+            0xff, 0xff, 0xff, 0xff, // item length: UNDEFINED
+            // Compressed Fragment
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
+            0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
+            // End of pixel data
+            0xfe, 0xff, 0xdd, 0xe0, // sequence end tag
+            0x00, 0x00, 0x00, 0x00,
+            // -- 68 -- padding
+            0xfc, 0xff, 0xfc, 0xff, // (fffc,fffc) DataSetTrailingPadding
+            b'O', b'B', // VR
+            0x00, 0x00, // reserved
+            0x08, 0x00, 0x00, 0x00, // length: 8
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
+
+        #[rustfmt::skip]
+        static GROUND_TRUTH_NO_CHANGE: &[u8] = &[
             0xe0, 0x7f, 0x10, 0x00, // (7FE0, 0010) PixelData
             b'O', b'B', // VR 
             0x00, 0x00, // reserved
@@ -597,7 +822,14 @@ mod tests {
             0x08, 0x00, 0x00, 0x00, // length: 8
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
-
-        validate_dataset_writer(tokens, GROUND_TRUTH);
+        let no_change = DataSetWriterOptions {
+            explicit_length_sq_item_strategy: ExplicitLengthSqItemStrategy::NoChange,
+        };
+        validate_dataset_writer(tokens.clone(), GROUND_TRUTH_NO_CHANGE, no_change);
+        validate_dataset_writer(
+            tokens,
+            GROUND_TRUTH_LENGTH_UNDEFINED,
+            DataSetWriterOptions::default(),
+        );
     }
 }
