@@ -119,7 +119,7 @@ struct DicomFile {
 enum Error {
     /// Could not initialize SCU
     Scu {
-        source: Box<dicom_ul::association::client::Error>,
+        source: Box<dicom_ul::association::Error>,
     },
 
     /// Could not construct DICOM command

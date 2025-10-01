@@ -79,7 +79,7 @@ fn main() {
 enum Error {
     /// Could not initialize SCU
     InitScu {
-        source: dicom_ul::association::client::Error,
+        source: dicom_ul::association::Error,
     },
 
     /// Could not construct DICOM command

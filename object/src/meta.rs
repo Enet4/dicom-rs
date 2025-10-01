@@ -1399,7 +1399,8 @@ mod tests {
             information_group_length: 0,
             information_version: [0u8, 1u8],
             media_storage_sop_class_uid: "1.2.840.10008.5.1.4.1.1.7".to_owned(),
-            media_storage_sop_instance_uid: "2.25.137731752600317795446120660167595746868".to_owned(),
+            media_storage_sop_instance_uid: "2.25.137731752600317795446120660167595746868"
+                .to_owned(),
             transfer_syntax: "1.2.840.10008.1.2.4.91".to_owned(),
             implementation_class_uid: "2.25.305828488182831875890203105390285383139".to_owned(),
             implementation_version_name: Some("MYTOOL100".to_owned()),
@@ -1418,6 +1419,9 @@ mod tests {
         let table2 = FileMetaTable::from_reader(&mut buf.as_slice())
             .expect("Should not fail to read the table from the written data");
 
-        assert_eq!(table.information_group_length, table2.information_group_length);
+        assert_eq!(
+            table.information_group_length,
+            table2.information_group_length
+        );
     }
 }

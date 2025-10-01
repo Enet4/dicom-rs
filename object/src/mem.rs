@@ -41,6 +41,7 @@ use dicom_core::ops::{
 };
 use dicom_encoding::Codec;
 use dicom_parser::dataset::read::{DataSetReaderOptions, OddLengthStrategy};
+use dicom_parser::dataset::write::DataSetWriterOptions;
 use dicom_parser::stateful::decode::CharacterSetOverride;
 use itertools::Itertools;
 use smallvec::SmallVec;
@@ -731,16 +732,19 @@ where
                         uid,
                         name: ts.name(),
                         feature_name: "dicom-transfer-syntax-registry/deflate",
-                    }.fail();
+                    }
+                    .fail();
                 }
 
                 ReadUnsupportedTransferSyntaxSnafu {
                     uid,
                     name: ts.name(),
-                }.fail()
+                }
+                .fail()
             }
             Codec::None | Codec::EncapsulatedPixelData(..) => {
-                let mut dataset = DataSetReader::new_with_ts_cs(from, ts, cs).context(CreateParserSnafu)?;
+                let mut dataset =
+                    DataSetReader::new_with_ts_cs(from, ts, cs).context(CreateParserSnafu)?;
                 InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
             }
         }
@@ -1823,6 +1827,8 @@ where
     /// until _Specific Character Set_ is found in the data set,
     /// in which then that character set will be used.
     ///
+    /// Uses the default [DataSetWriterOptions] for the writer.
+    ///
     /// Note: [`write_dataset_with_ts`] and [`write_dataset_with_ts_cs`]
     /// may be easier to use and _will_ apply a dataset adapter (such as
     /// DeflatedExplicitVRLittleEndian (1.2.840.10008.1.2.99)) whereas this
@@ -1850,6 +1856,9 @@ where
     /// with the specified transfer syntax and character set,
     /// without preamble, magic code, nor file meta group.
     ///
+    /// The default [DataSetWriterOptions] is used for the writer. To change
+    /// that, use [`write_dataset_with_ts_cs_options`](Self::write_dataset_with_ts_cs_options).
+    ///
     /// If the attribute _Specific Character Set_ is found in the data set,
     /// the last parameter is overridden accordingly.
     /// See also [`write_dataset_with_ts`](Self::write_dataset_with_ts).
@@ -1865,7 +1874,8 @@ where
         if let Codec::Dataset(Some(adapter)) = ts.codec() {
             let adapter = adapter.adapt_writer(Box::new(to));
             // prepare data set writer
-            let mut dset_writer = DataSetWriter::with_ts(adapter, ts).context(CreatePrinterSnafu)?;
+            let mut dset_writer =
+                DataSetWriter::with_ts(adapter, ts).context(CreatePrinterSnafu)?;
 
             // write object
             dset_writer
@@ -1875,7 +1885,8 @@ where
             Ok(())
         } else {
             // prepare data set writer
-            let mut dset_writer = DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
+            let mut dset_writer =
+                DataSetWriter::with_ts_cs(to, ts, cs).context(CreatePrinterSnafu)?;
 
             // write object
             dset_writer
@@ -1886,9 +1897,42 @@ where
         }
     }
 
+    /// Write this object's data set into the given printer,
+    /// with the specified transfer syntax and character set,
+    /// without preamble, magic code, nor file meta group.
+    ///
+    /// If the attribute _Specific Character Set_ is found in the data set,
+    /// the last parameter is overridden accordingly.
+    /// See also [`write_dataset_with_ts`](Self::write_dataset_with_ts).
+    pub fn write_dataset_with_ts_cs_options<W>(
+        &self,
+        to: W,
+        ts: &TransferSyntax,
+        cs: SpecificCharacterSet,
+        options: DataSetWriterOptions,
+    ) -> Result<(), WriteError>
+    where
+        W: Write,
+    {
+        // prepare data set writer
+        let mut dset_writer =
+            DataSetWriter::with_ts_cs_options(to, ts, cs, options).context(CreatePrinterSnafu)?;
+        let required_options = IntoTokensOptions::new(self.charset_changed);
+
+        // write object
+        dset_writer
+            .write_sequence(self.into_tokens_with_options(required_options))
+            .context(PrintDataSetSnafu)?;
+
+        Ok(())
+    }
+
     /// Write this object's data set into the given writer,
     /// with the specified transfer syntax,
     /// without preamble, magic code, nor file meta group.
+    ///
+    /// The default [DataSetWriterOptions] is used for the writer. To change
+    /// that, use [`write_dataset_with_ts_options`](Self::write_dataset_with_ts_options).
     ///
     /// The default character set is assumed
     /// until the _Specific Character Set_ is found in the data set,
@@ -1898,6 +1942,25 @@ where
         W: Write,
     {
         self.write_dataset_with_ts_cs(to, ts, SpecificCharacterSet::default())
+    }
+
+    /// Write this object's data set into the given writer,
+    /// with the specified transfer syntax,
+    /// without preamble, magic code, nor file meta group.
+    ///
+    /// The default character set is assumed
+    /// until the _Specific Character Set_ is found in the data set,
+    /// after which the text encoder is overridden accordingly.
+    pub fn write_dataset_with_ts_options<W>(
+        &self,
+        to: W,
+        ts: &TransferSyntax,
+        options: DataSetWriterOptions,
+    ) -> Result<(), WriteError>
+    where
+        W: Write,
+    {
+        self.write_dataset_with_ts_cs_options(to, ts, SpecificCharacterSet::default(), options)
     }
 
     /// Encapsulate this object to contain a file meta group
@@ -2545,8 +2608,7 @@ mod tests {
         let meta = file_object.meta();
 
         assert_eq!(
-            meta.media_storage_sop_instance_uid
-                .trim_end_matches('\0'),
+            meta.media_storage_sop_instance_uid.trim_end_matches('\0'),
             sop_uid.trim_end_matches('\0'),
         );
     }
@@ -3859,11 +3921,9 @@ mod tests {
             Some(Length(0)),
         );
 
-        assert!(
-            !obj.update_value(tags::BURNED_IN_ANNOTATION, |_value| {
-                panic!("should not be called")
-            }),
-        );
+        assert!(!obj.update_value(tags::BURNED_IN_ANNOTATION, |_value| {
+            panic!("should not be called")
+        }),);
 
         let o = obj.update_value(tags::ANATOMIC_REGION_SEQUENCE, |value| {
             // add an item
