@@ -350,6 +350,22 @@ impl From<()> for PrimitiveValue {
     }
 }
 
+impl<T> From<Option<T>> for PrimitiveValue
+where
+    PrimitiveValue: From<T>,
+{
+    /// Converts an `Option<T>` to a `PrimitiveValue`.
+    /// `Some(value)` becomes `PrimitiveValue::from(value)`,
+    /// `None` becomes `PrimitiveValue::Empty`.
+    #[inline]
+    fn from(option: Option<T>) -> Self {
+        match option {
+            Some(value) => PrimitiveValue::from(value),
+            None => PrimitiveValue::Empty,
+        }
+    }
+}
+
 macro_rules! impl_from_array_for_primitive {
     ($typ: ty, $variant: ident) => {
         impl From<$typ> for PrimitiveValue {
