@@ -3,7 +3,7 @@
 //! Adapted from the DCMTK project.\
 //! URL: <https://raw.githubusercontent.com/DCMTK/dcmtk/master/dcmdata/data/dicom.dic>\
 //! License: <https://github.com/DCMTK/dcmtk/blob/master/COPYRIGHT>\
-//! #  Copyright (C) 1994-2024, OFFIS e.V.\
+//! #  Copyright (C) 1994-2025, OFFIS e.V.\
 // Automatically generated. Edit at your own risk.
 #![allow(deprecated)]
 
@@ -713,6 +713,9 @@ pub const REFERENCED_REAL_WORLD_VALUE_MAPPING_INSTANCE_SEQUENCE: Tag = Tag(0x000
 /// ReferencedSegmentationSequence (0008,114C) SQ 1 DICOM
 #[rustfmt::skip]
 pub const REFERENCED_SEGMENTATION_SEQUENCE: Tag = Tag(0x0008, 0x114C);
+/// ReferencedSurfaceSegmentationSequence (0008,114D) SQ 1 DICOM
+#[rustfmt::skip]
+pub const REFERENCED_SURFACE_SEGMENTATION_SEQUENCE: Tag = Tag(0x0008, 0x114D);
 /// ReferencedSOPClassUID (0008,1150) UI 1 DICOM
 #[rustfmt::skip]
 pub const REFERENCED_SOP_CLASS_UID: Tag = Tag(0x0008, 0x1150);
@@ -773,6 +776,18 @@ pub const STUDIES_CONTAINING_OTHER_REFERENCED_INSTANCES_SEQUENCE: Tag = Tag(0x00
 /// RelatedSeriesSequence (0008,1250) SQ 1 DICOM
 #[rustfmt::skip]
 pub const RELATED_SERIES_SEQUENCE: Tag = Tag(0x0008, 0x1250);
+/// PrincipalDiagnosisCodeSequence (0008,1301) SQ 1 DICOM
+#[rustfmt::skip]
+pub const PRINCIPAL_DIAGNOSIS_CODE_SEQUENCE: Tag = Tag(0x0008, 0x1301);
+/// PrimaryDiagnosisCodeSequence (0008,1302) SQ 1 DICOM
+#[rustfmt::skip]
+pub const PRIMARY_DIAGNOSIS_CODE_SEQUENCE: Tag = Tag(0x0008, 0x1302);
+/// SecondaryDiagnosesCodeSequence (0008,1303) SQ 1 DICOM
+#[rustfmt::skip]
+pub const SECONDARY_DIAGNOSES_CODE_SEQUENCE: Tag = Tag(0x0008, 0x1303);
+/// HistologicalDiagnosesCodeSequence (0008,1304) SQ 1 DICOM
+#[rustfmt::skip]
+pub const HISTOLOGICAL_DIAGNOSES_CODE_SEQUENCE: Tag = Tag(0x0008, 0x1304);
 /// DerivationDescription (0008,2111) ST 1 DICOM
 #[rustfmt::skip]
 pub const DERIVATION_DESCRIPTION: Tag = Tag(0x0008, 0x2111);
@@ -905,6 +920,24 @@ pub const SKIP_FRAME_RANGE_FLAG: Tag = Tag(0x0008, 0x9460);
 /// PatientName (0010,0010) PN 1 DICOM
 #[rustfmt::skip]
 pub const PATIENT_NAME: Tag = Tag(0x0010, 0x0010);
+/// PersonNamesToUseSequence (0010,0011) SQ 1 DICOM
+#[rustfmt::skip]
+pub const PERSON_NAMES_TO_USE_SEQUENCE: Tag = Tag(0x0010, 0x0011);
+/// NameToUse (0010,0012) LT 1 DICOM
+#[rustfmt::skip]
+pub const NAME_TO_USE: Tag = Tag(0x0010, 0x0012);
+/// NameToUseComment (0010,0013) UT 1 DICOM
+#[rustfmt::skip]
+pub const NAME_TO_USE_COMMENT: Tag = Tag(0x0010, 0x0013);
+/// ThirdPersonPronounsSequence (0010,0014) SQ 1 DICOM
+#[rustfmt::skip]
+pub const THIRD_PERSON_PRONOUNS_SEQUENCE: Tag = Tag(0x0010, 0x0014);
+/// PronounCodeSequence (0010,0015) SQ 1 DICOM
+#[rustfmt::skip]
+pub const PRONOUN_CODE_SEQUENCE: Tag = Tag(0x0010, 0x0015);
+/// PronounComment (0010,0016) UT 1 DICOM
+#[rustfmt::skip]
+pub const PRONOUN_COMMENT: Tag = Tag(0x0010, 0x0016);
 /// PatientID (0010,0020) LO 1 DICOM
 #[rustfmt::skip]
 pub const PATIENT_ID: Tag = Tag(0x0010, 0x0020);
@@ -944,6 +977,27 @@ pub const PATIENT_ALTERNATIVE_CALENDAR: Tag = Tag(0x0010, 0x0035);
 /// PatientSex (0010,0040) CS 1 DICOM
 #[rustfmt::skip]
 pub const PATIENT_SEX: Tag = Tag(0x0010, 0x0040);
+/// GenderIdentitySequence (0010,0041) SQ 1 DICOM
+#[rustfmt::skip]
+pub const GENDER_IDENTITY_SEQUENCE: Tag = Tag(0x0010, 0x0041);
+/// SexParametersForClinicalUseCategoryComment (0010,0042) UT 1 DICOM
+#[rustfmt::skip]
+pub const SEX_PARAMETERS_FOR_CLINICAL_USE_CATEGORY_COMMENT: Tag = Tag(0x0010, 0x0042);
+/// SexParametersForClinicalUseCategorySequence (0010,0043) SQ 1 DICOM
+#[rustfmt::skip]
+pub const SEX_PARAMETERS_FOR_CLINICAL_USE_CATEGORY_SEQUENCE: Tag = Tag(0x0010, 0x0043);
+/// GenderIdentityCodeSequence (0010,0044) SQ 1 DICOM
+#[rustfmt::skip]
+pub const GENDER_IDENTITY_CODE_SEQUENCE: Tag = Tag(0x0010, 0x0044);
+/// GenderIdentityComment (0010,0045) UT 1 DICOM
+#[rustfmt::skip]
+pub const GENDER_IDENTITY_COMMENT: Tag = Tag(0x0010, 0x0045);
+/// SexParametersForClinicalUseCategoryCodeSequence (0010,0046) SQ 1 DICOM
+#[rustfmt::skip]
+pub const SEX_PARAMETERS_FOR_CLINICAL_USE_CATEGORY_CODE_SEQUENCE: Tag = Tag(0x0010, 0x0046);
+/// SexParametersForClinicalUseCategoryReference (0010,0047) UR 1-n DICOM
+#[rustfmt::skip]
+pub const SEX_PARAMETERS_FOR_CLINICAL_USE_CATEGORY_REFERENCE: Tag = Tag(0x0010, 0x0047);
 /// PatientInsurancePlanCodeSequence (0010,0050) SQ 1 DICOM
 #[rustfmt::skip]
 pub const PATIENT_INSURANCE_PLAN_CODE_SEQUENCE: Tag = Tag(0x0010, 0x0050);
@@ -1058,12 +1112,12 @@ pub const PATIENT_TELEPHONE_NUMBERS: Tag = Tag(0x0010, 0x2154);
 /// PatientTelecomInformation (0010,2155) LT 1 DICOM
 #[rustfmt::skip]
 pub const PATIENT_TELECOM_INFORMATION: Tag = Tag(0x0010, 0x2155);
-/// EthnicGroup (0010,2160) SH 1 DICOM
-#[rustfmt::skip]
-pub const ETHNIC_GROUP: Tag = Tag(0x0010, 0x2160);
 /// EthnicGroupCodeSequence (0010,2161) SQ 1 DICOM
 #[rustfmt::skip]
 pub const ETHNIC_GROUP_CODE_SEQUENCE: Tag = Tag(0x0010, 0x2161);
+/// EthnicGroups (0010,2162) UC 1-n DICOM
+#[rustfmt::skip]
+pub const ETHNIC_GROUPS: Tag = Tag(0x0010, 0x2162);
 /// Occupation (0010,2180) SH 1 DICOM
 #[rustfmt::skip]
 pub const OCCUPATION: Tag = Tag(0x0010, 0x2180);
@@ -1715,6 +1769,42 @@ pub const IMAGE_QUALITY_INDICATOR_MATERIAL: Tag = Tag(0x0014, 0x40A1);
 /// ImageQualityIndicatorSize (0014,40A2) LO 1-n DICOM/DICONDE
 #[rustfmt::skip]
 pub const IMAGE_QUALITY_INDICATOR_SIZE: Tag = Tag(0x0014, 0x40A2);
+/// WaveDimensionsDefinitionSequence (0014,4101) SQ 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const WAVE_DIMENSIONS_DEFINITION_SEQUENCE: Tag = Tag(0x0014, 0x4101);
+/// WaveDimensionNumber (0014,4102) US 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const WAVE_DIMENSION_NUMBER: Tag = Tag(0x0014, 0x4102);
+/// WaveDimensionDescription (0014,4103) LO 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const WAVE_DIMENSION_DESCRIPTION: Tag = Tag(0x0014, 0x4103);
+/// WaveDimensionUnit (0014,4104) US 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const WAVE_DIMENSION_UNIT: Tag = Tag(0x0014, 0x4104);
+/// WaveDimensionValueType (0014,4105) CS 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const WAVE_DIMENSION_VALUE_TYPE: Tag = Tag(0x0014, 0x4105);
+/// WaveDimensionValuesSequence (0014,4106) SQ 1-n DICOM/DICONDE
+#[rustfmt::skip]
+pub const WAVE_DIMENSION_VALUES_SEQUENCE: Tag = Tag(0x0014, 0x4106);
+/// ReferencedWaveDimension (0014,4107) US 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const REFERENCED_WAVE_DIMENSION: Tag = Tag(0x0014, 0x4107);
+/// IntegerNumericValue (0014,4108) SL 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const INTEGER_NUMERIC_VALUE: Tag = Tag(0x0014, 0x4108);
+/// ByteNumericValue (0014,4109) OB 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const BYTE_NUMERIC_VALUE: Tag = Tag(0x0014, 0x4109);
+/// ShortNumericValue (0014,410A) OW 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const SHORT_NUMERIC_VALUE: Tag = Tag(0x0014, 0x410A);
+/// SinglePrecisionFloatingPointNumericValue (0014,410B) OF 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const SINGLE_PRECISION_FLOATING_POINT_NUMERIC_VALUE: Tag = Tag(0x0014, 0x410B);
+/// DoublePrecisionFloatingPointNumericValue (0014,410C) OD 1 DICOM/DICONDE
+#[rustfmt::skip]
+pub const DOUBLE_PRECISION_FLOATING_POINT_NUMERIC_VALUE: Tag = Tag(0x0014, 0x410C);
 /// LINACEnergy (0014,5002) IS 1 DICOM/DICONDE
 #[rustfmt::skip]
 pub const LINAC_ENERGY: Tag = Tag(0x0014, 0x5002);
@@ -5774,6 +5864,9 @@ pub const REFERENCED_SURFACE_MESH_IDENTIFICATION_SEQUENCE: Tag = Tag(0x0022, 0x1
 /// OphthalmicVolumetricPropertiesFlag (0022,1622) CS 1 DICOM
 #[rustfmt::skip]
 pub const OPHTHALMIC_VOLUMETRIC_PROPERTIES_FLAG: Tag = Tag(0x0022, 0x1622);
+/// OphthalmicAnatomicReferencePointFrameCoordinate (0022,1623) FL 1 DICOM
+#[rustfmt::skip]
+pub const OPHTHALMIC_ANATOMIC_REFERENCE_POINT_FRAME_COORDINATE: Tag = Tag(0x0022, 0x1623);
 /// OphthalmicAnatomicReferencePointXCoordinate (0022,1624) FL 1 DICOM
 #[rustfmt::skip]
 pub const OPHTHALMIC_ANATOMIC_REFERENCE_POINT_X_COORDINATE: Tag = Tag(0x0022, 0x1624);
@@ -5792,6 +5885,15 @@ pub const OPHTHALMIC_EN_FACE_VOLUME_DESCRIPTOR_SCOPE: Tag = Tag(0x0022, 0x1629);
 /// QualityThreshold (0022,1630) DS 1 DICOM
 #[rustfmt::skip]
 pub const QUALITY_THRESHOLD: Tag = Tag(0x0022, 0x1630);
+/// OphthalmicAnatomicReferencePointSequence (0022,1632) SQ 1 DICOM
+#[rustfmt::skip]
+pub const OPHTHALMIC_ANATOMIC_REFERENCE_POINT_SEQUENCE: Tag = Tag(0x0022, 0x1632);
+/// OphthalmicAnatomicReferencePointLocalizationType (0022,1633) CS 1 DICOM
+#[rustfmt::skip]
+pub const OPHTHALMIC_ANATOMIC_REFERENCE_POINT_LOCALIZATION_TYPE: Tag = Tag(0x0022, 0x1633);
+/// PrimaryAnatomicStructureItemIndex (0022,1634) IS 1 DICOM
+#[rustfmt::skip]
+pub const PRIMARY_ANATOMIC_STRUCTURE_ITEM_INDEX: Tag = Tag(0x0022, 0x1634);
 /// OCTBscanAnalysisAcquisitionParametersSequence (0022,1640) SQ 1 DICOM
 #[rustfmt::skip]
 pub const OCT_BSCAN_ANALYSIS_ACQUISITION_PARAMETERS_SEQUENCE: Tag = Tag(0x0022, 0x1640);
@@ -7463,6 +7565,12 @@ pub const OBSERVATION_DATE_TIME: Tag = Tag(0x0040, 0xA032);
 /// ObservationStartDateTime (0040,A033) DT 1 DICOM
 #[rustfmt::skip]
 pub const OBSERVATION_START_DATE_TIME: Tag = Tag(0x0040, 0xA033);
+/// EffectiveStartDateTime (0040,A034) DT 1 DICOM
+#[rustfmt::skip]
+pub const EFFECTIVE_START_DATE_TIME: Tag = Tag(0x0040, 0xA034);
+/// EffectiveStopDateTime (0040,A035) DT 1 DICOM
+#[rustfmt::skip]
+pub const EFFECTIVE_STOP_DATE_TIME: Tag = Tag(0x0040, 0xA035);
 /// ValueType (0040,A040) CS 1 DICOM
 #[rustfmt::skip]
 pub const VALUE_TYPE: Tag = Tag(0x0040, 0xA040);
@@ -7634,6 +7742,63 @@ pub const CELL_VALUES_SEQUENCE: Tag = Tag(0x0040, 0xA808);
 /// WaveformAnnotationSequence (0040,B020) SQ 1 DICOM
 #[rustfmt::skip]
 pub const WAVEFORM_ANNOTATION_SEQUENCE: Tag = Tag(0x0040, 0xB020);
+/// StructuredWaveformAnnotationSequence (0040,B030) SQ 1 DICOM
+#[rustfmt::skip]
+pub const STRUCTURED_WAVEFORM_ANNOTATION_SEQUENCE: Tag = Tag(0x0040, 0xB030);
+/// WaveformAnnotationDisplaySelectionSequence (0040,B031) SQ 1 DICOM
+#[rustfmt::skip]
+pub const WAVEFORM_ANNOTATION_DISPLAY_SELECTION_SEQUENCE: Tag = Tag(0x0040, 0xB031);
+/// ReferencedMontageIndex (0040,B032) US 1 DICOM
+#[rustfmt::skip]
+pub const REFERENCED_MONTAGE_INDEX: Tag = Tag(0x0040, 0xB032);
+/// WaveformTextualAnnotationSequence (0040,B033) SQ 1 DICOM
+#[rustfmt::skip]
+pub const WAVEFORM_TEXTUAL_ANNOTATION_SEQUENCE: Tag = Tag(0x0040, 0xB033);
+/// AnnotationDateTime (0040,B034) DT 1 DICOM
+#[rustfmt::skip]
+pub const ANNOTATION_DATE_TIME: Tag = Tag(0x0040, 0xB034);
+/// DisplayedWaveformSegmentSequence (0040,B035) SQ 1 DICOM
+#[rustfmt::skip]
+pub const DISPLAYED_WAVEFORM_SEGMENT_SEQUENCE: Tag = Tag(0x0040, 0xB035);
+/// SegmentDefinitionDateTime (0040,B036) DT 1 DICOM
+#[rustfmt::skip]
+pub const SEGMENT_DEFINITION_DATE_TIME: Tag = Tag(0x0040, 0xB036);
+/// MontageActivationSequence (0040,B037) SQ 1 DICOM
+#[rustfmt::skip]
+pub const MONTAGE_ACTIVATION_SEQUENCE: Tag = Tag(0x0040, 0xB037);
+/// MontageActivationTimeOffset (0040,B038) DS 1 DICOM
+#[rustfmt::skip]
+pub const MONTAGE_ACTIVATION_TIME_OFFSET: Tag = Tag(0x0040, 0xB038);
+/// WaveformMontageSequence (0040,B039) SQ 1 DICOM
+#[rustfmt::skip]
+pub const WAVEFORM_MONTAGE_SEQUENCE: Tag = Tag(0x0040, 0xB039);
+/// ReferencedMontageChannelNumber (0040,B03A) IS 1 DICOM
+#[rustfmt::skip]
+pub const REFERENCED_MONTAGE_CHANNEL_NUMBER: Tag = Tag(0x0040, 0xB03A);
+/// MontageName (0040,B03B) LT 1 DICOM
+#[rustfmt::skip]
+pub const MONTAGE_NAME: Tag = Tag(0x0040, 0xB03B);
+/// MontageChannelSequence (0040,B03C) SQ 1 DICOM
+#[rustfmt::skip]
+pub const MONTAGE_CHANNEL_SEQUENCE: Tag = Tag(0x0040, 0xB03C);
+/// MontageIndex (0040,B03D) US 1 DICOM
+#[rustfmt::skip]
+pub const MONTAGE_INDEX: Tag = Tag(0x0040, 0xB03D);
+/// MontageChannelNumber (0040,B03E) IS 1 DICOM
+#[rustfmt::skip]
+pub const MONTAGE_CHANNEL_NUMBER: Tag = Tag(0x0040, 0xB03E);
+/// MontageChannelLabel (0040,B03F) LO 1 DICOM
+#[rustfmt::skip]
+pub const MONTAGE_CHANNEL_LABEL: Tag = Tag(0x0040, 0xB03F);
+/// MontageChannelSourceCodeSequence (0040,B040) SQ 1 DICOM
+#[rustfmt::skip]
+pub const MONTAGE_CHANNEL_SOURCE_CODE_SEQUENCE: Tag = Tag(0x0040, 0xB040);
+/// ContributingChannelSourcesSequence (0040,B041) SQ 1 DICOM
+#[rustfmt::skip]
+pub const CONTRIBUTING_CHANNEL_SOURCES_SEQUENCE: Tag = Tag(0x0040, 0xB041);
+/// ChannelWeight (0040,B042) FL 1 DICOM
+#[rustfmt::skip]
+pub const CHANNEL_WEIGHT: Tag = Tag(0x0040, 0xB042);
 /// TemplateIdentifier (0040,DB00) CS 1 DICOM
 #[rustfmt::skip]
 pub const TEMPLATE_IDENTIFIER: Tag = Tag(0x0040, 0xDB00);
@@ -7775,6 +7940,9 @@ pub const APPROVAL_SUBJECT_SEQUENCE: Tag = Tag(0x0044, 0x0109);
 /// OrganizationalRoleCodeSequence (0044,010A) SQ 1 DICOM
 #[rustfmt::skip]
 pub const ORGANIZATIONAL_ROLE_CODE_SEQUENCE: Tag = Tag(0x0044, 0x010A);
+/// RTAssertionsSequence (0044,0110) SQ 1 DICOM
+#[rustfmt::skip]
+pub const RT_ASSERTIONS_SEQUENCE: Tag = Tag(0x0044, 0x0110);
 /// LensDescription (0046,0012) LO 1 DICOM
 #[rustfmt::skip]
 pub const LENS_DESCRIPTION: Tag = Tag(0x0046, 0x0012);
@@ -8144,6 +8312,9 @@ pub const NUMBER_OF_OPTICAL_PATHS: Tag = Tag(0x0048, 0x0302);
 /// TotalPixelMatrixFocalPlanes (0048,0303) UL 1 DICOM
 #[rustfmt::skip]
 pub const TOTAL_PIXEL_MATRIX_FOCAL_PLANES: Tag = Tag(0x0048, 0x0303);
+/// TilesOverlap (0048,0304) CS 1 DICOM
+#[rustfmt::skip]
+pub const TILES_OVERLAP: Tag = Tag(0x0048, 0x0304);
 /// CalibrationImage (0050,0004) CS 1 DICOM
 #[rustfmt::skip]
 pub const CALIBRATION_IMAGE: Tag = Tag(0x0050, 0x0004);
@@ -11060,9 +11231,15 @@ pub const GRID_FRAME_OFFSET_VECTOR: Tag = Tag(0x3004, 0x000C);
 /// DoseGridScaling (3004,000E) DS 1 DICOM
 #[rustfmt::skip]
 pub const DOSE_GRID_SCALING: Tag = Tag(0x3004, 0x000E);
+/// DoseValue (3004,0012) DS 1 DICOM
+#[rustfmt::skip]
+pub const DOSE_VALUE: Tag = Tag(0x3004, 0x0012);
 /// TissueHeterogeneityCorrection (3004,0014) CS 1-3 DICOM
 #[rustfmt::skip]
 pub const TISSUE_HETEROGENEITY_CORRECTION: Tag = Tag(0x3004, 0x0014);
+/// RecommendedIsodoseLevelSequence (3004,0016) SQ 1 DICOM
+#[rustfmt::skip]
+pub const RECOMMENDED_ISODOSE_LEVEL_SEQUENCE: Tag = Tag(0x3004, 0x0016);
 /// DVHNormalizationPoint (3004,0040) DS 3 DICOM
 #[rustfmt::skip]
 pub const DVH_NORMALIZATION_POINT: Tag = Tag(0x3004, 0x0040);
@@ -12443,6 +12620,9 @@ pub const ION_RANGE_COMPENSATOR_SEQUENCE: Tag = Tag(0x300A, 0x02EA);
 /// CompensatorDescription (300A,02EB) LT 1 DICOM
 #[rustfmt::skip]
 pub const COMPENSATOR_DESCRIPTION: Tag = Tag(0x300A, 0x02EB);
+/// CompensatorSurfaceRepresentationFlag (300A,02EC) CS 1 DICOM
+#[rustfmt::skip]
+pub const COMPENSATOR_SURFACE_REPRESENTATION_FLAG: Tag = Tag(0x300A, 0x02EC);
 /// RadiationMassNumber (300A,0302) IS 1 DICOM
 #[rustfmt::skip]
 pub const RADIATION_MASS_NUMBER: Tag = Tag(0x300A, 0x0302);
@@ -14584,6 +14764,10 @@ pub const INSURANCE_PLAN_IDENTIFICATION: Tag = Tag(0x0010, 0x1050);
 #[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const MEDICAL_RECORD_LOCATOR: Tag = Tag(0x0010, 0x1090);
+/// EthnicGroup (0010,2160) SH 1 DICOM/retired
+#[deprecated(note = "Retired DICOM tag")]
+#[rustfmt::skip]
+pub const ETHNIC_GROUP: Tag = Tag(0x0010, 0x2160);
 /// CADFileFormat (0014,0023) ST 1 DICOM/retired
 #[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
@@ -15812,10 +15996,6 @@ pub const PRESENTATION_LUT_CONTENT_SEQUENCE: Tag = Tag(0x2130, 0x0080);
 #[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
 pub const RT_DOSE_ROI_SEQUENCE: Tag = Tag(0x3004, 0x0010);
-/// DoseValue (3004,0012) DS 1 DICOM/retired
-#[deprecated(note = "Retired DICOM tag")]
-#[rustfmt::skip]
-pub const DOSE_VALUE: Tag = Tag(0x3004, 0x0012);
 /// ContourSlabThickness (3006,0044) DS 1 DICOM/retired
 #[deprecated(note = "Retired DICOM tag")]
 #[rustfmt::skip]
@@ -16543,6 +16723,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(REFERENCED_INSTANCE_SEQUENCE), alias: "ReferencedInstanceSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(REFERENCED_REAL_WORLD_VALUE_MAPPING_INSTANCE_SEQUENCE), alias: "ReferencedRealWorldValueMappingInstanceSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(REFERENCED_SEGMENTATION_SEQUENCE), alias: "ReferencedSegmentationSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(REFERENCED_SURFACE_SEGMENTATION_SEQUENCE), alias: "ReferencedSurfaceSegmentationSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(REFERENCED_SOP_CLASS_UID), alias: "ReferencedSOPClassUID", vr: Exact(UI) }, // DICOM
     E { tag: Single(REFERENCED_SOP_INSTANCE_UID), alias: "ReferencedSOPInstanceUID", vr: Exact(UI) }, // DICOM
     E { tag: Single(DEFINITION_SOURCE_SEQUENCE), alias: "DefinitionSourceSequence", vr: Exact(SQ) }, // DICOM
@@ -16563,6 +16744,10 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(FAILED_STUDY_SEQUENCE), alias: "FailedStudySequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(STUDIES_CONTAINING_OTHER_REFERENCED_INSTANCES_SEQUENCE), alias: "StudiesContainingOtherReferencedInstancesSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(RELATED_SERIES_SEQUENCE), alias: "RelatedSeriesSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(PRINCIPAL_DIAGNOSIS_CODE_SEQUENCE), alias: "PrincipalDiagnosisCodeSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(PRIMARY_DIAGNOSIS_CODE_SEQUENCE), alias: "PrimaryDiagnosisCodeSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(SECONDARY_DIAGNOSES_CODE_SEQUENCE), alias: "SecondaryDiagnosesCodeSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(HISTOLOGICAL_DIAGNOSES_CODE_SEQUENCE), alias: "HistologicalDiagnosesCodeSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(DERIVATION_DESCRIPTION), alias: "DerivationDescription", vr: Exact(ST) }, // DICOM
     E { tag: Single(SOURCE_IMAGE_SEQUENCE), alias: "SourceImageSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(STAGE_NAME), alias: "StageName", vr: Exact(SH) }, // DICOM
@@ -16607,6 +16792,12 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(RECOMMENDED_DISPLAY_FRAME_RATE_IN_FLOAT), alias: "RecommendedDisplayFrameRateInFloat", vr: Exact(FL) }, // DICOM
     E { tag: Single(SKIP_FRAME_RANGE_FLAG), alias: "SkipFrameRangeFlag", vr: Exact(CS) }, // DICOM
     E { tag: Single(PATIENT_NAME), alias: "PatientName", vr: Exact(PN) }, // DICOM
+    E { tag: Single(PERSON_NAMES_TO_USE_SEQUENCE), alias: "PersonNamesToUseSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(NAME_TO_USE), alias: "NameToUse", vr: Exact(LT) }, // DICOM
+    E { tag: Single(NAME_TO_USE_COMMENT), alias: "NameToUseComment", vr: Exact(UT) }, // DICOM
+    E { tag: Single(THIRD_PERSON_PRONOUNS_SEQUENCE), alias: "ThirdPersonPronounsSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(PRONOUN_CODE_SEQUENCE), alias: "PronounCodeSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(PRONOUN_COMMENT), alias: "PronounComment", vr: Exact(UT) }, // DICOM
     E { tag: Single(PATIENT_ID), alias: "PatientID", vr: Exact(LO) }, // DICOM
     E { tag: Single(ISSUER_OF_PATIENT_ID), alias: "IssuerOfPatientID", vr: Exact(LO) }, // DICOM
     E { tag: Single(TYPE_OF_PATIENT_ID), alias: "TypeOfPatientID", vr: Exact(CS) }, // DICOM
@@ -16620,6 +16811,13 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(PATIENT_DEATH_DATE_IN_ALTERNATIVE_CALENDAR), alias: "PatientDeathDateInAlternativeCalendar", vr: Exact(LO) }, // DICOM
     E { tag: Single(PATIENT_ALTERNATIVE_CALENDAR), alias: "PatientAlternativeCalendar", vr: Exact(CS) }, // DICOM
     E { tag: Single(PATIENT_SEX), alias: "PatientSex", vr: Exact(CS) }, // DICOM
+    E { tag: Single(GENDER_IDENTITY_SEQUENCE), alias: "GenderIdentitySequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(SEX_PARAMETERS_FOR_CLINICAL_USE_CATEGORY_COMMENT), alias: "SexParametersForClinicalUseCategoryComment", vr: Exact(UT) }, // DICOM
+    E { tag: Single(SEX_PARAMETERS_FOR_CLINICAL_USE_CATEGORY_SEQUENCE), alias: "SexParametersForClinicalUseCategorySequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(GENDER_IDENTITY_CODE_SEQUENCE), alias: "GenderIdentityCodeSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(GENDER_IDENTITY_COMMENT), alias: "GenderIdentityComment", vr: Exact(UT) }, // DICOM
+    E { tag: Single(SEX_PARAMETERS_FOR_CLINICAL_USE_CATEGORY_CODE_SEQUENCE), alias: "SexParametersForClinicalUseCategoryCodeSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(SEX_PARAMETERS_FOR_CLINICAL_USE_CATEGORY_REFERENCE), alias: "SexParametersForClinicalUseCategoryReference", vr: Exact(UR) }, // DICOM
     E { tag: Single(PATIENT_INSURANCE_PLAN_CODE_SEQUENCE), alias: "PatientInsurancePlanCodeSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(PATIENT_PRIMARY_LANGUAGE_CODE_SEQUENCE), alias: "PatientPrimaryLanguageCodeSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(PATIENT_PRIMARY_LANGUAGE_MODIFIER_CODE_SEQUENCE), alias: "PatientPrimaryLanguageModifierCodeSequence", vr: Exact(SQ) }, // DICOM
@@ -16658,8 +16856,8 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(REGION_OF_RESIDENCE), alias: "RegionOfResidence", vr: Exact(LO) }, // DICOM
     E { tag: Single(PATIENT_TELEPHONE_NUMBERS), alias: "PatientTelephoneNumbers", vr: Exact(SH) }, // DICOM
     E { tag: Single(PATIENT_TELECOM_INFORMATION), alias: "PatientTelecomInformation", vr: Exact(LT) }, // DICOM
-    E { tag: Single(ETHNIC_GROUP), alias: "EthnicGroup", vr: Exact(SH) }, // DICOM
     E { tag: Single(ETHNIC_GROUP_CODE_SEQUENCE), alias: "EthnicGroupCodeSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(ETHNIC_GROUPS), alias: "EthnicGroups", vr: Exact(UC) }, // DICOM
     E { tag: Single(OCCUPATION), alias: "Occupation", vr: Exact(SH) }, // DICOM
     E { tag: Single(SMOKING_STATUS), alias: "SmokingStatus", vr: Exact(CS) }, // DICOM
     E { tag: Single(ADDITIONAL_PATIENT_HISTORY), alias: "AdditionalPatientHistory", vr: Exact(LT) }, // DICOM
@@ -16877,6 +17075,18 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(IMAGE_QUALITY_INDICATOR_TYPE), alias: "ImageQualityIndicatorType", vr: Exact(LO) }, // DICOM/DICONDE
     E { tag: Single(IMAGE_QUALITY_INDICATOR_MATERIAL), alias: "ImageQualityIndicatorMaterial", vr: Exact(LO) }, // DICOM/DICONDE
     E { tag: Single(IMAGE_QUALITY_INDICATOR_SIZE), alias: "ImageQualityIndicatorSize", vr: Exact(LO) }, // DICOM/DICONDE
+    E { tag: Single(WAVE_DIMENSIONS_DEFINITION_SEQUENCE), alias: "WaveDimensionsDefinitionSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(WAVE_DIMENSION_NUMBER), alias: "WaveDimensionNumber", vr: Exact(US) }, // DICOM/DICONDE
+    E { tag: Single(WAVE_DIMENSION_DESCRIPTION), alias: "WaveDimensionDescription", vr: Exact(LO) }, // DICOM/DICONDE
+    E { tag: Single(WAVE_DIMENSION_UNIT), alias: "WaveDimensionUnit", vr: Exact(US) }, // DICOM/DICONDE
+    E { tag: Single(WAVE_DIMENSION_VALUE_TYPE), alias: "WaveDimensionValueType", vr: Exact(CS) }, // DICOM/DICONDE
+    E { tag: Single(WAVE_DIMENSION_VALUES_SEQUENCE), alias: "WaveDimensionValuesSequence", vr: Exact(SQ) }, // DICOM/DICONDE
+    E { tag: Single(REFERENCED_WAVE_DIMENSION), alias: "ReferencedWaveDimension", vr: Exact(US) }, // DICOM/DICONDE
+    E { tag: Single(INTEGER_NUMERIC_VALUE), alias: "IntegerNumericValue", vr: Exact(SL) }, // DICOM/DICONDE
+    E { tag: Single(BYTE_NUMERIC_VALUE), alias: "ByteNumericValue", vr: Exact(OB) }, // DICOM/DICONDE
+    E { tag: Single(SHORT_NUMERIC_VALUE), alias: "ShortNumericValue", vr: Exact(OW) }, // DICOM/DICONDE
+    E { tag: Single(SINGLE_PRECISION_FLOATING_POINT_NUMERIC_VALUE), alias: "SinglePrecisionFloatingPointNumericValue", vr: Exact(OF) }, // DICOM/DICONDE
+    E { tag: Single(DOUBLE_PRECISION_FLOATING_POINT_NUMERIC_VALUE), alias: "DoublePrecisionFloatingPointNumericValue", vr: Exact(OD) }, // DICOM/DICONDE
     E { tag: Single(LINAC_ENERGY), alias: "LINACEnergy", vr: Exact(IS) }, // DICOM/DICONDE
     E { tag: Single(LINAC_OUTPUT), alias: "LINACOutput", vr: Exact(IS) }, // DICOM/DICONDE
     E { tag: Single(ACTIVE_APERTURE), alias: "ActiveAperture", vr: Exact(US) }, // DICOM/DICONDE
@@ -18230,12 +18440,16 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(SCAN_PATTERN_TYPE_CODE_SEQUENCE), alias: "ScanPatternTypeCodeSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(REFERENCED_SURFACE_MESH_IDENTIFICATION_SEQUENCE), alias: "ReferencedSurfaceMeshIdentificationSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(OPHTHALMIC_VOLUMETRIC_PROPERTIES_FLAG), alias: "OphthalmicVolumetricPropertiesFlag", vr: Exact(CS) }, // DICOM
+    E { tag: Single(OPHTHALMIC_ANATOMIC_REFERENCE_POINT_FRAME_COORDINATE), alias: "OphthalmicAnatomicReferencePointFrameCoordinate", vr: Exact(FL) }, // DICOM
     E { tag: Single(OPHTHALMIC_ANATOMIC_REFERENCE_POINT_X_COORDINATE), alias: "OphthalmicAnatomicReferencePointXCoordinate", vr: Exact(FL) }, // DICOM
     E { tag: Single(OPHTHALMIC_ANATOMIC_REFERENCE_POINT_Y_COORDINATE), alias: "OphthalmicAnatomicReferencePointYCoordinate", vr: Exact(FL) }, // DICOM
     E { tag: Single(OPHTHALMIC_EN_FACE_VOLUME_DESCRIPTOR_SEQUENCE), alias: "OphthalmicEnFaceVolumeDescriptorSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(OPHTHALMIC_EN_FACE_IMAGE_QUALITY_RATING_SEQUENCE), alias: "OphthalmicEnFaceImageQualityRatingSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(OPHTHALMIC_EN_FACE_VOLUME_DESCRIPTOR_SCOPE), alias: "OphthalmicEnFaceVolumeDescriptorScope", vr: Exact(CS) }, // DICOM
     E { tag: Single(QUALITY_THRESHOLD), alias: "QualityThreshold", vr: Exact(DS) }, // DICOM
+    E { tag: Single(OPHTHALMIC_ANATOMIC_REFERENCE_POINT_SEQUENCE), alias: "OphthalmicAnatomicReferencePointSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(OPHTHALMIC_ANATOMIC_REFERENCE_POINT_LOCALIZATION_TYPE), alias: "OphthalmicAnatomicReferencePointLocalizationType", vr: Exact(CS) }, // DICOM
+    E { tag: Single(PRIMARY_ANATOMIC_STRUCTURE_ITEM_INDEX), alias: "PrimaryAnatomicStructureItemIndex", vr: Exact(IS) }, // DICOM
     E { tag: Single(OCT_BSCAN_ANALYSIS_ACQUISITION_PARAMETERS_SEQUENCE), alias: "OCTBscanAnalysisAcquisitionParametersSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(NUMBER_OF_BSCANS_PER_FRAME), alias: "NumberOfBscansPerFrame", vr: Exact(UL) }, // DICOM
     E { tag: Single(BSCAN_SLAB_THICKNESS), alias: "BscanSlabThickness", vr: Exact(FL) }, // DICOM
@@ -18793,6 +19007,8 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(VERIFICATION_DATE_TIME), alias: "VerificationDateTime", vr: Exact(DT) }, // DICOM
     E { tag: Single(OBSERVATION_DATE_TIME), alias: "ObservationDateTime", vr: Exact(DT) }, // DICOM
     E { tag: Single(OBSERVATION_START_DATE_TIME), alias: "ObservationStartDateTime", vr: Exact(DT) }, // DICOM
+    E { tag: Single(EFFECTIVE_START_DATE_TIME), alias: "EffectiveStartDateTime", vr: Exact(DT) }, // DICOM
+    E { tag: Single(EFFECTIVE_STOP_DATE_TIME), alias: "EffectiveStopDateTime", vr: Exact(DT) }, // DICOM
     E { tag: Single(VALUE_TYPE), alias: "ValueType", vr: Exact(CS) }, // DICOM
     E { tag: Single(CONCEPT_NAME_CODE_SEQUENCE), alias: "ConceptNameCodeSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(CONTINUITY_OF_CONTENT), alias: "ContinuityOfContent", vr: Exact(CS) }, // DICOM
@@ -18850,6 +19066,25 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(TABLE_COLUMN_DEFINITION_SEQUENCE), alias: "TableColumnDefinitionSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(CELL_VALUES_SEQUENCE), alias: "CellValuesSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(WAVEFORM_ANNOTATION_SEQUENCE), alias: "WaveformAnnotationSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(STRUCTURED_WAVEFORM_ANNOTATION_SEQUENCE), alias: "StructuredWaveformAnnotationSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(WAVEFORM_ANNOTATION_DISPLAY_SELECTION_SEQUENCE), alias: "WaveformAnnotationDisplaySelectionSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(REFERENCED_MONTAGE_INDEX), alias: "ReferencedMontageIndex", vr: Exact(US) }, // DICOM
+    E { tag: Single(WAVEFORM_TEXTUAL_ANNOTATION_SEQUENCE), alias: "WaveformTextualAnnotationSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(ANNOTATION_DATE_TIME), alias: "AnnotationDateTime", vr: Exact(DT) }, // DICOM
+    E { tag: Single(DISPLAYED_WAVEFORM_SEGMENT_SEQUENCE), alias: "DisplayedWaveformSegmentSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(SEGMENT_DEFINITION_DATE_TIME), alias: "SegmentDefinitionDateTime", vr: Exact(DT) }, // DICOM
+    E { tag: Single(MONTAGE_ACTIVATION_SEQUENCE), alias: "MontageActivationSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(MONTAGE_ACTIVATION_TIME_OFFSET), alias: "MontageActivationTimeOffset", vr: Exact(DS) }, // DICOM
+    E { tag: Single(WAVEFORM_MONTAGE_SEQUENCE), alias: "WaveformMontageSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(REFERENCED_MONTAGE_CHANNEL_NUMBER), alias: "ReferencedMontageChannelNumber", vr: Exact(IS) }, // DICOM
+    E { tag: Single(MONTAGE_NAME), alias: "MontageName", vr: Exact(LT) }, // DICOM
+    E { tag: Single(MONTAGE_CHANNEL_SEQUENCE), alias: "MontageChannelSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(MONTAGE_INDEX), alias: "MontageIndex", vr: Exact(US) }, // DICOM
+    E { tag: Single(MONTAGE_CHANNEL_NUMBER), alias: "MontageChannelNumber", vr: Exact(IS) }, // DICOM
+    E { tag: Single(MONTAGE_CHANNEL_LABEL), alias: "MontageChannelLabel", vr: Exact(LO) }, // DICOM
+    E { tag: Single(MONTAGE_CHANNEL_SOURCE_CODE_SEQUENCE), alias: "MontageChannelSourceCodeSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(CONTRIBUTING_CHANNEL_SOURCES_SEQUENCE), alias: "ContributingChannelSourcesSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(CHANNEL_WEIGHT), alias: "ChannelWeight", vr: Exact(FL) }, // DICOM
     E { tag: Single(TEMPLATE_IDENTIFIER), alias: "TemplateIdentifier", vr: Exact(CS) }, // DICOM
     E { tag: Single(REFERENCED_CONTENT_ITEM_IDENTIFIER), alias: "ReferencedContentItemIdentifier", vr: Exact(UL) }, // DICOM
     E { tag: Single(HL7_INSTANCE_IDENTIFIER), alias: "HL7InstanceIdentifier", vr: Exact(ST) }, // DICOM
@@ -18897,6 +19132,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(REFERENCED_ASSERTION_UID), alias: "ReferencedAssertionUID", vr: Exact(UI) }, // DICOM
     E { tag: Single(APPROVAL_SUBJECT_SEQUENCE), alias: "ApprovalSubjectSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(ORGANIZATIONAL_ROLE_CODE_SEQUENCE), alias: "OrganizationalRoleCodeSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(RT_ASSERTIONS_SEQUENCE), alias: "RTAssertionsSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(LENS_DESCRIPTION), alias: "LensDescription", vr: Exact(LO) }, // DICOM
     E { tag: Single(RIGHT_LENS_SEQUENCE), alias: "RightLensSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(LEFT_LENS_SEQUENCE), alias: "LeftLensSequence", vr: Exact(SQ) }, // DICOM
@@ -19020,6 +19256,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(PIXEL_ORIGIN_INTERPRETATION), alias: "PixelOriginInterpretation", vr: Exact(CS) }, // DICOM
     E { tag: Single(NUMBER_OF_OPTICAL_PATHS), alias: "NumberOfOpticalPaths", vr: Exact(UL) }, // DICOM
     E { tag: Single(TOTAL_PIXEL_MATRIX_FOCAL_PLANES), alias: "TotalPixelMatrixFocalPlanes", vr: Exact(UL) }, // DICOM
+    E { tag: Single(TILES_OVERLAP), alias: "TilesOverlap", vr: Exact(CS) }, // DICOM
     E { tag: Single(CALIBRATION_IMAGE), alias: "CalibrationImage", vr: Exact(CS) }, // DICOM
     E { tag: Single(DEVICE_SEQUENCE), alias: "DeviceSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(CONTAINER_COMPONENT_TYPE_CODE_SEQUENCE), alias: "ContainerComponentTypeCodeSequence", vr: Exact(SQ) }, // DICOM
@@ -19992,7 +20229,9 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(DOSE_SUMMATION_TYPE), alias: "DoseSummationType", vr: Exact(CS) }, // DICOM
     E { tag: Single(GRID_FRAME_OFFSET_VECTOR), alias: "GridFrameOffsetVector", vr: Exact(DS) }, // DICOM
     E { tag: Single(DOSE_GRID_SCALING), alias: "DoseGridScaling", vr: Exact(DS) }, // DICOM
+    E { tag: Single(DOSE_VALUE), alias: "DoseValue", vr: Exact(DS) }, // DICOM
     E { tag: Single(TISSUE_HETEROGENEITY_CORRECTION), alias: "TissueHeterogeneityCorrection", vr: Exact(CS) }, // DICOM
+    E { tag: Single(RECOMMENDED_ISODOSE_LEVEL_SEQUENCE), alias: "RecommendedIsodoseLevelSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(DVH_NORMALIZATION_POINT), alias: "DVHNormalizationPoint", vr: Exact(DS) }, // DICOM
     E { tag: Single(DVH_NORMALIZATION_DOSE_VALUE), alias: "DVHNormalizationDoseValue", vr: Exact(DS) }, // DICOM
     E { tag: Single(DVH_SEQUENCE), alias: "DVHSequence", vr: Exact(SQ) }, // DICOM
@@ -20453,6 +20692,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(COMPENSATOR_MILLING_TOOL_DIAMETER), alias: "CompensatorMillingToolDiameter", vr: Exact(FL) }, // DICOM
     E { tag: Single(ION_RANGE_COMPENSATOR_SEQUENCE), alias: "IonRangeCompensatorSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(COMPENSATOR_DESCRIPTION), alias: "CompensatorDescription", vr: Exact(LT) }, // DICOM
+    E { tag: Single(COMPENSATOR_SURFACE_REPRESENTATION_FLAG), alias: "CompensatorSurfaceRepresentationFlag", vr: Exact(CS) }, // DICOM
     E { tag: Single(RADIATION_MASS_NUMBER), alias: "RadiationMassNumber", vr: Exact(IS) }, // DICOM
     E { tag: Single(RADIATION_ATOMIC_NUMBER), alias: "RadiationAtomicNumber", vr: Exact(IS) }, // DICOM
     E { tag: Single(RADIATION_CHARGE_STATE), alias: "RadiationChargeState", vr: Exact(SS) }, // DICOM
@@ -21147,6 +21387,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(OTHER_PATIENT_I_DS), alias: "OtherPatientIDs", vr: Exact(LO) }, // DICOM/retired
     E { tag: Single(INSURANCE_PLAN_IDENTIFICATION), alias: "InsurancePlanIdentification", vr: Exact(LO) }, // DICOM/retired
     E { tag: Single(MEDICAL_RECORD_LOCATOR), alias: "MedicalRecordLocator", vr: Exact(LO) }, // DICOM/retired
+    E { tag: Single(ETHNIC_GROUP), alias: "EthnicGroup", vr: Exact(SH) }, // DICOM/retired
     E { tag: Single(CAD_FILE_FORMAT), alias: "CADFileFormat", vr: Exact(ST) }, // DICOM/retired
     E { tag: Single(COMPONENT_REFERENCE_SYSTEM), alias: "ComponentReferenceSystem", vr: Exact(ST) }, // DICOM/retired
     E { tag: Single(MATERIAL_PROPERTIES_FILE_FORMAT_RETIRED), alias: "MaterialPropertiesFileFormatRetired", vr: Exact(ST) }, // DICOM/retired
@@ -21454,7 +21695,6 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(IMAGE_OVERLAY_BOX_CONTENT_SEQUENCE), alias: "ImageOverlayBoxContentSequence", vr: Exact(SQ) }, // DICOM/retired
     E { tag: Single(PRESENTATION_LUT_CONTENT_SEQUENCE), alias: "PresentationLUTContentSequence", vr: Exact(SQ) }, // DICOM/retired
     E { tag: Single(RT_DOSE_ROI_SEQUENCE), alias: "RTDoseROISequence", vr: Exact(SQ) }, // DICOM/retired
-    E { tag: Single(DOSE_VALUE), alias: "DoseValue", vr: Exact(DS) }, // DICOM/retired
     E { tag: Single(CONTOUR_SLAB_THICKNESS), alias: "ContourSlabThickness", vr: Exact(DS) }, // DICOM/retired
     E { tag: Single(CONTOUR_OFFSET_VECTOR), alias: "ContourOffsetVector", vr: Exact(DS) }, // DICOM/retired
     E { tag: Single(ATTACHED_CONTOURS), alias: "AttachedContours", vr: Exact(IS) }, // DICOM/retired

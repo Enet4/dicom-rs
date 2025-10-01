@@ -206,6 +206,9 @@ pub const SMPTEST211020_UNCOMPRESSED_INTERLACED_ACTIVE_VIDEO: &str = "1.2.840.10
 /// Transfer Syntax: SMPTE ST 2110-30 PCM Digital Audio
 #[rustfmt::skip]
 pub const SMPTEST211030PCM_DIGITAL_AUDIO: &str = "1.2.840.10008.1.2.7.3";
+/// Transfer Syntax: Deflated Image Frame Compression
+#[rustfmt::skip]
+pub const DEFLATED_IMAGE_FRAME_COMPRESSION: &str = "1.2.840.10008.1.2.8.1";
 /// Transfer Syntax: Papyrus 3 Implicit VR Little Endian (Retired)
 #[deprecated(note = "Retired DICOM UID")]
 #[rustfmt::skip]
@@ -937,6 +940,9 @@ pub const THERMOGRAPHY_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.601.3";
 /// SOP Class: Thermography Multi-frame Image Storage
 #[rustfmt::skip]
 pub const THERMOGRAPHY_MULTI_FRAME_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.601.4";
+/// SOP Class: Ultrasound Waveform Storage
+#[rustfmt::skip]
+pub const ULTRASOUND_WAVEFORM_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.601.5";
 /// SOP Class: Raw Data Storage
 #[rustfmt::skip]
 pub const RAW_DATA_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.66";
@@ -1189,6 +1195,12 @@ pub const AMBULATORY_ECG_WAVEFORM_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.9.1.3
 /// SOP Class: General 32-bit ECG Waveform Storage
 #[rustfmt::skip]
 pub const GENERAL32BIT_ECG_WAVEFORM_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.9.1.4";
+/// SOP Class: Waveform Presentation State Storage
+#[rustfmt::skip]
+pub const WAVEFORM_PRESENTATION_STATE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.9.100.1";
+/// SOP Class: Waveform Acquisition Presentation State Storage
+#[rustfmt::skip]
+pub const WAVEFORM_ACQUISITION_PRESENTATION_STATE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.9.100.2";
 /// SOP Class: Hemodynamic Waveform Storage
 #[rustfmt::skip]
 pub const HEMODYNAMIC_WAVEFORM_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.9.2.1";
@@ -1612,6 +1624,7 @@ pub(crate) const SOP_CLASSES: &[E] = &[
     E::new("1.2.840.10008.5.1.4.1.1.601.2", "Eddy Current Multi-frame Image Storage", "EddyCurrentMultiFrameImageStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.601.3", "Thermography Image Storage", "ThermographyImageStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.601.4", "Thermography Multi-frame Image Storage", "ThermographyMultiFrameImageStorage", SopClass, false),
+    E::new("1.2.840.10008.5.1.4.1.1.601.5", "Ultrasound Waveform Storage", "UltrasoundWaveformStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.66", "Raw Data Storage", "RawDataStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.66.1", "Spatial Registration Storage", "SpatialRegistrationStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.66.2", "Spatial Fiducials Storage", "SpatialFiducialsStorage", SopClass, false),
@@ -1693,6 +1706,8 @@ pub(crate) const SOP_CLASSES: &[E] = &[
     E::new("1.2.840.10008.5.1.4.1.1.9.1.2", "General ECG Waveform Storage", "GeneralECGWaveformStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.9.1.3", "Ambulatory ECG Waveform Storage", "AmbulatoryECGWaveformStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.9.1.4", "General 32-bit ECG Waveform Storage", "General32bitECGWaveformStorage", SopClass, false),
+    E::new("1.2.840.10008.5.1.4.1.1.9.100.1", "Waveform Presentation State Storage", "WaveformPresentationStateStorage", SopClass, false),
+    E::new("1.2.840.10008.5.1.4.1.1.9.100.2", "Waveform Acquisition Presentation State Storage", "WaveformAcquisitionPresentationStateStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.9.2.1", "Hemodynamic Waveform Storage", "HemodynamicWaveformStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.9.3.1", "Cardiac Electrophysiology Waveform Storage", "CardiacElectrophysiologyWaveformStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.9.4.1", "Basic Voice Audio Waveform Storage", "BasicVoiceAudioWaveformStorage", SopClass, false),
@@ -1834,6 +1849,7 @@ pub(crate) const TRANSFER_SYNTAXES: &[E] = &[
     E::new("1.2.840.10008.1.2.7.1", "SMPTE ST 2110-20 Uncompressed Progressive Active Video", "SMPTEST211020UncompressedProgressiveActiveVideo", TransferSyntax, false),
     E::new("1.2.840.10008.1.2.7.2", "SMPTE ST 2110-20 Uncompressed Interlaced Active Video", "SMPTEST211020UncompressedInterlacedActiveVideo", TransferSyntax, false),
     E::new("1.2.840.10008.1.2.7.3", "SMPTE ST 2110-30 PCM Digital Audio", "SMPTEST211030PCMDigitalAudio", TransferSyntax, false),
+    E::new("1.2.840.10008.1.2.8.1", "Deflated Image Frame Compression", "DeflatedImageFrameCompression", TransferSyntax, false),
     E::new("1.2.840.10008.1.20", "Papyrus 3 Implicit VR Little Endian (Retired)", "Papyrus3ImplicitVRLittleEndian", TransferSyntax, true),
 ];
 
