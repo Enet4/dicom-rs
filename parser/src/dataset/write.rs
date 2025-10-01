@@ -67,6 +67,11 @@ pub enum Error {
         #[snafu(backtrace)]
         source: crate::stateful::encode::Error,
     },
+    #[snafu(display("Could not flush buffer"))]
+    FlushBuffer {
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -405,6 +410,11 @@ where
             }
         }
         Ok(())
+    }
+
+    /// Flush the inner writer
+    pub fn flush(&mut self) -> Result<()> {
+        self.printer.flush().context(FlushBufferSnafu)
     }
 }
 

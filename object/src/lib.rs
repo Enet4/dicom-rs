@@ -586,6 +586,8 @@ where
                     .write_sequence((&self.obj).into_tokens())
                     .context(PrintDataSetSnafu)?;
 
+                dset_writer.flush().context(PrintDataSetSnafu)?;
+
                 Ok(())
             },
             Codec::Dataset(None) => {
@@ -614,6 +616,7 @@ where
                 dset_writer
                     .write_sequence((&self.obj).into_tokens())
                     .context(PrintDataSetSnafu)?;
+                dset_writer.flush().context(PrintDataSetSnafu)?;
 
                 Ok(())
             }
