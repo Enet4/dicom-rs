@@ -317,11 +317,6 @@ pub enum WriteError {
         backtrace: Backtrace,
         source: std::io::Error,
     },
-    #[snafu(display("Write other I/O error"))]
-    WriteOther{
-        backtrace: Backtrace,
-        source: std::io::Error,
-    },
     #[snafu(display("Could not create data set printer"))]
     CreatePrinter {
         #[snafu(backtrace)]
