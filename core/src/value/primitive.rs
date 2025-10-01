@@ -2686,11 +2686,6 @@ impl PrimitiveValue {
         }
     }
 
-    #[deprecated(since = "0.7.0", note = "Use `to_datetime` instead")]
-    pub fn to_chrono_datetime(&self) {}
-    #[deprecated(since = "0.7.0", note = "Use `to_multi_datetime` instead")]
-    pub fn to_multi_chrono_datetime(&self) {}
-
     /// Retrieve a single `DicomDateTime` from this value.
     ///
     /// If the value is already represented as a date-time, it is converted into DicomDateTime.

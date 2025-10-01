@@ -3,7 +3,7 @@ use crate::value::partial::{
     check_component, DateComponent, DicomDate, DicomDateTime, DicomTime,
     Error as PartialValuesError,
 };
-use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
+use chrono::{FixedOffset, NaiveDate, NaiveTime};
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use std::convert::TryFrom;
 use std::ops::{Add, Mul, Sub};
@@ -327,57 +327,6 @@ where
     buf[1..].iter().fold((buf[0] - b'0').into(), |acc, v| {
         acc * T::ten() + (*v - b'0').into()
     })
-}
-
-/// Retrieve a `chrono::DateTime` from the given text, while assuming the given UTC offset.
-///
-/// If a date/time component is missing, the operation fails.
-/// Presence of the second fraction component `.FFFFFF` is mandatory with at
-/// least one digit accuracy `.F` while missing digits default to zero.
-///
-/// [`parse_datetime_partial`] should be preferred,
-/// because it is more flexible and resilient to missing components.
-/// See also the implementation of [`FromStr`](std::str::FromStr)
-/// for [`DicomDateTime`].
-#[deprecated(
-    since = "0.7.0",
-    note = "Use `parse_datetime_partial()` then `to_precise_datetime()`"
-)]
-pub fn parse_datetime(buf: &[u8], dt_utc_offset: FixedOffset) -> Result<DateTime<FixedOffset>> {
-    let date = parse_date(buf)?;
-    let buf = &buf[8..];
-    let (time, buf) = parse_time(buf)?;
-    let offset = match buf.len() {
-        0 => {
-            // A Date Time value without the optional suffix should be interpreted to be
-            // the local time zone of the application creating the Data Element, and can
-            // be overridden by the _Timezone Offset from UTC_ attribute.
-            let dt: Result<_> = dt_utc_offset
-                .from_local_datetime(&NaiveDateTime::new(date, time))
-                .single()
-                .context(InvalidDateTimeZoneSnafu);
-
-            return dt;
-        }
-        len if len > 4 => {
-            let tz_sign = buf[0];
-            let buf = &buf[1..];
-            let tz_h: i32 = read_number(&buf[0..2])?;
-            let tz_m: i32 = read_number(&buf[2..4])?;
-            let s = (tz_h * 60 + tz_m) * 60;
-            match tz_sign {
-                b'+' => FixedOffset::east_opt(s).context(SecsOutOfBoundsSnafu { secs: s })?,
-                b'-' => FixedOffset::west_opt(s).context(SecsOutOfBoundsSnafu { secs: s })?,
-                c => return InvalidTimeZoneSignTokenSnafu { value: c }.fail(),
-            }
-        }
-        _ => return UnexpectedEndOfElementSnafu.fail(),
-    };
-
-    offset
-        .from_local_datetime(&NaiveDateTime::new(date, time))
-        .single()
-        .context(InvalidDateTimeZoneSnafu)
 }
 
 /// Decode the text from the byte slice into a [`DicomDateTime`] value,

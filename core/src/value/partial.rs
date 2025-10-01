@@ -811,10 +811,6 @@ impl DicomDateTime {
     pub fn has_time_zone(&self) -> bool {
         self.time_zone.is_some()
     }
-
-    /** Retrieves a reference to the internal offset value */
-    #[deprecated(since = "0.7.0", note = "Use `time_zone` instead")]
-    pub fn offset(&self) {}
 }
 
 impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
