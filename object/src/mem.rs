@@ -2462,6 +2462,63 @@ mod tests {
     }
 
     #[test]
+    fn inmem_object_write_dataset_encapsulated_pixel_data() {
+        let mut obj = InMemDicomObject::new_empty();
+
+        let sop_instance_uid =
+            DataElement::new(tags::SOP_INSTANCE_UID, VR::UI, "2.25.44399302050596340528032699331187776010");
+        obj.put(sop_instance_uid);
+
+        obj.put(DataElement::new(
+            tags::PIXEL_DATA,
+            VR::OB,
+            PixelFragmentSequence::new_fragments([
+                vec![0x01, 0x02, 0x03, 0x04],
+                vec![0x05, 0x06, 0x07, 0x08],
+            ])
+        ));
+
+        let mut out = Vec::new();
+
+        let ts = TransferSyntaxRegistry.get(uids::ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN).unwrap();
+
+        obj.write_dataset_with_ts(&mut out, ts).unwrap();
+
+        assert_eq!(
+            out,
+            &[
+                0x08, 0x00, 0x18, 0x00, // Tag(0x0008, 0x0018)
+                b'U', b'I', // VR: UI
+                0x2c, 0x00, // Length: 44
+                // 2.25.44399302050596340528032699331187776010
+                b'2', b'.', b'2', b'5', b'.', b'4', b'4', b'3', b'9', b'9', b'3',
+                b'0', b'2', b'0', b'5', b'0', b'5', b'9', b'6', b'3', b'4', b'0',
+                b'5', b'2', b'8', b'0', b'3', b'2', b'6', b'9', b'9', b'3', b'3',
+                b'1', b'1', b'8', b'7', b'7', b'7', b'6', b'0', b'1', b'0', b'\0',
+                // pixel data
+                0xe0, 0x7f, 0x10, 0x00, // Tag(0x7fe0, 0x0010)
+                b'O', b'B', // VR: OB
+                0x00, 0x00, // reserved
+                0xff, 0xff, 0xff, 0xff, // Length: undefined
+                // first fragment (offset table)
+                0xfe, 0xff, 0x00, 0xe0,
+                0x00, 0x00, 0x00, 0x00, // Length: 0
+                // second fragment
+                0xfe, 0xff, 0x00, 0xe0,
+                0x04, 0x00, 0x00, 0x00, // Length: 4
+                0x01, 0x02, 0x03, 0x04,
+                // third fragment
+                0xfe, 0xff, 0x00, 0xe0,
+                0x04, 0x00, 0x00, 0x00, // Length: 4
+                0x05, 0x06, 0x07, 0x08,
+                // sequence delimitation item
+                0xfe, 0xff, 0xdd, 0xe0,
+                0x00, 0x00, 0x00, 0x00, // Length: 0
+            ][..],
+        );
+    }
+
+    #[test]
     fn inmem_object_write_dataset_with_ts_cs() {
         let mut obj = InMemDicomObject::new_empty();
 
