@@ -20,9 +20,9 @@ pub const DEFAULT_MAX_PDU: u32 = 16_384;
 /// as specified by the standard
 pub const MINIMUM_PDU_SIZE: u32 = 4_096;
 
-/// The maximum PDU size,
-/// as specified by the standard
-pub const MAXIMUM_PDU_SIZE: u32 = 131_072;
+/// A generous PDU size for internal use.
+/// Prefer to initialize buffers no larger than this size
+pub(crate) const LARGE_PDU_SIZE: u32 = 262_144;
 
 /// The length of the PDU header in bytes,
 /// comprising the PDU type (1 byte),
@@ -65,7 +65,7 @@ pub enum WriteError {
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum ReadError {
-    #[snafu(display("Invalid max PDU length {}", max_pdu_length))]
+    #[snafu(display("Max PDU length {max_pdu_length} is not acceptable"))]
     InvalidMaxPdu {
         max_pdu_length: u32,
         backtrace: Backtrace,

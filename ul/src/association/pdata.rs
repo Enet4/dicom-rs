@@ -6,7 +6,7 @@ use std::{
 use bytes::{Buf, BytesMut};
 use tracing::warn;
 
-use crate::{pdu::PDU_HEADER_SIZE, read_pdu, Pdu};
+use crate::{Pdu, pdu::{LARGE_PDU_SIZE, PDU_HEADER_SIZE}, read_pdu};
 
 /// Set up the P-Data PDU header for sending.
 fn setup_pdata_header(buffer: &mut [u8], is_last: bool) {
@@ -93,7 +93,7 @@ where
     /// `max_pdu_length` is the maximum value of the PDU-length property.
     pub(crate) fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32) -> Self {
         let max_data_length = calculate_max_data_len_single(max_pdu_length);
-        let mut buffer = Vec::with_capacity((max_data_length + PDU_HEADER_SIZE) as usize);
+        let mut buffer = Vec::with_capacity((max_data_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize);
         // initial buffer set up
         buffer.extend([
             // PDU-type + reserved byte
@@ -247,7 +247,7 @@ pub struct PDataReader<'a, R> {
 impl<'a, R> PDataReader<'a, R> {
     pub fn new(stream: R, max_data_length: u32, remaining: &'a mut BytesMut) -> Self {
         PDataReader {
-            buffer: VecDeque::with_capacity(max_data_length as usize),
+            buffer: VecDeque::with_capacity(max_data_length.min(LARGE_PDU_SIZE) as usize),
             stream,
             presentation_context_id: None,
             max_data_length,
@@ -432,8 +432,10 @@ pub mod non_blocking {
         ///
         /// `max_pdu_length` is the maximum value of the PDU-length property.
         pub(crate) fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32) -> Self {
+            use crate::pdu::LARGE_PDU_SIZE;
+
             let max_data_length = calculate_max_data_len_single(max_pdu_length);
-            let mut buffer = Vec::with_capacity((max_data_length + PDU_HEADER_SIZE) as usize);
+            let mut buffer = Vec::with_capacity((max_data_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize);
             // initial buffer set up
             buffer.extend([
                 // PDU-type + reserved byte

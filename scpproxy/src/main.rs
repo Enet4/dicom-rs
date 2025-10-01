@@ -278,7 +278,7 @@ fn command() -> Command {
                 .help("Maximum PDU length")
                 .short('m')
                 .long("max-pdu-length")
-                .value_parser(value_parser!(u32).range(4096..=131_072))
+                .value_parser(value_parser!(u32).range(4096..))
                 .default_value("16384"),
         )
 }
