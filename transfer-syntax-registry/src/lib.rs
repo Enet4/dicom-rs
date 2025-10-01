@@ -106,14 +106,14 @@
 //! [inventory]: https://docs.rs/inventory/0.3.15/inventory
 
 use dicom_encoding::transfer_syntax::{
-    AdapterFreeTransferSyntax as Ts, Codec, TransferSyntaxIndex,
+    AdapterFreeTransferSyntax as Ts, Codec,
 };
 use lazy_static::lazy_static;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt;
 
-pub use dicom_encoding::TransferSyntax;
+pub use dicom_encoding::{TransferSyntax, TransferSyntaxIndex};
 pub mod entries;
 
 mod adapters;
