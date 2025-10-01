@@ -385,8 +385,8 @@ pub trait DicomAttribute: DicomValueType {
 ///
 /// ## Examples
 ///
-/// You can use this trait when operating on DICOM data sets
-/// when the exact type is not known.
+/// You can use this trait to operate on DICOM data sets
+/// when the exact DICOM object type is not known.
 ///
 /// ```
 /// # use dicom_core::prelude::*;
@@ -412,7 +412,7 @@ pub trait DicomAttribute: DicomValueType {
 ///    "2.25.60131396312732822704775296119377475501"
 /// );
 /// # Ok(())
-/// }
+/// # }
 /// ```
 ///
 /// It works for in-memory data sets, file meta groups,
