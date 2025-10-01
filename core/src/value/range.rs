@@ -419,11 +419,6 @@ impl DicomDateTime {
     pub fn to_precise_datetime(&self) -> Result<PreciseDateTime> {
         self.exact()
     }
-
-    #[deprecated(since = "0.7.0", note = "Use `to_precise_date_time()`")]
-    pub fn to_chrono_datetime(self) -> Result<DateTime<FixedOffset>> {
-        ToPreciseDateTimeSnafu.fail()
-    }
 }
 
 /// Represents a date range as two [`Option<chrono::NaiveDate>`] values.

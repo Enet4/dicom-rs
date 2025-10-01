@@ -342,6 +342,15 @@ impl DicomDate {
     }
 }
 
+impl std::str::FromStr for DicomDate {
+    type Err = crate::value::DeserializeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (date, _) = crate::value::deserialize::parse_date_partial(s.as_bytes())?;
+        Ok(date)
+    }
+}
+
 impl TryFrom<&NaiveDate> for DicomDate {
     type Error = Error;
     fn try_from(date: &NaiveDate) -> Result<Self> {
@@ -468,18 +477,6 @@ impl DicomTime {
             DicomTime(DicomTimeImpl::Fraction(_, _, s, _, _)) => Some(s),
         }
     }
-    /** Retrieves the fraction of a second as a reference, if it has full (microsecond) precision. */
-    pub fn fraction(&self) -> Option<&u32> {
-        match self {
-            DicomTime(DicomTimeImpl::Hour(_)) => None,
-            DicomTime(DicomTimeImpl::Minute(_, _)) => None,
-            DicomTime(DicomTimeImpl::Second(_, _, _)) => None,
-            DicomTime(DicomTimeImpl::Fraction(_, _, _, f, fp)) => match fp {
-                6 => Some(f),
-                _ => None,
-            },
-        }
-    }
 
     /// Retrieves the fraction of a second in milliseconds.
     ///
@@ -496,6 +493,74 @@ impl DicomTime {
         })
     }
 
+    /// Retrieves the total known fraction of a second in microseconds.
+    ///
+    /// Only returns `None` if the time value defines no fraction of a second.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::DicomTime;
+    /// let time: DicomTime = "202346.2500".parse()?;
+    /// assert_eq!(time.fraction_micro(), Some(250_000));
+    ///
+    /// let time: DicomTime = "202346".parse()?;
+    /// assert_eq!(time.fraction_micro(), None);
+    /// # Ok::<(), dicom_core::value::DeserializeError>(())
+    /// ```
+    pub fn fraction_micro(&self) -> Option<u32> {
+        match self.fraction_and_precision() {
+            None => None,
+            Some((f, 1)) => Some(f * 100_000),
+            Some((f, 2)) => Some(f * 10_000),
+            Some((f, 3)) => Some(f * 1_000),
+            Some((f, 4)) => Some(f * 100),
+            Some((f, 5)) => Some(f * 10),
+            Some((f, 6)) => Some(f),
+            Some((_, _)) => unreachable!("fp outside expected range 0..=6"),
+        }
+    }
+
+    /// Retrieves the total known fraction of a second in milliseconds.
+    ///
+    /// This may result in precision loss if
+    /// the time value was more precise than 3 decimal places.
+    ///
+    /// Only returns `None` if the time value defines no fraction of a second.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::DicomTime;
+    /// let time: DicomTime = "202346.2500".parse()?;
+    /// assert_eq!(time.fraction_ms(), Some(250));
+    ///
+    /// let time: DicomTime = "202346".parse()?;
+    /// assert_eq!(time.fraction_ms(), None);
+    /// # Ok::<(), dicom_core::value::DeserializeError>(())
+    /// ```
+    pub fn fraction_ms(&self) -> Option<u32> {
+        match self.fraction_and_precision() {
+            None => None,
+            Some((f, 1)) => Some(f * 100),
+            Some((f, 2)) => Some(f * 10),
+            Some((f, 3)) => Some(f),
+            Some((f, 4)) => Some(f / 10),
+            Some((f, 5)) => Some(f / 100),
+            Some((f, 6)) => Some(f / 1_000),
+            Some((_, _)) => unreachable!("fp outside expected range 0..=6"),
+        }
+    }
+
+    /// Retrieves the precision of the fraction of a second,
+    /// in number of decimal places (in `0..=6`).
+    pub fn fraction_precision(&self) -> u8 {
+        match self.fraction_and_precision() {
+            None => 0,
+            Some((_, fp)) => fp,
+        }
+    }
+
     /// Retrieves the fraction of a second and its precision.
     ///
     /// Returns a pair containing
@@ -508,6 +573,36 @@ impl DicomTime {
             DicomTime(DicomTimeImpl::Fraction(_, _, _, f, fp)) => Some((*f, *fp)),
         }
     }
+
+    /// Retrieves the fraction of a second encoded as a small string.
+    /// The length of the string matches the number of known decimal places
+    /// in the fraction of a second.
+    /// Returns an empty string if the time value defines no fraction of a second.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::DicomTime;
+    /// let time: DicomTime = "202346.2500".parse()?;
+    /// assert_eq!(&time.fraction_str(), "2500");
+    ///
+    /// let time: DicomTime = "202346".parse()?;
+    /// assert_eq!(&time.fraction_str(), "");
+    /// # Ok::<(), dicom_core::value::DeserializeError>(())
+    /// ```
+    pub fn fraction_str(&self) -> String {
+        match self.fraction_and_precision() {
+            None | Some((_, 0)) => String::new(),
+            Some((f, 1)) => format!("{:01}", f),
+            Some((f, 2)) => format!("{:02}", f),
+            Some((f, 3)) => format!("{:03}", f),
+            Some((f, 4)) => format!("{:04}", f),
+            Some((f, 5)) => format!("{:05}", f),
+            Some((f, 6)) => format!("{:06}", f),
+            Some((_, _)) => unreachable!("fp outside expected range 0..=6"),
+        }
+    } 
+
     /**
      * Constructs a new `DicomTime` from an hour, minute, second, second fraction
      * and fraction precision value (1-6). Function used for parsing only.
@@ -582,6 +677,15 @@ impl TryFrom<&NaiveTime> for DicomTime {
         };
 
         DicomTime::from_hms_micro(hour, minute, second, microsecond)
+    }
+}
+
+impl std::str::FromStr for DicomTime {
+    type Err = crate::value::DeserializeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (time, _) = crate::value::deserialize::parse_time_partial(s.as_bytes())?;
+        Ok(time)
     }
 }
 
@@ -707,10 +811,6 @@ impl DicomDateTime {
     pub fn has_time_zone(&self) -> bool {
         self.time_zone.is_some()
     }
-
-    /** Retrieves a reference to the internal offset value */
-    #[deprecated(since = "0.7.0", note = "Use `time_zone` instead")]
-    pub fn offset(&self) {}
 }
 
 impl TryFrom<&DateTime<FixedOffset>> for DicomDateTime {
@@ -1048,6 +1148,14 @@ mod tests {
             DicomDate(DicomDateImpl::Day(1945, 2, 28))
         );
 
+        // date parsing
+
+        let date: DicomDate = "20240229".parse().unwrap();
+        assert_eq!(date, DicomDate(DicomDateImpl::Day(2024, 2, 29)));
+        assert!(date.is_precise());
+
+        // error cases
+
         assert!(matches!(
             DicomDate::try_from(&NaiveDate::from_ymd_opt(-2000, 2, 28).unwrap()),
             Err(Error::Conversion { .. })
@@ -1210,7 +1318,8 @@ mod tests {
                     .unwrap();
             assert_eq!(time.to_encoded(), "163160.012345");
 
-            assert_eq!(time.fraction(), Some(&12_345));
+            assert_eq!(time.fraction_micro(), Some(12_345));
+            assert_eq!(time.fraction_ms(), Some(12));
             assert_eq!(time.millisecond(), Some(12));
         }
 
@@ -1247,6 +1356,15 @@ mod tests {
             dicom_date_time.time().map(|t| t.millisecond()),
             Some(Some(0)),
         );
+
+        // time parsing
+
+        let time: DicomTime = "211133.7651".parse().unwrap();
+        assert_eq!(time, DicomTime(DicomTimeImpl::Fraction(21, 11, 33, 7651, 4)));
+        assert_eq!(time.fraction_ms(), Some(765));
+        assert_eq!(time.fraction_micro(), Some(765_100));
+        assert_eq!(time.fraction_precision(), 4);
+        assert_eq!(&time.fraction_str(), "7651");
 
         // bad inputs
 
@@ -1285,6 +1403,28 @@ mod tests {
             DicomTime::from_hmsf(9, 1, 1, 12345, 5).unwrap().exact(),
             Err(crate::value::range::Error::ImpreciseValue { .. })
         ));
+
+        // test fraction and precision - valid cases
+        for (frac, frac_precision, microseconds) in [
+            (1, 1, 100_000),
+            (12, 2, 120_000),
+            (123, 3, 123_000),
+            (1234, 4, 123_400),
+            (12345, 5, 123_450),
+            (123456, 6, 123_456),
+        ] {
+            let time = DicomTime::from_hmsf(9, 1, 1, frac, frac_precision).unwrap();
+            assert_eq!(time.fraction_micro(), Some(microseconds));
+            assert_eq!(time.fraction_precision(), frac_precision);
+            assert_eq!(time.fraction_str(), frac.to_string());
+        }
+        // test fraction retrieval: without a fraction, it returns None
+        assert_eq!(
+            DicomTime::from_hms(9, 1, 1)
+                .unwrap()
+                .fraction_micro(),
+                None
+        );
     }
 
     #[test]
@@ -1423,6 +1563,21 @@ mod tests {
                 time_zone: Some(default_offset)
             }
         );
+
+        // date-time parsing
+
+        let dt: DicomDateTime = "20240229235959.123456+0000".parse().unwrap();
+        assert_eq!(
+            dt,
+            DicomDateTime {
+                date: DicomDate::from_ymd(2024, 2, 29).unwrap(),
+                time: Some(DicomTime::from_hms_micro(23, 59, 59, 123_456).unwrap()),
+                time_zone: Some(default_offset)
+            }
+        );
+        assert!(dt.is_precise());
+
+        // error cases
 
         assert!(matches!(
             DicomDateTime::from_date_with_time_zone(
