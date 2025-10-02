@@ -3,6 +3,9 @@ use dicom_core::{dicom_value, DataElement, VR};
 use dicom_dictionary_std::{tags, uids::VERIFICATION};
 use dicom_object::InMemDicomObject;
 use dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN;
+use crate::association::SyncAssociation;
+#[cfg(feature = "async")]
+use crate::association::AsyncAssociation;
 // Helper funtion to create a C-ECHO command
 fn create_c_echo_command(message_id: u16) -> Vec<u8> {
     let obj = InMemDicomObject::command_from_element_iter([
@@ -30,7 +33,7 @@ fn create_c_echo_command(message_id: u16) -> Vec<u8> {
 mod successive_pdus_during_client_association {
     use std::net::TcpListener;
     use super::*;
-    use crate::{pdu::{PDataValue, PDataValueType}, ClientAssociationOptions, Pdu};
+    use crate::{ClientAssociationOptions, Pdu, pdu::{AbortRQServiceProviderReason, AbortRQSource, PDataValue, PDataValueType}};
 
     use crate::association::server::*;
 
@@ -68,7 +71,9 @@ mod successive_pdus_during_client_association {
 
             // Send the second PDU (C-ECHO command) immediately after establishment
             association.send(&server_pdu).unwrap();
+            association
         });
+        println!("here1");
 
         // Give server time to start
         std::thread::sleep(std::time::Duration::from_millis(10));
@@ -82,20 +87,22 @@ mod successive_pdus_during_client_association {
 
         // This should succeed in establishing the association despite multiple PDUs
         let mut association = scu_options.establish(server_addr).unwrap();
+        println!("here2");
         
         // Client should be able to receive the release request that was sent consecutively
         let received_pdu = association.receive().unwrap();
         assert_eq!(received_pdu, echo_pdu);
+        println!("here3");
         
         // Clean shutdown
-        drop(association);
         server_handle.join().unwrap();
+        drop(association);
     }
 
     // Tests edge case where the server sends an extra PDU during association
     // client should be able to handle this gracefully.
     #[test]
-    fn test_association_sends_extra_pdu_fails() {
+    fn test_association_sends_extra_pdu() {
         // During association, the server sends a C-ECHO command
         // This will be received by the client
 
@@ -124,7 +131,8 @@ mod successive_pdus_during_client_association {
                 .with_abstract_syntax(VERIFICATION)
                 .ae_title("THIS-SCP");
                 
-            server_options.establish_with_extra_pdus(stream, vec![server_pdu]).unwrap();
+            let association = server_options.establish_with_extra_pdus(stream, vec![server_pdu]).unwrap();
+            association
         });
 
         // Give server time to start
@@ -145,8 +153,8 @@ mod successive_pdus_during_client_association {
         assert_eq!(received_pdu, echo_pdu);
 
         // Clean shutdown
-        drop(association);
         server_handle.join().unwrap();
+        drop(association);
     }
 
     #[cfg(feature = "async")]
@@ -184,6 +192,7 @@ mod successive_pdus_during_client_association {
 
             // Send the second PDU (C-ECHO command) immediately after establishment
             association.send(&server_pdu).await.unwrap();
+            association
         });
 
         // Give server time to start
@@ -212,7 +221,7 @@ mod successive_pdus_during_client_association {
     // client should be able to handle this gracefully.
     #[cfg(feature = "async")]
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_association_sends_extra_pdu_fails_async() {
+    async fn test_association_sends_extra_pdu_async() {
         // During association, the server sends a C-ECHO command
         // This will be received by the client
 
@@ -241,7 +250,8 @@ mod successive_pdus_during_client_association {
                 .with_abstract_syntax(VERIFICATION)
                 .ae_title("THIS-SCP");
                 
-            server_options.establish_with_extra_pdus_async(stream, vec![server_pdu]).await.unwrap();
+            let association = server_options.establish_with_extra_pdus_async(stream, vec![server_pdu]).await.unwrap();
+            association
         });
 
         // Give server time to start
@@ -297,7 +307,8 @@ mod successive_pdus_during_client_association {
                 .with_abstract_syntax(VERIFICATION)
                 .ae_title("THIS-SCP");
                 
-            server_options.establish_with_extra_pdus(stream, vec![echo_pdu]).unwrap();
+            let association = server_options.establish_with_extra_pdus(stream, vec![echo_pdu]).unwrap();
+            association
         });
         // Give server time to start
         std::thread::sleep(std::time::Duration::from_millis(10));
@@ -311,15 +322,17 @@ mod successive_pdus_during_client_association {
 
         // This should succeed in establishing the association despite multiple PDUs
         let mut association = scu_options.broken_establish(server_addr.into()).unwrap();
+
+        // Initiate abort server side
+        server_handle.join().unwrap();
         
-        // Client should not have anything to receive
-        let received_pdu = association.receive();
-        assert!(received_pdu.is_err());
+        // Client should not have anything to receive, only receives abort Rq
+        let received_pdu = association.receive().unwrap();
+        assert_eq!(received_pdu, Pdu::AbortRQ { source: AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::ReasonNotSpecified) });
         
         // Client cannot receive the PDU that was sent during association
         // Clean shutdown
         drop(association);
-        server_handle.join().unwrap();
     }
 
     #[cfg(feature = "async")]
@@ -352,7 +365,8 @@ mod successive_pdus_during_client_association {
                 .with_abstract_syntax(VERIFICATION)
                 .ae_title("THIS-SCP");
                 
-            server_options.establish_with_extra_pdus_async(stream, vec![echo_pdu]).await.unwrap();
+            let association = server_options.establish_with_extra_pdus_async(stream, vec![echo_pdu]).await.unwrap();
+            association
         });
 
         // Give server time to start
@@ -369,15 +383,16 @@ mod successive_pdus_during_client_association {
         let mut association = scu_options.broken_establish_async(
             server_addr.into()
         ).await.unwrap();
+        // Initiate abort server-side
+        server_handle.await.unwrap();
 
         // Client should be able to receive the release request that was sent consecutively
-        let received_pdu = association.receive().await;
-        assert!(received_pdu.is_err());
+        let received_pdu = association.receive().await.expect("Could not receive abort PDU");
+        assert_eq!(received_pdu, Pdu::AbortRQ { source: AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::ReasonNotSpecified) });
         
         // Client cannot receive the PDU that was sent during association
         // Clean shutdown
         drop(association);
-        server_handle.await.unwrap();
     }
 
 }
@@ -424,6 +439,7 @@ mod successive_pdus_during_server_association {
             // Server should be able to receive the PDU sent by client after association
             let received_pdu = association.receive().unwrap();
             assert_eq!(received_pdu, echo_pdu);
+            association
         });
 
         // Give server time to start
@@ -443,8 +459,8 @@ mod successive_pdus_during_server_association {
         association.send(&client_pdu).unwrap();
         
         // Clean shutdown
-        drop(association);
         server_handle.join().unwrap();
+        drop(association);
     }
 
     #[test]
