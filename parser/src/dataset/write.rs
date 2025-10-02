@@ -8,6 +8,7 @@
 //! to the necessary DICOM encoding rules.
 use crate::dataset::{DataToken, SeqTokenType};
 use crate::stateful::encode::StatefulEncoder;
+use dicom_core::header::Header;
 use dicom_core::{DataElementHeader, Length, Tag, VR};
 use dicom_encoding::encode::EncodeTo;
 use dicom_encoding::text::SpecificCharacterSet;
@@ -86,35 +87,37 @@ struct SeqToken {
     len: Length,
 }
 
-/// A strategy for writing Sequences and Items if the writer
-/// encounters a Sequence or Item with explicit (defined) length
+/// A strategy for writing data set sequences and items
+/// when the writer encounters a sequence or item with explicit (defined) length.
 #[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub enum ExplicitLengthSqItemStrategy {
-    /// All explicit length items and sequences are written with Length::UNDEFINED.
+    /// All explicit length items and sequences
+    /// are converted to [`Length::UNDEFINED`].
     ///
-    /// Be advised that even if you create or read a data set with explicit length
+    /// This means that even if you create or read a data set with explicit length
     /// items / sequences, the resulting output of the writer will have undefined
-    /// lengths for all items and sequences.
-    ///  
-    /// For reasons stated in the documentation of the `ExplicitLengthSqItemStrategy`, this
-    /// is as of yet, the fastest and safest way to handle explicit length items and sequences
-    /// and thus default.
+    /// lengths for all items and sequences,
+    /// expect for encapsulated pixel data fragments.
+    ///
+    /// This is, as of yet, the safest way to handle
+    /// explicit length items and sequences, and thus the default behavior.
     #[default]
     SetUndefined,
-    /// Explicit length items and sequences are written without any change, left as they were encountered
-    /// in the data set.
+    /// Explicit length items and sequences are written without any change,
+    /// left as they were encountered in the data set.
     ///
-    /// Lenghts will not be recalculated !
-    ///
-    /// As a consequence, if the content of a sequence or item with explicit length is manipulated after
-    /// it was created or read from a source ( = possibly changes it's real size), this strategy will not
-    /// update the length of the sequence or item and might produce invalid output.
+    /// Item and sequence lengths in the data set will not be recalculated!
+    /// As a consequence, if the content of a sequence or item with explicit length
+    /// is manipulated after it was created or read from a source
+    /// (thus possibly changing its real size),
+    /// this strategy will not update the length of that sequence or item,
+    /// producing invalid output.
     NoChange,
-    // Explicit lenght items and sequences could as well be recalculated, as is the behavior
+    // TODO(#692) Explicit length items and sequences could as well be recalculated, as is the behavior
     // of some DICOM libraries. Because recalculation is expensive and leaving sequences and items
-    // with length undefined is DICOM compliant, this strategy is not implemented (yet).
-    // Racalculate (todo?),
+    // with length undefined is DICOM compliant, this strategy is not implemented yet.
+    // Recalculate,
 }
 
 /// The set of options for the data set writer.
@@ -300,13 +303,22 @@ where
             DataToken::ItemStart { len } => {
                 match self.options.explicit_length_sq_item_strategy {
                     ExplicitLengthSqItemStrategy::SetUndefined => {
+                        // only set undefined length in dataset sequence items
+                        // (not pixel data fragments, those always have an explicit length)
+                        let len = if self
+                            .last_de
+                            .map(|h| h.is_encapsulated_pixeldata())
+                            .unwrap_or(false)
+                        {
+                            len
+                        } else {
+                            Length::UNDEFINED
+                        };
                         self.seq_tokens.push(SeqToken {
                             typ: SeqTokenType::Item,
-                            len: Length::UNDEFINED,
+                            len,
                         });
-                        self.write_impl(&DataToken::ItemStart {
-                            len: Length::UNDEFINED,
-                        })?;
+                        self.write_impl(&DataToken::ItemStart { len })?;
                     }
                     ExplicitLengthSqItemStrategy::NoChange => {
                         self.seq_tokens.push(SeqToken {
@@ -344,13 +356,20 @@ where
                 Ok(())
             }
             token @ DataToken::PixelSequenceStart => {
+                // save the header so we know that
+                // we're in encapsulated pixel data
+                self.last_de = Some(DataElementHeader {
+                    tag: Tag(0x7fe0, 0x0010),
+                    vr: VR::OB,
+                    len: Length::UNDEFINED,
+                });
+
                 self.seq_tokens.push(SeqToken {
                     typ: SeqTokenType::Sequence,
                     len: Length::UNDEFINED,
                 });
                 self.write_impl(&token)
             }
-            //DataToken::ItemEnd | DataToken::SequenceEnd => self.write_impl(&token),
             token @ DataToken::ItemValue(_)
             | token @ DataToken::PrimitiveValue(_)
             | token @ DataToken::OffsetTable(_) => self.write_impl(&token),
@@ -777,36 +796,11 @@ mod tests {
             DataToken::PrimitiveValue(PrimitiveValue::U8([0x00; 8].as_ref().into())),
         ];
 
-        #[rustfmt::skip]
-        static GROUND_TRUTH_LENGTH_UNDEFINED: &[u8] = &[
-            0xe0, 0x7f, 0x10, 0x00, // (7FE0, 0010) PixelData
-            b'O', b'B', // VR 
-            0x00, 0x00, // reserved
-            0xff, 0xff, 0xff, 0xff, // length: undefined
-            0xfe, 0xff, 0x00, 0xe0, // item start tag
-            0xff, 0xff, 0xff, 0xff, // item length: UNDEFINED
-            0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
-            0xfe, 0xff, 0x00, 0xe0, // item start tag
-            0xff, 0xff, 0xff, 0xff, // item length: UNDEFINED
-            // Compressed Fragment
-            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
-            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
-            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
-            0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99, 0x99,
-            0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
-            // End of pixel data
-            0xfe, 0xff, 0xdd, 0xe0, // sequence end tag
-            0x00, 0x00, 0x00, 0x00,
-            // -- 68 -- padding
-            0xfc, 0xff, 0xfc, 0xff, // (fffc,fffc) DataSetTrailingPadding
-            b'O', b'B', // VR
-            0x00, 0x00, // reserved
-            0x08, 0x00, 0x00, 0x00, // length: 8
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        ];
+        // the encoded data should be equivalent because
+        // pixel data fragment items always have an explicit length (PS3.5 A.4)
 
         #[rustfmt::skip]
-        static GROUND_TRUTH_NO_CHANGE: &[u8] = &[
+        static GROUND_TRUTH: &[u8] = &[
             0xe0, 0x7f, 0x10, 0x00, // (7FE0, 0010) PixelData
             b'O', b'B', // VR 
             0x00, 0x00, // reserved
@@ -835,11 +829,7 @@ mod tests {
         let no_change = DataSetWriterOptions {
             explicit_length_sq_item_strategy: ExplicitLengthSqItemStrategy::NoChange,
         };
-        validate_dataset_writer(tokens.clone(), GROUND_TRUTH_NO_CHANGE, no_change);
-        validate_dataset_writer(
-            tokens,
-            GROUND_TRUTH_LENGTH_UNDEFINED,
-            DataSetWriterOptions::default(),
-        );
+        validate_dataset_writer(tokens.clone(), GROUND_TRUTH, no_change);
+        validate_dataset_writer(tokens, GROUND_TRUTH, DataSetWriterOptions::default());
     }
 }
