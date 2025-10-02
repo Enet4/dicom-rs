@@ -49,7 +49,7 @@ struct App {
     #[arg(
         long = "max-pdu-length",
         default_value = "16384",
-        value_parser(clap::value_parser!(u32).range(4096..=131_072))
+        value_parser(clap::value_parser!(u32).range(4096..))
     )]
     max_pdu_length: u32,
     /// fail if not all DICOM files can be transferred

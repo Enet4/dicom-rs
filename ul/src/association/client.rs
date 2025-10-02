@@ -17,14 +17,15 @@ use crate::{
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME, association::{
         ConnectSnafu, MissingAbstractSyntaxSnafu, NegotiatedOptions, NoAcceptedPresentationContextsSnafu, ProtocolVersionMismatchSnafu, RejectedSnafu, SendPduSnafu, SendTooLongPduSnafu, SetReadTimeoutSnafu, SetWriteTimeoutSnafu, ToAddressSnafu, UnexpectedPduSnafu, UnknownPduSnafu, WireSendSnafu, read_pdu_from_wire
     }, pdu::{
-       AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, MAXIMUM_PDU_SIZE, Pdu, PresentationContextNegotiated, PresentationContextProposed, PresentationContextResultReason, UserIdentity, UserIdentityType, UserVariableItem, write_pdu
+        AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, LARGE_PDU_SIZE, Pdu, PresentationContextNegotiated, PresentationContextProposed, PresentationContextResultReason, UserIdentity, UserIdentityType, UserVariableItem, write_pdu
     }
 };
 use snafu::{ensure, ResultExt};
 
 use super::{
     pdata::{PDataReader, PDataWriter},
-    uid::trim_uid, Result
+    uid::trim_uid,
+    Result,
 };
 
 /// A DICOM association builder for a client node.
@@ -37,7 +38,7 @@ use super::{
 /// You can create either a blocking or non-blocking client by calling either
 /// `establish` or `establish_async` respectively.
 ///
-/// > **⚠️ Warning:** It is highly recommended to set `read_timeout` and `write_timeout` to a reasonable 
+/// > **⚠️ Warning:** It is highly recommended to set `read_timeout` and `write_timeout` to a reasonable
 /// > value for the async client since there is _no_ default timeout on
 /// > [`tokio::net::TcpStream`]
 ///
@@ -421,7 +422,10 @@ impl<'a> ClientAssociationOptions<'a> {
     }
 
     /// Construct the A-ASSOCIATE-RQ PDU given the options and the AE title.
-    fn create_a_associate_req(&'a self, ae_title: Option<&str>) -> Result<(Vec<PresentationContextProposed>, Pdu)> {
+    fn create_a_associate_req(
+        &'a self,
+        ae_title: Option<&str>,
+    ) -> Result<(Vec<PresentationContextProposed>, Pdu)> {
         let ClientAssociationOptions {
             calling_ae_title,
             called_ae_title,
@@ -444,7 +448,7 @@ impl<'a> ClientAssociationOptions<'a> {
         );
 
         // choose called AE title
-        let called_ae_title: &str = match (&called_ae_title, ae_title){
+        let called_ae_title: &str = match (&called_ae_title, ae_title) {
             (Some(aec), Some(aet)) => {
                 if aec != aet {
                     tracing::warn!(
@@ -488,20 +492,27 @@ impl<'a> ClientAssociationOptions<'a> {
             user_variables.push(UserVariableItem::UserIdentityItem(user_identity));
         }
 
-        Ok((presentation_contexts_proposed.clone(), Pdu::AssociationRQ(AssociationRQ {
-            protocol_version: *protocol_version,
-            calling_ae_title: calling_ae_title.to_string(),
-            called_ae_title: called_ae_title.to_string(),
-            application_context_name: application_context_name.to_string(),
-            presentation_contexts: presentation_contexts_proposed,
-            user_variables,
-        })))
+        Ok((
+            presentation_contexts_proposed.clone(),
+            Pdu::AssociationRQ(AssociationRQ {
+                protocol_version: *protocol_version,
+                calling_ae_title: calling_ae_title.to_string(),
+                called_ae_title: called_ae_title.to_string(),
+                application_context_name: application_context_name.to_string(),
+                presentation_contexts: presentation_contexts_proposed,
+                user_variables,
+            }),
+        ))
     }
 
     /// Process the A-ASSOCIATE-AC PDU received from the SCP.
-    /// 
+    ///
     /// Returns the negotiated options for the association
-    fn process_a_association_resp(&self, msg: Pdu, presentation_contexts_proposed: &[PresentationContextProposed]) -> Result<NegotiatedOptions> {
+    fn process_a_association_resp(
+        &self,
+        msg: Pdu,
+        presentation_contexts_proposed: &[PresentationContextProposed],
+    ) -> Result<NegotiatedOptions> {
         match msg {
             Pdu::AssociationAC(AssociationAC {
                 protocol_version: protocol_version_scp,
@@ -527,17 +538,19 @@ impl<'a> ClientAssociationOptions<'a> {
                     })
                     .unwrap_or(DEFAULT_MAX_PDU);
 
-                // treat 0 as the maximum size admitted by the standard
+                // treat 0 as practically unlimited
                 let acceptor_max_pdu_length = if acceptor_max_pdu_length == 0 {
-                    MAXIMUM_PDU_SIZE
+                    u32::MAX
                 } else {
                     acceptor_max_pdu_length
                 };
 
                 let presentation_contexts: Vec<_> = presentation_contexts_scp
                     .into_iter()
-                    .filter(|c| c.reason == PresentationContextResultReason::Acceptance
-                        && presentation_contexts_proposed.iter().any(|p| p.id == c.id))
+                    .filter(|c| {
+                        c.reason == PresentationContextResultReason::Acceptance
+                            && presentation_contexts_proposed.iter().any(|p| p.id == c.id)
+                    })
                     .map(|c| {
                         let pcp = presentation_contexts_proposed
                             .iter()
@@ -554,7 +567,7 @@ impl<'a> ClientAssociationOptions<'a> {
                 if presentation_contexts.is_empty() {
                     return NoAcceptedPresentationContextsSnafu.fail();
                 }
-                Ok(NegotiatedOptions{
+                Ok(NegotiatedOptions {
                     presentation_contexts,
                     peer_max_pdu_length: acceptor_max_pdu_length,
                     user_variables,
@@ -566,13 +579,14 @@ impl<'a> ClientAssociationOptions<'a> {
             | pdu @ Pdu::AssociationRQ { .. }
             | pdu @ Pdu::PData { .. }
             | pdu @ Pdu::ReleaseRP => UnexpectedPduSnafu { pdu }.fail(),
-            pdu @ Pdu::Unknown { .. } => UnknownPduSnafu { pdu }.fail()
+            pdu @ Pdu::Unknown { .. } => UnknownPduSnafu { pdu }.fail(),
         }
     }
 
-    fn simple_tcp_connection<T>(&self,
-        ae_address: AeAddr<T>,
-    ) -> Result<TcpStream> where T: ToSocketAddrs{
+    fn simple_tcp_connection<T>(&self, ae_address: AeAddr<T>) -> Result<TcpStream>
+    where
+        T: ToSocketAddrs,
+    {
         let conn_result: Result<TcpStream> = if let Some(timeout) = self.connection_timeout {
             let addresses = ae_address.to_socket_addrs().context(ToAddressSnafu)?;
 
@@ -599,7 +613,6 @@ impl<'a> ClientAssociationOptions<'a> {
             .context(SetWriteTimeoutSnafu)?;
 
         Ok(socket)
-
     }
 
     /// Establish the association with the given AE address.
@@ -612,15 +625,14 @@ impl<'a> ClientAssociationOptions<'a> {
     {
         let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
         let mut socket = self.simple_tcp_connection(ae_address)?;
-        let mut buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
+        let mut buffer: Vec<u8> = Vec::with_capacity(DEFAULT_MAX_PDU as usize);
         // send request
-
         write_pdu(&mut buffer, &a_associate).context(SendPduSnafu)?;
         socket.write_all(&buffer).context(WireSendSnafu)?;
         buffer.clear();
 
-        let mut buf = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
-        let resp = read_pdu_from_wire(&mut socket, &mut buf, MAXIMUM_PDU_SIZE, self.strict)?;
+        let mut buf = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+        let resp = read_pdu_from_wire(&mut socket, &mut buf, self.max_pdu_length, self.strict)?;
         let negotiated_options = self.process_a_association_resp(resp, &pc_proposed);
         match negotiated_options {
             Err(e) => {
@@ -634,8 +646,12 @@ impl<'a> ClientAssociationOptions<'a> {
                 let _ = socket.write_all(&buffer);
                 buffer.clear();
                 Err(e)
-            },
-            Ok(NegotiatedOptions{presentation_contexts, peer_max_pdu_length, user_variables}) => {
+            }
+            Ok(NegotiatedOptions {
+                presentation_contexts,
+                peer_max_pdu_length,
+                user_variables,
+            }) => {
                 Ok(ClientAssociation {
                     presentation_contexts,
                     requestor_max_pdu_length: self.max_pdu_length,
@@ -842,7 +858,12 @@ where
 
     /// Read a PDU message from the other intervenient.
     pub fn receive(&mut self) -> Result<Pdu> {
-        read_pdu_from_wire(&mut self.socket, &mut self.read_buffer, self.acceptor_max_pdu_length, self.strict)
+        read_pdu_from_wire(
+            &mut self.socket,
+            &mut self.read_buffer,
+            self.requestor_max_pdu_length,
+            self.strict,
+        )
     }
 
     /// Gracefully terminate the association by exchanging release messages
@@ -946,23 +967,19 @@ where
 pub mod non_blocking {
     use std::{convert::TryInto, future::Future, time::Duration};
 
-    use crate::{
-        association::{
-            client::{
-                ConnectSnafu, NegotiatedOptions, ToAddressSnafu, 
-                WireSendSnafu
-            }, pdata::non_blocking::{AsyncPDataWriter, PDataReader}, read_pdu_from_wire_async, SendPduSnafu, UnexpectedPduSnafu, UnknownPduSnafu
-        },
-        pdu::{
-            AbortRQSource,
-            MAXIMUM_PDU_SIZE,
-        },
-        write_pdu, AeAddr, Pdu,
-    };
     use super::{CloseSocket, Release, Result};
     use crate::association::{
-        ClientAssociation, ClientAssociationOptions,
-        SendTooLongPduSnafu, TimeoutSnafu
+        ClientAssociation, ClientAssociationOptions, SendTooLongPduSnafu, TimeoutSnafu,
+    };
+    use crate::pdu::{DEFAULT_MAX_PDU, LARGE_PDU_SIZE};
+    use crate::{
+        association::{
+            client::{ConnectSnafu, NegotiatedOptions, ToAddressSnafu, WireSendSnafu},
+            pdata::non_blocking::{AsyncPDataWriter, PDataReader},
+            read_pdu_from_wire_async, SendPduSnafu, UnexpectedPduSnafu, UnknownPduSnafu,
+        },
+        pdu::AbortRQSource,
+        write_pdu, AeAddr, Pdu,
     };
 
     use bytes::BytesMut;
@@ -985,9 +1002,12 @@ pub mod non_blocking {
     }
 
     impl<'a> ClientAssociationOptions<'a> {
-        pub(crate) async fn async_simple_tcp_connection<T>(&self, ae_address: AeAddr<T>) -> Result<tokio::net::TcpStream>
+        pub(crate) async fn async_simple_tcp_connection<T>(
+            &self,
+            ae_address: AeAddr<T>,
+        ) -> Result<tokio::net::TcpStream>
         where
-            T: tokio::net::ToSocketAddrs 
+            T: tokio::net::ToSocketAddrs,
         {
             let conn_result: Result<tokio::net::TcpStream> =
                 if let Some(timeout) = self.connection_timeout {
@@ -1020,7 +1040,6 @@ pub mod non_blocking {
                 };
 
             conn_result
-
         }
 
         async fn establish_impl_async<T>(
@@ -1032,20 +1051,21 @@ pub mod non_blocking {
         {
             let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
             let mut socket = self.async_simple_tcp_connection(ae_address).await?;
-            let mut buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
+            let mut write_buffer: Vec<u8> = Vec::with_capacity(DEFAULT_MAX_PDU as usize);
 
             // send request
-            write_pdu(&mut buffer, &a_associate).context(SendPduSnafu)?;
+            write_pdu(&mut write_buffer, &a_associate).context(SendPduSnafu)?;
             timeout(self.write_timeout, async {
-                socket.write_all(&buffer).await.context(WireSendSnafu)?;
+                socket.write_all(&write_buffer).await.context(WireSendSnafu)?;
                 Ok(())
             })
             .await?;
-            buffer.clear();
+            write_buffer.clear();
 
-            let mut buf = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
+            // read buffer is prepared according to the requestor's max pdu length
+            let mut read_buffer = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
             let resp = timeout(self.read_timeout, async {
-                read_pdu_from_wire_async(&mut socket, &mut buf, MAXIMUM_PDU_SIZE, self.strict).await
+                read_pdu_from_wire_async(&mut socket, &mut read_buffer, self.max_pdu_length, self.strict).await
             })
             .await?;
             let negotiated_options = self.process_a_association_resp(resp, &pc_proposed);
@@ -1053,26 +1073,29 @@ pub mod non_blocking {
                 Err(e) => {
                     // abort connection
                     let _ = write_pdu(
-                        &mut buffer,
+                        &mut write_buffer,
                         &Pdu::AbortRQ {
                             source: AbortRQSource::ServiceUser,
                         },
                     );
-                    socket.write_all(&buffer).await
-                        .context(WireSendSnafu)?;
-                    buffer.clear();
+                    socket.write_all(&write_buffer).await.context(WireSendSnafu)?;
+                    write_buffer.clear();
                     Err(e)
-                },
-                Ok(NegotiatedOptions{presentation_contexts, peer_max_pdu_length, user_variables}) => {
+                }
+                Ok(NegotiatedOptions {
+                    presentation_contexts,
+                    peer_max_pdu_length,
+                    user_variables,
+                }) => {
                     Ok(ClientAssociation {
                         presentation_contexts,
                         requestor_max_pdu_length: self.max_pdu_length,
                         acceptor_max_pdu_length: peer_max_pdu_length,
                         socket,
-                        buffer,
+                        buffer: write_buffer,
                         strict: self.strict,
-                        // Fixes #589, instead of creating a new buffer, we pass the existing buffer into the Association object.
-                        read_buffer: buf,
+                        // retain the existing read buffer so that no PDUs are lost
+                        read_buffer,
                         read_timeout: self.read_timeout,
                         write_timeout: self.write_timeout,
                         user_variables,
@@ -1161,9 +1184,10 @@ pub mod non_blocking {
                 read_pdu_from_wire_async(
                     &mut self.socket,
                     &mut self.read_buffer,
-                    self.acceptor_max_pdu_length,
-                    self.strict
-                ).await
+                    self.requestor_max_pdu_length,
+                    self.strict,
+                )
+                .await
             })
             .await
         }
@@ -1275,51 +1299,54 @@ pub mod non_blocking {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     #[cfg(feature = "async")]
-    use tokio::io::AsyncWriteExt;
-    #[cfg(feature = "async")]
     use crate::association::read_pdu_from_wire_async;
-
+    use crate::pdu::LARGE_PDU_SIZE;
+    #[cfg(feature = "async")]
+    use tokio::io::AsyncWriteExt;
 
     impl<'a> ClientAssociationOptions<'a> {
         pub(crate) fn establish_with_extra_pdus<T>(
-            &self, ae_address: AeAddr<T>, extra_pdus: Vec<Pdu>
-        ) -> Result<ClientAssociation<std::net::TcpStream>> 
-        where T: ToSocketAddrs
+            &self,
+            ae_address: AeAddr<T>,
+            extra_pdus: Vec<Pdu>,
+        ) -> Result<ClientAssociation<std::net::TcpStream>>
+        where
+            T: ToSocketAddrs,
         {
             let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
             let mut socket = self.simple_tcp_connection(ae_address)?;
-            let mut buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
+            let mut write_buffer: Vec<u8> = Vec::with_capacity(DEFAULT_MAX_PDU as usize);
             // send request
 
-            write_pdu(&mut buffer, &a_associate).context(SendPduSnafu)?;
+            write_pdu(&mut write_buffer, &a_associate).context(SendPduSnafu)?;
             for pdu in extra_pdus {
-                write_pdu(&mut buffer, &pdu).context(SendPduSnafu)?;
+                write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
             }
-            socket.write_all(&buffer).context(WireSendSnafu)?;
-            buffer.clear();
+            socket.write_all(&write_buffer).context(WireSendSnafu)?;
+            write_buffer.clear();
 
-            let mut buf = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
-            let resp = read_pdu_from_wire(&mut socket, &mut buf, MAXIMUM_PDU_SIZE, self.strict)?;
-            let NegotiatedOptions{ 
+            let mut read_buffer = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+            let resp = read_pdu_from_wire(&mut socket, &mut read_buffer, self.max_pdu_length, self.strict)?;
+            let NegotiatedOptions {
                 presentation_contexts,
                 peer_max_pdu_length,
-                user_variables
-            } = self.process_a_association_resp(resp, &pc_proposed)
+                user_variables,
+            } = self
+                .process_a_association_resp(resp, &pc_proposed)
                 .expect("Failed to process a associate response");
             Ok(ClientAssociation {
                 presentation_contexts,
                 requestor_max_pdu_length: self.max_pdu_length,
                 acceptor_max_pdu_length: peer_max_pdu_length,
                 socket,
-                buffer,
+                buffer: write_buffer,
                 strict: self.strict,
                 // Fixes #589, instead of creating a new buffer, we pass the existing buffer into the Association object.
-                read_buffer: buf,
+                read_buffer,
                 read_timeout: self.read_timeout,
                 write_timeout: self.write_timeout,
                 user_variables,
@@ -1328,13 +1355,16 @@ mod tests {
 
         #[cfg(feature = "async")]
         pub(crate) async fn establish_with_extra_pdus_async<T>(
-            &self, ae_address: AeAddr<T>, extra_pdus: Vec<Pdu>
-        ) -> Result<ClientAssociation<tokio::net::TcpStream>> 
-        where T: tokio::net::ToSocketAddrs
+            &self,
+            ae_address: AeAddr<T>,
+            extra_pdus: Vec<Pdu>,
+        ) -> Result<ClientAssociation<tokio::net::TcpStream>>
+        where
+            T: tokio::net::ToSocketAddrs,
         {
             let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
             let mut socket = self.async_simple_tcp_connection(ae_address).await?;
-            let mut buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
+            let mut buffer: Vec<u8> = Vec::with_capacity(DEFAULT_MAX_PDU as usize);
             // send request
 
             write_pdu(&mut buffer, &a_associate).context(SendPduSnafu)?;
@@ -1344,13 +1374,16 @@ mod tests {
             socket.write_all(&buffer).await.context(WireSendSnafu)?;
             buffer.clear();
 
-            let mut buf = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
-            let resp = read_pdu_from_wire_async(&mut socket, &mut buf, MAXIMUM_PDU_SIZE, self.strict).await?;
-            let NegotiatedOptions{ 
+            let mut buf = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+            let resp =
+                read_pdu_from_wire_async(&mut socket, &mut buf, self.max_pdu_length, self.strict)
+                    .await?;
+            let NegotiatedOptions {
                 presentation_contexts,
                 peer_max_pdu_length,
-                user_variables
-            } = self.process_a_association_resp(resp, &pc_proposed)
+                user_variables,
+            } = self
+                .process_a_association_resp(resp, &pc_proposed)
                 .expect("Failed to process a associate response");
             Ok(ClientAssociation {
                 presentation_contexts,
@@ -1366,28 +1399,31 @@ mod tests {
                 user_variables,
             })
         }
-    
+
         // Broken implementation of server establish which reproduces behavior that #589 introduced
         pub fn broken_establish<T>(
-            &self, ae_address: AeAddr<T>
-        ) -> Result<ClientAssociation<std::net::TcpStream>>  
-        where T: ToSocketAddrs
+            &self,
+            ae_address: AeAddr<T>,
+        ) -> Result<ClientAssociation<std::net::TcpStream>>
+        where
+            T: ToSocketAddrs,
         {
             let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
             let mut socket = self.simple_tcp_connection(ae_address)?;
-            let mut buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
+            let mut buffer: Vec<u8> = Vec::with_capacity(DEFAULT_MAX_PDU as usize);
             // send request
             write_pdu(&mut buffer, &a_associate).context(SendPduSnafu)?;
             socket.write_all(&buffer).context(WireSendSnafu)?;
             buffer.clear();
 
-            let mut buf = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
-            let resp = read_pdu_from_wire(&mut socket, &mut buf, MAXIMUM_PDU_SIZE, self.strict)?;
-            let NegotiatedOptions{ 
+            let mut buf = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+            let resp = read_pdu_from_wire(&mut socket, &mut buf, self.max_pdu_length, self.strict)?;
+            let NegotiatedOptions {
                 presentation_contexts,
                 peer_max_pdu_length,
-                user_variables
-            } = self.process_a_association_resp(resp, &pc_proposed)
+                user_variables,
+            } = self
+                .process_a_association_resp(resp, &pc_proposed)
                 .expect("Failed to process a associate response");
             Ok(ClientAssociation {
                 presentation_contexts,
@@ -1396,7 +1432,7 @@ mod tests {
                 socket,
                 buffer,
                 strict: self.strict,
-                read_buffer: BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize),
+                read_buffer: BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize),
                 read_timeout: self.read_timeout,
                 write_timeout: self.write_timeout,
                 user_variables,
@@ -1406,25 +1442,30 @@ mod tests {
         #[cfg(feature = "async")]
         // Broken implementation of server establish which reproduces behavior that #589 introduced
         pub async fn broken_establish_async<T>(
-            &self, ae_address: AeAddr<T>
-        ) -> Result<ClientAssociation<tokio::net::TcpStream>>  
-        where T: tokio::net::ToSocketAddrs
+            &self,
+            ae_address: AeAddr<T>,
+        ) -> Result<ClientAssociation<tokio::net::TcpStream>>
+        where
+            T: tokio::net::ToSocketAddrs,
         {
             let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
             let mut socket = self.async_simple_tcp_connection(ae_address).await?;
-            let mut buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
+            let mut buffer: Vec<u8> = Vec::with_capacity(DEFAULT_MAX_PDU as usize);
             // send request
             write_pdu(&mut buffer, &a_associate).context(SendPduSnafu)?;
             socket.write_all(&buffer).await.context(WireSendSnafu)?;
             buffer.clear();
 
-            let mut buf = BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize);
-            let resp = read_pdu_from_wire_async(&mut socket, &mut buf, MAXIMUM_PDU_SIZE, self.strict).await?;
-            let NegotiatedOptions{ 
+            let mut buf = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+            let resp =
+                read_pdu_from_wire_async(&mut socket, &mut buf, self.max_pdu_length, self.strict)
+                    .await?;
+            let NegotiatedOptions {
                 presentation_contexts,
                 peer_max_pdu_length,
-                user_variables
-            } = self.process_a_association_resp(resp, &pc_proposed)
+                user_variables,
+            } = self
+                .process_a_association_resp(resp, &pc_proposed)
                 .expect("Failed to process a associate response");
             Ok(ClientAssociation {
                 presentation_contexts,
@@ -1433,11 +1474,11 @@ mod tests {
                 socket,
                 buffer,
                 strict: self.strict,
-                read_buffer: BytesMut::with_capacity(MAXIMUM_PDU_SIZE as usize),
+                read_buffer: BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize),
                 read_timeout: self.read_timeout,
                 write_timeout: self.write_timeout,
                 user_variables,
             })
         }
     }
-}   
+}
