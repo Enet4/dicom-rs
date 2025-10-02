@@ -125,22 +125,99 @@ impl<D> HasLength for InMemDicomObject<D> {
     }
 }
 
+impl<D> HasLength for &InMemDicomObject<D> {
+    fn length(&self) -> Length {
+        self.len
+    }
+}
+
+impl<D> DicomObject for InMemDicomObject<D>
+where
+    D: DataDictionary,
+    D: Clone,
+{
+    type Attribute<'a> = &'a Value<InMemDicomObject<D>, InMemFragment>
+            where Self: 'a;
+
+    type LeafAttribute<'a> = &'a Value<InMemDicomObject<D>, InMemFragment>
+            where Self: 'a;
+
+    #[inline]
+    fn attr_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>> {
+        let elem = InMemDicomObject::element_opt(self, tag)?;
+        Ok(elem.map(|e| e.value()))
+    }
+
+    #[inline]
+    fn attr_by_name_opt(
+        &self,
+        name: &str,
+    ) -> Result<Option<Self::Attribute<'_>>, AccessByNameError> {
+        let elem = InMemDicomObject::element_by_name_opt(self, name)?;
+        Ok(elem.map(|e| e.value()))
+    }
+
+    #[inline]
+    fn attr(&self, tag: Tag) -> Result<Self::Attribute<'_>> {
+        let elem = InMemDicomObject::element(self, tag)?;
+        Ok(elem.value())
+    }
+
+    #[inline]
+    fn attr_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
+        let elem = InMemDicomObject::element_by_name(self, name)?;
+        Ok(elem.value())
+    }
+
+    #[inline]
+    fn at(&self, selector: impl Into<AttributeSelector>) -> Result<Self::LeafAttribute<'_>, AtAccessError> {
+        self.value_at(selector)
+    }
+}
+
 impl<'s, D: 's> DicomObject for &'s InMemDicomObject<D>
 where
     D: DataDictionary,
     D: Clone,
 {
-    type Element = &'s InMemElement<D>;
+    type Attribute<'a> = &'a Value<InMemDicomObject<D>, InMemFragment>
+        where Self: 'a,
+        's: 'a;
 
-    fn element(&self, tag: Tag) -> Result<Self::Element> {
-        self.entries
-            .get(&tag)
-            .context(NoSuchDataElementTagSnafu { tag })
+    type LeafAttribute<'a> = &'a Value<InMemDicomObject<D>, InMemFragment>
+        where Self: 'a,
+        's: 'a;
+
+    #[inline]
+    fn attr_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>> {
+        let elem = InMemDicomObject::element_opt(*self, tag)?;
+        Ok(elem.map(|e| e.value()))
     }
 
-    fn element_by_name(&self, name: &str) -> Result<Self::Element, AccessByNameError> {
-        let tag = self.lookup_name(name)?;
-        self.element(tag).map_err(|e| e.into_access_by_name(name))
+    #[inline]
+    fn attr_by_name_opt(
+        &self,
+        name: &str,
+    ) -> Result<Option<Self::Attribute<'_>>, AccessByNameError> {
+        let elem = InMemDicomObject::element_by_name_opt(*self, name)?;
+        Ok(elem.map(|e| e.value()))
+    }
+
+    #[inline]
+    fn attr(&self, tag: Tag) -> Result<Self::Attribute<'_>> {
+        let elem = InMemDicomObject::element(*self, tag)?;
+        Ok(elem.value())
+    }
+
+    #[inline]
+    fn attr_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
+        let elem = InMemDicomObject::element_by_name(*self, name)?;
+        Ok(elem.value())
+    }
+
+    #[inline]
+    fn at(&self, selector: impl Into<AttributeSelector>) -> Result<Self::LeafAttribute<'_>, AtAccessError> {
+        self.value_at(selector)
     }
 }
 
@@ -2287,7 +2364,7 @@ fn even_len(l: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::open_file;
+    use crate::{open_file, DicomAttribute as _};
     use byteordered::Endianness;
     use dicom_core::chrono::FixedOffset;
     use dicom_core::value::{DicomDate, DicomDateTime, DicomTime};
@@ -3209,6 +3286,34 @@ mod tests {
         );
     }
 
+    /// Test that a DICOM object can be reliably used
+    /// behind the `DicomObject` trait.
+    #[test]
+    fn can_use_behind_trait() {
+        fn dicom_dataset() -> impl DicomObject {
+            InMemDicomObject::from_element_iter([DataElement::new(
+                tags::PATIENT_NAME,
+                VR::PN,
+                PrimitiveValue::Str("Doe^John".to_string()),
+            )])
+        }
+
+        let obj = dicom_dataset();
+        let elem1 = obj
+            .attr_by_name_opt("PatientName")
+            .unwrap()
+            .expect("PatientName should be present");
+        assert_eq!(
+            &elem1
+                .to_str()
+                .expect("should be able to retrieve patient name as string"),
+            "Doe^John"
+        );
+
+        // try a missing element, should return None
+        assert!(obj.attr_opt(tags::PATIENT_ID).unwrap().is_none());
+    }
+
     /// Test attribute operations on in-memory DICOM objects.
     #[test]
     fn inmem_ops() {
@@ -3577,7 +3682,17 @@ mod tests {
                 ))
                 .unwrap(),
                 &PrimitiveValue::from(1_u16).into(),
-            )
+            );
+
+            // same result when using `DicomObject::at`
+            assert_eq!(
+                DicomObject::at(&obj, (
+                    tags::SEQUENCE_OF_ULTRASOUND_REGIONS,
+                    tags::REGION_SPATIAL_FORMAT
+                ))
+                .unwrap(),
+                &PrimitiveValue::from(1_u16).into(),
+            );
         }
     }
 

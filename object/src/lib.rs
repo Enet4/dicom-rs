@@ -6,14 +6,28 @@
 //! The end user should prefer using this abstraction when dealing with DICOM
 //! objects.
 //!
-//! Loading a DICOM file can be done with ease via the function [`open_file`].
-//! For additional file reading options, use [`OpenFileOptions`].
-//! New DICOM instances can be built from scratch using [`InMemDicomObject`]
-//! (see the [`mem`] module for more details).
-//! The current default file DICOM object implementation
-//! loads the file entirely in memory.
-//! To read DICOM data sets in smaller portions,
-//! use the [DICOM collector API](collector).
+//!
+//! ## Overview
+//!
+//! - Most interactions with DICOM objects
+//!   will involve in-memory representations of the data set,
+//!   through the type [`InMemDicomObject`].
+//!   New DICOM instances can also be built from scratch using this type.
+//!   A wide assortment of methods are available
+//!   for reading and manipulating the data set.
+//!   See the [`mem`] module for more details.
+//! - Loading a DICOM file can be done with ease via the function [`open_file`].
+//!   For additional file reading options, use [`OpenFileOptions`].
+//!   These are all available in the [`mod@file`] module.
+//! - Other implementations of a DICOM object may exist
+//!   to better serve other use cases.
+//!   If generic support for any DICOM object implementation is a requirement,
+//!   you can try using the [`DicomObject`] trait.
+//! - Currently, the default file DICOM object implementation
+//!   loads the complete contents of the file in memory,
+//!   including pixel data.
+//!   To read DICOM data sets in smaller portions,
+//!   you can use the [DICOM collector API](collector).
 //!
 //! # Encodings
 //!
@@ -26,7 +40,7 @@
 //! To enable support for reading and writing deflated data sets
 //! (such as _Deflated Explicit VR Little Endian_),
 //! enable **Cargo feature `deflated`**.
-//! 
+//!
 //! When working with imaging data,
 //! consider using the [`dicom-pixeldata`] crate,
 //! which offers methods to convert pixel data from objects
@@ -34,9 +48,9 @@
 //!
 //! # Examples
 //!
-//! ### Reading DICOM
+//! ## Reading a DICOM file
 //!
-//! Read an object from a DICOM file and inspect some attributes:
+//! To read an object from a DICOM file and inspect some attributes:
 //!
 //! ```no_run
 //! use dicom_dictionary_std::tags;
@@ -71,6 +85,12 @@
 //! # Result::<(), dicom_object::ReadError>::Ok(())
 //! ```
 //!
+//! When reading from other data sources without file meta information,
+//! you may need to use [`InMemDicomObject::read_dataset`]
+//! and specify the transfer syntax explicitly.
+//!
+//! ## Fetching data in a DICOM file
+//!
 //! Once a data set element is looked up,
 //! one will typically wish to inspect the value within.
 //! Methods are available for converting the element's DICOM value
@@ -85,7 +105,7 @@
 //! # Ok(())
 //! # }
 //! ```
-//! 
+//!
 //! ### Writing DICOM
 //!
 //! **Note:** the code above will only work if you are fetching native pixel data.
@@ -93,6 +113,8 @@
 //! see the [`dicom-pixeldata`] crate.
 //!
 //! [`dicom-pixeldata`]: https://docs.rs/dicom-pixeldata
+//!
+//! ## Writing DICOM data
 //!
 //! Finally, DICOM objects can be serialized back into DICOM encoded bytes.
 //! A method is provided for writing a file DICOM object into a new DICOM file.
@@ -136,57 +158,64 @@
 //! use one of the various data set writing methods
 //! such as [`write_dataset_with_ts`]:
 //!
-//! [`write_dataset_with_ts`]: crate::InMemDicomObject::write_dataset_with_ts
+//! [`write_dataset_with_ts`]: InMemDicomObject::write_dataset_with_ts
+//!
 //! ```
 //! # use dicom_object::InMemDicomObject;
 //! # use dicom_core::{DataElement, Tag, VR};
 //! # fn run() -> Result<(), Box<dyn std::error::Error>> {
 //! // build your object
-//! let mut obj = InMemDicomObject::new_empty();
-//! let patient_name = DataElement::new(
-//!     Tag(0x0010, 0x0010),
-//!     VR::PN,
-//!     "Doe^John",
-//! );
-//! obj.put(patient_name);
+//! let mut obj = InMemDicomObject::from_element_iter([
+//!     DataElement::new(
+//!         Tag(0x0010, 0x0010),
+//!         VR::PN,
+//!         "Doe^John",
+//!     ),
+//! ]);
 //!
 //! // write the object's data set
 //! let mut serialized = Vec::new();
 //! let ts = dicom_transfer_syntax_registry::entries::EXPLICIT_VR_LITTLE_ENDIAN.erased();
 //! obj.write_dataset_with_ts(&mut serialized, &ts)?;
-//! assert!(!serialized.is_empty());
+//! assert_eq!(
+//!     serialized.len(),
+//!     16, // 4 (tag) + 2 (VR) + 2 (length) + 8 (data)
+//! );
 //! # Ok(())
 //! # }
 //! # run().unwrap();
 //! ```
+pub mod collector;
 pub mod file;
 pub mod mem;
 pub mod meta;
 pub mod ops;
-pub mod collector;
 pub mod tokens;
 
+pub use crate::collector::{DicomCollector, DicomCollectorOptions};
 pub use crate::file::{from_reader, open_file, OpenFileOptions};
 pub use crate::mem::InMemDicomObject;
-pub use crate::collector::{DicomCollectorOptions, DicomCollector};
 pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
-use dicom_core::ops::AttributeSelector;
-use dicom_core::DataDictionary;
+use dicom_core::ops::{AttributeSelector, AttributeSelectorStep};
+use dicom_core::value::{DicomValueType, ValueType};
 pub use dicom_core::Tag;
+use dicom_core::{DataDictionary, DicomValue, PrimitiveValue};
 use dicom_dictionary_std::uids;
 pub use dicom_dictionary_std::StandardDataDictionary;
 
 /// The default implementation of a root DICOM object.
 pub type DefaultDicomObject<D = StandardDataDictionary> = FileDicomObject<mem::InMemDicomObject<D>>;
 
-use dicom_core::header::{GroupNumber, Header};
+use dicom_core::header::{GroupNumber, HasLength};
 use dicom_encoding::adapters::{PixelDataObject, RawPixelData};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_encoding::Codec;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
+use itertools::Either;
+use meta::FileMetaAttribute;
 use smallvec::SmallVec;
-use snafu::{Backtrace, ResultExt, Snafu};
+use snafu::{prelude::*, Backtrace};
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -206,28 +235,430 @@ pub const IMPLEMENTATION_CLASS_UID: &str = "2.25.2620864068291104199312978947725
 /// even between patch versions.
 pub const IMPLEMENTATION_VERSION_NAME: &str = "DICOM-rs 0.8.1";
 
-/// Trait type for a DICOM object.
+/// An error which occurs when fetching a value
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum AttributeError {
+    /// A custom error when encoding fails.
+    /// Read the `message` and the underlying `source`
+    /// for more details.
+    #[snafu(whatever, display("{}", message))]
+    Custom {
+        /// The error message.
+        message: String,
+        /// The underlying error cause, if any.
+        #[snafu(source(from(Box<dyn std::error::Error + Send + Sync + 'static>, Some)))]
+        source: Option<Box<dyn std::error::Error + Send + Sync + 'static>>,
+    },
+
+    /// the value cannot be converted to the requested type
+    ConvertValue {
+        source: dicom_core::value::ConvertValueError,
+    },
+
+    /// the value is not a data set sequence
+    NotDataSet,
+
+    /// the requested item index does not exist
+    DataSetItemOutOfBounds,
+
+    /// the value is not a pixel data element
+    NotPixelData,
+
+    /// the requested pixel data fragment index does not exist
+    FragmentOutOfBounds,
+}
+
+/// Interface type for access to a DICOM object' attribute in a DICOM object.
+///
+/// Accessing an attribute via the [`DicomObject`] trait
+/// will generally result in a value of this type,
+/// which can then be converted into a more usable form.
+///
+/// Both [`DicomValue`] and references to it implement this trait.
+pub trait DicomAttribute: DicomValueType {
+    /// The data type of an item in a data set sequence
+    type Item<'a>: HasLength
+    where
+        Self: 'a;
+
+    /// The data type of a single contiguous pixel data fragment
+    type PixelData<'a>
+    where
+        Self: 'a;
+
+    /// Obtain an in-memory representation of the primitive value,
+    /// cloning the value if necessary.
+    ///
+    /// An error is returned if the value is a data set sequence or
+    /// an encapsulated pixel data fragment sequence.
+    fn to_primitive_value(&self) -> Result<PrimitiveValue, AttributeError>;
+
+    /// Obtain one of the items in the attribute,
+    /// if the attribute value represents a data set sequence.
+    ///
+    /// Returns an error if the attribute is not a sequence.
+    fn item(&self, index: u32) -> Result<Self::Item<'_>, AttributeError>;
+
+    /// Obtain the number of data set items or pixel data fragments,
+    /// if the attribute value represents a data set sequence or pixel data.
+    /// Returns `None` otherwise.
+    fn num_items(&self) -> Option<u32>;
+
+    /// Obtain one of the fragments in the attribute,
+    /// if the attribute value represents a pixel data fragment sequence.
+    ///
+    /// Returns an error if the attribute is not a pixel data sequence.
+    fn fragment(&self, index: u32) -> Result<Self::PixelData<'_>, AttributeError>;
+
+    /// Obtain the number of pixel data fragments,
+    /// if the attribute value represents encapsulated pixel data.
+    ///
+    /// It should equivalent to `num_items`,
+    /// save for returning `None` if the attribute is a data set sequence.
+    fn num_fragments(&self) -> Option<u32> {
+        if DicomValueType::value_type(self) == ValueType::PixelSequence {
+            self.num_items()
+        } else {
+            None
+        }
+    }
+
+    /// Obtain the attribute's value as a string,
+    /// converting it if necessary.
+    fn to_str(&self) -> Result<Cow<'_, str>, AttributeError> {
+        Ok(Cow::Owned(self.to_primitive_value()?.to_str().to_string()))
+    }
+
+    /// Obtain the attribute's value as a 16-bit unsigned integer,
+    /// converting it if necessary.
+    fn to_u16(&self) -> Result<u16, AttributeError> {
+        self.to_primitive_value()?
+            .to_int()
+            .context(ConvertValueSnafu)
+    }
+
+    /// Obtain the attribute's value as a 32-bit signed integer,
+    /// converting it if necessary.
+    fn to_i32(&self) -> Result<i32, AttributeError> {
+        self.to_primitive_value()?
+            .to_int()
+            .context(ConvertValueSnafu)
+    }
+
+    /// Obtain the attribute's value as a 32-bit unsigned integer,
+    /// converting it if necessary.
+    fn to_u32(&self) -> Result<u32, AttributeError> {
+        self.to_primitive_value()?
+            .to_int()
+            .context(ConvertValueSnafu)
+    }
+
+    /// Obtain the attribute's value as a 32-bit floating-point number,
+    /// converting it if necessary.
+    fn to_f32(&self) -> Result<f32, AttributeError> {
+        self.to_primitive_value()?
+            .to_float32()
+            .context(ConvertValueSnafu)
+    }
+
+    /// Obtain the attribute's value as a 64-bit floating-point number,
+    /// converting it if necessary.
+    fn to_f64(&self) -> Result<f64, AttributeError> {
+        self.to_primitive_value()?
+            .to_float64()
+            .context(ConvertValueSnafu)
+    }
+
+    /// Obtain the attribute's value as bytes,
+    /// converting it if necessary.
+    fn to_bytes(&self) -> Result<Cow<'_, [u8]>, AttributeError> {
+        Ok(Cow::Owned(self.to_primitive_value()?.to_bytes().to_vec()))
+    }
+}
+
+/// Trait type for a generalized interpretation of a DICOM object.
+///
 /// This is a high-level abstraction where an object is accessed and
-/// manipulated as dictionary of entries indexed by tags, which in
+/// manipulated as a dictionary of entries indexed by tags, which in
 /// turn may contain a DICOM object.
 ///
-/// This trait interface is experimental and prone to sudden changes.
+/// ## Examples
+///
+/// You can use this trait to operate on DICOM data sets
+/// when the exact DICOM object type is not known.
+///
+/// ```
+/// # use dicom_core::prelude::*;
+/// # use dicom_dictionary_std::tags;
+/// # use dicom_object::mem::InMemDicomObject;
+/// use dicom_object::DicomObject;
+/// use dicom_object::DicomAttribute as _;
+///
+/// fn my_data() -> impl DicomObject {
+///     InMemDicomObject::from_element_iter([
+///         DataElement::new(
+///             tags::SOP_INSTANCE_UID,
+///             VR::UI,
+///             "2.25.60131396312732822704775296119377475501",
+///         ),
+///     ])
+/// }
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let obj = my_data();
+/// assert_eq!(
+///     obj.attr(tags::SOP_INSTANCE_UID)?.to_str()?,
+///    "2.25.60131396312732822704775296119377475501"
+/// );
+/// # Ok(())
+/// # }
+/// ```
+///
+/// It works for in-memory data sets, file meta groups,
+/// and other similar structures.
+/// When operating on DICOM file objects,
+/// the look-up will be directed to the right group
+/// depending on the attribute requested.
+///
+/// ```no_run
+/// # use dicom_dictionary_std::tags;
+/// use dicom_object::{DicomObject as _, open_file};
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let file = open_file("00001.dcm")?;
+///
+/// let Some(media_storage_sop_class_uid) = file.attr_opt(tags::MEDIA_STORAGE_SOP_CLASS_UID)? else {
+///     panic!("DICOM file should have a Media Storage SOP Class UID");
+/// };
+/// # Ok(())
+/// # }
+/// ```
+///
+/// Types implementing this trait
+/// will likely also implement [`ApplyOp`](dicom_core::ops::ApplyOp),
+/// enabling more operations on DICOM objects.
 pub trait DicomObject {
-    type Element: Header;
-
-    /// Retrieve a particular DICOM element by its tag.
-    fn element(&self, tag: Tag) -> Result<Self::Element, AccessError>;
-
-    /// Retrieve a particular DICOM element by its name.
-    fn element_by_name(&self, name: &str) -> Result<Self::Element, AccessByNameError>;
-
-    /// Retrieve the processed meta information table, if available.
+    /// The type representing a DICOM attribute in the object
+    /// and/or the necessary means to retrieve the value from it.
     ///
-    /// This table will generally not be reachable from children objects
-    /// in another object with a valid meta table. As such, it is recommended
-    /// for this method to be called at the root of a DICOM object.
-    fn meta(&self) -> Option<&FileMetaTable> {
-        None
+    /// This is the outcome of a shallow look-up
+    /// using the methods [`attr`](DicomObject::attr)
+    /// or [`attr_opt`](DicomObject::attr_opt).
+    type Attribute<'a>: DicomAttribute
+    where
+        Self: 'a;
+
+    /// The type representing a DICOM leaf attribute in the object
+    /// and/or the necessary means to retrieve the value from it.
+    ///
+    /// This is the outcome of a potentially deep look-up
+    /// using the method [`at`](DicomObject::at).
+    type LeafAttribute<'a>: DicomAttribute
+    where
+        Self: 'a;
+
+    /// Retrieve a particular DICOM attribute
+    /// by looking up the given tag at the object's root.
+    ///
+    /// `Ok(None)` is returned when the object was successfully looked up
+    /// but the element is not present.
+    /// This is not a recursive search.
+    fn attr_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>, AccessError>;
+
+    /// Retrieve a particular DICOM element by its name (keyword).
+    ///
+    /// `Ok(None)` is returned when the object was successfully looked up
+    /// but the element is not present.
+    ///
+    /// If the DICOM tag is already known,
+    /// prefer calling [`attr_opt`](Self::attr_opt)
+    /// with one of the [constants from the DICOM dictionary][tags].
+    ///
+    /// [tags]: dicom_dictionary_std::tags
+    fn attr_by_name_opt(&self, name: &str)
+        -> Result<Option<Self::Attribute<'_>>, AccessByNameError>;
+
+    /// Retrieve a particular DICOM attribute
+    /// by looking up the given tag at the object's root.
+    ///
+    /// Unlike [`attr_opt`](Self::attr_opt),
+    /// this method returns an error if the element is not present.
+    fn attr(&self, tag: Tag) -> Result<Self::Attribute<'_>, AccessError> {
+        self.attr_opt(tag)?
+            .context(NoSuchDataElementTagSnafu { tag })
+    }
+
+    /// Retrieve a particular DICOM attribute
+    /// with a look-up by attribute selector.
+    ///
+    /// This method returns an error if the element is not present.
+    fn at(
+        &self,
+        selector: impl Into<AttributeSelector>,
+    ) -> Result<Self::LeafAttribute<'_>, AtAccessError>;
+
+    /// Retrieve a particular DICOM element by its name (keyword).
+    ///
+    /// Unlike [`attr_by_name_opt`](Self::attr_by_name_opt),
+    /// this method returns an error if the element is not present.
+    ///
+    /// If the DICOM tag is already known,
+    /// prefer calling [`attr`](Self::attr)
+    /// with one of the [constants from the DICOM dictionary][tags].
+    ///
+    /// [tags]: dicom_dictionary_std::tags
+    fn attr_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
+        self.attr_by_name_opt(name)?
+            .context(NoSuchAttributeNameSnafu { name })
+    }
+}
+
+impl<O, P> DicomAttribute for DicomValue<O, P>
+where
+    O: HasLength,
+    for<'a> &'a O: HasLength,
+{
+    type Item<'a>
+        = &'a O
+    where
+        Self: 'a,
+        O: 'a;
+    type PixelData<'a>
+        = &'a P
+    where
+        Self: 'a,
+        P: 'a;
+
+    #[inline]
+    fn to_primitive_value(&self) -> Result<PrimitiveValue, AttributeError> {
+        match self {
+            DicomValue::Primitive(value) => Ok(value.clone()),
+            _ => Err(AttributeError::ConvertValue {
+                source: dicom_core::value::ConvertValueError {
+                    requested: "primitive",
+                    original: self.value_type(),
+                    cause: None,
+                },
+            }),
+        }
+    }
+
+    #[inline]
+    fn item(&self, index: u32) -> Result<&O, AttributeError> {
+        let items = self.items().context(NotDataSetSnafu)?;
+        items
+            .get(index as usize)
+            .context(DataSetItemOutOfBoundsSnafu)
+    }
+
+    #[inline]
+    fn num_items(&self) -> Option<u32> {
+        match self {
+            DicomValue::PixelSequence(seq) => Some(seq.fragments().len() as u32),
+            DicomValue::Sequence(seq) => Some(seq.multiplicity()),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    fn fragment(&self, index: u32) -> Result<Self::PixelData<'_>, AttributeError> {
+        match self {
+            DicomValue::PixelSequence(seq) => Ok(seq
+                .fragments()
+                .get(index as usize)
+                .context(FragmentOutOfBoundsSnafu)?),
+            _ => Err(AttributeError::NotPixelData),
+        }
+    }
+
+    #[inline]
+    fn to_str(&self) -> Result<Cow<'_, str>, AttributeError> {
+        DicomValue::to_str(self).context(ConvertValueSnafu)
+    }
+
+    #[inline]
+    fn to_bytes(&self) -> Result<Cow<'_, [u8]>, AttributeError> {
+        DicomValue::to_bytes(self).context(ConvertValueSnafu)
+    }
+}
+
+impl<'b, O, P> DicomAttribute for &'b DicomValue<O, P>
+where
+    O: HasLength,
+    &'b O: HasLength,
+    O: Clone,
+    P: Clone,
+{
+    type Item<'a>
+        = &'b O
+    where
+        Self: 'a,
+        O: 'a;
+    type PixelData<'a>
+        = &'b P
+    where
+        Self: 'a,
+        P: 'a;
+
+    #[inline]
+    fn to_primitive_value(&self) -> Result<PrimitiveValue, AttributeError> {
+        match self {
+            DicomValue::Primitive(value) => Ok(value.clone()),
+            _ => Err(AttributeError::ConvertValue {
+                source: dicom_core::value::ConvertValueError {
+                    requested: "primitive",
+                    original: self.value_type(),
+                    cause: None,
+                },
+            }),
+        }
+    }
+
+    #[inline]
+    fn item(&self, index: u32) -> Result<Self::Item<'_>, AttributeError> {
+        let items = self.items().context(NotDataSetSnafu)?;
+        items
+            .get(index as usize)
+            .context(DataSetItemOutOfBoundsSnafu)
+    }
+
+    #[inline]
+    fn num_items(&self) -> Option<u32> {
+        match self {
+            DicomValue::PixelSequence(seq) => Some(seq.fragments().len() as u32),
+            DicomValue::Sequence(seq) => Some(seq.multiplicity()),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    fn fragment(&self, index: u32) -> Result<Self::PixelData<'_>, AttributeError> {
+        match self {
+            DicomValue::PixelSequence(seq) => seq
+                .fragments()
+                .get(index as usize)
+                .context(FragmentOutOfBoundsSnafu),
+            _ => Err(AttributeError::NotPixelData),
+        }
+    }
+
+    #[inline]
+    fn num_fragments(&self) -> Option<u32> {
+        match self {
+            DicomValue::PixelSequence(seq) => Some(seq.fragments().len() as u32),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    fn to_str(&self) -> Result<Cow<'_, str>, AttributeError> {
+        DicomValue::to_str(self).context(ConvertValueSnafu)
+    }
+
+    #[inline]
+    fn to_bytes(&self) -> Result<Cow<'_, [u8]>, AttributeError> {
+        DicomValue::to_bytes(self).context(ConvertValueSnafu)
     }
 }
 
@@ -278,7 +709,11 @@ pub enum ReadError {
     #[snafu(display("Unrecognized transfer syntax `{}`", uid))]
     ReadUnrecognizedTransferSyntax { uid: String, backtrace: Backtrace },
     #[snafu(display("Unsupported reading for transfer syntax `{}` ({})", uid, name))]
-    ReadUnsupportedTransferSyntax { uid: &'static str, name: &'static str, backtrace: Backtrace },
+    ReadUnsupportedTransferSyntax {
+        uid: &'static str,
+        name: &'static str,
+        backtrace: Backtrace,
+    },
     #[snafu(display(
         "Unsupported reading for transfer syntax `{uid}` ({name}, try enabling feature `{feature_name}`)"
     ))]
@@ -335,7 +770,11 @@ pub enum WriteError {
     #[snafu(display("Unrecognized transfer syntax `{uid}`"))]
     WriteUnrecognizedTransferSyntax { uid: String, backtrace: Backtrace },
     #[snafu(display("Unsupported transfer syntax `{uid}` ({name})"))]
-    WriteUnsupportedTransferSyntax { uid: &'static str, name: &'static str, backtrace: Backtrace },
+    WriteUnsupportedTransferSyntax {
+        uid: &'static str,
+        name: &'static str,
+        backtrace: Backtrace,
+    },
     #[snafu(display(
         "Unsupported transfer syntax `{uid}` ({name}, try enabling feature `{feature_name}`)"
     ))]
@@ -455,6 +894,16 @@ pub enum WithMetaError {
 /// A root DICOM object retrieved from a standard DICOM file,
 /// containing additional information from the file meta group
 /// in a separate table value.
+///
+/// **Note:** This type implements `Deref` towards the inner object,
+/// meaning that most method calls will be directed
+/// as if the call was performed directly on the main data set.
+/// While this is convenient,
+/// it also means that data elements from the file meta group
+/// cannot be accessed without explicitly taking a reference
+/// first through [`meta()`](FileDicomObject::meta).
+/// To abstract this away,
+/// see the [`DicomObject`] trait.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FileDicomObject<O> {
     meta: FileMetaTable,
@@ -589,12 +1038,13 @@ where
                 dset_writer.flush().context(PrintDataSetSnafu)?;
 
                 Ok(())
-            },
+            }
             Codec::Dataset(None) => {
                 // dataset adapter needed, but not provided
                 if ts_uid == uids::DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN
                     || ts_uid == uids::JPIP_REFERENCED_DEFLATE
-                    || ts_uid == uids::JPIPHTJ2K_REFERENCED_DEFLATE {
+                    || ts_uid == uids::JPIPHTJ2K_REFERENCED_DEFLATE
+                {
                     return WriteUnsupportedTransferSyntaxWithSuggestionSnafu {
                         uid: ts.uid(),
                         name: ts.name(),
@@ -638,37 +1088,187 @@ impl<O> ::std::ops::DerefMut for FileDicomObject<O> {
     }
 }
 
+impl<L, R> DicomAttribute for Either<L, R>
+where
+    L: DicomAttribute,
+    R: DicomAttribute,
+{
+    type Item<'a>
+        = Either<L::Item<'a>, R::Item<'a>>
+    where
+        Self: 'a;
+    type PixelData<'a>
+        = Either<L::PixelData<'a>, R::PixelData<'a>>
+    where
+        Self: 'a;
+
+    fn to_primitive_value(&self) -> Result<PrimitiveValue, AttributeError> {
+        match self {
+            Either::Left(l) => l.to_primitive_value(),
+            Either::Right(r) => r.to_primitive_value(),
+        }
+    }
+
+    fn item(&self, index: u32) -> Result<Self::Item<'_>, AttributeError> {
+        match self {
+            Either::Left(l) => l.item(index).map(Either::Left),
+            Either::Right(r) => r.item(index).map(Either::Right),
+        }
+    }
+
+    fn num_items(&self) -> Option<u32> {
+        match self {
+            Either::Left(l) => l.num_items(),
+            Either::Right(r) => r.num_items(),
+        }
+    }
+
+    fn fragment(&self, index: u32) -> Result<Self::PixelData<'_>, AttributeError> {
+        match self {
+            Either::Left(l) => l.fragment(index).map(Either::Left),
+            Either::Right(r) => r.fragment(index).map(Either::Right),
+        }
+    }
+}
+
 impl<O> DicomObject for FileDicomObject<O>
 where
     O: DicomObject,
 {
-    type Element = <O as DicomObject>::Element;
+    type Attribute<'a>
+        = Either<FileMetaAttribute<'a>, O::Attribute<'a>>
+    where
+        Self: 'a,
+        O: 'a;
 
-    fn element(&self, tag: Tag) -> Result<Self::Element, AccessError> {
-        self.obj.element(tag)
+    type LeafAttribute<'a>
+        = Either<FileMetaAttribute<'a>, O::LeafAttribute<'a>>
+    where
+        Self: 'a,
+        O: 'a;
+
+    #[inline]
+    fn attr_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>, AccessError> {
+        match tag {
+            Tag(0x0002, _) => {
+                let attr = self.meta.attr_opt(tag)?;
+                Ok(attr.map(Either::Left))
+            }
+            _ => {
+                let attr = self.obj.attr_opt(tag)?;
+                Ok(attr.map(Either::Right))
+            }
+        }
     }
 
-    fn element_by_name(&self, name: &str) -> Result<Self::Element, AccessByNameError> {
-        self.obj.element_by_name(name)
+    #[inline]
+    fn attr_by_name_opt(
+        &self,
+        name: &str,
+    ) -> Result<Option<Self::Attribute<'_>>, AccessByNameError> {
+        match name {
+            "FileMetaInformationGroupLength"
+            | "FileMetaInformationVersion"
+            | "MediaStorageSOPClassUID"
+            | "MediaStorageSOPInstanceUID"
+            | "TransferSyntaxUID"
+            | "ImplementationClassUID"
+            | "ImplementationVersionName"
+            | "SourceApplicationEntityTitle"
+            | "SendingApplicationEntityTitle"
+            | "ReceivingApplicationEntityTitle"
+            | "PrivateInformationCreatorUID"
+            | "PrivateInformation" => {
+                let attr = self.meta.attr_by_name_opt(name)?;
+                Ok(attr.map(Either::Left))
+            }
+            _ => {
+                let attr = self.obj.attr_by_name_opt(name)?;
+                Ok(attr.map(Either::Right))
+            }
+        }
     }
 
-    fn meta(&self) -> Option<&FileMetaTable> {
-        Some(&self.meta)
+    #[inline]
+    fn attr(&self, tag: Tag) -> Result<Self::Attribute<'_>, AccessError> {
+        match tag {
+            Tag(0x0002, _) => {
+                let attr = self.meta.attr(tag)?;
+                Ok(Either::Left(attr))
+            }
+            _ => {
+                let attr = self.obj.attr(tag)?;
+                Ok(Either::Right(attr))
+            }
+        }
+    }
+
+    fn at(
+        &self,
+        selector: impl Into<AttributeSelector>,
+    ) -> Result<Self::LeafAttribute<'_>, AtAccessError> {
+        let selector: AttributeSelector = selector.into();
+        match selector.first_step() {
+            AttributeSelectorStep::Tag(tag @ Tag(0x0002, _)) => {
+                let attr = self
+                    .meta
+                    .attr(*tag)
+                    .map_err(|_| AtAccessError::MissingLeafElement { selector })?;
+                Ok(Either::Left(attr))
+            }
+            _ => {
+                let attr = self.obj.at(selector)?;
+                Ok(Either::Right(attr))
+            }
+        }
     }
 }
 
-impl<'a, O: 'a> DicomObject for &'a FileDicomObject<O>
+impl<'s, O: 's> DicomObject for &'s FileDicomObject<O>
 where
     O: DicomObject,
 {
-    type Element = <O as DicomObject>::Element;
+    type Attribute<'a>
+        = Either<FileMetaAttribute<'a>, O::Attribute<'a>>
+    where
+        Self: 'a,
+        O: 'a;
 
-    fn element(&self, tag: Tag) -> Result<Self::Element, AccessError> {
-        self.obj.element(tag)
+    type LeafAttribute<'a>
+        = Either<FileMetaAttribute<'a>, O::LeafAttribute<'a>>
+    where
+        Self: 'a,
+        O: 'a;
+
+    #[inline]
+    fn attr_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>, AccessError> {
+        (**self).attr_opt(tag)
     }
 
-    fn element_by_name(&self, name: &str) -> Result<Self::Element, AccessByNameError> {
-        self.obj.element_by_name(name)
+    #[inline]
+    fn attr_by_name_opt(
+        &self,
+        name: &str,
+    ) -> Result<Option<Self::Attribute<'_>>, AccessByNameError> {
+        (**self).attr_by_name_opt(name)
+    }
+
+    #[inline]
+    fn attr(&self, tag: Tag) -> Result<Self::Attribute<'_>, AccessError> {
+        (**self).attr(tag)
+    }
+
+    #[inline]
+    fn attr_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
+        (**self).attr_by_name(name)
+    }
+
+    #[inline]
+    fn at(
+        &self,
+        selector: impl Into<AttributeSelector>,
+    ) -> Result<Self::LeafAttribute<'_>, AtAccessError> {
+        (**self).at(selector)
     }
 }
 
@@ -720,37 +1320,47 @@ where
 
     /// Return the Rows attribute or None if it is not found
     fn rows(&self) -> Option<u16> {
-        self.get(dicom_dictionary_std::tags::ROWS)?.uint16().ok()
+        (**self)
+            .get(dicom_dictionary_std::tags::ROWS)?
+            .uint16()
+            .ok()
     }
 
     /// Return the Columns attribute or None if it is not found
     fn cols(&self) -> Option<u16> {
-        self.get(dicom_dictionary_std::tags::COLUMNS)?.uint16().ok()
+        (**self)
+            .get(dicom_dictionary_std::tags::COLUMNS)?
+            .uint16()
+            .ok()
     }
 
     /// Return the SamplesPerPixel attribute or None if it is not found
     fn samples_per_pixel(&self) -> Option<u16> {
-        self.get(dicom_dictionary_std::tags::SAMPLES_PER_PIXEL)?
+        (**self)
+            .get(dicom_dictionary_std::tags::SAMPLES_PER_PIXEL)?
             .uint16()
             .ok()
     }
 
     /// Return the BitsAllocated attribute or None if it is not set
     fn bits_allocated(&self) -> Option<u16> {
-        self.get(dicom_dictionary_std::tags::BITS_ALLOCATED)?
+        (**self)
+            .get(dicom_dictionary_std::tags::BITS_ALLOCATED)?
             .uint16()
             .ok()
     }
 
     /// Return the BitsStored attribute or None if it is not set
     fn bits_stored(&self) -> Option<u16> {
-        self.get(dicom_dictionary_std::tags::BITS_STORED)?
+        (**self)
+            .get(dicom_dictionary_std::tags::BITS_STORED)?
             .uint16()
             .ok()
     }
 
     fn photometric_interpretation(&self) -> Option<&str> {
-        self.get(dicom_dictionary_std::tags::PHOTOMETRIC_INTERPRETATION)?
+        (**self)
+            .get(dicom_dictionary_std::tags::PHOTOMETRIC_INTERPRETATION)?
             .string()
             .ok()
             .map(|s| s.trim_end())
@@ -758,18 +1368,19 @@ where
 
     /// Return the NumberOfFrames attribute or None if it is not set
     fn number_of_frames(&self) -> Option<u32> {
-        self.get(dicom_dictionary_std::tags::NUMBER_OF_FRAMES)?
+        (**self)
+            .get(dicom_dictionary_std::tags::NUMBER_OF_FRAMES)?
             .to_int()
             .ok()
     }
 
     /// Returns the number of fragments or None for native pixel data
     fn number_of_fragments(&self) -> Option<u32> {
-        let pixel_data = self.get(dicom_dictionary_std::tags::PIXEL_DATA)?;
+        let pixel_data = (**self).get(dicom_dictionary_std::tags::PIXEL_DATA)?;
         match pixel_data.value() {
-            dicom_core::DicomValue::Primitive(_p) => Some(1),
-            dicom_core::DicomValue::PixelSequence(v) => Some(v.fragments().len() as u32),
-            dicom_core::DicomValue::Sequence(..) => None,
+            DicomValue::Primitive(_p) => Some(1),
+            DicomValue::PixelSequence(v) => Some(v.fragments().len() as u32),
+            DicomValue::Sequence(..) => None,
         }
     }
 
@@ -780,22 +1391,20 @@ where
     ///
     /// Panics if `fragment` is out of bounds for the encapsulated pixel data fragments.
     fn fragment(&self, fragment: usize) -> Option<Cow<'_, [u8]>> {
-        let pixel_data = self.get(dicom_dictionary_std::tags::PIXEL_DATA)?;
+        let pixel_data = (**self).get(dicom_dictionary_std::tags::PIXEL_DATA)?;
         match pixel_data.value() {
-            dicom_core::DicomValue::PixelSequence(v) => {
-                Some(Cow::Borrowed(v.fragments()[fragment].as_ref()))
-            }
-            dicom_core::DicomValue::Primitive(p) if fragment == 0 => Some(p.to_bytes()),
+            DicomValue::PixelSequence(v) => Some(Cow::Borrowed(v.fragments()[fragment].as_ref())),
+            DicomValue::Primitive(p) if fragment == 0 => Some(p.to_bytes()),
             _ => None,
         }
     }
 
     fn offset_table(&self) -> Option<Cow<'_, [u32]>> {
-        let pixel_data = self.get(dicom_dictionary_std::tags::PIXEL_DATA)?;
+        let pixel_data = (**self).get(dicom_dictionary_std::tags::PIXEL_DATA)?;
         match pixel_data.value() {
-            dicom_core::DicomValue::Primitive(_) => None,
-            dicom_core::DicomValue::Sequence(_) => None,
-            dicom_core::DicomValue::PixelSequence(seq) => Some(Cow::from(seq.offset_table())),
+            DicomValue::Primitive(_) => None,
+            DicomValue::Sequence(_) => None,
+            DicomValue::PixelSequence(seq) => Some(Cow::from(seq.offset_table())),
         }
     }
 
@@ -803,9 +1412,9 @@ where
     /// or byte fragments if encapsulated.
     /// Returns None if no pixel data is found
     fn raw_pixel_data(&self) -> Option<RawPixelData> {
-        let pixel_data = self.get(dicom_dictionary_std::tags::PIXEL_DATA)?;
+        let pixel_data = (**self).get(dicom_dictionary_std::tags::PIXEL_DATA)?;
         match pixel_data.value() {
-            dicom_core::DicomValue::Primitive(p) => {
+            DicomValue::Primitive(p) => {
                 // Create 1 fragment with all bytes
                 let fragment = p.to_bytes().to_vec();
                 let mut fragments = SmallVec::new();
@@ -815,14 +1424,14 @@ where
                     offset_table: SmallVec::new(),
                 })
             }
-            dicom_core::DicomValue::PixelSequence(v) => {
+            DicomValue::PixelSequence(v) => {
                 let (offset_table, fragments) = v.clone().into_parts();
                 Some(RawPixelData {
                     fragments,
                     offset_table,
                 })
             }
-            dicom_core::DicomValue::Sequence(..) => None,
+            DicomValue::Sequence(..) => None,
         }
     }
 }
@@ -830,9 +1439,10 @@ where
 #[cfg(test)]
 mod tests {
     use dicom_core::{DataElement, PrimitiveValue, VR};
+    use dicom_dictionary_std::{tags, uids};
 
     use crate::meta::FileMetaTableBuilder;
-    use crate::{AccessError, FileDicomObject, InMemDicomObject};
+    use crate::{AccessError, DicomAttribute as _, DicomObject, FileDicomObject, InMemDicomObject};
 
     fn assert_type_not_too_large<T>(max_size: usize) {
         let size = std::mem::size_of::<T>();
@@ -898,7 +1508,7 @@ mod tests {
 
         // contains patient name
         assert_eq!(
-            obj.element(dicom_dictionary_std::tags::PATIENT_NAME)
+            obj.element(tags::PATIENT_NAME)
                 .unwrap()
                 .value()
                 .to_str()
@@ -906,12 +1516,20 @@ mod tests {
             "John Doe",
         );
 
+        // same result using DicomObject
+        assert_eq!(
+            DicomObject::attr(&obj, tags::PATIENT_NAME)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "John Doe",
+        );
+
         // can be removed with take
-        obj.take_element(dicom_dictionary_std::tags::PATIENT_NAME)
-            .unwrap();
+        obj.take_element(tags::PATIENT_NAME).unwrap();
 
         assert!(matches!(
-            obj.element(dicom_dictionary_std::tags::PATIENT_NAME),
+            obj.element(tags::PATIENT_NAME),
             Err(AccessError::NoSuchDataElementTag { .. }),
         ));
     }
@@ -965,6 +1583,7 @@ mod tests {
         assert_eq!(iter.next(), None);
     }
 
+    /// Can access file meta properties via the DicomObject trait
     #[test]
     pub fn file_dicom_can_update_meta() {
         let meta = FileMetaTableBuilder::new()
@@ -986,5 +1605,91 @@ mod tests {
             obj.meta().receiving_application_entity_title.as_deref(),
             Some("SOMETHING"),
         );
+    }
+
+    #[test]
+    fn dicom_object_api_on_file_dicom_object() {
+        use crate::{DicomAttribute as _, DicomObject as _};
+
+        let meta = FileMetaTableBuilder::new()
+            .transfer_syntax(uids::RLE_LOSSLESS)
+            .media_storage_sop_class_uid(uids::ENHANCED_MR_IMAGE_STORAGE)
+            .media_storage_sop_instance_uid("2.25.94766187067244888884745908966163363746")
+            .build()
+            .unwrap();
+        let obj = FileDicomObject::new_empty_with_meta(meta);
+
+        assert_eq!(
+            obj.attr(tags::TRANSFER_SYNTAX_UID)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            uids::RLE_LOSSLESS
+        );
+
+        let sop_class_uid = obj.attr_opt(tags::MEDIA_STORAGE_SOP_CLASS_UID).unwrap();
+        let sop_class_uid = sop_class_uid.as_ref().map(|v| v.to_str().unwrap());
+        assert_eq!(
+            sop_class_uid.as_deref(),
+            Some(uids::ENHANCED_MR_IMAGE_STORAGE)
+        );
+
+        assert_eq!(
+            obj.attr_by_name("MediaStorageSOPInstanceUID")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "2.25.94766187067244888884745908966163363746"
+        );
+
+        assert_eq!(
+            obj.at(tags::MEDIA_STORAGE_SOP_INSTANCE_UID)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "2.25.94766187067244888884745908966163363746"
+        );
+    }
+
+    #[test]
+    fn operations_api_on_primitive_values() {
+        use crate::DicomAttribute;
+        use dicom_dictionary_std::tags;
+
+        let obj = InMemDicomObject::from_element_iter([
+            DataElement::new(tags::PATIENT_NAME, VR::PN, PrimitiveValue::from("Doe^John")),
+            DataElement::new(tags::INSTANCE_NUMBER, VR::IS, PrimitiveValue::from("5")),
+        ]);
+
+        let patient_name = obj.get(tags::PATIENT_NAME).unwrap().value();
+
+        // can get string using DICOM attribute API
+
+        assert_eq!(&DicomAttribute::to_str(patient_name).unwrap(), "Doe^John");
+
+        // can get integer from Instance Number
+
+        let instance_number = obj.get(tags::INSTANCE_NUMBER).unwrap().value();
+        assert_eq!(DicomAttribute::to_u32(instance_number).unwrap(), 5);
+
+        // cannot get items
+
+        assert_eq!(patient_name.num_items(), None);
+        assert_eq!(patient_name.num_fragments(), None);
+        assert!(matches!(
+            patient_name.item(0),
+            Err(crate::AttributeError::NotDataSet)
+        ));
+
+        assert_eq!(instance_number.num_items(), None);
+        assert_eq!(instance_number.num_fragments(), None);
+        assert!(matches!(
+            patient_name.item(0),
+            Err(crate::AttributeError::NotDataSet)
+        ));
+        assert!(matches!(
+            instance_number.item(0),
+            Err(crate::AttributeError::NotDataSet)
+        ));
     }
 }
