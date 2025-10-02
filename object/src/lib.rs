@@ -408,7 +408,7 @@ pub trait DicomAttribute: DicomValueType {
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let obj = my_data();
 /// assert_eq!(
-///     obj.get(tags::SOP_INSTANCE_UID)?.to_str()?,
+///     obj.attr(tags::SOP_INSTANCE_UID)?.to_str()?,
 ///    "2.25.60131396312732822704775296119377475501"
 /// );
 /// # Ok(())
@@ -426,23 +426,25 @@ pub trait DicomAttribute: DicomValueType {
 /// use dicom_object::{DicomObject as _, open_file};
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// open_file("00001.dcm")?;
-/// todo!();
 /// let file = open_file("00001.dcm")?;
 ///
-/// let Some(media_storage_sop_class_uid) = file.get_opt(tags::MEDIA_STORAGE_SOP_CLASS_UID)? else {
+/// let Some(media_storage_sop_class_uid) = file.attr_opt(tags::MEDIA_STORAGE_SOP_CLASS_UID)? else {
 ///     panic!("DICOM file should have a Media Storage SOP Class UID");
 /// };
 /// # Ok(())
 /// # }
 /// ```
+///
+/// Types implementing this trait
+/// will likely also implement [`ApplyOp`](dicom_core::ops::ApplyOp),
+/// enabling more operations on DICOM objects.
 pub trait DicomObject {
     /// The type representing a DICOM attribute in the object
     /// and/or the necessary means to retrieve the value from it.
     ///
     /// This is the outcome of a shallow look-up
-    /// using the methods [`get`](DicomObject::get)
-    /// or [`get_opt`](DicomObject::get_opt).
+    /// using the methods [`attr`](DicomObject::attr)
+    /// or [`attr_opt`](DicomObject::attr_opt).
     type Attribute<'a>: DicomAttribute
     where
         Self: 'a;
@@ -462,7 +464,7 @@ pub trait DicomObject {
     /// `Ok(None)` is returned when the object was successfully looked up
     /// but the element is not present.
     /// This is not a recursive search.
-    fn get_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>, AccessError>;
+    fn attr_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>, AccessError>;
 
     /// Retrieve a particular DICOM element by its name (keyword).
     ///
@@ -470,17 +472,20 @@ pub trait DicomObject {
     /// but the element is not present.
     ///
     /// If the DICOM tag is already known,
-    /// prefer calling [`get_opt`](Self::get_opt).
-    fn get_by_name_opt(&self, name: &str)
+    /// prefer calling [`attr_opt`](Self::attr_opt)
+    /// with one of the [constants from the DICOM dictionary][tags].
+    ///
+    /// [tags]: dicom_dictionary_std::tags
+    fn attr_by_name_opt(&self, name: &str)
         -> Result<Option<Self::Attribute<'_>>, AccessByNameError>;
 
     /// Retrieve a particular DICOM attribute
     /// by looking up the given tag at the object's root.
     ///
-    /// Unlike [`get_opt`](Self::get_opt),
+    /// Unlike [`attr_opt`](Self::attr_opt),
     /// this method returns an error if the element is not present.
-    fn get(&self, tag: Tag) -> Result<Self::Attribute<'_>, AccessError> {
-        self.get_opt(tag)?
+    fn attr(&self, tag: Tag) -> Result<Self::Attribute<'_>, AccessError> {
+        self.attr_opt(tag)?
             .context(NoSuchDataElementTagSnafu { tag })
     }
 
@@ -495,13 +500,16 @@ pub trait DicomObject {
 
     /// Retrieve a particular DICOM element by its name (keyword).
     ///
-    /// Unlike [`get_by_name_opt`](Self::get_by_name_opt),
+    /// Unlike [`attr_by_name_opt`](Self::attr_by_name_opt),
     /// this method returns an error if the element is not present.
     ///
     /// If the DICOM tag is already known,
-    /// prefer calling [`get`](Self::get).
-    fn get_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
-        self.get_by_name_opt(name)?
+    /// prefer calling [`attr`](Self::attr)
+    /// with one of the [constants from the DICOM dictionary][tags].
+    ///
+    /// [tags]: dicom_dictionary_std::tags
+    fn attr_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
+        self.attr_by_name_opt(name)?
             .context(NoSuchAttributeNameSnafu { name })
     }
 }
@@ -1140,21 +1148,21 @@ where
         O: 'a;
 
     #[inline]
-    fn get_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>, AccessError> {
+    fn attr_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>, AccessError> {
         match tag {
             Tag(0x0002, _) => {
-                let attr = self.meta.get_opt(tag)?;
+                let attr = self.meta.attr_opt(tag)?;
                 Ok(attr.map(Either::Left))
             }
             _ => {
-                let attr = self.obj.get_opt(tag)?;
+                let attr = self.obj.attr_opt(tag)?;
                 Ok(attr.map(Either::Right))
             }
         }
     }
 
     #[inline]
-    fn get_by_name_opt(
+    fn attr_by_name_opt(
         &self,
         name: &str,
     ) -> Result<Option<Self::Attribute<'_>>, AccessByNameError> {
@@ -1171,25 +1179,25 @@ where
             | "ReceivingApplicationEntityTitle"
             | "PrivateInformationCreatorUID"
             | "PrivateInformation" => {
-                let attr = self.meta.get_by_name_opt(name)?;
+                let attr = self.meta.attr_by_name_opt(name)?;
                 Ok(attr.map(Either::Left))
             }
             _ => {
-                let attr = self.obj.get_by_name_opt(name)?;
+                let attr = self.obj.attr_by_name_opt(name)?;
                 Ok(attr.map(Either::Right))
             }
         }
     }
 
     #[inline]
-    fn get(&self, tag: Tag) -> Result<Self::Attribute<'_>, AccessError> {
+    fn attr(&self, tag: Tag) -> Result<Self::Attribute<'_>, AccessError> {
         match tag {
             Tag(0x0002, _) => {
-                let attr = self.meta.get(tag)?;
+                let attr = self.meta.attr(tag)?;
                 Ok(Either::Left(attr))
             }
             _ => {
-                let attr = self.obj.get(tag)?;
+                let attr = self.obj.attr(tag)?;
                 Ok(Either::Right(attr))
             }
         }
@@ -1204,7 +1212,7 @@ where
             AttributeSelectorStep::Tag(tag @ Tag(0x0002, _)) => {
                 let attr = self
                     .meta
-                    .get(*tag)
+                    .attr(*tag)
                     .map_err(|_| AtAccessError::MissingLeafElement { selector })?;
                 Ok(Either::Left(attr))
             }
@@ -1233,26 +1241,26 @@ where
         O: 'a;
 
     #[inline]
-    fn get_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>, AccessError> {
-        (**self).get_opt(tag)
+    fn attr_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>, AccessError> {
+        (**self).attr_opt(tag)
     }
 
     #[inline]
-    fn get_by_name_opt(
+    fn attr_by_name_opt(
         &self,
         name: &str,
     ) -> Result<Option<Self::Attribute<'_>>, AccessByNameError> {
-        (**self).get_by_name_opt(name)
+        (**self).attr_by_name_opt(name)
     }
 
     #[inline]
-    fn get(&self, tag: Tag) -> Result<Self::Attribute<'_>, AccessError> {
-        (**self).get(tag)
+    fn attr(&self, tag: Tag) -> Result<Self::Attribute<'_>, AccessError> {
+        (**self).attr(tag)
     }
 
     #[inline]
-    fn get_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
-        (**self).get_by_name(name)
+    fn attr_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
+        (**self).attr_by_name(name)
     }
 
     #[inline]
@@ -1510,7 +1518,7 @@ mod tests {
 
         // same result using DicomObject
         assert_eq!(
-            DicomObject::get(&obj, tags::PATIENT_NAME)
+            DicomObject::attr(&obj, tags::PATIENT_NAME)
                 .unwrap()
                 .to_str()
                 .unwrap(),
@@ -1612,14 +1620,14 @@ mod tests {
         let obj = FileDicomObject::new_empty_with_meta(meta);
 
         assert_eq!(
-            obj.get(tags::TRANSFER_SYNTAX_UID)
+            obj.attr(tags::TRANSFER_SYNTAX_UID)
                 .unwrap()
                 .to_str()
                 .unwrap(),
             uids::RLE_LOSSLESS
         );
 
-        let sop_class_uid = obj.get_opt(tags::MEDIA_STORAGE_SOP_CLASS_UID).unwrap();
+        let sop_class_uid = obj.attr_opt(tags::MEDIA_STORAGE_SOP_CLASS_UID).unwrap();
         let sop_class_uid = sop_class_uid.as_ref().map(|v| v.to_str().unwrap());
         assert_eq!(
             sop_class_uid.as_deref(),
@@ -1627,7 +1635,7 @@ mod tests {
         );
 
         assert_eq!(
-            obj.get_by_name("MediaStorageSOPInstanceUID")
+            obj.attr_by_name("MediaStorageSOPInstanceUID")
                 .unwrap()
                 .to_str()
                 .unwrap(),

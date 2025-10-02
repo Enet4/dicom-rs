@@ -1037,7 +1037,7 @@ impl DicomObject for FileMetaTable {
     where
         Self: 'a;
 
-    fn get_opt(
+    fn attr_opt(
         &self,
         tag: Tag,
     ) -> std::result::Result<Option<Self::Attribute<'_>>, crate::AccessError> {
@@ -1086,7 +1086,7 @@ impl DicomObject for FileMetaTable {
         }
     }
 
-    fn get_by_name_opt<'a>(
+    fn attr_by_name_opt<'a>(
         &'a self,
         name: &str,
     ) -> std::result::Result<Option<Self::Attribute<'a>>, crate::AccessByNameError> {
@@ -1105,7 +1105,7 @@ impl DicomObject for FileMetaTable {
             "PrivateInformation" => tags::PRIVATE_INFORMATION,
             _ => return Ok(None),
         };
-        self.get_opt(tag)
+        self.attr_opt(tag)
             .map_err(|_| crate::NoSuchAttributeNameSnafu { name }.build())
     }
 
@@ -1116,7 +1116,7 @@ impl DicomObject for FileMetaTable {
         let selector: AttributeSelector = selector.into();
         match selector.split_first() {
             (AttributeSelectorStep::Tag(tag), None) => self
-                .get(tag)
+                .attr(tag)
                 .map_err(|_| AtAccessError::MissingLeafElement { selector }),
             (_, Some(_)) => crate::NotASequenceSnafu {
                 selector,
@@ -1775,14 +1775,14 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            meta.get(tags::TRANSFER_SYNTAX_UID)
+            meta.attr(tags::TRANSFER_SYNTAX_UID)
                 .unwrap()
                 .to_str()
                 .unwrap(),
             uids::RLE_LOSSLESS
         );
 
-        let sop_class_uid = meta.get_opt(tags::MEDIA_STORAGE_SOP_CLASS_UID).unwrap();
+        let sop_class_uid = meta.attr_opt(tags::MEDIA_STORAGE_SOP_CLASS_UID).unwrap();
         let sop_class_uid = sop_class_uid.as_ref().map(|v| v.to_str().unwrap());
         assert_eq!(
             sop_class_uid.as_deref(),
@@ -1790,13 +1790,13 @@ mod tests {
         );
 
         assert_eq!(
-            meta.get_by_name("MediaStorageSOPInstanceUID")
+            meta.attr_by_name("MediaStorageSOPInstanceUID")
                 .unwrap()
                 .to_str()
                 .unwrap(),
             "2.25.94766187067244888884745908966163363746"
         );
 
-        assert!(meta.get_opt(tags::PRIVATE_INFORMATION).unwrap().is_none());
+        assert!(meta.attr_opt(tags::PRIVATE_INFORMATION).unwrap().is_none());
     }
 }

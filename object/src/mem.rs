@@ -143,13 +143,13 @@ where
             where Self: 'a;
 
     #[inline]
-    fn get_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>> {
+    fn attr_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>> {
         let elem = InMemDicomObject::element_opt(self, tag)?;
         Ok(elem.map(|e| e.value()))
     }
 
     #[inline]
-    fn get_by_name_opt(
+    fn attr_by_name_opt(
         &self,
         name: &str,
     ) -> Result<Option<Self::Attribute<'_>>, AccessByNameError> {
@@ -158,13 +158,13 @@ where
     }
 
     #[inline]
-    fn get(&self, tag: Tag) -> Result<Self::Attribute<'_>> {
+    fn attr(&self, tag: Tag) -> Result<Self::Attribute<'_>> {
         let elem = InMemDicomObject::element(self, tag)?;
         Ok(elem.value())
     }
 
     #[inline]
-    fn get_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
+    fn attr_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
         let elem = InMemDicomObject::element_by_name(self, name)?;
         Ok(elem.value())
     }
@@ -189,13 +189,13 @@ where
         's: 'a;
 
     #[inline]
-    fn get_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>> {
+    fn attr_opt(&self, tag: Tag) -> Result<Option<Self::Attribute<'_>>> {
         let elem = InMemDicomObject::element_opt(*self, tag)?;
         Ok(elem.map(|e| e.value()))
     }
 
     #[inline]
-    fn get_by_name_opt(
+    fn attr_by_name_opt(
         &self,
         name: &str,
     ) -> Result<Option<Self::Attribute<'_>>, AccessByNameError> {
@@ -204,13 +204,13 @@ where
     }
 
     #[inline]
-    fn get(&self, tag: Tag) -> Result<Self::Attribute<'_>> {
+    fn attr(&self, tag: Tag) -> Result<Self::Attribute<'_>> {
         let elem = InMemDicomObject::element(*self, tag)?;
         Ok(elem.value())
     }
 
     #[inline]
-    fn get_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
+    fn attr_by_name(&self, name: &str) -> Result<Self::Attribute<'_>, AccessByNameError> {
         let elem = InMemDicomObject::element_by_name(*self, name)?;
         Ok(elem.value())
     }
@@ -3300,7 +3300,7 @@ mod tests {
 
         let obj = dicom_dataset();
         let elem1 = obj
-            .get_by_name_opt("PatientName")
+            .attr_by_name_opt("PatientName")
             .unwrap()
             .expect("PatientName should be present");
         assert_eq!(
@@ -3311,7 +3311,7 @@ mod tests {
         );
 
         // try a missing element, should return None
-        assert!(obj.get_opt(tags::PATIENT_ID).unwrap().is_none());
+        assert!(obj.attr_opt(tags::PATIENT_ID).unwrap().is_none());
     }
 
     /// Test attribute operations on in-memory DICOM objects.
