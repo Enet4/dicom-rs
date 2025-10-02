@@ -33,7 +33,7 @@ features = [
 [dev-dependencies]
 dicom-dictionary-std = { path = "../dictionary-std" }
 matches = "0.1.8"
-rstest = "0.25"
+rstest = "0.26.1"
 tokio = { version = "^1.38", features = ["io-util", "macros", "net", "rt", "rt-multi-thread"] }
 dicom-core = { path = '../core' }
 dicom-object = { path = '../object' }
