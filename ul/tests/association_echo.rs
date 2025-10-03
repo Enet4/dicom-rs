@@ -1,13 +1,10 @@
 use dicom_ul::{
-    association::{Error, client::ClientAssociationOptions},
+    association::{Error, client::ClientAssociationOptions, server::ServerAssociationOptions},
     pdu::{Pdu, PDataValue, PDataValueType, PresentationContextNegotiated,
         PresentationContextResultReason},
 };
 
 use std::net::SocketAddr;
-use rand::Rng;
-
-use dicom_ul::association::server::ServerAssociationOptions;
 
 // Check rather arbitrary maximum PDU lengths, also different for server and client
 const HI_PDU_LEN: usize = 7890;
@@ -200,7 +197,12 @@ async fn spawn_scp_async(max_server_pdu_len: usize, max_client_pdu_len: usize)
 /// Run an SCP and an SCU concurrently, negotiate an association and release it.
 #[test]
 fn scu_scp_association_test() {
-    let max_is_client: bool = rand::thread_rng().gen();
+    for max_is_client in [false, true] {
+        run_scu_scp_association_test(max_is_client);
+    }
+}
+
+fn run_scu_scp_association_test(max_is_client: bool) {
     let (max_client_pdu_len, max_server_pdu_len) =
         if max_is_client { (HI_PDU_LEN, LO_PDU_LEN) } else { (LO_PDU_LEN, HI_PDU_LEN) };
     let (scp_handle, scp_addr) =
@@ -258,7 +260,12 @@ fn scu_scp_association_test() {
 #[cfg(feature = "async")]
 #[tokio::test(flavor = "multi_thread")]
 async fn scu_scp_association_test_async() {
-    let max_is_client: bool = rand::thread_rng().gen();
+    for max_is_client in [false, true] {
+        run_scu_scp_association_test_async(max_is_client).await;
+    }
+}
+
+async fn run_scu_scp_association_test_async(max_is_client: bool) {
     let (max_client_pdu_len, max_server_pdu_len) =
         if max_is_client { (HI_PDU_LEN, LO_PDU_LEN) } else { (LO_PDU_LEN, HI_PDU_LEN) };
     let (scp_handle, scp_addr) =

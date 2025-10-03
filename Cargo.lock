@@ -748,7 +748,6 @@ dependencies = [
  "dicom-object",
  "dicom-transfer-syntax-registry",
  "matches",
- "rand",
  "rstest",
  "snafu",
  "tokio",
