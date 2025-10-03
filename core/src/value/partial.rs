@@ -1,7 +1,7 @@
 //! Handling of partial precision of Date, Time and DateTime values.
 
 use crate::value::AsRange;
-use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
+use chrono::{DateTime, Datelike, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, Timelike, Utc};
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
@@ -307,6 +307,15 @@ impl DicomDate {
         Ok(DicomDate(DicomDateImpl::Day(year, month, day)))
     }
 
+    // Constructs a new `DicomDate` now from the local timezone
+    pub fn now_local() -> Result<DicomDate> {
+        return DicomDate::try_from(&Local::now());
+    }
+    // Constructs a new `DicomDate` now from the utc timezone
+    pub fn now_utc() -> Result<DicomDate> {
+        return DicomDate::try_from(&Utc::now());
+    }
+
     /// Retrieves the year from a date as a reference
     pub fn year(&self) -> &u16 {
         match self {
@@ -450,6 +459,16 @@ impl DicomTime {
             6,
         )))
     }
+
+    // Constructs a new `DicomDate` now from the local timezone
+    pub fn now_local() -> Result<DicomTime> {
+        return DicomTime::try_from(&Local::now());
+    }
+    // Constructs a new `DicomDate` now from the utc timezone
+    pub fn now_utc() -> Result<DicomTime> {
+        return DicomTime::try_from(&Utc::now());
+    }
+
     /** Retrieves the hour from a time as a reference */
     pub fn hour(&self) -> &u8 {
         match self {
