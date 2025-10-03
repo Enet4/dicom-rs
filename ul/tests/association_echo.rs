@@ -265,6 +265,7 @@ async fn scu_scp_association_test_async() {
     }
 }
 
+#[cfg(feature = "async")]
 async fn run_scu_scp_association_test_async(max_is_client: bool) {
     let (max_client_pdu_len, max_server_pdu_len) =
         if max_is_client { (HI_PDU_LEN, LO_PDU_LEN) } else { (LO_PDU_LEN, HI_PDU_LEN) };
