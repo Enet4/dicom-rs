@@ -1,6 +1,6 @@
 [package]
 name = "dicom-dump"
-version = "0.8.1"
+version = "0.9.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A CLI tool for inspecting DICOM files"
 edition = "2018"
@@ -28,12 +28,12 @@ cli = ["clap", "dicom-transfer-syntax-registry/inventory-registry"]
 [dependencies]
 snafu = "0.8"
 clap = { version  = "4.0.18", features = ["derive"], optional = true }
-dicom-core = { path = "../core", version = "0.8.2" }
-dicom-encoding = { path = "../encoding", version = "0.8.2" }
-dicom-json = { version = "0.8.2", path = "../json" }
-dicom-object = { path = "../object/", version = "0.8.2" }
-dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.8.2", default-features = false }
-dicom-dictionary-std = { path = "../dictionary-std/", version = "0.8.1" }
+dicom-core = { path = "../core", version = "0.9" }
+dicom-encoding = { path = "../encoding", version = "0.9" }
+dicom-json = { path = "../json", version = "0.9" }
+dicom-object = { path = "../object/", version = "0.9" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.9", default-features = false }
+dicom-dictionary-std = { path = "../dictionary-std/", version = "0.9" }
 owo-colors = { version = "4.0.0-rc.1", features = ["supports-colors"] }
 serde_json = "1.0.108"
 terminal_size = "0.4.0"

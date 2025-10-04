@@ -14,6 +14,9 @@ impl DataRWAdapter for FlateAdapter {
     }
 
     fn adapt_writer<'w>(&self, writer: Box<dyn Write + 'w>) -> Box<dyn Write + 'w> {
-        Box::new(flate2::write::DeflateEncoder::new(writer, Compression::fast()))
+        Box::new(flate2::write::DeflateEncoder::new(
+            writer,
+            Compression::fast(),
+        ))
     }
 }

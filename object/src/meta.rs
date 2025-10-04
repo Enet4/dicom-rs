@@ -191,7 +191,7 @@ where
 impl FileMetaTable {
     /// Construct a file meta group table
     /// by parsing a DICOM data set from a reader.
-    /// 
+    ///
     /// This method fails if the first four bytes
     /// are not the DICOM magic code `DICM`.
     pub fn from_reader<R: Read>(file: R) -> Result<Self> {

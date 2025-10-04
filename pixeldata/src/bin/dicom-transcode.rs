@@ -142,10 +142,7 @@ impl TargetTransferSyntax {
                 .whatever_context("Missing specifier for JPEG-LS Lossless"),
             // JPEG-LS near-lossless
             #[cfg(feature = "charls")]
-            TargetTransferSyntax {
-                jpeg_ls: true,
-                ..
-            } => TransferSyntaxRegistry
+            TargetTransferSyntax { jpeg_ls: true, .. } => TransferSyntaxRegistry
                 .get(uids::JPEGLS_NEAR_LOSSLESS)
                 .whatever_context("Missing specifier for JPEG-LS Near-Lossless"),
             // JPEG XL lossless

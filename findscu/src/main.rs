@@ -360,9 +360,7 @@ fn run() -> Result<(), Error> {
                             .whatever_context("Could not read response data set")?
                     };
 
-                    println!(
-                        "------------------------ Match #{i} ------------------------"
-                    );
+                    println!("------------------------ Match #{i} ------------------------");
                     DumpOptions::new()
                         .dump_object(&dcm)
                         .context(DumpOutputSnafu)?;

@@ -2,7 +2,9 @@ use std::net::SocketAddr;
 
 use dicom_ul::association::Error::NoAcceptedPresentationContexts;
 use dicom_ul::pdu::PresentationContextResultReason::Acceptance;
-use dicom_ul::pdu::{PresentationContextNegotiated, PresentationContextResultReason, UserVariableItem};
+use dicom_ul::pdu::{
+    PresentationContextNegotiated, PresentationContextResultReason, UserVariableItem,
+};
 use dicom_ul::{
     ClientAssociationOptions, Pdu, ServerAssociationOptions, IMPLEMENTATION_CLASS_UID,
     IMPLEMENTATION_VERSION_NAME,

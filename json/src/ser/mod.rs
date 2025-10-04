@@ -3,13 +3,12 @@
 use std::io::Write;
 
 use crate::DicomJson;
-use dicom_core::{header::Header, value::PixelFragmentSequence, DicomValue, PrimitiveValue, Tag, VR};
+use dicom_core::{
+    header::Header, value::PixelFragmentSequence, DicomValue, PrimitiveValue, Tag, VR,
+};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_object::{mem::InMemElement, DefaultDicomObject, InMemDicomObject};
-use serde::{
-    ser::SerializeMap,
-    Serialize, Serializer,
-};
+use serde::{ser::SerializeMap, Serialize, Serializer};
 
 use self::value::{AsNumbers, AsPersonNames, AsStrings, InlineBinary};
 mod value;

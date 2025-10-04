@@ -85,7 +85,7 @@ impl PixelDataReader for JpegAdapter {
             if cursor.position() + 2 >= fragments_len {
                 break;
             }
-            
+
             // DICOM fragments should always have an even length,
             // filling this spacing with padding if it is odd.
             // Some implementations might add some padding,
@@ -93,10 +93,7 @@ impl PixelDataReader for JpegAdapter {
             // So we check the next 2 bytes
             // until we find the SOI marker
             loop {
-                let Some(next_byte_1) = cursor
-                    .get_ref()
-                    .get(cursor.position() as usize)
-                    .copied()
+                let Some(next_byte_1) = cursor.get_ref().get(cursor.position() as usize).copied()
                 else {
                     // no more frames to read
                     break 'frame_loop;

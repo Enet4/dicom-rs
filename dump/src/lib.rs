@@ -57,7 +57,7 @@ use std::str::FromStr;
 #[cfg_attr(feature = "cli", derive(ValueEnum))]
 pub enum DumpFormat {
     /// Text dump of DICOM file
-    /// 
+    ///
     /// It is primarily designed to be human readable,
     /// although its output can be used to recover the original object
     /// in its uncut form (no limit width).
@@ -72,7 +72,6 @@ pub enum DumpFormat {
     /// provided via [`dicom_json`]
     Json,
 }
-
 
 /// Options and flags to configure how to dump a DICOM file or object.
 ///
@@ -236,14 +235,13 @@ impl DumpOptions {
                 dump(&mut to, obj, width, 0, no_text_limit, no_limit)?;
 
                 Ok(())
-            },
+            }
             DumpFormat::Json => {
                 let json_obj = DicomJson::from(obj);
                 serde_json::to_writer_pretty(stdout(), &json_obj)?;
                 Ok(())
             }
         }
-
     }
 
     /// Dump the contents of a DICOM object to standard output.
@@ -1141,6 +1139,7 @@ mod tests {
       "1.2.888.123"
     ]
   }
-}"#);
+}"#
+        );
     }
 }

@@ -1,10 +1,10 @@
 //! Decode pixel data using GDCM when the default features are enabled.
 
 use crate::{
-    DecodePixelDataSnafu, DecodedPixelData, InvalidPixelDataSnafu,
-    LengthMismatchRescaleSnafu, LengthMismatchWindowLevelSnafu, PixelDecoder, Rescale, Result,
-    UnknownTransferSyntaxSnafu, UnsupportedPhotometricInterpretationSnafu,
-    UnsupportedTransferSyntaxSnafu, VoiLutFunction, WindowLevel,
+    DecodePixelDataSnafu, DecodedPixelData, InvalidPixelDataSnafu, LengthMismatchRescaleSnafu,
+    LengthMismatchWindowLevelSnafu, PixelDecoder, Rescale, Result, UnknownTransferSyntaxSnafu,
+    UnsupportedPhotometricInterpretationSnafu, UnsupportedTransferSyntaxSnafu, VoiLutFunction,
+    WindowLevel,
 };
 use dicom_core::{DataDictionary, DicomValue};
 use dicom_dictionary_std::tags;
@@ -30,8 +30,7 @@ where
         let cols = cols(self)?;
         let rows = rows(self)?;
 
-        let photometric_interpretation =
-            photometric_interpretation(self)?;
+        let photometric_interpretation = photometric_interpretation(self)?;
         let pi_type = match photometric_interpretation {
             PhotometricInterpretation::PaletteColor => GDCMPhotometricInterpretation::PALETTE_COLOR,
             _ => GDCMPhotometricInterpretation::from_str(photometric_interpretation.as_str())
@@ -131,7 +130,6 @@ where
             DicomValue::Sequence(_) => InvalidPixelDataSnafu.fail()?,
         };
 
-
         let rescale = zip(&rescale_intercept, &rescale_slope)
             .map(|(intercept, slope)| Rescale {
                 intercept: *intercept,
@@ -192,8 +190,7 @@ where
         let cols = cols(self)?;
         let rows = rows(self)?;
 
-        let photometric_interpretation =
-            photometric_interpretation(self)?;
+        let photometric_interpretation = photometric_interpretation(self)?;
         let pi_type = match photometric_interpretation {
             PhotometricInterpretation::PaletteColor => GDCMPhotometricInterpretation::PALETTE_COLOR,
             _ => GDCMPhotometricInterpretation::from_str(photometric_interpretation.as_str())

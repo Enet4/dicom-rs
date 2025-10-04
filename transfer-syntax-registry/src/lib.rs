@@ -83,7 +83,7 @@
 //! - `charls` provides support for JPEG-LS
 //!   by linking to the CharLS reference implementation,
 //!   which is written in C++.
-//!   No alternative JPEG-LS implementations are available at the moment. 
+//!   No alternative JPEG-LS implementations are available at the moment.
 //! - `openjpeg-sys` provides a binding to the OpenJPEG reference implementation,
 //!   which is written in C and is statically linked.
 //!   It may offer better performance than the pure Rust implementation,
@@ -105,9 +105,7 @@
 //!
 //! [inventory]: https://docs.rs/inventory/0.3.15/inventory
 
-use dicom_encoding::transfer_syntax::{
-    AdapterFreeTransferSyntax as Ts, Codec,
-};
+use dicom_encoding::transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec};
 use lazy_static::lazy_static;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;

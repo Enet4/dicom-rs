@@ -252,6 +252,6 @@ fn write_and_read_jpeg_xl() {
         .decode_frame(&obj, 0, &mut decoded)
         .expect("JPEG XL frame decoding failed");
 
-    // compare pixels, lossless encoding should yield exactly the same data 
-    assert_eq!(samples, decoded , "pixel data mismatch");
+    // compare pixels, lossless encoding should yield exactly the same data
+    assert_eq!(samples, decoded, "pixel data mismatch");
 }

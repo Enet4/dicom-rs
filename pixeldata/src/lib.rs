@@ -23,10 +23,10 @@
 //! - `jpeg` for JPEG lossy and lossless encodings via `jpeg-decoder` and `jpeg-encoder`;
 //! - `rle` for RLE compressed pixel data;
 //! - `deflate` for deflated data set compression via `flate2`.
-//! 
+//!
 //! See the [`dicom-transfer-syntax-registry` documentation][ts-registry]
 //! for an extended list of supported encodings and more details.
-//! 
+//!
 //! Alternatively, this library has an integration with [GDCM bindings],
 //! which serves as a different backend.
 //! This allows for decoding pixel data
@@ -42,7 +42,7 @@
 //! ```
 //!
 //! # Usage
-//! 
+//!
 //!
 //! # WebAssembly support
 //!
@@ -165,7 +165,9 @@ pub mod encapsulation;
 pub(crate) mod transform;
 
 // re-exports
-pub use attribute::{PhotometricInterpretation, PixelRepresentation, PlanarConfiguration, AttributeName};
+pub use attribute::{
+    AttributeName, PhotometricInterpretation, PixelRepresentation, PlanarConfiguration,
+};
 pub use lut::{CreateLutError, Lut};
 pub use transcode::{Error as TranscodeError, Result as TranscodeResult, Transcode};
 pub use transform::{Rescale, VoiLutFunction, WindowLevel, WindowLevelTransform};
@@ -2095,8 +2097,7 @@ impl ImagingProperties {
 
         let cols = cols(obj)?;
         let rows = rows(obj)?;
-        let photometric_interpretation =
-            photometric_interpretation(obj)?;
+        let photometric_interpretation = photometric_interpretation(obj)?;
         let samples_per_pixel = samples_per_pixel(obj)?;
         let planar_configuration = planar_configuration(obj)?;
         let bits_allocated = bits_allocated(obj)?;
@@ -2714,15 +2715,18 @@ mod tests {
 
     #[test]
     #[ignore = "test is unsound"]
-    fn test_can_read_deflated(){
-        
-        let path = dicom_test_files::path("pydicom/image_dfl.dcm").expect("test DICOM file should exist");
-    
+    fn test_can_read_deflated() {
+        let path =
+            dicom_test_files::path("pydicom/image_dfl.dcm").expect("test DICOM file should exist");
+
         // should read preamble even though it's from a reader
         let obj = open_file(path.clone()).expect("Should read file");
-    
+
         let res = obj.decode_pixel_data().expect("Should decode pixel data.");
-        assert_eq!(res.to_vec::<u8>().unwrap().len(), (res.rows() as usize * res.columns() as usize));
+        assert_eq!(
+            res.to_vec::<u8>().unwrap().len(),
+            (res.rows() as usize * res.columns() as usize)
+        );
         let mut buf = Vec::<u8>::new();
         obj.write_all(&mut buf).expect("Should write deflated");
 

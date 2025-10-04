@@ -71,7 +71,11 @@ fn write_deflated() {
 
     // check that the contents are indeed smaller than the original (902k)
     // (this US image compresses pretty well in deflate)
-    assert!(buf.len() < 400_000, "Expected deflated size to be smaller, but was {} bytes", buf.len());
+    assert!(
+        buf.len() < 400_000,
+        "Expected deflated size to be smaller, but was {} bytes",
+        buf.len()
+    );
 
     // now read the deflated data back
     let object2 = OpenFileOptions::new()
@@ -79,7 +83,10 @@ fn write_deflated() {
         .expect("Should read deflated data back successfully");
     // check that the objects are mostly equal
 
-    assert_eq!(object.meta().transfer_syntax(), object2.meta().transfer_syntax());
+    assert_eq!(
+        object.meta().transfer_syntax(),
+        object2.meta().transfer_syntax()
+    );
     // SOP Instance UID
     let tag = Tag(0x0008, 0x0018);
     assert_eq!(object.get(tag).unwrap(), object2.get(tag).unwrap());

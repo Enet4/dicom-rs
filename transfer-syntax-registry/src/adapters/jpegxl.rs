@@ -95,7 +95,8 @@ impl PixelDataReader for JpegXlAdapter {
             8 => {
                 // write directly to dst as u8 samples
 
-                let samples_per_frame = stream.channels() as usize * stream.width() as usize * stream.height() as usize;
+                let samples_per_frame =
+                    stream.channels() as usize * stream.width() as usize * stream.height() as usize;
 
                 dst.try_reserve(samples_per_frame)
                     .whatever_context("Failed to reserve heap space for JPEG XL frame")?;
@@ -109,17 +110,18 @@ impl PixelDataReader for JpegXlAdapter {
             16 => {
                 // write all u16 samples to a buffer
 
-                let mut buffer =
-                    vec![
-                        0_u16;
-                        stream.channels() as usize * stream.width() as usize * stream.height() as usize
-                    ];
+                let mut buffer = vec![
+                    0_u16;
+                    stream.channels() as usize
+                        * stream.width() as usize
+                        * stream.height() as usize
+                ];
 
                 let count = stream.write_to_buffer(&mut buffer);
                 buffer.truncate(count);
 
                 // pass them as bytes in native endian
-                
+
                 for &sample in &buffer {
                     dst.extend_from_slice(&sample.to_ne_bytes());
                 }
@@ -127,11 +129,12 @@ impl PixelDataReader for JpegXlAdapter {
             24 => {
                 // write all f32 samples to a buffer
 
-                let mut buffer =
-                    vec![
-                        0_f32;
-                        stream.channels() as usize * stream.width() as usize * stream.height() as usize
-                    ];
+                let mut buffer = vec![
+                    0_f32;
+                    stream.channels() as usize
+                        * stream.width() as usize
+                        * stream.height() as usize
+                ];
 
                 let count = stream.write_to_buffer(&mut buffer);
                 buffer.truncate(count);
@@ -182,9 +185,7 @@ impl PixelDataWriter for JpegXlAdapter {
         );
 
         let dicom_encoding::adapters::EncodeOptions {
-            quality,
-            effort,
-            ..
+            quality, effort, ..
         } = options;
 
         let bytes_per_sample = (bits_allocated / 8) as usize;
@@ -228,7 +229,8 @@ impl PixelDataWriter for JpegXlAdapter {
         options.set_effort(effort.map(|e| e + 27).unwrap_or(64));
         let encoder = JxlSimpleEncoder::new(frame_data, options);
 
-        let jxl = encoder.encode()
+        let jxl = encoder
+            .encode()
             .map_err(|e| format!("{e:?}"))
             .whatever_context("Failed to encode JPEG XL data")?;
 
@@ -255,7 +257,10 @@ impl PixelDataWriter for JpegXlAdapter {
         if samples_per_pixel == 1 {
             // set Photometric Interpretation to Monochrome2
             // if it was neither of the expected monochromes
-            if pmi != Some("MONOCHROME1") && pmi != Some("MONOCHROME2") && pmi != Some("PALETTE COLOR") {
+            if pmi != Some("MONOCHROME1")
+                && pmi != Some("MONOCHROME2")
+                && pmi != Some("PALETTE COLOR")
+            {
                 changes.push(AttributeOp::new(
                     Tag(0x0028, 0x0004),
                     AttributeAction::SetStr("MONOCHROME2".into()),

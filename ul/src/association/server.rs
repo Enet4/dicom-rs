@@ -19,7 +19,7 @@ use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use snafu::{ensure, ResultExt};
 
 use crate::association::NegotiatedOptions;
-use crate::pdu::{LARGE_PDU_SIZE, PresentationContextNegotiated};
+use crate::pdu::{PresentationContextNegotiated, LARGE_PDU_SIZE};
 use crate::{
     pdu::{
         write_pdu, AbortRQServiceProviderReason, AbortRQSource, AssociationAC, AssociationRJ,
@@ -572,8 +572,14 @@ where
             .set_write_timeout(self.write_timeout)
             .context(SetWriteTimeoutSnafu)?;
 
-        let mut read_buffer = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
-        let msg = read_pdu_from_wire(&mut socket, &mut read_buffer, self.max_pdu_length, self.strict)?;
+        let mut read_buffer =
+            BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+        let msg = read_pdu_from_wire(
+            &mut socket,
+            &mut read_buffer,
+            self.max_pdu_length,
+            self.strict,
+        )?;
         let mut write_buffer: Vec<u8> = Vec::with_capacity(DEFAULT_MAX_PDU as usize);
         match self.process_a_association_rq(msg) {
             Ok((
@@ -675,6 +681,18 @@ impl<S> ServerAssociation<S> {
     /// Obtain a view of the negotiated presentation contexts.
     pub fn presentation_contexts(&self) -> &[PresentationContextNegotiated] {
         &self.presentation_contexts
+    }
+
+    /// Retrieve the maximum PDU length
+    /// admitted by this application entity.
+    pub fn acceptor_max_pdu_length(&self) -> u32 {
+        self.acceptor_max_pdu_length
+    }
+
+    /// Retrieve the maximum PDU length
+    /// that the requestor is expecting to receive.
+    pub fn requestor_max_pdu_length(&self) -> u32 {
+        self.requestor_max_pdu_length
     }
 
     /// Obtain the remote DICOM node's application entity title.
@@ -830,9 +848,15 @@ pub mod non_blocking {
         WireSendSnafu,
     };
     use crate::{
-        Pdu, association::{
-            NegotiatedOptions, ReceivePduSnafu, SendPduSnafu, TimeoutSnafu, read_pdu_from_wire_async, server::MissingAbstractSyntaxSnafu
-        }, pdu::{AbortRQServiceProviderReason, AbortRQSource, DEFAULT_MAX_PDU, LARGE_PDU_SIZE, ReadPduSnafu}, write_pdu
+        association::{
+            read_pdu_from_wire_async, server::MissingAbstractSyntaxSnafu, NegotiatedOptions,
+            ReceivePduSnafu, SendPduSnafu, TimeoutSnafu,
+        },
+        pdu::{
+            AbortRQServiceProviderReason, AbortRQSource, ReadPduSnafu, DEFAULT_MAX_PDU,
+            LARGE_PDU_SIZE,
+        },
+        write_pdu, Pdu,
     };
 
     impl<A> ServerAssociationOptions<'_, A>
@@ -850,10 +874,15 @@ pub mod non_blocking {
             );
             let read_timeout = self.read_timeout;
             let task = async {
-                let mut read_buffer = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
-                let pdu =
-                    read_pdu_from_wire_async(&mut socket, &mut read_buffer, self.max_pdu_length, self.strict)
-                        .await?;
+                let mut read_buffer =
+                    BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+                let pdu = read_pdu_from_wire_async(
+                    &mut socket,
+                    &mut read_buffer,
+                    self.max_pdu_length,
+                    self.strict,
+                )
+                .await?;
 
                 let mut write_buffer: Vec<u8> = Vec::with_capacity(DEFAULT_MAX_PDU as usize);
                 match self.process_a_association_rq(pdu) {
@@ -867,7 +896,10 @@ pub mod non_blocking {
                         calling_ae_title,
                     )) => {
                         write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
-                        socket.write_all(&write_buffer).await.context(WireSendSnafu)?;
+                        socket
+                            .write_all(&write_buffer)
+                            .await
+                            .context(WireSendSnafu)?;
                         Ok(ServerAssociation {
                             presentation_contexts,
                             requestor_max_pdu_length: peer_max_pdu_length,
@@ -884,7 +916,10 @@ pub mod non_blocking {
                     Err((pdu, err)) => {
                         // send the rejection/abort PDU
                         write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
-                        socket.write_all(&write_buffer).await.context(WireSendSnafu)?;
+                        socket
+                            .write_all(&write_buffer)
+                            .await
+                            .context(WireSendSnafu)?;
                         Err(err)
                     }
                 }
@@ -1016,8 +1051,14 @@ mod tests {
             mut socket: std::net::TcpStream,
             extra_pdus: Vec<Pdu>,
         ) -> Result<ServerAssociation<TcpStream>> {
-            let mut read_buffer = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
-            let pdu = read_pdu_from_wire(&mut socket, &mut read_buffer, self.max_pdu_length, self.strict)?;
+            let mut read_buffer =
+                BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+            let pdu = read_pdu_from_wire(
+                &mut socket,
+                &mut read_buffer,
+                self.max_pdu_length,
+                self.strict,
+            )?;
             let (
                 pdu,
                 NegotiatedOptions {
@@ -1045,7 +1086,9 @@ mod tests {
                 client_ae_title: calling_ae_title,
                 buffer: write_buffer,
                 strict: self.strict,
-                read_buffer: BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize),
+                read_buffer: BytesMut::with_capacity(
+                    self.max_pdu_length.min(LARGE_PDU_SIZE) as usize
+                ),
                 read_timeout: self.read_timeout,
                 write_timeout: self.write_timeout,
             })
@@ -1062,10 +1105,15 @@ mod tests {
 
             use crate::association::read_pdu_from_wire_async;
 
-            let mut read_buffer = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
-            let pdu =
-                read_pdu_from_wire_async(&mut socket, &mut read_buffer, self.max_pdu_length, self.strict)
-                    .await?;
+            let mut read_buffer =
+                BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+            let pdu = read_pdu_from_wire_async(
+                &mut socket,
+                &mut read_buffer,
+                self.max_pdu_length,
+                self.strict,
+            )
+            .await?;
             let (
                 pdu,
                 NegotiatedOptions {
@@ -1078,7 +1126,8 @@ mod tests {
                 .process_a_association_rq(pdu)
                 .expect("Could not parse association req");
 
-            let mut buffer: Vec<u8> = Vec::with_capacity(peer_max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+            let mut buffer: Vec<u8> =
+                Vec::with_capacity(peer_max_pdu_length.min(LARGE_PDU_SIZE) as usize);
             write_pdu(&mut buffer, &pdu).context(SendPduSnafu)?;
             for extra_pdu in extra_pdus {
                 write_pdu(&mut buffer, &extra_pdu).context(SendPduSnafu)?;
@@ -1093,7 +1142,9 @@ mod tests {
                 client_ae_title: calling_ae_title,
                 buffer,
                 strict: self.strict,
-                read_buffer: BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize),
+                read_buffer: BytesMut::with_capacity(
+                    self.max_pdu_length.min(LARGE_PDU_SIZE) as usize
+                ),
                 read_timeout: self.read_timeout,
                 write_timeout: self.write_timeout,
             })
@@ -1104,8 +1155,14 @@ mod tests {
             &self,
             mut socket: TcpStream,
         ) -> Result<ServerAssociation<TcpStream>> {
-            let mut read_buffer = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
-            let msg = read_pdu_from_wire(&mut socket, &mut read_buffer, self.max_pdu_length, self.strict)?;
+            let mut read_buffer =
+                BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+            let msg = read_pdu_from_wire(
+                &mut socket,
+                &mut read_buffer,
+                self.max_pdu_length,
+                self.strict,
+            )?;
             let (
                 pdu,
                 NegotiatedOptions {
@@ -1128,7 +1185,9 @@ mod tests {
                 client_ae_title: calling_ae_title,
                 buffer: write_buffer,
                 strict: self.strict,
-                read_buffer: BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize),
+                read_buffer: BytesMut::with_capacity(
+                    self.max_pdu_length.min(LARGE_PDU_SIZE) as usize
+                ),
                 read_timeout: self.read_timeout,
                 write_timeout: self.write_timeout,
             })
@@ -1144,10 +1203,15 @@ mod tests {
 
             use crate::association::read_pdu_from_wire_async;
 
-            let mut read_buffer = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
-            let msg =
-                read_pdu_from_wire_async(&mut socket, &mut read_buffer, self.max_pdu_length, self.strict)
-                    .await?;
+            let mut read_buffer =
+                BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+            let msg = read_pdu_from_wire_async(
+                &mut socket,
+                &mut read_buffer,
+                self.max_pdu_length,
+                self.strict,
+            )
+            .await?;
             let (
                 pdu,
                 NegotiatedOptions {
@@ -1161,7 +1225,10 @@ mod tests {
                 .expect("Could not parse association req");
             let mut write_buffer: Vec<u8> = Vec::with_capacity(peer_max_pdu_length as usize);
             write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
-            socket.write_all(&write_buffer).await.context(WireSendSnafu)?;
+            socket
+                .write_all(&write_buffer)
+                .await
+                .context(WireSendSnafu)?;
             Ok(ServerAssociation {
                 presentation_contexts,
                 requestor_max_pdu_length: peer_max_pdu_length,
@@ -1170,7 +1237,9 @@ mod tests {
                 client_ae_title: calling_ae_title,
                 buffer: write_buffer,
                 strict: self.strict,
-                read_buffer: BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize),
+                read_buffer: BytesMut::with_capacity(
+                    self.max_pdu_length.min(LARGE_PDU_SIZE) as usize
+                ),
                 read_timeout: self.read_timeout,
                 write_timeout: self.write_timeout,
             })

@@ -340,13 +340,10 @@ fn convert_single_file(
                 | uids::JPEG2000_LOSSLESS => {
                     output.set_extension("jp2");
                 }
-                uids::JPEGLS_LOSSLESS
-                | uids::JPEGLS_NEAR_LOSSLESS => {
+                uids::JPEGLS_LOSSLESS | uids::JPEGLS_NEAR_LOSSLESS => {
                     output.set_extension("jls");
                 }
-                uids::JPEGXL
-                | uids::JPEGXLJPEG_RECOMPRESSION
-                | uids::JPEGXL_LOSSLESS => {
+                uids::JPEGXL | uids::JPEGXLJPEG_RECOMPRESSION | uids::JPEGXL_LOSSLESS => {
                     output.set_extension("jxl");
                 }
                 _ => {

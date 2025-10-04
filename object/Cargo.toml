@@ -1,6 +1,6 @@
 [package]
 name = "dicom-object"
-version = "0.8.2"
+version = "0.9.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 edition = "2018"
 rust-version = "1.72.0"
@@ -16,11 +16,11 @@ deflate = ['dicom-transfer-syntax-registry/deflate']
 inventory-registry = ['dicom-encoding/inventory-registry', 'dicom-transfer-syntax-registry/inventory-registry']
 
 [dependencies]
-dicom-core = { path = "../core", version = "0.8.2" }
-dicom-encoding = { path = "../encoding", version = "0.8.2" }
-dicom-parser = { path = "../parser", version = "0.8.2" }
-dicom-dictionary-std = { path = "../dictionary-std", version = "0.8.1" }
-dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.8.2", default-features=false }
+dicom-core = { path = "../core", version = "0.9" }
+dicom-encoding = { path = "../encoding", version = "0.9" }
+dicom-parser = { path = "../parser", version = "0.9" }
+dicom-dictionary-std = { path = "../dictionary-std", version = "0.9" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.9", default-features=false }
 itertools = "0.14"
 byteordered = "0.6"
 smallvec = "1.6.1"

@@ -41,7 +41,14 @@ fn check_w_monochrome_pixel(pixels: &[u8], columns: u16, x: u16, y: u16, expecte
     );
 }
 
-fn check_w_monochrome_pixel_approx(data: &[u8], columns: u16, x: u16, y: u16, pixel: u16, margin: u16) {
+fn check_w_monochrome_pixel_approx(
+    data: &[u8],
+    columns: u16,
+    x: u16,
+    y: u16,
+    pixel: u16,
+    margin: u16,
+) {
     let i = (y as usize * columns as usize + x as usize) * 2;
     let sample = u16::from_le_bytes([data[i], data[i + 1]]);
 
@@ -81,7 +88,8 @@ fn read_jpeg_ls_1() {
 
     // fetch decoder
 
-    let Codec::EncapsulatedPixelData(Some(adapter), _) = JPEG_LS_LOSSY_IMAGE_COMPRESSION.codec() else {
+    let Codec::EncapsulatedPixelData(Some(adapter), _) = JPEG_LS_LOSSY_IMAGE_COMPRESSION.codec()
+    else {
         panic!("JPEG-LS pixel data reader not found")
     };
 
@@ -138,7 +146,8 @@ fn read_jpeg_ls_lossless_1() {
     };
 
     // fetch decoder
-    let Codec::EncapsulatedPixelData(Some(adapter), _) = JPEG_LS_LOSSLESS_IMAGE_COMPRESSION.codec() else {
+    let Codec::EncapsulatedPixelData(Some(adapter), _) = JPEG_LS_LOSSLESS_IMAGE_COMPRESSION.codec()
+    else {
         panic!("JPEG pixel data reader not found")
     };
 
@@ -219,7 +228,9 @@ fn write_and_read_jpeg_ls() {
     };
 
     // fetch decoder and encoder
-    let Codec::EncapsulatedPixelData(Some(reader), Some(writer)) = JPEG_LS_LOSSY_IMAGE_COMPRESSION.codec() else {
+    let Codec::EncapsulatedPixelData(Some(reader), Some(writer)) =
+        JPEG_LS_LOSSY_IMAGE_COMPRESSION.codec()
+    else {
         panic!("JPEG-LS pixel data adapters not found")
     };
 

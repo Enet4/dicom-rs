@@ -4,7 +4,9 @@
 //! Only applicable to the inventory-based registry.
 #![cfg(feature = "inventory-registry")]
 
-use dicom_encoding::{submit_ele_transfer_syntax, Codec, NeverAdapter, NeverPixelAdapter, TransferSyntaxIndex};
+use dicom_encoding::{
+    submit_ele_transfer_syntax, Codec, NeverAdapter, NeverPixelAdapter, TransferSyntaxIndex,
+};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
 // install this dummy as a private transfer syntax

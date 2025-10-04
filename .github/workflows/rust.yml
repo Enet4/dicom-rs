@@ -42,19 +42,22 @@ jobs:
       # test dicom-ul with async feature
       - if: matrix.rust == 'stable' || matrix.rust == 'beta'
         run: cargo test -p dicom-ul --features async
-      # test library projects with minimum rust version
+      # test/check library projects with minimum rust version
       - if: matrix.rust == '1.72.0'
         run: |
-          cargo test -p dicom-core
-          cargo test -p dicom-encoding
-          cargo test -p dicom-dictionary-std
-          cargo test -p dicom-parser
-          cargo test -p dicom-transfer-syntax-registry
-          cargo test -p dicom-object
-          cargo test -p dicom-dump --no-default-features --features sop-class
+          cargo test \
+            -p dicom-core \
+            -p dicom-encoding \
+            -p dicom-dictionary-std \
+            -p dicom-parser \
+            -p dicom-transfer-syntax-registry \
+            -p dicom-object
           cargo test -p dicom-json
-          cargo test -p dicom-ul
-          cargo test -p dicom-pixeldata
+          # can test non-binary part of dicom-dump
+          cargo test -p dicom-dump --no-default-features --features sop-class
+          # cannot run tests, only build
+          cargo build -p dicom-ul -p dicom-pixeldata
+          # check parent crate
           cargo check -p dicom
         env:
           RUSTFLAGS: -A warnings # allows warnings, to not pollute CI with warnings that are no longer valid with stable rust version

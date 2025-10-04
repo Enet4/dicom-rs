@@ -56,7 +56,9 @@ impl PixelDataObject for TestDataObject {
     }
 
     fn number_of_fragments(&self) -> Option<u32> {
-        self.pixel_data_sequence.as_ref().map(|v| v.fragments().len() as u32)
+        self.pixel_data_sequence
+            .as_ref()
+            .map(|v| v.fragments().len() as u32)
     }
 
     fn fragment(&self, fragment: usize) -> Option<Cow<'_, [u8]>> {

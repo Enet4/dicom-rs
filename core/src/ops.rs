@@ -356,7 +356,9 @@ impl AttributeSelector {
                 };
                 (*first, rest)
             }
-            None => unreachable!("invariant broken: attribute selector should have at least one step"),
+            None => {
+                unreachable!("invariant broken: attribute selector should have at least one step")
+            }
         }
     }
 
@@ -706,7 +708,10 @@ pub trait ApplyOp {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ops::{AttributeSelector, AttributeSelectorStep}, Tag};
+    use crate::{
+        ops::{AttributeSelector, AttributeSelectorStep},
+        Tag,
+    };
 
     #[test]
     fn display_selectors() {
@@ -732,7 +737,10 @@ mod tests {
         assert_eq!(
             selector.split_first(),
             (
-                AttributeSelectorStep::Nested { tag: Tag(0x0018, 0x6011), item: 2 },
+                AttributeSelectorStep::Nested {
+                    tag: Tag(0x0018, 0x6011),
+                    item: 2
+                },
                 Some(Tag(0x0018, 0x6012).into())
             )
         );
@@ -742,10 +750,12 @@ mod tests {
         assert_eq!(
             selector.split_first(),
             (
-                AttributeSelectorStep::Nested { tag: Tag(0x0040, 0xA730), item: 0 },
+                AttributeSelectorStep::Nested {
+                    tag: Tag(0x0040, 0xA730),
+                    item: 0
+                },
                 Some(Tag(0x0040, 0xA730).into())
             )
         );
-
     }
 }

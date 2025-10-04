@@ -505,7 +505,7 @@ impl DicomTime {
     /// Any precision beyond the millisecond is discarded.
     pub fn millisecond(&self) -> Option<u32> {
         self.fraction_and_precision().and_then(|(f, fp)| match fp {
-            0 ..= 2 => None,
+            0..=2 => None,
             3 => Some(f),
             4 => Some(f / 10),
             5 => Some(f / 100),
@@ -622,7 +622,7 @@ impl DicomTime {
             Some((f, 6)) => format!("{:06}", f),
             Some((_, _)) => unreachable!("fp outside expected range 0..=6"),
         }
-    } 
+    }
 
     /**
      * Constructs a new `DicomTime` from an hour, minute, second, second fraction
@@ -1260,11 +1260,9 @@ mod tests {
             NaiveTime::from_hms_micro_opt(9, 1, 1, /* 00 */ 2999).unwrap()
         );
 
-        assert!(
-            DicomTime::from_hms_micro(9, 1, 1, 123456)
-                .unwrap()
-                .is_precise()
-        );
+        assert!(DicomTime::from_hms_micro(9, 1, 1, 123456)
+            .unwrap()
+            .is_precise());
 
         assert_eq!(
             DicomTime::from_hms_milli(9, 1, 1, 1).unwrap(),
@@ -1368,19 +1366,14 @@ mod tests {
                 NaiveTime::from_hms_opt(9, 9, 39).unwrap(),
             ),
             Utc,
-        ).with_timezone(&FixedOffset::east_opt(0).unwrap());
+        )
+        .with_timezone(&FixedOffset::east_opt(0).unwrap());
         let dicom_date_time = DicomDateTime::try_from(&date_time).unwrap();
         assert!(dicom_date_time.has_time_zone());
         assert!(dicom_date_time.is_precise());
         let dicom_time = dicom_date_time.time().unwrap();
-        assert_eq!(
-            dicom_time.fraction_and_precision(),
-            Some((0, 6)),
-        );
-        assert_eq!(
-            dicom_date_time.to_encoded(),
-            "20240809090939.000000+0000"
-        );
+        assert_eq!(dicom_time.fraction_and_precision(), Some((0, 6)),);
+        assert_eq!(dicom_date_time.to_encoded(), "20240809090939.000000+0000");
 
         assert_eq!(
             dicom_date_time.time().map(|t| t.millisecond()),
@@ -1390,7 +1383,10 @@ mod tests {
         // time parsing
 
         let time: DicomTime = "211133.7651".parse().unwrap();
-        assert_eq!(time, DicomTime(DicomTimeImpl::Fraction(21, 11, 33, 7651, 4)));
+        assert_eq!(
+            time,
+            DicomTime(DicomTimeImpl::Fraction(21, 11, 33, 7651, 4))
+        );
         assert_eq!(time.fraction_ms(), Some(765));
         assert_eq!(time.fraction_micro(), Some(765_100));
         assert_eq!(time.fraction_precision(), 4);
@@ -1449,12 +1445,7 @@ mod tests {
             assert_eq!(time.fraction_str(), frac.to_string());
         }
         // test fraction retrieval: without a fraction, it returns None
-        assert_eq!(
-            DicomTime::from_hms(9, 1, 1)
-                .unwrap()
-                .fraction_micro(),
-                None
-        );
+        assert_eq!(DicomTime::from_hms(9, 1, 1).unwrap().fraction_micro(), None);
     }
 
     #[test]
@@ -1669,14 +1660,12 @@ mod tests {
         ));
 
         // simple precision checks
-        assert!(
-            !DicomDateTime::from_date_and_time(
-                DicomDate::from_ymd(2000, 1, 1).unwrap(),
-                DicomTime::from_hms_milli(23, 59, 59, 10).unwrap()
-            )
-            .unwrap()
-            .is_precise()
-        );
+        assert!(!DicomDateTime::from_date_and_time(
+            DicomDate::from_ymd(2000, 1, 1).unwrap(),
+            DicomTime::from_hms_milli(23, 59, 59, 10).unwrap()
+        )
+        .unwrap()
+        .is_precise());
 
         assert!(DicomDateTime::from_date_and_time(
             DicomDate::from_ymd(2000, 1, 1).unwrap(),
