@@ -16,16 +16,19 @@
 //!
 //!
 //! [1]: std::net::TcpStream
-#[cfg(test)]
-mod tests;
 pub mod client;
 pub mod server;
+#[cfg(test)]
+mod tests;
 
 mod uid;
 
 pub(crate) mod pdata;
 
-use std::{backtrace::Backtrace, io::{BufRead, BufReader, Cursor, Read}};
+use std::{
+    backtrace::Backtrace,
+    io::{BufRead, BufReader, Cursor, Read},
+};
 
 use bytes::{Buf, BytesMut};
 pub use client::{ClientAssociation, ClientAssociationOptions};
@@ -33,11 +36,14 @@ pub use client::{ClientAssociation, ClientAssociationOptions};
 pub use pdata::non_blocking::AsyncPDataWriter;
 pub use pdata::{PDataReader, PDataWriter};
 pub use server::{ServerAssociation, ServerAssociationOptions};
-use snafu::{ensure, Snafu, ResultExt};
+use snafu::{ensure, ResultExt, Snafu};
 
-use crate::{Pdu, pdu::{self, AssociationRJ, PresentationContextNegotiated, ReadPduSnafu, UserVariableItem}};
+use crate::{
+    pdu::{self, AssociationRJ, PresentationContextNegotiated, ReadPduSnafu, UserVariableItem},
+    Pdu,
+};
 
-pub(crate) struct NegotiatedOptions{
+pub(crate) struct NegotiatedOptions {
     peer_max_pdu_length: u32,
     user_variables: Vec<UserVariableItem>,
     presentation_contexts: Vec<PresentationContextNegotiated>,
@@ -77,7 +83,7 @@ pub enum Error {
 
     /// failed to send association request
     #[snafu(display("failed to send pdu: {}", source))]
-    SendPdu{
+    SendPdu {
         #[snafu(backtrace)]
         source: crate::pdu::WriteError,
     },
@@ -200,7 +206,7 @@ where
 use tokio::io::{AsyncRead, AsyncReadExt};
 
 /// Helper function to get a PDU from an async reader.
-/// 
+///
 /// Chunks of data are read into `read_buffer`,
 /// which should be passed in subsequent calls
 /// to receive more PDUs from the same stream.

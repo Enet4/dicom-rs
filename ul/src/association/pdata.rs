@@ -6,7 +6,10 @@ use std::{
 use bytes::{Buf, BytesMut};
 use tracing::warn;
 
-use crate::{Pdu, pdu::{LARGE_PDU_SIZE, PDU_HEADER_SIZE}, read_pdu};
+use crate::{
+    pdu::{LARGE_PDU_SIZE, PDU_HEADER_SIZE},
+    read_pdu, Pdu,
+};
 
 /// Set up the P-Data PDU header for sending.
 fn setup_pdata_header(buffer: &mut [u8], is_last: bool) {
@@ -93,7 +96,8 @@ where
     /// `max_pdu_length` is the maximum value of the PDU-length property.
     pub(crate) fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32) -> Self {
         let max_data_length = calculate_max_data_len_single(max_pdu_length);
-        let mut buffer = Vec::with_capacity((max_data_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize);
+        let mut buffer =
+            Vec::with_capacity((max_data_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize);
         // initial buffer set up
         buffer.extend([
             // PDU-type + reserved byte
@@ -435,7 +439,9 @@ pub mod non_blocking {
             use crate::pdu::LARGE_PDU_SIZE;
 
             let max_data_length = calculate_max_data_len_single(max_pdu_length);
-            let mut buffer = Vec::with_capacity((max_data_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize);
+            let mut buffer = Vec::with_capacity(
+                (max_data_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
+            );
             // initial buffer set up
             buffer.extend([
                 // PDU-type + reserved byte

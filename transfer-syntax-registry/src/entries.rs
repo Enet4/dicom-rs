@@ -185,7 +185,11 @@ pub const JPEG_LOSSLESS_NON_HIERARCHICAL_FIRST_ORDER_PREDICTION: Ts = create_ts_
 
 #[cfg(feature = "deflate")]
 /// **Fully implemented**: Deflated Explicit VR Little Endian
-pub const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN: TransferSyntax<FlateAdapter, NeverAdapter, NeverAdapter> = TransferSyntax::new(
+pub const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN: TransferSyntax<
+    FlateAdapter,
+    NeverAdapter,
+    NeverAdapter,
+> = TransferSyntax::new(
     "1.2.840.10008.1.2.1.99",
     "Deflated Explicit VR Little Endian",
     Endianness::Little,
@@ -208,13 +212,14 @@ pub const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN: Ts = Ts::new_ele(
 
 /// **Implemented**: JPIP Referenced Deflate
 #[cfg(feature = "deflate")]
-pub const JPIP_REFERENCED_DEFLATE: TransferSyntax<FlateAdapter, NeverAdapter, NeverAdapter> = TransferSyntax::new(
-    "1.2.840.10008.1.2.4.95",
-    "JPIP Referenced Deflate",
-    Endianness::Little,
-    true,
-    Codec::Dataset(Some(FlateAdapter)),
-);
+pub const JPIP_REFERENCED_DEFLATE: TransferSyntax<FlateAdapter, NeverAdapter, NeverAdapter> =
+    TransferSyntax::new(
+        "1.2.840.10008.1.2.4.95",
+        "JPIP Referenced Deflate",
+        Endianness::Little,
+        true,
+        Codec::Dataset(Some(FlateAdapter)),
+    );
 
 /// **Stub descriptor:** JPIP Referenced Deflate
 ///
@@ -229,13 +234,14 @@ pub const JPIP_REFERENCED_DEFLATE: Ts = Ts::new_ele(
 
 /// **Implemented**: JPIP HTJ2K Referenced Deflate
 #[cfg(feature = "deflate")]
-pub const JPIP_HTJ2K_REFERENCED_DEFLATE: TransferSyntax<FlateAdapter, NeverAdapter, NeverAdapter> = TransferSyntax::new(
-    "1.2.840.10008.1.2.4.205",
-    "JPIP HT2JK Referenced Deflate",
-    Endianness::Little,
-    true,
-    Codec::Dataset(Some(FlateAdapter)),
-);
+pub const JPIP_HTJ2K_REFERENCED_DEFLATE: TransferSyntax<FlateAdapter, NeverAdapter, NeverAdapter> =
+    TransferSyntax::new(
+        "1.2.840.10008.1.2.4.205",
+        "JPIP HT2JK Referenced Deflate",
+        Endianness::Little,
+        true,
+        Codec::Dataset(Some(FlateAdapter)),
+    );
 
 /// **Stub descriptor:** JPIP HTJ2K Referenced Deflate
 ///
@@ -332,16 +338,18 @@ pub const HIGH_THROUGHPUT_JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY: Ts = create
 
 /// **Decoder implementation:** High-Throughput JPEG 2000 with RPCL Options Image Compression (Lossless Only)
 #[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
-pub const HIGH_THROUGHPUT_JPEG_2000_WITH_RPCL_OPTIONS_IMAGE_COMPRESSION_LOSSLESS_ONLY: Jpeg2000Ts = create_ts_jpeg2k(
-    "1.2.840.10008.1.2.4.202",
-    "High-Throughput JPEG 2000 with RPCL Options Image Compression (Lossless Only)",
-);
+pub const HIGH_THROUGHPUT_JPEG_2000_WITH_RPCL_OPTIONS_IMAGE_COMPRESSION_LOSSLESS_ONLY: Jpeg2000Ts =
+    create_ts_jpeg2k(
+        "1.2.840.10008.1.2.4.202",
+        "High-Throughput JPEG 2000 with RPCL Options Image Compression (Lossless Only)",
+    );
 /// **Stub descriptor:** High-Throughput JPEG 2000 Image Compression (Lossless Only)
 #[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys")))]
-pub const HIGH_THROUGHPUT_JPEG_2000_WITH_RPCL_OPTIONS_IMAGE_COMPRESSION_LOSSLESS_ONLY: Ts = create_ts_stub(
-    "1.2.840.10008.1.2.4.202",
-    "High-Throughput JPEG 2000 with RPCL Options Image Compression (Lossless Only)",
-);
+pub const HIGH_THROUGHPUT_JPEG_2000_WITH_RPCL_OPTIONS_IMAGE_COMPRESSION_LOSSLESS_ONLY: Ts =
+    create_ts_stub(
+        "1.2.840.10008.1.2.4.202",
+        "High-Throughput JPEG 2000 with RPCL Options Image Compression (Lossless Only)",
+    );
 
 /// **Decoder implementation:** High-Throughput JPEG 2000 Image Compression
 #[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
@@ -356,7 +364,6 @@ pub const HIGH_THROUGHPUT_JPEG_2000_IMAGE_COMPRESSION: Ts = create_ts_stub(
     "High-Throughput JPEG 2000 Image Compression",
 );
 
-
 // --- JPEG-LS ---
 
 /// An alias for a transfer syntax specifier with [`JpegLSAdapter`] as the decoder
@@ -366,11 +373,12 @@ type JpegLSTs<W> = TransferSyntax<NeverAdapter, JpegLsAdapter, W>;
 
 /// **Decoder Implementation:** JPEG-LS Lossless Image Compression
 #[cfg(feature = "charls")]
-pub const JPEG_LS_LOSSLESS_IMAGE_COMPRESSION: JpegLSTs<JpegLsLosslessWriter> = TransferSyntax::new_ele(
-    "1.2.840.10008.1.2.4.80",
-    "JPEG-LS Lossless Image Compression",
-    Codec::EncapsulatedPixelData(Some(JpegLsAdapter), Some(JpegLsLosslessWriter)),
-);
+pub const JPEG_LS_LOSSLESS_IMAGE_COMPRESSION: JpegLSTs<JpegLsLosslessWriter> =
+    TransferSyntax::new_ele(
+        "1.2.840.10008.1.2.4.80",
+        "JPEG-LS Lossless Image Compression",
+        Codec::EncapsulatedPixelData(Some(JpegLsAdapter), Some(JpegLsLosslessWriter)),
+    );
 
 /// **Stub descriptor:** JPEG-LS Lossless Image Compression
 #[cfg(not(feature = "charls"))]
@@ -395,18 +403,16 @@ type JpegXlTs<R = JpegXlAdapter, W = JpegXlAdapter> = TransferSyntax<NeverAdapte
 
 /// **Implemented:** JPEG XL Lossless
 #[cfg(feature = "jpegxl")]
-pub const JPEG_XL_LOSSLESS: JpegXlTs<JpegXlAdapter, JpegXlLosslessEncoder> = TransferSyntax::new_ele(
-    "1.2.840.10008.1.2.4.110",
-    "JPEG XL Lossless",
-    Codec::EncapsulatedPixelData(Some(JpegXlAdapter), Some(JpegXlLosslessEncoder)),
-);
+pub const JPEG_XL_LOSSLESS: JpegXlTs<JpegXlAdapter, JpegXlLosslessEncoder> =
+    TransferSyntax::new_ele(
+        "1.2.840.10008.1.2.4.110",
+        "JPEG XL Lossless",
+        Codec::EncapsulatedPixelData(Some(JpegXlAdapter), Some(JpegXlLosslessEncoder)),
+    );
 
 /// **Stub descriptor:** JPEG XL Lossless
 #[cfg(not(feature = "jpegxl"))]
-pub const JPEG_XL_LOSSLESS: Ts = create_ts_stub(
-    "1.2.840.10008.1.2.4.110",
-    "JPEG XL Lossless"
-);
+pub const JPEG_XL_LOSSLESS: Ts = create_ts_stub("1.2.840.10008.1.2.4.110", "JPEG XL Lossless");
 
 /// **Decoder Implementation:** JPEG XL Recompression
 #[cfg(feature = "jpegxl")]
@@ -418,10 +424,8 @@ pub const JPEG_XL_RECOMPRESSION: JpegXlTs = TransferSyntax::new_ele(
 
 /// **Stub descriptor:** JPEG XL Recompression
 #[cfg(not(feature = "jpegxl"))]
-pub const JPEG_XL_RECOMPRESSION: Ts = create_ts_stub(
-    "1.2.840.10008.1.2.4.111",
-    "JPEG XL Recompression"
-);
+pub const JPEG_XL_RECOMPRESSION: Ts =
+    create_ts_stub("1.2.840.10008.1.2.4.111", "JPEG XL Recompression");
 
 /// **Implemented:** JPEG XL
 #[cfg(feature = "jpegxl")]
@@ -433,10 +437,7 @@ pub const JPEG_XL: JpegXlTs = TransferSyntax::new_ele(
 
 /// **Stub descriptor:** JPEG XL
 #[cfg(not(feature = "jpegxl"))]
-pub const JPEG_XL: Ts = create_ts_stub(
-    "1.2.840.10008.1.2.4.112",
-    "JPEG XL"
-);
+pub const JPEG_XL: Ts = create_ts_stub("1.2.840.10008.1.2.4.112", "JPEG XL");
 
 /// **Stub descriptor:** JPEG-LS Lossy (Near-Lossless) Image Compression
 #[cfg(not(feature = "charls"))]
@@ -449,7 +450,8 @@ pub const JPEG_LS_LOSSY_IMAGE_COMPRESSION: Ts = create_ts_stub(
 pub const JPIP_REFERENCED: Ts = create_ts_stub("1.2.840.10008.1.2.4.94", "JPIP Referenced");
 
 /// **Stub descriptor:** JPIP HT2JK Referenced
-pub const JPIP_HTJ2K_REFERENCED: Ts = create_ts_stub("1.2.840.10008.1.2.4.204", "JPIP HTJ2K Referenced");
+pub const JPIP_HTJ2K_REFERENCED: Ts =
+    create_ts_stub("1.2.840.10008.1.2.4.204", "JPIP HTJ2K Referenced");
 
 /// **Stub descriptor:** MPEG2 Main Profile / Main Level
 pub const MPEG2_MAIN_PROFILE_MAIN_LEVEL: Ts =

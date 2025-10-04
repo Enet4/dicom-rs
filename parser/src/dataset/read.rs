@@ -4,7 +4,9 @@
 //! The rest of the crate is used to obtain DICOM element headers and values.
 //! At this level, headers and values are treated as tokens which can be used
 //! to form a syntax tree of a full data set.
-use crate::stateful::decode::{CharacterSetOverride, DynStatefulDecoder, Error as DecoderError, StatefulDecode};
+use crate::stateful::decode::{
+    CharacterSetOverride, DynStatefulDecoder, Error as DecoderError, StatefulDecode,
+};
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
 use dicom_core::{PrimitiveValue, Tag, VR};
 use dicom_encoding::text::SpecificCharacterSet;
@@ -255,7 +257,9 @@ impl<R> DataSetReader<DynStatefulDecoder<R>> {
     where
         R: Read,
     {
-        let parser = DynStatefulDecoder::new_with_override(source, ts, cs, options.charset_override, 0).context(CreateDecoderSnafu)?;
+        let parser =
+            DynStatefulDecoder::new_with_override(source, ts, cs, options.charset_override, 0)
+                .context(CreateDecoderSnafu)?;
 
         is_stateful_decode(&parser);
 
@@ -383,9 +387,9 @@ where
                     source: dicom_encoding::decode::Error::ReadItemHeader { source, .. },
                     ..
                 }) if source.kind() == std::io::ErrorKind::UnexpectedEof
-                   && self.seq_delimiters.pop().is_some_and(|t| t.pixel_data)
-                 => {
-                    // Note: if `UnexpectedEof` was reached while inside a 
+                    && self.seq_delimiters.pop().is_some_and(|t| t.pixel_data) =>
+                {
+                    // Note: if `UnexpectedEof` was reached while inside a
                     // PixelData Sequence, then we assume that
                     // the end of a DICOM object was reached gracefully.
                     self.hard_break = true;
@@ -1405,8 +1409,7 @@ mod tests {
         );
         let mut dset_reader = DataSetReader::new(parser, Default::default());
 
-        let token_res = (&mut dset_reader)
-            .collect::<Result<Vec<_>, _>>();
+        let token_res = (&mut dset_reader).collect::<Result<Vec<_>, _>>();
         dbg!(&token_res);
         assert!(token_res.is_err());
     }
@@ -1470,13 +1473,17 @@ mod tests {
         let mut tokens = dset_reader.into_iter();
         let token = tokens.next();
 
-        assert!(matches!(
-            token,
-            Some(Err(super::Error::InvalidElementLength {
-                tag: Tag(0x0008, 0x0016),
-                len: 11,
-                bytes_read: 8,
-            })),
-        ), "got: {:?}", token);
+        assert!(
+            matches!(
+                token,
+                Some(Err(super::Error::InvalidElementLength {
+                    tag: Tag(0x0008, 0x0016),
+                    len: 11,
+                    bytes_read: 8,
+                })),
+            ),
+            "got: {:?}",
+            token
+        );
     }
 }

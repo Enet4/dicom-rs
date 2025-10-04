@@ -272,7 +272,6 @@ fn write_and_read_jpeg_baseline() {
 
 #[test]
 fn test_decode_jpeg_trailing_bytes() {
-
     let test_file = dicom_test_files::path("pydicom/SC_rgb_jpeg_lossy_gdcm.dcm").unwrap();
 
     // manually fetch the pixel data fragment from the file

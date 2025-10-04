@@ -120,7 +120,8 @@ use dicom_parser::{
     dataset::{
         lazy_read::{LazyDataSetReader, LazyDataSetReaderOptions},
         DataToken, LazyDataToken,
-    }, DynStatefulDecoder, StatefulDecode, StatefulDecoder
+    },
+    DynStatefulDecoder, StatefulDecode, StatefulDecoder,
 };
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use snafu::prelude::*;
@@ -324,7 +325,12 @@ impl<D, R> DicomCollectorOptions<D, R> {
         let reader = BufReader::new(File::open(filename).context(OpenFileSnafu { filename })?);
 
         Ok(DicomCollector {
-            source: CollectionSource::new(reader, self.ts_index, self.odd_length, self.charset_override),
+            source: CollectionSource::new(
+                reader,
+                self.ts_index,
+                self.odd_length,
+                self.charset_override,
+            ),
             dictionary: self.dict,
             ts_hint: self.ts_hint,
             file_meta: None,
@@ -340,7 +346,12 @@ impl<D, R> DicomCollectorOptions<D, R> {
         R: TransferSyntaxIndex,
     {
         DicomCollector {
-            source: CollectionSource::new(reader, self.ts_index, self.odd_length, self.charset_override),
+            source: CollectionSource::new(
+                reader,
+                self.ts_index,
+                self.odd_length,
+                self.charset_override,
+            ),
             dictionary: self.dict,
             ts_hint: self.ts_hint,
             file_meta: None,
@@ -399,7 +410,12 @@ where
     S: Read + Seek,
     R: TransferSyntaxIndex,
 {
-    fn new(raw_source: S, ts_index: R, odd_length: OddLengthStrategy, charset_override: CharacterSetOverride) -> Self {
+    fn new(
+        raw_source: S,
+        ts_index: R,
+        odd_length: OddLengthStrategy,
+        charset_override: CharacterSetOverride,
+    ) -> Self {
         CollectionSource::Raw {
             reader: Some(raw_source),
             ts_index,
@@ -539,7 +555,12 @@ where
     /// The transfer syntax is guessed from the file meta group data set.
     pub fn new(reader: BufReader<S>) -> Self {
         DicomCollector {
-            source: CollectionSource::new(reader, TransferSyntaxRegistry, Default::default(), Default::default()),
+            source: CollectionSource::new(
+                reader,
+                TransferSyntaxRegistry,
+                Default::default(),
+                Default::default(),
+            ),
             dictionary: StandardDataDictionary,
             ts_hint: None,
             file_meta: None,
@@ -558,7 +579,12 @@ where
         transfer_syntax: impl Into<Cow<'static, str>>,
     ) -> Self {
         DicomCollector {
-            source: CollectionSource::new(reader, TransferSyntaxRegistry, Default::default(), Default::default()),
+            source: CollectionSource::new(
+                reader,
+                TransferSyntaxRegistry,
+                Default::default(),
+                Default::default(),
+            ),
             dictionary: StandardDataDictionary,
             ts_hint: Some(transfer_syntax.into()),
             file_meta: None,
@@ -610,7 +636,12 @@ where
     /// The standard transfer syntax registry is used.
     fn new_with_dict(reader: BufReader<S>, dictionary: D) -> Self {
         DicomCollector {
-            source: CollectionSource::new(reader, TransferSyntaxRegistry, Default::default(), Default::default()),
+            source: CollectionSource::new(
+                reader,
+                TransferSyntaxRegistry,
+                Default::default(),
+                Default::default(),
+            ),
             dictionary,
             ts_hint: None,
             file_meta: None,
@@ -725,13 +756,13 @@ where
     /// ```no_run
     /// # use dicom_object::{DicomCollector, FileMetaTable, InMemDicomObject};
     /// let mut collector = DicomCollector::open_file("file.dcm")?;
-    /// 
+    ///
     /// // read_file_meta() only returns a reference
     /// let _: &FileMetaTable  = collector.read_file_meta()?;
     /// // read some data from the main data set
     /// let mut main_dataset = InMemDicomObject::new_empty();
-    /// collector.read_dataset_up_to_pixeldata(&mut main_dataset)?; 
-    /// 
+    /// collector.read_dataset_up_to_pixeldata(&mut main_dataset)?;
+    ///
     /// // take the table out of the collector,
     /// // as it is no longer needed
     /// let file_meta: FileMetaTable = collector.take_file_meta()
@@ -1249,7 +1280,8 @@ mod tests {
     use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
     use crate::{
-        file::ReadPreamble, DicomCollectorOptions, FileMetaTable, FileMetaTableBuilder, InMemDicomObject
+        file::ReadPreamble, DicomCollectorOptions, FileMetaTable, FileMetaTableBuilder,
+        InMemDicomObject,
     };
 
     use super::DicomCollector;
@@ -1408,17 +1440,23 @@ mod tests {
 
         let reader = BufReader::new(std::io::Cursor::new(&encoded));
         let mut collector = DicomCollector::new(reader);
-        
+
         // read_file_meta() only returns a reference
-        let _: &FileMetaTable  = collector.read_file_meta().unwrap();
+        let _: &FileMetaTable = collector.read_file_meta().unwrap();
         // read some data from the main data set
         let mut main_dataset = InMemDicomObject::new_empty();
-        collector.read_dataset_up_to_pixeldata(&mut main_dataset).unwrap(); 
-        
+        collector
+            .read_dataset_up_to_pixeldata(&mut main_dataset)
+            .unwrap();
+
         // can reliably take the table out of the collector
-        let file_meta: FileMetaTable = collector.take_file_meta()
+        let file_meta: FileMetaTable = collector
+            .take_file_meta()
             .expect("should have file meta info");
-        assert_eq!(file_meta.media_storage_sop_instance_uid(), "2.25.248821220596756482508841578490676982546");
+        assert_eq!(
+            file_meta.media_storage_sop_instance_uid(),
+            "2.25.248821220596756482508841578490676982546"
+        );
 
         // can still read more data afterwards
         let mut fragment_data = Vec::new();

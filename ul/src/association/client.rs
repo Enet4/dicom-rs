@@ -14,11 +14,18 @@ use std::{
 };
 
 use crate::{
-    AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME, association::{
-        ConnectSnafu, MissingAbstractSyntaxSnafu, NegotiatedOptions, NoAcceptedPresentationContextsSnafu, ProtocolVersionMismatchSnafu, RejectedSnafu, SendPduSnafu, SendTooLongPduSnafu, SetReadTimeoutSnafu, SetWriteTimeoutSnafu, ToAddressSnafu, UnexpectedPduSnafu, UnknownPduSnafu, WireSendSnafu, read_pdu_from_wire
-    }, pdu::{
-        AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, LARGE_PDU_SIZE, Pdu, PresentationContextNegotiated, PresentationContextProposed, PresentationContextResultReason, UserIdentity, UserIdentityType, UserVariableItem, write_pdu
-    }
+    association::{
+        read_pdu_from_wire, ConnectSnafu, MissingAbstractSyntaxSnafu, NegotiatedOptions,
+        NoAcceptedPresentationContextsSnafu, ProtocolVersionMismatchSnafu, RejectedSnafu,
+        SendPduSnafu, SendTooLongPduSnafu, SetReadTimeoutSnafu, SetWriteTimeoutSnafu,
+        ToAddressSnafu, UnexpectedPduSnafu, UnknownPduSnafu, WireSendSnafu,
+    },
+    pdu::{
+        write_pdu, AbortRQSource, AssociationAC, AssociationRQ, Pdu, PresentationContextNegotiated,
+        PresentationContextProposed, PresentationContextResultReason, UserIdentity,
+        UserIdentityType, UserVariableItem, DEFAULT_MAX_PDU, LARGE_PDU_SIZE,
+    },
+    AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
 use snafu::{ensure, ResultExt};
 
@@ -1056,16 +1063,26 @@ pub mod non_blocking {
             // send request
             write_pdu(&mut write_buffer, &a_associate).context(SendPduSnafu)?;
             timeout(self.write_timeout, async {
-                socket.write_all(&write_buffer).await.context(WireSendSnafu)?;
+                socket
+                    .write_all(&write_buffer)
+                    .await
+                    .context(WireSendSnafu)?;
                 Ok(())
             })
             .await?;
             write_buffer.clear();
 
             // read buffer is prepared according to the requestor's max pdu length
-            let mut read_buffer = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+            let mut read_buffer =
+                BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
             let resp = timeout(self.read_timeout, async {
-                read_pdu_from_wire_async(&mut socket, &mut read_buffer, self.max_pdu_length, self.strict).await
+                read_pdu_from_wire_async(
+                    &mut socket,
+                    &mut read_buffer,
+                    self.max_pdu_length,
+                    self.strict,
+                )
+                .await
             })
             .await?;
             let negotiated_options = self.process_a_association_resp(resp, &pc_proposed);
@@ -1078,7 +1095,10 @@ pub mod non_blocking {
                             source: AbortRQSource::ServiceUser,
                         },
                     );
-                    socket.write_all(&write_buffer).await.context(WireSendSnafu)?;
+                    socket
+                        .write_all(&write_buffer)
+                        .await
+                        .context(WireSendSnafu)?;
                     write_buffer.clear();
                     Err(e)
                 }
@@ -1329,8 +1349,14 @@ mod tests {
             socket.write_all(&write_buffer).context(WireSendSnafu)?;
             write_buffer.clear();
 
-            let mut read_buffer = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
-            let resp = read_pdu_from_wire(&mut socket, &mut read_buffer, self.max_pdu_length, self.strict)?;
+            let mut read_buffer =
+                BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+            let resp = read_pdu_from_wire(
+                &mut socket,
+                &mut read_buffer,
+                self.max_pdu_length,
+                self.strict,
+            )?;
             let NegotiatedOptions {
                 presentation_contexts,
                 peer_max_pdu_length,
@@ -1432,7 +1458,9 @@ mod tests {
                 socket,
                 buffer,
                 strict: self.strict,
-                read_buffer: BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize),
+                read_buffer: BytesMut::with_capacity(
+                    self.max_pdu_length.min(LARGE_PDU_SIZE) as usize
+                ),
                 read_timeout: self.read_timeout,
                 write_timeout: self.write_timeout,
                 user_variables,
@@ -1474,7 +1502,9 @@ mod tests {
                 socket,
                 buffer,
                 strict: self.strict,
-                read_buffer: BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize),
+                read_buffer: BytesMut::with_capacity(
+                    self.max_pdu_length.min(LARGE_PDU_SIZE) as usize
+                ),
                 read_timeout: self.read_timeout,
                 write_timeout: self.write_timeout,
                 user_variables,

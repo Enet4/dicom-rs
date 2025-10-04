@@ -16,7 +16,6 @@ use std::io::{Read, Write};
 struct DummyCodecAdapter;
 
 impl DataRWAdapter for DummyCodecAdapter {
-
     fn adapt_reader<'r>(&self, reader: Box<dyn Read + 'r>) -> Box<dyn Read + 'r> {
         reader
     }

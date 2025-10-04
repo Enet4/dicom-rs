@@ -1,5 +1,5 @@
-//! Test suite for JPEG-LS pixel data reading and writing
-#![cfg(feature = "charls")]
+//! Test suite for JPEG 2000 pixel data reading and writing
+#![cfg(any(feature = "openjpeg-sys", feature = "openjp2"))]
 
 mod adapters;
 
@@ -16,7 +16,7 @@ use dicom_encoding::{
     Codec,
 };
 use dicom_transfer_syntax_registry::entries::{
-    JPEG_LS_LOSSLESS_IMAGE_COMPRESSION, JPEG_LS_LOSSY_IMAGE_COMPRESSION,
+    JPEG_2000_IMAGE_COMPRESSION, JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY,
 };
 
 fn read_data_piece(test_file: impl AsRef<Path>, offset: u64, length: usize) -> Vec<u8> {
@@ -63,78 +63,20 @@ fn check_w_monochrome_pixel_approx(
 }
 
 #[test]
-fn read_jpeg_ls_1() {
-    let test_file = dicom_test_files::path("WG04/JLSN/NM1_JLSN").unwrap();
+fn read_jpeg_2000_1() {
+    let test_file = dicom_test_files::path("WG04/J2KI/NM1_J2KI").unwrap();
 
     // manually fetch the pixel data fragment from the file
 
-    // single fragment found in file data offset 0x0bd4, 29194 bytes
-    let buf = read_data_piece(test_file, 0x0bd4, 29194);
+    // single fragment found in file data offset 0x0bea, 250 bytes
+    let buf = read_data_piece(test_file, 0x0bea, 250);
+
+    let cols = 256;
 
     // create test object
     let obj = TestDataObject {
-        // JPEG-LS Lossy (near-lossless)
-        ts_uid: "1.2.840.10008.1.2.4.81".to_string(),
+        ts_uid: "1.2.840.10008.1.2.4.91".to_string(),
         rows: 1024,
-        columns: 256,
-        bits_allocated: 16,
-        bits_stored: 16,
-        samples_per_pixel: 1,
-        photometric_interpretation: "MONOCHROME2",
-        number_of_frames: 1,
-        flat_pixel_data: None,
-        pixel_data_sequence: Some(PixelFragmentSequence::new(vec![], vec![buf])),
-    };
-
-    // fetch decoder
-
-    let Codec::EncapsulatedPixelData(Some(adapter), _) = JPEG_LS_LOSSY_IMAGE_COMPRESSION.codec()
-    else {
-        panic!("JPEG-LS pixel data reader not found")
-    };
-
-    let mut dest = vec![];
-
-    adapter
-        .decode_frame(&obj, 0, &mut dest)
-        .expect("JPEG-LS frame decoding failed");
-
-    // inspect the result
-
-    assert_eq!(dest.len(), 1024 * 256 * 2);
-
-    let err_margin = 512;
-
-    // check a few known pixels
-
-    // 0, 0
-    check_w_monochrome_pixel_approx(&dest, 256, 0, 0, 0, err_margin);
-    // 64, 154
-    check_w_monochrome_pixel_approx(&dest, 256, 64, 154, 0, err_margin);
-    // 135, 145
-    check_w_monochrome_pixel_approx(&dest, 256, 135, 145, 168, err_margin);
-    // 80, 188
-    check_w_monochrome_pixel_approx(&dest, 256, 80, 188, 9, err_margin);
-    // 136, 416
-    check_w_monochrome_pixel_approx(&dest, 256, 136, 416, 245, err_margin);
-}
-
-#[test]
-fn read_jpeg_ls_lossless_1() {
-    let test_file = dicom_test_files::path("pydicom/MR_small_jpeg_ls_lossless.dcm").unwrap();
-
-    // manually fetch the pixel data fragment from the file
-
-    // single fragment found in file data offset 0x60c, 4430 bytes
-    let buf = read_data_piece(test_file, 0x060c, 4430);
-
-    let cols = 64;
-
-    // create test object
-    let obj = TestDataObject {
-        // JPEG-LS Lossless
-        ts_uid: "1.2.840.10008.1.2.4.80".to_string(),
-        rows: 64,
         columns: cols,
         bits_allocated: 16,
         bits_stored: 16,
@@ -146,40 +88,97 @@ fn read_jpeg_ls_lossless_1() {
     };
 
     // fetch decoder
-    let Codec::EncapsulatedPixelData(Some(adapter), _) = JPEG_LS_LOSSLESS_IMAGE_COMPRESSION.codec()
-    else {
-        panic!("JPEG pixel data reader not found")
+
+    let Codec::EncapsulatedPixelData(Some(adapter), _) = JPEG_2000_IMAGE_COMPRESSION.codec() else {
+        panic!("JPEG 2000 pixel data reader not found")
     };
 
     let mut dest = vec![];
 
     adapter
         .decode_frame(&obj, 0, &mut dest)
-        .expect("JPEG frame decoding failed");
+        .expect("frame decoding failed");
 
     // inspect the result
 
-    assert_eq!(dest.len(), 64 * 64 * 2);
+    assert_eq!(dest.len(), 1024 * 256 * 2);
+
+    let err_margin = 256;
 
     // check a few known pixels
 
     // 0, 0
-    check_w_monochrome_pixel(&dest, cols, 0, 0, 905);
-    // 50, 9
-    check_w_monochrome_pixel(&dest, cols, 50, 9, 1162);
-    // 8, 22
-    check_w_monochrome_pixel(&dest, cols, 8, 22, 227);
-    // 46, 41
-    check_w_monochrome_pixel(&dest, cols, 46, 41, 1152);
-    // 34, 53
-    check_w_monochrome_pixel(&dest, cols, 34, 53, 164);
-    // 38, 61
-    check_w_monochrome_pixel(&dest, cols, 38, 61, 1857);
+    check_w_monochrome_pixel_approx(&dest, cols, 0, 0, 0, err_margin);
+    // 64, 154
+    check_w_monochrome_pixel_approx(&dest, cols, 64, 154, 0, err_margin);
+    // 135, 145
+    check_w_monochrome_pixel_approx(&dest, cols, 135, 145, 168, err_margin);
+    // 80, 188
+    check_w_monochrome_pixel_approx(&dest, cols, 80, 188, 9, err_margin);
+    // 136, 416
+    check_w_monochrome_pixel_approx(&dest, cols, 136, 416, 245, err_margin);
 }
 
-/// writing to JPEG-LS and back should yield approximately the same pixel data
 #[test]
-fn write_and_read_jpeg_ls() {
+fn read_jpeg_2000_lossless_1() {
+    let test_file = dicom_test_files::path("WG04/J2KR/NM1_J2KR").unwrap();
+
+    // manually fetch the pixel data fragment from the file
+
+    // single fragment found in file data offset b82, 65536 bytes
+    let buf = read_data_piece(test_file, 0x0b82, 65536);
+
+    let cols = 256;
+
+    // create test object
+    let obj = TestDataObject {
+        ts_uid: "1.2.840.10008.1.2.4.90".to_string(),
+        rows: 1024,
+        columns: cols,
+        bits_allocated: 16,
+        bits_stored: 16,
+        samples_per_pixel: 1,
+        photometric_interpretation: "MONOCHROME2",
+        number_of_frames: 1,
+        flat_pixel_data: None,
+        pixel_data_sequence: Some(PixelFragmentSequence::new(vec![], vec![buf])),
+    };
+
+    // fetch decoder
+
+    let Codec::EncapsulatedPixelData(Some(adapter), _) =
+        JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY.codec()
+    else {
+        panic!("JPEG 2000 pixel data reader not found")
+    };
+
+    let mut dest = vec![];
+
+    adapter
+        .decode_frame(&obj, 0, &mut dest)
+        .expect("frame decoding failed");
+
+    // inspect the result
+
+    assert_eq!(dest.len(), 1024 * 256 * 2);
+
+    // check a few known pixels
+
+    // 0, 0
+    check_w_monochrome_pixel(&dest, cols, 0, 0, 0);
+    // 64, 154
+    check_w_monochrome_pixel(&dest, cols, 64, 154, 0);
+    // 135, 145
+    check_w_monochrome_pixel(&dest, cols, 135, 145, 168);
+    // 80, 188
+    check_w_monochrome_pixel(&dest, cols, 80, 188, 9);
+    // 136, 416
+    check_w_monochrome_pixel(&dest, cols, 136, 416, 245);
+}
+
+/// writing to JPEG 2000 and back should yield approximately the same pixel data
+#[test]
+fn write_and_read_jpeg_2000() {
     let rows: u16 = 256;
     let columns: u16 = 512;
 
@@ -229,9 +228,9 @@ fn write_and_read_jpeg_ls() {
 
     // fetch decoder and encoder
     let Codec::EncapsulatedPixelData(Some(reader), Some(writer)) =
-        JPEG_LS_LOSSY_IMAGE_COMPRESSION.codec()
+        JPEG_2000_IMAGE_COMPRESSION.codec()
     else {
-        panic!("JPEG-LS pixel data adapters not found")
+        panic!("JPEG 2000 pixel data adapters not found")
     };
 
     // request enough quality to admit some loss, but not too much
@@ -242,13 +241,13 @@ fn write_and_read_jpeg_ls() {
 
     let _ops = writer
         .encode_frame(&obj, 0, options, &mut encoded)
-        .expect("JPEG-LS frame encoding failed");
+        .expect("frame encoding failed");
 
     // instantiate new object representing the compressed version
 
     let obj = TestDataObject {
-        // JPEG-LS Lossy (near-lossless)
-        ts_uid: "1.2.840.10008.1.2.4.81".to_string(),
+        // JPEG 2000
+        ts_uid: "1.2.840.10008.1.2.4.91".to_string(),
         rows,
         columns,
         bits_allocated: 8,
@@ -265,7 +264,7 @@ fn write_and_read_jpeg_ls() {
 
     reader
         .decode_frame(&obj, 0, &mut decoded)
-        .expect("JPEG-LS frame decoding failed");
+        .expect("frame decoding failed");
 
     // inspect the result
     assert_eq!(samples.len(), decoded.len(), "pixel data length mismatch");

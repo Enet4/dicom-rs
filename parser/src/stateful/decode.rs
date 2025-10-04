@@ -298,7 +298,12 @@ impl<S> StatefulDecoder<DynDecoder<S>, S> {
             .context(UnsupportedTransferSyntaxSnafu { ts: ts.name() })?;
 
         Ok(StatefulDecoder::new_with_all_options(
-            from, decoder, basic, charset, charset_override, position,
+            from,
+            decoder,
+            basic,
+            charset,
+            charset_override,
+            position,
         ))
     }
 
@@ -366,7 +371,14 @@ where
     }
 
     #[inline]
-    pub(crate) fn new_with_all_options(from: S, decoder: D, basic: BD, text: TC, charset_override: CharacterSetOverride, position: u64) -> Self {
+    pub(crate) fn new_with_all_options(
+        from: S,
+        decoder: D,
+        basic: BD,
+        text: TC,
+        charset_override: CharacterSetOverride,
+        position: u64,
+    ) -> Self {
         Self {
             from,
             basic,
@@ -470,8 +482,7 @@ where
         };
 
         let parts: Result<_> = if use_charset_declared {
-            self
-                .buffer
+            self.buffer
                 .split(|v| *v == b'\\')
                 .map(|slice| {
                     self.text.decode(slice).context(DecodeTextSnafu {
@@ -480,8 +491,7 @@ where
                 })
                 .collect()
         } else {
-            self
-                .buffer
+            self.buffer
                 .split(|v| *v == b'\\')
                 .map(|slice| {
                     DefaultCharacterSetCodec
@@ -1668,9 +1678,6 @@ mod tests {
             .read_value(&header_1)
             .expect("Can read Body Part Examined");
 
-        assert_eq!(
-            val.to_str(),
-            "脊柱侧弯-视图",
-        );
+        assert_eq!(val.to_str(), "脊柱侧弯-视图",);
     }
 }

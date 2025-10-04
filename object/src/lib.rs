@@ -476,8 +476,10 @@ pub trait DicomObject {
     /// with one of the [constants from the DICOM dictionary][tags].
     ///
     /// [tags]: dicom_dictionary_std::tags
-    fn attr_by_name_opt(&self, name: &str)
-        -> Result<Option<Self::Attribute<'_>>, AccessByNameError>;
+    fn attr_by_name_opt(
+        &self,
+        name: &str,
+    ) -> Result<Option<Self::Attribute<'_>>, AccessByNameError>;
 
     /// Retrieve a particular DICOM attribute
     /// by looking up the given tag at the object's root.

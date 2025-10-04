@@ -13,7 +13,9 @@
 //! - copying the bytes of the value into another writer,
 //!   such as a previously allocated buffer.
 use crate::dataset::read::OddLengthStrategy;
-use crate::stateful::decode::{CharacterSetOverride, DynStatefulDecoder, Error as DecoderError, StatefulDecode};
+use crate::stateful::decode::{
+    CharacterSetOverride, DynStatefulDecoder, Error as DecoderError, StatefulDecode,
+};
 use crate::util::ReadSeek;
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
 use dicom_core::{Tag, VR};
@@ -202,8 +204,14 @@ impl<R> LazyDataSetReader<DynStatefulDecoder<R>> {
         R: ReadSeek,
     {
         let position = source.stream_position().context(GetPositionSnafu)?;
-        let parser =
-            DynStatefulDecoder::new_with_override(source, ts, cs, options.charset_override, position).context(CreateDecoderSnafu)?;
+        let parser = DynStatefulDecoder::new_with_override(
+            source,
+            ts,
+            cs,
+            options.charset_override,
+            position,
+        )
+        .context(CreateDecoderSnafu)?;
 
         Ok(LazyDataSetReader {
             parser,
@@ -349,7 +357,6 @@ where
                 Ok(header) => {
                     match header {
                         SequenceItemHeader::Item { len } => {
-
                             // sanitize length
                             let Some(len) = self.sanitize_length(len) else {
                                 return Some(
@@ -358,7 +365,7 @@ where
                                         bytes_read: self.parser.position(),
                                     }
                                     .fail(),
-                                )
+                                );
                             };
 
                             // entered a new item
@@ -374,7 +381,7 @@ where
                                 self.delimiter_check_pending = true;
                             }
                             Some(Ok(LazyDataToken::ItemStart { len }))
-                        },
+                        }
                         SequenceItemHeader::ItemDelimiter => {
                             // closed an item
                             self.seq_delimiters.pop();
@@ -440,7 +447,6 @@ where
                 match self.parser.decode_item_header() {
                     Ok(header) => match header {
                         SequenceItemHeader::Item { len } => {
-
                             // sanitize length
                             let Some(len) = self.sanitize_length(len) else {
                                 return Some(

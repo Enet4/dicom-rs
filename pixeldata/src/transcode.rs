@@ -130,7 +130,10 @@ where
                 ts: current_ts_uid.to_string(),
             })?;
 
-        match (current_ts.is_encapsulated_pixel_data(), ts.is_encapsulated_pixel_data()) {
+        match (
+            current_ts.is_encapsulated_pixel_data(),
+            ts.is_encapsulated_pixel_data(),
+        ) {
             (false, false) => {
                 // no pixel data conversion is necessary:
                 // change transfer syntax and return
@@ -269,24 +272,35 @@ where
     };
 
     // correct photometric interpretation if necessary
-    let samples_per_pixel: u16 = obj.get(tags::SAMPLES_PER_PIXEL)
+    let samples_per_pixel: u16 = obj
+        .get(tags::SAMPLES_PER_PIXEL)
         .context(UnknownSamplesPerPixelSnafu)?
         .to_int()
         .ok()
         .context(UnknownSamplesPerPixelSnafu)?;
 
     if samples_per_pixel == 1 {
-        let pmi = obj.get(tags::PHOTOMETRIC_INTERPRETATION).and_then(|e| e.to_str().ok());
-        
+        let pmi = obj
+            .get(tags::PHOTOMETRIC_INTERPRETATION)
+            .and_then(|e| e.to_str().ok());
+
         // set Photometric Interpretation to Monochrome2
         // if it was neither of the expected monochromes
         if pmi != Some(Cow::from("MONOCHROME1")) && pmi != Some(Cow::from("MONOCHROME2")) {
-            obj.put(DataElement::new(tags::PHOTOMETRIC_INTERPRETATION, VR::CS, "MONOCHROME2"));
+            obj.put(DataElement::new(
+                tags::PHOTOMETRIC_INTERPRETATION,
+                VR::CS,
+                "MONOCHROME2",
+            ));
         }
     } else if samples_per_pixel == 3 {
         // force Photometric Interpretation to RGB
         // as mandated by the pixel data reading interface
-        obj.put(DataElement::new(tags::PHOTOMETRIC_INTERPRETATION, VR::CS, "RGB"));
+        obj.put(DataElement::new(
+            tags::PHOTOMETRIC_INTERPRETATION,
+            VR::CS,
+            "RGB",
+        ));
     }
 
     // change transfer syntax to Explicit VR little endian
@@ -416,7 +430,10 @@ mod tests {
 
         assert!(
             found.abs_diff(expected) < ERROR_MARGIN,
-            "mismatch in sample {}: {} vs {}", description, found, expected
+            "mismatch in sample {}: {} vs {}",
+            description,
+            found,
+            expected
         );
     }
 
@@ -433,7 +450,10 @@ mod tests {
 
         // pre-condition check: photometric interpretation was YBR_FULL
         assert_eq!(
-            obj.get(tags::PHOTOMETRIC_INTERPRETATION).unwrap().to_str().unwrap(),
+            obj.get(tags::PHOTOMETRIC_INTERPRETATION)
+                .unwrap()
+                .to_str()
+                .unwrap(),
             "YBR_FULL",
         );
 
@@ -450,7 +470,10 @@ mod tests {
         // check that the photometric interpretation
         // was updated (no longer YBR_FULL)
         assert_eq!(
-            obj.get(tags::PHOTOMETRIC_INTERPRETATION).unwrap().to_str().unwrap(),
+            obj.get(tags::PHOTOMETRIC_INTERPRETATION)
+                .unwrap()
+                .to_str()
+                .unwrap(),
             "RGB",
         );
 
@@ -481,7 +504,6 @@ mod tests {
         assert_sample_eq_approx("R5450", pixels[cols * spp * y + 150], 128);
         assert_sample_eq_approx("R5450", pixels[cols * spp * y + 151], 128);
         assert_sample_eq_approx("R5450", pixels[cols * spp * y + 152], 255);
-
     }
 
     #[cfg(feature = "native")]

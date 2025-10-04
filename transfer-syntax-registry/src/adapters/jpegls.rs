@@ -136,10 +136,7 @@ impl PixelDataWriter for JpegLsAdapter {
             "BitsAllocated other than 8 or 16 is not supported"
         );
 
-        ensure_whatever!(
-            bits_stored != 1,
-            "BitsStored of 1 is not supported"
-        );
+        ensure_whatever!(bits_stored != 1, "BitsStored of 1 is not supported");
 
         let bytes_per_sample = (bits_allocated / 8) as usize;
         let frame_size =
@@ -204,14 +201,20 @@ impl PixelDataWriter for JpegLsAdapter {
         } else {
             vec![
                 // lossless image compression
-                AttributeOp::new(Tag(0x0028, 0x2110), AttributeAction::SetIfMissing("00".into())),
+                AttributeOp::new(
+                    Tag(0x0028, 0x2110),
+                    AttributeAction::SetIfMissing("00".into()),
+                ),
             ]
         };
 
         if samples_per_pixel == 1 {
             // set Photometric Interpretation to MONOCHROME2
             // if it was neither of the expected 1-channel formats
-            if pmi != Some("MONOCHROME1") && pmi != Some("MONOCHROME2") && pmi != Some("PALETTE COLOR") {
+            if pmi != Some("MONOCHROME1")
+                && pmi != Some("MONOCHROME2")
+                && pmi != Some("PALETTE COLOR")
+            {
                 changes.push(AttributeOp::new(
                     Tag(0x0028, 0x0004),
                     AttributeAction::SetStr("MONOCHROME2".into()),
@@ -232,7 +235,7 @@ impl PixelDataWriter for JpegLsAdapter {
     }
 }
 
-impl PixelDataWriter for JpegLsLosslessWriter {    
+impl PixelDataWriter for JpegLsLosslessWriter {
     fn encode_frame(
         &self,
         src: &dyn PixelDataObject,
@@ -244,7 +247,7 @@ impl PixelDataWriter for JpegLsLosslessWriter {
         options.quality = Some(100);
         JpegLsAdapter.encode_frame(src, frame, options, dst)
     }
-    
+
     fn encode(
         &self,
         src: &dyn PixelDataObject,

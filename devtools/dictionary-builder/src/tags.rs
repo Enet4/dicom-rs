@@ -86,8 +86,7 @@ fn parse_entries<R: BufRead>(source: R) -> Result<Vec<Entry>> {
 
     let regex_tag = Regex::new(r"^\(([0-9A-F]{4}),([0-9A-F]{4})\)$")?;
     let regex_tag_group100 = Regex::new(r"^\(([0-9A-F]{2})00-[0-9A-F]{2}FF,([0-9A-F]{4})\)$")?;
-    let regex_tag_element100 =
-        Regex::new(r"^\(([0-9A-F]{4}),([0-9A-F]{2})00-[0-9A-F]{2}FF\)$")?;
+    let regex_tag_element100 = Regex::new(r"^\(([0-9A-F]{4}),([0-9A-F]{2})00-[0-9A-F]{2}FF\)$")?;
 
     for line in source.lines() {
         let line = line?;

@@ -126,7 +126,7 @@ impl<D, T> OpenFileOptions<D, T> {
     }
 
     /// Set the transfer syntax index to use when reading the file.
-    #[deprecated(since="0.8.1", note="please use `transfer_syntax_index` instead")]
+    #[deprecated(since = "0.8.1", note = "please use `transfer_syntax_index` instead")]
     pub fn tranfer_syntax_index<Tr>(self, ts_index: Tr) -> OpenFileOptions<D, Tr>
     where
         Tr: TransferSyntaxIndex,
