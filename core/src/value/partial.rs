@@ -1455,7 +1455,12 @@ mod tests {
             assert_eq!(time.fraction_str(), frac.to_string());
         }
         // test fraction retrieval: without a fraction, it returns None
-        assert_eq!(DicomTime::from_hms(9, 1, 1).unwrap().fraction_micro(), None);
+        assert_eq!(
+            DicomTime::from_hms(9, 1, 1)
+                .unwrap()
+                .fraction_micro(),
+                None
+        );
     }
 
     #[test]
