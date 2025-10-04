@@ -464,12 +464,12 @@ impl DicomTime {
         )))
     }
 
-    // Constructs a new `DicomDate` now from the local timezone
+    // Constructs a new `DicomTime` now from the local timezone
     #[cfg(feature = "now")]
     pub fn now_local() -> Result<DicomTime> {
         return DicomTime::try_from(&Local::now().naive_local().time());
     }
-    // Constructs a new `DicomDate` now from the utc timezone
+    // Constructs a new `DicomTime` now from the utc timezone
     #[cfg(feature = "now")]
     pub fn now_utc() -> Result<DicomTime> {
         return DicomTime::try_from(&Utc::now().naive_utc().time());
@@ -817,13 +817,13 @@ impl DicomDateTime {
         }
     }
 
-    // Constructs a new `DicomDate` now from the local timezone
+    // Constructs a new `DicomDateTime` now from the local timezone
     #[cfg(feature = "now")]
     pub fn now_local() -> Result<DicomDateTime> {
         return DicomDateTime::from_date_and_time(DicomDate::now_local()?, DicomTime::now_local()?);
     }
     #[cfg(feature = "now")]
-    // Constructs a new `DicomDate` now from the utc timezone
+    // Constructs a new `DicomDateTime` now from the utc timezone
     pub fn now_utc() -> Result<DicomDateTime> {
         return DicomDateTime::from_date_and_time(DicomDate::now_utc()?, DicomTime::now_utc()?);
     }
