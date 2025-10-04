@@ -817,6 +817,17 @@ impl DicomDateTime {
         }
     }
 
+    // Constructs a new `DicomDate` now from the local timezone
+    #[cfg(feature = "now")]
+    pub fn now_local() -> Result<DicomDateTime> {
+        return DicomDateTime::from_date_and_time(DicomDate::now_local()?, DicomTime::now_local()?);
+    }
+    #[cfg(feature = "now")]
+    // Constructs a new `DicomDate` now from the utc timezone
+    pub fn now_utc() -> Result<DicomDateTime> {
+        return DicomDateTime::from_date_and_time(DicomDate::now_utc()?, DicomTime::now_utc()?);
+    }
+
     /** Retrieves a reference to the internal date value */
     pub fn date(&self) -> &DicomDate {
         &self.date
@@ -1444,12 +1455,24 @@ mod tests {
             assert_eq!(time.fraction_str(), frac.to_string());
         }
         // test fraction retrieval: without a fraction, it returns None
-        assert_eq!(
-            DicomTime::from_hms(9, 1, 1)
-                .unwrap()
-                .fraction_micro(),
-                None
-        );
+        assert_eq!(DicomTime::from_hms(9, 1, 1).unwrap().fraction_micro(), None);
+    }
+
+    #[test]
+    #[cfg(feature = "now")]
+    fn test_dicom_now() {
+        let time_now_local = DicomTime::now_local();
+        println!("asdf time_now_local {:?}", time_now_local);
+        let time_now_utc = DicomTime::now_utc();
+        println!("asdf time_now_utc {:?}", time_now_utc);
+        let date_now_local = DicomTime::now_local();
+        println!("asdf date_now_local {:?}", date_now_local);
+        let date_now_utc = DicomTime::now_utc();
+        println!("asdf date_now_utc {:?}", date_now_utc);
+        let date_time_now_local = DicomDateTime::now_local();
+        println!("asdf date_time_now_local {:?}", date_now_local);
+        let date_time_now_utc = DicomDateTime::now_utc();
+        println!("asdf date_time_now_utc {:?}", date_now_utc);
     }
 
     #[test]
