@@ -1,6 +1,6 @@
 [package]
 name = "dicom-json"
-version = "0.8.2"
+version = "0.9.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -11,9 +11,9 @@ readme = "README.md"
 
 [dependencies]
 base64 = "0.22"
-dicom-core = { version = "0.8.2", path = "../core" }
-dicom-dictionary-std = { version = "0.8.1", path = "../dictionary-std" }
-dicom-object = { version = "0.8.2", path = "../object" }
+dicom-core = { path = "../core", version = "0.9" }
+dicom-dictionary-std = { path = "../dictionary-std", version = "0.9" }
+dicom-object = { path = "../object", version = "0.9" }
 num-traits = "0.2.15"
 serde = { version = "1.0.164", features = ["derive"] }
 serde_json = { version = "1.0.96", features = ["preserve_order"] }
