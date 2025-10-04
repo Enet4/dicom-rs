@@ -1,9 +1,9 @@
 //! Handling of partial precision of Date, Time and DateTime values.
 
 use crate::value::AsRange;
-use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
-#[cfg(feature = "now")]
-use chrono::{Local, Utc};
+use chrono::{
+    DateTime, Datelike, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, Timelike, Utc,
+};
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
@@ -310,12 +310,10 @@ impl DicomDate {
     }
 
     // Constructs a new `DicomDate` now from the local timezone
-    #[cfg(feature = "now")]
     pub fn now_local() -> Result<DicomDate> {
         return DicomDate::try_from(&Local::now().date_naive());
     }
     // Constructs a new `DicomDate` now from the utc timezone
-    #[cfg(feature = "now")]
     pub fn now_utc() -> Result<DicomDate> {
         return DicomDate::try_from(&Utc::now().date_naive());
     }
@@ -465,12 +463,10 @@ impl DicomTime {
     }
 
     // Constructs a new `DicomTime` now from the local timezone
-    #[cfg(feature = "now")]
     pub fn now_local() -> Result<DicomTime> {
         return DicomTime::try_from(&Local::now().naive_local().time());
     }
     // Constructs a new `DicomTime` now from the utc timezone
-    #[cfg(feature = "now")]
     pub fn now_utc() -> Result<DicomTime> {
         return DicomTime::try_from(&Utc::now().naive_utc().time());
     }
@@ -818,11 +814,9 @@ impl DicomDateTime {
     }
 
     // Constructs a new `DicomDateTime` now from the local timezone
-    #[cfg(feature = "now")]
     pub fn now_local() -> Result<DicomDateTime> {
         return DicomDateTime::from_date_and_time(DicomDate::now_local()?, DicomTime::now_local()?);
     }
-    #[cfg(feature = "now")]
     // Constructs a new `DicomDateTime` now from the utc timezone
     pub fn now_utc() -> Result<DicomDateTime> {
         return DicomDateTime::from_date_and_time(DicomDate::now_utc()?, DicomTime::now_utc()?);
@@ -1470,9 +1464,9 @@ mod tests {
         println!("asdf time_now_local {:?}", time_now_local);
         let time_now_utc = DicomTime::now_utc();
         println!("asdf time_now_utc {:?}", time_now_utc);
-        let date_now_local = DicomTime::now_local();
+        let date_now_local = DicomDate::now_local();
         println!("asdf date_now_local {:?}", date_now_local);
-        let date_now_utc = DicomTime::now_utc();
+        let date_now_utc = DicomDate::now_utc();
         println!("asdf date_now_utc {:?}", date_now_utc);
         let date_time_now_local = DicomDateTime::now_local();
         println!("asdf date_time_now_local {:?}", date_now_local);
