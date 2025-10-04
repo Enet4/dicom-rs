@@ -1,7 +1,9 @@
 //! Handling of partial precision of Date, Time and DateTime values.
 
 use crate::value::AsRange;
-use chrono::{DateTime, Datelike, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, Timelike, Utc};
+use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
+#[cfg(feature = "now")]
+use chrono::{Local, Utc};
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
@@ -308,12 +310,14 @@ impl DicomDate {
     }
 
     // Constructs a new `DicomDate` now from the local timezone
+    #[cfg(feature = "now")]
     pub fn now_local() -> Result<DicomDate> {
-        return DicomDate::try_from(&Local::now());
+        return DicomDate::try_from(&Local::now().date_naive());
     }
     // Constructs a new `DicomDate` now from the utc timezone
+    #[cfg(feature = "now")]
     pub fn now_utc() -> Result<DicomDate> {
-        return DicomDate::try_from(&Utc::now());
+        return DicomDate::try_from(&Utc::now().date_naive());
     }
 
     /// Retrieves the year from a date as a reference
@@ -461,12 +465,14 @@ impl DicomTime {
     }
 
     // Constructs a new `DicomDate` now from the local timezone
+    #[cfg(feature = "now")]
     pub fn now_local() -> Result<DicomTime> {
-        return DicomTime::try_from(&Local::now());
+        return DicomTime::try_from(&Local::now().naive_local().time());
     }
     // Constructs a new `DicomDate` now from the utc timezone
+    #[cfg(feature = "now")]
     pub fn now_utc() -> Result<DicomTime> {
-        return DicomTime::try_from(&Utc::now());
+        return DicomTime::try_from(&Utc::now().naive_utc().time());
     }
 
     /** Retrieves the hour from a time as a reference */
