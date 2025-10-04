@@ -25,16 +25,22 @@ Pull requests are likely to be subjected to constructive and careful reviewing,
 and it may take some time before they are accepted and merged.
 Please do not be discouraged to contribute when not facing the expected outcome,
 or feeling that your work or proposal goes unheard.
-The project is maintained by volunteers outside of work hours.
+The project is primarily maintained by volunteers outside of work hours.
 
 [GitHub issue tracker]: https://github.com/Enet4/dicom-rs/issues
 
 ### Building the project
-As a pure Rust ecosystem,
+
+The DICOM-rs ecosystem is built on Rust ecosystem.
+it may use bindings for integration with other non-Rust libraries
+providing additional capabilities, such as more image encodings,
+but in this case they are automatically fetched and built
+during the standard building process.
+
 Cargo is the main tool for building all crates in DICOM-rs.
 [Rustup] is the recommended way to set up a development environment
 for working with Rust.
-DICOM-rs expects the latest stable toolchain.
+See also the current [Minimum Supported Rust Version (MSRV) policy][msrv].
 
 Currently, all crates are gathered in the same workspace,
 which means that running the command below
@@ -68,8 +74,10 @@ cargo fmt
 ```
 
 [Rustup]: https://rustup.rs
+[msrv]: README.md#Minimum-Supported-Rust-version
 
 ## Discussion and roadmapping
+
 If you have more long-termed ideas about what DICOM-rs should include next,
 please have a look at the [roadmap] and look into existing issues to provide feedback.
 You can also talk about the project at the official [DICOM-rs Zulip organization][zulip].
@@ -82,4 +90,5 @@ please reach out to the project maintainers.
 [zulip]: https://dicom-rs.zulipchat.com
 
 ## Project team and governance
+
 DICOM-rs is currently led by Eduardo Pinho ([**@Enet4**](https://github.com/Enet4), <enet4mikeenet@gmail.com>).
