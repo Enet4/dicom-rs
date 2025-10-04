@@ -1362,12 +1362,12 @@ mod tests {
         );
 
         // specific date-time from chrono
-        let date_time: DateTime<_> = DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+        let date_time: DateTime<_> = DateTime::<Utc>::from_naive_utc_and_offset(
             NaiveDateTime::new(
                 NaiveDate::from_ymd_opt(2024, 8, 9).unwrap(),
                 NaiveTime::from_hms_opt(9, 9, 39).unwrap(),
             ),
-            chrono::Utc,
+            Utc,
         ).with_timezone(&FixedOffset::east_opt(0).unwrap());
         let dicom_date_time = DicomDateTime::try_from(&date_time).unwrap();
         assert!(dicom_date_time.has_time_zone());
@@ -1458,7 +1458,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "now")]
     fn test_dicom_now() {
         let time_now_local = DicomTime::now_local();
         println!("asdf time_now_local {:?}", time_now_local);
