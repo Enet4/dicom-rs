@@ -11,7 +11,6 @@ use std::net::SocketAddr;
 // Check rather arbitrary maximum PDU lengths, also different for server and client
 const HI_PDU_LEN: usize = 7890;
 const LO_PDU_LEN: usize = 5678;
-const PDU_HDR_LEN: usize = 6;
 const PDV_HDR_LEN: usize = 6;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
@@ -89,14 +88,11 @@ fn spawn_scp(
             other => panic!("Unexpected packet type: {:?}", other),
         };
         assert_eq!(data.len(), 1);
-        assert_eq!(
-            data[0].data.len(),
-            max_server_pdu_len - PDU_HDR_LEN - PDV_HDR_LEN
-        );
+        assert_eq!(data[0].data.len(), max_server_pdu_len - PDV_HDR_LEN);
 
         // Create a bogus payload which fills the PDU to the max.
         // Take into account the PDU and PDV header lengths for that purpose.
-        let filler_len = max_client_pdu_len - PDU_HDR_LEN - PDV_HDR_LEN;
+        let filler_len = max_client_pdu_len - PDV_HDR_LEN;
         let mut packet = bogus_packet(filler_len);
 
         // send one bogus response
@@ -173,14 +169,11 @@ async fn spawn_scp_async(
             other => panic!("Unexpected packet type: {:?}", other),
         };
         assert_eq!(data.len(), 1);
-        assert_eq!(
-            data[0].data.len(),
-            max_server_pdu_len - PDU_HDR_LEN - PDV_HDR_LEN
-        );
+        assert_eq!(data[0].data.len(), max_server_pdu_len - PDV_HDR_LEN);
 
         // Create a bogus payload which fills the PDU to the max.
         // Take into account the PDU and PDV header lengths for that purpose.
-        let filler_len = max_client_pdu_len - PDU_HDR_LEN - PDV_HDR_LEN;
+        let filler_len = max_client_pdu_len - PDV_HDR_LEN;
         let mut packet = bogus_packet(filler_len);
 
         // send one bogus response
@@ -248,7 +241,7 @@ fn run_scu_scp_association_test(max_is_client: bool) {
 
     // Create a bogus payload which fills the PDU to the max.
     // Take into account the PDU and PDV header lengths for that purpose.
-    let filler_len = max_server_pdu_len - PDU_HDR_LEN - PDV_HDR_LEN;
+    let filler_len = max_server_pdu_len - PDV_HDR_LEN;
     let mut packet = bogus_packet(filler_len);
 
     association.send(&packet).expect("failed sending packet");
@@ -321,7 +314,7 @@ async fn run_scu_scp_association_test_async(max_is_client: bool) {
 
     // Create a bogus payload which fills the PDU to the max.
     // Take into account the PDU and PDV header lengths for that purpose.
-    let filler_len = max_server_pdu_len - PDU_HDR_LEN - PDV_HDR_LEN;
+    let filler_len = max_server_pdu_len - PDV_HDR_LEN;
     let mut packet = bogus_packet(filler_len);
 
     association

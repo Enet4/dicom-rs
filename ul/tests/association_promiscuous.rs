@@ -4,6 +4,7 @@ use dicom_ul::association::Error::NoAcceptedPresentationContexts;
 use dicom_ul::pdu::PresentationContextResultReason::Acceptance;
 use dicom_ul::pdu::{
     PresentationContextNegotiated, PresentationContextResultReason, UserVariableItem,
+    DEFAULT_MAX_PDU,
 };
 use dicom_ul::{
     ClientAssociationOptions, Pdu, ServerAssociationOptions, IMPLEMENTATION_CLASS_UID,
@@ -112,7 +113,7 @@ fn scu_scp_association_promiscuous_enabled() {
     assert_eq!(
         association.user_variables(),
         &[
-            UserVariableItem::MaxLength(16384),
+            UserVariableItem::MaxLength(DEFAULT_MAX_PDU),
             UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
             UserVariableItem::ImplementationVersionName(IMPLEMENTATION_VERSION_NAME.to_string())
         ]
@@ -126,8 +127,8 @@ fn scu_scp_association_promiscuous_enabled() {
             abstract_syntax: MR_IMAGE_STORAGE.to_string(),
         }]
     );
-    assert_eq!(association.acceptor_max_pdu_length(), 16384);
-    assert_eq!(association.requestor_max_pdu_length(), 16384);
+    assert_eq!(association.acceptor_max_pdu_length(), DEFAULT_MAX_PDU);
+    assert_eq!(association.requestor_max_pdu_length(), DEFAULT_MAX_PDU);
     assert_eq!(association.read_timeout(), None);
     assert_eq!(association.write_timeout(), None);
 
@@ -158,7 +159,7 @@ async fn scu_scp_association_promiscuous_enabled_async() {
     assert_eq!(
         association.user_variables(),
         &[
-            UserVariableItem::MaxLength(16384),
+            UserVariableItem::MaxLength(DEFAULT_MAX_PDU),
             UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
             UserVariableItem::ImplementationVersionName(IMPLEMENTATION_VERSION_NAME.to_string())
         ]
@@ -172,8 +173,8 @@ async fn scu_scp_association_promiscuous_enabled_async() {
             abstract_syntax: MR_IMAGE_STORAGE.to_string(),
         }]
     );
-    assert_eq!(association.acceptor_max_pdu_length(), 16384);
-    assert_eq!(association.requestor_max_pdu_length(), 16384);
+    assert_eq!(association.acceptor_max_pdu_length(), DEFAULT_MAX_PDU);
+    assert_eq!(association.requestor_max_pdu_length(), DEFAULT_MAX_PDU);
     assert_eq!(association.read_timeout(), None);
     assert_eq!(association.write_timeout(), None);
 

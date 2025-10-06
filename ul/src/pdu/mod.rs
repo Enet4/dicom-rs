@@ -13,22 +13,28 @@ pub use reader::read_pdu;
 use snafu::{Backtrace, Snafu};
 pub use writer::{write_pdu, WriteChunkError};
 
-/// The default maximum PDU size
-pub const DEFAULT_MAX_PDU: u32 = 16_384;
-
-/// The minimum PDU size,
-/// as specified by the standard
-pub const MINIMUM_PDU_SIZE: u32 = 4_096;
-
-/// A generous PDU size for internal use.
-/// Prefer to initialize buffers no larger than this size
-pub(crate) const LARGE_PDU_SIZE: u32 = 262_144;
-
 /// The length of the PDU header in bytes,
 /// comprising the PDU type (1 byte),
 /// reserved byte (1 byte),
 /// and PDU length (4 bytes).
 pub const PDU_HEADER_SIZE: u32 = 6;
+
+/// The length of a PDV header + message control header in bytes,
+/// comprising the PDV length (4 bytes),
+/// presentation context ID (1 byte),
+/// and the flags that precede the data (1 byte).
+pub const PDV_HEADER_SIZE: u32 = 6;
+
+/// The default maximum PDU size
+pub const DEFAULT_MAX_PDU: u32 = 16_384 - PDU_HEADER_SIZE;
+
+/// The minimum PDU size,
+/// as specified by the standard
+pub const MINIMUM_PDU_SIZE: u32 = 4_096 - PDU_HEADER_SIZE;
+
+/// A generous PDU size for internal use.
+/// Prefer to initialize buffers no larger than this size
+pub(crate) const LARGE_PDU_SIZE: u32 = 262_144 - PDU_HEADER_SIZE;
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]

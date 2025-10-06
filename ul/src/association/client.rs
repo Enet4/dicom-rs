@@ -23,7 +23,7 @@ use crate::{
     pdu::{
         write_pdu, AbortRQSource, AssociationAC, AssociationRQ, Pdu, PresentationContextNegotiated,
         PresentationContextProposed, PresentationContextResultReason, UserIdentity,
-        UserIdentityType, UserVariableItem, DEFAULT_MAX_PDU, LARGE_PDU_SIZE,
+        UserIdentityType, UserVariableItem, DEFAULT_MAX_PDU, LARGE_PDU_SIZE, PDU_HEADER_SIZE,
     },
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
@@ -638,7 +638,9 @@ impl<'a> ClientAssociationOptions<'a> {
         socket.write_all(&buffer).context(WireSendSnafu)?;
         buffer.clear();
 
-        let mut buf = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+        let mut buf = BytesMut::with_capacity(
+            (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
+        );
         let resp = read_pdu_from_wire(&mut socket, &mut buf, self.max_pdu_length, self.strict)?;
         let negotiated_options = self.process_a_association_resp(resp, &pc_proposed);
         match negotiated_options {
@@ -854,7 +856,7 @@ where
     pub fn send(&mut self, msg: &Pdu) -> Result<()> {
         self.buffer.clear();
         write_pdu(&mut self.buffer, msg).context(SendPduSnafu)?;
-        if self.buffer.len() > self.acceptor_max_pdu_length as usize {
+        if self.buffer.len() > (self.acceptor_max_pdu_length + PDU_HEADER_SIZE) as usize {
             return SendTooLongPduSnafu {
                 length: self.buffer.len(),
             }
@@ -978,7 +980,7 @@ pub mod non_blocking {
     use crate::association::{
         ClientAssociation, ClientAssociationOptions, SendTooLongPduSnafu, TimeoutSnafu,
     };
-    use crate::pdu::{DEFAULT_MAX_PDU, LARGE_PDU_SIZE};
+    use crate::pdu::{DEFAULT_MAX_PDU, LARGE_PDU_SIZE, PDU_HEADER_SIZE};
     use crate::{
         association::{
             client::{ConnectSnafu, NegotiatedOptions, ToAddressSnafu, WireSendSnafu},
@@ -1073,8 +1075,9 @@ pub mod non_blocking {
             write_buffer.clear();
 
             // read buffer is prepared according to the requestor's max pdu length
-            let mut read_buffer =
-                BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+            let mut read_buffer = BytesMut::with_capacity(
+                (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
+            );
             let resp = timeout(self.read_timeout, async {
                 read_pdu_from_wire_async(
                     &mut socket,
@@ -1183,7 +1186,7 @@ pub mod non_blocking {
         pub async fn send(&mut self, msg: &Pdu) -> Result<()> {
             self.buffer.clear();
             write_pdu(&mut self.buffer, msg).context(SendPduSnafu)?;
-            if self.buffer.len() > self.acceptor_max_pdu_length as usize {
+            if self.buffer.len() > (self.acceptor_max_pdu_length + PDU_HEADER_SIZE) as usize {
                 return SendTooLongPduSnafu {
                     length: self.buffer.len(),
                 }
@@ -1349,8 +1352,9 @@ mod tests {
             socket.write_all(&write_buffer).context(WireSendSnafu)?;
             write_buffer.clear();
 
-            let mut read_buffer =
-                BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+            let mut read_buffer = BytesMut::with_capacity(
+                (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
+            );
             let resp = read_pdu_from_wire(
                 &mut socket,
                 &mut read_buffer,
@@ -1400,7 +1404,9 @@ mod tests {
             socket.write_all(&buffer).await.context(WireSendSnafu)?;
             buffer.clear();
 
-            let mut buf = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+            let mut buf = BytesMut::with_capacity(
+                (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
+            );
             let resp =
                 read_pdu_from_wire_async(&mut socket, &mut buf, self.max_pdu_length, self.strict)
                     .await?;
@@ -1442,7 +1448,9 @@ mod tests {
             socket.write_all(&buffer).context(WireSendSnafu)?;
             buffer.clear();
 
-            let mut buf = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+            let mut buf = BytesMut::with_capacity(
+                (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
+            );
             let resp = read_pdu_from_wire(&mut socket, &mut buf, self.max_pdu_length, self.strict)?;
             let NegotiatedOptions {
                 presentation_contexts,
@@ -1459,7 +1467,7 @@ mod tests {
                 buffer,
                 strict: self.strict,
                 read_buffer: BytesMut::with_capacity(
-                    self.max_pdu_length.min(LARGE_PDU_SIZE) as usize
+                    (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
                 ),
                 read_timeout: self.read_timeout,
                 write_timeout: self.write_timeout,
@@ -1484,7 +1492,9 @@ mod tests {
             socket.write_all(&buffer).await.context(WireSendSnafu)?;
             buffer.clear();
 
-            let mut buf = BytesMut::with_capacity(self.max_pdu_length.min(LARGE_PDU_SIZE) as usize);
+            let mut buf = BytesMut::with_capacity(
+                (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
+            );
             let resp =
                 read_pdu_from_wire_async(&mut socket, &mut buf, self.max_pdu_length, self.strict)
                     .await?;
@@ -1503,7 +1513,7 @@ mod tests {
                 buffer,
                 strict: self.strict,
                 read_buffer: BytesMut::with_capacity(
-                    self.max_pdu_length.min(LARGE_PDU_SIZE) as usize
+                    (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
                 ),
                 read_timeout: self.read_timeout,
                 write_timeout: self.write_timeout,
