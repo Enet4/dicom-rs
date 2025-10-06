@@ -14,7 +14,7 @@ readme = "README.md"
 [dependencies]
 dicom-core = { path = "../core", version = "0.9" }
 dicom-dictionary-std = { path = "../dictionary-std", version = "0.9" }
-encoding = "0.2.33"
+encoding_rs = "0.8.35"
 byteordered = "0.6"
 inventory = { version = "0.3.2", optional = true }
 snafu = "0.8"
