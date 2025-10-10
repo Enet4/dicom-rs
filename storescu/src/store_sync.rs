@@ -119,12 +119,13 @@ pub fn send_file(
 
         if verbose {
             info!(
-                "Sending file {} (~ {} kB), uid={}, sop={}, ts={}",
+                "Sending file {} (~ {} kB), uid={}, sop={}, ts={}, pc={}",
                 file.file.display(),
                 nbytes / 1_000,
                 &file.sop_instance_uid,
                 &file.sop_class_uid,
                 ts_uid_selected,
+                pc_selected.id,
             );
         }
 
