@@ -60,6 +60,9 @@ struct App {
     // hide option if transcoding is disabled
     #[cfg_attr(not(feature = "transcode"), arg(hide(true)))]
     never_transcode: bool,
+    /// ignore SOP class in presentation context selection
+    #[arg(long)]
+    ignore_sop_class: bool,
     /// User Identity username
     #[arg(
         long = "username",
@@ -100,6 +103,7 @@ struct App {
     concurrency: Option<usize>,
 }
 
+#[derive(Debug)]
 struct DicomFile {
     /// File path
     file: PathBuf,
@@ -269,6 +273,7 @@ fn run(app: App) -> Result<(), Error> {
         max_pdu_length,
         fail_first,
         mut never_transcode,
+        ignore_sop_class,
         username,
         password,
         kerberos_service_ticket,
@@ -317,7 +322,7 @@ fn run(app: App) -> Result<(), Error> {
     for file in &mut dicom_files {
         // identify the right transfer syntax to use
         let r: Result<_, Error> =
-            check_presentation_contexts(file, scu.presentation_contexts(), never_transcode);
+            check_presentation_contexts(file, scu.presentation_contexts(), ignore_sop_class, never_transcode);
         match r {
             Ok((pc, ts)) => {
                 if verbose {
@@ -386,6 +391,7 @@ async fn run_async() -> Result<(), Error> {
         max_pdu_length,
         fail_first,
         mut never_transcode,
+        ignore_sop_class,
         username,
         password,
         kerberos_service_ticket,
@@ -474,6 +480,7 @@ async fn run_async() -> Result<(), Error> {
                 let r: Result<_, Error> = check_presentation_contexts(
                     &file,
                     scu.presentation_contexts(),
+                    ignore_sop_class,
                     never_transcode,
                 );
                 match r {
@@ -565,8 +572,8 @@ fn check_file(file: &Path) -> Result<DicomFile, Error> {
 
     let meta = dicom_file.meta();
 
-    let storage_sop_class_uid = &meta.media_storage_sop_class_uid;
-    let storage_sop_instance_uid = &meta.media_storage_sop_instance_uid;
+    let storage_sop_class_uid = &meta.media_storage_sop_class_uid.trim_end_matches('\0');
+    let storage_sop_instance_uid = &meta.media_storage_sop_instance_uid.trim_end_matches('\0');
     let transfer_syntax_uid = &meta.transfer_syntax.trim_end_matches('\0');
     let ts = TransferSyntaxRegistry
         .get(transfer_syntax_uid)
@@ -586,8 +593,12 @@ fn check_file(file: &Path) -> Result<DicomFile, Error> {
 fn check_presentation_contexts(
     file: &DicomFile,
     pcs: &[dicom_ul::pdu::PresentationContextNegotiated],
+    ignore_sop_class: bool,
     never_transcode: bool,
 ) -> Result<(dicom_ul::pdu::PresentationContextNegotiated, String), Error> {
+
+    debug!("Testing file {file:?}");
+
     let file_ts = TransferSyntaxRegistry
         .get(&file.file_transfer_syntax)
         .with_context(|| UnsupportedFileTransferSyntaxSnafu {
@@ -595,13 +606,19 @@ fn check_presentation_contexts(
         })?;
 
     // Try to find an exact match for the file's transfer syntax first
-    let exact_match_pc = pcs.iter().find(|pc| pc.transfer_syntax == file_ts.uid());
+    let exact_match_pc = pcs.iter()
+            .filter(|pc| ignore_sop_class || pc.abstract_syntax == file.sop_class_uid)
+            .find(|pc| pc.transfer_syntax == file_ts.uid());
 
     if let Some(pc) = exact_match_pc {
         return Ok((pc.clone(), pc.transfer_syntax.clone()));
     }
 
     let pc = pcs.iter().find(|pc| {
+        if !ignore_sop_class && pc.abstract_syntax != file.sop_class_uid {
+            return false;
+        }
+
         // Check support for this transfer syntax.
         // If it is the same as the file, we're good.
         // Otherwise, uncompressed data set encoding
@@ -624,6 +641,8 @@ fn check_presentation_contexts(
 
             // Else, if transcoding is possible, we go for it.
             pcs.iter()
+                // SOP class
+                .filter(|pc| ignore_sop_class || pc.abstract_syntax == file.sop_class_uid)
                 // accept explicit VR little endian
                 .find(|pc| pc.transfer_syntax == uids::EXPLICIT_VR_LITTLE_ENDIAN)
                 .or_else(||
