@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, io::stderr, sync::Arc};
 
 use dicom_dictionary_std::tags;
 use dicom_encoding::TransferSyntaxIndex;
@@ -177,7 +177,8 @@ pub async fn send_file(
                 )
                 .context(ReadDatasetSnafu)?;
                 if verbose {
-                    debug!("Full response: {:?}", cmd_obj);
+                    debug!("Full response:");
+                    let _ = dicom_dump::dump_object_to(stderr(), &cmd_obj);
                 }
                 let status = cmd_obj
                     .element(tags::STATUS)

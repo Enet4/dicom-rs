@@ -1,4 +1,8 @@
-use std::{collections::HashSet, io::Write, net::TcpStream};
+use std::{
+    collections::HashSet,
+    io::{stderr, Write},
+    net::TcpStream,
+};
 
 use dicom_dictionary_std::tags;
 use dicom_encoding::TransferSyntaxIndex;
@@ -177,7 +181,8 @@ pub fn send_file(
                 )
                 .context(ReadDatasetSnafu)?;
                 if verbose {
-                    debug!("Full response: {:?}", cmd_obj);
+                    debug!("Full response:");
+                    let _ = dicom_dump::dump_object_to(stderr(), &cmd_obj);
                 }
                 let status = cmd_obj
                     .element(tags::STATUS)
