@@ -7,13 +7,16 @@ use bytes::{Buf, BytesMut};
 use tracing::warn;
 
 use crate::{
-    pdu::{LARGE_PDU_SIZE, PDU_HEADER_SIZE},
+    pdu::{LARGE_PDU_SIZE, PDU_HEADER_SIZE, PDV_HEADER_SIZE},
     read_pdu, Pdu,
 };
 
+/// Combined size of PDU header and one PDV header, as usize, for convenience
+const PDU_PDV_HEADER_SIZE: usize = (PDU_HEADER_SIZE + PDV_HEADER_SIZE) as usize;
+
 /// Set up the P-Data PDU header for sending.
 fn setup_pdata_header(buffer: &mut [u8], is_last: bool) {
-    let data_len = (buffer.len() - 12) as u32;
+    let data_len = (buffer.len() - PDU_PDV_HEADER_SIZE) as u32;
 
     // full PDU length (minus PDU type and reserved byte)
     let pdu_len = data_len + 4 + 2;
@@ -97,7 +100,7 @@ where
     pub(crate) fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32) -> Self {
         let max_data_length = calculate_max_data_len_single(max_pdu_length);
         let mut buffer =
-            Vec::with_capacity((max_data_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize);
+            Vec::with_capacity((max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize);
         // initial buffer set up
         buffer.extend([
             // PDU-type + reserved byte
@@ -152,13 +155,13 @@ where
     /// Pre-condition:
     /// buffer must have enough data for one P-Data-tf PDU
     fn dispatch_pdu(&mut self) -> std::io::Result<()> {
-        debug_assert!(self.buffer.len() >= 12);
+        debug_assert!(self.buffer.len() >= PDU_PDV_HEADER_SIZE);
         // send PDU now
         setup_pdata_header(&mut self.buffer, false);
         self.stream.write_all(&self.buffer)?;
 
         // back to just the header
-        self.buffer.truncate(12);
+        self.buffer.truncate(PDU_PDV_HEADER_SIZE);
 
         Ok(())
     }
@@ -169,7 +172,7 @@ where
     W: Write,
 {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let total_len = self.max_data_len as usize + 12;
+        let total_len = self.max_data_len as usize + PDU_PDV_HEADER_SIZE;
         if self.buffer.len() + buf.len() <= total_len {
             // accumulate into buffer, do nothing
             self.buffer.extend(buf);
@@ -340,9 +343,7 @@ where
 /// Does not account for the first 2 bytes (type + reserved).
 #[inline]
 fn calculate_max_data_len_single(pdu_len: u32) -> u32 {
-    // data length: 4 bytes
-    // control header: 2 bytes
-    pdu_len - 4 - 2
+    pdu_len - PDV_HEADER_SIZE
 }
 
 #[cfg(feature = "async")]
@@ -359,10 +360,15 @@ pub mod non_blocking {
     };
     use tracing::warn;
 
-    use crate::{pdu::PDU_HEADER_SIZE, read_pdu, Pdu};
+    use crate::{
+        pdu::{PDU_HEADER_SIZE, PDV_HEADER_SIZE},
+        read_pdu, Pdu,
+    };
 
     pub use super::PDataReader;
     use super::{calculate_max_data_len_single, setup_pdata_header};
+
+    const PDU_PDV_HEADER_SIZE: usize = (PDU_HEADER_SIZE + PDV_HEADER_SIZE) as usize;
 
     /// Enum representing state of the Async Writer
     enum WriteState {
@@ -439,9 +445,8 @@ pub mod non_blocking {
             use crate::pdu::LARGE_PDU_SIZE;
 
             let max_data_length = calculate_max_data_len_single(max_pdu_length);
-            let mut buffer = Vec::with_capacity(
-                (max_data_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
-            );
+            let mut buffer =
+                Vec::with_capacity((max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize);
             // initial buffer set up
             buffer.extend([
                 // PDU-type + reserved byte
@@ -511,7 +516,7 @@ pub mod non_blocking {
             match self.state {
                 WriteState::Ready => {
                     // If we're in ready state, we can prepare another PDU
-                    let total_len = self.max_data_len as usize + 12;
+                    let total_len = self.max_data_len as usize + PDU_PDV_HEADER_SIZE;
                     if self.buffer.len() + buf.len() <= total_len {
                         // Still have space in `self.buffer`, accumulate into buffer
                         self.buffer.extend(buf);
@@ -529,7 +534,7 @@ pub mod non_blocking {
                             Poll::Ready(Ok(n)) => {
                                 if n == this.buffer.len() {
                                     // If we wrote the whole buffer, reset `self.buffer`
-                                    this.buffer.truncate(12);
+                                    this.buffer.truncate(PDU_PDV_HEADER_SIZE);
                                     Poll::Ready(Ok(slice.len()))
                                 } else {
                                     // Otherwise keep track of how much we wrote and change state to Writing
@@ -554,9 +559,9 @@ pub mod non_blocking {
                         Poll::Ready(Ok(n)) => {
                             if (n + pos) == this.buffer.len() {
                                 // If we wrote the whole buffer, reset `self.buffer` and change state back to ready
-                                this.buffer.truncate(12);
+                                this.buffer.truncate(PDU_PDV_HEADER_SIZE);
                                 this.state = WriteState::Ready;
-                                Poll::Ready(Ok(buflen - 12))
+                                Poll::Ready(Ok(buflen - PDU_PDV_HEADER_SIZE))
                             } else {
                                 // Otherwise add to current position
                                 this.state = WriteState::Writing(n + pos);
@@ -624,7 +629,7 @@ pub mod non_blocking {
                 let mut reader = BufReader::new(stream);
                 let msg = loop {
                     let mut buf = Cursor::new(&read_buffer[..]);
-                    match read_pdu(&mut buf, *max_data_length, false)
+                    match read_pdu(&mut buf, *max_data_length + PDV_HEADER_SIZE, false)
                         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
                     {
                         Some(pdu) => {
@@ -685,7 +690,7 @@ mod tests {
     use std::io::{Read, Write};
 
     use crate::association::pdata::PDataWriter;
-    use crate::pdu::{read_pdu, Pdu, MINIMUM_PDU_SIZE, PDU_HEADER_SIZE};
+    use crate::pdu::{read_pdu, Pdu, MINIMUM_PDU_SIZE, PDV_HEADER_SIZE};
     use crate::pdu::{PDataValue, PDataValueType};
     use crate::write_pdu;
 
@@ -809,18 +814,21 @@ mod tests {
                 // check expected lengths
                 assert_eq!(
                     data_1.data.len(),
-                    (MINIMUM_PDU_SIZE - PDU_HEADER_SIZE) as usize
+                    (MINIMUM_PDU_SIZE - PDV_HEADER_SIZE) as usize
                 );
                 assert_eq!(
                     data_2.data.len(),
-                    (MINIMUM_PDU_SIZE - PDU_HEADER_SIZE) as usize
+                    (MINIMUM_PDU_SIZE - PDV_HEADER_SIZE) as usize
                 );
-                assert_eq!(data_3.data.len(), 820);
+                assert_eq!(
+                    data_3.data.len(),
+                    9000 - (MINIMUM_PDU_SIZE - PDV_HEADER_SIZE) as usize * 2
+                );
 
                 // check data consistency
                 assert_eq!(
                     &data_1.data[..],
-                    (0..MINIMUM_PDU_SIZE - PDU_HEADER_SIZE)
+                    (0..MINIMUM_PDU_SIZE - PDV_HEADER_SIZE)
                         .map(|x| x as u8)
                         .collect::<Vec<_>>()
                 );
@@ -889,18 +897,21 @@ mod tests {
                 // check expected lengths
                 assert_eq!(
                     data_1.data.len(),
-                    (MINIMUM_PDU_SIZE - PDU_HEADER_SIZE) as usize
+                    (MINIMUM_PDU_SIZE - PDV_HEADER_SIZE) as usize
                 );
                 assert_eq!(
                     data_2.data.len(),
-                    (MINIMUM_PDU_SIZE - PDU_HEADER_SIZE) as usize
+                    (MINIMUM_PDU_SIZE - PDV_HEADER_SIZE) as usize
                 );
-                assert_eq!(data_3.data.len(), 820);
+                assert_eq!(
+                    data_3.data.len(),
+                    9000 - (MINIMUM_PDU_SIZE - PDV_HEADER_SIZE) as usize * 2
+                );
 
                 // check data consistency
                 assert_eq!(
                     &data_1.data[..],
-                    (0..MINIMUM_PDU_SIZE - PDU_HEADER_SIZE)
+                    (0..MINIMUM_PDU_SIZE - PDV_HEADER_SIZE)
                         .map(|x| x as u8)
                         .collect::<Vec<_>>()
                 );
