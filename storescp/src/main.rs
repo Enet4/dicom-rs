@@ -39,8 +39,8 @@ struct App {
     #[arg(
         short = 'm',
         long = "max-pdu-length",
-        default_value = "16384",
-        value_parser(clap::value_parser!(u32).range(4096..))
+        default_value = "16378",
+        value_parser(clap::value_parser!(u32).range(1018..))
     )]
     max_pdu_length: u32,
     /// Output directory for incoming objects

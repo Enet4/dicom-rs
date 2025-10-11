@@ -49,8 +49,8 @@ struct App {
     /// the maximum PDU length accepted by the SCU
     #[arg(
         long = "max-pdu-length",
-        default_value = "16384",
-        value_parser(clap::value_parser!(u32).range(4096..))
+        default_value = "16378",
+        value_parser(clap::value_parser!(u32).range(1018..))
     )]
     max_pdu_length: u32,
     /// fail if not all DICOM files can be transferred
