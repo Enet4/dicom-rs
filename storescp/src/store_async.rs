@@ -2,7 +2,7 @@ use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use dicom_ul::{pdu::PDataValueType, Pdu};
+use dicom_ul::{Pdu, pdu::{PDataValueType, PresentationContextResultReason}};
 use snafu::{OptionExt, Report, ResultExt, Whatever};
 use tracing::{debug, info, warn};
 
@@ -58,9 +58,20 @@ pub async fn run_store_async(
         .whatever_context("could not establish association")?;
 
     info!("New association from {}", association.client_ae_title());
+    if args.verbose {
+        debug!(
+            "> Presentation contexts: {:?}",
+            association.presentation_contexts()
+        );
+    }
     debug!(
-        "> Presentation contexts: {:?}",
+        "#accepted_presentation_contexts={}, acceptor_max_pdu_length={}, requestor_max_pdu_length={}",
         association.presentation_contexts()
+            .iter()
+            .filter(|pc| pc.reason == PresentationContextResultReason::Acceptance)
+            .count(),
+        association.acceptor_max_pdu_length(),
+        association.requestor_max_pdu_length(),
     );
 
     loop {

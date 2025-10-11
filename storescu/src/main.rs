@@ -5,6 +5,7 @@ use dicom_encoding::transfer_syntax;
 use dicom_encoding::TransferSyntax;
 use dicom_object::{mem::InMemDicomObject, DefaultDicomObject, StandardDataDictionary};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
+use dicom_ul::pdu::PresentationContextResultReason;
 use indicatif::{ProgressBar, ProgressStyle};
 use snafu::prelude::*;
 use snafu::{Report, Whatever};
@@ -312,6 +313,19 @@ fn run(app: App) -> Result<(), Error> {
 
     if verbose {
         info!("Association established");
+        debug!(
+            "#accepted_presentation_contexts={},requestor_max_pdu_length={}, acceptor_max_pdu_length={}",
+            scu.presentation_contexts()
+                .iter()
+                .filter(|pc| pc.reason == PresentationContextResultReason::Acceptance)
+                .count(),
+            scu.requestor_max_pdu_length(),
+            scu.acceptor_max_pdu_length(),
+        );
+        debug!(
+            "Presentation contexts: {:?}",
+            scu.presentation_contexts()
+        );
     }
 
     for file in &mut dicom_files {
