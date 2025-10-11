@@ -28,9 +28,9 @@ pub const PDV_HEADER_SIZE: u32 = 6;
 /// The default maximum PDU size
 pub const DEFAULT_MAX_PDU: u32 = 16_384 - PDU_HEADER_SIZE;
 
-/// The minimum PDU size,
-/// as specified by the standard
-pub const MINIMUM_PDU_SIZE: u32 = 4_096 - PDU_HEADER_SIZE;
+/// The smallest maximum PDU length negotiable
+/// by this implementation
+pub const MINIMUM_PDU_SIZE: u32 = 1_024 - PDU_HEADER_SIZE;
 
 /// A generous PDU size for internal use.
 /// Prefer to initialize buffers no larger than this size
