@@ -1,3 +1,0 @@
-[build]
-rustflags = ["--remap-path-prefix", "/home/enet4/dev/dicom-rs=~"]
-

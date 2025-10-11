@@ -11,12 +11,14 @@ use dicom_ul::{
     association::ClientAssociationOptions,
     pdu::{PDataValue, PDataValueType},
 };
+use indicatif::ProgressBar;
 use query::parse_queries;
 use snafu::prelude::*;
 use snafu::Report;
-use std::io::{stderr, BufRead as _, Read};
+use std::io::{stderr, BufRead as _};
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::path::PathBuf;
+use std::time::Duration;
 use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 
@@ -100,8 +102,16 @@ fn main() {
         error!("{}", snafu::Report::from_error(e));
     });
 
+    let progress = if !app.verbose {
+        let pb = ProgressBar::new_spinner();
+        pb.enable_steady_tick(Duration::new(0, 480_000_000));
+        Some(pb)
+    } else {
+        None
+    };
+
     if Some(app.move_destination.clone()) != Some(app.calling_ae_title.clone()) {
-        run_move_scu(app.clone()).unwrap_or_else(|err| {
+        run_move_scu(app.clone(), progress).unwrap_or_else(|err| {
             error!("{}", snafu::Report::from_error(err));
             std::process::exit(-2);
         });
@@ -114,14 +124,19 @@ fn main() {
         .unwrap();
 
     let app_for_async = app.clone();
+    let pb = progress.clone();
     let handle = runtime.spawn(async move {
-        run_async(app_for_async).await.unwrap_or_else(|e| {
-            error!("{:?}", e);
+        let proceed = run_async(app_for_async, pb).await.unwrap_or_else(|e| {
+            error!("{:?}", Report::from_error(e));
             std::process::exit(-2);
         });
+
+        if !proceed {
+            std::process::exit(-2);
+        }
     });
 
-    let move_success = run_move_scu(app).unwrap_or_else(|err| {
+    let move_success = run_move_scu(app, progress).unwrap_or_else(|err| {
         error!("{}", snafu::Report::from_error(err));
         std::process::exit(-2);
     });
@@ -137,29 +152,30 @@ fn main() {
     }
 }
 
-async fn run_async(args: App) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_async(args: App, progress: Option<ProgressBar>) -> Result<bool, snafu::Whatever> {
     use std::sync::Arc;
     let args = Arc::new(args);
 
     std::fs::create_dir_all(&args.out_dir).unwrap_or_else(|e| {
-        error!("Could not create output directory: {}", e);
+        error!("Could not create output directory: {e}");
         std::process::exit(-2);
     });
 
     let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), args.port);
-    let listener = tokio::net::TcpListener::bind(listen_addr).await?;
-    info!(
-        "{} listening on: tcp://{}",
-        &args.calling_ae_title, listen_addr
-    );
+    let listener = tokio::net::TcpListener::bind(listen_addr).await
+        .whatever_context("Could not bind store SCP listening address")?;
 
-    let (socket, _addr) = listener.accept().await?;
-    let args = args.clone();
-    if let Err(e) = run_store_async(socket, &args).await {
-        error!("{}", Report::from_error(e));
+    if args.verbose {
+        info!(
+            "{} listening on: tcp://{listen_addr}",
+            &args.calling_ae_title,
+        );
     }
 
-    Ok(())
+    let (socket, _addr) = listener.accept().await
+        .whatever_context("Failed to set up a socket connection with source AE")?;
+    let args = args.clone();
+    run_store_async(socket, progress, &args).await
 }
 
 #[derive(Debug, Snafu)]
@@ -240,7 +256,7 @@ fn build_query(
     Ok(obj)
 }
 
-fn run_move_scu(app: App) -> Result<bool, Error> {
+fn run_move_scu(app: App, progress: Option<ProgressBar>) -> Result<bool, Error> {
     let App {
         addr,
         file,
@@ -260,8 +276,6 @@ fn run_move_scu(app: App) -> Result<bool, Error> {
         promiscuous: _,
     } = app;
 
-    info!("sending c_move request to: {}", addr);
-
     let dcm_query = build_query(file, query_file, query, verbose)?;
 
     let abstract_syntax = match (patient, study) {
@@ -272,8 +286,12 @@ fn run_move_scu(app: App) -> Result<bool, Error> {
         _ => unreachable!("Unexpected flag combination"),
     };
 
+    if let Some(pb) = &progress {
+        pb.set_message(format!("Establishing association with {addr}"));
+    }
+
     if verbose {
-        info!("Establishing association with '{}'...", &addr);
+        info!("Establishing association with '{addr}'...",);
     }
 
     let mut scu_opt = ClientAssociationOptions::new()
@@ -325,8 +343,11 @@ fn run_move_scu(app: App) -> Result<bool, Error> {
 
     let nbytes = cmd_data.len() + iod_data.len();
 
+    if let Some(pb) = &progress {
+        pb.set_message(format!("Sending query ({nbytes} B)"));
+    }
     if verbose {
-        debug!("Sending query ({} B)...", nbytes);
+        debug!("Sending C-MOVE request ({} B)...", nbytes);
     }
 
     let pdu = Pdu::PData {
@@ -350,6 +371,9 @@ fn run_move_scu(app: App) -> Result<bool, Error> {
     scu.send(&pdu)
         .whatever_context("Could not send C-MOVE request")?;
 
+    if let Some(pb) = &progress {
+        pb.set_message("Awaiting C-MOVE response");
+    }
     if verbose {
         debug!("Awaiting response...");
     }
@@ -393,50 +417,21 @@ fn run_move_scu(app: App) -> Result<bool, Error> {
                     .to_int::<u16>()
                     .whatever_context("failed to read status code")?;
                 if status == 0 {
+                    if let Some(pb) = &progress {
+                        pb.set_message("Operation complete");
+                    }
                     if verbose {
-                        debug!("Matching is complete");
+                        debug!("Operation complete");
                     }
                     success = true;
                     break;
                 } else if status == 0xFF00 || status == 0xFF01 {
+                    if let Some(pb) = &progress {
+                        pb.tick();
+                    }
                     if verbose {
                         debug!("Operation pending: {:x}", status);
                     }
-
-                    // fetch DICOM data
-                    let dcm = if let Some(second_pdata) = data.get(1) {
-                        InMemDicomObject::read_dataset_with_ts(second_pdata.data.as_slice(), ts)
-                            .whatever_context("Could not read response data set")?
-                    } else {
-                        let mut rsp = scu.receive_pdata();
-                        let mut response_data = Vec::new();
-                        rsp.read_to_end(&mut response_data)
-                            .whatever_context("Failed to read response data")?;
-
-                        InMemDicomObject::read_dataset_with_ts(&response_data[..], ts)
-                            .whatever_context("Could not read response data set")?
-                    };
-
-                    println!(
-                        "------------------------ Match #{i} ------------------------"
-                    );
-                    DumpOptions::new()
-                        .dump_object(&dcm)
-                        .context(DumpOutputSnafu)?;
-
-                    // check DICOM status in response data,
-                    // as some implementations might report status code 0
-                    // upon sending the response data
-                    if let Some(status) = dcm.get(tags::STATUS) {
-                        let status = status.to_int::<u16>().ok();
-                        if status == Some(0) {
-                            if verbose {
-                                debug!("Matching is complete");
-                            }
-                            break;
-                        }
-                    }
-
                     i += 1;
                 } else {
                     let msg = match status {
@@ -468,6 +463,9 @@ fn run_move_scu(app: App) -> Result<bool, Error> {
                 std::process::exit(-2);
             }
         }
+    }
+    if let Some(pb) = &progress {
+        pb.finish();
     }
     let _ = scu.release();
     Ok(success)
