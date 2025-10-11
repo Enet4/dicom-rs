@@ -3,9 +3,10 @@ use dicom_dictionary_std::{tags, uids::*};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject, StandardDataDictionary};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use dicom_ul::{pdu::PDataValueType, Pdu};
+use dicom_ul::{Pdu, pdu::{PDataValueType, PresentationContextResultReason}};
+use indicatif::ProgressBar;
 use snafu::{OptionExt, Report, ResultExt, Whatever};
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::App;
 
@@ -82,6 +83,7 @@ fn create_cstore_response(
 
 pub async fn run_store_async(
     scu_stream: tokio::net::TcpStream,
+    progress: Option<ProgressBar>,
     args: &App,
 ) -> Result<bool, Whatever> {
     let App {
@@ -137,11 +139,44 @@ pub async fn run_store_async(
         .await
         .whatever_context("could not establish association")?;
 
-    info!("New association from {}", association.client_ae_title());
-    debug!(
-        "> Presentation contexts: {:?}",
-        association.presentation_contexts()
-    );
+    let client_ae_title = association.client_ae_title();
+    if verbose {
+        info!("New association from {client_ae_title}");
+        debug!(
+            "> Presentation contexts: {:?}",
+            association.presentation_contexts()
+        );
+    }
+    if let Some(pb) = &progress {
+        pb.set_message(format!("Received C-STORE association from {client_ae_title}"));
+    }
+
+    // check whether some of the abstract syntaxes are not supported
+    let pcs_accepted = association.presentation_contexts()
+        .iter()
+        .filter(|pc| pc.reason == PresentationContextResultReason::Acceptance)
+        .count();
+
+    let abstract_syntaxes_rejected = association.presentation_contexts()
+        .iter()
+        .filter(|pc| pc.reason == PresentationContextResultReason::AbstractSyntaxNotSupported)
+        .count();
+
+    if pcs_accepted == 0 {
+        // error
+        error!("No presentation contexts were accepted!");
+        if abstract_syntaxes_rejected > 0 {
+            info!("Consider enabling promiscuous mode: --promiscuous");
+        }
+
+        // stop here
+        let _ = association.abort().await;
+
+        return Ok(false);
+
+    } else if abstract_syntaxes_rejected > 0 {
+        warn!("Not all presentation contexts were accepted, some files might not be received.");
+    }
 
     loop {
         match association.receive().await {
@@ -273,6 +308,10 @@ pub async fn run_store_async(
                                     .send(&pdu_response)
                                     .await
                                     .whatever_context("failed to send response object to SCU")?;
+
+                                if let Some(pb) = &progress {
+                                    pb.tick();
+                                }
                             }
                         }
                     }
@@ -283,14 +322,17 @@ pub async fn run_store_async(
                                 snafu::Report::from_error(e)
                             );
                         });
-                        info!(
-                            "Released association with {}",
-                            association.client_ae_title()
-                        );
+                        let client_ae_title = association.client_ae_title();
+                        if verbose {
+                            info!("Released association with {client_ae_title}");
+                        }
+                        if let Some(pb) = &progress {
+                            pb.set_message(format!("Released association with {client_ae_title}"));
+                        }
                         break;
                     }
                     Pdu::AbortRQ { source } => {
-                        warn!("Aborted connection from: {:?}", source);
+                        warn!("Connection aborted by {source:?}");
                         break;
                     }
                     _ => {}
@@ -298,9 +340,9 @@ pub async fn run_store_async(
             }
             Err(err @ dicom_ul::association::Error::ReceivePdu { .. }) => {
                 if verbose {
-                    info!("{}", Report::from_error(err));
+                    warn!("{}", Report::from_error(err));
                 } else {
-                    info!("{}", err);
+                    warn!("{err}");
                 }
                 break;
             }
@@ -311,14 +353,19 @@ pub async fn run_store_async(
         }
     }
 
-    if let Ok(peer_addr) = association.inner_stream().peer_addr() {
-        info!(
-            "Dropping connection with {} ({})",
+    let msg = if let Ok(peer_addr) = association.inner_stream().peer_addr() {
+        format!(
+            "Dropping connection with {} ({peer_addr})",
             association.client_ae_title(),
-            peer_addr
-        );
+        )
     } else {
-        info!("Dropping connection with {}", association.client_ae_title());
+        format!("Dropping connection with {}", association.client_ae_title())
+    };
+    if verbose {
+        info!("{msg}");
+    }
+    if let Some(pb) = &progress {
+        pb.finish_with_message(msg);
     }
 
     Ok(true)
