@@ -776,7 +776,7 @@ mod tests {
     fn test_write_large_pdata_and_finish() {
         let presentation_context_id = 32;
 
-        let my_data: Vec<_> = (0..9000).map(|x: u32| x as u8).collect();
+        let my_data: Vec<_> = (0..2500).map(|x: u32| x as u8).collect();
 
         let mut buf = Vec::new();
         {
@@ -822,7 +822,7 @@ mod tests {
                 );
                 assert_eq!(
                     data_3.data.len(),
-                    9000 - (MINIMUM_PDU_SIZE - PDV_HEADER_SIZE) as usize * 2
+                    2500 - (MINIMUM_PDU_SIZE - PDV_HEADER_SIZE) as usize * 2
                 );
 
                 // check data consistency
@@ -834,7 +834,7 @@ mod tests {
                 );
                 assert_eq!(
                     data_1.data.len() + data_2.data.len() + data_3.data.len(),
-                    9000
+                    2500
                 );
 
                 let data_1 = &data_1.data;
@@ -858,7 +858,7 @@ mod tests {
     async fn test_async_write_large_pdata_and_finish() {
         let presentation_context_id = 32;
 
-        let my_data: Vec<_> = (0..9000).map(|x: u32| x as u8).collect();
+        let my_data: Vec<_> = (0..2500).map(|x: u32| x as u8).collect();
 
         let mut buf = Vec::new();
         {
@@ -905,7 +905,7 @@ mod tests {
                 );
                 assert_eq!(
                     data_3.data.len(),
-                    9000 - (MINIMUM_PDU_SIZE - PDV_HEADER_SIZE) as usize * 2
+                    2500 - (MINIMUM_PDU_SIZE - PDV_HEADER_SIZE) as usize * 2
                 );
 
                 // check data consistency
@@ -917,7 +917,7 @@ mod tests {
                 );
                 assert_eq!(
                     data_1.data.len() + data_2.data.len() + data_3.data.len(),
-                    9000
+                    2500
                 );
 
                 let data_1 = &data_1.data;
@@ -941,22 +941,22 @@ mod tests {
         use std::collections::VecDeque;
         let presentation_context_id = 32;
 
-        let my_data: Vec<_> = (0..9000).map(|x: u32| x as u8).collect();
+        let my_data: Vec<_> = (0..2500).map(|x: u32| x as u8).collect();
         let pdata_1 = vec![PDataValue {
             value_type: PDataValueType::Data,
-            data: my_data[0..3000].to_owned(),
+            data: my_data[0..1018].to_owned(),
             presentation_context_id,
             is_last: false,
         }];
         let pdata_2 = vec![PDataValue {
             value_type: PDataValueType::Data,
-            data: my_data[3000..6000].to_owned(),
+            data: my_data[1018..2036].to_owned(),
             presentation_context_id,
             is_last: false,
         }];
         let pdata_3 = vec![PDataValue {
             value_type: PDataValueType::Data,
-            data: my_data[6000..].to_owned(),
+            data: my_data[2036..].to_owned(),
             presentation_context_id,
             is_last: true,
         }];
