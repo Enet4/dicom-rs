@@ -73,7 +73,6 @@ mod successive_pdus_during_client_association {
             association.send(&server_pdu).unwrap();
             association
         });
-        println!("here1");
 
         // Give server time to start
         std::thread::sleep(std::time::Duration::from_millis(10));
@@ -209,8 +208,8 @@ mod successive_pdus_during_client_association {
         assert_eq!(received_pdu, echo_pdu);
 
         // Clean shutdown
-        drop(association);
         server_handle.await.unwrap();
+        drop(association);
     }
 
     // Tests edge case where the server sends an extra PDU during association
@@ -268,8 +267,8 @@ mod successive_pdus_during_client_association {
         assert_eq!(received_pdu, echo_pdu);
 
         // Clean shutdown
-        drop(association);
         server_handle.await.unwrap();
+        drop(association);
     }
 
     // Tests edge case where the client sends an extra PDU during association

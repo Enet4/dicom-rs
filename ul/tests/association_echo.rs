@@ -5,7 +5,7 @@ use dicom_ul::{
     }
 };
 #[cfg(feature = "async")]
-use dicom_ul::association::{AsyncAssociation, AsyncServerAssociation};
+use dicom_ul::association::AsyncServerAssociation;
 
 use std::net::SocketAddr;
 
