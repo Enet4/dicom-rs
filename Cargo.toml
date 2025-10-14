@@ -15,6 +15,7 @@ members = [
     "echoscu",
     "findscu",
     "fromimage",
+    "movescu",
     "scpproxy",
     "storescp",
     "storescu",
