@@ -311,11 +311,11 @@ impl DicomDate {
 
     // Constructs a new `DicomDate` now from the local timezone
     pub fn now_local() -> Result<DicomDate> {
-        return DicomDate::try_from(&Local::now().date_naive());
+        DicomDate::try_from(&Local::now().date_naive());
     }
     // Constructs a new `DicomDate` now from the utc timezone
     pub fn now_utc() -> Result<DicomDate> {
-        return DicomDate::try_from(&Utc::now().date_naive());
+        DicomDate::try_from(&Utc::now().date_naive());
     }
 
     /// Retrieves the year from a date as a reference
@@ -464,11 +464,11 @@ impl DicomTime {
 
     // Constructs a new `DicomTime` now from the local timezone
     pub fn now_local() -> Result<DicomTime> {
-        return DicomTime::try_from(&Local::now().naive_local().time());
+        DicomTime::try_from(&Local::now().naive_local().time());
     }
     // Constructs a new `DicomTime` now from the utc timezone
     pub fn now_utc() -> Result<DicomTime> {
-        return DicomTime::try_from(&Utc::now().naive_utc().time());
+        DicomTime::try_from(&Utc::now().naive_utc().time());
     }
 
     /** Retrieves the hour from a time as a reference */
@@ -815,11 +815,11 @@ impl DicomDateTime {
 
     // Constructs a new `DicomDateTime` now from the local timezone
     pub fn now_local() -> Result<DicomDateTime> {
-        return DicomDateTime::from_date_and_time(DicomDate::now_local()?, DicomTime::now_local()?);
+        DicomDateTime::from_date_and_time(DicomDate::now_local()?, DicomTime::now_local()?);
     }
     // Constructs a new `DicomDateTime` now from the utc timezone
     pub fn now_utc() -> Result<DicomDateTime> {
-        return DicomDateTime::from_date_and_time(DicomDate::now_utc()?, DicomTime::now_utc()?);
+        DicomDateTime::from_date_and_time(DicomDate::now_utc()?, DicomTime::now_utc()?);
     }
 
     /** Retrieves a reference to the internal date value */
