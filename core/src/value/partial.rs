@@ -1450,7 +1450,6 @@ mod tests {
 
     #[test]
     fn test_dicom_time_now_local() {
-        // Test DicomTime::now_local()
         let dicom_time = DicomTime::now_local()
             .expect("Failed to get current local time from DicomTime::now_local()");
         let system_time = Local::now().naive_local().time();
