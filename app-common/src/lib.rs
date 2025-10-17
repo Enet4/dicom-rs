@@ -5,10 +5,10 @@ use std::{path::PathBuf, sync::Arc};
 use snafu::{Snafu, ResultExt};
 
 #[derive(Snafu, Debug)]
-pub enum TLSError {
-    #[snafu(display("IO error: {}", source))]
+pub enum TlsError {
+    #[snafu(display("IO error"))] 
     Io { source: std::io::Error },
-    #[snafu(display("PEM parse error: {}, path: {:?}", source, path))]
+    #[snafu(display("PEM parse error in path: {}", path.as_ref().map(|p| p.display().to_string()).unwrap_or("unknown".into())))]
     PemParse { 
         source: rustls::pki_types::pem::Error,
         path: Option<PathBuf>,
@@ -27,8 +27,8 @@ pub enum TLSError {
 #[derive(Args, Debug)]
 pub struct TLSOptions {
     /// Enables mTLS (TLS for DICOM connections)
-    #[arg(long = "tls", action = clap::ArgAction::SetTrue)]
-    pub enabled: Option<bool>,
+    #[arg(long = "tls", default_value = "false")]
+    pub enabled: bool,
 
     /// Crypto provider to use, see documentation (https://docs.rs/rustls/latest/rustls/index.html) for details
     #[arg(long, value_enum, default_value_t = CryptoProvider::AwsLC, value_name = "provider")]
@@ -71,18 +71,33 @@ pub struct TLSOptions {
     pub allow_unauthenticated: bool,
 }
 
+/// Crypto provider options
+/// 
+/// See rustls 
+/// [Cryptograpy providers](https://docs.rs/rustls/latest/rustls/#cryptography-providers)
+/// for more details
+/// 
+/// Currently only AWS-LC is supported
 #[derive(clap::ValueEnum, Clone, Debug)]
 pub enum CryptoProvider {
     AwsLC,
     //RING
 }
 
+/// TLS protocol version options
+/// 
+/// Subset of rustls 
+/// [ProtocolVersions](https://docs.rs/rustls/latest/rustls/enum.ProtocolVersion.html#variants) 
+/// supported
 #[derive(clap::ValueEnum, Clone, Debug)]
 pub enum TLSProtocolVersion {
     TLS1_2,
     TLS1_3,
 }
 
+/// Peer certificate handling options
+/// 
+/// Defines how the TLS connection should handle peer certificates
 #[derive(clap::ValueEnum, Clone, Debug)]
 pub enum PeerCertOption {
     /// Require the peer to present a valid certificate
@@ -102,7 +117,7 @@ pub fn show_cipher_suites() -> ! {
 
 impl TLSOptions{
     /// Build a root cert store from system roots and any additional certs
-    fn root_cert_store(&self) -> Result<rustls::RootCertStore, TLSError> {
+    fn root_cert_store(&self) -> Result<rustls::RootCertStore, TlsError> {
         let mut root_store = rustls::RootCertStore::empty();
         // Load system roots unless disabled
         if self.system_roots{
@@ -123,7 +138,7 @@ impl TLSOptions{
     }
 
     /// Load client certs if provided
-    fn certs(&self) -> Result<Option<Vec<CertificateDer<'static>>>, TLSError> {
+    fn certs(&self) -> Result<Option<Vec<CertificateDer<'static>>>, TlsError> {
         // If a certificate is provided, load it as a cert chain
         match self.cert.as_ref() {
             Some(path) => {
@@ -138,7 +153,7 @@ impl TLSOptions{
     }
 
     /// Load CRLs if provided
-    fn crls(&self) -> Result<Option<Vec<CertificateRevocationListDer<'static>>>, TLSError> {
+    fn crls(&self) -> Result<Option<Vec<CertificateRevocationListDer<'static>>>, TlsError> {
         match self.add_crls.as_ref() {
             Some(crls) => {
                 let mut loaded_crls = Vec::new();
@@ -162,7 +177,7 @@ impl TLSOptions{
     }
 
     /// Consume the options to create a client config
-    pub fn client_config(&self) -> Result<ClientConfig, TLSError> {
+    pub fn client_config(&self) -> Result<ClientConfig, TlsError> {
         debug!("Building client config with options: {:?}", self);
         // Get the crypto provider
         let provider = match self.crypto_provider {
@@ -193,7 +208,7 @@ impl TLSOptions{
     }
 
     /// Consume the options to create a server config
-    pub fn server_config(&self) -> Result<ServerConfig, TLSError> {
+    pub fn server_config(&self) -> Result<ServerConfig, TlsError> {
         // Get the crypto provider
         let provider = match self.crypto_provider {
             CryptoProvider::AwsLC => Arc::new(rustls::crypto::aws_lc_rs::default_provider()),

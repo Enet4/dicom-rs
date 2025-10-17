@@ -20,7 +20,7 @@ use tracing::{error, info, warn, Level};
 use tracing_subscriber::filter::EnvFilter;
 use transfer_syntax::TransferSyntaxIndex;
 use walkdir::WalkDir;
-use app_common::TLSOptions;
+use dicom_app_common::TLSOptions;
 
 mod store_async;
 mod store_sync;
@@ -178,7 +178,7 @@ enum Error {
 
     #[snafu(display("TLS error: {}", source))]
     Tls {
-        source: app_common::TLSError,
+        source: dicom_app_common::TlsError,
     }
 }
 
@@ -357,7 +357,7 @@ fn run(app: App) -> Result<(), Error> {
     if cfg!(not(feature = "transcode")) {
         never_transcode = true;
     }
-    let tls_enabled = tls.enabled.unwrap_or(false);
+    let tls_enabled = tls.enabled;
     let config = tls.client_config()
         .context(TlsSnafu)?;
 
@@ -430,7 +430,7 @@ async fn run_async() -> Result<(), Error> {
         never_transcode = true;
     }
 
-    let tls_enabled = tls.enabled.unwrap_or(false);
+    let tls_enabled = tls.enabled;
     let config = tls.client_config()
         .context(TlsSnafu)?;
 

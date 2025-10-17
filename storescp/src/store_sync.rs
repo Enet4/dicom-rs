@@ -47,7 +47,7 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
     for uid in ABSTRACT_SYNTAXES {
         options = options.with_abstract_syntax(*uid);
     }
-    let (peer_addr, peer_title) = if tls.enabled.unwrap_or(false) {
+    let (peer_addr, peer_title) = if tls.enabled {
         let config = tls.server_config().whatever_context("Could not create TLS config")?;
         options = options.tls_config(config);
         let peer_addr = scu_stream.peer_addr().ok();

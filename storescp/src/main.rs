@@ -2,7 +2,7 @@ use std::{
     net::{Ipv4Addr, SocketAddrV4}, path::PathBuf
 };
 
-use app_common::TLSOptions;
+use dicom_app_common::TLSOptions;
 use clap::Parser;
 use dicom_core::{dicom_value, DataElement, VR};
 use dicom_dictionary_std::tags;
@@ -114,7 +114,7 @@ fn main() {
             .with_env_filter(
                 EnvFilter::from_default_env()
                     .add_directive("app_common=info".parse().unwrap())
-                    .add_directive(if app.verbose { "storescu=debug".parse().unwrap() } else { "storescu=info".parse().unwrap() })
+                    .add_directive(if app.verbose { "storescp=debug".parse().unwrap() } else { "storescp=info".parse().unwrap() })
             )
             .finish(),
     )
