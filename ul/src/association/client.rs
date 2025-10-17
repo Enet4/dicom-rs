@@ -93,7 +93,7 @@ fn tls_connection<T>(
 /// that one usually taking the role of a service class provider (SCP).
 ///
 /// You can create either a blocking or non-blocking client by calling either
-/// `establish` or `establis,h_async` respectively.
+/// `establish` or `establish_async` respectively.
 ///
 /// > **⚠️ Warning:** It is highly recommended to set `read_timeout` and `write_timeout` to a reasonable
 /// > value for the async client since there is _no_ default timeout on
