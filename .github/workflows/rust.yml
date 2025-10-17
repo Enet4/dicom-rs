@@ -41,8 +41,8 @@ jobs:
         run: cargo test -p dicom-pixeldata --no-default-features
       # test dicom-ul with async feature
       - if: matrix.rust == 'stable' || matrix.rust == 'beta'
-        run: cargo test -p dicom-ul --features async
-      # test/check library projects with minimum rust version
+        run: cargo test -p dicom-ul --features async-tls
+      # test library projects with minimum rust version
       - if: matrix.rust == '1.72.0'
         run: |
           cargo test \

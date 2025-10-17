@@ -19,6 +19,9 @@ members = [
     "storescp",
     "storescu",
     "toimage",
+    "transfer-syntax-registry",
+    "ul",
+    "app-common",
 ]
 
 # use edition 2021 resolver

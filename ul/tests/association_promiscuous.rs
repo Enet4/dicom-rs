@@ -1,14 +1,15 @@
 use std::net::SocketAddr;
 
-use dicom_ul::association::Error::NoAcceptedPresentationContexts;
+use dicom_ul::association::{Association, SyncAssociation, Error::NoAcceptedPresentationContexts};
+#[cfg(feature = "async")]
+use dicom_ul::association::{AsyncAssociation, AsyncServerAssociation};
 use dicom_ul::pdu::PresentationContextResultReason::Acceptance;
 use dicom_ul::pdu::{
     PresentationContextNegotiated, PresentationContextResultReason, UserVariableItem,
     DEFAULT_MAX_PDU,
 };
 use dicom_ul::{
-    ClientAssociationOptions, Pdu, ServerAssociationOptions, IMPLEMENTATION_CLASS_UID,
-    IMPLEMENTATION_VERSION_NAME,
+    ClientAssociationOptions, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME, Pdu, ServerAssociation, ServerAssociationOptions
 };
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
@@ -24,7 +25,7 @@ const ULTRASOUND_IMAGE_STORAGE_RAW: &str = "1.2.840.10008.5.1.4.1.1.6.1\0";
 fn spawn_scp(
     abstract_syntax_uids: &'static [&str],
     promiscuous: bool,
-) -> Result<(std::thread::JoinHandle<Result<()>>, SocketAddr)> {
+) -> Result<(std::thread::JoinHandle<Result<ServerAssociation<std::net::TcpStream>>>, SocketAddr)> {
     let listener = std::net::TcpListener::bind("localhost:0")?;
     let addr = listener.local_addr()?;
     let mut options = ServerAssociationOptions::new()
@@ -53,7 +54,7 @@ fn spawn_scp(
         assert_eq!(pdu, Pdu::ReleaseRQ);
         association.send(&Pdu::ReleaseRP)?;
 
-        Ok(())
+        Ok(association)
     });
 
     Ok((handle, addr))
@@ -63,7 +64,7 @@ fn spawn_scp(
 async fn spawn_scp_async(
     abstract_syntax_uids: &'static [&str],
     promiscuous: bool,
-) -> Result<(tokio::task::JoinHandle<Result<()>>, SocketAddr)> {
+) -> Result<(tokio::task::JoinHandle<Result<AsyncServerAssociation<tokio::net::TcpStream>>>, SocketAddr)> {
     let listener = tokio::net::TcpListener::bind("localhost:0").await?;
     let addr = listener.local_addr()?;
     let mut options = ServerAssociationOptions::new()
@@ -92,7 +93,7 @@ async fn spawn_scp_async(
         assert_eq!(pdu, Pdu::ReleaseRQ);
         association.send(&Pdu::ReleaseRP).await?;
 
-        Ok(())
+        Ok(association)
     });
 
     Ok((handle, addr))

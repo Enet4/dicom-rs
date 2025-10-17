@@ -14,9 +14,12 @@ readme = "README.md"
 [dependencies]
 byteordered = "0.6"
 bytes = "^1.6"
+cfg-if = "1.0.3"
 dicom-encoding = { path = "../encoding/", version = "0.9" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.9", default-features = false }
+rustls = {version = "0.23.31", optional = true }
 snafu = "0.8"
+tokio-rustls = {version = "0.26.2", optional = true }
 tracing = "0.1.34"
 
 [dependencies.tokio]
@@ -37,10 +40,16 @@ rstest = "0.26.1"
 tokio = { version = "^1.38", features = ["io-util", "macros", "net", "rt", "rt-multi-thread"] }
 dicom-core = { path = '../core' }
 dicom-object = { path = '../object' }
+time = "0.3"
+rustls-cert-gen = "0.2.0"
+rcgen = "0.14.4"
 
 [features]
 async = ["dep:tokio"]
+sync-tls = ["dep:rustls"]
+async-tls=["async", "sync-tls", "dep:tokio-rustls"]
 default = []
+full = ["async-tls"]
 
 [package.metadata.docs.rs]
-features = ["async"]
+features = ["async", "sync-tls", "async-tls"]

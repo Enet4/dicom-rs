@@ -1,84 +1,30 @@
-use std::{collections::HashSet, io::stderr, sync::Arc};
+use std::{io::stderr, sync::Arc};
 
 use dicom_dictionary_std::tags;
 use dicom_encoding::TransferSyntaxIndex;
 use dicom_object::{open_file, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{
-    pdu::{PDataValue, PDataValueType},
-    ClientAssociation, ClientAssociationOptions, Pdu,
+    Pdu, association::{Association, AsyncAssociation, client::AsyncClientAssociation}, pdu::{PDataValue, PDataValueType}
 };
 use indicatif::ProgressBar;
-use snafu::{OptionExt, ResultExt};
-use tokio::{io::AsyncWriteExt, net::TcpStream};
+use snafu::{OptionExt, Report, ResultExt};
+use tokio::{io::AsyncWriteExt, sync::Mutex};
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    into_ts, store_req_command, ConvertFieldSnafu, CreateCommandSnafu, DicomFile, Error,
-    MissingAttributeSnafu, ReadDatasetSnafu, ReadFilePathSnafu, ScuSnafu,
-    UnsupportedFileTransferSyntaxSnafu, WriteDatasetSnafu,
+    ConvertFieldSnafu, CreateCommandSnafu, DicomFile, Error, MissingAttributeSnafu, ReadDatasetSnafu, ReadFilePathSnafu, ScuSnafu, UnsupportedFileTransferSyntaxSnafu, WriteDatasetSnafu, check_presentation_contexts, into_ts, store_req_command
 };
 
-#[allow(clippy::too_many_arguments)]
-pub async fn get_scu(
-    addr: String,
-    calling_ae_title: String,
-    called_ae_title: Option<String>,
-    max_pdu_length: u32,
-    username: Option<String>,
-    password: Option<String>,
-    kerberos_service_ticket: Option<String>,
-    saml_assertion: Option<String>,
-    jwt: Option<String>,
-    presentation_contexts: HashSet<(String, String)>,
-) -> Result<ClientAssociation<TcpStream>, Error> {
-    let mut scu_init = ClientAssociationOptions::new()
-        .calling_ae_title(calling_ae_title)
-        .max_pdu_length(max_pdu_length);
-
-    for (storage_sop_class_uid, transfer_syntax) in &presentation_contexts {
-        scu_init = scu_init.with_presentation_context(storage_sop_class_uid, vec![transfer_syntax]);
-    }
-
-    if let Some(called_ae_title) = called_ae_title {
-        scu_init = scu_init.called_ae_title(called_ae_title);
-    }
-
-    if let Some(username) = username {
-        scu_init = scu_init.username(username);
-    }
-
-    if let Some(password) = password {
-        scu_init = scu_init.password(password);
-    }
-
-    if let Some(kerberos_service_ticket) = kerberos_service_ticket {
-        scu_init = scu_init.kerberos_service_ticket(kerberos_service_ticket);
-    }
-
-    if let Some(saml_assertion) = saml_assertion {
-        scu_init = scu_init.saml_assertion(saml_assertion);
-    }
-
-    if let Some(jwt) = jwt {
-        scu_init = scu_init.jwt(jwt);
-    }
-
-    scu_init
-        .establish_with_async(&addr)
-        .await
-        .map_err(Box::from)
-        .context(ScuSnafu)
-}
-
-pub async fn send_file(
-    mut scu: ClientAssociation<TcpStream>,
+pub async fn send_file<T>(
+    mut scu: AsyncClientAssociation<T>,
     file: DicomFile,
     message_id: u16,
     progress_bar: Option<&Arc<tokio::sync::Mutex<ProgressBar>>>,
     verbose: bool,
     fail_first: bool,
-) -> Result<ClientAssociation<TcpStream>, Error> {
+) -> Result<AsyncClientAssociation<T>, Error> 
+where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static{
     if let (Some(pc_selected), Some(ts_uid_selected)) = (file.pc_selected, file.ts_selected) {
         let cmd = store_req_command(&file.sop_class_uid, &file.sop_instance_uid, message_id);
 
@@ -156,7 +102,7 @@ pub async fn send_file(
             scu.send(&pdu).await.map_err(Box::from).context(ScuSnafu)?;
 
             {
-                let mut pdata = scu.send_pdata(pc_selected.id).await;
+                let mut pdata = scu.send_pdata(pc_selected.id);
                 pdata.write_all(&object_data).await.unwrap();
                 //.whatever_context("Failed to send C-STORE-RQ P-Data")?;
             }
@@ -250,4 +196,59 @@ pub async fn send_file(
         pb.lock().await.inc(1)
     };
     Ok(scu)
+}
+
+
+pub async fn inner<T>(
+    mut scu: AsyncClientAssociation<T>,
+    d_files: Arc<Mutex<Vec<DicomFile>>>,
+    pbx: Option<Arc<Mutex<ProgressBar>>>,
+    never_transcode: bool,
+    fail_first: bool,
+    verbose: bool,
+    ignore_sop_class: bool,
+) -> Result<(), Error>
+ where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static {
+    let mut message_id = 1;
+    loop {
+        let file = {
+            let mut files = d_files.lock().await;
+            files.pop()
+        };
+        let mut file = match file {
+            Some(file) => file,
+            None => break,
+        };
+        let r: Result<_, Error> = check_presentation_contexts(
+            &file,
+            scu.presentation_contexts(),
+            ignore_sop_class,
+            never_transcode,
+        );
+        match r {
+            Ok((pc, ts)) => {
+                if verbose {
+                    debug!(
+                        "{}: Selected presentation context: {:?}",
+                        file.file.display(),
+                        pc
+                    );
+                }
+                file.pc_selected = Some(pc);
+                file.ts_selected = Some(ts);
+            }
+            Err(e) => {
+                error!("{}", Report::from_error(e));
+                if fail_first {
+                    let _ = scu.abort().await;
+                    std::process::exit(-2);
+                }
+            }
+        }
+        scu = send_file(scu, file, message_id, pbx.as_ref(), verbose, fail_first).await?;
+        message_id += 1;
+    }
+    let _ = scu.release().await;
+    Ok(())
+
 }

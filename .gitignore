@@ -4,3 +4,9 @@ target/
 *.rs.bk
 .idea/
 .marscode/
+*.crt
+*.key
+*.csr
+*.srl
+*.pem
+certs/

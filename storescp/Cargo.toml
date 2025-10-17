@@ -13,13 +13,14 @@ readme = "README.md"
 [dependencies]
 clap = { version = "4.0.18", features = ["derive"] }
 dicom-core = { path = '../core', version = "0.9" }
-dicom-ul = { path = '../ul', version = "0.9", features = ["async"] }
+dicom-ul = { path = '../ul', version = "0.9", features = ["async-tls"] }
 dicom-object = { path = '../object', version = "0.9" }
 dicom-encoding = { path = "../encoding/", version = "0.9" }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.9" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.9" }
 snafu = "0.8"
 tracing = "0.1.36"
-tracing-subscriber = "0.3.15"
+tracing-subscriber = { version = "0.3.15", features = ["env-filter"] }
 tokio = { version = "1.38.0", features = ["full"] }
+dicom-app-common = { version = "0.1.0", path = "../app-common" }
 
