@@ -18,6 +18,7 @@ fn ensure_test_certs() -> Result<(), Box<dyn std::error::Error>> {
         println!("All certs exist, exiting");
         return Ok(());
     }
+    std::fs::remove_dir_all(&out_dir).expect("Could not remove certs dir");
 
     // Create output directory
     std::fs::create_dir_all(&out_dir)?;
@@ -31,6 +32,7 @@ fn ensure_test_certs() -> Result<(), Box<dyn std::error::Error>> {
 
     // Write CA certificate and private key to `../certs/ca.pem` and `../certs/ca.key.pem`
     ca.serialize_pem().write(&out_dir, "ca")?;
+    println!("Created certs/ca.pem and certs/ca.key.pem");
 
     // Generate Client keypair
     let mut client = CertificateBuilder::new()
@@ -42,6 +44,7 @@ fn ensure_test_certs() -> Result<(), Box<dyn std::error::Error>> {
     client
         .build(&ca)?
         .serialize_pem().write(&out_dir, "client")?;
+    println!("Created certs/client.pem and certs/client.key.pem");
 
     // Generate Server keypair
     let mut server = CertificateBuilder::new()
@@ -53,6 +56,7 @@ fn ensure_test_certs() -> Result<(), Box<dyn std::error::Error>> {
     server
         .build(&ca)?
         .serialize_pem().write(&out_dir, "server")?;
+    println!("Created certs/server.pem and certs/server.key.pem");
 
     Ok(())
 }
