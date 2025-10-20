@@ -106,13 +106,13 @@ pub enum PeerCertOption {
     Ignore,
 }
 
-pub fn show_cipher_suites() -> ! {
+/// Show the supported cipher suites for the default crypto provider
+pub fn show_cipher_suites(){
     let provider = rustls::crypto::CryptoProvider::get_default().expect("No default crypto provider found");
     println!("Supported cipher suites: ");
     for suite in &provider.cipher_suites {
         println!("{:?}", suite.suite());
     }
-    std::process::exit(0)
 }
 
 impl TLSOptions{
