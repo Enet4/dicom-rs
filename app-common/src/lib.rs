@@ -13,13 +13,13 @@ pub enum TlsError {
         source: rustls::pki_types::pem::Error,
         path: Option<PathBuf>,
      },
-    #[snafu(display("Rustls error: {}", source))]
+    #[snafu(display("Rustls error"))]
     Rustls { source: rustls::Error },
 
-    #[snafu(display("Certificate verifier error: {}", source))]
+    #[snafu(display("Certificate verifier error"))]
     CertificateVerifier { source: rustls::client::VerifierBuilderError},
 
-    #[snafu(display("Config error: {}", message))]
+    #[snafu(display("Config error"))]
     Config { message: String },
 }
 
