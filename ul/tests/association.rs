@@ -2,6 +2,7 @@ use dicom_dictionary_std::uids::VERIFICATION;
 use dicom_ul::ClientAssociationOptions;
 use rstest::rstest;
 use std::time::Instant;
+#[cfg(feature = "sync-tls")]
 use dicom_ul::association::Association;
 #[cfg(feature = "sync-tls")]
 use std::sync::Arc;
@@ -18,7 +19,9 @@ fn ensure_test_certs() -> Result<(), Box<dyn std::error::Error>> {
         println!("All certs exist, exiting");
         return Ok(());
     }
-    std::fs::remove_dir_all(&out_dir).expect("Could not remove certs dir");
+    if out_dir.exists() {
+        std::fs::remove_dir_all(&out_dir).expect("Could not remove certs dir");
+    }
 
     // Create output directory
     std::fs::create_dir_all(&out_dir)?;

@@ -1,5 +1,8 @@
 [package]
 name = "dicom-app-common"
+description = "Helper library for command-line applications in the DICOM-rs project"
+authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>", "Nate Richman <naterichman@flywheel.io>"]
+keywords = ["dicom", "cli"]
 version = "0.1.0"
 edition = "2021"
 
