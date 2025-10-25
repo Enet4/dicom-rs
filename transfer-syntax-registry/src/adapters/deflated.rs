@@ -121,7 +121,7 @@ impl PixelDataWriter for DeflatedImageFrameAdapter {
             Some(e) => Compression::new((e.min(100) / 11) as u32),
         };
         let mut encoder = DeflateEncoder::new(&mut *dst, compression);
-        encoder.write_all(&frame_data[..])
+        encoder.write_all(frame_data)
             .whatever_context("failed to encode deflated data")?;
         encoder.finish()
             .whatever_context("failed to finish deflated data encoding")?;
