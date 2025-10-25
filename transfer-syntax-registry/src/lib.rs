@@ -72,8 +72,10 @@
 //! | JPEG XL Recompression         | Cargo feature `jpegxl` | x |
 //! | JPEG XL                       | Cargo feature `jpegxl` | ✓ |
 //! | RLE Lossless                  | Cargo feature `rle` | x |
+//! | Deflated Image Frame          | Cargo feature `deflate` | ✓ |
 //!
-//! Cargo features behind `native` (`jpeg`, `rle`) are added by default.
+//! Cargo features behind `native` (`jpeg`, `rle`, `deflate`)
+//! are added by default in the [`dicom-pixeldata` crate][dicom-pixeldata].
 //! They provide implementations that are written in pure Rust
 //! and are likely available in all supported platforms without issues.
 //! Additional codecs are opt-in by enabling Cargo features,
@@ -104,6 +106,7 @@
 //! if using the inventory-based registry.
 //!
 //! [inventory]: https://docs.rs/inventory/0.3.15/inventory
+//! [dicom-pixeldata]: https://docs.rs/dicom-pixeldata
 
 use dicom_encoding::transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec};
 use lazy_static::lazy_static;
