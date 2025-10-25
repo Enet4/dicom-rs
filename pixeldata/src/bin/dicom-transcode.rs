@@ -89,6 +89,11 @@ struct TargetTransferSyntax {
     #[cfg(feature = "jpegxl")]
     #[clap(long = "jpeg-xl")]
     jpeg_xl: bool,
+
+    /// Transcode to Deflated Image Frame
+    #[cfg(feature = "deflate")]
+    #[clap(long = "deflated-image-frame")]
+    deflated_image_frame: bool,
 }
 
 impl TargetTransferSyntax {
@@ -109,6 +114,8 @@ impl TargetTransferSyntax {
                     jpeg_xl_lossless: false,
                 #[cfg(feature = "jpegxl")]
                     jpeg_xl: false,
+                #[cfg(feature = "deflate")]
+                    deflated_image_frame: false,
             } => snafu::whatever!("No target transfer syntax specified"),
             // explicit VR little endian
             TargetTransferSyntax {
@@ -158,6 +165,11 @@ impl TargetTransferSyntax {
             TargetTransferSyntax { jpeg_xl: true, .. } => TransferSyntaxRegistry
                 .get(uids::JPEGXL)
                 .whatever_context("Missing specifier for JPEG XL"),
+            // Deflated Image Frame Compression
+            #[cfg(feature = "deflate")]
+            TargetTransferSyntax { deflated_image_frame: true, .. } => TransferSyntaxRegistry
+                .get(uids::DEFLATED_IMAGE_FRAME_COMPRESSION)
+                .whatever_context("Missing specifier for Deflated Image Frame Compression"),
             TargetTransferSyntax { ts: Some(ts), .. } => TransferSyntaxRegistry
                 .get(ts)
                 .whatever_context("Unknown transfer syntax"),
