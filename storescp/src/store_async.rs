@@ -23,7 +23,8 @@ pub async fn run_store_async(
         out_dir,
         port: _,
         non_blocking: _,
-        tls
+        tls,
+        tls_acceptor
     } = args;
 
 
@@ -50,7 +51,7 @@ pub async fn run_store_async(
         options = options.with_abstract_syntax(*uid);
     }
     let (peer_addr, peer_title) = if tls.enabled {
-        let config = tls.server_config().whatever_context("Could not create TLS config")?;
+        let config = tls.server_config(tls_acceptor).whatever_context("Could not create TLS config")?;
         options = options.tls_config(config);
         let peer_addr = scu_stream.peer_addr().ok();
         let association = options

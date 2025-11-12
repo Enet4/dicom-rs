@@ -21,7 +21,8 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
         out_dir,
         port: _,
         non_blocking: _,
-        tls
+        tls,
+        tls_acceptor,
     } = &args;
 
 
@@ -48,7 +49,7 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
         options = options.with_abstract_syntax(*uid);
     }
     let (peer_addr, peer_title) = if tls.enabled {
-        let config = tls.server_config().whatever_context("Could not create TLS config")?;
+        let config = tls.server_config(tls_acceptor).whatever_context("Could not create TLS config")?;
         options = options.tls_config(config);
         let peer_addr = scu_stream.peer_addr().ok();
         let association = options

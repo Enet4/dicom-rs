@@ -19,7 +19,6 @@ A function is provided within `tests/association.rs` which:
 
 When finished, there should be a `.pem`, and a `.key.pem` for the client, server and CA client and server,
 
-If you live outside of the US or want to change the IP/DNS of the configured
+You can change the country or the IP/DNS of the configured
 client/server
-
-Change the `country_name` and/or `organization_name` in the test code.
+by modifying `country_name` and/or `organization_name` in the test code.

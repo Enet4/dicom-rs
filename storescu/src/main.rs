@@ -20,7 +20,7 @@ use tracing::{error, info, warn, Level};
 use tracing_subscriber::filter::EnvFilter;
 use transfer_syntax::TransferSyntaxIndex;
 use walkdir::WalkDir;
-use dicom_app_common::TLSOptions;
+use dicom_app_common::TlsOptions;
 
 mod store_async;
 mod store_sync;
@@ -104,7 +104,7 @@ struct App {
     concurrency: Option<usize>,
 
     #[command(flatten, next_help_heading = "TLS Options")]
-    tls: TLSOptions
+    tls: TlsOptions
 }
 
 #[derive(Debug)]
@@ -238,8 +238,8 @@ fn main() {
             .with_max_level(Level::INFO)
             .with_env_filter(
                 EnvFilter::from_default_env()
-                    .add_directive("app_common=info".parse().unwrap())
-                    .add_directive(if app.verbose { "storescu=debug".parse().unwrap() } else { "storescu=info".parse().unwrap() })
+                    .add_directive("dicom_app_common=info".parse().unwrap())
+                    .add_directive(if app.verbose { "dicom_storescu=debug".parse().unwrap() } else { "dicom_storescu=info".parse().unwrap() })
             )
             .finish(),
     )

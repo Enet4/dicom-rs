@@ -5,6 +5,14 @@ use std::{path::PathBuf, sync::Arc};
 use snafu::{Snafu, ResultExt};
 
 #[derive(Snafu, Debug)]
+pub enum MissingPemObject {
+    #[snafu(display("Missing Certificate"))]
+    Certificate,
+    #[snafu(display("Missing Private Key"))]
+    PrivateKey,
+}
+
+#[derive(Snafu, Debug)]
 pub enum TlsError {
     #[snafu(display("IO error"))] 
     Io { source: std::io::Error },
@@ -20,12 +28,12 @@ pub enum TlsError {
     CertificateVerifier { source: rustls::client::VerifierBuilderError},
 
     #[snafu(display("Config error"))]
-    Config { message: String },
+    Config { missing: MissingPemObject },
 }
 
 
 #[derive(Args, Debug)]
-pub struct TLSOptions {
+pub struct TlsOptions {
     /// Enables mTLS (TLS for DICOM connections)
     #[arg(long = "tls", default_value = "false")]
     pub enabled: bool,
@@ -58,14 +66,18 @@ pub struct TLSOptions {
     #[arg(long, value_name = "/path/to/crl.pem,...")]
     pub add_crls: Option<Vec<PathBuf>>,
 
-    #[arg(long, action = clap::ArgAction::SetFalse)]
     /// Load certitificates from the system root store
+    #[arg(long, action = clap::ArgAction::SetFalse)]
     pub system_roots: bool,
 
     /// How to handle peer certificates
     #[arg(long, value_enum, value_name = "opt", default_value_t = PeerCertOption::Require)]
     pub peer_cert: PeerCertOption,
 
+}
+
+#[derive(Args, Debug)]
+pub struct TlsAcceptorOptions {
     /// Allow unauthenticated clients (only valid for server)
     #[arg(long)]
     pub allow_unauthenticated: bool,
@@ -78,6 +90,7 @@ pub struct TLSOptions {
 /// for more details
 /// 
 /// Currently only AWS-LC is supported
+#[non_exhaustive]
 #[derive(clap::ValueEnum, Clone, Debug)]
 pub enum CryptoProvider {
     AwsLC,
@@ -115,7 +128,7 @@ pub fn show_cipher_suites(){
     }
 }
 
-impl TLSOptions{
+impl TlsOptions{
     /// Build a root cert store from system roots and any additional certs
     fn root_cert_store(&self) -> Result<rustls::RootCertStore, TlsError> {
         let mut root_store = rustls::RootCertStore::empty();
@@ -197,7 +210,7 @@ impl TLSOptions{
                 Ok(config)
             }
             (Some(_), None) => {
-                ConfigSnafu{ message: "Certificate provided but no private key"}.fail()
+                ConfigSnafu{ missing: MissingPemObject::PrivateKey }.fail()
             }
             (None, _) => {
                 let config = builder.with_no_client_auth();
@@ -208,7 +221,7 @@ impl TLSOptions{
     }
 
     /// Consume the options to create a server config
-    pub fn server_config(&self) -> Result<ServerConfig, TlsError> {
+    pub fn server_config(&self, acceptor_options: &TlsAcceptorOptions) -> Result<ServerConfig, TlsError> {
         // Get the crypto provider
         let provider = match self.crypto_provider {
             CryptoProvider::AwsLC => Arc::new(rustls::crypto::aws_lc_rs::default_provider()),
@@ -225,7 +238,7 @@ impl TLSOptions{
             if let Some(crl_paths) = self.crls()? {
                 cert_verifier = cert_verifier.with_crls(crl_paths);
             }
-            if self.allow_unauthenticated {
+            if acceptor_options.allow_unauthenticated {
                 info!("Allowing unauthenticated clients");
                 cert_verifier = cert_verifier.allow_unauthenticated();
             }
@@ -233,14 +246,21 @@ impl TLSOptions{
                 .context(CertificateVerifierSnafu)?;
             builder.with_client_cert_verifier(cert_verifier)
         };
-        if let (Some(certs), Some(key)) = (self.certs()?, &self.key) {
-            let key = PrivateKeyDer::from_pem_file(key)
-                .with_context(|_| PemParseSnafu{path: key.clone()})?;
-            let config = builder.with_single_cert(certs, key)
-                .context(RustlsSnafu)?;
-            return Ok(config)
+        match (self.certs()?, &self.key) {
+            (Some(certs), Some(key)) => {
+                let key = PrivateKeyDer::from_pem_file(key)
+                    .with_context(|_| PemParseSnafu{path: key.clone()})?;
+                let config = builder.with_single_cert(certs, key)
+                    .context(RustlsSnafu)?;
+                Ok(config)
+            }
+            (Some(_), None) => {
+                ConfigSnafu{ missing: MissingPemObject::PrivateKey }.fail()
+            }
+            (None, _) => {
+                ConfigSnafu{ missing: MissingPemObject::Certificate }.fail()
+            }
         }
-        ConfigSnafu{ message: "Server requires both certificate and private key"}.fail()
     }
 
 }

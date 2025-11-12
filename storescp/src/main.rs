@@ -2,7 +2,7 @@ use std::{
     net::{Ipv4Addr, SocketAddrV4}, path::PathBuf
 };
 
-use dicom_app_common::TLSOptions;
+use dicom_app_common::{TlsOptions, TlsAcceptorOptions};
 use clap::Parser;
 use dicom_core::{dicom_value, DataElement, VR};
 use dicom_dictionary_std::tags;
@@ -55,7 +55,9 @@ struct App {
     non_blocking: bool,
     /// TLS options
     #[command(flatten, next_help_heading = "TLS Options")]
-    tls: TLSOptions
+    tls: TlsOptions,
+    #[command(flatten)]
+    tls_acceptor: TlsAcceptorOptions,
 }
 
 fn create_cstore_response(
@@ -113,8 +115,8 @@ fn main() {
             .with_max_level(Level::INFO)
             .with_env_filter(
                 EnvFilter::from_default_env()
-                    .add_directive("app_common=info".parse().unwrap())
-                    .add_directive(if app.verbose { "storescp=debug".parse().unwrap() } else { "storescp=info".parse().unwrap() })
+                    .add_directive("dicom_app_common=info".parse().unwrap())
+                    .add_directive(if app.verbose { "dicom_storescp=debug".parse().unwrap() } else { "dicom_storescp=info".parse().unwrap() })
             )
             .finish(),
     )
