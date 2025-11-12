@@ -27,7 +27,7 @@ pub enum TlsError {
     #[snafu(display("Certificate verifier error"))]
     CertificateVerifier { source: rustls::client::VerifierBuilderError},
 
-    #[snafu(display("Config error"))]
+    #[snafu(display("Config error: {missing}"))]
     Config { missing: MissingPemObject },
 }
 
