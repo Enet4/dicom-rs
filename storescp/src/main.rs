@@ -1,13 +1,13 @@
 use std::{
-    net::{Ipv4Addr, SocketAddrV4},
-    path::PathBuf,
+    net::{Ipv4Addr, SocketAddrV4}, path::PathBuf
 };
 
+use dicom_app_common::{TlsOptions, TlsAcceptorOptions};
 use clap::Parser;
 use dicom_core::{dicom_value, DataElement, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{InMemDicomObject, StandardDataDictionary};
-use snafu::Report;
+use snafu::{Report, ResultExt, Whatever};
 use tracing::{error, info, Level};
 
 mod store_async;
@@ -15,6 +15,7 @@ mod store_sync;
 mod transfer;
 use store_async::run_store_async;
 use store_sync::run_store_sync;
+use tracing_subscriber::EnvFilter;
 
 /// DICOM C-STORE SCP
 #[derive(Debug, Parser)]
@@ -52,6 +53,11 @@ struct App {
     /// Run in non-blocking mode (spins up an async task to handle each incoming stream)
     #[arg(short, long)]
     non_blocking: bool,
+    /// TLS options
+    #[command(flatten, next_help_heading = "TLS Options")]
+    tls: TlsOptions,
+    #[command(flatten)]
+    tls_acceptor: TlsAcceptorOptions,
 }
 
 fn create_cstore_response(
@@ -104,6 +110,20 @@ fn create_cecho_response(message_id: u16) -> InMemDicomObject<StandardDataDictio
 
 fn main() {
     let app = App::parse();
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(Level::INFO)
+            .with_env_filter(
+                EnvFilter::from_default_env()
+                    .add_directive("dicom_app_common=info".parse().unwrap())
+                    .add_directive(if app.verbose { "dicom_storescp=debug".parse().unwrap() } else { "dicom_storescp=info".parse().unwrap() })
+            )
+            .finish(),
+    )
+    .whatever_context("Could not set up global logging subscriber")
+    .unwrap_or_else(|e: Whatever| {
+        eprintln!("[ERROR] {}", Report::from_error(e));
+    });
     if app.non_blocking {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -126,22 +146,6 @@ fn main() {
 async fn run_async(args: App) -> Result<(), Box<dyn std::error::Error>> {
     use std::sync::Arc;
     let args = Arc::new(args);
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::FmtSubscriber::builder()
-            .with_max_level(if args.verbose {
-                Level::DEBUG
-            } else {
-                Level::INFO
-            })
-            .finish(),
-    )
-    .unwrap_or_else(|e| {
-        eprintln!(
-            "Could not set up global logger: {}",
-            snafu::Report::from_error(e)
-        );
-    });
-
     std::fs::create_dir_all(&args.out_dir).unwrap_or_else(|e| {
         error!("Could not create output directory: {}", e);
         std::process::exit(-2);
@@ -166,22 +170,6 @@ async fn run_async(args: App) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn run_sync(args: App) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::FmtSubscriber::builder()
-            .with_max_level(if args.verbose {
-                Level::DEBUG
-            } else {
-                Level::INFO
-            })
-            .finish(),
-    )
-    .unwrap_or_else(|e| {
-        eprintln!(
-            "Could not set up global logger: {}",
-            snafu::Report::from_error(e)
-        );
-    });
-
     std::fs::create_dir_all(&args.out_dir).unwrap_or_else(|e| {
         error!("Could not create output directory: {}", e);
         std::process::exit(-2);

@@ -5,19 +5,22 @@ use dicom_encoding::transfer_syntax;
 use dicom_encoding::TransferSyntax;
 use dicom_object::{mem::InMemDicomObject, DefaultDicomObject, StandardDataDictionary};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use dicom_ul::pdu::PresentationContextResultReason;
+use dicom_ul::ClientAssociationOptions;
 use indicatif::{ProgressBar, ProgressStyle};
 use snafu::prelude::*;
 use snafu::{Report, Whatever};
+use tracing::debug;
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
-use tracing::{debug, error, info, warn, Level};
+use tracing::{error, info, warn, Level};
+use tracing_subscriber::filter::EnvFilter;
 use transfer_syntax::TransferSyntaxIndex;
 use walkdir::WalkDir;
+use dicom_app_common::TlsOptions;
 
 mod store_async;
 mod store_sync;
@@ -36,9 +39,6 @@ struct App {
     /// verbose mode
     #[arg(short = 'v', long = "verbose")]
     verbose: bool,
-    /// the C-STORE message ID
-    #[arg(short = 'm', long = "message-id", default_value = "1")]
-    message_id: u16,
     /// the calling Application Entity title
     #[arg(long = "calling-ae-title", default_value = "STORE-SCU")]
     calling_ae_title: String,
@@ -102,6 +102,9 @@ struct App {
     /// Dispatch these many service users to send files in parallel
     #[arg(short = 'c', long = "concurrency")]
     concurrency: Option<usize>,
+
+    #[command(flatten, next_help_heading = "TLS Options")]
+    tls: TlsOptions
 }
 
 #[derive(Debug)]
@@ -172,10 +175,78 @@ enum Error {
     WriteIO {
         source: std::io::Error,
     },
+
+    #[snafu(display("TLS error: {}", source))]
+    Tls {
+        source: dicom_app_common::TlsError,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn get_scu_options<'a>(
+    calling_ae_title: String,
+    called_ae_title: Option<String>,
+    max_pdu_length: u32,
+    username: Option<String>,
+    password: Option<String>,
+    kerberos_service_ticket: Option<String>,
+    saml_assertion: Option<String>,
+    jwt: Option<String>,
+    presentation_contexts: &'a HashSet<(String, String)>,
+    tls_options: rustls::ClientConfig,
+) -> ClientAssociationOptions<'a> {
+    let mut scu_init = ClientAssociationOptions::new()
+        .calling_ae_title(calling_ae_title)
+        .max_pdu_length(max_pdu_length)
+        .server_name("localhost")
+        .tls_config(tls_options);
+
+    for (storage_sop_class_uid, transfer_syntax) in presentation_contexts {
+        scu_init = scu_init.with_presentation_context(storage_sop_class_uid, vec![transfer_syntax]);
+    }
+
+    if let Some(called_ae_title) = called_ae_title {
+        scu_init = scu_init.called_ae_title(called_ae_title);
+    }
+
+    if let Some(username) = username {
+        scu_init = scu_init.username(username);
+    }
+
+    if let Some(password) = password {
+        scu_init = scu_init.password(password);
+    }
+
+    if let Some(kerberos_service_ticket) = kerberos_service_ticket {
+        scu_init = scu_init.kerberos_service_ticket(kerberos_service_ticket);
+    }
+
+    if let Some(saml_assertion) = saml_assertion {
+        scu_init = scu_init.saml_assertion(saml_assertion);
+    }
+
+    if let Some(jwt) = jwt {
+        scu_init = scu_init.jwt(jwt);
+    }
+    scu_init
 }
 
 fn main() {
     let app = App::parse();
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(Level::INFO)
+            .with_env_filter(
+                EnvFilter::from_default_env()
+                    .add_directive("dicom_app_common=info".parse().unwrap())
+                    .add_directive(if app.verbose { "dicom_storescu=debug".parse().unwrap() } else { "dicom_storescu=info".parse().unwrap() })
+            )
+            .finish(),
+    )
+    .whatever_context("Could not set up global logging subscriber")
+    .unwrap_or_else(|e: Whatever| {
+        eprintln!("[ERROR] {}", Report::from_error(e));
+    });
     match app.concurrency {
         Some(0) | None => {
             run(app).unwrap_or_else(|e| {
@@ -263,12 +334,10 @@ fn check_files(
 }
 
 fn run(app: App) -> Result<(), Error> {
-    use crate::store_sync::{get_scu, send_file};
     let App {
         addr,
         files,
         verbose,
-        message_id,
         calling_ae_title,
         called_ae_title,
         max_pdu_length,
@@ -281,30 +350,23 @@ fn run(app: App) -> Result<(), Error> {
         saml_assertion,
         jwt,
         concurrency: _,
+        tls,
     } = app;
 
     // never transcode if the feature is disabled
     if cfg!(not(feature = "transcode")) {
         never_transcode = true;
     }
-
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::FmtSubscriber::builder()
-            .with_max_level(if verbose { Level::DEBUG } else { Level::INFO })
-            .finish(),
-    )
-    .whatever_context("Could not set up global logging subscriber")
-    .unwrap_or_else(|e: Whatever| {
-        eprintln!("[ERROR] {}", Report::from_error(e));
-    });
+    let tls_enabled = tls.enabled;
+    let config = tls.client_config()
+        .context(TlsSnafu)?;
 
     if verbose {
         info!("Establishing association with '{}'...", &addr);
     }
-    let (mut dicom_files, presentation_contexts) = check_files(files, verbose, never_transcode);
+    let (dicom_files, presentation_contexts) = check_files(files, verbose, never_transcode);
 
-    let mut scu = get_scu(
-        addr,
+    let scu_options = get_scu_options(
         calling_ae_title,
         called_ae_title,
         max_pdu_length,
@@ -313,52 +375,9 @@ fn run(app: App) -> Result<(), Error> {
         kerberos_service_ticket,
         saml_assertion,
         jwt,
-        presentation_contexts,
-    )?;
-
-    if verbose {
-        info!("Association established");
-        debug!(
-            "#accepted_presentation_contexts={},requestor_max_pdu_length={}, acceptor_max_pdu_length={}",
-            scu.presentation_contexts()
-                .iter()
-                .filter(|pc| pc.reason == PresentationContextResultReason::Acceptance)
-                .count(),
-            scu.requestor_max_pdu_length(),
-            scu.acceptor_max_pdu_length(),
-        );
-        debug!(
-            "Presentation contexts: {:?}",
-            scu.presentation_contexts()
-        );
-    }
-
-    for file in &mut dicom_files {
-        // identify the right transfer syntax to use
-        let r: Result<_, Error> =
-            check_presentation_contexts(file, scu.presentation_contexts(), ignore_sop_class, never_transcode);
-        match r {
-            Ok((pc, ts)) => {
-                if verbose {
-                    debug!(
-                        "{}: Selected presentation context: {:?}",
-                        file.file.display(),
-                        pc
-                    );
-                }
-                file.pc_selected = Some(pc);
-                file.ts_selected = Some(ts);
-            }
-            Err(e) => {
-                error!("{}", Report::from_error(e));
-                if fail_first {
-                    let _ = scu.abort();
-                    std::process::exit(-2);
-                }
-            }
-        }
-    }
-
+        &presentation_contexts,
+        config
+    );
     let progress_bar;
     if !verbose {
         progress_bar = Some(ProgressBar::new(dicom_files.len() as u64));
@@ -374,32 +393,23 @@ fn run(app: App) -> Result<(), Error> {
         progress_bar = None;
     }
 
-    for file in dicom_files {
-        scu = send_file(
-            scu,
-            file,
-            message_id,
-            progress_bar.as_ref(),
-            verbose,
-            fail_first,
-        )?;
+    if tls_enabled {
+        let scu = scu_options.establish_with_tls(&addr).map_err(Box::from).context(ScuSnafu)?;
+        store_sync::inner(scu, dicom_files, &progress_bar, fail_first, verbose, never_transcode, ignore_sop_class)?;
+
+    } else {
+        let scu = scu_options.establish(&addr).map_err(Box::from).context(ScuSnafu)?;
+        store_sync::inner(scu, dicom_files, &progress_bar, fail_first, verbose, never_transcode, ignore_sop_class)?;
     }
-
-    if let Some(pb) = progress_bar {
-        pb.finish_with_message("done")
-    };
-
-    scu.release().map_err(Box::from).context(ScuSnafu)?;
     Ok(())
 }
 
+
 async fn run_async() -> Result<(), Error> {
-    use crate::store_async::{get_scu, send_file};
     let App {
         addr,
         files,
         verbose,
-        message_id,
         calling_ae_title,
         called_ae_title,
         max_pdu_length,
@@ -412,6 +422,7 @@ async fn run_async() -> Result<(), Error> {
         saml_assertion,
         jwt,
         concurrency,
+        tls
     } = App::parse();
 
     // never transcode if the feature is disabled
@@ -419,15 +430,9 @@ async fn run_async() -> Result<(), Error> {
         never_transcode = true;
     }
 
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::FmtSubscriber::builder()
-            .with_max_level(if verbose { Level::DEBUG } else { Level::INFO })
-            .finish(),
-    )
-    .whatever_context("Could not set up global logging subscriber")
-    .unwrap_or_else(|e: Whatever| {
-        eprintln!("[ERROR] {}", Report::from_error(e));
-    });
+    let tls_enabled = tls.enabled;
+    let config = tls.client_config()
+        .context(TlsSnafu)?;
 
     if verbose {
         info!("Establishing association with '{}'...", &addr);
@@ -468,9 +473,9 @@ async fn run_async() -> Result<(), Error> {
         let password = password.clone();
         let called_ae_title = called_ae_title.clone();
         let calling_ae_title = calling_ae_title.clone();
+        let tls_config_clone = config.clone();
         tasks.spawn(async move {
-            let mut scu = get_scu(
-                addr,
+            let scu_options = get_scu_options(
                 calling_ae_title,
                 called_ae_title,
                 max_pdu_length,
@@ -479,48 +484,42 @@ async fn run_async() -> Result<(), Error> {
                 kerberos_service_ticket,
                 saml_assertion,
                 jwt,
-                pc,
-            )
-            .await?;
-            loop {
-                let file = {
-                    let mut files = d_files.lock().await;
-                    files.pop()
-                };
-                let mut file = match file {
-                    Some(file) => file,
-                    None => break,
-                };
-                let r: Result<_, Error> = check_presentation_contexts(
-                    &file,
-                    scu.presentation_contexts(),
-                    ignore_sop_class,
+                &pc,
+                tls_config_clone
+            );
+            if tls_enabled {
+                let scu = scu_options
+                    .establish_with_async_tls(&addr)
+                    .await
+                    .map_err(Box::from)
+                    .context(ScuSnafu)?;
+                store_async::inner(
+                    scu,
+                    d_files,
+                    pbx,
                     never_transcode,
-                );
-                match r {
-                    Ok((pc, ts)) => {
-                        if verbose {
-                            debug!(
-                                "{}: Selected presentation context: {:?}",
-                                file.file.display(),
-                                pc
-                            );
-                        }
-                        file.pc_selected = Some(pc);
-                        file.ts_selected = Some(ts);
-                    }
-                    Err(e) => {
-                        error!("{}", Report::from_error(e));
-                        if fail_first {
-                            let _ = scu.abort().await;
-                            std::process::exit(-2);
-                        }
-                    }
-                }
-                scu = send_file(scu, file, message_id, pbx.as_ref(), verbose, fail_first).await?;
+                    fail_first,
+                    verbose,
+                    ignore_sop_class,
+                )
+                .await
+            } else {
+                let scu = scu_options
+                    .establish_async(&addr)
+                    .await
+                    .map_err(Box::from)
+                    .context(ScuSnafu)?;
+                store_async::inner(
+                    scu,
+                    d_files,
+                    pbx,
+                    never_transcode,
+                    fail_first,
+                    verbose,
+                    ignore_sop_class,
+                )
+                .await
             }
-            let _ = scu.release().await;
-            Ok::<(), Error>(())
         });
     }
     while let Some(result) = tasks.join_next().await {
