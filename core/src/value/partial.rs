@@ -1,7 +1,9 @@
 //! Handling of partial precision of Date, Time and DateTime values.
 
 use crate::value::AsRange;
-use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
+use chrono::{
+    DateTime, Datelike, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, Timelike, Utc,
+};
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
@@ -307,6 +309,15 @@ impl DicomDate {
         Ok(DicomDate(DicomDateImpl::Day(year, month, day)))
     }
 
+    // Constructs a new `DicomDate` now from the local timezone
+    pub fn now_local() -> Result<DicomDate> {
+        DicomDate::try_from(&Local::now().date_naive())
+    }
+    // Constructs a new `DicomDate` now from the utc timezone
+    pub fn now_utc() -> Result<DicomDate> {
+        DicomDate::try_from(&Utc::now().date_naive())
+    }
+
     /// Retrieves the year from a date as a reference
     pub fn year(&self) -> &u16 {
         match self {
@@ -450,6 +461,16 @@ impl DicomTime {
             6,
         )))
     }
+
+    // Constructs a new `DicomTime` now from the local timezone
+    pub fn now_local() -> Result<DicomTime> {
+        DicomTime::try_from(&Local::now().naive_local().time())
+    }
+    // Constructs a new `DicomTime` now from the utc timezone
+    pub fn now_utc() -> Result<DicomTime> {
+        DicomTime::try_from(&Utc::now().naive_utc().time())
+    }
+
     /** Retrieves the hour from a time as a reference */
     pub fn hour(&self) -> &u8 {
         match self {
@@ -792,6 +813,15 @@ impl DicomDateTime {
         }
     }
 
+    // Constructs a new `DicomDateTime` now from the local timezone
+    pub fn now_local() -> Result<DicomDateTime> {
+        DicomDateTime::from_date_and_time(DicomDate::now_local()?, DicomTime::now_local()?)
+    }
+    // Constructs a new `DicomDateTime` now from the utc timezone
+    pub fn now_utc() -> Result<DicomDateTime> {
+        DicomDateTime::from_date_and_time(DicomDate::now_utc()?, DicomTime::now_utc()?)
+    }
+
     /** Retrieves a reference to the internal date value */
     pub fn date(&self) -> &DicomDate {
         &self.date
@@ -1094,7 +1124,7 @@ impl PartialOrd for PreciseDateTime {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
+    use chrono::{Duration, TimeZone};
 
     #[test]
     fn test_dicom_date() {
@@ -1330,12 +1360,12 @@ mod tests {
         );
 
         // specific date-time from chrono
-        let date_time: DateTime<_> = DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+        let date_time: DateTime<_> = DateTime::<Utc>::from_naive_utc_and_offset(
             NaiveDateTime::new(
                 NaiveDate::from_ymd_opt(2024, 8, 9).unwrap(),
                 NaiveTime::from_hms_opt(9, 9, 39).unwrap(),
             ),
-            chrono::Utc,
+            Utc,
         )
         .with_timezone(&FixedOffset::east_opt(0).unwrap());
         let dicom_date_time = DicomDateTime::try_from(&date_time).unwrap();
@@ -1416,6 +1446,126 @@ mod tests {
         }
         // test fraction retrieval: without a fraction, it returns None
         assert_eq!(DicomTime::from_hms(9, 1, 1).unwrap().fraction_micro(), None);
+    }
+
+    #[test]
+    fn test_dicom_time_now_local() {
+        let dicom_time = DicomTime::now_local()
+            .expect("Failed to get current local time from DicomTime::now_local()");
+        let system_time = Local::now().naive_local().time();
+        let dicom_naive_time = dicom_time
+            .to_naive_time()
+            .expect("Failed to convert DicomTime to NaiveTime");
+        let time_difference = system_time - dicom_naive_time;
+        assert!(
+            time_difference.abs() < Duration::seconds(1),
+            "Time difference between system and DICOM time exceeds 1 second: {:?}",
+            time_difference
+        );
+    }
+
+    #[test]
+    fn test_dicom_time_now_utc() {
+        let dicom_time_utc =
+            DicomTime::now_utc().expect("Failed to get current UTC time from DicomTime::now_utc()");
+        let system_time_utc = Utc::now().naive_utc().time();
+        let dicom_naive_time_utc = dicom_time_utc
+            .to_naive_time()
+            .expect("Failed to convert DicomTime (UTC) to NaiveTime");
+        let time_difference_utc = system_time_utc - dicom_naive_time_utc;
+        assert!(
+            time_difference_utc.abs() < Duration::seconds(1),
+            "Time difference between system and DICOM UTC time exceeds 1 second: {:?}",
+            time_difference_utc
+        );
+    }
+
+    #[test]
+    fn test_dicom_date_now_local() {
+        let dicom_date_local = DicomDate::now_local()
+            .expect("Failed to get current local date from DicomDate::now_local()");
+        let system_date_local = Local::now().naive_local().date();
+        let dicom_naive_date_local = dicom_date_local
+            .to_naive_date()
+            .expect("Failed to convert DicomDate (local) to NaiveDate");
+        assert_eq!(
+            dicom_naive_date_local, system_date_local,
+            "Local date mismatch between DicomDate and system"
+        );
+    }
+
+    #[test]
+    fn test_dicom_date_now_utc() {
+        let dicom_date_utc =
+            DicomDate::now_utc().expect("Failed to get current UTC date from DicomDate::now_utc()");
+        let system_date_utc = Utc::now().naive_utc().date();
+        let dicom_naive_date_utc = dicom_date_utc
+            .to_naive_date()
+            .expect("Failed to convert DicomDate (UTC) to NaiveDate");
+        assert_eq!(
+            dicom_naive_date_utc, system_date_utc,
+            "UTC date mismatch between DicomDate and system"
+        );
+    }
+
+    #[test]
+    fn test_dicom_date_time_now_local() {
+        let dicom_datetime_local = DicomDateTime::now_local()
+            .expect("Failed to get current local datetime from DicomDateTime::now_local()");
+        let dicom_datetime_local_time = dicom_datetime_local
+            .time()
+            .expect("Failed to get time from DicomDateTime");
+        let dicom_datetime_local_date = dicom_datetime_local.date();
+
+        let system_time_local = Local::now().naive_local().time();
+        let dicom_naive_time_local = dicom_datetime_local_time
+            .to_naive_time()
+            .expect("Failed to convert DicomDateTime time component to NaiveTime");
+        let time_difference_local = system_time_local - dicom_naive_time_local;
+        assert!(
+            time_difference_local.abs() < Duration::seconds(1),
+            "Time component difference between system and DicomDateTime local exceeds 1 second: {:?}",
+            time_difference_local
+        );
+
+        let system_date_local = Local::now().naive_local().date();
+        let dicom_naive_date_local = dicom_datetime_local_date
+            .to_naive_date()
+            .expect("Failed to convert DicomDateTime date component to NaiveDate");
+        assert_eq!(
+            dicom_naive_date_local, system_date_local,
+            "Date component mismatch between DicomDateTime and system"
+        );
+    }
+
+    #[test]
+    fn test_dicom_date_time_now_utc() {
+        let dicom_datetime_utc = DicomDateTime::now_utc()
+            .expect("Failed to get current UTC datetime from DicomDateTime::now_utc()");
+        let dicom_datetime_utc_time = dicom_datetime_utc
+            .time()
+            .expect("Failed to get time from DicomDateTime (UTC)");
+        let dicom_datetime_utc_date = dicom_datetime_utc.date();
+
+        let system_time_utc = Utc::now().naive_utc().time();
+        let dicom_naive_time_utc = dicom_datetime_utc_time
+            .to_naive_time()
+            .expect("Failed to convert DicomDateTime UTC time component to NaiveTime");
+        let time_difference_utc = system_time_utc - dicom_naive_time_utc;
+        assert!(
+            time_difference_utc.abs() < Duration::seconds(1),
+            "Time component difference between system and DicomDateTime UTC exceeds 1 second: {:?}",
+            time_difference_utc
+        );
+
+        let system_date_utc = Utc::now().naive_utc().date();
+        let dicom_naive_date_utc = dicom_datetime_utc_date
+            .to_naive_date()
+            .expect("Failed to convert DicomDateTime UTC date component to NaiveDate");
+        assert_eq!(
+            dicom_naive_date_utc, system_date_utc,
+            "Date component mismatch between DicomDateTime UTC and system"
+        );
     }
 
     #[test]
