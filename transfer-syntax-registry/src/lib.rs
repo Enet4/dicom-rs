@@ -68,9 +68,9 @@
 //! | High-Throughput JPEG 2000 with RPCL Options (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | High-Throughput JPEG 2000     | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | JPIP HTJ2K Referenced Deflate | Cargo feature `deflate` | ✓ |
-//! | JPEG XL Lossless              | Cargo feature `jpegxl` | ✓ |
-//! | JPEG XL Recompression         | Cargo feature `jpegxl` | x |
-//! | JPEG XL                       | Cargo feature `jpegxl` | ✓ |
+//! | JPEG XL Lossless              | Cargo feature `jxl-oxide` | ✓ (Cargo feature `zune-jpegxl`) |
+//! | JPEG XL Recompression         | Cargo feature `jxl-oxide` | x |
+//! | JPEG XL                       | Cargo feature `jxl-oxide` | ✓ (Cargo feature `zune-jpegxl`) |
 //! | RLE Lossless                  | Cargo feature `rle` | x |
 //!
 //! Cargo features behind `native` (`jpeg`, `rle`) are added by default.
@@ -92,8 +92,7 @@
 //! - `openjp2` provides a binding to a computer-translated Rust port of OpenJPEG.
 //!   Due to the nature of this crate,
 //!   it might not work on all modern platforms.
-//! - `jpegxl` adds JPEG XL support using `jxl-oxide` for decoding
-//!   and `zune-jpegxl` for encoding.
+//! - `jxl-oxide` and `zune-jpegxl` offer JPEG XL decoding and encoding.
 //!
 //! Transfer syntaxes which are not supported,
 //! either due to being unable to read the data set
