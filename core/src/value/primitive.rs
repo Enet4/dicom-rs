@@ -342,6 +342,12 @@ impl From<PersonName<'_>> for PrimitiveValue {
     }
 }
 
+impl From<Cow<'_, str>> for PrimitiveValue {
+    fn from(value: Cow<'_, str>) -> Self {
+        PrimitiveValue::Str(value.into_owned())
+    }
+}
+
 impl From<()> for PrimitiveValue {
     /// constructs an empty DICOM value
     #[inline]
@@ -755,6 +761,86 @@ impl PrimitiveValue {
             PrimitiveValue::F32(values) => Cow::Owned(seq_to_str(values)),
             PrimitiveValue::F64(values) => Cow::Owned(seq_to_str(values)),
             PrimitiveValue::Tags(values) => Cow::Owned(seq_to_str(values)),
+        }
+    }
+
+    /// Convert this primitive value into a text-based primitive value.
+    ///
+    /// This method consumes the original value and returns a `PrimitiveValue`
+    /// that represents the same data as text.
+    ///
+    /// # Behavior
+    ///
+    /// - `Empty` values remain `Empty`
+    /// - Text variants (`Str`, `Strs`) are returned as-is without conversion
+    /// - All other variants are converted to `PrimitiveValue::Str`
+    ///   using their string representation (via [`to_str()`])
+    ///
+    /// # When to use `into_text_value()` vs `to_str()`
+    ///
+    /// Use **`to_str()`** when you need a string representation
+    /// for display, comparison, or serialization:
+    /// - Returns `Cow<'_, str>` (borrows when possible)
+    /// - Does not consume the original value
+    /// - Suitable for temporary string operations
+    ///
+    /// Use **`into_text_value()`** when you need to store or manipulate
+    /// the value as text within the `PrimitiveValue` enum:
+    /// - Returns `PrimitiveValue::Str` (consumes the original)
+    /// - Useful for normalizing values to text representation
+    /// - Allows further processing as a `PrimitiveValue`
+    ///
+    /// [`to_str()`]: #method.to_str
+    ///
+    /// # Examples
+    ///
+    /// Converting numeric values to text:
+    ///
+    /// ```
+    /// # use dicom_core::value::PrimitiveValue;
+    /// # use smallvec::smallvec;
+    /// let value = PrimitiveValue::U16(smallvec![100, 200, 300]);
+    /// let text_value = value.into_text_value();
+    ///
+    /// assert_eq!(
+    ///     text_value,
+    ///     PrimitiveValue::Str("100\\200\\300".to_string())
+    /// );
+    /// ```
+    ///
+    /// Converting dates to text:
+    ///
+    /// ```
+    /// # use dicom_core::value::{PrimitiveValue, DicomDate};
+    /// # use smallvec::smallvec;
+    /// let value = PrimitiveValue::Date(
+    ///     smallvec![DicomDate::from_ymd(2024, 12, 25).unwrap()]
+    /// );
+    /// let text_value = value.into_text_value();
+    ///
+    /// assert_eq!(
+    ///     text_value,
+    ///     PrimitiveValue::Str("2024-12-25".to_string())
+    /// );
+    /// ```
+    ///
+    /// Text variants remain unchanged:
+    ///
+    /// ```
+    /// # use dicom_core::value::PrimitiveValue;
+    /// let value = PrimitiveValue::Str("Hello".to_string());
+    /// let text_value = value.into_text_value();
+    ///
+    /// assert_eq!(text_value, PrimitiveValue::Str("Hello".to_string()));
+    /// ```
+    pub fn into_text_value(self) -> PrimitiveValue {
+        match self {
+            PrimitiveValue::Empty => PrimitiveValue::Empty,
+            PrimitiveValue::Str(_) | PrimitiveValue::Strs(_) => self,
+            _ => {
+                let text = self.to_str().into_owned();
+                PrimitiveValue::Str(text)
+            }
         }
     }
 
@@ -4459,6 +4545,117 @@ mod tests {
         // maintains the leading whitespace on multiple strings and maintains at the end
         let value = dicom_value!(Strs, [" ONE", "TWO", "THREE", " SIX "]);
         assert_eq!(&value.to_raw_str(), " ONE\\TWO\\THREE\\ SIX ");
+    }
+    #[test]
+    fn primitive_value_to_primitive_text() {
+        // Test Strs variant - option 1, use ::from() explicitly
+        let value = dicom_value!(Strs, ["DERIVED", "PRIMARY", "WHOLE BODY"]);
+        let cow_str = value.to_str();
+        assert_eq!(
+            PrimitiveValue::from(cow_str),
+            PrimitiveValue::Str("DERIVED\\PRIMARY\\WHOLE BODY".to_string())
+        );
+
+        // Test Date variant - option 2, use .into()
+        let value = PrimitiveValue::Date(smallvec![DicomDate::from_ymd(2014, 10, 12).unwrap()]);
+        let cow_str = value.to_str();
+        let primitive_text: PrimitiveValue = cow_str.into();
+        assert_eq!(
+            primitive_text,
+            PrimitiveValue::Str("2014-10-12".to_string())
+        );
+
+        // Test DateTime variant - option 3, use into_text_value()
+        let value = PrimitiveValue::DateTime(smallvec![DicomDateTime::from_date_and_time(
+            DicomDate::from_ymd(2012, 12, 21).unwrap(),
+            DicomTime::from_hms(9, 30, 1).unwrap()
+        )
+        .unwrap()]);
+        assert_eq!(
+            value.into_text_value(),
+            PrimitiveValue::Str("2012-12-21 09:30:01".to_string())
+        );
+
+        // now test the rest of the variants, using option 3
+        // Test Time variant
+        let value = PrimitiveValue::Time(smallvec![DicomTime::from_hms(11, 2, 45).unwrap()]);
+        assert_eq!(
+            value.into_text_value(),
+            PrimitiveValue::Str("11:02:45".to_string())
+        );
+
+        // Test U8 variant
+        let value = PrimitiveValue::U8(smallvec![1, 2, 3]);
+        assert_eq!(
+            value.into_text_value(),
+            PrimitiveValue::Str("1\\2\\3".to_string())
+        );
+
+        // Test I16 variant
+        let value = PrimitiveValue::I16(smallvec![-1, 0, 1]);
+        assert_eq!(
+            value.into_text_value(),
+            PrimitiveValue::Str("-1\\0\\1".to_string())
+        );
+
+        // Test U16 variant
+        let value = PrimitiveValue::U16(smallvec![100, 200, 300]);
+        assert_eq!(
+            value.into_text_value(),
+            PrimitiveValue::Str("100\\200\\300".to_string())
+        );
+
+        // Test I32 variant
+        let value = PrimitiveValue::I32(smallvec![1000, -2000, 3000]);
+        assert_eq!(
+            value.into_text_value(),
+            PrimitiveValue::Str("1000\\-2000\\3000".to_string())
+        );
+
+        // Test U32 variant
+        let value = PrimitiveValue::U32(smallvec![10000, 20000, 30000]);
+        assert_eq!(
+            value.into_text_value(),
+            PrimitiveValue::Str("10000\\20000\\30000".to_string())
+        );
+
+        // Test I64 variant
+        let value = PrimitiveValue::I64(smallvec![100000, -200000, 300000]);
+        assert_eq!(
+            value.into_text_value(),
+            PrimitiveValue::Str("100000\\-200000\\300000".to_string())
+        );
+
+        // Test U64 variant
+        let value = PrimitiveValue::U64(smallvec![1000000, 2000000, 3000000]);
+        assert_eq!(
+            value.into_text_value(),
+            PrimitiveValue::Str("1000000\\2000000\\3000000".to_string())
+        );
+
+        // Test F32 variant
+        let value = PrimitiveValue::F32(smallvec![1.5, 2.5, 3.5]);
+        assert_eq!(
+            value.into_text_value(),
+            PrimitiveValue::Str("1.5\\2.5\\3.5".to_string())
+        );
+
+        // Test F64 variant
+        let value = PrimitiveValue::F64(smallvec![1.25, 2.75, 3.125]);
+        assert_eq!(
+            value.into_text_value(),
+            PrimitiveValue::Str("1.25\\2.75\\3.125".to_string())
+        );
+
+        // Test Tags variant
+        let value = PrimitiveValue::Tags(smallvec![
+            crate::header::Tag(0x0010, 0x0010),
+            crate::header::Tag(0x0008, 0x0018)
+        ]);
+        assert_eq!(
+            value.into_text_value(),
+            PrimitiveValue::Str("(0010,0010)\\(0008,0018)".to_string())
+        )
     }
 
     #[test]
