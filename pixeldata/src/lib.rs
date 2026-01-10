@@ -354,8 +354,6 @@ impl ConvertOptions {
     }
 
     /// Set the photometric interpretation option.
-    ///
-    /// This is equivalent to `self.with_photometric_interpretation(photometric_interpretation)`.
     pub fn with_photometric_interpretation(
         mut self,
         photometric_interpretation: PhotometricInterpretationOption,
