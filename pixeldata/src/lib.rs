@@ -310,6 +310,8 @@ pub struct ConvertOptions {
     pub voi_lut: VoiLutOption,
     /// Output image bit depth
     pub bit_depth: BitDepthOption,
+    /// Photometric interpretation conversion option
+    pub photometric_interpretation: PhotometricInterpretationOption,
 }
 
 impl ConvertOptions {
@@ -348,6 +350,15 @@ impl ConvertOptions {
     /// This is equivalent to `self.with_bit_depth(BitDepthOption::Force16Bit)`.
     pub fn force_16bit(mut self) -> Self {
         self.bit_depth = BitDepthOption::Force16Bit;
+        self
+    }
+
+    /// Set the photometric interpretation option.
+    pub fn with_photometric_interpretation(
+        mut self,
+        photometric_interpretation: PhotometricInterpretationOption,
+    ) -> Self {
+        self.photometric_interpretation = photometric_interpretation;
         self
     }
 }
@@ -430,6 +441,23 @@ pub enum BitDepthOption {
     Force8Bit,
     /// Force the output image to have 16 bits per sample.
     Force16Bit,
+}
+
+/// Output image photometric interpretation behavior.
+///
+/// Define how photometric interpretation conversions
+/// should be handled when converting to an image.
+///
+/// See also [`ConvertOptions`].
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum PhotometricInterpretationOption {
+    /// _Default behavior:_
+    /// invert pixeldata for Monochrome1 photometric interpretation.
+    #[default]
+    InvertMonochrome1,
+    /// Ignore photometric interpretation conversions.
+    Ignore,
 }
 
 /// A blob of decoded pixel data.
@@ -968,6 +996,7 @@ impl DecodedPixelData<'_> {
             modality_lut,
             voi_lut,
             bit_depth,
+            photometric_interpretation,
         } = options;
 
         let mut image = match self.bits_allocated {
@@ -1280,7 +1309,9 @@ impl DecodedPixelData<'_> {
             _ => InvalidBitsAllocatedSnafu.fail()?,
         };
         // Convert MONOCHROME1 => MONOCHROME2
-        if self.photometric_interpretation == PhotometricInterpretation::Monochrome1 {
+        if *photometric_interpretation == PhotometricInterpretationOption::InvertMonochrome1
+            && self.photometric_interpretation == PhotometricInterpretation::Monochrome1
+        {
             image.invert();
         }
         Ok(image)
@@ -1438,6 +1469,7 @@ impl DecodedPixelData<'_> {
             modality_lut,
             voi_lut,
             bit_depth: _,
+            photometric_interpretation: _,
         } = options;
 
         if self.samples_per_pixel > 1 && self.planar_configuration != PlanarConfiguration::Standard
