@@ -1,5 +1,5 @@
-use dicom_dictionary_std::uids::VERIFICATION;
-use dicom_ul::ClientAssociationOptions;
+use dicom_dictionary_std::uids::{self, VERIFICATION};
+use dicom_ul::{ClientAssociationOptions, Pdu, ServerAssociationOptions, association::SyncAssociation};
 use rstest::rstest;
 use std::time::Instant;
 #[cfg(feature = "sync-tls")]
@@ -7,8 +7,10 @@ use dicom_ul::association::Association;
 #[cfg(feature = "sync-tls")]
 use std::sync::Arc;
 
+type Result<T, E = Box<dyn std::error::Error + Send + Sync + 'static>> = std::result::Result<T, E>;
+
 #[cfg(feature = "sync-tls")]
-fn ensure_test_certs() -> Result<(), Box<dyn std::error::Error>> {
+fn ensure_test_certs() -> Result<()> {
     use rustls_cert_gen::CertificateBuilder;
     use rcgen::SanType;
     use std::{convert::TryInto, net::IpAddr, str::FromStr, path::PathBuf};
@@ -68,7 +70,7 @@ const TIMEOUT_TOLERANCE: u64 = 25;
 
 #[cfg(feature = "sync-tls")]
 /// Create a test TLS server configuration
-fn create_test_config() -> Result<(Arc<rustls::ServerConfig>, Arc<rustls::ClientConfig>), Box<dyn std::error::Error>> {
+fn create_test_config() -> Result<(Arc<rustls::ServerConfig>, Arc<rustls::ClientConfig>)> {
     use rustls::{ClientConfig, RootCertStore, ServerConfig, pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject}, server::WebPkiClientVerifier};
     use std::path::PathBuf;
     ensure_test_certs()?;
@@ -188,7 +190,7 @@ fn test_tls_connection_sync() {
 
 #[cfg(feature = "async-tls")]
 #[tokio::test(flavor = "multi_thread")]
-async fn test_tls_connection_async() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+async fn test_tls_connection_async() -> Result<()> {
     use dicom_ul::{ServerAssociationOptions, association::AsyncAssociation};
     // set up crypto provider -- Just use the default provider which is aws_lc_rs
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
@@ -219,7 +221,7 @@ async fn test_tls_connection_async() -> Result<(), Box<dyn std::error::Error + S
             association.send(&dicom_ul::Pdu::ReleaseRP).await.map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)?;
         }
         
-        Ok::<(), Box<dyn std::error::Error + Send + Sync + 'static>>(())
+        Result::Ok(())
     });
     
     // Give server time to start
@@ -296,4 +298,45 @@ async fn test_slow_association_async(#[case] timeout: u64) {
         elapsed.as_millis(),
         timeout
     );
+}
+
+/// Associations can be established
+/// when identifying remote nodes by their application entity address.
+#[test]
+fn test_establish_via_ae_address() -> Result<()> {
+    let listener = std::net::TcpListener::bind("localhost:0")?;
+    let addr = listener.local_addr()?;
+    let scp = ServerAssociationOptions::new()
+        .accept_called_ae_title()
+        .ae_title("THIS-SCP")
+        .with_abstract_syntax(VERIFICATION);
+
+    // Spawn server thread
+    let h = std::thread::spawn(move || -> Result<_> {
+        let (stream, _addr) = listener.accept()?;
+        let mut association = scp.establish(stream)?;
+
+        // handle one release request
+        let pdu = association.receive()?;
+        assert_eq!(pdu, Pdu::ReleaseRQ);
+        association.send(&Pdu::ReleaseRP)?;
+
+        Ok(association)
+    });
+
+    // use bound socket address to create AE address
+    let ae_address = format!("THIS-SCP@{addr}");
+
+    // create SCU and establish association
+    let association = ClientAssociationOptions::new()
+        .calling_ae_title("THIS-SCU")
+        .with_presentation_context(uids::VERIFICATION, vec![uids::IMPLICIT_VR_LITTLE_ENDIAN, uids::EXPLICIT_VR_LITTLE_ENDIAN])
+        .establish_with(&ae_address)?;
+
+    // just release and finish
+    association.release()?;
+
+    let _ = h.join();
+
+    Ok(())
 }
