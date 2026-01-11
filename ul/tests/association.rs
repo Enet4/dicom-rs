@@ -207,7 +207,7 @@ async fn test_tls_connection_async() -> Result<()> {
         .tls_config((*server_tls_config).clone());
     
     // Spawn server task
-    let server_handle = tokio::spawn(async move {
+    let server_handle: tokio::task::JoinHandle<Result<_>> = tokio::spawn(async move {
         let (stream, _) = listener.accept().await.map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)?;
         let mut association = server_options.establish_tls_async(stream).await.map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)?;
         
