@@ -771,8 +771,12 @@ impl PrimitiveValue {
     ///
     /// # Behavior
     ///
-    /// - All variants are converted to `PrimitiveValue::Str`
-    ///   using their string representation (via [`to_raw_str()`])
+    /// - All possible variants are converted to `PrimitiveValue::Str`
+    ///   using their string representation (via [`to_raw_str()`]):
+    ///   In the case of `Strs`,
+    ///   the strings are first joined together with a backslash ('\\').
+    ///   All other type variants are first converted to a string,
+    ///   then joined together with a backslash.
     ///
     /// # When to use `into_text_value()`
     ///
