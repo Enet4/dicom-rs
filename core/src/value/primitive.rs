@@ -774,21 +774,22 @@ impl PrimitiveValue {
     /// - All variants are converted to `PrimitiveValue::Str`
     ///   using their string representation (via [`to_raw_str()`])
     ///
-    /// # When to use `into_text_value()` vs `to_raw_str()`
+    /// # When to use `into_text_value()`
     ///
-    /// Use **`to_raw_str()`** when you need a string representation
-    /// for display, comparison, or serialization:
-    /// - Returns `Cow<'_, str>` (borrows when possible)
-    /// - Does not consume the original value
-    /// - Suitable for temporary string operations
+    /// You can use `into_text_value` to
+    /// turn an existing DICOM value into a textual DICOM value
+    /// stored in a single string underneath,
+    /// regardless of the value's original format.
+    /// It is also an alternative to converting each number into strings
+    /// before they are encased in `PrimitiveValue`.
     ///
-    /// Use **`into_text_value()`** when you need to store or manipulate
-    /// the value as text within the `PrimitiveValue` enum:
-    /// - Returns `PrimitiveValue::Str` (consumes the original)
-    /// - Useful for normalizing values to text representation
-    /// - Allows further processing as a `PrimitiveValue`
+    /// The methods [`to_str`] or [`to_multi_str`]
+    /// would be preferred when the intent is to
+    /// retrieve the underlying values as a string type.
     ///
-    /// [`to_raw_str()`]: #method.to_raw_str
+    /// [`to_str`]: PrimitiveValue::to_str
+    /// [`to_multi_str`]: PrimitiveValue::to_multi_str
+    /// [`to_raw_str()`]: PrimitiveValue::to_raw_str
     ///
     /// # Examples
     ///
