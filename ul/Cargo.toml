@@ -38,8 +38,16 @@ default-features = false
 features = [
   "logging",
   "tls12",
-  "prefer-post-quantum",
   "std"
+]
+
+[dependencies.tokio-rustls]
+version = "0.26.2"
+optional = true
+default-features = false
+features = [
+  "logging",
+  "tls12",
 ]
 
 [dev-dependencies]
