@@ -330,6 +330,7 @@ where
                 DataToken::ItemStart { len } => LazyDataToken::ItemStart { len },
                 DataToken::ItemEnd => LazyDataToken::ItemEnd,
                 DataToken::SequenceEnd => LazyDataToken::SequenceEnd,
+                DataToken::PixelSequenceStart => LazyDataToken::PixelSequenceStart,
                 _ => unreachable!("peeked token should not be a value token"),
             };
             return Some(Ok(token));
