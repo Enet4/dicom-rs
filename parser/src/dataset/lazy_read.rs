@@ -624,6 +624,9 @@ where
                     LazyDataToken::SequenceEnd => {
                         self.peek = Some(DataToken::SequenceEnd);
                     }
+                    LazyDataToken::PixelSequenceStart => {
+                        self.peek = Some(DataToken::PixelSequenceStart);
+                    }
                     _ => {
                         self.hard_break = true;
                         return PeekSnafu {
