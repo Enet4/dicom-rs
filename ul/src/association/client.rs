@@ -1039,15 +1039,6 @@ where S: CloseSocket + std::io::Read + std::io::Write{
     }
 }
 
-/// Automatically release the association and shut down the connection.
-impl<S> Drop for ClientAssociation<S>
-where S: CloseSocket + std::io::Read + std::io::Write,
-{
-    fn drop(&mut self) {
-        let _ = SyncAssociationSealed::release(self);
-    }
-}
-
 #[cfg(feature = "async")]
 /// Initiate simple TCP connection to the given address
 pub async fn async_connection<T>(
@@ -1408,19 +1399,6 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
     fn get_mut(&mut self) -> (&mut S, &mut BytesMut) {
         let Self { socket, read_buffer, .. } = self;
         (socket, read_buffer)
-    }
-}
-
-#[cfg(feature = "async")]
-impl<S> Drop for AsyncClientAssociation<S>
-where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
-{
-    fn drop(&mut self) {
-        tokio::task::block_in_place(move || {
-            tokio::runtime::Handle::current().block_on(async move {
-                let _ = crate::association::private::AsyncAssociationSealed::release(self).await;
-            })
-        });
     }
 }
 

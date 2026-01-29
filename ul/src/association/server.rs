@@ -865,13 +865,6 @@ where S: std::io::Read + std::io::Write + CloseSocket,{
 
 }
 
-impl<S> Drop for ServerAssociation<S> 
-where S: std::io::Read + std::io::Write + CloseSocket{
-    fn drop(&mut self) {
-        let _ = SyncAssociationSealed::abort(self);
-    }
-}
-
 /// Check that a transfer syntax repository
 /// supports the given transfer syntax,
 /// meaning that it can parse and decode DICOM data sets.
@@ -1145,18 +1138,6 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
     fn get_mut(&mut self) -> (&mut S, &mut bytes::BytesMut) {
         let Self { socket, read_buffer, .. } = self; 
         (socket, read_buffer)
-    }
-}
-
-#[cfg(feature = "async")]
-impl<S> Drop for AsyncServerAssociation<S> 
-where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
-    fn drop(&mut self) {
-        tokio::task::block_in_place(move || {
-            tokio::runtime::Handle::current().block_on(async move {
-                let _ = crate::association::private::AsyncAssociationSealed::abort(self).await;
-            })
-        });
     }
 }
 
