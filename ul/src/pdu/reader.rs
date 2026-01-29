@@ -770,19 +770,22 @@ fn read_pdu_variable(mut buf: impl Buf, codec: &dyn TextCodec) -> Result<Option<
                             .trim()
                             .to_string();
 
-                        if bytes.remaining() < 2 {
+                        // The fixed part of the Extended Negotiation Sub-Item length includes only
+                        // the SOP Class UID's length, which is a 2-byte field. The variable part
+                        // includes the SOP Class UID and the Service-Class-Application-Information
+                        // (PS3.7 table D-3.11). We want to calculate the size of the latter, which
+                        // equals the total item length minus the other fixed and variable lengths.
+                        let data_length = (item_length - 2 - sop_class_uid_length) as usize;
+
+                        if bytes.remaining() < data_length {
                             return Ok(None);
                         }
-                        let data_length = bytes.get_u16();
 
                         // xxx-xxx - Service-class-application-information -This field shall contain
                         // the application information specific to the Service Class specification
                         // identified by the SOP-class-uid. The semantics and value of this field
                         // is defined in the identified Service Class specification.
-                        if bytes.remaining() < data_length as usize {
-                            return Ok(None);
-                        }
-                        let data = bytes.copy_to_bytes(data_length as usize);
+                        let data = bytes.copy_to_bytes(data_length);
                         user_variables.push(UserVariableItem::SopClassExtendedNegotiationSubItem(
                             sop_class_uid,
                             data.to_vec(),
