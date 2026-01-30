@@ -140,20 +140,18 @@ fn tls_connection<T>(
 /// 
 /// ### Sync TLS
 /// 
-/// * Make sure you include the `tls` feature in your `Cargo.toml`
+/// * Make sure you include the `sync-tls` feature in your `Cargo.toml`
 /// 
 /// ### Async TLS
 /// 
 /// * Make sure you include the `async-tls` feature in your `Cargo.toml`
 /// 
-/// > **⚠️ Warning:** Just including the `async` and `tls` features will _not_ work!
-/// 
 /// ### Example
-/// ```
+/// ```no_compile
 /// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # use std::time::Duration;
 /// # use std::sync::Arc;
-/// # #[cfg(feature = "tls")]
+/// # #[cfg(feature = "sync-tls")]
 /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// use rustls::{
 ///     ClientConfig, RootCertStore,
