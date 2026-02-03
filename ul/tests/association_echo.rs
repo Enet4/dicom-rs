@@ -1,6 +1,6 @@
 use dicom_ul::{
-    ServerAssociation, association::{Association, Error, SyncAssociation, client::ClientAssociationOptions, server::ServerAssociationOptions}, pdu::{
-        PDataValue, PDataValueType, Pdu, PresentationContextNegotiated,
+    ServerAssociation, association::{Association, Error, SyncAssociation, client::ClientAssociationOptions, server::ServerAssociationOptions,
+        server::Negotiation}, pdu::{Pdu, PDataValue, PDataValueType, PresentationContextNegotiated,
         PresentationContextResultReason,
     }
 };
@@ -45,11 +45,28 @@ fn spawn_scp(
 ) -> Result<(std::thread::JoinHandle<Result<ServerAssociation<std::net::TcpStream>>>, SocketAddr)> {
     let listener = std::net::TcpListener::bind("localhost:0")?;
     let addr = listener.local_addr()?;
+
+    struct TestNegotiation;
+    impl Negotiation for TestNegotiation {
+        fn extended_negotiation(&self, sop_class_uid: &str, scai: &[u8]) -> Option<Vec<u8>> {
+            let mut result = scai.to_vec();
+            if sop_class_uid == "1.2.3.4" || sop_class_uid == "1.2.3.5" {
+                result[1] = 0;
+                result[2] = 0;
+                Some(result)
+            } else {
+                None
+            }
+        }
+    }
+    let test_negotiation = TestNegotiation;
+
     let scp = ServerAssociationOptions::new()
         .accept_called_ae_title()
         .ae_title(SCP_AE_TITLE)
         .max_pdu_length(max_server_pdu_len as u32)
-        .with_abstract_syntax(VERIFICATION_SOP_CLASS);
+        .with_abstract_syntax(VERIFICATION_SOP_CLASS)
+        .with_negotiation(test_negotiation);
 
     let h = std::thread::spawn(move || -> Result<_> {
         let (stream, _addr) = listener.accept()?;
@@ -80,6 +97,22 @@ fn spawn_scp(
         assert_eq!(
             association.acceptor_max_pdu_length(),
             max_server_pdu_len as u32
+        );
+        assert_eq!(
+            association.extended_negotiation_for("1.2.3.4"), // accepted, items 1 and 2 set to 0
+            Some([1, 0, 0, 0].as_slice())
+        );
+        assert_eq!(
+            association.extended_negotiation_for("1.2.3.5"), // same as 1.2.3.4
+            Some([0, 0, 0, 1].as_slice())
+        );
+        assert_eq!(
+            association.extended_negotiation_for("1.2.3.6"), // rejected
+            None
+        );
+        assert_eq!(
+            association.extended_negotiation_for("1.2.3.7"), // not offered by client
+            None
         );
 
         // handle one bogus payload
@@ -229,6 +262,9 @@ fn run_scu_scp_association_test(max_is_client: bool) {
             DIGITAL_MG_STORAGE_SOP_CLASS,
             vec![IMPLICIT_VR_LE, EXPLICIT_VR_LE, JPEG_BASELINE],
         )
+        .with_extended_negotiation("1.2.3.4", &[1, 1, 0, 0])
+        .with_extended_negotiation("1.2.3.5", &[0, 1, 1, 1])
+        .with_extended_negotiation("1.2.3.6", &[1, 1, 1, 1])
         .max_pdu_length(max_client_pdu_len as u32)
         .establish(scp_addr)
         .unwrap();
@@ -240,6 +276,22 @@ fn run_scu_scp_association_test(max_is_client: bool) {
     assert_eq!(
         association.acceptor_max_pdu_length(),
         max_server_pdu_len as u32
+    );
+    assert_eq!(
+        association.extended_negotiation_for("1.2.3.4"), // accepted, items 1 and 2 set to 0
+        Some([1, 0, 0, 0].as_slice())
+    );
+    assert_eq!(
+        association.extended_negotiation_for("1.2.3.5"), // same as 1.2.3.4
+        Some([0, 0, 0, 1].as_slice())
+    );
+    assert_eq!(
+        association.extended_negotiation_for("1.2.3.6"), // rejected
+        None
+    );
+    assert_eq!(
+        association.extended_negotiation_for("1.2.3.7"), // not offered by client
+        None
     );
 
     // Create a bogus payload which fills the PDU to the max.
