@@ -14,17 +14,20 @@ use std::{
 
 use crate::{
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME, association::{
-        Association, CloseSocket, NegotiatedOptions, SocketOptions, SyncAssociation, encode_pdu, private::SyncAssociationSealed, read_pdu_from_wire
+        Association, CloseSocket, NegotiatedOptions, SocketOptions, SyncAssociation, encode_pdu, private::SyncAssociationSealed, read_pdu_from_wire,
+        PDataReader, PDataWriter,
     }, pdu::{
         AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, LARGE_PDU_SIZE, PDU_HEADER_SIZE, Pdu, PresentationContextNegotiated, PresentationContextProposed, PresentationContextResultReason, UserIdentity, UserIdentityType, UserVariableItem, write_pdu
     }
 };
 use snafu::{ensure, ResultExt};
 
+#[cfg(feature = "async")]
+use crate::association::AsyncPDataWriter;
+
 use super::{
     uid::trim_uid,
     Result,
-    PDataReader, PDataWriter, AsyncPDataWriter,
 };
 
 #[cfg(feature = "sync-tls")]

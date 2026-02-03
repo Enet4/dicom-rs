@@ -20,7 +20,9 @@ use crate::association::{
     UnknownPduSnafu, WireSendSnafu,
 };
 
-use crate::association::NegotiatedOptions;
+use crate::association::{NegotiatedOptions, PDataReader, PDataWriter};
+#[cfg(feature = "async")]
+use crate::association::AsyncPDataWriter;
 use crate::pdu::{PresentationContextNegotiated, LARGE_PDU_SIZE};
 use crate::{
     pdu::{
@@ -35,7 +37,6 @@ use crate::{
 use super::{
     uid::trim_uid,
     Error, Result,
-    PDataReader, PDataWriter, AsyncPDataWriter,
 };
 
 #[cfg(feature = "sync-tls")]
