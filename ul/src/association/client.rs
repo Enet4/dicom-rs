@@ -24,6 +24,7 @@ use snafu::{ensure, ResultExt};
 use super::{
     uid::trim_uid,
     Result,
+    PDataReader, PDataWriter, AsyncPDataWriter,
 };
 
 #[cfg(feature = "sync-tls")]
@@ -1035,6 +1036,37 @@ where S: CloseSocket + std::io::Read + std::io::Write{
         let Self { socket, read_buffer, .. } = self;
         (socket, read_buffer)
     }
+
+    /// Prepare a P-Data writer for sending one or more data
+    /// item PDUs to an association acceptor (i.e. a server).
+    ///
+    /// Returns a writer which automatically splits the inner
+    /// data into separate PDUs if necessary.
+    fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut S>{
+        // Use the *peer's* (acceptor's) max PDU length for sending
+        let max_pdu_length = self.acceptor_max_pdu_length();
+        PDataWriter::new(
+            self.inner_stream(),
+            presentation_context_id,
+            max_pdu_length,
+        )
+    }
+
+    /// Prepare a P-Data reader for receiving one or more data
+    /// item PDUs from an association acceptor (i.e. a server).
+    ///
+    /// Returns a reader which automatically receives more data
+    /// PDUs once the bytes collected are consumed.
+    fn receive_pdata(&mut self) -> PDataReader<'_, &mut S>{
+        // Use *our* (requestor's) max PDU length for receiving
+        let max_pdu_length = self.requestor_max_pdu_length();
+        let (socket, read_buffer) = self.get_mut();
+        PDataReader::new(
+            socket,
+            max_pdu_length,
+            read_buffer,
+        )
+    }
 }
 
 /// Automatically release the association and shut down the connection.
@@ -1406,6 +1438,37 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
     fn get_mut(&mut self) -> (&mut S, &mut BytesMut) {
         let Self { socket, read_buffer, .. } = self;
         (socket, read_buffer)
+    }
+
+    /// Prepare a P-Data writer for sending one or more data
+    /// item PDUs to an association acceptor (i.e. a server).
+    ///
+    /// Returns a writer which automatically splits the inner
+    /// data into separate PDUs if necessary.
+    fn send_pdata(&mut self, presentation_context_id: u8) -> AsyncPDataWriter<&mut S>{
+        // Use the *peer's* (acceptor's) max PDU length for sending
+        let max_pdu_length = self.acceptor_max_pdu_length();
+        AsyncPDataWriter::new(
+            self.inner_stream(),
+            presentation_context_id,
+            max_pdu_length,
+        )
+    }
+
+    /// Prepare a P-Data reader for receiving one or more data
+    /// item PDUs from an association acceptor (i.e. a server).
+    ///
+    /// Returns a reader which automatically receives more data
+    /// PDUs once the bytes collected are consumed.
+    fn receive_pdata(&mut self) -> PDataReader<'_, &mut S>{
+        // Use *our* (requestor's) max PDU length for receiving
+        let max_pdu_length = self.requestor_max_pdu_length();
+        let (socket, read_buffer) = self.get_mut();
+        PDataReader::new(
+            socket,
+            max_pdu_length,
+            read_buffer,
+        )
     }
 }
 
