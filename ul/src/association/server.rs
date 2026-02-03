@@ -751,8 +751,8 @@ where
                         scai,
                     ) = item {
                         if let Some(negotiated) = self.negotiation.extended_negotiation(
-                            &sop_class_uid,
-                            &scai
+                            sop_class_uid,
+                            scai
                         ) {
                             new_user_variables.push(
                                 UserVariableItem::SopClassExtendedNegotiationSubItem(
