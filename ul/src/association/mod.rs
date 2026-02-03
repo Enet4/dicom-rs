@@ -230,9 +230,9 @@ impl CloseSocket for rustls::StreamOwned<rustls::ServerConnection, std::net::Tcp
 }
 
 // Local function to not repeat the same code in every implementation
-pub(crate) fn extended_negotiation_filter_impl<'a, 'b>(
-    user_vars: &'a Vec<UserVariableItem>,
-    sop_class_uid: &'b str,
+pub(crate) fn extended_negotiation_filter_impl<'a>(
+    user_vars: &'a [UserVariableItem],
+    sop_class_uid: &str,
 ) -> Option<&'a [u8]> {
     user_vars.iter().find_map(|uv| {
         match uv {
