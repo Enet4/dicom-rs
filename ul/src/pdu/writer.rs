@@ -1211,6 +1211,7 @@ mod tests {
         // Serialize and check serialized stream
         write_pdu(&mut out, &pdu)?;
 
+        #[rustfmt::skip]
         assert_eq!(
             out,
             &[1, 0,             // A-ASSOCIATE-RQ PDU type and reserved byte

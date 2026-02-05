@@ -773,7 +773,7 @@ fn read_pdu_variable(mut buf: impl Buf, codec: &dyn TextCodec) -> Result<Option<
                         // The fixed part of the Extended Negotiation Sub-Item length includes only
                         // the SOP Class UID's length, which is a 2-byte field. The variable part
                         // includes the SOP Class UID and the Service-Class-Application-Information
-                        // (PS3.7 table D-3.11). We want to calculate the size of the latter, which
+                        // (PS3.7 D.3.3.5.1). We want to calculate the size of the latter, which
                         // equals the total item length minus the other fixed and variable lengths.
                         let data_length = (item_length - 2 - sop_class_uid_length) as usize;
 
