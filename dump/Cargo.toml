@@ -21,9 +21,10 @@ path = "src/main.rs"
 required-features = ["cli"]
 
 [features]
-default = ["cli", "sop-class"]
+default = ["cli", "sop-class", "rayon"]
 sop-class = ["dicom-dictionary-std/sop-class"]
 cli = ["clap", "dicom-transfer-syntax-registry/inventory-registry"]
+rayon = ["dep:rayon"]
 
 [dependencies]
 snafu = "0.8"
@@ -35,5 +36,6 @@ dicom-object = { path = "../object/", version = "0.9" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.9", default-features = false }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.9" }
 owo-colors = { version = "4.0.0-rc.1", features = ["supports-colors"] }
+rayon = { version = "1.10", optional = true }
 serde_json = "1.0.108"
 terminal_size = "0.4.0"
