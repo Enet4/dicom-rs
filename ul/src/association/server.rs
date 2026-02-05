@@ -107,11 +107,9 @@ pub trait Negotiation {
     /// extended negotiation is not supported by the
     /// application for the given SOP Class, or Some(Vec<u8>)
     /// with the result of the negotiation, if the SOP Class is
-    /// supported and negotiation is successful. As of this
-    /// writing, all bytes are either 0 or 1, and this function
-    /// should only either copy or set to 0 specific bytes. The
-    /// meaning is SOP Class-specific and typically index-specific.
-    /// For example, for the SOP Class 1.2.840.10008.5.1.4.1.2.2.1
+    /// supported and negotiation is successful.  The meaning
+    /// is SOP Class-specific and typically index-specific. For
+    /// example, for the SOP Class 1.2.840.10008.5.1.4.1.2.2.1
     /// (Study Root Query/Retrieve Information Model - FIND),
     /// the first byte in the output should be 1 if the first
     /// input byte is 1 (client requests relational queries)
