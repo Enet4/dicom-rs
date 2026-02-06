@@ -1,5 +1,5 @@
 //! Test suite for JPEG XL pixel data reading and writing
-#![cfg(feature = "jpegxl")]
+#![cfg(any(feature = "jxl-oxide", feature = "zune-jpegxl"))]
 
 mod adapters;
 
@@ -11,12 +11,14 @@ use std::{
 
 use adapters::TestDataObject;
 use dicom_core::value::PixelFragmentSequence;
-use dicom_encoding::{
-    adapters::{EncodeOptions, PixelDataReader, PixelDataWriter},
-    Codec,
-};
-use dicom_transfer_syntax_registry::entries::{JPEG_XL, JPEG_XL_LOSSLESS};
+use dicom_encoding::Codec;
 
+#[cfg(feature = "jxl-oxide")]
+use dicom_encoding::adapters::PixelDataReader;
+#[cfg(feature = "zune-jpegxl")]
+use dicom_encoding::adapters::{EncodeOptions, PixelDataWriter};
+
+#[cfg(feature = "jxl-oxide")]
 fn read_data_piece(test_file: impl AsRef<Path>, offset: u64, length: usize) -> Vec<u8> {
     let mut file = File::open(test_file).unwrap();
     // single fragment found in file data offset 0x6b6, 3314 bytes
@@ -26,6 +28,7 @@ fn read_data_piece(test_file: impl AsRef<Path>, offset: u64, length: usize) -> V
     buf
 }
 
+#[cfg(feature = "jxl-oxide")]
 fn check_rgb_pixel(pixels: &[u8], columns: u16, x: u16, y: u16, expected_pixel: [u8; 3]) {
     let i = (y as usize * columns as usize + x as usize) * 3;
     let got = [pixels[i], pixels[i + 1], pixels[i + 2]];
@@ -35,6 +38,7 @@ fn check_rgb_pixel(pixels: &[u8], columns: u16, x: u16, y: u16, expected_pixel: 
     );
 }
 
+#[cfg(feature = "jxl-oxide")]
 fn check_rgb_pixel_approx(pixels: &[u8], columns: u16, x: u16, y: u16, pixel: [u8; 3], margin: u8) {
     let i = (y as usize * columns as usize + x as usize) * 3;
 
@@ -59,6 +63,7 @@ fn check_rgb_pixel_approx(pixels: &[u8], columns: u16, x: u16, y: u16, pixel: [u
     );
 }
 
+#[cfg(feature = "jxl-oxide")]
 #[test]
 #[ignore]
 fn read_jpeg_xl_1() {
@@ -86,7 +91,7 @@ fn read_jpeg_xl_1() {
 
     // instantiate JpegAdapter and call decode_frame
 
-    let Codec::EncapsulatedPixelData(Some(adapter), _) = JPEG_XL.codec() else {
+    let Codec::EncapsulatedPixelData(Some(adapter), _) = dicom_transfer_syntax_registry::entries::JPEG_XL.codec() else {
         panic!("JPEG XL pixel data reader not found")
     };
 
@@ -114,6 +119,7 @@ fn read_jpeg_xl_1() {
     check_rgb_pixel_approx(&dest, 100, 16, 49, [4, 4, 226], err_margin);
 }
 
+#[cfg(feature = "jxl-oxide")]
 #[test]
 #[ignore]
 fn read_jpeg_xl_lossless_1() {
@@ -141,7 +147,7 @@ fn read_jpeg_xl_lossless_1() {
 
     // instantiate JpegAdapter and call decode_frame
 
-    let Codec::EncapsulatedPixelData(Some(adapter), _) = JPEG_XL.codec() else {
+    let Codec::EncapsulatedPixelData(Some(adapter), _) = dicom_transfer_syntax_registry::entries::JPEG_XL.codec() else {
         panic!("JPEG XL pixel data reader not found")
     };
 
@@ -168,6 +174,7 @@ fn read_jpeg_xl_lossless_1() {
 }
 
 /// writing to JPEG XL lossless and back should yield exactly the same pixel data
+#[cfg(all(feature = "jxl-oxide", feature = "zune-jpegxl"))]
 #[test]
 fn write_and_read_jpeg_xl() {
     let rows: u16 = 128;
@@ -219,7 +226,7 @@ fn write_and_read_jpeg_xl() {
 
     // fetch adapters for JPEG XL lossless
 
-    let Codec::EncapsulatedPixelData(Some(reader), Some(writer)) = JPEG_XL_LOSSLESS.codec() else {
+    let Codec::EncapsulatedPixelData(Some(reader), Some(writer)) = dicom_transfer_syntax_registry::entries::JPEG_XL_LOSSLESS.codec() else {
         panic!("JPEG XL pixel data adapters not found")
     };
 

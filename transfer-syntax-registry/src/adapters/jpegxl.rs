@@ -2,23 +2,28 @@
 
 use dicom_core::ops::{AttributeAction, AttributeOp};
 use dicom_core::Tag;
-use dicom_encoding::adapters::{
-    decode_error, encode_error, DecodeResult, PixelDataObject, PixelDataReader, PixelDataWriter,
-};
+use dicom_encoding::adapters::PixelDataObject;
+#[cfg(feature = "jxl-oxide")]
+use dicom_encoding::adapters::{decode_error, DecodeResult, PixelDataReader};
+#[cfg(feature = "zune-jpegxl")]
+use dicom_encoding::adapters::{encode_error, PixelDataWriter};
+
 use dicom_encoding::snafu::prelude::*;
+#[cfg(feature = "jxl-oxide")]
 use jxl_oxide::JxlImage;
-use zune_core::bit_depth::BitDepth;
-use zune_core::colorspace::ColorSpace;
-use zune_core::options::EncoderOptions;
+#[cfg(feature = "zune-jpegxl")]
+use zune_core::{bit_depth::BitDepth, colorspace::ColorSpace, options::EncoderOptions};
 
 /// Base pixel data adapter (decoder and encoder) for transfer syntaxes based on JPEG XL.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct JpegXlAdapter;
 
 /// Pixel data encoder specifically for JPEG XL lossless compression.
+#[cfg(feature = "zune-jpegxl")]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct JpegXlLosslessEncoder;
 
+#[cfg(feature = "jxl-oxide")]
 impl PixelDataReader for JpegXlAdapter {
     /// Decode a single frame in JPEG XL from a DICOM object.
     fn decode_frame(
@@ -152,6 +157,7 @@ impl PixelDataReader for JpegXlAdapter {
     }
 }
 
+#[cfg(feature = "zune-jpegxl")]
 impl PixelDataWriter for JpegXlAdapter {
     fn encode_frame(
         &self,
@@ -281,6 +287,7 @@ impl PixelDataWriter for JpegXlAdapter {
     }
 }
 
+#[cfg(feature = "zune-jpegxl")]
 impl PixelDataWriter for JpegXlLosslessEncoder {
     fn encode_frame(
         &self,
