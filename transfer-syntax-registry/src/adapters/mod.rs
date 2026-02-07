@@ -35,6 +35,8 @@ pub mod jpegls;
 pub mod jpegxl;
 #[cfg(feature = "rle")]
 pub mod rle_lossless;
+#[cfg(feature = "deflate")]
+pub mod deflated;
 
 pub mod uncompressed;
 
