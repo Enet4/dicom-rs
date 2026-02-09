@@ -14,7 +14,8 @@ use std::{
 
 use crate::{
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME, association::{
-        Association, CloseSocket, NegotiatedOptions, SocketOptions, SyncAssociation, encode_pdu, private::SyncAssociationSealed, read_pdu_from_wire
+        Association, CloseSocket, NegotiatedOptions, SocketOptions, SyncAssociation, encode_pdu, private::SyncAssociationSealed, read_pdu_from_wire,
+        extended_negotiation_filter_impl,
     }, pdu::{
         AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, LARGE_PDU_SIZE, PDU_HEADER_SIZE, Pdu, PresentationContextNegotiated, PresentationContextProposed, PresentationContextResultReason, UserIdentity, UserIdentityType, UserVariableItem, write_pdu
     }
@@ -236,6 +237,8 @@ pub struct ClientAssociationOptions<'a> {
     saml_assertion: Option<Cow<'a, str>>,
     /// User identity JWT
     jwt: Option<Cow<'a, str>>,
+    /// Extended Negotiation info
+    extended_negotiation: Vec<(Cow<'a, str>, Vec<u8>)>,
     /// Socket options for TCP connections
     socket_options: SocketOptions,
     /// TLS configuration to use for the connection
@@ -265,6 +268,7 @@ impl Default for ClientAssociationOptions<'_> {
             kerberos_service_ticket: None,
             saml_assertion: None,
             jwt: None,
+            extended_negotiation: Vec::new(),
             socket_options: SocketOptions {
                 read_timeout: None,
                 write_timeout: None,
@@ -469,6 +473,21 @@ impl<'a> ClientAssociationOptions<'a> {
         self
     }
 
+    /// Add an Extended Negotiation SOP Class UID and raw data.
+    /// The data must be a byte slice with the information
+    /// required by the standard for the given SOP Class. This is
+    /// kind of a low-level function, intended to support all
+    /// possible current and future use cases for this feature,
+    /// so it's the caller's responsibility to fill in this field
+    /// correctly.
+    pub fn with_extended_negotiation<T>(mut self, sop_class: T, scai: &[u8]) -> Self
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        self.extended_negotiation.push((sop_class.into(), scai.to_vec()));
+        self
+    }
+
     /// Set the TLS configuration to use for the connection
     #[cfg(feature = "sync-tls")]
     pub fn tls_config(mut self, config: impl Into<std::sync::Arc<rustls::ClientConfig>>) -> Self {
@@ -664,6 +683,7 @@ impl<'a> ClientAssociationOptions<'a> {
             kerberos_service_ticket,
             saml_assertion,
             jwt,
+            extended_negotiation,
             ..
         } = self;
         // fail if no presentation contexts were provided: they represent intent,
@@ -707,6 +727,12 @@ impl<'a> ClientAssociationOptions<'a> {
             UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
             UserVariableItem::ImplementationVersionName(IMPLEMENTATION_VERSION_NAME.to_string()),
         ];
+        for sub_item in extended_negotiation {
+            user_variables.push(UserVariableItem::SopClassExtendedNegotiationSubItem(
+                sub_item.0.to_string(),
+                sub_item.1.clone(),
+            ));
+        }
 
         if let Some(user_identity) = Self::determine_user_identity(
             username.as_deref(),
@@ -989,6 +1015,14 @@ where S: CloseSocket + std::io::Read + std::io::Write,
 
     fn user_variables(&self) -> &[UserVariableItem] {
         &self.user_variables
+    }
+
+    /// Given a SOP Class UID, obtain the bytes matching
+    /// that UID with the result from the negotiation, or
+    /// None if that SOP Class UID was rejected or not
+    /// proposed. 
+    fn extended_negotiation_for(&self, sop_class_uid: &str) -> Option<&[u8]> {
+        extended_negotiation_filter_impl(&self.user_variables, sop_class_uid)
     }
 }
 
@@ -1340,6 +1374,14 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
 
     fn user_variables(&self) -> &[UserVariableItem] {
         &self.user_variables
+    }
+
+    /// Given a SOP Class UID, obtain the bytes matching
+    /// that UID with the result from the negotiation, or
+    /// None if that SOP Class UID was rejected or not
+    /// proposed. 
+    fn extended_negotiation_for(&self, sop_class_uid: &str) -> Option<&[u8]> {
+        extended_negotiation_filter_impl(&self.user_variables, sop_class_uid)
     }
 }
 
