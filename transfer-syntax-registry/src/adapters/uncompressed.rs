@@ -38,16 +38,11 @@ impl PixelDataReader for UncompressedAdapter {
         dst: &mut Vec<u8>,
     ) -> DecodeResult<()> {
         // just copy the specific fragment into the output vector
-        let pixeldata = src
-            .raw_pixel_data()
-            .context(decode_error::MissingAttributeSnafu { name: "Pixel Data" })?;
-
-        let fragment = pixeldata
-            .fragments
-            .get(frame as usize)
+        let frame = src
+            .frame_pixel_data(frame)
             .context(decode_error::FrameRangeOutOfBoundsSnafu)?;
 
-        dst.extend_from_slice(fragment);
+        dst.extend_from_slice(frame.as_ref());
 
         Ok(())
     }
