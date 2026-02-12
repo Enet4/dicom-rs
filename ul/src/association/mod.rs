@@ -405,30 +405,14 @@ pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>: priv
     ///
     /// Returns a writer which automatically
     /// splits the inner data into separate PDUs if necessary.
-    fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut S>{
-        let max_pdu_length = self.acceptor_max_pdu_length();
-        PDataWriter::new(
-            self.inner_stream(),
-            presentation_context_id,
-            max_pdu_length,
-        )
-
-    }
+    fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut S>;
 
     /// Prepare a P-Data reader for receiving
     /// one or more data item PDUs.
     ///
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
-    fn receive_pdata(&mut self) -> PDataReader<'_, &mut S>{
-        let max_pdu_length = self.requestor_max_pdu_length();
-        let (socket, read_buffer) = self.get_mut();
-        PDataReader::new(
-            socket,
-            max_pdu_length,
-            read_buffer,
-        )
-    }
+    fn receive_pdata(&mut self) -> PDataReader<'_, &mut S>;
 }
 
 #[cfg(feature = "async")]
@@ -488,30 +472,14 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     ///
     /// Returns a writer which automatically
     /// splits the inner data into separate PDUs if necessary.
-    fn send_pdata(&mut self, presentation_context_id: u8) -> AsyncPDataWriter<&mut S>{
-        let max_pdu_length = self.acceptor_max_pdu_length();
-        AsyncPDataWriter::new(
-            self.inner_stream(),
-            presentation_context_id,
-            max_pdu_length,
-        )
-
-    }
+    fn send_pdata(&mut self, presentation_context_id: u8) -> AsyncPDataWriter<&mut S>;
 
     /// Prepare a P-Data reader for receiving
     /// one or more data item PDUs.
     ///
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
-    fn receive_pdata(&mut self) -> PDataReader<'_, &mut S>{
-        let max_pdu_length = self.requestor_max_pdu_length();
-        let (socket, read_buffer) = self.get_mut();
-        PDataReader::new(
-            socket,
-            max_pdu_length,
-            read_buffer,
-        )
-    }
+    fn receive_pdata(&mut self) -> PDataReader<'_, &mut S>;
 }
 
 // Helper function to perform an operation with timeout
