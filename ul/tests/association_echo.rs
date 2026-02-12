@@ -6,6 +6,10 @@ use dicom_ul::{
 };
 #[cfg(feature = "async")]
 use dicom_ul::association::AsyncServerAssociation;
+use std::io::Write;
+
+#[cfg(feature = "async")]
+use tokio::io::AsyncWriteExt;
 
 use std::net::SocketAddr;
 
@@ -109,6 +113,35 @@ fn spawn_scp(
             e => panic!("Expected SendTooLongPdu but didn't happen: {:?}", e),
         }
 
+        // Test send_pdata() fragmentation of the client; we should receive two packets
+        // First packet
+        match association.receive() {
+            Ok(Pdu::PData { data }) => {
+                assert_eq!(data.len(), 1);
+                assert_eq!(data[0].data.len(), max_server_pdu_len - PDV_HDR_LEN);
+            }
+            Ok(other_pdus) => { panic!("Unknown PDU: {:?}", other_pdus); }
+            Err(err) => { panic!("Receive returned error {:?}", err); }
+        }
+        // Second packet
+        match association.receive() {
+            Ok(Pdu::PData { data }) => {
+                assert_eq!(data.len(), 1);
+                assert_eq!(data[0].data.len(), 2);
+            }
+            Ok(other_pdus) => { panic!("Unknown PDU: {:?}", other_pdus); }
+            Err(err) => { panic!("Receive returned error {:?}", err); }
+        }
+        // Let the client test our send_pdata() fragmentation for us
+        {
+            // Send two more bytes than fit in a PDU
+            let filler_len = max_client_pdu_len - PDV_HDR_LEN + 2;
+            let buf = vec![0_u8; filler_len];
+            let mut sender = association.send_pdata(1);
+            // This should split the data in two packets
+            sender.write_all(&buf).expect("Error sending fragmented data");
+        }
+
         // handle one release request
         let pdu = association.receive()?;
         assert_eq!(pdu, Pdu::ReleaseRQ);
@@ -195,6 +228,35 @@ async fn spawn_scp_async(
             e => panic!("Expected SendTooLongPdu but didn't happen: {:?}", e),
         }
 
+        // Test send_pdata() fragmentation of the client; we should receive two packets
+        // First packet
+        match association.receive().await {
+            Ok(Pdu::PData { data }) => {
+                assert_eq!(data.len(), 1);
+                assert_eq!(data[0].data.len(), max_server_pdu_len - PDV_HDR_LEN);
+            }
+            Ok(other_pdus) => { panic!("Unknown PDU: {:?}", other_pdus); }
+            Err(err) => { panic!("Receive returned error {:?}", err); }
+        }
+        // Second packet
+        match association.receive().await {
+            Ok(Pdu::PData { data }) => {
+                assert_eq!(data.len(), 1);
+                assert_eq!(data[0].data.len(), 2);
+            }
+            Ok(other_pdus) => { panic!("Unknown PDU: {:?}", other_pdus); }
+            Err(err) => { panic!("Receive returned error {:?}", err); }
+        }
+        // Let the client test our send_pdata() fragmentation
+        {
+            // Send two more bytes than fit in a PDU
+            let filler_len = max_client_pdu_len - PDV_HDR_LEN + 2;
+            let buf = vec![0_u8; filler_len];
+            let mut sender = association.send_pdata(1);
+            // This should split the data in two packets
+            sender.write_all(&buf).await.expect("Error sending fragmented data");
+        }
+
         // handle one release request
         let pdu = association.receive().await?;
         assert_eq!(pdu, Pdu::ReleaseRQ);
@@ -262,6 +324,35 @@ fn run_scu_scp_association_test(max_is_client: bool) {
     match association.send(&packet) {
         Err(Error::SendTooLongPdu { .. }) => (),
         e => panic!("Expected SendTooLongPdu but didn't happen: {:?}", e),
+    }
+
+    // Let the server test our send_pdata() fragmentation for us
+    {
+        // Send two more bytes than fit in a PDU
+        let filler_len = max_server_pdu_len - PDV_HDR_LEN + 2;
+        let buf = vec![0_u8; filler_len];
+        let mut sender = association.send_pdata(1);
+        // This should split the data in two packets
+        sender.write_all(&buf).expect("Error sending fragmented data");
+    }
+    // Test send_pdata() fragmentation of the server; we should receive two packets
+    // First packet
+    match association.receive() {
+        Ok(Pdu::PData { data }) => {
+            assert_eq!(data.len(), 1);
+            assert_eq!(data[0].data.len(), max_client_pdu_len - PDV_HDR_LEN);
+        }
+        Ok(other_pdus) => { panic!("Unknown PDU: {:?}", other_pdus); }
+        Err(err) => { panic!("Receive returned error {:?}", err); }
+    }
+    // Second packet
+    match association.receive() {
+        Ok(Pdu::PData { data }) => {
+            assert_eq!(data.len(), 1);
+            assert_eq!(data[0].data.len(), 2);
+        }
+        Ok(other_pdus) => { panic!("Unknown PDU: {:?}", other_pdus); }
+        Err(err) => { panic!("Receive returned error {:?}", err); }
     }
 
     association
@@ -343,6 +434,35 @@ async fn run_scu_scp_association_test_async(max_is_client: bool) {
     match association.send(&packet).await {
         Err(Error::SendTooLongPdu { .. }) => (),
         e => panic!("Expected SendTooLongPdu but didn't happen (async): {:?}", e),
+    }
+
+    // Let the server test our send_pdata() fragmentation for us
+    {
+        // Send two more bytes than fit in a PDU
+        let filler_len = max_server_pdu_len - PDV_HDR_LEN + 2;
+        let buf = vec![0_u8; filler_len];
+        let mut sender = association.send_pdata(1);
+        // This should split the data in two packets
+        sender.write_all(&buf).await.expect("Error sending fragmented data");
+    }
+    // Test send_pdata() fragmentation of the server; we should receive two packets
+    // First packet
+    match association.receive().await {
+        Ok(Pdu::PData { data }) => {
+            assert_eq!(data.len(), 1);
+            assert_eq!(data[0].data.len(), max_client_pdu_len - PDV_HDR_LEN);
+        }
+        Ok(other_pdus) => { panic!("Unknown PDU: {:?}", other_pdus); }
+        Err(err) => { panic!("Receive returned error {:?}", err); }
+    }
+    // Second packet
+    match association.receive().await {
+        Ok(Pdu::PData { data }) => {
+            assert_eq!(data.len(), 1);
+            assert_eq!(data[0].data.len(), 2);
+        }
+        Ok(other_pdus) => { panic!("Unknown PDU: {:?}", other_pdus); }
+        Err(err) => { panic!("Receive returned error {:?}", err); }
     }
 
     association
