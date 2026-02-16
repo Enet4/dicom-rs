@@ -96,16 +96,50 @@ impl Encode for ExplicitVRLittleEndianEncoder {
         W: Write,
     {
         match de.vr() {
-            VR::OB
-            | VR::OD
-            | VR::OF
-            | VR::OL
-            | VR::OW
-            | VR::SQ
-            | VR::UC
-            | VR::UR
-            | VR::UT
-            | VR::UN => {
+            // PS3.5 7.1.2:
+            // for VRs of AE, AS, AT, CS, DA, DS, DT, FL, FD, IS, LO, LT, PN,
+            // SH, SL, SS, ST, TM, UI, UL and US the Value Length Field is the
+            // 16-bit unsigned integer following the two byte VR Field (Table
+            // 7.1-2). The value of the Value Length Field shall equal the
+            // length of the Value Field.
+            VR::AE
+            | VR::AS
+            | VR::AT
+            | VR::CS
+            | VR::DA
+            | VR::DS
+            | VR::DT
+            | VR::FL
+            | VR::FD
+            | VR::IS
+            | VR::LO
+            | VR::LT
+            | VR::PN
+            | VR::SH
+            | VR::SL
+            | VR::SS
+            | VR::ST
+            | VR::TM
+            | VR::UI
+            | VR::UL
+            | VR::US => {
+                let mut buf = [0u8; 8];
+                LittleEndian::write_u16(&mut buf[0..], de.tag().group());
+                LittleEndian::write_u16(&mut buf[2..], de.tag().element());
+                let vr_bytes = de.vr().to_bytes();
+                buf[4] = vr_bytes[0];
+                buf[5] = vr_bytes[1];
+                LittleEndian::write_u16(&mut buf[6..], de.length().0 as u16);
+                to.write_all(&buf).context(WriteHeaderSnafu)?;
+                Ok(8)
+            }
+            // PS3.5 7.1.2:
+            // for all other VRs the 16 bits following the two byte VR Field
+            // are reserved for use by later versions of the DICOM Standard.
+            // These reserved bytes shall be set to 0000H and shall not be
+            // used or decoded (Table 7.1-1). The Value Length Field is a
+            // 32-bit unsigned integer.
+            _ => {
                 let mut buf = [0u8; 12];
                 LittleEndian::write_u16(&mut buf[0..], de.tag().group());
                 LittleEndian::write_u16(&mut buf[2..], de.tag().element());
@@ -116,17 +150,6 @@ impl Encode for ExplicitVRLittleEndianEncoder {
                 LittleEndian::write_u32(&mut buf[8..], de.length().0);
                 to.write_all(&buf).context(WriteHeaderSnafu)?;
                 Ok(12)
-            }
-            _ => {
-                let mut buf = [0u8; 8];
-                LittleEndian::write_u16(&mut buf[0..], de.tag().group());
-                LittleEndian::write_u16(&mut buf[2..], de.tag().element());
-                let vr_bytes = de.vr().to_bytes();
-                buf[4] = vr_bytes[0];
-                buf[5] = vr_bytes[1];
-                LittleEndian::write_u16(&mut buf[6..], de.length().0 as u16);
-                to.write_all(&buf).context(WriteHeaderSnafu)?;
-                Ok(8)
             }
         }
     }
