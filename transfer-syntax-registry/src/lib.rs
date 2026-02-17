@@ -72,8 +72,10 @@
 //! | JPEG XL Recompression         | Cargo feature `jxl-oxide` | x |
 //! | JPEG XL                       | Cargo feature `jxl-oxide` | ✓ (Cargo feature `zune-jpegxl`) |
 //! | RLE Lossless                  | Cargo feature `rle` | x |
+//! | Deflated Image Frame          | Cargo feature `deflate` | ✓ |
 //!
-//! Cargo features behind `native` (`jpeg`, `rle`) are added by default.
+//! Cargo features behind `native` (`jpeg`, `rle`, `deflate`)
+//! are added by default in the [`dicom-pixeldata` crate][dicom-pixeldata].
 //! They provide implementations that are written in pure Rust
 //! and are likely available in all supported platforms without issues.
 //! Additional codecs are opt-in by enabling Cargo features,
@@ -103,6 +105,7 @@
 //! if using the inventory-based registry.
 //!
 //! [inventory]: https://docs.rs/inventory/0.3.15/inventory
+//! [dicom-pixeldata]: https://docs.rs/dicom-pixeldata
 
 use dicom_encoding::transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec};
 use lazy_static::lazy_static;
@@ -235,11 +238,11 @@ lazy_static! {
 
     static ref REGISTRY: TransferSyntaxRegistryImpl = {
         let mut registry = TransferSyntaxRegistryImpl {
-            m: HashMap::with_capacity(32),
+            m: HashMap::with_capacity(64),
         };
 
         use self::entries::*;
-        let built_in_ts: [TransferSyntax; 45] = [
+        let built_in_ts: [TransferSyntax; 46] = [
             IMPLICIT_VR_LITTLE_ENDIAN.erased(),
             EXPLICIT_VR_LITTLE_ENDIAN.erased(),
             EXPLICIT_VR_BIG_ENDIAN.erased(),
@@ -285,6 +288,7 @@ lazy_static! {
             HEVC_H265_MAIN_PROFILE.erased(),
             HEVC_H265_MAIN_10_PROFILE.erased(),
             RLE_LOSSLESS.erased(),
+            DEFLATED_IMAGE_FRAME_COMPRESSION.erased(),
             SMPTE_ST_2110_20_UNCOMPRESSED_PROGRESSIVE.erased(),
             SMPTE_ST_2110_20_UNCOMPRESSED_INTERLACED.erased(),
             SMPTE_ST_2110_30_PCM.erased(),
