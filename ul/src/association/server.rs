@@ -18,6 +18,7 @@ use crate::association::{
     read_pdu_from_wire, AbortedSnafu, MissingAbstractSyntaxSnafu, RejectedSnafu, SendPduSnafu,
     UnexpectedPduSnafu,
     UnknownPduSnafu, WireSendSnafu,
+    extended_negotiation_filter_impl,
 };
 
 use crate::association::NegotiatedOptions;
@@ -97,6 +98,104 @@ impl AccessControl for AcceptCalledAeTitle {
         }
     }
 }
+
+/// Interface for negotiation of certain aspects of the association.
+pub trait Negotiation {
+
+    /// User-provided extended negotiation. The result of
+    /// the negotiation must be returned as either None, if
+    /// extended negotiation is not supported by the
+    /// application for the given SOP Class, or Some(Vec<u8>)
+    /// with the result of the negotiation, if the SOP Class is
+    /// supported and negotiation is successful.  The meaning
+    /// is SOP Class-specific and typically index-specific. For
+    /// example, for the SOP Class 1.2.840.10008.5.1.4.1.2.2.1
+    /// (Study Root Query/Retrieve Information Model - FIND),
+    /// the first byte in the output should be 1 if the first
+    /// input byte is 1 (client requests relational queries)
+    /// and the server supports relational queries, and 0
+    /// otherwise,and so on. For reference, see Table C.5-2 in
+    /// PS3.4 of the Standard:
+    /// https://dicom.nema.org/medical/dicom/2025d/output/chtml/part04/sect_C.5.html#table_C.5-2
+    ///
+    /// The default action is to not perform extended negotiation
+    /// (returns None for all SOP Classes, therefore no Extended
+    /// Negotiation items are included in the A-ASSOCIATE-AC
+    /// response).
+    ///
+    /// This is an example of a server that supports combined
+    /// date/time matching and empty value matching for the
+    /// SOP Class "Study Root Query/Retrieve Information Model - FIND":
+    /// ```no_run
+    /// # use dicom_ul::association::server::{Negotiation, ServerAssociationOptions};
+    /// # use dicom_ul::association::Association;
+    /// # use std::net::TcpListener;
+    /// const STUDY_ROOT_QR_IM_FIND: &str = "1.2.840.10008.5.1.4.1.2.2.1";
+    /// struct FindOptions;
+    ///
+    /// impl Negotiation for FindOptions {
+    ///     fn extended_negotiation(
+    ///         &self,
+    ///         sop_class_uid: &str,
+    ///         input: &[u8],
+    ///     ) -> Option<Vec<u8>> {
+    ///         // Only this SOP Class is supported, so ditch the rest
+    ///         if sop_class_uid != STUDY_ROOT_QR_IM_FIND {
+    ///             return None;
+    ///         }
+    ///         // Truncate to at most 7 elements and store in a new vector
+    ///         let mut result = input[..input.len().min(7)].to_vec();
+    ///         for index in 1..=result.len() {
+    ///             match index {
+    ///                 // Combined date-time matching (second byte of field) and
+    ///                 // Empty value matching (sixth byte) are both supported.
+    ///                 // Remember that the DICOM standard specifies 1-based
+    ///                 // byte positions, but Rust indices are 0-based.
+    ///                 2 | 6 => (),
+    ///                 // Indicate lack of support for the rest of features.
+    ///                 _ => { result[index - 1] = 0; }
+    ///             }
+    ///         }
+    ///         Some(result)
+    ///     }
+    /// }
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let tcp_listener: TcpListener = unimplemented!();
+    /// let find_options = FindOptions;
+    ///
+    /// let scp_options = ServerAssociationOptions::new()
+    ///     .with_negotiation(find_options);
+    ///
+    /// let (stream, _address) = tcp_listener.accept()?;
+    /// let assoc = scp_options.establish(stream)?;
+    ///
+    /// // Association is established; read the flags that were negotiated
+    /// let mut combined_date_time = false;
+    /// let mut empty_value_matching = false;
+    ///
+    /// if let Some(values) = assoc.extended_negotiation_for(STUDY_ROOT_QR_IM_FIND) {
+    ///     // 2nd byte position (index 1) is the combined date/time matching option.
+    ///     // If it is zero or absent, consider it disabled.
+    ///     combined_date_time = values.get(2 - 1).copied().unwrap_or(0) != 0;
+    ///     // 6th byte position (index 5) is the empty value matching option
+    ///     empty_value_matching = values.get(6 - 1).copied().unwrap_or(0) != 0;
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn extended_negotiation(&self, _sop_class_uid: &str, _input: &[u8]) -> Option<Vec<u8>> {
+        None
+    }
+
+}
+
+
+/// An Extended Negotiation rule that ignores all SOP Classes
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
+pub struct DefaultNegotiation;
+
+impl Negotiation for DefaultNegotiation {}
 
 /// A DICOM association builder for an acceptor DICOM node,
 /// often taking the role of a service class provider (SCP).
@@ -270,7 +369,7 @@ impl AccessControl for AcceptCalledAeTitle {
 /// # }
 /// ```
 #[derive(Debug, Clone)]
-pub struct ServerAssociationOptions<'a, A> {
+pub struct ServerAssociationOptions<'a, A, N> {
     /// the application entity access control policy
     ae_access_control: A,
     /// the AE title of this DICOM node
@@ -289,6 +388,8 @@ pub struct ServerAssociationOptions<'a, A> {
     strict: bool,
     /// whether to accept unknown abstract syntaxes
     promiscuous: bool,
+    /// extended negotiation handler
+    negotiation: N,
     /// Options for the underlying TCP socket
     socket_options: SocketOptions,
     /// TLS configuration for the underlying TCP socket
@@ -296,7 +397,7 @@ pub struct ServerAssociationOptions<'a, A> {
     tls_config: Option<std::sync::Arc<rustls::ServerConfig>>,
 }
 
-impl Default for ServerAssociationOptions<'_, AcceptAny> {
+impl Default for ServerAssociationOptions<'_, AcceptAny, DefaultNegotiation> {
     fn default() -> Self {
         ServerAssociationOptions {
             ae_access_control: AcceptAny,
@@ -308,6 +409,7 @@ impl Default for ServerAssociationOptions<'_, AcceptAny> {
             max_pdu_length: DEFAULT_MAX_PDU,
             strict: true,
             promiscuous: false,
+            negotiation: DefaultNegotiation,
             socket_options: SocketOptions::default(),
             #[cfg(feature = "sync-tls")]
             tls_config: None,
@@ -315,22 +417,23 @@ impl Default for ServerAssociationOptions<'_, AcceptAny> {
     }
 }
 
-impl ServerAssociationOptions<'_, AcceptAny> {
+impl ServerAssociationOptions<'_, AcceptAny, DefaultNegotiation> {
     /// Create a new set of options for establishing an association.
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl<'a, A> ServerAssociationOptions<'a, A>
+impl<'a, A, N> ServerAssociationOptions<'a, A, N>
 where
     A: AccessControl,
+    N: Negotiation,
 {
     /// Change the access control policy to accept any association
     /// regardless of the specified AE titles.
     ///
     /// This is the default behavior when the options are first created.
-    pub fn accept_any(self) -> ServerAssociationOptions<'a, AcceptAny> {
+    pub fn accept_any(self) -> ServerAssociationOptions<'a, AcceptAny, N> {
         self.ae_access_control(AcceptAny)
     }
 
@@ -339,7 +442,7 @@ where
     ///
     /// The default is to accept any requesting node
     /// regardless of the specified AE titles.
-    pub fn accept_called_ae_title(self) -> ServerAssociationOptions<'a, AcceptCalledAeTitle> {
+    pub fn accept_called_ae_title(self) -> ServerAssociationOptions<'a, AcceptCalledAeTitle, N> {
         self.ae_access_control(AcceptCalledAeTitle)
     }
 
@@ -347,7 +450,7 @@ where
     ///
     /// The default is to accept any requesting node
     /// regardless of the specified AE titles.
-    pub fn ae_access_control<P>(self, access_control: P) -> ServerAssociationOptions<'a, P>
+    pub fn ae_access_control<P>(self, access_control: P) -> ServerAssociationOptions<'a, P, N>
     where
         P: AccessControl,
     {
@@ -361,6 +464,7 @@ where
             strict,
             promiscuous,
             ae_access_control: _,
+            negotiation,
             socket_options,
             #[cfg(feature = "sync-tls")]
             tls_config
@@ -376,6 +480,7 @@ where
             max_pdu_length,
             strict,
             promiscuous,
+            negotiation,
             socket_options,
             #[cfg(feature = "sync-tls")]
             tls_config
@@ -458,6 +563,44 @@ where
                 connection_timeout: self.socket_options.connection_timeout,
             },
             ..self
+        }
+    }
+
+    /// Set the extended negotiation handler
+    pub fn with_negotiation<NN>(self, negotiation: NN) -> ServerAssociationOptions<'a, A, NN>
+    where
+        NN: Negotiation,
+    {
+        let ServerAssociationOptions {
+            ae_access_control,
+            ae_title,
+            application_context_name,
+            abstract_syntax_uids,
+            transfer_syntax_uids,
+            protocol_version,
+            max_pdu_length,
+            strict,
+            promiscuous,
+            negotiation: _,
+            socket_options,
+            #[cfg(feature = "sync-tls")]
+            tls_config
+        } = self;
+
+        ServerAssociationOptions {
+            ae_access_control,
+            ae_title,
+            application_context_name,
+            abstract_syntax_uids,
+            transfer_syntax_uids,
+            protocol_version,
+            max_pdu_length,
+            strict,
+            promiscuous,
+            negotiation,
+            socket_options,
+            #[cfg(feature = "sync-tls")]
+            tls_config
         }
     }
 
@@ -589,6 +732,36 @@ where
                     })
                     .collect();
 
+                let mut new_user_variables = vec![
+                        UserVariableItem::MaxLength(self.max_pdu_length),
+                        UserVariableItem::ImplementationClassUID(
+                            IMPLEMENTATION_CLASS_UID.to_string(),
+                        ),
+                        UserVariableItem::ImplementationVersionName(
+                            IMPLEMENTATION_VERSION_NAME.to_string(),
+                        ),
+                    ];
+                // Extended negotiation is performed here: add only the variables
+                // for which the user-supplied negotiation function returns Some(x).
+                for item in user_variables.iter() {
+                    if let UserVariableItem::SopClassExtendedNegotiationSubItem(
+                        sop_class_uid,
+                        scai,
+                    ) = item {
+                        if let Some(negotiated) = self.negotiation.extended_negotiation(
+                            sop_class_uid,
+                            scai
+                        ) {
+                            new_user_variables.push(
+                                UserVariableItem::SopClassExtendedNegotiationSubItem(
+                                    sop_class_uid.clone(),
+                                    negotiated,
+                                )
+                            );
+                        }
+                    }
+                }
+
                 let pdu = Pdu::AssociationAC(AssociationAC {
                     protocol_version: self.protocol_version,
                     application_context_name,
@@ -602,19 +775,11 @@ where
                         .collect(),
                     calling_ae_title: calling_ae_title.clone(),
                     called_ae_title,
-                    user_variables: vec![
-                        UserVariableItem::MaxLength(self.max_pdu_length),
-                        UserVariableItem::ImplementationClassUID(
-                            IMPLEMENTATION_CLASS_UID.to_string(),
-                        ),
-                        UserVariableItem::ImplementationVersionName(
-                            IMPLEMENTATION_VERSION_NAME.to_string(),
-                        ),
-                    ],
+                    user_variables: new_user_variables.clone(),
                 });
                 Ok((pdu, NegotiatedOptions{
                     peer_max_pdu_length: requestor_max_pdu_length,
-                    user_variables,
+                    user_variables: new_user_variables,
                     presentation_contexts: presentation_contexts_negotiated,
                     peer_ae_title: calling_ae_title
                 }))
@@ -831,6 +996,13 @@ where S: std::io::Read + std::io::Write + CloseSocket{
     fn user_variables(&self) -> &[UserVariableItem] {
         &self.user_variables
     }
+
+    /// Given a SOP Class UID, obtain a slice of bytes
+    /// with the extended negotiation result for that
+    /// SOP Class, if it exists.
+    fn extended_negotiation_for(&self, sop_class_uid: &str) -> Option<&[u8]> {
+        extended_negotiation_filter_impl(&self.user_variables, sop_class_uid)
+    }
 }
 
 impl<S> SyncAssociationSealed<S> for ServerAssociation<S>
@@ -929,9 +1101,10 @@ where
 
 
 #[cfg(feature = "async")]
-impl<A> ServerAssociationOptions<'_, A>
+impl<A, N> ServerAssociationOptions<'_, A, N>
 where
     A: AccessControl,
+    N: Negotiation,
 {
     /// Negotiate an association with the given TCP stream.
     pub async fn establish_async(&self, mut socket: tokio::net::TcpStream) -> Result<AsyncServerAssociation<tokio::net::TcpStream>> {
@@ -1097,6 +1270,13 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
     fn user_variables(&self) -> &[UserVariableItem] {
         &self.user_variables
     }
+
+    /// Given a SOP Class UID, obtain a slice of bytes
+    /// with the extended negotiation result for that
+    /// SOP Class, if it exists.
+    fn extended_negotiation_for(&self, sop_class_uid: &str) -> Option<&[u8]> {
+        extended_negotiation_filter_impl(&self.user_variables, sop_class_uid)
+    }
 }
 
 #[cfg(feature = "async")]
@@ -1182,9 +1362,10 @@ mod tests {
         );
     }
 
-    impl<'a, A> ServerAssociationOptions<'a, A>
+    impl<'a, A, N> ServerAssociationOptions<'a, A, N>
     where
         A: AccessControl,
+        N: Negotiation,
     {
         // Broken implementation of server establish which sends an extra pdu during establish
         pub(crate) fn establish_with_extra_pdus(
