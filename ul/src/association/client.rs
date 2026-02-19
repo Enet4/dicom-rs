@@ -101,7 +101,7 @@ fn tls_connection<T>(
 ///
 /// ## Basic usage
 ///
-/// ### Sync
+/// ### Synchronous API
 ///
 /// ```no_run
 /// # use dicom_ul::association::client::ClientAssociationOptions;
@@ -116,16 +116,16 @@ fn tls_connection<T>(
 /// # }
 /// ```
 ///
-/// ### Async
+/// ### Asynchronous API
 /// 
-/// * Make sure you include the `async` feature in your `Cargo.toml`
+/// Include the `async` feature in your `Cargo.toml`
 ///
-/// ```ignore
+/// ```no_run
 /// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # use std::time::Duration;
 /// # #[cfg(feature = "async")]
 /// # #[tokio::main]
-/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// let association = ClientAssociationOptions::new()
 ///    .with_presentation_context("1.2.840.10008.1.1", vec!["1.2.840.10008.1.2.1", "1.2.840.10008.1.2"])
 ///    .read_timeout(Duration::from_secs(60))
@@ -138,16 +138,22 @@ fn tls_connection<T>(
 /// 
 /// ## TLS Support
 /// 
-/// ### Sync TLS
+/// Enabling one of the Cargo features `sync-tls` or `async-tls`
+/// unlocks the methods for configuring TLS.
+/// Call `tls_config` and `server_name`
+/// to establish the association over a secure transport connection.
+///
+/// ### TLS in synchronous API
 /// 
-/// * Make sure you include the `sync-tls` feature in your `Cargo.toml`
+/// Include the `sync-tls` feature in your `Cargo.toml`.
 /// 
-/// ### Async TLS
+/// ### TLS in asynchronous API
 /// 
-/// * Make sure you include the `async-tls` feature in your `Cargo.toml`
+/// Include the `async-tls` feature in your `Cargo.toml`.
 /// 
 /// ### Example
-/// ```no_compile
+///
+/// ```no_run
 /// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # use std::time::Duration;
 /// # use std::sync::Arc;
@@ -157,18 +163,30 @@ fn tls_connection<T>(
 ///     ClientConfig, RootCertStore,
 ///     pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
 /// };
-/// // Using a self-signed certificate for demonstration purposes only.
+/// // Using embedded certificates and keys for demonstration purposes only
+/// # /*
 /// let ca_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/ca.crt").as_ref())
+/// # */
+/// # let ca_cert = CertificateDer::from_pem_slice(&[][..])
 ///     .expect("Failed to load client cert");
 /// 
 /// // Server certificate -- signed by CA
+/// # /*
 /// let server_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/server.crt").as_ref())
+/// # */
+/// # let server_cert = CertificateDer::from_pem_slice(&[][..])
 ///     .expect("Failed to load server cert");
 ///
 /// // Client cert and private key -- signed by CA
+/// # /*
 /// let client_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/client.crt").as_ref())
+/// # */
+/// # let client_cert = CertificateDer::from_pem_slice(&[][..])
 ///     .expect("Failed to load client cert");
+/// # /*
 /// let client_private_key = PrivateKeyDer::from_pem_slice(include_bytes!("../../assets/client.key").as_ref())
+/// # */
+/// # let client_private_key = PrivateKeyDer::from_pem_slice(&[][..])
 ///     .expect("Failed to load client private key");
 /// 
 /// // Create a root cert store for the client which includes the server certificate

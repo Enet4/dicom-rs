@@ -136,7 +136,7 @@ impl AccessControl for AcceptCalledAeTitle {
 ///
 /// ## Basic Usage
 ///
-/// ### Sync
+/// ### Synchronous API
 ///
 /// Spawn a single sync thread to listen for incoming requests.
 /// ```no_run
@@ -154,7 +154,7 @@ impl AccessControl for AcceptCalledAeTitle {
 /// # }
 /// ```
 /// 
-/// ### Async
+/// ### Asynchronous API
 ///
 /// Spawn an async task for each incoming association request.
 ///
@@ -207,17 +207,23 @@ impl AccessControl for AcceptCalledAeTitle {
 /// 
 /// ## TLS Support
 /// 
-/// ### Sync TLS
+/// Enabling one of the Cargo features `sync-tls` or `async-tls`
+/// unlocks the methods for configuring TLS.
+/// Call `tls_config`
+/// for the server to expect associations established
+/// over a secure transport connection.
+///
+/// #### TLS in synchronous API
 /// 
-/// * Make sure you include the `sync-tls` feature in your `Cargo.toml`
+/// Include the `sync-tls` feature in your `Cargo.toml`.
 /// 
-/// ### Async TLS
+/// #### TLS in asynchronous API
 /// 
-/// * Make sure you include the `async-tls` feature in your `Cargo.toml`
+/// Include the `async-tls` feature in your `Cargo.toml`.
 /// 
 /// ### Example
-/// ```no_compile
-/// # // NOTE: cannot run on CI as assets are missing
+///
+/// ```no_run
 /// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # use std::time::Duration;
 /// # use std::sync::Arc;
@@ -228,18 +234,30 @@ impl AccessControl for AcceptCalledAeTitle {
 ///     pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
 /// };
 /// # let tcp_listener: TcpListener = unimplemented!();
-/// // Using a self-signed certificate for demonstration purposes only.
+/// // Using embedded certificates and keys for demonstration purposes only
+/// # /*
 /// let ca_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/ca.crt").as_ref())
+/// # */
+/// # let ca_cert = CertificateDer::from_pem_slice(&[][..])
 ///     .expect("Failed to load client cert");
 /// 
 /// // Server certificate -- signed by CA
+/// # /*
 /// let server_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/server.crt").as_ref())
+/// # */
+/// # let server_cert = CertificateDer::from_pem_slice(&[][..])
 ///     .expect("Failed to load server cert");
 ///
 /// // Client cert and private key -- signed by CA
+/// # /*
 /// let client_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/client.crt").as_ref())
+/// # */
+/// # let client_cert = CertificateDer::from_pem_slice(&[][..])
 ///     .expect("Failed to load client cert");
+/// # /*
 /// let client_private_key = PrivateKeyDer::from_pem_slice(include_bytes!("../../assets/client.key").as_ref())
+/// # */
+/// # let client_private_key = PrivateKeyDer::from_pem_slice(&[][..])
 ///     .expect("Failed to load client private key");
 /// 
 /// // Create a root cert store for the client which includes the server certificate
@@ -263,7 +281,7 @@ impl AccessControl for AcceptCalledAeTitle {
 /// let association = ServerAssociationOptions::new()
 ///     .accept_called_ae_title()
 ///     .ae_title("TLS-SCP")
-///     .with_abstract_syntax(VERIFICATION)
+///     .with_abstract_syntax(dicom_dictionary_std::uids::VERIFICATION)
 ///     .tls_config((*server_tls_config).clone());
 ///     // .establish_tls(stream);
 /// # Ok(())
