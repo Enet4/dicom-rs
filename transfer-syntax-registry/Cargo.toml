@@ -20,12 +20,18 @@ inventory-registry = ['dicom-encoding/inventory-registry']
 deflate = ["dep:flate2"]
 # natively implemented image encodings
 native = ["jpeg", "rle"]
-# native implementations that work on Windows
+# (DEPRECATED) native implementations that work on Windows
 native_windows = ["jpeg", "rle"]
 # native JPEG support
 jpeg = ["jpeg-decoder", "jpeg-encoder"]
-# native JPEG XL support
-jpegxl = ["dep:jxl-oxide", "dep:zune-jpegxl", "dep:zune-core"]
+
+
+# native JPEG XL decoding via jxl-oxide
+jxl-oxide = ["dep:jxl-oxide"]
+# native JPEG XL encoding via zune-jpegxl
+zune-jpegxl = ["dep:zune-jpegxl", "dep:zune-core"]
+
+jpegxl = ["jxl-oxide", "zune-jpegxl"]
 
 # JPEG 2000 support via the OpenJPEG Rust port,
 # works on Linux and a few other platforms
