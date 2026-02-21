@@ -17,9 +17,7 @@ bytes = "^1.6"
 cfg-if = "1.0.3"
 dicom-encoding = { path = "../encoding/", version = "0.9" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.9", default-features = false }
-rustls = {version = "0.23.31", optional = true }
 snafu = "0.8"
-tokio-rustls = {version = "0.26.2", optional = true }
 tracing = "0.1.34"
 
 [dependencies.tokio]
@@ -32,6 +30,24 @@ features = [
     "io-util",
     "time"
 ]
+[dependencies.rustls]
+version = "0.23.31"
+optional = true
+default-features = false
+features = [
+  "logging",
+  "tls12",
+  "std"
+]
+
+[dependencies.tokio-rustls]
+version = "0.26.2"
+optional = true
+default-features = false
+features = [
+  "logging",
+  "tls12",
+]
 
 [dev-dependencies]
 dicom-dictionary-std = { path = "../dictionary-std" }
@@ -43,6 +59,8 @@ dicom-object = { path = '../object' }
 time = "0.3"
 rustls-cert-gen = "0.2.0"
 rcgen = "0.14.4"
+# Install full features of rustls for testing
+rustls = "0.23.31"
 
 [features]
 async = ["dep:tokio"]

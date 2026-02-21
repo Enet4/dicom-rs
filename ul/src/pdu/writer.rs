@@ -980,17 +980,12 @@ fn write_pdu_variable_user_variables(
                             name: "SOP-class-uid",
                         })?;
 
-                        write_chunk_u16(writer, |writer| {
-                            // xxx-xxx Service-class-application-information - This field shall contain
-                            // the application information specific to the Service Class specification
-                            // identified by the SOP-class-uid. The semantics and value of this field is
-                            // defined in the identified Service Class specification.
-                            writer.write_all(data).context(WriteFieldSnafu {
-                                field: "Service-class-application-information",
-                            })
-                        })
-                        .context(WriteChunkSnafu {
-                            name: "Service-class-application-information",
+                        // xxx-xxx Service-class-application-information - This field shall contain
+                        // the application information specific to the Service Class specification
+                        // identified by the SOP-class-uid. The semantics and value of this field is
+                        // defined in the identified Service Class specification.
+                        writer.write_all(data).context(WriteFieldSnafu {
+                            field: "Service-class-application-information",
                         })
                     })
                     .context(WriteChunkSnafu { name: "Sub-item" })?;
@@ -1085,6 +1080,7 @@ fn write_pdu_variable_user_variables(
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
     use super::*;
 
     #[test]
@@ -1193,5 +1189,70 @@ mod tests {
                 0x02, 0x06,
             ]
         );
+    }
+
+    #[test]
+    fn extended_negotiation_bytestream_roundtrip() -> Result<()> {
+        let pdu = Pdu::AssociationRQ(AssociationRQ {
+            protocol_version: 1,
+            calling_ae_title: "SCU".to_string(),
+            called_ae_title: "SCP".to_string(),
+            application_context_name: "1.2.3".to_string(),
+            presentation_contexts: vec![],
+            user_variables: vec![
+                UserVariableItem::SopClassExtendedNegotiationSubItem(
+                    "1.2.3.4".to_string(),
+                    vec![1, 0, 1, 1],
+                ),
+            ],
+        });
+        let mut out = Vec::<u8>::new();
+
+        // Serialize and check serialized stream
+        write_pdu(&mut out, &pdu)?;
+
+        #[rustfmt::skip]
+        assert_eq!(
+            out,
+            &[1, 0,             // A-ASSOCIATE-RQ PDU type and reserved byte
+            0, 0, 0, 98,        // PDU Total length (Big Endian)
+                0, 1,           // Protocol version bits (BE)
+                0, 0,           // Reserved
+
+                // Called AE Title, space-padded
+                b'S', b'C', b'P', b' ', b' ', b' ', b' ', b' ',
+                b' ', b' ', b' ', b' ', b' ', b' ', b' ', b' ',
+
+                // Calling AE Title, space-padded
+                b'S', b'C', b'U', b' ', b' ', b' ', b' ', b' ',
+                b' ', b' ', b' ', b' ', b' ', b' ', b' ', b' ',
+
+                // 32 reserved bytes
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+
+                0x10, 0,            // Application Context Name container
+                    0, 5,           // Length of Application Context Name (BE)
+                    b'1', b'.', b'2', b'.', b'3',  // Application Context Name
+
+                0x50, 0,            // User Variables container
+                    0, 17,          // Total length of User Variables (BE)
+                        0x56, 0,    // Extended Negotiation container
+                        0, 13,      // Length of bytes contained in E.N. (BE)
+                            0, 7,   // Length of SOP Class UID string (BE)
+                                // SOP Class UID string
+                                b'1', b'.', b'2', b'.', b'3', b'.', b'4',
+                            // Service-class-application-information field
+                            1, 0, 1, 1,
+            ],
+        );
+
+        // Deserialize and check against original A-ASSOCIATE-RQ PDU
+        // (checks that it round-trips)
+        let mut buf = Cursor::new(&mut out);
+        let pdu2 = read_pdu(&mut buf, 16384, false).unwrap().unwrap();
+        assert_eq!(pdu, pdu2);
+
+        Ok(())
     }
 }

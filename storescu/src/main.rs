@@ -398,7 +398,7 @@ fn run(app: App) -> Result<(), Error> {
         store_sync::inner(scu, dicom_files, &progress_bar, fail_first, verbose, never_transcode, ignore_sop_class)?;
 
     } else {
-        let scu = scu_options.establish(&addr).map_err(Box::from).context(ScuSnafu)?;
+        let scu = scu_options.establish_with(&addr).map_err(Box::from).context(ScuSnafu)?;
         store_sync::inner(scu, dicom_files, &progress_bar, fail_first, verbose, never_transcode, ignore_sop_class)?;
     }
     Ok(())
@@ -505,7 +505,7 @@ async fn run_async() -> Result<(), Error> {
                 .await
             } else {
                 let scu = scu_options
-                    .establish_async(&addr)
+                    .establish_with_async(&addr)
                     .await
                     .map_err(Box::from)
                     .context(ScuSnafu)?;
