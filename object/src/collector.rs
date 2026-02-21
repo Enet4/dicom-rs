@@ -1764,9 +1764,9 @@ mod tests {
             .is_none());
     }
 
-    // read dicom up to the pixel data, then read it to the end
+    // test loading portions of a DICOM in steps with the collector API
     #[test]
-    fn test_deferred_dicom_read() {
+    fn test_lazy_dicom_read() {
         let file_path_buf = dicom_test_files::path("WG04/J2KR/MG1_J2KR")
             .expect("should be able to retrieve test file");
 
@@ -1786,7 +1786,7 @@ mod tests {
             .expect("should be able to read up to the PixelData element");
 
         // read the rest of the dicom
-        // NOTE: this doesn't include the offset table currently -- is this intended behavior?
+        // NOTE: this doesn't include the offset table currently
         collector
             .read_dataset_to_end(&mut obj)
             .expect("should be able to read the rest of the DICOM");
