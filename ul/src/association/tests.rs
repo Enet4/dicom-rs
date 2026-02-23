@@ -379,12 +379,12 @@ mod successive_pdus_during_client_association {
             server_addr.into()
         ).await.unwrap();
         // Initiate abort server-side
-        let _ = server_handle.await.unwrap().abort().await; // FIXME: result is Err(ConnectionClosed)
+        server_handle.await.unwrap().abort().await.unwrap();
 
         // Client should be able to receive the release request that was sent consecutively
         let received_pdu = association.receive().await.expect("Could not receive abort PDU");
         assert_eq!(received_pdu, Pdu::AbortRQ { source: AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::ReasonNotSpecified) });
-        
+
         // Client cannot receive the PDU that was sent during association
         // Clean shutdown
         drop(association);
