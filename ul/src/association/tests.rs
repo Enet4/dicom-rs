@@ -730,7 +730,7 @@ mod successive_pdus_during_server_association {
             // Server misses the echo request entirely
             let received_pdu = association.receive().await.unwrap();
             assert_eq!(received_pdu, Pdu::ReleaseRQ);
-            association.abort().await.unwrap();
+            association.send(&Pdu::ReleaseRP).await.unwrap();
         });
 
         // Give server time to start
@@ -750,7 +750,7 @@ mod successive_pdus_during_server_association {
             .unwrap();
 
         // Clean shutdown
-        let _ = association.release().await;
+        association.release().await.unwrap();
         server_handle.await.unwrap();
     }
 }
