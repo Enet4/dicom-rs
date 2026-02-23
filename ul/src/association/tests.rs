@@ -552,6 +552,7 @@ mod successive_pdus_during_server_association {
             // Server misses the echo request entirely
             let received_pdu = association.receive().unwrap();
             assert_eq!(received_pdu, Pdu::ReleaseRQ);
+            association.send(&Pdu::ReleaseRP).unwrap();
         });
 
         // Give server time to start
@@ -570,7 +571,7 @@ mod successive_pdus_during_server_association {
             .unwrap();
 
         // Clean shutdown
-        let _ = association.release(); // FIXME: attempting to unwrap fails ??
+        association.release().unwrap();
         server_handle.join().unwrap();
     }
 
