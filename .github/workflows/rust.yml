@@ -24,6 +24,9 @@ jobs:
           toolchain: ${{ matrix.rust }}
           components: clippy
           cache: true
+      - if: matrix.rust == 'stable'
+        run: cargo fmt -- --check
+
       # test project with default + extra features
       - if: matrix.rust == 'stable' || matrix.rust == 'beta'
         run: cargo test --features image,ndarray,sop-class,rle,cli,jpegxl
