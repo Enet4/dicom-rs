@@ -1763,4 +1763,32 @@ mod tests {
             .expect("attempt to read the next fragment should not have failed")
             .is_none());
     }
+
+    // test loading portions of a DICOM in steps with the collector API
+    #[test]
+    fn test_lazy_dicom_read() {
+        let file_path_buf = dicom_test_files::path("WG04/J2KR/MG1_J2KR")
+            .expect("should be able to retrieve test file");
+
+        let filename = file_path_buf
+            .to_str()
+            .expect("should be able to retrieve test file");
+
+        // instantiate collector and read fmi
+        let mut collector = DicomCollector::open_file(filename)
+            .expect("should be able to open the test file with the collector");
+        let _fmi = collector.read_file_meta();
+
+        // read the dicom up to the pixel data
+        let mut obj = InMemDicomObject::new_empty();
+        collector
+            .read_dataset_up_to_pixeldata(&mut obj)
+            .expect("should be able to read up to the PixelData element");
+
+        // read the rest of the dicom
+        // NOTE: this doesn't include the offset table currently
+        collector
+            .read_dataset_to_end(&mut obj)
+            .expect("should be able to read the rest of the DICOM");
+    }
 }
