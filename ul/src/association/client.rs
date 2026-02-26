@@ -163,30 +163,18 @@ fn tls_connection<T>(
 ///     ClientConfig, RootCertStore,
 ///     pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
 /// };
-/// // Using embedded certificates and keys for demonstration purposes only
-/// # /*
-/// let ca_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/ca.crt").as_ref())
-/// # */
-/// # let ca_cert = CertificateDer::from_pem_slice(&[][..])
+/// // Loading certificates and keys for demonstration purposes
+/// let ca_cert = CertificateDer::from_pem_slice(std::fs::read("ssl/ca.crt")?.as_ref())
 ///     .expect("Failed to load client cert");
 /// 
 /// // Server certificate -- signed by CA
-/// # /*
-/// let server_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/server.crt").as_ref())
-/// # */
-/// # let server_cert = CertificateDer::from_pem_slice(&[][..])
+/// let server_cert = CertificateDer::from_pem_slice(std::fs::read("ssl/server.crt")?.as_ref())
 ///     .expect("Failed to load server cert");
 ///
 /// // Client cert and private key -- signed by CA
-/// # /*
-/// let client_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/client.crt").as_ref())
-/// # */
-/// # let client_cert = CertificateDer::from_pem_slice(&[][..])
+/// let client_cert = CertificateDer::from_pem_slice(std::fs::read("ssl/client.crt")?.as_ref())
 ///     .expect("Failed to load client cert");
-/// # /*
-/// let client_private_key = PrivateKeyDer::from_pem_slice(include_bytes!("../../assets/client.key").as_ref())
-/// # */
-/// # let client_private_key = PrivateKeyDer::from_pem_slice(&[][..])
+/// let client_private_key = PrivateKeyDer::from_pem_slice(std::fs::read("ssl/client.key")?.as_ref())
 ///     .expect("Failed to load client private key");
 /// 
 /// // Create a root cert store for the client which includes the server certificate

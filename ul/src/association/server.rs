@@ -227,34 +227,24 @@ impl AccessControl for AcceptCalledAeTitle {
 /// # use dicom_ul::association::server::ServerAssociationOptions;
 /// # use std::time::Duration;
 /// # use std::sync::Arc;
-/// use std::net::TcpListener;
-/// use rustls::{ServerConfig, server::WebPkiClientVerifier};
-///
 /// # #[cfg(feature = "sync-tls")]
 /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// use std::net::TcpListener;
 /// use rustls::{
-///     ClientConfig, RootCertStore,
+///     ServerConfig, RootCertStore,
 ///     pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
+///     server::WebPkiClientVerifier,
 /// };
 /// # let tcp_listener: TcpListener = unimplemented!();
-/// // Using embedded certificates and keys for demonstration purposes only
-/// # /*
-/// let ca_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/ca.crt").as_ref())
-/// # */
-/// # let ca_cert = CertificateDer::from_pem_slice(&[][..])
+/// // Loading certificates and keys for demonstration purposes
+/// let ca_cert = CertificateDer::from_pem_slice(std::fs::read("ssl/ca.crt")?.as_ref())
 ///     .expect("Failed to load client cert");
 /// 
 /// // Server certificate and private key -- signed by CA
-/// # /*
-/// let server_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/server.crt").as_ref())
-/// # */
-/// # let server_cert = CertificateDer::from_pem_slice(&[][..])
+/// let server_cert = CertificateDer::from_pem_slice(std::fs::read("ssl/server.crt")?.as_ref())
 ///     .expect("Failed to load server cert");
 ///
-/// # /*
-/// let server_private_key = PrivateKeyDer::from_pem_slice(include_bytes!("../../assets/server.key").as_ref())
-/// # */
-/// # let server_private_key = PrivateKeyDer::from_pem_slice(&[][..])
+/// let server_private_key = PrivateKeyDer::from_pem_slice(std::fs::read("ssl/server.key")?.as_ref())
 ///     .expect("Failed to load client private key");
 /// 
 /// // Create a root cert store for the client which includes the server certificate
