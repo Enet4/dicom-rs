@@ -14,7 +14,7 @@ use std::{
 
 use crate::{
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME, association::{
-        Association, CloseSocket, NegotiatedOptions, SocketOptions, SyncAssociation, encode_pdu,
+        Association, NegotiatedOptions, SocketOptions, SyncAssociation, encode_pdu,
         private::SyncAssociationSealed, read_pdu_from_wire,
     }, pdu::{
         AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, LARGE_PDU_SIZE,
@@ -34,6 +34,8 @@ use super::{
 pub type TlsStream = rustls::StreamOwned<rustls::ClientConnection, std::net::TcpStream>;
 #[cfg(feature = "async-tls")]
 pub type AsyncTlsStream = tokio_rustls::client::TlsStream<tokio::net::TcpStream>;
+
+pub use crate::association::CloseSocket;
 
 /// Helper function to establish a TCP client connection
 fn tcp_connection<T>(
@@ -171,7 +173,7 @@ fn tls_connection<T>(
 /// // Loading certificates and keys for demonstration purposes
 /// let ca_cert = CertificateDer::from_pem_slice(std::fs::read("ssl/ca.crt")?.as_ref())
 ///     .expect("Failed to load client cert");
-/// 
+///
 /// // Server certificate -- signed by CA
 /// let server_cert = CertificateDer::from_pem_slice(std::fs::read("ssl/server.crt")?.as_ref())
 ///     .expect("Failed to load server cert");
@@ -181,7 +183,7 @@ fn tls_connection<T>(
 ///     .expect("Failed to load client cert");
 /// let client_private_key = PrivateKeyDer::from_pem_slice(std::fs::read("ssl/client.key")?.as_ref())
 ///     .expect("Failed to load client private key");
-/// 
+///
 /// // Create a root cert store for the client which includes the server certificate
 /// let mut certs = RootCertStore::empty();
 /// certs.add_parsable_certificates(vec![ca_cert.clone()]);
@@ -1068,6 +1070,20 @@ where S: CloseSocket + std::io::Read + std::io::Write{
     fn get_mut(&mut self) -> (&mut S, &mut BytesMut) {
         let Self { socket, read_buffer, .. } = self;
         (socket, read_buffer)
+    }
+}
+
+/// Trait with the behavior to synchronously release an association
+#[deprecated(since = "0.9.1", note = "Call `SyncAssociation::release` instead")]
+pub trait Release {
+    #[deprecated(since = "0.9.1", note = "Call `SyncAssociation::release` instead")]
+    fn release(&mut self) -> Result<()>;
+}
+
+#[allow(deprecated)]
+impl Release for ClientAssociation<std::net::TcpStream> {
+    fn release(&mut self) -> Result<()> {
+        SyncAssociationSealed::release(self)
     }
 }
 
