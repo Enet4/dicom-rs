@@ -126,7 +126,7 @@ fn create_test_config() -> Result<(Arc<rustls::ServerConfig>, Arc<rustls::Client
 fn test_tls_connection_sync() {
     // set up crypto provider -- Just use the default provider which is aws_lc_rs
 
-    use dicom_ul::{ServerAssociationOptions, association::SyncAssociation};
+    use dicom_ul::ServerAssociationOptions;
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind listener");
